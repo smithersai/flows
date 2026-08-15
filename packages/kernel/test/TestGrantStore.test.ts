@@ -1,13 +1,13 @@
+import { describe, expect, it } from "@effect/vitest"
 import { Capability } from "@smthrs/capability-next/Capability"
 import { Effect } from "effect"
-import { describe, expect, it } from "vitest"
 import { GrantStore } from "../src/GrantStore.ts"
 import * as TestGrantStore from "../src/test/TestGrantStore.ts"
 
 const read = new Capability({ action: "fs:read", resource: "/workspace/readme.md" })
 
 const itEffect = <A, E>(name: string, body: () => Effect.Effect<A, E>): void => {
-  it(name, () => Effect.runPromise(body()))
+  it.effect(name, () => body())
 }
 
 describe("TestGrantStore", () => {

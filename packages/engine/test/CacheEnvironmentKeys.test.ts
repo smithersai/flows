@@ -17,15 +17,15 @@ import type * as Crypto from "effect/Crypto"
  * descriptor of issue #57 — it is folded into BOTH key forms and a caller
  * cannot opt out of it.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { Action, Flow, FlowRuntime } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Effect, Exit, Layer, Schema } from "effect"
-import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it(name, () => runPromise(body()))
+  it.effect(name, () => withCrypto(body()))
 
 const flow = Flow.make("CacheEnvironmentKeys/flow", {
   payload: { id: Schema.String },

@@ -28,6 +28,7 @@
   },
   "devDependencies": {
     "@effect/platform-node": "4.0.0-rc.108",
+    "@effect/vitest": "4.0.0-rc.108",
     "@types/node": "25.9.5",
     "esbuild": "0.28.1",
     "typescript": "6.0.3",

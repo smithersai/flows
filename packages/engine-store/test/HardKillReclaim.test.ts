@@ -13,6 +13,7 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * because the hard-kill evidence (a `running` row with a stale
  * `heartbeat_at_ms`) lives in `flows_runs` itself.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { DurableWriter } from "@smthrs/database-next"
 import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import { Flow, FlowRuntime } from "@smthrs/flow-next"
@@ -26,11 +27,10 @@ import * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
-import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
 import * as Migrations from "../src/Migrations.ts"
-import { runPromise } from "./Sha256.ts"
+import { withCrypto } from "./Sha256.ts"
 
 const TestFlow = Flow.make("HardKillReclaim/Test", {
   payload: {},
@@ -98,8 +98,8 @@ const insertHardKilledRun = (runId: string) =>
 
 const run = <A, E, R>(
   effect: Effect.Effect<A, E, R>
-): Promise<A> =>
-  runPromise(
+) =>
+  withCrypto(
     Effect.scoped(effect as Effect.Effect<A, E, Scope.Scope>).pipe(
       Effect.provide(services),
       Effect.provide(TestClock.layer())
@@ -110,74 +110,77 @@ const staleAfterMs = Duration.toMillis(Ownership.heartbeatStaleAfter)
 const heartbeatMs = Duration.toMillis(Ownership.heartbeatInterval)
 
 describe("hard-killed running runs are reclaimed (issue #53)", () => {
-  it("the sweep steals a stale-running run and re-drives it to completion", async () => {
-    const result = await run(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      yield* insertHardKilledRun("hard-kill-redrive")
+  it.effect("the sweep steals a stale-running run and re-drives it to completion", () =>
+    Effect.gen(function*() {
+      const result = yield* run(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        yield* insertHardKilledRun("hard-kill-redrive")
 
-      const driver = yield* makeDriver("owner-2")
-      yield* driver.register(TestFlow, () => Effect.succeed("reclaimed"))
+        const driver = yield* makeDriver("owner-2")
+        yield* driver.register(TestFlow, () => Effect.succeed("reclaimed"))
 
-      // Cross the staleness horizon, then let the sweeper tick.
-      yield* TestClock.adjust(staleAfterMs + heartbeatMs)
-      let row = yield* store.get("hard-kill-redrive")
-      for (let i = 0; i < 10 && row.status !== "completed"; i++) {
-        yield* TestClock.adjust(heartbeatMs)
-        row = yield* store.get("hard-kill-redrive")
-      }
-      return { row }
+        // Cross the staleness horizon, then let the sweeper tick.
+        yield* TestClock.adjust(staleAfterMs + heartbeatMs)
+        let row = yield* store.get("hard-kill-redrive")
+        for (let i = 0; i < 10 && row.status !== "completed"; i++) {
+          yield* TestClock.adjust(heartbeatMs)
+          row = yield* store.get("hard-kill-redrive")
+        }
+        return { row }
+      }))
+
+      expect(result.row.status).toBe("completed")
+      expect(result.row.owner).toBeNull()
     }))
 
-    expect(result.row.status).toBe("completed")
-    expect(result.row.owner).toBeNull()
-  })
+  it.effect("requestCancel against a hard-killed run is eventually delivered", () =>
+    Effect.gen(function*() {
+      const result = yield* run(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        yield* insertHardKilledRun("hard-kill-cancel")
 
-  it("requestCancel against a hard-killed run is eventually delivered", async () => {
-    const result = await run(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      yield* insertHardKilledRun("hard-kill-cancel")
+        // Another process (the CLI) durably requests cancellation while the
+        // dead owner still nominally holds the run.
+        yield* store.requestCancel("hard-kill-cancel", 1)
 
-      // Another process (the CLI) durably requests cancellation while the
-      // dead owner still nominally holds the run.
-      yield* store.requestCancel("hard-kill-cancel", 1)
+        const driver = yield* makeDriver("owner-2")
+        // The flow body must never re-run: the re-activation cancel guard
+        // closes the run instead.
+        let bodyRuns = 0
+        yield* driver.register(TestFlow, () =>
+          Effect.sync(() => {
+            bodyRuns += 1
+          }).pipe(Effect.andThen(Effect.never)))
 
-      const driver = yield* makeDriver("owner-2")
-      // The flow body must never re-run: the re-activation cancel guard
-      // closes the run instead.
-      let bodyRuns = 0
-      yield* driver.register(TestFlow, () =>
-        Effect.sync(() => {
-          bodyRuns += 1
-        }).pipe(Effect.andThen(Effect.never)))
+        yield* TestClock.adjust(staleAfterMs + heartbeatMs)
+        let row = yield* store.get("hard-kill-cancel")
+        for (let i = 0; i < 10 && row.status !== "cancelled"; i++) {
+          yield* TestClock.adjust(heartbeatMs)
+          row = yield* store.get("hard-kill-cancel")
+        }
+        return { row, bodyRuns }
+      }))
 
-      yield* TestClock.adjust(staleAfterMs + heartbeatMs)
-      let row = yield* store.get("hard-kill-cancel")
-      for (let i = 0; i < 10 && row.status !== "cancelled"; i++) {
-        yield* TestClock.adjust(heartbeatMs)
-        row = yield* store.get("hard-kill-cancel")
-      }
-      return { row, bodyRuns }
+      expect(result.row.status).toBe("cancelled")
+      expect(result.bodyRuns).toBe(0)
     }))
 
-    expect(result.row.status).toBe("cancelled")
-    expect(result.bodyRuns).toBe(0)
-  })
+  it.effect("does not steal a running run whose heartbeat is still fresh", () =>
+    Effect.gen(function*() {
+      const result = yield* run(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        yield* insertHardKilledRun("hard-kill-fresh")
 
-  it("does not steal a running run whose heartbeat is still fresh", async () => {
-    const result = await run(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      yield* insertHardKilledRun("hard-kill-fresh")
+        const driver = yield* makeDriver("owner-2")
+        yield* driver.register(TestFlow, () => Effect.succeed("stolen-too-early"))
 
-      const driver = yield* makeDriver("owner-2")
-      yield* driver.register(TestFlow, () => Effect.succeed("stolen-too-early"))
+        // Tick well below the staleness horizon: the run must stay untouched.
+        yield* TestClock.adjust(3 * heartbeatMs)
+        const row = yield* store.get("hard-kill-fresh")
+        return { row }
+      }))
 
-      // Tick well below the staleness horizon: the run must stay untouched.
-      yield* TestClock.adjust(3 * heartbeatMs)
-      const row = yield* store.get("hard-kill-fresh")
-      return { row }
+      expect(result.row.status).toBe("running")
+      expect(result.row.owner).toEqual({ hostId: "dead-host", pid: 424242, nonce: "dead-nonce" })
     }))
-
-    expect(result.row.status).toBe("running")
-    expect(result.row.owner).toEqual({ hostId: "dead-host", pid: 424242, nonce: "dead-nonce" })
-  })
 })

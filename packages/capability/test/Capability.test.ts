@@ -1,5 +1,6 @@
-import { Option } from "effect"
+import { Option, Schema } from "effect"
 import { FastCheck } from "effect/testing"
+import { spawnSync } from "node:child_process"
 import { describe, expect, it } from "vitest"
 import * as Capability from "../src/Capability.ts"
 
@@ -8,6 +9,15 @@ const capability = (action: Capability.Action, resource: string): Capability.Cap
 
 const pattern = (action: Capability.PatternAction, resource: string): Capability.CapabilityPattern =>
   new Capability.CapabilityPattern({ action, resource })
+
+const capabilityModuleUrl = new URL("../src/Capability.ts", import.meta.url).href
+
+const repeatedStarProgram = `
+  import { CapabilityPattern, make, matches } from ${JSON.stringify(capabilityModuleUrl)}
+  const pattern = new CapabilityPattern({ action: "fs:read", resource: "a*a*a*a*a*b" })
+  const capability = make("fs:read", "a".repeat(10_000))
+  process.stdout.write(String(matches(pattern, capability)))
+`
 
 describe("Capability", () => {
   it("formats and parses resources containing colons", () => {
@@ -56,6 +66,61 @@ describe("Capability", () => {
     [pattern("net:*", "example.test"), capability("net:post", "other.test"), false]
   ])("matches %o against %o", (selectedPattern, selectedCapability, expected) => {
     expect(Capability.matches(selectedPattern, selectedCapability)).toBe(expected)
+  })
+
+  // BUG: Repeated `*` translation creates a catastrophically backtracking RegExp for this non-match.
+  it.fails("completes a 10k-character non-match for a repeated-star grant pattern", () => {
+    const matchProcess = spawnSync(
+      process.execPath,
+      ["--input-type=module", "--eval", repeatedStarProgram],
+      { encoding: "utf8", timeout: 30_000 }
+    )
+
+    expect(matchProcess.error).toBeUndefined()
+    expect(matchProcess.status).toBe(0)
+    expect(matchProcess.stdout).toBe("false")
+  })
+
+  it.each([".", "+", "(", ")", "[", "]", "^", "$", "|", "{", "}"] as const)(
+    "treats %s as a literal resource-pattern character",
+    (metacharacter) => {
+      const selectedPattern = pattern("fs:read", `prefix${metacharacter}suffix`)
+
+      expect(Capability.matches(selectedPattern, capability("fs:read", `prefix${metacharacter}suffix`))).toBe(true)
+      expect(Capability.matches(selectedPattern, capability("fs:read", "prefixxsuffix"))).toBe(false)
+    }
+  )
+
+  it("makes the trailing command argument wildcard optional without matching a prefix", () => {
+    const selectedPattern = pattern("proc:spawn", "npm *")
+
+    expect(Capability.matches(selectedPattern, capability("proc:spawn", "npm"))).toBe(true)
+    expect(Capability.matches(selectedPattern, capability("proc:spawn", "npm install pkg"))).toBe(true)
+    expect(Capability.matches(selectedPattern, capability("proc:spawn", "npmx"))).toBe(false)
+  })
+
+  it("keeps POSIX resource matching case-sensitive", () => {
+    expect(
+      Capability.matches(pattern("fs:read", "/Work/**"), capability("fs:read", "/work/a"))
+    ).toBe(false)
+  })
+
+  it("preserves resource delimiters and newlines after a valid action while rejecting a malformed action prefix", () => {
+    expect(Option.getOrNull(Capability.parse("fs:read:"))).toEqual(capability("fs:read", ""))
+    expect(Option.getOrNull(Capability.parse("fs:read::leading"))).toEqual(capability("fs:read", ":leading"))
+    expect(Option.getOrNull(Capability.parse("fs:read:trailing:"))).toEqual(capability("fs:read", "trailing:"))
+    expect(Option.getOrNull(Capability.parse("fs:read:line\nbreak"))).toEqual(
+      capability("fs:read", "line\nbreak")
+    )
+    expect(Option.isNone(Capability.parse(":fs:read:resource"))).toBe(true)
+  })
+
+  it("rejects journal payloads with unknown exact and pattern actions", () => {
+    const decodeCapability = Schema.decodeUnknownResult(Capability.Capability)
+    const decodePattern = Schema.decodeUnknownResult(Capability.CapabilityPattern)
+
+    expect(decodeCapability({ action: "fs:delete", resource: "/workspace/readme.md" })._tag).toBe("Failure")
+    expect(decodePattern({ action: "fs:delete", resource: "/workspace/**" })._tag).toBe("Failure")
   })
 
   it.each([

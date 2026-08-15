@@ -8,6 +8,7 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * row. The first resume parks visibly; the next returns the durable outcome
  * without touching the poisoned evidence or re-running the action.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { Action, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow-next"
 import { Journal } from "@smthrs/journal-next"
 import * as Notifying from "@smthrs/journal-next/test/Notifying"
@@ -17,18 +18,16 @@ import { AttemptStore, RunStore } from "@smthrs/run-store-next"
 import { CacheStore } from "@smthrs/step-cache-next"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
-import * as ManagedRuntime from "effect/ManagedRuntime"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import { TestClock } from "effect/testing"
-import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
-import { runPromise } from "./Sha256.ts"
+import { withCrypto } from "./Sha256.ts"
 
 const QuarantineFlow = Flow.make("AttemptQuarantine/Flow", {
   payload: {},
@@ -72,202 +71,203 @@ describe("succeeded-row corruption quarantines its evidence and heals on resume 
     expect(RetryPolicy.isNonRetryable(policy, quarantined)).toBe(true)
   })
 
-  it("parks once, then resumes from the durable outcome while the evidence remains corrupt", async () => {
-    let dispatches = 0
-    const sealed = Action.make({
-      name: "AttemptQuarantine/sealed",
-      success: Schema.String,
-      tier: "sealed",
-      idempotencyKey: "quarantine-v1",
-      metadata: { readSet: [], writeSet: ["dist/manifest.json"], boundaryMode: "hard" },
-      execute: Effect.suspend(() => {
-        dispatches++
-        return Effect.succeed("durable-outcome")
-      })
-    })
-    const state = DurableEngineState.makeMemory()
-    let evidenceCorrupt = false
-    const boundary = Layer.succeed(
-      StepBoundary.StepBoundary,
-      StepBoundary.make({
-        prepare: (descriptor) => Effect.succeed({ descriptor, readSnapshot: StepBoundary.exactReads(descriptor) }),
-        settle: () =>
-          Effect.succeed({
-            declaredOutputs: { outputs: [] },
-            diffIdentity: "quarantine-diff",
-            wholeTreeWritesVerified: true
-          }),
-        replayOutputs: () => evidenceCorrupt ? Effect.fail(corruptionError) : Effect.succeed(undefined)
-      })
-    )
-    const runtime = ManagedRuntime.make(
-      Layer.mergeAll(
-        TestStores.layer(),
-        TestClock.layer(),
-        Layer.succeed(DurableEngineState.DurableEngineState, state),
-        Layer.succeed(Jj.Jj, jj),
-        Action.layerCacheEnvironment({ layers: [], capabilities: {} }),
-        boundary
-      ).pipe(Layer.provideMerge(NodeCrypto.layer))
-    )
-    const run = <A, E>(effect: Effect.Effect<A, E, unknown>) =>
-      runtime.runPromise(
-        effect as Effect.Effect<A, E, ManagedRuntime.ManagedRuntime.Services<typeof runtime>>
-      )
-    const makeEngine = EngineStore.make({
-      owner: { hostId: "quarantine-host" },
-      journalSource: "quarantine-test",
-      isAlive: () => Effect.succeed(false)
-    })
-    // The sealed step key folds declaration and metadata material the test
-    // must not re-derive by hand: a probe run discovers the real digest from
-    // its own attempt-started journal record.
-    const keyDigest = await run(
-      Effect.gen(function*() {
-        const engine = yield* makeEngine
-        yield* engine.register(QuarantineFlow, () => sealed as never)
-        yield* engine.execute(QuarantineFlow, {
-          executionId: "quarantine-probe",
-          payload: {},
-          discard: true
+  it.effect("parks once, then resumes from the durable outcome while the evidence remains corrupt", () =>
+    Effect.gen(function*() {
+      let dispatches = 0
+      const sealed = Action.make({
+        name: "AttemptQuarantine/sealed",
+        success: Schema.String,
+        tier: "sealed",
+        idempotencyKey: "quarantine-v1",
+        metadata: { readSet: [], writeSet: ["dist/manifest.json"], boundaryMode: "hard" },
+        execute: Effect.suspend(() => {
+          dispatches++
+          return Effect.succeed("durable-outcome")
         })
-        const journal = yield* Journal.Journal
-        yield* journal.flush
-        const page = yield* journal.entries({ runId: "quarantine-probe" as never, limit: 50 })
-        const started = page.entries.find((entry) => entry.eventType === "flows.engine.attempt-started")
-        const digest = (started?.payload as { readonly stepKeyDigest: string }).stepKeyDigest
-        // The probe converged its result into the shared cache; the seam
-        // under test is the succeeded ATTEMPT row, so clear the cache.
-        const cache = yield* CacheStore.CacheStore
-        yield* cache.evict(digest)
-        return digest
-      }).pipe(Effect.scoped)
-    )
-    expect(dispatches).toBe(1)
-    const attemptId = {
-      runId: "quarantine-run",
-      stepKeyDigest: keyDigest,
-      attempt: 1
-    }
-
-    // Process 1 (modelled durably, like the rehydration cells): the attempt
-    // sealed — its side effects ran and `attempts.finish` recorded the
-    // outcome with its boundary evidence — but the process died before the
-    // run finished, releasing the run reclaimably. No cache row converged
-    // (the crash landed between `finish` and `cache.put`), so the next
-    // dispatch replays the succeeded ATTEMPT row — the seam under test.
-    const seedOwner = { hostId: "quarantine-seed", pid: 1, nonce: "quarantine-seed" }
-    await run(
-      Effect.gen(function*() {
-        const runs = yield* RunStore.RunStore
-        const attempts = yield* AttemptStore.AttemptStore
-        const stateJson = JSON.stringify({
-          version: 1,
-          flowName: "AttemptQuarantine/Flow",
-          payload: {}
-        })
-        yield* runs.create("quarantine-run", stateJson)
-        const row = yield* runs.get("quarantine-run")
-        yield* runs.claimAndOwn(
-          "quarantine-run",
-          { status: row.status, owner: row.owner, heartbeatAtMs: row.heartbeatAtMs },
-          seedOwner,
-          0
-        )
-        yield* attempts.put(
-          { ...attemptId, state: "running", startedAtMs: 0, meta: { tier: "sealed" } },
-          seedOwner
-        )
-        yield* attempts.finish({
-          ...attemptId,
-          state: "succeeded",
-          finishedAtMs: 0,
-          outcome: "durable-outcome",
-          meta: {
-            tier: "sealed",
-            boundary: {
+      })
+      const state = DurableEngineState.makeMemory()
+      let evidenceCorrupt = false
+      const boundary = Layer.succeed(
+        StepBoundary.StepBoundary,
+        StepBoundary.make({
+          prepare: (descriptor) => Effect.succeed({ descriptor, readSnapshot: StepBoundary.exactReads(descriptor) }),
+          settle: () =>
+            Effect.succeed({
               declaredOutputs: { outputs: [] },
               diffIdentity: "quarantine-diff",
               wholeTreeWritesVerified: true
-            },
-            readSetVerified: true
-          }
-        }, seedOwner)
-        // The dying process released the run reclaimably.
-        yield* runs.transitionOwned("quarantine-run", seedOwner, "suspended", stateJson)
+            }),
+          replayOutputs: () => evidenceCorrupt ? Effect.fail(corruptionError) : Effect.succeed(undefined)
+        })
+      )
+      // One built context shared by every round, the way `ManagedRuntime` shared
+      // it before: the stores and the durable state must survive across runs.
+      const services = yield* Layer.build(
+        Layer.mergeAll(
+          TestStores.layer(),
+          TestClock.layer(),
+          Layer.succeed(DurableEngineState.DurableEngineState, state),
+          Layer.succeed(Jj.Jj, jj),
+          Action.layerCacheEnvironment({ layers: [], capabilities: {} }),
+          boundary
+        ).pipe(Layer.provideMerge(NodeCrypto.layer))
+      )
+      const run = <A, E>(effect: Effect.Effect<A, E, unknown>) =>
+        Effect.provide(effect as Effect.Effect<A, E, never>, services)
+      const makeEngine = EngineStore.make({
+        owner: { hostId: "quarantine-host" },
+        journalSource: "quarantine-test",
+        isAlive: () => Effect.succeed(false)
       })
-    )
+      // The sealed step key folds declaration and metadata material the test
+      // must not re-derive by hand: a probe run discovers the real digest from
+      // its own attempt-started journal record.
+      const keyDigest = yield* run(
+        Effect.gen(function*() {
+          const engine = yield* makeEngine
+          yield* engine.register(QuarantineFlow, () => sealed as never)
+          yield* engine.execute(QuarantineFlow, {
+            executionId: "quarantine-probe",
+            payload: {},
+            discard: true
+          })
+          const journal = yield* Journal.Journal
+          yield* journal.flush
+          const page = yield* journal.entries({ runId: "quarantine-probe" as never, limit: 50 })
+          const started = page.entries.find((entry) => entry.eventType === "flows.engine.attempt-started")
+          const digest = (started?.payload as { readonly stepKeyDigest: string }).stepKeyDigest
+          // The probe converged its result into the shared cache; the seam
+          // under test is the succeeded ATTEMPT row, so clear the cache.
+          const cache = yield* CacheStore.CacheStore
+          yield* cache.evict(digest)
+          return digest
+        }).pipe(Effect.scoped)
+      )
+      expect(dispatches).toBe(1)
+      const attemptId = {
+        runId: "quarantine-run",
+        stepKeyDigest: keyDigest,
+        attempt: 1
+      }
 
-    // Process 2: a disk fault corrupted the recorded evidence. The resume
-    // must not fail the run terminally and must not re-execute the sealed
-    // body — it parks the run for an operator.
-    evidenceCorrupt = true
-    const parked = await run(
-      Effect.gen(function*() {
-        const engine = yield* makeEngine
-        yield* engine.register(QuarantineFlow, () => sealed as never)
-        yield* engine.execute(QuarantineFlow, {
-          executionId: "quarantine-run",
-          payload: {},
-          discard: true
+      // Process 1 (modelled durably, like the rehydration cells): the attempt
+      // sealed — its side effects ran and `attempts.finish` recorded the
+      // outcome with its boundary evidence — but the process died before the
+      // run finished, releasing the run reclaimably. No cache row converged
+      // (the crash landed between `finish` and `cache.put`), so the next
+      // dispatch replays the succeeded ATTEMPT row — the seam under test.
+      const seedOwner = { hostId: "quarantine-seed", pid: 1, nonce: "quarantine-seed" }
+      yield* run(
+        Effect.gen(function*() {
+          const runs = yield* RunStore.RunStore
+          const attempts = yield* AttemptStore.AttemptStore
+          const stateJson = JSON.stringify({
+            version: 1,
+            flowName: "AttemptQuarantine/Flow",
+            payload: {}
+          })
+          yield* runs.create("quarantine-run", stateJson)
+          const row = yield* runs.get("quarantine-run")
+          yield* runs.claimAndOwn(
+            "quarantine-run",
+            { status: row.status, owner: row.owner, heartbeatAtMs: row.heartbeatAtMs },
+            seedOwner,
+            0
+          )
+          yield* attempts.put(
+            { ...attemptId, state: "running", startedAtMs: 0, meta: { tier: "sealed" } },
+            seedOwner
+          )
+          yield* attempts.finish({
+            ...attemptId,
+            state: "succeeded",
+            finishedAtMs: 0,
+            outcome: "durable-outcome",
+            meta: {
+              tier: "sealed",
+              boundary: {
+                declaredOutputs: { outputs: [] },
+                diffIdentity: "quarantine-diff",
+                wholeTreeWritesVerified: true
+              },
+              readSetVerified: true
+            }
+          }, seedOwner)
+          // The dying process released the run reclaimably.
+          yield* runs.transitionOwned("quarantine-run", seedOwner, "suspended", stateJson)
         })
-        const store = yield* RunStore.RunStore
-        const journal = yield* Journal.Journal
-        yield* journal.flush
-        const page = yield* journal.entries({ runId: "quarantine-run" as never, limit: 50 })
-        return {
-          row: yield* store.get("quarantine-run"),
-          waiting: yield* state.waiting("quarantine-run"),
-          sweep: yield* state.waitingRuns({ reason: "quarantine" }),
-          releasedSweep: yield* state.waitingRuns({ reason: "released" })
-        }
-      }).pipe(Effect.scoped)
-    )
+      )
 
-    // Parked, not failed: the run is suspended under the typed quarantine
-    // reason, keyed to the poisoned attempt for the operator.
-    expect(parked.row.status).toBe("suspended")
-    const waiting = Option.getOrThrow(parked.waiting)
-    expect(waiting.reason).toBe("quarantine")
-    expect(waiting.token).toBe(keyDigest)
-    expect(parked.sweep.map((row) => row.runId)).toEqual(["quarantine-run"])
-    // The reclaim sweep must never see it: quarantine is not `released`.
-    expect(parked.releasedSweep).toEqual([])
-    expect(dispatches).toBe(1)
+      // Process 2: a disk fault corrupted the recorded evidence. The resume
+      // must not fail the run terminally and must not re-execute the sealed
+      // body — it parks the run for an operator.
+      evidenceCorrupt = true
+      const parked = yield* run(
+        Effect.gen(function*() {
+          const engine = yield* makeEngine
+          yield* engine.register(QuarantineFlow, () => sealed as never)
+          yield* engine.execute(QuarantineFlow, {
+            executionId: "quarantine-run",
+            payload: {},
+            discard: true
+          })
+          const store = yield* RunStore.RunStore
+          const journal = yield* Journal.Journal
+          yield* journal.flush
+          const page = yield* journal.entries({ runId: "quarantine-run" as never, limit: 50 })
+          return {
+            row: yield* store.get("quarantine-run"),
+            waiting: yield* state.waiting("quarantine-run"),
+            sweep: yield* state.waitingRuns({ reason: "quarantine" }),
+            releasedSweep: yield* state.waitingRuns({ reason: "released" })
+          }
+        }).pipe(Effect.scoped)
+      )
 
-    // No operator repairs the bytes. The first detection must have quarantined
-    // only the poisoned replay evidence off the succeeded row, so the next
-    // resume completes from the durable outcome without re-reading that
-    // evidence or re-executing the sealed body.
-    const resumed = await run(
-      Effect.gen(function*() {
-        const engine = yield* makeEngine
-        yield* engine.register(QuarantineFlow, () => sealed as never)
-        yield* engine.execute(QuarantineFlow, {
-          executionId: "quarantine-run",
-          payload: {},
-          discard: true
-        })
-        const store = yield* RunStore.RunStore
-        const attempts = yield* AttemptStore.AttemptStore
-        return {
-          row: yield* store.get("quarantine-run"),
-          waiting: yield* state.waiting("quarantine-run"),
-          attempt: yield* attempts.get(attemptId)
-        }
-      }).pipe(Effect.scoped)
-    )
+      // Parked, not failed: the run is suspended under the typed quarantine
+      // reason, keyed to the poisoned attempt for the operator.
+      expect(parked.row.status).toBe("suspended")
+      const waiting = Option.getOrThrow(parked.waiting)
+      expect(waiting.reason).toBe("quarantine")
+      expect(waiting.token).toBe(keyDigest)
+      expect(parked.sweep.map((row) => row.runId)).toEqual(["quarantine-run"])
+      // The reclaim sweep must never see it: quarantine is not `released`.
+      expect(parked.releasedSweep).toEqual([])
+      expect(dispatches).toBe(1)
 
-    expect(resumed.row.status).toBe("completed")
-    expect(Option.isNone(resumed.waiting)).toBe(true)
-    expect(Option.getOrThrow(resumed.attempt).meta).toMatchObject({
-      tier: "sealed",
-      boundaryQuarantined: true
-    })
-    expect(Option.getOrThrow(resumed.attempt).meta).not.toHaveProperty("boundary")
-    expect(dispatches).toBe(1)
-    await runtime.dispose()
-  })
+      // No operator repairs the bytes. The first detection must have quarantined
+      // only the poisoned replay evidence off the succeeded row, so the next
+      // resume completes from the durable outcome without re-reading that
+      // evidence or re-executing the sealed body.
+      const resumed = yield* run(
+        Effect.gen(function*() {
+          const engine = yield* makeEngine
+          yield* engine.register(QuarantineFlow, () => sealed as never)
+          yield* engine.execute(QuarantineFlow, {
+            executionId: "quarantine-run",
+            payload: {},
+            discard: true
+          })
+          const store = yield* RunStore.RunStore
+          const attempts = yield* AttemptStore.AttemptStore
+          return {
+            row: yield* store.get("quarantine-run"),
+            waiting: yield* state.waiting("quarantine-run"),
+            attempt: yield* attempts.get(attemptId)
+          }
+        }).pipe(Effect.scoped)
+      )
+
+      expect(resumed.row.status).toBe("completed")
+      expect(Option.isNone(resumed.waiting)).toBe(true)
+      expect(Option.getOrThrow(resumed.attempt).meta).toMatchObject({
+        tier: "sealed",
+        boundaryQuarantined: true
+      })
+      expect(Option.getOrThrow(resumed.attempt).meta).not.toHaveProperty("boundary")
+      expect(dispatches).toBe(1)
+      // The built context is released with the test's own scope.
+    }))
 })
 
 const CancelRaceFlow = Flow.make("AttemptQuarantine/CancelRace", {
@@ -279,70 +279,71 @@ const CancelRaceFlow = Flow.make("AttemptQuarantine/CancelRace", {
 const fakeEngine = {} as unknown as FlowRuntime.FlowRuntime["Service"]
 
 describe("a cancel that races the quarantine park", () => {
-  it("cancels the run instead of parking it, because the park's transition guard sees the request", async () => {
-    // The quarantine park and the transition that follows it are separated by
-    // exactly one instant, and `requestCancel` is unfenced — another process
-    // can land one there. The transition carries `cancelRequested: "absent"`,
-    // so it reports `GuardFailed` and the run cancels rather than parking for
-    // an operator who was already told to stop. Injecting the request in the
-    // park's `after` hook makes that instant deterministic; racing it against
-    // the cancel poll would not be.
-    const executionId = "quarantine-cancel-race"
-    const quarantined = new ActionPersistence.AttemptEvidenceQuarantined({
-      code: "attempt_evidence_quarantined",
-      keyDigest: "cafebabe",
-      attempt: 1,
-      path: "dist/manifest.json",
-      recordedDigest: "aa".repeat(32),
-      measuredDigest: "bb".repeat(32)
-    })
+  it.effect("cancels the run instead of parking it, because the park's transition guard sees the request", () =>
+    Effect.gen(function*() {
+      // The quarantine park and the transition that follows it are separated by
+      // exactly one instant, and `requestCancel` is unfenced — another process
+      // can land one there. The transition carries `cancelRequested: "absent"`,
+      // so it reports `GuardFailed` and the run cancels rather than parking for
+      // an operator who was already told to stop. Injecting the request in the
+      // park's `after` hook makes that instant deterministic; racing it against
+      // the cancel poll would not be.
+      const executionId = "quarantine-cancel-race"
+      const quarantined = new ActionPersistence.AttemptEvidenceQuarantined({
+        code: "attempt_evidence_quarantined",
+        keyDigest: "cafebabe",
+        attempt: 1,
+        path: "dist/manifest.json",
+        recordedDigest: "aa".repeat(32),
+        measuredDigest: "bb".repeat(32)
+      })
 
-    const outcome = await runPromise(
-      Effect.gen(function*() {
-        const store = yield* RunStore.RunStore
-        const state = DurableEngineState.makeMemory()
-        const driver = yield* RunDriver.make({
-          owner: { hostId: "quarantine-race-host", pid: 1, nonce: "quarantine-race" },
-          journalSource: "quarantine-race",
-          isAlive: () => Effect.succeed(false),
-          engine: Effect.succeed(fakeEngine)
-        }).pipe(
-          Effect.provideService(
-            DurableEngineState.DurableEngineState,
-            Notifying.wrap(state, (op, order, args) =>
-              op === "park" && order === "after" &&
-                (args[1] as { readonly reason: string }).reason === "quarantine"
-                ? store.requestCancel(executionId, 1).pipe(Effect.asVoid, Effect.orDie)
-                : Effect.void)
+      const outcome = yield* withCrypto(
+        Effect.gen(function*() {
+          const store = yield* RunStore.RunStore
+          const state = DurableEngineState.makeMemory()
+          const driver = yield* RunDriver.make({
+            owner: { hostId: "quarantine-race-host", pid: 1, nonce: "quarantine-race" },
+            journalSource: "quarantine-race",
+            isAlive: () => Effect.succeed(false),
+            engine: Effect.succeed(fakeEngine)
+          }).pipe(
+            Effect.provideService(
+              DurableEngineState.DurableEngineState,
+              Notifying.wrap(state, (op, order, args) =>
+                op === "park" && order === "after" &&
+                  (args[1] as { readonly reason: string }).reason === "quarantine"
+                  ? store.requestCancel(executionId, 1).pipe(Effect.asVoid, Effect.orDie)
+                  : Effect.void)
+            )
           )
+          yield* driver.register(CancelRaceFlow, () => Effect.die(quarantined))
+          yield* driver.execute(CancelRaceFlow, { executionId, payload: {}, discard: true })
+          const journal = yield* Journal.Journal
+          yield* journal.flush
+          const page = yield* journal.entries({ runId: executionId as never, limit: 50 })
+          return {
+            row: yield* store.get(executionId),
+            waiting: yield* state.waiting(executionId),
+            decisions: page.entries
+              .filter((entry) => entry.eventType === "flows.engine.run-decision")
+              .map((entry) => (entry.payload as { readonly decision: string }).decision),
+            interruptions: page.entries.filter((entry) => entry.eventType === "flows.engine.interrupted")
+          }
+        }).pipe(
+          Effect.provide(TestStores.layer()),
+          Effect.provide(TestClock.layer()),
+          Effect.scoped,
+          Effect.orDie
         )
-        yield* driver.register(CancelRaceFlow, () => Effect.die(quarantined))
-        yield* driver.execute(CancelRaceFlow, { executionId, payload: {}, discard: true })
-        const journal = yield* Journal.Journal
-        yield* journal.flush
-        const page = yield* journal.entries({ runId: executionId as never, limit: 50 })
-        return {
-          row: yield* store.get(executionId),
-          waiting: yield* state.waiting(executionId),
-          decisions: page.entries
-            .filter((entry) => entry.eventType === "flows.engine.run-decision")
-            .map((entry) => (entry.payload as { readonly decision: string }).decision),
-          interruptions: page.entries.filter((entry) => entry.eventType === "flows.engine.interrupted")
-        }
-      }).pipe(
-        Effect.provide(TestStores.layer()),
-        Effect.provide(TestClock.layer()),
-        Effect.scoped,
-        Effect.orDie
       )
-    )
 
-    expect(outcome.row.status).toBe("cancelled")
-    // No `quarantined` decision: the park never became durable state.
-    expect(outcome.decisions).not.toContain("quarantined")
-    expect(outcome.interruptions).toHaveLength(1)
-    // The cancel clears the waiting row it raced.
-    expect(Option.isNone(outcome.waiting)).toBe(true)
-  })
+      expect(outcome.row.status).toBe("cancelled")
+      // No `quarantined` decision: the park never became durable state.
+      expect(outcome.decisions).not.toContain("quarantined")
+      expect(outcome.interruptions).toHaveLength(1)
+      // The cancel clears the waiting row it raced.
+      expect(Option.isNone(outcome.waiting)).toBe(true)
+    }))
 })
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"

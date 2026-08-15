@@ -1,6 +1,6 @@
+import { describe, expect, it } from "@effect/vitest"
 import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import { Cause, Deferred, Effect, Exit, Fiber, Layer, Result, Stream } from "effect"
-import { describe, expect, it } from "vitest"
 import { Journal } from "../src/Journal.ts"
 import { Input, type RunId, type Seq, type SourceId } from "../src/JournalEvent.ts"
 import * as Migrations from "../src/Migrations.ts"
@@ -10,7 +10,7 @@ import * as SqlJournal from "../src/SqlJournal.ts"
 const runId = (value: string): RunId => value as RunId
 const sourceId = (value: string): SourceId => value as SourceId
 
-const effect = <E>(name: string, body: () => Effect.Effect<void, E>) => it(name, () => Effect.runPromise(body()))
+const effect = <E>(name: string, body: () => Effect.Effect<void, E>) => it.effect(name, () => body())
 
 const input = (
   run: RunId,

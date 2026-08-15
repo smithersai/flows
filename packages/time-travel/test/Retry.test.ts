@@ -1,9 +1,9 @@
+import { describe, expect, it } from "@effect/vitest"
 import * as Jj from "@smthrs/jj-next"
 import { CacheStore } from "@smthrs/step-cache-next"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
-import { describe, expect, it } from "vitest"
 import type { EffectRecord, EffectTier } from "../src/EffectBoundary.ts"
 import * as EffectHandlerRegistry from "../src/internal/EffectHandlerRegistry.ts"
 import * as Retry from "../src/internal/Retry.ts"
@@ -62,186 +62,192 @@ const jj = (
   })
 
 describe("Retry", () => {
-  it("returns a sealed cache hit without invoking the producer", async () => {
-    let reruns = 0
-    const entry: CacheStore.CacheEntry = {
-      keyDigest: "cache-key",
-      result: { answer: 42 },
-      meta: {},
-      createdAtMs: 0,
-      recordedRunId: "run",
-      recordedEventSeq: 5
-    }
-    const result = await Effect.runPromise(
-      provide(
-        Retry.retry({
-          effect: crossed("sealed", { cacheKey: "cache-key" }),
-          previousAttempt: 1,
-          previousNonce: "poison",
-          makeNonce: () => Effect.succeed("fresh"),
-          rerun: () =>
-            Effect.sync(() => {
-              reruns += 1
-              return "rerun"
-            })
-        }),
-        cache(Option.some(entry)),
-        jj()
+  it.effect("returns a sealed cache hit without invoking the producer", () =>
+    Effect.gen(function*() {
+      let reruns = 0
+      const entry: CacheStore.CacheEntry = {
+        keyDigest: "cache-key",
+        result: { answer: 42 },
+        meta: {},
+        createdAtMs: 0,
+        recordedRunId: "run",
+        recordedEventSeq: 5
+      }
+      const result = yield* (
+        provide(
+          Retry.retry({
+            effect: crossed("sealed", { cacheKey: "cache-key" }),
+            previousAttempt: 1,
+            previousNonce: "poison",
+            makeNonce: () => Effect.succeed("fresh"),
+            rerun: () =>
+              Effect.sync(() => {
+                reruns += 1
+                return "rerun"
+              })
+          }),
+          cache(Option.some(entry)),
+          jj()
+        )
       )
-    )
 
-    expect(result).toEqual({
-      _tag: "CacheHit",
-      value: { answer: 42 },
-      attempt: 2,
-      nonce: "fresh"
-    })
-    expect(reruns).toBe(0)
-  })
+      expect(result).toEqual({
+        _tag: "CacheHit",
+        value: { answer: 42 },
+        attempt: 2,
+        nonce: "fresh"
+      })
+      expect(reruns).toBe(0)
+    }))
 
-  it("rejects a byte-identical poison pill with a new attempt and nonce", async () => {
-    const contexts: Array<Retry.AttemptContext> = []
-    const result = await Effect.runPromise(
-      provide(
-        Retry.retry({
-          effect: crossed("sealed", { cacheKey: "missing" }),
-          previousAttempt: 7,
-          previousNonce: "poison",
-          makeNonce: () => Effect.succeed("poison"),
-          rerun: (context) =>
-            Effect.sync(() => {
-              contexts.push(context)
-              return "ok"
-            })
-        }),
-        cache(Option.none()),
-        jj()
+  it.effect("rejects a byte-identical poison pill with a new attempt and nonce", () =>
+    Effect.gen(function*() {
+      const contexts: Array<Retry.AttemptContext> = []
+      const result = yield* (
+        provide(
+          Retry.retry({
+            effect: crossed("sealed", { cacheKey: "missing" }),
+            previousAttempt: 7,
+            previousNonce: "poison",
+            makeNonce: () => Effect.succeed("poison"),
+            rerun: (context) =>
+              Effect.sync(() => {
+                contexts.push(context)
+                return "ok"
+              })
+          }),
+          cache(Option.none()),
+          jj()
+        )
       )
-    )
 
-    expect(result._tag).toBe("Rerun")
-    expect(contexts).toEqual([{
-      attempt: 8,
-      nonce: "poison:retry:8",
-      restartAt: "durable-boundary",
-      resumeProviderStream: false
-    }])
-  })
+      expect(result._tag).toBe("Rerun")
+      expect(contexts).toEqual([{
+        attempt: 8,
+        nonce: "poison:retry:8",
+        restartAt: "durable-boundary",
+        resumeProviderStream: false
+      }])
+    }))
 
-  it("restores the recorded jj snapshot before a compensable rerun", async () => {
-    const order: Array<string> = []
-    const result = await Effect.runPromise(
-      provide(
-        Retry.retry({
-          effect: crossed("compensable", { changeId: "before-attempt" }),
-          previousAttempt: 2,
-          previousNonce: "old",
-          makeNonce: () => Effect.succeed("new"),
-          rerun: () =>
-            Effect.sync(() => {
-              order.push("rerun")
-              return "ok"
-            })
-        }),
-        cache(Option.none()),
-        jj((changeId) => order.push(`restore:${changeId}`))
+  it.effect("restores the recorded jj snapshot before a compensable rerun", () =>
+    Effect.gen(function*() {
+      const order: Array<string> = []
+      const result = yield* (
+        provide(
+          Retry.retry({
+            effect: crossed("compensable", { changeId: "before-attempt" }),
+            previousAttempt: 2,
+            previousNonce: "old",
+            makeNonce: () => Effect.succeed("new"),
+            rerun: () =>
+              Effect.sync(() => {
+                order.push("rerun")
+                return "ok"
+              })
+          }),
+          cache(Option.none()),
+          jj((changeId) => order.push(`restore:${changeId}`))
+        )
       )
-    )
 
-    expect(result._tag).toBe("Rerun")
-    expect(order).toEqual(["restore:before-attempt", "rerun"])
-  })
+      expect(result._tag).toBe("Rerun")
+      expect(order).toEqual(["restore:before-attempt", "rerun"])
+    }))
 
-  it("returns a typed outcome for an irreversible retry without an idempotency key", async () => {
-    let reruns = 0
-    const result = await Effect.runPromise(
-      provide(
-        Retry.retry({
-          effect: crossed("irreversible"),
-          previousAttempt: 1,
-          previousNonce: "old",
-          makeNonce: () => Effect.succeed("new"),
-          rerun: () =>
-            Effect.sync(() => {
-              reruns += 1
-              return "sent"
-            })
-        }),
-        cache(Option.none()),
-        jj()
+  it.effect("returns a typed outcome for an irreversible retry without an idempotency key", () =>
+    Effect.gen(function*() {
+      let reruns = 0
+      const result = yield* (
+        provide(
+          Retry.retry({
+            effect: crossed("irreversible"),
+            previousAttempt: 1,
+            previousNonce: "old",
+            makeNonce: () => Effect.succeed("new"),
+            rerun: () =>
+              Effect.sync(() => {
+                reruns += 1
+                return "sent"
+              })
+          }),
+          cache(Option.none()),
+          jj()
+        )
       )
-    )
 
-    expect(result).toMatchObject({
-      _tag: "Blocked",
-      reason: "idempotency_key_required",
-      attempt: 2,
-      nonce: "new"
-    })
-    expect(reruns).toBe(0)
-  })
+      expect(result).toMatchObject({
+        _tag: "Blocked",
+        reason: "idempotency_key_required",
+        attempt: 2,
+        nonce: "new"
+      })
+      expect(reruns).toBe(0)
+    }))
 
-  it("passes an irreversible idempotency key to the fresh attempt", async () => {
-    const contexts: Array<Retry.AttemptContext> = []
-    const result = await Effect.runPromise(
-      provide(
-        Retry.retry({
-          effect: crossed("irreversible", { idempotencyKey: "mail:123" }),
-          previousAttempt: 3,
-          previousNonce: "old",
-          makeNonce: () => Effect.succeed("new"),
-          rerun: (context) =>
-            Effect.sync(() => {
-              contexts.push(context)
-              return "sent"
-            })
-        }),
-        cache(Option.none()),
-        jj()
+  it.effect("passes an irreversible idempotency key to the fresh attempt", () =>
+    Effect.gen(function*() {
+      const contexts: Array<Retry.AttemptContext> = []
+      const result = yield* (
+        provide(
+          Retry.retry({
+            effect: crossed("irreversible", { idempotencyKey: "mail:123" }),
+            previousAttempt: 3,
+            previousNonce: "old",
+            makeNonce: () => Effect.succeed("new"),
+            rerun: (context) =>
+              Effect.sync(() => {
+                contexts.push(context)
+                return "sent"
+              })
+          }),
+          cache(Option.none()),
+          jj()
+        )
       )
-    )
 
-    expect(result._tag).toBe("Rerun")
-    expect(contexts).toEqual([{
-      attempt: 4,
-      nonce: "new",
-      idempotencyKey: "mail:123",
-      restartAt: "durable-boundary",
-      resumeProviderStream: false
-    }])
-  })
+      expect(result._tag).toBe("Rerun")
+      expect(contexts).toEqual([{
+        attempt: 4,
+        nonce: "new",
+        idempotencyKey: "mail:123",
+        restartAt: "durable-boundary",
+        resumeProviderStream: false
+      }])
+    }))
 
-  it("never retries from a non-durable boundary", async () => {
-    let reruns = 0
-    const result = await Effect.runPromise(
-      provide(
-        Retry.retry({
-          effect: crossed("sealed", { durableBoundary: false }),
-          previousAttempt: 1,
-          previousNonce: "old",
-          makeNonce: () => Effect.succeed("new"),
-          rerun: () =>
-            Effect.sync(() => {
-              reruns += 1
-              return "bad"
-            })
-        }),
-        cache(Option.none()),
-        jj()
+  it.effect("never retries from a non-durable boundary", () =>
+    Effect.gen(function*() {
+      let reruns = 0
+      const result = yield* (
+        provide(
+          Retry.retry({
+            effect: crossed("sealed", { durableBoundary: false }),
+            previousAttempt: 1,
+            previousNonce: "old",
+            makeNonce: () => Effect.succeed("new"),
+            rerun: () =>
+              Effect.sync(() => {
+                reruns += 1
+                return "bad"
+              })
+          }),
+          cache(Option.none()),
+          jj()
+        )
       )
-    )
 
-    expect(result).toMatchObject({
-      _tag: "Blocked",
-      reason: "not_durable_boundary"
-    })
-    expect(reruns).toBe(0)
-  })
+      expect(result).toMatchObject({
+        _tag: "Blocked",
+        reason: "not_durable_boundary"
+      })
+      expect(reruns).toBe(0)
+    }))
 
-  it("derives a unique default nonce from the effect and attempt when none is supplied", async () => {
-    const contexts: Array<Retry.AttemptContext> = []
-    const run = () =>
-      Effect.runPromise(
+  it.effect("derives a unique default nonce from the effect and attempt when none is supplied", () =>
+    Effect.gen(function*() {
+      const contexts: Array<Retry.AttemptContext> = []
+      const run = () =>
         provide(
           Retry.retry({
             effect: crossed("sealed", { cacheKey: "missing" }),
@@ -256,84 +262,55 @@ describe("Retry", () => {
           cache(Option.none()),
           jj()
         )
-      )
 
-    await run()
-    await run()
+      yield* run()
+      yield* run()
 
-    expect(contexts).toHaveLength(2)
-    for (const context of contexts) {
-      expect(context.attempt).toBe(2)
-      expect(context.nonce).toMatch(/^sealed-effect:attempt:2:nonce:/)
-    }
-    expect(contexts[0]?.nonce).not.toBe(contexts[1]?.nonce)
-  })
+      expect(contexts).toHaveLength(2)
+      for (const context of contexts) {
+        expect(context.attempt).toBe(2)
+        expect(context.nonce).toMatch(/^sealed-effect:attempt:2:nonce:/)
+      }
+      expect(contexts[0]?.nonce).not.toBe(contexts[1]?.nonce)
+    }))
 
-  it("fails when the sealed cache cannot be consulted rather than rerunning blind", async () => {
-    let reruns = 0
-    const failure = await Effect.runPromise(
-      Effect.flip(
-        provide(
-          Retry.retry({
-            effect: crossed("sealed", { cacheKey: "cache-key" }),
-            previousAttempt: 1,
-            previousNonce: "old",
-            makeNonce: () => Effect.succeed("new"),
-            rerun: () =>
-              Effect.sync(() => {
-                reruns += 1
-                return "ok"
-              })
-          }),
-          CacheStore.makeNoop(),
-          jj()
+  it.effect("fails when the sealed cache cannot be consulted rather than rerunning blind", () =>
+    Effect.gen(function*() {
+      let reruns = 0
+      const failure = yield* (
+        Effect.flip(
+          provide(
+            Retry.retry({
+              effect: crossed("sealed", { cacheKey: "cache-key" }),
+              previousAttempt: 1,
+              previousNonce: "old",
+              makeNonce: () => Effect.succeed("new"),
+              rerun: () =>
+                Effect.sync(() => {
+                  reruns += 1
+                  return "ok"
+                })
+            }),
+            CacheStore.makeNoop(),
+            jj()
+          )
         )
       )
-    )
 
-    expect(reruns).toBe(0)
-    expect(failure).toMatchObject({
-      code: "unknown",
-      message: "could not consult sealed retry cache-key"
-    })
-  })
+      expect(reruns).toBe(0)
+      expect(failure).toMatchObject({
+        code: "unknown",
+        message: "could not consult sealed retry cache-key"
+      })
+    }))
 
-  it("blocks a compensable retry that never recorded a pre-attempt snapshot", async () => {
-    let reruns = 0
-    const result = await Effect.runPromise(
-      provide(
-        Retry.retry({
-          effect: crossed("compensable"),
-          previousAttempt: 1,
-          previousNonce: "old",
-          makeNonce: () => Effect.succeed("new"),
-          rerun: () =>
-            Effect.sync(() => {
-              reruns += 1
-              return "ok"
-            })
-        }),
-        cache(Option.none()),
-        jj()
-      )
-    )
-
-    expect(result).toMatchObject({
-      _tag: "Blocked",
-      reason: "compensation_snapshot_missing",
-      attempt: 2,
-      nonce: "new"
-    })
-    expect(reruns).toBe(0)
-  })
-
-  it("fails a compensable retry whose snapshot restore fails, before rerunning", async () => {
-    let reruns = 0
-    const failure = await Effect.runPromise(
-      Effect.flip(
+  it.effect("blocks a compensable retry that never recorded a pre-attempt snapshot", () =>
+    Effect.gen(function*() {
+      let reruns = 0
+      const result = yield* (
         provide(
           Retry.retry({
-            effect: crossed("compensable", { changeId: "before-attempt" }),
+            effect: crossed("compensable"),
             previousAttempt: 1,
             previousNonce: "old",
             makeNonce: () => Effect.succeed("new"),
@@ -344,111 +321,146 @@ describe("Retry", () => {
               })
           }),
           cache(Option.none()),
-          Jj.makeNoop({})
+          jj()
         )
       )
-    )
 
-    expect(reruns).toBe(0)
-    expect(failure).toMatchObject({
-      code: "compensation_failed",
-      message: "could not restore before-attempt before retry"
-    })
-  })
+      expect(result).toMatchObject({
+        _tag: "Blocked",
+        reason: "compensation_snapshot_missing",
+        attempt: 2,
+        nonce: "new"
+      })
+      expect(reruns).toBe(0)
+    }))
 
-  it("retries an irreversible effect without a key when its handler does not require one", async () => {
-    const contexts: Array<Retry.AttemptContext> = []
-    const result = await Effect.runPromise(
-      Retry.retry({
-        effect: crossed("irreversible", { kind: "log.append" }),
-        previousAttempt: 1,
-        previousNonce: "old",
-        makeNonce: () => Effect.succeed("new"),
-        rerun: (context) =>
-          Effect.sync(() => {
-            contexts.push(context)
-            return "appended"
-          })
-      }).pipe(
-        Effect.provide(Layer.succeed(CacheStore.CacheStore, cache(Option.none()))),
-        Effect.provide(Layer.succeed(Jj.Jj, jj())),
-        Effect.provide(
-          Layer.succeed(
-            EffectHandlerRegistry.EffectHandlerRegistry,
-            Effect.runSync(
-              EffectHandlerRegistry.make([{ ...handler, kind: "log.append", requiresIdempotencyKey: false }])
+  it.effect("fails a compensable retry whose snapshot restore fails, before rerunning", () =>
+    Effect.gen(function*() {
+      let reruns = 0
+      const failure = yield* (
+        Effect.flip(
+          provide(
+            Retry.retry({
+              effect: crossed("compensable", { changeId: "before-attempt" }),
+              previousAttempt: 1,
+              previousNonce: "old",
+              makeNonce: () => Effect.succeed("new"),
+              rerun: () =>
+                Effect.sync(() => {
+                  reruns += 1
+                  return "ok"
+                })
+            }),
+            cache(Option.none()),
+            Jj.makeNoop({})
+          )
+        )
+      )
+
+      expect(reruns).toBe(0)
+      expect(failure).toMatchObject({
+        code: "compensation_failed",
+        message: "could not restore before-attempt before retry"
+      })
+    }))
+
+  it.effect("retries an irreversible effect without a key when its handler does not require one", () =>
+    Effect.gen(function*() {
+      const contexts: Array<Retry.AttemptContext> = []
+      const result = yield* (
+        Retry.retry({
+          effect: crossed("irreversible", { kind: "log.append" }),
+          previousAttempt: 1,
+          previousNonce: "old",
+          makeNonce: () => Effect.succeed("new"),
+          rerun: (context) =>
+            Effect.sync(() => {
+              contexts.push(context)
+              return "appended"
+            })
+        }).pipe(
+          Effect.provide(Layer.succeed(CacheStore.CacheStore, cache(Option.none()))),
+          Effect.provide(Layer.succeed(Jj.Jj, jj())),
+          Effect.provide(
+            Layer.succeed(
+              EffectHandlerRegistry.EffectHandlerRegistry,
+              Effect.runSync(
+                EffectHandlerRegistry.make([{ ...handler, kind: "log.append", requiresIdempotencyKey: false }])
+              )
             )
           )
         )
       )
-    )
 
-    expect(result._tag).toBe("Rerun")
-    expect(contexts[0]).toMatchObject({ attempt: 2, nonce: "new" })
-  })
+      expect(result._tag).toBe("Rerun")
+      expect(contexts[0]).toMatchObject({ attempt: 2, nonce: "new" })
+    }))
 
-  it("defaults an unregistered irreversible kind to requiring a key", async () => {
-    const result = await Effect.runPromise(
-      Retry.retry({
-        effect: crossed("irreversible", { kind: "unregistered" }),
-        previousAttempt: 0,
-        previousNonce: "old",
-        makeNonce: () => Effect.succeed("new"),
-        rerun: () => Effect.succeed("never")
-      }).pipe(
-        Effect.provide(Layer.succeed(CacheStore.CacheStore, cache(Option.none()))),
-        Effect.provide(Layer.succeed(Jj.Jj, jj())),
-        Effect.provide(
-          Layer.succeed(EffectHandlerRegistry.EffectHandlerRegistry, EffectHandlerRegistry.makeNoop())
+  it.effect("defaults an unregistered irreversible kind to requiring a key", () =>
+    Effect.gen(function*() {
+      const result = yield* (
+        Retry.retry({
+          effect: crossed("irreversible", { kind: "unregistered" }),
+          previousAttempt: 0,
+          previousNonce: "old",
+          makeNonce: () => Effect.succeed("new"),
+          rerun: () => Effect.succeed("never")
+        }).pipe(
+          Effect.provide(Layer.succeed(CacheStore.CacheStore, cache(Option.none()))),
+          Effect.provide(Layer.succeed(Jj.Jj, jj())),
+          Effect.provide(
+            Layer.succeed(EffectHandlerRegistry.EffectHandlerRegistry, EffectHandlerRegistry.makeNoop())
+          )
         )
       )
-    )
 
-    expect(result).toMatchObject({
-      _tag: "Blocked",
-      reason: "idempotency_key_required",
-      attempt: 1,
-      nonce: "new"
-    })
-  })
+      expect(result).toMatchObject({
+        _tag: "Blocked",
+        reason: "idempotency_key_required",
+        attempt: 1,
+        nonce: "new"
+      })
+    }))
 
-  it("reruns sealed work without a cache key and propagates its typed failure", async () => {
-    const failure = await Effect.runPromise(
-      Effect.flip(
-        provide(
-          Retry.retry({
-            effect: crossed("sealed"),
-            previousAttempt: 1,
-            previousNonce: "old",
-            makeNonce: () => Effect.succeed("new"),
-            rerun: (context) => Effect.fail(`rerun-${context.attempt}`)
-          }),
-          cache(Option.none()),
-          jj()
+  it.effect("reruns sealed work without a cache key and propagates its typed failure", () =>
+    Effect.gen(function*() {
+      const failure = yield* (
+        Effect.flip(
+          provide(
+            Retry.retry({
+              effect: crossed("sealed"),
+              previousAttempt: 1,
+              previousNonce: "old",
+              makeNonce: () => Effect.succeed("new"),
+              rerun: (context) => Effect.fail(`rerun-${context.attempt}`)
+            }),
+            cache(Option.none()),
+            jj()
+          )
         )
       )
-    )
 
-    expect(failure).toBe("rerun-2")
-  })
+      expect(failure).toBe("rerun-2")
+    }))
 
-  it("does not swallow interruption while a fresh attempt is running", async () => {
-    const result = await Effect.runPromise(
-      Effect.exit(
-        provide(
-          Retry.retry({
-            effect: crossed("sealed"),
-            previousAttempt: 1,
-            previousNonce: "old",
-            makeNonce: () => Effect.succeed("new"),
-            rerun: () => Effect.interrupt
-          }),
-          cache(Option.none()),
-          jj()
+  it.effect("does not swallow interruption while a fresh attempt is running", () =>
+    Effect.gen(function*() {
+      const result = yield* (
+        Effect.exit(
+          provide(
+            Retry.retry({
+              effect: crossed("sealed"),
+              previousAttempt: 1,
+              previousNonce: "old",
+              makeNonce: () => Effect.succeed("new"),
+              rerun: () => Effect.interrupt
+            }),
+            cache(Option.none()),
+            jj()
+          )
         )
       )
-    )
 
-    expect(result._tag).toBe("Failure")
-  })
+      expect(result._tag).toBe("Failure")
+    }))
 })

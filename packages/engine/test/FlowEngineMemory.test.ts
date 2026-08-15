@@ -1,15 +1,19 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
+import { describe, expect, it } from "@effect/vitest"
 import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Cause, Context, Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
-import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it(name, () => runPromise(body()))
+  it.effect(name, () => withCrypto(body()))
+
+/** An `effect` case that documents a known defect: it passes while the bug stands. */
+const effectFails = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
+  it.effect.fails(name, () => withCrypto(body()))
 
 describe("memory engine execution surface", () => {
   effect("dies when executing a flow that was never registered", () => {
@@ -103,6 +107,83 @@ describe("memory engine execution surface", () => {
   })
 })
 
+describe("execution identity", () => {
+  // BUG: layerMemory.execute keys its executions map by execution id alone.
+  // Reusing one id under a DIFFERENT flow declaration silently joins the
+  // other flow's fiber and answers its result under this flow's declared
+  // schemas — cross-flow result leakage where the identity clash should be
+  // refused (or at minimum keyed by flow tag as well).
+  effectFails("refuses to reuse an execution id under a different flow declaration", () => {
+    const aActionDeclaration = Action.make("Memory/reuse-a/action", {
+      payload: { id: Schema.String },
+      success: Schema.Number
+    })
+    const flowA = Flow.make("Memory/reuse-a", {
+      payload: { id: Schema.String },
+      success: Schema.Number,
+      body: (payload) => aActionDeclaration.call(payload)
+    })
+    const bActionDeclaration = Action.make("Memory/reuse-b/action", {
+      payload: { id: Schema.String },
+      success: Schema.String
+    })
+    const flowB = Flow.make("Memory/reuse-b", {
+      payload: { id: Schema.String },
+      success: Schema.String,
+      body: (payload) => bActionDeclaration.call(payload)
+    })
+    const layer = Layer.mergeAll(
+      Layer.mergeAll(aActionDeclaration.toLayer(() => Effect.succeed(7)), Interpreter.layer(flowA)).pipe(
+        Layer.provideMerge(Action.layerImplementations)
+      ),
+      Layer.mergeAll(bActionDeclaration.toLayer(() => Effect.succeed("b-value")), Interpreter.layer(flowB)).pipe(
+        Layer.provideMerge(Action.layerImplementations)
+      )
+    ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+    return Effect.gen(function*() {
+      expect(yield* flowA.execute({ id: "x" }, { executionId: "shared-id" })).toBe(7)
+      // Today this succeeds with flowA's `7` presented as flowB's declared
+      // string — the leak the refusal must prevent.
+      const exit = yield* flowB.execute({ id: "x" }, { executionId: "shared-id" }).pipe(Effect.exit)
+      expect(Exit.isFailure(exit)).toBe(true)
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("dedupes on the execution id alone: a second execute with another payload joins the first", () => {
+    // The execution id is the run's whole identity. A caller that reuses an
+    // id with a different payload gets the FIRST payload's answer back, and
+    // the second payload is never planned or dispatched — id/payload
+    // consistency is the caller's contract, pinned here so a change to the
+    // join semantics is a deliberate decision.
+    const calls: Array<string> = []
+    const flowActionDeclaration = Action.make("Memory/reuse-payload/action", {
+      payload: { id: Schema.String },
+      success: Schema.String
+    })
+    const flow = Flow.make("Memory/reuse-payload", {
+      payload: { id: Schema.String },
+      success: Schema.String,
+      body: (payload) => flowActionDeclaration.call(payload)
+    })
+    const layer = Layer.mergeAll(
+      flowActionDeclaration.toLayer(({ id }) =>
+        Effect.sync(() => {
+          calls.push(id)
+          return `ran:${id}`
+        })
+      ),
+      Interpreter.layer(flow)
+    ).pipe(
+      Layer.provideMerge(Action.layerImplementations)
+    ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+    return Effect.gen(function*() {
+      expect(yield* flow.execute({ id: "first" }, { executionId: "pin-id" })).toBe("ran:first")
+      expect(yield* flow.execute({ id: "second" }, { executionId: "pin-id" })).toBe("ran:first")
+      expect(calls).toEqual(["first"])
+    }).pipe(Effect.provide(layer))
+  })
+})
+
 describe("compensable snapshot boundary", () => {
   effect("dies when a compensable action runs without a SnapshotBoundary", () => {
     const step = Action.make({
@@ -187,6 +268,198 @@ describe("compensable snapshot boundary", () => {
         "execute:2",
         "diff:snap:2"
       ])
+    }).pipe(Effect.provide(layer))
+  })
+
+  /** One compensable wiring per fault case, sharing the same flow/action shape. */
+  const compensableCase = (options: {
+    readonly tag: string
+    readonly boundary: {
+      readonly snapshot?: (() => Effect.Effect<unknown>) | undefined
+      readonly restore?: (() => Effect.Effect<void>) | undefined
+      readonly diff?: (() => Effect.Effect<unknown>) | undefined
+    }
+    readonly execute: () => Effect.Effect<number, string>
+    readonly retryTimes?: number | undefined
+  }) => {
+    const events: Array<string> = []
+    const step = Action.make({
+      name: `${options.tag}/step`,
+      tier: "compensable",
+      success: Schema.Number,
+      error: Schema.String,
+      execute: Effect.suspend(() => {
+        events.push("execute")
+        return options.execute()
+      })
+    })
+    const flowActionDeclaration = Action.make(`${options.tag}/action`, {
+      payload: { id: Schema.String },
+      success: Schema.Number,
+      error: Schema.String
+    })
+    const flow = Flow.make(options.tag, {
+      payload: { id: Schema.String },
+      success: Schema.Number,
+      error: Schema.String,
+      body: (payload) => flowActionDeclaration.call(payload)
+    })
+    const boundary = FlowEngine.SnapshotBoundary.of({
+      snapshot: (boundaryOptions) =>
+        Effect.suspend(() => {
+          events.push(`snapshot:${boundaryOptions.attempt}`)
+          return options.boundary.snapshot?.() ?? Effect.succeed("snap")
+        }),
+      restore: (_snapshot, boundaryOptions) =>
+        Effect.suspend(() => {
+          events.push(`restore:${boundaryOptions.attempt}`)
+          return options.boundary.restore?.() ?? Effect.void
+        }),
+      diff: (_snapshot, boundaryOptions) =>
+        Effect.suspend(() => {
+          events.push(`diff:${boundaryOptions.attempt}`)
+          return options.boundary.diff?.() ?? Effect.succeed(Option.none())
+        })
+    })
+    const dispatch = options.retryTimes === undefined
+      ? step
+      : Action.retry(step, { times: options.retryTimes })
+    const layer = Layer.mergeAll(
+      flowActionDeclaration.toLayer(() => dispatch),
+      Interpreter.layer(flow)
+    ).pipe(
+      Layer.provideMerge(Action.layerImplementations)
+    ).pipe(
+      Layer.provideMerge(FlowEngine.layerMemory),
+      Layer.provideMerge(Layer.succeed(FlowEngine.SnapshotBoundary)(boundary))
+    )
+    return { events, flow, layer }
+  }
+
+  effect("a snapshot fault surfaces as the cause and the action body never runs", () => {
+    // The snapshot precedes the dispatch, so its defect must fault the
+    // attempt before any side effect — and must not enter the retry ladder:
+    // the boundary fault is not a typed action failure.
+    const { events, flow, layer } = compensableCase({
+      tag: "Memory/compensable-snapshot-fault",
+      boundary: { snapshot: () => Effect.die("snapshot-broke") },
+      execute: () => Effect.succeed(1),
+      retryTimes: 2
+    })
+    return Effect.gen(function*() {
+      const exit = yield* flow.execute({ id: "x" }, { executionId: "run-snapshot-fault" }).pipe(Effect.exit)
+      expect(Exit.isFailure(exit)).toBe(true)
+      expect(Exit.isFailure(exit) && Cause.hasDies(exit.cause)).toBe(true)
+      expect(Exit.isFailure(exit) && String(exit.cause)).toContain("snapshot-broke")
+      // No dispatch, no restore, no diff, no second attempt.
+      expect(events).toEqual(["snapshot:1"])
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("a diff fault takes cause precedence over the action's typed failure and defeats the retry ladder", () => {
+    // `diff` runs as `ensuring` cleanup of the dispatch. When it faults, the
+    // boundary defect IS the cause — `Effect.ensuring` replaces the primary
+    // typed failure, so `action-broke` does not survive into the exit — and
+    // because the dispatch's effect no longer settles with a `Result`, the
+    // retry decision point is never reached: one attempt, no backoff, no
+    // re-dispatch.
+    const { events, flow, layer } = compensableCase({
+      tag: "Memory/compensable-diff-fault",
+      boundary: { diff: () => Effect.die("diff-broke") },
+      execute: () => Effect.fail("action-broke"),
+      retryTimes: 3
+    })
+    return Effect.gen(function*() {
+      const exit = yield* flow.execute({ id: "x" }, { executionId: "run-diff-fault" }).pipe(Effect.exit)
+      expect(Exit.isFailure(exit)).toBe(true)
+      expect(Exit.isFailure(exit) && Cause.hasDies(exit.cause)).toBe(true)
+      expect(Exit.isFailure(exit) && String(exit.cause)).toContain("diff-broke")
+      // The boundary fault wins outright: the typed action failure is
+      // superseded, not combined.
+      expect(Exit.isFailure(exit) && String(exit.cause)).not.toContain("action-broke")
+      expect(events).toEqual(["snapshot:1", "execute", "diff:1"])
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("a restore fault on the retry attempt stops the sequence without re-dispatching", () => {
+    // Attempt 2 restores the snapshot recorded under the action's key before
+    // re-running. When restore faults, the retry stops there: the recorded
+    // snapshot was consumed by exactly one restore call and the body never
+    // ran a second time.
+    const { events, flow, layer } = compensableCase({
+      tag: "Memory/compensable-restore-fault",
+      boundary: { restore: () => Effect.die("restore-broke") },
+      execute: () => Effect.fail("try-again"),
+      retryTimes: 2
+    })
+    return Effect.gen(function*() {
+      const exit = yield* flow.execute({ id: "x" }, { executionId: "run-restore-fault" }).pipe(Effect.exit)
+      expect(Exit.isFailure(exit)).toBe(true)
+      expect(Exit.isFailure(exit) && String(exit.cause)).toContain("restore-broke")
+      // Attempt 1 ran fully; attempt 2 died at restore before snapshot or
+      // dispatch.
+      expect(events).toEqual(["snapshot:1", "execute", "diff:1", "restore:2"])
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("forced interruption mid-attempt still runs the diff cleanup and settles as interrupted", () => {
+    // Between snapshot and diff the dispatch is `Effect.ensuring`-guarded:
+    // even `interruptUnsafe` — which promises no cleanup — currently tears
+    // the attempt down through the ensuring finalizer, so the boundary's
+    // diff observes the aborted attempt and the poll reports interruption,
+    // not a result.
+    const events: Array<string> = []
+    const step = Action.make({
+      name: "Memory/compensable-interrupt/step",
+      tier: "compensable",
+      success: Schema.Number,
+      execute: Effect.suspend(() => {
+        events.push("execute")
+        return Effect.never
+      })
+    })
+    const flowActionDeclaration = Action.make("Memory/compensable-interrupt/action", {
+      payload: { id: Schema.String },
+      success: Schema.Number
+    })
+    const flow = Flow.make("Memory/compensable-interrupt", {
+      payload: { id: Schema.String },
+      success: Schema.Number,
+      body: (payload) => flowActionDeclaration.call(payload)
+    })
+    const boundary = FlowEngine.SnapshotBoundary.of({
+      snapshot: (options) => Effect.sync(() => (events.push(`snapshot:${options.attempt}`), "snap")),
+      restore: () => Effect.void,
+      diff: (_snapshot, options) =>
+        Effect.sync(() => {
+          events.push(`diff:${options.attempt}`)
+          return Option.none()
+        })
+    })
+    const layer = Layer.mergeAll(
+      flowActionDeclaration.toLayer(() => step),
+      Interpreter.layer(flow)
+    ).pipe(
+      Layer.provideMerge(Action.layerImplementations)
+    ).pipe(
+      Layer.provideMerge(FlowEngine.layerMemory),
+      Layer.provideMerge(Layer.succeed(FlowEngine.SnapshotBoundary)(boundary))
+    )
+    return Effect.gen(function*() {
+      yield* flow.execute({ id: "x" }, { executionId: "run-compensable-interrupt", discard: true })
+      // The attempt is provably mid-flight: snapshot taken, body entered.
+      for (let index = 0; index < 50 && !events.includes("execute"); index++) {
+        yield* Effect.yieldNow
+      }
+      expect(events).toEqual(["snapshot:1", "execute"])
+      const engine = yield* FlowRuntime.FlowRuntime
+      yield* engine.interruptUnsafe(flow, "run-compensable-interrupt")
+      const polled = yield* flow.poll("run-compensable-interrupt").pipe(Effect.exit)
+      // The terminal cause is the interruption, and the diff cleanup ran
+      // before it reported.
+      expect(Exit.isFailure(polled)).toBe(true)
+      expect(Exit.isFailure(polled) && String(polled.cause)).toContain("Interrupt")
+      expect(events).toEqual(["snapshot:1", "execute", "diff:1"])
     }).pipe(Effect.provide(layer))
   })
 })

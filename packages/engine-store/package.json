@@ -84,6 +84,7 @@
     "@smthrs/journal-next": "0.1.0",
     "@smthrs/kernel-next": "0.1.0",
     "@smthrs/keys-next": "0.1.0",
+    "@smthrs/platform-node-next": "0.1.0",
     "@smthrs/plan-next": "0.1.0",
     "@smthrs/run-store-next": "0.1.0",
     "@smthrs/step-cache-next": "0.1.0",
@@ -92,6 +93,7 @@
   "devDependencies": {
     "@effect/language-service": "0.87.1",
     "@effect/platform-node": "4.0.0-rc.108",
+    "@effect/vitest": "4.0.0-rc.108",
     "@eslint/js": "9.39.1",
     "@smthrs/keys-next": "0.1.0",
     "@types/node": "25.9.5",

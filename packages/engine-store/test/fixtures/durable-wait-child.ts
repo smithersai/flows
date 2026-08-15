@@ -15,7 +15,7 @@ import * as Schema from "effect/Schema"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as Migrations from "../../src/Migrations.ts"
 import * as OwnerIdentity from "../../src/OwnerIdentity.ts"
-import { runPromise } from "../Sha256.ts"
+import { withCrypto } from "../Sha256.ts"
 import { opaqueHandlerBody } from "./OpaqueHandlerBody.ts"
 
 const mode = process.argv[2]
@@ -198,10 +198,13 @@ const engineProgram = Effect.scoped(
   }).pipe(Effect.provide(requirements))
 )
 
-await runPromise(
-  mode === "state-complete"
-    ? stateCompletion
-    : mode === "state-init"
-    ? stateInitialization
-    : engineProgram
+// A process entrypoint: running the Effect here is the intended boundary.
+await Effect.runPromise(
+  withCrypto(
+    mode === "state-complete"
+      ? stateCompletion
+      : mode === "state-init"
+      ? stateInitialization
+      : engineProgram
+  )
 )

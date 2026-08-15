@@ -7,6 +7,7 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * `cancelled`. Only an interruption backed by a durable cancel request
  * (`cancel_requested_at_ms`) may close the run terminally.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { Flow, FlowRuntime } from "@smthrs/flow-next"
 import { Journal } from "@smthrs/journal-next"
 import { Node } from "@smthrs/plan-next"
@@ -18,11 +19,10 @@ import * as Latch from "effect/Latch"
 import * as Schema from "effect/Schema"
 import * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
-import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
 import * as TestStores from "../src/test/TestStores.ts"
-import { runPromise } from "./Sha256.ts"
+import { withCrypto } from "./Sha256.ts"
 
 const TestFlow = Flow.make("ShutdownRelease/Test", {
   payload: {},
@@ -61,61 +61,63 @@ const provideJournal = <A, E, R>(
   >
 
 describe("shutdown releases instead of cancelling (issue #26)", () => {
-  it("an external drive-fiber interruption parks the run reclaimably", async () => {
-    const result = await runPromise(provideJournal(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      const journal = yield* Journal.Journal
-      // The driver lives in its own scope so the test can close it while a
-      // flow is in flight, exactly like process shutdown tearing down the
-      // coordinator's fiber set.
-      const driverScope = yield* Scope.make()
-      const driver = yield* makeDriver().pipe(Scope.provide(driverScope))
-      const started = yield* Latch.make(false)
-      yield* driver.register(TestFlow, () => Latch.open(started).pipe(Effect.andThen(Effect.never)))
-      yield* driver.execute(TestFlow, {
-        executionId: "shutdown-interrupt",
-        payload: {},
-        discard: true
-      }).pipe(Effect.forkChild({ startImmediately: true }))
-      yield* Latch.await(started)
+  it.effect("an external drive-fiber interruption parks the run reclaimably", () =>
+    Effect.gen(function*() {
+      const result = yield* withCrypto(provideJournal(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        const journal = yield* Journal.Journal
+        // The driver lives in its own scope so the test can close it while a
+        // flow is in flight, exactly like process shutdown tearing down the
+        // coordinator's fiber set.
+        const driverScope = yield* Scope.make()
+        const driver = yield* makeDriver().pipe(Scope.provide(driverScope))
+        const started = yield* Latch.make(false)
+        yield* driver.register(TestFlow, () => Latch.open(started).pipe(Effect.andThen(Effect.never)))
+        yield* driver.execute(TestFlow, {
+          executionId: "shutdown-interrupt",
+          payload: {},
+          discard: true
+        }).pipe(Effect.forkChild({ startImmediately: true }))
+        yield* Latch.await(started)
 
-      // Process shutdown: the scope closes and interrupts the drive fiber.
-      // No operator asked for cancellation.
-      yield* Scope.close(driverScope, Exit.void)
-      const row = yield* store.get("shutdown-interrupt")
-      yield* journal.flush
-      const entries = yield* journal.entries({ runId: "shutdown-interrupt" as never, limit: 100 })
-      return { row, eventTypes: entries.entries.map((entry) => entry.eventType) }
-    })))
+        // Process shutdown: the scope closes and interrupts the drive fiber.
+        // No operator asked for cancellation.
+        yield* Scope.close(driverScope, Exit.void)
+        const row = yield* store.get("shutdown-interrupt")
+        yield* journal.flush
+        const entries = yield* journal.entries({ runId: "shutdown-interrupt" as never, limit: 100 })
+        return { row, eventTypes: entries.entries.map((entry) => entry.eventType) }
+      })))
 
-    // Reclaimable, not terminally closed: another worker must be able to
-    // claim and resume this run.
-    expect(result.row.status).toBe("suspended")
-    expect(result.row.owner).toBeNull()
-    expect(result.eventTypes).not.toContain("flows.engine.interrupted")
-  })
+      // Reclaimable, not terminally closed: another worker must be able to
+      // claim and resume this run.
+      expect(result.row.status).toBe("suspended")
+      expect(result.row.owner).toBeNull()
+      expect(result.eventTypes).not.toContain("flows.engine.interrupted")
+    }))
 
-  it("operator interrupt still durably cancels the run", async () => {
-    const result = await runPromise(provideJournal(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      const driver = yield* makeDriver()
-      const started = yield* Latch.make(false)
-      yield* driver.register(TestFlow, () => Latch.open(started).pipe(Effect.andThen(Effect.never)))
-      const fiber = yield* driver.execute(TestFlow, {
-        executionId: "shutdown-operator-cancel",
-        payload: {},
-        discard: true
-      }).pipe(Effect.forkChild({ startImmediately: true }))
-      yield* Latch.await(started)
+  it.effect("operator interrupt still durably cancels the run", () =>
+    Effect.gen(function*() {
+      const result = yield* withCrypto(provideJournal(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        const driver = yield* makeDriver()
+        const started = yield* Latch.make(false)
+        yield* driver.register(TestFlow, () => Latch.open(started).pipe(Effect.andThen(Effect.never)))
+        const fiber = yield* driver.execute(TestFlow, {
+          executionId: "shutdown-operator-cancel",
+          payload: {},
+          discard: true
+        }).pipe(Effect.forkChild({ startImmediately: true }))
+        yield* Latch.await(started)
 
-      yield* driver.interrupt(TestFlow, "shutdown-operator-cancel")
-      yield* Fiber.await(fiber)
-      const row = yield* store.get("shutdown-operator-cancel")
-      return { row }
-    })))
+        yield* driver.interrupt(TestFlow, "shutdown-operator-cancel")
+        yield* Fiber.await(fiber)
+        const row = yield* store.get("shutdown-operator-cancel")
+        return { row }
+      })))
 
-    expect(result.row.status).toBe("cancelled")
-    expect(result.row.cancelRequestedAtMs).not.toBeNull()
-    expect(result.row.owner).toBeNull()
-  })
+      expect(result.row.status).toBe("cancelled")
+      expect(result.row.cancelRequestedAtMs).not.toBeNull()
+      expect(result.row.owner).toBeNull()
+    }))
 })

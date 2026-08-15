@@ -1,15 +1,91 @@
+import { describe, expect, it } from "@effect/vitest"
 import { Action, Flow, FlowRuntime, Graph } from "@smthrs/flow-next"
 import { Node, Planned } from "@smthrs/plan-next"
-import { Context, Effect, Layer, Schema } from "effect"
-import { describe, expect, it } from "vitest"
-import { runPromise } from "./Crypto.ts"
-import { layerMemory } from "./MemoryFlowRuntime.ts"
+import { Cause, Context, Effect, Exit, Layer, Schema } from "effect"
+import type * as Scope from "effect/Scope"
+import { withCrypto } from "./Crypto.ts"
+import { layerMemory, makeInstance } from "./MemoryFlowRuntime.ts"
 
 const Label = Context.Reference<string>("ActionDeclared/Label", {
   defaultValue: () => "missing"
 })
 
+const InlineHost = Flow.make("ActionDeclared/inline-host", {
+  payload: {},
+  body: () => Node.succeed(undefined)
+})
+
+const runInline = <A, E>(
+  effect: Effect.Effect<A, E, FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance | Scope.Scope>
+) =>
+  withCrypto(
+    Effect.scoped(effect).pipe(
+      Effect.provideService(FlowRuntime.FlowInstance, makeInstance(InlineHost, "inline-host")),
+      Effect.provide(layerMemory)
+    )
+  )
+
 describe("Action.make declared overload", () => {
+  it.effect("round-trips transformed executeEncoded successes and failures on annotated copies", () =>
+    Effect.gen(function*() {
+      const success = Action.make({
+        name: "Inline/transformed-success",
+        success: Schema.NumberFromString,
+        execute: Effect.succeed(42)
+      })
+      const failure = Action.make({
+        name: "Inline/transformed-failure",
+        error: Schema.NumberFromString,
+        execute: Effect.fail(7)
+      })
+      const successCopies = [
+        success,
+        success.annotate(Label, "annotated"),
+        success.annotateMerge(Context.make(Label, "merged"))
+      ]
+      const failureCopies = [
+        failure,
+        failure.annotate(Label, "annotated"),
+        failure.annotateMerge(Context.make(Label, "merged"))
+      ]
+
+      for (const copy of successCopies) {
+        const encoded = yield* runInline(copy.executeEncoded)
+        expect(encoded).toBe("42")
+        expect(Schema.decodeUnknownSync(copy.successSchema)(encoded)).toBe(42)
+      }
+      for (const copy of failureCopies) {
+        const encoded = yield* runInline(Effect.flip(copy.executeEncoded))
+        expect(encoded).toBe("7")
+        expect(Schema.decodeUnknownSync(copy.errorSchema)(encoded)).toBe(7)
+      }
+    }))
+
+  it.effect("reports invalid executeEncoded success and error values as schema defects", () =>
+    Effect.gen(function*() {
+      const invalid = [
+        Action.make({
+          name: "Inline/invalid-success",
+          success: Schema.NumberFromString,
+          execute: Effect.succeed("not-a-number" as unknown as number)
+        }),
+        Action.make({
+          name: "Inline/invalid-error",
+          error: Schema.NumberFromString,
+          execute: Effect.fail("not-a-number" as unknown as number)
+        })
+      ]
+
+      for (const action of invalid) {
+        const exit = yield* runInline(Effect.exit(action.executeEncoded))
+        expect(Exit.isFailure(exit)).toBe(true)
+        if (!Exit.isFailure(exit)) continue
+        expect(exit.cause.reasons.some(Cause.isFailReason)).toBe(false)
+        const defect = exit.cause.reasons.find(Cause.isDieReason)
+        expect(defect?.defect).toMatchObject({ _tag: "SchemaError" })
+      }
+    }))
+
   it("discriminates declared and inline actions by the first argument", () => {
     const declared = Action.make("Declared/discrimination", {
       payload: { value: Schema.Number }
@@ -83,75 +159,77 @@ describe("Action.make declared overload", () => {
     expect(Context.get(merged.annotations, Label)).toBe("merged")
   })
 
-  it("registers an implementation that receives decoded payload and executes durably", async () => {
-    const NumberPayload = Schema.Struct({ value: Schema.NumberFromString })
-    const declared = Action.make("Declared/execution", {
-      payload: NumberPayload,
-      success: Schema.Number,
-      tier: "sealed",
-      idempotencyKey: "double"
-    })
-    // Drive the public declared call through a composite body. This verifies
-    // the ActionCall node, its payload decoding, and the registered
-    // implementation as one durable path.
-    const invocation = Flow.make("Declared/execution", {
-      payload: NumberPayload,
-      success: Schema.Number,
-      body: (payload) => declared.call(payload)
-    })
-    const seen: Array<number> = []
-    const layer = declared.toLayer(({ value }) =>
-      Effect.sync(() => {
-        seen.push(value)
-        return value * 2
+  it.effect("registers an implementation that receives decoded payload and executes durably", () =>
+    Effect.gen(function*() {
+      const NumberPayload = Schema.Struct({ value: Schema.NumberFromString })
+      const declared = Action.make("Declared/execution", {
+        payload: NumberPayload,
+        success: Schema.Number,
+        tier: "sealed",
+        idempotencyKey: "double"
       })
-    ).pipe(Layer.provideMerge(layerMemory))
+      // Drive the public declared call through a composite body. This verifies
+      // the ActionCall node, its payload decoding, and the registered
+      // implementation as one durable path.
+      const invocation = Flow.make("Declared/execution", {
+        payload: NumberPayload,
+        success: Schema.Number,
+        body: (payload) => declared.call(payload)
+      })
+      const seen: Array<number> = []
+      const layer = declared.toLayer(({ value }) =>
+        Effect.sync(() => {
+          seen.push(value)
+          return value * 2
+        })
+      ).pipe(Layer.provideMerge(layerMemory))
 
-    expect(Graph.nodes(Graph.build(invocation, { value: 21 }))[0]).toMatchObject({
-      kind: "ActionCall",
-      payload: { value: 21 }
-    })
+      expect(Graph.nodes(Graph.build(invocation, { value: 21 }))[0]).toMatchObject({
+        kind: "ActionCall",
+        payload: { value: 21 }
+      })
 
-    const result = await runPromise(
-      invocation.execute({ value: 21 }, { executionId: "declared-execution" }).pipe(
-        Effect.provide(layer)
-      )
-    )
-    expect(result).toBe(42)
-    expect(seen).toEqual([21])
-  })
-
-  it("registers a flow whose body is the one call to the action", async () => {
-    const declared = Action.make("Declared/flow-form", {
-      payload: { value: Schema.Number },
-      success: Schema.Number
-    })
-    let registered: Flow.Any | undefined
-    // The registration seam is internal, so the only way to read what it files
-    // is to be the runtime it files with.
-    const capturing = Layer.succeed(FlowRuntime.FlowRuntime)(
-      {
-        register: (flow: Flow.Any) =>
-          Effect.sync(() => {
-            registered = flow
-          })
-      } as unknown as FlowRuntime.FlowRuntime["Service"]
-    )
-
-    await runPromise(
-      Effect.void.pipe(
-        Effect.provide(
-          declared.toLayer(({ value }) => Effect.succeed(value * 2)).pipe(Layer.provideMerge(capturing))
+      const result = yield* withCrypto(
+        invocation.execute({ value: 21 }, { executionId: "declared-execution" }).pipe(
+          Effect.provide(layer)
         )
       )
-    )
+      expect(result).toBe(42)
+      expect(seen).toEqual([21])
+    }))
 
-    expect(registered?._tag).toBe("Declared/flow-form")
-    const graph = Graph.build(registered!, { value: 7 })
-    expect(Graph.nodes(graph).map((node) => [node.id, node.kind])).toEqual([
-      ["root.flow", "ActionCall"],
-      ["root", "FlowCall"]
-    ])
-    expect(Graph.nodes(graph)[0]?.payload).toEqual({ value: 7 })
-  })
+  it.effect("registers a flow whose body is the one call to the action", () =>
+    Effect.gen(function*() {
+      const declared = Action.make("Declared/flow-form", {
+        payload: { value: Schema.Number },
+        success: Schema.Number
+      })
+      let registered: Flow.Any | undefined
+      // The registration seam is internal, so the only way to read what it files
+      // is to be the runtime it files with.
+      const capturing = Layer.succeed(FlowRuntime.FlowRuntime)(
+        {
+          register: (flow: Flow.Any) =>
+            Effect.sync(() => {
+              registered = flow
+            })
+        } as unknown as FlowRuntime.FlowRuntime["Service"]
+      )
+
+      yield* withCrypto(
+        Effect.void.pipe(
+          Effect.provide(
+            declared.toLayer(({ value }) => Effect.succeed(value * 2)).pipe(Layer.provideMerge(capturing))
+          )
+        )
+      )
+
+      expect(registered?._tag).toBe("Declared/flow-form")
+      const graph = Graph.build(registered!, { value: 7 })
+      expect(Graph.nodes(graph).map((node) => [node.id, node.kind])).toEqual([
+        ["root.flow", "ActionCall"],
+        ["root", "FlowCall"]
+      ])
+      expect(Graph.nodes(graph)[0]?.payload).toEqual({ value: 7 })
+    }))
 })

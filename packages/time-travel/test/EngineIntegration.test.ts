@@ -11,6 +11,7 @@
  * @since 0.1.0
  */
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
+import { describe, expect, it } from "@effect/vitest"
 import * as DurableWriter from "@smthrs/database-next/DurableWriter"
 import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import * as DurableEngineState from "@smthrs/engine-store-next/DurableEngineState"
@@ -30,7 +31,6 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
-import { describe, expect, it } from "vitest"
 import * as CompensationHandlers from "../src/CompensationHandlers.ts"
 import * as SqlTimeTravelStore from "../src/SqlTimeTravelStore.ts"
 import { TimeTravel } from "../src/TimeTravel.ts"
@@ -170,21 +170,19 @@ const drive = <A, E>(
     E,
     DurableWriter.DurableWriter | Journal.Journal | RunStore.RunStore | SqlClient.SqlClient | TimeTravel
   >
-): Promise<A> => {
+) => {
   const harness: Harness = { notifications: [], jjCalls: [] }
-  return Effect.runPromise(
-    Effect.gen(function*() {
-      // Park the run at the deferred. It releases ownership on the way out,
-      // which is the only state a rewind accepts.
-      yield* Ledger.execute({}, { executionId: "ledger-1", discard: true })
-      const journal = yield* Journal.Journal
-      yield* journal.flush
-      return yield* body(harness)
-    }).pipe(
-      Effect.provide(engineLayer(harness, handlers)),
-      Effect.scoped
-    ) as Effect.Effect<A, E>
-  )
+  return Effect.gen(function*() {
+    // Park the run at the deferred. It releases ownership on the way out,
+    // which is the only state a rewind accepts.
+    yield* Ledger.execute({}, { executionId: "ledger-1", discard: true })
+    const journal = yield* Journal.Journal
+    yield* journal.flush
+    return yield* body(harness)
+  }).pipe(
+    Effect.provide(engineLayer(harness, handlers)),
+    Effect.scoped
+  ) as Effect.Effect<A, E>
 }
 
 const entries = Effect.gen(function*() {
@@ -201,130 +199,134 @@ const seqOf = (
 ): number => committed.filter((entry) => entry.eventType === eventType)[nth - 1]!.seq
 
 describe("time travel over an engine-written journal", () => {
-  it("folds an ordinary engine journal with no hand-emitted metadata", async () => {
-    const result = await drive([], () =>
-      Effect.gen(function*() {
-        const committed = yield* entries
-        const timeTravel = yield* TimeTravel
-        const attempts = yield* timeTravel.inspect(
-          { runId: "ledger-1", frame: { lineageId: "ledger-1/root", seq: committed.at(-1)!.seq } },
-          {
-            initial: 0,
-            reduce: (state: number, entry) => entry.eventType === "flows.engine.attempt-started" ? state + 1 : state
+  it.effect("folds an ordinary engine journal with no hand-emitted metadata", () =>
+    Effect.gen(function*() {
+      const result = yield* drive([], () =>
+        Effect.gen(function*() {
+          const committed = yield* entries
+          const timeTravel = yield* TimeTravel
+          const attempts = yield* timeTravel.inspect(
+            { runId: "ledger-1", frame: { lineageId: "ledger-1/root", seq: committed.at(-1)!.seq } },
+            {
+              initial: 0,
+              reduce: (state: number, entry) => entry.eventType === "flows.engine.attempt-started" ? state + 1 : state
+            }
+          )
+          return {
+            attempts,
+            lineages: [...new Set(committed.map((entry) => (entry.meta as { lineageId?: string }).lineageId))],
+            anchored: committed.filter((entry) => entry.eventType === "flows.engine.snapshot-identified").length
           }
-        )
-        return {
-          attempts,
-          lineages: [...new Set(committed.map((entry) => (entry.meta as { lineageId?: string }).lineageId))],
-          anchored: committed.filter((entry) => entry.eventType === "flows.engine.snapshot-identified").length
-        }
-      }))
+        }))
 
-    // The engine minted one lineage for the run and stamped it on every record.
-    expect(result.lineages).toEqual(["ledger-1/root"])
-    // Four dispatches, and the fold saw them: the body's own step, then the
-    // three actions its implementation runs before the deferred parks it.
-    expect(result.attempts).toBe(4)
-    // Every frame carries a tier-2 anchor, not just the compensable one.
-    expect(result.anchored).toBe(4)
-  })
+      // The engine minted one lineage for the run and stamped it on every record.
+      expect(result.lineages).toEqual(["ledger-1/root"])
+      // Four dispatches, and the fold saw them: the body's own step, then the
+      // three actions its implementation runs before the deferred parks it.
+      expect(result.attempts).toBe(4)
+      // Every frame carries a tier-2 anchor, not just the compensable one.
+      expect(result.anchored).toBe(4)
+    }))
 
-  it("forks at a frame with the state and attempts of THAT frame, and spares the parent's tree", async () => {
-    const result = await drive([], (harness) =>
-      Effect.gen(function*() {
-        const committed = yield* entries
-        // Cut when the compensable and sealed actions had settled and the
-        // irreversible one had not yet been admitted.
-        const frameSeq = seqOf(committed, "flows.engine.attempt-finished", 2)
-        const sql = yield* Effect.service(SqlClient.SqlClient)
-        const timeTravel = yield* TimeTravel
-        const fork = yield* timeTravel.fork({
-          runId: "ledger-1",
-          frame: { lineageId: "ledger-1/root", seq: frameSeq }
-        })
-        const state = yield* sql<{ readonly run_id: string; readonly state_json: string }>`
+  it.effect("forks at a frame with the state and attempts of THAT frame, and spares the parent's tree", () =>
+    Effect.gen(function*() {
+      const result = yield* drive([], (harness) =>
+        Effect.gen(function*() {
+          const committed = yield* entries
+          // Cut when the compensable and sealed actions had settled and the
+          // irreversible one had not yet been admitted.
+          const frameSeq = seqOf(committed, "flows.engine.attempt-finished", 2)
+          const sql = yield* Effect.service(SqlClient.SqlClient)
+          const timeTravel = yield* TimeTravel
+          const fork = yield* timeTravel.fork({
+            runId: "ledger-1",
+            frame: { lineageId: "ledger-1/root", seq: frameSeq }
+          })
+          const state = yield* sql<{ readonly run_id: string; readonly state_json: string }>`
           SELECT run_id, state_json FROM flows_runs WHERE run_id IN ('ledger-1', ${fork.runId})
         `
-        const attempts = yield* sql<{ readonly run_id: string; readonly step_key_digest: string }>`
+          const attempts = yield* sql<{ readonly run_id: string; readonly step_key_digest: string }>`
           SELECT run_id, step_key_digest FROM flows_attempts
           WHERE run_id IN ('ledger-1', ${fork.runId})
         `
-        return {
-          fork,
-          parentState: state.find((row) => row.run_id === "ledger-1")!.state_json,
-          childState: state.find((row) => row.run_id === fork.runId)!.state_json,
-          parentAttempts: attempts.filter((row) => row.run_id === "ledger-1").length,
-          childAttempts: attempts.filter((row) => row.run_id === fork.runId).length,
-          jjCalls: [...harness.jjCalls]
-        }
-      }))
+          return {
+            fork,
+            parentState: state.find((row) => row.run_id === "ledger-1")!.state_json,
+            childState: state.find((row) => row.run_id === fork.runId)!.state_json,
+            parentAttempts: attempts.filter((row) => row.run_id === "ledger-1").length,
+            childAttempts: attempts.filter((row) => row.run_id === fork.runId).length,
+            jjCalls: [...harness.jjCalls]
+          }
+        }))
 
-    expect(result.fork.edge).toMatchObject({ parentRunId: "ledger-1", kind: "fork", attached: false })
-    // The child's state is the state AT the frame, so it differs from the
-    // parent's current state (which the parent kept driving past).
-    expect(result.childState).not.toBe(result.parentState)
-    // The parent recorded four attempts — the body's step and the three
-    // actions under it; the child inherits only the ones its copied prefix
-    // can explain.
-    expect(result.parentAttempts).toBe(4)
-    expect(result.childAttempts).toBe(3)
-    // The fork gets its OWN workspace and leaves the parent's tree alone:
-    // `Jj.restore` acts on the one working copy the layer is rooted at, so a
-    // fork that called it would restore the parent — forbidden by
-    // `docs/specs/Concepts/Time Travel.md` §Fork. The pointer it could not pin
-    // the lane to is disclosed instead
-    // (`.smithers/tickets/fork-workspace-revision.md`).
-    expect(result.jjCalls.some((call) => call.startsWith("add:"))).toBe(true)
-    expect(result.jjCalls.some((call) => call.startsWith("restore:"))).toBe(false)
-    expect(result.fork.warnings.join(" ")).toContain("was created at the lane default")
-    // The irreversible effect the fork carried past is disclosed, never reverted.
-    expect(result.fork.warnings.join(" ")).toContain(notifyKind)
-    expect(result.fork.warnings.join(" ")).toContain("may execute again on the child")
-  })
+      expect(result.fork.edge).toMatchObject({ parentRunId: "ledger-1", kind: "fork", attached: false })
+      // The child's state is the state AT the frame, so it differs from the
+      // parent's current state (which the parent kept driving past).
+      expect(result.childState).not.toBe(result.parentState)
+      // The parent recorded four attempts — the body's step and the three
+      // actions under it; the child inherits only the ones its copied prefix
+      // can explain.
+      expect(result.parentAttempts).toBe(4)
+      expect(result.childAttempts).toBe(3)
+      // The fork gets its OWN workspace and leaves the parent's tree alone:
+      // `Jj.restore` acts on the one working copy the layer is rooted at, so a
+      // fork that called it would restore the parent — forbidden by
+      // `docs/specs/Concepts/Time Travel.md` §Fork. The pointer it could not pin
+      // the lane to is disclosed instead
+      // (`.smithers/tickets/fork-workspace-revision.md`).
+      expect(result.jjCalls.some((call) => call.startsWith("add:"))).toBe(true)
+      expect(result.jjCalls.some((call) => call.startsWith("restore:"))).toBe(false)
+      expect(result.fork.warnings.join(" ")).toContain("was created at the lane default")
+      // The irreversible effect the fork carried past is disclosed, never reverted.
+      expect(result.fork.warnings.join(" ")).toContain(notifyKind)
+      expect(result.fork.warnings.join(" ")).toContain("may execute again on the child")
+    }))
 
-  it("blocks a rewind across an irreversible effect with no handler", async () => {
-    const failure = await drive([], () =>
-      Effect.gen(function*() {
-        const committed = yield* entries
-        const frameSeq = seqOf(committed, "flows.time-travel.effect-boundary") - 1
-        const timeTravel = yield* TimeTravel
-        return yield* Effect.flip(
-          timeTravel.rewind({ runId: "ledger-1", frame: { lineageId: "ledger-1/root", seq: frameSeq } })
-        )
-      }))
+  it.effect("blocks a rewind across an irreversible effect with no handler", () =>
+    Effect.gen(function*() {
+      const failure = yield* drive([], () =>
+        Effect.gen(function*() {
+          const committed = yield* entries
+          const frameSeq = seqOf(committed, "flows.time-travel.effect-boundary") - 1
+          const timeTravel = yield* TimeTravel
+          return yield* Effect.flip(
+            timeTravel.rewind({ runId: "ledger-1", frame: { lineageId: "ledger-1/root", seq: frameSeq } })
+          )
+        }))
 
-    expect((failure as TimeTravelError).code).toBe("irreversible")
-  })
+      expect((failure as TimeTravelError).code).toBe("irreversible")
+    }))
 
-  it("compensates the same rewind once the engine composition contributes a handler", async () => {
-    const reverted: Array<string> = []
-    const result = await drive([{
-      kind: notifyKind,
-      tier: "irreversible",
-      residue: (effect) => `Notification ${effect.id} was retracted, not un-sent.`,
-      revert: (effect) =>
-        Effect.sync(() => {
-          reverted.push(effect.id)
-          return { retracted: effect.id }
-        }),
-      // A retraction cannot itself be retracted; saying so is the point.
-      rollback: () => Effect.void
-    }], () =>
-      Effect.gen(function*() {
-        const committed = yield* entries
-        const frameSeq = seqOf(committed, "flows.time-travel.effect-boundary") - 1
-        const timeTravel = yield* TimeTravel
-        const rewound = yield* timeTravel.rewind({
-          runId: "ledger-1",
-          frame: { lineageId: "ledger-1/root", seq: frameSeq }
-        })
-        const remaining = yield* entries
-        return { rewound, remaining: remaining.length, total: committed.length }
-      }))
+  it.effect("compensates the same rewind once the engine composition contributes a handler", () =>
+    Effect.gen(function*() {
+      const reverted: Array<string> = []
+      const result = yield* drive([{
+        kind: notifyKind,
+        tier: "irreversible",
+        residue: (effect) => `Notification ${effect.id} was retracted, not un-sent.`,
+        revert: (effect) =>
+          Effect.sync(() => {
+            reverted.push(effect.id)
+            return { retracted: effect.id }
+          }),
+        // A retraction cannot itself be retracted; saying so is the point.
+        rollback: () => Effect.void
+      }], () =>
+        Effect.gen(function*() {
+          const committed = yield* entries
+          const frameSeq = seqOf(committed, "flows.time-travel.effect-boundary") - 1
+          const timeTravel = yield* TimeTravel
+          const rewound = yield* timeTravel.rewind({
+            runId: "ledger-1",
+            frame: { lineageId: "ledger-1/root", seq: frameSeq }
+          })
+          const remaining = yield* entries
+          return { rewound, remaining: remaining.length, total: committed.length }
+        }))
 
-    expect(reverted).toHaveLength(1)
-    expect(result.rewound.assessments.some((assessment) => assessment.classification === "revertible")).toBe(true)
-    expect(result.rewound.archive.archived).toBeGreaterThan(0)
-    expect(result.remaining).toBeLessThan(result.total)
-  })
+      expect(reverted).toHaveLength(1)
+      expect(result.rewound.assessments.some((assessment) => assessment.classification === "revertible")).toBe(true)
+      expect(result.rewound.archive.archived).toBeGreaterThan(0)
+      expect(result.remaining).toBeLessThan(result.total)
+    }))
 })

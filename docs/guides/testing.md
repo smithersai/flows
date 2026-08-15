@@ -7,18 +7,23 @@ This guide covers deterministic host fixtures, an in-memory flow engine, and SQL
 Use `FlowEngine.layerMemory` when the behavior under test does not require restart replay:
 
 ```ts
+import { assert, it } from "@effect/vitest"
+
 const layer = Build.toLayer(({ target }) =>
   Effect.succeed({ artifact: `${target}.js` })
 ).pipe(
   Layer.provideMerge(FlowEngine.layerMemory)
 )
 
-const result = await Effect.runPromise(
-  Build.execute(
-    { target: "server", sourceDigest: "abc" },
-    { executionId: "test-build-1" }
-  ).pipe(Effect.provide(layer))
-)
+it.effect("builds an artifact", () =>
+  Effect.gen(function*() {
+    const result = yield* Build.execute(
+      { target: "server", sourceDigest: "abc" },
+      { executionId: "test-build-1" }
+    ).pipe(Effect.provide(layer))
+
+    assert.deepStrictEqual(result, { artifact: "server.js" })
+  }))
 ```
 
 Select explicit execution IDs so failures are reproducible.

@@ -3,11 +3,11 @@
  * what each node variant does when it is driven with real values, and what the
  * interpreter refuses.
  */
+import { describe, expect, expectTypeOf, it } from "@effect/vitest"
 import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
 import { Node, Planned } from "@smthrs/plan-next"
 import { Context, Effect, Exit, Layer, Schema } from "effect"
-import { describe, expect, expectTypeOf, it } from "vitest"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 import { layerMemory, makeInstance } from "./MemoryFlowRuntime.ts"
 
 const Read = Action.make("interpreter/read", {
@@ -78,8 +78,8 @@ const drive = <A, E>(
     never,
     never
   > = wired()
-): Promise<A> =>
-  runPromise(
+) =>
+  withCrypto(
     effect.pipe(
       Effect.provideService(
         FlowRuntime.FlowInstance,
@@ -98,85 +98,90 @@ const detached = <A, E = never, R = never>(built: Node.Node<A, E, R>): Node.Node
   ast: JSON.parse(JSON.stringify(built.ast)) as Node.Ast
 })
 
-const refusal = async (
+const refusal = (
   effect: Effect.Effect<
     unknown,
     unknown,
     FlowRuntime.FlowInstance | FlowRuntime.FlowRuntime | Action.Implementations
   >
-): Promise<unknown> => {
-  const exit = await drive(Effect.exit(effect))
-  expect(Exit.isFailure(exit)).toBe(true)
-  return Exit.isFailure(exit) ? exit.cause.reasons[0] : undefined
-}
+) =>
+  Effect.gen(function*() {
+    const exit = yield* drive(Effect.exit(effect))
+    expect(Exit.isFailure(exit)).toBe(true)
+    return Exit.isFailure(exit) ? exit.cause.reasons[0] : undefined
+  })
 
 describe("Interpreter.layer", () => {
-  it("drives actions, reference paths, and a deferred map end to end", async () => {
-    calls.length = 0
-    const Pipeline = Flow.make("interpreter/pipeline", {
-      payload: { path: Schema.String },
-      success: Schema.Number,
-      body: ({ path }) =>
-        Read.call({ path }).pipe(
-          Node.andThen((result) => Write.call({ path: result.files[1]!, value: result.value })),
-          Node.map((written) => written * 2)
+  it.effect("drives actions, reference paths, and a deferred map end to end", () =>
+    Effect.gen(function*() {
+      calls.length = 0
+      const Pipeline = Flow.make("interpreter/pipeline", {
+        payload: { path: Schema.String },
+        success: Schema.Number,
+        body: ({ path }) =>
+          Read.call({ path }).pipe(
+            Node.andThen((result) => Write.call({ path: result.files[1]!, value: result.value })),
+            Node.map((written) => written * 2)
+          )
+      })
+
+      const value = yield* withCrypto(
+        Pipeline.execute({ path: "counter.txt" }, { executionId: "pipeline-1" }).pipe(
+          Effect.provide(wired(Interpreter.layer(Pipeline)))
         )
-    })
-
-    const value = await runPromise(
-      Pipeline.execute({ path: "counter.txt" }, { executionId: "pipeline-1" }).pipe(
-        Effect.provide(wired(Interpreter.layer(Pipeline)))
       )
-    )
 
-    expect(value).toBe(84)
-    expect(calls).toEqual(["read:counter.txt", "write:counter.txt.b:41"])
-  })
+      expect(value).toBe(84)
+      expect(calls).toEqual(["read:counter.txt", "write:counter.txt.b:41"])
+    }))
 
-  it("returns the recorded result for a replayed execution id without rerunning the effects", async () => {
-    calls.length = 0
-    const Replayed = Flow.make("interpreter/replayed", {
-      payload: { path: Schema.String },
-      success: Schema.Number,
-      body: ({ path }) => Write.call({ path, value: 1 })
-    })
-    const layer = wired(Interpreter.layer(Replayed))
+  it.effect("returns the recorded result for a replayed execution id without rerunning the effects", () =>
+    Effect.gen(function*() {
+      calls.length = 0
+      const Replayed = Flow.make("interpreter/replayed", {
+        payload: { path: Schema.String },
+        success: Schema.Number,
+        body: ({ path }) => Write.call({ path, value: 1 })
+      })
+      const layer = wired(Interpreter.layer(Replayed))
 
-    const results = await runPromise(
-      Effect.gen(function*() {
-        const first = yield* Replayed.execute({ path: "replay.txt" }, { executionId: "replay-1" })
-        const second = yield* Replayed.execute({ path: "replay.txt" }, { executionId: "replay-1" })
-        return [first, second]
-      }).pipe(Effect.provide(layer))
-    )
+      const results = yield* withCrypto(
+        Effect.gen(function*() {
+          const first = yield* Replayed.execute({ path: "replay.txt" }, { executionId: "replay-1" })
+          const second = yield* Replayed.execute({ path: "replay.txt" }, { executionId: "replay-1" })
+          return [first, second]
+        }).pipe(Effect.provide(layer))
+      )
 
-    expect(results).toEqual([2, 2])
-    expect(calls).toEqual(["write:replay.txt:1"])
-  })
+      expect(results).toEqual([2, 2])
+      expect(calls).toEqual(["write:replay.txt:1"])
+    }))
 })
 
 describe("Interpreter payload resolution", () => {
-  it("keeps an own __proto__ field as data in the value a node is driven with", async () => {
-    const interpretation = await drive(
-      Interpreter.interpret(Node.succeed({ data: { ["__proto__"]: "own" } }))
-    )
-    const data = (interpretation.value as { readonly data: Record<string, unknown> }).data
+  it.effect("keeps an own __proto__ field as data in the value a node is driven with", () =>
+    Effect.gen(function*() {
+      const interpretation = yield* drive(
+        Interpreter.interpret(Node.succeed({ data: { ["__proto__"]: "own" } }))
+      )
+      const data = (interpretation.value as { readonly data: Record<string, unknown> }).data
 
-    expect(Object.hasOwn(data, "__proto__")).toBe(true)
-    expect(data["__proto__"]).toBe("own")
-  })
+      expect(Object.hasOwn(data, "__proto__")).toBe(true)
+      expect(data["__proto__"]).toBe("own")
+    }))
 
-  it("records an object-valued own __proto__ field instead of reparenting the resolved value", async () => {
-    const interpretation = await drive(
-      Interpreter.interpret(Node.succeed({ data: { ["__proto__"]: { evil: 1 } } }))
-    )
-    const data = (interpretation.value as { readonly data: Record<string, unknown> }).data
+  it.effect("records an object-valued own __proto__ field instead of reparenting the resolved value", () =>
+    Effect.gen(function*() {
+      const interpretation = yield* drive(
+        Interpreter.interpret(Node.succeed({ data: { ["__proto__"]: { evil: 1 } } }))
+      )
+      const data = (interpretation.value as { readonly data: Record<string, unknown> }).data
 
-    expect(Object.getPrototypeOf(data)).toBe(null)
-    expect(data["__proto__"]).toEqual({ evil: 1 })
-    // Reparenting would have served `evil` off the prototype instead.
-    expect(data["evil"]).toBeUndefined()
-  })
+      expect(Object.getPrototypeOf(data)).toBe(null)
+      expect(data["__proto__"]).toEqual({ evil: 1 })
+      // Reparenting would have served `evil` off the prototype instead.
+      expect(data["evil"]).toBeUndefined()
+    }))
 })
 
 describe("Interpreter branches", () => {
@@ -204,183 +209,194 @@ describe("Interpreter branches", () => {
       )
   })
 
-  it("takes the then arm on a real value and settles the untaken arm as skipped", async () => {
-    const interpretation = await drive(
-      Interpreter.interpret(Decide, { path: "counter.txt", target: 100 }),
-      CountTo(100)
-    )
-
-    expect(interpretation.value).toEqual({ _tag: "Done", value: 100 })
-    expect(interpretation.skipped).toEqual(["root.flow.else"])
-    expect(interpretation.settled.get("root.flow.branch")).toBe(100)
-  })
-
-  it("takes the else arm on a real value, and the taken arm is the one that settles", async () => {
-    const interpretation = await drive(
-      Interpreter.interpret(Decide, { path: "counter.txt", target: 100 }),
-      CountTo(7)
-    )
-
-    expect(interpretation.value).toEqual({
-      _tag: "To",
-      flow: "interpreter/decide",
-      payload: { path: "counter.txt", target: 100 }
-    })
-    expect(interpretation.skipped).toEqual(["root.flow.then"])
-  })
-
-  it("refuses a branch whose predicate did not survive serialization", async () => {
-    const lost = detached(
-      Node.succeed(1).pipe(
-        Node.branch({ if: (value) => value > 0, then: () => Node.succeed("yes"), else: () => Node.succeed("no") })
+  it.effect("takes the then arm on a real value and settles the untaken arm as skipped", () =>
+    Effect.gen(function*() {
+      const interpretation = yield* drive(
+        Interpreter.interpret(Decide, { path: "counter.txt", target: 100 }),
+        CountTo(100)
       )
-    )
 
-    expect(await refusal(Interpreter.interpret(lost))).toMatchObject({
-      error: { _tag: "@smthrs/flow-next/InterpreterError", code: "missing_operation", node: "root" }
-    })
-  })
+      expect(interpretation.value).toEqual({ _tag: "Done", value: 100 })
+      expect(interpretation.skipped).toEqual(["root.flow.else"])
+      expect(interpretation.settled.get("root.flow.branch")).toBe(100)
+    }))
+
+  it.effect("takes the else arm on a real value, and the taken arm is the one that settles", () =>
+    Effect.gen(function*() {
+      const interpretation = yield* drive(
+        Interpreter.interpret(Decide, { path: "counter.txt", target: 100 }),
+        CountTo(7)
+      )
+
+      expect(interpretation.value).toEqual({
+        _tag: "To",
+        flow: "interpreter/decide",
+        payload: { path: "counter.txt", target: 100 }
+      })
+      expect(interpretation.skipped).toEqual(["root.flow.then"])
+    }))
+
+  it.effect("refuses a branch whose predicate did not survive serialization", () =>
+    Effect.gen(function*() {
+      const lost = detached(
+        Node.succeed(1).pipe(
+          Node.branch({ if: (value) => value > 0, then: () => Node.succeed("yes"), else: () => Node.succeed("no") })
+        )
+      )
+
+      expect(yield* refusal(Interpreter.interpret(lost))).toMatchObject({
+        error: { _tag: "@smthrs/flow-next/InterpreterError", code: "missing_operation", node: "root" }
+      })
+    }))
 })
 
 describe("Interpreter catches", () => {
-  it("takes a matching failure arm and binds the typed error", async () => {
-    const interpretation = await drive(Interpreter.interpret(
-      Fallible.call({ fail: true, error: "recoverable" }).pipe(
-        Node.catch({
-          error: Schema.Literal("recoverable"),
-          onFailure: (error) => Node.succeed({ recovered: error })
-        })
-      )
-    ))
-
-    expect(interpretation.value).toEqual({ recovered: "recoverable" })
-    expect(interpretation.settled.has("root.protected")).toBe(false)
-    expect(interpretation.failed.get("root.protected")).toBe("recoverable")
-    expect(interpretation.skipped).toEqual([])
-  })
-
-  it("passes through success and leaves the failure arm skipped", async () => {
-    const interpretation = await drive(Interpreter.interpret(
-      Fallible.call({ fail: false, error: "unused" }).pipe(
-        Node.catch({ onFailure: () => Node.succeed(0) })
-      )
-    ))
-
-    expect(interpretation.value).toBe(7)
-    expect(interpretation.skipped).toEqual(["root.failure"])
-  })
-
-  it("propagates an unmatched typed error", async () => {
-    expect(
-      await refusal(Interpreter.interpret(
-        Fallible.call({ fail: true, error: "fatal" }).pipe(
+  it.effect("takes a matching failure arm and binds the typed error", () =>
+    Effect.gen(function*() {
+      const interpretation = yield* drive(Interpreter.interpret(
+        Fallible.call({ fail: true, error: "recoverable" }).pipe(
           Node.catch({
             error: Schema.Literal("recoverable"),
-            onFailure: () => Node.succeed(0)
+            onFailure: (error) => Node.succeed({ recovered: error })
           })
         )
       ))
-    ).toMatchObject({ error: "fatal" })
-  })
 
-  it("allows an outer catch to recover an error unmatched by an inner catch", async () => {
-    const interpretation = await drive(Interpreter.interpret(
-      Fallible.call({ fail: true, error: "outer" }).pipe(
-        Node.catch({
-          error: Schema.Literal("inner"),
-          onFailure: () => Node.succeed(1)
-        }),
-        Node.catch({ onFailure: (error) => Node.succeed({ outer: error }) })
+      expect(interpretation.value).toEqual({ recovered: "recoverable" })
+      expect(interpretation.settled.has("root.protected")).toBe(false)
+      expect(interpretation.failed.get("root.protected")).toBe("recoverable")
+      expect(interpretation.skipped).toEqual([])
+    }))
+
+  it.effect("passes through success and leaves the failure arm skipped", () =>
+    Effect.gen(function*() {
+      const interpretation = yield* drive(Interpreter.interpret(
+        Fallible.call({ fail: false, error: "unused" }).pipe(
+          Node.catch({ onFailure: () => Node.succeed(0) })
+        )
+      ))
+
+      expect(interpretation.value).toBe(7)
+      expect(interpretation.skipped).toEqual(["root.failure"])
+    }))
+
+  it.effect("propagates an unmatched typed error", () =>
+    Effect.gen(function*() {
+      expect(
+        yield* refusal(Interpreter.interpret(
+          Fallible.call({ fail: true, error: "fatal" }).pipe(
+            Node.catch({
+              error: Schema.Literal("recoverable"),
+              onFailure: () => Node.succeed(0)
+            })
+          )
+        ))
+      ).toMatchObject({ error: "fatal" })
+    }))
+
+  it.effect("allows an outer catch to recover an error unmatched by an inner catch", () =>
+    Effect.gen(function*() {
+      const interpretation = yield* drive(Interpreter.interpret(
+        Fallible.call({ fail: true, error: "outer" }).pipe(
+          Node.catch({
+            error: Schema.Literal("inner"),
+            onFailure: () => Node.succeed(1)
+          }),
+          Node.catch({ onFailure: (error) => Node.succeed({ outer: error }) })
+        )
+      ))
+
+      expect(interpretation.value).toEqual({ outer: "outer" })
+      expect(interpretation.failed).toEqual(
+        new Map([
+          ["root.protected.protected", "outer"],
+          ["root.protected", "outer"]
+        ])
       )
-    ))
+      expect(interpretation.skipped).toEqual(["root.protected.failure"])
+    }))
 
-    expect(interpretation.value).toEqual({ outer: "outer" })
-    expect(interpretation.failed).toEqual(
-      new Map([
-        ["root.protected.protected", "outer"],
-        ["root.protected", "outer"]
-      ])
-    )
-    expect(interpretation.skipped).toEqual(["root.protected.failure"])
-  })
-
-  it("refuses when a serialized catch loses its schema filter", async () => {
-    const lost = detached(
-      Fallible.call({ fail: true, error: "recoverable" }).pipe(
-        Node.catch({ error: Schema.String, onFailure: () => Node.succeed(0) })
+  it.effect("refuses when a serialized catch loses its schema filter", () =>
+    Effect.gen(function*() {
+      const lost = detached(
+        Fallible.call({ fail: true, error: "recoverable" }).pipe(
+          Node.catch({ error: Schema.String, onFailure: () => Node.succeed(0) })
+        )
       )
-    )
 
-    expect(await refusal(Interpreter.interpret(lost))).toMatchObject({
-      error: { _tag: "@smthrs/flow-next/InterpreterError", code: "missing_operation", node: "root" }
-    })
-  })
+      expect(yield* refusal(Interpreter.interpret(lost))).toMatchObject({
+        error: { _tag: "@smthrs/flow-next/InterpreterError", code: "missing_operation", node: "root" }
+      })
+    }))
 })
 
 describe("Interpreter node variants", () => {
-  it("joins a combination by member name and threads planned arrays into a payload", async () => {
-    calls.length = 0
-    const Joined = Flow.make("interpreter/joined", {
-      payload: { path: Schema.String },
-      success: Schema.Number,
-      body: ({ path }) =>
-        Node.all({ left: Read.call({ path }), right: Node.succeed(2) }).pipe(
-          Node.andThen((both) => Sum.call({ values: [both.left.value, both.right], label: path }))
-        )
-    })
+  it.effect("joins a combination by member name and threads planned arrays into a payload", () =>
+    Effect.gen(function*() {
+      calls.length = 0
+      const Joined = Flow.make("interpreter/joined", {
+        payload: { path: Schema.String },
+        success: Schema.Number,
+        body: ({ path }) =>
+          Node.all({ left: Read.call({ path }), right: Node.succeed(2) }).pipe(
+            Node.andThen((both) => Sum.call({ values: [both.left.value, both.right], label: path }))
+          )
+      })
 
-    const interpretation = await drive(Interpreter.interpret(Joined, { path: "counter.txt" }))
+      const interpretation = yield* drive(Interpreter.interpret(Joined, { path: "counter.txt" }))
 
-    expect(interpretation.value).toBe(43)
-    expect(interpretation.settled.get("root.flow.andThen")).toEqual({
-      left: { value: 41, files: ["counter.txt.a", "counter.txt.b"] },
-      right: 2
-    })
-    expect(interpretation.skipped).toEqual([])
-    expect(calls).toEqual(["read:counter.txt", "sum:counter.txt"])
-  })
+      expect(interpretation.value).toBe(43)
+      expect(interpretation.settled.get("root.flow.andThen")).toEqual({
+        left: { value: 41, files: ["counter.txt.a", "counter.txt.b"] },
+        right: 2
+      })
+      expect(interpretation.skipped).toEqual([])
+      expect(calls).toEqual(["read:counter.txt", "sum:counter.txt"])
+    }))
 
-  it("settles a bare node graph under a caller-chosen root", async () => {
-    const interpretation = await drive(
-      Interpreter.interpret(
-        Node.succeed({ label: "round", nothing: null, values: [1, 2] }),
-        undefined,
-        { root: "round-1" }
-      )
-    )
-
-    expect(interpretation.value).toEqual({ label: "round", nothing: null, values: [1, 2] })
-    expect([...interpretation.settled.keys()]).toEqual(["round-1"])
-  })
-
-  it("refuses a payload reference to a node this graph does not hold", async () => {
-    calls.length = 0
-    const Follow = Flow.make("interpreter/follow", {
-      payload: { value: Schema.Number },
-      success: Schema.Number,
-      body: ({ value }) => Write.call({ path: "next.txt", value })
-    })
-
-    // The shape `Plan.append` plans a later round in: a payload naming a node
-    // an earlier generation settled. One interpretation settles one graph.
-    expect(
-      await refusal(
+  it.effect("settles a bare node graph under a caller-chosen root", () =>
+    Effect.gen(function*() {
+      const interpretation = yield* drive(
         Interpreter.interpret(
-          Follow,
-          { value: Planned.make<number>("round-0") },
+          Node.succeed({ label: "round", nothing: null, values: [1, 2] }),
+          undefined,
           { root: "round-1" }
         )
       )
-    ).toMatchObject({
-      error: {
-        _tag: "@smthrs/flow-next/InterpreterError",
-        code: "unresolved_reference",
-        node: "round-1.flow",
-        message: expect.stringContaining("round-0")
-      }
-    })
-    expect(calls).toEqual([])
-  })
+
+      expect(interpretation.value).toEqual({ label: "round", nothing: null, values: [1, 2] })
+      expect([...interpretation.settled.keys()]).toEqual(["round-1"])
+    }))
+
+  it.effect("refuses a payload reference to a node this graph does not hold", () =>
+    Effect.gen(function*() {
+      calls.length = 0
+      const Follow = Flow.make("interpreter/follow", {
+        payload: { value: Schema.Number },
+        success: Schema.Number,
+        body: ({ value }) => Write.call({ path: "next.txt", value })
+      })
+
+      // The shape `Plan.append` plans a later round in: a payload naming a node
+      // an earlier generation settled. One interpretation settles one graph.
+      expect(
+        yield* refusal(
+          Interpreter.interpret(
+            Follow,
+            { value: Planned.make<number>("round-0") },
+            { root: "round-1" }
+          )
+        )
+      ).toMatchObject({
+        error: {
+          _tag: "@smthrs/flow-next/InterpreterError",
+          code: "unresolved_reference",
+          node: "round-1.flow",
+          message: expect.stringContaining("round-0")
+        }
+      })
+      expect(calls).toEqual([])
+    }))
 })
 
 describe("Interpreter refusals", () => {
@@ -389,100 +405,106 @@ describe("Interpreter refusals", () => {
     success: Schema.Number
   })
 
-  it("names the action that has no implementation", async () => {
-    const Orphan = Flow.make("interpreter/orphan", {
-      payload: { path: Schema.String },
-      success: Schema.Number,
-      body: ({ path }) => Missing.call({ path })
-    })
+  it.effect("names the action that has no implementation", () =>
+    Effect.gen(function*() {
+      const Orphan = Flow.make("interpreter/orphan", {
+        payload: { path: Schema.String },
+        success: Schema.Number,
+        body: ({ path }) => Missing.call({ path })
+      })
 
-    expect(await refusal(Interpreter.interpret(Orphan, { path: "counter.txt" }))).toMatchObject({
-      error: {
-        _tag: "@smthrs/flow-next/InterpreterError",
-        code: "unresolved_action",
-        flow: "interpreter/orphan",
-        node: "root.flow",
-        message: expect.stringContaining("interpreter/missing.toLayer(execute)")
-      }
-    })
-  })
+      expect(yield* refusal(Interpreter.interpret(Orphan, { path: "counter.txt" }))).toMatchObject({
+        error: {
+          _tag: "@smthrs/flow-next/InterpreterError",
+          code: "unresolved_action",
+          flow: "interpreter/orphan",
+          node: "root.flow",
+          message: expect.stringContaining("interpreter/missing.toLayer(execute)")
+        }
+      })
+    }))
 
-  it("refuses an unimplemented action before the implemented ones ahead of it run", async () => {
-    calls.length = 0
-    // Wiring is knowable from the graph, so it is refused from the graph. The
-    // alternative surfaces the same error after `Read` has already committed
-    // whatever its implementation does.
-    const Half = Flow.make("interpreter/half-wired", {
-      payload: { path: Schema.String },
-      success: Schema.Number,
-      body: ({ path }) => Read.call({ path }).pipe(Node.andThen((result) => Missing.call({ path: result.files[0]! })))
-    })
+  it.effect("refuses an unimplemented action before the implemented ones ahead of it run", () =>
+    Effect.gen(function*() {
+      calls.length = 0
+      // Wiring is knowable from the graph, so it is refused from the graph. The
+      // alternative surfaces the same error after `Read` has already committed
+      // whatever its implementation does.
+      const Half = Flow.make("interpreter/half-wired", {
+        payload: { path: Schema.String },
+        success: Schema.Number,
+        body: ({ path }) => Read.call({ path }).pipe(Node.andThen((result) => Missing.call({ path: result.files[0]! })))
+      })
 
-    expect(await refusal(Interpreter.interpret(Half, { path: "counter.txt" }))).toMatchObject({
-      error: { code: "unresolved_action", node: "root.flow.then" }
-    })
-    expect(calls).toEqual([])
-  })
+      expect(yield* refusal(Interpreter.interpret(Half, { path: "counter.txt" }))).toMatchObject({
+        error: { code: "unresolved_action", node: "root.flow.then" }
+      })
+      expect(calls).toEqual([])
+    }))
 
-  it("refuses a graph whose topology is incomplete", async () => {
-    const lost = detached(Node.succeed(1).pipe(Node.andThen(() => Node.succeed(2))))
+  it.effect("refuses a graph whose topology is incomplete", () =>
+    Effect.gen(function*() {
+      const lost = detached(Node.succeed(1).pipe(Node.andThen(() => Node.succeed(2))))
 
-    expect(await refusal(Interpreter.interpret(lost))).toMatchObject({
-      error: { _tag: "@smthrs/flow-next/InterpreterError", code: "incomplete_graph", flow: "node", node: "root" }
-    })
-  })
+      expect(yield* refusal(Interpreter.interpret(lost))).toMatchObject({
+        error: { _tag: "@smthrs/flow-next/InterpreterError", code: "incomplete_graph", flow: "node", node: "root" }
+      })
+    }))
 
-  it("refuses a map whose deferred function did not survive serialization", async () => {
-    const lost = detached(Node.succeed(1).pipe(Node.map((value) => value + 1)))
+  it.effect("refuses a map whose deferred function did not survive serialization", () =>
+    Effect.gen(function*() {
+      const lost = detached(Node.succeed(1).pipe(Node.map((value) => value + 1)))
 
-    expect(await refusal(Interpreter.interpret(lost))).toMatchObject({
-      error: { _tag: "@smthrs/flow-next/InterpreterError", code: "missing_operation", node: "root" }
-    })
-  })
+      expect(yield* refusal(Interpreter.interpret(lost))).toMatchObject({
+        error: { _tag: "@smthrs/flow-next/InterpreterError", code: "missing_operation", node: "root" }
+      })
+    }))
 
-  it("refuses an inline call it keeps as a leaf, naming the same process and the boundary as the fixes", async () => {
-    // Every flow has a body, so the only inline call with nothing to splice is
-    // one whose declaration did not survive beside its AST — and a leaf inline
-    // call is the one flow node with no behavior at all. `.child()` is a leaf
-    // too, but it has an execution underneath it.
-    const Callee = Flow.make("interpreter/leaf-callee", {
-      payload: { path: Schema.String },
-      success: Schema.Number,
-      body: ({ path }) => Write.call({ path, value: 1 })
-    })
-    const inline = detached<number>(
-      Node.flowCall(Callee, "interpreter/leaf-callee", "inline", { path: "p" })
-    )
+  it.effect("refuses an inline call it keeps as a leaf, naming the same process and the boundary as the fixes", () =>
+    Effect.gen(function*() {
+      // Every flow has a body, so the only inline call with nothing to splice is
+      // one whose declaration did not survive beside its AST — and a leaf inline
+      // call is the one flow node with no behavior at all. `.child()` is a leaf
+      // too, but it has an execution underneath it.
+      const Callee = Flow.make("interpreter/leaf-callee", {
+        payload: { path: Schema.String },
+        success: Schema.Number,
+        body: ({ path }) => Write.call({ path, value: 1 })
+      })
+      const inline = detached<number>(
+        Node.flowCall(Callee, "interpreter/leaf-callee", "inline", { path: "p" })
+      )
 
-    expect(await refusal(Interpreter.interpret(inline))).toMatchObject({
-      error: {
-        _tag: "@smthrs/flow-next/InterpreterError",
-        code: "unsupported_call",
-        node: "root",
-        message: expect.stringContaining("interpreter/leaf-callee.child(payload)")
-      }
-    })
-  })
+      expect(yield* refusal(Interpreter.interpret(inline))).toMatchObject({
+        error: {
+          _tag: "@smthrs/flow-next/InterpreterError",
+          code: "unsupported_call",
+          node: "root",
+          message: expect.stringContaining("interpreter/leaf-callee.child(payload)")
+        }
+      })
+    }))
 
-  it("refuses a detached handoff whose declaration cannot encode its payload", async () => {
-    const Target = Flow.make("interpreter/handoff-target", {
-      payload: { path: Schema.String },
-      success: Schema.Number,
-      body: () => Node.succeed(undefined)
-    })
-    const lost = detached(
-      Node.flowCall<number>(Target, Target._tag, "handoff", { path: "p" })
-    )
+  it.effect("refuses a detached handoff whose declaration cannot encode its payload", () =>
+    Effect.gen(function*() {
+      const Target = Flow.make("interpreter/handoff-target", {
+        payload: { path: Schema.String },
+        success: Schema.Number,
+        body: () => Node.succeed(undefined)
+      })
+      const lost = detached(
+        Node.flowCall<number>(Target, Target._tag, "handoff", { path: "p" })
+      )
 
-    expect(await refusal(Interpreter.interpret(lost))).toMatchObject({
-      error: {
-        _tag: "@smthrs/flow-next/InterpreterError",
-        code: "unsupported_call",
-        node: "root",
-        message: expect.stringContaining("lost its declaration")
-      }
-    })
-  })
+      expect(yield* refusal(Interpreter.interpret(lost))).toMatchObject({
+        error: {
+          _tag: "@smthrs/flow-next/InterpreterError",
+          code: "unsupported_call",
+          node: "root",
+          message: expect.stringContaining("lost its declaration")
+        }
+      })
+    }))
 })
 
 describe("a flow's behavior is its body", () => {
@@ -529,17 +551,18 @@ describe("a flow's behavior is its body", () => {
     expect(merged.body).toBe(Bodied.body)
   })
 
-  it("runs that body through the interpreter's registration layer", async () => {
-    calls.length = 0
-    const value = await runPromise(
-      Bodied.execute({ path: "bodied.txt" }, { executionId: "bodied-1" }).pipe(
-        Effect.provide(wired(Interpreter.layer(Bodied)))
+  it.effect("runs that body through the interpreter's registration layer", () =>
+    Effect.gen(function*() {
+      calls.length = 0
+      const value = yield* withCrypto(
+        Bodied.execute({ path: "bodied.txt" }, { executionId: "bodied-1" }).pipe(
+          Effect.provide(wired(Interpreter.layer(Bodied)))
+        )
       )
-    )
 
-    expect(value).toBe(2)
-    expect(calls).toEqual(["write:bodied.txt:1"])
-  })
+      expect(value).toBe(2)
+      expect(calls).toEqual(["write:bodied.txt:1"])
+    }))
 })
 
 /**
@@ -619,119 +642,124 @@ describe("Interpreter concurrency", () => {
       )
     )
 
-  it("settles `All` members concurrently", async () => {
-    // `left` parks. Only `release`, a sibling member, unparks it — so this
-    // resolves at all only because the two members overlapped.
-    const { layer, state } = concurrent()
-    const value = await driveWith(
-      layer,
-      Interpreter.interpret(Node.all({
-        left: Parking.call({ name: "left" }),
-        release: Release.call({})
-      }))
-    )
-    expect(state.entered).toEqual(["left"])
-    expect(value.value).toMatchObject({ release: 0 })
-  })
-
-  it("settles a shared dependency exactly once under concurrent demand", async () => {
-    // A diamond: two `All` members whose material inputs both reference the
-    // same upstream node. `settled.has()` answers "has this FINISHED", so two
-    // demands arriving while the upstream is still parked would both execute
-    // it. The in-flight deferred map is what makes the second one join the
-    // first instead.
-    const { layer, state } = concurrent()
-    const value = await driveWith(
-      layer,
-      Interpreter.interpret(
-        Parking.call({ name: "shared" }).pipe(
-          Node.andThen((shared) =>
-            Node.all({
-              left: Sum.call({ values: [shared], label: "left" }),
-              right: Sum.call({ values: [shared], label: "right" }),
-              release: Release.call({})
-            })
-          )
-        )
+  it.effect("settles `All` members concurrently", () =>
+    Effect.gen(function*() {
+      // `left` parks. Only `release`, a sibling member, unparks it — so this
+      // resolves at all only because the two members overlapped.
+      const { layer, state } = concurrent()
+      const value = yield* driveWith(
+        layer,
+        Interpreter.interpret(Node.all({
+          left: Parking.call({ name: "left" }),
+          release: Release.call({})
+        }))
       )
-    )
-    // Executed once despite two concurrent demands.
-    expect(state.entered).toEqual(["shared"])
-    expect(value.value).toMatchObject({ left: 1, right: 1 })
-  })
+      expect(state.entered).toEqual(["left"])
+      expect(value.value).toMatchObject({ release: 0 })
+    }))
 
-  it("fails the parent and interrupts the surviving sibling", async () => {
-    // Fail-fast with sibling interruption is the accepted semantics: it
-    // matches `Effect.forEach`'s default and the scheduler's halt rule. The
-    // interrupted sibling records nothing in `settled`, so it is reported as
-    // skipped rather than as a phantom success.
-    const { layer, state } = concurrent()
-    const exit = await driveWith(
-      layer,
-      Effect.exit(Interpreter.interpret(Node.all({
-        survivor: Parking.call({ name: "survivor" }),
-        doomed: Failing.call({ name: "doomed" })
-      })))
-    )
-    expect(Exit.isFailure(exit)).toBe(true)
-    expect(state.entered).toEqual(["survivor"])
-    expect(state.interrupted).toEqual(["survivor"])
-  })
-
-  it("interrupts a shared upstream when the walk fails, instead of orphaning it", async () => {
-    // The ref-diamond case: the shared node's execution is owned by the
-    // interpretation, not by the failing `All`'s forEach, so fail-fast cannot
-    // reach it directly. Closing the interpretation's node scope on exit is
-    // what interrupts it — the orphan must not keep running past the failure
-    // and write a phantom success into `settled` afterwards.
-    const { layer, state } = concurrent()
-    const exit = await driveWith(
-      layer,
-      Effect.exit(Interpreter.interpret(
-        Parking.call({ name: "shared" }).pipe(
-          Node.andThen((shared) =>
-            Node.all({
-              use: Sum.call({ values: [shared], label: "use" }),
-              doomed: Failing.call({ name: "doomed" })
-            })
-          )
-        )
-      ))
-    )
-    expect(Exit.isFailure(exit)).toBe(true)
-    expect(state.entered).toEqual(["shared"])
-    expect(state.interrupted).toEqual(["shared"])
-  })
-
-  it("lets a Catch recovery arm join shared work the failed subtree demanded", async () => {
-    // The recovery arm references the same upstream the failed `All` was
-    // consuming. Because the interpretation owns the execution, the sibling
-    // failure interrupts only the dead subtree's JOINS: the shared node keeps
-    // running, the recovery arm's demand joins it, and the release member
-    // unparks it — no deadlock on an orphaned deferred.
-    const { layer, state } = concurrent()
-    const value = await driveWith(
-      layer,
-      Interpreter.interpret(
-        Parking.call({ name: "shared" }).pipe(
-          Node.andThen((shared) =>
-            Node.all({
-              use: Sum.call({ values: [shared], label: "use" }),
-              doomed: Failing.call({ name: "doomed" })
-            }).pipe(
-              Node.catch({
-                onFailure: () =>
-                  Node.all({
-                    recovered: Sum.call({ values: [shared], label: "recovery" }),
-                    release: Release.call({})
-                  })
+  it.effect("settles a shared dependency exactly once under concurrent demand", () =>
+    Effect.gen(function*() {
+      // A diamond: two `All` members whose material inputs both reference the
+      // same upstream node. `settled.has()` answers "has this FINISHED", so two
+      // demands arriving while the upstream is still parked would both execute
+      // it. The in-flight deferred map is what makes the second one join the
+      // first instead.
+      const { layer, state } = concurrent()
+      const value = yield* driveWith(
+        layer,
+        Interpreter.interpret(
+          Parking.call({ name: "shared" }).pipe(
+            Node.andThen((shared) =>
+              Node.all({
+                left: Sum.call({ values: [shared], label: "left" }),
+                right: Sum.call({ values: [shared], label: "right" }),
+                release: Release.call({})
               })
             )
           )
         )
       )
-    )
-    expect(state.entered).toEqual(["shared"])
-    expect(value.value).toMatchObject({ recovered: 1 })
-  })
+      // Executed once despite two concurrent demands.
+      expect(state.entered).toEqual(["shared"])
+      expect(value.value).toMatchObject({ left: 1, right: 1 })
+    }))
+
+  it.effect("fails the parent and interrupts the surviving sibling", () =>
+    Effect.gen(function*() {
+      // Fail-fast with sibling interruption is the accepted semantics: it
+      // matches `Effect.forEach`'s default and the scheduler's halt rule. The
+      // interrupted sibling records nothing in `settled`, so it is reported as
+      // skipped rather than as a phantom success.
+      const { layer, state } = concurrent()
+      const exit = yield* driveWith(
+        layer,
+        Effect.exit(Interpreter.interpret(Node.all({
+          survivor: Parking.call({ name: "survivor" }),
+          doomed: Failing.call({ name: "doomed" })
+        })))
+      )
+      expect(Exit.isFailure(exit)).toBe(true)
+      expect(state.entered).toEqual(["survivor"])
+      expect(state.interrupted).toEqual(["survivor"])
+    }))
+
+  it.effect("interrupts a shared upstream when the walk fails, instead of orphaning it", () =>
+    Effect.gen(function*() {
+      // The ref-diamond case: the shared node's execution is owned by the
+      // interpretation, not by the failing `All`'s forEach, so fail-fast cannot
+      // reach it directly. Closing the interpretation's node scope on exit is
+      // what interrupts it — the orphan must not keep running past the failure
+      // and write a phantom success into `settled` afterwards.
+      const { layer, state } = concurrent()
+      const exit = yield* driveWith(
+        layer,
+        Effect.exit(Interpreter.interpret(
+          Parking.call({ name: "shared" }).pipe(
+            Node.andThen((shared) =>
+              Node.all({
+                use: Sum.call({ values: [shared], label: "use" }),
+                doomed: Failing.call({ name: "doomed" })
+              })
+            )
+          )
+        ))
+      )
+      expect(Exit.isFailure(exit)).toBe(true)
+      expect(state.entered).toEqual(["shared"])
+      expect(state.interrupted).toEqual(["shared"])
+    }))
+
+  it.effect("lets a Catch recovery arm join shared work the failed subtree demanded", () =>
+    Effect.gen(function*() {
+      // The recovery arm references the same upstream the failed `All` was
+      // consuming. Because the interpretation owns the execution, the sibling
+      // failure interrupts only the dead subtree's JOINS: the shared node keeps
+      // running, the recovery arm's demand joins it, and the release member
+      // unparks it — no deadlock on an orphaned deferred.
+      const { layer, state } = concurrent()
+      const value = yield* driveWith(
+        layer,
+        Interpreter.interpret(
+          Parking.call({ name: "shared" }).pipe(
+            Node.andThen((shared) =>
+              Node.all({
+                use: Sum.call({ values: [shared], label: "use" }),
+                doomed: Failing.call({ name: "doomed" })
+              }).pipe(
+                Node.catch({
+                  onFailure: () =>
+                    Node.all({
+                      recovered: Sum.call({ values: [shared], label: "recovery" }),
+                      release: Release.call({})
+                    })
+                })
+              )
+            )
+          )
+        )
+      )
+      expect(state.entered).toEqual(["shared"])
+      expect(value.value).toMatchObject({ recovered: 1 })
+    }))
 })

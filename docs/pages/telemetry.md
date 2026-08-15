@@ -87,14 +87,18 @@ Updates resolve the metric registry from the running Effect context, so a test p
 
 ```typescript
 import { CacheStoreMetrics } from "@smthrs/step-cache-next"
+import { assert, it } from "@effect/vitest"
 import { Effect, Metric } from "effect"
 
-const hits = await Effect.runPromise(
-  program.pipe(
-    Effect.andThen(Metric.value(CacheStoreMetrics.hit)),
-    Effect.provideService(Metric.MetricRegistry, new Map())
-  )
-)
+it.effect("records cache hits", () =>
+  Effect.gen(function*() {
+    const hits = yield* program.pipe(
+      Effect.andThen(Metric.value(CacheStoreMetrics.hit)),
+      Effect.provideService(Metric.MetricRegistry, new Map())
+    )
+
+    assert.strictEqual(hits.count, 1)
+  }))
 ```
 
 The exporter itself is testable the same way: `Otlp.layerFetch` reads its `fetch` from the `FetchHttpClient.Fetch` reference, so a test provides a recording stub and asserts on the OTLP request bodies. `packages/observability/test/Otlp.test.ts` does exactly this.

@@ -7,15 +7,15 @@
  * attempt that first reached it. A nested block shares the enclosing block's
  * pinned ordinals and folds its own cursor positions back on exit.
  */
-import { Action, Flow, Interpreter } from "@smthrs/flow-next"
-import { Effect, Layer, Schema } from "effect"
+import { describe, expect, it } from "@effect/vitest"
+import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
+import { Effect, Latch, Layer, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
-import { describe, expect, it } from "vitest"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 import { layerWired } from "./MemoryFlowRuntime.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it(name, () => runPromise(body()))
+  it.effect(name, () => withCrypto(body()))
 
 /** The one step the host flow is made of; each case supplies its body. */
 const Block = Action.make("Retry/Block", {
@@ -31,7 +31,7 @@ const Host = Flow.make("Retry/Host", {
 })
 
 const run = (
-  body: Effect.Effect<number, never, any>,
+  body: Effect.Effect<number, never, FlowRuntime.FlowInstance | FlowRuntime.FlowRuntime>,
   id: string
 ): Effect.Effect<number, never, Crypto.Crypto> =>
   Host.execute({ id }, { executionId: id }).pipe(
@@ -117,5 +117,71 @@ describe("Action.retry", () => {
       expect(executions).toBe(4)
       expect(outerRounds).toBe(2)
       expect(innerRounds).toBe(3)
+    }))
+
+  effect("concurrent sibling retry blocks cannot rewind each other's dispatch ordinal", () =>
+    Effect.gen(function*() {
+      const rightDispatched = yield* Latch.make()
+      const leftRetried = yield* Latch.make()
+      const leftKeys: Array<string> = []
+      const rightKeys: Array<string> = []
+      const rightValues: Array<number> = []
+      let leftAttempts = 0
+      let leftExecutions = 0
+      let rightExecutions = 0
+
+      const left = Action.make({
+        name: "Retry/concurrent-left",
+        success: Schema.Number,
+        execute: Effect.gen(function*() {
+          const key = yield* Action.CurrentInvocationKey
+          expect(key).toBeDefined()
+          leftKeys.push(key!)
+          return ++leftExecutions
+        })
+      })
+      const right = Action.make({
+        name: "Retry/concurrent-right",
+        success: Schema.Number,
+        execute: Effect.gen(function*() {
+          const key = yield* Action.CurrentInvocationKey
+          expect(key).toBeDefined()
+          rightKeys.push(key!)
+          return ++rightExecutions
+        })
+      })
+
+      const leftBlock = Effect.gen(function*() {
+        leftAttempts++
+        yield* left
+        if (leftAttempts === 1) {
+          yield* rightDispatched.await
+          return yield* Effect.fail("retry left")
+        }
+        yield* leftRetried.open
+        return 1
+      }).pipe(Action.retry({ times: 2 }), Effect.orDie)
+
+      const rightBlock = Effect.gen(function*() {
+        rightValues.push(yield* right)
+        yield* rightDispatched.open
+        yield* leftRetried.await
+        rightValues.push(yield* right)
+        return rightValues[0]! + rightValues[1]!
+      }).pipe(Action.retry({ times: 2 }), Effect.orDie)
+
+      const body = Effect.all([leftBlock, rightBlock], { concurrency: "unbounded" }).pipe(
+        Effect.map(([leftValue, rightValue]) => leftValue + rightValue),
+        Action.retry({ times: 1 }),
+        Effect.orDie
+      )
+
+      expect(yield* run(body, "concurrent-siblings")).toBe(4)
+      expect(leftAttempts).toBe(2)
+      expect(leftExecutions).toBe(2)
+      expect(rightExecutions).toBe(2)
+      expect(rightValues).toEqual([1, 2])
+      expect(new Set(leftKeys).size).toBe(1)
+      expect(new Set(rightKeys).size).toBe(2)
     }))
 })

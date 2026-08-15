@@ -8,6 +8,7 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * The driver must emit a structured warning (once per run) and leave the row
  * parked so a later registration still reclaims it.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { Flow, FlowRuntime } from "@smthrs/flow-next"
 import type { Journal } from "@smthrs/journal-next"
 import { Node } from "@smthrs/plan-next"
@@ -20,11 +21,10 @@ import * as Logger from "effect/Logger"
 import * as Schema from "effect/Schema"
 import * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
-import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
 import * as TestStores from "../src/test/TestStores.ts"
-import { runPromise } from "./Sha256.ts"
+import { withCrypto } from "./Sha256.ts"
 
 const TestFlow = Flow.make("UnregisteredFlowWarning/Test", {
   payload: {},
@@ -73,53 +73,54 @@ const releaseMidAction = (executionId: string) =>
   })
 
 describe("unregistered-flow reclaim is loud, not silent (issue #62)", () => {
-  it("warns once per run while the flow is unregistered and reclaims after registration", async () => {
-    const logs: Array<{ readonly message: unknown; readonly logLevel: string }> = []
-    const capture = Logger.make((options) => {
-      logs.push({ message: options.message, logLevel: options.logLevel })
-    })
+  it.effect("warns once per run while the flow is unregistered and reclaims after registration", () =>
+    Effect.gen(function*() {
+      const logs: Array<{ readonly message: unknown; readonly logLevel: string }> = []
+      const capture = Logger.make((options) => {
+        logs.push({ message: options.message, logLevel: options.logLevel })
+      })
 
-    const result = await runPromise(provideJournal(
-      Effect.gen(function*() {
-        const store = yield* RunStore.RunStore
-        const state = yield* DurableEngineState.DurableEngineState
-        yield* releaseMidAction("unregistered-release")
+      const result = yield* withCrypto(provideJournal(
+        Effect.gen(function*() {
+          const store = yield* RunStore.RunStore
+          const state = yield* DurableEngineState.DurableEngineState
+          yield* releaseMidAction("unregistered-release")
 
-        // A fresh worker over the same store that has NOT registered the flow:
-        // its sweep re-drives the released row every heartbeat.
-        const successorScope = yield* Scope.make()
-        yield* makeDriver("owner-2").pipe(Scope.provide(successorScope))
-        yield* TestClock.adjust(3 * Duration.toMillis(Ownership.heartbeatInterval))
+          // A fresh worker over the same store that has NOT registered the flow:
+          // its sweep re-drives the released row every heartbeat.
+          const successorScope = yield* Scope.make()
+          yield* makeDriver("owner-2").pipe(Scope.provide(successorScope))
+          yield* TestClock.adjust(3 * Duration.toMillis(Ownership.heartbeatInterval))
 
-        const warningsWhileUnregistered = logs.filter((entry) => String(entry.message).includes("not registered"))
-        const rowWhileUnregistered = yield* store.get("unregistered-release")
-        const waitingWhileUnregistered = yield* state.waiting("unregistered-release")
-        yield* Scope.close(successorScope, Exit.void)
+          const warningsWhileUnregistered = logs.filter((entry) => String(entry.message).includes("not registered"))
+          const rowWhileUnregistered = yield* store.get("unregistered-release")
+          const waitingWhileUnregistered = yield* state.waiting("unregistered-release")
+          yield* Scope.close(successorScope, Exit.void)
 
-        // A third worker that does register the flow reclaims the run — the
-        // silent drop must not have consumed the durable waiting row.
-        const registered = yield* makeDriver("owner-3")
-        yield* registered.register(TestFlow, () => Effect.succeed("reclaimed"))
-        let row = yield* store.get("unregistered-release")
-        for (let i = 0; i < 10 && row.status !== "completed"; i++) {
-          yield* TestClock.adjust(Duration.toMillis(Ownership.heartbeatInterval))
-          row = yield* store.get("unregistered-release")
-        }
+          // A third worker that does register the flow reclaims the run — the
+          // silent drop must not have consumed the durable waiting row.
+          const registered = yield* makeDriver("owner-3")
+          yield* registered.register(TestFlow, () => Effect.succeed("reclaimed"))
+          let row = yield* store.get("unregistered-release")
+          for (let i = 0; i < 10 && row.status !== "completed"; i++) {
+            yield* TestClock.adjust(Duration.toMillis(Ownership.heartbeatInterval))
+            row = yield* store.get("unregistered-release")
+          }
 
-        return { warningsWhileUnregistered, rowWhileUnregistered, waitingWhileUnregistered, row }
-      }).pipe(Effect.provide(Logger.layer([capture])))
-    ))
+          return { warningsWhileUnregistered, rowWhileUnregistered, waitingWhileUnregistered, row }
+        }).pipe(Effect.provide(Logger.layer([capture])))
+      ))
 
-    // The silent no-op is now a structured warning…
-    expect(result.warningsWhileUnregistered.length).toBeGreaterThanOrEqual(1)
-    // …logged once per run, not once per heartbeat tick…
-    expect(result.warningsWhileUnregistered.length).toBe(1)
-    expect(result.warningsWhileUnregistered[0]?.logLevel).toBe("Warn")
-    expect(String(result.warningsWhileUnregistered[0]?.message)).toContain("unregistered-release")
-    expect(String(result.warningsWhileUnregistered[0]?.message)).toContain(TestFlow._tag)
-    // …and the run stays durably parked, reclaimable once registered.
-    expect(result.rowWhileUnregistered.status).toBe("suspended")
-    expect(result.waitingWhileUnregistered._tag).toBe("Some")
-    expect(result.row.status).toBe("completed")
-  })
+      // The silent no-op is now a structured warning…
+      expect(result.warningsWhileUnregistered.length).toBeGreaterThanOrEqual(1)
+      // …logged once per run, not once per heartbeat tick…
+      expect(result.warningsWhileUnregistered.length).toBe(1)
+      expect(result.warningsWhileUnregistered[0]?.logLevel).toBe("Warn")
+      expect(String(result.warningsWhileUnregistered[0]?.message)).toContain("unregistered-release")
+      expect(String(result.warningsWhileUnregistered[0]?.message)).toContain(TestFlow._tag)
+      // …and the run stays durably parked, reclaimable once registered.
+      expect(result.rowWhileUnregistered.status).toBe("suspended")
+      expect(result.waitingWhileUnregistered._tag).toBe("Some")
+      expect(result.row.status).toBe("completed")
+    }))
 })

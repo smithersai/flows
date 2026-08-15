@@ -4,9 +4,9 @@ import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
 import { Key, type Key as KeyType } from "@smthrs/keys-next"
 import { Crypto, Effect, Schema } from "effect"
 
-/** Runs a test Effect with concrete Node cryptography. */
-export const runPromise = <A, E>(effect: Effect.Effect<A, E, Crypto.Crypto>): Promise<A> =>
-  Effect.runPromise(Effect.provide(effect, NodeCrypto.layer))
+/** Provides concrete Node cryptography to a test Effect. */
+export const withCrypto = <A, E>(effect: Effect.Effect<A, E, Crypto.Crypto>): Effect.Effect<A, E> =>
+  Effect.provide(effect, NodeCrypto.layer)
 
 /** Runs a synchronous test Effect with concrete Node cryptography. */
 export const runSync = <A, E>(effect: Effect.Effect<A, E, Crypto.Crypto>): A =>

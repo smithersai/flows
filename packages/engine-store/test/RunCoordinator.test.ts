@@ -1,8 +1,8 @@
+import { describe, expect, it } from "@effect/vitest"
 import { Cause, Deferred, Effect, Exit, Fiber } from "effect"
-import { describe, expect, it } from "vitest"
 import * as RunCoordinator from "../src/internal/RunCoordinator.ts"
 
-const effect = <E>(name: string, body: () => Effect.Effect<void, E>) => it(name, () => Effect.runPromise(body()))
+const effect = <E>(name: string, body: () => Effect.Effect<void, E>) => it.effect(name, () => body())
 
 describe("RunCoordinator", () => {
   effect("joins a second run for the same key", () =>

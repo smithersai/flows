@@ -3,11 +3,11 @@
  * so a test — or an exporter — observes contention without touching the
  * global registry.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { Effect, Fiber, Metric } from "effect"
 import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as SqlError from "effect/unstable/sql/SqlError"
-import { describe, expect, it } from "vitest"
 import * as DatabaseMetrics from "../src/DatabaseMetrics.ts"
 import * as DurableWriter from "../src/DurableWriter.ts"
 
@@ -33,43 +33,45 @@ const withMetrics = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   effect.pipe(Effect.provideService(Metric.MetricRegistry, metricRegistry))
 
 describe("DatabaseMetrics", () => {
-  it("counts one write retry per scheduled replay through the provided registry", async () => {
-    let attempts = 0
-    const writer = DurableWriter.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
-    const program = Effect.gen(function*() {
-      const before = yield* retryCount
-      const fiber = yield* writer.write(
-        Effect.suspend(() => {
-          attempts += 1
-          return attempts < 3 ? Effect.fail(sqliteError("SQLITE_BUSY")) : Effect.succeed("written")
-        })
-      ).pipe(Effect.forkChild({ startImmediately: true }))
-      yield* Effect.yieldNow
-      yield* TestClock.adjust("1 second")
-      yield* Fiber.join(fiber)
-      const after = yield* retryCount
-      return after - before
-    }).pipe(
-      Effect.provide(TestClock.layer()),
-      withMetrics
-    )
+  it.effect("counts one write retry per scheduled replay through the provided registry", () =>
+    Effect.gen(function*() {
+      let attempts = 0
+      const writer = DurableWriter.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
+      const program = Effect.gen(function*() {
+        const before = yield* retryCount
+        const fiber = yield* writer.write(
+          Effect.suspend(() => {
+            attempts += 1
+            return attempts < 3 ? Effect.fail(sqliteError("SQLITE_BUSY")) : Effect.succeed("written")
+          })
+        ).pipe(Effect.forkChild({ startImmediately: true }))
+        yield* Effect.yieldNow
+        yield* TestClock.adjust("1 second")
+        yield* Fiber.join(fiber)
+        const after = yield* retryCount
+        return after - before
+      }).pipe(
+        Effect.provide(TestClock.layer()),
+        withMetrics
+      )
 
-    const retries = await Effect.runPromise(program)
-    // Three attempts means exactly two scheduled replays; the first attempt
-    // and the final success are not retries.
-    expect(retries).toBe(2)
-  })
+      const retries = yield* program
+      // Three attempts means exactly two scheduled replays; the first attempt
+      // and the final success are not retries.
+      expect(retries).toBe(2)
+    }))
 
-  it("leaves the counter untouched when the first write commits", async () => {
-    const writer = DurableWriter.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
-    const program = Effect.gen(function*() {
-      const before = yield* retryCount
-      yield* writer.write(Effect.succeed("written"))
-      const after = yield* retryCount
-      return after - before
-    }).pipe(withMetrics)
+  it.effect("leaves the counter untouched when the first write commits", () =>
+    Effect.gen(function*() {
+      const writer = DurableWriter.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
+      const program = Effect.gen(function*() {
+        const before = yield* retryCount
+        yield* writer.write(Effect.succeed("written"))
+        const after = yield* retryCount
+        return after - before
+      }).pipe(withMetrics)
 
-    const retries = await Effect.runPromise(program)
-    expect(retries).toBe(0)
-  })
+      const retries = yield* program
+      expect(retries).toBe(0)
+    }))
 })

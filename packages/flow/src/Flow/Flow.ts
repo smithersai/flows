@@ -24,6 +24,7 @@ import type * as Option from "effect/Option"
 import type * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
 import type { PlannedPayload } from "../Action/Action.ts"
+import type { CancelRequestFailed } from "../FlowRuntime/CancelRequestFailed.ts"
 import type { FlowInstance, FlowRuntime } from "../FlowRuntime/index.ts"
 import type * as RetryPolicy from "../RetryPolicy.ts"
 import type { To } from "./Outcome.ts"
@@ -188,10 +189,16 @@ export interface Flow<
    * This is not a pause operation. The engine interrupts active work while
    * preserving its normal cleanup, compensation, and child-flow semantics.
    * Calling `resume` does not undo the cancellation request.
+   *
+   * A durable engine records the cancellation request before it interrupts
+   * anything, and reports {@link CancelRequestFailed} when that record could
+   * not be written — the execution is then still running, so the caller sees
+   * the storage failure instead of a false success. An in-memory engine has
+   * nothing to record and never raises it.
    */
   readonly interrupt: (
     executionId: string
-  ) => Effect.Effect<void, never, FlowRuntime>
+  ) => Effect.Effect<void, CancelRequestFailed, FlowRuntime>
 
   /**
    * Re-drives an execution that returned `Suspended` so it can replay its

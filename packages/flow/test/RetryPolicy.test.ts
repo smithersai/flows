@@ -5,10 +5,10 @@
  * is derived without a runtime. The engine's use of these decisions — the
  * retry loop itself — is tested in `@smthrs/engine-next`.
  */
-import { RetryPolicy } from "@smthrs/flow-next"
-import { Effect, Option, Random } from "effect"
-import { describe, expect, it } from "vitest"
-import { runPromise } from "./Crypto.ts"
+import { describe, expect, it } from "@effect/vitest"
+import { Action, RetryPolicy } from "@smthrs/flow-next"
+import { Cause, Effect, Exit, Option, Random, Schema } from "effect"
+import { withCrypto } from "./Crypto.ts"
 
 const some = (value: number) => Option.some(value)
 const none = Option.none()
@@ -67,24 +67,25 @@ describe("nextDelay", () => {
     expect(RetryPolicy.nextDelay(jittered, 1)).toEqual(some(100))
   })
 
-  it("samples the Random service deterministically under a seed", async () => {
-    const jittered = RetryPolicy.make({
-      initialMs: 100,
-      factor: 2,
-      maxMs: 1000,
-      jitterRatio: 0.5
-    })
-    const sample = () =>
-      runPromise(
-        RetryPolicy.nextDelayEffect(jittered, 2).pipe(Random.withSeed(42))
-      )
-    const first = await sample()
-    const second = await sample()
-    expect(first).toEqual(second)
-    const delay = Option.getOrThrow(first)
-    expect(delay).toBeGreaterThanOrEqual(100)
-    expect(delay).toBeLessThanOrEqual(200)
-  })
+  it.effect("samples the Random service deterministically under a seed", () =>
+    Effect.gen(function*() {
+      const jittered = RetryPolicy.make({
+        initialMs: 100,
+        factor: 2,
+        maxMs: 1000,
+        jitterRatio: 0.5
+      })
+      const sample = () =>
+        withCrypto(
+          RetryPolicy.nextDelayEffect(jittered, 2).pipe(Random.withSeed(42))
+        )
+      const first = yield* sample()
+      const second = yield* sample()
+      expect(first).toEqual(second)
+      const delay = Option.getOrThrow(first)
+      expect(delay).toBeGreaterThanOrEqual(100)
+      expect(delay).toBeLessThanOrEqual(200)
+    }))
 })
 
 describe("expiration (issue #36)", () => {
@@ -161,6 +162,55 @@ describe("expiration (issue #36)", () => {
 })
 
 describe("decide", () => {
+  it("classifies tagged failures identically after an action Exit JSON round trip", () => {
+    class CallerFatal extends Schema.TaggedError<CallerFatal>()("Retry/CallerFatal", {
+      reason: Schema.String
+    }) {}
+    class CacheCorruption extends Schema.TaggedError<CacheCorruption>()(
+      "@smthrs/engine-store-next/CacheCorruptionDetected",
+      { row: Schema.String }
+    ) {}
+    const failureSchema = Schema.Union([CallerFatal, CacheCorruption])
+    const action = Action.make({
+      name: "Retry/rehydrated",
+      success: Schema.Number,
+      error: failureSchema,
+      execute: Effect.succeed(1)
+    })
+    const exitCodec = Schema.toCodecJson(action.exitSchema)
+    const callerPolicy = RetryPolicy.make({
+      initialMs: 100,
+      factor: 2,
+      maxMs: 1000,
+      nonRetryable: ["Retry/CallerFatal"]
+    })
+    const defaultPolicy = RetryPolicy.make({ initialMs: 100, factor: 2, maxMs: 1000 })
+    const cases = [
+      { live: new CallerFatal({ reason: "do not retry" }), policy: callerPolicy },
+      { live: new CacheCorruption({ row: "attempt-7" }), policy: defaultPolicy }
+    ] as const
+
+    for (const current of cases) {
+      const encoded = Schema.encodeUnknownSync(exitCodec)(Exit.fail(current.live))
+      const decoded = Schema.decodeUnknownSync(exitCodec)(JSON.parse(JSON.stringify(encoded)))
+      expect(Exit.isFailure(decoded)).toBe(true)
+      if (!Exit.isFailure(decoded)) continue
+      const failureReason = decoded.cause.reasons.find(Cause.isFailReason)
+      expect(failureReason).toBeDefined()
+      if (failureReason === undefined) continue
+      const rehydrated = failureReason.error
+
+      expect(rehydrated).toEqual(current.live)
+      expect(RetryPolicy.errorTag(rehydrated)).toBe(current.live._tag)
+      expect(RetryPolicy.decide(current.policy, { attempt: 1, error: rehydrated })).toEqual(
+        RetryPolicy.decide(current.policy, { attempt: 1, error: current.live })
+      )
+      expect(RetryPolicy.decide(current.policy, { attempt: 1, error: rehydrated })).toEqual(
+        RetryPolicy.giveUp("nonRetryable")
+      )
+    }
+  })
+
   it("short-circuits a nonRetryable-tagged error to giveUp on attempt 1", () => {
     const policy = RetryPolicy.make({
       initialMs: 100,
@@ -348,61 +398,64 @@ describe("nextDelay numeric boundaries", () => {
     )
   })
 
-  it("decideEffect skips the Random service when jitter is absent or zero", async () => {
-    const noJitter = RetryPolicy.make({ initialMs: 100, factor: 2, maxMs: 1000 })
-    const zeroJitter = RetryPolicy.make({
-      initialMs: 100,
-      factor: 2,
-      maxMs: 1000,
-      jitterRatio: 0
-    })
-    for (const policy of [noJitter, zeroJitter]) {
-      const decision = await runPromise(
-        RetryPolicy.decideEffect(policy, { attempt: 1, error: "e" })
-      )
-      expect(decision).toEqual(RetryPolicy.retryAfter(100))
-      const delay = await runPromise(RetryPolicy.nextDelayEffect(policy, 1))
-      expect(delay).toEqual(some(100))
-    }
-  })
+  it.effect("decideEffect skips the Random service when jitter is absent or zero", () =>
+    Effect.gen(function*() {
+      const noJitter = RetryPolicy.make({ initialMs: 100, factor: 2, maxMs: 1000 })
+      const zeroJitter = RetryPolicy.make({
+        initialMs: 100,
+        factor: 2,
+        maxMs: 1000,
+        jitterRatio: 0
+      })
+      for (const policy of [noJitter, zeroJitter]) {
+        const decision = yield* withCrypto(
+          RetryPolicy.decideEffect(policy, { attempt: 1, error: "e" })
+        )
+        expect(decision).toEqual(RetryPolicy.retryAfter(100))
+        const delay = yield* withCrypto(RetryPolicy.nextDelayEffect(policy, 1))
+        expect(delay).toEqual(some(100))
+      }
+    }))
 
-  it("decideEffect samples Random once when jitter is enabled and stays in the jitter band", async () => {
-    const policy = RetryPolicy.make({
-      initialMs: 100,
-      factor: 2,
-      maxMs: 1000,
-      jitterRatio: 0.5
-    })
-    const decision = await runPromise(
-      RetryPolicy.decideEffect(policy, { attempt: 2, error: "e" }).pipe(Random.withSeed(42))
-    )
-    expect(decision._tag).toBe("RetryAfter")
-    // attempt 2 → 200ms base; a 0.5 jitter ratio keeps the delay in [100, 200]
-    const delayMs = decision._tag === "RetryAfter" ? decision.delayMs : Number.NaN
-    expect(delayMs).toBeGreaterThanOrEqual(100)
-    expect(delayMs).toBeLessThanOrEqual(200)
-    // deterministic under a fixed seed
-    const again = await runPromise(
-      RetryPolicy.decideEffect(policy, { attempt: 2, error: "e" }).pipe(Random.withSeed(42))
-    )
-    expect(again).toEqual(decision)
-  })
-
-  it("decideEffect still gives up on a nonRetryable error before sampling jitter", async () => {
-    const policy = RetryPolicy.make({
-      initialMs: 100,
-      factor: 2,
-      maxMs: 1000,
-      jitterRatio: 0.5,
-      nonRetryable: ["Fatal"]
-    })
-    const decision = await runPromise(
-      RetryPolicy.decideEffect(policy, { attempt: 1, error: { _tag: "Fatal" } }).pipe(
-        Random.withSeed(1)
+  it.effect("decideEffect samples Random once when jitter is enabled and stays in the jitter band", () =>
+    Effect.gen(function*() {
+      const policy = RetryPolicy.make({
+        initialMs: 100,
+        factor: 2,
+        maxMs: 1000,
+        jitterRatio: 0.5
+      })
+      const decision = yield* withCrypto(
+        RetryPolicy.decideEffect(policy, { attempt: 2, error: "e" }).pipe(Random.withSeed(42))
       )
-    )
-    expect(decision).toEqual(RetryPolicy.giveUp("nonRetryable"))
-  })
+      expect(decision._tag).toBe("RetryAfter")
+      // attempt 2 → 200ms base; a 0.5 jitter ratio keeps the delay in [100, 200]
+      const delayMs = decision._tag === "RetryAfter" ? decision.delayMs : Number.NaN
+      expect(delayMs).toBeGreaterThanOrEqual(100)
+      expect(delayMs).toBeLessThanOrEqual(200)
+      // deterministic under a fixed seed
+      const again = yield* withCrypto(
+        RetryPolicy.decideEffect(policy, { attempt: 2, error: "e" }).pipe(Random.withSeed(42))
+      )
+      expect(again).toEqual(decision)
+    }))
+
+  it.effect("decideEffect still gives up on a nonRetryable error before sampling jitter", () =>
+    Effect.gen(function*() {
+      const policy = RetryPolicy.make({
+        initialMs: 100,
+        factor: 2,
+        maxMs: 1000,
+        jitterRatio: 0.5,
+        nonRetryable: ["Fatal"]
+      })
+      const decision = yield* withCrypto(
+        RetryPolicy.decideEffect(policy, { attempt: 1, error: { _tag: "Fatal" } }).pipe(
+          Random.withSeed(1)
+        )
+      )
+      expect(decision).toEqual(RetryPolicy.giveUp("nonRetryable"))
+    }))
 })
 
 describe("defaultRetryPolicy", () => {

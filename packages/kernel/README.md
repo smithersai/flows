@@ -32,7 +32,7 @@ their deep imports are `@smthrs/capability-next/Capability` and
 | `GrantStore`          | `PendingRequest`, `Resolution`, `EnvelopeGrantOptions`, `Persist`, and `MakeOptions`; `Service` / `GrantStore` operations `check`, `reply`, `list`, and `grantEnvelope`; `isValidGrantPattern`, `isValidEnvelopePattern`, `make`, `layer`, allow-all `makeNoop`, and `layerNoop`.                                                                                                                                         |
 | `JournalGrantStore`   | `JournalGrantStoreOptions`; `make` and `layer` replay and persist grants through `Journal`.                                                                                                                                                                                                                                                                                                                               |
 | `HostServices`        | The one closed list: `HostService`, `HostServiceTags`, `HostServiceIds`, `HostBuiltinNames`, and aggregate decorator `layer`. Each slot is decorated in place, so there is no second tag list.                                                                                                                                                                                                                            |
-| `FileSystem`          | `canonicalResource` (symlink-escape prevention) and decorator `layer` over Effect's own `FileSystem` tag. No kernel interface, tag, or stub: `effect/FileSystem`'s `make`, `makeNoop`, and `layerNoop` are the ones to use.                                                                                                                                                                                               |
+| `FileSystem`          | `canonicalResource`, the atomic-host extension, isolated-volume attestation, and decorator `layer` over Effect's own `FileSystem` tag. Path operations run only through a descriptor-relative/no-follow executor or an enforceably isolated filesystem; unsupported hosts fail closed with a typed permission error.                                                                                                      |
 | `HttpClient`          | Decorator `layer` over Effect's own `HttpClient` tag; the tag and `make` are re-exported unchanged, plus the `ModelCall` reference and `withModelCall`, the `toHttpClientError` / `fromHttpClientError` projection, and a `makeNoop` / `layerNoop` stub that reports the missing host as a `TransportError`.                                                                                                              |
 | `ChildProcessSpawner` | Decorator `layer` over Effect's own `ChildProcessSpawner` tag; the tag and `make` are re-exported unchanged, plus a `makeNoop` / `layerNoop` stub that reports the missing host as a `NotFound` `PlatformError`.                                                                                                                                                                                                          |
 | `CommandLine`         | `render`, `quote`, `cwd`, and `env` — one renderer shared by the `proc:spawn` capability resource and by the interpreters that execute the line.                                                                                                                                                                                                                                                                          |
@@ -65,6 +65,14 @@ kernel failure on `cause` (`Permission.fromPlatformError` reads it back);
 `HttpClientError` whose reason is a `TransportError` carrying the kernel
 failure (`HttpClient.fromHttpClientError` reads it back). `Jj` keeps
 `Permission.PermissionError` in its own channel.
+
+Filesystem confinement does not authorize a checked pathname and then hand the
+same pathname to the host. That pattern is vulnerable to symlink swaps. Native
+hosts must attach `withAtomicFileSystem` with operations rooted at a pinned
+descriptor; browser/test volumes that cannot address the host filesystem may
+use `withIsolatedFileSystem`. A raw path-only adapter is unsupported and every
+relevant read, write, directory, remove, rename, list, stat, glob, stream, and
+handle operation fails closed.
 
 Network access is Effect's `HttpClient` — there is no `flows` transport port.
 Consumers require `HttpClient.HttpClient` from `effect/unstable/http`, and the

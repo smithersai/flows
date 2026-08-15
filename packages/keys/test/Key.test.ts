@@ -76,4 +76,71 @@ describe("Key", () => {
     )
     expect(raw._tag).toBe("SchemaError")
   })
+
+  describe("canonical erasure", () => {
+    // A key is a digest of the canonical form, so anything the canonical form
+    // drops becomes a deliberate collision. Each cell below names one, so a
+    // caller that needs the distinction knows to encode it into the value.
+
+    it("collapses negative zero into zero", () => {
+      // RFC 8785 numbers are `JSON.stringify` numbers, and `-0` serializes as
+      // `0`: the sign of zero is erased before hashing.
+      expect(decode(-0)).toBe(decode(0))
+    })
+
+    it("collapses an undefined-valued member into an absent member", () => {
+      // `undefined` has no JSON representation, so the member is dropped and
+      // the object collides with the one that never carried it.
+      expect(decode({ a: 1, b: undefined })).toBe(decode({ a: 1 }))
+    })
+
+    it("collapses an undefined array element into null", () => {
+      // An array cannot drop an element without changing its length, so
+      // `undefined` becomes `null` and the two arrays collide.
+      expect(decode([undefined])).toBe(decode([null]))
+    })
+  })
+
+  describe("injection resistance", () => {
+    // Concatenating a value's parts into one string before hashing is the
+    // classic key-derivation bug, and `["a","bc"]` versus `["ab","c"]` is its
+    // canonical witness. Hashing the canonical document instead keeps the
+    // structure inside the digest: the JSON delimiters, and the escaping of a
+    // delimiter that appears inside a value, are both part of the hashed bytes.
+    it.each([
+      ["a split moved between array elements", ["a", "bc"], ["ab", "c"]],
+      ["quotes and commas spelled inside one element", ["a\",\"b"], ["a", "b"]],
+      ["a character moved from an object value into its key", { a: "b" }, { ab: "" }],
+      ["nesting flattened into a dotted key", { a: { b: 1 } }, { "a.b": 1 }]
+    ])("keeps %s distinct", (_name, left, right) => {
+      expect(decode(left)).not.toBe(decode(right))
+    })
+  })
+
+  it("keeps every degenerate empty or falsy value pairwise distinct", () => {
+    // These are the values most likely to be conflated by a derivation that
+    // stringifies loosely before hashing: each has its own canonical document
+    // (`""`, `{}`, `[]`, `null`, `0`, `false`), so each must have its own key.
+    const keys = [decode(""), decode({}), decode([]), decode(null), decode(0), decode(false)]
+    expect(new Set(keys).size).toBe(keys.length)
+  })
+
+  it("produces a fixed-length key regardless of input size", () => {
+    // A key names a cache entry and an attempt row, so its width has to be
+    // independent of the value it was derived from.
+    const key = decode("x".repeat(5 * 1024 * 1024))
+    expect(key).toMatch(/^key1_[0-9a-f]{64}$/)
+    expect(key.length).toBe(69)
+  })
+
+  // BUG: the `Key` docblock promises a `key2_` key stays decodable, but
+  // `KeyValue`'s pattern is anchored to `key1_` and refuses it.
+  it.fails("decodes a key2_ key, which the version marker promises stays readable", () => {
+    // The module docblock: "A future derivation gets `key2_`, and both remain
+    // decodable, so a stored key never becomes ambiguous about which scheme
+    // produced it." Today a stored `key2_` value cannot be read back at all,
+    // so the forward-compatibility half of that promise is not implemented.
+    const key2 = `key2_${"a".repeat(64)}`
+    expect(Schema.decodeUnknownSync(Schema.toType(Keys.Key))(key2)).toBe(key2)
+  })
 })

@@ -7,6 +7,7 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * re-activation transition so a resumed cancel-requested run cancels instead
  * of re-executing flow side effects.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow-next"
 import { Jj } from "@smthrs/kernel-next"
 import { Node } from "@smthrs/plan-next"
@@ -16,12 +17,11 @@ import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import { TestClock } from "effect/testing"
-import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
-import { runPromise } from "./Sha256.ts"
+import { withCrypto } from "./Sha256.ts"
 
 const jj = Jj.make({
   snapshot: () => Effect.succeed({ changeId: "cancel-parked-snapshot" as never }),
@@ -40,7 +40,7 @@ const withEngine = <A>(
   ) => Effect.Effect<A, any, any>
 ) => {
   const state = DurableEngineState.makeMemory()
-  return runPromise(
+  return withCrypto(
     Effect.scoped(
       Effect.gen(function*() {
         const store = yield* RunStore.RunStore
@@ -63,96 +63,98 @@ const withEngine = <A>(
 }
 
 describe("cancel requests reach parked runs (issue #27)", () => {
-  it("the sweeper cancels a run parked on a deferred that never completes", async () => {
-    const EventFlow = Flow.make("CancelParked/Sweep", {
-      payload: {},
-      success: Schema.String,
-      body: opaqueHandlerBody
-    })
-    const gate = DurableDeferred.make("cancel-parked-gate", { success: Schema.String })
-
-    const result = await withEngine((engine, store, state) =>
-      Effect.gen(function*() {
-        yield* engine.register(
-          EventFlow as never,
-          (() => Effect.map(DurableDeferred.await(gate), (value) => `gated:${value}`)) as never
-        )
-        yield* engine.execute(EventFlow as never, {
-          executionId: "cancel-parked-sweep",
-          payload: {},
-          discard: true
-        })
-        const suspended = yield* store.get("cancel-parked-sweep")
-
-        // A second process (the CLI) durably requests cancellation. Nothing
-        // owns the run and its deferred never completes.
-        const nowMs = yield* Clock.currentTimeMillis
-        yield* store.requestCancel("cancel-parked-sweep", nowMs)
-
-        let row = yield* store.get("cancel-parked-sweep")
-        for (let i = 0; i < 10 && row.status !== "cancelled"; i++) {
-          yield* TestClock.adjust(Duration.toMillis(Ownership.heartbeatInterval))
-          row = yield* store.get("cancel-parked-sweep")
-        }
-        // Issue #28: a terminally cancelled run must not keep a live-looking
-        // waiting row a sweeper would perpetually re-poke.
-        const waitingAfterCancel = yield* state.waiting("cancel-parked-sweep")
-        const sweepAfterCancel = yield* state.waitingRuns()
-        return { suspendedStatus: suspended.status, row, waitingAfterCancel, sweepAfterCancel }
+  it.effect("the sweeper cancels a run parked on a deferred that never completes", () =>
+    Effect.gen(function*() {
+      const EventFlow = Flow.make("CancelParked/Sweep", {
+        payload: {},
+        success: Schema.String,
+        body: opaqueHandlerBody
       })
-    )
+      const gate = DurableDeferred.make("cancel-parked-gate", { success: Schema.String })
 
-    expect(result.suspendedStatus).toBe("suspended")
-    expect(result.row.status).toBe("cancelled")
-    expect(result.row.owner).toBeNull()
-    expect(result.waitingAfterCancel._tag).toBe("None")
-    expect(result.sweepAfterCancel).toEqual([])
-  })
+      const result = yield* withEngine((engine, store, state) =>
+        Effect.gen(function*() {
+          yield* engine.register(
+            EventFlow as never,
+            (() => Effect.map(DurableDeferred.await(gate), (value) => `gated:${value}`)) as never
+          )
+          yield* engine.execute(EventFlow as never, {
+            executionId: "cancel-parked-sweep",
+            payload: {},
+            discard: true
+          })
+          const suspended = yield* store.get("cancel-parked-sweep")
 
-  it("a resumed cancel-requested run cancels without re-executing flow side effects", async () => {
-    const EventFlow = Flow.make("CancelParked/Resume", {
-      payload: {},
-      success: Schema.String,
-      body: opaqueHandlerBody
-    })
-    const gate = DurableDeferred.make("cancel-resume-gate", { success: Schema.String })
-    let bodyRuns = 0
+          // A second process (the CLI) durably requests cancellation. Nothing
+          // owns the run and its deferred never completes.
+          const nowMs = yield* Clock.currentTimeMillis
+          yield* store.requestCancel("cancel-parked-sweep", nowMs)
 
-    const result = await withEngine((engine, store) =>
-      Effect.gen(function*() {
-        yield* engine.register(
-          EventFlow as never,
-          (() =>
-            Effect.sync(() => {
-              bodyRuns += 1
-            }).pipe(
-              Effect.andThen(Effect.map(DurableDeferred.await(gate), (value) => `gated:${value}`))
-            )) as never
-        )
-        yield* engine.execute(EventFlow as never, {
-          executionId: "cancel-parked-resume",
-          payload: {},
-          discard: true
+          let row = yield* store.get("cancel-parked-sweep")
+          for (let i = 0; i < 10 && row.status !== "cancelled"; i++) {
+            yield* TestClock.adjust(Duration.toMillis(Ownership.heartbeatInterval))
+            row = yield* store.get("cancel-parked-sweep")
+          }
+          // Issue #28: a terminally cancelled run must not keep a live-looking
+          // waiting row a sweeper would perpetually re-poke.
+          const waitingAfterCancel = yield* state.waiting("cancel-parked-sweep")
+          const sweepAfterCancel = yield* state.waitingRuns()
+          return { suspendedStatus: suspended.status, row, waitingAfterCancel, sweepAfterCancel }
         })
-        const runsAfterSuspend = bodyRuns
+      )
 
-        const nowMs = yield* Clock.currentTimeMillis
-        yield* store.requestCancel("cancel-parked-resume", nowMs)
+      expect(result.suspendedStatus).toBe("suspended")
+      expect(result.row.status).toBe("cancelled")
+      expect(result.row.owner).toBeNull()
+      expect(result.waitingAfterCancel._tag).toBe("None")
+      expect(result.sweepAfterCancel).toEqual([])
+    }))
 
-        // An unrelated resume arrives (operator poke). The activation guard
-        // must observe the pending cancel before the flow body re-runs.
-        yield* engine.execute(EventFlow as never, {
-          executionId: "cancel-parked-resume",
-          payload: {},
-          discard: true
-        })
-        const row = yield* store.get("cancel-parked-resume")
-        return { runsAfterSuspend, bodyRuns, row }
+  it.effect("a resumed cancel-requested run cancels without re-executing flow side effects", () =>
+    Effect.gen(function*() {
+      const EventFlow = Flow.make("CancelParked/Resume", {
+        payload: {},
+        success: Schema.String,
+        body: opaqueHandlerBody
       })
-    )
+      const gate = DurableDeferred.make("cancel-resume-gate", { success: Schema.String })
+      let bodyRuns = 0
 
-    expect(result.runsAfterSuspend).toBe(1)
-    expect(result.bodyRuns).toBe(1)
-    expect(result.row.status).toBe("cancelled")
-  })
+      const result = yield* withEngine((engine, store) =>
+        Effect.gen(function*() {
+          yield* engine.register(
+            EventFlow as never,
+            (() =>
+              Effect.sync(() => {
+                bodyRuns += 1
+              }).pipe(
+                Effect.andThen(Effect.map(DurableDeferred.await(gate), (value) => `gated:${value}`))
+              )) as never
+          )
+          yield* engine.execute(EventFlow as never, {
+            executionId: "cancel-parked-resume",
+            payload: {},
+            discard: true
+          })
+          const runsAfterSuspend = bodyRuns
+
+          const nowMs = yield* Clock.currentTimeMillis
+          yield* store.requestCancel("cancel-parked-resume", nowMs)
+
+          // An unrelated resume arrives (operator poke). The activation guard
+          // must observe the pending cancel before the flow body re-runs.
+          yield* engine.execute(EventFlow as never, {
+            executionId: "cancel-parked-resume",
+            payload: {},
+            discard: true
+          })
+          const row = yield* store.get("cancel-parked-resume")
+          return { runsAfterSuspend, bodyRuns, row }
+        })
+      )
+
+      expect(result.runsAfterSuspend).toBe(1)
+      expect(result.bodyRuns).toBe(1)
+      expect(result.row.status).toBe("cancelled")
+    }))
 })

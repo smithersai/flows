@@ -1,80 +1,81 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
+import { describe, expect, it } from "@effect/vitest"
 import { Action, Flow, FlowRuntime, Interpreter, RetryPolicy } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Clock, Effect, Exit, Fiber, Layer, Option, Random, Schema } from "effect"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
-import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 
 const some = (value: number) => Option.some(value)
 const none = Option.none()
 
 describe("expiration (issue #36)", () => {
-  it("an expressible wall-clock bound stops an action retrying against a dead dependency", async () => {
-    let attempts = 0
-    const action = Action.make({
-      name: "RetryPolicy/expires",
-      success: Schema.Number,
-      error: Schema.String,
-      retryPolicy: RetryPolicy.make({
-        initialMs: 100,
-        factor: 1,
-        maxMs: 100,
-        expirationMs: 250
-      }),
-      execute: Effect.suspend(() => {
-        attempts++
-        return Effect.fail("dependency-down")
+  it.effect("an expressible wall-clock bound stops an action retrying against a dead dependency", () =>
+    Effect.gen(function*() {
+      let attempts = 0
+      const action = Action.make({
+        name: "RetryPolicy/expires",
+        success: Schema.Number,
+        error: Schema.String,
+        retryPolicy: RetryPolicy.make({
+          initialMs: 100,
+          factor: 1,
+          maxMs: 100,
+          expirationMs: 250
+        }),
+        execute: Effect.suspend(() => {
+          attempts++
+          return Effect.fail("dependency-down")
+        })
       })
-    })
-    const flowActionDeclaration = Action.make("RetryPolicy/expiring-flow/action", {
-      payload: {},
-      success: Schema.Number,
-      error: Schema.String
-    })
-    const flow = Flow.make("RetryPolicy/expiring-flow", {
-      payload: {},
-      success: Schema.Number,
-      error: Schema.String,
-      body: (payload) => flowActionDeclaration.call(payload)
-    })
+      const flowActionDeclaration = Action.make("RetryPolicy/expiring-flow/action", {
+        payload: {},
+        success: Schema.Number,
+        error: Schema.String
+      })
+      const flow = Flow.make("RetryPolicy/expiring-flow", {
+        payload: {},
+        success: Schema.Number,
+        error: Schema.String,
+        body: (payload) => flowActionDeclaration.call(payload)
+      })
 
-    const exit = await runPromise(
-      Effect.gen(function*() {
-        const engine = yield* FlowRuntime.FlowRuntime
-        const fiber = yield* engine.actionExecute(action, 1).pipe(Effect.forkChild)
-        yield* Effect.yieldNow
-        // Attempts at t=0, 100, 200; the delay to t=300 crosses the 250ms
-        // expiration, so the sequence stops with a die.
-        yield* TestClock.adjust(1_000)
-        const result = yield* Fiber.join(fiber)
-        return result._tag === "Complete" ? result.exit : Exit.succeed("suspended" as never)
-      }).pipe(
-        Effect.provide(
-          Layer.mergeAll(flowActionDeclaration.toLayer(() => Effect.succeed(0)), Interpreter.layer(flow)).pipe(
-            Layer.provideMerge(Action.layerImplementations)
-          ).pipe(
-            Layer.provideMerge(FlowEngine.layerMemory)
-          )
-        ),
-        Effect.provideService(
-          FlowRuntime.FlowInstance,
-          FlowEngine.makeInstance(flow, "retry-policy-expires")
-        ),
-        Effect.provide(TestClock.layer()),
-        Effect.scoped
+      const exit = yield* withCrypto(
+        Effect.gen(function*() {
+          const engine = yield* FlowRuntime.FlowRuntime
+          const fiber = yield* engine.actionExecute(action, 1).pipe(Effect.forkChild)
+          yield* Effect.yieldNow
+          // Attempts at t=0, 100, 200; the delay to t=300 crosses the 250ms
+          // expiration, so the sequence stops with a die.
+          yield* TestClock.adjust(1_000)
+          const result = yield* Fiber.join(fiber)
+          return result._tag === "Complete" ? result.exit : Exit.succeed("suspended" as never)
+        }).pipe(
+          Effect.provide(
+            Layer.mergeAll(flowActionDeclaration.toLayer(() => Effect.succeed(0)), Interpreter.layer(flow)).pipe(
+              Layer.provideMerge(Action.layerImplementations)
+            ).pipe(
+              Layer.provideMerge(FlowEngine.layerMemory)
+            )
+          ),
+          Effect.provideService(
+            FlowRuntime.FlowInstance,
+            FlowEngine.makeInstance(flow, "retry-policy-expires")
+          ),
+          Effect.provide(TestClock.layer()),
+          Effect.scoped
+        )
       )
-    )
 
-    expect(attempts).toBe(3)
-    expect(Exit.isFailure(exit)).toBe(true)
-    if (Exit.isFailure(exit)) {
-      expect(JSON.stringify(exit.cause)).toContain("retry_policy_expired")
-    }
-  })
+      expect(attempts).toBe(3)
+      expect(Exit.isFailure(exit)).toBe(true)
+      if (Exit.isFailure(exit)) {
+        expect(JSON.stringify(exit.cause)).toContain("retry_policy_expired")
+      }
+    }))
 })
 
 describe("flow suspension policy", () => {
@@ -142,8 +143,8 @@ const effect = (
   >,
   executionId = "retry-policy"
 ) =>
-  it(name, () =>
-    runPromise(
+  it.effect(name, () =>
+    withCrypto(
       body().pipe(
         Effect.provide(FlowEngine.layerMemory),
         Effect.provideService(
@@ -302,73 +303,74 @@ describe("restart resume", () => {
   // over the shared attempt log) resumes at the persisted attempt count + 1.
   // The backoff before the next attempt must be derived from that persisted
   // count, not reset to initialMs.
-  it("resumes at attempt N+1 with policy backoff derived from the persisted attempt count", async () => {
-    // Shared "durable store": the attempt numbers each engine executed.
-    const attemptLog: Array<{ attempt: number; at: number }> = []
-    const policy = RetryPolicy.make({ initialMs: 100, factor: 2, maxMs: 10000 })
-    const action = Action.make({
-      name: "RetryPolicy/restart",
-      success: Schema.Number,
-      error: Flaky,
-      retryPolicy: policy,
-      execute: Effect.gen(function*() {
-        const attempt = yield* Action.CurrentAttempt
-        const at = yield* Clock.currentTimeMillis
-        attemptLog.push({ attempt, at })
-        return attemptLog.length >= 4 ? attempt : yield* Effect.fail(new Flaky())
+  it.effect("resumes at attempt N+1 with policy backoff derived from the persisted attempt count", () =>
+    Effect.gen(function*() {
+      // Shared "durable store": the attempt numbers each engine executed.
+      const attemptLog: Array<{ attempt: number; at: number }> = []
+      const policy = RetryPolicy.make({ initialMs: 100, factor: 2, maxMs: 10000 })
+      const action = Action.make({
+        name: "RetryPolicy/restart",
+        success: Schema.Number,
+        error: Flaky,
+        retryPolicy: policy,
+        execute: Effect.gen(function*() {
+          const attempt = yield* Action.CurrentAttempt
+          const at = yield* Clock.currentTimeMillis
+          attemptLog.push({ attempt, at })
+          return attemptLog.length >= 4 ? attempt : yield* Effect.fail(new Flaky())
+        })
       })
-    })
 
-    const runIn = <A, E>(
-      body: Effect.Effect<
-        A,
-        E,
-        Scope.Scope | FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance | Crypto.Crypto
-      >
-    ) =>
-      runPromise(
-        body.pipe(
-          Effect.provide(FlowEngine.layerMemory),
-          Effect.provideService(
-            FlowRuntime.FlowInstance,
-            FlowEngine.makeInstance(flow, "retry-policy-restart")
-          ),
-          Effect.provide(TestClock.layer()),
-          Effect.scoped
+      const runIn = <A, E>(
+        body: Effect.Effect<
+          A,
+          E,
+          Scope.Scope | FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance | Crypto.Crypto
+        >
+      ) =>
+        withCrypto(
+          body.pipe(
+            Effect.provide(FlowEngine.layerMemory),
+            Effect.provideService(
+              FlowRuntime.FlowInstance,
+              FlowEngine.makeInstance(flow, "retry-policy-restart")
+            ),
+            Effect.provide(TestClock.layer()),
+            Effect.scoped
+          )
         )
-      )
 
-    // Engine A: attempts 1 and 2 fail, then the process dies mid-backoff.
-    await runIn(Effect.gen(function*() {
-      const engine = yield* FlowRuntime.FlowRuntime
-      const fiber = yield* engine.actionExecute(action, 1).pipe(
-        Effect.forkChild
-      )
-      yield* Effect.yieldNow
-      yield* TestClock.adjust(100)
-      yield* Fiber.interrupt(fiber)
-    }))
-    expect(attemptLog.map(({ attempt }) => attempt)).toEqual([1, 2])
+      // Engine A: attempts 1 and 2 fail, then the process dies mid-backoff.
+      yield* runIn(Effect.gen(function*() {
+        const engine = yield* FlowRuntime.FlowRuntime
+        const fiber = yield* engine.actionExecute(action, 1).pipe(
+          Effect.forkChild
+        )
+        yield* Effect.yieldNow
+        yield* TestClock.adjust(100)
+        yield* Fiber.interrupt(fiber)
+      }))
+      expect(attemptLog.map(({ attempt }) => attempt)).toEqual([1, 2])
 
-    // Engine B: a fresh engine resumes from the persisted attempt count.
-    const persisted = attemptLog[attemptLog.length - 1]!.attempt
-    await runIn(Effect.gen(function*() {
-      const engine = yield* FlowRuntime.FlowRuntime
-      const fiber = yield* engine
-        .actionExecute(action, persisted + 1)
-        .pipe(Effect.forkChild)
-      yield* Effect.yieldNow
-      // Attempt 3 runs immediately and fails; the delay before attempt 4
-      // must be nextDelay(policy, 3) = 400ms — not reset to initialMs.
-      yield* TestClock.adjust(399)
-      expect(attemptLog.length).toBe(3)
-      yield* TestClock.adjust(1)
-      const result = yield* Fiber.join(fiber)
-      expect(result._tag).toBe("Complete")
+      // Engine B: a fresh engine resumes from the persisted attempt count.
+      const persisted = attemptLog[attemptLog.length - 1]!.attempt
+      yield* runIn(Effect.gen(function*() {
+        const engine = yield* FlowRuntime.FlowRuntime
+        const fiber = yield* engine
+          .actionExecute(action, persisted + 1)
+          .pipe(Effect.forkChild)
+        yield* Effect.yieldNow
+        // Attempt 3 runs immediately and fails; the delay before attempt 4
+        // must be nextDelay(policy, 3) = 400ms — not reset to initialMs.
+        yield* TestClock.adjust(399)
+        expect(attemptLog.length).toBe(3)
+        yield* TestClock.adjust(1)
+        const result = yield* Fiber.join(fiber)
+        expect(result._tag).toBe("Complete")
+      }))
+      expect(attemptLog.map(({ attempt }) => attempt)).toEqual([1, 2, 3, 4])
+      // Engine B's clock: attempt 3 at t=0, attempt 4 exactly 400ms later.
+      expect(attemptLog[3]!.at - attemptLog[2]!.at).toBe(400)
     }))
-    expect(attemptLog.map(({ attempt }) => attempt)).toEqual([1, 2, 3, 4])
-    // Engine B's clock: attempt 3 at t=0, attempt 4 exactly 400ms later.
-    expect(attemptLog[3]!.at - attemptLog[2]!.at).toBe(400)
-  })
 })
 import type * as Crypto from "effect/Crypto"

@@ -1,4 +1,5 @@
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
+import { describe, expect, it } from "@effect/vitest"
 import { DurableWriter } from "@smthrs/database-next"
 import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
 import { DurableEngineState, EngineStore, OwnerIdentity, StepBoundary } from "@smthrs/engine-store-next"
@@ -15,7 +16,6 @@ import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { describe, expect, it } from "vitest"
 import * as SqlTimeTravelStore from "../src/SqlTimeTravelStore.ts"
 
 /**
@@ -74,113 +74,114 @@ const requirements = (filename: string) => {
 }
 
 describe("SQL fork execution", () => {
-  it("drives a fork after restart using copied state and attempts", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "flows-fork-execution-"))
-    const filename = join(directory, "fork.sqlite")
-    let dispatches = 0
-    /** The implementation, plus the body that names it, over one table. */
-    const wiring = (engine: FlowRuntime.FlowRuntime["Service"]) =>
-      Layer.mergeAll(
-        ForkOnce.toLayer(() =>
-          Effect.sync(() => {
-            dispatches++
-            return "action-result"
-          })
-        ),
-        Interpreter.layer(ForkFlow)
-      ).pipe(
-        Layer.provideMerge(Action.layerImplementations),
-        Layer.provideMerge(Layer.succeed(FlowRuntime.FlowRuntime, engine))
-      )
-
-    try {
-      const created = await Effect.runPromise(
-        Effect.scoped(
-          Effect.gen(function*() {
-            const engine = yield* EngineStore.make({
-              owner: { hostId: "fork-parent" },
-              journalSource: "fork-execution",
-              isAlive: () => Effect.succeed(false)
+  it.effect("drives a fork after restart using copied state and attempts", () =>
+    Effect.gen(function*() {
+      const directory = yield* Effect.promise(() => mkdtemp(join(tmpdir(), "flows-fork-execution-")))
+      const filename = join(directory, "fork.sqlite")
+      let dispatches = 0
+      /** The implementation, plus the body that names it, over one table. */
+      const wiring = (engine: FlowRuntime.FlowRuntime["Service"]) =>
+        Layer.mergeAll(
+          ForkOnce.toLayer(() =>
+            Effect.sync(() => {
+              dispatches++
+              return "action-result"
             })
-            const parentResult = yield* ForkFlow.execute({}, { executionId: "fork-parent" }).pipe(
-              Effect.provide(wiring(engine))
-            )
-            const journal = yield* Journal.Journal
-            yield* journal.flush
-            const sql = yield* Effect.service(SqlClient.SqlClient)
-            const maximum = yield* sql<{ readonly seq: number | null }>`
+          ),
+          Interpreter.layer(ForkFlow)
+        ).pipe(
+          Layer.provideMerge(Action.layerImplementations),
+          Layer.provideMerge(Layer.succeed(FlowRuntime.FlowRuntime, engine))
+        )
+
+      try {
+        const created = yield* (
+          Effect.scoped(
+            Effect.gen(function*() {
+              const engine = yield* EngineStore.make({
+                owner: { hostId: "fork-parent" },
+                journalSource: "fork-execution",
+                isAlive: () => Effect.succeed(false)
+              })
+              const parentResult = yield* ForkFlow.execute({}, { executionId: "fork-parent" }).pipe(
+                Effect.provide(wiring(engine))
+              )
+              const journal = yield* Journal.Journal
+              yield* journal.flush
+              const sql = yield* Effect.service(SqlClient.SqlClient)
+              const maximum = yield* sql<{ readonly seq: number | null }>`
               SELECT MAX(seq) AS seq
               FROM flows_journal_events
               WHERE run_id = 'fork-parent'
             `
-            const store = yield* SqlTimeTravelStore.make
-            const fork = yield* store.createFork("fork-parent", {
-              lineageId: "fork-parent/root",
-              seq: maximum[0]?.seq ?? 0
-            })
-            const states = yield* sql<{ readonly run_id: string; readonly state_json: string }>`
+              const store = yield* SqlTimeTravelStore.make
+              const fork = yield* store.createFork("fork-parent", {
+                lineageId: "fork-parent/root",
+                seq: maximum[0]?.seq ?? 0
+              })
+              const states = yield* sql<{ readonly run_id: string; readonly state_json: string }>`
               SELECT run_id, state_json
               FROM flows_runs
               WHERE run_id IN ('fork-parent', ${fork.runId})
               ORDER BY run_id
             `
-            const attempts = yield* sql<{ readonly run_id: string; readonly count: number }>`
+              const attempts = yield* sql<{ readonly run_id: string; readonly count: number }>`
               SELECT run_id, COUNT(*) AS count
               FROM flows_attempts
               WHERE run_id IN ('fork-parent', ${fork.runId})
               GROUP BY run_id
               ORDER BY run_id
             `
-            return { fork, parentResult, states, attempts }
-          }).pipe(Effect.provide(requirements(filename)))
+              return { fork, parentResult, states, attempts }
+            }).pipe(Effect.provide(requirements(filename)))
+          )
         )
-      )
 
-      const childState = JSON.parse(
-        created.states.find((row) => row.run_id === created.fork.runId)!.state_json
-      ) as Record<string, unknown>
-      const parentState = JSON.parse(
-        created.states.find((row) => row.run_id === "fork-parent")!.state_json
-      ) as Record<string, unknown>
-      expect(created.parentResult).toBe("action-result")
-      expect(parentState.result).toEqual({
-        _tag: "Complete",
-        exit: { _tag: "Success", value: "action-result" }
-      })
-      expect(childState).toMatchObject({
-        version: 1,
-        flowName: ForkFlow._tag,
-        payload: {}
-      })
-      expect(childState).not.toHaveProperty("result")
-      expect(childState).not.toHaveProperty("cancellation")
-      expect(created.attempts).toEqual([
-        { run_id: "fork-parent", count: 1 },
-        { run_id: created.fork.runId, count: 1 }
-      ])
+        const childState = JSON.parse(
+          created.states.find((row) => row.run_id === created.fork.runId)!.state_json
+        ) as Record<string, unknown>
+        const parentState = JSON.parse(
+          created.states.find((row) => row.run_id === "fork-parent")!.state_json
+        ) as Record<string, unknown>
+        expect(created.parentResult).toBe("action-result")
+        expect(parentState.result).toEqual({
+          _tag: "Complete",
+          exit: { _tag: "Success", value: "action-result" }
+        })
+        expect(childState).toMatchObject({
+          version: 1,
+          flowName: ForkFlow._tag,
+          payload: {}
+        })
+        expect(childState).not.toHaveProperty("result")
+        expect(childState).not.toHaveProperty("cancellation")
+        expect(created.attempts).toEqual([
+          { run_id: "fork-parent", count: 1 },
+          { run_id: created.fork.runId, count: 1 }
+        ])
 
-      const restarted = await Effect.runPromise(
-        Effect.scoped(
-          Effect.gen(function*() {
-            const engine = yield* EngineStore.make({
-              owner: { hostId: "fork-restart" },
-              journalSource: "fork-execution",
-              isAlive: () => Effect.succeed(false)
-            })
-            const value = yield* ForkFlow.execute({}, { executionId: created.fork.runId }).pipe(
-              Effect.provide(wiring(engine))
-            )
-            const row = yield* (yield* RunStore.RunStore).get(created.fork.runId)
-            return { value, row }
-          }).pipe(Effect.provide(requirements(filename)))
+        const restarted = yield* (
+          Effect.scoped(
+            Effect.gen(function*() {
+              const engine = yield* EngineStore.make({
+                owner: { hostId: "fork-restart" },
+                journalSource: "fork-execution",
+                isAlive: () => Effect.succeed(false)
+              })
+              const value = yield* ForkFlow.execute({}, { executionId: created.fork.runId }).pipe(
+                Effect.provide(wiring(engine))
+              )
+              const row = yield* (yield* RunStore.RunStore).get(created.fork.runId)
+              return { value, row }
+            }).pipe(Effect.provide(requirements(filename)))
+          )
         )
-      )
 
-      expect(restarted.value).toBe("action-result")
-      expect(restarted.row.status).toBe("completed")
-      expect(dispatches).toBe(1)
-    } finally {
-      await rm(directory, { recursive: true, force: true })
-    }
-  }, 15_000)
+        expect(restarted.value).toBe("action-result")
+        expect(restarted.row.status).toBe("completed")
+        expect(dispatches).toBe(1)
+      } finally {
+        yield* Effect.promise(() => rm(directory, { recursive: true, force: true }))
+      }
+    }), 15_000)
 })

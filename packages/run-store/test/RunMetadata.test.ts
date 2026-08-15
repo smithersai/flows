@@ -1,9 +1,9 @@
+import { describe, expect, it } from "@effect/vitest"
 import { DurableWriter } from "@smthrs/database-next/DurableWriter"
 import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import { Effect, Layer } from "effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import type * as Statement from "effect/unstable/sql/Statement"
-import { describe, expect, it } from "vitest"
 import * as Migrations from "../src/Migrations.ts"
 import type { OwnerId } from "../src/Ownership.ts"
 import * as RunStore from "../src/RunStore.ts"
@@ -18,7 +18,7 @@ const layer = Layer.provideMerge(
 const effect = <E>(
   name: string,
   body: () => Effect.Effect<void, E, RunStore.RunStore | DurableWriter | SqlClient.SqlClient>
-) => it(name, () => Effect.runPromise(body().pipe(Effect.provide(layer), Effect.scoped)))
+) => it.effect(name, () => body().pipe(Effect.provide(layer), Effect.scoped))
 
 const own = (store: RunStore.Service, runId: string) =>
   store.claimAndOwn(runId, { status: "pending", owner: null, heartbeatAtMs: null }, owner, 1_000)
@@ -241,76 +241,72 @@ describe("requestCancel distinguishes an absent row from a cleared column (B10)"
       )
     )
 
-  it("re-records the cancellation when the column is cleared under it", () =>
-    Effect.runPromise(
-      Effect.gen(function*() {
-        const store = yield* RunStore.RunStore
-        yield* store.create("run", "{}")
-        expect(yield* store.requestCancel("run", 500)).toEqual({ _tag: "CancelRequested", requestedAtMs: 500 })
-        // The fenced UPDATE now matches nothing, and the fallback SELECT runs
-        // against a row whose column another writer just cleared.
-        expect(yield* store.requestCancel("run", 900)).toEqual({ _tag: "CancelRequested", requestedAtMs: 900 })
-      }).pipe(
-        Effect.provide(withInterleaving(
-          "SELECT cancel_requested_at_ms",
-          1,
-          (base) => base`UPDATE flows_runs SET cancel_requested_at_ms = NULL WHERE run_id = 'run'`
-        )),
-        Effect.scoped
-      )
+  it.effect("re-records the cancellation when the column is cleared under it", () =>
+    Effect.gen(function*() {
+      const store = yield* RunStore.RunStore
+      yield* store.create("run", "{}")
+      expect(yield* store.requestCancel("run", 500)).toEqual({ _tag: "CancelRequested", requestedAtMs: 500 })
+      // The fenced UPDATE now matches nothing, and the fallback SELECT runs
+      // against a row whose column another writer just cleared.
+      expect(yield* store.requestCancel("run", 900)).toEqual({ _tag: "CancelRequested", requestedAtMs: 900 })
+    }).pipe(
+      Effect.provide(withInterleaving(
+        "SELECT cancel_requested_at_ms",
+        1,
+        (base) => base`UPDATE flows_runs SET cancel_requested_at_ms = NULL WHERE run_id = 'run'`
+      )),
+      Effect.scoped
     ))
 
-  it("reports NotFound only when the row is really gone", () =>
-    Effect.runPromise(
-      Effect.gen(function*() {
-        const store = yield* RunStore.RunStore
-        yield* store.create("run", "{}")
-        expect(yield* store.requestCancel("run", 500)).toEqual({ _tag: "CancelRequested", requestedAtMs: 500 })
-        // Cleared before the SELECT by the first interleaving, then deleted
-        // before the re-record: the run is genuinely absent by then.
-        expect(yield* store.requestCancel("run", 900)).toEqual({ _tag: "NotFound" })
-      }).pipe(
-        Effect.provide(
+  it.effect("reports NotFound only when the row is really gone", () =>
+    Effect.gen(function*() {
+      const store = yield* RunStore.RunStore
+      yield* store.create("run", "{}")
+      expect(yield* store.requestCancel("run", 500)).toEqual({ _tag: "CancelRequested", requestedAtMs: 500 })
+      // Cleared before the SELECT by the first interleaving, then deleted
+      // before the re-record: the run is genuinely absent by then.
+      expect(yield* store.requestCancel("run", 900)).toEqual({ _tag: "NotFound" })
+    }).pipe(
+      Effect.provide(
+        Layer.provideMerge(
+          RunStore.layer,
           Layer.provideMerge(
-            RunStore.layer,
-            Layer.provideMerge(
-              Layer.effect(
-                SqlClient.SqlClient,
-                Effect.gen(function*() {
-                  const base = yield* Effect.service(SqlClient.SqlClient)
-                  let updates = 0
-                  return new Proxy(base, {
-                    apply(target, thisArgument, argumentsList) {
-                      const statement = Reflect.apply(
-                        target,
-                        thisArgument,
-                        argumentsList
-                      ) as Statement.Statement<unknown>
-                      if (typeof statement.compile !== "function") return statement
-                      const [query] = statement.compile()
-                      if (query.includes("SELECT cancel_requested_at_ms")) {
-                        return Effect.andThen(
-                          base`UPDATE flows_runs SET cancel_requested_at_ms = NULL WHERE run_id = 'run'`,
-                          statement
-                        )
-                      }
-                      if (query.includes("SET cancel_requested_at_ms")) {
-                        updates += 1
-                        // The third UPDATE is the re-record after the SELECT.
-                        if (updates === 3) {
-                          return Effect.andThen(base`DELETE FROM flows_runs WHERE run_id = 'run'`, statement)
-                        }
-                      }
-                      return statement
+            Layer.effect(
+              SqlClient.SqlClient,
+              Effect.gen(function*() {
+                const base = yield* Effect.service(SqlClient.SqlClient)
+                let updates = 0
+                return new Proxy(base, {
+                  apply(target, thisArgument, argumentsList) {
+                    const statement = Reflect.apply(
+                      target,
+                      thisArgument,
+                      argumentsList
+                    ) as Statement.Statement<unknown>
+                    if (typeof statement.compile !== "function") return statement
+                    const [query] = statement.compile()
+                    if (query.includes("SELECT cancel_requested_at_ms")) {
+                      return Effect.andThen(
+                        base`UPDATE flows_runs SET cancel_requested_at_ms = NULL WHERE run_id = 'run'`,
+                        statement
+                      )
                     }
-                  }) as SqlClient.SqlClient
-                })
-              ),
-              Layer.provideMerge(Migrations.layer, TestDatabase.layer)
-            )
+                    if (query.includes("SET cancel_requested_at_ms")) {
+                      updates += 1
+                      // The third UPDATE is the re-record after the SELECT.
+                      if (updates === 3) {
+                        return Effect.andThen(base`DELETE FROM flows_runs WHERE run_id = 'run'`, statement)
+                      }
+                    }
+                    return statement
+                  }
+                }) as SqlClient.SqlClient
+              })
+            ),
+            Layer.provideMerge(Migrations.layer, TestDatabase.layer)
           )
-        ),
-        Effect.scoped
-      )
+        )
+      ),
+      Effect.scoped
     ))
 })

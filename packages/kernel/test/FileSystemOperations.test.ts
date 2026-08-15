@@ -1,7 +1,7 @@
+import { describe, expect, it } from "@effect/vitest"
 import type * as Capability from "@smthrs/capability-next/Capability"
 import { permissionDenied } from "@smthrs/capability-next/Permission"
 import { Effect, FileSystem as EffectFileSystem, Path as EffectPath, Sink, Stream } from "effect"
-import { describe, expect, it } from "vitest"
 import * as FileSystem from "../src/FileSystem.ts"
 import { GrantStore } from "../src/GrantStore.ts"
 import * as Workspace from "../src/Workspace.ts"
@@ -67,7 +67,7 @@ const file = (calls: Array<string>): EffectFileSystem.File => ({
     })
 } as unknown as EffectFileSystem.File)
 
-const hostFileSystem = (calls: Array<string>): EffectFileSystem.FileSystem => {
+const makeHostFileSystem = (calls: Array<string>): EffectFileSystem.FileSystem => {
   const record = <A>(name: string, value: A) =>
     Effect.sync(() => {
       calls.push(name)
@@ -111,6 +111,9 @@ const hostFileSystem = (calls: Array<string>): EffectFileSystem.FileSystem => {
     writeFileString: () => record("writeFileString", undefined)
   })
 }
+
+const hostFileSystem = (calls: Array<string>): EffectFileSystem.FileSystem =>
+  FileSystem.withIsolatedFileSystem(makeHostFileSystem(calls))
 
 interface Case {
   readonly name: string
@@ -227,6 +230,48 @@ const cases: ReadonlyArray<Case> = [
     run: (fs) => Effect.scoped(fs.open("a", { flag: "w+" }))
   },
   {
+    name: "open with r+",
+    capabilities: [read("/workspace/a"), write("/workspace/a")],
+    hostCall: "open",
+    run: (fs) => Effect.scoped(fs.open("a", { flag: "r+" }))
+  },
+  {
+    name: "open with wx",
+    capabilities: [write("/workspace/a")],
+    hostCall: "open",
+    run: (fs) => Effect.scoped(fs.open("a", { flag: "wx" }))
+  },
+  {
+    name: "open with wx+",
+    capabilities: [read("/workspace/a"), write("/workspace/a")],
+    hostCall: "open",
+    run: (fs) => Effect.scoped(fs.open("a", { flag: "wx+" }))
+  },
+  {
+    name: "open with a",
+    capabilities: [write("/workspace/a")],
+    hostCall: "open",
+    run: (fs) => Effect.scoped(fs.open("a", { flag: "a" }))
+  },
+  {
+    name: "open with a+",
+    capabilities: [read("/workspace/a"), write("/workspace/a")],
+    hostCall: "open",
+    run: (fs) => Effect.scoped(fs.open("a", { flag: "a+" }))
+  },
+  {
+    name: "open with ax",
+    capabilities: [write("/workspace/a")],
+    hostCall: "open",
+    run: (fs) => Effect.scoped(fs.open("a", { flag: "ax" }))
+  },
+  {
+    name: "open with ax+",
+    capabilities: [read("/workspace/a"), write("/workspace/a")],
+    hostCall: "open",
+    run: (fs) => Effect.scoped(fs.open("a", { flag: "ax+" }))
+  },
+  {
     name: "readDirectory",
     capabilities: [read("/workspace/a")],
     hostCall: "readDirectory",
@@ -340,81 +385,121 @@ const provide = <A, E>(
 
 describe("FileSystem operation guards", () => {
   for (const testCase of cases) {
-    it(`requests ${testCase.capabilities.length} capability check(s) for ${testCase.name}`, async () => {
+    it.effect(`requests ${testCase.capabilities.length} capability check(s) for ${testCase.name}`, () =>
+      Effect.gen(function*() {
+        const checks: Array<Capability.Capability> = []
+        const calls: Array<string> = []
+        const exit = yield* (
+          provide(testCase.run, hostFileSystem(calls), scriptedStore(() => true, checks))
+        )
+
+        expect(exit._tag).toBe("Success")
+        // The `<system-temp>` resource is resolved outside the workspace root.
+        expect(checks.map((check) => ({ ...check, resource: check.resource.replace("/workspace/..", "") })))
+          .toEqual(testCase.capabilities)
+        if (testCase.hostCall !== undefined) expect(calls).toContain(testCase.hostCall)
+      }))
+
+    it.effect(`denies ${testCase.name} before the host filesystem runs`, () =>
+      Effect.gen(function*() {
+        const checks: Array<Capability.Capability> = []
+        const calls: Array<string> = []
+        const exit = yield* (
+          provide(testCase.run, hostFileSystem(calls), scriptedStore(() => false, checks))
+        )
+
+        expect(exit._tag).toBe("Failure")
+        expect(checks).toHaveLength(1)
+        if (testCase.hostCall !== undefined) expect(calls).not.toContain(testCase.hostCall)
+      }))
+  }
+
+  it.effect("guards each operation on an open file handle", () =>
+    Effect.gen(function*() {
       const checks: Array<Capability.Capability> = []
       const calls: Array<string> = []
-      const exit = await Effect.runPromise(
-        provide(testCase.run, hostFileSystem(calls), scriptedStore(() => true, checks))
+      const exit = yield* (
+        provide(
+          (fileSystem) =>
+            Effect.scoped(
+              Effect.gen(function*() {
+                const handle = yield* fileSystem.open("a", { flag: "w+" })
+                yield* handle.stat
+                yield* handle.sync
+                yield* handle.read(new Uint8Array(1))
+                yield* handle.readAlloc(1)
+                yield* handle.truncate(0)
+                yield* handle.write(new Uint8Array(1))
+                yield* handle.writeAll(new Uint8Array(1))
+                yield* handle.seek(0, "current")
+              })
+            ),
+          hostFileSystem(calls),
+          scriptedStore(() => true, checks)
+        )
       )
 
       expect(exit._tag).toBe("Success")
-      // The `<system-temp>` resource is resolved outside the workspace root.
-      expect(checks.map((check) => ({ ...check, resource: check.resource.replace("/workspace/..", "") })))
-        .toEqual(testCase.capabilities)
-      if (testCase.hostCall !== undefined) expect(calls).toContain(testCase.hostCall)
-    })
+      expect(calls.filter((call) => call !== "stat")).toEqual([
+        "open",
+        "file.stat",
+        "file.sync",
+        "file.read",
+        "file.readAlloc",
+        "file.truncate",
+        "file.write",
+        "file.writeAll",
+        "file.seek"
+      ])
+      // open (read+write) then one check per guarded handle operation; `seek`
+      // moves no bytes and needs none.
+      expect(checks.map((check) => check.action)).toEqual([
+        "fs:read",
+        "fs:write",
+        "fs:read",
+        "fs:write",
+        "fs:read",
+        "fs:read",
+        "fs:write",
+        "fs:write",
+        "fs:write"
+      ])
+    }))
 
-    it(`denies ${testCase.name} before the host filesystem runs`, async () => {
+  it.effect("fails closed when a host has no isolated filesystem attestation", () =>
+    Effect.gen(function*() {
       const checks: Array<Capability.Capability> = []
       const calls: Array<string> = []
-      const exit = await Effect.runPromise(
-        provide(testCase.run, hostFileSystem(calls), scriptedStore(() => false, checks))
+      const host = makeHostFileSystem(calls)
+      const grants = scriptedStore(() => true, checks)
+      const operations: ReadonlyArray<Case["run"]> = [
+        (fs) => fs.access("a"),
+        (fs) => fs.copy("a", "b"),
+        (fs) => fs.rename("a", "b"),
+        (fs) => fs.stat("a"),
+        (fs) => fs.makeTempDirectory(),
+        (fs) => fs.makeTempDirectory({ directory: "scratch" }),
+        (fs) => Effect.scoped(fs.makeTempDirectoryScoped()),
+        (fs) => Effect.scoped(fs.makeTempDirectoryScoped({ directory: "scratch" })),
+        (fs) => fs.makeTempFile(),
+        (fs) => fs.makeTempFile({ directory: "scratch" }),
+        (fs) => Effect.scoped(fs.makeTempFileScoped()),
+        (fs) => Effect.scoped(fs.makeTempFileScoped({ directory: "scratch" })),
+        (fs) => Stream.make(new Uint8Array()).pipe(Stream.run(fs.sink("a"))),
+        (fs) => Stream.runDrain(fs.stream("a")),
+        (fs) => Stream.runDrain(fs.watch("a"))
+      ]
+
+      const exits = yield* Effect.forEach(operations, (operation) => provide(operation, host, grants))
+
+      expect(exits.every((exit) => exit._tag === "Failure")).toBe(true)
+      expect(checks).toEqual([])
+      expect(calls).toEqual([])
+
+      const isolated = FileSystem.withIsolatedFileSystem(host)
+      const unsupported = yield* Effect.exit(
+        isolated[FileSystem.AtomicFileSystemTypeId].execute({ operation: "unsupported" })
       )
-
-      expect(exit._tag).toBe("Failure")
-      expect(checks).toHaveLength(1)
-      if (testCase.hostCall !== undefined) expect(calls).not.toContain(testCase.hostCall)
-    })
-  }
-
-  it("guards each operation on an open file handle", async () => {
-    const checks: Array<Capability.Capability> = []
-    const calls: Array<string> = []
-    const exit = await Effect.runPromise(
-      provide(
-        (fileSystem) =>
-          Effect.scoped(
-            Effect.gen(function*() {
-              const handle = yield* fileSystem.open("a", { flag: "w+" })
-              yield* handle.stat
-              yield* handle.sync
-              yield* handle.read(new Uint8Array(1))
-              yield* handle.readAlloc(1)
-              yield* handle.truncate(0)
-              yield* handle.write(new Uint8Array(1))
-              yield* handle.writeAll(new Uint8Array(1))
-              yield* handle.seek(0, "current")
-            })
-          ),
-        hostFileSystem(calls),
-        scriptedStore(() => true, checks)
-      )
-    )
-
-    expect(exit._tag).toBe("Success")
-    expect(calls.filter((call) => call !== "stat")).toEqual([
-      "open",
-      "file.stat",
-      "file.sync",
-      "file.read",
-      "file.readAlloc",
-      "file.truncate",
-      "file.write",
-      "file.writeAll",
-      "file.seek"
-    ])
-    // open (read+write) then one check per guarded handle operation; `seek`
-    // moves no bytes and needs none.
-    expect(checks.map((check) => check.action)).toEqual([
-      "fs:read",
-      "fs:write",
-      "fs:read",
-      "fs:write",
-      "fs:read",
-      "fs:read",
-      "fs:write",
-      "fs:write",
-      "fs:write"
-    ])
-  })
+      expect(unsupported._tag).toBe("Failure")
+    }))
 })

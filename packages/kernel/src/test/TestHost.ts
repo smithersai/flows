@@ -15,11 +15,11 @@ import type { Jj } from "@smthrs/jj-next"
 import * as BrowserJj from "@smthrs/jj-next/browser/BrowserJj"
 import * as BrowserChildProcessSpawner from "@smthrs/platform-browser-next/BrowserChildProcessSpawner"
 import * as BrowserFileSystem from "@smthrs/platform-browser-next/BrowserFileSystem"
-import { Layer, Path, Random } from "effect"
-import type { FileSystem } from "effect"
+import { Effect, FileSystem, Layer, Path, Random } from "effect"
 import { TestClock } from "effect/testing"
 import type { HttpClient as EffectHttpClient } from "effect/unstable/http/HttpClient"
 import type { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
+import * as KernelFileSystem from "../FileSystem.ts"
 import * as HttpClient from "../HttpClient.ts"
 
 /** POSIX-normalize so `/a/b`, `/a/b/`, and `/a/./b` are one key in the store. */
@@ -251,8 +251,13 @@ export const layer = (options?: {
   >
   readonly seed?: number
 }): Layer.Layer<TestHost> => {
+  const browserFileSystem = BrowserFileSystem.layer(makeMemoryFs(options?.files))
+  const isolatedFileSystem = Layer.effect(
+    FileSystem.FileSystem,
+    Effect.map(FileSystem.FileSystem, KernelFileSystem.withIsolatedFileSystem)
+  ).pipe(Layer.provide(browserFileSystem))
   const platform = Layer.mergeAll(
-    BrowserFileSystem.layer(makeMemoryFs(options?.files)),
+    isolatedFileSystem,
     Path.layer
   )
   return Layer.mergeAll(

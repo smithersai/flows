@@ -1,15 +1,16 @@
 /**
  * The full Host contract over `BrowserHost.layer`, jj included: the committed
  * `flows_jj.wasm` artifact runs against a temp-directory-rooted sync
- * filesystem, exactly the shape a page supplies from a ZenFS mount. When the
- * artifact is absent the jj capability degrades to the instantiation failure
- * the layer actually reports — loudly, so a missing artifact is never mistaken
- * for a passing real-wasm contract.
+ * filesystem, exactly the shape a page supplies from a ZenFS mount. The wasm
+ * artifact is a hard prerequisite: without it this file fails during setup and
+ * tells the developer how to build it, rather than weakening the contract.
  *
  * The contract exercises each service independently, so the memory fs behind
  * `FileSystem`/bash and the tmpdir behind jj may diverge here; a real page
- * must hand all three the same mount (see `BrowserHost.layer`'s doc).
+ * must hand all three the same mount. The cross-service invariant has its own
+ * real-mount proof in `BrowserHostSharedMount.contract.test.ts`.
  */
+import { afterAll, beforeAll, describe, expect, it } from "@effect/vitest"
 import { Jj } from "@smthrs/jj-next"
 import type { SyncFsLike } from "@smthrs/jj-next/browser/WasiFs"
 import { runHostContract } from "@smthrs/kernel-next/test/contract"
@@ -20,7 +21,6 @@ import * as fsModule from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { afterAll, beforeAll } from "vitest"
 import type * as BrowserChildProcessSpawner from "../../src/BrowserChildProcessSpawner/index.ts"
 import * as BrowserHost from "../../src/BrowserHost.ts"
 
@@ -68,18 +68,14 @@ const rootedSyncFs = (hostRoot: string): SyncFsLike => {
 }
 
 const wasmPath = fileURLToPath(new URL("../../../jj/wasm/flows_jj.wasm", import.meta.url))
-const wasmBytes: Uint8Array | undefined = fsModule.existsSync(wasmPath)
-  ? new Uint8Array(fsModule.readFileSync(wasmPath))
-  : undefined
-
-if (wasmBytes === undefined) {
-  // eslint-disable-next-line no-console
-  console.warn(
-    "[BrowserHost.contract] packages/jj/wasm/flows_jj.wasm is not built — the jj capability "
-      + "is asserted as the instantiation failure instead of the real-wasm contract. Build it "
-      + "with `pnpm --filter @smthrs/jj-next run build:wasm`."
+if (!fsModule.existsSync(wasmPath)) {
+  throw new Error(
+    "[BrowserHost.contract] packages/jj/wasm/flows_jj.wasm is required for the real BrowserHost "
+      + "contract. Build it with `pnpm --filter @smthrs/jj-next run build:wasm` "
+      + "(requires the rust wasm32-wasip1 toolchain and crates/flows-jj)."
   )
 }
+const wasmBytes = new Uint8Array(fsModule.readFileSync(wasmPath))
 
 const host = fsModule.mkdtempSync(join(tmpdir(), "flows-browser-host-contract-"))
 fsModule.mkdirSync(join(host, "repo"))
@@ -88,9 +84,7 @@ const layer = BrowserHost.layer({
   bash,
   fs: TestHost.makeMemoryFs(),
   jj: {
-    // An empty module is deliberately invalid: with the artifact absent the
-    // contract asserts the failure the layer actually reports.
-    wasm: wasmBytes ?? new Uint8Array(0),
+    wasm: wasmBytes,
     fs: rootedSyncFs(host),
     root: "/repo"
   }
@@ -98,15 +92,35 @@ const layer = BrowserHost.layer({
 
 // The contract's jj probe is `status()` alone; seed one snapshot so the
 // workspace exists before the probe, the way any real page's first write does.
+let jj: Jj
 beforeAll(async () => {
-  if (wasmBytes === undefined) return
   fsModule.writeFileSync(join(host, "repo", "seed.txt"), "seed\n")
-  const jj = await Effect.runPromise(Effect.provide(Jj, layer))
+  // A vitest hook is a Promise boundary; @effect/vitest has no Effect hook.
+  jj = await Effect.runPromise(Effect.provide(Jj, layer))
   await Effect.runPromise(jj.snapshot("browser host contract seed"))
 }, 60_000)
 
 afterAll(() => {
   fsModule.rmSync(host, { recursive: true, force: true })
+})
+
+describe("BrowserHost real wasm contract", () => {
+  it.effect("diffs two snapshots and restores one through the Host-provided jj", () =>
+    Effect.gen(function*() {
+      const path = join(host, "repo", "real-wasm.txt")
+      fsModule.writeFileSync(path, "first\n")
+      const { changeId: first } = yield* (jj.snapshot("real wasm first"))
+      fsModule.writeFileSync(path, "second\n")
+      const { changeId: second } = yield* (jj.snapshot("real wasm second"))
+
+      const diff = yield* (jj.diff(first, second))
+      expect(diff).toContain("real-wasm.txt")
+      expect(diff).toContain("-first")
+      expect(diff).toContain("+second")
+
+      yield* (jj.restore(first))
+      expect(fsModule.readFileSync(path, "utf8")).toBe("first\n")
+    }))
 })
 
 runHostContract(
@@ -130,7 +144,7 @@ runHostContract(
       stdin: { expected: "failure", code: "BadArgument" },
       interruptCommand: ChildProcess.make("host-contract-interrupt")
     },
-    jj: wasmBytes === undefined ? { expected: "failure", code: "unknown" } : { expected: "success" },
+    jj: { expected: "success" },
     httpClient: { expected: "failure", code: "TransportError" }
   }
 )

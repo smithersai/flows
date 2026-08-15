@@ -12,9 +12,9 @@ export const sha256 = (input: string | Uint8Array): string =>
     Schema.decodeUnknownEffect(Sha256)(input).pipe(Effect.provide(NodeCrypto.layer), Effect.orDie)
   )
 
-/** Runs a test Effect with the concrete Node crypto layer. */
-export const runPromise = <A, E>(effect: Effect.Effect<A, E, Crypto.Crypto>): Promise<A> =>
-  Effect.runPromise(Effect.provide(effect, NodeCrypto.layer))
+/** Provides concrete Node cryptography to a test Effect. */
+export const withCrypto = <A, E>(effect: Effect.Effect<A, E, Crypto.Crypto>): Effect.Effect<A, E> =>
+  Effect.provide(effect, NodeCrypto.layer)
 
 /** UTF-8 bytes, the shape every artifact fixture is written in. */
 export const bytes = (text: string): Uint8Array => encoder.encode(text)

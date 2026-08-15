@@ -13,15 +13,15 @@ import type * as Crypto from "effect/Crypto"
  * interpreter-provided structural site is the sanctioned way to make
  * concurrent invocations distinguishable.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { Action, Flow, FlowRuntime, StepIdentity } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Cause, Deferred, Effect, Exit, Fiber, Layer, Scheduler, Schema } from "effect"
-import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it(name, () => runPromise(body()))
+  it.effect(name, () => withCrypto(body()))
 
 const flow = Flow.make("KeylessConcurrency/flow", {
   payload: { id: Schema.String },

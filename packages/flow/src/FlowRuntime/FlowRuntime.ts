@@ -33,6 +33,7 @@ import type { DurableClock } from "../DurableClock.ts"
 import type * as DurableDeferred from "../DurableDeferred.ts"
 import type * as Flow from "../Flow/index.ts"
 import type * as RetryPolicy from "../RetryPolicy.ts"
+import type { CancelRequestFailed } from "./CancelRequestFailed.ts"
 import type { FlowCycleDetected } from "./FlowCycleDetected.ts"
 import type { FlowInstance } from "./FlowInstance.ts"
 
@@ -129,21 +130,31 @@ export class FlowRuntime extends Context.Service<
      * Requests cancellation of a registered execution while preserving normal
      * cleanup, compensation, and child-flow handling. This is not a pause, and
      * a later `resume` does not undo the cancellation request.
+     *
+     * A durable runtime records the request before it interrupts anything, and
+     * reports {@link CancelRequestFailed} when that record could not be
+     * written: the execution is then still running and still cancellable, so
+     * the caller must see the failure rather than a false success. An
+     * in-memory runtime has nothing to record and never raises it.
      */
     readonly interrupt: (
       flow: Flow.Any,
       executionId: string
-    ) => Effect.Effect<void>
+    ) => Effect.Effect<void, CancelRequestFailed>
 
     /**
      * Immediately cancels a registered execution, potentially ignoring
      * compensation finalizers and orphaning child flows. This unsafe operation
      * is intended for forced shutdown, not ordinary cancellation or pausing.
+     *
+     * It reports {@link CancelRequestFailed} on the same terms as
+     * `interrupt`: forcing cancellation without a durable record would leave a
+     * run that nothing later re-cancels.
      */
     readonly interruptUnsafe: (
       flow: Flow.Any,
       executionId: string
-    ) => Effect.Effect<void>
+    ) => Effect.Effect<void, CancelRequestFailed>
 
     /**
      * Re-drives a registered execution that returned `Suspended`, allowing it

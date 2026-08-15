@@ -8,11 +8,11 @@
  * fixture here settles a handed-off round as itself; `@smthrs/engine-next` and
  * `@smthrs/engine-store-next` own the lineage tests.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { Action, Flow, FlowRuntime, Graph, Interpreter } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Effect, Layer, Option, Schema } from "effect"
-import { describe, expect, it } from "vitest"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 import { layerMemory, makeInstance } from "./MemoryFlowRuntime.ts"
 
 const Increment = Action.make("trampoline/increment", {
@@ -75,46 +75,48 @@ const wired = (
   )
 
 describe("Flow.Handoff", () => {
-  it("is a Result beside Complete and Suspended, and survives the result codec", async () => {
-    const handoff = new Flow.Handoff({ flow: "trampoline/counter", payload: { value: 1 } })
+  it.effect("is a Result beside Complete and Suspended, and survives the result codec", () =>
+    Effect.gen(function*() {
+      const handoff = new Flow.Handoff({ flow: "trampoline/counter", payload: { value: 1 } })
 
-    expect(Flow.isResult(handoff)).toBe(true)
-    expect(handoff._tag).toBe("Handoff")
+      expect(Flow.isResult(handoff)).toBe(true)
+      expect(handoff._tag).toBe("Handoff")
 
-    const codec = Schema.toCodecJson(
-      Flow.Result({ success: Schema.Number, error: Schema.Never })
-    )
-    const encoded = await runPromise(Schema.encodeEffect(codec)(handoff))
-    expect(encoded).toEqual({
-      _tag: "Handoff",
-      flow: "trampoline/counter",
-      payload: { value: 1 }
-    })
-    const decoded = await runPromise(Schema.decodeUnknownEffect(codec)(encoded))
-    expect(decoded._tag).toBe("Handoff")
-    expect(decoded._tag === "Handoff" && decoded.flow).toBe("trampoline/counter")
-  })
-
-  it("records itself on the instance, so intoResult answers with it", async () => {
-    const instance = makeInstance(Parking, "handoff-instance")
-
-    const result = await runPromise(
-      Effect.succeed("ignored").pipe(
-        Effect.tap(() =>
-          Effect.sync(() => {
-            instance.handoff = new Flow.Handoff({ flow: "next", payload: { n: 2 } })
-          })
-        ),
-        Flow.intoResult,
-        Effect.provideService(FlowRuntime.FlowInstance, instance)
+      const codec = Schema.toCodecJson(
+        Flow.Result({ success: Schema.Number, error: Schema.Never })
       )
-    )
+      const encoded = yield* withCrypto(Schema.encodeEffect(codec)(handoff))
+      expect(encoded).toEqual({
+        _tag: "Handoff",
+        flow: "trampoline/counter",
+        payload: { value: 1 }
+      })
+      const decoded = yield* withCrypto(Schema.decodeUnknownEffect(codec)(encoded))
+      expect(decoded._tag).toBe("Handoff")
+      expect(decoded._tag === "Handoff" && decoded.flow).toBe("trampoline/counter")
+    }))
 
-    // The value the handler returned is discarded: a round that handed off
-    // produced no answer of its own.
-    expect(result._tag).toBe("Handoff")
-    expect(result._tag === "Handoff" && result.payload).toEqual({ n: 2 })
-  })
+  it.effect("records itself on the instance, so intoResult answers with it", () =>
+    Effect.gen(function*() {
+      const instance = makeInstance(Parking, "handoff-instance")
+
+      const result = yield* withCrypto(
+        Effect.succeed("ignored").pipe(
+          Effect.tap(() =>
+            Effect.sync(() => {
+              instance.handoff = new Flow.Handoff({ flow: "next", payload: { n: 2 } })
+            })
+          ),
+          Flow.intoResult,
+          Effect.provideService(FlowRuntime.FlowInstance, instance)
+        )
+      )
+
+      // The value the handler returned is discarded: a round that handed off
+      // produced no answer of its own.
+      expect(result._tag).toBe("Handoff")
+      expect(result._tag === "Handoff" && result.payload).toEqual({ n: 2 })
+    }))
 })
 
 describe("Flow.Outcome.isOutcome", () => {
@@ -146,79 +148,85 @@ describe("the interpreter settles a body's root outcome", () => {
     })
   })
 
-  it("answers with the value a done arm carried", async () => {
-    const value = await runPromise(
-      Counter.execute({ value: 9, target: 10 }, { executionId: "settle-done" }).pipe(
-        Effect.provide(wired(Interpreter.layer(Counter)))
+  it.effect("answers with the value a done arm carried", () =>
+    Effect.gen(function*() {
+      const value = yield* withCrypto(
+        Counter.execute({ value: 9, target: 10 }, { executionId: "settle-done" }).pipe(
+          Effect.provide(wired(Interpreter.layer(Counter)))
+        )
       )
-    )
 
-    expect(value).toBe(10)
-  })
+      expect(value).toBe(10)
+    }))
 
-  it("hands off when the arm taken is a to invocation", async () => {
-    const settled = await runPromise(
-      (Counter.execute({ value: 0, target: 10 }, { executionId: "settle-to" }) as Effect.Effect<
-        unknown,
-        never,
-        FlowRuntime.FlowRuntime
-      >).pipe(Effect.provide(wired(Interpreter.layer(Counter))))
-    )
-
-    expect(Flow.isResult(settled) && settled._tag).toBe("Handoff")
-    expect(
-      Flow.isResult(settled) && settled._tag === "Handoff" ? settled.payload : undefined
-    ).toEqual({ value: 1, target: 10 })
-  })
-
-  it("encodes the target payload before settling Handoff", async () => {
-    const settled = await runPromise(
-      (EncodedSource.execute({}, { executionId: "settle-encoded-to" }) as Effect.Effect<
-        unknown,
-        never,
-        FlowRuntime.FlowRuntime
-      >).pipe(Effect.provide(wired(Interpreter.layer(EncodedSource))))
-    )
-
-    expect(
-      Flow.isResult(settled) && settled._tag === "Handoff" ? settled.payload : undefined
-    ).toEqual({ count: "2" })
-  })
-
-  it("parks under the reason the body declared", async () => {
-    const result = await runPromise(
-      Effect.gen(function*() {
-        const executionId = yield* Parking.execute({ token: "req-7" }, {
-          executionId: "settle-park",
-          discard: true
-        })
-        let polled = yield* Parking.poll(executionId)
-        for (let index = 0; index < 300 && Option.isNone(polled); index++) {
-          yield* Effect.sleep(1)
-          polled = yield* Parking.poll(executionId)
-        }
-        return polled
-      }).pipe(Effect.provide(wired(Interpreter.layer(Parking))))
-    )
-
-    expect(Option.isSome(result) && result.value._tag).toBe("Suspended")
-  })
-
-  it("leaves a body that settles with an ordinary value alone", async () => {
-    const Plain = Flow.make("trampoline/plain", {
-      payload: { value: Schema.Number },
-      success: Schema.Number,
-      body: ({ value }) => Increment.call({ value })
-    })
-
-    const settled = await runPromise(
-      Plain.execute({ value: 4 }, { executionId: "settle-plain" }).pipe(
-        Effect.provide(wired(Interpreter.layer(Plain)))
+  it.effect("hands off when the arm taken is a to invocation", () =>
+    Effect.gen(function*() {
+      const settled = yield* withCrypto(
+        (Counter.execute({ value: 0, target: 10 }, { executionId: "settle-to" }) as Effect.Effect<
+          unknown,
+          never,
+          FlowRuntime.FlowRuntime
+        >).pipe(Effect.provide(wired(Interpreter.layer(Counter))))
       )
-    )
 
-    expect(settled).toBe(5)
-  })
+      expect(Flow.isResult(settled) && settled._tag).toBe("Handoff")
+      expect(
+        Flow.isResult(settled) && settled._tag === "Handoff" ? settled.payload : undefined
+      ).toEqual({ value: 1, target: 10 })
+    }))
+
+  it.effect("encodes the target payload before settling Handoff", () =>
+    Effect.gen(function*() {
+      const settled = yield* withCrypto(
+        (EncodedSource.execute({}, { executionId: "settle-encoded-to" }) as Effect.Effect<
+          unknown,
+          never,
+          FlowRuntime.FlowRuntime
+        >).pipe(Effect.provide(wired(Interpreter.layer(EncodedSource))))
+      )
+
+      expect(
+        Flow.isResult(settled) && settled._tag === "Handoff" ? settled.payload : undefined
+      ).toEqual({ count: "2" })
+    }))
+
+  // Real elapsed time: `it.effect`'s TestClock would stall this.
+  it.live("parks under the reason the body declared", () =>
+    Effect.gen(function*() {
+      const result = yield* withCrypto(
+        Effect.gen(function*() {
+          const executionId = yield* Parking.execute({ token: "req-7" }, {
+            executionId: "settle-park",
+            discard: true
+          })
+          let polled = yield* Parking.poll(executionId)
+          for (let index = 0; index < 300 && Option.isNone(polled); index++) {
+            yield* Effect.sleep(1)
+            polled = yield* Parking.poll(executionId)
+          }
+          return polled
+        }).pipe(Effect.provide(wired(Interpreter.layer(Parking))))
+      )
+
+      expect(Option.isSome(result) && result.value._tag).toBe("Suspended")
+    }))
+
+  it.effect("leaves a body that settles with an ordinary value alone", () =>
+    Effect.gen(function*() {
+      const Plain = Flow.make("trampoline/plain", {
+        payload: { value: Schema.Number },
+        success: Schema.Number,
+        body: ({ value }) => Increment.call({ value })
+      })
+
+      const settled = yield* withCrypto(
+        Plain.execute({ value: 4 }, { executionId: "settle-plain" }).pipe(
+          Effect.provide(wired(Interpreter.layer(Plain)))
+        )
+      )
+
+      expect(settled).toBe(5)
+    }))
 })
 
 describe("Flow.MaxRoundsExceeded", () => {
