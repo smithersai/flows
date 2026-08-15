@@ -75,8 +75,7 @@ describe("DurableWriter", () => {
       expect(failures.map((failure) => failure.code)).toEqual(shapes.map(() => "unsupported"))
     }))
 
-  // BUG: affectedRows accepts integers above JavaScript's safe range even though their exact count is unreadable.
-  it.effect.fails("rejects an affected-row count one past Number.MAX_SAFE_INTEGER", () =>
+  it.effect("rejects an affected-row count one past Number.MAX_SAFE_INTEGER", () =>
     Effect.gen(function*() {
       const failure = yield* (
         Effect.flip(DurableWriter.affectedRows({ changes: Number.MAX_SAFE_INTEGER + 1 }))
@@ -96,8 +95,7 @@ describe("DurableWriter", () => {
       expect(failure.code).toBe("unsupported")
     }))
 
-  // BUG: affectedRows reads inherited properties instead of requiring a driver's own result field.
-  it.effect.fails("rejects a prototype-inherited affected-row count", () =>
+  it.effect("rejects a prototype-inherited affected-row count", () =>
     Effect.gen(function*() {
       const raw = Object.create({ changes: 3 }) as object
       const failure = yield* (Effect.flip(DurableWriter.affectedRows(raw)))
@@ -274,8 +272,7 @@ describe("DurableWriter", () => {
       })
   )
 
-  // BUG: jitter runs after the maxDelayMs cap and can extend a retry beyond the documented upper bound.
-  it.effect.fails("caps every exponential retry delay at maxDelayMs under TestClock", () =>
+  it.effect("caps every exponential retry delay at maxDelayMs under TestClock", () =>
     Effect.gen(function*() {
       let attempts = 0
       const writer = DurableWriter.make(retrySql, { baseDelayMs: 4, maxDelayMs: 5, maxAttempts: 3 })

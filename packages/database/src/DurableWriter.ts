@@ -146,12 +146,16 @@ export const fromSqlError = (error: SqlError.SqlError): DatabaseError =>
     cause: error
   })
 
+// Only a driver's own result field counts: an inherited `changes` comes from
+// a prototype, not from the statement that ran. The count must also be a safe
+// integer — above `Number.MAX_SAFE_INTEGER` the exact count is unreadable, so
+// reporting the rounded double would silently misreport the write.
 const rowCountOf = (raw: unknown, field: string): number | undefined => {
-  if (typeof raw !== "object" || raw === null || !(field in raw)) {
+  if (typeof raw !== "object" || raw === null || !Object.hasOwn(raw, field)) {
     return undefined
   }
   const count = (raw as Record<string, unknown>)[field]
-  return typeof count === "number" && Number.isInteger(count) && count >= 0 ? count : undefined
+  return typeof count === "number" && Number.isSafeInteger(count) && count >= 0 ? count : undefined
 }
 
 /**
