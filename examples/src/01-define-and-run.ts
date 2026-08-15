@@ -51,4 +51,10 @@ const GreetingLayer = Layer.mergeAll(
 export const main: Effect.Effect<string> = Greeting.execute(
   { name: "Ada" },
   { executionId: "greeting-ada-1" }
-).pipe(Effect.provide(GreetingLayer))
+).pipe(
+  // `execute` fails typed when a payload does not satisfy the flow's schema.
+  // This example constructs a statically valid payload, so a refusal here
+  // would be a defect in the example, not an error a caller handles.
+  Effect.orDie,
+  Effect.provide(GreetingLayer)
+)
