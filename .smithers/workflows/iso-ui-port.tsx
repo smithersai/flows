@@ -173,10 +173,31 @@ the package.json dependency and the import specifiers.
 const RULES = `
 Ground rules (read fully before any tool call):
 - Read ${REPO}/CLAUDE.md and ${REPO}/AGENTS.md at the worktree root first and follow them exactly.
+- WORKTREE PREFLIGHT -- do this FIRST, before pnpm install or any other command.
+  This repo is jj-colocated, and 'git worktree add' here can populate a
+  worktree's working copy from the WRONG commit, leaving it silently stale.
+  Observed 2026-08-15 on this very workflow: a worktree whose HEAD was
+  origin/main had a working copy 15 commits behind, with .npmrc absent, which
+  breaks 'pnpm install' and makes every gate result meaningless. Run:
+      git status --porcelain
+  If any TRACKED file differs from HEAD before you have done any work, the
+  checkout is stale. Repair it with:
+      git reset --hard HEAD
+  That syncs tracked files to HEAD and PRESERVES untracked files, so packages
+  or edits left by a previous attempt survive. Then assert, and do not proceed
+  until both hold:
+      git diff --name-only HEAD    -> empty
+      test -e .npmrc               -> exists
+  Re-run this check after any git operation that touches the working copy.
 - You work in an isolated git worktree. Never checkout, move or merge the main
   branch ref. Commit only on the worktree's current branch. If a previous
-  attempt left commits or edits in the worktree, CONTINUE from them instead of
-  restarting. First action every time: git fetch origin && git merge origin/main.
+  attempt left commits or untracked work in the worktree, CONTINUE from it
+  instead of restarting -- check 'git log HEAD --oneline -5' and 'git status'
+  before assuming you are starting from scratch.
+- Do NOT run 'git merge origin/main' reflexively. The worktree branch is already
+  created from the intended base. Merge only if 'git log --oneline HEAD..origin/main'
+  actually lists commits you need, and never merge a branch that is BEHIND your
+  base -- that silently reverts other people's work.
 - This tree is pnpm (packageManager pnpm@11.21.0). Use pnpm only, never npm or
   yarn. Run "pnpm install" at the worktree root before building or testing.
 - ${SOURCE} and ${STYLEGUIDE} are the SOURCE library and are READ ONLY. Never
