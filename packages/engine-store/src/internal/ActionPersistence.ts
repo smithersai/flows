@@ -1411,30 +1411,39 @@ export const make = (deps: Dependencies) => {
           // handling below is unchanged by which path produced it.
           const settlement = isolated !== undefined && Exit.isSuccess(isolated) ? isolated.value : undefined
           /**
-           * THE EFFECT BOUNDARY. An irreversible dispatch is the only kind that
-           * can change the world outside this journal, so it is the only kind
-           * wrapped: `intended` commits before the body starts, and the
-           * terminal record commits after it settles — `succeeded` with the
-           * recorded result, `unknown` for a failure, defect, or interruption
-           * whose external outcome nobody can testify to
-           * (`docs/specs/Concepts/Time Travel Compensation.md`).
+           * THE EFFECT BOUNDARY. An irreversible dispatch can change the world
+           * outside this journal, and a compensable one mutates the workspace
+           * a rewind must restore — both are wrapped: `intended` commits
+           * before the body starts, and the terminal record commits after it
+           * settles — `succeeded` with the recorded result, `unknown` for a
+           * failure, defect, or interruption whose external outcome nobody can
+           * testify to (`docs/specs/Concepts/Time Travel Compensation.md`).
+           *
+           * The compensable record is what makes the tier-2 restore REAL: a
+           * rewind classifies the doomed suffix by its boundary rows, so a
+           * compensable action that recorded only its pre-image snapshot left
+           * nothing for the rewind to restore against — the suffix archived
+           * "completed" while the tree kept the discarded future's bytes. The
+           * record names the attempt's anchored `changeId` so the evidence and
+           * the pointer travel together.
            *
            * The settlement is uninterruptible: cancellation must not strand an
            * effect that has already crossed without at least attempting to say
-           * so. Sealed and compensable work is deliberately outside this — a
-           * sealed result is cache evidence and a compensable one restores
-           * through jj, neither needs the operator to decide anything.
+           * so. Sealed work is deliberately outside this — a sealed result is
+           * cache evidence, and replay answers it from the recorded cache
+           * entry rather than an operator decision.
            */
-          const effect = input.tier === "irreversible"
+          const effect = input.tier === "irreversible" || input.tier === "compensable"
             ? {
               id: `${deps.runId}:${keyDigest}:${input.attempt}`,
               kind: actionKind(input.action),
-              tier: "irreversible" as const,
+              tier: input.tier,
               runId: deps.runId,
               lineageId,
               sourceId: deps.sourceId,
               attempt: input.attempt,
-              ...(deps.idempotencyKey === undefined ? {} : { idempotencyKey: deps.idempotencyKey })
+              ...(deps.idempotencyKey === undefined ? {} : { idempotencyKey: deps.idempotencyKey }),
+              ...(snapshotId === undefined ? {} : { changeId: snapshotId })
             } satisfies EffectRecords.Descriptor
             : undefined
           const dispatch = effect === undefined

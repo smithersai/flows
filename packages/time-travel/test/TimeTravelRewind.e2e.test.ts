@@ -131,9 +131,7 @@ describe.skipIf(!jjInstalled)("real file-backed rewind", () => {
     { timeout: 60_000 }
   )
 
-  // BUG: the production engine records a compensable snapshot but no compensable effect-boundary row, so rewind
-  // archives the suffix as "completed" without invoking Compensation.restoreWorkspace or real `jj restore`.
-  it.effect.fails(
+  it.effect(
     "restores the real jj tree to the compensable action's anchored revision",
     () =>
       Effect.gen(function*() {
