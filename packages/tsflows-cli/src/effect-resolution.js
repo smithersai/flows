@@ -1,17 +1,32 @@
 /**
- * Installs the process-wide module resolver required by BUILD.ts evaluation.
+ * Installs the process-wide module resolvers required by BUILD.ts evaluation.
  *
  * Rules, the planner, and the flow engine exchange values branded by Effect's
  * runtime symbols. A linked workspace can otherwise load another physical
  * `effect` installation—even at the same version—and hand the engine schemas
  * it cannot interpret. BUILD.ts modules therefore resolve every `effect` bare
- * import from the CLI package that owns the runtime. BUILD.ts is also always
- * an ES module, independent of the nearest package.json `type`: declaration
- * semantics must not change because a package publishes CommonJS.
+ * import from the CLI package that owns the runtime.
+ *
+ * ## BUILD.ts module format
+ *
+ * The resolve hook below reports `format: "module"` for every BUILD.ts, so a
+ * workspace whose nearest `package.json` declares no `type` still evaluates
+ * its BUILD.ts as an ES module — but that override reaches tsx only when
+ * these hooks were registered before tsx's loader was created. An evaluation
+ * path that misses that window (a bootstrap that touches tsx first, or a
+ * nested require from an already-CommonJS module) falls back to tsx's own
+ * classification and evaluates BUILD.ts through the CommonJS bridge. There,
+ * an `import` of a `file:` URL compiles to `require("file://...")` — valid
+ * ESM, but accepted by the CommonJS resolver only on newer Node versions.
+ * The `_resolveFilename` patch below converts a `file:` URL request to its
+ * path first, so a URL import (for example one produced by
+ * `import.meta.resolve`) behaves identically in both formats on every
+ * supported Node version.
  *
  * @since 0.1.0
  */
-import { registerHooks } from "node:module"
+import { default as Module, registerHooks } from "node:module"
+import { fileURLToPath } from "node:url"
 
 const installation = Symbol.for("tsflows-cli/effect-resolution-installed")
 const buildModuleParameter = "tsflows-build-module"
@@ -22,7 +37,7 @@ const isBuildModule = (url) => {
   return parsed.searchParams.get(buildModuleParameter) === "1" || parsed.pathname.endsWith("/BUILD.ts")
 }
 
-/** Installs the resolver once per process. */
+/** Installs the resolvers once per process. */
 export const installEffectResolution = () => {
   if (globalThis[installation] === true) return
   registerHooks({
@@ -33,6 +48,19 @@ export const installEffectResolution = () => {
       return isBuildModule(resolved.url) ? { ...resolved, format: "module" } : resolved
     }
   })
+  // The CommonJS resolver on Node 22 rejects a `file:` URL request outright,
+  // while newer versions convert it. Converting here makes the accepted
+  // specifier set version-independent for the CommonJS-bridged BUILD.ts
+  // evaluation path documented above. Only `file:` is converted; every other
+  // request passes through untouched.
+  const resolveFilename = Module._resolveFilename
+  Module._resolveFilename = function(request, ...rest) {
+    return resolveFilename.call(
+      this,
+      typeof request === "string" && request.startsWith("file:") ? fileURLToPath(request) : request,
+      ...rest
+    )
+  }
   Object.defineProperty(globalThis, installation, {
     configurable: false,
     enumerable: false,

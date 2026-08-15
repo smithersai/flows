@@ -1078,12 +1078,22 @@ export class Workspace {
       // namespace. A BUILD.ts reached first through another BUILD's relative
       // import can therefore be the same declaration in a distinct module
       // instance when the index later loads its source directly. Reconcile
-      // that duplicate by its source-local declaration identity.
+      // that duplicate by its source-local declaration identity: the rule
+      // name and the canonicalized attrs from the same source file.
+      //
+      // `implementationDigest` is deliberately NOT part of this match. The
+      // digest hashes the transpiled text of the rule's option functions, and
+      // two module instances of one rules package can be transpiled by
+      // different tsx pipelines (the CommonJS require bridge versus the ESM
+      // loader), which annotate the emitted functions differently on some
+      // Node versions. The digest is per-instance context; the declaration
+      // identity a label needs is rule plus attrs in one file, and two
+      // structurally identical declarations in one file are genuinely
+      // ambiguous with or without the digest.
       const metadata = Rule.metadata(target)
       const matches = [...loaded.targets].filter(([, candidate]) => {
         const candidateMetadata = Rule.metadata(candidate)
         return candidateMetadata.rule === metadata.rule &&
-          candidateMetadata.implementationDigest === metadata.implementationDigest &&
           JSON.stringify(candidateMetadata.attrs) === JSON.stringify(metadata.attrs)
       })
       if (matches.length === 1) {
