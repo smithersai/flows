@@ -326,7 +326,11 @@ export const Install: InstallFlow = Flow.make("tsflows/install", {
   success: LinkManifest,
   error: PackageManager.PackageManagerError,
   maxRounds: 2,
-  body: ({ environment }): Node.Node<unknown, unknown, Requires> =>
+  body: ({ environment }): Node.Node<
+    Flow.BodySuccess<typeof LinkManifest.Type>,
+    PackageManager.PackageManagerError,
+    Requires
+  > =>
     environment === undefined
       ? Measure.call({}).pipe(
         Node.andThen((measured) => Install.to({ environment: measured }))
