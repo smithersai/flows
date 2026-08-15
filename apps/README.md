@@ -9,6 +9,7 @@ members (`apps/*` in `pnpm-workspace.yaml`). Formerly one package,
 | `ui/`    | `smithers-ui`    | The Electrobun + React native app and pure-web UI. Vite builds to `ui/dist`. `src/dev/` is the vite dev/preview AgentApi middleware (not a deployable). |
 | `server/`| `smithers-server`| The Cloudflare Worker deployable (`smithers-mvp-web`, canary.smithers.sh). Serves `../ui/dist` assets and the `/api`, `/v1`, `/workflows` seams.   |
 | `shared/`| `smithers-shared`| The agent contract both sides import (`AgentContext`, `AgentApiRoutes`, `NativeAgent` frames, `Cards`, ...). Import as `smithers-shared/<Module>`. |
+| `tui/`   | `smithers-tui`   | The opentui (React) terminal chat client: a TUI clone of the app's chat against the same turn contract. Default transport is the chat upstream (CloudAgent semantics); `--origin`/`SMITHERS_TUI_ORIGIN` attaches through the Worker boundary. |
 
 Deploy identity: the Worker's wrangler `name` stays `smithers-mvp-web`.
 Renaming it would deploy a fresh Worker and orphan the Durable Object
