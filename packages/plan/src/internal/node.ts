@@ -232,37 +232,96 @@ const filters = new WeakMap<Catch, Schema.Top>()
 const declarations = new WeakMap<ActionCall | FlowCall, unknown>()
 
 /**
+ * One container being cloned: the object walked, the clone being filled, and
+ * the member position the walk has reached. `keys` is `undefined` for an
+ * array, whose members are positional.
+ *
+ * @since 0.1.0
+ * @private
+ */
+interface CloneFrame {
+  readonly source: Record<string, unknown> | ReadonlyArray<unknown>
+  readonly output: Record<string, unknown> | Array<unknown>
+  readonly keys: ReadonlyArray<string> | undefined
+  index: number
+}
+
+/**
  * Replaces strict planned proxies with their inert reference records while
  * preserving the shape of JSON payloads.
+ *
+ * The walk carries its own explicit stack rather than recursing, because a
+ * payload's nesting depth is the author's data and must not be bounded by the
+ * native call stack. Cycles and shared references are memoized through `seen`
+ * exactly as one recursion would memoize them: the clone of an object that
+ * appears twice is one object, and a payload that contains itself clones into
+ * a clone that contains itself. Whether such a payload is PLANNABLE is graph
+ * building's verdict, not this cloner's.
  *
  * @since 0.1.0
  * @private
  */
 export const value = (input: unknown, seen: WeakMap<object, unknown> = new WeakMap()): unknown => {
-  const reference = Planned.reference(input)
-  if (reference !== undefined) {
-    return { _tag: "PlannedReference", node: reference.node, path: [...reference.path] } satisfies PlannedReference
-  }
-  if (input === null || typeof input !== "object") return input
-  const previous = seen.get(input)
-  if (previous !== undefined) return previous
-  if (Array.isArray(input)) {
-    const output: Array<unknown> = []
-    seen.set(input, output)
-    for (const item of input) output.push(value(item, seen))
-    return output
-  }
-  const output: Record<string, unknown> = Object.create(null) as Record<string, unknown>
-  seen.set(input, output)
-  for (const key of Object.keys(input)) {
-    Object.defineProperty(output, key, {
-      configurable: true,
-      enumerable: true,
-      value: value(input[key as keyof typeof input], seen),
-      writable: true
+  let result: unknown
+  const frames: Array<CloneFrame> = []
+  /** Resolves one member, opening a frame when it is an unseen container. */
+  const enter = (current: unknown, place: (member: unknown) => void): void => {
+    const reference = Planned.reference(current)
+    if (reference !== undefined) {
+      place({ _tag: "PlannedReference", node: reference.node, path: [...reference.path] } satisfies PlannedReference)
+      return
+    }
+    if (current === null || typeof current !== "object") {
+      place(current)
+      return
+    }
+    const previous = seen.get(current)
+    if (previous !== undefined) {
+      place(previous)
+      return
+    }
+    const container = current as Record<string, unknown> | ReadonlyArray<unknown>
+    const output: Record<string, unknown> | Array<unknown> = Array.isArray(container)
+      ? []
+      : Object.create(null) as Record<string, unknown>
+    seen.set(container, output)
+    place(output)
+    frames.push({
+      source: container,
+      output,
+      keys: Array.isArray(container) ? undefined : Object.keys(container),
+      index: 0
     })
   }
-  return output
+  enter(input, (member) => {
+    result = member
+  })
+  while (frames.length > 0) {
+    const frame = frames[frames.length - 1]!
+    if (frame.index >= (frame.keys ?? frame.source as ReadonlyArray<unknown>).length) {
+      frames.pop()
+      continue
+    }
+    const position = frame.index
+    frame.index = position + 1
+    if (frame.keys === undefined) {
+      const members = frame.output as Array<unknown>
+      enter((frame.source as ReadonlyArray<unknown>)[position], (member) => {
+        members.push(member)
+      })
+    } else {
+      const key = frame.keys[position]!
+      enter((frame.source as Record<string, unknown>)[key], (member) => {
+        Object.defineProperty(frame.output, key, {
+          configurable: true,
+          enumerable: true,
+          value: member,
+          writable: true
+        })
+      })
+    }
+  }
+  return result
 }
 
 /**
