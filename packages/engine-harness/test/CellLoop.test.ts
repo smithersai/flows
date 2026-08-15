@@ -191,7 +191,7 @@ const awaitParked = (
   engine: FlowRuntime.FlowRuntime["Service"],
   flow: typeof driveFlow,
   attempts = 100
-): Effect.Effect<void> =>
+): Effect.Effect<void, FlowRuntime.FlowExecutionNotFound> =>
   Effect.gen(function*() {
     const polled = yield* engine.poll(flow, "exec-1")
     if (Option.isSome(polled) && polled.value._tag === "Suspended") return
