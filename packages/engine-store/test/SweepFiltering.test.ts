@@ -32,7 +32,7 @@ import { withCrypto } from "./Sha256.ts"
 const TestFlow = Flow.make("SweepFiltering/Test", {
   payload: {},
   success: Schema.String,
-  body: () => Node.succeed(undefined)
+  body: () => Node.succeed("unused")
 })
 
 const fakeEngine = {} as unknown as FlowRuntime.FlowRuntime["Service"]

@@ -14,8 +14,8 @@ import { withCrypto } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "sweep-test", pid: 3, nonce: "sweep" }
 
-const FlowA = Flow.make("Sweep/FlowA", { payload: {}, success: Schema.String, body: () => Node.succeed(undefined) })
-const FlowB = Flow.make("Sweep/FlowB", { payload: {}, success: Schema.String, body: () => Node.succeed(undefined) })
+const FlowA = Flow.make("Sweep/FlowA", { payload: {}, success: Schema.String, body: () => Node.succeed("unused") })
+const FlowB = Flow.make("Sweep/FlowB", { payload: {}, success: Schema.String, body: () => Node.succeed("unused") })
 
 const makeJournal = (events: Array<string>, options: { readonly flushFails?: boolean } = {}) => {
   let seq = 0

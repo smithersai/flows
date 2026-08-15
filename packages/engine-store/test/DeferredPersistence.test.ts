@@ -22,7 +22,7 @@ const owner = {
 const TestFlow = Flow.make("DeferredPersistence/Test", {
   payload: {},
   success: Schema.String,
-  body: () => Node.succeed(undefined)
+  body: () => Node.succeed("unused")
 })
 
 const makeJournal = (events: Array<string>) =>
