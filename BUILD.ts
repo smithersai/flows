@@ -10,7 +10,7 @@ import {
   PnpmWorkspace,
   StandardPackage,
   file
-} from "../tsflows/rules/src/index.ts"
+} from "tsflows-rules"
 
 export const nodeModules = PnpmWorkspace({
   packageManager: "pnpm@11.21.0"
