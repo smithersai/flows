@@ -787,6 +787,7 @@ const marking = (marks: Array<string>): Implementation =>
 const Napping = Flow.make("e2e/napping", {
   payload: { millis: Schema.Number },
   success: Schema.String,
+  error: Sleep.SleepRequestInvalid,
   body: ({ millis }) =>
     Mark.call({ label: "before" }).pipe(
       Node.andThen(() => Sleep.action.call({ millis })),
@@ -797,6 +798,7 @@ const Napping = Flow.make("e2e/napping", {
 const Gated = Flow.make("e2e/gated", {
   payload: { name: Schema.String },
   success: Schema.Json,
+  error: WaitFor.WaitForRequestInvalid,
   body: ({ name }) =>
     Mark.call({ label: "before" }).pipe(
       Node.andThen(() => WaitFor.action.call({ name }))
