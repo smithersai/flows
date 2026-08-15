@@ -176,6 +176,17 @@ const isInside = (path: EffectPath.Path, root: string, candidate: string): boole
 }
 
 /**
+ * The `device:inode` identity a descriptor-bound authorization pins, or
+ * `Option.none` when the entry is not a regular file or the host reports no
+ * inode identity. A host without inode identity is an isolated volume, and its
+ * isolation attestation — not inode evidence — is the confinement boundary.
+ */
+const identityOf = (info: EffectFileSystem.File.Info): Option.Option<string> =>
+  info.type === "File"
+    ? Option.map(info.ino, (ino) => `${info.dev}:${ino}`)
+    : Option.none()
+
+/**
  * Resolves a path through every existing ancestor and maps paths inside the
  * canonical workspace back to the stable logical workspace root. Existing
  * symlinks therefore cannot turn an inside-workspace grant into outside
@@ -240,7 +251,13 @@ export const canonicalResource = (
 /**
  * Decorates Effect's filesystem service in place with workspace-normalized
  * capability checks. Canonical-path and hard-link guards are always evaluated
- * before the capability check and delegate acquisition.
+ * before the capability check and delegate acquisition, and the canonical
+ * resource is resolved again after every grant decision: a decision can
+ * suspend (an attended request, a journal-backed store), and an operation
+ * whose path no longer names the resource that was authorized is refused
+ * rather than performed. Open file handles bind their authorization to the
+ * `device:inode` identity fstat'd at open time and refuse any operation once
+ * the authorized path names a different resource.
  *
  * The layer provides the tag it also requires: compose it over a host
  * filesystem layer with `Layer.provide` and every consumer of
@@ -272,30 +289,68 @@ export const layer: Layer.Layer<
     const boundaryRoot = yield* fileSystem.realPath(logicalRoot)
     const refuse = (method: string, resource: string) => (error: PermissionError): PlatformError.PlatformError =>
       toPlatformError({ module: "FileSystem", method, pathOrDescriptor: resource, error })
-    const guard = (
+    /**
+     * Resolves the canonical capability resource a path names right now and
+     * applies the always-on hard-link refusal. `guard` runs it twice — once
+     * before the grant decision and once after — so the resolution must be a
+     * pure question about the current filesystem state.
+     */
+    const resolvedResource = (
       action: "fs:read" | "fs:write",
+      method: string,
       value: string
-    ): Effect.Effect<void, PlatformError.PlatformError> => {
+    ): Effect.Effect<string, PlatformError.PlatformError> => {
       const normalized = normalize(value)
-      const method = action === "fs:read" ? "read" : "write"
       return canonicalResource(fileSystem, path, workspace.root, normalized).pipe(
         Effect.flatMap((resource) =>
           fileSystem.stat(normalized).pipe(
             Effect.matchEffect({
-              onFailure: () => grants.check(makeCapability(action, resource)),
+              onFailure: () => Effect.succeed(resource),
               onSuccess: (info) => {
                 const hardLinked = info.type === "File" && Option.isSome(info.nlink) && info.nlink.value > 1
                 return hardLinked
                   ? Effect.fail(
-                    permissionDenied(
-                      makeCapability(action, resource),
-                      "hard-linked files cannot be confined to the workspace"
+                    refuse(method, resource)(
+                      permissionDenied(
+                        makeCapability(action, resource),
+                        "hard-linked files cannot be confined to the workspace"
+                      )
                     )
                   )
-                  : grants.check(makeCapability(action, resource))
+                  : Effect.succeed(resource)
               }
-            }),
-            Effect.mapError(refuse(method, resource))
+            })
+          )
+        )
+      )
+    }
+    const guard = (
+      action: "fs:read" | "fs:write",
+      value: string
+    ): Effect.Effect<void, PlatformError.PlatformError> => {
+      const method = action === "fs:read" ? "read" : "write"
+      return resolvedResource(action, method, value).pipe(
+        Effect.flatMap((resource) =>
+          grants.check(makeCapability(action, resource)).pipe(
+            Effect.mapError(refuse(method, resource)),
+            // The grant decision can suspend — an attended request waiting for
+            // a human, a journal-backed store doing IO. What was authorized is
+            // the resource the path named at check time, so the path must
+            // still name it when the decision arrives: a symlink or rename
+            // swapped in during the wait is refused, never followed.
+            Effect.andThen(resolvedResource(action, method, value)),
+            Effect.flatMap((settled) =>
+              settled === resource
+                ? Effect.void
+                : Effect.fail(
+                  refuse(method, resource)(
+                    permissionDenied(
+                      makeCapability(action, resource),
+                      "path no longer names the resource that was authorized"
+                    )
+                  )
+                )
+            )
           )
         )
       )
@@ -377,27 +432,75 @@ export const layer: Layer.Layer<
         write(value) :
         read(value)
     }
-    const wrapFile = (file: EffectFileSystem.File, value: string): EffectFileSystem.File => ({
-      [EffectFileSystem.FileTypeId]: EffectFileSystem.FileTypeId,
-      stat: Effect.fn("FileSystem.File.stat")(() =>
-        Effect.suspend(() => read(value).pipe(Effect.andThen(file.stat)))
-      )(),
-      seek: Effect.fn("FileSystem.File.seek")(file.seek),
-      sync: Effect.fn("FileSystem.File.sync")(() =>
-        Effect.suspend(() => write(value).pipe(Effect.andThen(file.sync)))
-      )(),
-      read: Effect.fn("FileSystem.File.read")((buffer) => read(value).pipe(Effect.andThen(file.read(buffer)))),
-      readAlloc: Effect.fn("FileSystem.File.readAlloc")((size) =>
-        read(value).pipe(Effect.andThen(file.readAlloc(size)))
-      ),
-      truncate: Effect.fn("FileSystem.File.truncate")((length) =>
-        write(value).pipe(Effect.andThen(file.truncate(length)))
-      ),
-      write: Effect.fn("FileSystem.File.write")((buffer) => write(value).pipe(Effect.andThen(file.write(buffer)))),
-      writeAll: Effect.fn("FileSystem.File.writeAll")((buffer) =>
-        write(value).pipe(Effect.andThen(file.writeAll(buffer)))
+    const descriptorRefusal = (action: "fs:read" | "fs:write", value: string): PlatformError.PlatformError => {
+      const resource = normalize(value)
+      return refuse(action === "fs:read" ? "read" : "write", resource)(
+        permissionDenied(
+          makeCapability(action, resource),
+          "descriptor no longer names the resource at its authorized path"
+        )
       )
-    })
+    }
+    /**
+     * Confirms an open descriptor still names the resource its authorization
+     * bound: the `device:inode` identity fstat'd at open time must be what the
+     * authorized path names right now. Rechecking the pathname alone would
+     * re-authorize the CURRENT occupant of the path and then delegate to the
+     * OLD descriptor — after a rename that descriptor can name an inode
+     * outside the workspace even though the replacement path is still allowed.
+     * A host that reports no inode identity is an isolated volume whose
+     * attestation is the boundary; there is no descriptor evidence to verify.
+     */
+    const verifyDescriptor = (
+      host: EffectFileSystem.FileSystem,
+      action: "fs:read" | "fs:write",
+      value: string,
+      identity: Option.Option<string>
+    ): Effect.Effect<void, PlatformError.PlatformError> =>
+      Option.match(identity, {
+        onNone: () => Effect.void,
+        onSome: (bound) =>
+          host.stat(normalize(value)).pipe(
+            Effect.matchEffect({
+              onFailure: () => Effect.fail(descriptorRefusal(action, value)),
+              onSuccess: (info) =>
+                Option.match(identityOf(info), {
+                  onNone: () => Effect.fail(descriptorRefusal(action, value)),
+                  onSome: (current) => current === bound ? Effect.void : Effect.fail(descriptorRefusal(action, value))
+                })
+            })
+          )
+      })
+    const wrapFile = (
+      host: EffectFileSystem.FileSystem,
+      file: EffectFileSystem.File,
+      value: string,
+      identity: Option.Option<string>
+    ): EffectFileSystem.File => {
+      const readable = Effect.suspend(() =>
+        read(value).pipe(Effect.andThen(verifyDescriptor(host, "fs:read", value, identity)))
+      )
+      const writable = Effect.suspend(() =>
+        write(value).pipe(Effect.andThen(verifyDescriptor(host, "fs:write", value, identity)))
+      )
+      return {
+        [EffectFileSystem.FileTypeId]: EffectFileSystem.FileTypeId,
+        stat: Effect.fn("FileSystem.File.stat")(() => readable.pipe(Effect.andThen(file.stat)))(),
+        seek: Effect.fn("FileSystem.File.seek")(file.seek),
+        sync: Effect.fn("FileSystem.File.sync")(() => writable.pipe(Effect.andThen(file.sync)))(),
+        read: Effect.fn("FileSystem.File.read")((buffer) => readable.pipe(Effect.andThen(file.read(buffer)))),
+        readAlloc: Effect.fn("FileSystem.File.readAlloc")((size) =>
+          readable.pipe(Effect.andThen(file.readAlloc(size)))
+        ),
+        truncate: Effect.fn("FileSystem.File.truncate")((length) =>
+          writable.pipe(Effect.andThen(file.truncate(length)))
+        ),
+        write: Effect.fn("FileSystem.File.write")((buffer) => writable.pipe(Effect.andThen(file.write(buffer)))),
+        writeAll: Effect.fn("FileSystem.File.writeAll")((buffer) =>
+          writable.pipe(Effect.andThen(file.writeAll(buffer)))
+        )
+      }
+    }
     // `EffectFileSystem.make` brands the implementation with Effect's own
     // (non-exported) type id. The five operations `make` would derive from
     // the primitives are overridden below with guarded delegates to the host
@@ -479,14 +582,23 @@ export const layer: Layer.Layer<
               Effect.andThen(atomic.isolated.makeTempFileScoped(normalizeTempOptions(options)))
             )
         ),
-        open: Effect.fn("FileSystem.open")((value, options) =>
-          atomic?.isolated === undefined
+        open: Effect.fn("FileSystem.open")((value, options) => {
+          const isolated = atomic?.isolated
+          return isolated === undefined
             ? Effect.fail(atomicUnavailable("fs:read", value, "open"))
             : openChecks(value, options?.flag ?? "r").pipe(
-              Effect.andThen(atomic.isolated.open(normalize(value), options)),
-              Effect.map((file) => wrapFile(file, value))
+              Effect.andThen(isolated.open(normalize(value), options)),
+              // fstat the handle the moment it exists: the authorization the
+              // open checks granted binds to THIS resource identity, and every
+              // later handle operation verifies the authorized path still
+              // names it before delegating to the descriptor.
+              Effect.flatMap((file) =>
+                file.stat.pipe(
+                  Effect.map((info) => wrapFile(isolated, file, value, identityOf(info)))
+                )
+              )
             )
-        ),
+        }),
         readDirectory: Effect.fn("FileSystem.readDirectory")((value, options) =>
           atomicOne<Array<string>>("fs:read", value, "readDirectory", {
             operation: "readDirectory",

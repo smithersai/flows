@@ -83,11 +83,17 @@ describe("FileSystem", () => {
           { action: "fs:write", resource: "/workspace/out/file.ts" },
           { action: "fs:write", resource: "/workspace/out" }
         ])
+        // Three host calls per operation: the guard stats the path before the
+        // grant decision AND after it (the decision can suspend, so the path
+        // must still name what was authorized), then the delegate runs.
         expect(paths).toEqual([
           "/workspace/src/file.ts",
           "/workspace/src/file.ts",
+          "/workspace/src/file.ts",
           "/workspace/out/file.ts",
           "/workspace/out/file.ts",
+          "/workspace/out/file.ts",
+          "/workspace/out",
           "/workspace/out",
           "/workspace/out"
         ])
@@ -214,7 +220,9 @@ describe("FileSystem", () => {
     let reads = 0
     const handle: EffectFileSystem.File = {
       [EffectFileSystem.FileTypeId]: EffectFileSystem.FileTypeId,
-      stat: Effect.die("not used"),
+      // `open` fstats the handle to bind its authorization; an identity-free
+      // Info opts this double out of descriptor verification.
+      stat: Effect.succeed({} as EffectFileSystem.File.Info),
       seek: () => Effect.succeed(EffectFileSystem.Size(0)),
       sync: Effect.void,
       read: () => Effect.sync(() => EffectFileSystem.Size(++reads)),
@@ -259,7 +267,9 @@ describe("FileSystem", () => {
     })
     const handle: EffectFileSystem.File = {
       [EffectFileSystem.FileTypeId]: EffectFileSystem.FileTypeId,
-      stat: Effect.die("not used"),
+      // `open` fstats the handle to bind its authorization; an identity-free
+      // Info opts this double out of descriptor verification.
+      stat: Effect.succeed({} as EffectFileSystem.File.Info),
       seek: () => Effect.succeed(EffectFileSystem.Size(0)),
       sync: Effect.void,
       read: () => Effect.sync(() => EffectFileSystem.Size(++reads)),
