@@ -92,11 +92,7 @@ export const make = (
     const get: CacheStore.Service["get"] = Effect.fn("RemoteCacheStore.get")((keyDigest: string) =>
       Effect.gen(function*() {
         yield* Effect.annotateCurrentSpan({ keyDigest })
-        if (keyDigest.length === 0) {
-          return yield* Effect.fail(
-            new CacheStore.CacheStoreError({ code: "invalid_cache", message: "keyDigest must not be empty" })
-          )
-        }
+        yield* CacheStore.validateKey(keyDigest)
         const response = yield* send("a lookup", HttpClientRequest.get(acUrl(keyDigest)))
         if (response.status === 404) return Option.none()
         if (!isOk(response.status)) return yield* Effect.fail(unexpectedStatus("a lookup", response.status))
@@ -139,6 +135,13 @@ export const make = (
             })
           )
         )
+        // `bodyJsonUnsafe` throws for a value `JSON.stringify` cannot represent
+        // and silently drops an `undefined` member, so the entry's two unknown
+        // fields are checked for a canonical JSON form first — the same refusal
+        // `CacheStore.put` makes — and a malformed entry fails as a typed
+        // invalid_cache before any request, never as a defect.
+        yield* CacheStore.encodeCanonical(entry.result, "result")
+        yield* CacheStore.encodeCanonical(entry.meta, "meta")
         const response = yield* send(
           "a publication",
           HttpClientRequest.put(acUrl(entry.keyDigest)).pipe(HttpClientRequest.bodyJsonUnsafe(encoded))
@@ -152,6 +155,11 @@ export const make = (
     const evict: CacheStore.Service["evict"] = Effect.fn("RemoteCacheStore.evict")((keyDigest, evictOptions) =>
       Effect.gen(function*() {
         yield* Effect.annotateCurrentSpan({ keyDigest })
+        // An empty key would aim the protocol's one destructive verb at the
+        // `/ac/` collection root instead of a single entry, so the preflight
+        // that guards `get` guards the DELETE all the more.
+        yield* CacheStore.validateKey(keyDigest)
+        yield* CacheStore.validateFence(evictOptions?.ifRecordedBy)
         const fenced = evictOptions?.ifRecordedBy
         // The provenance fence rides in the request the same way it rides in
         // the SQL `DELETE`: the server compares before deleting, so a fresher
