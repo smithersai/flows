@@ -133,14 +133,21 @@ describe("Key", () => {
     expect(key.length).toBe(69)
   })
 
-  // BUG: the `Key` docblock promises a `key2_` key stays decodable, but
-  // `KeyValue`'s pattern is anchored to `key1_` and refuses it.
-  it.fails("decodes a key2_ key, which the version marker promises stays readable", () => {
+  it("decodes a key2_ key, which the version marker promises stays readable", () => {
     // The module docblock: "A future derivation gets `key2_`, and both remain
     // decodable, so a stored key never becomes ambiguous about which scheme
-    // produced it." Today a stored `key2_` value cannot be read back at all,
-    // so the forward-compatibility half of that promise is not implemented.
+    // produced it." The storage pattern therefore accepts any version marker,
+    // while fresh derivation stays pinned to `key1_`.
     const key2 = `key2_${"a".repeat(64)}`
     expect(Schema.decodeUnknownSync(Schema.toType(Keys.Key))(key2)).toBe(key2)
+  })
+
+  it("still refuses a key with no version at all", () => {
+    // `key0_`, a bare `key_`, and a marker with a leading zero are not
+    // versions the scheme has ever minted, so accepting them would let a
+    // corrupted value masquerade as a key.
+    for (const spelled of ["key0_", "key_", "key01_"]) {
+      expect(() => Schema.decodeUnknownSync(Schema.toType(Keys.Key))(`${spelled}${"a".repeat(64)}`)).toThrow()
+    }
   })
 })

@@ -24,16 +24,23 @@ import * as SchemaGetter from "effect/SchemaGetter"
 /**
  * Validated storage representation of a key.
  *
+ * The pattern accepts any version marker, not just `key1_`: the marker exists
+ * so a stored key from a future derivation scheme stays readable, and a
+ * pattern anchored to one version would refuse exactly the keys the marker
+ * promises to keep decodable. Only decoding — deriving a fresh key from a
+ * value — is pinned to the current scheme.
+ *
  * @private
  * @since 0.1.0
  */
-const KeyValue = Schema.String.check(Schema.isPattern(/^key1_[0-9a-f]{64}$/)).pipe(
+const KeyValue = Schema.String.check(Schema.isPattern(/^key[1-9][0-9]*_[0-9a-f]{64}$/)).pipe(
   Schema.brand("@smthrs/keys-next/Key")
 )
 
 /**
- * A versioned key encoded as `key1_` followed by a lowercase
- * hexadecimal SHA-256 digest.
+ * A versioned key: a `key<n>_` version marker followed by a lowercase
+ * hexadecimal SHA-256 digest. The current derivation produces `key1_`;
+ * validation accepts every version so stored keys stay readable.
  *
  * @category models
  * @since 0.1.0
