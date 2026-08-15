@@ -90,8 +90,13 @@ export interface Map {
  */
 export interface FunctionIdentity {
   readonly _tag: "FunctionIdentity"
-  readonly algorithm: "sha256-source/v2" | "sha256-source-captures/v3"
+  readonly algorithm: "sha256-source-ephemeral/v4" | "sha256-source-captures/v3" | "static-node/v1"
   readonly digest: string
+}
+
+/** @private */
+type OperationIdentity = FunctionIdentity & {
+  readonly algorithm: "sha256-source-ephemeral/v4" | "sha256-source-captures/v3"
 }
 
 /** @private */
@@ -105,6 +110,15 @@ interface CapturedMetadata {
 
 /** @private */
 type CapturedFunction = { readonly [CapturedTypeId]?: CapturedMetadata }
+
+/** @private */
+const hex = (bytes: Uint8Array): string => [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("")
+
+const ephemeralNonceBytes = new Uint8Array(16)
+globalThis.crypto.getRandomValues(ephemeralNonceBytes)
+const ephemeralNonce = hex(ephemeralNonceBytes)
+const ephemeralIdentities = new WeakMap<object, string>()
+let ephemeralOrdinal = 0
 
 /** @private */
 const captureError = (path: string, reason: string): TypeError =>
@@ -178,9 +192,6 @@ const freezeCapture = (input: unknown, seen: WeakSet<object>): void => {
   Object.freeze(input)
 }
 
-/** @private */
-const hex = (bytes: Uint8Array): string => [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("")
-
 /**
  * Brands an operation with every inert value it closes over.
  *
@@ -232,13 +243,19 @@ const flows = new WeakMap<FlowCall, unknown>()
  * @since 0.0.0
  * @private
  */
-export const functionIdentity = (operation: unknown): FunctionIdentity => {
+export const functionIdentity = (operation: unknown): OperationIdentity => {
+  if (typeof operation !== "function") throw new TypeError("function identity requires a function")
   const metadata = (operation as CapturedFunction)[CapturedTypeId]
   const source = metadata?.source ?? Function.prototype.toString.call(operation)
+  let ephemeral = ephemeralIdentities.get(operation)
+  if (metadata === undefined && ephemeral === undefined) {
+    ephemeral = `${ephemeralNonce}:${ephemeralOrdinal++}`
+    ephemeralIdentities.set(operation, ephemeral)
+  }
   return {
     _tag: "FunctionIdentity",
-    algorithm: metadata === undefined ? "sha256-source/v2" : "sha256-source-captures/v3",
-    digest: hex(sha256(metadata === undefined ? source : `${source}\0${metadata.captures}`))
+    algorithm: metadata === undefined ? "sha256-source-ephemeral/v4" : "sha256-source-captures/v3",
+    digest: hex(sha256(metadata === undefined ? `${source}\0${ephemeral}` : `${source}\0${metadata.captures}`))
   }
 }
 
@@ -345,8 +362,8 @@ export const andThenNode = (
   first,
   continuation: {
     _tag: "FunctionIdentity",
-    algorithm: "sha256-source/v2",
-    digest: "static-node"
+    algorithm: "static-node/v1",
+    digest: hex(sha256("static-node"))
   },
   next,
   annotations

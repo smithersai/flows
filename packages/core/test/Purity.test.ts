@@ -23,7 +23,7 @@ describe("Graph purity", () => {
           Node.withEffects(Node.all({ first: Node.dynamic({ prompt: "one" }), second: Node.succeed("two") }), effects),
           Placement.sandbox()
         ),
-        () => Node.succeed("later")
+        Node.capture({}, () => Node.succeed("later"))
       )
     }
     const flow = Flow.within(Flow.make({ effects, body }), Placement.local())

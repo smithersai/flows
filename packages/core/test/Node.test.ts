@@ -2,6 +2,7 @@ import { Option } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Annotations from "../src/Annotations.ts"
 import * as Effects from "../src/Effects.ts"
+import * as internal from "../src/internal/node.ts"
 import * as Node from "../src/Node.ts"
 import * as Placement from "../src/Placement.ts"
 
@@ -58,12 +59,12 @@ describe("Node", () => {
       expect(dataFirst.ast.first).toBe(source.ast)
       expect(dataFirst.ast.mapper).toMatchObject({
         _tag: "FunctionIdentity",
-        algorithm: "sha256-source/v2"
+        algorithm: "sha256-source-ephemeral/v4"
       })
       expect(dataLast.ast.first).toBe(source.ast)
       expect(dataLast.ast.mapper).toMatchObject({
         _tag: "FunctionIdentity",
-        algorithm: "sha256-source/v2"
+        algorithm: "sha256-source-ephemeral/v4"
       })
       expect(dataFirst.ast.mapper).not.toEqual(dataLast.ast.mapper)
       expect(JSON.stringify(dataFirst.ast)).not.toContain("increment")
@@ -95,13 +96,19 @@ describe("Node", () => {
     ) {
       expect(dataFirst.ast.continuation).toMatchObject({
         _tag: "FunctionIdentity",
-        algorithm: "sha256-source/v2"
+        algorithm: "sha256-source-ephemeral/v4"
       })
       expect(dataLast.ast.continuation).toMatchObject({
         _tag: "FunctionIdentity",
-        algorithm: "sha256-source/v2"
+        algorithm: "sha256-source-ephemeral/v4"
       })
       expect(dataFirst.ast.continuation).not.toEqual(dataLast.ast.continuation)
+      expect(staticFirst.ast.continuation).toMatchObject({
+        _tag: "FunctionIdentity",
+        algorithm: "static-node/v1",
+        digest: expect.stringMatching(/^[0-9a-f]{64}$/)
+      })
+      expect(staticLast.ast.continuation).toEqual(staticFirst.ast.continuation)
       expect(staticFirst.ast.next).toBe(next.ast)
       expect(staticLast.ast.next).toBe(next.ast)
       expect(continuationCalls).toBe(0)
@@ -192,6 +199,21 @@ describe("Node", () => {
     expect(one).not.toEqual(two)
     expect(identity(Function("return 'one space'") as () => unknown))
       .not.toEqual(identity(Function("return 'one  space'") as () => unknown))
+  })
+
+  it("fails closed when separate raw closures have indistinguishable source", () => {
+    const make = (offset: number) => (value: number) => value + offset
+    const one = make(1)
+    const alsoOne = make(1)
+    const identity = (operation: (value: number) => number) => {
+      const ast = Node.map(Node.succeed(1), operation).ast
+      if (ast._tag !== "Map") throw new Error("expected Map")
+      return ast.mapper
+    }
+
+    expect(identity(one)).toEqual(identity(one))
+    expect(identity(one)).not.toEqual(identity(alsoOne))
+    expect(() => internal.functionIdentity(null)).toThrow(/requires a function/)
   })
 
   it("includes declared closure captures in identity and freezes them", () => {

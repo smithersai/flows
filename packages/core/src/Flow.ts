@@ -112,9 +112,10 @@ export type Seat = string & {}
 /**
  * Implementation identity included when a flow is used as a dynamic flow.
  *
- * The exact source is hashed with SHA-256. Authors whose body closes over
- * inert configuration declare it with {@link Node.capture}, which folds the
- * canonical capture data into this identity.
+ * The exact source is hashed with SHA-256. Unannotated bodies receive
+ * process-local identity because JavaScript cannot inspect closure state.
+ * Authors declare inert configuration with {@link Node.capture}, which folds
+ * canonical capture data into deterministic identity.
  *
  * @category models
  * @since 0.0.0
@@ -122,7 +123,7 @@ export type Seat = string & {}
 export type Implementation =
   | {
     readonly _tag: "Body"
-    readonly algorithm: "sha256-source/v2" | "sha256-source-captures/v3"
+    readonly algorithm: "sha256-source-ephemeral/v4" | "sha256-source-captures/v3"
     readonly digest: string
   }
   | {

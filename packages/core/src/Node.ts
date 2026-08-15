@@ -72,9 +72,10 @@ export type Any = Node<unknown, unknown>
 /**
  * Declares the inert values a plan-time function closes over.
  *
- * Capture data is canonicalized into function identity and deeply frozen.
- * Unsupported values are rejected instead of producing an incomplete cache
- * identity.
+ * Capture data is canonicalized into deterministic function identity and
+ * deeply frozen. Unannotated functions deliberately receive process-local
+ * identity because JavaScript cannot inspect closure state. Unsupported values
+ * are rejected instead of producing an incomplete cache identity.
  *
  * @category constructors
  * @since 0.1.0
