@@ -1,14 +1,27 @@
 /**
- * The tsflows workspace root.
+ * Targets for the `@smthrs/tsflows-next` package plus the declarations it
+ * carried as a standalone workspace root:
  *
- * Two inert declarations and one run target:
- *
+ * - `lib`, `check`, `test`, `lint`, `fmt`, and `docs` are this package's own
+ *   standard targets. This BUILD.ts suppresses default-rule synthesis, so
+ *   they must be declared here explicitly.
  * - `template` is the inert shared manifest every package merges under.
  * - `packageDefaults` synthesizes a standard package's targets, and its
  *   manifest targets, for any `packages/*` directory without a BUILD.ts.
+ *   Its glob anchors at this package, so in the flows monorepo it matches
+ *   nothing; the workspace-wide declaration lives in the root BUILD.ts.
  * - `newPackage` is the `run` target that creates such a directory.
  */
 import { DefaultRule, NewPackage, PackageJson, PackageJsonTemplate, StandardPackage } from "tsflows-rules"
+
+const standard = StandardPackage({ cwd: "packages/tsflows" })
+
+export const lib = standard.lib
+export const check = standard.check
+export const test = standard.test
+export const lint = standard.lint
+export const fmt = standard.fmt
+export const docs = standard.docs
 
 /**
  * The manifest fields every package in this workspace shares.
@@ -30,7 +43,7 @@ export const template = PackageJsonTemplate.make({
  * Standard package defaults.
  *
  * A directory under `packages/` with a `package.json` and no `BUILD.ts` gets
- * the four conventional targets plus `packageJsonCheck`, `packageJsonWrite`,
+ * the six conventional targets plus `packageJsonCheck`, `packageJsonWrite`,
  * and `packageJsonRefresh`. `packageJsonCheck` runs under `lint` and `ci`; the
  * two writing targets run under `run` alone.
  */

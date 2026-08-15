@@ -1,7 +1,8 @@
 /**
- * API review targets. Every target in this file is a non-executing catalog
- * stub. This file shows the bare StandardPackage form.
+ * Standard package targets in the bare `StandardPackage` form.
+ *
+ * `cwd` anchors every emitted tool run in this package directory.
  */
 import { StandardPackage } from "tsflows-rules"
 
-export const { docs, lib, lint, test } = StandardPackage({ deps: [], cwd: "packages/plan" })
+export const { check, docs, fmt, lib, lint, test } = StandardPackage({ deps: [], cwd: "packages/plan" })
