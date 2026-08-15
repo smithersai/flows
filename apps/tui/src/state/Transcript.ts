@@ -64,6 +64,8 @@ export class TranscriptStore {
 	private entriesValue: Array<TranscriptEntry> = [];
 	private versionValue = 0;
 	private phaseValue: ChatPhase = "idle";
+	private draftValue = "";
+	private draftRevisionValue = 0;
 	private readonly listeners = new Set<() => void>();
 	private sequence = 0;
 
@@ -80,6 +82,25 @@ export class TranscriptStore {
 	readonly entries = (): ReadonlyArray<TranscriptEntry> => this.entriesValue;
 
 	readonly phase = (): ChatPhase => this.phaseValue;
+
+	readonly draft = (): string => this.draftValue;
+
+	/** Remount key for OpenTUI's stateful InputRenderable after a submit. */
+	readonly draftRevision = (): number => this.draftRevisionValue;
+
+	readonly setDraft = (draft: string): void => {
+		if (this.draftValue === draft) return;
+		this.draftValue = draft;
+		this.versionValue += 1;
+		for (const listener of this.listeners) listener();
+	};
+
+	readonly clearDraft = (): void => {
+		this.draftValue = "";
+		this.draftRevisionValue += 1;
+		this.versionValue += 1;
+		for (const listener of this.listeners) listener();
+	};
 
 	readonly setPhase = (phase: ChatPhase): void => {
 		if (this.phaseValue === phase) return;
@@ -159,7 +180,10 @@ export class TranscriptStore {
 				kind: "message",
 				id,
 				role: "assistant",
-				text: detail ?? "That turn ended without a response.",
+				// Status detail is projected separately from assistant prose. Keeping
+				// this empty avoids rendering it twice and prevents a local transport
+				// error from entering the next model request as assistant speech.
+				text: "",
 				status,
 				...(detail === undefined ? {} : { detail }),
 			});
@@ -282,26 +306,57 @@ export const applyFrame = (store: TranscriptStore, frame: AgentTurnFrame): void 
 	}
 };
 
+/**
+ * Incremental decoder for the boundary's NDJSON AgentTurnFrame stream. A
+ * chunk may end anywhere inside a UTF-8-decoded JSON line; only complete
+ * lines are parsed until finish() flushes the final unterminated line.
+ */
+// TODO(shared): move to a shared package (the line fold mirrors apps/ui/src/mainview/native/WebAgent.ts streamFrames)
+export class AgentTurnFrameDecoder {
+	private buffer = "";
+
+	constructor(
+		private readonly publish: (frame: AgentTurnFrame) => void,
+		private readonly expectedRunId?: string,
+	) {}
+
+	private decodeLine(line: string): number {
+		if (line.trim() === "") return 0;
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(line);
+		} catch {
+			return 0;
+		}
+		if (!isAgentTurnFrame(parsed)) return 0;
+		if (this.expectedRunId !== undefined && parsed.runId !== this.expectedRunId) return 0;
+		this.publish(parsed);
+		return 1;
+	}
+
+	readonly push = (chunk: string): number => {
+		this.buffer += chunk;
+		const lines = this.buffer.split("\n");
+		this.buffer = lines.pop() ?? "";
+		let applied = 0;
+		for (const line of lines) applied += this.decodeLine(line);
+		return applied;
+	};
+
+	readonly finish = (): number => {
+		const trailing = this.buffer;
+		this.buffer = "";
+		return this.decodeLine(trailing);
+	};
+}
+
 /*
  * Decode an NDJSON AgentTurnFrame stream into transcript state: the same
  * line-split/parse/validate fold both transports run, exposed on the headless
  * layer so tests (and the smoke script) drive the store without a network.
  * Returns the number of frames applied.
  */
-// TODO(shared): move to a shared package (the line fold mirrors apps/ui/src/mainview/native/WebAgent.ts streamFrames)
 export const feedNdjson = (store: TranscriptStore, text: string): number => {
-	let applied = 0;
-	for (const line of text.split("\n")) {
-		if (line.trim() === "") continue;
-		let parsed: unknown;
-		try {
-			parsed = JSON.parse(line);
-		} catch {
-			continue;
-		}
-		if (!isAgentTurnFrame(parsed)) continue;
-		applyFrame(store, parsed);
-		applied += 1;
-	}
-	return applied;
+	const decoder = new AgentTurnFrameDecoder((frame) => applyFrame(store, frame));
+	return decoder.push(text) + decoder.finish();
 };

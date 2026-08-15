@@ -1,4 +1,4 @@
-import { feedNdjson, TranscriptStore } from "../src/state/Transcript";
+import { AgentTurnFrameDecoder, applyFrame, TranscriptStore } from "../src/state/Transcript";
 import { buildTurnRequest } from "../src/state/TurnRequest";
 
 /*
@@ -18,16 +18,19 @@ store.setPhase("responding");
 // The fixture NDJSON stream: reasoning, prose, a tool call, a plan card with
 // an update, and the terminal frame — split across chunk boundaries to prove
 // the line fold.
-const fixture = [
+const fixtureChunks = [
 	'{"runId":"smoke-1","type":"delta","kind":"reasoning","text":"The user wants a launch ',
 	'plan."}\n{"runId":"smoke-1","type":"delta","kind":"text","text":"Here is the pla',
 	'n."}\n{"runId":"smoke-1","type":"tool_call","call_id":"call-1","name":"commands","arguments":"{\\"action\\":\\"list\\"}"}\n',
 	'{"runId":"smoke-1","type":"card","card":{"id":"plan-1","kind":"plan","title":"TUI launch","status":"active","createdAt":1755000000000,"ordinal":1,"payload":{"items":[{"id":"1","title":"scaffold","status":"done"},{"id":"2","title":"smoke","status":"pending"}]}}}\n',
 	'{"runId":"smoke-1","type":"card.update","id":"plan-1","patch":{"status":"acted"}}\n',
 	'{"runId":"smoke-1","type":"done","reason":"stop"}\n',
-].join("");
+];
 
-const applied = feedNdjson(store, fixture);
+const decoder = new AgentTurnFrameDecoder((frame) => applyFrame(store, frame));
+let applied = 0;
+for (const chunk of fixtureChunks) applied += decoder.push(chunk);
+applied += decoder.finish();
 store.setPhase("idle");
 
 // The follow-up composer submit over the settled transcript.

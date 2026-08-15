@@ -24,9 +24,13 @@ export class ChatController {
 		private readonly transport: TuiTransport,
 	) {}
 
+	// TODO(shared): move to a shared package (derived from frame filtering in apps/ui/src/mainview/state/AppController.ts)
 	readonly publish = (frame: AgentTurnFrame): void => {
+		// A cancelled or superseded transport may still deliver a buffered frame.
+		// Never let it mutate the settled transcript for another turn.
+		if (frame.runId !== this.activeRunId) return;
 		applyFrame(this.store, frame);
-		if (frame.type === "done" && frame.runId === this.activeRunId) {
+		if (frame.type === "done") {
 			this.activeRunId = null;
 			this.store.setPhase("idle");
 		}
@@ -49,9 +53,14 @@ export class ChatController {
 			return;
 		}
 		this.store.appendUserMessage(runId, draft.trim());
+		this.store.clearDraft();
 		this.activeRunId = runId;
 		this.store.setPhase("responding");
 		const result = await this.transport.start(built.request);
+		// Esc can cancel while the Worker POST is still connecting. In that
+		// case cancelActive already settled the turn; the late start result is
+		// stale and must not overwrite the interrupted state.
+		if (this.activeRunId !== runId) return;
 		if (result.status === "error") {
 			this.store.settleAssistant(runId, "failed", `That turn failed. ${result.message}`);
 			this.activeRunId = null;
