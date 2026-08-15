@@ -815,6 +815,34 @@ export const layer = (
         )
 
       /**
+       * Owner fence for the fenced append's conflict classification, for
+       * checkpoint, and for compaction, evaluated inside the caller's write
+       * transaction. A guard SELECT is equivalent to the `WHERE EXISTS`
+       * predicate `insertOne` uses because `DurableWriter` serializes write
+       * transactions: no reclaim can commit between this read and the
+       * statements that run beside it in the same transaction.
+       */
+      const fenceGuard = (
+        runId: RunId,
+        owner: OwnerId
+      ): Effect.Effect<void, JournalError | SqlError.SqlError> =>
+        Effect.gen(function*() {
+          const held = yield* sql<{ readonly ok: number }>`
+            SELECT 1 AS ok FROM flows_runs
+            WHERE run_id = ${runId}
+              AND status = 'running'
+              AND owner_host_id = ${owner.hostId}
+              AND owner_pid = ${owner.pid}
+              AND owner_nonce = ${owner.nonce}
+          `
+          if (held.length === 0) {
+            return yield* Effect.fail(
+              error("fence_lost", `run ${runId} is no longer owned by ${owner.hostId}:${owner.pid}:${owner.nonce}`)
+            )
+          }
+        })
+
+      /**
        * Reads the row a duplicate emit collides with.
        *
        * The lookup covers BOTH unique constraints the insert can conflict on:
@@ -874,15 +902,27 @@ export const layer = (
        * `rangeID` check (`service/history/shard/context_impl.go`,
        * `renewRangeLocked`) reduced to one SQL predicate: a zombie owner whose
        * run was reclaimed cannot append, and fails with `fence_lost`.
+       *
+       * The fence outranks dedup. The duplicate lookup answers an ownerless
+       * insert up front, but a fenced insert consults it only after the
+       * INSERT produced no row AND `fenceGuard` has confirmed the owner in
+       * the same serialized transaction — Temporal conditions every request
+       * on the `rangeID` before anything else. Answering a zombie's
+       * resubmission from the dedup index would launder its lost fence into
+       * a `Duplicate` receipt for work the live owner committed; a confirmed
+       * owner's conflict, by contrast, is a genuine duplicate (its own
+       * earlier commit, or a forked run's copied row).
        */
       const insertOne = (
         queued: QueuedEntry,
         owner?: OwnerId
       ): Effect.Effect<Commit, JournalError | SqlError.SqlError> =>
         Effect.gen(function*() {
-          const duplicate = yield* selectExisting(queued)
-          if (duplicate !== undefined) {
-            return duplicate
+          if (owner === undefined) {
+            const duplicate = yield* selectExisting(queued)
+            if (duplicate !== undefined) {
+              return duplicate
+            }
           }
           const insert = owner === undefined
             ? sql<JournalRow>`
@@ -939,20 +979,23 @@ export const layer = (
               inserted: true
             }
           }
+          if (owner !== undefined) {
+            // The fenced INSERT produced no row either because the fence
+            // predicate failed or because a unique constraint fired. The
+            // fence is checked first, so a lost fence is reported as
+            // `fence_lost` even when the resubmitted identity already names
+            // a committed entry.
+            yield* fenceGuard(queued.runId, owner)
+          }
           const racedDuplicate = yield* selectExisting(queued)
           if (racedDuplicate !== undefined) {
             return racedDuplicate
           }
           return yield* Effect.fail(
-            owner === undefined
-              ? error(
-                "sequence_conflict",
-                `sequence ${queued.seq} for run ${queued.runId} was committed by another writer`
-              )
-              : error(
-                "fence_lost",
-                `run ${queued.runId} is no longer owned by ${owner.hostId}:${owner.pid}:${owner.nonce}`
-              )
+            error(
+              "sequence_conflict",
+              `sequence ${queued.seq} for run ${queued.runId} was committed by another writer`
+            )
           )
         })
 
@@ -1236,33 +1279,6 @@ export const layer = (
       )
 
       const emitLossy: Service["emitLossy"] = queuedEmit
-
-      /**
-       * Owner fence for checkpoint and compaction, evaluated inside the
-       * caller's write transaction. A guard SELECT is equivalent to the
-       * `WHERE EXISTS` predicate `insertOne` uses because `DurableWriter`
-       * serializes write transactions: no reclaim can commit between this
-       * read and the statements that follow it in the same transaction.
-       */
-      const fenceGuard = (
-        runId: RunId,
-        owner: OwnerId
-      ): Effect.Effect<void, JournalError | SqlError.SqlError> =>
-        Effect.gen(function*() {
-          const held = yield* sql<{ readonly ok: number }>`
-            SELECT 1 AS ok FROM flows_runs
-            WHERE run_id = ${runId}
-              AND status = 'running'
-              AND owner_host_id = ${owner.hostId}
-              AND owner_pid = ${owner.pid}
-              AND owner_nonce = ${owner.nonce}
-          `
-          if (held.length === 0) {
-            return yield* Effect.fail(
-              error("fence_lost", `run ${runId} is no longer owned by ${owner.hostId}:${owner.pid}:${owner.nonce}`)
-            )
-          }
-        })
 
       const checkpoint: Service["checkpoint"] = Effect.fn("Journal.checkpoint")((
         checkpointOptions: CheckpointOptions,

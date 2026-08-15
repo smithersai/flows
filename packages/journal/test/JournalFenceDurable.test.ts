@@ -225,11 +225,11 @@ describe("SqlJournal durable fencing across connections", () => {
     30_000
   )
 
-  // BUG: `insertOne` runs `selectExisting` BEFORE the fenced INSERT, so a dedup
-  // hit returns `Duplicate` without ever evaluating the ownership predicate — a
-  // zombie owner is told its event is committed instead of `fence_lost`,
-  // contradicting the fence's own doc comment in `SqlJournal.ts`.
-  it.effect.fails(
+  // The fence outranks dedup: `insertOne` answers the duplicate lookup for a
+  // fenced append only after the fenced INSERT produced no row and the owner
+  // has been re-confirmed in the same serialized transaction, so a dedup hit
+  // can never tell a zombie owner its event is committed.
+  it.effect(
     "refuses a stale append whose source identity already names a committed entry",
     () =>
       withTempFile((filename) =>
