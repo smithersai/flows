@@ -158,10 +158,10 @@ export type PutResult =
   | { readonly _tag: "RunNotFound" }
 
 /**
- * Fields an unfenced patch may rewrite.
+ * Fields a patch may rewrite.
  *
  * A patch never touches `state`, `started_at_ms`, or `finished_at_ms`: those
- * are the fenced lifecycle, and only `put`/`heartbeat`/`finish` move them. An
+ * are the lifecycle, and only `put`/`heartbeat`/`finish` move them. An
  * omitted field is left as recorded.
  *
  * @category models
@@ -175,7 +175,7 @@ export const AttemptPatch = Schema.Struct({
 })
 
 /**
- * Fields an unfenced patch may rewrite.
+ * Fields a patch may rewrite.
  *
  * @category models
  * @since 0.1.0
@@ -183,7 +183,7 @@ export const AttemptPatch = Schema.Struct({
 export type AttemptPatch = typeof AttemptPatch.Type
 
 /**
- * Result of an unfenced attempt patch.
+ * Result of an owner-fenced attempt patch.
  *
  * @category models
  * @since 0.1.0
@@ -191,6 +191,7 @@ export type AttemptPatch = typeof AttemptPatch.Type
 export type PatchResult =
   | { readonly _tag: "Patched" }
   | { readonly _tag: "NotFound" }
+  | { readonly _tag: "FenceLost" }
 
 /**
  * Store-wide policy.
@@ -261,11 +262,22 @@ export interface Service {
   ) => Effect.Effect<HeartbeatResult, AttemptStoreError>
   readonly finish: (attempt: FinishAttempt, owner: OwnerId) => Effect.Effect<FinishResult, AttemptStoreError>
   /**
-   * Rewrites opaque fields outside the fenced lifecycle. Executors record
-   * response text, worktree pointers, or cache flags this way without
-   * competing for the attempt fence.
+   * Rewrites opaque fields without competing for the attempt lifecycle: a
+   * patch never moves `state`, so executors record response text, worktree
+   * pointers, or cache flags on running *and* terminal rows. It is fenced on
+   * run ownership like every other write — `outcome` is replayed verbatim as
+   * the attempt's result, so a delayed patch from an owner that lost the run
+   * (or from any writer after the run reached a terminal status and its
+   * owner columns were cleared) reports `FenceLost` instead of rewriting the
+   * winning row. Prior art: Temporal conditions every persistence write on
+   * the shard `rangeID` (`reference/temporal/service/history/shard/`); there
+   * is no unfenced write surface.
    */
-  readonly patch: (id: AttemptId, patch: AttemptPatch) => Effect.Effect<PatchResult, AttemptStoreError>
+  readonly patch: (
+    id: AttemptId,
+    patch: AttemptPatch,
+    owner: OwnerId
+  ) => Effect.Effect<PatchResult, AttemptStoreError>
 }
 
 /**
@@ -710,7 +722,7 @@ export const makeWith = (
       })
     )
 
-    const patch: Service["patch"] = Effect.fn("AttemptStore.patch")((id, fields) =>
+    const patch: Service["patch"] = Effect.fn("AttemptStore.patch")((id, fields, owner) =>
       Effect.gen(function*() {
         yield* Effect.annotateCurrentSpan({
           runId: id.runId,
@@ -723,8 +735,12 @@ export const makeWith = (
         const outcome = yield* encodeOptional(fields.outcome, "outcome")
         const meta = yield* encodeOptional(fields.meta, "meta")
         return yield* writer.write(
-          Effect.map(
-            sql<{ readonly attempt: number }>`
+          Effect.gen(function*() {
+            // Unlike `heartbeat`/`finish` there is no state predicate: a patch
+            // may touch a terminal row (evidence quarantine does), so the run
+            // fence is the only gate. After a terminal run transition the
+            // owner columns are cleared and every patch is refused.
+            const updated = yield* sql<{ readonly attempt: number }>`
             UPDATE flows_attempts
             SET
               checkpoint_json = COALESCE(${checkpoint}, checkpoint_json),
@@ -734,10 +750,27 @@ export const makeWith = (
             WHERE run_id = ${id.runId}
               AND step_key_digest = ${id.stepKeyDigest}
               AND attempt = ${id.attempt}
+              AND EXISTS (
+                SELECT 1 FROM flows_runs
+                WHERE run_id = ${id.runId}
+                  AND status = 'running'
+                  AND owner_host_id = ${owner.hostId}
+                  AND owner_pid = ${owner.pid}
+                  AND owner_nonce = ${owner.nonce}
+              )
             RETURNING attempt
-          `,
-            (rows) => rows.length > 0 ? { _tag: "Patched" } as const : { _tag: "NotFound" } as const
-          )
+          `
+            if (updated.length > 0) {
+              return { _tag: "Patched" } as const
+            }
+            const found = yield* sql<Pick<AttemptRow, "state">>`
+            SELECT state FROM flows_attempts
+            WHERE run_id = ${id.runId} AND step_key_digest = ${id.stepKeyDigest} AND attempt = ${id.attempt}
+          `
+            return found.length === 0
+              ? { _tag: "NotFound" } as const
+              : { _tag: "FenceLost" } as const
+          })
         ).pipe(Effect.mapError(mapPersistenceError))
       })
     )

@@ -136,7 +136,7 @@ describe("AttemptStore", () => {
         expect(
           yield* store.patch({ runId: "run-1", stepKeyDigest: "digest-1", attempt: 0 }, {
             outcome: { responseText: "partial", worktreeRef: "ref-1" }
-          })
+          }, owner)
         ).toEqual({ _tag: "Patched" })
         expect(
           yield* store.finish({

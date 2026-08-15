@@ -1047,9 +1047,10 @@ export const make = (deps: Dependencies) => {
                     // or publishing the row back into the shared cache.
                     //
                     // The owner heartbeat and patch share one write
-                    // transaction. AttemptStore.patch is intentionally
-                    // lifecycle-unfenced, so the heartbeat is what prevents a
-                    // process that lost the run fence from mutating the row.
+                    // transaction. The patch is owner-fenced itself — it only
+                    // lands while `flows_runs` still records `deps.owner` —
+                    // and the heartbeat both refreshes the lease and reports
+                    // the loss as a run-store outcome before the patch runs.
                     const quarantinedMeta: AttemptMeta = {
                       ...meta,
                       boundary: undefined,
@@ -1059,7 +1060,7 @@ export const make = (deps: Dependencies) => {
                       const quarantineAtMs = yield* Clock.currentTimeMillis
                       const fence = yield* runs.heartbeat(deps.runId, deps.owner, quarantineAtMs)
                       if (fence._tag !== "Updated") return false
-                      const patched = yield* attempts.patch(attemptId, { meta: quarantinedMeta })
+                      const patched = yield* attempts.patch(attemptId, { meta: quarantinedMeta }, deps.owner)
                       return patched._tag === "Patched"
                     }))
                     if (!quarantined) return yield* Effect.interrupt
@@ -1236,20 +1237,20 @@ export const make = (deps: Dependencies) => {
               // The claim is fenced at the moment it lands (issue #102): re-verify
               // run ownership immediately before re-homing the row, so a process
               // that lost the fence while waiting on the permit parks instead of
-              // patching a run it no longer owns. With the permit excluding
-              // in-process racers and the fence excluding every other process's
-              // writers (`put`/`finish` are owner-fenced), the patch below is
-              // exclusive even though `AttemptStore` has no conditional update.
+              // patching a run it no longer owns. The patch below carries the
+              // owner fence itself; the heartbeat additionally refreshes the
+              // lease, and the permit excludes in-process racers.
               const claimAtMs = yield* Clock.currentTimeMillis
               const claimFence = yield* runs.heartbeat(deps.runId, deps.owner, claimAtMs)
               if (claimFence._tag !== "Updated") return yield* Effect.interrupt
               // Re-home the adopted row to the current incarnation; the patch
               // keeps the dead incarnation's other meta (tier, pre-image
-              // snapshot) intact. A vanished row means the durable state moved
-              // under us — surface it as self-interruption like the fence losses.
+              // snapshot) intact. A vanished row or a lost fence means the
+              // durable state moved under us — surface it as self-interruption
+              // like the other fence losses.
               const rehomed = yield* attempts.patch(attemptId, {
                 meta: { ...runningMeta, ...declarationMeta, admittedBy: deps.owner } satisfies AttemptMeta
-              })
+              }, deps.owner)
               if (rehomed._tag !== "Patched") return yield* Effect.interrupt
             }
             yield* emitLifecycle(
@@ -1320,7 +1321,7 @@ export const make = (deps: Dependencies) => {
               yield* atomically(
                 attempts.patch(attemptId, {
                   meta: { ...declarationMeta, admittedBy: deps.owner, snapshotId } satisfies AttemptMeta
-                }).pipe(Effect.andThen(announceSnapshot(snapshotId)))
+                }, deps.owner).pipe(Effect.andThen(announceSnapshot(snapshotId)))
               )
             }
           }
