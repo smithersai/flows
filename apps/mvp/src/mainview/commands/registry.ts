@@ -214,6 +214,23 @@ export type Submit =
 	| { readonly kind: "command"; readonly name: string; readonly args?: string }
 	| { readonly kind: "prompt"; readonly text: string };
 
+// Command names are deliberately narrower than arbitrary prompt text. Keeping
+// this grammar in one named place makes the command/prompt boundary auditable:
+// a typo or punctuation after a slash must go to the agent, never accidentally
+// invoke a command with side effects.
+const COMMAND_NAME = /^[a-z0-9_-]+(?:\.[a-z0-9_-]+)*$/;
+
+/** Split only the leading slash-command token; arguments remain opaque text. */
+const commandHead = (text: string): { readonly name: string; readonly args?: string } | undefined => {
+	if (!text.startsWith("/")) return undefined;
+	const separator = text.search(/\s/u);
+	const name = text.slice(1, separator === -1 ? undefined : separator);
+	if (!COMMAND_NAME.test(name)) return undefined;
+	if (separator === -1) return { name };
+	const args = text.slice(separator).trim();
+	return args === "" ? { name } : { name, args };
+};
+
 /**
  * Parses the composer draft:
  *  - blank (or a bare "/") submits nothing — bare "/" + Enter is handled by the
@@ -229,19 +246,13 @@ export const parseSubmit = <C extends CommandMeta>(
 ): Submit => {
 	const text = input.trim();
 	if (text === "" || text === "/") return { kind: "empty" };
-	const bare = /^\/([a-z0-9_-]+(?:\.[a-z0-9_-]+)*)$/.exec(text);
-	const name = bare?.[1];
-	if (name !== undefined && commands.some((candidate) => candidate.name === name)) {
-		return { kind: "command", name };
-	}
-	const withArgs = /^\/([a-z0-9_-]+(?:\.[a-z0-9_-]+)*)\s+(\S[\s\S]*)$/.exec(text);
-	const argsName = withArgs?.[1];
-	const args = withArgs?.[2];
-	if (argsName !== undefined && args !== undefined) {
-		const command = commands.find((candidate) => candidate.name === argsName);
-		if (command !== undefined && command.acceptsArgs === true) {
-			return { kind: "command", name: argsName, args: args.trim() };
-		}
+	const invocation = commandHead(text);
+	if (invocation === undefined) return { kind: "prompt", text };
+	const command = commands.find((candidate) => candidate.name === invocation.name);
+	if (command === undefined) return { kind: "prompt", text };
+	if (invocation.args === undefined) return { kind: "command", name: invocation.name };
+	if (command.acceptsArgs === true) {
+		return { kind: "command", name: invocation.name, args: invocation.args };
 	}
 	return { kind: "prompt", text };
 };

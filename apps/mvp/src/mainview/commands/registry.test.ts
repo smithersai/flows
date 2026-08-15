@@ -108,6 +108,56 @@ describe("command registry pure model", () => {
 		});
 		expect(parseSubmit("hello there", commands)).toEqual({ kind: "prompt", text: "hello there" });
 	});
+
+	describe("parseSubmit command boundary", () => {
+		const commands = [
+			{ name: "goal", summary: "Set the goal", acceptsArgs: true },
+			{ name: "goal.show", summary: "Show the goal" },
+			{ name: "no-args", summary: "No arguments" },
+		];
+
+		test.each([
+			["", { kind: "empty" }],
+			["   \t\n", { kind: "empty" }],
+			["/", { kind: "empty" }],
+			["  /  ", { kind: "empty" }],
+			["/goal", { kind: "command", name: "goal" }],
+			["  /goal  ", { kind: "command", name: "goal" }],
+			["/goal.show", { kind: "command", name: "goal.show" }],
+			["/goal ship it", { kind: "command", name: "goal", args: "ship it" }],
+			["/goal\tship it", { kind: "command", name: "goal", args: "ship it" }],
+			["/goal\nship it", { kind: "command", name: "goal", args: "ship it" }],
+			["/goal\r\nship it", { kind: "command", name: "goal", args: "ship it" }],
+			["/goal\u00a0ship it", { kind: "command", name: "goal", args: "ship it" }],
+			["/goal   ship it   ", { kind: "command", name: "goal", args: "ship it" }],
+			["/goal first\nsecond", { kind: "command", name: "goal", args: "first\nsecond" }],
+		] as const)("parses %j", (input, expected) => {
+			expect(parseSubmit(input, commands)).toEqual(expected);
+		});
+
+		test.each([
+			"goal",
+			"hello /goal",
+			"//goal",
+			"/unknown",
+			"/unknown words",
+			"/Goal",
+			"/GOAL",
+			"/goal!",
+			"/goal/child",
+			"/goal..show",
+			"/goal.show.more",
+			"/no-args surprise",
+		])("keeps %j as an agent prompt", (input) => {
+			expect(parseSubmit(input, commands)).toEqual({ kind: "prompt", text: input.trim() });
+		});
+
+		test("does not mutate the registry or depend on command order", () => {
+			const reversed = [...commands].reverse();
+			expect(parseSubmit("/goal.show", commands)).toEqual(parseSubmit("/goal.show", reversed));
+			expect(commands.map((command) => command.name)).toEqual(["goal", "goal.show", "no-args"]);
+		});
+	});
 });
 
 describe("command registry bindings", () => {
