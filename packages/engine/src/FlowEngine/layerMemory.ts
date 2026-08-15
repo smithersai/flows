@@ -122,6 +122,20 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
         }
 
         let state = executions.get(options.executionId)
+        // An execution id names one run of ONE flow declaration. Joining
+        // another declaration's fiber would answer that flow's result under
+        // this flow's declared schemas — cross-flow result leakage — so the
+        // identity clash is refused, exactly as the durable driver's
+        // `ensureCreatedRun` refuses a row that belongs to a different flow
+        // tag. Payload identity stays the caller's contract: a reused id
+        // under the SAME declaration joins the first run.
+        if (state !== undefined && state.instance.flow._tag !== flow._tag) {
+          return yield* Effect.die(
+            new Error(
+              `execution ${options.executionId} already belongs to flow ${state.instance.flow._tag}; it cannot be reused for flow ${flow._tag}`
+            )
+          )
+        }
         if (!state) {
           state = {
             payload: options.payload,
