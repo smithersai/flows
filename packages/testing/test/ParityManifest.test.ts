@@ -1,5 +1,4 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs"
-import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
 import * as Conformance from "../src/Conformance.ts"
 import {
@@ -9,10 +8,19 @@ import {
   rows
 } from "../src/ParityManifest.ts"
 
-// Manifest paths are superproject-relative: agent/ is a submodule of the
-// flows monorepo alongside flows/ (engine, engine-store, time-travel) and
-// reference/ (the OpenCode corpus).
-const repositoryRoot = fileURLToPath(new URL("../../../..", import.meta.url))
+// Manifest rows keep their former superproject-relative `flows/` or `agent/`
+// prefix, but the files they name now live in this repository, so they resolve
+// against the repo root. That stays correct in the canonical checkout, in
+// isolated worktrees, and on CI. The OpenCode corpus is a gitignored sibling
+// of the checkout
+// (`../reference` in the canonical layout, `reference/` in a repo-local
+// clone); corpus-dependent suites skip when no clone is present, as in
+// worktrees and CI.
+const repositoryRoot = new URL("../../../", import.meta.url)
+const corpusRoot = [
+  new URL("../reference/", repositoryRoot),
+  new URL("reference/", repositoryRoot)
+].find((candidate) => existsSync(candidate))
 const testFile = /\.test\.ts$/
 
 describe("ParityManifest", () => {
@@ -27,7 +35,10 @@ describe("ParityManifest", () => {
   it("maps every test-file entry to a file in the repository", () => {
     for (const row of rows) {
       if (!testFile.test(row.flowsEquivalent)) continue
-      expect(existsSync(new URL(row.flowsEquivalent, `file://${repositoryRoot}/`)), row.flowsEquivalent).toBe(true)
+      expect(
+        existsSync(new URL(row.flowsEquivalent.replace(/^(?:agent|flows)\//, ""), repositoryRoot)),
+        row.flowsEquivalent
+      ).toBe(true)
     }
   })
 
@@ -68,11 +79,9 @@ describe("ParityManifest", () => {
     ])
   })
 
-  it("accounts for every targeted OpenCode session source", () => {
-    const sourceDirectory = new URL(
-      "reference/opencode/packages/core/test/",
-      `file://${repositoryRoot}/`
-    )
+  it.skipIf(corpusRoot === undefined)("accounts for every targeted OpenCode session source", () => {
+    if (corpusRoot === undefined) return
+    const sourceDirectory = new URL("opencode/packages/core/test/", corpusRoot)
     const discovered = readdirSync(sourceDirectory)
       .filter((name) =>
         /^session-(?:runner.*|tool-progress|create|prompt|projector|compaction|todo|run-coordinator|history)\.test\.ts$/
@@ -85,12 +94,10 @@ describe("ParityManifest", () => {
     expect([...requiredOpenCodeSources].sort()).toEqual(discovered)
   })
 
-  it("inventories every static behavior in each targeted OpenCode source", () => {
+  it.skipIf(corpusRoot === undefined)("inventories every static behavior in each targeted OpenCode source", () => {
+    if (corpusRoot === undefined) return
     for (const source of requiredOpenCodeSources) {
-      const text = readFileSync(
-        new URL(`reference/opencode/${source}`, `file://${repositoryRoot}/`),
-        "utf8"
-      )
+      const text = readFileSync(new URL(`opencode/${source}`, corpusRoot), "utf8")
       const discovered = [
         ...new Set(
           [...text.matchAll(/\b(?:test|it)(?:\.effect)?\(\s*(["'`])((?:(?!\1)[\s\S])*?)\1/g)].map(
