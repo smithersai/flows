@@ -210,6 +210,18 @@ describe("Plan.compile", () => {
         .toMatchObject({ code: "unknown_dependency" })
       expect(yield* withCryptoFailure(compile([draft("a"), draft("a")]))).toMatchObject({ code: "duplicate_node" })
     }))
+
+  it.effect("treats __proto__ as an ordinary node id and dependency address", () =>
+    Effect.gen(function*() {
+      const plan = yield* withCrypto(compile([
+        draft("__proto__"),
+        draft("consumer", { inputs: [{ _tag: "Ref", from: "__proto__", path: [] }] })
+      ]))
+
+      expect(plan.nodes.map((node) => node.id)).toEqual(["__proto__", "consumer"])
+      expect(plan.nodes[1]!.dependsOn).toEqual(["__proto__"])
+      expect(plan.nodes.every((node) => node.key.startsWith("key1_"))).toBe(true)
+    }))
 })
 
 /**

@@ -468,8 +468,15 @@ export const interpret = (
             const values = yield* Effect.forEach(members, (_, index) => settle(children[index]!), {
               concurrency: "unbounded"
             })
-            const joined: Record<string, unknown> = {}
-            for (let index = 0; index < members.length; index++) joined[members[index]!] = values[index]
+            const joined: Record<string, unknown> = Object.create(null) as Record<string, unknown>
+            for (let index = 0; index < members.length; index++) {
+              Object.defineProperty(joined, members[index]!, {
+                configurable: true,
+                enumerable: true,
+                value: values[index],
+                writable: true
+              })
+            }
             return joined
           }
           case "AndThen":

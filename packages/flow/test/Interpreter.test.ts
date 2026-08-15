@@ -354,6 +354,25 @@ describe("Interpreter node variants", () => {
       expect(calls).toEqual(["read:counter.txt", "sum:counter.txt"])
     }))
 
+  it.effect("preserves an own __proto__ member when joining a combination", () =>
+    Effect.gen(function*() {
+      const members = Object.create(null) as Record<string, Node.Any>
+      Object.defineProperty(members, "__proto__", {
+        enumerable: true,
+        value: Node.succeed({ safe: true })
+      })
+      Object.defineProperty(members, "ordinary", { enumerable: true, value: Node.succeed(1) })
+
+      const interpretation = yield* drive(Interpreter.interpret(Node.all(members)))
+      const joined = interpretation.value as Record<string, unknown>
+
+      expect(Object.getPrototypeOf(joined)).toBe(null)
+      expect(Object.hasOwn(joined, "__proto__")).toBe(true)
+      expect(joined["__proto__"]).toEqual({ safe: true })
+      expect(joined["ordinary"]).toBe(1)
+      expect(joined["safe"]).toBeUndefined()
+    }))
+
   it.effect("settles a bare node graph under a caller-chosen root", () =>
     Effect.gen(function*() {
       const interpretation = yield* drive(

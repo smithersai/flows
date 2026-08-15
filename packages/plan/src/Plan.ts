@@ -538,10 +538,15 @@ const keyNodes = (
   Crypto.Crypto
 > =>
   Effect.gen(function*() {
-    const digests: Record<string, string> = {}
+    const digests: Record<string, string> = Object.create(null) as Record<string, string>
     const known = new Set<string>()
     for (const node of existing) {
-      digests[node.id] = node.key
+      Object.defineProperty(digests, node.id, {
+        configurable: true,
+        enumerable: true,
+        value: node.key,
+        writable: true
+      })
       known.add(node.id)
     }
     for (const draft of drafts) {
@@ -559,7 +564,12 @@ const keyNodes = (
       const invalid = validateEffects(draft.id, draft.effects)
       if (invalid !== undefined) return yield* Effect.fail(invalid)
       const key = yield* StepKey.fromKeyMaterial(draft.material, digests)
-      digests[draft.id] = key
+      Object.defineProperty(digests, draft.id, {
+        configurable: true,
+        enumerable: true,
+        value: key,
+        writable: true
+      })
       keyed.push({
         id: draft.id,
         kind: draft.kind ?? "step",

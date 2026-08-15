@@ -2730,6 +2730,9 @@ importers:
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
+      '@smthrs/harness':
+        specifier: 0.1.0
+        version: link:../harness
       '@smthrs/model':
         specifier: 0.1.0
         version: link:../model

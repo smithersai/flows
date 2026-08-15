@@ -1,0 +1,421 @@
+/**
+ * The executable-flow binding contract.
+ *
+ * The properties under test are the ones the whole cell path leans on: a flow
+ * declaration and its handler are one thing; a correctable failure is data the
+ * cell catches while a permission park is not; and a catalog refuses to let two
+ * declarations share one name, because that is how a descriptor ends up
+ * dispatched to somebody else's implementation.
+ */
+import * as Capability from "@smthrs/capability-next/Capability"
+import * as Permission from "@smthrs/capability-next/Permission"
+import * as Flow from "@smthrs/core/Flow"
+import * as Descriptor from "@smthrs/registry/Descriptor"
+import * as Registry from "@smthrs/registry/Registry"
+import { Cause, Context, Effect, Exit, Option, Result, Schema } from "effect"
+import { describe, expect, it } from "vitest"
+import * as Cell from "../src/Cell.ts"
+import * as FlowBinding from "../src/FlowBinding.ts"
+import { HarnessError } from "../src/HarnessError.ts"
+
+const Echo = Schema.Struct({ text: Schema.String })
+const Echoed = Schema.Struct({ text: Schema.String, length: Schema.Number })
+
+const echo = Flow.make({
+  name: "echo",
+  description: "Echo one string back.",
+  input: Echo,
+  output: Echoed,
+  capabilities: ["fs:read:/**"],
+  effects: { reads: ["/**"], writes: [], mode: "hermetic", onConflict: "serialize", tier: "sealed" }
+})
+
+const call = (
+  flowName: string,
+  input: unknown,
+  overrides: { readonly declaration?: string } = {}
+): Cell.Call =>
+  new Cell.Call({
+    flowName,
+    input: input as typeof Schema.Json.Type,
+    capabilities: [],
+    effects: { reads: [], writes: [], mode: "hermetic", onConflict: "serialize", tier: "sealed" },
+    placement: Option.none(),
+    identity: new Cell.CallIdentity({
+      session: "session-1",
+      frame: 0,
+      cell: "cell-digest",
+      ordinal: 0,
+      declaration: overrides.declaration ?? "declaration-digest",
+      layers: []
+    })
+  })
+
+const run = <A, E>(effect: Effect.Effect<A, E>): Promise<Exit.Exit<A, E>> => Effect.runPromiseExit(effect)
+
+describe("FlowBinding.descriptorOf", () => {
+  it("projects a flow declaration without inventing a second registry shape", () => {
+    const descriptor = FlowBinding.descriptorOf(echo)
+
+    expect(descriptor.name).toBe("echo")
+    expect(descriptor.description).toBe("Echo one string back.")
+    expect(descriptor.capabilities).toEqual(["fs:read:/**"])
+    expect(descriptor.effects.tier).toBe("sealed")
+    expect(descriptor.modelInvocable).toBe(true)
+    expect(descriptor.body).toMatchObject({ _tag: "Module", path: "binding://echo" })
+    expect(descriptor.input).toMatchObject({ _tag: "Module", field: "input" })
+    expect(descriptor.provenance.source).toBe("binding")
+    // A descriptor projected from a declaration is an ordinary descriptor, so
+    // the same digest the boundary checks can be derived from it.
+    expect(Cell.declarationDigest(descriptor)).toBe(Cell.declarationDigest(descriptor))
+  })
+
+  it("defaults an undeclared effect envelope to the unshareable tier", () => {
+    const bare = Flow.make({ name: "bare", input: Schema.Struct({}), output: Schema.Struct({}) })
+    const descriptor = FlowBinding.descriptorOf(bare)
+
+    expect(descriptor.effects).toEqual({
+      reads: [],
+      writes: [],
+      mode: "expected",
+      onConflict: "serialize",
+      tier: "irreversible"
+    })
+    expect(descriptor.description).toBe("")
+  })
+
+  it("accepts host metadata a declaration cannot carry", () => {
+    const descriptor = FlowBinding.descriptorOf(echo, {
+      name: "renamed",
+      path: "mcp://server/echo",
+      modelInvocable: false,
+      placement: Option.some("remote"),
+      provenance: new Descriptor.Provenance({ source: "mcp", root: "server" })
+    })
+
+    expect(descriptor.name).toBe("renamed")
+    expect(descriptor.path).toBe("mcp://server/echo")
+    expect(descriptor.modelInvocable).toBe(false)
+    expect(descriptor.placement).toEqual(Option.some("remote"))
+    expect(descriptor.provenance.source).toBe("mcp")
+  })
+})
+
+describe("FlowBinding.make", () => {
+  it("decodes input, runs the handler, and validates output through the declared schemas", async () => {
+    const binding = FlowBinding.make({
+      flow: echo,
+      handler: (input) => Effect.succeed({ text: input.text, length: input.text.length })
+    })
+
+    const exit = await run(binding.run(call("echo", { text: "hi" })))
+
+    expect(exit).toStrictEqual(
+      Exit.succeed(new Cell.CallResult({ outcome: "success", value: { text: "hi", length: 2 } }))
+    )
+  })
+
+  it("refuses malformed input catchably instead of running the handler", async () => {
+    let ran = false
+    const binding = FlowBinding.make({
+      flow: echo,
+      handler: (input) =>
+        Effect.sync(() => {
+          ran = true
+          return { text: input.text, length: 0 }
+        })
+    })
+
+    const exit = await run(binding.run(call("echo", { text: 7 })))
+
+    expect(ran).toBe(false)
+    expect(Exit.isSuccess(exit) && exit.value.outcome).toBe("failure")
+    expect(Exit.isSuccess(exit) && exit.value.message).toContain("rejected its input")
+  })
+
+  it("turns an ordinary handler failure into a catchable call failure", async () => {
+    const binding = FlowBinding.make({
+      flow: echo,
+      handler: () => Effect.fail(new Error("the file was busy"))
+    })
+
+    const exit = await run(binding.run(call("echo", { text: "hi" })))
+
+    expect(Exit.isSuccess(exit) && exit.value.outcome).toBe("failure")
+    expect(Exit.isSuccess(exit) && exit.value.message).toBe("Flow echo failed: the file was busy")
+  })
+
+  it("renders non-Error failure values as stable text", async () => {
+    const stringFailure = FlowBinding.make({ flow: echo, handler: () => Effect.fail("plain refusal") })
+    const taggedFailure = FlowBinding.make({ flow: echo, handler: () => Effect.fail({ message: "tagged refusal" }) })
+    const opaqueFailure = FlowBinding.make({ flow: echo, handler: () => Effect.fail({ code: 12 }) })
+
+    const rendered = await Promise.all(
+      [stringFailure, taggedFailure, opaqueFailure].map(async (binding) => {
+        const exit = await run(binding.run(call("echo", { text: "hi" })))
+        return Exit.isSuccess(exit) ? exit.value.message : undefined
+      })
+    )
+
+    expect(rendered).toEqual([
+      "Flow echo failed: plain refusal",
+      "Flow echo failed: tagged refusal",
+      "Flow echo failed: {\"code\":12}"
+    ])
+  })
+
+  it("keeps a permission requirement in the typed channel where a cell cannot swallow it", async () => {
+    const required = new Permission.PermissionRequired({
+      requestId: "request-1",
+      capability: Capability.make("fs:write", "**"),
+      tier: "irreversible",
+      meta: {}
+    })
+    const binding = FlowBinding.make({ flow: echo, handler: () => Effect.fail(required) })
+
+    const exit = await run(binding.run(call("echo", { text: "hi" })))
+
+    expect(Exit.isFailure(exit)).toBe(true)
+    const error = Exit.isFailure(exit) ? Cause.squash(exit.cause) : undefined
+    expect(error).toMatchObject({ _tag: "/harness/HarnessError", code: "suspended", cause: required })
+  })
+
+  it("keeps a permission denial and a harness failure in the typed channel too", async () => {
+    const denied = Permission.permissionDenied(Capability.make("fs:write", "**"), "policy")
+    const harness = new HarnessError({ code: "aborted", message: "the run was cancelled" })
+
+    const deniedExit = await run(
+      FlowBinding.make({ flow: echo, handler: () => Effect.fail(denied) }).run(call("echo", { text: "hi" }))
+    )
+    const harnessExit = await run(
+      FlowBinding.make({ flow: echo, handler: () => Effect.fail(harness) }).run(call("echo", { text: "hi" }))
+    )
+
+    expect(Exit.isFailure(deniedExit) ? Cause.squash(deniedExit.cause) : undefined).toMatchObject({
+      code: "suspended"
+    })
+    expect(Exit.isFailure(harnessExit) ? Cause.squash(harnessExit.cause) : undefined).toBe(harness)
+  })
+
+  it("never converts an interruption into a call result", async () => {
+    const binding = FlowBinding.make({ flow: echo, handler: () => Effect.interrupt })
+
+    const exit = await run(binding.run(call("echo", { text: "hi" })))
+
+    expect(Exit.isFailure(exit) && Cause.hasInterrupts(exit.cause)).toBe(true)
+  })
+
+  it("refuses output the declaration's own schema rejects", async () => {
+    const binding = FlowBinding.make({
+      flow: echo,
+      handler: () => Effect.succeed({ text: "hi", length: "two" } as unknown as typeof Echoed.Type)
+    })
+
+    const exit = await run(binding.run(call("echo", { text: "hi" })))
+
+    expect(Exit.isSuccess(exit) && exit.value.message).toBe("Flow echo produced output its own schema rejects.")
+  })
+
+  it("refuses output that cannot cross the journal", async () => {
+    const Unserializable = Schema.Struct({ when: Schema.Any })
+    const binding = FlowBinding.make({
+      flow: Flow.make({ name: "clock", input: Schema.Struct({}), output: Unserializable }),
+      handler: () => Effect.succeed({ when: () => "now" })
+    })
+
+    const exit = await run(binding.run(call("clock", {})))
+
+    expect(Exit.isSuccess(exit) && exit.value.message).toBe("Flow clock produced output that is not serializable.")
+  })
+})
+
+describe("FlowBinding.provide", () => {
+  it("closes a handler's requirements with the context the host built", async () => {
+    interface Greeter {
+      readonly greet: (name: string) => string
+    }
+    const Greeter = Context.Service<Greeter, Greeter>("test/Greeter")
+    const binding = FlowBinding.provide(
+      FlowBinding.make({
+        flow: echo,
+        handler: (input) =>
+          Effect.map(Greeter, (greeter) => ({
+            text: greeter.greet(input.text),
+            length: input.text.length
+          }))
+      }),
+      Context.make(Greeter, { greet: (name: string) => `hello ${name}` })
+    )
+
+    const exit = await run(binding.run(call("echo", { text: "world" })))
+
+    expect(Exit.isSuccess(exit) && exit.value.value).toEqual({ text: "hello world", length: 5 })
+  })
+})
+
+describe("FlowBinding.catalog", () => {
+  const binding = (name: string) =>
+    FlowBinding.make({
+      flow: Flow.make({ name, input: Schema.Struct({}), output: Schema.Struct({}) }),
+      handler: () => Effect.succeed({})
+    })
+
+  it("composes ordered sources deterministically", async () => {
+    const catalog = await Effect.runPromise(
+      FlowBinding.catalog([
+        FlowBinding.source("first", [binding("alpha")]),
+        FlowBinding.source("second", [binding("beta"), binding("gamma")])
+      ])
+    )
+
+    expect(catalog.descriptors.map((descriptor) => descriptor.name)).toEqual(["alpha", "beta", "gamma"])
+    expect(catalog.entries).toHaveLength(3)
+    expect([...catalog.bindings.keys()]).toEqual(["alpha", "beta", "gamma"])
+  })
+
+  it("refuses two implementations under one name rather than picking one", () => {
+    const composed = FlowBinding.catalogResult([binding("alpha"), binding("alpha")])
+
+    expect(Result.isFailure(composed)).toBe(true)
+    expect(Result.isFailure(composed) ? composed.failure.message : "").toContain(
+      "Two executable bindings are named \"alpha\""
+    )
+  })
+
+  it("refuses a binding whose declaration has no name", () => {
+    const anonymous = FlowBinding.make({
+      flow: Flow.make({ input: Schema.Struct({}), output: Schema.Struct({}) }),
+      handler: () => Effect.succeed({})
+    })
+
+    const composed = FlowBinding.catalogResult([anonymous])
+
+    expect(Result.isFailure(composed) ? composed.failure.code : "").toBe("assembly_failed")
+  })
+
+  it("propagates a source that could not be resolved", async () => {
+    const exit = await run(
+      FlowBinding.catalog([{
+        name: "broken",
+        bindings: () => Effect.fail(new HarnessError({ code: "engine_failed", message: "no server" }))
+      }])
+    )
+
+    expect(Exit.isFailure(exit) ? Cause.squash(exit.cause) : undefined).toMatchObject({ message: "no server" })
+  })
+
+  it("discloses nothing when empty", () => {
+    expect(FlowBinding.empty().descriptors).toEqual([])
+    expect(FlowBinding.empty().bindings.size).toBe(0)
+  })
+})
+
+describe("FlowBinding.registry", () => {
+  const discovered = new Descriptor.FlowDescriptor({
+    name: "review",
+    description: "A discovered markdown flow.",
+    body: new Descriptor.BodyRefMarkdown({ path: "/flows/review/flow.mdx", baseDirectory: "/flows/review" }),
+    input: new Descriptor.SchemaRefMarkdownArgs(),
+    output: new Descriptor.SchemaRefMarkdownOutput(),
+    model: Option.none(),
+    flows: [],
+    capabilities: [],
+    effects: { reads: [], writes: [], mode: "hermetic", onConflict: "serialize", tier: "sealed" },
+    placement: Option.none(),
+    modelInvocable: true,
+    path: "/flows/review",
+    frontmatter: {},
+    provenance: new Descriptor.Provenance({ source: "project", root: "/flows" })
+  })
+
+  const base = (entries: ReadonlyArray<Descriptor.FlowDescriptor>): Registry.Registry =>
+    Registry.makeNoop({
+      list: () => Effect.succeed(entries),
+      visible: () => Effect.succeed(entries.filter((entry) => entry.modelInvocable)),
+      getOption: (name) => Effect.succeed(Option.fromUndefinedOr(entries.find((entry) => entry.name === name))),
+      warnings: () => Effect.succeed([])
+    })
+
+  const bound = FlowBinding.make({
+    flow: Flow.make({ name: "read", description: "Read a file.", input: Schema.Struct({}), output: Schema.Struct({}) }),
+    handler: () => Effect.succeed({})
+  })
+
+  const hiddenBinding = FlowBinding.make({
+    flow: Flow.make({ name: "internal", input: Schema.Struct({}), output: Schema.Struct({}) }),
+    handler: () => Effect.succeed({}),
+    modelInvocable: false
+  })
+
+  it("discloses bindings alongside discovered entries through one registry contract", async () => {
+    const catalog = Result.getOrThrow(FlowBinding.catalogResult([bound, hiddenBinding]))
+    const registry = FlowBinding.registry(base([discovered]), catalog)
+
+    const [listed, visible, found] = await Effect.runPromise(
+      Effect.all([registry.list(), registry.visible(), registry.get("read")])
+    )
+
+    expect(listed.map((entry) => entry.name)).toEqual(["review", "read", "internal"])
+    expect(visible.map((entry) => entry.name)).toEqual(["review", "read"])
+    expect(found.description).toBe("Read a file.")
+  })
+
+  it("keeps discovery precedence when a binding collides with a discovered flow", async () => {
+    const shadowed = FlowBinding.make({
+      flow: Flow.make({
+        name: "review",
+        description: "A bound review.",
+        input: Schema.Struct({}),
+        output: Schema.Struct({})
+      }),
+      handler: () => Effect.succeed({})
+    })
+    const catalog = Result.getOrThrow(FlowBinding.catalogResult([shadowed]))
+    const registry = FlowBinding.registry(base([discovered]), catalog)
+
+    const [listed, resolved, warnings] = await Effect.runPromise(
+      Effect.all([registry.list(), registry.getOption("review"), registry.warnings()])
+    )
+
+    expect(listed.map((entry) => entry.name)).toEqual(["review"])
+    expect(Option.getOrThrow(resolved).description).toBe("A discovered markdown flow.")
+    expect(warnings.map((warning) => warning.code)).toEqual(["duplicate_name"])
+    expect(warnings[0]?.message).toContain("is shadowed by a discovered flow")
+  })
+
+  it("keeps discovery precedence even when the discovered entry is not model-invocable", async () => {
+    // Deciding shadowing against `visible()` would miss this entry, disclose
+    // the binding under a name `getOption` resolves to the discovered flow, and
+    // leave the model holding a flow every call refuses.
+    const hidden = new Descriptor.FlowDescriptor({
+      ...discovered,
+      name: "audit",
+      modelInvocable: false
+    })
+    const shadowed = FlowBinding.make({
+      flow: Flow.make({ name: "audit", input: Schema.Struct({}), output: Schema.Struct({}) }),
+      handler: () => Effect.succeed({})
+    })
+    const catalog = Result.getOrThrow(FlowBinding.catalogResult([shadowed]))
+    const registry = FlowBinding.registry(base([hidden]), catalog)
+
+    const [listed, visible, resolved] = await Effect.runPromise(
+      Effect.all([registry.list(), registry.visible(), registry.getOption("audit")])
+    )
+
+    expect(listed.map((entry) => entry.name)).toEqual(["audit"])
+    expect(visible).toEqual([])
+    expect(Option.getOrThrow(resolved).modelInvocable).toBe(false)
+  })
+
+  it("reports an unknown name the way the base registry does", async () => {
+    const registry = FlowBinding.registry(base([discovered]), FlowBinding.empty())
+
+    const [missing, exit] = await Effect.runPromise(
+      Effect.all([registry.getOption("absent"), Effect.exit(registry.get("absent"))])
+    )
+
+    expect(Option.isNone(missing)).toBe(true)
+    expect(Exit.isFailure(exit)).toBe(true)
+  })
+})

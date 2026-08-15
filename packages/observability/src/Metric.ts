@@ -1,0 +1,53 @@
+/**
+ * Effect metric registry for flows runtime signals.
+ *
+ * @since 0.1.0
+ */
+import * as Metric from "effect/Metric"
+
+const prefix = "flows/"
+
+/** @category metrics @since 0.1.0 */
+export const runThroughput = Metric.counter(`${prefix}run/throughput`, {
+  description: "Completed flow runs"
+})
+
+/** @category metrics @since 0.1.0 */
+export const activeSeats = Metric.gauge(`${prefix}seat/active`, {
+  description: "Currently active execution seats"
+})
+
+/** @category metrics @since 0.1.0 */
+export const quotaParks = Metric.counter(`${prefix}quota/park`, {
+  description: "Runs parked by quota enforcement"
+})
+
+/** @category metrics @since 0.1.0 */
+export const cacheHits = Metric.counter(`${prefix}cache/hit`, {
+  description: "Cache lookup hits"
+})
+
+/** @category metrics @since 0.1.0 */
+export const cacheMisses = Metric.counter(`${prefix}cache/miss`, {
+  description: "Cache lookup misses"
+})
+
+/** @category metrics @since 0.1.0 */
+export const cacheHitRate = Metric.gauge(`${prefix}cache/hit-rate`, {
+  description: "Cache hit rate as a value between zero and one"
+})
+
+/**
+ * All metrics declared by this package.
+ *
+ * @category registry
+ * @since 0.1.0
+ */
+export const registry = {
+  runThroughput,
+  activeSeats,
+  quotaParks,
+  cacheHits,
+  cacheMisses,
+  cacheHitRate
+} as const

@@ -1,0 +1,114 @@
+/**
+ * Plan construction shared by every `ControlRuntime` implementation.
+ *
+ * The plan digest is what an approval is bound to, so the memory runtime and
+ * the durable runtime must compute it the same way or an approval taken on one
+ * would not validate on the other. Keeping the construction here is what makes
+ * that a compile-time fact rather than a convention.
+ *
+ * @since 0.1.0
+ */
+import { Canonical } from "@smthrs/canonical-next"
+import { Sha256 } from "@smthrs/crypto-next"
+import type * as PersistedPlan from "@smthrs/plan-next/Plan"
+import { Effect, Schema } from "effect"
+import type { ApprovalTarget } from "../Control.ts"
+import type { Envelope, FlowId, IdempotencyKey, PlanCard, PlanNode, Receipt, RunId } from "../ControlSchema.ts"
+
+/** The envelope a flow with no declared capabilities carries. */
+export const emptyEnvelope: Envelope = {
+  capabilities: [],
+  flows: [],
+  budget: {}
+}
+
+/**
+ * Canonical bytes for a value.
+ *
+ * Throws on a non-serializable value; every caller either wraps it in
+ * `Effect.try` or has already validated the value.
+ */
+export const canonical = (value: unknown): string => Schema.decodeUnknownSync(Canonical)(value)
+
+/** The content digest of a value's canonical bytes. */
+export const digest = (value: unknown) => Schema.decodeUnknownEffect(Sha256)(canonical(value)).pipe(Effect.orDie)
+
+/** Envelope equality by canonical bytes, not by reference or key order. */
+export const sameEnvelope = (left: Envelope, right: Envelope): boolean => canonical(left) === canonical(right)
+
+/** An accepted receipt, carrying a run id when one exists. */
+export const accepted = (receiptId: string, runId?: RunId): Receipt =>
+  runId === undefined
+    ? { _tag: "Accepted", receiptId }
+    : { _tag: "Accepted", receiptId, runId }
+
+/** The receipt a replayed mutation returns, derived from the recorded one. */
+export const alreadyApplied = (key: IdempotencyKey, receipt: Receipt): Receipt => {
+  const receiptId = receipt._tag === "Accepted" || receipt._tag === "AlreadyApplied" ? receipt.receiptId : key
+  const runId = receipt._tag === "Accepted" || receipt._tag === "AlreadyApplied" || receipt._tag === "Terminal"
+    ? receipt.runId
+    : undefined
+  return runId === undefined
+    ? { _tag: "AlreadyApplied", receiptId }
+    : { _tag: "AlreadyApplied", receiptId, runId }
+}
+
+/** The plan inputs a card is derived from. */
+export interface PlanSource {
+  readonly planId: string
+  readonly flowId: FlowId
+  readonly decodedInput: unknown
+  readonly envelope: Envelope
+  readonly deployClass: boolean
+  /** The persisted plan value and cache verdicts produced by the host. */
+  readonly handoff?: {
+    readonly plan: PersistedPlan.Plan
+    readonly statuses?: Readonly<Record<string, PlanNode["status"]>> | undefined
+  } | undefined
+  readonly idempotencyKey?: IdempotencyKey | undefined
+}
+
+/**
+ * Builds the immutable plan card and the approval target bound to its digest.
+ */
+export const planCard = (source: PlanSource) =>
+  Effect.gen(function*() {
+    const plan = source.handoff?.plan
+    const nodes: ReadonlyArray<PlanNode> = plan === undefined
+      ? []
+      : plan.nodes.map((node) => ({
+        ...node,
+        status: source.handoff?.statuses?.[node.id] ?? "run"
+      }))
+    const planDigest = yield* digest({
+      flowId: source.flowId,
+      input: source.decodedInput,
+      envelope: source.envelope,
+      deployClass: source.deployClass,
+      // The persisted plan digest covers keys, edges, effects, conflicts,
+      // priorities, and generations. Hashing only node keys loses executable
+      // graph changes whose content keys legitimately stay stable.
+      persistedPlan: plan?.digest ?? null
+    })
+    const target: ApprovalTarget = {
+      _tag: "Plan",
+      planId: source.planId,
+      digest: planDigest,
+      envelope: source.envelope
+    }
+    return {
+      planId: source.planId,
+      flowId: source.flowId,
+      digest: planDigest,
+      inputSummary: canonical(source.decodedInput),
+      envelope: source.envelope,
+      deployClass: source.deployClass,
+      ...(plan === undefined ? {} : { plan }),
+      nodes,
+      approval: {
+        target,
+        scope: "run" as const,
+        idempotencyKey: source.idempotencyKey ?? `approve:${source.planId}`
+      }
+    } satisfies PlanCard
+  })

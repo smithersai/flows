@@ -1,0 +1,236 @@
+/**
+ * Schema-backed RPC projection of the control service.
+ *
+ * @since 0.1.0
+ */
+import { Context, Effect, Layer, Schema } from "effect"
+import { Rpc, RpcGroup, RpcMiddleware } from "effect/unstable/rpc"
+import {
+  AlreadyResolved,
+  ClaimLost,
+  EnvelopeMismatch,
+  FlowNotFound,
+  InvalidInput,
+  LaunchFailed,
+  NotOwner,
+  PersistenceError,
+  PlanDigestMismatch,
+  RunNotFound,
+  TransportError,
+  Unauthorized,
+  Unavailable
+} from "./ControlError.ts"
+import {
+  ApprovalPayload,
+  ControlEvent,
+  Envelope,
+  FlowId,
+  IdempotencyKey,
+  ListRequest,
+  ListResponse,
+  PlanCard,
+  type Principal,
+  Receipt,
+  RunId,
+  SignalPayload,
+  SteerMessage,
+  WatchFilter
+} from "./ControlSchema.ts"
+
+/**
+ * Authenticated principal made available to control RPC handlers.
+ *
+ * @category services
+ * @since 0.1.0
+ */
+export class ControlPrincipal extends Context.Service<ControlPrincipal, typeof Principal.Type>()(
+  "/control/ControlPrincipal"
+) {}
+
+/**
+ * Middleware boundary that authenticates control RPC requests.
+ *
+ * @category middleware
+ * @since 0.1.0
+ */
+export class ControlAuth extends RpcMiddleware.Service<ControlAuth, {
+  provides: ControlPrincipal
+}>()("/control/ControlAuth", { error: Unauthorized }) {}
+
+const PlanInput = Schema.Struct({
+  flowId: FlowId,
+  input: Schema.Json,
+  idempotencyKey: Schema.optional(IdempotencyKey)
+})
+
+const RunInput = Schema.Union([
+  Schema.TaggedStruct("Plan", {
+    planId: Schema.String,
+    digest: Schema.String,
+    envelope: Envelope,
+    idempotencyKey: IdempotencyKey
+  }),
+  Schema.TaggedStruct("Resume", { runId: RunId, idempotencyKey: IdempotencyKey })
+])
+
+// Principal is deliberately absent: the server supplies it through ControlAuth.
+const ApprovalInput = ApprovalPayload
+
+const SteerInput = Schema.Struct({
+  runId: RunId,
+  message: SteerMessage,
+  idempotencyKey: IdempotencyKey
+})
+
+const SignalInput = Schema.Struct({
+  runId: RunId,
+  signal: SignalPayload,
+  idempotencyKey: IdempotencyKey
+})
+
+const RunMutationInput = Schema.Struct({ runId: RunId, idempotencyKey: IdempotencyKey })
+
+const mutationErrors = Schema.Union([RunNotFound, ClaimLost, PersistenceError, Unavailable])
+
+/**
+ * The eleven remote procedures corresponding to `Control` operations.
+ *
+ * @category groups
+ * @since 0.1.0
+ */
+export const ControlRpcs = RpcGroup.make(
+  Rpc.make("Plan", {
+    payload: PlanInput,
+    success: PlanCard,
+    error: Schema.Union([FlowNotFound, InvalidInput, PersistenceError, Unavailable])
+  }),
+  Rpc.make("Run", {
+    payload: RunInput,
+    success: Receipt,
+    error: Schema.Union([
+      RunNotFound,
+      PlanDigestMismatch,
+      EnvelopeMismatch,
+      ClaimLost,
+      LaunchFailed,
+      PersistenceError,
+      Unavailable
+    ])
+  }),
+  Rpc.make("Approve", {
+    payload: ApprovalInput,
+    success: Receipt,
+    error: Schema.Union([
+      PlanDigestMismatch,
+      EnvelopeMismatch,
+      AlreadyResolved,
+      RunNotFound,
+      PersistenceError,
+      Unavailable
+    ])
+  }),
+  Rpc.make("Deny", {
+    payload: ApprovalInput,
+    success: Receipt,
+    error: Schema.Union([
+      PlanDigestMismatch,
+      EnvelopeMismatch,
+      AlreadyResolved,
+      RunNotFound,
+      PersistenceError,
+      Unavailable
+    ])
+  }),
+  Rpc.make("Steer", {
+    payload: SteerInput,
+    success: Receipt,
+    error: Schema.Union([RunNotFound, PersistenceError, Unavailable])
+  }),
+  Rpc.make("Signal", {
+    payload: SignalInput,
+    success: Receipt,
+    error: Schema.Union([RunNotFound, PersistenceError, Unavailable])
+  }),
+  Rpc.make("Cancel", { payload: RunMutationInput, success: Receipt, error: mutationErrors }),
+  Rpc.make("Pause", { payload: RunMutationInput, success: Receipt, error: mutationErrors }),
+  Rpc.make("Resume", { payload: RunMutationInput, success: Receipt, error: mutationErrors }),
+  Rpc.make("List", {
+    payload: ListRequest,
+    success: ListResponse,
+    error: Schema.Union([
+      RunNotFound,
+      FlowNotFound,
+      PlanDigestMismatch,
+      EnvelopeMismatch,
+      ClaimLost,
+      AlreadyResolved,
+      InvalidInput,
+      NotOwner,
+      Unauthorized,
+      Unavailable,
+      TransportError,
+      PersistenceError,
+      LaunchFailed
+    ])
+  }),
+  Rpc.make("Watch", {
+    payload: WatchFilter,
+    success: ControlEvent,
+    error: Schema.Union([
+      RunNotFound,
+      FlowNotFound,
+      PlanDigestMismatch,
+      EnvelopeMismatch,
+      ClaimLost,
+      AlreadyResolved,
+      InvalidInput,
+      NotOwner,
+      Unauthorized,
+      Unavailable,
+      TransportError,
+      PersistenceError,
+      LaunchFailed
+    ]),
+    stream: true
+  })
+).middleware(ControlAuth)
+
+/**
+ * Header authenticator used by the control RPC boundary.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface Authenticator {
+  readonly authenticate: (
+    headers: Readonly<Record<string, string>>
+  ) => Effect.Effect<typeof Principal.Type, Unauthorized>
+}
+
+/**
+ * Provides `ControlAuth` from a transport-header authenticator.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
+export const layerAuth = (authenticator: Authenticator) =>
+  Layer.succeed(
+    ControlAuth,
+    (effect, options) =>
+      Effect.flatMap(
+        authenticator.authenticate(options.headers),
+        (principal) => Effect.provideService(effect, ControlPrincipal, principal)
+      )
+  )
+
+/**
+ * Permissive authentication middleware for tests and trusted in-process use.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
+export const layerNoopAuth = (principal: typeof Principal.Type = {
+  id: "test-principal",
+  kind: "test",
+  stampedAt: 0
+}) => layerAuth({ authenticate: () => Effect.succeed(principal) })
