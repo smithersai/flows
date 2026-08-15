@@ -13,6 +13,7 @@ import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
+import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as EffectBoundary from "../EffectBoundary.ts"
 import { Frame, type LineageEdge } from "../Frame.ts"
@@ -206,6 +207,98 @@ const runStoreFailure = (
     `${operation} failed`,
     cause
   )
+
+/** The lineage a validation scan reads off a journal entry's open metadata. */
+const LineageMetadata = Schema.Struct({ lineageId: Schema.NonEmptyString })
+
+const lineageOf = (entry: JournalEvent.Entry): string | undefined =>
+  Option.getOrUndefined(Schema.decodeUnknownOption(LineageMetadata)(entry.meta))?.lineageId
+
+/**
+ * The validation phase of the rewind protocol: every caller-supplied input and
+ * every frame-lineage claim is checked BEFORE the first durable or workspace
+ * mutation — before the ownership claim, before the audit row, before any
+ * store write.
+ *
+ * The public `TimeTravel.rewind` runs this ahead of {@link rewind}'s claim
+ * phase, so a refused position leaves no trace: no claim was taken, no audit
+ * was opened, no journal page was read for a malformed page size.
+ *
+ * A frame is refused `not_found` unless it addresses the run's history:
+ * the coordinate must not lie past the journal tail, the run's tail must be on
+ * the requested lineage (a sibling lineage's coordinate is not a point this
+ * run can be truncated back to), and — frame zero excepted, the one frame that
+ * is always addressable — a record of the requested lineage must exist at the
+ * exact coordinate. Records that carry no lineage are compatible with every
+ * frame: they predate lineage minting yet are still evidence of the run.
+ *
+ * @since 0.1.0
+ * @category validators
+ */
+export const validate = (options: {
+  readonly runId: string
+  readonly frame: Frame
+  readonly pageSize?: number | undefined
+}): Effect.Effect<void, TimeTravelFailure, Journal.Journal> =>
+  Effect.gen(function*() {
+    if (options.pageSize !== undefined && (!Number.isSafeInteger(options.pageSize) || options.pageSize < 1)) {
+      return yield* Effect.fail(
+        error("invalid", `rewind pageSize must be a positive integer, not ${String(options.pageSize)}`)
+      )
+    }
+    const journal = yield* Journal.Journal
+    const coordinate = `${options.frame.lineageId}@${options.frame.seq}`
+    let after: JournalEvent.Seq | undefined
+    let tail: JournalEvent.Entry | undefined
+    let atFrame = false
+    while (true) {
+      const page = yield* journal.entries({
+        runId: options.runId as JournalEvent.RunId,
+        ...(after === undefined ? {} : { after }),
+        limit: options.pageSize ?? 100
+      }).pipe(
+        Effect.mapError((cause) =>
+          error("unknown", `could not validate frame ${coordinate} for ${options.runId}`, cause)
+        )
+      )
+      for (const entry of page.entries) {
+        if (tail === undefined || entry.seq > tail.seq) tail = entry
+        if (entry.seq === options.frame.seq) {
+          const lineage = lineageOf(entry)
+          if (lineage === undefined || lineage === options.frame.lineageId) atFrame = true
+        }
+      }
+      if (!page.hasMore || page.entries.length === 0) break
+      after = tail!.seq
+    }
+    if (tail === undefined) {
+      // Frame zero is the state before the run wrote anything, so it is the
+      // one frame an empty journal can still address.
+      if (options.frame.seq === 0) return
+      return yield* Effect.fail(
+        error("not_found", `frame ${coordinate} is beyond the journal tail of ${options.runId}`)
+      )
+    }
+    if (options.frame.seq > tail.seq) {
+      return yield* Effect.fail(
+        error("not_found", `frame ${coordinate} is beyond the journal tail of ${options.runId}`)
+      )
+    }
+    const tailLineage = lineageOf(tail)
+    if (tailLineage !== undefined && tailLineage !== options.frame.lineageId) {
+      return yield* Effect.fail(
+        error("not_found", `run ${options.runId} is on lineage ${tailLineage}, not ${options.frame.lineageId}`)
+      )
+    }
+    if (options.frame.seq > 0 && !atFrame) {
+      return yield* Effect.fail(
+        error(
+          "not_found",
+          `no record of lineage ${options.frame.lineageId} exists at seq ${options.frame.seq} in ${options.runId}`
+        )
+      )
+    }
+  })
 
 const readSuffix = (
   journal: Journal.Service,

@@ -17,11 +17,12 @@ import * as Schema from "effect/Schema"
  * `busy` — another rewind holds the run. `live_parent` / `live_child` — the
  * run or one of its descendants is still executing, so its history is not
  * settled enough to branch from or truncate. `not_found` — the run or frame
- * does not exist. `rate_limited` — the rewind rate limiter rejected the
- * attempt. `compensation_failed` — a side effect's rollback handler failed, so
- * the rewind stopped rather than leave the world half-reverted. `irreversible`
- * — an effect in the truncated range cannot be undone at all. `unknown` — the
- * store or an unmapped host failure.
+ * does not exist. `invalid` — a caller-supplied option is malformed, refused
+ * before the operation touches anything. `rate_limited` — the rewind rate
+ * limiter rejected the attempt. `compensation_failed` — a side effect's
+ * rollback handler failed, so the rewind stopped rather than leave the world
+ * half-reverted. `irreversible` — an effect in the truncated range cannot be
+ * undone at all. `unknown` — the store or an unmapped host failure.
  *
  * @since 0.1.0
  * @category schemas
@@ -31,6 +32,7 @@ export const TimeTravelErrorCode = Schema.Literals([
   "live_parent",
   "live_child",
   "not_found",
+  "invalid",
   "rate_limited",
   "compensation_failed",
   "irreversible",

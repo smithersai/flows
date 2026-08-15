@@ -28,8 +28,7 @@ const row: RunStore.RunRow = {
 
 describe("TimeTravel rewind options", () => {
   for (const pageSize of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
-    // BUG: non-positive and non-finite page sizes reach paging after ownership is claimed.
-    it.effect.fails(`rejects pageSize ${String(pageSize)} before claim, audit, or truncation`, () =>
+    it.effect(`rejects pageSize ${String(pageSize)} before claim, audit, or truncation`, () =>
       Effect.gen(function*() {
         const store = MemoryTimeTravelStore.make({
           records: [
