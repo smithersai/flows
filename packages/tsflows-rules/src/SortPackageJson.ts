@@ -1,0 +1,77 @@
+/**
+ * Deterministic package.json ordering checks.
+ *
+ * @since 0.1.0
+ */
+import * as Effect from "effect/Effect"
+import * as Schema from "effect/Schema"
+import * as Exec from "./Exec.ts"
+import * as Input from "./Input.ts"
+import * as Rule from "./Rule.ts"
+
+/**
+ * Attributes for {@link SortPackageJson}.
+ *
+ * `cwd` is the workspace-relative directory the tool runs in and defaults to
+ * the workspace root. Manifest paths resolve from `cwd` when the tool runs.
+ * The list is non-empty so every manifest the tool reads is declared by the
+ * caller and harvested from attrs.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const Attrs = Schema.Struct({
+  manifests: Schema.NonEmptyArray(Input.File),
+  deps: Schema.Array(Rule.Target),
+  check: Schema.Boolean,
+  cwd: Schema.NonEmptyString.pipe(Schema.withConstructorDefault(Effect.succeed(".")))
+})
+
+/**
+ * Attributes for {@link SortPackageJson}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type Attrs = typeof Attrs.Type
+
+/**
+ * Plans `sort-package-json` validation or rewriting.
+ *
+ * The body records one {@link Exec.Exec} run of `sort-package-json` from
+ * `cwd` over every declared manifest. With `check` enabled the run passes
+ * `--check` and only reports, which suits the `lint` verb; without it the
+ * run rewrites the manifests in place, which suits the `build` verb and is
+ * non-cacheable. Tools resolve through `pnpm exec`, matching the pnpm
+ * workspace install target. Key material contains every manifest digest,
+ * dependency target keys, and check-versus-write mode. This follows
+ * sort-package-json and tevm's root manifest ordering scripts. Executing
+ * the plan requires {@link Exec.ExecLive}.
+ *
+ * @category rules
+ * @since 0.1.0
+ */
+export const SortPackageJson = Rule.make("SortPackageJson", {
+  attrs: Attrs,
+  kinds: ["build", "lint"],
+  success: Exec.Result,
+  error: Exec.ExecError,
+  cache: false,
+  // The `lint` verb never rewrites a manifest. Without this a BUILD.ts that
+  // declared `check: false` — the rewriting form, which belongs to `build` —
+  // made `tsflows lint` and `tsflows ci` sort every declared manifest in
+  // place, so a drift that should have failed the run was repaired by the
+  // run that was supposed to report it.
+  attrsForKind: (kind, attrs) => kind === "lint" && !attrs.check ? { ...attrs, check: true } : attrs,
+  implementation: (attrs) =>
+    Rule.runTool({
+      cwd: attrs.cwd,
+      argv: [
+        "pnpm",
+        "exec",
+        "sort-package-json",
+        ...(attrs.check ? ["--check"] : []),
+        ...attrs.manifests.map((manifest) => manifest.path)
+      ]
+    })
+})
