@@ -17,7 +17,7 @@ Cursor field names are `runId` and `afterSeq`.
 
 ## RPC group
 
-`SyncRpcs.SyncRpcs` contains `Sync.Read` and streaming `Sync.Subscribe`. `SyncRpcs.SyncAuth` is the RPC middleware service for deployment-supplied authentication.
+`SyncRpcs.SyncRpcs` contains `Sync.Read` and streaming `Sync.Subscribe`. `SyncRpcs.SyncAuth` is the RPC middleware service; `SyncAuth.layer` is the shipped implementation, authenticating the `flows-sync-workspace` header against `WorkspaceShare` and installing the request's `SyncPrincipal` (default anonymous, non-branch reads refused). `SyncServer.layerHandlers` projects the server onto the group.
 
 ## Server
 

@@ -8,6 +8,7 @@ import { Journal, JournalEvent } from "@smthrs/journal-next"
 import { Effect, Exit, Fiber, Layer, Stream } from "effect"
 import * as RunCatalog from "../src/RunCatalog.ts"
 import { SyncError } from "../src/SyncError.ts"
+import * as SyncPrincipal from "../src/SyncPrincipal.ts"
 import * as SyncServer from "../src/SyncServer.ts"
 
 const runId = (value: string) => value as JournalEvent.RunId
@@ -56,7 +57,8 @@ describe("SyncServer workspace scope", () => {
           Effect.provide(
             Layer.mergeAll(
               journalOf({ b: [entry("b", 0)], a: [entry("a", 0), entry("a", 1)] }),
-              RunCatalog.layerStatic([runId("b"), runId("a")])
+              RunCatalog.layerStatic([runId("b"), runId("a")]),
+              SyncPrincipal.layerWorkspace("workspace-suite")
             )
           )
         )
@@ -84,7 +86,8 @@ describe("SyncServer workspace scope", () => {
           Effect.provide(
             Layer.mergeAll(
               journalOf({ a: [entry("a", 0), entry("a", 1), entry("a", 2)], b: [entry("b", 0)] }),
-              RunCatalog.layerStatic([runId("a"), runId("b")])
+              RunCatalog.layerStatic([runId("a"), runId("b")]),
+              SyncPrincipal.layerWorkspace("workspace-suite")
             )
           )
         )
@@ -111,7 +114,8 @@ describe("SyncServer workspace scope", () => {
           Effect.provide(
             Layer.mergeAll(
               journalOf({ a: [entry("a", 0), entry("a", 1)] }),
-              RunCatalog.layerStatic([runId("a")])
+              RunCatalog.layerStatic([runId("a")]),
+              SyncPrincipal.layerWorkspace("workspace-suite")
             )
           )
         )
@@ -140,7 +144,8 @@ describe("SyncServer workspace scope", () => {
               Journal.layerNoop({
                 entries: (() => Effect.fail(new Error("disk gone"))) as any
               }),
-              RunCatalog.layerNoop
+              RunCatalog.layerNoop,
+              SyncPrincipal.layerWorkspace("workspace-suite")
             )
           )
         )
@@ -166,7 +171,8 @@ describe("SyncServer workspace scope", () => {
           Effect.provide(
             Layer.mergeAll(
               journalOf({ a: [entry("a", 0), entry("a", 1)], b: [entry("b", 0)] }),
-              RunCatalog.layerStatic([runId("a"), runId("b")])
+              RunCatalog.layerStatic([runId("a"), runId("b")]),
+              SyncPrincipal.layerWorkspace("workspace-suite")
             )
           )
         )
@@ -201,6 +207,7 @@ describe("SyncServer workspace scope", () => {
           return yield* Effect.exit(Fiber.join(fiber))
         }).pipe(
           Effect.provide(journalOf({ late: [entry("late", 0)] })),
+          Effect.provide(SyncPrincipal.layerWorkspace("workspace-suite")),
           Effect.scoped
         )
       )

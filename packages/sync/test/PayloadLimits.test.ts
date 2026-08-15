@@ -9,6 +9,7 @@ import * as BranchShare from "../src/BranchShare.ts"
 import * as RunCatalog from "../src/RunCatalog.ts"
 import * as SyncClient from "../src/SyncClient.ts"
 import { SyncError } from "../src/SyncError.ts"
+import * as SyncPrincipal from "../src/SyncPrincipal.ts"
 import type * as SyncProtocol from "../src/SyncProtocol.ts"
 import * as SyncServer from "../src/SyncServer.ts"
 
@@ -112,7 +113,8 @@ describe("sync payload and frame limits", () => {
               Journal.layerNoop({
                 entries: () => Effect.succeed({ entries: [entry(0, twoMiB)], hasMore: false })
               }),
-              RunCatalog.layerStatic([runId])
+              RunCatalog.layerStatic([runId]),
+              SyncPrincipal.layerWorkspace("payload-suite")
             )
           )
         )
@@ -140,7 +142,8 @@ describe("sync payload and frame limits", () => {
           Effect.provide(
             Layer.mergeAll(
               Journal.layerNoop({ entries: () => Effect.succeed({ entries, hasMore: false }) }),
-              RunCatalog.layerStatic([runId])
+              RunCatalog.layerStatic([runId]),
+              SyncPrincipal.layerWorkspace("payload-suite")
             )
           )
         )
@@ -160,15 +163,18 @@ describe("sync payload and frame limits", () => {
           )
         }).pipe(
           Effect.provide(
-            SyncServer.layerWith({ maxFrameBytes: 64 }).pipe(
-              Layer.provide(
-                Layer.mergeAll(
-                  Journal.layerNoop({
-                    entries: () => Effect.succeed({ entries: [entry(0, "x".repeat(128))], hasMore: false })
-                  }),
-                  RunCatalog.layerStatic([runId])
+            Layer.mergeAll(
+              SyncServer.layerWith({ maxFrameBytes: 64 }).pipe(
+                Layer.provide(
+                  Layer.mergeAll(
+                    Journal.layerNoop({
+                      entries: () => Effect.succeed({ entries: [entry(0, "x".repeat(128))], hasMore: false })
+                    }),
+                    RunCatalog.layerStatic([runId])
+                  )
                 )
-              )
+              ),
+              SyncPrincipal.layerWorkspace("payload-suite")
             )
           )
         )
@@ -192,7 +198,8 @@ describe("sync payload and frame limits", () => {
           Effect.provide(
             Layer.mergeAll(
               Journal.layerNoop({ stream: () => Stream.succeed(entry(0, twoMiB)) }),
-              RunCatalog.layerStatic([runId])
+              RunCatalog.layerStatic([runId]),
+              SyncPrincipal.layerWorkspace("payload-suite")
             )
           )
         )

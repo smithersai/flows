@@ -12,6 +12,7 @@ import * as RpcServer from "effect/unstable/rpc/RpcServer"
 import * as Socket from "effect/unstable/socket/Socket"
 import * as RunCatalog from "../RunCatalog.ts"
 import * as SyncClient from "../SyncClient.ts"
+import * as SyncPrincipal from "../SyncPrincipal.ts"
 import * as SyncRpcs from "../SyncRpcs.ts"
 import * as SyncServer from "../SyncServer.ts"
 import type { Pair } from "./TestSocket.ts"
@@ -19,8 +20,22 @@ import type { Pair } from "./TestSocket.ts"
 const layerNoopAuth = Layer.succeed(SyncRpcs.SyncAuth)((effect) => effect)
 
 /**
- * Provides the durable in-memory journal, a mutable empty run catalog, a
- * permissive authentication middleware, and the production sync server.
+ * An authentication middleware that trusts every connection as the workspace
+ * owner. Test-only by construction: replication-mechanics suites use it so
+ * they exercise paging and streaming without provisioning capabilities,
+ * while the authentication suites use the production `SyncAuth.layer`.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
+export const layerWorkspaceAuth = Layer.succeed(SyncRpcs.SyncAuth)((effect) =>
+  Effect.provideService(effect, SyncPrincipal.SyncPrincipal, SyncPrincipal.workspace("test-workspace-owner"))
+)
+
+/**
+ * Provides the durable in-memory journal, a mutable empty run catalog, the
+ * owner-trusting {@link layerWorkspaceAuth} middleware, and the production
+ * sync server.
  *
  * Tests that need runs in the workspace may register them through their own
  * `RunCatalog.makeMemory` fixture before providing a more specific layer.
@@ -33,7 +48,7 @@ export const layerTest = SyncServer.layer.pipe(
     Layer.mergeAll(
       TestJournal.layer(),
       Layer.effect(RunCatalog.RunCatalog)(Effect.map(RunCatalog.makeMemory(), ({ catalog }) => catalog)),
-      layerNoopAuth
+      layerWorkspaceAuth
     )
   )
 )
@@ -64,13 +79,8 @@ export const connect = (pair: Pair) =>
     const sync = yield* SyncServer.SyncServer
     const serverSerialization = RpcSerialization.json.makeUnsafe()
     const serverWriter = yield* pair.server.writer
-    const handlers = SyncRpcs.SyncRpcs.toLayer(
-      Effect.succeed(
-        SyncRpcs.SyncRpcs.of({
-          "Sync.Read": (request) => sync.read(request),
-          "Sync.Subscribe": (request) => sync.subscribe(request)
-        })
-      )
+    const handlers = SyncServer.layerHandlers.pipe(
+      Layer.provide(Layer.succeed(SyncServer.SyncServer, sync))
     )
     const server = yield* RpcServer.makeNoSerialization(SyncRpcs.SyncRpcs, {
       onFromServer: (response) => {

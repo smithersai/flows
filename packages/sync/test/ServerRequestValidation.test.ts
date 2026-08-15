@@ -2,6 +2,7 @@ import { describe, expect, it } from "@effect/vitest"
 import { Journal, JournalEvent } from "@smthrs/journal-next"
 import { Effect, Layer, Schema, Stream } from "effect"
 import * as RunCatalog from "../src/RunCatalog.ts"
+import * as SyncPrincipal from "../src/SyncPrincipal.ts"
 import * as SyncProtocol from "../src/SyncProtocol.ts"
 import * as SyncServer from "../src/SyncServer.ts"
 
@@ -45,7 +46,8 @@ describe("SyncServer request validation", () => {
                   return Effect.succeed({ entries: [entry(1), entry(2)], hasMore: false })
                 }
               }),
-              RunCatalog.layerStatic([runId])
+              RunCatalog.layerStatic([runId]),
+              SyncPrincipal.layerWorkspace("validation-suite")
             )
           )
         )
@@ -88,7 +90,8 @@ describe("SyncServer request validation", () => {
                 },
                 stream: () => Stream.succeed(entry(0))
               }),
-              RunCatalog.layerStatic([runId])
+              RunCatalog.layerStatic([runId]),
+              SyncPrincipal.layerWorkspace("validation-suite")
             )
           )
         )

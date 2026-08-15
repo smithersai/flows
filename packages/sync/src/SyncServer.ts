@@ -10,11 +10,15 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Stream from "effect/Stream"
+import type * as Rpc from "effect/unstable/rpc/Rpc"
+import type * as RpcGroup from "effect/unstable/rpc/RpcGroup"
 import { type BranchId, branchOfRunId, type ShareCapability } from "./BranchProtocol.ts"
 import * as BranchShare from "./BranchShare.ts"
 import * as RunCatalog from "./RunCatalog.ts"
 import { SyncError } from "./SyncError.ts"
+import * as SyncPrincipal from "./SyncPrincipal.ts"
 import * as SyncProtocol from "./SyncProtocol.ts"
+import { SyncRpcs } from "./SyncRpcs.ts"
 
 /**
  * Sync read-path operations.
@@ -104,12 +108,20 @@ export interface Options {
  * frame ceiling is refused with `frame_too_large` instead of served, so one
  * oversized journal payload cannot take down every follower that pulls it.
  *
- * Branch runs are the authorization boundary: a run whose id maps to a shared
- * branch is visible only when the request's share capability verifies for that
- * branch. An explicitly scoped branch read without one fails; a workspace
- * listing simply excludes branch runs the caller cannot read, so one share
- * link never leaks another branch's log. Without a {@link BranchShare} in
- * scope every branch run is closed.
+ * Authorization is fail-closed along two boundaries, both consulted per
+ * request:
+ *
+ * - Branch runs: a run whose id maps to a shared branch is visible only when
+ *   the request's share capability verifies for that branch. An explicitly
+ *   scoped branch read without one fails; a workspace listing excludes branch
+ *   runs the caller's capability does not cover, so one share link never
+ *   leaks another branch's log. Without a {@link BranchShare} in scope every
+ *   branch run is closed.
+ * - Non-branch runs: visible only to the workspace principal
+ *   (`SyncPrincipal`), whose default is anonymous. A workspace-scoped
+ *   request and a run-scoped request for a non-branch run are both refused
+ *   for anonymous callers, so a connection with no credential — or with only
+ *   a branch share link — can never read engine runs.
  *
  * @category constructors
  * @since 0.1.0
@@ -151,6 +163,20 @@ export const makeLiveWith = (
 
     const covered = Effect.map(catalog.list, (ids) => [...ids].sort())
 
+    /** Whether the current request is authenticated as the workspace. */
+    const workspacePrincipal: Effect.Effect<boolean> = Effect.map(
+      Effect.service(SyncPrincipal.SyncPrincipal),
+      SyncPrincipal.isWorkspace
+    )
+
+    const requireWorkspace = Effect.flatMap(workspacePrincipal, (granted) =>
+      granted ? Effect.void : Effect.fail(
+        new SyncError({
+          code: "unauthorized",
+          message: "Reading workspace runs requires an authenticated workspace principal"
+        })
+      ))
+
     /**
      * A branch read is granted only by a capability that verifies for it. Only
      * an `unauthorized` refusal folds to `false`; an infrastructure fault (Web
@@ -174,14 +200,14 @@ export const makeLiveWith = (
       capability: ShareCapability | undefined
     ): Effect.Effect<boolean, SyncError> => {
       const branchId = branchOfRunId(runId)
-      return branchId === null ? Effect.succeed(true) : canReadBranch(branchId, capability)
+      return branchId === null ? workspacePrincipal : canReadBranch(branchId, capability)
     }
 
     /**
-     * The runs a request may observe. A run-scoped request for a branch the
-     * capability does not cover fails the request outright — a scoped read must
-     * never silently answer with an empty or partial view of someone else's
-     * branch.
+     * The runs a request may observe. A run-scoped request the caller is not
+     * authorized for fails outright — a scoped read must never silently answer
+     * with an empty or partial view — and a workspace-scoped request is only
+     * answered for the workspace principal at all.
      */
     const runIdsFor = (
       scope: SyncProtocol.Scope,
@@ -190,7 +216,9 @@ export const makeLiveWith = (
       scope._tag === "Run"
         ? Effect.gen(function*() {
           const branchId = branchOfRunId(scope.runId)
-          if (branchId !== null && !(yield* canReadBranch(branchId, capability))) {
+          if (branchId === null) {
+            yield* requireWorkspace
+          } else if (!(yield* canReadBranch(branchId, capability))) {
             return yield* Effect.fail(
               new SyncError({
                 code: "unauthorized",
@@ -201,6 +229,7 @@ export const makeLiveWith = (
           return [scope.runId]
         })
         : Effect.gen(function*() {
+          yield* requireWorkspace
           const runIds = yield* covered
           const visible: Array<JournalEvent.RunId> = []
           for (const runId of runIds) {
@@ -322,3 +351,28 @@ export const layerWith = (
   options: Options
 ): Layer.Layer<SyncServer, never, Journal.Journal | RunCatalog.RunCatalog> =>
   Layer.effect(SyncServer, makeLiveWith(options))
+
+/**
+ * Provides the sync RPC handlers over the sync server: a thin, honest
+ * projection of {@link Service} onto the wire, mirroring
+ * `BranchServer.layerHandlers`. Serving these handlers requires an
+ * implementation of the group's `SyncAuth` middleware — `SyncAuth.layer` is
+ * the production one — and without a middleware-installed principal every
+ * request runs as anonymous and non-branch reads are refused.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
+export const layerHandlers: Layer.Layer<
+  Rpc.ToHandler<RpcGroup.Rpcs<typeof SyncRpcs>>,
+  never,
+  SyncServer
+> = SyncRpcs.toLayer(
+  Effect.gen(function*() {
+    const sync = yield* SyncServer
+    return SyncRpcs.of({
+      "Sync.Read": (request) => sync.read(request),
+      "Sync.Subscribe": (request) => sync.subscribe(request)
+    })
+  })
+)
