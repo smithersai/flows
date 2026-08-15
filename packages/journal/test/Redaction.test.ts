@@ -65,6 +65,20 @@ describe("Redaction", () => {
     })
   })
 
+  it("keeps a literal __proto__ member a member", () => {
+    // Assigning the rebuilt field by key would reach the inherited setter:
+    // the member disappears from the payload and lands on the result's
+    // prototype instead, so a redacted payload stops matching itself.
+    const payload = { ["__proto__"]: { token: "sk-abcdefghij" }, keep: 1 }
+    const redacted = Redaction.redact(payload) as Record<string, unknown>
+    expect(Object.getPrototypeOf(redacted)).toBe(Object.prototype)
+    expect(Object.keys(redacted)).toEqual(["__proto__", "keep"])
+    expect(Object.getOwnPropertyDescriptor(redacted, "__proto__")?.value).toEqual({
+      token: Redaction.placeholder
+    })
+    expect(Redaction.redact(redacted)).toStrictEqual(redacted)
+  })
+
   it("makeNoop persists the value verbatim", () => {
     expect(Redaction.makeNoop()({ token: "raw" })).toEqual({ token: "raw" })
     expect(Redaction.make()({ token: "raw" })).toEqual({ token: Redaction.placeholder })
