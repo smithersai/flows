@@ -42,6 +42,27 @@ afterEach(async () => {
 })
 
 describe("run", () => {
+  it("inherits CI so spawned tools stay non-interactive on hosted runners", async () => {
+    const previous = process.env.CI
+    process.env.CI = "true"
+    try {
+      const exit = await run(
+        { workspaceRoot: root },
+        payload([
+          "node",
+          "-e",
+          `require('node:fs').writeFileSync(process.argv[1], process.env.CI ?? "unset")`,
+          "ci-probe.txt"
+        ])
+      )
+      expect(Exit.isSuccess(exit)).toBe(true)
+      expect(await Fs.readFile(NodePath.join(root, "ci-probe.txt"), "utf8")).toBe("true")
+    } finally {
+      if (previous === undefined) delete process.env.CI
+      else process.env.CI = previous
+    }
+  })
+
   it("substitutes the cache directory token for an ordinary directory", async () => {
     const exit = await run(
       { workspaceRoot: root, cacheDirectory: ".flows" },

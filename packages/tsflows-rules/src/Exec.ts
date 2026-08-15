@@ -324,13 +324,19 @@ const keepTail = (text: string, limit: number): string => {
 const tail = (text: string): string => keepTail(text, stderrTailLimit)
 
 /**
- * Host variables needed to find executables and satisfy operating-system process startup.
+ * Host variables needed to find executables and satisfy operating-system
+ * process startup, plus `CI` — the cross-tool convention that switches a
+ * tool into non-interactive mode. Withholding `CI` made pnpm treat a hosted
+ * runner as an interactive terminal and abort on its first would-be prompt;
+ * the variable carries a mode, not machine identity, so inheriting it keeps
+ * tool behavior aligned with the host the run is actually on.
  *
  * @category constants
  * @since 0.1.0
  */
 export const inheritedEnvironmentNames: ReadonlyArray<string> = Object.freeze([
   "APPDATA",
+  "CI",
   "COMSPEC",
   "HOME",
   "LOCALAPPDATA",
