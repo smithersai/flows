@@ -71,35 +71,50 @@ export const rederive = <S>(
       const journal = yield* Journal.Journal
       const cache = yield* CacheStore.CacheStore
       let after: Seq | undefined
-      let state = projection.initial
-      let foundLineage = false
-      do {
+      /**
+       * The prefix is normalized before the fold: one record per coordinate,
+       * ordered by seq. A journal implementation may hand back duplicate or
+       * out-of-order pages — the durable projection is a function of the run's
+       * records, never of how a reader happened to page them.
+       */
+      const prefix = new Map<number, Entry>()
+      while (true) {
         const page = yield* journal.entries({
           runId: options.runId as RunId,
           ...(after === undefined ? {} : { after }),
           limit: options.pageSize ?? 100
         }).pipe(Effect.mapError((cause) => error("unknown", "could not read journal", cause)))
+        let pageTail: Seq | undefined
         for (const entry of page.entries) {
+          if (pageTail === undefined || entry.seq > pageTail) pageTail = entry.seq
           if (entry.seq > frame.seq) continue
-          const lineageId = Option.getOrUndefined(
-            Schema.decodeUnknownOption(LineageMetadata)(entry.meta)
-          )?.lineageId
-          if (lineageId !== undefined && lineageId !== frame.lineageId) continue
-          if (lineageId === frame.lineageId) foundLineage = true
-          const cacheKey = Option.getOrUndefined(
-            Schema.decodeUnknownOption(CacheMetadata)(entry.meta)
-          )?.cacheKey
-          const sealed = cacheKey === undefined
-            ? undefined
-            : yield* cache.get(cacheKey).pipe(
-              Effect.mapError((cause) => error("unknown", "could not read sealed result", cause)),
-              Effect.map((entry) => entry._tag === "Some" ? entry.value.result : undefined)
-            )
-          state = projection.reduce(state, entry, sealed)
+          if (!prefix.has(entry.seq)) prefix.set(entry.seq, entry)
         }
-        after = page.entries.at(-1)?.seq
-        if (!page.hasMore) break
-      } while (after !== undefined)
+        if (!page.hasMore || pageTail === undefined) break
+        after = pageTail
+      }
+      let state = projection.initial
+      let foundLineage = false
+      for (const entry of [...prefix.values()].sort((left, right) => left.seq - right.seq)) {
+        const lineageId = Option.getOrUndefined(
+          Schema.decodeUnknownOption(LineageMetadata)(entry.meta)
+        )?.lineageId
+        if (lineageId !== undefined && lineageId !== frame.lineageId) continue
+        if (lineageId === frame.lineageId) foundLineage = true
+        const cacheKey = Option.getOrUndefined(
+          Schema.decodeUnknownOption(CacheMetadata)(entry.meta)
+        )?.cacheKey
+        // The provenance fence keeps the projection durable: the version this
+        // exact record landed answers first, and only an entry recorded
+        // elsewhere falls back to the shared content-addressed head.
+        const sealed = cacheKey === undefined
+          ? undefined
+          : yield* cache.get(cacheKey, { recordedBy: { runId: options.runId, eventSeq: entry.seq } }).pipe(
+            Effect.mapError((cause) => error("unknown", "could not read sealed result", cause)),
+            Effect.map((cached) => cached._tag === "Some" ? cached.value.result : undefined)
+          )
+        state = projection.reduce(state, entry, sealed)
+      }
       if (!foundLineage) {
         return yield* Effect.fail(error("not_found", `lineage ${frame.lineageId} is not present in ${options.runId}`))
       }
