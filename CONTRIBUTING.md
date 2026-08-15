@@ -16,6 +16,16 @@ pnpm exec vocs build
 
 Packages under `packages/` follow the structure and conventions in the Effect repository. Use `reference/effect` as the local reference when adding or changing package modules, public APIs, tests, build configuration, or package metadata.
 
+## Working with the vendored jj submodule
+
+The Rust crates under `crates/` build against `jj-lib` from the `vendor/jj` git submodule. A plain `git clone` leaves that directory empty and `cargo` then fails with a missing `vendor/jj/lib/Cargo.toml`. Populate it once after cloning:
+
+```sh
+git submodule update --init
+```
+
+Run the same command after any pull that moves the submodule pointer. Only the Rust and WebAssembly work reads `vendor/jj`; the TypeScript gates do not.
+
 ## JSDoc convention
 
 `pnpm run lint` enforces this. The rules live in [`eslint.jsdoc.js`](eslint.jsdoc.js), which every package's `eslint.config.js` spreads in.

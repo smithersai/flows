@@ -74,7 +74,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      # jj-lib is a git submodule at vendor/jj; the crates in crates/ build
+      # against it, so the checkout has to bring it down or the job dies on a
+      # missing vendor/jj/lib/Cargo.toml.
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: Install pinned Rust toolchain
         run: rustup toolchain install
       # Registry state and compiled dependencies, keyed on Cargo.lock. The
@@ -98,7 +103,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      # Same reason as the rust job: the wasm rebuild compiles jj-lib from the
+      # vendor/jj submodule.
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: actions/setup-node@v4
         with:
           node-version: 22.19.0
