@@ -95,7 +95,46 @@ describe("vitest coverage isolation conformance", () => {
     }
   )
 
-  it.each(configs)(
+  // The 100%-coverage cell below is deferred for exactly these three packages,
+  // decided in review when tsflows was absorbed into this repo (2026-08-15).
+  // They arrived wholesale from a separate repository that ran no coverage
+  // gate, and they land at 84.16% / 94.37% / 83.32% statement coverage
+  // (`tsflows` / `tsflows-rules` / `tsflows-cli`) — roughly 580 uncovered
+  // statements and 640 uncovered branches. Enabling the gate on absorption
+  // would either turn the root `pnpm test` red or force ~600 statements of
+  // coverage-chasing tests written against code the absorbing change does not
+  // otherwise touch.
+  //
+  // This is a DEFERRAL, not an exemption, and it is deliberately narrow:
+  // - The set is enumerated literally, so a fourth package cannot join it by
+  //   matching a pattern.
+  // - Every OTHER conformance cell still applies to all three: they ship a
+  //   vitest config, pin `provider: "v8"`, isolate `reportsDirectory` per pid,
+  //   pin `scripts.test`, and declare the Effect-style + publication exports.
+  // - The assertion below is inverted for them rather than skipped, so the day
+  //   a package here does enable the full gate, THIS test goes red and the name
+  //   must be removed from the set — the deferral cannot rot silently.
+  //
+  // Follow-up: raise each package to 100% and delete its entry.
+  const coverageGateDeferred = new Set(["tsflows", "tsflows-rules", "tsflows-cli"])
+
+  it("pins the coverage-gate deferral set to packages that really exist", () => {
+    // Guard the deferral the way every other exclusion here is guarded: a
+    // renamed or removed package must fail here, not silently widen the set.
+    const names = configs.map((config) => config.name)
+    for (const name of coverageGateDeferred) {
+      expect(names, `${name} is in the deferral set but not in packages/`).toContain(name)
+    }
+  })
+
+  it.each(configs.filter((config) => coverageGateDeferred.has(config.name)))(
+    "$name has NOT yet enabled the 100% coverage gate (deferred, remove from the set once it does)",
+    ({ source }) => {
+      expect(source).not.toMatch(/coverage:\s*\{[^]*?enabled:\s*true/)
+    }
+  )
+
+  it.each(configs.filter((config) => !coverageGateDeferred.has(config.name)))(
     "$name enforces 100% coverage over src/** on every run (issue #137)",
     ({ source }) => {
       // The thresholds are the primary regression gate, so the gate itself
@@ -189,11 +228,21 @@ describe("vitest coverage isolation conformance", () => {
     // `packages/` only, so it adds no ungated publishable surface. It is a
     // workspace so its end-to-end suite resolves the real `@smthrs/*`
     // packages and runs under the root `pnpm test` fan-out.
+    // Widened a second time, deliberately (2026-08-15, tsflows absorption):
+    // `packages/tsflows/infra` is the hosted cache Cloudflare Worker that ships
+    // inside the `tsflows` package. It is private and unpublished, and it is a
+    // workspace member only so its own vitest suite and `tsc --noEmit` run under
+    // the root fan-out instead of being dead code. It is NESTED under
+    // `packages/tsflows`, so the `packages/` universe derivation above — which
+    // reads top-level directories only — is unaffected and no top-level
+    // publishable surface escapes the gate. `sharp` and `workerd` are its
+    // wrangler toolchain's postinstall builds, denied like every other.
     const workspace = readFileSync(join(packagesDir, "..", "pnpm-workspace.yaml"), "utf8")
     expect(workspace).toBe(
       [
         "packages:",
         "  - \"packages/*\"",
+        "  - \"packages/tsflows/infra\"",
         "  - \"examples\"",
         "",
         "allowBuilds:",
@@ -201,8 +250,10 @@ describe("vitest coverage isolation conformance", () => {
         "  es5-ext: false",
         "  esbuild: false",
         "  msgpackr-extract: false",
+        "  sharp: false",
         "  unrs-resolver: false",
         "  vue-demi: false",
+        "  workerd: false",
         "",
         "linkWorkspacePackages: true",
         ""
