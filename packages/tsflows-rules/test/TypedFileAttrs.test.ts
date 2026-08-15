@@ -30,6 +30,7 @@ describe("PnpmWorkspace typed file attrs", () => {
     expect(metadata.inputs).toHaveLength(3)
     expect(metadata.inputs.map((input) => input._tag === "File" ? Input.resolvePath("", input.path) : input._tag))
       .toEqual(["pnpm-lock.yaml", "pnpm-workspace.yaml", "package.json"])
+    expect(metadata.cacheable).toBe(false)
   })
 
   it("rejects bare strings for every file attr", () => {

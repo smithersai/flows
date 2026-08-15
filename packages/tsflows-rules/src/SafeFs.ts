@@ -28,6 +28,7 @@ import { createHash } from "node:crypto"
 import * as NodeFs from "node:fs"
 import * as Fs from "node:fs/promises"
 import * as NodePath from "node:path"
+import * as NodeUtil from "node:util/types"
 
 /**
  * The size of the reusable buffer content streams through.
@@ -175,13 +176,31 @@ export const defaultIo: Io = {
  * @category guards
  * @since 0.1.0
  */
-export const errorCode = (cause: unknown): string | undefined =>
-  typeof cause === "object" && cause !== null && "code" in cause
-    ? String((cause as { readonly code: unknown }).code)
-    : undefined
+export const errorCode = (cause: unknown): string | undefined => {
+  if (typeof cause !== "object" || cause === null || NodeUtil.isProxy(cause)) return undefined
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(cause, "code")
+    return descriptor !== undefined && "value" in descriptor && typeof descriptor.value === "string"
+      ? descriptor.value
+      : undefined
+  } catch {
+    return undefined
+  }
+}
 
-const failureMessage = (cause: unknown): string =>
-  cause instanceof Error && cause.message !== "" ? cause.message : String(cause)
+const failureMessage = (cause: unknown): string => {
+  if (typeof cause === "string") return cause === "" ? "unknown failure" : cause
+  if (typeof cause !== "object" || cause === null || NodeUtil.isProxy(cause)) return "unknown failure"
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(cause, "message")
+    return descriptor !== undefined && "value" in descriptor && typeof descriptor.value === "string" &&
+        descriptor.value !== ""
+      ? descriptor.value
+      : "unknown failure"
+  } catch {
+    return "unknown failure"
+  }
+}
 
 /** Reports whether the entry named by a path is simply not there. */
 const absent = (cause: unknown): boolean => {
@@ -432,7 +451,9 @@ export const listDirectory = async (
   const limit = options.directoryEntries ?? maximumDirectoryEntries
   if (!Number.isSafeInteger(limit) || limit < 0 || limit > maximumDirectoryEntries) {
     throw new TypeError(
-      `directory entry limit must be an integer from 0 to ${maximumDirectoryEntries}, received ${String(limit)}`
+      `directory entry limit must be an integer from 0 to ${maximumDirectoryEntries}, received ${
+        typeof limit === "number" ? String(limit) : typeof limit
+      }`
     )
   }
   const current = await resolveDirectory(path, options)
@@ -533,7 +554,9 @@ const stable = (before: Stats, after: Stats, total: bigint): boolean =>
 const checkedRead = async (handle: OpenFile, buffer: Uint8Array, what: string): Promise<number> => {
   const bytesRead = await handle.read(buffer)
   if (!Number.isInteger(bytesRead) || bytesRead < 0 || bytesRead > buffer.byteLength) {
-    throw new Error(`${what} returned an invalid read length: ${String(bytesRead)}`)
+    throw new Error(
+      `${what} returned an invalid read length: ${typeof bytesRead === "number" ? String(bytesRead) : typeof bytesRead}`
+    )
   }
   return bytesRead
 }
@@ -558,7 +581,11 @@ export const digestFile = async (
     maximumBytes !== undefined &&
     (!Number.isSafeInteger(maximumBytes) || maximumBytes < 0)
   ) {
-    throw new TypeError(`digest byte limit must be a non-negative safe integer, received ${String(maximumBytes)}`)
+    throw new TypeError(
+      `digest byte limit must be a non-negative safe integer, received ${
+        typeof maximumBytes === "number" ? String(maximumBytes) : typeof maximumBytes
+      }`
+    )
   }
   const entry = await resolveFile(path, options)
   if (entry === undefined) return undefined
@@ -609,7 +636,11 @@ export const readText = async (
   const limit = options.limit ?? defaultTextBytes
   const what = options.what ?? "file"
   if (!Number.isSafeInteger(limit) || limit < 0 || limit > maximumTextBytes) {
-    throw new TypeError(`text read limit must be an integer from 0 to ${maximumTextBytes}, received ${String(limit)}`)
+    throw new TypeError(
+      `text read limit must be an integer from 0 to ${maximumTextBytes}, received ${
+        typeof limit === "number" ? String(limit) : typeof limit
+      }`
+    )
   }
   const entry = await resolveFile(path, options)
   if (entry === undefined) return undefined

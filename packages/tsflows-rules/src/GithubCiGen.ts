@@ -9,7 +9,14 @@ import * as Effect from "effect/Effect"
 import type * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import * as NodePath from "node:path"
-import { DriftError, driftError, generateFile, resolveOutputPath, WriteFileError } from "./GeneratedFile.ts"
+import {
+  DriftError,
+  driftError,
+  failureMessage,
+  generateFile,
+  resolveOutputPath,
+  WriteFileError
+} from "./GeneratedFile.ts"
 import * as GithubWorkflow from "./GithubWorkflow.ts"
 import * as Input from "./Input.ts"
 import * as RemoteCache from "./RemoteCache.ts"
@@ -257,7 +264,7 @@ export const CheckWorkflowLive = (options: {
   CheckWorkflow.toLayer((payload) =>
     Effect.tryPromise({
       try: (signal) => readWorkflowSource(options.workspaceRoot, payload.path, signal),
-      catch: (cause) => driftError(payload.path, cause instanceof Error ? cause.message : String(cause))
+      catch: (cause) => driftError(payload.path, failureMessage(cause))
     }).pipe(
       Effect.flatMap((source) =>
         Effect.try({
@@ -265,7 +272,7 @@ export const CheckWorkflowLive = (options: {
           catch: (cause) =>
             driftError(
               payload.path,
-              `the workflow could not be parsed: ${cause instanceof Error ? cause.message : String(cause)}`
+              `the workflow could not be parsed: ${failureMessage(cause)}`
             )
         })
       ),
@@ -301,8 +308,9 @@ export const Attrs = Schema.Struct({
   ),
   pattern: Schema.NonEmptyString.pipe(Schema.withConstructorDefault(Effect.succeed("//..."))),
   /**
-   * The verbs the generated tsflows step runs. Restricted to
-   * {@link executableKinds}, the kinds the CLI actually exposes as a command.
+   * The pipeline-safe verbs the generated tsflows step runs. Restricted to
+   * {@link pipelineKinds}; `run` targets are deliberately manual because they
+   * may be long-lived or mutate the source tree.
    */
   kinds: Schema.Array(Rule.Kind).pipe(
     Schema.withConstructorDefault(
@@ -521,16 +529,15 @@ const renderStep = (step: Step, indent: string): ReadonlyArray<string> => {
 const ciKinds: ReadonlySet<Rule.Kind> = new Set(["build", "test", "lint"])
 
 /**
- * The kinds the CLI exposes as a verb over a pattern, and therefore the only
- * ones the generated step can run. `Rule.Kind` also carries `run`, which has
- * no `tsflows run` command: rendering it would emit a step that fails with
- * `COMMAND_NOT_FOUND` on every push, which is a red pipeline the generator can
- * see coming at plan time.
+ * The kinds safe for an unattended generated pipeline. The CLI also exposes
+ * `run`, but run targets include development servers and source-tree
+ * scaffolds; generated CI must not start or mutate one merely because it is
+ * addressable.
  *
  * @category constants
  * @since 0.1.0
  */
-export const executableKinds: ReadonlyArray<Rule.Kind> = ["build", "test", "lint", "docs"]
+export const pipelineKinds: ReadonlyArray<Rule.Kind> = ["build", "test", "lint", "docs"]
 
 /**
  * One package-path or target-name component of a target pattern.
@@ -732,12 +739,12 @@ export const render = (attrs: Attrs): string => {
   if (attrs.kinds.length === 0) {
     throw new Error("GithubCiGen: write mode needs at least one kind for the generated tsflows step")
   }
-  const unrunnable = [...new Set(attrs.kinds)].filter((kind) => !executableKinds.includes(kind))
-  if (unrunnable.length > 0) {
+  const unsafeKinds = [...new Set(attrs.kinds)].filter((kind) => !pipelineKinds.includes(kind))
+  if (unsafeKinds.length > 0) {
     throw new Error(
-      `GithubCiGen: no tsflows command runs the kind ${unrunnable.map((kind) => JSON.stringify(kind)).join(", ")}; ${
-        executableKinds.join(", ")
-      } are the verbs the generated step can use`
+      `GithubCiGen: generated workflows do not admit the kind ${
+        unsafeKinds.map((kind) => JSON.stringify(kind)).join(", ")
+      }; ${pipelineKinds.join(", ")} are the pipeline-safe verbs`
     )
   }
   validateJobs(attrs)
@@ -841,7 +848,7 @@ export const render = (attrs: Attrs): string => {
  * workflow re-keys the target. The first rendered job receives one
  * `<exec> tsflows ci <pattern>` step when `kinds` is exactly build, test, and
  * lint. Every other set receives one `<exec> tsflows <verb> <pattern>` step
- * per kind, for the kinds in {@link executableKinds}. `<exec>` is the
+ * per kind, for the kinds in {@link pipelineKinds}. `<exec>` is the
  * workspace-binary runner of the declared install
  * ({@link GithubWorkflow.workspaceExecCommands}), so the CLI that runs is the
  * one the lockfile pinned, never a fetched one.

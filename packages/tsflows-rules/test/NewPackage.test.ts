@@ -3,6 +3,7 @@ import * as Fs from "node:fs/promises"
 import * as Os from "node:os"
 import * as NodePath from "node:path"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { writeGeneratedFile } from "../src/GeneratedFile.ts"
 import { boilerplate, scaffold, type ScaffoldPayload, type ScaffoldReport } from "../src/NewPackage.ts"
 import * as PackageJsonTemplate from "../src/PackageJsonTemplate.ts"
 
@@ -36,6 +37,10 @@ const run = (packageName?: string): Promise<ScaffoldReport> =>
 
 const failure = (packageName?: string): Promise<{ readonly message: string }> =>
   Effect.runPromise(Effect.flip(scaffold({ workspaceRoot: root, packageName }, payload)))
+
+const temporaryEntries = async (): Promise<ReadonlyArray<string>> =>
+  (await Fs.readdir(NodePath.join(root, "packages")))
+    .filter((entry) => entry.startsWith(".tsflows-scaffold-"))
 
 describe("scaffold", () => {
   it("creates a package a default rule can pick up, with no BUILD.ts", async () => {
@@ -78,6 +83,12 @@ describe("scaffold", () => {
     expect(tsconfig.extends).toBe("../../tsconfig.json")
   })
 
+  it("always generates a valid non-reserved JavaScript binding", () => {
+    expect(boilerplate("123", payload)[2]?.[1]).toContain("export const package123")
+    expect(boilerplate("default", payload)[2]?.[1]).toContain("export const packageDefault")
+    expect(boilerplate("eval", payload)[2]?.[1]).toContain("export const packageEval")
+  })
+
   it("names the flag when no package name was supplied", async () => {
     expect((await failure()).message).toContain("--name <package-name>")
     expect((await failure("")).message).toContain("--name <package-name>")
@@ -87,6 +98,91 @@ describe("scaffold", () => {
     expect((await failure("Widget")).message).toContain("lowercase")
     await run("@smthrs/widget")
     expect((await failure("@smthrs/widget")).message).toContain("already exists")
+  })
+
+  it("publishes no partial package when a generated-file write fails", async () => {
+    let writes = 0
+    const result = await Effect.runPromise(Effect.flip(scaffold({
+      workspaceRoot: root,
+      packageName: "@smthrs/widget",
+      io: {
+        writeFile: async (workspaceRoot, file, signal) => {
+          writes += 1
+          if (writes === 3) throw new Error("injected ENOSPC")
+          await Effect.runPromise(writeGeneratedFile(workspaceRoot, file), { signal })
+        }
+      }
+    }, payload)))
+
+    expect(result.message).toContain("injected ENOSPC")
+    await expect(Fs.lstat(NodePath.join(root, "packages/widget"))).rejects.toMatchObject({ code: "ENOENT" })
+    expect(await temporaryEntries()).toEqual([])
+  })
+
+  it("publishes no partial package when the final rename fails", async () => {
+    const result = await Effect.runPromise(Effect.flip(scaffold({
+      workspaceRoot: root,
+      packageName: "@smthrs/widget",
+      io: { rename: () => Promise.reject(new Error("injected rename failure")) }
+    }, payload)))
+
+    expect(result.message).toContain("injected rename failure")
+    await expect(Fs.lstat(NodePath.join(root, "packages/widget"))).rejects.toMatchObject({ code: "ENOENT" })
+    expect(await temporaryEntries()).toEqual([])
+  })
+
+  it("reports both the primary failure and a failed temporary cleanup", async () => {
+    const result = await Effect.runPromise(Effect.flip(scaffold({
+      workspaceRoot: root,
+      packageName: "@smthrs/widget",
+      io: {
+        writeFile: () => Promise.reject(new Error("injected write failure")),
+        remove: () => Promise.reject(new Error("injected cleanup failure"))
+      }
+    }, payload)))
+
+    expect(result.message).toContain("injected write failure")
+    expect(result.message).toContain("injected cleanup failure")
+    await expect(Fs.lstat(NodePath.join(root, "packages/widget"))).rejects.toMatchObject({ code: "ENOENT" })
+    expect(await temporaryEntries()).toHaveLength(1)
+  })
+
+  it("allocates no temporary before injected I/O setup succeeds", async () => {
+    const io = Object.defineProperty({}, "writeFile", {
+      get: () => {
+        throw new Error("injected I/O accessor failure")
+      }
+    })
+    const result = await Effect.runPromise(Effect.flip(scaffold({
+      workspaceRoot: root,
+      packageName: "@smthrs/widget",
+      io: io as never
+    }, payload)))
+
+    expect(result.message).toContain("injected I/O accessor failure")
+    expect(await temporaryEntries()).toEqual([])
+  })
+
+  it("allows only one concurrent publication of the same package", async () => {
+    const results = await Promise.allSettled([run("@smthrs/widget"), run("@smthrs/widget")])
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1)
+    expect(results.filter((result) => result.status === "rejected")).toHaveLength(1)
+    expect((await Fs.readdir(NodePath.join(root, "packages/widget"))).sort()).toEqual([
+      "README.md",
+      "package.json",
+      "src",
+      "test",
+      "tsconfig.json"
+    ])
+    expect(await temporaryEntries()).toEqual([])
+  })
+
+  it("refuses a linked scaffold parent", async () => {
+    await Fs.mkdir(NodePath.join(root, "real-packages"))
+    await Fs.symlink("real-packages", NodePath.join(root, "packages"), "dir")
+
+    expect((await failure("@smthrs/widget")).message).toContain("not a real directory")
+    expect(await Fs.readdir(NodePath.join(root, "real-packages"))).toEqual([])
   })
 
   it("renders the same tree every time, with no model in reach", () => {

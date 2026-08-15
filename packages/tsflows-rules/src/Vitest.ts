@@ -1,5 +1,5 @@
 /**
- * Cacheable Vitest runs.
+ * Non-watch Vitest runs.
  *
  * @since 0.1.0
  */

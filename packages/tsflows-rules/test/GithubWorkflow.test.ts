@@ -8,9 +8,9 @@ import { tmpdir } from "node:os"
 import * as NodePath from "node:path"
 import { describe, expect, it } from "vitest"
 import {
-  executableKinds,
   GithubCiGen,
   missingRequiredJobs,
+  pipelineKinds,
   readWorkflowSource,
   render,
   workflowSourceByteLimit
@@ -1487,11 +1487,11 @@ describe("render", () => {
     expect(() => render(attrs)).toThrow(/at least one kind/)
   })
 
-  it("refuses a kind the CLI has no command for", () => {
-    // `run` is a `Rule.Kind` but not a `tsflows` command, so the step it would
-    // render fails with COMMAND_NOT_FOUND on every push.
+  it("refuses the manual run kind in an unattended pipeline", () => {
+    // `run` targets include watchers, development servers, and source-tree
+    // scaffolds. The CLI exposes them for explicit use, not for generated CI.
     const attrs = GithubCiGen({ ...goldenAttrs, kinds: ["build", "run"] })[Rule.TargetTypeId].attrs as never
-    expect(() => render(attrs)).toThrow(/no tsflows command runs the kind "run"/)
+    expect(() => render(attrs)).toThrow(/generated workflows do not admit the kind "run"/)
   })
 
   /**
@@ -1503,12 +1503,12 @@ describe("render", () => {
     const cli = await Fs.readFile(NodePath.resolve(import.meta.dirname, "../../tsflows-cli/src/Cli.ts"), "utf8")
     const commands = new Set([...cli.matchAll(/\.command\("([\w-]+)"/g)].map((match) => match[1]!))
     expect(commands.size).toBeGreaterThan(0)
-    expect(executableKinds.filter((kind) => !commands.has(kind))).toEqual([])
+    expect(pipelineKinds.filter((kind) => !commands.has(kind))).toEqual([])
     // The compact form of the default kind set.
     expect(commands.has("ci")).toBe(true)
 
     const emitted = new Set<string>()
-    for (const kind of executableKinds) {
+    for (const kind of pipelineKinds) {
       const rendered = render(
         GithubCiGen({ ...goldenAttrs, kinds: [kind], gates: [] })[Rule.TargetTypeId].attrs as never
       )

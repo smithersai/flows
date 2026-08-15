@@ -15,12 +15,16 @@ import type * as Node from "@smthrs/plan-next/Node"
 import * as Effect from "effect/Effect"
 import type * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
+import { randomUUID } from "node:crypto"
+import type * as NodeFs from "node:fs"
 import * as Fs from "node:fs/promises"
 import * as NodePath from "node:path"
-import { failureMessage, WriteFileError, writeGeneratedFile } from "./GeneratedFile.ts"
+import * as NodeUtil from "node:util/types"
+import { failureMessage, type FilePayload, WriteFileError, writeGeneratedFile } from "./GeneratedFile.ts"
 import * as Input from "./Input.ts"
 import { assertPackageName, License, merge, render } from "./PackageJson.ts"
 import * as Rule from "./Rule.ts"
+import * as SafeFs from "./SafeFs.ts"
 
 /**
  * Payload for one scaffold run.
@@ -87,6 +91,67 @@ export const ScaffoldPackage = Action.make("tsflows-rules/scaffold-package", {
 /** The directory name a scoped npm name maps to: `@scope/foo` becomes `foo`. */
 const directoryName = (name: string): string => name.startsWith("@") ? name.slice(name.indexOf("/") + 1) : name
 
+const reservedIdentifiers = new Set([
+  "arguments",
+  "await",
+  "break",
+  "case",
+  "catch",
+  "class",
+  "const",
+  "continue",
+  "debugger",
+  "default",
+  "delete",
+  "do",
+  "else",
+  "enum",
+  "eval",
+  "export",
+  "extends",
+  "false",
+  "finally",
+  "for",
+  "function",
+  "if",
+  "implements",
+  "import",
+  "in",
+  "instanceof",
+  "interface",
+  "let",
+  "new",
+  "null",
+  "package",
+  "private",
+  "protected",
+  "public",
+  "return",
+  "static",
+  "super",
+  "switch",
+  "this",
+  "throw",
+  "true",
+  "try",
+  "typeof",
+  "var",
+  "void",
+  "while",
+  "with",
+  "yield"
+])
+
+/** Maps an npm package component to a valid, non-reserved JavaScript identifier. */
+const sourceIdentifier = (name: string): string => {
+  const words = directoryName(name).split(/[^A-Za-z0-9]+/).filter((word) => word !== "")
+  const candidate = words.map((word, index) => index === 0 ? word : `${word[0]?.toUpperCase() ?? ""}${word.slice(1)}`)
+    .join("")
+  return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(candidate) && !reservedIdentifiers.has(candidate)
+    ? candidate
+    : `package${candidate === "" ? "Name" : `${candidate[0]?.toUpperCase() ?? ""}${candidate.slice(1)}`}`
+}
+
 /**
  * The static boilerplate a scaffolded package starts from.
  *
@@ -111,7 +176,7 @@ export const boilerplate = (
     exports: { "./package.json": "./package.json", ".": "./src/index.ts" },
     files: ["src/**/*.ts", "README.md"]
   })
-  const identifier = directoryName(name).replace(/[^A-Za-z0-9]+(.)/g, (_, character: string) => character.toUpperCase())
+  const identifier = sourceIdentifier(name)
   return [
     ["package.json", render(manifest)],
     [
@@ -155,6 +220,83 @@ export interface ScaffoldOptions {
   readonly workspaceRoot: string
   /** The name supplied by `tsflows run --name`, absent when the flag was not given. */
   readonly packageName?: string | undefined
+  /** Fault-injection seams used by publication tests. */
+  readonly io?: ScaffoldIo | undefined
+}
+
+/**
+ * Filesystem seams for atomic package publication tests.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface ScaffoldIo {
+  readonly writeFile?: (root: string, payload: FilePayload, signal: AbortSignal) => Promise<void>
+  readonly rename?: (from: string, to: string) => Promise<void>
+  readonly remove?: (path: string) => Promise<void>
+}
+
+const directorySyncUnsupported = new Set(["ENOTSUP", "EOPNOTSUPP", "EINVAL", "ENOSYS"])
+
+/** Flushes one directory entry where the host exposes a portable descriptor. */
+const syncDirectory = async (path: string): Promise<void> => {
+  if (process.platform === "win32") return
+  const handle = await Fs.open(path, "r")
+  let primary: unknown
+  try {
+    await handle.sync()
+  } catch (cause) {
+    if (!directorySyncUnsupported.has(SafeFs.errorCode(cause) ?? "")) primary = cause
+  }
+  try {
+    await handle.close()
+  } catch (cause) {
+    primary ??= cause
+  }
+  if (primary !== undefined) throw primary
+}
+
+/** Creates a workspace directory one component at a time without following links. */
+const ensureDirectory = async (root: string, relative: string): Promise<string> => {
+  let current = root
+  for (const segment of relative === "." ? [] : relative.split("/")) {
+    const parent = current
+    const candidate = NodePath.join(parent, segment)
+    let stats: NodeFs.Stats
+    let created = false
+    try {
+      stats = await Fs.lstat(candidate)
+    } catch (cause) {
+      if (SafeFs.errorCode(cause) !== "ENOENT") throw cause
+      try {
+        await Fs.mkdir(candidate)
+        created = true
+      } catch (mkdirCause) {
+        if (SafeFs.errorCode(mkdirCause) !== "EEXIST") throw mkdirCause
+      }
+      if (created) await syncDirectory(parent)
+      stats = await Fs.lstat(candidate)
+    }
+    if (stats.isSymbolicLink() || !stats.isDirectory()) {
+      throw new Error(`package scaffold parent is not a real directory: ${candidate}`)
+    }
+    const canonical = await Fs.realpath(candidate)
+    if (!SafeFs.inside(root, canonical)) {
+      throw new Error(`package scaffold parent leaves the workspace: ${candidate}`)
+    }
+    current = canonical
+  }
+  return current
+}
+
+const absent = async (path: string): Promise<boolean> => {
+  try {
+    await Fs.lstat(path)
+    return false
+  } catch (cause) {
+    if (SafeFs.errorCode(cause) === "ENOENT") return true
+    throw cause
+  }
 }
 
 /**
@@ -172,37 +314,75 @@ export const scaffold = (
   options: ScaffoldOptions,
   payload: ScaffoldPayload
 ): Effect.Effect<ScaffoldReport, WriteFileError> =>
-  Effect.gen(function*() {
-    const directory = Input.resolvePath("", payload.directory)
-    if (options.packageName === undefined || options.packageName === "") {
-      return yield* Effect.fail(
-        new WriteFileError({
-          path: directory,
-          message: "no package name was supplied; run `tsflows run //:newPackage --name <package-name>`"
-        })
-      )
+  Effect.tryPromise({
+    try: async (signal): Promise<ScaffoldReport> => {
+      const directory = Input.resolvePath("", payload.directory)
+      const packageName = options.packageName
+      if (packageName === undefined || packageName === "") {
+        throw new Error("no package name was supplied; run `tsflows run //:newPackage --name <package-name>`")
+      }
+      const name = assertPackageName(packageName)
+      const created = directory === "." ? directoryName(name) : `${directory}/${directoryName(name)}`
+      const root = await SafeFs.canonicalRoot(options.workspaceRoot)
+      const parent = await ensureDirectory(root, directory)
+      const destination = NodePath.join(parent, directoryName(name))
+      if (!await absent(destination)) throw new Error(`${created} already exists; scaffolding never overwrites`)
+
+      const io = options.io
+      const write = io?.writeFile ?? ((workspaceRoot, file, childSignal) =>
+        Effect.runPromise(writeGeneratedFile(workspaceRoot, file), { signal: childSignal }))
+      const rename = io?.rename ?? Fs.rename
+      const remove = io?.remove ?? ((path) => Fs.rm(path, { recursive: true, force: true }))
+      const temporary = NodePath.join(parent, `.tsflows-scaffold-${randomUUID()}.tmp`)
+      const temporaryRelative = NodePath.relative(root, temporary).split(NodePath.sep).join("/")
+      const files: Array<string> = []
+      let temporaryCreated = false
+      let published = false
+      let primary: unknown
+      try {
+        await Fs.mkdir(temporary)
+        temporaryCreated = true
+        for (const [relative, contents] of boilerplate(name, payload)) {
+          signal.throwIfAborted()
+          await write(root, { path: `${temporaryRelative}/${relative}`, contents }, signal)
+          files.push(`${created}/${relative}`)
+        }
+        await syncDirectory(temporary)
+        if (!await absent(destination)) throw new Error(`${created} already exists; scaffolding never overwrites`)
+        await rename(temporary, destination)
+        published = true
+        await syncDirectory(parent)
+      } catch (cause) {
+        primary = cause
+      }
+      if (temporaryCreated && !published) {
+        try {
+          await remove(temporary)
+        } catch (cause) {
+          primary = primary === undefined
+            ? cause
+            : new Error(
+              `package scaffold failed: ${failureMessage(primary)}; ` +
+                `temporary directory cleanup also failed: ${failureMessage(cause)}`,
+              { cause: new AggregateError([primary, cause]) }
+            )
+        }
+      }
+      if (primary !== undefined) throw primary
+      return { directory: created, files }
+    },
+    catch: (cause) => {
+      let directory = "package"
+      if (!NodeUtil.isProxy(payload)) {
+        const descriptor = Object.getOwnPropertyDescriptor(payload, "directory")
+        if (descriptor !== undefined && "value" in descriptor && typeof descriptor.value === "string") {
+          directory = descriptor.value
+        }
+      }
+      return !NodeUtil.isProxy(cause) && cause instanceof WriteFileError
+        ? cause
+        : new WriteFileError({ path: directory, message: failureMessage(cause) })
     }
-    const name = yield* Effect.try({
-      try: () => assertPackageName(options.packageName!),
-      catch: (cause) => new WriteFileError({ path: directory, message: failureMessage(cause) })
-    })
-    const created = `${directory}/${directoryName(name)}`
-    const exists = yield* Effect.tryPromise({
-      try: () => Fs.stat(NodePath.resolve(options.workspaceRoot, created)).then(() => true, () => false),
-      catch: (cause) => new WriteFileError({ path: created, message: failureMessage(cause) })
-    })
-    if (exists) {
-      return yield* Effect.fail(
-        new WriteFileError({ path: created, message: `${created} already exists; scaffolding never overwrites` })
-      )
-    }
-    const files: Array<string> = []
-    for (const [relative, contents] of boilerplate(name, payload)) {
-      const path = `${created}/${relative}`
-      yield* writeGeneratedFile(options.workspaceRoot, { path, contents })
-      files.push(path)
-    }
-    return { directory: created, files }
   })
 
 /**

@@ -15,7 +15,10 @@ import * as Schema from "effect/Schema"
 import * as NodeChildProcess from "node:child_process"
 import * as NodeFs from "node:fs"
 import * as NodePath from "node:path"
+import * as NodeUtil from "node:util/types"
 import * as Config from "./Config.ts"
+import { failureMessage } from "./GeneratedFile.ts"
+import * as SafeFs from "./SafeFs.ts"
 
 /**
  * Placeholder resolved to the host cache directory immediately before spawn.
@@ -183,19 +186,101 @@ const execError = (options: Omit<ExecError, "_tag">): ExecError => ({
   ...options
 })
 
-const declaredDiagnostic = (value: unknown): { readonly argv: [string, ...Array<string>]; readonly cwd: string } => {
+const inspect = <A>(what: string, operation: () => A): A => {
   try {
-    if (typeof value !== "object" || value === null) throw new Error("not an object")
-    const candidate = value as { readonly argv?: unknown; readonly cwd?: unknown }
-    const argv =
-      Array.isArray(candidate.argv) && candidate.argv.length > 0 && candidate.argv.length <= maximumArgvEntries
-        ? candidate.argv.map((entry) => typeof entry === "string" ? head(entry, maximumTextBytes) : String(entry))
-        : ["<invalid exec payload>"]
-    const cwd = typeof candidate.cwd === "string" ? head(candidate.cwd, maximumTextBytes) : "<invalid exec cwd>"
-    return { argv: argv as [string, ...Array<string>], cwd }
+    return operation()
   } catch {
-    return { argv: ["<invalid exec payload>"], cwd: "<invalid exec cwd>" }
+    throw new TypeError(`${what} could not be inspected safely`)
   }
+}
+
+const plainRecord = (value: unknown, what: string): Record<PropertyKey, unknown> => {
+  if (typeof value !== "object" || value === null || Array.isArray(value) || NodeUtil.isProxy(value)) {
+    throw new TypeError(`${what} must be a plain object`)
+  }
+  const prototype = inspect(what, () => Object.getPrototypeOf(value))
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new TypeError(`${what} must be a plain object`)
+  }
+  return value as Record<PropertyKey, unknown>
+}
+
+const exactKeys = (value: Record<PropertyKey, unknown>, allowed: ReadonlySet<string>, what: string): void => {
+  const keys = inspect(what, () => Reflect.ownKeys(value))
+  for (const key of keys) {
+    if (typeof key !== "string" || !allowed.has(key)) {
+      throw new TypeError(`${what} contains an unknown property`)
+    }
+  }
+}
+
+const requiredDataMember = (value: Record<PropertyKey, unknown>, name: string, what: string): unknown => {
+  const descriptor = inspect(`${what}.${name}`, () => Object.getOwnPropertyDescriptor(value, name))
+  if (descriptor === undefined) throw new TypeError(`${what}.${name} is missing`)
+  if (!("value" in descriptor) || descriptor.enumerable !== true) {
+    throw new TypeError(`${what}.${name} must be an enumerable data property`)
+  }
+  return descriptor.value
+}
+
+const dataArray = (value: unknown, what: string, limit: number): Array<unknown> => {
+  if (!Array.isArray(value) || NodeUtil.isProxy(value) || Object.getPrototypeOf(value) !== Array.prototype) {
+    throw new TypeError(`${what} must be an array`)
+  }
+  if (value.length > limit) throw new TypeError(`${what} has more than ${limit} entries`)
+  const names = inspect(what, () => Object.getOwnPropertyNames(value))
+  if (
+    inspect(what, () => Object.getOwnPropertySymbols(value)).length !== 0 ||
+    names.length !== value.length + 1 ||
+    !names.includes("length")
+  ) {
+    throw new TypeError(`${what} must be a dense array without extra properties`)
+  }
+  const nameSet = new Set(names)
+  const output: Array<unknown> = []
+  for (let index = 0; index < value.length; index += 1) {
+    const name = String(index)
+    if (!nameSet.has(name)) throw new TypeError(`${what} must be a dense array without extra properties`)
+    const descriptor = inspect(`${what}[${name}]`, () => Object.getOwnPropertyDescriptor(value, name))
+    if (descriptor === undefined || !("value" in descriptor) || descriptor.enumerable !== true) {
+      throw new TypeError(`${what}[${name}] must be an enumerable data property`)
+    }
+    output.push(descriptor.value)
+  }
+  return output
+}
+
+const diagnosticMember = (value: unknown, name: string): unknown => {
+  if ((typeof value !== "object" && typeof value !== "function") || value === null || NodeUtil.isProxy(value)) {
+    return undefined
+  }
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(value, name)
+    return descriptor !== undefined && "value" in descriptor ? descriptor.value : undefined
+  } catch {
+    return undefined
+  }
+}
+
+const declaredDiagnostic = (value: unknown): { readonly argv: [string, ...Array<string>]; readonly cwd: string } => {
+  const candidateArgv = diagnosticMember(value, "argv")
+  let argv: [string, ...Array<string>] = ["<invalid exec payload>"]
+  if (
+    Array.isArray(candidateArgv) &&
+    !NodeUtil.isProxy(candidateArgv) &&
+    candidateArgv.length > 0 &&
+    candidateArgv.length <= maximumArgvEntries
+  ) {
+    const rendered: Array<string> = []
+    for (let index = 0; index < candidateArgv.length; index += 1) {
+      const entry = diagnosticMember(candidateArgv, String(index))
+      rendered.push(typeof entry === "string" ? head(entry, maximumTextBytes) : "<invalid exec argument>")
+    }
+    argv = rendered as [string, ...Array<string>]
+  }
+  const candidateCwd = diagnosticMember(value, "cwd")
+  const cwd = typeof candidateCwd === "string" ? head(candidateCwd, maximumTextBytes) : "<invalid exec cwd>"
+  return { argv, cwd }
 }
 
 /**
@@ -238,8 +323,6 @@ const keepTail = (text: string, limit: number): string => {
 
 const tail = (text: string): string => keepTail(text, stderrTailLimit)
 
-const failureMessage = (cause: unknown): string => cause instanceof Error ? cause.message : String(cause)
-
 /**
  * Host variables needed to find executables and satisfy operating-system process startup.
  *
@@ -269,7 +352,33 @@ const usableText = (value: string, what: string): string => {
 
 /** Re-decodes and applies aggregate limits at the child-process trust boundary. */
 const validatedPayload = (untrusted: Payload): Payload => {
-  const payload = Schema.decodeUnknownSync(Payload)(untrusted)
+  const record = plainRecord(untrusted, "exec payload")
+  const allowed = new Set(["after", "argv", "cwd", "env", "expectedExitCodes", "timeoutMs"])
+  exactKeys(record, allowed, "exec payload")
+  const environment = plainRecord(requiredDataMember(record, "env", "exec payload"), "exec environment")
+  const environmentEntries = inspect("exec environment", () => Reflect.ownKeys(environment))
+  if (environmentEntries.length > maximumEnvironmentEntries) {
+    throw new TypeError(`exec environment has more than ${maximumEnvironmentEntries} entries`)
+  }
+  const untrustedEnv = Object.create(null) as Record<string, unknown>
+  for (const name of environmentEntries) {
+    if (typeof name !== "string") throw new TypeError("exec environment contains a symbol property")
+    untrustedEnv[name] = requiredDataMember(environment, name, "exec environment")
+  }
+  const after = Object.getOwnPropertyDescriptor(record, "after")
+  const candidate = {
+    cwd: requiredDataMember(record, "cwd", "exec payload"),
+    argv: dataArray(requiredDataMember(record, "argv", "exec payload"), "exec argv", maximumArgvEntries),
+    env: untrustedEnv,
+    expectedExitCodes: dataArray(
+      requiredDataMember(record, "expectedExitCodes", "exec payload"),
+      "exec expected exit codes",
+      maximumExpectedExitCodes
+    ),
+    timeoutMs: requiredDataMember(record, "timeoutMs", "exec payload"),
+    ...(after === undefined ? {} : { after: requiredDataMember(record, "after", "exec payload") })
+  }
+  const payload = Schema.decodeUnknownSync(Payload)(candidate)
   usableText(payload.cwd, "exec cwd")
   let argvBytes = 0
   for (const [index, value] of payload.argv.entries()) {
@@ -374,7 +483,7 @@ const realpath = (absolute: string): string => {
     try {
       return NodePath.resolve(NodeFs.realpathSync(current), ...suffix)
     } catch (cause) {
-      const code = typeof cause === "object" && cause !== null && "code" in cause ? cause.code : undefined
+      const code = SafeFs.errorCode(cause)
       if (code !== "ENOENT" && code !== "ENOTDIR") throw cause
       const parent = NodePath.dirname(current)
       if (parent === current) throw cause

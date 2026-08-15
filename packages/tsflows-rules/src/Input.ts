@@ -796,12 +796,16 @@ export const digestFiles = async (
   const maximumFiles = options.maximumFiles ?? maximumDigestFiles
   if (!Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > defaultDigestConcurrency) {
     throw new TypeError(
-      `digest concurrency must be an integer from 1 to ${defaultDigestConcurrency}, received ${String(concurrency)}`
+      `digest concurrency must be an integer from 1 to ${defaultDigestConcurrency}, received ${
+        typeof concurrency === "number" ? String(concurrency) : typeof concurrency
+      }`
     )
   }
   if (!Number.isSafeInteger(maximumFiles) || maximumFiles < 0 || maximumFiles > maximumDigestFiles) {
     throw new TypeError(
-      `digest file limit must be an integer from 0 to ${maximumDigestFiles}, received ${String(maximumFiles)}`
+      `digest file limit must be an integer from 0 to ${maximumDigestFiles}, received ${
+        typeof maximumFiles === "number" ? String(maximumFiles) : typeof maximumFiles
+      }`
     )
   }
   if (paths.length > maximumFiles) {

@@ -13,9 +13,12 @@ import { createHash } from "node:crypto"
 import * as NodeFs from "node:fs"
 import * as Fs from "node:fs/promises"
 import * as NodePath from "node:path"
+import * as NodeUtil from "node:util/types"
 import * as Exec from "./Exec.ts"
+import { failureMessage } from "./GeneratedFile.ts"
 import * as Input from "./Input.ts"
 import * as Rule from "./Rule.ts"
+import * as SafeFs from "./SafeFs.ts"
 
 /**
  * Attributes for {@link ToolBuild}.
@@ -226,9 +229,6 @@ const inside = (root: string, candidate: string): boolean => {
   return relative === "" ||
     (relative !== ".." && !relative.startsWith(`..${NodePath.sep}`) && !NodePath.isAbsolute(relative))
 }
-
-const failureMessage = (cause: unknown): string =>
-  cause instanceof Error && cause.message !== "" ? cause.message : String(cause)
 
 /**
  * One open output file, reduced to the three operations capture performs on
@@ -750,7 +750,7 @@ export const measureOutput = async (
   try {
     stats = await io.lstat(absolute)
   } catch (cause) {
-    const code = typeof cause === "object" && cause !== null && "code" in cause ? cause.code : undefined
+    const code = SafeFs.errorCode(cause)
     throw new OutputError({
       path: declared,
       message: code === "ENOENT"
@@ -842,7 +842,7 @@ const dataRecord = (
   value: unknown,
   names: ReadonlyArray<string>
 ): Readonly<Record<string, unknown>> | undefined => {
-  if (typeof value !== "object" || value === null) return undefined
+  if (typeof value !== "object" || value === null || NodeUtil.isProxy(value)) return undefined
   const prototype = Object.getPrototypeOf(value)
   if (prototype !== Object.prototype && prototype !== null) return undefined
   const keys = Reflect.ownKeys(value)
@@ -859,7 +859,9 @@ const dataRecord = (
 }
 
 const denseArray = (value: unknown, expectedLength: number): ReadonlyArray<unknown> | undefined => {
-  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) return undefined
+  if (!Array.isArray(value) || NodeUtil.isProxy(value) || Object.getPrototypeOf(value) !== Array.prototype) {
+    return undefined
+  }
   const length = Object.getOwnPropertyDescriptor(value, "length")
   if (length === undefined || !("value" in length) || length.value !== expectedLength) return undefined
   const keys = Reflect.ownKeys(value)
@@ -1000,7 +1002,9 @@ export const CaptureOutputsLive = (options: {
           signal
         }),
       catch: (cause) =>
-        cause instanceof OutputError ? cause : new OutputError({ path: "", message: failureMessage(cause) })
+        !NodeUtil.isProxy(cause) && cause instanceof OutputError
+          ? cause
+          : new OutputError({ path: "", message: failureMessage(cause) })
     })
   )
 

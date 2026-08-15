@@ -19,6 +19,7 @@ import { randomUUID } from "node:crypto"
 import * as NodeFs from "node:fs"
 import * as Fs from "node:fs/promises"
 import * as NodePath from "node:path"
+import * as NodeUtil from "node:util/types"
 import * as Input from "./Input.ts"
 import * as SafeFs from "./SafeFs.ts"
 
@@ -123,15 +124,54 @@ export const CheckFile = Action.make("tsflows-rules/check-file", {
 })
 
 /**
- * Renders a failure cause as a non-empty message.
+ * Maximum code units one rendered failure may add to a diagnostic.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const maximumFailureMessageCodeUnits = 64 * 1024
+
+const boundedFailureText = (message: string): string => {
+  const wellFormed = message.isWellFormed() ? message : message.toWellFormed()
+  if (wellFormed === "") return "unknown failure"
+  return wellFormed.length <= maximumFailureMessageCodeUnits
+    ? wellFormed
+    : `${wellFormed.slice(0, maximumFailureMessageCodeUnits - 3)}...`
+}
+
+/**
+ * Renders a failure cause as a bounded non-empty message without invoking
+ * object getters, proxy traps, or user-defined string conversion.
  *
  * @category rendering
  * @since 0.1.0
  */
 export const failureMessage = (cause: unknown): string => {
-  const message = cause instanceof Error ? cause.message : String(cause)
-  return message === "" ? "unknown failure" : message
+  if (typeof cause === "string") return boundedFailureText(cause)
+  if (
+    typeof cause === "number" ||
+    typeof cause === "bigint" ||
+    typeof cause === "boolean" ||
+    typeof cause === "symbol"
+  ) return boundedFailureText(String(cause))
+  if ((typeof cause !== "object" && typeof cause !== "function") || cause === null || NodeUtil.isProxy(cause)) {
+    return "unknown failure"
+  }
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(cause, "message")
+    return descriptor !== undefined && "value" in descriptor && typeof descriptor.value === "string"
+      ? boundedFailureText(descriptor.value)
+      : "unknown failure"
+  } catch {
+    return "unknown failure"
+  }
 }
+
+const combinedFailure = (primary: unknown, secondary: unknown, secondaryLabel: string): Error =>
+  new Error(
+    `${failureMessage(primary)}; ${secondaryLabel}: ${failureMessage(secondary)}`,
+    { cause: new AggregateError([primary, secondary]) }
+  )
 
 /**
  * Normalizes a generated output into one workspace-relative path.
@@ -346,7 +386,7 @@ const writeFile = async (
   try {
     await temp.handle.close()
   } catch (cause) {
-    primary ??= cause
+    primary = primary === undefined ? cause : combinedFailure(primary, cause, "temporary file close also failed")
   }
   if (primary === undefined) {
     try {
@@ -362,7 +402,9 @@ const writeFile = async (
     try {
       await Fs.rm(temp.path, { force: true })
     } catch (cause) {
-      primary ??= cause
+      primary = primary === undefined
+        ? cause
+        : combinedFailure(primary, cause, "temporary file cleanup also failed")
     }
   }
   if (primary !== undefined) throw primary

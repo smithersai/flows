@@ -28,11 +28,26 @@ describe("RemoteCache.make", () => {
     expect(() => RemoteCache.make({ endpoint: "https://cache.example.test?token=secret" })).toThrow(/query/)
   })
 
+  it("bounds endpoint text before URL parsing", () => {
+    expect(() => RemoteCache.make({ endpoint: "https://cache.example.test\n" })).toThrow(/control characters/)
+    expect(() => RemoteCache.make({ endpoint: "https://cache.example.test/\ud800" })).toThrow(/well-formed/)
+    expect(() =>
+      RemoteCache.make({ endpoint: `https://cache.example.test/${"x".repeat(RemoteCache.maximumEndpointBytes)}` })
+    )
+      .toThrow(/bounded/)
+  })
+
   it("requires a valid non-reserved token environment variable name", () => {
     expect(() => RemoteCache.make({ endpoint: "https://cache.example.test", tokenEnv: "not valid" }))
       .toThrow(/environment variable name/)
     expect(() => RemoteCache.make({ endpoint: "https://cache.example.test", tokenEnv: "TSFLOWS_CACHE_URL" }))
       .toThrow(/must not be TSFLOWS_CACHE_URL/)
+    expect(() =>
+      RemoteCache.make({
+        endpoint: "https://cache.example.test",
+        tokenEnv: `A${"B".repeat(RemoteCache.maximumTokenEnvironmentLength)}`
+      })
+    ).toThrow(/bounded/)
   })
 
   it("rejects malformed option bags and hostile declarations without invoking accessors", () => {

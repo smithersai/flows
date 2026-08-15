@@ -83,6 +83,19 @@ describe("Config.normalizeCacheDirectory", () => {
     expect(() => Config.normalizeCacheDirectory("build/../../flows")).toThrow(/must not leave the workspace/)
   })
 
+  it("refuses control characters, ill-formed text, and oversized paths", () => {
+    expect(() => Config.normalizeCacheDirectory("cache\nelsewhere")).toThrow(/control characters/)
+    expect(() => Config.normalizeCacheDirectory("cache\0elsewhere")).toThrow(/control characters/)
+    expect(() => Config.normalizeCacheDirectory("cache\ud800")).toThrow(/well-formed text/)
+    expect(() => Config.normalizeCacheDirectory("x".repeat(Config.maximumCacheDirectoryBytes + 1)))
+      .toThrow(/at most/)
+    expect(() =>
+      Config.normalizeCacheDirectory(
+        `root/${"x".repeat(Config.maximumCacheDirectorySegmentBytes + 1)}`
+      )
+    ).toThrow(/segments must be at most/)
+  })
+
   it("refuses the same values through Workspace", () => {
     expect(() => Config.Workspace({ cacheDirectory: "" })).toThrow(/must not be empty/)
     expect(() => Config.Workspace({ cacheDirectory: "/abs" })).toThrow(/workspace-relative/)

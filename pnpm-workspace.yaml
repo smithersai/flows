@@ -8,7 +8,9 @@ allowBuilds:
   es5-ext: false
   esbuild: false
   msgpackr-extract: false
+  sharp: false
   unrs-resolver: false
   vue-demi: false
+  workerd: false
 
 linkWorkspacePackages: true

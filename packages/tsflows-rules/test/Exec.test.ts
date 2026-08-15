@@ -96,4 +96,32 @@ describe("run", () => {
     expect(rendered).toContain("tsflows:cache-directory")
     expect(rendered).not.toContain(outside)
   })
+
+  it("rejects accessor-backed payload data without invoking it", async () => {
+    let calls = 0
+    const value = payload(["node", "-e", "0"])
+    Object.defineProperty(value.argv, "1", {
+      enumerable: true,
+      get: () => {
+        calls += 1
+        return "-e"
+      }
+    })
+
+    expect(Exit.isFailure(await run({ workspaceRoot: root }, value))).toBe(true)
+    expect(calls).toBe(0)
+  })
+
+  it("rejects a Proxy payload without invoking its traps", async () => {
+    let calls = 0
+    const value = new Proxy(payload(["node", "-e", "0"]), {
+      ownKeys: (target) => {
+        calls += 1
+        return Reflect.ownKeys(target)
+      }
+    })
+
+    expect(Exit.isFailure(await run({ workspaceRoot: root }, value))).toBe(true)
+    expect(calls).toBe(0)
+  })
 })
