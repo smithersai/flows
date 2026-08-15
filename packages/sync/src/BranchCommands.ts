@@ -5,9 +5,18 @@
  * client re-sending after a timeout, a reconnecting client flushing its
  * outbox, and two people pressing the same button at once — and all three must
  * produce exactly one durable command. The client-minted `commandId` is the
- * idempotency key for all three, a permit serializes admission so a race
- * cannot append twice, and the ledger is rehydrated from the branch journal on
- * first use so a restarted server does not re-execute history.
+ * idempotency key for all three.
+ *
+ * The exactly-once constraint is durable, not process-local: every append
+ * carries the producer identity `(branch run, commandSourceId(commandId),
+ * commandSourceSeq)`, which the journal enforces inside its own write
+ * transaction. Two independently constructed servers that race the same
+ * command therefore collide in the journal — one appends, the other receives
+ * a duplicate receipt or an idempotency conflict and resolves the canonical
+ * sequence by replaying the branch (audit finding F-14). The in-memory
+ * ledger, permit, and replay cursor are a fast path only: they answer known
+ * duplicates without a journal write and keep a restarted server from
+ * re-executing history, but correctness never depends on them.
  *
  * @since 0.1.0
  */
@@ -26,8 +35,9 @@ import {
   type CommandId,
   CommandIdentity,
   CommandReceipt,
+  commandSourceId,
+  commandSourceSeq,
   CommandSubmission,
-  participantSourceId,
   ShareCapability
 } from "./BranchProtocol.ts"
 import * as BranchShare from "./BranchShare.ts"
@@ -118,18 +128,28 @@ export const makeLive: Effect.Effect<Service, never, Journal.Journal | BranchSha
     const share = yield* BranchShare.BranchShare
     const permit = yield* Semaphore.make(1)
     const ledger = new Map<string, CommandReceipt>()
+    const cursors = new Map<BranchId, JournalEvent.Seq>()
     const hydrated = new Set<BranchId>()
 
+    const duplicateOf = (known: CommandReceipt): CommandReceipt =>
+      new CommandReceipt({
+        branchId: known.branchId,
+        commandId: known.commandId,
+        status: "duplicate",
+        seq: known.seq
+      })
+
     /**
-     * Replays the branch's own journal into the ledger once, so a process that
-     * restarts mid-collaboration still recognises every command it already
-     * admitted instead of executing it a second time.
+     * Replays the branch journal forward from the last replayed sequence into
+     * the ledger. Used once on first touch, so a process that restarts
+     * mid-collaboration still recognises every command it already admitted,
+     * and again after an admission conflict, to read the command another
+     * writer admitted after this process last looked.
      */
-    const hydrate = (branchId: BranchId): Effect.Effect<void, SyncError> =>
+    const replay = (branchId: BranchId): Effect.Effect<void, SyncError> =>
       Effect.gen(function*() {
-        if (hydrated.has(branchId)) return
         const runId = branchRunId(branchId)
-        let after: JournalEvent.Seq | undefined
+        let after = cursors.get(branchId)
         let hasMore = true
         while (hasMore) {
           const page = yield* journal.entries({
@@ -139,6 +159,7 @@ export const makeLive: Effect.Effect<Service, never, Journal.Journal | BranchSha
           }).pipe(Effect.mapError(journalFailure))
           for (const entry of page.entries) {
             after = entry.seq
+            cursors.set(branchId, entry.seq)
             const submission = entry.eventType === CommandEvent
               ? Schema.decodeUnknownOption(CommandIdentity)(entry.payload)
               : Option.none()
@@ -156,7 +177,33 @@ export const makeLive: Effect.Effect<Service, never, Journal.Journal | BranchSha
           }
           hasMore = page.hasMore
         }
+      })
+
+    const hydrate = (branchId: BranchId): Effect.Effect<void, SyncError> =>
+      Effect.gen(function*() {
+        if (hydrated.has(branchId)) return
+        yield* replay(branchId)
         hydrated.add(branchId)
+      })
+
+    /**
+     * The losing side of a cross-server admission race: the journal refused
+     * this append because another writer already holds the command's producer
+     * identity with different content — same `commandId`, different
+     * participant or arguments. The original admission is durable, so
+     * replaying the branch forward must surface it; a replay that does not is
+     * a journal whose conflict report and entries disagree, and that failure
+     * is reported honestly instead of being masked as a duplicate.
+     */
+    const lostRace = (
+      submission: CommandSubmission,
+      cause: Journal.JournalError
+    ): Effect.Effect<CommandReceipt, SyncError> =>
+      Effect.gen(function*() {
+        yield* replay(submission.branchId)
+        const known = ledger.get(ledgerKey(submission.branchId, submission.commandId))
+        if (known === undefined) return yield* Effect.fail(journalFailure(cause))
+        return duplicateOf(known)
       })
 
     const admit = (request: SubmitRequest): Effect.Effect<CommandReceipt, SyncError> =>
@@ -164,18 +211,12 @@ export const makeLive: Effect.Effect<Service, never, Journal.Journal | BranchSha
         const submission = request.submission
         yield* hydrate(submission.branchId)
         const known = ledger.get(ledgerKey(submission.branchId, submission.commandId))
-        if (known !== undefined) {
-          return new CommandReceipt({
-            branchId: known.branchId,
-            commandId: known.commandId,
-            status: "duplicate",
-            seq: known.seq
-          })
-        }
-        const accepted = yield* journal.emitDurable(
+        if (known !== undefined) return duplicateOf(known)
+        const receipt = yield* journal.emitDurable(
           new JournalEvent.Input({
             runId: branchRunId(submission.branchId),
-            sourceId: participantSourceId(submission.participantId),
+            sourceId: commandSourceId(submission.commandId),
+            sourceSeq: commandSourceSeq,
             eventType: CommandEvent,
             payload: {
               branchId: submission.branchId,
@@ -187,14 +228,33 @@ export const makeLive: Effect.Effect<Service, never, Journal.Journal | BranchSha
             },
             meta: null
           })
-        ).pipe(Effect.mapError(journalFailure))
-        const receipt = new CommandReceipt({
-          branchId: submission.branchId,
-          commandId: submission.commandId,
-          status: "admitted",
-          seq: accepted.seq
-        })
-        ledger.set(ledgerKey(submission.branchId, submission.commandId), receipt)
+        ).pipe(
+          // A `Duplicate` receipt is another writer landing the identical
+          // submission first: the journal deduplicated durably and returned
+          // the canonical sequence the original append committed at.
+          Effect.map((accepted) =>
+            new CommandReceipt({
+              branchId: submission.branchId,
+              commandId: submission.commandId,
+              status: accepted._tag === "Duplicate" ? "duplicate" : "admitted",
+              seq: accepted.seq
+            })
+          ),
+          Effect.catch((cause) =>
+            cause.code === "idempotency_conflict"
+              ? lostRace(submission, cause)
+              : Effect.fail(journalFailure(cause))
+          )
+        )
+        ledger.set(
+          ledgerKey(submission.branchId, submission.commandId),
+          new CommandReceipt({
+            branchId: submission.branchId,
+            commandId: submission.commandId,
+            status: "admitted",
+            seq: receipt.seq
+          })
+        )
         return receipt
       })
 

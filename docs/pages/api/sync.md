@@ -58,7 +58,7 @@ Credit is a hard limit on frames emitted by one subscription. There is no acknow
 | Export | Source | Notes |
 | --- | --- | --- |
 | `BranchProtocol.BranchId`, `ParticipantId`, `CommandId`, `Access` | [src/BranchProtocol.ts](https://github.com/smithersai/flows/blob/main/packages/sync/src/BranchProtocol.ts) | branded ids and access levels |
-| `BranchProtocol.branchRunId`, `branchOfRunId`, `participantSourceId` | functions | id derivations |
+| `BranchProtocol.branchRunId`, `branchOfRunId`, `commandSourceId`, `commandSourceSeq` | functions | id derivations |
 | `BranchProtocol.ShareClaims`, `ShareCapability`, `Cursor`, `Participant`, `CommandSubmission`, `CommandReceipt`, `CommandEvent`, `SayCommand` | schemas | the branch vocabulary |
 | `BranchProjection.State`, `Message`, `AppliedCommand`, `Field`, `empty`, `apply`, `project`, `resolveField` | [src/BranchProjection.ts](https://github.com/smithersai/flows/blob/main/packages/sync/src/BranchProjection.ts) | folds branch commands into a view |
 | `BranchRpcs.BranchRpcs` plus the `SubmitPayload`, `AnnouncePayload`, `LeavePayload`, `RosterPayload`, `CreateBranchPayload`, `CreateBranchResponse`, `MintSharePayload`, `RosterFrame` schemas | [src/BranchRpcs.ts](https://github.com/smithersai/flows/blob/main/packages/sync/src/BranchRpcs.ts) | the branch RPC group |

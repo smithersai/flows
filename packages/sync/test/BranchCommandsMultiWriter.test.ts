@@ -73,8 +73,9 @@ const runRace = (rightParticipant: BranchProtocol.ParticipantId) =>
   )
 
 describe("BranchCommands across independently constructed writers", () => {
-  // BUG: commandId exactly-once admission is guarded only by each service's local ledger and semaphore.
-  it.effect.fails("admits one durable command when both writers use the same participant", () =>
+  // Identical submissions collide on the journal's producer identity: the
+  // second writer's append deduplicates durably to the first one's sequence.
+  it.effect("admits one durable command when both writers use the same participant", () =>
     Effect.gen(function*() {
       const result = yield* runRace(alice)
 
@@ -83,8 +84,9 @@ describe("BranchCommands across independently constructed writers", () => {
       expect(result.page.entries).toHaveLength(1)
     }))
 
-  // BUG: distinct producer sequences let two servers durably append the same commandId for different participants.
-  it.effect.fails("admits one durable command when the writers use different participants", () =>
+  // Differing submissions of one commandId conflict on the same identity: the
+  // losing writer replays the branch and reports the canonical admission.
+  it.effect("admits one durable command when the writers use different participants", () =>
     Effect.gen(function*() {
       const result = yield* runRace(bob)
 

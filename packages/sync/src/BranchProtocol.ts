@@ -105,17 +105,35 @@ export const branchOfRunId = (runId: JournalEvent.RunId): BranchId | null =>
   runId.startsWith("flows/branch/") ? runId.slice("flows/branch/".length) as BranchId : null
 
 /**
- * The journal producer identity of one participant.
+ * The journal producer identity of one admitted command.
  *
- * `(runId, sourceId, sourceSeq)` is the journal's own idempotency key, so
- * giving every participant a distinct source keeps two clients submitting
- * concurrently from ever colliding on it.
+ * `(runId, sourceId, sourceSeq)` is the journal's own durable idempotency
+ * key. Deriving the source from the client-minted `commandId` — with the
+ * fixed {@link commandSourceSeq} — turns that key into the branch's
+ * exactly-once admission constraint: two server instances racing the same
+ * command collide inside the journal's own transaction, so one appends and
+ * the other reads back the canonical sequence, instead of both appending
+ * (audit finding F-14). The branch run id already scopes the key, so equal
+ * command ids on different branches never collide.
  *
  * @category constructors
  * @since 0.1.0
  */
-export const participantSourceId = (participantId: ParticipantId): JournalEvent.SourceId =>
-  `flows/participant/${participantId}` as JournalEvent.SourceId
+export const commandSourceId = (commandId: CommandId): JournalEvent.SourceId =>
+  `flows/branch-command/${commandId}` as JournalEvent.SourceId
+
+/**
+ * The fixed producer sequence of an admitted command.
+ *
+ * A command's identity lives entirely in {@link commandSourceId}, so its
+ * producer sequence is always 0. It must be supplied explicitly: letting the
+ * journal allocate would hand a resubmission after a lost response sequence 1,
+ * a fresh identity, and therefore a second durable append.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const commandSourceSeq: JournalEvent.SourceSeq = 0 as JournalEvent.SourceSeq
 
 /**
  * The single durable event type a branch document is built from.
