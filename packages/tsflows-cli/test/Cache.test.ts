@@ -961,7 +961,15 @@ describe("openCache", () => {
       // never publish as a clean success.
       const cache = await openCache({
         workspaceRoot: root,
-        io: { closeHandle: () => Promise.reject(failing("EIO")) }
+        io: {
+          closeHandle: async (handle) => {
+            // Model a close that reports failure after releasing the native
+            // descriptor. Leaving the injected handle open makes Node surface
+            // an unrelated GC-time ERR_INVALID_STATE after the assertion.
+            await handle.close()
+            throw failing("EIO")
+          }
+        }
       })
       await expect(cache.put(result.key, result)).rejects.toMatchObject({ code: "EIO" })
       // And the temporary file is gone: cleanup ran, and it did not mask the
