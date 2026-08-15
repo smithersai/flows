@@ -325,8 +325,15 @@ ${ctx.input.carriedFindings ? `\nFindings carried from a previous run that you m
 
   const lanePrompt = (lane: string, dirs: string, compatSymbols: string, notes: string) => `
 You are porting ONE LANE of the legacy component library into the isomorphic
-library in ${REPO}. The foundation packages already exist on origin/main --
-fetch and merge before you start, and build on them. Do not recreate them.
+library in ${REPO}. The foundation packages (ui-next, ui-dom-next, ui-tui-next,
+ui-theme-next) are landed on the branch iso-ui/foundation, NOT on origin/main.
+Before anything else, confirm they are in your tree:
+    ls -d packages/ui-next packages/ui-dom-next packages/ui-tui-next packages/ui-theme-next
+If they are missing, your worktree was based on the wrong commit. Fix it with:
+    git merge --ff-only iso-ui/foundation
+and if that is not a fast-forward, "git merge iso-ui/foundation". Never merge
+origin/main to find them -- it does not contain them and is behind your base.
+Build on the foundation; do not recreate it.
 
 LANE: ${lane}
 SOURCE DIRECTORIES (read only, under ${SOURCE}/src): ${dirs}
