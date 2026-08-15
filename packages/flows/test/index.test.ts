@@ -25,18 +25,31 @@ const isFile = (path: string) => {
 // kebab-case to PascalCase (engine-store → EngineStore, time-travel →
 // TimeTravel).
 //
-// Two kinds of package are NOT re-exported and so are excluded here: the
-// barrel itself (`flows`), and the `platform-*` bundles. A platform bundle is
-// chosen by the program that runs, not by the library it depends on — the same
-// reason `effect`'s index does not re-export `@effect/platform-node` — and
-// re-exporting all three would make one import resolve `node:child_process`,
-// ZenFS, and Bun at once.
+// Three kinds of package are NOT re-exported and so are excluded here: the
+// barrel itself (`flows`), the `platform-*` bundles, and the `tsflows*` build
+// tooling. A platform bundle is chosen by the program that runs, not by the
+// library it depends on — the same reason `effect`'s index does not re-export
+// `@effect/platform-node` — and re-exporting all three would make one import
+// resolve `node:child_process`, ZenFS, and Bun at once.
+//
+// The `tsflows*` packages are excluded for the same class of reason, decided in
+// review when tsflows was absorbed into this repo (2026-08-15). They are the
+// BUILD.ts build system — `tsflows` (install/package-manager actions),
+// `tsflows-rules` (BUILD.ts rules), `tsflows-cli` (the `tsflows` binary) — not
+// part of the durable flow engine surface this barrel exists to gather.
+// Re-exporting them would also break two invariants the barrel holds today:
+// `tsflows-rules` and `tsflows-cli` are `private: true` and never published, so
+// the published `@smthrs/flows-next` would depend on packages no consumer can
+// resolve; and `tsflows-cli` pulls `@effect/platform-node`, which would drag
+// `node:child_process` into the barrel that `pnpm browser` asserts is
+// browser-safe. Reach them through their own packages.
 const namespaceName = (directory: string) =>
   directory
     .split("-")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join("")
 const isPlatformBundle = (name: string) => name.startsWith("platform-")
+const isBuildTooling = (name: string) => name === "tsflows" || name.startsWith("tsflows-")
 const packageNames = readdirSync(packagesDir)
   .filter((name) => isFile(join(packagesDir, name, "package.json")))
 // `@smthrs/flow-next` is the one package re-exported FLAT rather than as a single
@@ -48,7 +61,7 @@ const packageNames = readdirSync(packagesDir)
 const expected = [
   ...new Set([
     ...packageNames
-      .filter((name) => name !== "flows" && name !== "flow" && !isPlatformBundle(name))
+      .filter((name) => name !== "flows" && name !== "flow" && !isPlatformBundle(name) && !isBuildTooling(name))
       .map(namespaceName),
     ...Object.keys(FlowPackage)
   ])
@@ -71,6 +84,13 @@ describe("barrel", () => {
     // the filter would silently become a no-op instead of a decision.
     expect(packageNames.filter(isPlatformBundle).length).toBeGreaterThanOrEqual(3)
     expect(expected.filter((name) => name.startsWith("Platform"))).toEqual([])
+  })
+
+  it("excludes the tsflows build tooling, and there is some to exclude", () => {
+    // Same guard as the platform bundles above: if `tsflows*` ever stopped
+    // matching, the filter would silently become a no-op instead of a decision.
+    expect(packageNames.filter(isBuildTooling).sort()).toEqual(["tsflows", "tsflows-cli", "tsflows-rules"])
+    expect(expected.filter((name) => name.startsWith("Tsflows"))).toEqual([])
   })
 
   it("re-exports every engine package as a namespace", () => {

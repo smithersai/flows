@@ -13,7 +13,7 @@ export default defineConfig({
     hookTimeout: 30_000,
     coverage: {
       provider: "v8",
-      reportsDirectory: join(tmpdir(), `tsflows-coverage-${process.pid}`),
+      reportsDirectory: join(tmpdir(), `flows-tsflows-coverage-${process.pid}`),
       include: ["src/**"],
       thresholds: {
         branches: 100,
