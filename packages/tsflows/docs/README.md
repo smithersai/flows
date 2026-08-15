@@ -33,6 +33,7 @@ wired is marked as such on the page that covers it.
 | [Querying](workspace/querying.md)                       | `query`, `deps()`, and `graph`.                                                                                     |
 | [Caching](workspace/caching.md)                         | Content keys, the result cache, and what re-keys a target.                                                          |
 | [Remote caching](workspace/remote-caching.md)           | The HTTP read-through cache, the hosted and self-hosted `/ac` and `/cas` services, and the current engine boundary. |
+| [Flows repo adoption](workspace/flows-repo-adoption.md) | What the flows monorepo runs through tsflows today, the shadow CI lane, and the promotion criteria.                 |
 
 ## Concepts
 
