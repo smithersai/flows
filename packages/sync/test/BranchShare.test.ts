@@ -249,7 +249,10 @@ describe("BranchShare", () => {
       const [share, capability] = yield* run(
         Effect.gen(function*() {
           const built = yield* authority
-          return [built, yield* built.mint({ branchId, capabilityId: "cap-x", access: "write", ttlMs: 60_000 })] as const
+          return [
+            built,
+            yield* built.mint({ branchId, capabilityId: "cap-x", access: "write", ttlMs: 60_000 })
+          ] as const
         })
       )
       const signFailure = new Error("sign refused")

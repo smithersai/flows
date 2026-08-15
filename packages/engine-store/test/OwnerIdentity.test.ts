@@ -5,8 +5,8 @@
  *
  * @since 0.1.0
  */
-import { describe, expect, it } from "@effect/vitest"
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
+import { describe, expect, it } from "@effect/vitest"
 import * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as OwnerIdentity from "../src/OwnerIdentity.ts"

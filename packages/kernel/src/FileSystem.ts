@@ -32,7 +32,6 @@ import {
 import { GrantStore } from "./GrantStore.ts"
 import { Workspace } from "./Workspace.ts"
 
-
 /**
  * Host-private extension used for race-free, descriptor-relative filesystem
  * operations. A plain path-based `FileSystem` cannot provide confinement: an
@@ -559,7 +558,7 @@ export const layer: Layer.Layer<
             data: Encoding.encodeBase64(data),
             options
           })
-        ),
+        )
       }),
       exists: Effect.fn("FileSystem.exists")((value) =>
         atomicOne<boolean>("fs:read", value, "exists", {
