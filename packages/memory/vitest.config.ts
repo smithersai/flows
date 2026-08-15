@@ -19,7 +19,13 @@ export default defineConfig({
       // Coverage instrumentation only understands source modules. Keeping the
       // SQL migrations in this glob makes v8 ask Rollup to parse them as
       // JavaScript, producing a warning for every migration on every run.
-      include: ["src/**/*.ts"]
+      include: ["src/**/*.ts"],
+      thresholds: {
+        branches: 65,
+        functions: 74,
+        lines: 84,
+        statements: 83
+      }
     }
   }
 })

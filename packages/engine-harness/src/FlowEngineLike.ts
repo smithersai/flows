@@ -609,11 +609,10 @@ const callKey = (
       capabilities: { declared: [...call.capabilities].sort() }
     })
   ).pipe(
-    /* v8 ignore start -- Cell.Call decoding makes this canonical failure unreachable. */
+    /* v8 ignore next -- Cell.Call decoding makes this canonical failure unreachable. */
     Effect.mapError((cause) =>
       engineFailed(`Cell call ${call.flowName} #${call.identity.ordinal} could not be keyed`, cause)
     )
-    /* v8 ignore stop */
   )
 
 /**
@@ -644,9 +643,8 @@ const boundaryKey = (
       capabilities: { declared: [] }
     })
   ).pipe(
-    /* v8 ignore start -- canonical JSON from a serializable boundary identity cannot fail to key. */
+    /* v8 ignore next -- canonical JSON from a serializable boundary identity cannot fail to key. */
     Effect.mapError((cause) => engineFailed(`Boundary ${name} could not be keyed`, cause))
-    /* v8 ignore stop */
   )
 
 /**

@@ -16,7 +16,13 @@ export default defineConfig({
       // Per-process report directory so concurrent vitest runs do not destroy
       // each other's coverage scratch state (issues #115/#121).
       reportsDirectory: join(tmpdir(), `flows-patterns-coverage-${process.pid}`),
-      include: ["src/**"]
+      include: ["src/**"],
+      thresholds: {
+        branches: 79,
+        functions: 83,
+        lines: 86,
+        statements: 86
+      }
     }
   }
 })
