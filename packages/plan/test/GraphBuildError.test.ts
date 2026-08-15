@@ -21,7 +21,10 @@ describe("GraphBuildError", () => {
       "invalid_all_member",
       "invalid_continuation",
       "recursion_requires_boundary",
-      "placement_requires_boundary"
+      "placement_requires_boundary",
+      "cyclic_payload",
+      "payload_too_deep",
+      "graph_too_deep"
     ])
   })
 })
