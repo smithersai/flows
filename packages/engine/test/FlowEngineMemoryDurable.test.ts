@@ -110,6 +110,34 @@ describe("FlowEngine.layerMemory durable waits", () => {
       expect(Option.isNone(yield* Parked.poll("never-started"))).toBe(true)
     }).pipe(Effect.provide(ParkedLayer)))
 
+  effect("a wake with no remaining registration leaves the execution parked", () =>
+    Effect.gen(function*() {
+      const engine = yield* FlowRuntime.FlowRuntime
+      const Fleeting = Flow.make("Memory/Fleeting", {
+        payload: { id: Schema.String },
+        success: Schema.String,
+        body: (payload) => ParkedActionDeclaration.call(payload)
+      })
+      yield* Effect.scoped(
+        Effect.gen(function*() {
+          yield* engine.register(Fleeting, () =>
+            Effect.gen(function*() {
+              const instance = yield* FlowRuntime.FlowInstance
+              return yield* Flow.suspend(instance)
+            }))
+          yield* engine.execute(Fleeting, { executionId: "fleeting-run", payload: { id: "x" }, discard: true })
+          expect(Option.isSome(yield* pollSuspended(engine.poll(Fleeting, "fleeting-run")))).toBe(true)
+        })
+      )
+      // Every registration of the tag is closed: the wake is a no-op and the
+      // execution stays parked for a process that registers the flow again —
+      // the durable driver takes the same posture for a run that wakes where
+      // its flow is unknown.
+      yield* engine.resume(Fleeting, "fleeting-run")
+      const polled = yield* engine.poll(Fleeting, "fleeting-run")
+      expect(Option.isSome(polled) && polled.value._tag).toBe("Suspended")
+    }).pipe(Effect.provide(FlowEngine.layerMemory)))
+
   effect("arms a scheduled clock and completes its deferred at the deadline", () =>
     Effect.gen(function*() {
       const engine = yield* FlowRuntime.FlowRuntime

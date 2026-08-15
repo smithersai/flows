@@ -36,21 +36,21 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
   Effect.gen(function*() {
     const scope = yield* Effect.scope
 
-    const flows = new Map<string, {
+    type Registration = {
       readonly flow: Flow.Any
       readonly execute: (
         payload: object,
         executionId: string
       ) => Effect.Effect<unknown, unknown, FlowRuntime.FlowInstance | FlowRuntime.FlowRuntime>
       readonly scope: Scope.Scope
-    }>()
+    }
+    // Registrations of one tag stack: the last still-open one serves, and a
+    // closed inner registration is spliced back out so the outer one serves
+    // again — the same restore `make.register`'s declaration table performs.
+    const flows = new Map<string, Array<Registration>>()
 
     type ExecutionState = {
       readonly payload: object
-      readonly execute: (
-        payload: object,
-        executionId: string
-      ) => Effect.Effect<unknown, unknown, FlowRuntime.FlowInstance | FlowRuntime.FlowRuntime>
       readonly parent: string | undefined
       instance: FlowRuntime.FlowInstance["Service"]
       fiber: Fiber.Fiber<Flow.Result<unknown, unknown>> | undefined
@@ -76,11 +76,18 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
         return
       }
 
-      const entry = flows.get(state.instance.flow._tag)!
+      // The latest still-open registration serves every drive, so a re-drive
+      // after an inner scoped registration of the tag closed follows the
+      // outer registration exactly as `make.register`'s declaration table
+      // does. With every registration closed the execution stays parked for
+      // a process that registers the flow again — the durable driver takes
+      // the same posture for a run that wakes where its flow is unknown.
+      const entry = flows.get(state.instance.flow._tag)?.at(-1)
+      if (entry === undefined) return
       const instance = makeInstance(state.instance.flow, state.instance.executionId)
       instance.interrupted = state.instance.interrupted
       state.instance = instance
-      state.fiber = yield* state.execute(state.payload, state.instance.executionId).pipe(
+      state.fiber = yield* entry.execute(state.payload, state.instance.executionId).pipe(
         Effect.onExit(() => {
           if (!instance.interrupted) {
             return Effect.void
@@ -108,15 +115,25 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
     const engine = makeUnsafe({
       // Untraced because registration feeds back into the in-memory engine.
       register: Effect.fnUntraced(function*(flow, execute) {
-        flows.set(flow._tag, {
+        const registration: Registration = {
           flow,
           execute,
           scope: yield* Effect.scope
-        })
+        }
+        const existing = flows.get(flow._tag)
+        const entries = existing ?? []
+        if (existing === undefined) flows.set(flow._tag, entries)
+        entries.push(registration)
+        yield* Effect.addFinalizer(() =>
+          Effect.sync(() => {
+            entries.splice(entries.indexOf(registration), 1)
+            if (entries.length === 0) flows.delete(flow._tag)
+          })
+        )
       }),
       // Untraced because execution recursively invokes child flows.
       execute: Effect.fnUntraced(function*(flow, options) {
-        const entry = flows.get(flow._tag)
+        const entry = flows.get(flow._tag)?.at(-1)
         if (!entry) {
           return yield* Effect.orDie(Effect.fail(`Flow ${flow._tag} is not registered`))
         }
@@ -139,7 +156,6 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
         if (!state) {
           state = {
             payload: options.payload,
-            execute: entry.execute,
             instance: makeInstance(flow, options.executionId),
             fiber: undefined,
             parent: options.parent?.executionId

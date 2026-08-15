@@ -340,14 +340,12 @@ describe("a lineage on the memory engine", () => {
       expect(Exit.isFailure(exit) && exit.cause.toString()).toContain("is not registered with this engine")
     }))
 
-  // BUG: layerMemory.register overwrites its flows map without a scope-aware
-  // restore. After an inner scoped registration of the same tag closes, the
-  // engine keeps executing through the stale inner entry — whose registration
-  // scope is already closed, so the round fiber forked into it is interrupted
-  // immediately and poll dies with `Die(Interrupt)` — instead of serving the
-  // still-open outer registration. `make.register`'s declaration table does
-  // splice the inner entry out; the memory driver's execution table never does.
-  it.effect.fails("serves the outer registration after an inner scoped registration of the same tag closes", () =>
+  // `layerMemory.register` keeps a per-tag stack with a scope-aware restore,
+  // mirroring `make.register`'s declaration table: a closed inner
+  // registration is spliced back out, so executions land on the still-open
+  // outer registration — and in its still-open scope — rather than on a
+  // stale entry whose closed scope would interrupt the round fiber at fork.
+  it.effect("serves the outer registration after an inner scoped registration of the same tag closes", () =>
     Effect.gen(function*() {
       yield* withCrypto(
         Effect.gen(function*() {
