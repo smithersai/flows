@@ -3,7 +3,7 @@
 Runs an interactive `vitest watch` session.
 
 ```ts
-import { VitestWatch, file, glob } from "tsflows-rules"
+import { file, glob, VitestWatch } from "tsflows-rules"
 
 export const testWatch = VitestWatch({
   tests: [glob("test/**/*.test.ts")],
@@ -17,14 +17,14 @@ export const testWatch = VitestWatch({
 
 ## Attributes
 
-| Name | Type | Default | Description |
-| --- | --- | --- | --- |
-| `tests` | `Array<Input.Declared>` | required | Test file declarations. Startup key material only. |
-| `sources` | `Array<Input.Declared>` | required | Source declarations. Startup key material only. |
-| `deps` | `Array<Rule.Target>` | required | Dependency targets. |
-| `config` | `Input.File \| null` | required | The Vitest config, or `null` to pass no `--config`. |
-| `environment` | `string` | required | The Vitest environment. |
-| `cwd` | `string` | `"."` | Workspace-relative directory the runner starts in. |
+| Name          | Type                    | Default  | Description                                         |
+| ------------- | ----------------------- | -------- | --------------------------------------------------- |
+| `tests`       | `Array<Input.Declared>` | required | Test file declarations. Startup key material only.  |
+| `sources`     | `Array<Input.Declared>` | required | Source declarations. Startup key material only.     |
+| `deps`        | `Array<Rule.Target>`    | required | Dependency targets.                                 |
+| `config`      | `Input.File \| null`    | required | The Vitest config, or `null` to pass no `--config`. |
+| `environment` | `string`                | required | The Vitest environment.                             |
+| `cwd`         | `string`                | `"."`    | Workspace-relative directory the runner starts in.  |
 
 ## Command
 
@@ -43,18 +43,18 @@ session re-runs tests itself.
 
 ## Channels
 
-| Channel | Type |
-| --- | --- |
-| Success | `Exec.Result` |
-| Error | `Exec.ExecError` |
+| Channel | Type             |
+| ------- | ---------------- |
+| Success | `Exec.Result`    |
+| Error   | `Exec.ExecError` |
 
 ## Status
 
-| | |
-| --- | --- |
-| Kinds | `run` |
-| Cacheable | Never; it is a long-lived process |
-| Executes | Yes, through `ExecLive`, but only as a dependency |
+|           |                                                   |
+| --------- | ------------------------------------------------- |
+| Kinds     | `run`                                             |
+| Cacheable | Never; it is a long-lived process                 |
+| Executes  | Yes, through `ExecLive`, but only as a dependency |
 
 The CLI has no `run` verb, so a `VitestWatch` target is never selected as a root.
 If a selected target depends on one, the executor runs it and the session holds

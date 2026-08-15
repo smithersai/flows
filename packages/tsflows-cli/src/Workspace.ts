@@ -385,8 +385,7 @@ const moduleKey = async (entry: SafeFs.Entry): Promise<string> => {
 const buildEntry = (
   root: string,
   relative: string
-): Promise<SafeFs.Entry | undefined> =>
-  SafeFs.resolveFile(NodePath.join(root, relative), { root, what: "BUILD.ts" })
+): Promise<SafeFs.Entry | undefined> => SafeFs.resolveFile(NodePath.join(root, relative), { root, what: "BUILD.ts" })
 
 /**
  * Imports one BUILD.ts module through tsx's programmatic loader, at most once
@@ -538,7 +537,7 @@ const optionalOpenFlag = (name: "O_NOFOLLOW" | "O_NONBLOCK"): number =>
   (NodeFs.constants as Partial<Record<string, number>>)[name] ?? 0
 
 const errorCode = (cause: unknown): string | undefined =>
-  typeof cause === "object" && cause !== null && "code" in cause ? String((cause).code) : undefined
+  typeof cause === "object" && cause !== null && "code" in cause ? String(cause.code) : undefined
 
 /**
  * Reads the root `.gitignore`, or returns undefined when there is none.
@@ -646,7 +645,7 @@ export const ensureGitignored = async (
   if (Exit.isFailure(exit)) {
     const failure = Cause.squash(exit.cause)
     const message = typeof failure === "object" && failure !== null && "message" in failure
-      ? String((failure).message)
+      ? String(failure.message)
       : String(failure)
     throw new Error(`could not update .gitignore: ${message}`)
   }
@@ -910,7 +909,9 @@ export class Workspace {
     const resolve = (target: Rule.AnyTarget): string => {
       const label = resolved.get(target)
       if (label === undefined) {
-        throw new Error(`a package manifest in ${relative} names a target with no label; export it from a BUILD.ts file`)
+        throw new Error(
+          `a package manifest in ${relative} names a target with no label; export it from a BUILD.ts file`
+        )
       }
       return label
     }

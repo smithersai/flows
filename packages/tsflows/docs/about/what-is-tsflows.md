@@ -61,11 +61,11 @@ Bazel's. See [Actions and boundaries](../concepts/actions-and-boundaries.md).
 
 ## The three packages
 
-| Package               | Source                       | What it holds                                                                                                                     |
-| --------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `@smthrs/tsflows-next` | `packages/tsflows/src/`      | Dependency installation as flows. Exports `Install` and `PackageManager`.                                                         |
-| `tsflows-rules`       | `packages/tsflows-rules/src/` | The `BUILD.ts` authoring surface: `Rule.make`, `Input`, `Workspace`, `DefaultRule`, `Exec`, `StandardPackage`, and the rule catalog. |
-| `tsflows-cli`         | `packages/tsflows-cli/src/`   | The `tsflows` CLI: workspace discovery, the planner, the executor, the cache, and query and graph output.                         |
+| Package                | Source                        | What it holds                                                                                                                        |
+| ---------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `@smthrs/tsflows-next` | `packages/tsflows/src/`       | Dependency installation as flows. Exports `Install` and `PackageManager`.                                                            |
+| `tsflows-rules`        | `packages/tsflows-rules/src/` | The `BUILD.ts` authoring surface: `Rule.make`, `Input`, `Workspace`, `DefaultRule`, `Exec`, `StandardPackage`, and the rule catalog. |
+| `tsflows-cli`          | `packages/tsflows-cli/src/`   | The `tsflows` CLI: workspace discovery, the planner, the executor, the cache, and query and graph output.                            |
 
 ## Next
 

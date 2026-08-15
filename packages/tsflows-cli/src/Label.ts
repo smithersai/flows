@@ -67,8 +67,7 @@ export const parse = (value: string, currentPackage: string): Pattern => {
  * @category formatting
  * @since 0.1.0
  */
-export const format = (packagePath: string, target: string): string =>
-  `//${normalizePackage(packagePath)}:${target}`
+export const format = (packagePath: string, target: string): string => `//${normalizePackage(packagePath)}:${target}`
 
 /**
  * Computes the current package path and refuses directories outside the

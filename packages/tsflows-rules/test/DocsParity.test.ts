@@ -149,18 +149,22 @@ describe("DocsParity", () => {
   })
 
   it("refuses a prose floor that would let an empty body pass", () => {
-    expect(() => DocsParity.DocsParity({
-      readme: { _tag: "File", path: "README.md" },
-      deps: [],
-      minimumProseCharacters: 0,
-      cwd: "packages/plan"
-    })).toThrow()
-    expect(() => DocsParity.DocsParity({
-      readme: { _tag: "File", path: "README.md" },
-      deps: [],
-      minimumProseCharacters: DocsParity.maximumReadmeBytes + 1,
-      cwd: "packages/plan"
-    })).toThrow()
+    expect(() =>
+      DocsParity.DocsParity({
+        readme: { _tag: "File", path: "README.md" },
+        deps: [],
+        minimumProseCharacters: 0,
+        cwd: "packages/plan"
+      })
+    ).toThrow()
+    expect(() =>
+      DocsParity.DocsParity({
+        readme: { _tag: "File", path: "README.md" },
+        deps: [],
+        minimumProseCharacters: DocsParity.maximumReadmeBytes + 1,
+        cwd: "packages/plan"
+      })
+    ).toThrow()
   })
 })
 
@@ -183,13 +187,15 @@ describe("DocsParity execution", () => {
   it("confines and bounds README reads", async () => {
     const root = await Fs.realpath(await Fs.mkdtemp(NodePath.join(Os.tmpdir(), "tsflows-docs-read-")))
     const outside = await Fs.realpath(await Fs.mkdtemp(NodePath.join(Os.tmpdir(), "tsflows-docs-outside-")))
-    const request = (path: string) => DocsParity.checkDocs(
-      { workspaceRoot: root },
-      { path, minimumProseCharacters: 1 }
-    )
-    const failed = (path: string) => Effect.runPromise(
-      Effect.flip(request(path).pipe(Effect.mapError((error) => ({ message: error.message }))))
-    )
+    const request = (path: string) =>
+      DocsParity.checkDocs(
+        { workspaceRoot: root },
+        { path, minimumProseCharacters: 1 }
+      )
+    const failed = (path: string) =>
+      Effect.runPromise(
+        Effect.flip(request(path).pipe(Effect.mapError((error) => ({ message: error.message }))))
+      )
     try {
       expect((await failed("../README.md")).message).toContain("escapes the workspace")
       await Fs.writeFile(NodePath.join(root, "large.bin"), Buffer.alloc(DocsParity.maximumReadmeBytes + 1, 0x20))

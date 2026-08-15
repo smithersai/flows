@@ -406,8 +406,7 @@ describe("a plan's input measurement is revalidated before it is acted on", () =
     await write("packages/base/src/input.txt", "edited after planning\n")
     const summary = await runPlan(prepared)
 
-    const status = (label: string): string | undefined =>
-      summary.results.find((entry) => entry.label === label)?.status
+    const status = (label: string): string | undefined => summary.results.find((entry) => entry.label === label)?.status
     expect(status("//packages/base:base")).toBe("failed")
     // Ordinary keep-going semantics: the cone is blocked, the rest still runs.
     expect(status("//packages/dependent:downstream")).toBe("skipped")
@@ -511,7 +510,11 @@ describe("only a value that round trips is cached", () => {
     ["a symbol", () => ({ value: Symbol("s") })],
     ["a Date", () => ({ value: new Date(0) })],
     ["a Map", () => ({ value: new Map([["a", 1]]) })],
-    ["a class instance", () => ({ value: new (class Holder { readonly a = 1 })() })],
+    ["a class instance", () => ({
+      value: new (class Holder {
+        readonly a = 1
+      })()
+    })],
     ["a sparse array", () => ({ value: [1, , 3] })],
     ["negative zero", () => -0],
     ["an array with an extra own property", () => Object.assign([1], { extra: 2 })],

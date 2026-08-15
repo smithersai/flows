@@ -261,7 +261,8 @@ describe("LlmLint key material", () => {
           rubric: "r",
           model: "claude-opus-5",
           batchSize
-        })).toThrow()
+        })
+      ).toThrow()
     }
   )
 
@@ -613,7 +614,9 @@ describe("LlmLint.review resource and filesystem boundaries", () => {
     await write("src/a.ts", "export const a = 3\n")
     const executable = await scriptCli(
       "oversize-output",
-      `process.stdin.resume()\nprocess.stdin.on("end", () => process.stdout.write("x".repeat(${LlmLint.maximumModelOutputBytes + 1})))`
+      `process.stdin.resume()\nprocess.stdin.on("end", () => process.stdout.write("x".repeat(${
+        LlmLint.maximumModelOutputBytes + 1
+      })))`
     )
     const failure = await Effect.runPromise(
       Effect.flip(LlmLint.review({ workspaceRoot: root, executable }, payload()))

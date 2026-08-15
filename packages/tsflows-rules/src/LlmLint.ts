@@ -643,9 +643,10 @@ const changedFiles = (
     Effect.flatMap((output) =>
       output.exitCode === 0
         ? Effect.try({
-          try: () => changedPathRecords(output.stdout)
-            .filter((path) => payload.include.some((declaration) => matchesGlob(path, declaration)))
-            .sort(),
+          try: () =>
+            changedPathRecords(output.stdout)
+              .filter((path) => payload.include.some((declaration) => matchesGlob(path, declaration)))
+              .sort(),
           catch: (cause) => new LlmReviewError({ phase: "diff", message: failureMessage(cause) })
         })
         : Effect.fail(

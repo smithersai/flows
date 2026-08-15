@@ -157,8 +157,7 @@ const clone = (
         if (names[index] !== String(index)) {
           throw new TypeError(`${path} is a sparse array or carries extra own properties`)
         }
-        const descriptor = inspect(memberPath, () =>
-          Object.getOwnPropertyDescriptor(object, String(index)))
+        const descriptor = inspect(memberPath, () => Object.getOwnPropertyDescriptor(object, String(index)))
         if (descriptor === undefined || !("value" in descriptor) || descriptor.enumerable !== true) {
           throw new TypeError(`${memberPath} is an accessor or non-enumerable property`)
         }

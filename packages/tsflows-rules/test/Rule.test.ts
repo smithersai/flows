@@ -135,12 +135,13 @@ describe("Rule metadata traversal", () => {
   })
 
   it("changes implementation identity when cache admission policy changes", () => {
-    const definition = (cache: boolean) => Rule.make("RuleTestCacheIdentity", {
-      attrs: Schema.Struct({}),
-      kinds: ["build"],
-      cache,
-      implementation: () => Rule.notImplemented("RuleTestCacheIdentity")
-    })
+    const definition = (cache: boolean) =>
+      Rule.make("RuleTestCacheIdentity", {
+        attrs: Schema.Struct({}),
+        kinds: ["build"],
+        cache,
+        implementation: () => Rule.notImplemented("RuleTestCacheIdentity")
+      })
     expect(Rule.metadata(definition(false)({})).implementationDigest)
       .not.toBe(Rule.metadata(definition(true)({})).implementationDigest)
   })

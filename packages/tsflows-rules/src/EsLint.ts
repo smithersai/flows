@@ -43,9 +43,7 @@ export type Attrs = typeof Attrs.Type
  * a file contributes its path, and a git diff contributes nothing.
  */
 const lintPatterns = (sources: ReadonlyArray<Input.Declared>): ReadonlyArray<string> =>
-  sources.flatMap((source) =>
-    source._tag === "File" ? [source.path] : source._tag === "Glob" ? [source.pattern] : []
-  )
+  sources.flatMap((source) => source._tag === "File" ? [source.path] : source._tag === "Glob" ? [source.pattern] : [])
 
 /**
  * Plans ESLint over declared source sets.

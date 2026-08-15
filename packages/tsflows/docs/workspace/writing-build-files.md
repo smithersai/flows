@@ -163,7 +163,7 @@ The root file carries workspace-level declarations.
 
 ```ts
 // BUILD.ts
-import { Workspace, DefaultRule, file, GithubCiGen, PnpmWorkspace, StandardPackage } from "tsflows-rules"
+import { DefaultRule, file, GithubCiGen, PnpmWorkspace, StandardPackage, Workspace } from "tsflows-rules"
 
 export const config = Workspace({ cacheDirectory: ".flows", gitignored: true })
 

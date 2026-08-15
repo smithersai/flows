@@ -15,15 +15,15 @@ export const { lib, test, lint } = StandardPackage({ deps: [], cwd: "packages/pl
 
 ## Options
 
-| Name | Type | Default | Description |
-| --- | --- | --- | --- |
-| `deps` | `Array<Rule.AnyTarget>` | required | Dependency targets threaded into `lib` and `test`. |
-| `cwd` | `string` | `"."` | Workspace-relative package directory every emitted tool runs in. |
-| `sources` | `Input.Glob` | `glob("src/**/*.ts")` | The source set. |
-| `tests` | `Input.Glob` | `glob("test/**/*.test.ts")` | The test set. |
-| `tsconfig` | `Input.File` | `file("tsconfig.json")` | The tsconfig `tsc -p` builds. |
-| `vitestConfig` | `Input.File \| null` | `file("vitest.config.ts")` | The Vitest config. Pass `null` explicitly to run Vitest with no `--config`. |
-| `eslintConfigs` | `Array<Input.File>` | `[file("eslint.config.js"), file("//eslint.jsdoc.js")]` | The flat configs. |
+| Name            | Type                    | Default                                                 | Description                                                                 |
+| --------------- | ----------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `deps`          | `Array<Rule.AnyTarget>` | required                                                | Dependency targets threaded into `lib` and `test`.                          |
+| `cwd`           | `string`                | `"."`                                                   | Workspace-relative package directory every emitted tool runs in.            |
+| `sources`       | `Input.Glob`            | `glob("src/**/*.ts")`                                   | The source set.                                                             |
+| `tests`         | `Input.Glob`            | `glob("test/**/*.test.ts")`                             | The test set.                                                               |
+| `tsconfig`      | `Input.File`            | `file("tsconfig.json")`                                 | The tsconfig `tsc -p` builds.                                               |
+| `vitestConfig`  | `Input.File \| null`    | `file("vitest.config.ts")`                              | The Vitest config. Pass `null` explicitly to run Vitest with no `--config`. |
+| `eslintConfigs` | `Array<Input.File>`     | `[file("eslint.config.js"), file("//eslint.jsdoc.js")]` | The flat configs.                                                           |
 
 `vitestConfig` distinguishes `undefined`, which means "use the default", from
 `null`, which means "pass no `--config`".
@@ -38,11 +38,11 @@ interface StandardTargets {
 }
 ```
 
-| Target | Rule | Attributes |
-| --- | --- | --- |
-| `lib` | `TsBuild` | `srcs: [sources]`, `entries: ["src/index.ts"]`, `deps`, `tsconfig`, `tool: "tsc"`, `format: "dual"`, `outDir: "dist"`, `external: []`, `cwd` |
-| `test` | `Vitest` | `tests: [tests]`, `sources: [sources]`, `deps: [lib, ...deps]`, `config: vitestConfig`, `environment: "node"`, `passWithNoTests: false`, `cwd` |
-| `lint` | `EsLint` | `sources: [sources]`, `deps: []`, `configs: eslintConfigs`, `maxWarnings: 0`, `fix: false`, `cwd` |
+| Target | Rule      | Attributes                                                                                                                                     |
+| ------ | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib`  | `TsBuild` | `srcs: [sources]`, `entries: ["src/index.ts"]`, `deps`, `tsconfig`, `tool: "tsc"`, `format: "dual"`, `outDir: "dist"`, `external: []`, `cwd`   |
+| `test` | `Vitest`  | `tests: [tests]`, `sources: [sources]`, `deps: [lib, ...deps]`, `config: vitestConfig`, `environment: "node"`, `passWithNoTests: false`, `cwd` |
+| `lint` | `EsLint`  | `sources: [sources]`, `deps: []`, `configs: eslintConfigs`, `maxWarnings: 0`, `fix: false`, `cwd`                                              |
 
 Notes on the edges and the lint scope:
 

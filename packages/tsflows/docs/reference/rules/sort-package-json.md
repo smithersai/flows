@@ -3,7 +3,7 @@
 Validates or rewrites `package.json` key ordering with `sort-package-json`.
 
 ```ts
-import { SortPackageJson, file } from "tsflows-rules"
+import { file, SortPackageJson } from "tsflows-rules"
 
 export const manifestOrder = SortPackageJson({
   manifests: [file("package.json")],
@@ -15,12 +15,12 @@ export const manifestOrder = SortPackageJson({
 
 ## Attributes
 
-| Name | Type | Default | Description |
-| --- | --- | --- | --- |
-| `manifests` | `Array<Input.File>` | required | The manifests to sort. With none declared, the tool sorts the `package.json` in `cwd`. |
-| `deps` | `Array<Rule.Target>` | required | Dependency targets. |
-| `check` | `boolean` | required | Report only instead of rewriting. |
-| `cwd` | `string` | `"."` | Workspace-relative directory the tool runs in. |
+| Name        | Type                 | Default  | Description                                                                            |
+| ----------- | -------------------- | -------- | -------------------------------------------------------------------------------------- |
+| `manifests` | `Array<Input.File>`  | required | The manifests to sort. With none declared, the tool sorts the `package.json` in `cwd`. |
+| `deps`      | `Array<Rule.Target>` | required | Dependency targets.                                                                    |
+| `check`     | `boolean`            | required | Report only instead of rewriting.                                                      |
+| `cwd`       | `string`             | `"."`    | Workspace-relative directory the tool runs in.                                         |
 
 ## Command
 
@@ -38,18 +38,18 @@ Collected from the attrs: every entry in `manifests`.
 
 ## Channels
 
-| Channel | Type |
-| --- | --- |
-| Success | `Exec.Result` |
-| Error | `Exec.ExecError` |
+| Channel | Type             |
+| ------- | ---------------- |
+| Success | `Exec.Result`    |
+| Error   | `Exec.ExecError` |
 
 ## Status
 
-| | |
-| --- | --- |
-| Kinds | `build`, `lint` |
-| Cacheable | When `check` is true |
-| Executes | Yes, through `ExecLive` |
+|           |                         |
+| --------- | ----------------------- |
+| Kinds     | `build`, `lint`         |
+| Cacheable | When `check` is true    |
+| Executes  | Yes, through `ExecLive` |
 
 Because the rule declares both kinds, one target is selected by both
 `tsflows build` and `tsflows lint`. `tsflows ci` merges the two plans and runs it

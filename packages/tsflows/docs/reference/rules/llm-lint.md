@@ -3,7 +3,7 @@
 Reviews changed files with a model against a rubric and fails on findings.
 
 ```ts
-import { LlmLint, gitDiff } from "tsflows-rules"
+import { gitDiff, LlmLint } from "tsflows-rules"
 
 export const review = LlmLint({
   changes: gitDiff("origin/main"),
@@ -21,18 +21,18 @@ export const review = LlmLint({
 
 ## Attributes
 
-| Name | Type | Default | Description |
-| --- | --- | --- | --- |
-| `changes` | `Input.GitDiff` | required | The base revision whose diff selects the reviewed files. |
-| `include` | `Array<string>` | required | Globs matched against workspace-relative changed paths. A path is reviewed when it matches at least one. Each also becomes a declared glob input. |
-| `context` | `Array<string>` | `[]` | Workspace-relative paths or globs read on every round and appended to every batch prompt whether or not they changed. Each becomes a declared glob input. |
-| `deps` | `Array<Rule.Target>` | required | Dependency targets. |
-| `prompt` | `string` | required | The instruction text prepended to every batch. |
-| `rubric` | `string` | required | What the model checks against. |
-| `engine` | `"claude" \| "codex"` | `"claude"` | The model CLI the review spawns. |
-| `model` | `string` | required | Passed to the CLI as `--model`. Also becomes the target's `layers` key material as `model:<value>`. |
-| `batchSize` | `number` | required | Maximum files per model call. Values below 1 are clamped to 1. |
-| `failOn` | `"info" \| "warning" \| "error"` | `"error"` | The severity that fails the target. |
+| Name        | Type                             | Default    | Description                                                                                                                                               |
+| ----------- | -------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `changes`   | `Input.GitDiff`                  | required   | The base revision whose diff selects the reviewed files.                                                                                                  |
+| `include`   | `Array<string>`                  | required   | Globs matched against workspace-relative changed paths. A path is reviewed when it matches at least one. Each also becomes a declared glob input.         |
+| `context`   | `Array<string>`                  | `[]`       | Workspace-relative paths or globs read on every round and appended to every batch prompt whether or not they changed. Each becomes a declared glob input. |
+| `deps`      | `Array<Rule.Target>`             | required   | Dependency targets.                                                                                                                                       |
+| `prompt`    | `string`                         | required   | The instruction text prepended to every batch.                                                                                                            |
+| `rubric`    | `string`                         | required   | What the model checks against.                                                                                                                            |
+| `engine`    | `"claude" \| "codex"`            | `"claude"` | The model CLI the review spawns.                                                                                                                          |
+| `model`     | `string`                         | required   | Passed to the CLI as `--model`. Also becomes the target's `layers` key material as `model:<value>`.                                                       |
+| `batchSize` | `number`                         | required   | Maximum files per model call. Values below 1 are clamped to 1.                                                                                            |
+| `failOn`    | `"info" \| "warning" \| "error"` | `"error"`  | The severity that fails the target.                                                                                                                       |
 
 ## What execution would do
 
@@ -79,17 +79,17 @@ changes.
 
 Beyond the usual fields, this rule contributes:
 
-| Field | Value |
-| --- | --- |
-| `layers` | `["model:<model>"]` |
+| Field          | Value                        |
+| -------------- | ---------------------------- |
+| `layers`       | `["model:<model>"]`          |
 | `capabilities` | `["git:diff", "model:call"]` |
 
 ## Channels
 
-| Channel | Type |
-| --- | --- |
-| Success | `Report` — `{files: Array<string>, findings: Array<Finding>}` |
-| Error | `ReviewError` — a union of `ClaudeCliMissing`, `LlmReviewError`, and `FindingsError` |
+| Channel | Type                                                                                 |
+| ------- | ------------------------------------------------------------------------------------ |
+| Success | `Report` — `{files: Array<string>, findings: Array<Finding>}`                        |
+| Error   | `ReviewError` — a union of `ClaudeCliMissing`, `LlmReviewError`, and `FindingsError` |
 
 ```ts
 Finding = { file: string, line: number, severity: Severity, message: string }
@@ -97,19 +97,19 @@ Finding = { file: string, line: number, severity: Severity, message: string }
 
 `line` is 1-based; whole-file findings report line 1.
 
-| Error | Raised when |
-| --- | --- |
-| `ClaudeCliMissing` | The engine executable was not found on the host. The tag is historical: it covers `codex` too. |
-| `LlmReviewError` | A round failed at `diff`, `read`, `review`, or `parse` |
-| `FindingsError` | The review completed and at least one finding met `failOn`. Carries the complete finding set, not only the failing ones. |
+| Error              | Raised when                                                                                                              |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `ClaudeCliMissing` | The engine executable was not found on the host. The tag is historical: it covers `codex` too.                           |
+| `LlmReviewError`   | A round failed at `diff`, `read`, `review`, or `parse`                                                                   |
+| `FindingsError`    | The review completed and at least one finding met `failOn`. Carries the complete finding set, not only the failing ones. |
 
 ## Status
 
-| | |
-| --- | --- |
-| Kinds | `lint` |
-| Cacheable | Always |
-| Executes | **Yes.** The CLI executor provides `LlmReviewLive({ workspaceRoot })`, so `tsflows lint` runs the review. |
+|           |                                                                                                           |
+| --------- | --------------------------------------------------------------------------------------------------------- |
+| Kinds     | `lint`                                                                                                    |
+| Cacheable | Always                                                                                                    |
+| Executes  | **Yes.** The CLI executor provides `LlmReviewLive({ workspaceRoot })`, so `tsflows lint` runs the review. |
 
 Planning, `query`, and `graph` work normally.
 

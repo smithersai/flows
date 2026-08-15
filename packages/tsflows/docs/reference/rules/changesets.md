@@ -18,15 +18,15 @@ export const releaseStatus = Changesets({
 
 ## Attributes
 
-| Name | Type | Default | Description |
-| --- | --- | --- | --- |
-| `operation` | `"status" \| "version"` | required | Report, or apply versioning. |
-| `changesets` | `Array<Input.Declared>` | required | The changeset files, digested as key material. |
-| `config` | `Input.File` | required | The Changesets config. |
-| `rootPackageJson` | `Input.File` | required | The root manifest. |
-| `lockfile` | `Input.File` | required | The lockfile. |
-| `deps` | `Array<Rule.Target>` | required | Dependency targets. |
-| `since` | `string \| null` | required | A base revision for `status`, passed as `--since`. Ignored by `version`. |
+| Name              | Type                    | Default  | Description                                                              |
+| ----------------- | ----------------------- | -------- | ------------------------------------------------------------------------ |
+| `operation`       | `"status" \| "version"` | required | Report, or apply versioning.                                             |
+| `changesets`      | `Array<Input.Declared>` | required | The changeset files, digested as key material.                           |
+| `config`          | `Input.File`            | required | The Changesets config.                                                   |
+| `rootPackageJson` | `Input.File`            | required | The root manifest.                                                       |
+| `lockfile`        | `Input.File`            | required | The lockfile.                                                            |
+| `deps`            | `Array<Rule.Target>`    | required | Dependency targets.                                                      |
+| `since`           | `string \| null`        | required | A base revision for `status`, passed as `--since`. Ignored by `version`. |
 
 There is no `cwd`. Both operations run at the workspace root.
 
@@ -55,18 +55,18 @@ Collected from the attrs: every declaration in `changesets`, plus `config`,
 
 ## Channels
 
-| Channel | Type |
-| --- | --- |
-| Success | `Exec.Result` |
-| Error | `Exec.ExecError` |
+| Channel | Type             |
+| ------- | ---------------- |
+| Success | `Exec.Result`    |
+| Error   | `Exec.ExecError` |
 
 ## Status
 
-| | |
-| --- | --- |
-| Kinds | `run` |
-| Cacheable | When `operation` is `status` |
-| Executes | `status` yes, through `ExecLive`, as a dependency. `version` **no**: the CLI executor does not provide `ExecIrreversibleLive`, so the target fails at interpretation with `unresolved_action`. |
+|           |                                                                                                                                                                                                |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Kinds     | `run`                                                                                                                                                                                          |
+| Cacheable | When `operation` is `status`                                                                                                                                                                   |
+| Executes  | `status` yes, through `ExecLive`, as a dependency. `version` **no**: the CLI executor does not provide `ExecIrreversibleLive`, so the target fails at interpretation with `unresolved_action`. |
 
 Both operations plan only under the `run` kind, so `build`, `test`, and `lint`
 never select them as roots.

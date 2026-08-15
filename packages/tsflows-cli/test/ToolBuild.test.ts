@@ -179,7 +179,9 @@ describe("declared outputs are required", () => {
     const stored = JSON.parse(await Fs.readFile(NodePath.join(root, ".flows/cache", first[0]!), "utf8"))
     const decoded = Executor.decodeCacheOutput(stored.output)
     if (!("value" in decoded)) throw new Error(decoded.reason)
-    const output = decoded.value as { readonly outputs: ReadonlyArray<{ readonly fileCount: number; readonly contentDigest: string }> }
+    const output = decoded.value as {
+      readonly outputs: ReadonlyArray<{ readonly fileCount: number; readonly contentDigest: string }>
+    }
     expect(output.outputs[0]?.fileCount).toBe(3)
     const digest = output.outputs[0]?.contentDigest
 

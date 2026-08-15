@@ -8,12 +8,12 @@
  *
  * @since 0.1.0
  */
-import { createHash } from "node:crypto"
-import type { Dirent } from "node:fs"
-import * as NodePath from "node:path"
 import * as Schema from "effect/Schema"
 import createIgnore from "ignore"
 import { minimatch } from "minimatch"
+import { createHash } from "node:crypto"
+import type { Dirent } from "node:fs"
+import * as NodePath from "node:path"
 import * as Config from "./Config.ts"
 import * as SafeFs from "./SafeFs.ts"
 

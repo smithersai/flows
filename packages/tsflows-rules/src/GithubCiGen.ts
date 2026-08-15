@@ -9,9 +9,9 @@ import * as Effect from "effect/Effect"
 import type * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import * as NodePath from "node:path"
+import { DriftError, driftError, generateFile, resolveOutputPath, WriteFileError } from "./GeneratedFile.ts"
 import * as GithubWorkflow from "./GithubWorkflow.ts"
 import * as Input from "./Input.ts"
-import { DriftError, driftError, generateFile, resolveOutputPath, WriteFileError } from "./GeneratedFile.ts"
 import * as RemoteCache from "./RemoteCache.ts"
 import * as Rule from "./Rule.ts"
 import * as SafeFs from "./SafeFs.ts"
@@ -484,8 +484,7 @@ const runner = (value: string): string => {
 const mapping = (
   entries: Readonly<Record<string, string>>,
   indent: string
-): ReadonlyArray<string> =>
-  Object.entries(entries).map(([key, value]) => `${indent}${scalar(key)}: ${scalar(value)}`)
+): ReadonlyArray<string> => Object.entries(entries).map(([key, value]) => `${indent}${scalar(key)}: ${scalar(value)}`)
 
 const renderStep = (step: Step, indent: string): ReadonlyArray<string> => {
   const lines: Array<string> = []
@@ -636,7 +635,9 @@ const validateJobs = (attrs: Attrs): void => {
         job.timeoutMinutes > maximumTimeoutMinutes)
     ) {
       throw new Error(
-        `GithubCiGen: job ${JSON.stringify(job.id)} declares timeout-minutes ${job.timeoutMinutes}; GitHub Actions supports a whole number from ${minimumTimeoutMinutes} to ${maximumTimeoutMinutes}`
+        `GithubCiGen: job ${
+          JSON.stringify(job.id)
+        } declares timeout-minutes ${job.timeoutMinutes}; GitHub Actions supports a whole number from ${minimumTimeoutMinutes} to ${maximumTimeoutMinutes}`
       )
     }
     for (const step of job.steps) {
@@ -721,7 +722,9 @@ export const render = (attrs: Attrs): string => {
   }
   if (!targetPattern(attrs.pattern)) {
     throw new Error(
-      `GithubCiGen: ${JSON.stringify(attrs.pattern)} is not a target pattern; use //..., //pkg/..., //pkg, or //pkg:target`
+      `GithubCiGen: ${
+        JSON.stringify(attrs.pattern)
+      } is not a target pattern; use //..., //pkg/..., //pkg, or //pkg:target`
     )
   }
   // No kinds means no generated tsflows step, which is a pipeline that runs

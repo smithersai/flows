@@ -35,14 +35,14 @@ const readBody = async (request: Http.IncomingMessage): Promise<string> => {
 
 /** A syntactically valid JSON entry only a lossy UTF-8 decoder would admit. */
 const invalidUtf8Entry = (): Buffer => {
-  const marker = '"INVALID_UTF8"'
+  const marker = "\"INVALID_UTF8\""
   const text = JSON.stringify({ ...result, output: "INVALID_UTF8" })
   const index = text.indexOf(marker)
   if (index < 0) throw new Error("invalid UTF-8 fixture marker was not encoded")
   return Buffer.concat([
-    Buffer.from(text.slice(0, index) + '"', "utf8"),
+    Buffer.from(text.slice(0, index) + "\"", "utf8"),
     Buffer.from([0xc3, 0x28]),
-    Buffer.from('"' + text.slice(index + marker.length), "utf8")
+    Buffer.from("\"" + text.slice(index + marker.length), "utf8")
   ])
 }
 

@@ -21,9 +21,15 @@ export default tseslint.config(
         Bun: "readonly",
         console: "readonly",
         globalThis: "readonly",
+        Headers: "readonly",
         process: "readonly",
+        ReadableStream: "readonly",
+        Request: "readonly",
+        Response: "readonly",
         setTimeout: "readonly",
         clearTimeout: "readonly",
+        TextDecoder: "readonly",
+        TextEncoder: "readonly",
         URL: "readonly"
       }
     }
@@ -80,13 +86,16 @@ export default tseslint.config(
   {
     files: ["infra/**/*.ts", "terraform/modules/cache/service/**/*.{js,cjs,mjs}"],
     rules: {
-      "no-console": "off"
+      // The cache service sanitizes control characters; matching them is the point.
+      "no-control-regex": "off",
+      "no-console": "off",
+      "import/no-unresolved": ["error", { ignore: ["^bun$"] }]
     }
   },
   {
     files: ["terraform/modules/cache/service/test/**/*.{js,cjs,mjs}"],
     rules: {
-      "import/no-unresolved": ["error", { ignore: ["^bun:test$"] }]
+      "import/no-unresolved": ["error", { ignore: ["^bun$", "^bun:test$"] }]
     }
   },
   ...jsdocConvention

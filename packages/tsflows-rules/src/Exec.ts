@@ -187,9 +187,10 @@ const declaredDiagnostic = (value: unknown): { readonly argv: [string, ...Array<
   try {
     if (typeof value !== "object" || value === null) throw new Error("not an object")
     const candidate = value as { readonly argv?: unknown; readonly cwd?: unknown }
-    const argv = Array.isArray(candidate.argv) && candidate.argv.length > 0 && candidate.argv.length <= maximumArgvEntries
-      ? candidate.argv.map((entry) => typeof entry === "string" ? head(entry, maximumTextBytes) : String(entry))
-      : ["<invalid exec payload>"]
+    const argv =
+      Array.isArray(candidate.argv) && candidate.argv.length > 0 && candidate.argv.length <= maximumArgvEntries
+        ? candidate.argv.map((entry) => typeof entry === "string" ? head(entry, maximumTextBytes) : String(entry))
+        : ["<invalid exec payload>"]
     const cwd = typeof candidate.cwd === "string" ? head(candidate.cwd, maximumTextBytes) : "<invalid exec cwd>"
     return { argv: argv as [string, ...Array<string>], cwd }
   } catch {

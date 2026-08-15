@@ -3,7 +3,7 @@
 Runs `vitest run` with coverage enabled and declares the report directory.
 
 ```ts
-import { VitestCoverage, file, glob } from "tsflows-rules"
+import { file, glob, VitestCoverage } from "tsflows-rules"
 
 export const coverage = VitestCoverage({
   tests: [glob("test/**/*.test.ts")],
@@ -19,16 +19,16 @@ export const coverage = VitestCoverage({
 
 ## Attributes
 
-| Name | Type | Default | Description |
-| --- | --- | --- | --- |
-| `tests` | `Array<Input.Declared>` | required | Test file declarations. |
-| `sources` | `Array<Input.Declared>` | required | Source declarations. |
-| `deps` | `Array<Rule.Target>` | required | Dependency targets. |
-| `config` | `Input.File \| null` | required | The Vitest config, or `null` to pass no `--config`. |
-| `provider` | `"v8" \| "istanbul"` | required | Coverage provider. |
-| `reportsDirectory` | `string` | required | Where coverage reports are written, relative to `cwd`. |
-| `thresholds` | `{branches, functions, lines, statements}` | required | Minimum coverage percentages. All four are numbers and all four are required. |
-| `cwd` | `string` | `"."` | Workspace-relative directory the runner starts in. |
+| Name               | Type                                       | Default  | Description                                                                   |
+| ------------------ | ------------------------------------------ | -------- | ----------------------------------------------------------------------------- |
+| `tests`            | `Array<Input.Declared>`                    | required | Test file declarations.                                                       |
+| `sources`          | `Array<Input.Declared>`                    | required | Source declarations.                                                          |
+| `deps`             | `Array<Rule.Target>`                       | required | Dependency targets.                                                           |
+| `config`           | `Input.File \| null`                       | required | The Vitest config, or `null` to pass no `--config`.                           |
+| `provider`         | `"v8" \| "istanbul"`                       | required | Coverage provider.                                                            |
+| `reportsDirectory` | `string`                                   | required | Where coverage reports are written, relative to `cwd`.                        |
+| `thresholds`       | `{branches, functions, lines, statements}` | required | Minimum coverage percentages. All four are numbers and all four are required. |
+| `cwd`              | `string`                                   | `"."`    | Workspace-relative directory the runner starts in.                            |
 
 ## Command
 
@@ -50,10 +50,10 @@ Collected from the attrs: every declaration in `tests` and `sources`, plus
 
 ## Channels
 
-| Channel | Type |
-| --- | --- |
+| Channel | Type             |
+| ------- | ---------------- |
 | Success | `CoverageReport` |
-| Error | `Exec.ExecError` |
+| Error   | `Exec.ExecError` |
 
 ```ts
 CoverageReport = { run: Exec.Result, reportsDirectory: string }
@@ -64,11 +64,11 @@ the written reports.
 
 ## Status
 
-| | |
-| --- | --- |
-| Kinds | `test` |
-| Cacheable | Always |
-| Executes | Yes, through `ExecLive` |
+|           |                         |
+| --------- | ----------------------- |
+| Kinds     | `test`                  |
+| Cacheable | Always                  |
+| Executes  | Yes, through `ExecLive` |
 
 ## See also
 

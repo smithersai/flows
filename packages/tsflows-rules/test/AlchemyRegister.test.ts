@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest"
 import { DefaultRule, expand, isDefaultRule, TypeId as DefaultRuleTypeId } from "../src/DefaultRule.ts"
-import { GithubCiGen, type Attrs as GithubCiGenAttrs } from "../src/GithubCiGen.ts"
+import { type Attrs as GithubCiGenAttrs, GithubCiGen } from "../src/GithubCiGen.ts"
 import * as Input from "../src/Input.ts"
-import { PnpmWorkspace, type Attrs as PnpmWorkspaceAttrs } from "../src/PnpmWorkspace.ts"
+import { type Attrs as PnpmWorkspaceAttrs, PnpmWorkspace } from "../src/PnpmWorkspace.ts"
 import * as Rule from "../src/Rule.ts"
 
 describe("Alchemy-style BUILD.ts constructors", () => {

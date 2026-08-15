@@ -17,14 +17,14 @@ export const lint = EsLint({
 
 ## Attributes
 
-| Name | Type | Default | Description |
-| --- | --- | --- | --- |
-| `sources` | `Array<Input.Declared>` | required | What to lint. Globs pass through to ESLint as patterns. |
-| `deps` | `Array<Rule.Target>` | required | Dependency targets. Usually empty: linting sources needs nothing built. |
-| `configs` | `Array<Input.File>` | required | Flat configs. The first is passed as `--config`; the rest are key material for files the config imports. |
-| `maxWarnings` | `number` | required | The warning budget, passed as `--max-warnings`. |
-| `fix` | `boolean` | required | Apply autofixes. Makes the target non-cacheable. |
-| `cwd` | `string` | `"."` | Workspace-relative directory the tool runs in. |
+| Name          | Type                    | Default  | Description                                                                                              |
+| ------------- | ----------------------- | -------- | -------------------------------------------------------------------------------------------------------- |
+| `sources`     | `Array<Input.Declared>` | required | What to lint. Globs pass through to ESLint as patterns.                                                  |
+| `deps`        | `Array<Rule.Target>`    | required | Dependency targets. Usually empty: linting sources needs nothing built.                                  |
+| `configs`     | `Array<Input.File>`     | required | Flat configs. The first is passed as `--config`; the rest are key material for files the config imports. |
+| `maxWarnings` | `number`                | required | The warning budget, passed as `--max-warnings`.                                                          |
+| `fix`         | `boolean`               | required | Apply autofixes. Makes the target non-cacheable.                                                         |
+| `cwd`         | `string`                | `"."`    | Workspace-relative directory the tool runs in.                                                           |
 
 ## Command
 
@@ -35,11 +35,11 @@ pnpm exec eslint [--config <configs[0].path>] --max-warnings <maxWarnings> [--fi
 ESLint expands glob patterns itself, so the source declarations reduce to
 arguments as follows:
 
-| Declaration | Contributes |
-| --- | --- |
-| `Glob` | its `pattern` verbatim |
-| `File` | its `path` |
-| `GitDiff` | nothing |
+| Declaration | Contributes            |
+| ----------- | ---------------------- |
+| `Glob`      | its `pattern` verbatim |
+| `File`      | its `path`             |
+| `GitDiff`   | nothing                |
 
 ## Inputs
 
@@ -48,18 +48,18 @@ Collected from the attrs: every declaration in `sources`, plus every entry in
 
 ## Channels
 
-| Channel | Type |
-| --- | --- |
-| Success | `Exec.Result` |
-| Error | `Exec.ExecError` |
+| Channel | Type             |
+| ------- | ---------------- |
+| Success | `Exec.Result`    |
+| Error   | `Exec.ExecError` |
 
 ## Status
 
-| | |
-| --- | --- |
-| Kinds | `lint` |
-| Cacheable | When `fix` is false |
-| Executes | Yes, through `ExecLive` |
+|           |                         |
+| --------- | ----------------------- |
+| Kinds     | `lint`                  |
+| Cacheable | When `fix` is false     |
+| Executes  | Yes, through `ExecLive` |
 
 ## Notes
 

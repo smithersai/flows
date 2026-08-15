@@ -44,11 +44,13 @@ describe("Input.expandGlob", () => {
     }
   )
 
-  it.each([
-    ["entries", { entries: 0 }],
-    ["files", { files: 1 }],
-    ["depth", { depth: 1 }]
-  ] as const)("fails closed at the %s traversal limit", async (_name, limits) => {
+  it.each(
+    [
+      ["entries", { entries: 0 }],
+      ["files", { files: 1 }],
+      ["depth", { depth: 1 }]
+    ] as const
+  )("fails closed at the %s traversal limit", async (_name, limits) => {
     await expect(Input.expandGlob(root, "", "**/*.ts", { limits })).rejects.toThrow(/limit|more than/)
   })
 

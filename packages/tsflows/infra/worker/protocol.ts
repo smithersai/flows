@@ -145,7 +145,7 @@ export interface ActionCachePublication {
   readonly createdAtMs: number | null
   readonly recordedRunId: string | null
   readonly recordedEventSeq: number | null
-  readonly digests: readonly string[]
+  readonly digests: ReadonlyArray<string>
 }
 
 /**
@@ -186,7 +186,7 @@ export interface ContentStore {
     digest: string,
     bytes: Uint8Array<ArrayBuffer>
   ) => Promise<"inserted" | "present">
-  readonly presentDigests: (digests: readonly string[]) => Promise<ReadonlySet<string>>
+  readonly presentDigests: (digests: ReadonlyArray<string>) => Promise<ReadonlySet<string>>
 }
 
 /**
@@ -229,8 +229,7 @@ const busy = (message: string): Response =>
     headers: { "content-type": "application/json", "retry-after": "1" }
   })
 
-const methodNotAllowed = (allowed: string): Response =>
-  new Response(null, { status: 405, headers: { allow: allowed } })
+const methodNotAllowed = (allowed: string): Response => new Response(null, { status: 405, headers: { allow: allowed } })
 
 const mediaType = (request: Request): string =>
   (request.headers.get("content-type") ?? "").split(";", 1)[0]?.trim().toLowerCase() ?? ""
@@ -445,7 +444,7 @@ const invalidKeyDigest = (keyDigest: string): string | null => {
   return null
 }
 
-const referencedDigests = (record: Record<string, unknown>): readonly string[] => {
+const referencedDigests = (record: Record<string, unknown>): ReadonlyArray<string> => {
   const meta = isRecord(record["meta"]) ? record["meta"] : null
   const boundary = meta !== null && isRecord(meta["boundary"]) ? meta["boundary"] : null
   const declaredOutputs = boundary !== null && isRecord(boundary["declaredOutputs"])
@@ -485,7 +484,7 @@ const readPublication = async (request: Request, keyDigest: string): Promise<Pub
 
   const enveloped = record !== null && Object.hasOwn(record, "keyDigest") && Object.hasOwn(record, "result")
   let resultJson: string
-  let digests: readonly string[]
+  let digests: ReadonlyArray<string>
   try {
     canonicalJson(parsed.value)
     resultJson = canonicalJson(enveloped ? record["result"] : parsed.value)
@@ -680,7 +679,7 @@ const handleFindMissing = async (
   if (!unique.every((digest) => typeof digest === "string" && hexDigest.test(digest))) {
     return json(400, { error: "every digest must be 64 lowercase hex characters" })
   }
-  const typedDigests = unique as string[]
+  const typedDigests = unique as Array<string>
   if (typedDigests.length === 0) return json(200, { missing: [] })
   const present = await contentStore.presentDigests(typedDigests)
   return json(200, {
@@ -767,8 +766,7 @@ export const createHandler = (dependencies: ProtocolDependencies) => {
       return Promise.resolve()
     }
     if (healthInFlight !== null) return healthInFlight
-    let current: Promise<void>
-    current = Promise.resolve()
+    const current: Promise<void> = Promise.resolve()
       .then(health)
       .then(() => {
         lastHealthyAt = performance.now()

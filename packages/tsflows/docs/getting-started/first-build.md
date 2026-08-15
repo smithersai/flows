@@ -10,7 +10,7 @@ input values, the install target, and any default rules.
 
 ```ts
 // BUILD.ts
-import { Workspace, file, PnpmWorkspace } from "tsflows-rules"
+import { file, PnpmWorkspace, Workspace } from "tsflows-rules"
 
 export const config = Workspace({ cacheDirectory: ".flows", gitignored: true })
 

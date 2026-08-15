@@ -18,15 +18,15 @@ export const dependencyPolicy = DepsLint({
 
 ## Attributes
 
-| Name | Type | Default | Description |
-| --- | --- | --- | --- |
-| `packageJson` | `Input.File` | required | The manifest being checked. Both tools read it from `cwd`; this declaration is key material. |
-| `sources` | `Array<Input.Declared>` | required | Source declarations. Key material. |
-| `deps` | `Array<Rule.Target>` | required | Dependency targets. |
-| `tool` | `"knip" \| "depcheck"` | required | Which checker to run. |
-| `ignoreDependencies` | `Array<string>` | required | Dependencies to ignore. |
-| `ignoreBinaries` | `Array<string>` | required | Binaries to ignore. |
-| `cwd` | `string` | `"."` | Workspace-relative directory the tool runs in. |
+| Name                 | Type                    | Default  | Description                                                                                  |
+| -------------------- | ----------------------- | -------- | -------------------------------------------------------------------------------------------- |
+| `packageJson`        | `Input.File`            | required | The manifest being checked. Both tools read it from `cwd`; this declaration is key material. |
+| `sources`            | `Array<Input.Declared>` | required | Source declarations. Key material.                                                           |
+| `deps`               | `Array<Rule.Target>`    | required | Dependency targets.                                                                          |
+| `tool`               | `"knip" \| "depcheck"`  | required | Which checker to run.                                                                        |
+| `ignoreDependencies` | `Array<string>`         | required | Dependencies to ignore.                                                                      |
+| `ignoreBinaries`     | `Array<string>`         | required | Binaries to ignore.                                                                          |
+| `cwd`                | `string`                | `"."`    | Workspace-relative directory the tool runs in.                                               |
 
 ## Commands
 
@@ -77,18 +77,18 @@ Collected from the attrs: `packageJson`, plus every declaration in `sources`.
 
 ## Channels
 
-| Channel | Type |
-| --- | --- |
-| Success | `Exec.Result` |
-| Error | `Exec.ExecError` |
+| Channel | Type             |
+| ------- | ---------------- |
+| Success | `Exec.Result`    |
+| Error   | `Exec.ExecError` |
 
 ## Status
 
-| | |
-| --- | --- |
-| Kinds | `lint` |
-| Cacheable | Always |
-| Executes | Yes, through `ExecLive` |
+|           |                         |
+| --------- | ----------------------- |
+| Kinds     | `lint`                  |
+| Cacheable | Always                  |
+| Executes  | Yes, through `ExecLive` |
 
 ## See also
 

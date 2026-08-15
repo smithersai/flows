@@ -28,11 +28,11 @@ export const ci = GithubCiGen({
 
 ## Modes
 
-| Mode | Behavior |
-| --- | --- |
+| Mode       | Behavior                                                                                                                  |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `contract` | Default. Parses the checked-in workflow and fails with `DriftError` if a required job or gate is absent. It never writes. |
-| `check` | Renders declared jobs and byte-compares the result with the checked-in workflow. It never writes. |
-| `write` | Explicit generation. Validates and writes the rendered workflow. |
+| `check`    | Renders declared jobs and byte-compares the result with the checked-in workflow. It never writes.                         |
+| `write`    | Explicit generation. Validates and writes the rendered workflow.                                                          |
 
 The `lint` form maps `write` to `check`. `tsflows ci` plans lint first, so CI is
 also non-mutating even if a target explicitly declares write mode. Only an
@@ -40,24 +40,24 @@ explicit `tsflows build` of a `mode: "write"` target generates a file.
 
 ## Attributes
 
-| Name | Type | Default | Description |
-| --- | --- | --- | --- |
-| `workflowName` | `string` | `"CI"` | Generated workflow name. |
-| `pattern` | `string` | `"//..."` | Pattern executed by the generated tsflows step. Must be `//...`, `//pkg/...`, `//pkg`, `//pkg:target`, or `//:target`; rendered as one single-quoted shell word. |
-| `kinds` | `Array<Rule.Kind>` | build, test, lint | Verbs emitted by generation, restricted to the ones the CLI has a command for: `build`, `test`, `lint`, `docs`. The complete default set emits one `tsflows ci` command. |
-| `pushBranches` | `Array<string>` | `["main"]` | Generated push branches. |
-| `pullRequest` | `boolean` | `true` | Generated pull-request trigger. |
-| `workflowDispatch` | `boolean` | `true` | Generated manual trigger. |
-| `cancelInProgress` | `boolean` | `true` | Generated concurrency policy. |
-| `install` | `string` | `pnpm install --frozen-lockfile` | Lockfile-respecting install command. Unsupported commands, and flags that can omit a pinned dependency, are rejected; the job that runs tsflows must run an install line that passes the same policy. It also selects the workspace-binary runner of the generated step. |
-| `cacheUrlSecret` | `string` | optional | Secret supplying `TSFLOWS_CACHE_URL`. |
-| `cacheTokenSecret` | `string` | optional | Secret supplying a remote-cache token. |
-| `cacheTokenEnv` | `string` | `TSFLOWS_CACHE_TOKEN` | Environment variable receiving that token. |
-| `jobs` | `Array<Job>` | `[]` | Jobs rendered by `write` and `check`; may be empty in contract mode. A job's optional `timeoutMinutes` must be a whole number from 1 to 360. |
-| `gates` | `Array<Gate>` | `[]` | Named commands an unconditional step must still run, or actions it must still use, optionally in one job. |
-| `requiredJobs` | `Array<string>` | `[]` | Job ids the workflow must define **and run unconditionally**, in every mode. |
-| `output` | `string` | `".github/workflows/ci.yml"` | Workspace-relative workflow path. |
-| `mode` | `"contract" \| "check" \| "write"` | `"contract"` | Output handling described above. |
+| Name               | Type                               | Default                          | Description                                                                                                                                                                                                                                                              |
+| ------------------ | ---------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `workflowName`     | `string`                           | `"CI"`                           | Generated workflow name.                                                                                                                                                                                                                                                 |
+| `pattern`          | `string`                           | `"//..."`                        | Pattern executed by the generated tsflows step. Must be `//...`, `//pkg/...`, `//pkg`, `//pkg:target`, or `//:target`; rendered as one single-quoted shell word.                                                                                                         |
+| `kinds`            | `Array<Rule.Kind>`                 | build, test, lint                | Verbs emitted by generation, restricted to the ones the CLI has a command for: `build`, `test`, `lint`, `docs`. The complete default set emits one `tsflows ci` command.                                                                                                 |
+| `pushBranches`     | `Array<string>`                    | `["main"]`                       | Generated push branches.                                                                                                                                                                                                                                                 |
+| `pullRequest`      | `boolean`                          | `true`                           | Generated pull-request trigger.                                                                                                                                                                                                                                          |
+| `workflowDispatch` | `boolean`                          | `true`                           | Generated manual trigger.                                                                                                                                                                                                                                                |
+| `cancelInProgress` | `boolean`                          | `true`                           | Generated concurrency policy.                                                                                                                                                                                                                                            |
+| `install`          | `string`                           | `pnpm install --frozen-lockfile` | Lockfile-respecting install command. Unsupported commands, and flags that can omit a pinned dependency, are rejected; the job that runs tsflows must run an install line that passes the same policy. It also selects the workspace-binary runner of the generated step. |
+| `cacheUrlSecret`   | `string`                           | optional                         | Secret supplying `TSFLOWS_CACHE_URL`.                                                                                                                                                                                                                                    |
+| `cacheTokenSecret` | `string`                           | optional                         | Secret supplying a remote-cache token.                                                                                                                                                                                                                                   |
+| `cacheTokenEnv`    | `string`                           | `TSFLOWS_CACHE_TOKEN`            | Environment variable receiving that token.                                                                                                                                                                                                                               |
+| `jobs`             | `Array<Job>`                       | `[]`                             | Jobs rendered by `write` and `check`; may be empty in contract mode. A job's optional `timeoutMinutes` must be a whole number from 1 to 360.                                                                                                                             |
+| `gates`            | `Array<Gate>`                      | `[]`                             | Named commands an unconditional step must still run, or actions it must still use, optionally in one job.                                                                                                                                                                |
+| `requiredJobs`     | `Array<string>`                    | `[]`                             | Job ids the workflow must define **and run unconditionally**, in every mode.                                                                                                                                                                                             |
+| `output`           | `string`                           | `".github/workflows/ci.yml"`     | Workspace-relative workflow path.                                                                                                                                                                                                                                        |
+| `mode`             | `"contract" \| "check" \| "write"` | `"contract"`                     | Output handling described above.                                                                                                                                                                                                                                         |
 
 ## Contract and generation guarantees
 
@@ -109,15 +109,15 @@ command-substitution `(`, a `NAME=value` prefix, or one of the
 words that introduce one — outside every quoted string, and ends at a shell word
 boundary. So these do **not** satisfy a `pnpm run check` gate:
 
-| Script | Why it does not count |
-| --- | --- |
-| `echo pnpm run check` | the command is an argument; nothing typechecks |
-| `echo "first; pnpm run check"` | quoted data, separators included |
-| `# pnpm run check` | a shell comment runs nothing |
-| `pnpm run checkall` | a different, longer command name |
-| `xpnpm run check` | a different command name |
-| `cat <<'EOF'` … `pnpm run check` … `EOF` | a here-document body is data |
-| `check() { pnpm run check; }` | declaring a function defers its body; it runs nothing |
+| Script                                   | Why it does not count                                 |
+| ---------------------------------------- | ----------------------------------------------------- |
+| `echo pnpm run check`                    | the command is an argument; nothing typechecks        |
+| `echo "first; pnpm run check"`           | quoted data, separators included                      |
+| `# pnpm run check`                       | a shell comment runs nothing                          |
+| `pnpm run checkall`                      | a different, longer command name                      |
+| `xpnpm run check`                        | a different command name                              |
+| `cat <<'EOF'` … `pnpm run check` … `EOF` | a here-document body is data                          |
+| `check() { pnpm run check; }`            | declaring a function defers its body; it runs nothing |
 
 Literal (`|`) scripts preserve their line breaks. Folded (`>`) scripts are
 read conservatively with physical lines joined as spaces. YAML preserves a few
@@ -137,7 +137,7 @@ same action at any version (`actions/checkout` matches `actions/checkout@v4`).
 A gate is satisfied only by an **unconditional** job and step. A job or step
 carrying an `if:` may be skipped, so it cannot prove a required gate; only the
 literal `true` (and `${{ true }}`) is accepted as always-true. `continue-on-error`
-is deliberately left advisory: a gate asserts that a command still *runs*, not
+is deliberately left advisory: a gate asserts that a command still _runs_, not
 that its failure blocks a merge, and the advisory macOS and Windows lanes of a
 real pipeline are exactly what a platform-pinned gate exists to pin.
 
@@ -216,11 +216,11 @@ not an input.
 
 ## Channels and status
 
-| | |
-| --- | --- |
-| Kinds | `build`, `lint` |
-| Success | `Schema.Void` |
-| Error | `WriteFileError \| DriftError` |
+|          |                                                                              |
+| -------- | ---------------------------------------------------------------------------- |
+| Kinds    | `build`, `lint`                                                              |
+| Success  | `Schema.Void`                                                                |
+| Error    | `WriteFileError \| DriftError`                                               |
 | Executes | Yes. The executor provides write, byte-check, and workflow-contract actions. |
 
 ## See also

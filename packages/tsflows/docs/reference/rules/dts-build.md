@@ -20,16 +20,16 @@ export const types = DtsBuild({
 
 ## Attributes
 
-| Name | Type | Default | Description |
-| --- | --- | --- | --- |
-| `srcs` | `Array<Input.Declared>` | required | Source declarations. Digested as key material. |
-| `entries` | `Array<string>` | required | Entry points. Passed to `tsup`; key material only for `tsc`. |
-| `deps` | `Array<Rule.Target>` | required | Dependency targets. |
-| `tsconfig` | `Input.File` | required | The tsconfig the emit uses. |
-| `tool` | `"tsup" \| "tsc"` | required | Which emitter to run. |
-| `outDir` | `string` | required | Captured output directory, relative to `cwd`. |
-| `declarationMap` | `boolean` | required | Emit `.d.ts.map` files. Forced explicitly for `tsc`; ignored by `tsup`. |
-| `cwd` | `string` | `"."` | Workspace-relative directory the tool runs in. |
+| Name             | Type                    | Default  | Description                                                             |
+| ---------------- | ----------------------- | -------- | ----------------------------------------------------------------------- |
+| `srcs`           | `Array<Input.Declared>` | required | Source declarations. Digested as key material.                          |
+| `entries`        | `Array<string>`         | required | Entry points. Passed to `tsup`; key material only for `tsc`.            |
+| `deps`           | `Array<Rule.Target>`    | required | Dependency targets.                                                     |
+| `tsconfig`       | `Input.File`            | required | The tsconfig the emit uses.                                             |
+| `tool`           | `"tsup" \| "tsc"`       | required | Which emitter to run.                                                   |
+| `outDir`         | `string`                | required | Captured output directory, relative to `cwd`.                           |
+| `declarationMap` | `boolean`               | required | Emit `.d.ts.map` files. Forced explicitly for `tsc`; ignored by `tsup`. |
+| `cwd`            | `string`                | `"."`    | Workspace-relative directory the tool runs in.                          |
 
 ## Command
 
@@ -60,18 +60,18 @@ plan ends with the shared output-capture step over `outDir`.
 
 ## Channels
 
-| Channel | Type |
-| --- | --- |
-| Success | `Outputs` |
-| Error | `Exec.ExecError` |
+| Channel | Type             |
+| ------- | ---------------- |
+| Success | `Outputs`        |
+| Error   | `Exec.ExecError` |
 
 ## Status
 
-| | |
-| --- | --- |
-| Kinds | `build` |
-| Cacheable | Always |
-| Executes | Yes, through `ExecLive` |
+|           |                         |
+| --------- | ----------------------- |
+| Kinds     | `build`                 |
+| Cacheable | Always                  |
+| Executes  | Yes, through `ExecLive` |
 
 ## See also
 

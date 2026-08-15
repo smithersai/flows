@@ -63,11 +63,11 @@ fields such as license, author, engines, and the standard `test` and
 
 ## Sync targets
 
-| Target suffix | Kind | Cacheable | Effect |
-| --- | --- | --- | --- |
-| `Check` | `lint` | Yes | Regenerates in memory and fails with a field-level drift report. |
-| `Write` | `run` | No | Rewrites the checked-in manifest. |
-| `Refresh` | `run` | No | Refreshes generated prose, caches it, and rewrites the manifest. |
+| Target suffix | Kind   | Cacheable | Effect                                                           |
+| ------------- | ------ | --------- | ---------------------------------------------------------------- |
+| `Check`       | `lint` | Yes       | Regenerates in memory and fails with a field-level drift report. |
+| `Write`       | `run`  | No        | Rewrites the checked-in manifest.                                |
+| `Refresh`     | `run`  | No        | Refreshes generated prose, caches it, and rewrites the manifest. |
 
 The check target declares the checked-in manifest as an input. CI therefore
 runs a cacheable, non-mutating comparison. Write and refresh are explicit
