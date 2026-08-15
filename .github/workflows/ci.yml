@@ -37,6 +37,8 @@ jobs:
       # of lint-only regression can no longer merge green.
       - name: Lint all workspaces
         run: pnpm run lint
+      - name: Documentation parity
+        run: pnpm exec tsflows docs '//...'
       - name: Circular-dependency guard
         run: pnpm run circular
       # Browser support is a hard requirement met through layers: the contract

@@ -176,7 +176,7 @@ describe("StandardPackage", () => {
     expect(Rule.metadata(targets.docs).kinds).toEqual(["docs"])
   })
 
-  it("keeps the docs verb out of the build, test, and lint targets the ci command runs", () => {
+  it("keeps docs as a separately planned target kind", () => {
     for (const target of [targets.lib, targets.test, targets.lint]) {
       expect(Rule.metadata(target).kinds).not.toContain("docs")
     }

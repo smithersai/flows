@@ -4,4 +4,4 @@
  */
 import { StandardPackage } from "tsflows-rules"
 
-export const { lib, test, lint } = StandardPackage({ deps: [] })
+export const { docs, lib, lint, test } = StandardPackage({ deps: [], cwd: "packages/plan" })

@@ -56,8 +56,8 @@ export interface StandardTargets {
  * the repository's package lint scripts; the flat config declares no coverage
  * for test files, and ESLint 9 fails on a pattern whose matches are all
  * unconfigured. `docs` is the documentation-parity target over the package
- * README; it participates in the `docs` verb alone, so it never joins the
- * `build`, `test`, and `lint` graph the `ci` command runs. Callers can
+ * README. It participates in the `docs` verb alone; the aggregate `ci`
+ * command plans that verb alongside build, test, and lint. Callers can
  * override any shared input without replacing the macro.
  *
  * @category macros

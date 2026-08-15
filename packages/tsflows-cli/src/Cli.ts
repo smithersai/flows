@@ -49,7 +49,7 @@ interface WorkspaceFlags {
   readonly cacheDir?: string | undefined
 }
 
-/** The execution flags shared by build, test, lint, and ci. */
+/** The flags shared by commands that execute targets. */
 interface ExecutionFlags extends WorkspaceFlags {
   readonly plan: boolean
   readonly jobs?: number | undefined
@@ -129,7 +129,7 @@ const openWorkspace = async (
   }
 }
 
-/** The plan printed by `ci --plan`: three verb plans merged over one pattern. */
+/** The plan printed by `ci --plan`: all CI verb plans merged over one pattern. */
 interface CiPlan extends Executor.MergedPlan {
   readonly verb: "ci"
   readonly pattern: string
@@ -158,8 +158,6 @@ const runVerb = async (
   })
 }
 
-// `docs` is deliberately absent: the documentation-parity gate reports on
-// demand while the README backfill lands, and must not turn CI red first.
 /**
  * The verbs `ci` merges, LINT FIRST.
  *
@@ -172,9 +170,9 @@ const runVerb = async (
  * repository was green. Lint first makes the merged graph the checking form,
  * which is the only correct posture for a CI verb.
  */
-const ciKinds = ["lint", "build", "test"] as const
+const ciKinds = ["lint", "build", "test", "docs"] as const
 
-/** Plans build, test, and lint over one pattern and executes the merged graph. */
+/** Plans every CI-safe verb over one pattern and executes the merged graph. */
 const runCi = async (
   pattern: string,
   flags: ExecutionFlags,
@@ -187,7 +185,7 @@ const runCi = async (
     try {
       plans.push(await Planner.make(workspace, kind, pattern))
     } catch (cause) {
-      // An exact label that does not participate in one of the three kinds is
+      // An exact label that does not participate in one of the CI kinds is
       // fine as long as it participates in another; any other planning error
       // is real and propagates.
       if (message(cause).includes(`does not support the ${kind} verb`)) refusals.push(cause)
@@ -363,7 +361,7 @@ export const makeCli = (config: RuntimeConfig = {}) =>
       }
     })
     .command("ci", {
-      description: "Execute build, test, and lint targets over one merged graph",
+      description: "Execute build, test, lint, and documentation targets over one merged graph",
       args: patternArgument,
       options: executionOptions,
       alias: executionAlias,

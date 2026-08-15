@@ -22,9 +22,8 @@ import * as Input from "./Input.ts"
 /**
  * CLI verbs a rule can participate in.
  *
- * `docs` is the documentation-parity verb. It is deliberately outside the
- * `build`, `test`, and `lint` set the `ci` command runs, so a documentation
- * gate can land and report before every package satisfies it.
+ * `docs` is the documentation-parity verb. It remains independently
+ * addressable and also participates in the aggregate `ci` command.
  *
  * @category models
  * @since 0.1.0

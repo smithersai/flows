@@ -5,11 +5,12 @@
 import { DepsLint, file, glob, StandardPackage } from "tsflows-rules"
 import { lib as flow } from "../flow/BUILD.ts"
 
-const standard = StandardPackage({ deps: [flow] })
+const standard = StandardPackage({ deps: [flow], cwd: "packages/engine" })
 
 export const lib = standard.lib
 export const test = standard.test
 export const lint = standard.lint
+export const docs = standard.docs
 
 export const dependencyPolicy = DepsLint({
   packageJson: file("package.json"),

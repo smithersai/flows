@@ -314,7 +314,7 @@ export const Attrs = Schema.Struct({
    */
   kinds: Schema.Array(Rule.Kind).pipe(
     Schema.withConstructorDefault(
-      Effect.succeed<ReadonlyArray<Rule.Kind>>(["build", "test", "lint"])
+      Effect.succeed<ReadonlyArray<Rule.Kind>>(["build", "test", "lint", "docs"])
     )
   ),
   /** @default ["main"] */
@@ -526,7 +526,7 @@ const renderStep = (step: Step, indent: string): ReadonlyArray<string> => {
   return lines
 }
 
-const ciKinds: ReadonlySet<Rule.Kind> = new Set(["build", "test", "lint"])
+const ciKinds: ReadonlySet<Rule.Kind> = new Set(["build", "test", "lint", "docs"])
 
 /**
  * The kinds safe for an unattended generated pipeline. The CLI also exposes
@@ -846,8 +846,9 @@ export const render = (attrs: Attrs): string => {
  * or `ci` run mutates a workflow file. Only `contract` and `check` are
  * cacheable; the output file is a declared input in both, so editing the
  * workflow re-keys the target. The first rendered job receives one
- * `<exec> tsflows ci <pattern>` step when `kinds` is exactly build, test, and
- * lint. Every other set receives one `<exec> tsflows <verb> <pattern>` step
+ * `<exec> tsflows ci <pattern>` step when `kinds` is exactly build, test,
+ * lint, and docs. Every other set receives one
+ * `<exec> tsflows <verb> <pattern>` step
  * per kind, for the kinds in {@link pipelineKinds}. `<exec>` is the
  * workspace-binary runner of the declared install
  * ({@link GithubWorkflow.workspaceExecCommands}), so the CLI that runs is the

@@ -4,7 +4,7 @@
  * Three properties are pinned here, all of which were once only asserted by
  * reading the code:
  *
- * 1. `build`, `test`, `lint`, and `ci` EXECUTE the selected targets — over
+ * 1. `build`, `test`, `lint`, `docs`, and `ci` EXECUTE selected targets — over
  *    `//...` and over an exact label — instead of printing a plan. The proof
  *    is a side effect on disk that only running the target's Flow produces.
  * 2. A failing target fails the run with a non-zero exit status and BLOCKS its
@@ -56,11 +56,11 @@ const run = async (
   })
 }
 
-/** Plans lint, build, and test over one pattern and executes the merged graph. */
+/** Plans every CI kind over one pattern and executes the merged graph. */
 const runCi = async (pattern: string): Promise<Executor.Summary> => {
   const workspace = await open()
   const plans = []
-  for (const kind of ["lint", "build", "test"] as const) {
+  for (const kind of ["lint", "build", "test", "docs"] as const) {
     try {
       plans.push(await Planner.make(workspace, kind, pattern))
     } catch (cause) {
@@ -290,6 +290,21 @@ describe("checking verbs do not mutate the working tree", () => {
     expect(summary.ok).toBe(false)
     expect(status(summary, "//packages/alpha:packageJsonCheck")).toBe("failed")
     expect(await read("packages/alpha/package.json")).toBe(before)
+  })
+
+  it("ci executes documentation parity targets", async () => {
+    await write("BUILD.ts", "export const root = 1\n")
+    await write("packages/thin/README.md", "# thin\n\nToo short.\n")
+    await write(
+      "packages/thin/BUILD.ts",
+      `import { DocsParity, file } from "${rulesModule}"\n` +
+        `export const docs = DocsParity({ readme: file("README.md"), deps: [], cwd: "packages/thin" })\n`
+    )
+
+    const summary = await runCi("//...")
+
+    expect(summary.ok).toBe(false)
+    expect(status(summary, "//packages/thin:docs")).toBe("failed")
   })
 })
 

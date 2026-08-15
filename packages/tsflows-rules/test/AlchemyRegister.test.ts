@@ -58,7 +58,7 @@ describe("Alchemy-style BUILD.ts constructors", () => {
     expect(attrs).toMatchObject({
       workflowName: "CI",
       pattern: "//...",
-      kinds: ["build", "test", "lint"],
+      kinds: ["build", "test", "lint", "docs"],
       pushBranches: ["main"],
       pullRequest: true,
       workflowDispatch: true,

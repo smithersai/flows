@@ -23,7 +23,9 @@ export const rootJSDocConfig = file("//eslint.jsdoc.js")
 export const pnpmWorkspace = file("//pnpm-workspace.yaml")
 
 export const ci = GithubCiGen({
-  cacheUrlSecret: "TSFLOWS_CACHE_URL"
+  cacheUrlSecret: "TSFLOWS_CACHE_URL",
+  kinds: ["build", "test", "lint", "docs"],
+  gates: [{ name: "documentation parity", command: "pnpm exec tsflows docs '//...'", job: "test" }]
 })
 
 export const packageDefaults = DefaultRule({

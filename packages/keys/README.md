@@ -1,6 +1,18 @@
 # @smthrs/keys-next
 
-An Effect schema for canonical flow keys.
+`@smthrs/keys-next` turns structured values into stable, content-addressed flow
+keys. `Key` first encodes a value with the repository's canonical JSON rules,
+hashes those exact bytes with the injected SHA-256 service, and prefixes the
+lowercase digest with `key1_`. The prefix versions the wire format; changing
+the canonical encoding, digest algorithm, or prefix is a compatibility change
+rather than an implementation detail.
+
+The result is deterministic for canonically equal values and contains no
+machine path, locale, object insertion order, or process-local state. This
+package owns the key format, [`@smthrs/canonical-next`](../canonical/README.md)
+owns canonical serialization, and [`@smthrs/crypto-next`](../crypto/README.md)
+owns the injected hashing operation. Consumers should treat keys as opaque
+identifiers and should not attempt to recover the input from them.
 
 ```sh
 pnpm add @smthrs/keys-next

@@ -304,11 +304,11 @@ export type Attrs = typeof Attrs.Type
  * targets, headings, lists, tables, and fenced code are stripped, which is
  * what separates a real package contract from a scaffolded stub.
  *
- * The rule participates in the `docs` verb alone. `build`, `test`, and `lint`
- * are the verbs CI runs, so a package whose README has not been backfilled
- * yet does not turn CI red; `tsflows docs //...` reports the backlog on
- * demand. Key material contains the README digest, dependency keys, and the
- * prose floor, so prose drift is a cache miss like any other input change.
+ * The rule participates in the `docs` verb alone, and the aggregate `ci`
+ * command plans that verb alongside build, test, and lint. `tsflows docs
+ * //...` remains the focused way to run just this gate. Key material contains
+ * the README digest, dependency keys, and the prose floor, so prose drift is
+ * a cache miss like any other input change.
  * JSDoc parity is not checked here: the root `eslint.jsdoc.js` config already
  * requires a description, `@since`, and `@category` on every exported
  * declaration, and `StandardPackage` runs it under `lint`. Executing the plan
