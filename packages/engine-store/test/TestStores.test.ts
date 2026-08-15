@@ -3,8 +3,8 @@
  * database — see `docs/specs/Concepts/Journal Split.md`. This pins that the
  * bundle really is one database with one migrated schema.
  */
-import { describe, expect, it } from "@effect/vitest"
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
+import { describe, expect, it } from "@effect/vitest"
 import { Journal } from "@smthrs/journal-next/Journal"
 import { type RunId, type SourceId } from "@smthrs/journal-next/JournalEvent"
 import { AttemptStore } from "@smthrs/run-store-next/AttemptStore"

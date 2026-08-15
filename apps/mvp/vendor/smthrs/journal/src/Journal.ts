@@ -1,0 +1,412 @@
+/**
+ * Logical journal contract with durable lifecycle and lossy telemetry channels.
+ *
+ * Governing design: `docs/specs/Concepts/Journal Queue.md`.
+ *
+ * The ownership fence and the lossless `emitDurable` / lossy `emitLossy` split are
+ * recorded in [[Engine Hardening Round 1]]
+ * (`docs/specs/Concepts/Engine Hardening Round 1.md`), section 1.
+ *
+ * @since 0.1.0
+ */
+import * as Context from "effect/Context"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as PubSub from "effect/PubSub"
+import * as Schema from "effect/Schema"
+import type * as Scope from "effect/Scope"
+import * as Stream from "effect/Stream"
+import { Entry, RunId, Seq, SourceSeq } from "./JournalEvent.ts"
+import type { Input } from "./JournalEvent.ts"
+import type { OwnerId } from "./OwnerId.ts"
+import type { Projection } from "./Projection.ts"
+
+/**
+ * Stable error codes returned by journal operations.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export const JournalErrorCode = Schema.Literals([
+  "invalid_event",
+  "idempotency_conflict",
+  "sequence_conflict",
+  "fence_lost",
+  "queue_overflow",
+  "journal_closed",
+  "sink_failed",
+  "decode_failed",
+  "projection_failed",
+  "unknown"
+])
+
+/**
+ * Stable error codes returned by journal operations.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type JournalErrorCode = typeof JournalErrorCode.Type
+
+/**
+ * Error raised by journal admission, persistence, replay, or projection.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
+export class JournalError extends Schema.TaggedErrorClass<JournalError>()("flows/journal/JournalError", {
+  code: JournalErrorCode,
+  message: Schema.String,
+  cause: Schema.optional(Schema.Unknown)
+}) {}
+
+/**
+ * Policy applied when the non-blocking admission queue is full.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export const OverflowPolicy = Schema.Literals(["reject", "drop-newest", "drop-oldest"])
+
+/**
+ * Policy applied when the non-blocking admission queue is full.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type OverflowPolicy = typeof OverflowPolicy.Type
+
+/**
+ * Receipt for a newly admitted event.
+ *
+ * On the lossy channel, `seq` and `sourceSeq` are allocated synchronously and
+ * returned before SQL commits. On the durable channel, the same receipt shape
+ * is returned only after the entry commits. `seq` orders the run; `sourceSeq`
+ * identifies producer retries.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export const Accepted = Schema.TaggedStruct("Accepted", {
+  seq: Seq,
+  sourceSeq: SourceSeq,
+  evicted: Schema.optionalKey(Schema.Struct({
+    policy: Schema.Literal("drop-oldest"),
+    count: Schema.Int.check(Schema.isGreaterThan(0))
+  }))
+})
+
+/**
+ * Receipt for a newly admitted event.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type Accepted = typeof Accepted.Type
+
+/**
+ * Receipt for an exact retry of an already pending or committed source event.
+ *
+ * `seq` is the original event's canonical sequence. A duplicate does not
+ * allocate another sequence or enqueue another write. `status` distinguishes
+ * an optimistic retry from one whose original event is already durable.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export const Duplicate = Schema.TaggedStruct("Duplicate", {
+  seq: Seq,
+  sourceSeq: SourceSeq,
+  status: Schema.Literals(["pending", "committed"])
+})
+
+/**
+ * Receipt for an exact producer retry.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type Duplicate = typeof Duplicate.Type
+
+/**
+ * Receipt for an event discarded by an explicit dropping policy.
+ *
+ * A dropped admission still consumes its synchronously allocated `seq` and
+ * `sourceSeq`, so sequence gaps are expected.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export const Dropped = Schema.TaggedStruct("Dropped", {
+  seq: Seq,
+  sourceSeq: SourceSeq,
+  policy: Schema.Literal("drop-newest")
+})
+
+/**
+ * Receipt for an event discarded by policy.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type Dropped = typeof Dropped.Type
+
+/**
+ * Receipt union for admission that may use the lossy queue.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export const EmitReceipt = Schema.Union([Accepted, Duplicate, Dropped])
+
+/**
+ * Receipt union for the lossy channel.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type EmitReceipt = typeof EmitReceipt.Type
+
+/**
+ * Result of a synchronously durable journal admission.
+ *
+ * A durable admission is never dropped: it either commits, returns the
+ * committed sequence of an exact producer retry, or fails.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export const DurableReceipt = Schema.Union([Accepted, Duplicate])
+
+/**
+ * Receipt union for the durable channel.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type DurableReceipt = typeof DurableReceipt.Type
+
+/**
+ * Cursor used to replay a run and then follow its committed tail.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export const StreamOptions = Schema.Struct({
+  runId: RunId,
+  afterSequence: Schema.optionalKey(Seq)
+})
+
+/**
+ * Cursor used to replay a run and follow its committed tail.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type StreamOptions = typeof StreamOptions.Type
+
+/**
+ * Cursor and page size for durable journal reads.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export const EntriesOptions = Schema.Struct({
+  runId: RunId,
+  after: Schema.optionalKey(Seq),
+  limit: Schema.Int.check(Schema.isGreaterThan(0))
+})
+
+/**
+ * Cursor and page size for durable journal reads.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type EntriesOptions = typeof EntriesOptions.Type
+
+/**
+ * One page of canonical durable journal entries.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export const EntriesPage = Schema.Struct({
+  entries: Schema.Array(Entry),
+  hasMore: Schema.Boolean
+})
+
+/**
+ * One page of durable journal entries.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type EntriesPage = typeof EntriesPage.Type
+
+/**
+ * Journal operations.
+ *
+ * There are two sequence domains:
+ *
+ * - `seq` is assigned synchronously by the selected channel per run. It is the
+ *   canonical durable order used by replay, paging, streams, and projections.
+ * - `sourceSeq` is assigned synchronously per `(runId, sourceId)` and is the
+ *   idempotency key for producer retries.
+ *
+ * Rejected or dropped admissions consume both allocations, so gaps are valid.
+ * Exact retries return `Duplicate` with the original canonical `seq` and do
+ * not consume either allocation.
+ *
+ * This table is flows' logical (domain) write-ahead log and is intended to
+ * become the authoritative state history. The storage engine's own WAL
+ * underneath it is a durability substrate only and is never consumed as the
+ * application event API. A durable boundary must not advance a run or expose
+ * its result until its lifecycle entry is committed. No local commit makes a
+ * remote effect atomic, so external effects still need idempotency keys,
+ * fencing tokens, or compensation.
+ *
+ * `emitDurable` allocates `seq` inside the writer's SQL transaction, so the
+ * returned sequence is already committed and independent writers never fork
+ * the per-run clock
+ * (`docs/specs/Concepts/Journal Queue.md`, "The durable path").
+ *
+ * Caveat on scope: the stores above this log (`RunStore`, `AttemptStore`,
+ * `CacheStore`, and engine-store's `DurableEngineState`) hold the executable
+ * authoritative state, and no state is derived from these entries today.
+ * `transact` is what keeps the two halves consistent anyway: a state
+ * transition and the lifecycle entry describing it are appended in ONE write
+ * transaction, so a crash can never leave durable state the journal does not
+ * explain (or an entry for a transition that never landed).
+ *
+ * The surface is split into two channels:
+ *
+ * - The lifecycle channel — `emitDurable` — returns `DurableReceipt`, so a
+ *   dropped lifecycle event is unrepresentable: the write commits, dedupes, or
+ *   fails with a typed error.
+ * - The lossy channel — `emitLossy` — keeps the optimistic queue and its
+ *   overflow policies for telemetry, where `Dropped` receipts and
+ *   `drop-oldest` evictions are acceptable.
+ *
+ * Passing an `owner` fences the write on the run's persisted ownership: the
+ * durable insert only commits while `flows_runs` still records that owner, and
+ * a reclaimed run fails the write with a `fence_lost` error. Ownerless writes
+ * stay unfenced by design — external-trigger admissions such as deferred
+ * completions are first-writer-wins regardless of who owns the run.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface Service {
+  readonly emitLossy: (input: Input) => Effect.Effect<EmitReceipt, JournalError>
+  readonly emitDurable: (input: Input, owner?: OwnerId) => Effect.Effect<DurableReceipt, JournalError>
+  /**
+   * Runs `effect` — a state projection plus the `emitDurable` calls describing
+   * it — inside ONE write transaction.
+   *
+   * This is the seam that makes the logical WAL crash-consistent with
+   * executable state. The stores above the journal (`RunStore`,
+   * `AttemptStore`, `CacheStore`, `DurableEngineState`) write through the same
+   * `DurableWriter`, so their writes join this transaction as savepoints: either
+   * the transition and its lifecycle entry both commit, or neither does. It is
+   * the local analogue of Temporal closing mutable state into a mutation plus
+   * event batches and submitting them as one persistence request
+   * (`reference/temporal/service/history/workflow/transaction_impl.go`).
+   *
+   * A `Duplicate` receipt is unaffected: an exact producer retry still
+   * collapses onto the already-committed sequence.
+   *
+   * Two consequences a caller must plan for:
+   *
+   * - Publication (`changes`, `stream`, and the in-process source-event index)
+   *   is deferred until the transaction commits, so a subscriber never
+   *   observes an entry that later rolls back, and a rolled-back producer
+   *   identity stays re-emittable rather than deduplicating against a
+   *   sequence that does not exist.
+   * - Everything inside runs while a write transaction is open. Keep it to
+   *   storage work: no flow bodies, no host calls, no waits.
+   *
+   * Nesting is safe — an inner `transact` becomes a savepoint of the outer
+   * one and defers its publication to the outermost commit.
+   */
+  readonly transact: <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E | JournalError, R>
+  readonly stream: (options: StreamOptions) => Stream.Stream<Entry, JournalError>
+  readonly entries: (options: EntriesOptions) => Effect.Effect<EntriesPage, JournalError>
+  readonly changes: Effect.Effect<PubSub.Subscription<Entry>, never, Scope.Scope>
+  readonly project: <S, E, R>(
+    projection: Projection<S, E, R>,
+    options: StreamOptions
+  ) => Stream.Stream<S, JournalError, R>
+  readonly flush: Effect.Effect<void, JournalError>
+}
+
+/**
+ * Context service for durable lifecycle evidence and lossy telemetry.
+ *
+ * @category services
+ * @since 0.1.0
+ */
+export class Journal extends Context.Service<Journal, Service>()("flows/journal/Journal") {}
+
+/**
+ * Constructs a journal service from an implementation.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const make = (implementation: Service): Service => Journal.of(implementation)
+
+const unavailable = (method: string): JournalError =>
+  new JournalError({
+    code: "journal_closed",
+    message: `${method} is unavailable`
+  })
+
+/**
+ * Constructs a closed journal stub, optionally overriding individual methods.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const makeNoop = (overrides: Partial<Service> = {}): Service => {
+  const service: Service = {
+    emitLossy: Effect.fn("Journal.emitLossy")(() => Effect.fail(unavailable("emitLossy"))),
+    emitDurable: Effect.fn("Journal.emitDurable")(() => Effect.fail(unavailable("emitDurable"))),
+    /**
+     * The closed stub has no sink and therefore no transaction to open, so it
+     * runs the effect directly — the same posture as
+     * `DurableEngineState`'s in-memory twin, whose `transaction` has no crash
+     * window to close. A test double that models rollback overrides it.
+     */
+    transact: <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E | JournalError, R> => effect,
+    stream: (options) =>
+      Stream.unwrap(
+        Effect.fn("Journal.stream")((_options: StreamOptions) => Effect.succeed(Stream.fail(unavailable("stream"))))(
+          options
+        )
+      ),
+    entries: Effect.fn("Journal.entries")(() => Effect.fail(unavailable("entries"))),
+    changes: Effect.acquireRelease(
+      PubSub.sliding<Entry>(1),
+      PubSub.shutdown
+    ).pipe(Effect.flatMap(PubSub.subscribe)),
+    project: (projection, options) =>
+      Stream.unwrap(
+        Effect.fn("Journal.project")(
+          <S, E, R>(_projection: Projection<S, E, R>, _options: StreamOptions) =>
+            Effect.succeed(Stream.fail(unavailable("project")))
+        )(projection, options)
+      ),
+    flush: Effect.fn("Journal.flush")(() => Effect.fail(unavailable("flush")))()
+  }
+  return Journal.of({ ...service, ...overrides })
+}
+
+/**
+ * Provides a closed journal stub.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
+export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<Journal> =>
+  Layer.succeed(Journal)(makeNoop(overrides))

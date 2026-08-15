@@ -1,0 +1,148 @@
+import { z } from "zod";
+
+/*
+ * The per-turn runtime context: a versioned, structured, freshly-derived view of
+ * the host Smithers app the agent is actually running inside. The client builds
+ * it anew from live collections on EVERY turn (never cached, never persisted into
+ * the visible transcript), sends it alongside the turn, and the server boundary
+ * renders it into the instructions the upstream model sees. It states only state
+ * the client genuinely holds — surface, connectors, world-state summaries — and
+ * honest limitations, so the model answers "what app am I in" from fact instead
+ * of pleading ignorance about the host environment.
+ */
+
+export const AGENT_RUNTIME_CONTEXT_VERSION = 1;
+
+export const AgentRuntimeConnectorSchema = z.object({
+	kind: z.string(),
+	name: z.string(),
+	status: z.string(),
+	access: z.string(),
+	root: z.string(),
+	branch: z.string().nullable(),
+});
+export type AgentRuntimeConnector = z.infer<typeof AgentRuntimeConnectorSchema>;
+
+export const AgentRuntimeWorldDocumentSchema = z.object({
+	path: z.string(),
+	title: z.string(),
+	confidence: z.number(),
+});
+export type AgentRuntimeWorldDocument = z.infer<typeof AgentRuntimeWorldDocumentSchema>;
+
+export const AgentRuntimeContextSchema = z.object({
+	version: z.literal(AGENT_RUNTIME_CONTEXT_VERSION),
+	product: z.literal("smithers"),
+	// Epoch milliseconds, bounded by the ECMAScript time-value range: an
+	// out-of-range number is not a timestamp, and rendering one would throw at
+	// the server boundary rather than be rejected here.
+	capturedAt: z.number().int().min(0).max(8_640_000_000_000_000),
+	revision: z.number().int().nonnegative(),
+	surface: z.enum(["chat", "world", "connectors"]),
+	theme: z.enum(["light", "dark"]),
+	selectedWorldDocument: z.string().nullable(),
+	connectors: z.array(AgentRuntimeConnectorSchema),
+	/*
+	 * Sign-in IS the GitHub connector — one act, one truth (Wave 10, §2a′):
+	 * a valid GitHub session means the GitHub connector IS connected, so the
+	 * model never routes a signed-in user toward "connecting GitHub" again.
+	 * watchedRepos is the count of the user's chosen set, "unselected" when
+	 * they have never chosen, and null when signed out.
+	 */
+	github: z.object({
+		connected: z.boolean(),
+		login: z.string().nullable(),
+		watchedRepos: z.union([z.number().int().nonnegative(), z.literal("unselected")]).nullable(),
+	}),
+	worldState: z.object({
+		documentCount: z.number().int().nonnegative(),
+		documents: z.array(AgentRuntimeWorldDocumentSchema),
+	}),
+	capabilities: z.array(z.string()),
+	limitations: z.array(z.string()),
+});
+export type AgentRuntimeContext = z.infer<typeof AgentRuntimeContextSchema>;
+
+/*
+ * Rendering runs on the server boundary against a body that arrived over the
+ * wire, so it never throws on a timestamp: a value the schema would have
+ * rejected still renders as an honest "unknown" instead of turning the turn
+ * into a misleading "Smithers Cloud is unreachable".
+ */
+const capturedAtLabel = (capturedAt: number): string =>
+	Number.isFinite(capturedAt) && Math.abs(capturedAt) <= 8_640_000_000_000_000
+		? new Date(capturedAt).toISOString()
+		: "unknown";
+
+/** The hidden-context block the server boundary folds into the turn's instructions. */
+export const renderAgentRuntimeContext = (context: AgentRuntimeContext): string => {
+	const lines = [
+		"# Runtime context — the Smithers app you are running inside (context version 1)",
+		"This block was freshly derived from the host app's live state at the start of THIS turn. It is hidden context: it is not part of the visible transcript and the user cannot see it. Treat it as the complete and current truth about the environment you are operating in — never guess beyond it.",
+		"- Product: Smithers. You are running INSIDE the Smithers product's own chat client, so when the user asks what app they are in, the truthful answer is Smithers.",
+		`- Captured: ${capturedAtLabel(context.capturedAt)} (app-state revision ${context.revision})`,
+		`- Current surface: ${context.surface}${
+			context.selectedWorldDocument === null
+				? ""
+				: ` (world document open: "${context.selectedWorldDocument}")`
+		}${
+			// Chat-first: world and connectors are panes embedded in the chat shell,
+			// not pages that replaced it. Saying only "Current surface: world" would
+			// read as "the conversation is gone", which is not what the user sees.
+			context.surface === "chat"
+				? ""
+				: " — an embedded pane inside the chat shell; the conversation transcript and composer stay visible and usable beside it"
+		}`,
+		`- Theme: ${context.theme}`,
+	];
+	if (context.connectors.length === 0) {
+		lines.push("- Connectors: none connected — no workspace, repository, or branch is known.");
+	} else {
+		lines.push("- Connectors:");
+		for (const connector of context.connectors) {
+			lines.push(
+				`  - ${connector.kind} "${connector.name}" (${connector.status}, ${connector.access} access) at ${connector.root}${
+					connector.branch === null ? "" : `, branch ${connector.branch}`
+				}`,
+			);
+		}
+	}
+	if (context.github.connected) {
+		const watched =
+			context.github.watchedRepos === "unselected"
+				? "the user has NOT chosen which repos to watch yet — repo work routes to the repos.watch chooser, never to a sign-in they already have"
+				: typeof context.github.watchedRepos === "number"
+					? `watching ${context.github.watchedRepos} chosen repo(s)`
+					: "watch set unknown";
+		lines.push(
+			`- GitHub: CONNECTED as ${context.github.login ?? "a GitHub user"} (sign-in and the GitHub connector are one act) — ${watched}.`,
+		);
+	} else {
+		lines.push("- GitHub: not connected (no signed-in session).");
+	}
+	if (context.worldState.documentCount === 0) {
+		lines.push("- World state: no documents yet.");
+	} else {
+		lines.push(`- World state: ${context.worldState.documentCount} document(s):`);
+		for (const document of context.worldState.documents) {
+			lines.push(`  - ${document.path} — "${document.title}" (confidence ${document.confidence})`);
+		}
+	}
+	lines.push("- Capabilities (what you can honestly do in this client):");
+	for (const capability of context.capabilities) lines.push(`  - ${capability}`);
+	lines.push("- Limitations (never claim otherwise):");
+	for (const limitation of context.limitations) lines.push(`  - ${limitation}`);
+	return lines.join("\n");
+};
+
+/**
+ * The composition both server boundaries (the dev-server AgentApi via CloudAgent
+ * and the deployed product Worker) apply before calling the upstream chat
+ * service: instructions plus the rendered context block. Upstream sees one
+ * instructions string; the structured context itself never crosses to it.
+ */
+export const composeAgentInstructions = (
+	instructions: string,
+	context?: AgentRuntimeContext,
+): string =>
+	context === undefined ? instructions : `${instructions}\n\n${renderAgentRuntimeContext(context)}`;

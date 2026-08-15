@@ -1,0 +1,44 @@
+/**
+ * A typed, journaled gate observation.
+ *
+ * A failed gate is never a harness crash: it is recorded in the journal and
+ * projected into the next authored link's context so the model corrects it
+ * (`docs/specs/Concepts/Chain Slice.md`, `docs/specs/Concepts/Agent
+ * Chain.md`).
+ *
+ * @since 0.1.0
+ */
+import { Schema } from "effect"
+
+/** @category models @since 0.1.0 */
+export const Kind = Schema.Literals([
+  "shape",
+  "fuel",
+  "catalog",
+  "call_failed",
+  "script_failed",
+  "denied"
+])
+
+/** @category models @since 0.1.0 */
+export type Kind = typeof Kind.Type
+
+/** @category models @since 0.1.0 */
+export const Observation = Schema.Struct({
+  kind: Kind,
+  message: Schema.String
+})
+
+/** @category models @since 0.1.0 */
+export type Observation = typeof Observation.Type
+
+/** @category constructors @since 0.1.0 */
+export const make = (kind: Kind, message: string): Observation => ({ kind, message })
+
+/**
+ * Renders an observation as one context line for the next author call.
+ *
+ * @category projections
+ * @since 0.1.0
+ */
+export const render = (observation: Observation): string => `[${observation.kind}] ${observation.message}`

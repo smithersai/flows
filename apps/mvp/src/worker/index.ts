@@ -1,0 +1,2088 @@
+import {
+	ADMIN_ALLOWLIST_PATH,
+	ADMIN_FEEDBACK_PATH,
+	ADMIN_GRANT_PATH,
+	ADMIN_HEALTH_PATH,
+	ADMIN_REQUESTS_PATH,
+	ADMIN_ROUTE_PREFIX,
+	APPROVAL_DECISION_PATH,
+	AUTH_CALLBACK_PATH,
+	AUTH_ROUTE_PREFIX,
+	AUTH_SESSION_PATH,
+	AUTH_SIGN_IN_PATH,
+	BILLING_ROUTE_PREFIX,
+	CANCEL_PATH,
+	IDENTITY_ROUTE_PREFIX,
+	MODEL_STREAM_PATH,
+	RECO_ROUTE_PREFIX,
+	TOOLS_BROWSER_FETCH_PATH,
+	TURN_PATH,
+	WORKFLOW_EVENTS_PATH,
+	WORKFLOW_PROVISION_PATH,
+	WORKFLOW_RPC_PATH,
+	WORKFLOW_STREAM_PATH,
+} from "../shared/AgentApiRoutes";
+import { AgentRuntimeContextSchema, composeAgentInstructions } from "../shared/AgentContext";
+import { browserFetch, browserFetchResponseBody, resolveHostOverHttps } from "../shared/BrowserFetch";
+import type { StartAgentTurnRequest } from "../shared/NativeAgent";
+import {
+	ALLOWED_GATEWAY_METHODS,
+	callGateway,
+	DEFAULT_CLOUD_API_BASE_URL,
+	ensureGateway,
+	fetchCloudToken,
+	GatewaySessionRegistry,
+	isRelayRepoName,
+	NON_REPLAYABLE_GATEWAY_METHODS,
+} from "./gateway";
+import type { GatewaySessionNamespace } from "./gateway";
+
+/* The per-user gateway session registry (Wave 11) — wrangler binds this DO. */
+export { GatewaySessionRegistry };
+
+/*
+ * The deployable Smithers MVP server: a Cloudflare Worker that serves the built
+ * SPA (assets binding, run_worker_first for the API routes) and implements the
+ * same-origin `/api/agent` boundary the pure-web client talks to, plus the
+ * trusted-proxy seam for the future engine gateway. Upstream credentials and
+ * origin stay server-side; the browser only ever sees its own origin.
+ */
+
+const DEFAULT_CHAT_URL = "https://chat.smithers.sh/chat";
+const DEFAULT_APP_ORIGIN = "https://smithers.sh";
+
+/**
+ * Cap for a single turn request body. The Vite dev boundary
+ * (`src/server/AgentApi.ts`) allows 1 MB, so a conversation long enough to exceed
+ * 64 KB — every turn replays the whole transcript — passes in dev and 413s here.
+ */
+const MAX_BODY_BYTES = 64 * 1024;
+
+/** The OPFS SQLite persistence in the SPA needs cross-origin isolation. */
+const ISOLATION_HEADERS = {
+	"Cross-Origin-Opener-Policy": "same-origin",
+	"Cross-Origin-Embedder-Policy": "require-corp",
+} as const;
+
+/**
+ * Identity headers a client must never be trusted for: the proxy strips them off
+ * every gateway-bound request and re-injects them only from a validated session
+ * (trusted-proxy pattern, docs/guides/custom-workflow-ui.mdx).
+ */
+const STRIPPED_IDENTITY_HEADERS = [
+	"x-user-id",
+	"x-user-scopes",
+	"x-user-role",
+	"x-user-login",
+	"x-smithers-token-id",
+	"x-smithers-service-token",
+	"authorization",
+] as const;
+
+const GATEWAY_ROUTE_PREFIXES = ["/v1/rpc/", "/v1/api/", "/workflows/"] as const;
+
+/*
+ * Server-side turn cancellation, the workerd-legal way. workerd forbids
+ * touching another request's I/O (the old route aborted the turn handler's
+ * AbortController cross-request and 500'd), so cancellation state lives in a
+ * Durable Object keyed by runId — the one shared, transactional store two
+ * requests may both reach. The cancel route only flips that state; the turn
+ * handler polls it between NDJSON chunks (each poll is the turn request's own
+ * I/O) and aborts ITS OWN upstream fetch when it sees "cancelled".
+ *
+ * The structurally-typed binding keeps this Worker free of a workers-types
+ * dependency, matching the ASSETS binding above.
+ */
+export interface TurnCancelStorage {
+	readonly get: <T>(key: string) => Promise<T | undefined>;
+	readonly put: (key: string, value: unknown) => Promise<void>;
+}
+
+export interface TurnCancelStub {
+	readonly fetch: (request: Request) => Promise<Response>;
+}
+
+export interface TurnCancelNamespace {
+	readonly idFromName: (name: string) => unknown;
+	readonly get: (id: unknown) => TurnCancelStub;
+}
+
+type TurnCancelStateName = "active" | "cancelled" | "settled";
+
+interface TurnCancelState {
+	readonly state: TurnCancelStateName;
+	readonly at: number;
+}
+
+const TURN_STATE_KEY = "state";
+/**
+ * A turn that never settled (its request died before the stream ended) must
+ * not hold its runId hostage forever: an "active" registration older than
+ * this is treated as settled. Turns are seconds long; ten minutes is far
+ * beyond any honest stream.
+ */
+const STALE_ACTIVE_MS = 10 * 60 * 1000;
+
+export class TurnCancelRegistry {
+	constructor(private readonly ctx: { readonly storage: TurnCancelStorage }) {}
+
+	private async read(): Promise<TurnCancelState | undefined> {
+		return this.ctx.storage.get<TurnCancelState>(TURN_STATE_KEY);
+	}
+
+	private async write(state: TurnCancelStateName): Promise<void> {
+		await this.ctx.storage.put(TURN_STATE_KEY, { state, at: Date.now() });
+	}
+
+	async fetch(request: Request): Promise<Response> {
+		const answer = (body: unknown): Response =>
+			new Response(JSON.stringify(body), { headers: { "content-type": "application/json" } });
+		const current = await this.read();
+		const stale = current?.state === "active" && Date.now() - current.at > STALE_ACTIVE_MS;
+		switch (new URL(request.url).pathname) {
+			case "/register": {
+				if (current?.state === "active" && !stale) return answer({ status: "already-running" });
+				await this.write("active");
+				return answer({ status: "started" });
+			}
+			case "/cancel": {
+				if (current?.state !== "active" || stale) return answer({ status: "not-found" });
+				await this.write("cancelled");
+				return answer({ status: "cancelled" });
+			}
+			case "/settle": {
+				await this.write("settled");
+				return answer({ status: "settled" });
+			}
+			case "/state": {
+				const effective: TurnCancelStateName | "unknown" =
+					stale || current === undefined ? "unknown" : current.state;
+				return answer({ state: effective });
+			}
+			default:
+				return new Response("not found", { status: 404 });
+		}
+	}
+}
+
+const turnCancelStub = (env: WorkerEnv, runId: string): TurnCancelStub | undefined =>
+	env.TURN_CANCELS?.get(env.TURN_CANCELS.idFromName(runId));
+
+const readStubJson = async <T>(response: Response): Promise<T | undefined> =>
+	(response.json().catch(() => undefined)) as Promise<T | undefined>;
+
+export interface WorkerEnv {
+	readonly ASSETS: { readonly fetch: (request: Request) => Promise<Response> };
+	readonly SMITHERS_CHAT_URL?: string;
+	readonly SMITHERS_CHAT_ORIGIN?: string;
+	/**
+	 * The deployment credential the chat upstream authenticates turns with
+	 * (`workers/chat` accepts only `authorization: Bearer`, resolved against
+	 * the cloud's /api/user). A client can never supply it — the turn route
+	 * builds its own headers — so without it the forward can only come back
+	 * the upstream's honest 401, which is surfaced verbatim.
+	 */
+	readonly SMITHERS_CHAT_AUTH_TOKEN?: string;
+	/**
+	 * The chat worker's trusted-caller key (its PRODUCT_SERVICE_TOKEN). Sent
+	 * with the validated login on session-gated turns so the turn's metered
+	 * charge lands on the user's own account (wave 13, D-2).
+	 */
+	readonly CHAT_PRODUCT_SERVICE_TOKEN?: string;
+	/** Per-session upstream engine gateway URL. Unset = the seam answers 501. */
+	readonly GATEWAY_UPSTREAM_URL?: string;
+	/** Service-token branch: attached as the upstream bearer when configured. */
+	readonly GATEWAY_AUTH_TOKEN?: string;
+	/** Trusted-proxy branch placeholder session: injected identity, when set. */
+	readonly GATEWAY_SESSION_USER_ID?: string;
+	readonly GATEWAY_SESSION_USER_ROLE?: string;
+	readonly GATEWAY_SESSION_USER_SCOPES?: string;
+	/** Identity worker (GitHub OAuth + allowlist) upstream. Unset = 501. */
+	readonly IDENTITY_UPSTREAM_URL?: string;
+	/** Service token for the product-Worker → identity /api/identity/validate call. */
+	readonly IDENTITY_SERVICE_TOKEN?: string;
+	/** Billing worker upstream. Unset = 501. */
+	readonly BILLING_UPSTREAM_URL?: string;
+	/**
+	 * The Smithers Cloud user bearer billing authenticates the account with
+	 * (`workers/billing` resolves it against `SMITHERS_CLOUD_API_BASE_URL/api/user`).
+	 * Billing reads no `x-user-*` claim, so without this the seam answers 501
+	 * rather than forwarding a request that can only come back 401.
+	 */
+	readonly BILLING_AUTH_TOKEN?: string;
+	/**
+	 * The wave-5 trusted-caller key (`workers/billing`'s PRODUCT_SERVICE_TOKEN).
+	 * When a session validates, the billing proxy authenticates AS THAT USER with
+	 * `x-smithers-service-token` + `x-user-login` instead of the deployment-wide
+	 * bearer — the signed-in user reads their OWN account, never the shared one.
+	 */
+	readonly BILLING_PRODUCT_SERVICE_TOKEN?: string;
+	/** Recommendations worker upstream (Wave 3b). Unset = 501. */
+	readonly RECO_UPSTREAM_URL?: string;
+	/**
+	 * The admin tokens for the sibling workers' non-enumerable admin surfaces
+	 * (each sibling holds its own ADMIN_SERVICE_TOKEN). The product Worker's
+	 * /api/admin/* routes spend them only after the caller's session validates
+	 * as admin:true; every other caller gets the canonical 404.
+	 */
+	readonly IDENTITY_ADMIN_TOKEN?: string;
+	readonly BILLING_ADMIN_TOKEN?: string;
+	readonly RECO_ADMIN_TOKEN?: string;
+	/**
+	 * The chain backend's model relay (DESIGN.md §14, D1): the provider key the
+	 * relay injects, and an optional upstream override (tests, alternate
+	 * deployments). Unset key = the relay answers 501 rather than forwarding a
+	 * request that can only come back 401.
+	 */
+	readonly MODEL_RELAY_API_KEY?: string;
+	readonly MODEL_RELAY_URL?: string;
+	/**
+	 * The per-runId cancellation registry (Durable Object). Present on every
+	 * real deployment — wrangler.jsonc binds it; only unit tests that exercise
+	 * the in-isolate fallback leave it unset.
+	 */
+	readonly TURN_CANCELS?: TurnCancelNamespace;
+	/**
+	 * Smithers Cloud API base (Wave 11): the per-user gateway provision route
+	 * lives here (`POST /api/repos/{owner}/{repo}/gateway`).
+	 */
+	readonly SMITHERS_CLOUD_API_BASE_URL?: string;
+	/**
+	 * The per-user gateway session registry (Wave 11, Durable Object keyed by
+	 * login): holds the relay records server-side so gateway tokens never
+	 * reach a browser. Unset only in unit tests (in-isolate fallback).
+	 */
+	readonly GATEWAY_SESSIONS?: GatewaySessionNamespace;
+}
+
+const withIsolationHeaders = (response: Response): Response => {
+	const headers = new Headers(response.headers);
+	for (const [name, value] of Object.entries(ISOLATION_HEADERS)) headers.set(name, value);
+	return new Response(response.body, {
+		status: response.status,
+		statusText: response.statusText,
+		headers,
+	});
+};
+
+const json = (status: number, body: unknown): Response =>
+	new Response(JSON.stringify(body), {
+		status,
+		headers: { "content-type": "application/json", ...ISOLATION_HEADERS },
+	});
+
+const isStartTurnRequest = (value: unknown): value is StartAgentTurnRequest =>
+	typeof value === "object" &&
+	value !== null &&
+	"runId" in value &&
+	typeof value.runId === "string" &&
+	value.runId !== "" &&
+	"messages" in value &&
+	Array.isArray(value.messages) &&
+	"instructions" in value &&
+	typeof value.instructions === "string" &&
+	(!("tools" in value) || Array.isArray(value.tools)) &&
+	(!("context" in value) ||
+		value.context === undefined ||
+		AgentRuntimeContextSchema.safeParse(value.context).success);
+
+const readTurnBody = async (request: Request): Promise<unknown> => {
+	const declared = Number(request.headers.get("content-length") ?? "0");
+	if (declared > MAX_BODY_BYTES) throw new BodyTooLargeError();
+	// Measured in bytes, not UTF-16 code units: a body of multi-byte characters
+	// encodes to up to 4x its string length, so a `.length` check would admit a
+	// body several times over the cap (and a chunked request declares no length).
+	const bytes = await request.arrayBuffer();
+	if (bytes.byteLength > MAX_BODY_BYTES) throw new BodyTooLargeError();
+	try {
+		return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+	} catch {
+		throw new Error("Request body must be valid JSON.");
+	}
+};
+
+class BodyTooLargeError extends Error {
+	constructor() {
+		super("Request body is too large.");
+	}
+}
+
+/*
+ * Live turns keyed by runId so /cancel can abort one. Per-isolate best effort,
+ * used only when no TURN_CANCELS binding exists (unit tests): a disconnect of
+ * the turn's own request always cancels upstream regardless.
+ */
+const activeTurns = new Map<string, AbortController>();
+
+/** How often the streaming pump re-checks the kill state while the upstream is silent. */
+const CANCEL_POLL_MS = 500;
+
+/**
+ * The poll is a Durable Object subrequest, and a Worker request may only make
+ * ~1000 of those — a token-streamed turn delivers far more chunks than that,
+ * so polling once per chunk would kill long turns with "Too many subrequests".
+ * The poll is therefore rate-limited: at most one per CANCEL_POLL_MS, and —
+ * because workerd's clock only advances on I/O — at least one every
+ * CANCEL_POLL_CHUNKS chunks, so a fast stream can never starve the check.
+ */
+const CANCEL_POLL_CHUNKS = 64;
+
+/**
+ * The turn's own view of the kill state. `isCancelled` reads the runId's
+ * Durable Object — every read is this request's own subrequest, which workerd
+ * allows, unlike touching another request's AbortController. `settle` marks
+ * the turn finished so a later cancel answers an honest not-found.
+ */
+interface TurnStreamHooks {
+	readonly isCancelled: () => Promise<boolean>;
+	readonly settle: () => Promise<void>;
+}
+
+/**
+ * Stamp each upstream frame with the turn's runId. The upstream wire frame
+ * carries none (the dev boundary's CloudAgent adds it on publish; this Worker
+ * is that boundary for the deployed app), and the client's stream reader
+ * drops frames that don't name their turn — an untouched pass-through would
+ * be a silent stall. Unparseable lines pass through verbatim.
+ *
+ * The terminal `done` frame also settles the kill state — here, while the
+ * frame is still in the transform, never later: a tool-loop continuation leg
+ * re-POSTs the same runId the instant the client reads that frame, and must
+ * not meet a stale 409 from a registration the stream lifecycle hadn't
+ * settled yet.
+ *
+ * A server-side kill surfaces between chunks: the pump re-reads the registry
+ * before every upstream read and on a timer tick while the upstream is
+ * silent, and on "cancelled" it aborts ITS OWN upstream fetch (legal — same
+ * request context), emits an honest terminal `done` frame with reason
+ * "cancelled", and closes. The turn never completes silently after a kill.
+ */
+const tagRunId = (
+	body: ReadableStream<Uint8Array>,
+	runId: string,
+	hooks?: TurnStreamHooks,
+): ReadableStream<Uint8Array> => {
+	const reader = body.getReader();
+	const decoder = new TextDecoder();
+	const encoder = new TextEncoder();
+	let buffer = "";
+	let settled = false;
+	// One pending upstream read at a time, held across pulls: a timer tick that
+	// wins the race leaves the read in place for the next pull instead of
+	// issuing a second read on the same reader (which would throw).
+	let pendingRead: Promise<ReadableStreamDefaultReadDoneResult | ReadableStreamDefaultReadValueResult<Uint8Array>> | undefined;
+	const settleOnce = async (): Promise<void> => {
+		if (settled) return;
+		settled = true;
+		await hooks?.settle();
+	};
+	// Rate-limited kill check: skipped once the turn has settled (the registry
+	// entry is then free for the next leg, and a later "cancelled" on it is not
+	// this stream's business) and while neither the clock nor the chunk count
+	// says another poll is due.
+	let lastPollAt = 0;
+	let chunksSincePoll = CANCEL_POLL_CHUNKS;
+	const killed = async (): Promise<boolean> => {
+		if (hooks === undefined || settled) return false;
+		const now = Date.now();
+		if (now - lastPollAt < CANCEL_POLL_MS && chunksSincePoll < CANCEL_POLL_CHUNKS) return false;
+		lastPollAt = now;
+		chunksSincePoll = 0;
+		return hooks.isCancelled().catch(() => false);
+	};
+	return new ReadableStream<Uint8Array>({
+		async pull(controller) {
+			for (;;) {
+				if (await killed()) {
+					controller.enqueue(
+						encoder.encode(`${JSON.stringify({ runId, type: "done", reason: "cancelled" })}\n`),
+					);
+					await reader.cancel("cancelled").catch(() => {});
+					await settleOnce();
+					controller.close();
+					return;
+				}
+				pendingRead ??= reader.read();
+				const read = pendingRead;
+				// The tick only bounds how long a silent upstream can hide a kill;
+				// clear it as soon as the read wins so a chatty stream does not pile
+				// up one live timer per chunk.
+				let tick: ReturnType<typeof setTimeout> | undefined;
+				const result = await Promise.race([
+					read,
+					...(hooks === undefined || settled
+						? []
+						: [
+								new Promise<"tick">((resolve) => {
+									tick = setTimeout(() => resolve("tick"), CANCEL_POLL_MS);
+								}),
+							]),
+				]);
+				if (tick !== undefined) clearTimeout(tick);
+				if (result === "tick") return; // pull is re-invoked while downstream wants more
+				pendingRead = undefined;
+				chunksSincePoll += 1;
+				const { value, done } = result;
+				buffer += decoder.decode(value, { stream: !done });
+				const lines = buffer.split("\n");
+				buffer = done ? "" : (lines.pop() ?? "");
+				for (const line of lines) {
+					if (line.trim() === "") continue;
+					let parsed: unknown;
+					try {
+						parsed = JSON.parse(line);
+					} catch {
+						parsed = undefined;
+					}
+					if (typeof parsed === "object" && parsed !== null && "type" in parsed) {
+						if ((parsed as { type?: unknown }).type === "done") await settleOnce();
+						controller.enqueue(
+							encoder.encode(`${JSON.stringify({ ...parsed, runId })}\n`),
+						);
+					} else {
+						controller.enqueue(encoder.encode(`${line}\n`));
+					}
+				}
+				if (done) {
+					await settleOnce();
+					controller.close();
+					return;
+				}
+				if (controller.desiredSize !== null && controller.desiredSize <= 0) return;
+			}
+		},
+		cancel: async (reason) => {
+			await settleOnce();
+			return reader.cancel(reason);
+		},
+	});
+};
+
+const handleTurn = async (
+	request: Request,
+	env: WorkerEnv,
+	turnSession?: ValidatedIdentity,
+): Promise<Response> => {
+	let body: unknown;
+	try {
+		body = await readTurnBody(request);
+	} catch (error) {
+		return json(error instanceof BodyTooLargeError ? 413 : 400, {
+			status: "error",
+			message: error instanceof Error ? error.message : "Invalid request.",
+		});
+	}
+	if (!isStartTurnRequest(body)) {
+		return json(400, {
+			status: "error",
+			message: "Body must be { runId, messages, instructions } with optional tools and context.",
+		});
+	}
+	const registry = turnCancelStub(env, body.runId);
+	if (registry !== undefined) {
+		// The registry is the cross-isolate authority on duplicate turns; the
+		// per-isolate map only ever sees this isolate's requests.
+		const registration = await readStubJson<{ status?: string }>(
+			await registry.fetch(new Request("https://turn-cancel.internal/register", { method: "POST" })),
+		);
+		if (registration?.status !== "started") {
+			return json(409, { status: "error", message: "That Smithers turn is already running." });
+		}
+	} else if (activeTurns.has(body.runId)) {
+		return json(409, { status: "error", message: "That Smithers turn is already running." });
+	}
+	const settle = async (): Promise<void> => {
+		activeTurns.delete(body.runId);
+		if (registry !== undefined) {
+			await registry
+				.fetch(new Request("https://turn-cancel.internal/settle", { method: "POST" }))
+				.then((response) => response.arrayBuffer())
+				.catch(() => {});
+		}
+	};
+
+	const upstream = new AbortController();
+	activeTurns.set(body.runId, upstream);
+	// The client going away cancels the upstream turn exactly like the native
+	// CloudAgent's cancel does.
+	request.signal.addEventListener("abort", () => upstream.abort());
+
+	let response: Response;
+	try {
+		const headers: Record<string, string> = {
+			"content-type": "application/json",
+			origin: env.SMITHERS_CHAT_ORIGIN?.trim() || DEFAULT_APP_ORIGIN,
+			"x-smithers-run-id": body.runId,
+		};
+		const chatToken = env.SMITHERS_CHAT_AUTH_TOKEN?.trim();
+		if (chatToken !== undefined && chatToken !== "") {
+			headers.authorization = `Bearer ${chatToken}`;
+		}
+		/*
+		 * Wave 13 (D-2): a session-validated turn is metered onto the USER's own
+		 * billing account — the chat worker attributes the charge to the vouched
+		 * login (complimentary: cost recorded, $0 debited), so the user's receipt
+		 * shows the turn and their balance never moves. The token pair is the
+		 * chat worker's trusted-caller door; a client can never inject it (these
+		 * headers are built here, never forwarded). Without the configured token
+		 * the turn still runs — metering attributes to the deployment account,
+		 * exactly as before this path existed.
+		 */
+		const chatProductToken = env.CHAT_PRODUCT_SERVICE_TOKEN?.trim();
+		if (turnSession !== undefined && chatProductToken !== undefined && chatProductToken !== "") {
+			headers["x-smithers-service-token"] = chatProductToken;
+			headers["x-user-login"] = turnSession.login;
+		}
+		response = await fetch(env.SMITHERS_CHAT_URL?.trim() || DEFAULT_CHAT_URL, {
+			method: "POST",
+			signal: upstream.signal,
+			headers,
+			body: JSON.stringify({
+				messages: body.messages,
+				// The hidden runtime context renders server-side into the
+				// instructions — same composition as the native/dev CloudAgent.
+				instructions: composeAgentInstructions(body.instructions, body.context),
+				// The tool-loop contract (Wave 3b): the one tool spec rides every
+				// turn; the upstream emits tool_call frames the client answers
+				// with function_call_output continuation items in `messages`.
+				...(body.tools === undefined ? {} : { tools: body.tools }),
+			}),
+		});
+	} catch (error) {
+		await settle();
+		if (upstream.signal.aborted) {
+			return json(499, { status: "error", message: "The client disconnected." });
+		}
+		return json(502, {
+			status: "error",
+			message: `Smithers Cloud chat is unreachable: ${error instanceof Error ? error.message : "unknown error"}`,
+		});
+	}
+	if (!response.ok || response.body === null) {
+		await settle();
+		const detail = (await response.text().catch(() => "")).trim().slice(0, 320);
+		return json(response.ok ? 502 : response.status, {
+			status: "error",
+			message: `Smithers Cloud chat failed (HTTP ${response.status})${detail === "" ? "." : `: ${detail}`}`,
+		});
+	}
+
+	// Stream the upstream NDJSON through with the run tagged on every frame so
+	// the client can match it to its turn; a terminal frame, a kill observed
+	// between chunks, or a closed connection settles the registry entry.
+	const hooks: TurnStreamHooks | undefined =
+		registry === undefined
+			? undefined
+			: {
+					isCancelled: async () => {
+						const state = await readStubJson<{ state?: string }>(
+							await registry.fetch(new Request("https://turn-cancel.internal/state")),
+						);
+						return state?.state === "cancelled";
+					},
+					settle,
+				};
+	const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
+	void tagRunId(response.body, body.runId, hooks)
+		.pipeTo(writable)
+		.catch(() => {})
+		.finally(() => void settle());
+	return withIsolationHeaders(
+		new Response(readable, {
+			status: 200,
+			headers: { "content-type": "application/x-ndjson", "cache-control": "no-store" },
+		}),
+	);
+};
+
+/*
+ * The chain backend's model relay (DESIGN.md §14, D1). The browser runs the
+ * real @smthrs/model provider wire against this path; the relay session-gates
+ * the call (router), injects the provider key, and streams the provider's SSE
+ * back verbatim — the Worker never speaks effect or ModelEvent. Client
+ * credentials are never forwarded: the header set below is built here, so the
+ * browser's placeholder x-api-key dies at this boundary.
+ *
+ * Known gap, recorded in §14: the relay spends the deployment key without
+ * per-user metering. The Wave-13 attribution path must land here before the
+ * chain backend becomes the default.
+ */
+const MODEL_RELAY_DEFAULT_URL = "https://api.anthropic.com/v1/messages";
+
+const isModelStreamBody = (value: unknown): value is { readonly model: string } =>
+	typeof value === "object" &&
+	value !== null &&
+	"model" in value &&
+	typeof (value as { readonly model?: unknown }).model === "string" &&
+	(value as { readonly model: string }).model !== "";
+
+const hasTools = (value: object): boolean =>
+	"tools" in value &&
+	Array.isArray((value as { readonly tools?: unknown }).tools) &&
+	((value as { readonly tools: ReadonlyArray<unknown> }).tools.length > 0);
+
+const handleModelStream = async (request: Request, env: WorkerEnv): Promise<Response> => {
+	let body: unknown;
+	try {
+		body = await readTurnBody(request);
+	} catch (error) {
+		return json(error instanceof BodyTooLargeError ? 413 : 400, {
+			status: "error",
+			message: error instanceof Error ? error.message : "Invalid request.",
+		});
+	}
+	if (!isModelStreamBody(body)) {
+		return json(400, { status: "error", message: "Body must be a provider request with a model." });
+	}
+	// The sealed-step law, enforced at the boundary: the author call carries no
+	// tools, so a tool-bearing request has no business on this relay.
+	if (hasTools(body)) {
+		return json(400, { status: "error", message: "The model relay serves sealed author calls only — no tools." });
+	}
+	const apiKey = env.MODEL_RELAY_API_KEY?.trim();
+	if (apiKey === undefined || apiKey === "") {
+		return json(501, { status: "error", message: "The model relay is not configured (MODEL_RELAY_API_KEY)." });
+	}
+	const upstream = new AbortController();
+	request.signal.addEventListener("abort", () => upstream.abort());
+	let response: Response;
+	try {
+		response = await fetch(env.MODEL_RELAY_URL?.trim() || MODEL_RELAY_DEFAULT_URL, {
+			method: "POST",
+			signal: upstream.signal,
+			headers: {
+				"content-type": "application/json",
+				"anthropic-version": request.headers.get("anthropic-version") ?? "2023-06-01",
+				"x-api-key": apiKey,
+			},
+			body: JSON.stringify(body),
+		});
+	} catch (error) {
+		if (upstream.signal.aborted) {
+			return json(499, { status: "error", message: "The client disconnected." });
+		}
+		return json(502, {
+			status: "error",
+			message: `The model provider is unreachable: ${error instanceof Error ? error.message : "unknown error"}`,
+		});
+	}
+	if (!response.ok || response.body === null) {
+		const detail = (await response.text().catch(() => "")).trim().slice(0, 320);
+		return json(response.ok ? 502 : response.status, {
+			status: "error",
+			message: `The model provider failed (HTTP ${response.status})${detail === "" ? "." : `: ${detail}`}`,
+		});
+	}
+	return withIsolationHeaders(
+		new Response(response.body, {
+			status: 200,
+			headers: {
+				"content-type": response.headers.get("content-type") ?? "text/event-stream",
+				"cache-control": "no-store",
+			},
+		}),
+	);
+};
+
+const handleCancel = async (request: Request, env: WorkerEnv): Promise<Response> => {
+	let body: unknown;
+	try {
+		body = await readTurnBody(request);
+	} catch (error) {
+		return json(error instanceof BodyTooLargeError ? 413 : 400, {
+			status: "error",
+			message: error instanceof Error ? error.message : "Invalid request.",
+		});
+	}
+	const runId =
+		typeof body === "object" && body !== null && "runId" in body ? body.runId : undefined;
+	if (typeof runId !== "string" || runId === "") {
+		return json(400, { status: "error", message: "runId is required." });
+	}
+	const registry = turnCancelStub(env, runId);
+	if (registry !== undefined) {
+		// workerd-legal kill: never touch the turn request's I/O from here —
+		// just flip the registry state. The turn's own streaming pump observes
+		// "cancelled" between chunks and aborts its own upstream fetch, then
+		// ends the stream with an honest terminal frame.
+		const result = await readStubJson<{ status?: string }>(
+			await registry.fetch(new Request("https://turn-cancel.internal/cancel", { method: "POST" })),
+		);
+		return json(200, { status: result?.status === "cancelled" ? "cancelled" : "not-found" });
+	}
+	// In-isolate fallback (unit tests only; the bindingless dev boundary keeps
+	// its own implementation). Same-request abort is legal everywhere.
+	const active = activeTurns.get(runId);
+	if (active === undefined) return json(200, { status: "not-found" });
+	active.abort();
+	activeTurns.delete(runId);
+	return json(200, { status: "cancelled" });
+};
+
+const notConfigured = (name: string, detail: string): Response =>
+	json(501, { status: "error", message: `${name} is not configured on this deployment (${detail}).` });
+
+const gatewayNotConfigured = (): Response =>
+	notConfigured(
+		"The engine gateway seam",
+		"GATEWAY_UPSTREAM_URL is unset. The engine itself does not ship in Wave 1",
+	);
+
+/**
+ * The identity the gateway seam injects: a service-token bearer, or the
+ * deployment-configured placeholder session. An upstream with neither branch
+ * configured is a 501, never an unauthenticated forward.
+ */
+const gatewayIdentityHeaders = (env: WorkerEnv): Record<string, string> | Response => {
+	const serviceToken = env.GATEWAY_AUTH_TOKEN?.trim();
+	const sessionUserId = env.GATEWAY_SESSION_USER_ID?.trim();
+	if ((serviceToken === undefined || serviceToken === "") && (sessionUserId === undefined || sessionUserId === "")) {
+		return json(501, {
+			status: "error",
+			message:
+				"The engine gateway seam has an upstream but no auth branch configured " +
+				"(neither GATEWAY_AUTH_TOKEN nor a validated session).",
+		});
+	}
+	if (serviceToken !== undefined && serviceToken !== "") {
+		return { authorization: `Bearer ${serviceToken}` };
+	}
+	const headers: Record<string, string> = { "x-user-id": sessionUserId ?? "" };
+	if (env.GATEWAY_SESSION_USER_ROLE !== undefined) headers["x-user-role"] = env.GATEWAY_SESSION_USER_ROLE;
+	if (env.GATEWAY_SESSION_USER_SCOPES !== undefined) headers["x-user-scopes"] = env.GATEWAY_SESSION_USER_SCOPES;
+	return headers;
+};
+
+/**
+ * Forward a gateway-bound request to the per-session upstream, stripping every
+ * client-supplied identity header and re-injecting identity only from the
+ * validated session (here: deployment-configured placeholder values).
+ */
+const proxyToGateway = (request: Request, env: WorkerEnv): Promise<Response> => {
+	const upstream = env.GATEWAY_UPSTREAM_URL?.trim();
+	if (upstream === undefined || upstream === "") return Promise.resolve(gatewayNotConfigured());
+
+	const identity = gatewayIdentityHeaders(env);
+	if (identity instanceof Response) return Promise.resolve(identity);
+
+	const url = new URL(request.url);
+	const target = new URL(url.pathname + url.search, upstream);
+	const headers = new Headers(request.headers);
+	for (const name of STRIPPED_IDENTITY_HEADERS) headers.delete(name);
+	for (const [name, value] of Object.entries(identity)) headers.set(name, value);
+	return fetch(new Request(target.toString(), new Request(request, { headers })));
+};
+
+const isGatewayRoute = (pathname: string): boolean =>
+	GATEWAY_ROUTE_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+
+/**
+ * The identity worker is the identity authority: it sets and reads its own
+ * session cookie, so the proxy forwards cookies untouched but still strips
+ * client-supplied identity headers — a browser must never inject x-user-*.
+ *
+ * Both sibling workers gate on the browser `Origin` (`ALLOWED_ORIGINS`), and a
+ * same-origin GET carries none at all, so the proxy states the one origin that
+ * is actually true of every request it forwards: its own. Deployments must list
+ * this Worker's origin in the identity and billing workers' `ALLOWED_ORIGINS`.
+ */
+const withProxyOrigin = (headers: Headers, url: URL): void => {
+	headers.set("origin", url.origin);
+};
+
+const proxyToIdentity = (request: Request, env: WorkerEnv): Promise<Response> => {
+	const upstream = env.IDENTITY_UPSTREAM_URL?.trim();
+	if (upstream === undefined || upstream === "") {
+		return Promise.resolve(
+			notConfigured("The identity seam", "IDENTITY_UPSTREAM_URL is unset. Sign-in is unavailable"),
+		);
+	}
+	const url = new URL(request.url);
+	const target = new URL(url.pathname + url.search, upstream);
+	const headers = new Headers(request.headers);
+	for (const name of STRIPPED_IDENTITY_HEADERS) headers.delete(name);
+	withProxyOrigin(headers, url);
+	return fetch(new Request(target.toString(), new Request(request, { headers })));
+};
+
+/*
+ * Wave 8 — no dead ends on the live surface.
+ *
+ * The OAuth start/callback routes are TOP-LEVEL PAGE NAVIGATIONS: the user
+ * clicks "Sign in with GitHub" and the browser loads the route as a document.
+ * When the identity upstream answers anything but a redirect (OAuth
+ * unconfigured → 503, an upstream 4xx/5xx, an unreachable service), passing
+ * the response through would strand the user on a browser-rendered blob of
+ * raw JSON — an error that says neither what they were doing nor the next
+ * step. So at this seam a non-redirect upstream answer becomes a minimal,
+ * self-contained branded page that states honestly what happened and offers
+ * the one way back home. Callers that ask for JSON (`Accept:
+ * application/json`) keep the machine-readable upstream answer verbatim, and
+ * the HTTP status is preserved either way.
+ *
+ * The heading/detail strings below are constants composed with an integer
+ * status code only — no upstream or user input reaches the page unescaped.
+ */
+const prefersJson = (request: Request): boolean => {
+	const accept = request.headers.get("accept") ?? "";
+	return accept.includes("application/json") && !accept.includes("text/html");
+};
+
+const authErrorPage = (heading: string, detail: string): string => `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${heading} — Smithers</title>
+<style>
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body {
+	margin: 0;
+	min-height: 100vh;
+	display: grid;
+	place-items: center;
+	background: #f7f4ee;
+	color: #211d18;
+	font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+	-webkit-font-smoothing: antialiased;
+}
+.card {
+	max-width: 30rem;
+	margin: 1.5rem;
+	padding: 2.5rem 2.25rem;
+	background: #fffefa;
+	border: 1px solid #e4ddcf;
+	border-radius: 16px;
+	box-shadow: 0 1px 2px rgb(33 29 24 / 4%), 0 12px 32px rgb(33 29 24 / 10%);
+}
+.wordmark {
+	margin: 0 0 1.75rem;
+	font-size: 0.7813rem;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: #0f766e;
+}
+.wordmark::after {
+	content: "";
+	display: block;
+	width: 2rem;
+	height: 2px;
+	margin-top: 0.5rem;
+	background: #e8a33d;
+	border-radius: 999px;
+}
+h1 {
+	margin: 0 0 0.875rem;
+	font-size: 1.375rem;
+	line-height: 1.35;
+	font-weight: 650;
+}
+.detail {
+	margin: 0 0 2rem;
+	font-size: 0.9375rem;
+	line-height: 1.6;
+	color: #4a443b;
+}
+.home {
+	display: inline-block;
+	padding: 0.625rem 1.25rem;
+	border-radius: 10px;
+	background: #0f766e;
+	color: #fffefa;
+	font-size: 0.9375rem;
+	font-weight: 600;
+	text-decoration: none;
+}
+.home:hover { background: #0b5b57; }
+</style>
+</head>
+<body>
+<main class="card">
+<p class="wordmark">Smithers</p>
+<h1>${heading}</h1>
+<p class="detail">${detail}</p>
+<a class="home" href="/">Back to Smithers</a>
+</main>
+</body>
+</html>`;
+
+const authErrorResponse = (status: number, heading: string, detail: string): Response =>
+	new Response(authErrorPage(heading, detail), {
+		status,
+		headers: {
+			"content-type": "text/html; charset=utf-8",
+			"cache-control": "no-store",
+			...ISOLATION_HEADERS,
+		},
+	});
+
+const OAUTH_OFF_HEADING = "GitHub sign-in isn't switched on yet for this preview.";
+
+const handleAuthNavigation = async (
+	request: Request,
+	env: WorkerEnv,
+	route: "start" | "callback",
+): Promise<Response> => {
+	const upstream = env.IDENTITY_UPSTREAM_URL?.trim();
+	if (upstream === undefined || upstream === "") {
+		if (prefersJson(request)) return proxyToIdentity(request, env);
+		return authErrorResponse(
+			501,
+			OAUTH_OFF_HEADING,
+			"You tried to sign in with GitHub, but this preview deployment has no sign-in service configured yet, so the sign-in can't start. Nothing was signed in and nothing was lost.",
+		);
+	}
+	let response: Response;
+	try {
+		response = await proxyToIdentity(request, env);
+	} catch (error) {
+		const cause = error instanceof Error ? error.message : "unknown error";
+		if (prefersJson(request)) {
+			return json(502, { status: "error", message: `The identity service is unreachable: ${cause}` });
+		}
+		return authErrorResponse(
+			502,
+			route === "start" ? "GitHub sign-in can't start right now." : "GitHub sign-in didn't finish.",
+			`You tried to sign in with GitHub, but the sign-in service could not be reached, so the sign-in ${
+				route === "start" ? "can't start" : "could not complete"
+			}. Nothing was signed in — head back and try again in a bit.`,
+		);
+	}
+	// The happy path is a redirect: to GitHub from start, back here from callback.
+	if (response.status >= 300 && response.status < 400 && response.headers.get("location") !== null) {
+		return response;
+	}
+	/*
+	 * The OTHER happy path (native sign-in handoff): a callback bound to a
+	 * handoff answers a 200 HTML page — "You're signed in — return to the
+	 * Smithers app" — because the session travels to the app through the
+	 * claim endpoint, not this tab. A success page is not an upstream error;
+	 * replacing it with the 502 surface told a signed-in user nothing was
+	 * signed in (the live bug).
+	 */
+	if (
+		route === "callback" &&
+		response.status === 200 &&
+		(response.headers.get("content-type") ?? "").includes("text/html")
+	) {
+		return response;
+	}
+	if (prefersJson(request)) return response;
+	// What remains is an upstream error (or a non-redirect oddity): read the
+	// machine answer for its code, then replace it with the human page.
+	const body = (await response.text().catch(() => "")).trim();
+	let code: string | undefined;
+	try {
+		const parsed: unknown = JSON.parse(body);
+		if (typeof parsed === "object" && parsed !== null && "code" in parsed && typeof parsed.code === "string") {
+			code = parsed.code;
+		}
+	} catch {
+		// A non-JSON error body has no code to read; the status still says enough.
+	}
+	const status = response.status >= 400 ? response.status : 502;
+	if (route === "start") {
+		if (code === "oauth_not_configured") {
+			return authErrorResponse(
+				status,
+				OAUTH_OFF_HEADING,
+				`You tried to sign in with GitHub. The sign-in service answered that its GitHub credentials aren't installed yet (HTTP ${status}), so the sign-in can't start. Nothing was signed in and nothing was lost.`,
+			);
+		}
+		return authErrorResponse(
+			status,
+			"GitHub sign-in can't start right now.",
+			`You tried to sign in with GitHub, but the sign-in service answered HTTP ${status} instead of sending you to GitHub, so the sign-in can't start. Nothing was signed in — head back and try again in a bit.`,
+		);
+	}
+	return authErrorResponse(
+		status,
+		"GitHub sign-in didn't finish.",
+		`You were on your way back from GitHub, but the sign-in service answered HTTP ${status}, so the sign-in could not complete. Nothing was signed in — head back and try again.`,
+	);
+};
+
+/**
+ * Wave 8 — the session probe is a question, not an error. The landing boots by
+ * asking "who is signed in?", and the upstream's 401 IS the expected signed-out
+ * answer — but the browser logs any 4xx document/subresource response as a
+ * console error no matter how calmly the client JS handles it. So the seam
+ * restates the expected answer as what it honestly is — a resolved 200 naming
+ * the signed-out state.
+ *
+ * ONLY the 401. The identity worker spends 401 on exactly one thing here (no
+ * session cookie, or an unreadable one); its 403 means "Forbidden origin" — a
+ * deployment whose ALLOWED_ORIGINS omits this Worker, where every identity call
+ * is broken and nobody could sign in. Restating that as "signed out" would
+ * paint a broken deployment as a calm signed-out landing with a clean console,
+ * which is exactly the kind of suppression this wave exists to stop. It, 5xx,
+ * and an unreachable upstream all pass through untouched and still surface.
+ */
+const probeAuthSession = async (request: Request, env: WorkerEnv): Promise<Response> => {
+	const response = await proxyToIdentity(request, env);
+	if (response.status !== 401) return response;
+	await response.body?.cancel();
+	return json(200, { status: "signed-out" });
+};
+
+interface ValidatedIdentity {
+	readonly login: string;
+	readonly allowlisted: boolean;
+	readonly admin: boolean;
+	readonly scopes: ReadonlyArray<string>;
+}
+
+/**
+ * Validate the caller's session cookie against the identity worker's
+ * service-token endpoint (the contract's trusted-proxy validation path).
+ * Returns undefined when no cookie session validates.
+ */
+const validateSession = async (request: Request, env: WorkerEnv): Promise<ValidatedIdentity | undefined> => {
+	const upstream = env.IDENTITY_UPSTREAM_URL?.trim();
+	if (upstream === undefined || upstream === "") return undefined;
+	const headers: Record<string, string> = { "content-type": "application/json" };
+	const cookie = request.headers.get("cookie");
+	if (cookie !== null) headers.cookie = cookie;
+	const serviceToken = env.IDENTITY_SERVICE_TOKEN?.trim();
+	if (serviceToken !== undefined && serviceToken !== "") {
+		headers["x-smithers-service-token"] = serviceToken;
+	}
+	try {
+		const response = await fetch(new URL("/api/identity/validate", upstream).toString(), {
+			method: "POST",
+			headers,
+			body: "{}",
+		});
+		if (!response.ok) {
+			await response.body?.cancel();
+			return undefined;
+		}
+		const body = (await response.json()) as {
+			login?: unknown;
+			allowlisted?: unknown;
+			admin?: unknown;
+			scopes?: unknown;
+		};
+		if (typeof body.login !== "string" || body.login === "") return undefined;
+		return {
+			login: body.login,
+			allowlisted: body.allowlisted === true,
+			admin: body.admin === true,
+			scopes: Array.isArray(body.scopes) ? body.scopes.filter((s): s is string => typeof s === "string") : [],
+		};
+	} catch {
+		return undefined;
+	}
+};
+
+/**
+ * The turn seam spends the deployment's own model credential and meters real
+ * dollars onto the deployment's billing account, so on any deployment that HAS
+ * an identity seam it must never answer an anonymous caller. The same-origin
+ * guard is not that gate: it only fires for a request that *sends* an `Origin`,
+ * so a plain `curl -X POST` sails past it. Wave 7 published this Worker at
+ * canary.smithers.sh, where that made `/api/agent/turn` a world-reachable spend.
+ *
+ * When IDENTITY_UPSTREAM_URL is unset there is no seam that could authenticate
+ * anyone (the local dev/stub stack, the e2e), so the gate stays out of the way.
+ */
+const requireTurnSession = async (
+	request: Request,
+	env: WorkerEnv,
+): Promise<Response | ValidatedIdentity | undefined> => {
+	const upstream = env.IDENTITY_UPSTREAM_URL?.trim();
+	if (upstream === undefined || upstream === "") return undefined;
+	const session = await validateSession(request, env);
+	if (session === undefined) {
+		return json(401, { status: "error", message: "Sign in to run a Smithers turn." });
+	}
+	if (!session.allowlisted) {
+		return json(403, {
+			status: "error",
+			message: "This account is not in the closed-alpha allowlist yet.",
+		});
+	}
+	return session;
+};
+
+/**
+ * Billing reads dollars for one authenticated account. Wave 13: a SIGNED-IN
+ * user reads their OWN account through the wave-5 trusted-caller path — the
+ * proxy strips every client-supplied identity claim (a browser must never pick
+ * the account), validates the session against identity, and authenticates to
+ * billing with `x-smithers-service-token: <BILLING_PRODUCT_SERVICE_TOKEN>` +
+ * `x-user-login: <validated login>` (workers/billing keys the account by that
+ * login). The deployment-wide bearer is NEVER sent alongside: billing's
+ * bearer-wins rule would silently re-key the read to the shared account, which
+ * is exactly the D-1/D-2/A-5 defect this path closes.
+ *
+ * The deployment bearer remains only as the signed-out/native fallback: with no
+ * identity seam (local dev, the native shell) there is no session to vouch for,
+ * so the bearer authenticates the deployment account it always did. A signed-in
+ * request with no service token configured is an honest 501 — never a silent
+ * fall back onto the shared account.
+ */
+const proxyToBilling = async (request: Request, env: WorkerEnv): Promise<Response> => {
+	const upstream = env.BILLING_UPSTREAM_URL?.trim();
+	if (upstream === undefined || upstream === "") {
+		return notConfigured("The billing seam", "BILLING_UPSTREAM_URL is unset. Balance is unavailable");
+	}
+	const url = new URL(request.url);
+	const target = new URL(url.pathname + url.search, upstream);
+	const headers = new Headers(request.headers);
+	for (const name of STRIPPED_IDENTITY_HEADERS) headers.delete(name);
+
+	const session = await validateSession(request, env);
+	if (session !== undefined) {
+		const serviceToken = env.BILLING_PRODUCT_SERVICE_TOKEN?.trim();
+		if (serviceToken === undefined || serviceToken === "") {
+			return notConfigured(
+				"The billing seam",
+				"BILLING_PRODUCT_SERVICE_TOKEN is unset. A signed-in user's balance reads through the trusted-caller path; without it the seam could only bill the shared deployment account, so it says so instead",
+			);
+		}
+		headers.set("x-smithers-service-token", serviceToken);
+		headers.set("x-user-login", session.login);
+		headers.set("x-user-id", session.login);
+		headers.set("x-user-role", session.admin ? "admin" : "member");
+		if (session.scopes.length > 0) headers.set("x-user-scopes", session.scopes.join(" "));
+	} else {
+		if (env.IDENTITY_UPSTREAM_URL?.trim()) {
+			return json(401, {
+				status: "error",
+				message: "Sign in before reading your balance — the identity service did not validate a session.",
+			});
+		}
+		const bearer = env.BILLING_AUTH_TOKEN?.trim();
+		if (bearer === undefined || bearer === "") {
+			return notConfigured(
+				"The billing seam",
+				"BILLING_AUTH_TOKEN is unset. Billing authenticates the account with a Smithers Cloud user bearer, and no other credential opens it",
+			);
+		}
+		headers.set("authorization", `Bearer ${bearer}`);
+	}
+	withProxyOrigin(headers, url);
+	return fetch(new Request(target.toString(), new Request(request, { headers })));
+};
+
+/**
+ * The recommendations seam (Wave 3b). The reco worker is the authority on its
+ * own session check — it validates the forwarded cookie against identity's
+ * /validate itself — so the proxy does the usual seam discipline only: strip
+ * client-injected identity headers, forward the cookie untouched, state this
+ * Worker's own origin (deployments list it in the reco worker's
+ * ALLOWED_ORIGINS, same as identity and billing).
+ */
+const proxyToReco = (request: Request, env: WorkerEnv): Promise<Response> => {
+	const upstream = env.RECO_UPSTREAM_URL?.trim();
+	if (upstream === undefined || upstream === "") {
+		return Promise.resolve(
+			notConfigured("The recommendations seam", "RECO_UPSTREAM_URL is unset. Recommendations are unavailable"),
+		);
+	}
+	const url = new URL(request.url);
+	const target = new URL(url.pathname + url.search, upstream);
+	const headers = new Headers(request.headers);
+	for (const name of STRIPPED_IDENTITY_HEADERS) headers.delete(name);
+	withProxyOrigin(headers, url);
+	return fetch(new Request(target.toString(), new Request(request, { headers })));
+};
+
+/*
+ * The canonical unknown-route answer. The admin surface is non-enumerable
+ * (Launch Checklist §E): a non-admin — or signed-out — caller probing
+ * /api/admin/* gets EXACTLY this response, byte-identical to any other
+ * unknown /api/* route. Never 401, never 403, never a different shape.
+ */
+const notFound = (): Response => json(404, { status: "error", message: "Not found." });
+
+/** Forward an admin upstream call, passing the upstream status and body through verbatim. */
+const forwardAdminCall = async (
+	upstream: string,
+	path: string,
+	adminToken: string,
+	init: { method: string; body?: unknown },
+): Promise<Response> => {
+	const headers: Record<string, string> = { "x-smithers-admin-token": adminToken };
+	if (init.body !== undefined) headers["content-type"] = "application/json";
+	let response: Response;
+	try {
+		response = await fetch(new URL(path, upstream).toString(), {
+			method: init.method,
+			headers,
+			...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+		});
+	} catch (error) {
+		return json(502, {
+			status: "error",
+			message: `The admin upstream is unreachable: ${error instanceof Error ? error.message : "unknown error"}`,
+		});
+	}
+	const text = await response.text();
+	return new Response(text, {
+		status: response.status,
+		headers: { "content-type": response.headers.get("content-type") ?? "application/json", ...ISOLATION_HEADERS },
+	});
+};
+
+const adminTokenNotConfigured = (name: string, envName: string): Response =>
+	notConfigured(name, `${envName} is unset. The admin surface is unavailable on this deployment`);
+
+interface AdminServiceHealth {
+	readonly name: string;
+	readonly status: "ok" | "failed" | "unconfigured";
+	readonly detail: string;
+}
+
+/** One honest per-service line for admin.health — a real healthz read or the truth about why not. */
+const readServiceHealth = async (
+	name: string,
+	upstream: string | undefined,
+	envName: string,
+	summarize: (body: Record<string, unknown>) => string,
+): Promise<AdminServiceHealth> => {
+	const base = upstream?.trim();
+	if (base === undefined || base === "") {
+		return { name, status: "unconfigured", detail: `${envName} is unset on this deployment.` };
+	}
+	let response: Response;
+	try {
+		response = await fetch(new URL("/healthz", base).toString());
+	} catch (error) {
+		return {
+			name,
+			status: "failed",
+			detail: `unreachable: ${error instanceof Error ? error.message : "unknown error"}`,
+		};
+	}
+	if (!response.ok) {
+		await response.body?.cancel();
+		return { name, status: "failed", detail: `healthz answered HTTP ${response.status}.` };
+	}
+	const body = (await response.json().catch(() => undefined)) as Record<string, unknown> | undefined;
+	if (body === undefined) return { name, status: "failed", detail: "healthz did not return JSON." };
+	if (body.ok !== true) return { name, status: "failed", detail: "healthz reported not ok." };
+	return { name, status: "ok", detail: summarize(body) };
+};
+
+/**
+ * "What failed overnight?" v1: compose the health card's facts from real
+ * reads — each sibling's /healthz, the billing ledger's charge totals, and
+ * the request-access queue depth. A service that cannot be read says so;
+ * nothing is invented.
+ */
+const handleAdminHealth = async (env: WorkerEnv, proxyOrigin: string): Promise<Response> => {
+	const summarize =
+		(...fields: ReadonlyArray<string>) =>
+		(body: Record<string, unknown>): string => {
+			const parts = fields
+				.filter((field) => body[field] !== undefined)
+				.map((field) => `${field}: ${JSON.stringify(body[field])}`);
+			return parts.length === 0 ? "healthz ok." : `healthz ok — ${parts.join(" · ")}`;
+		};
+	const [billing, identity, reco] = await Promise.all([
+		readServiceHealth("billing", env.BILLING_UPSTREAM_URL, "BILLING_UPSTREAM_URL", summarize("rateCardVersion", "resources", "unpricedActiveResources")),
+		readServiceHealth("identity", env.IDENTITY_UPSTREAM_URL, "IDENTITY_UPSTREAM_URL", summarize("requestedScopes", "admin", "serviceToken")),
+		readServiceHealth("reco", env.RECO_UPSTREAM_URL, "RECO_UPSTREAM_URL", summarize("identity", "prewarm", "admin", "testMode")),
+	]);
+
+	// Recent charges: the billing ledger's own totals, read with the account bearer.
+	let charges: { chargeCount: number; lifetimeChargedUsd: string } | null = null;
+	const billingBase = env.BILLING_UPSTREAM_URL?.trim();
+	const bearer = env.BILLING_AUTH_TOKEN?.trim();
+	if (billingBase !== undefined && billingBase !== "" && bearer !== undefined && bearer !== "") {
+		try {
+			// Billing refuses a request that carries no Origin, so the read states
+			// this Worker's own — the same seam discipline as the billing proxy.
+			const balance = await fetch(new URL("/api/billing/balance", billingBase).toString(), {
+				headers: { authorization: `Bearer ${bearer}`, origin: proxyOrigin },
+			});
+			if (balance.ok) {
+				const body = (await balance.json()) as {
+					balance?: { chargeCount?: unknown; lifetimeChargedUsd?: unknown };
+				};
+				if (
+					typeof body.balance?.chargeCount === "number" &&
+					typeof body.balance.lifetimeChargedUsd === "string"
+				) {
+					charges = {
+						chargeCount: body.balance.chargeCount,
+						lifetimeChargedUsd: body.balance.lifetimeChargedUsd,
+					};
+				}
+			} else {
+				await balance.body?.cancel();
+			}
+		} catch {
+			// charges stays null — the card says "no charge read" rather than inventing one.
+		}
+	}
+
+	// Request-queue depth: the identity admin read, or null when it can't be had.
+	let queueDepth: number | null = null;
+	const identityBase = env.IDENTITY_UPSTREAM_URL?.trim();
+	const identityAdmin = env.IDENTITY_ADMIN_TOKEN?.trim();
+	if (identityBase !== undefined && identityBase !== "" && identityAdmin !== undefined && identityAdmin !== "") {
+		try {
+			const queue = await fetch(new URL("/api/identity/admin/requests", identityBase).toString(), {
+				headers: { "x-smithers-admin-token": identityAdmin },
+			});
+			if (queue.ok) {
+				const body = (await queue.json()) as { requests?: unknown };
+				if (Array.isArray(body.requests)) queueDepth = body.requests.length;
+			} else {
+				await queue.body?.cancel();
+			}
+		} catch {
+			// queueDepth stays null — honest absence, not a zero.
+		}
+	}
+
+	return json(200, {
+		services: [billing, identity, reco],
+		charges,
+		queueDepth,
+		checkedAt: new Date().toISOString(),
+	});
+};
+
+const parseAdminBody = async (request: Request): Promise<Record<string, unknown> | Response> => {
+	let body: unknown;
+	try {
+		body = await readTurnBody(request);
+	} catch (error) {
+		return json(error instanceof BodyTooLargeError ? 413 : 400, {
+			status: "error",
+			message: error instanceof Error ? error.message : "Invalid request.",
+		});
+	}
+	if (typeof body !== "object" || body === null || Array.isArray(body)) {
+		return json(400, { status: "error", message: "Body must be a JSON object." });
+	}
+	return body as Record<string, unknown>;
+};
+
+/**
+ * The admin plugin's server half (Launch Checklist §E). Every /api/admin/*
+ * route FIRST validates the session through identity and requires admin:true;
+ * anything else gets the canonical 404, byte-identical to an unknown route.
+ * Admin writes carry their audit attribution at write time: requester is the
+ * admin's own validated login and the timestamp is fresh — the siblings
+ * refuse unattributed writes by contract.
+ */
+const handleAdmin = async (request: Request, env: WorkerEnv, url: URL): Promise<Response> => {
+	const session = await validateSession(request, env);
+	if (session === undefined || !session.admin) return notFound();
+
+	if (url.pathname === ADMIN_ALLOWLIST_PATH && request.method === "POST") {
+		const upstream = env.IDENTITY_UPSTREAM_URL?.trim();
+		if (upstream === undefined || upstream === "") {
+			return notConfigured("The identity seam", "IDENTITY_UPSTREAM_URL is unset. The allowlist is unavailable");
+		}
+		const token = env.IDENTITY_ADMIN_TOKEN?.trim();
+		if (token === undefined || token === "") {
+			return adminTokenNotConfigured("The identity admin surface", "IDENTITY_ADMIN_TOKEN");
+		}
+		const body = await parseAdminBody(request);
+		if (body instanceof Response) return body;
+		const login = typeof body.login === "string" ? body.login.trim() : "";
+		const action = body.action;
+		if (login === "" || (action !== "add" && action !== "remove")) {
+			return json(400, { status: "error", message: "Body must be { login, action: \"add\" | \"remove\" }." });
+		}
+		return forwardAdminCall(upstream, "/api/identity/admin/allowlist", token, {
+			method: "POST",
+			body: { login, action, requester: session.login, timestamp: new Date().toISOString() },
+		});
+	}
+
+	if (url.pathname === ADMIN_GRANT_PATH && request.method === "POST") {
+		const upstream = env.BILLING_UPSTREAM_URL?.trim();
+		if (upstream === undefined || upstream === "") {
+			return notConfigured("The billing seam", "BILLING_UPSTREAM_URL is unset. Grants are unavailable");
+		}
+		const token = env.BILLING_ADMIN_TOKEN?.trim();
+		if (token === undefined || token === "") {
+			return adminTokenNotConfigured("The billing admin surface", "BILLING_ADMIN_TOKEN");
+		}
+		const body = await parseAdminBody(request);
+		if (body instanceof Response) return body;
+		const login = typeof body.login === "string" ? body.login.trim() : "";
+		const amountUsd = typeof body.amountUsd === "number" ? body.amountUsd : Number.NaN;
+		if (login === "" || !Number.isFinite(amountUsd) || amountUsd <= 0) {
+			return json(400, { status: "error", message: "Body must be { login, amountUsd } with a positive dollar amount." });
+		}
+		// A fresh grant id per confirmed request; the sibling is idempotent by it.
+		const grantId = `admin:product-${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`;
+		return forwardAdminCall(upstream, "/api/billing/admin/grants", token, {
+			method: "POST",
+			body: {
+				userId: login,
+				grantId,
+				amountUsd,
+				kind: "promotional",
+				requester: session.login,
+				timestamp: new Date().toISOString(),
+			},
+		});
+	}
+
+	if (url.pathname === ADMIN_REQUESTS_PATH && request.method === "GET") {
+		const upstream = env.IDENTITY_UPSTREAM_URL?.trim();
+		if (upstream === undefined || upstream === "") {
+			return notConfigured("The identity seam", "IDENTITY_UPSTREAM_URL is unset. The request queue is unavailable");
+		}
+		const token = env.IDENTITY_ADMIN_TOKEN?.trim();
+		if (token === undefined || token === "") {
+			return adminTokenNotConfigured("The identity admin surface", "IDENTITY_ADMIN_TOKEN");
+		}
+		return forwardAdminCall(upstream, "/api/identity/admin/requests", token, { method: "GET" });
+	}
+
+	if (url.pathname === ADMIN_FEEDBACK_PATH && request.method === "GET") {
+		const upstream = env.RECO_UPSTREAM_URL?.trim();
+		if (upstream === undefined || upstream === "") {
+			return notConfigured("The recommendations seam", "RECO_UPSTREAM_URL is unset. The feedback log is unavailable");
+		}
+		const token = env.RECO_ADMIN_TOKEN?.trim();
+		if (token === undefined || token === "") {
+			return adminTokenNotConfigured("The recommendations admin surface", "RECO_ADMIN_TOKEN");
+		}
+		return forwardAdminCall(upstream, "/api/reco/admin/feedback", token, { method: "GET" });
+	}
+
+	if (url.pathname === ADMIN_HEALTH_PATH && request.method === "GET") {
+		return handleAdminHealth(env, url.origin);
+	}
+
+	// An admin-only path this Worker does not implement is still just not found.
+	return notFound();
+};
+
+/*
+ * Wave 11 — "make me a workflow": the per-user gateway seam, live.
+ *
+ * The browser drives /api/workflow/*; the Worker resolves the caller's
+ * session, mints (or reuses) their Smithers Cloud identity through the
+ * identity worker's cloud-token door, provisions-or-resumes the workspace
+ * gateway for a WATCHED repo (the watched set is the universe — the client
+ * routes anything outside it to the chooser), and relays RPC/event calls
+ * with the gateway token it alone holds.
+ */
+
+/*
+ * owner/repo — the shape the Cloud provision route takes; anything else (a dot
+ * segment that URL parsing would resolve away included) is refused pre-upstream
+ * by `isRelayRepoName`.
+ */
+
+/**
+ * The workflow seam spends the user's own workspace resources, so on any
+ * deployment that HAS an identity seam it requires a validated, allowlisted
+ * session — the same gate as a turn. Returns the validated identity or the
+ * refusal response.
+ */
+const requireWorkflowSession = async (
+	request: Request,
+	env: WorkerEnv,
+): Promise<ValidatedIdentity | Response> => {
+	const upstream = env.IDENTITY_UPSTREAM_URL?.trim();
+	if (upstream === undefined || upstream === "") {
+		return notConfigured(
+			"The workflow seam",
+			"IDENTITY_UPSTREAM_URL is unset. The per-user gateway needs a validated session, and no identity service can provide one",
+		);
+	}
+	const session = await validateSession(request, env);
+	if (session === undefined) {
+		return json(401, { status: "error", message: "Sign in to run workflows on your workspace." });
+	}
+	if (!session.allowlisted) {
+		return json(403, {
+			status: "error",
+			message: "This account is not in the closed-alpha allowlist yet.",
+		});
+	}
+	return session;
+};
+
+/** The typed, non-gateway answers a gateway call can produce, in one place. */
+const gatewayCallResponse = (call: Awaited<ReturnType<typeof callGateway>>): Response => {
+	if (call.status === "ok") return call.response;
+	if (call.status === "provisioning") return json(200, { status: "provisioning", message: call.detail });
+	if (call.status === "no_capacity") return json(200, { status: "no-capacity", message: call.detail });
+	if (call.status === "no_cloud_token") return json(200, { status: "no-cloud-identity", message: call.detail });
+	if (call.status === "no_cloud_repo") return json(200, { status: "no-cloud-repo", message: call.detail });
+	return json(502, { status: "error", message: call.detail });
+};
+
+const parseWorkflowRepo = (value: unknown): string | undefined =>
+	typeof value === "string" && isRelayRepoName(value) ? value : undefined;
+
+const handleWorkflowProvision = async (request: Request, env: WorkerEnv): Promise<Response> => {
+	const session = await requireWorkflowSession(request, env);
+	if (session instanceof Response) return session;
+	let body: unknown;
+	try {
+		body = await readTurnBody(request);
+	} catch (error) {
+		return json(error instanceof BodyTooLargeError ? 413 : 400, {
+			status: "error",
+			message: error instanceof Error ? error.message : "Invalid request.",
+		});
+	}
+	const repo =
+		typeof body === "object" && body !== null && "repo" in body
+			? parseWorkflowRepo((body as { repo?: unknown }).repo)
+			: undefined;
+	if (repo === undefined) {
+		return json(400, { status: "error", message: "Body must be { repo } as owner/repo." });
+	}
+	const outcome = await ensureGateway(env, session.login, repo);
+	switch (outcome.status) {
+		case "ready":
+			// The token NEVER leaves the server: the answer names the gateway and
+			// its re-resolve cadence, nothing more.
+			return json(200, {
+				status: "ready",
+				repo,
+				gatewayId: outcome.record.gatewayId,
+				expiresAt: new Date(outcome.record.expiresAt).toISOString(),
+			});
+		case "provisioning":
+			return json(200, { status: "provisioning", message: outcome.detail });
+		case "no_capacity":
+			return json(200, { status: "no-capacity", message: outcome.detail });
+		case "no_cloud_token":
+			return json(200, { status: "no-cloud-identity", message: outcome.detail });
+		case "no_cloud_repo":
+			// §4: a watched repo with no Cloud counterpart — a state of its own.
+			return json(200, { status: "no-cloud-repo", message: outcome.detail });
+		default:
+			return json(502, { status: "error", message: outcome.detail });
+	}
+};
+
+const handleWorkflowRpc = async (request: Request, env: WorkerEnv): Promise<Response> => {
+	const session = await requireWorkflowSession(request, env);
+	if (session instanceof Response) return session;
+	let body: unknown;
+	try {
+		body = await readTurnBody(request);
+	} catch (error) {
+		return json(error instanceof BodyTooLargeError ? 413 : 400, {
+			status: "error",
+			message: error instanceof Error ? error.message : "Invalid request.",
+		});
+	}
+	const candidate =
+		typeof body === "object" && body !== null ? (body as Record<string, unknown>) : undefined;
+	const repo = parseWorkflowRepo(candidate?.repo);
+	const method = typeof candidate?.method === "string" ? candidate.method : "";
+	if (repo === undefined || method === "") {
+		return json(400, { status: "error", message: "Body must be { repo, method, params? }." });
+	}
+	if (!ALLOWED_GATEWAY_METHODS.includes(method)) {
+		return json(400, { status: "error", message: `The workflow seam does not relay ${method}.` });
+	}
+	const call = await callGateway(env, session.login, repo, `/v1/rpc/${method}`, {
+		method: "POST",
+		body: candidate?.params ?? {},
+		replayable: !NON_REPLAYABLE_GATEWAY_METHODS.includes(method),
+	});
+	if (call.status !== "ok") return gatewayCallResponse(call);
+	// The gateway's own frame passes through verbatim (ok/payload or ok/error).
+	const text = await call.response.text();
+	return new Response(text, {
+		status: call.response.status,
+		headers: {
+			"content-type": call.response.headers.get("content-type") ?? "application/json",
+			...ISOLATION_HEADERS,
+		},
+	});
+};
+
+const handleWorkflowEvents = async (request: Request, env: WorkerEnv, url: URL): Promise<Response> => {
+	const session = await requireWorkflowSession(request, env);
+	if (session instanceof Response) return session;
+	const repo = parseWorkflowRepo(url.searchParams.get("repo") ?? undefined);
+	const runId = url.searchParams.get("runId") ?? "";
+	if (repo === undefined || runId === "") {
+		return json(400, { status: "error", message: "Query must carry repo and runId." });
+	}
+	const afterSeqRaw = url.searchParams.get("afterSeq");
+	const afterSeq = afterSeqRaw === null ? undefined : Number(afterSeqRaw);
+	if (afterSeq !== undefined && (!Number.isInteger(afterSeq) || afterSeq < 0)) {
+		return json(400, { status: "error", message: "afterSeq must be a non-negative integer." });
+	}
+	const limitRaw = Number(url.searchParams.get("limit") ?? "200");
+	const limit = Number.isInteger(limitRaw) && limitRaw > 0 && limitRaw <= 500 ? limitRaw : 200;
+	const call = await callGateway(
+		env,
+		session.login,
+		repo,
+		`/v1/api/runs/${encodeURIComponent(runId)}/events?limit=${limit}${afterSeq === undefined ? "" : `&afterSeq=${afterSeq}`}`,
+		{ method: "GET" },
+	);
+	if (call.status !== "ok") return gatewayCallResponse(call);
+	const text = await call.response.text();
+	return new Response(text, {
+		status: call.response.status,
+		headers: {
+			"content-type": call.response.headers.get("content-type") ?? "application/json",
+			...ISOLATION_HEADERS,
+		},
+	});
+};
+
+/**
+ * The relay SSE change stream, proxied end-to-end (Wave 11 streaming): the
+ * Worker holds the token and forwards Last-Event-ID, so a browser EventSource
+ * reconnect replays through the relay exactly like a native client. The 600s
+ * relay cap makes stream loss ROUTINE — the client treats reconnect as normal.
+ */
+const handleWorkflowStream = async (request: Request, env: WorkerEnv, url: URL): Promise<Response> => {
+	const session = await requireWorkflowSession(request, env);
+	if (session instanceof Response) return session;
+	const repo = parseWorkflowRepo(url.searchParams.get("repo") ?? undefined);
+	if (repo === undefined) {
+		return json(400, { status: "error", message: "Query must carry repo." });
+	}
+	const lastEventId = request.headers.get("last-event-id");
+	const call = await callGateway(env, session.login, repo, "/v1/api/stream", {
+		method: "GET",
+		headers: lastEventId === null ? {} : { "last-event-id": lastEventId },
+	});
+	if (call.status !== "ok") return gatewayCallResponse(call);
+	if (call.response.body === null) {
+		return json(502, { status: "error", message: "The gateway stream had no body." });
+	}
+	return new Response(call.response.body, {
+		status: call.response.status,
+		headers: {
+			"content-type": "text/event-stream; charset=utf-8",
+			"cache-control": "no-store",
+			...ISOLATION_HEADERS,
+		},
+	});
+};
+
+interface ApprovalDecisionBody {
+	readonly runId: string;
+	readonly nodeId: string;
+	readonly iteration: number;
+	readonly decision: { readonly approved: boolean; readonly note?: string };
+	/** Wave 11: the watched repo whose per-user gateway runs the run. */
+	readonly repo?: string;
+}
+
+const parseApprovalDecision = (body: unknown): ApprovalDecisionBody | undefined => {
+	if (typeof body !== "object" || body === null) return undefined;
+	const candidate = body as Record<string, unknown>;
+	const decision = candidate.decision;
+	if (
+		typeof candidate.runId !== "string" ||
+		candidate.runId === "" ||
+		typeof candidate.nodeId !== "string" ||
+		candidate.nodeId === "" ||
+		typeof candidate.iteration !== "number" ||
+		!Number.isInteger(candidate.iteration) ||
+		candidate.iteration < 0 ||
+		typeof decision !== "object" ||
+		decision === null ||
+		typeof (decision as Record<string, unknown>).approved !== "boolean"
+	) {
+		return undefined;
+	}
+	const note = (decision as Record<string, unknown>).note;
+	return {
+		runId: candidate.runId,
+		nodeId: candidate.nodeId,
+		iteration: candidate.iteration,
+		decision: {
+			approved: (decision as { approved: boolean }).approved,
+			...(typeof note === "string" ? { note } : {}),
+		},
+		...(typeof candidate.repo === "string" && isRelayRepoName(candidate.repo)
+			? { repo: candidate.repo }
+			: {}),
+	};
+};
+
+/**
+ * The approval round trip (Wave 2a): the client's decision forwards to the
+ * gateway upstream's submitApproval RPC with the seam's identity injection.
+ * The upstream echo is returned verbatim — the client freezes its card from
+ * that echo, never from its own optimism.
+ */
+const handleApprovalDecision = async (request: Request, env: WorkerEnv): Promise<Response> => {
+	let body: unknown;
+	try {
+		body = await readTurnBody(request);
+	} catch (error) {
+		return json(error instanceof BodyTooLargeError ? 413 : 400, {
+			status: "error",
+			message: error instanceof Error ? error.message : "Invalid request.",
+		});
+	}
+	const decision = parseApprovalDecision(body);
+	if (decision === undefined) {
+		return json(400, {
+			status: "error",
+			message: "Body must be { runId, nodeId, iteration, decision: { approved, note? } }.",
+		});
+	}
+
+	/*
+	 * Wave 11: a decision that names its repo round-trips through the
+	 * caller's per-user gateway (the relay path the run actually lives on).
+	 * The static GATEWAY_UPSTREAM_URL mode stays for the local stub stack.
+	 */
+	if (decision.repo !== undefined) {
+		const session = await requireWorkflowSession(request, env);
+		if (session instanceof Response) return session;
+		const call = await callGateway(env, session.login, decision.repo, "/v1/rpc/submitApproval", {
+			method: "POST",
+			body: {
+				runId: decision.runId,
+				nodeId: decision.nodeId,
+				iteration: decision.iteration,
+				decision: decision.decision,
+			},
+			// Keyed by (runId, nodeId, iteration): the same decision, twice, is
+			// the same decision — safe to replay onto a resumed gateway.
+			replayable: true,
+		});
+		if (call.status !== "ok") return gatewayCallResponse(call);
+		/*
+		 * The relayed gateway answers the RPC envelope ({ ok, payload }) while
+		 * this route's contract — the static seam's, which the client freezes
+		 * the card from — is the flat decision echo ({ runId, nodeId,
+		 * iteration, approved }). Pass the envelope through untouched and the
+		 * client reads a top-level `approved` that is never there: the decision
+		 * IS recorded (a retry proves it with 409 AlreadyDecided), the run
+		 * resumes, and the card still reports "the engine did not echo the
+		 * decision" — the live F-6 failure of waves 13b/14b. Unwrap the success
+		 * frame here so both seams answer the same shape; anything that is not
+		 * the success frame passes through verbatim.
+		 */
+		const text = await call.response.text();
+		let frame: { ok?: unknown; payload?: unknown } | undefined;
+		try {
+			const parsed: unknown = JSON.parse(text);
+			if (typeof parsed === "object" && parsed !== null) {
+				frame = parsed as { ok?: unknown; payload?: unknown };
+			}
+		} catch {
+			frame = undefined;
+		}
+		if (
+			call.response.status === 200 &&
+			frame !== undefined &&
+			frame.ok === true &&
+			typeof frame.payload === "object" &&
+			frame.payload !== null
+		) {
+			return json(200, frame.payload);
+		}
+		return new Response(text, {
+			status: call.response.status,
+			headers: {
+				"content-type": call.response.headers.get("content-type") ?? "application/json",
+				...ISOLATION_HEADERS,
+			},
+		});
+	}
+
+	const upstream = env.GATEWAY_UPSTREAM_URL?.trim();
+	if (upstream === undefined || upstream === "") return gatewayNotConfigured();
+	const identity = gatewayIdentityHeaders(env);
+	if (identity instanceof Response) return identity;
+
+	let response: Response;
+	try {
+		response = await fetch(new URL("/v1/rpc/submitApproval", upstream).toString(), {
+			method: "POST",
+			headers: { "content-type": "application/json", ...identity },
+			body: JSON.stringify(decision),
+		});
+	} catch (error) {
+		return json(502, {
+			status: "error",
+			message: `The engine gateway is unreachable: ${error instanceof Error ? error.message : "unknown error"}`,
+		});
+	}
+	const text = await response.text();
+	return new Response(text, {
+		status: response.status,
+		headers: { "content-type": response.headers.get("content-type") ?? "application/json", ...ISOLATION_HEADERS },
+	});
+};
+
+const isApiRoute = (pathname: string): boolean =>
+	pathname.startsWith("/api/") || isGatewayRoute(pathname);
+
+/*
+ * The browser tool's fetch route (Wave 10, §2d): server-side, hard-guarded
+ * (https only, public hosts only after DNS resolution, size cap, timeout, no
+ * cookies, declared user-agent). Session-gated exactly like a turn — the
+ * deployment's network egress is a resource — and read-tier: it changes
+ * nothing upstream.
+ */
+const handleBrowserFetch = async (request: Request): Promise<Response> => {
+	let body: unknown;
+	try {
+		body = await readTurnBody(request);
+	} catch (error) {
+		return json(error instanceof BodyTooLargeError ? 413 : 400, {
+			status: "error",
+			message: error instanceof Error ? error.message : "Invalid request.",
+		});
+	}
+	const url =
+		typeof body === "object" && body !== null && "url" in body && typeof body.url === "string"
+			? body.url
+			: undefined;
+	if (url === undefined || url.trim() === "") {
+		return json(400, { status: "error", message: "Body must be { url }." });
+	}
+	const outcome = await browserFetch(url.trim(), { resolveHost: resolveHostOverHttps });
+	return json(outcome.ok ? 200 : 422, browserFetchResponseBody(outcome));
+};
+
+/**
+ * Same-origin guard for the API surface. These routes spend the deployment's
+ * own credentials — `/api/approvals/decision` submits a decision under the
+ * seam's injected identity — and a `text/plain` or form POST from another site
+ * is not preflighted, so nothing else would stop a page anywhere from driving
+ * them. Requests without an `Origin` (same-origin GETs, top-level OAuth
+ * navigation, curl, the e2e) are untouched.
+ */
+const isCrossOriginRequest = (request: Request, url: URL): boolean => {
+	const origin = request.headers.get("origin");
+	return origin !== null && origin !== url.origin;
+};
+
+/*
+ * The curated platform proxy (MULTI-ACTIONS-GAP.md Tier 1/2): the browser
+ * calls these paths same-origin; the Worker validates the session, mints the
+ * user's own Smithers Cloud token (the same per-user door the gateway seam
+ * uses), and forwards with that bearer. An ALLOWLIST, never a wildcard —
+ * every proxied family is one the product ships commands for. Note
+ * /api/billing/checkout|portal are EXACT matches routed to the platform's
+ * Stripe seam; the rest of /api/billing/* stays with the product billing
+ * worker below.
+ */
+const PLATFORM_PROXY_RULES: ReadonlyArray<{
+	readonly prefix?: string;
+	readonly exact?: string;
+	readonly methods: ReadonlyArray<string>;
+}> = [
+	{ prefix: "/api/repos/", methods: ["GET", "POST", "PATCH", "PUT", "DELETE"] },
+	{ prefix: "/api/github/import", methods: ["GET", "POST"] },
+	/* Source-only repo metadata (import-readiness fallback): reads only. */
+	{ prefix: "/api/user/github-repos/", methods: ["GET"] },
+	{ prefix: "/api/user/byok-keys", methods: ["GET", "POST", "DELETE"] },
+	{ prefix: "/api/notifications/", methods: ["GET", "PUT"] },
+	{ exact: "/api/billing/checkout", methods: ["POST"] },
+	{ exact: "/api/billing/portal", methods: ["POST"] },
+];
+
+const PLATFORM_PROXY_MAX_BODY = 256 * 1024;
+
+/*
+ * Frontend error ingest (multi's /api/client-errors, minimal form): bounded
+ * body, per-isolate rate limit, logged to the worker tail — enough to stop
+ * flying blind on client crashes in the alpha without storing anything.
+ */
+const CLIENT_ERRORS_PATH = "/api/client-errors";
+const CLIENT_ERROR_MAX_BODY = 16 * 1024;
+const CLIENT_ERROR_WINDOW_MS = 60_000;
+const CLIENT_ERROR_WINDOW_MAX = 120;
+let clientErrorWindow = { start: 0, count: 0 };
+
+const handleClientError = async (request: Request): Promise<Response> => {
+	const now = Date.now();
+	if (now - clientErrorWindow.start > CLIENT_ERROR_WINDOW_MS) {
+		clientErrorWindow = { start: now, count: 0 };
+	}
+	clientErrorWindow.count += 1;
+	if (clientErrorWindow.count > CLIENT_ERROR_WINDOW_MAX) {
+		return json(429, { status: "error", message: "Too many error reports." });
+	}
+	const body = await request.arrayBuffer();
+	if (body.byteLength > CLIENT_ERROR_MAX_BODY) {
+		return json(413, { status: "error", message: "Error report too large." });
+	}
+	console.error("client-error:", new TextDecoder().decode(body));
+	return json(202, { status: "accepted" });
+};
+
+const platformProxyMatch = (pathname: string, method: string): boolean =>
+	PLATFORM_PROXY_RULES.some(
+		(rule) =>
+			rule.methods.includes(method) &&
+			(rule.exact !== undefined ? pathname === rule.exact : pathname.startsWith(rule.prefix ?? " ")),
+	);
+
+const handlePlatformProxy = async (request: Request, env: WorkerEnv, url: URL): Promise<Response> => {
+	const gate = await requireTurnSession(request, env);
+	if (gate instanceof Response) return gate;
+	if (gate === undefined) {
+		// No identity seam on this deployment (local dev/stub): the honest state,
+		// not a 404 — the client renders the message as-is.
+		return json(503, {
+			status: "error",
+			message: "Repository actions need the identity seam, which this deployment does not have.",
+		});
+	}
+	const token = await fetchCloudToken(env, gate.login);
+	if (token.status !== "ok") {
+		return json(503, {
+			status: "error",
+			message: `Smithers Cloud isn't reachable for your account right now (${token.status}).`,
+		});
+	}
+	let body: ArrayBuffer | undefined;
+	if (request.method !== "GET" && request.method !== "HEAD") {
+		body = await request.arrayBuffer();
+		if (body.byteLength > PLATFORM_PROXY_MAX_BODY) {
+			return json(413, { status: "error", message: "Request body too large." });
+		}
+	}
+	const base = env.SMITHERS_CLOUD_API_BASE_URL?.trim() || DEFAULT_CLOUD_API_BASE_URL;
+	const headers = new Headers({ authorization: `Bearer ${token.token}` });
+	const contentType = request.headers.get("content-type");
+	if (contentType !== null) headers.set("content-type", contentType);
+	const accept = request.headers.get("accept");
+	if (accept !== null) headers.set("accept", accept);
+	let upstream: Response;
+	try {
+		upstream = await fetch(new URL(url.pathname + url.search, base).toString(), {
+			method: request.method,
+			headers,
+			...(body === undefined ? {} : { body }),
+		});
+	} catch (error) {
+		return json(502, {
+			status: "error",
+			message: `Smithers Cloud is unreachable: ${error instanceof Error ? error.message : "unknown error"}`,
+		});
+	}
+	// Status and body pass through; upstream headers do not (no set-cookie, no
+	// upstream CORS) — only the content type survives.
+	const out = new Headers();
+	const upstreamType = upstream.headers.get("content-type");
+	if (upstreamType !== null) out.set("content-type", upstreamType);
+	return new Response(upstream.body, { status: upstream.status, headers: out });
+};
+
+export default {
+	async fetch(request: Request, env: WorkerEnv): Promise<Response> {
+		const url = new URL(request.url);
+		const gatewayBound = isGatewayRoute(url.pathname) || request.headers.get("upgrade") === "websocket";
+		if ((isApiRoute(url.pathname) || gatewayBound) && isCrossOriginRequest(request, url)) {
+			return json(403, {
+				status: "error",
+				message: "This API only answers requests from its own origin.",
+			});
+		}
+		if (url.pathname === CANCEL_PATH) {
+			if (request.method !== "POST") {
+				return json(405, { status: "error", message: "Method not allowed." });
+			}
+			const refusal = await requireTurnSession(request, env);
+			if (refusal instanceof Response) return refusal;
+			return handleCancel(request, env);
+		}
+		if (url.pathname === TURN_PATH) {
+			if (request.method !== "POST") {
+				return json(405, { status: "error", message: "Method not allowed." });
+			}
+			const gate = await requireTurnSession(request, env);
+			if (gate instanceof Response) return gate;
+			return handleTurn(request, env, gate);
+		}
+		if (url.pathname === MODEL_STREAM_PATH) {
+			if (request.method !== "POST") {
+				return json(405, { status: "error", message: "Method not allowed." });
+			}
+			const gate = await requireTurnSession(request, env);
+			if (gate instanceof Response) return gate;
+			return handleModelStream(request, env);
+		}
+		if (url.pathname === APPROVAL_DECISION_PATH) {
+			if (request.method !== "POST") {
+				return json(405, { status: "error", message: "Method not allowed." });
+			}
+			return handleApprovalDecision(request, env);
+		}
+		if (url.pathname === WORKFLOW_PROVISION_PATH) {
+			if (request.method !== "POST") {
+				return json(405, { status: "error", message: "Method not allowed." });
+			}
+			return handleWorkflowProvision(request, env);
+		}
+		if (url.pathname === WORKFLOW_RPC_PATH) {
+			if (request.method !== "POST") {
+				return json(405, { status: "error", message: "Method not allowed." });
+			}
+			return handleWorkflowRpc(request, env);
+		}
+		if (url.pathname === WORKFLOW_EVENTS_PATH) {
+			if (request.method !== "GET") {
+				return json(405, { status: "error", message: "Method not allowed." });
+			}
+			return handleWorkflowEvents(request, env, url);
+		}
+		if (url.pathname === WORKFLOW_STREAM_PATH) {
+			if (request.method !== "GET") {
+				return json(405, { status: "error", message: "Method not allowed." });
+			}
+			return handleWorkflowStream(request, env, url);
+		}
+		if (url.pathname === TOOLS_BROWSER_FETCH_PATH) {
+			if (request.method !== "POST") {
+				return json(405, { status: "error", message: "Method not allowed." });
+			}
+			const refusal = await requireTurnSession(request, env);
+			if (refusal instanceof Response) return refusal;
+			return handleBrowserFetch(request);
+		}
+		if (
+			(url.pathname === AUTH_SIGN_IN_PATH || url.pathname === AUTH_CALLBACK_PATH) &&
+			request.method === "GET"
+		) {
+			return handleAuthNavigation(request, env, url.pathname === AUTH_SIGN_IN_PATH ? "start" : "callback");
+		}
+		if (url.pathname === AUTH_SESSION_PATH && request.method === "GET") {
+			return probeAuthSession(request, env);
+		}
+		if (url.pathname.startsWith(AUTH_ROUTE_PREFIX) || url.pathname.startsWith(IDENTITY_ROUTE_PREFIX)) {
+			return proxyToIdentity(request, env);
+		}
+		if (url.pathname === CLIENT_ERRORS_PATH && request.method === "POST") {
+			return handleClientError(request);
+		}
+		if (platformProxyMatch(url.pathname, request.method)) {
+			return handlePlatformProxy(request, env, url);
+		}
+		if (url.pathname.startsWith(BILLING_ROUTE_PREFIX)) {
+			return proxyToBilling(request, env);
+		}
+		if (url.pathname.startsWith(ADMIN_ROUTE_PREFIX)) {
+			return handleAdmin(request, env, url);
+		}
+		if (url.pathname.startsWith(RECO_ROUTE_PREFIX)) {
+			return proxyToReco(request, env);
+		}
+		if (gatewayBound) return proxyToGateway(request, env);
+		// Any other /api/* path is an unknown route: the same canonical 404 the
+		// admin surface answers non-admins with, so nothing is enumerable.
+		if (url.pathname.startsWith("/api/")) return notFound();
+		return withIsolationHeaders(await env.ASSETS.fetch(request));
+	},
+};

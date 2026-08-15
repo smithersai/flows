@@ -1,0 +1,281 @@
+/** @since 0.1.0 */
+import { Option, Schema } from "effect"
+import { AssistantMessage, JsonObject, StopReason, type TextPart, ToolCallPart } from "./ModelRequest.ts"
+
+/** @category models @since 0.1.0 */
+export const Usage = Object.assign(
+  Schema.Struct({
+    inputTokens: Schema.optional(Schema.Number),
+    outputTokens: Schema.optional(Schema.Number),
+    reasoningTokens: Schema.optional(Schema.Number),
+    cachedInputTokens: Schema.optional(Schema.Number),
+    cacheWriteTokens: Schema.optional(Schema.Number),
+    totalTokens: Schema.optional(Schema.Number)
+  }).annotate({ identifier: "flows/model/Usage" }),
+  {
+    make: (input: Usage): Usage => input
+  }
+)
+
+/** @category models @since 0.1.0 */
+export type Usage = typeof Usage.Type
+
+/** @category models @since 0.1.0 */
+export const TextStart = Schema.Struct({ type: Schema.Literal("text-start"), id: Schema.String })
+/** @category models @since 0.1.0 */
+export type TextStart = typeof TextStart.Type
+/** @category models @since 0.1.0 */
+export const TextDelta = Schema.Struct({ type: Schema.Literal("text-delta"), id: Schema.String, text: Schema.String })
+/** @category models @since 0.1.0 */
+export type TextDelta = typeof TextDelta.Type
+/** @category models @since 0.1.0 */
+export const TextEnd = Schema.Struct({ type: Schema.Literal("text-end"), id: Schema.String })
+/** @category models @since 0.1.0 */
+export type TextEnd = typeof TextEnd.Type
+/** @category models @since 0.1.0 */
+export const ThinkingStart = Schema.Struct({
+  type: Schema.Literal("thinking-start"),
+  id: Schema.String,
+  signature: Schema.optional(Schema.String)
+})
+/** @category models @since 0.1.0 */
+export type ThinkingStart = typeof ThinkingStart.Type
+/** @category models @since 0.1.0 */
+export const ThinkingDelta = Schema.Struct({
+  type: Schema.Literal("thinking-delta"),
+  id: Schema.String,
+  text: Schema.String
+})
+/** @category models @since 0.1.0 */
+export type ThinkingDelta = typeof ThinkingDelta.Type
+/** @category models @since 0.1.0 */
+export const ThinkingEnd = Schema.Struct({ type: Schema.Literal("thinking-end"), id: Schema.String })
+/** @category models @since 0.1.0 */
+export type ThinkingEnd = typeof ThinkingEnd.Type
+/** @category models @since 0.1.0 */
+export const ToolCallStart = Schema.Struct({
+  type: Schema.Literal("tool-call-start"),
+  id: Schema.String,
+  name: Schema.String
+})
+/** @category models @since 0.1.0 */
+export type ToolCallStart = typeof ToolCallStart.Type
+/** @category models @since 0.1.0 */
+export const ToolCallDelta = Schema.Struct({
+  type: Schema.Literal("tool-call-delta"),
+  id: Schema.String,
+  arguments: Schema.String
+})
+/** @category models @since 0.1.0 */
+export type ToolCallDelta = typeof ToolCallDelta.Type
+/** @category models @since 0.1.0 */
+export const ToolCallEnd = Schema.Struct({
+  type: Schema.Literal("tool-call-end"),
+  id: Schema.String,
+  arguments: Schema.optional(Schema.String)
+})
+/** @category models @since 0.1.0 */
+export type ToolCallEnd = typeof ToolCallEnd.Type
+/**
+ * The result of an executed tool call, as reported by a harness. Tool output
+ * is not part of the settled assistant message; it renders alongside the call
+ * and feeds the next request's tool message.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export const ToolResult = Schema.Struct({
+  type: Schema.Literal("tool-result"),
+  id: Schema.String,
+  output: Schema.String,
+  isError: Schema.optional(Schema.Boolean)
+})
+/** @category models @since 0.1.0 */
+export type ToolResult = typeof ToolResult.Type
+/** @category models @since 0.1.0 */
+export const UsageEvent = Schema.Struct({
+  type: Schema.Literal("usage"),
+  inputTokens: Schema.optional(Schema.Number),
+  outputTokens: Schema.optional(Schema.Number),
+  reasoningTokens: Schema.optional(Schema.Number),
+  cachedInputTokens: Schema.optional(Schema.Number),
+  cacheWriteTokens: Schema.optional(Schema.Number),
+  totalTokens: Schema.optional(Schema.Number)
+})
+/** @category models @since 0.1.0 */
+export type UsageEvent = typeof UsageEvent.Type
+/** @category models @since 0.1.0 */
+export const Settle = Schema.Struct({
+  type: Schema.Literal("settle"),
+  stopReason: StopReason,
+  responseId: Schema.optional(Schema.String),
+  /**
+   * Stored provider reasoning items required for replay-safe continuation.
+   * See docs/specs/Concepts/Model Layer.md.
+   */
+  itemIds: Schema.optional(Schema.Array(Schema.String))
+})
+/** @category models @since 0.1.0 */
+export type Settle = typeof Settle.Type
+
+/** @category models @since 0.1.0 */
+export const ModelEvent = Object.assign(
+  Schema.Union([
+    TextStart,
+    TextDelta,
+    TextEnd,
+    ThinkingStart,
+    ThinkingDelta,
+    ThinkingEnd,
+    ToolCallStart,
+    ToolCallDelta,
+    ToolCallEnd,
+    ToolResult,
+    UsageEvent,
+    Settle
+  ]).pipe(Schema.toTaggedUnion("type")),
+  {
+    TextStart: TextStart.make,
+    TextDelta: TextDelta.make,
+    TextEnd: TextEnd.make,
+    ThinkingStart: ThinkingStart.make,
+    ThinkingDelta: ThinkingDelta.make,
+    ThinkingEnd: ThinkingEnd.make,
+    ToolCallStart: ToolCallStart.make,
+    ToolCallDelta: ToolCallDelta.make,
+    ToolCallEnd: ToolCallEnd.make,
+    ToolResult: ToolResult.make,
+    Usage: (input: Usage): UsageEvent => ({ type: "usage", ...input }),
+    Settle: Settle.make,
+    settledMessage,
+    visibleText
+  }
+)
+
+/** @category models @since 0.1.0 */
+export type ModelEvent = typeof ModelEvent.Type
+
+const decodeToolArguments = Schema.decodeUnknownOption(
+  Schema.fromJsonString(JsonObject)
+)
+
+/**
+ * Joins an assistant message's visible text parts — the one fold every
+ * consumer of a settled message shares, so "what counts as visible text"
+ * has exactly one definition.
+ *
+ * @category destructors
+ * @since 0.1.0
+ */
+export function visibleText(message: AssistantMessage): string {
+  return message.content
+    .filter((part): part is TextPart => part.type === "text")
+    .map((part) => part.text)
+    .join("\n")
+}
+
+/**
+ * Folds a stream into the one durable assistant message. No settlement means
+ * interruption, which is represented as an aborted message rather than an
+ * exception so the transcript remains resumable.
+ *
+ * @category destructors
+ * @since 0.1.0
+ */
+export function settledMessage(
+  events: Iterable<ModelEvent>
+): { readonly message: AssistantMessage; readonly usage: Usage } {
+  const parts: Array<AssistantMessage["content"][number]> = []
+  const indexes = new Map<string, number>()
+  let usage: Usage = {}
+  let stopReason: StopReason = "aborted"
+  let didSettle = false
+  let responseId: string | undefined
+  let itemIds: ReadonlyArray<string> | undefined
+
+  const part = (id: string, initial: AssistantMessage["content"][number]): number => {
+    const existing = indexes.get(id)
+    if (existing !== undefined) return existing
+    const index = parts.length
+    parts.push(initial)
+    indexes.set(id, index)
+    return index
+  }
+
+  for (const event of events) {
+    switch (event.type) {
+      case "text-start":
+        part(event.id, { type: "text", text: "" })
+        break
+      case "text-delta": {
+        const index = part(event.id, { type: "text", text: "" })
+        const current = parts[index]
+        if (current?.type === "text") parts[index] = { type: "text", text: current.text + event.text }
+        break
+      }
+      case "thinking-start":
+        part(event.id, { type: "thinking", text: "", signature: event.signature })
+        break
+      case "thinking-delta": {
+        const index = part(event.id, { type: "thinking", text: "" })
+        const current = parts[index]
+        if (current?.type === "thinking") parts[index] = { ...current, text: current.text + event.text }
+        break
+      }
+      case "tool-call-start":
+        part(event.id, ToolCallPart.make({ id: event.id, name: event.name, arguments: "" }))
+        break
+      case "tool-call-delta": {
+        const index = part(event.id, ToolCallPart.make({ id: event.id, name: "unknown", arguments: "" }))
+        const current = parts[index]
+        if (current?.type === "tool-call") parts[index] = { ...current, arguments: current.arguments + event.arguments }
+        break
+      }
+      case "tool-call-end": {
+        const index = indexes.get(event.id)
+        const current = index === undefined ? undefined : parts[index]
+        if (index !== undefined && current?.type === "tool-call") {
+          const arguments_ = event.arguments ?? current.arguments
+          parts[index] = {
+            ...current,
+            arguments: Option.isSome(decodeToolArguments(arguments_)) ? arguments_ : "{}"
+          }
+        }
+        break
+      }
+      case "usage": {
+        const next = {
+          inputTokens: event.inputTokens,
+          outputTokens: event.outputTokens,
+          reasoningTokens: event.reasoningTokens,
+          cachedInputTokens: event.cachedInputTokens,
+          cacheWriteTokens: event.cacheWriteTokens,
+          totalTokens: event.totalTokens
+        }
+        usage = {
+          ...usage,
+          ...Object.fromEntries(Object.entries(next).filter(([, value]) => value !== undefined))
+        }
+        break
+      }
+      case "settle":
+        if (!didSettle) {
+          stopReason = event.stopReason
+          responseId = event.responseId
+          itemIds = event.itemIds
+          didSettle = true
+        }
+        break
+    }
+  }
+  return {
+    message: new AssistantMessage({
+      role: "assistant",
+      content: parts,
+      stopReason,
+      responseId,
+      itemIds
+    }),
+    usage
+  }
+}

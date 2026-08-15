@@ -1,0 +1,82 @@
+{
+	"name": "@smthrs/journal",
+	"type": "module",
+	"version": "0.1.0",
+	"license": "MIT",
+	"description": "Effect services for the flows event journal: the immutable run history and the owner fence on its durable channel",
+	"homepage": "https://github.com/smithersai/flows",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/smithersai/flows.git",
+		"directory": "packages/journal"
+	},
+	"bugs": {
+		"url": "https://github.com/smithersai/flows/issues"
+	},
+	"tags": [
+		"typescript",
+		"effect",
+		"journal",
+		"durability"
+	],
+	"keywords": [
+		"typescript",
+		"effect",
+		"journal",
+		"durability"
+	],
+	"engines": {
+		"node": ">=22.19.0"
+	},
+	"sideEffects": [],
+	"exports": {
+		"./package.json": "./package.json",
+		".": "./src/index.ts",
+		"./*": "./src/*.ts",
+		"./internal/*": null,
+		"./*/index": null
+	},
+	"files": [
+		"src/**/*.ts",
+		"dist/**/*.js",
+		"dist/**/*.js.map",
+		"dist/**/*.d.ts",
+		"dist/**/*.d.ts.map",
+		"dist/**/package.json",
+		"LICENSE",
+		"README.md",
+		"CHANGELOG.md"
+	],
+	"publishConfig": {
+		"access": "public",
+		"provenance": true,
+		"exports": {
+			"./package.json": "./package.json",
+			".": {
+				"types": "./dist/esm/index.d.ts",
+				"import": "./dist/esm/index.js",
+				"require": "./dist/cjs/index.js"
+			},
+			"./*": {
+				"types": "./dist/esm/*.d.ts",
+				"import": "./dist/esm/*.js",
+				"require": "./dist/cjs/*.js"
+			},
+			"./internal/*": null,
+			"./*/index": null
+		}
+	},
+	"scripts": {
+		"lint": "eslint src --max-warnings=0 && dprint check",
+		"format": "dprint fmt",
+		"build": "node scripts/build.mjs",
+		"check": "tsc -b tsconfig.json && tsc -p tsconfig.test.json --noEmit",
+		"circular": "node scripts/circular.mjs",
+		"test": "vitest",
+		"coverage": "vitest --coverage"
+	},
+	"dependencies": {
+		"@smthrs/database": "file:../database",
+		"effect": "4.0.0-beta.102"
+	}
+}

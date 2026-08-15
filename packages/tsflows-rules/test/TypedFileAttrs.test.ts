@@ -119,7 +119,9 @@ describe("SortPackageJson declared manifests", () => {
   it("requires caller-declared files and collects each manifest once", () => {
     const manifest = Input.file("package.json")
     const target = SortPackageJson.SortPackageJson({ manifests: [manifest], deps: [], check: true })
-    expect(Rule.metadata(target).inputs).toEqual([manifest])
+    const metadata = Rule.metadata(target)
+    expect(metadata.inputs).toEqual([manifest])
+    expect(metadata.outputs).toEqual({ cwd: ".", paths: ["package.json"] })
     expect(() => SortPackageJson.SortPackageJson({ manifests: ["package.json"], deps: [], check: true } as never))
       .toThrow()
     expect(() => SortPackageJson.SortPackageJson({ manifests: [], deps: [], check: true } as never)).toThrow()

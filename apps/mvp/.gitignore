@@ -1,0 +1,24 @@
+node_modules/
+build/
+dist/
+artifacts/
+*.tsbuildinfo
+
+# Smithers run store (ephemeral — never commit)
+smithers.db
+smithers.db-shm
+smithers.db-wal
+
+.smithers/claude-mirror-subscriptions.json
+
+# Wrangler local dev state
+.wrangler/
+
+# Real-browser e2e screenshots (run artifacts, regenerated on every run)
+reports/chat-shell/
+
+# Local wrangler secrets (never commit)
+.dev.vars
+
+# Playwright trace archives (large binaries, regenerated per run)
+reports/**/trace.zip

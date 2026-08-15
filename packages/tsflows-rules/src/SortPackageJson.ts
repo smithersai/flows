@@ -5,9 +5,9 @@
  */
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
-import * as Exec from "./Exec.ts"
 import * as Input from "./Input.ts"
 import * as Rule from "./Rule.ts"
+import { BuildError, captureOutputs, Outputs } from "./ToolBuild.ts"
 
 /**
  * Attributes for {@link SortPackageJson}.
@@ -44,9 +44,11 @@ export type Attrs = typeof Attrs.Type
  * run rewrites the manifests in place, which suits the `build` verb and is
  * non-cacheable. Tools resolve through `pnpm exec`, matching the pnpm
  * workspace install target. Key material contains every manifest digest,
- * dependency target keys, and check-versus-write mode. This follows
- * sort-package-json and tevm's root manifest ordering scripts. Executing
- * the plan requires {@link Exec.ExecLive}.
+ * dependency target keys, and check-versus-write mode. Every declared
+ * manifest is captured after the tool exits, so a successful subprocess can
+ * never claim outputs that disappeared or became unsafe links. This follows
+ * sort-package-json and tevm's root manifest ordering scripts. Executing the
+ * plan requires the shared exec and output-capture implementations.
  *
  * @category rules
  * @since 0.1.0
@@ -54,24 +56,31 @@ export type Attrs = typeof Attrs.Type
 export const SortPackageJson = Rule.make("SortPackageJson", {
   attrs: Attrs,
   kinds: ["build", "lint"],
-  success: Exec.Result,
-  error: Exec.ExecError,
+  success: Outputs,
+  error: BuildError,
   cache: false,
+  outputs: (attrs) => ({ cwd: attrs.cwd, paths: attrs.manifests.map((manifest) => manifest.path) }),
   // The `lint` verb never rewrites a manifest. Without this a BUILD.ts that
   // declared `check: false` — the rewriting form, which belongs to `build` —
   // made `tsflows lint` and `tsflows ci` sort every declared manifest in
   // place, so a drift that should have failed the run was repaired by the
   // run that was supposed to report it.
   attrsForKind: (kind, attrs) => kind === "lint" && !attrs.check ? { ...attrs, check: true } : attrs,
-  implementation: (attrs) =>
-    Rule.runTool({
-      cwd: attrs.cwd,
-      argv: [
-        "pnpm",
-        "exec",
-        "sort-package-json",
-        ...(attrs.check ? ["--check"] : []),
-        ...attrs.manifests.map((manifest) => manifest.path)
-      ]
-    })
+  implementation: (attrs) => {
+    const manifests = attrs.manifests.map((manifest) => manifest.path)
+    return captureOutputs(
+      Rule.runTool({
+        cwd: attrs.cwd,
+        argv: [
+          "pnpm",
+          "exec",
+          "sort-package-json",
+          ...(attrs.check ? ["--check"] : []),
+          ...manifests
+        ]
+      }),
+      attrs.cwd,
+      manifests
+    )
+  }
 })

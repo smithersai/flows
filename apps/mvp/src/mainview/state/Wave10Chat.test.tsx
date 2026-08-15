@@ -1,0 +1,365 @@
+import { afterAll, afterEach, describe, expect, test } from "bun:test";
+import { GlobalRegistrator } from "@happy-dom/global-registrator";
+import type { StorageApi } from "@tanstack/db";
+import { flushSync } from "react-dom";
+import { createRoot } from "react-dom/client";
+import App from "../App";
+import { chooserFilter, chooserKeyAction } from "../ChatCards";
+import { createAppController } from "./AppController";
+import type { AppController as AppControllerType, AppServices } from "./AppController";
+import type { NativeAgent, NativeRepositories } from "../native/NativeBridge";
+import { createAppStore } from "./AppStore";
+import type { AppStore } from "./AppStore";
+
+/*
+ * Wave 10, DOM half: the derived pill row (§2a/§2f), the chooser card's
+ * keyboard completeness, the admin-only reset/devtools absence, the maximize
+ * transition's element identity (§2d′), and the pre-model auth gate (§2a″).
+ */
+
+GlobalRegistrator.register();
+
+afterAll(async () => {
+	for (let tick = 0; tick < 3; tick += 1) {
+		await new Promise((resolve) => setTimeout(resolve, 0));
+	}
+	await GlobalRegistrator.unregister();
+});
+
+const mounted: Array<() => void> = [];
+
+afterEach(() => {
+	while (mounted.length > 0) mounted.pop()?.();
+});
+
+const mount = (controller: AppControllerType): { host: HTMLElement; markup: () => string } => {
+	const host = document.createElement("div");
+	document.body.append(host);
+	const root = createRoot(host);
+	flushSync(() => root.render(<App controller={controller} />));
+	mounted.push(() => {
+		flushSync(() => root.unmount());
+		host.remove();
+	});
+	return { host, markup: () => host.innerHTML };
+};
+
+const act = (work: () => void): void => {
+	flushSync(work);
+};
+
+const memoryStorage = (): StorageApi => {
+	const data = new Map<string, string>();
+	return {
+		getItem: (key) => data.get(key) ?? null,
+		setItem: (key, value) => void data.set(key, value),
+		removeItem: (key) => void data.delete(key),
+	};
+};
+
+const unavailableRepositories: NativeRepositories = {
+	available: false,
+	pickLocalRepository: async () => ({
+		status: "error",
+		code: "native-required",
+		message: "Local repositories can only be connected from the Smithers native app.",
+	}),
+};
+
+const silentAgent: NativeAgent = {
+	available: true,
+	startTurn: async () => ({ status: "started" }),
+	cancelTurn: async () => {},
+	subscribe: () => () => {},
+};
+
+const json = (status: number, body: unknown): Response =>
+	new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+
+const backend = (
+	routes: Record<string, Response | ((request: Request) => Response | Promise<Response>)>,
+): AppServices => ({
+	fetchImpl: async (input, init) => {
+		const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+		const absolute = new URL(url, "https://app.test");
+		const path = absolute.pathname + absolute.search;
+		for (const [route, answer] of Object.entries(routes)) {
+			if (path === route || path.startsWith(`${route}?`)) {
+				return typeof answer === "function"
+					? answer(new Request(absolute.toString(), init))
+					: answer.clone();
+			}
+		}
+		return json(404, { status: "error", message: `no stub for ${path}` });
+	},
+});
+
+const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+const CANDIDATES = [
+	{ fullName: "will/flows", private: false, pushedAt: "2026-08-07T12:00:00.000Z", openIssues: 4 },
+	{ fullName: "will/smithers", private: false, pushedAt: "2026-08-06T09:00:00.000Z", openIssues: 2 },
+];
+
+const signedIn = async (store: AppStore, admin = false): Promise<void> => {
+	store.dispatch({
+		type: "identity.session.loaded",
+		actor: "system",
+		state: "signed-in",
+		login: "will",
+		allowlisted: true,
+		admin,
+		scopesPlain: null,
+	});
+	await settled();
+};
+
+describe("wave 10 — the derived pill row (§2a/§2f)", () => {
+	test("with no recommendation and no next step the pill row is EMPTY — an empty row is correct", async () => {
+		const store = await createAppStore({ kind: "localStorage", storage: memoryStorage() });
+		const controller = createAppController(store, unavailableRepositories, silentAgent, {
+			...backend({ "/api/reco/first-run": json(200, { emptySelection: true, digest: null, recommendation: null, honestMessage: "Watching none." }) }),
+		});
+		await signedIn(store);
+		// A selection exists (zero chosen) → no needsSelection step; no reco → no gold pill.
+		store.dispatch({
+			type: "watched.replaced",
+			actor: "system",
+			selected: [],
+			selectedAt: "2026-08-09T09:00:00.000Z",
+			via: "onboarding",
+		});
+		await settled();
+		const { host } = mount(controller);
+		expect(host.querySelectorAll(".smithers-suggestion")).toHaveLength(0);
+	});
+
+	test("signed-out, the one pill is the Sign in binding — a command, never a prompt string", async () => {
+		const store = await createAppStore({ kind: "localStorage", storage: memoryStorage() });
+		const controller = createAppController(store, unavailableRepositories, silentAgent);
+		store.dispatch({
+			type: "identity.session.loaded",
+			actor: "system",
+			state: "signed-out",
+			login: null,
+			allowlisted: false,
+			admin: false,
+			scopesPlain: null,
+		});
+		await settled();
+		const { host } = mount(controller);
+		const pills = host.querySelectorAll<HTMLElement>(".smithers-suggestion");
+		expect(pills).toHaveLength(1);
+		expect(pills[0]?.dataset.command).toBe("auth.sign-in");
+		expect(pills[0]?.textContent).toContain("Sign in with GitHub");
+	});
+
+	test("needsSelection, the one pill opens the chooser; a waiting recommendation is the gold binding", async () => {
+		const store = await createAppStore({ kind: "localStorage", storage: memoryStorage() });
+		const controller = createAppController(store, unavailableRepositories, silentAgent, {
+			...backend({
+				"/api/reco/first-run": json(200, { needsSelection: true, candidates: CANDIDATES, cached: false }),
+			}),
+		});
+		await signedIn(store);
+		const { host } = mount(controller);
+		const pills = host.querySelectorAll<HTMLElement>(".smithers-suggestion");
+		expect(pills).toHaveLength(1);
+		expect(pills[0]?.dataset.command).toBe("repos.watch");
+		expect(pills[0]?.dataset.gold).toBe("true");
+	});
+});
+
+describe("wave 10 — the chooser card, keyboard-complete", () => {
+	const chooserController = async () => {
+		const store = await createAppStore({ kind: "localStorage", storage: memoryStorage() });
+		const puts: Array<unknown> = [];
+		const controller = createAppController(store, unavailableRepositories, silentAgent, {
+			fetchImpl: async (input, init) => {
+				const url = typeof input === "string" ? input : String(input);
+				const path = new URL(url, "https://app.test").pathname;
+				if (path === "/api/reco/first-run") {
+					// After a selection is saved, first-run answers the scoped digest.
+					if (puts.length > 0) {
+						return json(200, {
+							degraded: false,
+							cached: false,
+							watched: ["will/flows"],
+							digest: {
+								computedAt: "2026-08-09T10:00:00.000Z",
+								reposConsidered: 1,
+								openIssues: 4,
+								openPullRequests: 0,
+								staleCount: 1,
+								mostActiveRepo: { name: "will/flows" },
+								oldestWaiting: null,
+								untriagedInMostActive: 1,
+								sentence: "You have 4 open issues across 1 repo.",
+							},
+							recommendation: null,
+						});
+					}
+					return json(200, { needsSelection: true, candidates: CANDIDATES, cached: false });
+				}
+				if (path === "/api/reco/watched" && init?.method === "PUT") {
+					puts.push(typeof init.body === "string" ? JSON.parse(init.body) : undefined);
+					return json(200, { selected: ["will/flows"], selectedAt: "2026-08-09T10:00:00.000Z", via: "onboarding" });
+				}
+				return json(404, { status: "error", message: `no stub for ${path}` });
+			},
+		});
+		await signedIn(store);
+		await controller.loadFirstRunReco();
+		return { store, controller, puts };
+	};
+
+	test("rows render with name, freshness, and issue count; the filter logic is pure and complete", async () => {
+		const { controller } = await chooserController();
+		const { host } = mount(controller);
+		const rows = host.querySelectorAll(".repo-chooser-row");
+		expect(rows).toHaveLength(2);
+		expect(rows[0]?.textContent).toContain("will/flows");
+		expect(rows[0]?.textContent).toContain("4 open issues");
+
+		// Typing filters (the pure mapping the input delegates to).
+		expect(chooserFilter(CANDIDATES, "smithers").map((candidate) => candidate.fullName)).toEqual(["will/smithers"]);
+		expect(chooserFilter(CANDIDATES, "")).toHaveLength(2);
+		expect(chooserFilter(CANDIDATES, "zzz")).toHaveLength(0);
+	});
+
+	test("the keyboard map: arrows move, space toggles only with an empty filter, Enter confirms", () => {
+		expect(chooserKeyAction("ArrowDown", "")).toEqual({ kind: "move", delta: 1 });
+		expect(chooserKeyAction("ArrowUp", "")).toEqual({ kind: "move", delta: -1 });
+		expect(chooserKeyAction(" ", "")).toEqual({ kind: "toggle" });
+		// Space with text in the filter is text, never a toggle.
+		expect(chooserKeyAction(" ", "flo")).toEqual({ kind: "none" });
+		expect(chooserKeyAction("Enter", "")).toEqual({ kind: "confirm" });
+		expect(chooserKeyAction("a", "")).toEqual({ kind: "none" });
+	});
+
+	test("row click toggles, all/none bindings fire, confirm PUTs the selection", async () => {
+		const { store, controller, puts } = await chooserController();
+		const { host } = mount(controller);
+
+		const row = host.querySelector<HTMLButtonElement>(".repo-chooser-row");
+		act(() => row?.click());
+		await settled();
+		let card = store.collections.cards.get("repo-chooser");
+		expect(card?.kind === "repo-chooser" ? card.payload.selected : []).toEqual(["will/flows"]);
+
+		act(() => host.querySelector<HTMLButtonElement>('[data-command="repos.watch.confirm"]')?.click());
+		await settled();
+		await settled();
+		expect(puts).toHaveLength(1);
+		expect(puts[0]).toEqual({ selected: ["will/flows"], via: "onboarding" });
+		expect(store.collections.cards.get("repo-chooser")).toBeUndefined();
+		expect(
+			[...store.collections.messages.values()].some((message) =>
+				message.text.includes("change this anytime — just ask"),
+			),
+		).toBe(true);
+	});
+});
+
+describe("wave 10 — admin-only affordances are absent, not hidden (§2/§2b)", () => {
+	test("non-admin: no reset button, no devtools panel, no trace in the DOM", async () => {
+		const store = await createAppStore({ kind: "localStorage", storage: memoryStorage() });
+		const controller = createAppController(store, unavailableRepositories, silentAgent);
+		await signedIn(store, false);
+		const { host } = mount(controller);
+		expect(host.querySelector(".corner-reset-btn")).toBeNull();
+		expect(host.querySelector(".devtools-panel")).toBeNull();
+		// The registry manifest in the DOM carries no admin or reset names.
+		const manifest = host.querySelector(".app-shell")?.getAttribute("data-commands") ?? "";
+		expect(manifest).not.toContain("admin.");
+		expect(manifest).not.toContain("reset");
+		expect(manifest).not.toContain("debug.");
+	});
+
+	test("admin: the reset button renders and admin.devtools toggles the panel", async () => {
+		const store = await createAppStore({ kind: "localStorage", storage: memoryStorage() });
+		const controller = createAppController(store, unavailableRepositories, silentAgent);
+		await signedIn(store, true);
+		const { host } = mount(controller);
+		expect(host.querySelector(".corner-reset-btn")).not.toBeNull();
+		expect(host.querySelector(".devtools-panel")).toBeNull();
+		act(() => void controller.runCommand("admin.devtools"));
+		expect(host.querySelector(".devtools-panel")).not.toBeNull();
+		expect(host.querySelector(".devtools-registry")?.textContent).toContain("repos.watch");
+		act(() => void controller.runCommand("admin.devtools"));
+		expect(host.querySelector(".devtools-panel")).toBeNull();
+	});
+});
+
+describe("wave 10 — the maximize transition (§2d′)", () => {
+	test("maximizing keeps the SAME element (no re-mount); Escape minimizes", async () => {
+		const store = await createAppStore({ kind: "localStorage", storage: memoryStorage() });
+		const controller = createAppController(store, unavailableRepositories, silentAgent);
+		await signedIn(store);
+		store.dispatch({
+			type: "card.upsert",
+			actor: "smithers",
+			card: {
+				id: "status-one",
+				kind: "status",
+				title: "A status",
+				status: "active",
+				createdAt: Date.now(),
+				ordinal: 10,
+				payload: { note: "halfway" },
+			},
+		});
+		await settled();
+		const { host } = mount(controller);
+		const card = host.querySelector<HTMLElement>('.smithers-card[data-kind="status"]');
+		expect(card).not.toBeNull();
+		expect(card?.dataset.maximized).toBe("false");
+
+		const button = host.querySelector<HTMLButtonElement>('[data-command="card.maximize"]');
+		expect(button).not.toBeNull();
+		act(() => button?.click());
+		const maximizedCard = host.querySelector<HTMLElement>('.smithers-card[data-kind="status"]');
+		// Element identity persists across the transition — the same node morphed.
+		expect(maximizedCard).toBe(card);
+		expect(maximizedCard?.dataset.maximized).toBe("true");
+		expect(host.querySelector(".card-maximize-backdrop")).not.toBeNull();
+
+		act(() => void controller.runCommand("card.minimize"));
+		expect(host.querySelector<HTMLElement>('.smithers-card[data-kind="status"]')?.dataset.maximized).toBe("false");
+		expect(host.querySelector<HTMLElement>('.smithers-card[data-kind="status"]')).toBe(card);
+	});
+});
+
+describe("wave 10 — the auth gate is pre-model (§2a″)", () => {
+	test("a signed-out send never touches the turn seam: zero startTurn calls, the deterministic reply + affordance", async () => {
+		const store = await createAppStore({ kind: "localStorage", storage: memoryStorage() });
+		let turns = 0;
+		const countingAgent: NativeAgent = {
+			available: true,
+			startTurn: async () => {
+				turns += 1;
+				return { status: "started" };
+			},
+			cancelTurn: async () => {},
+			subscribe: () => () => {},
+		};
+		const controller = createAppController(store, unavailableRepositories, countingAgent);
+		store.dispatch({
+			type: "identity.session.loaded",
+			actor: "system",
+			state: "signed-out",
+			login: null,
+			allowlisted: false,
+			admin: false,
+			scopesPlain: null,
+		});
+		await settled();
+		controller.send("list my issues");
+		await settled();
+		expect(turns).toBe(0);
+		const reply = [...store.collections.messages.values()].find((message) =>
+			message.text.includes("Sign in with GitHub first"),
+		);
+		expect(reply?.action?.command).toBe("auth.sign-in");
+	});
+});
