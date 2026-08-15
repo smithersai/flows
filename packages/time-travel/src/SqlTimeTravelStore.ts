@@ -549,6 +549,17 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter |
           ).pipe(Effect.mapError(mapError))
         ))
       ),
+      archivedAt: Effect.fn("TimeTravelStore.archivedAt")((runId, seq) =>
+        Effect.annotateCurrentSpan({ runId, seq }).pipe(Effect.andThen(
+          sql<{ readonly count: number }>`
+            SELECT COUNT(*) AS count FROM flows_time_travel_archive
+            WHERE run_id = ${runId} AND seq = ${seq}
+          `.pipe(
+            Effect.map((rows) => Number(rows[0]!.count) > 0),
+            Effect.mapError(mapError)
+          )
+        ))
+      ),
       createFork: Effect.fn("TimeTravelStore.createFork")((parentRunId, frame) =>
         Effect.annotateCurrentSpan({ parentRunId, lineageId: frame.lineageId, seq: frame.seq }).pipe(Effect.andThen(
           writer.write(

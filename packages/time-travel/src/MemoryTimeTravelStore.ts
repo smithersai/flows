@@ -319,6 +319,11 @@ export const make = (options: Options = {}): TimeTravelStore.Service & { readonl
         }))
       )
     ),
+    archivedAt: Effect.fn("TimeTravelStore.archivedAt")((runId, seq) =>
+      Effect.annotateCurrentSpan({ runId, seq }).pipe(Effect.andThen(
+        Effect.sync(() => archived.some((record) => record.runId === runId && record.seq === seq))
+      ))
+    ),
     createFork: Effect.fn("TimeTravelStore.createFork")((parentRunId, frame) =>
       Effect.annotateCurrentSpan({ parentRunId, lineageId: frame.lineageId, seq: frame.seq }).pipe(
         Effect.andThen(atomic(() => {

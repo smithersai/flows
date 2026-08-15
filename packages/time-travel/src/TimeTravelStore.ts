@@ -251,6 +251,13 @@ export interface Service {
     receipts: ReadonlyArray<Receipt>
   ) => Effect.Effect<ArchiveResult, TimeTravelError>
   /**
+   * Whether the archive holds a record at `(runId, seq)`. This is recovery's
+   * commit-point evidence: an interrupted rewind whose live suffix is gone is
+   * only "committed" if the suffix actually landed in the archive — an absence
+   * on both sides is corruption to roll back, never success to assume.
+   */
+  readonly archivedAt: (runId: string, seq: number) => Effect.Effect<boolean, TimeTravelError>
+  /**
    * Branches a new run off `parentRunId` at a frame, copying the journal
    * prefix and the attempts that existed there, and recording the `fork`
    * lineage edge. The parent is untouched and keeps running.
@@ -307,6 +314,7 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service =>
     updateAudit: () => unavailable("updateAudit"),
     pendingAudits: () => unavailable("pendingAudits"),
     archiveAndTruncate: () => unavailable("archiveAndTruncate"),
+    archivedAt: () => unavailable("archivedAt"),
     createFork: () => unavailable("createFork"),
     recordReceipt: () => unavailable("recordReceipt"),
     ...overrides

@@ -15,6 +15,7 @@ describe("TimeTravelStore.makeNoop", () => {
         ["updateAudit", store.updateAudit("a", { status: "completed" })],
         ["pendingAudits", store.pendingAudits()],
         ["archiveAndTruncate", store.archiveAndTruncate("run", frame, [])],
+        ["archivedAt", store.archivedAt("run", 1)],
         ["createFork", store.createFork("run", frame)],
         ["recordReceipt", store.recordReceipt({ id: "r", auditId: "a", effectId: "e", receipt: {} })]
       ] as const
