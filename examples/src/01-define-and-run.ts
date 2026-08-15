@@ -48,7 +48,7 @@ const GreetingLayer = Layer.mergeAll(
  * Runs the flow under a caller-selected execution ID. The flow declares no
  * `idempotencyKey`, so an explicit id is required.
  */
-export const main: Effect.Effect<string, Schema.SchemaError> = Greeting.execute(
+export const main: Effect.Effect<string> = Greeting.execute(
   { name: "Ada" },
   { executionId: "greeting-ada-1" }
 ).pipe(
