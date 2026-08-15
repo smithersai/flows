@@ -17,8 +17,10 @@ import { DefaultRule, NewPackage, PackageJson, PackageJsonTemplate, StandardPack
 const standard = StandardPackage({ cwd: "packages/tsflows" })
 
 export const lib = standard.lib
+export const check = standard.check
 export const test = standard.test
 export const lint = standard.lint
+export const fmt = standard.fmt
 export const docs = standard.docs
 
 /**

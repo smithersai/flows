@@ -85,6 +85,8 @@ export { VitestWatch } from "./VitestWatch.ts"
 /** @category rules @since 0.1.0 */
 export { BiomeCheck } from "./BiomeCheck.ts"
 /** @category rules @since 0.1.0 */
+export { Dprint } from "./Dprint.ts"
+/** @category rules @since 0.1.0 */
 export { EsLint } from "./EsLint.ts"
 /** @category rules @since 0.1.0 */
 export { DepsLint } from "./DepsLint.ts"

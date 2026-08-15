@@ -11,6 +11,8 @@ import { lib as flow } from "../flow/BUILD.ts"
 const standard = StandardPackage({ cwd: "packages/engine", deps: [flow] })
 
 export const lib = standard.lib
+export const check = standard.check
 export const test = standard.test
 export const lint = standard.lint
+export const fmt = standard.fmt
 export const docs = standard.docs
