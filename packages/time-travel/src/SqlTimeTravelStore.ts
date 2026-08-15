@@ -27,6 +27,24 @@ import { error, TimeTravelError } from "./TimeTravelError.ts"
 import * as TimeTravelStore from "./TimeTravelStore.ts"
 
 /**
+ * Recognizes the one ALTER TABLE failure {@link migrate} may absorb: the
+ * column already exists. SQLite reports it as `duplicate column name`,
+ * Postgres as `column ... already exists`; the failure's message chain is
+ * walked because the SQL layer wraps the driver error.
+ */
+const isDuplicateColumn = (cause: unknown): boolean => {
+  const seen = new Set<unknown>()
+  let current = cause
+  while (typeof current === "object" && current !== null && !seen.has(current)) {
+    seen.add(current)
+    const message = (current as { readonly message?: unknown }).message
+    if (typeof message === "string" && /duplicate column|already exists/i.test(message)) return true
+    current = (current as { readonly cause?: unknown }).cause
+  }
+  return false
+}
+
+/**
  * Creates the time-travel tables. The SQL uses only portable scalar columns.
  *
  * @since 0.1.0
@@ -61,8 +79,13 @@ export const migrate: Effect.Effect<void, unknown, SqlClient.SqlClient> = Effect
   )`
   // Idempotent widening for a database migrated before the plan digest joined
   // the anchor. `ADD COLUMN` on a table that already has it is an error, not a
-  // no-op, and there is nothing to repair when it fails.
-  yield* sql`ALTER TABLE flows_time_travel_snapshots ADD COLUMN plan_digest TEXT`.pipe(Effect.ignore)
+  // no-op, and there is nothing to repair when it fails — so exactly that one
+  // failure is absorbed. Every other ALTER failure (a view squatting on the
+  // table name, a locked or corrupt database) is real damage the migration
+  // must surface, never swallow.
+  yield* sql`ALTER TABLE flows_time_travel_snapshots ADD COLUMN plan_digest TEXT`.pipe(
+    Effect.catch((cause) => isDuplicateColumn(cause) ? Effect.void : Effect.fail(cause))
+  )
   // The frame address is `(lineageId, seq)`, and every engine record carries
   // its lineage in the open `meta` envelope. Indexing it out of `meta_json`
   // keeps a lineage-filtered replay from degenerating into a full run scan.
