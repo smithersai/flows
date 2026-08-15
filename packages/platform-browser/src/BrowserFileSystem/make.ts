@@ -43,14 +43,36 @@ const writeBytes = (
   })
 
 /**
+ * The refusal every deliberately unsupported operation answers with.
+ *
+ * `FileSystem.makeNoop` fails most unimplemented operations with `NotFound`
+ * but hardcodes the `makeTemp*` family to a defect, so the documented
+ * NotFound contract for those four has to be wired explicitly.
+ *
+ * @private
+ */
+const unsupported = (method: string): Effect.Effect<never, PlatformError.PlatformError> =>
+  Effect.fail(
+    PlatformError.systemError({
+      _tag: "NotFound",
+      module: "FileSystem",
+      method,
+      description: "the browser backend does not support this operation",
+      pathOrDescriptor: method
+    })
+  )
+
+/**
  * Constructs a `FileSystem` over a ZenFS-shaped backend.
  *
  * Only the operations a browser backend can actually serve are wired up.
- * Everything else keeps `FileSystem.makeNoop`'s behaviour — a `NotFound`
+ * Everything else answers with `FileSystem.makeNoop`'s refusal — a `NotFound`
  * failure — which is the honest answer for a backend that has no symlinks,
  * writable handles, or watchers: `chmod`, `chown`, `copy`, `copyFile`, `glob`,
  * `link`, `symlink`, `readLink`, `open`, `rename`, `sink`, `truncate`,
  * `utimes`, `watch`, and the `makeTemp*` family all fail rather than pretend.
+ * The `makeTemp*` four are wired explicitly because `makeNoop` hardcodes them
+ * to a defect rather than the `NotFound` failure this contract documents.
  * `sink` is in that list because the slice has no writable file handle to
  * append through, so there is no way to honour its incremental contract.
  * Reads use bounded file-handle chunks rather than loading the whole file.
@@ -64,6 +86,10 @@ const writeBytes = (
  */
 export const make = (fs: ZenFsPromisesLike): FileSystem.FileSystem =>
   FileSystem.makeNoop({
+    makeTempDirectory: () => unsupported("makeTempDirectory"),
+    makeTempDirectoryScoped: () => unsupported("makeTempDirectoryScoped"),
+    makeTempFile: () => unsupported("makeTempFile"),
+    makeTempFileScoped: () => unsupported("makeTempFileScoped"),
     readFile: (path) => readBytes(fs, path),
     stream: (path, options) => streamFile(fs, path, options),
     writeFile: (path, data, options) => writeBytes(fs, path, data, options),
