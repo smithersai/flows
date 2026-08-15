@@ -10,8 +10,7 @@ Implement the queue processor from `docs/specs/Concepts/Software Factory.md`
 as flows and Actions (`docs/specs/Concepts/Unified Flow Authoring.md`),
 replacing the smithers DDD pack as this repo's operator.
 
-- A trigger door over `factory/queue/`: item files decode through one
-  schema; the
+- A trigger door over `queue/`: item files decode through one schema; the
   item digest keys the run.
 - Phases as steps with kernel-enforced envelopes: docs (writes `docs/**` and
   package READMEs only) → gate (vault check + docs parity) → implement (lane
