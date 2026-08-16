@@ -19,6 +19,7 @@ import { Migrations as RunStoreMigrations, RunStore } from "@smthrs/run-store-ne
 import { Effect, Layer } from "effect"
 import { HttpRouter } from "effect/unstable/http"
 import { RpcSerialization } from "effect/unstable/rpc"
+import { Socket } from "effect/unstable/socket"
 import { mkdirSync } from "node:fs"
 import { createServer } from "node:http"
 import type { ListenOptions } from "node:net"
@@ -45,13 +46,15 @@ export interface Environment {
  */
 export type ServerOptions = ListenOptions & {
   readonly disablePreemptiveShutdown?: boolean | undefined
+  /** Explicit opt-in corresponding to the host CLI's `--listen` flag. */
+  readonly listen?: boolean | undefined
 }
 
-const remoteFromArguments = (args: ReadonlyArray<string>): string | undefined => {
+const valueFromArguments = (args: ReadonlyArray<string>, flag: string): string | undefined => {
   for (let index = 0; index < args.length; index++) {
     const argument = args[index]
-    if (argument === "--remote") return args[index + 1]
-    if (argument?.startsWith("--remote=")) return argument.slice("--remote=".length)
+    if (argument === `--${flag}`) return args[index + 1]
+    if (argument?.startsWith(`--${flag}=`)) return argument.slice(flag.length + 3)
   }
   return undefined
 }
@@ -67,7 +70,8 @@ export const makeConfig = (
   args: ReadonlyArray<string>,
   environment: Environment = process.env
 ): Application.Config => ({
-  remote: remoteFromArguments(args) ?? environment.FLOWS_REMOTE
+  remote: valueFromArguments(args, "remote") ?? environment.FLOWS_REMOTE,
+  credential: valueFromArguments(args, "credential")
 })
 
 /**
@@ -85,6 +89,22 @@ const websocketUrl = (remote: string): string => {
   url.search = ""
   url.hash = ""
   return url.toString()
+}
+
+const websocketLayer = (remote: string, credential: string | undefined) => {
+  const url = websocketUrl(remote)
+  if (credential === undefined) return NodeSocket.layerWebSocket(url)
+  return Socket.layerWebSocket(url).pipe(
+    Layer.provide(
+      Layer.succeed(
+        Socket.WebSocketConstructor,
+        (address, protocols) =>
+          new NodeSocket.NodeWS.WebSocket(address, protocols, {
+            headers: { authorization: `Bearer ${credential}` }
+          }) as unknown as globalThis.WebSocket
+      )
+    )
+  )
 }
 
 /**
@@ -196,7 +216,7 @@ export const layerControl = (applicationConfig: Application.Config) => {
   return Application.layer(applicationConfig, layerRegistry(), engineDurable()).pipe(
     Layer.provide([
       NodeHttpClient.layerUndici,
-      NodeSocket.layerWebSocket(websocketUrl(remote)),
+      websocketLayer(remote, applicationConfig.credential),
       RpcSerialization.layerNdjson
     ])
   )
@@ -235,6 +255,19 @@ export const layerOutput = Layer.succeed(
 export const layer = (applicationConfig: Application.Config) =>
   Layer.mergeAll(layerControl(applicationConfig), layerOutput, NodeServices.layer)
 
+const defaultServerOptions: ServerOptions = { host: "127.0.0.1", port: 3000 }
+
+const isLoopbackHost = (host: string): boolean => host === "127.0.0.1" || host === "::1"
+
+const listenOptions = (options: ServerOptions): ListenOptions => {
+  const { listen, ...nodeOptions } = options
+  const host = nodeOptions.host ?? "127.0.0.1"
+  if (!isLoopbackHost(host) && listen !== true) {
+    throw new Error(`Refusing non-loopback control bind ${host} without an explicit --listen opt-in`)
+  }
+  return { ...nodeOptions, host }
+}
+
 /**
  * Hosts the abstract Control HTTP/WebSocket router on a scoped Node HTTP
  * server. The returned layer retains the concrete HttpServer service so
@@ -245,7 +278,7 @@ export const layer = (applicationConfig: Application.Config) =>
  */
 export const layerServer = (
   auth: Layer.Layer<ControlRpcs.ControlAuth>,
-  options: ServerOptions = { port: 3000 }
+  options: ServerOptions = defaultServerOptions
 ) =>
   HttpRouter.serve(
     ControlServer.layerHttp.pipe(
@@ -257,8 +290,19 @@ export const layerServer = (
       disableLogger: true
     }
   ).pipe(
-    Layer.provideMerge(NodeHttpServer.layer(createServer, options))
+    Layer.provideMerge(NodeHttpServer.layer(createServer, listenOptions(options)))
   )
+
+/**
+ * Hosts Control using the alpha's single shared bearer token.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
+export const layerServerBearerAuth = (
+  auth: ControlRpcs.BearerAuthOptions,
+  options: ServerOptions = defaultServerOptions
+) => layerServer(ControlRpcs.layerBearerAuth(auth), options)
 
 /**
  * Hosts Control with permissive authentication for trusted local and test use.
@@ -268,5 +312,10 @@ export const layerServer = (
  * @category layers
  * @since 0.1.0
  */
-export const layerServerNoopAuth = (options: ServerOptions = { port: 3000 }) =>
-  layerServer(ControlRpcs.layerNoopAuth(), options)
+export const layerServerNoopAuth = (options: ServerOptions = defaultServerOptions) => {
+  const host = options.host ?? "127.0.0.1"
+  if (!isLoopbackHost(host)) {
+    throw new Error(`Refusing non-loopback control bind ${host} with permissive authentication`)
+  }
+  return layerServer(ControlRpcs.layerNoopAuth(), { ...options, listen: false })
+}

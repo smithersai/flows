@@ -23,6 +23,7 @@ import type { Socket } from "effect/unstable/socket/Socket"
  */
 export interface Config {
   readonly remote?: string | undefined
+  readonly credential?: string | undefined
 }
 
 /**
@@ -104,4 +105,6 @@ export const layer = (
   registry: Layer.Layer<Registry.Registry> = Registry.layerNoop(),
   engine: Engine = engineMemory
 ): Layer.Layer<Control.Control, never, HttpClient | RpcSerialization | Socket> =>
-  config.remote === undefined ? layerLocal(registry, engine) : ControlClient.layer({ url: rpcUrl(config.remote) })
+  config.remote === undefined
+    ? layerLocal(registry, engine)
+    : ControlClient.layer({ url: rpcUrl(config.remote), credential: config.credential })

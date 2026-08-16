@@ -10,6 +10,7 @@ import { Output } from "./Output.ts"
 import { find } from "./Verb.ts"
 
 const global = {
+  credential: Flag.string("credential").pipe(Flag.optional),
   json: Flag.boolean("json"),
   remote: Flag.string("remote").pipe(Flag.optional),
   quiet: Flag.boolean("quiet")
@@ -18,8 +19,7 @@ const global = {
 const rootCommand = Command.make("flows").pipe(Command.withSharedFlags(global))
 const input = Argument.string("key=value").pipe(Argument.variadic())
 const data = Flag.string("data").pipe(Flag.optional)
-const credential = Flag.string("credential").pipe(Flag.optional)
-const common = { input, data, credential }
+const common = { input, data }
 
 const decodeInput = (entries: ReadonlyArray<string>, raw: Option.Option<string>): unknown => {
   const pairs = Object.fromEntries(entries.map((entry) => {

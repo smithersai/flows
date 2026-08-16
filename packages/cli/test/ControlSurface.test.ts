@@ -1,5 +1,5 @@
 import { NodeServices } from "@effect/platform-node"
-import { Control as ControlService } from "@smthrs/control"
+import { Control as ControlService, ControlError } from "@smthrs/control"
 import * as TestControl from "@smthrs/control/test/TestControl"
 import { Cause, Effect, Exit, Layer, Stream } from "effect"
 import { TestConsole } from "effect/testing"
@@ -36,32 +36,33 @@ const invoke = Effect.fnUntraced(function*(args: ReadonlyArray<string>) {
   return { value, exitCode: Output.exitCode(value) } satisfies Invocation
 })
 
-const scenario = Effect.gen(function*() {
-  const plan = yield* invoke(["--json", "plan", "system/test"])
+const scenario = (shared: ReadonlyArray<string> = []) =>
+  Effect.gen(function*() {
+    const plan = yield* invoke(["--json", ...shared, "plan", "system/test"])
 
-  const card = plan.value as {
-    readonly approval: unknown
-  }
-  const approval = yield* Effect.try({
-    try: () => {
-      if (
-        card.approval === null ||
-        typeof card.approval !== "object" ||
-        !("target" in card.approval) ||
-        !("idempotencyKey" in card.approval)
-      ) {
-        throw new Error("plan did not emit the complete approval payload")
-      }
-      return JSON.stringify(card.approval)
-    },
-    catch: (cause) => cause instanceof Error ? cause : new Error(String(cause))
+    const card = plan.value as {
+      readonly approval: unknown
+    }
+    const approval = yield* Effect.try({
+      try: () => {
+        if (
+          card.approval === null ||
+          typeof card.approval !== "object" ||
+          !("target" in card.approval) ||
+          !("idempotencyKey" in card.approval)
+        ) {
+          throw new Error("plan did not emit the complete approval payload")
+        }
+        return JSON.stringify(card.approval)
+      },
+      catch: (cause) => cause instanceof Error ? cause : new Error(String(cause))
+    })
+    const parked = yield* invoke(["--json", ...shared, "run", approval])
+    const approve = yield* invoke(["--json", ...shared, "approve", approval, "--scope", "run"])
+    const run = yield* invoke(["--json", ...shared, "run", approval])
+
+    return { plan, parked, approve, run }
   })
-  const parked = yield* invoke(["--json", "run", approval])
-  const approve = yield* invoke(["--json", "approve", approval, "--scope", "run"])
-  const run = yield* invoke(["--json", "run", approval])
-
-  return { plan, parked, approve, run }
-})
 
 const scenarioServices = Layer.merge(TestConsole.layer, Output.layer)
 
@@ -111,6 +112,17 @@ const streamingControl = Layer.effect(
 ).pipe(Layer.provide(testControl))
 
 describe("Control surface", () => {
+  it("parses the remote bearer credential from either CLI spelling", () => {
+    expect(NodeControl.makeConfig([
+      "--remote",
+      "https://control.example.test",
+      "--credential=alpha-secret"
+    ], {})).toEqual({
+      remote: "https://control.example.test",
+      credential: "alpha-secret"
+    })
+  })
+
   it("mounts the remote parser path on a real ephemeral Node server", async () => {
     const local = await Effect.runPromise(
       invoke(["--json", "plan", "system/test"]).pipe(
@@ -139,9 +151,9 @@ describe("Control surface", () => {
     expect(normalize(remote)).toEqual(normalize(local))
   })
 
-  it("keeps local and remote plan, approve, and run behavior equivalent", async () => {
+  it("runs plan, approval, and launch through an authenticated remote server", async () => {
     const local = await Effect.runPromise(
-      scenario.pipe(
+      scenario().pipe(
         Effect.provide(testControl),
         Effect.provide(scenarioServices),
         Effect.provide(NodeServices.layer)
@@ -151,13 +163,19 @@ describe("Control surface", () => {
     const remote = await Effect.runPromise(
       Effect.gen(function*() {
         const server = yield* HttpServer.HttpServer
-        return yield* scenario.pipe(
-          Effect.provide(NodeControl.layerControl({ remote: addressUrl(server) })),
+        const shared = ["--remote", addressUrl(server), "--credential", "alpha-secret"]
+        const result = yield* scenario(shared).pipe(
+          Effect.provide(NodeControl.layerControl(NodeControl.makeConfig(shared, {}))),
           Effect.provide(scenarioServices)
         )
+        return { hostname: server.address._tag === "TcpAddress" ? server.address.hostname : "", result }
       }).pipe(
         Effect.provide(
-          NodeControl.layerServerNoopAuth({ host: "127.0.0.1", port: 0 }).pipe(
+          NodeControl.layerServerBearerAuth({
+            token: "alpha-secret",
+            principal: { id: "alpha", kind: "bearer" },
+            now: () => 0
+          }, { port: 0 }).pipe(
             Layer.provide(testControl)
           )
         ),
@@ -166,13 +184,51 @@ describe("Control surface", () => {
     )
 
     expect(isWaitingForApproval(local.parked.value)).toBe(true)
-    expect(isWaitingForApproval(remote.parked.value)).toBe(true)
+    expect(isWaitingForApproval(remote.result.parked.value)).toBe(true)
     expect(local.parked.exitCode).toBe(3)
-    expect(remote.parked.exitCode).toBe(3)
-    expect(normalize(remote)).toEqual(normalize(local))
+    expect(remote.result.parked.exitCode).toBe(3)
+    expect(remote.hostname).toBe("127.0.0.1")
+    expect(normalize(remote.result)).toEqual(normalize(local))
   })
 
-  it("uses WebSocket for the remote watch projection", async () => {
+  it("refuses an unauthenticated request on an explicitly exposed bind", async () => {
+    const error = await Effect.runPromise(
+      Effect.gen(function*() {
+        const server = yield* HttpServer.HttpServer
+        return yield* Effect.gen(function*() {
+          const control = yield* ControlService.Control
+          return yield* control.plan({ flowId: "system/test", input: {} }).pipe(Effect.flip)
+        }).pipe(
+          Effect.provide(NodeControl.layerControl({ remote: addressUrl(server) }))
+        )
+      }).pipe(
+        Effect.provide(
+          NodeControl.layerServerBearerAuth({
+            token: "alpha-secret",
+            principal: { id: "alpha", kind: "bearer" }
+          }, { host: "0.0.0.0", port: 0, listen: true }).pipe(
+            Layer.provide(testControl)
+          )
+        ),
+        Effect.scoped
+      )
+    )
+
+    expect(error).toBeInstanceOf(ControlError.Unauthorized)
+  })
+
+  it("refuses non-loopback binds without --listen and always confines noop auth", () => {
+    const auth = {
+      token: "alpha-secret",
+      principal: { id: "alpha", kind: "bearer" }
+    }
+    expect(() => NodeControl.layerServerBearerAuth(auth, { host: "0.0.0.0", port: 0 })).toThrow(/--listen/)
+    expect(() => NodeControl.layerServerNoopAuth({ host: "0.0.0.0", port: 0, listen: true })).toThrow(
+      /permissive authentication/
+    )
+  })
+
+  it("uses the bearer credential for the remote WebSocket projection", async () => {
     const events = await Effect.runPromise(
       Effect.gen(function*() {
         const server = yield* HttpServer.HttpServer
@@ -180,11 +236,14 @@ describe("Control surface", () => {
           const control = yield* ControlService.Control
           return yield* control.watch({}).pipe(Stream.runHead)
         }).pipe(
-          Effect.provide(NodeControl.layerControl({ remote: addressUrl(server) }))
+          Effect.provide(NodeControl.layerControl({ remote: addressUrl(server), credential: "alpha-secret" }))
         )
       }).pipe(
         Effect.provide(
-          NodeControl.layerServerNoopAuth({ host: "127.0.0.1", port: 0 }).pipe(
+          NodeControl.layerServerBearerAuth({
+            token: "alpha-secret",
+            principal: { id: "alpha", kind: "bearer" }
+          }, { port: 0 }).pipe(
             Layer.provide(streamingControl)
           )
         ),

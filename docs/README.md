@@ -37,6 +37,7 @@ Read [implementation status](architecture/implementation-status.md) before choos
 - [Writing a flow](guides/writing-a-flow.md)
 - [Using the durable engine](guides/durable-engine.md)
 - [Testing](guides/testing.md)
+- [Control-plane trust posture](guides/control-plane-trust.md) — bearer authentication, loopback binding, and alpha authorization limits.
 
 ## Package reference
 
