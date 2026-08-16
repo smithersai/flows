@@ -14,7 +14,7 @@ For a first pass, read:
 6. [Getting started](guides/getting-started.md)
 7. [Writing a flow](guides/writing-a-flow.md)
 
-Read [implementation status](architecture/implementation-status.md) before choosing a deployment architecture. It distinguishes working library surfaces from planned integration work.
+Read [implementation status](architecture/implementation-status.md) before choosing a deployment architecture. It distinguishes working library surfaces from planned integration work. Private-alpha operators should also read the [alpha notes](alpha-notes.md) for current operational limits.
 
 ## Concepts
 

@@ -33,4 +33,15 @@ const program = Effect.gen(function*() {
 }).pipe(Effect.provide(SuperviseRuntime.layerNoop()))
 ```
 
+## Alpha supervision posture
+
+The package does not currently ship a production supervision layer.
+`makeNoop` and `layerNoop` are closed stubs: unless overridden, scanning
+returns no candidates and resuming performs no work. The gateway does not wire
+this port to the durable engine's run-driver sweep, so a run abandoned through
+the gateway is not automatically discovered, reclaimed, or resumed. Alpha
+operators must recover such runs explicitly or use a host composition that
+runs the durable engine driver with the relevant flows registered. See the
+[private alpha notes](../../docs/alpha-notes.md) for the supported posture.
+
 `@smthrs/gateway/package.json` is also exported. `internal/*` and nested `*/index` subpaths are not public.
