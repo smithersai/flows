@@ -18,6 +18,7 @@
 		"test:e2e:web:context": "bun scripts/web-chat-context-e2e.ts",
 		"test:e2e:web:shell": "bun scripts/web-chat-shell-e2e.ts",
 		"test:e2e:worker": "bun scripts/worker-e2e.ts",
+		"checklist": "bun scripts/launch-checklist.ts",
 		"build:canary": "vite build --configLoader runner && electrobun build --env=canary"
 	},
 	"dependencies": {
