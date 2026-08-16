@@ -419,5 +419,25 @@ export const contract = (name: string, harness: Harness): void => {
           "control.signal.delivered"
         ])
       }))
+
+    test("watch returns a finite durable snapshot when follow is false", () =>
+      Effect.gen(function*() {
+        const control = yield* Control
+        const journal = yield* Journal.Journal
+        const { runId } = yield* start
+        yield* control.signal({
+          runId,
+          signal: { name: "snapshot", payload: null },
+          idempotencyKey: "signal:snapshot"
+        })
+        yield* journal.flush
+
+        const events = yield* control.watch({ runId, follow: false }).pipe(
+          Stream.runCollect,
+          Effect.timeout("1 second")
+        )
+
+        expect(events.map((event) => event.kind)).toContain("control.signal.delivered")
+      }))
   })
 }

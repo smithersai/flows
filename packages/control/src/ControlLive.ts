@@ -246,8 +246,49 @@ export const layer: Layer.Layer<
         Stream.mapError(() => unavailable("watch"))
       )
 
-    const watch = (filter: WatchFilter): Stream.Stream<ControlEvent, ControlError> =>
+    const snapshotForRun = (
+      runId: RunId,
+      filter: WatchFilter
+    ): Stream.Stream<ControlEvent, ControlError> =>
+      Stream.unwrap(
+        journal.transact(
+          Effect.gen(function*() {
+            const entries: Array<JournalEvent.Entry> = []
+            let after: JournalEvent.Seq | undefined = filter.afterSequence === undefined
+              ? undefined
+              : JournalEvent.Seq.make(filter.afterSequence)
+
+            while (true) {
+              const page = yield* journal.entries({
+                runId: JournalEvent.RunId.make(runId),
+                ...(after === undefined ? {} : { after }),
+                limit: 1024
+              })
+              entries.push(...page.entries)
+              if (!page.hasMore || page.entries.length === 0) break
+              after = page.entries[page.entries.length - 1]!.seq
+            }
+
+            return Stream.fromIterable(entries).pipe(Stream.map(eventFromEntry))
+          })
+        ).pipe(Effect.mapError(() => unavailable("watch")))
+      )
+
+    const snapshot = (filter: WatchFilter): Stream.Stream<ControlEvent, ControlError> =>
       filter.runId !== undefined
+        ? snapshotForRun(filter.runId, filter)
+        : Stream.unwrap(
+          Effect.map(runtime.listRuns, (runs) =>
+            Stream.mergeAll(
+              runs.map((run) => snapshotForRun(run.runId, filter)),
+              { concurrency: "unbounded" }
+            ))
+        )
+
+    const watch = (filter: WatchFilter): Stream.Stream<ControlEvent, ControlError> =>
+      filter.follow === false
+        ? snapshot(filter)
+        : filter.runId !== undefined
         ? streamForRun(filter.runId, filter)
         : Stream.unwrap(
           Effect.gen(function*() {

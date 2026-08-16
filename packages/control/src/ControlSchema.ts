@@ -335,14 +335,17 @@ export const SignalPayload = Schema.Struct({
 export type SignalPayload = typeof SignalPayload.Type
 
 /**
- * A resumable journal-projection watch cursor and optional run restriction.
+ * A journal-projection cursor, optional run restriction, and delivery mode.
+ * Omitting `follow` preserves the live-stream behavior; `false` requests a
+ * finite snapshot of entries durable when the request is handled.
  *
  * @since 0.1.0
  * @category models
  */
 export const WatchFilter = Schema.Struct({
   runId: Schema.optional(RunId),
-  afterSequence: Schema.optional(Schema.Number)
+  afterSequence: Schema.optional(Schema.Number),
+  follow: Schema.optional(Schema.Boolean)
 })
 
 /**
