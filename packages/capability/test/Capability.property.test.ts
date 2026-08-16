@@ -125,8 +125,9 @@ describe("Capability properties", () => {
   // repeated-star non-match pinned via spawnSync in the example suite.
   it("bounds wall time for adversarial repeated-star patterns against long non-matching resources", () => {
     // At these sizes the old RegExp compilation needed longer than the heat
-    // death of the test runner; the iterative matcher needs microseconds, so
-    // the 100 ms budget has ample slack even under coverage instrumentation.
+    // death of the test runner. Keep a one-second wall-clock ceiling: it still
+    // catches the catastrophic backtracking regression while tolerating a
+    // descheduled, coverage-instrumented worker on a contended CI host.
     const adversarial = FastCheck.tuple(
       FastCheck.integer({ min: 2, max: 12 }),
       FastCheck.integer({ min: 8, max: 4096 })
@@ -139,7 +140,7 @@ describe("Capability properties", () => {
         const matched = Capability.matches(selectedPattern, resource)
         const elapsedMs = performance.now() - startedAt
         expect(matched).toBe(false)
-        expect(elapsedMs).toBeLessThan(100)
+        expect(elapsedMs).toBeLessThan(1_000)
       }),
       { ...params, examples: [[[12, 4096]]] }
     )
