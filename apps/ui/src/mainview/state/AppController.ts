@@ -32,7 +32,7 @@ import { createCommandRegistry } from "../commands/Commands";
 import type { CommandOutcome, CommandRegistry } from "../commands/Commands";
 import type { SlashItem } from "../commands/registry";
 import type { Command } from "../commands/Commands";
-import { commandRequirements, parseSubmit } from "../commands/registry";
+import { flowRequirements, parseSubmit } from "../commands/registry";
 import { createAppStatusSeam } from "./seams/AppStatusSeam";
 import type { AppStatusSeam } from "./seams/AppStatusSeam";
 import { createBillingSeam } from "./seams/BillingSeam";
@@ -1927,7 +1927,7 @@ export const createAppController = (
 		const identity = store.collections.identitySessions.get("identity");
 		const watched = store.collections.watchedRepos.get("watched");
 		const signedIn = identity?.state === "signed-in";
-		return smithersInstructions(agentVisibleCatalog(commands.all()), {
+		return smithersInstructions(agentVisibleCatalog(commands.callable()), {
 			github: {
 				connected: signedIn,
 				login: signedIn ? identity.login : null,
@@ -2521,10 +2521,10 @@ export const createAppController = (
 						: { state: identity.state, login: identity.login, allowlisted: identity.allowlisted, admin: identity.admin },
 				billing: billing === undefined ? null : { state: billing.state, totalUsd: billing.totalUsd },
 				watchedRepos: watched?.selected ?? null,
-				commands: commands.all().map((command) => ({
-					name: command.name,
-					trigger: command.trigger ?? "both",
-					hidden: command.hidden === true,
+				commands: commands.entries().map((entry) => ({
+					name: entry.binding.descriptor.name,
+					trigger: entry.binding.descriptor.modelInvocable ? "both" : "user",
+					hidden: entry.metadata.hidden === true,
 				})),
 			}),
 		};
@@ -4133,7 +4133,7 @@ export const createAppController = (
 	const resumeDeferredCommand = (): void => {
 		const pending = store.session().pendingCommand;
 		if (pending === undefined || pending === null) return;
-		const requirement = commandRequirements.find((candidate) => candidate.id === pending.requirement);
+		const requirement = flowRequirements.find((candidate) => candidate.id === pending.requirement);
 		// Still waiting (or the requirement id no longer exists): leave it parked.
 		if (requirement !== undefined && !requirement.satisfied(commands.state())) return;
 		store.dispatch({ type: "command.deferral.cleared", actor: "system" });

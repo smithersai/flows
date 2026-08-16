@@ -143,6 +143,9 @@ importers:
       '@smthrs/database-next':
         specifier: workspace:*
         version: link:../../packages/database
+      '@smthrs/harness':
+        specifier: workspace:*
+        version: link:../../packages/harness
       '@smthrs/jj-next':
         specifier: workspace:*
         version: link:../../packages/jj

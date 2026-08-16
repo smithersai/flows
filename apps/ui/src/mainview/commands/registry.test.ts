@@ -92,7 +92,7 @@ describe("command registry pure model", () => {
 	test("parseSubmit resolves empty, bare command, args command, and prompt", () => {
 		const commands = [
 			{ name: "world", summary: "w" },
-			{ name: "browser", summary: "b", acceptsArgs: true },
+			{ name: "browser", summary: "b", args: "<url>" },
 		];
 		expect(parseSubmit("", commands)).toEqual({ kind: "empty" });
 		expect(parseSubmit("/", commands)).toEqual({ kind: "empty" });
@@ -111,7 +111,7 @@ describe("command registry pure model", () => {
 
 	describe("parseSubmit command boundary", () => {
 		const commands = [
-			{ name: "goal", summary: "Set the goal", acceptsArgs: true },
+			{ name: "goal", summary: "Set the goal", args: "<text>" },
 			{ name: "goal.show", summary: "Show the goal" },
 			{ name: "no-args", summary: "No arguments" },
 		];
@@ -380,11 +380,12 @@ describe("command registry bindings", () => {
 		expect(canonical("theme", registered)).toBe("theme");
 		expect(canonical("dark-mode", registered)).toBe("dark-mode");
 		const toggle = controller.commands.find("dark-mode");
-		expect(toggle?.aliasOf).toBeUndefined();
-		expect(toggle?.hidden).toBeUndefined();
+		expect(toggle?.metadata.aliasOf).toBeUndefined();
+		expect(toggle?.metadata.hidden).toBeUndefined();
 		// Listed, so the human can find the toggle in the slash menu.
 		expect(controller.slashItems("dark-mode").map((item) => item.command.name)).toContain("dark-mode");
-		expect(controller.commands.find("theme")?.acceptsArgs).toBe(true);
+		// The args hint is what makes `/theme <palette>` parse as an invocation.
+		expect(controller.commands.find("theme")?.metadata.args).toBeDefined();
 
 		// The default palette is night-owl, and every key round-trips.
 		expect(store.session().palette).toBe("night-owl");

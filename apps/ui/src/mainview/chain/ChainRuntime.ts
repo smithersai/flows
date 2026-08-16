@@ -12,7 +12,7 @@ import type { CommandRegistry } from "../commands/Commands";
 import type { NativeAgent } from "../native/NativeBridge";
 import type { AppStore } from "../state/AppStore";
 import { makeCollectionJournal } from "./CollectionJournal";
-import { commandEntries, disclosedEntries } from "./CommandCatalog";
+import { commandEntries, disclosedEntries } from "./FlowCatalog";
 import { createChainPolicy } from "./Policy";
 import { layerAuthor } from "./StreamModel";
 import { worldviewEntries } from "./Worldview";

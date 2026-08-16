@@ -7,7 +7,7 @@ import { createAppController } from "../state/AppController";
 import { createAppStore } from "../state/AppStore";
 import type { AppStore } from "../state/AppStore";
 import type { NativeAgent, NativeRepositories } from "../native/NativeBridge";
-import { commandEntries, disclosedEntries } from "./CommandCatalog";
+import { commandEntries, disclosedEntries } from "./FlowCatalog";
 
 const memoryStorage = (): StorageApi => {
 	const data = new Map<string, string>();
