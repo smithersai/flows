@@ -7,6 +7,20 @@ import { join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
 import * as NodeDatabase from "../src/node/NodeDatabase.ts"
 
+/**
+ * Gates the cases whose cost is a fixed real-time ladder rather than a
+ * workload. Off by default so the package gate stays fast; on in any run that
+ * wants the whole contract exercised.
+ */
+const slowTests = process.env.FLOWS_SLOW_TESTS === "1"
+
+/**
+ * The exhaustion case outlasts the suite's 30 s budget by design, so it
+ * carries its own. Finite, and generous over the measured 238 s, so a genuine
+ * hang still fails rather than parking the run.
+ */
+const openLadderTimeout = 600_000
+
 const tempDirectories = new Set<string>()
 
 const tempDirectory = (): string => {
@@ -84,33 +98,41 @@ describe("NodeDatabase concurrent open", () => {
       }
     }))
 
-  // The public NodeDatabaseOptions API exposes no open-attempt or open-delay
-  // controls: exercising exhaustion would spend the fixed 40-attempt real-time
-  // ladder. Keep the terminal contract encoded, but skip until that bound can
-  // be reduced without changing production source for this test-only task.
-  it.effect.skip("dies with the original lock defect after the fixed open-retry budget is exhausted", () =>
-    Effect.gen(function*() {
-      const filename = tempFile()
-      seedRollbackMode(filename)
-      const lock = holdWriteLock(filename)
+  // Opt-in: this case spends the entire open ladder against a lock nobody
+  // releases, and `openSchedule` is deliberately not configurable, so it costs
+  // about four minutes of real time — measured at 220-240 s over two runs,
+  // because each of the 40 attempts blocks inside SQLite's own WAL-conversion
+  // wait before the jittered delay even applies. It is a known limitation of
+  // the default gate, not a broken contract: it passes when it is run.
+  // See docs/alpha-notes.md, "Known test pins".
+  //   FLOWS_SLOW_TESTS=1 pnpm --filter @smthrs/database-next test
+  it.live.runIf(slowTests)(
+    "dies with the original lock defect after the fixed open-retry budget is exhausted",
+    () =>
+      Effect.gen(function*() {
+        const filename = tempFile()
+        seedRollbackMode(filename)
+        const lock = holdWriteLock(filename)
 
-      try {
-        const exit = yield* Effect.exit(
-          Effect.scoped(Layer.build(NodeDatabase.layer({ filename }) as unknown as Layer.Layer<never>))
-        )
-        expect(exit._tag).toBe("Failure")
-        if (exit._tag === "Failure") {
-          const defect = Cause.findDefect(exit.cause)
-          expect(Result.isSuccess(defect)).toBe(true)
-          if (Result.isSuccess(defect)) {
-            expect(String(defect.success)).toMatch(/database is (?:locked|busy)/)
-            expect(defect.success).not.toMatchObject({ defect: expect.anything() })
+        try {
+          const exit = yield* Effect.exit(
+            Effect.scoped(Layer.build(NodeDatabase.layer({ filename }) as unknown as Layer.Layer<never>))
+          )
+          expect(exit._tag).toBe("Failure")
+          if (exit._tag === "Failure") {
+            const defect = Cause.findDefect(exit.cause)
+            expect(Result.isSuccess(defect)).toBe(true)
+            if (Result.isSuccess(defect)) {
+              expect(String(defect.success)).toMatch(/database is (?:locked|busy)/)
+              expect(defect.success).not.toMatchObject({ defect: expect.anything() })
+            }
           }
+        } finally {
+          lock.release()
         }
-      } finally {
-        lock.release()
-      }
-    }))
+      }),
+    openLadderTimeout
+  )
 
   it.effect("does not retry an open failure that is not a lock", () =>
     Effect.gen(function*() {
