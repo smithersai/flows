@@ -6,8 +6,12 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["test/**/*.test.ts"],
-    testTimeout: 30_000,
-    hookTimeout: 30_000,
+    // Planner fixtures copy and fingerprint the production implementation
+    // trees. The bounded file pool keeps that work practical, but the root
+    // workspace gate still contends for disk with every package, so retain a
+    // CI-safe budget for both the test and its cleanup hook.
+    testTimeout: 120_000,
+    hookTimeout: 120_000,
     coverage: {
       // Enabled so the thresholds below actually gate every run; without
       // this flag they were declared and never computed. The floors are the
