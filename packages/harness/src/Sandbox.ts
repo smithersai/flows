@@ -89,10 +89,11 @@ export type Handler = (
 ) => Effect.Effect<Cell.CallResult, HarnessError>
 
 /**
- * Explicitly declared execution limits.
+ * Execution limits for one cell evaluation.
  *
- * Every limit is opt-in. A binding that cannot honour a requested limit fails
- * with `unsupported` rather than silently ignoring it.
+ * Bindings fill every ceiling they can enforce from {@link defaultLimits} when
+ * the caller omits it. A binding that cannot honour an explicitly requested
+ * limit fails with `unsupported` rather than silently ignoring it.
  *
  * @category models
  * @since 0.1.0
@@ -102,8 +103,16 @@ export interface Limits {
   readonly calls?: number | undefined
   /** Maximum sandbox heap, in bytes. */
   readonly memoryBytes?: number | undefined
-  /** Maximum interpreter steps before the cell is stopped. */
+  /**
+   * Maximum interpreter steps before the cell is stopped.
+   *
+   * A step is one interrupt check, not one bytecode operation: an interpreter
+   * polls its budget periodically, so this bounds work rather than counting
+   * individual operations.
+   */
   readonly steps?: number | undefined
+  /** Maximum wall-clock time for one cell evaluation, in milliseconds. */
+  readonly timeMs?: number | undefined
 }
 
 /**
@@ -116,7 +125,49 @@ export interface Capabilities {
   readonly calls: boolean
   readonly memoryBytes: boolean
   readonly steps: boolean
+  readonly timeMs: boolean
 }
+
+/**
+ * The execution ceilings a cell runs under when the caller declares none.
+ *
+ * Agent-authored source must never acquire an unbounded frame merely because a
+ * host omitted configuration. These values are deliberately generous for a
+ * cell, whose work is choosing flow calls and shaping JSON between them. There
+ * is no spelling for "no ceiling": a host that needs more raises the relevant
+ * finite value explicitly.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const defaultLimits = Object.freeze({
+  memoryBytes: 128 * 1024 * 1024,
+  steps: 1000,
+  timeMs: 30_000
+})
+
+/**
+ * Fills omitted ceilings from {@link defaultLimits} for limits a binding can
+ * enforce.
+ *
+ * Capability gating applies only to defaults. An explicit unsupported limit is
+ * passed through so the binding can refuse it instead of silently widening the
+ * caller's authority.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const withDefaults = (
+  capabilities: Capabilities,
+  limits: Limits | undefined
+): Limits => ({
+  ...limits,
+  ...(capabilities.memoryBytes && limits?.memoryBytes === undefined
+    ? { memoryBytes: defaultLimits.memoryBytes }
+    : {}),
+  ...(capabilities.steps && limits?.steps === undefined ? { steps: defaultLimits.steps } : {}),
+  ...(capabilities.timeMs && limits?.timeMs === undefined ? { timeMs: defaultLimits.timeMs } : {})
+})
 
 /**
  * One cell evaluation request.
@@ -158,7 +209,15 @@ export const Sandbox: Context.Service<Sandbox, Sandbox> = Context.Service("/harn
  * @category constructors
  * @since 0.1.0
  */
-export const make = (implementation: Sandbox): Sandbox => Sandbox.of(implementation)
+export const make = (implementation: Sandbox): Sandbox =>
+  Sandbox.of({
+    ...implementation,
+    evaluate: (evaluation) =>
+      implementation.evaluate({
+        ...evaluation,
+        limits: withDefaults(implementation.capabilities, evaluation.limits)
+      })
+  })
 
 /**
  * Provides a sandbox implementation.
@@ -176,7 +235,7 @@ export const layer = (implementation: Sandbox): Layer.Layer<Sandbox> => Layer.su
  */
 export const makeNoop = (overrides: Partial<Sandbox> = {}): Sandbox =>
   Sandbox.of({
-    capabilities: { calls: false, memoryBytes: false, steps: false },
+    capabilities: { calls: false, memoryBytes: false, steps: false, timeMs: false },
     evaluate: () =>
       Effect.fail(
         new SandboxError({
@@ -524,11 +583,12 @@ const callFailure = (result: Cell.CallResult): Error => {
  */
 export const makeRestricted = (): Sandbox =>
   Sandbox.of({
-    capabilities: { calls: true, memoryBytes: false, steps: false },
+    capabilities: { calls: true, memoryBytes: false, steps: false, timeMs: false },
     evaluate: (evaluation) =>
       Effect.gen(function*() {
         if (evaluation.limits?.memoryBytes !== undefined) return yield* unsupportedLimit("memory")
         if (evaluation.limits?.steps !== undefined) return yield* unsupportedLimit("step")
+        if (evaluation.limits?.timeMs !== undefined) return yield* unsupportedLimit("time")
         const compiled = compile(evaluation.cell)
         if (compiled instanceof Cell.Rejected) return compiled
 

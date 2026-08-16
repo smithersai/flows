@@ -325,18 +325,63 @@ describe("Sandbox projections", () => {
     expect(withoutMessage.message).toBe("The flow call failed")
   })
 
+  it("defaults every supported safety ceiling and preserves explicit raises", async () => {
+    const observed: Array<Sandbox.Limits | undefined> = []
+    const sandbox = Sandbox.make({
+      capabilities: { calls: true, memoryBytes: true, steps: true, timeMs: true },
+      evaluate: (evaluation) =>
+        Effect.sync(() => {
+          observed.push(evaluation.limits)
+          return new Cell.Rejected({ code: "stalled", message: "recorded" })
+        })
+    })
+    const request = {
+      cell: Cell.source("return null"),
+      flows: {},
+      call: handler({}, [])
+    }
+
+    await Effect.runPromise(sandbox.evaluate(request))
+    await Effect.runPromise(sandbox.evaluate({
+      ...request,
+      limits: { steps: Sandbox.defaultLimits.steps + 1 }
+    }))
+    await Effect.runPromise(sandbox.evaluate({
+      ...request,
+      limits: {
+        memoryBytes: Sandbox.defaultLimits.memoryBytes + 1,
+        steps: Sandbox.defaultLimits.steps + 1,
+        timeMs: Sandbox.defaultLimits.timeMs + 1
+      }
+    }))
+
+    expect(observed).toEqual([
+      Sandbox.defaultLimits,
+      {
+        memoryBytes: Sandbox.defaultLimits.memoryBytes,
+        steps: Sandbox.defaultLimits.steps + 1,
+        timeMs: Sandbox.defaultLimits.timeMs
+      },
+      {
+        memoryBytes: Sandbox.defaultLimits.memoryBytes + 1,
+        steps: Sandbox.defaultLimits.steps + 1,
+        timeMs: Sandbox.defaultLimits.timeMs + 1
+      }
+    ])
+  })
+
   it("reports which limits a binding can enforce", async () => {
     const capabilities = await Effect.gen(function*() {
       const sandbox = yield* Sandbox.Sandbox
       return sandbox.capabilities
     }).pipe(Effect.provide(Sandbox.layerRestricted), Effect.runPromise)
-    expect(capabilities).toEqual({ calls: true, memoryBytes: false, steps: false })
+    expect(capabilities).toEqual({ calls: true, memoryBytes: false, steps: false, timeMs: false })
 
     const quickjs = await Effect.gen(function*() {
       const sandbox = yield* Sandbox.Sandbox
       return sandbox.capabilities
     }).pipe(Effect.provide(QuickJSSandbox.layer), Effect.runPromise)
-    expect(quickjs).toEqual({ calls: true, memoryBytes: true, steps: true })
+    expect(quickjs).toEqual({ calls: true, memoryBytes: true, steps: true, timeMs: true })
   })
 })
 
@@ -364,7 +409,7 @@ describe("Sandbox.layerRestricted", () => {
   })
 
   it("refuses a limit it cannot enforce instead of ignoring it", async () => {
-    for (const limits of [{ memoryBytes: 1024 * 1024 }, { steps: 1000 }]) {
+    for (const limits of [{ memoryBytes: 1024 * 1024 }, { steps: 1000 }, { timeMs: 1000 }]) {
       const outcome = await Effect.gen(function*() {
         const sandbox = yield* Sandbox.Sandbox
         return yield* Effect.result(
@@ -409,6 +454,38 @@ describe("QuickJSSandbox", () => {
        return { intent: "complete", output: String(total) }`,
       { limits: { steps: 100 } }
     )
-    expect(outcome._tag).not.toBe("settled")
+    expect(outcome).toMatchObject({
+      _tag: "rejected",
+      code: "limit_exceeded",
+      message: "This cell exceeded its limit of 100 interpreter steps"
+    })
+  })
+
+  it("enforces default ceilings when the caller omits limits", async () => {
+    const outcome = await evaluate(
+      QuickJSSandbox.layer,
+      `let total = 0
+       while (true) total += 1`
+    )
+
+    expect(outcome).toMatchObject({ _tag: "rejected", code: "limit_exceeded" })
+  })
+
+  it("enforces a wall-clock limit while a flow call is stalled", async () => {
+    const outcome = await evaluate(
+      QuickJSSandbox.layer,
+      `await ctx.call("fs/list", {})
+       return { intent: "complete", output: "unreachable" }`,
+      {
+        call: () => Effect.never,
+        limits: { timeMs: 10, steps: Number.MAX_SAFE_INTEGER }
+      }
+    )
+
+    expect(outcome).toMatchObject({
+      _tag: "rejected",
+      code: "limit_exceeded",
+      message: "This cell exceeded its wall-clock limit of 10 milliseconds"
+    })
   })
 })

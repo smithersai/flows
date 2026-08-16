@@ -123,6 +123,19 @@ const wasmModule = (): Promise<QuickJSWASMModule> => {
   return loaded
 }
 
+const capabilities: Sandbox.Capabilities = {
+  calls: true,
+  memoryBytes: true,
+  steps: true,
+  timeMs: true
+}
+
+const timeLimitExceeded = (timeMs: number): Cell.Rejected =>
+  new Cell.Rejected({
+    code: "limit_exceeded",
+    message: `This cell exceeded its wall-clock limit of ${timeMs} milliseconds`
+  })
+
 const evaluate = (
   module: QuickJSWASMModule,
   evaluation: Sandbox.Evaluation
@@ -131,17 +144,33 @@ const evaluate = (
     const compiled = Sandbox.compile(evaluation.cell)
     if (compiled instanceof Cell.Rejected) return compiled
 
+    const limits = Sandbox.withDefaults(capabilities, evaluation.limits)
+    const timeMs = limits.timeMs ?? Sandbox.defaultLimits.timeMs
+    const startedAt = Date.now()
+    let exhausted: Cell.Rejected | undefined
+
     const acquired = yield* Effect.acquireRelease(
       Effect.sync(() => {
         const runtime: QuickJSRuntime = module.newRuntime()
-        if (evaluation.limits?.memoryBytes !== undefined) {
-          runtime.setMemoryLimit(evaluation.limits.memoryBytes)
+        if (limits.memoryBytes !== undefined) {
+          runtime.setMemoryLimit(limits.memoryBytes)
         }
-        if (evaluation.limits?.steps !== undefined) {
-          const budget = evaluation.limits.steps
-          let steps = 0
-          runtime.setInterruptHandler(() => ++steps > budget)
-        }
+        const stepBudget = limits.steps
+        let steps = 0
+        runtime.setInterruptHandler(() => {
+          if (Date.now() - startedAt >= timeMs) {
+            exhausted = exhausted ?? timeLimitExceeded(timeMs)
+            return true
+          }
+          if (stepBudget !== undefined && ++steps > stepBudget) {
+            exhausted = exhausted ?? new Cell.Rejected({
+              code: "limit_exceeded",
+              message: `This cell exceeded its limit of ${stepBudget} interpreter steps`
+            })
+            return true
+          }
+          return false
+        })
         const context: QuickJSContext = runtime.newContext()
         return { runtime, context }
       }),
@@ -200,6 +229,7 @@ const evaluate = (
     if (started.error !== undefined) {
       const failure = context.dump(started.error)
       started.error.dispose()
+      if (exhausted !== undefined) return exhausted
       return new Cell.Rejected({
         code: "compile_failed",
         message: `The cell did not compile: ${
@@ -217,6 +247,12 @@ const evaluate = (
     /** Runs every queued VM job, then reads the cell promise. */
     const poll = (): void => {
       runtime.executePendingJobs()
+      if (exhausted !== undefined) {
+        // An interrupted job leaves the promise pending, so the ceiling ends
+        // the evaluation rather than waiting for a settlement that cannot run.
+        settled = exhausted
+        return
+      }
       const state = context.getPromiseState(cellHandle)
       if (state.type === "pending") return
       if (state.type === "fulfilled") {
@@ -255,9 +291,15 @@ const evaluate = (
         for (const call of pending.splice(0)) call.abort("The cell was interrupted")
       },
       handler: evaluation.call,
-      limits: evaluation.limits
+      limits
     })
-  }).pipe(Effect.scoped)
+  }).pipe(
+    Effect.scoped,
+    Effect.timeoutOrElse({
+      duration: evaluation.limits?.timeMs ?? Sandbox.defaultLimits.timeMs,
+      orElse: () => Effect.succeed(timeLimitExceeded(evaluation.limits?.timeMs ?? Sandbox.defaultLimits.timeMs))
+    })
+  )
 
 /**
  * Constructs the QuickJS sandbox, compiling the WebAssembly module once.
@@ -269,7 +311,7 @@ export const make: Effect.Effect<Sandbox.Sandbox> = Effect.map(
   Effect.promise(() => wasmModule()),
   (module) =>
     Sandbox.make({
-      capabilities: { calls: true, memoryBytes: true, steps: true },
+      capabilities,
       evaluate: (evaluation) => evaluate(module, evaluation)
     })
 )
