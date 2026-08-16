@@ -135,11 +135,13 @@ workspace member, and everything is committed on `merge-agent-packages`.
 
 ## Known follow-ups
 
-- `apps/ui/.gitignore` still carries stale `reports/` rules from before
-  the docs moved to `apps/reports/`; e2e scripts still write screenshots
-  to `apps/ui/reports/`.
+- Done: `apps/ui/.gitignore` dropped the stale `!reports/live-checks/wave13c/*.log`
+  rule (that evidence now lives at `apps/reports/live-checks/wave13c/`), and the
+  remaining `reports/chat-shell/` ignore now names the script that writes there
+  (`scripts/web-chat-shell-e2e.ts`).
 - `packages/chain` service/error identity strings are still `"/chain/…"`;
   repo rule says identity = defining module path. Durable-key decision
   deferred to will.
-- `scripts/browser-check.mjs` browser-safe entry list does not yet include
-  `@smthrs/chain-next`.
+- Done: `scripts/browser-check.mjs` browser-safe entry list already includes
+  `@smthrs/chain-next` (landed in b57af599); verified green via
+  `node scripts/browser-check.mjs`.
