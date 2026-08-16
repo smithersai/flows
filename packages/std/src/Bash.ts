@@ -29,7 +29,7 @@ export const name = "bash"
  * @since 0.1.0
  */
 export const description =
-  "Run a shell command. Prefer mode:hermetic with declared reads/writes (compensable); mode:unhermetic is the irreversible escape hatch. stdout/stderr keep the tail on overflow."
+  "Run a shell command. mode:hermetic checks explicit path tokens against declared reads/writes but does not sandbox the process. mode:unhermetic skips that check. stdout/stderr retain overflow tails."
 
 const Command = Schema.String.annotate({ description: "Shell command string to execute" })
 const Cwd = Schema.optional(Schema.String.annotate({ description: "Working directory for the command" }))
@@ -43,9 +43,10 @@ const TimeoutMs = Schema.optional(
 /**
  * Input schema for the bash flow.
  *
- * Hermetic mode requires explicit read and write envelopes. Unhermetic mode
- * deliberately omits them so the irreversible escape hatch is visible in the
- * input shape.
+ * The mode named `hermetic` requires explicit read and write envelopes for a
+ * lexical pre-check; it does not by itself confine the process. Unhermetic mode
+ * deliberately omits those declarations so the distinction stays visible in
+ * the input shape.
  *
  * @category schemas
  * @since 0.1.0
@@ -53,7 +54,7 @@ const TimeoutMs = Schema.optional(
 export const Input = Schema.Union([
   Schema.Struct({
     mode: Schema.Literal("hermetic").annotate({
-      description: "Confine the command to explicitly declared reads and writes"
+      description: "Lexically pre-check explicit path tokens against declared reads and writes; does not sandbox"
     }),
     command: Command,
     reads: Schema.Array(Schema.String).annotate({ description: "Paths or path globs the command may read" }),
@@ -298,7 +299,7 @@ const hostError = (command: string, error: unknown): StdError.StdError => {
  * Executes a shell command through the permission-aware kernel service.
  *
  * Non-zero exit codes remain successful values. Only timeout, host, permission,
- * and hermetic-envelope failures use the typed error channel.
+ * and declared-envelope pre-check failures use the typed error channel.
  *
  * @category handlers
  * @since 0.1.0

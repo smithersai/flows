@@ -42,3 +42,5 @@ const program = Read.run({ path: "/workspace/notes.md" }).pipe(
 ```
 
 `Manifest.flows` is the declaration registry, `Manifest.handlers` contains directly executable handlers, and `Manifest.readOnly` is the canonical read-only projection. `@smthrs/std/package.json` is also exported; `internal/*` and nested `*/index` subpaths are blocked.
+
+`Bash` retains `mode: "hermetic"` as effect-contract vocabulary, but the handler is not an operating-system sandbox. It performs a fail-closed lexical pre-check of explicit path tokens against `reads` and `writes`, then starts an ordinary host shell process. Shell expansion, subprocess access, and paths computed at runtime are not observed. A host that needs confinement must supply a sandbox or access-reporting boundary; the lexical check alone cannot prove hermetic execution.
