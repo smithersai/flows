@@ -33,8 +33,8 @@ test("frame 0 renders every lane pipeline, the land queue, the panel, and the ga
     expect(ids).toContain(`${key}Impl`)
     expect(ids).toContain(`${key}Review`)
     expect(ids).toContain(`${key}Fix`)
-    expect(ids).toContain(`${key}Land`)
-    expect(ids).toContain(`${key}LandCheck`)
+    expect(ids).toContain(`${key}LandRun`)
+    expect(ids).toContain(`${key}LandVerify`)
     // Polish loops mount only after a deterministically verified land.
     expect(ids).not.toContain(`${key}PolishReview`)
     expect(ids).not.toContain(`${key}PolishFix`)
@@ -52,10 +52,13 @@ test("lane pipeline order: impl before review before fix, land after the lane", 
   for (const key of LANE_KEYS) {
     expect(ids.indexOf(`${key}Impl`)).toBeLessThan(ids.indexOf(`${key}Review`))
     expect(ids.indexOf(`${key}Review`)).toBeLessThan(ids.indexOf(`${key}Fix`))
-    expect(ids.indexOf(`${key}Land`)).toBeLessThan(ids.indexOf(`${key}LandCheck`))
+    expect(ids.indexOf(`${key}Review`)).toBeLessThan(ids.indexOf(`${key}LandRun`))
+    expect(ids.indexOf(`${key}LandRun`)).toBeLessThan(ids.indexOf(`${key}LandVerify`))
+    // Lands are gated by sequence position, never by skipIf: a skipIf that is
+    // true at frame 0 is a PERMANENT skip in the engine (learned live).
+    expect(Boolean(taskOf(frame, `${key}LandRun`).skipIf)).toBe(false)
+    expect(Boolean(taskOf(frame, `${key}LandVerify`).skipIf)).toBe(false)
   }
-  // The land queue tasks are gated off until the lane clears review.
-  expect(taskOf(frame, "u1Land").skipIf).toBe(true)
   // The panel fix step is gated off until a panelist reports NOT-READY.
   expect(taskOf(frame, "panelFix").skipIf).toBe(true)
 })
@@ -101,9 +104,9 @@ test("an approved review opens the lane's land task and skips its fix step", asy
     ],
   })
   expect(taskOf(frame, "u1Fix").skipIf).toBe(true)
-  expect(taskOf(frame, "u1Land").skipIf).toBe(false)
-  // Other lanes stay gated.
-  expect(taskOf(frame, "u2Land").skipIf).toBe(true)
+  // Land tasks stay schedulable-by-sequence, never skipIf-gated.
+  expect(Boolean(taskOf(frame, "u1LandRun").skipIf)).toBe(false)
+  expect(taskOf(frame, "u2Fix").skipIf).toBe(false)
 })
 
 test("a fix-verdict review keeps the land gated until the fix row lands", async () => {
@@ -116,7 +119,6 @@ test("a fix-verdict review keeps the land gated until the fix row lands", async 
   }
   const before = await render({ alphaUiReview: [reviewRow] })
   expect(taskOf(before, "u3Fix").skipIf).toBe(false)
-  expect(taskOf(before, "u3Land").skipIf).toBe(true)
   const after = await render({
     alphaUiReview: [reviewRow],
     alphaUiFix: [
@@ -129,12 +131,12 @@ test("a fix-verdict review keeps the land gated until the fix row lands", async 
       },
     ],
   })
-  expect(taskOf(after, "u3Land").skipIf).toBe(false)
+  expect(taskOf(after, "u3Fix").skipIf).toBe(false)
 })
 
 test("a verified land mounts the lane's polish loop and lgtm skips the polish fix", async () => {
   const landCheck = {
-    nodeId: "u2LandCheck",
+    nodeId: "u2LandVerify",
     laneKey: "u2",
     verifiedTip: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
     onMain: true,

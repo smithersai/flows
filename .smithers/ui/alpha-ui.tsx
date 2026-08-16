@@ -45,8 +45,8 @@ const STAGES = [
   { suffix: "Impl", label: "implement" },
   { suffix: "Review", label: "review" },
   { suffix: "Fix", label: "fix" },
-  { suffix: "Land", label: "land" },
-  { suffix: "LandCheck", label: "verify" },
+  { suffix: "LandRun", label: "land" },
+  { suffix: "LandVerify", label: "verify" },
   { suffix: "PolishReview", label: "polish" },
   { suffix: "PolishFix", label: "polish fix" },
 ] as const
@@ -108,7 +108,7 @@ function LaneRow({
   onSelect: (nodeId: string) => void
   selected: string | undefined
 }) {
-  const landCheck = rowOf(latestNode(nodes, `${lane.key}LandCheck`))
+  const landCheck = rowOf(latestNode(nodes, `${lane.key}LandVerify`))
   const landed = truthy(col(landCheck, "onMain"))
   const polish = rowOf(latestNode(nodes, `${lane.key}PolishReview`))
   const lgtm = col(polish, "verdict") === "lgtm"
@@ -163,7 +163,7 @@ function App() {
     let landed = 0
     let lgtm = 0
     for (const lane of LANES) {
-      if (truthy(col(rowOf(latestNode(nodes, `${lane.key}LandCheck`)), "onMain"))) landed += 1
+      if (truthy(col(rowOf(latestNode(nodes, `${lane.key}LandVerify`)), "onMain"))) landed += 1
       if (col(rowOf(latestNode(nodes, `${lane.key}PolishReview`)), "verdict") === "lgtm") lgtm += 1
     }
     const panelVerdict = (id: string) => {

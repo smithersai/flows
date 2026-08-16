@@ -633,11 +633,6 @@ export default smithers((ctx) => {
   const landCheckRow = (key: string) => lastLaneRow(ctx.outputs?.alphaUiLandCheck, key)
 
   const reviewApproved = (key: string) => col(reviewRow(key), "verdict") === "approve"
-  const readyToLand = (key: string) => {
-    const review = reviewRow(key)
-    if (!review) return false
-    return col(review, "verdict") === "approve" ? true : fixRow(key) !== undefined
-  }
   const landVerified = (key: string) => truthy(col(landCheckRow(key), "onMain"))
   const latestPolish = (key: string) => ctx.latest?.(outputs.alphaUiPolish, `${key}PolishReview`)
   const polishDone = (key: string) => col(latestPolish(key), "verdict") === "lgtm"
@@ -756,21 +751,31 @@ export default smithers((ctx) => {
               baseBranch="main"
             >
               <Sequence>
-                <Task id={`${lane.key}Impl`} agent={implSeat(lane.key)} output={outputs.alphaUiImpl} retries={2}>
+                <Task id={`${lane.key}Impl`} agent={implSeat(lane.key)} output={outputs.alphaUiImpl} retries={8}>
                   {implPrompt(lane, carried)}
                 </Task>
-                <Task id={`${lane.key}Review`} agent={reviewSeat(lane.key)} output={outputs.alphaUiReview} retries={2}>
+                <Task id={`${lane.key}Review`} agent={reviewSeat(lane.key)} output={outputs.alphaUiReview} retries={8}>
                   {reviewPrompt(lane)}
                 </Task>
                 <Task
                   id={`${lane.key}Fix`}
                   agent={implSeat(lane.key)}
                   output={outputs.alphaUiFix}
-                  retries={2}
+                  retries={8}
                   skipIf={reviewApproved(lane.key)}
                 >
                   {`${fixPrompt(lane)}\nThe review findings to address:\n${reviewFindingsFor(lane.key) || "(review pending)"}\n`}
                 </Task>
+                <MergeQueue id="landQueue">
+                  <Sequence>
+                    <Task id={`${lane.key}LandRun`} agent={landSeat} output={outputs.alphaUiLand} retries={8}>
+                      {landPrompt(lane)}
+                    </Task>
+                    <Task id={`${lane.key}LandVerify`} output={outputs.alphaUiLandCheck} retries={2}>
+                      {verifyLand(lane.key)}
+                    </Task>
+                  </Sequence>
+                </MergeQueue>
                 <Loop
                   id={`${lane.key}PolishLoop`}
                   skipIf={!landVerified(lane.key)}
@@ -783,7 +788,7 @@ export default smithers((ctx) => {
                       id={`${lane.key}PolishReview`}
                       agent={reviewSeat(lane.key)}
                       output={outputs.alphaUiPolish}
-                      retries={2}
+                      retries={8}
                     >
                       {polishReviewPrompt(lane)}
                     </Task>
@@ -791,7 +796,7 @@ export default smithers((ctx) => {
                       id={`${lane.key}PolishFix`}
                       agent={implSeat(lane.key)}
                       output={outputs.alphaUiPolishFix}
-                      retries={2}
+                      retries={8}
                       skipIf={latestPolishLgtm(lane.key)}
                     >
                       {`${polishFixPrompt(lane)}\nThe polish findings to address:\n${String(col(latestPolish(lane.key), "findings") ?? "(polish review pending)")}\n`}
@@ -801,24 +806,6 @@ export default smithers((ctx) => {
               </Sequence>
             </Worktree>
           ))}
-          <MergeQueue id="landQueue" maxConcurrency={1}>
-            {LANES.map((lane) => (
-              <Sequence key={`${lane.key}LandSeq`}>
-                <Task
-                  id={`${lane.key}Land`}
-                  agent={landSeat}
-                  output={outputs.alphaUiLand}
-                  retries={2}
-                  skipIf={!readyToLand(lane.key)}
-                >
-                  {landPrompt(lane)}
-                </Task>
-                <Task id={`${lane.key}LandCheck`} output={outputs.alphaUiLandCheck} retries={1} skipIf={!readyToLand(lane.key)}>
-                  {verifyLand(lane.key)}
-                </Task>
-              </Sequence>
-            ))}
-          </MergeQueue>
         </Parallel>
         <Loop id="panelLoop" until={panelPassed()} maxIterations={3} onMaxReached="return-last">
           <Sequence>
@@ -826,22 +813,22 @@ export default smithers((ctx) => {
               id="panelFix"
               agent={[...claudePool("claude-fable-5", 4), kimiSeat]}
               output={outputs.alphaUiPanelFix}
-              retries={2}
+              retries={8}
               skipIf={!panelHasFailures()}
             >
               {`${panelFixPrompt}\nThe panel failures to address:\n${panelFailuresText() || "(no failures recorded yet)"}\n`}
             </Task>
             <Parallel>
-              <Task id="panelCodex" agent={panelCodexSeat} output={outputs.alphaUiPanel} retries={2}>
+              <Task id="panelCodex" agent={panelCodexSeat} output={outputs.alphaUiPanel} retries={8}>
                 {panelPrompt("codex-sol")}
               </Task>
-              <Task id="panelFable" agent={panelFableSeat} output={outputs.alphaUiPanel} retries={2}>
+              <Task id="panelFable" agent={panelFableSeat} output={outputs.alphaUiPanel} retries={8}>
                 {panelPrompt("claude-fable")}
               </Task>
             </Parallel>
           </Sequence>
         </Loop>
-        <Task id="humanTasksDoc" agent={reviewSeat()} output={outputs.alphaUiHuman} retries={2}>
+        <Task id="humanTasksDoc" agent={reviewSeat()} output={outputs.alphaUiHuman} retries={8}>
           {humanDocPrompt}
         </Task>
         <Approval
