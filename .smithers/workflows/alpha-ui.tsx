@@ -700,19 +700,27 @@ export default smithers((ctx) => {
   // with the kimi seat and falls back to the balanced sonnet pool.
   const implSeat = (key: string) =>
     key === "evals"
-      ? [...claudePool("claude-opus-5", laneIndex(key)), ...claudePool("claude-fable-5", 2)]
+      ? [...claudePool("claude-opus-5", laneIndex(key)), ...claudePool("claude-sonnet-5", 2)]
       : [kimiSeat, ...claudePool("claude-sonnet-5", laneIndex(key))]
+  // Opus leads every review seat: as of 2026-08-16 every registered Claude
+  // account sits at ~62% weekly, and Fable carries a 50% weekly plan cap, so
+  // every fable rung rejects with seven_day_overage_included while opus and
+  // sonnet still have headroom on the same accounts. Fable stays last so the
+  // chain uses it again once the weekly window resets.
   const reviewSeat = (key = "") => [
-    ...claudePool("claude-fable-5", laneIndex(key) + 3),
     ...claudePool("claude-opus-5", laneIndex(key) + 3),
+    ...claudePool("claude-sonnet-5", laneIndex(key) + 5),
+    ...claudePool("claude-fable-5", laneIndex(key) + 3),
   ]
   const landSeat = claudePool("claude-sonnet-5", 1)
   const panelCodexSeat = [
     codexAccount("codex-1", path.join(homedir(), ".codex")),
     codexAccount("codex-2", path.join(homedir(), ".smithers/accounts/codex-2")),
-    ...claudePool("claude-fable-5", 5),
+    ...claudePool("claude-opus-5", 5),
   ]
-  const panelFableSeat = claudePool("claude-fable-5", 0)
+  // The second panelist stays a Claude of independent lineage from the codex
+  // verifier; opus leads because fable is weekly-capped (see reviewSeat).
+  const panelFableSeat = [...claudePool("claude-opus-5", 0), ...claudePool("claude-fable-5", 0)]
 
   const carried = String(ctx.input?.carriedFindings ?? "")
 
@@ -811,7 +819,7 @@ export default smithers((ctx) => {
           <Sequence>
             <Task
               id="panelFix"
-              agent={[...claudePool("claude-fable-5", 4), kimiSeat]}
+              agent={[kimiSeat, ...claudePool("claude-opus-5", 4)]}
               output={outputs.alphaUiPanelFix}
               retries={8}
               skipIf={!panelHasFailures()}
