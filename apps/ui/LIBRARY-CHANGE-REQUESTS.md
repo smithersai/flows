@@ -46,3 +46,71 @@ changes personally.
 
   with the handler-failure branch passing `describe(produced.failure)` as
   `detail`. Nothing existing reads `detail`, so the change is additive.
+
+## 2. The cell loop's capability envelope refuses any host capability vocabulary
+
+- **Files**: `packages/harness/src/CellTurn.ts` (the screen at ~line 353) and
+  `packages/capability/src/Capability.ts` (`parse`, `Action`).
+- **What**: before dispatching a cell's flow call, `CellTurn` filters the
+  descriptor's declared capabilities:
+
+  ```ts
+  const refused = descriptor.capabilities.filter((declared) =>
+    Option.match(Capability.parse(declared), {
+      onNone: () => true,                                   // <- unparseable ⇒ refused
+      onSome: (capability) => !CapabilitySet.allows(envelope, capability)
+    })
+  )
+  ```
+
+  `Capability.parse` recognizes only a closed action set — `fs:read`,
+  `fs:write`, `net:get`, `net:post`, `model:call`, `proc:spawn`, and the `jj:*`
+  operations — and requires a `namespace:operation:resource` shape. Any other
+  claim string parses to `None` and takes the `onNone: () => true` branch, so it
+  is refused no matter how wide the run's envelope is. There is no envelope
+  value, including `{ action: "*", resource: "**" }`, that admits it.
+- **Why it matters here**: every flow in this app claims the vocabulary that
+  carries DESIGN.md §14's three-tier approval policy — `app:act` (free),
+  `session:net-read` (asks once per session), `outbound:launch` (always asks),
+  `approve:self` (structurally denied to the agent). These are policy tiers
+  about the app's own surface; they have no honest `fs:`/`net:`/`proc:`
+  equivalent, and re-labelling `workflow.create` as `net:post` would both
+  misdescribe it and discard the tier the policy keys on. Under the cell loop
+  every app flow is therefore refused, which is what blocks swapping
+  ChainRuntime for `CellTurn`/`CellHarness`.
+  `apps/ui/src/mainview/chain/AppEngine.test.ts` pins this as a passing test.
+- **Workaround taken**: none that preserves the policy. The agent loop stays on
+  ChainRuntime, whose `Catalog` carries capability strings opaquely and lets
+  `chain/Policy.ts` decide the tier. Declaring the app's flows with empty
+  `capabilities` would let the cell loop run, but it would silently drop the
+  approval policy, so it was not done.
+- **Proposed diff sketch**: let the host supply the vocabulary rather than
+  hard-coding it. The smallest version keeps `Capability.parse` as the default
+  and makes the unparseable branch a host decision:
+
+  ```diff
+   export interface Options {
+     ...
+  +  /**
+  +   * Screens a declared capability the capability package cannot parse.
+  +   * Defaults to refusing, which is today's behaviour.
+  +   */
+  +  readonly admitForeignCapability?: ((claim: string) => boolean) | undefined
+   }
+  ```
+
+  ```diff
+   const refused = descriptor.capabilities.filter((declared) =>
+     Option.match(Capability.parse(declared), {
+  -    onNone: () => true,
+  +    onNone: () => !(input.admitForeignCapability?.(declared) ?? false),
+       onSome: (capability) => !CapabilitySet.allows(envelope, capability)
+     })
+   )
+  ```
+
+  A host that says nothing keeps the current strict behaviour; this app would
+  admit its four policy claims and keep enforcing their tiers where it already
+  does. A larger alternative — extending `Capability.Action` with an
+  application-defined namespace — would also work but changes a security-
+  relevant closed set, so the host-callback version is proposed first.
