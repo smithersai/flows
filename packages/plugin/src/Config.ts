@@ -25,7 +25,7 @@ import * as Schema from "effect/Schema"
 import { PluginError } from "./PluginError.ts"
 
 /**
- * Retry defaults consumed by the core `resolveRetry` fallback policy.
+ * Retry-shaped defaults carried through the shared plugin config pipeline.
  *
  * @category models
  * @since 0.1.0

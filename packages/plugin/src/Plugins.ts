@@ -3,9 +3,9 @@
  * hook interface.
  *
  * Governing design: `docs/architecture/plugin-system.md`
- * ("Hook values and hook kinds"). The engine and the harness each hold their
- * own instance — the harness's is instantiated over its augmented `FlowsHooks`
- * — so there is no inheritance machinery and no re-export dance.
+ * ("Hook values and hook kinds"). Each host holds an instance over its
+ * augmented `FlowsHooks`, so there is no inheritance machinery and no
+ * re-export dance.
  *
  * Vault: [[Plugin Kernel]] (`docs/specs/Specs/Plugin Kernel.md`) — the shipped
  * kernel and its stated deviations from [[Plugin API]]
@@ -63,7 +63,7 @@ export interface Service<H = FlowsHooks> {
   ) => Effect.Effect<ReadonlyArray<SuccessOf<H[K]>>, PluginError, ContextOf<H[K]>>
   /**
    * Runs every handler concurrently, ignoring results. Never fails: handler
-   * failures are returned so the caller can journal them on the lossy channel.
+   * failures are returned so the caller can report them at its own boundary.
    */
   readonly parallel: <K extends KeysOfKind<H, "parallel">>(
     hook: K,
@@ -142,11 +142,10 @@ export const make = <H = FlowsHooks>(resolved: Resolved<H>): Service<H> => {
 export const makeNoop = <H = FlowsHooks>(): Service<H> => make<H>({ plugins: Object.freeze([]), handlers: new Map() })
 
 /**
- * The engine's dispatcher, as a service tag.
+ * The shared dispatcher, as a service tag.
  *
- * A harness that augments `FlowsHooks` shares this tag; the augmentation is
- * global, so the engine's instance dispatches harness hook keys too — it simply
- * never calls them.
+ * A host that augments `FlowsHooks` shares this tag; augmentation affects the
+ * type surface while the runtime catalog still bounds what can resolve.
  *
  * @category context
  * @since 0.1.0

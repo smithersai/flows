@@ -495,6 +495,16 @@ return { intent: "complete", output: String(first.waitedSeconds + second.waitedS
 })
 
 describe("plugin-contributed flows", () => {
+  it("publishes only the configuration and cell hooks this host dispatches", () => {
+    expect(CellPlugin.hooks).toEqual({
+      config: "waterfall",
+      configResolved: "parallel",
+      cellRegistry: "waterfall",
+      cellFlows: "waterfall",
+      cellModelRequest: "waterfall"
+    })
+  })
+
   const ping = CoreFlow.make({
     name: "ping",
     description: "A capability contributed by a plugin.",

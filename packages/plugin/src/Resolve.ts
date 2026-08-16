@@ -57,7 +57,7 @@ export interface Options {
   readonly config?: FlowsConfig | undefined
   /** Which host is resolving; matched against a string `apply`. */
   readonly target?: "engine" | "harness" | undefined
-  /** Hook names recognized by this host. Defaults to the engine catalog. */
+  /** Hook names recognized by this host. Defaults to the shared config catalog. */
   readonly hooks?: Readonly<Record<string, HookKind>> | undefined
   /**
    * Complete composition identity for sealed activity keys.

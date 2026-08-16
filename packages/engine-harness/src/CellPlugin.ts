@@ -2,9 +2,10 @@
  * Cell-harness hooks hosted by the shared Smithers plugin kernel.
  *
  * The plugin package deliberately leaves its hook catalog open for host
- * augmentation. This module adds the two cell dispatch points needed by the
- * production composition: one registry waterfall before disclosure and one
- * provider-neutral request waterfall immediately before a sealed model step.
+ * augmentation. This module adds the three cell dispatch points needed by the
+ * production composition: registry and executable-flow waterfalls before
+ * disclosure, plus a provider-neutral request waterfall immediately before a
+ * sealed model step.
  *
  * @since 0.1.0
  */

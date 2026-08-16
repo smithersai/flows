@@ -1,5 +1,6 @@
 import { Effect, Option } from "effect"
 import { describe, expect, it } from "vitest"
+import * as Config from "../src/Config.ts"
 import type { ParallelHook, SequentialHook } from "../src/Hooks.ts"
 import * as Hooks from "../src/Hooks.ts"
 import type { FlowsPlugin } from "../src/index.ts"
@@ -34,12 +35,12 @@ const harnessHooks = {
 const run = <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.runPromise(effect as Effect.Effect<A, E>)
 
 describe("module augmentation", () => {
-  it("lets one plugin object carry engine and harness hooks, dispatched by two dispatchers", async () => {
+  it("lets one plugin object carry kernel and host hooks in one bounded catalog", async () => {
     const trace: Array<string> = []
     const both: FlowsPlugin = {
       name: "flows-plugin-both",
       hooks: {
-        runStart: () => Effect.sync(() => void trace.push("engine:runStart")),
+        configResolved: () => Effect.sync(() => void trace.push("kernel:configResolved")),
         toolCall: (ctx) =>
           Effect.sync(() => {
             trace.push(`harness:toolCall:${ctx.tool}`)
@@ -49,22 +50,22 @@ describe("module augmentation", () => {
       }
     }
 
-    // The engine's dispatcher: engine catalog only, so the harness keys are a
-    // startup error here — engine hosts pass engine plugins.
+    // The base catalog contains only the config lifecycle, so host keys are a
+    // startup error unless the host declares its bounded catalog.
     const rejected = await run(Resolve.resolve([both]).pipe(Effect.flip))
     expect(rejected.code).toBe("unknown_hook")
 
     // A host that declares the augmented catalog resolves the same object.
     const resolved = await run(Resolve.resolve([both], { hooks: harnessHooks }))
 
-    const engine = Plugins.make(resolved)
-    await run(engine.parallel("runStart", { runId: "r" }))
+    const kernel = Plugins.make(resolved)
+    await run(kernel.parallel("configResolved", Config.defaults))
 
     const harness = Plugins.make(resolved)
     const override = await run(harness.sequential("toolCall", { tool: "bash" }))
     await run(harness.parallel("agentTurnStart", { turn: 1 }))
 
     expect(override).toEqual([Option.some({ replaceWith: "safe-tool" })])
-    expect(trace).toEqual(["engine:runStart", "harness:toolCall:bash", "harness:turn:1"])
+    expect(trace).toEqual(["kernel:configResolved", "harness:toolCall:bash", "harness:turn:1"])
   })
 })

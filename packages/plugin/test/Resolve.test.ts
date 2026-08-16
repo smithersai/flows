@@ -1,5 +1,6 @@
-import { Context, Effect, Exit, Layer, Option } from "effect"
+import { Context, Effect, Exit, Layer } from "effect"
 import { describe, expect, it } from "vitest"
+import * as Config from "../src/Config.ts"
 import * as Hooks from "../src/Hooks.ts"
 import type { FlowsPlugin } from "../src/index.ts"
 import { PluginError } from "../src/PluginError.ts"
@@ -8,7 +9,7 @@ import * as Resolve from "../src/Resolve.ts"
 
 const observer = (name: string, sink: Array<string>, extra: Partial<FlowsPlugin> = {}): FlowsPlugin => ({
   name,
-  hooks: { runStart: () => Effect.sync(() => void sink.push(name)) },
+  hooks: { configResolved: () => Effect.sync(() => void sink.push(name)) },
   ...extra
 })
 
@@ -26,13 +27,13 @@ describe("Resolve.resolve", () => {
       [observer("b", sink), null, [undefined, observer("c", sink)]]
     ]))
     expect(resolved.plugins.map((plugin) => plugin.name)).toEqual(["a", "b", "c"])
-    expect(namesFor(resolved, "runStart")).toEqual(["a", "b", "c"])
+    expect(namesFor(resolved, "configResolved")).toEqual(["a", "b", "c"])
   })
 
   it("accepts a single plugin, and yields no handler entry for an unused hook", async () => {
     const resolved = await run(Resolve.resolve(observer("solo", [])))
     expect(resolved.plugins).toHaveLength(1)
-    expect(resolved.handlers.has("runEnd")).toBe(false)
+    expect(resolved.handlers.has("config")).toBe(false)
   })
 
   it("orders pre, then normal, then post, stably within each partition", async () => {
@@ -45,29 +46,37 @@ describe("Resolve.resolve", () => {
       observer("p2", sink, { enforce: "post" }),
       observer("e2", sink, { enforce: "pre" })
     ]))
-    expect(namesFor(resolved, "runStart")).toEqual(["e1", "e2", "n1", "n2", "p1", "p2"])
+    expect(namesFor(resolved, "configResolved")).toEqual(["e1", "e2", "n1", "n2", "p1", "p2"])
   })
 
   it("re-partitions within a single hook by per-hook order, leaving other hooks alone", async () => {
     const nothing = () => Effect.void
     const resolved = await run(Resolve.resolve([
-      { name: "a", hooks: { runStart: { order: "post", handler: nothing }, runEnd: nothing } },
-      { name: "b", hooks: { runStart: nothing, runEnd: nothing } },
-      { name: "c", hooks: { runStart: { order: "pre", handler: nothing }, runEnd: nothing } }
+      { name: "a", hooks: { configResolved: { order: "post", handler: nothing }, config: nothing } },
+      { name: "b", hooks: { configResolved: nothing, config: nothing } },
+      { name: "c", hooks: { configResolved: { order: "pre", handler: nothing }, config: nothing } }
     ]))
-    expect(namesFor(resolved, "runStart")).toEqual(["c", "b", "a"])
-    expect(namesFor(resolved, "runEnd")).toEqual(["a", "b", "c"])
+    expect(namesFor(resolved, "configResolved")).toEqual(["c", "b", "a"])
+    expect(namesFor(resolved, "config")).toEqual(["a", "b", "c"])
   })
 
   it("keeps enforce dominant over per-hook order", async () => {
     const nothing = () => Effect.void
     const resolved = await run(Resolve.resolve([
-      { name: "post-plugin-pre-hook", enforce: "post", hooks: { runStart: { order: "pre", handler: nothing } } },
-      { name: "pre-plugin-post-hook", enforce: "pre", hooks: { runStart: { order: "post", handler: nothing } } }
+      {
+        name: "post-plugin-pre-hook",
+        enforce: "post",
+        hooks: { configResolved: { order: "pre", handler: nothing } }
+      },
+      {
+        name: "pre-plugin-post-hook",
+        enforce: "pre",
+        hooks: { configResolved: { order: "post", handler: nothing } }
+      }
     ]))
     // enforce partitions the plugin list first; per-hook order only re-partitions
     // the already-resolved order within this hook.
-    expect(namesFor(resolved, "runStart")).toEqual(["post-plugin-pre-hook", "pre-plugin-post-hook"])
+    expect(namesFor(resolved, "configResolved")).toEqual(["post-plugin-pre-hook", "pre-plugin-post-hook"])
   })
 
   it("fails with duplicate_name instead of last-wins", async () => {
@@ -119,7 +128,7 @@ describe("Resolve.resolve", () => {
   it("skips null and undefined hook entries", async () => {
     const sparse = {
       name: "sparse",
-      hooks: { runStart: undefined, runEnd: null }
+      hooks: { config: undefined, configResolved: null }
     } as unknown as FlowsPlugin
     const resolved = await run(Resolve.resolve([sparse]))
     expect(resolved.handlers.size).toBe(0)
@@ -129,7 +138,7 @@ describe("Resolve.resolve", () => {
     const resolved = await run(Resolve.resolve([observer("a", [])]))
     expect(Object.isFrozen(resolved)).toBe(true)
     expect(Object.isFrozen(resolved.plugins)).toBe(true)
-    expect(Object.isFrozen(resolved.handlers.get("runStart"))).toBe(true)
+    expect(Object.isFrozen(resolved.handlers.get("configResolved"))).toBe(true)
   })
 })
 
@@ -199,26 +208,15 @@ describe("Hooks entry helpers", () => {
 
   it("declares every catalogued hook exactly once", () => {
     expect(Object.isFrozen(Hooks.engineHooks)).toBe(true)
-    expect(
-      Object.values(Hooks.engineHooks).every((kind) => ["sequential", "parallel", "first", "waterfall"].includes(kind))
-    ).toBe(true)
+    expect(Hooks.engineHooks).toEqual({ config: "waterfall", configResolved: "parallel" })
   })
 })
 
 describe("Plugins.makeNoop", () => {
   it("dispatches nothing and answers none", async () => {
     const dispatcher = Plugins.makeNoop()
-    expect(dispatcher.handlers("runStart")).toEqual([])
-    expect(await run(dispatcher.parallel("runStart", { runId: "r" }))).toEqual([])
-    expect(await run(dispatcher.sequential("checkpoint", { runId: "r", stepKey: "s", seq: 1 }))).toEqual([])
-    const decision = await run(
-      dispatcher.first("resolveRetry", {
-        attempt: 1,
-        error: new Error("x"),
-        classification: "transient",
-        activity: { name: "a" }
-      })
-    )
-    expect(Option.isNone(decision)).toBe(true)
+    expect(dispatcher.handlers("configResolved")).toEqual([])
+    expect(await run(dispatcher.parallel("configResolved", Config.defaults))).toEqual([])
+    expect(await run(dispatcher.waterfall("config", {}, (previous, next) => ({ ...previous, ...next })))).toEqual({})
   })
 })

@@ -11,6 +11,8 @@
 
 - Kept plugin-built sealed keys run-local while capability identity is
   unknown.
+- Trimmed the base hook catalog to the configuration lifecycle that the shared
+  kernel dispatches; cell hosts declare their own bounded hook catalog.
 
 ## [0.1.0] - 2026-08-05
 
