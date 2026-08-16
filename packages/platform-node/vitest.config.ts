@@ -5,6 +5,13 @@ import { defineConfig } from "vitest/config"
 export default defineConfig({
   test: {
     environment: "node",
+    // These suites drive a real filesystem — deep trees, pathological removals,
+    // child-process lifecycles — under v8 coverage across parallel workers.
+    // Vitest's 5 s default put five correct cases over the wall on a developer
+    // macOS host (measured 2026-08-16); all 106 pass with room at this budget.
+    // Same reasoning, and same finite bound, as packages/database.
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     coverage: {
       enabled: true,
       provider: "v8",
