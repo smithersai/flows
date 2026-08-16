@@ -8,7 +8,7 @@ import type {
 	FetchLike,
 	StartAgentTurnRequest,
 } from "smithers-shared/NativeAgent";
-import type { CommandRegistry } from "../commands/Commands";
+import type { CommandRegistry } from "../flows/Commands";
 import type { NativeAgent } from "../native/NativeBridge";
 import type { AppStore } from "../state/AppStore";
 import { makeCollectionJournal } from "./CollectionJournal";

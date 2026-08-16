@@ -108,7 +108,7 @@ describe("auth is a conversation state — the chat is the only page", () => {
 		// scopes, and the sign-in action bound to the registered command.
 		expect(html).toContain("Smithers is a design-partner preview — sign in with GitHub to continue.");
 		expect(html).toContain("See your GitHub profile.");
-		const signIn = host.querySelector<HTMLButtonElement>('[data-command="auth.sign-in"]');
+		const signIn = host.querySelector<HTMLButtonElement>('[data-flow="auth.sign-in"]');
 		expect(signIn).not.toBeNull();
 		expect(signIn?.textContent).toContain("Sign in with GitHub");
 		expect(controller.commands.find("auth.sign-in")).toBeDefined();
@@ -176,7 +176,7 @@ describe("auth is a conversation state — the chat is the only page", () => {
 		expect(host.querySelector(".smithers-composer")).not.toBeNull();
 		expect(host.querySelector(".landing-surface")).toBeNull();
 		expect(markup()).toContain("design partners only right now");
-		const request = host.querySelector<HTMLButtonElement>('[data-command="auth.request-access"]');
+		const request = host.querySelector<HTMLButtonElement>('[data-flow="auth.request-access"]');
 		expect(request?.textContent).toContain("Request access");
 		expect(host.querySelector("textarea")?.placeholder).toContain("Request access");
 	});

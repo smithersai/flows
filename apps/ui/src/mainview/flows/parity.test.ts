@@ -82,10 +82,10 @@ const PRESENTATION_ONLY = [
 	"onMinimize(", // delegated: App.tsx binds it to card.minimize
 	"onConnectGitHub(", // delegated: App.tsx binds it to auth.sign-in
 	"onConnectLocal(", // delegated: App.tsx binds it to runCommandArgs("connector.add", ...)
-	"onRunWorkflow(", // delegated: App.tsx binds it to runCommandArgs("workflow.run", ...)
-	"onStopRun(", // delegated: App.tsx binds it to runCommandArgs("workflow.run.stop", ...)
-	"onRetryRun(", // delegated: App.tsx binds it to runCommandArgs("workflow.run.retry", ...)
-	"onChooseWorkflowRepo(", // delegated: App.tsx binds it to runCommandArgs("workflow.repo.choose", ...)
+	"onRunWorkflow(", // delegated: App.tsx binds it to runCommandArgs("flow.run", ...)
+	"onStopRun(", // delegated: App.tsx binds it to runCommandArgs("flow.run.stop", ...)
+	"onRetryRun(", // delegated: App.tsx binds it to runCommandArgs("flow.run.retry", ...)
+	"onChooseWorkflowRepo(", // delegated: App.tsx binds it to runCommandArgs("flow.repo.choose", ...)
 	"onConfirm}", // SurfaceChrome delegates to its binding site
 	"onCancel}", // dismissing a dialog changes no application state
 	"onClose}", // SurfaceChrome delegates to its binding site
@@ -160,7 +160,7 @@ describe("launch-law parity: every affordance is a command", () => {
 		expect(app).toContain('"repos.watch.confirm"');
 		expect(app).toContain('runCommandArgs("card.maximize"');
 		expect(app).toContain('runCommandArgs("connector.add"');
-		expect(app).toContain('runCommandArgs("workflow.run"');
+		expect(app).toContain('runCommandArgs("flow.run"');
 		const connectors = files["../ConnectorsSurface.tsx"];
 		expect(connectors).toContain('runCommandArgs("connector.downgrade"');
 		expect(connectors).toContain('runCommandArgs("connector.remove"');
@@ -196,22 +196,22 @@ describe("launch-law parity: every affordance is a command", () => {
 		// The pill row binds commands directly (§2a): the suggestion markup
 		// carries the command, and the click invokes it — never send().
 		const app = files["../App.tsx"] ?? "";
-		expect(app).toContain("data-command={suggestion.command}");
-		expect(app).not.toContain('data-command="suggest"');
+		expect(app).toContain("data-flow={suggestion.command}");
+		expect(app).not.toContain('data-flow="suggest"');
 		// No standing composer status chrome (§2g): calm is the budget.
 		expect(app).not.toContain("statusText=");
 	});
 
 	/*
 	 * Wave 13 C-1 — the gap the live sweep found: the static gate verified
-	 * data-command bindings and allowlisted presentation-only handlers, but a
+	 * data-flow bindings and allowlisted presentation-only handlers, but a
 	 * button with NEITHER (the "Surfaces" menu trigger, whose open/close was
 	 * allowlisted as local state) shipped unbound. This is the live C-1 rule
-	 * applied to the source: a button without a data-command binding must have
+	 * applied to the source: a button without a data-flow binding must have
 	 * a static label whose words resolve to a registered command's name or
 	 * summary — exactly what the launch checklist checks against the DOM.
 	 */
-	test("a button with no data-command binding has a label that resolves to a registered command", () => {
+	test("a button with no data-flow binding has a label that resolves to a registered command", () => {
 		const registrySource = read("./Flows.ts");
 		const names = [...registrySource.matchAll(/\bname:\s*"([^"]+)"/g)].map((match) => match[1] as string);
 		const summaries = [...registrySource.matchAll(/\bsummary:\s*"([^"]+)"/g)].map((match) =>
@@ -240,23 +240,23 @@ describe("launch-law parity: every affordance is a command", () => {
 				while (start > 0 && !/^\s*<[A-Za-z]/.test(lines[start] ?? "")) start -= 1;
 				if (!/^\s*<(?:button|Button)\b/.test(lines[start] ?? "")) return;
 				const chunk = lines.slice(start, Math.min(lines.length, index + 12)).join("\n");
-				if (chunk.includes("data-command")) return;
+				if (chunk.includes("data-flow")) return;
 				if (!resolves(label)) {
-					violations.push(`${file}: button "${label}" has no data-command and resolves to no registered command`);
+					violations.push(`${file}: button "${label}" has no data-flow and resolves to no registered command`);
 				}
 			});
 		}
 		expect(violations).toEqual([]);
 	});
 
-	test("every data-command binding names a registered command, and the app exposes the registry manifest", () => {
+	test("every data-flow binding names a registered command, and the app exposes the registry manifest", () => {
 		// The launch checklist reads the DOM, not the source: `.app-shell`
-		// carries the live registry manifest (data-commands) and every
-		// machine-legible affordance declares its command (data-command). A
+		// carries the live registry manifest (data-flows) and every
+		// machine-legible affordance declares its command (data-flow). A
 		// binding naming a command the registry does not have is a lie both
 		// gates can catch here.
 		const app = files["../App.tsx"];
-		expect(app).toContain("data-commands={controller.commands.all()");
+		expect(app).toContain("data-flows={controller.commands.all()");
 		// Registry names from the registry source itself — the same file the
 		// runtime registers — so a renamed command fails this gate.
 		const registrySource = read("./Flows.ts");
@@ -266,13 +266,13 @@ describe("launch-law parity: every affordance is a command", () => {
 		expect(declared.size).toBeGreaterThan(0);
 		const violations: Array<string> = [];
 		for (const [file, source] of Object.entries(files)) {
-			for (const match of source.matchAll(/data-command="([^"]+)"/g)) {
+			for (const match of source.matchAll(/data-flow="([^"]+)"/g)) {
 				const name = match[1];
 				if (name !== undefined && !declared.has(name)) {
-					violations.push(`${file}: data-command="${name}" is not a registered command`);
+					violations.push(`${file}: data-flow="${name}" is not a registered command`);
 				}
 			}
-			// SurfaceHeader renders its close affordance's data-command from
+			// SurfaceHeader renders its close affordance's data-flow from
 			// closeCommand, so the literal lives at the call site and is gated here.
 			for (const match of source.matchAll(/closeCommand="([^"]+)"/g)) {
 				const name = match[1];

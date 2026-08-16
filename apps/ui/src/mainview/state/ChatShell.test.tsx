@@ -257,10 +257,10 @@ describe("chat-first shell: panes never replace the conversation", () => {
 		await view.act(() => void controller.runCommand("connect"));
 
 		const close = view.host.querySelector<HTMLButtonElement>(
-			'.embedded-pane [data-command="chat"]',
+			'.embedded-pane [data-flow="chat"]',
 		);
 		expect(close).not.toBeNull();
-		expect(controller.commands.find(close?.dataset.command ?? "")).toBeDefined();
+		expect(controller.commands.find(close?.dataset.flow ?? "")).toBeDefined();
 
 		// Clicking the affordance itself — not the command behind it — closes it.
 		await view.act(() => close?.click());
@@ -283,7 +283,7 @@ describe("chat-first shell: panes never replace the conversation", () => {
 			expect(trigger).not.toBeNull();
 			await view.act(() => trigger?.click());
 			const item = view.host.querySelector<HTMLButtonElement>(
-				`.composer-menu-item[data-command="${command}"]`,
+				`.composer-menu-item[data-flow="${command}"]`,
 			);
 			expect(item).not.toBeNull();
 
@@ -293,7 +293,7 @@ describe("chat-first shell: panes never replace the conversation", () => {
 			// The toggle law (§2c): invoking the open pane's entry returns to chat.
 			await view.act(() => trigger?.click());
 			const again = view.host.querySelector<HTMLButtonElement>(
-				`.composer-menu-item[data-command="${command}"]`,
+				`.composer-menu-item[data-flow="${command}"]`,
 			);
 			expect(again?.getAttribute("aria-pressed")).toBe("true");
 			await view.act(() => again?.click());

@@ -270,8 +270,8 @@ describe("server-emitted card frames", () => {
 			onRunCommand: () => {},
 		};
 		const runCard = (phase: "running" | "quiet" | "stopped"): Card => ({
-			id: "workflow-run-run-1",
-			kind: "workflow-run",
+			id: "flow-run-run-1",
+			kind: "flow-run",
 			title: "Creating a workflow — will/flows",
 			status: "active",
 			createdAt: 5,
@@ -291,8 +291,8 @@ describe("server-emitted card frames", () => {
 		expect(quiet).not.toContain("Running");
 		expect(quiet).toContain("Quiet");
 		// The two acts are on the card, and both are registered commands.
-		expect(quiet).toContain('data-command="workflow.run.retry"');
-		expect(quiet).toContain('data-command="workflow.run.stop"');
+		expect(quiet).toContain('data-flow="flow.run.retry"');
+		expect(quiet).toContain('data-flow="flow.run.stop"');
 
 		const stopped = renderToStaticMarkup(<CardView card={runCard("stopped")} {...cardViewHandlers} />);
 		expect(stopped).toContain("I stopped watching this run.");

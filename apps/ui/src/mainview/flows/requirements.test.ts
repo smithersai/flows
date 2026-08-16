@@ -178,7 +178,7 @@ describe("requirement axis — the run path", () => {
 	test("requirements resolve one at a time: sign-in first, then the repo selection, then the command", async () => {
 		const { store, controller } = await freshController();
 		await signedOut(store);
-		await controller.commands.run("workflow.create", "nightly test triage");
+		await controller.commands.run("flow.create", "nightly test triage");
 		await settled();
 		expect(store.session().pendingCommand?.requirement).toBe("signed-in");
 		expect(store.session().pendingCommand?.args).toBe("nightly test triage");
@@ -190,7 +190,7 @@ describe("requirement axis — the run path", () => {
 		controller.resumeDeferredCommand();
 		await settled();
 		const stepped = store.session().pendingCommand;
-		expect(stepped?.name).toBe("workflow.create");
+		expect(stepped?.name).toBe("flow.create");
 		expect(stepped?.requirement).toBe("repos-selected");
 
 		// The confirmed selection satisfies the second requirement; the command

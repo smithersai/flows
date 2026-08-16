@@ -150,7 +150,7 @@ describe("wave 10 — the derived pill row (§2a/§2f)", () => {
 		const { host } = mount(controller);
 		const pills = host.querySelectorAll<HTMLElement>(".smithers-suggestion");
 		expect(pills).toHaveLength(1);
-		expect(pills[0]?.dataset.command).toBe("auth.sign-in");
+		expect(pills[0]?.dataset.flow).toBe("auth.sign-in");
 		expect(pills[0]?.textContent).toContain("Sign in with GitHub");
 	});
 
@@ -165,7 +165,7 @@ describe("wave 10 — the derived pill row (§2a/§2f)", () => {
 		const { host } = mount(controller);
 		const pills = host.querySelectorAll<HTMLElement>(".smithers-suggestion");
 		expect(pills).toHaveLength(1);
-		expect(pills[0]?.dataset.command).toBe("repos.watch");
+		expect(pills[0]?.dataset.flow).toBe("repos.watch");
 		expect(pills[0]?.dataset.gold).toBe("true");
 	});
 });
@@ -247,7 +247,7 @@ describe("wave 10 — the chooser card, keyboard-complete", () => {
 		let card = store.collections.cards.get("repo-chooser");
 		expect(card?.kind === "repo-chooser" ? card.payload.selected : []).toEqual(["will/flows"]);
 
-		act(() => host.querySelector<HTMLButtonElement>('[data-command="repos.watch.confirm"]')?.click());
+		act(() => host.querySelector<HTMLButtonElement>('[data-flow="repos.watch.confirm"]')?.click());
 		await settled();
 		await settled();
 		expect(puts).toHaveLength(1);
@@ -270,7 +270,7 @@ describe("wave 10 — admin-only affordances are absent, not hidden (§2/§2b)",
 		expect(host.querySelector(".corner-reset-btn")).toBeNull();
 		expect(host.querySelector(".devtools-panel")).toBeNull();
 		// The registry manifest in the DOM carries no admin or reset names.
-		const manifest = host.querySelector(".app-shell")?.getAttribute("data-commands") ?? "";
+		const manifest = host.querySelector(".app-shell")?.getAttribute("data-flows") ?? "";
 		expect(manifest).not.toContain("admin.");
 		expect(manifest).not.toContain("reset");
 		expect(manifest).not.toContain("debug.");
@@ -315,7 +315,7 @@ describe("wave 10 — the maximize transition (§2d′)", () => {
 		expect(card).not.toBeNull();
 		expect(card?.dataset.maximized).toBe("false");
 
-		const button = host.querySelector<HTMLButtonElement>('[data-command="card.maximize"]');
+		const button = host.querySelector<HTMLButtonElement>('[data-flow="card.maximize"]');
 		expect(button).not.toBeNull();
 		act(() => button?.click());
 		const maximizedCard = host.querySelector<HTMLElement>('.smithers-card[data-kind="status"]');

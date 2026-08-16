@@ -2,7 +2,7 @@
  * The PR (landing) cards: the list ("pr-list") and the detail ("pr"). A land
  * is QUEUED (202) — the card language says "queued", never a terminal claim.
  * Every act binds a registered command through onRunCommand and carries
- * data-command (parity.test.ts gates this).
+ * data-flow (parity.test.ts gates this).
  */
 import { Badge, Button, Markdown, RowButton, StatusPill } from "@smthrs/ui";
 import { GitPullRequest, ListChecks, MessageSquare } from "lucide-react";
@@ -23,7 +23,7 @@ export const LandingListCardBody = ({
 			card.payload.landings.map((landing) => (
 				<li key={landing.number}>
 					<RowButton
-						data-command="prs.view"
+						data-flow="prs.view"
 						aria-label={`Open pull request #${landing.number}`}
 						onClick={() => onRunCommand("prs.view", `${landing.number} ${card.payload.repo}`)}
 					>
@@ -97,7 +97,7 @@ export const LandingCardBody = ({
 		<div className="world-card-row">
 			<Button
 				size="sm"
-				data-command="prs.land"
+				data-flow="prs.land"
 				onClick={() => onRunCommand("prs.land", `${card.payload.number} ${card.payload.repo}`)}
 			>
 				Land (queue merge)
@@ -105,7 +105,7 @@ export const LandingCardBody = ({
 			<Button
 				size="sm"
 				variant="outline"
-				data-command="prs.review"
+				data-flow="prs.review"
 				onClick={() => onRunCommand("prs.review", `${card.payload.number} approve ${card.payload.repo}`)}
 			>
 				Approve
@@ -113,7 +113,7 @@ export const LandingCardBody = ({
 			<Button
 				size="sm"
 				variant="outline"
-				data-command="prs.review"
+				data-flow="prs.review"
 				onClick={() =>
 					onRunCommand("prs.review", `${card.payload.number} request-changes ${card.payload.repo}`)
 				}

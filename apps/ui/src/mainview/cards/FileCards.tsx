@@ -3,7 +3,7 @@
  * /files.list or /files.read, and a file view ("file") rendered as a fenced
  * code block, honest about truncation. Every row is a command binding through
  * onRunCommand — the one delegated dispatch CardView threads from App.tsx —
- * and carries data-command with its registered command name.
+ * and carries data-flow with its registered command name.
  */
 import { Button } from "@smthrs/ui";
 import { FileText, Folder } from "lucide-react";
@@ -39,7 +39,7 @@ export const FileListCardBody = ({
 								<Button
 									variant="ghost"
 									size="sm"
-									data-command="files.list"
+									data-flow="files.list"
 									onClick={() => onRunCommand("files.list", `${childPath(path, entry.name)} ${repo}`)}
 								>
 									<Folder size={12} aria-hidden="true" />
@@ -49,7 +49,7 @@ export const FileListCardBody = ({
 								<Button
 									variant="ghost"
 									size="sm"
-									data-command="files.read"
+									data-flow="files.read"
 									onClick={() => onRunCommand("files.read", `${childPath(path, entry.name)} ${repo}`)}
 								>
 									<FileText size={12} aria-hidden="true" />

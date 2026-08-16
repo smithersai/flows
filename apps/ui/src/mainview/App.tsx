@@ -77,7 +77,7 @@ function CopyMessageButton({
 			variant="ghost"
 			size="icon"
 			className="message-action"
-			data-command="copy-message"
+			data-flow="copy-message"
 			aria-label={copied ? "Copied" : "Copy message"}
 			title={copied ? "Copied" : "Copy message"}
 			onClick={() => {
@@ -194,7 +194,7 @@ function ComposerMenu({
 				variant="ghost"
 				size="sm"
 				className="composer-action composer-menu-trigger"
-				data-command="surfaces"
+				data-flow="surfaces"
 				aria-haspopup="menu"
 				aria-expanded={open}
 				aria-label="Surfaces"
@@ -213,7 +213,7 @@ function ComposerMenu({
 							key={entry.command}
 							role="menuitem"
 							className="composer-menu-item"
-							data-command={entry.command}
+							data-flow={entry.command}
 							data-active={entry.active}
 							aria-pressed={entry.active}
 							tabIndex={index === highlighted ? 0 : -1}
@@ -317,7 +317,7 @@ function ComposerConnect({ controller }: { readonly controller: AppController })
 				variant="ghost"
 				size="sm"
 				className="composer-action composer-connect-trigger"
-				data-command="connect"
+				data-flow="connect"
 				data-connected={connected}
 				aria-haspopup="menu"
 				aria-expanded={open}
@@ -346,7 +346,7 @@ function ComposerConnect({ controller }: { readonly controller: AppController })
 							key={connector.id}
 							role="menuitem"
 							className="composer-menu-item"
-							data-command="connect"
+							data-flow="connect"
 							data-active="true"
 							onClick={() => {
 								setOpen(false);
@@ -363,7 +363,7 @@ function ComposerConnect({ controller }: { readonly controller: AppController })
 							type="button"
 							role="menuitem"
 							className="composer-menu-item"
-							data-command="connector.add"
+							data-flow="connector.add"
 							disabled={selecting}
 							onClick={() => {
 								setOpen(false);
@@ -379,7 +379,7 @@ function ComposerConnect({ controller }: { readonly controller: AppController })
 							type="button"
 							role="menuitem"
 							className="composer-menu-item"
-							data-command="repos.watch"
+							data-flow="repos.watch"
 							onClick={() => {
 								setOpen(false);
 								controller.runCommand("repos.watch");
@@ -393,7 +393,7 @@ function ComposerConnect({ controller }: { readonly controller: AppController })
 							type="button"
 							role="menuitem"
 							className="composer-menu-item"
-							data-command="auth.sign-in"
+							data-flow="auth.sign-in"
 							onClick={() => {
 								setOpen(false);
 								controller.runCommand("auth.sign-in");
@@ -407,7 +407,7 @@ function ComposerConnect({ controller }: { readonly controller: AppController })
 						type="button"
 						role="menuitem"
 						className="composer-menu-item"
-						data-command="repos.import"
+						data-flow="repos.import"
 						onClick={() => {
 							setOpen(false);
 							controller.runCommand("repos.import");
@@ -420,7 +420,7 @@ function ComposerConnect({ controller }: { readonly controller: AppController })
 						type="button"
 						role="menuitem"
 						className="composer-menu-item"
-						data-command="connect"
+						data-flow="connect"
 						onClick={() => {
 							setOpen(false);
 							controller.runCommand("connect");
@@ -627,13 +627,13 @@ function App({ controller }: { readonly controller: AppController }) {
 	};
 
 	return (
-		// data-commands is the live registry manifest (visible AND hidden names):
+		// data-flows is the live registry manifest (visible AND hidden names):
 		// under commands-are-the-app the registry is not secret — the agent tool
 		// lists it to the model — and the launch checklist verifies every
-		// data-command binding against exactly this surface.
+		// data-flow binding against exactly this surface.
 		<div
 			className="app-shell"
-			data-commands={controller.commands.all().map((command) => command.name).join(" ")}
+			data-flows={controller.commands.all().map((command) => command.name).join(" ")}
 			onKeyDown={(event) => {
 				if (event.key === "Escape" && session.maximizedCardId !== null) {
 					controller.runCommand("card.minimize");
@@ -741,10 +741,10 @@ function App({ controller }: { readonly controller: AppController }) {
 									onMinimize={() => controller.runCommand("card.minimize")}
 									onConnectGitHub={() => controller.runCommand("auth.sign-in")}
 									onConnectLocal={() => controller.runCommandArgs("connector.add", "read")}
-									onRunWorkflow={(name) => controller.runCommandArgs("workflow.run", name)}
-									onStopRun={(id) => controller.runCommandArgs("workflow.run.stop", id)}
-									onRetryRun={(id) => controller.runCommandArgs("workflow.run.retry", id)}
-									onChooseWorkflowRepo={(name) => controller.runCommandArgs("workflow.repo.choose", name)}
+									onRunWorkflow={(name) => controller.runCommandArgs("flow.run", name)}
+									onStopRun={(id) => controller.runCommandArgs("flow.run.stop", id)}
+									onRetryRun={(id) => controller.runCommandArgs("flow.run.retry", id)}
+									onChooseWorkflowRepo={(name) => controller.runCommandArgs("flow.repo.choose", name)}
 									worldDocuments={worldDocuments}
 									onChangeWorldDocument={(id, body) => controller.changeWorldDocument(id, body)}
 									onRunCommand={(name, commandArgs) =>
@@ -801,7 +801,7 @@ function App({ controller }: { readonly controller: AppController }) {
 									{entry.message.action !== undefined ? (
 										<Button
 											className="message-cta"
-											data-command={entry.message.action.command}
+											data-flow={entry.message.action.command}
 											autoFocus={entry.message.id === "auth-state"}
 											onClick={() => controller.runCommand(entry.message.action?.command ?? "")}
 										>
@@ -837,7 +837,7 @@ function App({ controller }: { readonly controller: AppController }) {
 								<Suggestion
 									className="smithers-suggestion"
 									data-gold={suggestion.emphasis === "primary"}
-									data-command={suggestion.command}
+									data-flow={suggestion.command}
 									key={suggestion.id}
 									suggestion={suggestion.label}
 									disabled={typing}

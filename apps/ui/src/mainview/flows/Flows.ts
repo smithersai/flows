@@ -326,7 +326,7 @@ export const baseFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> => 
 		 * with more than one watched repo, the chooser-among-watched asks — the
 		 * target is a genuine user choice, not a guess.
 		 */
-		name: "workflow.create",
+		name: "flow.create",
 		summary: "Create a Smithers workflow from a description",
 		args: "<description> [owner/repo]",
 		requires: ["signed-in", "repos-selected"],
@@ -347,7 +347,7 @@ export const baseFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> => 
 		 * them and provisions on ITS guess. Hidden keeps it out of the catalog;
 		 * user-only keeps it un-executable even by a model that guesses the name.
 		 */
-		name: "workflow.repo.choose",
+		name: "flow.repo.choose",
 		summary: "Choose which watched repository a workflow belongs to",
 		hidden: true,
 		userOnly: true,
@@ -362,7 +362,7 @@ export const baseFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> => 
 		 * hidden from the slash menu and the catalog, and user-only so the model
 		 * cannot stop (or restart) a watch on the human's behalf.
 		 */
-		name: "workflow.run.stop",
+		name: "flow.run.stop",
 		summary: "Stop watching a run",
 		hidden: true,
 		userOnly: true,
@@ -371,7 +371,7 @@ export const baseFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> => 
 		handler: ({ cardId }) => actions.stopWatchingRun(cardId),
 	}),
 	flow({
-		name: "workflow.run.retry",
+		name: "flow.run.retry",
 		summary: "Check a run again",
 		hidden: true,
 		userOnly: true,
@@ -380,14 +380,14 @@ export const baseFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> => 
 		handler: ({ cardId }) => actions.retryRunWatch(cardId),
 	}),
 	flow({
-		name: "workflow.list",
+		name: "flow.list",
 		summary: "List the workflows on your workspace",
 		requires: ["signed-in"],
 		input: NoPayload,
 		handler: () => actions.listWorkspaceWorkflows(),
 	}),
 	flow({
-		name: "workflow.run",
+		name: "flow.run",
 		summary: "Run a workflow on your workspace",
 		args: "<name> [owner/repo]",
 		requires: ["signed-in", "repos-selected"],
@@ -690,7 +690,7 @@ export const baseFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> => 
 	flow({
 		/*
 		 * Landing is the human's consequential act (it queues a merge): user-only,
-		 * like workflow.repo.choose — the model can show the PR card, never queue the
+		 * like flow.repo.choose — the model can show the PR card, never queue the
 		 * land itself.
 		 */
 		name: "prs.land",
@@ -830,7 +830,7 @@ export const baseFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> => 
 		 * so THIS is where "show me everything" lives — for the user typed, and
 		 * for the agent answering "what can you do".
 		 */
-		name: "commands",
+		name: "flows",
 		summary: "List everything Smithers can do",
 		input: NoPayload,
 		handler: () => actions.showCommandCatalog(),

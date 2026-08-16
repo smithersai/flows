@@ -264,7 +264,7 @@ export const CardSchema = z.discriminatedUnion("kind", [
 	 */
 	z.object({
 		...cardBaseShape,
-		kind: z.literal("workflow-run"),
+		kind: z.literal("flow-run"),
 		payload: z.object({
 			repo: z.string(),
 			runId: z.string(),
@@ -301,7 +301,7 @@ export const CardSchema = z.discriminatedUnion("kind", [
 			quietForMs: z.number().int().nonnegative().optional(),
 		}),
 	}),
-	/* The workspace's workflows as an embedded card (workflow.list). */
+	/* The workspace's workflows as an embedded card (flow.list). */
 	z.object({
 		...cardBaseShape,
 		kind: z.literal("workflow-list"),

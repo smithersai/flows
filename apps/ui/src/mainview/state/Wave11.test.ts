@@ -229,9 +229,9 @@ const signIn = async (store: Awaited<ReturnType<typeof webStore>>, watched: stri
 	await settle(2);
 };
 
-const runCard = (store: Awaited<ReturnType<typeof webStore>>): Extract<Card, { kind: "workflow-run" }> | undefined => {
-	const card = store.collections.cards.get("workflow-run-run-w11");
-	return card?.kind === "workflow-run" ? card : undefined;
+const runCard = (store: Awaited<ReturnType<typeof webStore>>): Extract<Card, { kind: "flow-run" }> | undefined => {
+	const card = store.collections.cards.get("flow-run-run-w11");
+	return card?.kind === "flow-run" ? card : undefined;
 };
 
 /** A scripted tool-loop agent (the ToolLoop.test.ts pattern). */
@@ -279,7 +279,7 @@ describe("wave 11 — the full journey: make me a workflow", () => {
 
 		double.emit({ seq: 1, event: "RunStarted" }, { seq: 2, event: "NodeStarted", payload: { nodeId: "clarify" } });
 		const outcome = await controller.commands.run(
-			"workflow.create",
+			"flow.create",
 			"a workflow that summarizes my open issues",
 		);
 		expect(outcome.status).toBe("executed");
@@ -294,7 +294,7 @@ describe("wave 11 — the full journey: make me a workflow", () => {
 		]);
 		// The provision toast reported and then SETTLED into its result — the
 		// wave-9 law: a toast past the debounce never keeps its running sentence.
-		const toast = [...store.collections.toasts.values()].find((entry) => entry.key.startsWith("workflow.provision"));
+		const toast = [...store.collections.toasts.values()].find((entry) => entry.key.startsWith("flow.provision"));
 		expect(toast?.status).toBe("ok");
 		expect(toast?.title).toBe("Workspace ready");
 
@@ -345,7 +345,7 @@ describe("wave 11 — the full journey: make me a workflow", () => {
 		expect(done?.payload.lastSeq).toBe(5);
 	});
 
-	test("the agent invoking workflow.create from the conversation renders the card, never a surface", async () => {
+	test("the agent invoking flow.create from the conversation renders the card, never a surface", async () => {
 		const store = await webStore();
 		const double = relay();
 		const { agent, requests } = scriptedToolAgent([
@@ -356,7 +356,7 @@ describe("wave 11 — the full journey: make me a workflow", () => {
 					name: "commands",
 					arguments: JSON.stringify({
 						action: "execute",
-						name: "workflow.create",
+						name: "flow.create",
 						args: "a workflow that summarizes my open issues",
 					}),
 				},
@@ -409,7 +409,7 @@ describe("wave 11 — the watched set is the universe", () => {
 		});
 		await signIn(store);
 
-		const outcome = await controller.commands.run("workflow.run", "review-pr someone/else");
+		const outcome = await controller.commands.run("flow.run", "review-pr someone/else");
 		expect(said(outcome)).toContain("someone/else");
 		expect(store.collections.cards.get("repo-chooser")).toBeDefined();
 		expect(double.calls.some((call) => call.path === "/api/workflow/provision")).toBe(false);
@@ -432,7 +432,7 @@ describe("wave 11 — the watched set is the universe", () => {
 		});
 		await signIn(store, null);
 
-		await controller.commands.run("workflow.create", "summarize my issues");
+		await controller.commands.run("flow.create", "summarize my issues");
 		expect(double.calls.some((call) => call.path === "/api/workflow/provision")).toBe(false);
 		expect(store.collections.cards.get("repo-chooser")).toBeDefined();
 	});
@@ -442,7 +442,7 @@ describe("wave 11 — the watched set is the universe", () => {
 		const double = relay();
 		const controller = createAppController(store, unavailableRepositories, silentAgent(), double.services);
 
-		for (const command of ["workflow.create", "workflow.list", "workflow.run"]) {
+		for (const command of ["flow.create", "flow.list", "flow.run"]) {
 			const outcome = await controller.commands.run(command, "x");
 			expect(said(outcome)).toContain("Sign in");
 		}
@@ -459,7 +459,7 @@ describe("wave 11 — the run card never silently stalls", () => {
 		await signIn(store);
 
 		double.emit({ seq: 1, event: "RunStarted" });
-		await controller.commands.run("workflow.run", "review-pr");
+		await controller.commands.run("flow.run", "review-pr");
 		await settle(20);
 		expect(runCard(store)?.payload.phase).toBe("running");
 
@@ -482,7 +482,7 @@ describe("wave 11 — the run card never silently stalls", () => {
 		await signIn(store);
 
 		double.emit({ seq: 1, event: "RunStarted" }, { seq: 2, event: "NodeStarted", payload: { nodeId: "plan" } });
-		await controller.commands.run("workflow.run", "review-pr");
+		await controller.commands.run("flow.run", "review-pr");
 		await settle(25);
 
 		const afterSeqs = double.calls
@@ -502,7 +502,7 @@ describe("wave 11 — the run card never silently stalls", () => {
 		const controller = createAppController(store, unavailableRepositories, silentAgent(), double.services);
 		await signIn(store);
 
-		await controller.commands.run("workflow.run", "review-pr");
+		await controller.commands.run("flow.run", "review-pr");
 		double.fail();
 		await settle(25);
 		expect(runCard(store)?.payload.phase).toBe("failed");
@@ -522,7 +522,7 @@ describe("wave 11 — the run card never silently stalls", () => {
 		const controller = createAppController(store, unavailableRepositories, silentAgent(), double.services);
 		await signIn(store);
 
-		await controller.commands.run("workflow.run", "review-pr");
+		await controller.commands.run("flow.run", "review-pr");
 		// The engine's own sentence for why the step could not run, verbatim
 		// from a real 0.33 stream.
 		double.emit(
@@ -569,7 +569,7 @@ describe("wave 11 — the run card never silently stalls", () => {
 		const controller = createAppController(store, unavailableRepositories, silentAgent(), double.services);
 		await signIn(store);
 
-		await controller.commands.run("workflow.run", "review-pr");
+		await controller.commands.run("flow.run", "review-pr");
 		double.parkUnannounced("open-pr");
 		double.emit({ seq: 1, event: "NodeWaitingApproval", payload: { nodeId: "open-pr" } });
 		await settle(30);
@@ -601,7 +601,7 @@ describe("wave 11 — the run card never silently stalls", () => {
 		const controller = createAppController(store, unavailableRepositories, silentAgent(), double.services);
 		await signIn(store);
 
-		await controller.commands.run("workflow.run", "review-pr");
+		await controller.commands.run("flow.run", "review-pr");
 		double.emit(
 			{ seq: 1, event: "FrameCommitted", payload: { frameNo: 1, xmlHash: "fca9f7" } },
 			{ seq: 2, event: "SnapshotCaptured", payload: { frameNo: 1, contentHash: "299dd3" } },
@@ -632,7 +632,7 @@ describe("wave 11 — the run card never silently stalls", () => {
 		});
 		await signIn(store);
 
-		const outcome = await controller.commands.run("workflow.create", "summarize my issues");
+		const outcome = await controller.commands.run("flow.create", "summarize my issues");
 		expect(said(outcome)).toContain("no free workspace capacity");
 		expect(double.state.launched).toHaveLength(0);
 		expect(double.calls.filter((call) => call.path === "/api/workflow/provision")).toHaveLength(1);
@@ -642,13 +642,13 @@ describe("wave 11 — the run card never silently stalls", () => {
 });
 
 describe("wave 11 — workflows are presented", () => {
-	test("workflow.list renders the workspace's workflows as an embedded card", async () => {
+	test("flow.list renders the workspace's workflows as an embedded card", async () => {
 		const store = await webStore();
 		const double = relay();
 		const controller = createAppController(store, unavailableRepositories, silentAgent(), double.services);
 		await signIn(store);
 
-		const outcome = await controller.commands.run("workflow.list");
+		const outcome = await controller.commands.run("flow.list");
 		expect(outcome.status).toBe("executed");
 		expect(said(outcome)).toContain("create-workflow");
 		const card = store.collections.cards.get(`workflow-list-${REPO}`);
@@ -662,13 +662,13 @@ describe("wave 11 — workflows are presented", () => {
 		expect(store.collections.sessions.get("main")?.surface).toBe("chat");
 	});
 
-	test("workflow.run refuses a name the workspace does not have, and names what it does have", async () => {
+	test("flow.run refuses a name the workspace does not have, and names what it does have", async () => {
 		const store = await webStore();
 		const double = relay();
 		const controller = createAppController(store, unavailableRepositories, silentAgent(), double.services);
 		await signIn(store);
 
-		const outcome = await controller.commands.run("workflow.run", "nope");
+		const outcome = await controller.commands.run("flow.run", "nope");
 		expect(said(outcome)).toContain("There's no workflow called nope");
 		expect(said(outcome)).toContain("create-workflow");
 		expect(double.state.launched).toHaveLength(0);
@@ -682,7 +682,7 @@ describe("wave 11 — workflows are presented", () => {
 		const controller = createAppController(store, unavailableRepositories, silentAgent(), double.services);
 		await signIn(store);
 
-		const outcome = await controller.commands.run("workflow.create", "summarize my issues");
+		const outcome = await controller.commands.run("flow.create", "summarize my issues");
 		expect(said(outcome)).toContain("Unknown workflow: create-workflow");
 		expect(double.state.launched).toHaveLength(0);
 		// It tried the launch — it did not refuse on a stale list.
@@ -713,7 +713,7 @@ describe("wave 11 — workflows are presented", () => {
 		});
 		await signIn(store);
 
-		const outcome = await controller.commands.run("workflow.create", "summarize my issues");
+		const outcome = await controller.commands.run("flow.create", "summarize my issues");
 		expect(said(outcome)).toContain("run-w11");
 		expect(double.state.launched[0]?.workflow).toBe("create-workflow");
 	});
@@ -730,10 +730,10 @@ describe("wave 11 — workflows are presented", () => {
 		const controller = createAppController(store, unavailableRepositories, silentAgent(), double.services);
 		await signIn(store);
 
-		const created = said(await controller.commands.run("workflow.create", "summarize my open issues"));
+		const created = said(await controller.commands.run("flow.create", "summarize my open issues"));
 		expect(created).toBe(`run-started workflow=create-workflow run=run-w11 repo=${REPO}`);
 
-		const ran = said(await controller.commands.run("workflow.run", "review-pr"));
+		const ran = said(await controller.commands.run("flow.run", "review-pr"));
 		expect(ran).toBe(`run-started workflow=review-pr run=run-w11 repo=${REPO}`);
 	});
 
@@ -747,7 +747,7 @@ describe("wave 11 — workflows are presented", () => {
 			name: "commands",
 			arguments: JSON.stringify({ action: "list" }),
 		});
-		for (const name of ["workflow.create", "workflow.list", "workflow.run"]) {
+		for (const name of ["flow.create", "flow.list", "flow.run"]) {
 			expect(listed).toContain(name);
 		}
 		/*
@@ -756,12 +756,12 @@ describe("wave 11 — workflows are presented", () => {
 		 * which-repo answer and a quiet run's stop/retry) — affordances the
 		 * brief names, invisible to the slash menu and the tool catalog alike.
 		 */
-		expect(controller.commands.all().filter((command) => command.name.startsWith("workflow."))).toHaveLength(6);
+		expect(controller.commands.all().filter((command) => command.name.startsWith("flow."))).toHaveLength(6);
 		expect(
 			controller.commands
 				.all()
-				.filter((command) => command.name.startsWith("workflow.") && command.hidden !== true)
+				.filter((command) => command.name.startsWith("flow.") && command.hidden !== true)
 				.map((command) => command.name),
-		).toEqual(["workflow.create", "workflow.list", "workflow.run"]);
+		).toEqual(["flow.create", "flow.list", "flow.run"]);
 	});
 });

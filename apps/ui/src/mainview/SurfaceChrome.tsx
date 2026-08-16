@@ -25,7 +25,7 @@ export function SurfaceHeader({
 	 * The registered command the close affordance runs. A pane inside the
 	 * chat-first shell never "exits" to somewhere else — closing it is the
 	 * back-to-conversation command — and naming it here makes the binding
-	 * legible in the DOM (data-command), which is the surface the launch
+	 * legible in the DOM (data-flow), which is the surface the launch
 	 * checklist reads.
 	 */
 	readonly closeCommand: string;
@@ -46,7 +46,7 @@ export function SurfaceHeader({
 				<Button
 					variant="ghost"
 					size="icon"
-					data-command={closeCommand}
+					data-flow={closeCommand}
 					aria-label="Back to the conversation"
 					title="Back to the conversation"
 					onClick={onClose}

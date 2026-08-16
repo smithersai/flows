@@ -105,7 +105,7 @@ describe("wave 13 §F — the capability section is generated from the live cata
 		const prompt = smithersInstructions(
 			[
 				{ name: "world", summary: "See what Smithers understands" },
-				{ name: "workflow.create", summary: "Create a Smithers workflow", args: "<description>" },
+				{ name: "flow.create", summary: "Create a Smithers workflow", args: "<description>" },
 			],
 			{
 				github: { connected: false, login: null, watchedRepos: null },
@@ -114,7 +114,7 @@ describe("wave 13 §F — the capability section is generated from the live cata
 			},
 		);
 		expect(prompt).toContain("/world — See what Smithers understands");
-		expect(prompt).toContain("/workflow.create <description> — Create a Smithers workflow");
+		expect(prompt).toContain("/flow.create <description> — Create a Smithers workflow");
 		expect(prompt).toContain("GitHub is NOT connected");
 		expect(prompt).toContain("this web client cannot connect any");
 		// The five §F asks, named as can't-yets: email, Slack, local files, push/PR.
@@ -136,7 +136,7 @@ describe("wave 13 §F — the capability section is generated from the live cata
 	 * actually used, and must never present approval as granting a capability.
 	 */
 	test("the laundering rule names the live shape, the 'we can' form, and refuses approval-as-capability", () => {
-		const prompt = smithersInstructions([{ name: "workflow.create", summary: "Create a Smithers workflow" }], {
+		const prompt = smithersInstructions([{ name: "flow.create", summary: "Create a Smithers workflow" }], {
 			github: { connected: true, login: "codeplanesmithers", watchedRepos: 1 },
 			localRepositories: [],
 			localRepositoriesAvailable: false,
@@ -221,7 +221,7 @@ describe("wave 13 §F — the capability section is generated from the live cata
 		const instructions = requests[0]?.instructions ?? "";
 		// The generated section reflects THIS session's truth.
 		expect(instructions).toContain("What you can do is EXACTLY this");
-		expect(instructions).toContain("/workflow.create");
+		expect(instructions).toContain("/flow.create");
 		expect(instructions).toContain("/repos.watch");
 		expect(instructions).toContain("GitHub is connected as codeplanesmithers, watching 1 repositories");
 		expect(instructions).toContain("Everything else is a can't-yet");
@@ -292,11 +292,11 @@ describe("wave 13 §F — capability theater in a launch turn is caught determin
 		"%s: the theater answer is caught and the honest can't-yet passes through untouched",
 		(_id, theater, honest) => {
 			expect(offersImpossibleCapability(theater)).toBe(true);
-			expect(renderedRunTurnText("workflow.create", theater)).toBe(
+			expect(renderedRunTurnText("flow.create", theater)).toBe(
 				"I started a create-workflow run — the run card shows its real progress.",
 			);
 			expect(offersImpossibleCapability(honest)).toBe(false);
-			expect(renderedRunTurnText("workflow.create", honest)).toBe(honest);
+			expect(renderedRunTurnText("flow.create", honest)).toBe(honest);
 		},
 	);
 
@@ -331,7 +331,7 @@ describe("wave 13 §F — capability theater in a launch turn is caught determin
 					type: "tool_call" as const,
 					call_id: "call_1",
 					name: "commands",
-					arguments: JSON.stringify({ action: "execute", name: "workflow.create", args: "email my team" }),
+					arguments: JSON.stringify({ action: "execute", name: "flow.create", args: "email my team" }),
 				},
 				{ type: "done" as const, reason: "tool_call" as const },
 			],
@@ -373,7 +373,7 @@ describe("wave 13 §F — capability theater in a launch turn is caught determin
 
 	test("a launch turn's honest can't-yet renders untouched", () => {
 		const honest = "I can't send email yet — no email connector exists.";
-		expect(renderedRunTurnText("workflow.run", honest)).toBe(honest);
+		expect(renderedRunTurnText("flow.run", honest)).toBe(honest);
 	});
 
 	test("a turn that launched NOTHING is never censored — general conversation stands", async () => {

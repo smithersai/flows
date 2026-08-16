@@ -47,7 +47,7 @@ export function ToastStack({
 							variant="ghost"
 							size="icon"
 							className="toast-dismiss"
-							data-command="toast.dismiss"
+							data-flow="toast.dismiss"
 							aria-label={`Dismiss: ${toast.title}`}
 							title="Dismiss"
 							onClick={() => onDismiss(toast.id)}

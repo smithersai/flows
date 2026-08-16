@@ -162,9 +162,9 @@ const signIn = async (store: Awaited<ReturnType<typeof webStore>>, watched: stri
 	await settle(2);
 };
 
-const runCard = (store: Awaited<ReturnType<typeof webStore>>): Extract<Card, { kind: "workflow-run" }> | undefined => {
-	const card = store.collections.cards.get("workflow-run-run-w12");
-	return card?.kind === "workflow-run" ? card : undefined;
+const runCard = (store: Awaited<ReturnType<typeof webStore>>): Extract<Card, { kind: "flow-run" }> | undefined => {
+	const card = store.collections.cards.get("flow-run-run-w12");
+	return card?.kind === "flow-run" ? card : undefined;
 };
 
 /** The whole rendered turn, as the transcript holds it. */
@@ -219,7 +219,7 @@ describe("wave 12 §1 — the model may not narrate run state", () => {
 					name: "commands",
 					arguments: JSON.stringify({
 						action: "execute",
-						name: "workflow.create",
+						name: "flow.create",
 						args: "a workflow that summarizes my open issues",
 					}),
 				},
@@ -256,7 +256,7 @@ describe("wave 12 §1 — the model may not narrate run state", () => {
 					type: "tool_call" as const,
 					call_id: "call_1",
 					name: "commands",
-					arguments: JSON.stringify({ action: "execute", name: "workflow.create", args: "summarize my issues" }),
+					arguments: JSON.stringify({ action: "execute", name: "flow.create", args: "summarize my issues" }),
 				},
 				{ type: "done" as const, reason: "tool_call" as const },
 			],
@@ -287,7 +287,7 @@ describe("wave 12 §1 — the model may not narrate run state", () => {
 					type: "tool_call" as const,
 					call_id: "call_1",
 					name: "commands",
-					arguments: JSON.stringify({ action: "execute", name: "workflow.create", args: "summarize my issues" }),
+					arguments: JSON.stringify({ action: "execute", name: "flow.create", args: "summarize my issues" }),
 				},
 				{ type: "done" as const, reason: "tool_call" as const },
 			],
@@ -314,7 +314,7 @@ describe("wave 12 §1 — the model may not narrate run state", () => {
 					type: "tool_call" as const,
 					call_id: "call_1",
 					name: "commands",
-					arguments: JSON.stringify({ action: "execute", name: "workflow.run", args: "nope" }),
+					arguments: JSON.stringify({ action: "execute", name: "flow.run", args: "nope" }),
 				},
 				{ type: "done" as const, reason: "tool_call" as const },
 			],
@@ -352,7 +352,7 @@ describe("wave 12 §1 — the model may not narrate run state", () => {
 					type: "tool_call" as const,
 					call_id: "call_1",
 					name: "commands",
-					arguments: JSON.stringify({ action: "execute", name: "workflow.create", args: "summarize my issues" }),
+					arguments: JSON.stringify({ action: "execute", name: "flow.create", args: "summarize my issues" }),
 				},
 				{ type: "done" as const, reason: "tool_call" as const },
 			],
@@ -387,7 +387,7 @@ describe("wave 12 §1 — the model may not narrate run state", () => {
 					type: "tool_call" as const,
 					call_id: "call_1",
 					name: "commands",
-					arguments: JSON.stringify({ action: "execute", name: "workflow.create", args: "summarize my issues" }),
+					arguments: JSON.stringify({ action: "execute", name: "flow.create", args: "summarize my issues" }),
 				},
 				{ type: "done" as const, reason: "tool_call" as const },
 			],
@@ -398,7 +398,7 @@ describe("wave 12 §1 — the model may not narrate run state", () => {
 		await signIn(store);
 
 		controller.send("make me a workflow");
-		await waitFor(() => store.collections.cards.get("workflow-run-run-w12") !== undefined);
+		await waitFor(() => store.collections.cards.get("flow-run-run-w12") !== undefined);
 		controller.stop();
 		await settle(4);
 
@@ -412,12 +412,12 @@ describe("wave 12 §1 — the model may not narrate run state", () => {
 		expect(claimsRunState("The workflow is ready for you.")).toBe(true);
 		expect(claimsRunState("It should be done shortly.")).toBe(true);
 		expect(claimsRunState("Approvals go to you, never to me.")).toBe(false);
-		expect(renderedRunTurnText("workflow.create", WAVE11_LIE)).toBe(
+		expect(renderedRunTurnText("flow.create", WAVE11_LIE)).toBe(
 			"I started a create-workflow run — the run card shows its real progress.",
 		);
 		expect(
-			runLaunchCommandOf("commands", JSON.stringify({ action: "execute", name: "workflow.create", args: "x" })),
-		).toBe("workflow.create");
+			runLaunchCommandOf("commands", JSON.stringify({ action: "execute", name: "flow.create", args: "x" })),
+		).toBe("flow.create");
 		expect(runLaunchCommandOf("commands", JSON.stringify({ action: "execute", name: "world" }))).toBeUndefined();
 		expect(runLaunchCommandOf("commands", "not json")).toBeUndefined();
 		expect(toolResultLaunchedRun("run-started workflow=create-workflow run=r1 repo=o/r")).toBe(true);
@@ -425,14 +425,14 @@ describe("wave 12 §1 — the model may not narrate run state", () => {
 	});
 });
 
-describe("wave 12 §2 — workflow.create asks WHICH watched repo", () => {
+describe("wave 12 §2 — flow.create asks WHICH watched repo", () => {
 	test("one watched repo is not a question", async () => {
 		const store = await webStore();
 		const double = relay();
 		const controller = createAppController(store, unavailableRepositories, silentAgent(), double.services);
 		await signIn(store, [REPO]);
 
-		const outcome = await controller.commands.run("workflow.create", "summarize my issues");
+		const outcome = await controller.commands.run("flow.create", "summarize my issues");
 		expect(said(outcome)).toContain("run-started");
 		expect(store.collections.cards.get("workflow-repo")).toBeUndefined();
 		expect(double.state.launched[0]?.repo).toBe(REPO);
@@ -444,7 +444,7 @@ describe("wave 12 §2 — workflow.create asks WHICH watched repo", () => {
 		const controller = createAppController(store, unavailableRepositories, silentAgent(), double.services);
 		await signIn(store, [REPO, OTHER_REPO]);
 
-		const outcome = await controller.commands.run("workflow.create", `summarize my open issues ${OTHER_REPO}`);
+		const outcome = await controller.commands.run("flow.create", `summarize my open issues ${OTHER_REPO}`);
 		expect(said(outcome)).toContain(`repo=${OTHER_REPO}`);
 		// The repo token is the target, NOT part of the description.
 		expect(double.state.launched[0]).toMatchObject({
@@ -461,11 +461,11 @@ describe("wave 12 §2 — workflow.create asks WHICH watched repo", () => {
 		const controller = createAppController(store, unavailableRepositories, silentAgent(), double.services);
 		await signIn(store, [REPO, OTHER_REPO]);
 
-		const asked = await controller.commands.run("workflow.create", "summarize my open issues");
+		const asked = await controller.commands.run("flow.create", "summarize my open issues");
 		expect(said(asked)).toContain("2 repositories");
 		/*
 		 * Review pass: a QUESTION is not a failure. Live on canary the transcript
-		 * read "Smithers tried /workflow.create — failed: You watch 3
+		 * read "Smithers tried /flow.create — failed: You watch 3
 		 * repositories…" beside the card that had just asked, correctly, which one.
 		 */
 		expect(asked.status).toBe("executed");
@@ -478,7 +478,7 @@ describe("wave 12 §2 — workflow.create asks WHICH watched repo", () => {
 		expect(double.calls.some((call) => call.path === "/api/workflow/provision")).toBe(false);
 
 		// ONE confirm: choosing IS the answer, and the create resumes with it.
-		const chosen = await controller.commands.run("workflow.repo.choose", OTHER_REPO);
+		const chosen = await controller.commands.run("flow.repo.choose", OTHER_REPO);
 		expect(said(chosen)).toContain(`repo=${OTHER_REPO}`);
 		expect(double.state.launched[0]).toMatchObject({
 			repo: OTHER_REPO,
@@ -491,7 +491,7 @@ describe("wave 12 §2 — workflow.create asks WHICH watched repo", () => {
 		// Review pass: a question is answered ONCE. A second act on the same card
 		// (two clicks racing the state) may not launch the same workflow twice —
 		// a launch is real work on the user's workspace.
-		const again = await controller.commands.run("workflow.repo.choose", OTHER_REPO);
+		const again = await controller.commands.run("flow.repo.choose", OTHER_REPO);
 		expect(said(again)).toContain("already answered");
 		expect(double.state.launched).toHaveLength(1);
 	});
@@ -513,7 +513,7 @@ describe("wave 12 §2 — workflow.create asks WHICH watched repo", () => {
 		});
 		await signIn(store, [REPO, OTHER_REPO]);
 
-		const outcome = await controller.commands.run("workflow.create", "summarize my issues someone/else");
+		const outcome = await controller.commands.run("flow.create", "summarize my issues someone/else");
 		expect(said(outcome)).toContain("someone/else");
 		expect(store.collections.cards.get("repo-chooser")).toBeDefined();
 		expect(store.collections.cards.get("workflow-repo")).toBeUndefined();
@@ -524,7 +524,7 @@ describe("wave 12 §2 — workflow.create asks WHICH watched repo", () => {
 		 * Review pass, found on canary with a genuinely cleared store: the digest
 		 * needs GitHub and GitHub was answering 401, so `/api/reco/first-run` came
 		 * back `degraded` with no `watched` — and the app came up believing the
-		 * user watches nothing. `workflow.create` sent them to the onboarding
+		 * user watches nothing. `flow.create` sent them to the onboarding
 		 * chooser they had already answered ("Choose which repositories I should
 		 * watch first"), and the runtime context said `needsSelection`, so the
 		 * model told someone watching three repos "I need a repository to watch
@@ -570,7 +570,7 @@ describe("wave 12 §2 — workflow.create asks WHICH watched repo", () => {
 		// …and the durable selection is still the app's.
 		expect(store.collections.watchedRepos.get("watched")?.selected).toEqual([REPO, OTHER_REPO]);
 		// So §2's question is askable, instead of the onboarding chooser again.
-		const asked = await controller.commands.run("workflow.create", "summarize my open issues");
+		const asked = await controller.commands.run("flow.create", "summarize my open issues");
 		expect(said(asked)).toContain("2 repositories");
 		expect(store.collections.cards.get("workflow-repo")).toBeDefined();
 		expect(store.collections.cards.get("repo-chooser")).toBeUndefined();
@@ -591,10 +591,10 @@ describe("wave 12 §2 — workflow.create asks WHICH watched repo", () => {
 		const controller = createAppController(store, unavailableRepositories, silentAgent(), double.services);
 		await signIn(store, [REPO, OTHER_REPO]);
 
-		await controller.commands.run("workflow.create", "summarize my open issues");
+		await controller.commands.run("flow.create", "summarize my open issues");
 		expect(store.collections.cards.get("workflow-repo")).toBeDefined();
 
-		for (const name of ["workflow.repo.choose", "workflow.run.stop", "workflow.run.retry"]) {
+		for (const name of ["flow.repo.choose", "flow.run.stop", "flow.run.retry"]) {
 			const refused = await controller.commands.executeForAgent({
 				name: "commands",
 				arguments: JSON.stringify({ action: "execute", name, args: OTHER_REPO }),
@@ -610,8 +610,8 @@ describe("wave 12 §2 — workflow.create asks WHICH watched repo", () => {
 			name: "commands",
 			arguments: JSON.stringify({ action: "list" }),
 		});
-		expect(listed).not.toContain("workflow.repo.choose");
-		expect(listed).not.toContain("workflow.run.stop");
+		expect(listed).not.toContain("flow.repo.choose");
+		expect(listed).not.toContain("flow.run.stop");
 	});
 });
 
@@ -629,7 +629,7 @@ describe("wave 12 §3 — a run the workspace never finishes", () => {
 		// The wave-11 live shape exactly: the run keeps reading "running" and the
 		// event stream never says another word.
 		double.emit({ seq: 1, event: "RunStarted" });
-		await controller.commands.run("workflow.run", "review-pr");
+		await controller.commands.run("flow.run", "review-pr");
 		await waitFor(() => runCard(store)?.payload.phase === "quiet");
 
 		const card = runCard(store);
@@ -654,7 +654,7 @@ describe("wave 12 §3 — a run the workspace never finishes", () => {
 		});
 		await signIn(store);
 
-		await controller.commands.run("workflow.run", "review-pr");
+		await controller.commands.run("flow.run", "review-pr");
 		for (let step = 1; step <= 5; step += 1) {
 			double.emit({ seq: step, event: "NodeStarted", payload: { nodeId: `step-${step}` } });
 			await settle(10);
@@ -671,16 +671,16 @@ describe("wave 12 §3 — a run the workspace never finishes", () => {
 		});
 		await signIn(store);
 
-		await controller.commands.run("workflow.run", "review-pr");
+		await controller.commands.run("flow.run", "review-pr");
 		await waitFor(() => runCard(store)?.payload.phase === "quiet");
 
 		// Retry restarts the watch and says so in words.
-		expect((await controller.commands.run("workflow.run.retry", "workflow-run-run-w12")).status).toBe("executed");
+		expect((await controller.commands.run("flow.run.retry", "flow-run-run-w12")).status).toBe("executed");
 		expect(runCard(store)?.payload.steps.join(" ")).toContain("Checking the run again");
 		await settle(4);
 
 		// Stop is stop WATCHING — never a claim that the run was cancelled.
-		expect((await controller.commands.run("workflow.run.stop", "workflow-run-run-w12")).status).toBe("executed");
+		expect((await controller.commands.run("flow.run.stop", "flow-run-run-w12")).status).toBe("executed");
 		await waitFor(() => runCard(store)?.payload.phase === "stopped");
 		expect(runCard(store)?.payload.steps.join(" ")).toContain("Stopped watching this run.");
 		const settledCalls = double.calls.filter((call) => call.path.startsWith("/api/workflow/events")).length;
@@ -701,7 +701,7 @@ describe("wave 12 §4 — the residuals", () => {
 		const controller = createAppController(store, unavailableRepositories, silentAgent(), double.services);
 		await signIn(store);
 
-		const outcome = await controller.commands.run("workflow.create", "summarize my issues");
+		const outcome = await controller.commands.run("flow.create", "summarize my issues");
 		expect(said(outcome)).toContain("isn't on Smithers Cloud yet");
 		// Honest, and un-looped: one provision attempt, nothing launched.
 		expect(double.calls.filter((call) => call.path === "/api/workflow/provision")).toHaveLength(1);
