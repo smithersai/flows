@@ -6,6 +6,7 @@
 import { Control as ControlService, ControlSchema } from "@smthrs/control"
 import { Console, Effect, Option, Schema, Stream } from "effect"
 import { Argument, Command, Flag } from "effect/unstable/cli"
+import * as CliError from "./CliError.ts"
 import { Output } from "./Output.ts"
 import { find } from "./Verb.ts"
 
@@ -21,31 +22,43 @@ const input = Argument.string("key=value").pipe(Argument.variadic())
 const data = Flag.string("data").pipe(Flag.optional)
 const common = { input, data }
 
-const decodeInput = (entries: ReadonlyArray<string>, raw: Option.Option<string>): unknown => {
+const malformedJson = (label: string): CliError.UsageError =>
+  new CliError.UsageError({ message: `${label} must be valid JSON` })
+
+const decodeJson = <A>(
+  label: string,
+  serialized: string,
+  decode: (value: unknown) => A
+): Effect.Effect<A, CliError.UsageError> =>
+  Effect.try({
+    try: () => decode(JSON.parse(serialized) as unknown),
+    catch: () => malformedJson(label)
+  })
+
+const decodeInput = (
+  entries: ReadonlyArray<string>,
+  raw: Option.Option<string>
+): Effect.Effect<unknown, CliError.UsageError> => {
   const pairs = Object.fromEntries(entries.map((entry) => {
     const separator = entry.indexOf("=")
     return separator < 1 ? [entry, true] : [entry.slice(0, separator), entry.slice(separator + 1)]
   }))
-  if (Option.isNone(raw)) return pairs
-  try {
-    const decoded: unknown = JSON.parse(raw.value)
-    return decoded !== null && typeof decoded === "object" && !Array.isArray(decoded)
-      ? { ...pairs, ...(decoded as Record<string, unknown>) }
-      : { ...pairs, data: decoded }
-  } catch {
-    return { ...pairs, data: raw.value }
-  }
+  if (Option.isNone(raw)) return Effect.succeed(pairs)
+  return decodeJson(
+    "--data",
+    raw.value,
+    (decoded) =>
+      decoded !== null && typeof decoded === "object" && !Array.isArray(decoded)
+        ? { ...pairs, ...(decoded as Record<string, unknown>) }
+        : { ...pairs, data: decoded }
+  )
 }
 
-const approval = (serialized: string): ControlService.ApprovalInput => {
-  const decoded: unknown = JSON.parse(serialized)
-  return Schema.decodeUnknownSync(ControlSchema.ApprovalPayload)(decoded)
-}
+const approval = (serialized: string): Effect.Effect<ControlService.ApprovalInput, CliError.UsageError> =>
+  decodeJson("approval", serialized, Schema.decodeUnknownSync(ControlSchema.ApprovalPayload))
 
-const signal = (serialized: string): ControlSchema.SignalPayload => {
-  const decoded: unknown = JSON.parse(serialized)
-  return Schema.decodeUnknownSync(ControlSchema.SignalPayload)(decoded)
-}
+const signal = (serialized: string): Effect.Effect<ControlSchema.SignalPayload, CliError.UsageError> =>
+  decodeJson("signal-json", serialized, Schema.decodeUnknownSync(ControlSchema.SignalPayload))
 
 const render = (value: unknown) =>
   Effect.gen(function*() {
@@ -57,9 +70,10 @@ const render = (value: unknown) =>
 
 const plan = Command.make("plan", common, (config) =>
   Effect.gen(function*() {
+    const decodedInput = yield* decodeInput(config.input.slice(1), config.data)
     const control = yield* ControlService.Control
     const flowId = config.input[0] ?? ""
-    const card = yield* control.plan({ flowId, input: decodeInput(config.input.slice(1), config.data) })
+    const card = yield* control.plan({ flowId, input: decodedInput })
     yield* render(card)
   })).pipe(Command.withDescription("Render a flow plan and its complete approval payload"))
 
@@ -68,14 +82,17 @@ const run = Command.make("run", {
   resume: Flag.boolean("resume")
 }, (config) =>
   Effect.gen(function*() {
-    const control = yield* ControlService.Control
     if (config.resume) {
+      const control = yield* ControlService.Control
       const receipt = yield* control.resume({ runId: config.plan, idempotencyKey: `cli:resume:${config.plan}` })
       return yield* render(receipt)
     }
-    const payload = approval(config.plan)
+    const payload = yield* approval(config.plan)
     const target = payload.target
-    if (target._tag !== "Plan") return yield* Effect.fail(new Error("run requires a plan approval payload"))
+    if (target._tag !== "Plan") {
+      return yield* Effect.fail(new CliError.UsageError({ message: "run requires a plan approval payload" }))
+    }
+    const control = yield* ControlService.Control
     const receipt = yield* control.run({
       _tag: "Plan",
       planId: target.planId,
@@ -91,8 +108,8 @@ const approve = Command.make("approve", {
   scope: Flag.choice("scope", ["once", "run", "remembered"] as const).pipe(Flag.withDefault("run"))
 }, (config) =>
   Effect.gen(function*() {
+    const payload = yield* approval(config.approval)
     const control = yield* ControlService.Control
-    const payload = approval(config.approval)
     const receipt = yield* control.approve({ ...payload, scope: config.scope })
     yield* render(receipt)
   })).pipe(Command.withDescription("Approve the complete serialized plan approval payload"))
@@ -101,8 +118,9 @@ const deny = Command.make("deny", {
   approval: Argument.string("approval")
 }, (config) =>
   Effect.gen(function*() {
+    const payload = yield* approval(config.approval)
     const control = yield* ControlService.Control
-    const receipt = yield* control.deny(approval(config.approval))
+    const receipt = yield* control.deny(payload)
     yield* render(receipt)
   })).pipe(Command.withDescription("Deny the complete serialized plan approval payload"))
 
@@ -119,11 +137,12 @@ const signalCommand = Command.make("signal", {
   payload: Argument.string("signal-json")
 }, (config) =>
   Effect.gen(function*() {
+    const payload = yield* signal(config.payload)
     const control = yield* ControlService.Control
     yield* render(
       yield* control.signal({
         runId: config.runId,
-        signal: signal(config.payload),
+        signal: payload,
         idempotencyKey: `cli:signal:${config.runId}`
       })
     )
@@ -165,7 +184,10 @@ const logs = Command.make("logs", {
 }, (config) =>
   Effect.gen(function*() {
     const control = yield* ControlService.Control
-    const events = control.watch({ runId: Option.getOrUndefined(config.runId) })
+    const events = control.watch({
+      runId: Option.getOrUndefined(config.runId),
+      follow: config.follow
+    })
     if (config.follow) return yield* Stream.runForEach(events, (event) => render(event))
     const collected = yield* Stream.runCollect(events)
     yield* render(collected)
@@ -187,8 +209,9 @@ const systemCommand = (verb: string) => {
   const metadata = find(verb)!
   return Command.make(verb, common, (config) =>
     Effect.gen(function*() {
+      const decodedInput = yield* decodeInput(config.input, config.data)
       const control = yield* ControlService.Control
-      const card = yield* control.plan({ flowId: metadata.flowId, input: decodeInput(config.input, config.data) })
+      const card = yield* control.plan({ flowId: metadata.flowId, input: decodedInput })
       // Plan-bearing and deploy-class system flows stop at the complete reviewable
       // card. Only the envelope carried by that card may be passed to `flows run`.
       yield* render(card)

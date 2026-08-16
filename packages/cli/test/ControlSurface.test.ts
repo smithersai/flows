@@ -6,16 +6,18 @@ import { TestConsole } from "effect/testing"
 import { Command } from "effect/unstable/cli"
 import { HttpServer } from "effect/unstable/http"
 import { describe, expect, it } from "vitest"
+import * as CliError from "../src/CliError.ts"
 import { cli } from "../src/Command.ts"
 import * as NodeControl from "../src/NodeControl.ts"
 import * as Output from "../src/Output.ts"
+import { packageVersion } from "../src/Version.ts"
 
 interface Invocation {
   readonly value: unknown
   readonly exitCode: number
 }
 
-const runCommand = Command.runWith(cli, { version: "0.0.0" })
+const runCommand = Command.runWith(cli, { version: packageVersion })
 
 const invoke = Effect.fnUntraced(function*(args: ReadonlyArray<string>) {
   const before = (yield* TestConsole.logLines).length
@@ -60,8 +62,11 @@ const scenario = (shared: ReadonlyArray<string> = []) =>
     const parked = yield* invoke(["--json", ...shared, "run", approval])
     const approve = yield* invoke(["--json", ...shared, "approve", approval, "--scope", "run"])
     const run = yield* invoke(["--json", ...shared, "run", approval])
+    const runId = (run.value as { readonly runId?: unknown }).runId
+    if (typeof runId !== "string") return yield* Effect.fail(new Error("run did not emit its identifier"))
+    const logs = yield* invoke(["--json", ...shared, "logs", runId]).pipe(Effect.timeout("2 seconds"))
 
-    return { plan, parked, approve, run }
+    return { plan, parked, approve, run, logs }
   })
 
 const scenarioServices = Layer.merge(TestConsole.layer, Output.layer)
@@ -71,7 +76,7 @@ const normalize = (value: unknown): unknown => {
   if (value !== null && typeof value === "object") {
     return Object.fromEntries(
       Object.entries(value)
-        .filter(([key]) => key !== "createdAt" && key !== "updatedAt" && key !== "stampedAt")
+        .filter(([key]) => key !== "createdAt" && key !== "updatedAt" && key !== "stampedAt" && key !== "occurredAt")
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([key, item]) => [key, normalize(item)])
     )
@@ -123,6 +128,46 @@ describe("Control surface", () => {
     })
   })
 
+  it("prints the package version", async () => {
+    const lines = await Effect.runPromise(
+      Effect.gen(function*() {
+        yield* runCommand(["--version"])
+        return yield* TestConsole.logLines
+      }).pipe(
+        Effect.provide(testControl),
+        Effect.provide(scenarioServices),
+        Effect.provide(NodeServices.layer)
+      )
+    )
+
+    expect(lines.map(String).join("\n")).toContain(packageVersion)
+  })
+
+  it.each(
+    [
+      ["plan data", ["plan", "system/test", "--data", "{"]],
+      ["run approval", ["run", "{"]],
+      ["approve payload", ["approve", "{"]],
+      ["deny payload", ["deny", "{"]],
+      ["signal payload", ["signal", "run-1", "{"]]
+    ] as const
+  )("rejects malformed JSON in %s as a usage error", async (_label, args) => {
+    const exit = await Effect.runPromise(
+      Effect.exit(runCommand(args)).pipe(
+        Effect.provide(testControl),
+        Effect.provide(scenarioServices),
+        Effect.provide(NodeServices.layer)
+      )
+    )
+
+    expect(Exit.isFailure(exit)).toBe(true)
+    if (Exit.isFailure(exit)) {
+      const error = Cause.squash(exit.cause)
+      expect(error).toBeInstanceOf(CliError.UsageError)
+      expect(CliError.exitCode(error as CliError.UsageError)).toBe(2)
+    }
+  })
+
   it("mounts the remote parser path on a real ephemeral Node server", async () => {
     const local = await Effect.runPromise(
       invoke(["--json", "plan", "system/test"]).pipe(
@@ -151,7 +196,7 @@ describe("Control surface", () => {
     expect(normalize(remote)).toEqual(normalize(local))
   })
 
-  it("runs plan, approval, and launch through an authenticated remote server", async () => {
+  it("runs plan, approval, launch, and finite logs through an authenticated remote server", async () => {
     const local = await Effect.runPromise(
       scenario().pipe(
         Effect.provide(testControl),
@@ -187,6 +232,8 @@ describe("Control surface", () => {
     expect(isWaitingForApproval(remote.result.parked.value)).toBe(true)
     expect(local.parked.exitCode).toBe(3)
     expect(remote.result.parked.exitCode).toBe(3)
+    expect(Array.isArray(local.logs.value)).toBe(true)
+    expect((local.logs.value as ReadonlyArray<unknown>).length).toBeGreaterThan(0)
     expect(remote.hostname).toBe("127.0.0.1")
     expect(normalize(remote.result)).toEqual(normalize(local))
   })

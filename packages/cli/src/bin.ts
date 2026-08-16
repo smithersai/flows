@@ -11,8 +11,7 @@ import { CliError as EffectCliError, Command } from "effect/unstable/cli"
 import * as CliError from "./CliError.ts"
 import { cli } from "./Command.ts"
 import * as NodeControl from "./NodeControl.ts"
-
-const version = "0.0.0"
+import { packageVersion } from "./Version.ts"
 
 let signalExitCode: 130 | 143 | undefined
 
@@ -58,7 +57,7 @@ const teardown: Runtime.Teardown = (exit, onExit) => {
 
 const main = Effect.gen(function*() {
   const applicationConfig = yield* NodeControl.config
-  yield* Command.run(cli, { version }).pipe(
+  yield* Command.run(cli, { version: packageVersion }).pipe(
     Effect.provide(NodeControl.layer(applicationConfig))
   )
 })
