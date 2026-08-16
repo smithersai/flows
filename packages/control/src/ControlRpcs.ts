@@ -234,6 +234,25 @@ const bearerToken = (headers: Readonly<Record<string, string>>): string | undefi
   return match?.[1]
 }
 
+const encoder = new TextEncoder()
+
+/**
+ * Compares UTF-8 credentials without returning early for a secret-dependent
+ * byte or length difference.
+ */
+const constantTimeTokenEqual = (expected: string, actual: string): boolean => {
+  const expectedBytes = encoder.encode(expected)
+  const actualBytes = encoder.encode(actual)
+  const length = Math.max(expectedBytes.length, actualBytes.length)
+  let difference = expectedBytes.length ^ actualBytes.length
+
+  for (let index = 0; index < length; index++) {
+    difference |= (expectedBytes[index] ?? 0) ^ (actualBytes[index] ?? 0)
+  }
+
+  return difference === 0
+}
+
 /**
  * Authenticates one shared bearer token and stamps its server-owned principal.
  * Missing, malformed, empty, and incorrect credentials all fail closed with
@@ -243,13 +262,15 @@ const bearerToken = (headers: Readonly<Record<string, string>>): string | undefi
  * @since 0.1.0
  */
 export const bearerAuthenticator = (options: BearerAuthOptions): Authenticator => ({
-  authenticate: (headers) =>
-    options.token.length > 0 && bearerToken(headers) === options.token
+  authenticate: (headers) => {
+    const credential = bearerToken(headers)
+    return options.token.length > 0 && credential !== undefined && constantTimeTokenEqual(options.token, credential)
       ? Effect.succeed({
         ...options.principal,
         stampedAt: options.now?.() ?? Date.now()
       })
       : Effect.fail(new Unauthorized({ message: "A valid bearer credential is required" }))
+  }
 })
 
 /**

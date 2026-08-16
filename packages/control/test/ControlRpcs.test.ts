@@ -40,12 +40,19 @@ describe("ControlRpcs", () => {
     const authenticated = await Effect.runPromise(
       authenticator.authenticate({ Authorization: "bearer alpha-secret" })
     )
-    const refused = await Effect.runPromise(
-      authenticator.authenticate({ authorization: "Bearer wrong" }).pipe(Effect.flip)
-    )
+    const refused = await Promise.all([
+      {},
+      { authorization: "Basic alpha-secret" },
+      { authorization: "Bearer " },
+      { authorization: "Bearer alpha-secre" },
+      { authorization: "Bearer alpha-secret!" },
+      { authorization: "Bearer alpha-secrEt" },
+      { authorization: "Bearer 🔐" }
+    ].map((headers) => Effect.runPromise(authenticator.authenticate(headers).pipe(Effect.flip))))
 
     expect(authenticated).toEqual({ id: "alpha", kind: "bearer", stampedAt: 42 })
-    expect(refused).toBeInstanceOf(Unauthorized)
+    expect(refused).toHaveLength(7)
+    expect(refused.every((error) => error instanceof Unauthorized)).toBe(true)
   })
 
   it("fails closed when the configured bearer token is empty", async () => {
