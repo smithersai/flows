@@ -11,10 +11,11 @@ references come from the audit's partial reads (`engine.js` resume/claim
 ~3514, attempts ~2252–2340) and are directional, not pinned.
 
 Companion pages: [implementation-status](implementation-status.md) for the
-authoritative per-area status table. Sections below that route work to a
-"plugin" predate the deletion of `@smthrs/plugin`; the seam they name is now
-an injected service or a constructor option — see
-[design decisions](design-decisions.md).
+authoritative per-area status table. Sections below that route engine policy
+to a "plugin" predate the bounded `@smthrs/plugin` cell-host kernel. That
+kernel dispatches configuration and the hooks owned by `@smthrs/engine-harness`;
+it does not provide engine-wide lifecycle seams. Those remain injected services
+or constructor options — see [design decisions](design-decisions.md).
 
 ## Ledger re-verification
 
@@ -25,7 +26,7 @@ an injected service or a constructor option — see
 | 3 | Journal append fencing | missing | **closed** |
 | 4 | Pause / cancel / hijack with attribution | missing | **partial** — cancel closed, pause = park, hijack + attribution missing |
 | 5 | Continue-as-new lineage | missing | **partial** — lineage edge closed, `Continued` terminal missing |
-| 6 | Checkpoints / worktree lanes | partial | **still missing** (hook seam exists) |
+| 6 | Checkpoints / worktree lanes | partial | **still missing** (storage primitives exist; the host capability and trigger seam do not) |
 | 7 | Quota park / wake | missing | **partial** — store side closed, wake driver missing |
 | 8 | Supervisor sweep | missing | **closed** — shipped inside engine-store's run driver; no separate `Supervisor` layer is planned |
 | 9 | Fault-suite harness | partial | **closed as harness**; case parity accretes with features |
@@ -90,9 +91,10 @@ all; flows is now strictly ahead here.
 - **Pause: effectively available** as `park(reason)` over §1's taxonomy, but
   there is no user-facing pause verb and, critically, **no attribution** —
   no actor/why fields on the park or the control event.
-- **Hijack: missing**, by design deferred to an injected seam. The deleted
-  hook catalog named a `runControl` hook, so the seam has a name; no service
-  owns it yet.
+- **Hijack: missing**, by design deferred to an injected seam. A former,
+  speculative engine lifecycle catalog named `runControl`, but that hook was
+  removed and the blessed cell-host catalog neither exposes nor dispatches it.
+  No service owns this policy yet.
 
 Done = a small `RunControl` service that journals an attributed control event
 (actor, reason) and flips `DurableEngineState`, with hijack shipping as an
@@ -113,14 +115,17 @@ fault case, matching smithers' continue-as-new and fork fault pins.
 
 The largest remaining functional gap versus smithers' Tier-1 durability
 snapshots (`snapshot-hook`), restore/revert/rewind, and `smithers worktree`
-lanes. What exists on our side: the `checkpoint` hook (sequential) in the
-catalog, the time-travel package's fork/rewind/replay over stored state, and
-`Jj` in `@smthrs/jj-next`. What is missing: a `Checkpoint` host capability (layer-gated,
-`makeNoop` for browser) that actually snapshots agent-session/worktree state at
-step boundaries, and any worktree-lane lifecycle. `StepBoundary` now ships a
-filesystem-backed production layer (read-set measurement, output
-materialization); whole-tree change detection still needs jj. Done = the Checkpoint capability
-invoked only via the `checkpoint` hook, never inline in the loop.
+lanes. What exists on our side: the time-travel package's fork/rewind/replay
+over stored state, `Jj` in `@smthrs/jj-next`, and `StepBoundary`'s
+filesystem-backed production layer for read-set measurement and output
+materialization. The former speculative `checkpoint` hook was removed with the
+unowned engine lifecycle catalog; the blessed cell-host plugin catalog does not
+expose or dispatch it. What is missing: a layer-gated `Checkpoint` host
+capability (`makeNoop` for browser) that actually snapshots
+agent-session/worktree state at step boundaries, an injected trigger policy,
+whole-tree change detection with jj, and any worktree-lane lifecycle. Done =
+the owning runtime invokes that capability at step boundaries through its
+explicit injected policy, not through an engine-wide plugin hook.
 
 ### 7. Quota park / wake — partial
 
@@ -191,12 +196,16 @@ gap.
 
 ## New gaps the audit did not list
 
-1. **The hook catalog was never dispatched, and is now gone.** The
-   `@smthrs/plugin` kernel shipped (`985adb5`) with the full catalog, but no
-   engine call site ever dispatched a hook from it, so it was deleted rather
-   than wired. Pause attribution, hijack, quota, and checkpoints still need
-   seams — as injected services and constructor options at the sites that own
-   them, not as a registry.
+1. **The engine-wide lifecycle hook catalog was never dispatched, and is now
+   gone; the bounded cell-host plugin kernel remains.** `@smthrs/plugin`
+   originally shipped (`985adb5`) with a speculative full catalog, but no
+   engine call site dispatched its run, step, retry, cache, wait, checkpoint,
+   or journal hooks, so those declarations were removed rather than advertised.
+   The package now resolves the configuration lifecycle and only the additional
+   hooks a host owns and dispatches; `@smthrs/engine-harness` supplies
+   `cellRegistry`, `cellFlows`, and `cellModelRequest`. Pause attribution,
+   hijack, quota, and checkpoints still need seams as injected services and
+   constructor options at the sites that own them, not as a lifecycle registry.
 2. **No packaged production layer.** Nothing composes database + migrations +
    journal + engine-store + kernel + Host + engine into one importable layer.
    Smithers cannot adopt the engine as a dependency until this exists — it is
@@ -279,8 +288,9 @@ existing smithers CLI unchanged.
 
 ## (b) Gaps that belong at an injected seam, not in core
 
-These stay out of the executor. Each names a hook from the deleted catalog;
-read each as the service or constructor option that now owns that decision:
+These stay out of the executor. Some had names in the removed engine lifecycle
+catalog, but they are not hooks callers can register today. Read each as the
+service or constructor option that must own that decision:
 
 - **Hijack** — an alternative `RunControl` implementation (§4).
 - **Quota park/wake** — an injected error classifier at the wait/wake seam,
