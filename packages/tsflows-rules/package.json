@@ -3,6 +3,9 @@
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
+  "smthrs": {
+    "group": "tooling"
+  },
   "private": true,
   "description": "Typed BUILD.ts rules and macros for tsflows",
   "engines": {

@@ -1,6 +1,9 @@
 {
   "name": "@tsflows/infra",
   "private": true,
+  "smthrs": {
+    "group": "tooling"
+  },
   "type": "module",
   "scripts": {
     "check": "tsc --noEmit",

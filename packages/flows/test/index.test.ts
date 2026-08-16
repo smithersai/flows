@@ -6,15 +6,23 @@ import { describe, expect, it } from "vitest"
 import * as Flows from "../src/index.ts"
 
 /**
- * The expected namespace list is derived from this barrel's declared
- * `@smthrs/*` dependencies, never hardcoded (issue #161). Not every package in
- * the monorepo belongs in the durable-engine barrel: CLI, gateway, testing,
- * and build-tool packages have their own public surfaces and some are
- * intentionally Node-only. Adding one of those packages must not silently
- * drag it into every browser consumer. Adding a dependency to the barrel,
- * however, fails this test until `src/index.ts` re-exports it.
+ * The expected namespace list is derived from each package's declared
+ * `smthrs.group`, never hardcoded (issue #161). Not every package in the
+ * monorepo belongs in the durable-engine barrel: the agent layer is a separate
+ * release surface built on the engine, and build-tool packages have their own
+ * public surfaces. Adding an engine package, however, fails this test until
+ * `src/index.ts` re-exports it. A missing or unknown group fails closed below
+ * rather than silently excluding a new package.
  */
 const packagesDir = resolve(import.meta.dirname, "..", "..")
+const packageGroups = ["engine", "agent", "tooling"] as const
+type PackageGroup = typeof packageGroups[number]
+type PackageManifest = {
+  readonly smthrs?: {
+    readonly group?: unknown
+  }
+}
+const isPackageGroup = (value: unknown): value is PackageGroup => packageGroups.some((group) => group === value)
 const isFile = (path: string) => {
   try {
     return statSync(path).isFile()
@@ -27,17 +35,19 @@ const isFile = (path: string) => {
 // TimeTravel).
 //
 // Three kinds of package are NOT re-exported and so are excluded here: the
-// barrel itself (`flows`), the `platform-*` bundles, and the `tsflows*` build
-// tooling. A platform bundle is chosen by the program that runs, not by the
-// library it depends on — the same reason `effect`'s index does not re-export
-// `@effect/platform-node` — and re-exporting all three would make one import
-// resolve `node:child_process`, ZenFS, and Bun at once.
+// barrel itself (`flows`), the `platform-*` bundles, and packages outside the
+// engine group. A platform bundle is chosen by the program that runs, not by
+// the library it depends on — the same reason `effect`'s index does not
+// re-export `@effect/platform-node` — and re-exporting all three would make one
+// import resolve `node:child_process`, ZenFS, and Bun at once.
 //
-// The `tsflows*` packages are excluded for the same class of reason, decided in
-// review when tsflows was absorbed into this repo (2026-08-15). They are the
-// BUILD.ts build system — `tsflows` (install/package-manager actions),
-// `tsflows-rules` (BUILD.ts rules), `tsflows-cli` (the `tsflows` binary) — not
-// part of the durable flow engine surface this barrel exists to gather.
+// The agent group is a separate release surface built on the engine; this
+// barrel gathers the durable engine only. The tooling group is excluded for
+// the same class of reason, decided in review when tsflows was absorbed into
+// this repo (2026-08-15). It is the BUILD.ts build system — `tsflows`
+// (install/package-manager actions), `tsflows-rules` (BUILD.ts rules), and
+// `tsflows-cli` (the `tsflows` binary) — not part of the durable flow engine
+// surface this barrel exists to gather.
 // Re-exporting them would also break two invariants the barrel holds today:
 // `tsflows-rules` and `tsflows-cli` are `private: true` and never published, so
 // the published `@smthrs/flows-next` would depend on packages no consumer can
@@ -50,15 +60,24 @@ const namespaceName = (directory: string) =>
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join("")
 const isPlatformBundle = (name: string) => name.startsWith("platform-")
-const isBuildTooling = (name: string) => name === "tsflows" || name.startsWith("tsflows-")
 const packageNames = readdirSync(packagesDir)
   .filter((name) => isFile(join(packagesDir, name, "package.json")))
-const manifest = JSON.parse(readFileSync(join(packagesDir, "flows", "package.json"), "utf8")) as {
-  readonly dependencies?: Readonly<Record<string, string>>
-}
-const dependencyPackageNames = Object.keys(manifest.dependencies ?? {})
-  .filter((name) => name.startsWith("@smthrs/"))
-  .map((name) => name.slice("@smthrs/".length).replace(/-next$/, ""))
+const packageManifests = packageNames.map((name) => {
+  const manifestPath = join(packagesDir, name, "package.json")
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as PackageManifest
+  const group = manifest.smthrs?.group
+  if (!isPackageGroup(group)) {
+    throw new Error(
+      `${manifestPath}: smthrs.group must be one of ${packageGroups.join(", ")}; received ${JSON.stringify(group)}`
+    )
+  }
+  return { name, group }
+})
+const packageNamesForGroup = (group: PackageGroup) =>
+  packageManifests.filter((manifest) => manifest.group === group).map((manifest) => manifest.name)
+const enginePackageNames = packageNamesForGroup("engine")
+const namespacedEnginePackageNames = enginePackageNames
+  .filter((name) => name !== "flows" && name !== "flow" && !isPlatformBundle(name))
 // `@smthrs/flow-next` is the one package re-exported FLAT rather than as a single
 // namespace: writing a flow is the point of the library, so `Flow`,
 // `Action`, `RetryPolicy`, and their siblings sit at the top level. Its
@@ -67,9 +86,7 @@ const dependencyPackageNames = Object.keys(manifest.dependencies ?? {})
 // the barrel re-exports it, exactly as a new package does.
 const expected = [
   ...new Set([
-    ...dependencyPackageNames
-      .filter((name) => name !== "flow")
-      .map(namespaceName),
+    ...namespacedEnginePackageNames.map(namespaceName),
     ...Object.keys(FlowPackage)
   ])
 ].sort()
@@ -90,15 +107,21 @@ describe("barrel", () => {
     // Guard the exclusion the same way: if `platform-*` ever stopped matching,
     // the filter would silently become a no-op instead of a decision.
     expect(packageNames.filter(isPlatformBundle).length).toBeGreaterThanOrEqual(3)
-    expect(dependencyPackageNames.filter(isPlatformBundle)).toEqual([])
+    expect(enginePackageNames.filter(isPlatformBundle).length).toBeGreaterThanOrEqual(3)
+    expect(namespacedEnginePackageNames.filter(isPlatformBundle)).toEqual([])
     expect(expected.filter((name) => name.startsWith("Platform"))).toEqual([])
   })
 
+  it("excludes the separate agent release surface", () => {
+    // Guard the group decision itself: an empty agent group would make its
+    // exclusion vacuous instead of proving the boundary is represented.
+    expect(packageNamesForGroup("agent").length).toBeGreaterThan(0)
+  })
+
   it("excludes the tsflows build tooling, and there is some to exclude", () => {
-    // Same guard as the platform bundles above: if `tsflows*` ever stopped
-    // matching, the filter would silently become a no-op instead of a decision.
-    expect(packageNames.filter(isBuildTooling).sort()).toEqual(["tsflows", "tsflows-cli", "tsflows-rules"])
-    expect(dependencyPackageNames.filter(isBuildTooling)).toEqual([])
+    // Same guard as the platform bundles above: the tooling group must remain
+    // represented rather than turning its exclusion into a silent no-op.
+    expect(packageNamesForGroup("tooling").sort()).toEqual(["tsflows", "tsflows-cli", "tsflows-rules"])
     expect(expected.filter((name) => name.startsWith("Tsflows"))).toEqual([])
   })
 

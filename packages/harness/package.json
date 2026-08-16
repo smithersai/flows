@@ -3,6 +3,9 @@
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
+  "smthrs": {
+    "group": "agent"
+  },
   "description": "The flows built-in agent harness — pure translation of dynamic nodes into sealed model steps and child plans",
   "homepage": "https://github.com/smithersai/flows",
   "repository": {

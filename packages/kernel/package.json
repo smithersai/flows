@@ -3,6 +3,9 @@
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
+  "smthrs": {
+    "group": "engine"
+  },
   "description": "Capability kernel: effect tiers, monotone capability sets, grant store, and permission-decorating layers over the Host services",
   "homepage": "https://github.com/smithersai/flows",
   "repository": {

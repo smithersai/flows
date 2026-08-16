@@ -3,6 +3,9 @@
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
+  "smthrs": {
+    "group": "engine"
+  },
   "description": "Workspace read-path sync protocol, server, and client for flows",
   "homepage": "https://github.com/smithersai/flows",
   "repository": {

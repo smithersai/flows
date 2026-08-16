@@ -3,6 +3,9 @@
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
+  "smthrs": {
+    "group": "engine"
+  },
   "description": "The persisted flows plan: a keyed action graph, its append-only store, and its diff",
   "homepage": "https://github.com/smithersai/flows",
   "repository": {

@@ -40,7 +40,15 @@ jobs:
             *) echo "Release tags must use the v<version> format." >&2; exit 1 ;;
           esac
           RELEASE_VERSION="${RELEASE_TAG#v}"
+          # This is the flows engine train. The agent layer is a separate
+          # release surface and will get its own train when it is release-ready.
           for manifest in packages/*/package.json; do
+            package_group="$(node -p "require('./' + process.argv[1]).smthrs?.group ?? ''" "$manifest")"
+            case "$package_group" in
+              engine) ;;
+              agent|tooling) continue ;;
+              *) echo "$manifest has missing or unknown smthrs.group '$package_group'." >&2; exit 1 ;;
+            esac
             package_version="$(node -p "require('./' + process.argv[1]).version" "$manifest")"
             if [ "$package_version" != "$RELEASE_VERSION" ]; then
               echo "$manifest has version $package_version; expected $RELEASE_VERSION." >&2
@@ -78,9 +86,10 @@ jobs:
           node scripts/pack-release.mjs "$PACK_DIR"
           node scripts/smoke-release.mjs "$PACK_DIR"
       # The package set and its order come from scripts/pack-release.mjs, which
-      # derives membership from packages/* and order from the workspace
-      # dependency edges. Reading manifest.json publishes exactly what the pack
-      # step produced, in the packed order, so the two lists cannot drift.
+      # derives membership from the `engine` smthrs.group and order from the
+      # workspace dependency edges. Reading manifest.json publishes exactly
+      # what the pack step produced, in the packed order, so the lists cannot
+      # drift or accidentally include the separate agent release surface.
       - name: Publish packages in dependency order
         env:
           PACK_DIR: ${{ runner.temp }}/release-packs

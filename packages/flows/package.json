@@ -3,6 +3,9 @@
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
+  "smthrs": {
+    "group": "engine"
+  },
   "description": "Barrel package re-exporting the whole @smthrs durable flow engine",
   "homepage": "https://github.com/smithersai/flows",
   "repository": {

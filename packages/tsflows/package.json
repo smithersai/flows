@@ -3,6 +3,9 @@
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
+  "smthrs": {
+    "group": "tooling"
+  },
   "description": "Bazel-style TypeScript workflow orchestration with explicit pnpm installation",
   "homepage": "https://github.com/smithersai/flows",
   "repository": {
