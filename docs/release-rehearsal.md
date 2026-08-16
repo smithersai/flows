@@ -1,5 +1,40 @@
 # Release rehearsal receipt
 
+## Revalidation: 2026-08-16, lane `c3`
+
+**Commit:** `56382ff12162e864a96646534c70b1c3e8b50b29` before this receipt update.
+**Host:** Node 22.19.0, pnpm 11.21.0. **Published:** nothing.
+
+The committed implementation above was revalidated from this isolated worktree.
+The full release-specific dry path completed with this exact command (its transcript
+is outside the repository at `/tmp/flows-c3-release-followup.c82b4Q/transcript.json`):
+
+```sh
+node scripts/release-rehearsal.mjs --tag v0.1.0 \
+  --node /Users/williamcory/.nvm/versions/node/v22.19.0/bin \
+  --runner-temp /tmp/flows-c3-release-followup.c82b4Q \
+  --skip "Initialize colocated jj repository" \
+  --skip "Typecheck all workspaces" --skip "Test all workspaces" \
+  --skip "Lint all workspaces" --keep-going
+```
+
+It exited with the publish step skipped by `if: env.DRY_RUN != 'true'`; install,
+tag validation, circular and browser guards, release-script tests, the clean
+all-workspace build, pack-and-smoke, publish-plan computation, and the explicit
+"Report the skipped publication" step all exited 0. The clean-build pack produced
+the same 23 tarballs and smoke-tested every ESM/CJS entry plus declarations.
+
+The omitted three broad gates were separately attempted: `pnpm run check` ran for
+711 seconds and failed only in the unowned `examples/` package (`src/02-run-durably.ts`
+and four sibling examples have `Effect<…, any>` where `Effect<…, never>` is required;
+`src/durable-layer.ts` cannot resolve `@smthrs/flows-next/NodeRuntime`). No release
+lane file caused or was changed to address that inherited failure.
+
+For the requested prerelease rehearsal identifier, a local-only annotated tag
+`v0.1.0-next.0-rc` was created at this commit and the workflow's tag gate was run
+against it. It correctly refused the current `0.1.0` engine manifests; the human
+runbook's version-bump step is required before that prerelease tag can pass.
+
 **Date:** 2026-08-16 (UTC)
 **Commit:** `3fcf5fcd6294d07cc5d9b953cf41961f42922673` — `📝 docs: reconcile release status, retention, and backend claims`
 **Host:** macOS 26.2, arm64, Node 22.19.0 (the CI pin), pnpm 11.21.0
