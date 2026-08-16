@@ -48,7 +48,7 @@ const settle = async (ticks = 4): Promise<void> => {
 const REPO = "codeplanesmithers/smithers-demo";
 
 const EXHAUSTED_TEXT =
-	"Balance is at $0 — workflow runs pause until more balance is added; chat stays free in the meantime.";
+	"Balance is at $0 — workflow runs pause until more balance is added. Run /billing.upgrade to add balance; chat stays free in the meantime.";
 
 /** A backend that answers nothing about workflows — proves the guard never calls it. */
 const noWorkflowSeam = (): AppServices => ({
@@ -206,11 +206,30 @@ describe("zero-balance workflow launch (Launch Checklist D-4)", () => {
 			via: "onboarding",
 		});
 		await settle(2);
-		expect(store.collections.billingAccounts.get("billing")).toBeUndefined();
+		// `seed()` (AppStore.ts) always inserts `initialBillingAccount()` before
+		// `createAppStore` resolves, so the row is never actually absent by the
+		// time a command can run — the unread seam shows up as state "unknown"
+		// with `allowedToStartWork` defaulted true, not as a missing row.
+		const billing = store.collections.billingAccounts.get("billing");
+		expect(billing?.state).toBe("unknown");
+		expect(billing?.allowedToStartWork).toBe(true);
 
 		const outcome = await controller.commands.run("flow.run", "review-pr");
 
 		expect(outcome.status).toBe("failed");
 		if (outcome.status === "failed") expect(outcome.error).not.toBe(EXHAUSTED_TEXT);
+	});
+
+	test("a button-driven flow.run at $0 does not double-surface the refusal as a toast", async () => {
+		const store = await webStore();
+		const controller = createAppController(store, unavailableRepositories, silentAgent(), noWorkflowSeam());
+		await signInAtZeroBalance(store);
+
+		controller.runCommandArgs("flow.run", "review-pr");
+		await settle();
+
+		expect(transcriptTexts(store)).toContain(EXHAUSTED_TEXT);
+		const toasts = [...store.collections.toasts.values()];
+		expect(toasts.some((toast) => toast.detail === EXHAUSTED_TEXT)).toBe(false);
 	});
 });

@@ -88,6 +88,16 @@ const MAX_TOOL_LEGS = 8;
  */
 const CHAIN_SURFACE_CALLS = new Set(["author", "say", "card.show", "card.update"]);
 
+/**
+ * Launch Checklist D-4's exhausted-balance refusal, shared between the
+ * `zeroBalanceGuard` that dispatches it as a transcript message and
+ * `surfaceCommandFailure`, which recognizes it to skip its toast (the
+ * refusal is already an embedded chat message; a toast would double-surface
+ * it). Names the upgrade path per the definition of done: "how to proceed".
+ */
+const ZERO_BALANCE_EXHAUSTED_TEXT =
+	"Balance is at $0 — workflow runs pause until more balance is added. Run /billing.upgrade to add balance; chat stays free in the meantime.";
+
 export interface AppController {
 	readonly store: AppStore;
 	readonly nativeAgentAvailable: boolean;
@@ -2861,19 +2871,24 @@ export const createAppController = (
 	 * non-complimentary work — the one place the pause discipline applies.
 	 * `allowedToStartWork` only ever reads false after a definitive
 	 * "ok"/"low"/"empty" balance answer (refreshBalanceImpl), so a down or
-	 * unread billing seam never blocks a launch. The refusal is dispatched
-	 * into the transcript directly (not left to the generic toast channel;
-	 * see surfaceCommandFailure) so it lands as an embedded chat message per
-	 * THE EMBED LAW regardless of whether a button, slash command, or the
-	 * agent triggered the launch.
+	 * unread billing seam never blocks a launch. `billing === undefined` is
+	 * kept as an explicit defensive branch — `seed()` (AppStore.ts) always
+	 * inserts `initialBillingAccount()` before the store resolves, so in
+	 * practice the row always exists by the time a command can run; this
+	 * guards the invariant rather than a state the store can actually
+	 * produce. The refusal is dispatched into the transcript directly (not
+	 * left to the generic toast channel) so it lands as an embedded chat
+	 * message per THE EMBED LAW regardless of whether a button, slash
+	 * command, or the agent triggered the launch; `surfaceCommandFailure`
+	 * recognizes `ZERO_BALANCE_EXHAUSTED_TEXT` and skips its toast for
+	 * pointer-driven triggers, so a button click doesn't double-surface the
+	 * same refusal as both a transcript message and a toast.
 	 */
 	const zeroBalanceGuard = (): string | undefined => {
 		const billing = store.collections.billingAccounts.get("billing");
 		if (billing === undefined || billing.allowedToStartWork) return undefined;
-		const text =
-			"Balance is at $0 — workflow runs pause until more balance is added; chat stays free in the meantime.";
-		store.dispatch({ type: "message.appended", actor: "system", text });
-		return text;
+		store.dispatch({ type: "message.appended", actor: "system", text: ZERO_BALANCE_EXHAUSTED_TEXT });
+		return ZERO_BALANCE_EXHAUSTED_TEXT;
 	};
 
 	/**
@@ -4330,10 +4345,14 @@ export const createAppController = (
 	 * A failed command from a BUTTON has no composer to answer into — dropping
 	 * the outcome reads as a silent no-op (the "did it even run?" bug). Every
 	 * pointer-driven failure states itself as a toast; executes that render
-	 * their own error UI return void and never reach this.
+	 * their own error UI return void and never reach this. The zero-balance
+	 * refusal is the one exception: `zeroBalanceGuard` already dispatched it
+	 * as an embedded transcript message, so toasting it too would
+	 * double-surface the same refusal.
 	 */
 	const surfaceCommandFailure = (name: string, outcome: CommandOutcome): void => {
 		if (outcome.status !== "failed") return;
+		if (outcome.error === ZERO_BALANCE_EXHAUSTED_TEXT) return;
 		const key = `command.failed.${name}`;
 		store.dispatch({ type: "toast.shown", actor: "system", key, title: `/${name} didn't run` });
 		store.dispatch({ type: "toast.resolved", actor: "system", key, status: "failed", detail: outcome.error });
