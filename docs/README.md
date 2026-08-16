@@ -81,6 +81,11 @@ documented in the [plugins repository](https://github.com/smithersai/plugins).
 - [Implementation status](architecture/implementation-status.md)
 - [Alpha notes](alpha-notes.md) — known limitations for the private alpha, including the register of test pins.
 
+## Releasing
+
+- [Release runbook](release-runbook.md) — what a human runs to publish the engine train.
+- [Release rehearsal receipt](release-rehearsal.md) — the recorded no-publish rehearsal of that path.
+
 ## Documentation conventions
 
 “Implemented” means the behavior exists in `packages/*/src` and is exercised by the repository’s package tests. “Planned” means the source contains only a contract, test double, TODO, or no API at all. Examples use the repository’s current `effect@4.0.0-rc.108` APIs and the public `@smthrs/*` package exports.
