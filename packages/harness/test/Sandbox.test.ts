@@ -481,7 +481,7 @@ describe("QuickJSSandbox", () => {
         call: () =>
           Effect.sync(() => {
             handlerEntered = true
-          }).pipe(Effect.zipRight(Effect.never)),
+          }).pipe(Effect.andThen(Effect.never)),
         limits: { timeMs: 250, steps: Number.MAX_SAFE_INTEGER }
       }
     )
