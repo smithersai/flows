@@ -639,6 +639,16 @@ function App({ controller }: { readonly controller: AppController }) {
 					controller.runCommand("card.minimize");
 					return;
 				}
+				// The recommendation card's own handler covers Escape while it's
+				// focused (and stops the event there). This is the fallback for
+				// when focus is elsewhere — the composer autofocuses on load, so
+				// that's the common case — one keypress still dismisses it through
+				// the same reco.dismiss flow the "Not now" button uses.
+				if (event.key === "Escape" && recoWaiting !== undefined) {
+					event.preventDefault();
+					controller.runCommandArgs("reco.dismiss", recoWaiting.id);
+					return;
+				}
 				// The dev-tools keyboard path (§2b): unregistered for non-admins, so a no-op there.
 				if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "d") {
 					event.preventDefault();

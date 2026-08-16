@@ -237,6 +237,9 @@ const RecoCardBody = ({
 		if (!actionable) return;
 		if (event.key === "Escape" || event.key === "d") {
 			event.preventDefault();
+			// Stop here so the app-shell's own Escape handler (the fallback for
+			// when focus is elsewhere, e.g. the composer) doesn't double-dismiss.
+			event.stopPropagation();
 			onRecoAction(card.id, "dismiss");
 		}
 	};
