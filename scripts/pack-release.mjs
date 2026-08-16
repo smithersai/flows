@@ -245,11 +245,22 @@ const packWorkspace = async (name, outputDirectory, stagingRoot) => {
 export const main = async (args) => {
   const destination = args[0]
   if (destination === "--help") {
-    console.log("usage: node scripts/pack-release.mjs <output-directory>\n       node scripts/pack-release.mjs --list")
+    console.log(
+      [
+        "usage: node scripts/pack-release.mjs <output-directory>",
+        "       node scripts/pack-release.mjs --list    workspace directories, in publication order",
+        "       node scripts/pack-release.mjs --names   package names, in publication order"
+      ].join("\n")
+    )
     return
   }
   if (destination === "--list") {
     console.log(workspaces.join("\n"))
+    return
+  }
+  if (destination === "--names") {
+    const manifests = readWorkspaceManifests()
+    console.log(workspaces.map((directory) => manifests.get(directory).name).join("\n"))
     return
   }
   if (destination === undefined) {
