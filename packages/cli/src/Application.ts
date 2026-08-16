@@ -4,7 +4,7 @@
  * @since 0.1.0
  */
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
-import type { Control } from "@smthrs/control"
+import type { Control, ControlExecutor } from "@smthrs/control"
 import { ControlClient, ControlLive, ControlRuntime } from "@smthrs/control"
 import type { Journal } from "@smthrs/journal-next"
 import * as TestJournal from "@smthrs/journal-next/test/TestJournal"
@@ -63,8 +63,18 @@ export const engineMemory: Engine = {
   journal: TestJournal.layer().pipe(Layer.orDie)
 }
 
-const layerLocal = (registry: Layer.Layer<Registry.Registry>, engine: Engine) =>
-  ControlLive.layer.pipe(
+const layerLocal = (
+  registry: Layer.Layer<Registry.Registry>,
+  engine: Engine,
+  executor:
+    | Layer.Layer<
+      ControlExecutor.ControlExecutor,
+      never,
+      ControlRuntime.ControlRuntime | Journal.Journal | NotificationQueue.NotificationQueue | Registry.Registry
+    >
+    | undefined
+) =>
+  (executor === undefined ? ControlLive.layer : ControlLive.layer.pipe(Layer.provide(executor))).pipe(
     Layer.provide([
       engine.runtime,
       engine.journal,
@@ -97,14 +107,29 @@ const rpcUrl = (remote: string): string => {
  * things — `NodeControl.layerRegistry` and `NodeControl.engineDurable` are the
  * Node ones.
  *
+ * `executor` is the run executor `ControlLive.run` starts accepted launches
+ * on. It must be provided here — `ControlLive` resolves it with
+ * `Effect.serviceOption` while its own layer is built, so an executor
+ * provided from outside an already-satisfied layer is invisible. Omitting it
+ * leaves every run `pending`, which is only correct for compositions that
+ * observe runs without executing them. `NodeControl.layerExecutor` is the
+ * production one.
+ *
  * @category layers
  * @since 0.1.0
  */
 export const layer = (
   config: Config,
   registry: Layer.Layer<Registry.Registry> = Registry.layerNoop(),
-  engine: Engine = engineMemory
+  engine: Engine = engineMemory,
+  executor?:
+    | Layer.Layer<
+      ControlExecutor.ControlExecutor,
+      never,
+      ControlRuntime.ControlRuntime | Journal.Journal | NotificationQueue.NotificationQueue | Registry.Registry
+    >
+    | undefined
 ): Layer.Layer<Control.Control, never, HttpClient | RpcSerialization | Socket> =>
   config.remote === undefined
-    ? layerLocal(registry, engine)
+    ? layerLocal(registry, engine, executor)
     : ControlClient.layer({ url: rpcUrl(config.remote), credential: config.credential })

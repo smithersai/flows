@@ -5,6 +5,7 @@
  *
  * @since 0.1.0
  */
+import * as ModelRequest from "@smthrs/model/ModelRequest"
 import { NotificationQueue } from "@smthrs/notifications"
 import type { Notification } from "@smthrs/notifications/Notification"
 import { Effect, Layer } from "effect"
@@ -22,7 +23,11 @@ export interface Options {
   readonly lineageId: string
 }
 
-const render = (notification: Notification) => {
+// A real `UserMessage`, not a structurally similar literal: the turn-boundary
+// drain is journaled through `Steering.DrainRecord`, whose schema accepts
+// only `flows/model/UserMessage` instances, so a plain object fails the
+// record boundary the first time a composed run drains one.
+const render = (notification: Notification): ModelRequest.Message => {
   const payload = notification.payload
   const record = typeof payload === "object" &&
       notification.payload !== null &&
@@ -32,14 +37,10 @@ const render = (notification: Notification) => {
   const body = typeof record?.["body"] === "string"
     ? record["body"]
     : JSON.stringify(payload)
-  return {
-    role: "user" as const,
-    content: [{
-      type: "text" as const,
-      text: `[notification ${notification.id} from ${notification.provenance.sourceActor} ` +
-        `at ${notification.provenance.sourceLineageId} turn ${notification.provenance.sourceTurn}]\n${body}`
-    }]
-  }
+  return ModelRequest.Message.user(
+    `[notification ${notification.id} from ${notification.provenance.sourceActor} ` +
+      `at ${notification.provenance.sourceLineageId} turn ${notification.provenance.sourceTurn}]\n${body}`
+  )
 }
 
 const mapFailure = (cause: unknown): HarnessError =>

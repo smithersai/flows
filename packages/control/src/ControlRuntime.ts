@@ -179,6 +179,25 @@ export interface Service {
     ApprovalToken,
     PlanDigestMismatch | EnvelopeMismatch | AlreadyResolved | RunNotFound | PersistenceError
   >
+  /**
+   * Creates the durable token for one in-run approval request, or returns the
+   * existing one.
+   *
+   * Plan tokens are created by `plan`; nothing created tokens for `Node`
+   * targets, so an in-run request (a parked `ask`, a permission requirement)
+   * could never be decided through `approve`/`deny`. Registration is
+   * idempotent — the executor calls it on every parked attempt — and returns
+   * the token with its current `resolved` state so a resumed attempt can read
+   * the decision instead of parking again. A registered target that
+   * disagrees with the stored digest or envelope is refused, exactly as
+   * `lookupApproval` refuses it.
+   */
+  readonly registerApproval: (
+    target: Extract<ApprovalTarget, { readonly _tag: "Node" }>
+  ) => Effect.Effect<
+    ApprovalToken,
+    RunNotFound | PlanDigestMismatch | EnvelopeMismatch | PersistenceError
+  >
   readonly installBulkGrant: (
     token: ApprovalToken,
     envelope: Envelope,
@@ -404,6 +423,29 @@ export const layerMemory = (options: MemoryOptions = {}): Layer.Layer<ControlRun
           }
           if (token.resolved) return yield* new AlreadyResolved({ requestId: tokenId })
           return { tokenId, target: token.target, resolved: false }
+        }),
+        registerApproval: Effect.fn("ControlRuntime.registerApproval")(function*(target) {
+          yield* requireRun(target.runId)
+          const existing = tokens.get(target.requestId)
+          if (existing === undefined) {
+            tokens.set(target.requestId, { tokenId: target.requestId, target, resolved: false })
+            return { tokenId: target.requestId, target, resolved: false }
+          }
+          if (existing.target.digest !== target.digest) {
+            return yield* new PlanDigestMismatch({
+              planId: target.requestId,
+              expected: existing.target.digest,
+              actual: target.digest
+            })
+          }
+          if (!sameEnvelope(existing.target.envelope, target.envelope)) {
+            return yield* new EnvelopeMismatch({
+              planId: target.requestId,
+              expected: canonical(existing.target.envelope),
+              actual: canonical(target.envelope)
+            })
+          }
+          return { tokenId: existing.tokenId, target: existing.target, resolved: existing.resolved }
         }),
         installBulkGrant: Effect.fn("ControlRuntime.installBulkGrant")((token, envelope, scope) =>
           Effect.sync(() => {

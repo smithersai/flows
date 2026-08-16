@@ -1,9 +1,10 @@
 import * as TestJournal from "@smthrs/journal-next/test/TestJournal"
 import { NotificationQueue } from "@smthrs/notifications"
 import type * as NotificationModel from "@smthrs/notifications/Notification"
-import { Effect, Layer } from "effect"
+import { Effect, Layer, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Notifications from "../src/Notifications.ts"
+import * as Steering from "../src/Steering.ts"
 
 const notificationLayer = (() => {
   const journal = TestJournal.layer()
@@ -62,5 +63,11 @@ describe("harness notification adapter", () => {
     expect(result.idle.inserts[0]).toMatchObject({
       content: [{ text: expect.stringContaining("body:queued") }]
     })
+
+    // The drain is journaled through `Steering.DrainRecord` at the engine's
+    // record boundary, so the rendered inserts must be real `UserMessage`
+    // instances — a structurally similar literal fails this encode.
+    const journaled = Schema.encodeUnknownSync(Steering.DrainRecord)(Steering.drainRecord(result.active))
+    expect(journaled.inserts).toHaveLength(1)
   })
 })

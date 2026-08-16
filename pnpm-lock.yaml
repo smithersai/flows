@@ -581,12 +581,33 @@ importers:
       '@smthrs/database-next':
         specifier: 0.1.0
         version: link:../database
+      '@smthrs/engine-harness':
+        specifier: 0.1.0
+        version: link:../engine-harness
+      '@smthrs/engine-store-next':
+        specifier: 0.1.0
+        version: link:../engine-store
+      '@smthrs/flows-next':
+        specifier: 0.1.0
+        version: link:../flows
+      '@smthrs/harness':
+        specifier: 0.1.0
+        version: link:../harness
+      '@smthrs/jj-next':
+        specifier: 0.1.0
+        version: link:../jj
       '@smthrs/journal-next':
         specifier: 0.1.0
         version: link:../journal
       '@smthrs/kernel-next':
         specifier: 0.1.0
         version: link:../kernel
+      '@smthrs/memory':
+        specifier: 0.1.0
+        version: link:../memory
+      '@smthrs/model':
+        specifier: 0.1.0
+        version: link:../model
       '@smthrs/notifications':
         specifier: 0.1.0
         version: link:../notifications
@@ -998,6 +1019,9 @@ importers:
       '@smthrs/capability-next':
         specifier: 0.1.0
         version: link:../capability
+      '@smthrs/control':
+        specifier: 0.1.0
+        version: link:../control
       '@smthrs/core':
         specifier: 0.1.0
         version: link:../core
@@ -1016,6 +1040,9 @@ importers:
       '@smthrs/jj-next':
         specifier: 0.1.0
         version: link:../jj
+      '@smthrs/journal-next':
+        specifier: 0.1.0
+        version: link:../journal
       '@smthrs/kernel-next':
         specifier: 0.1.0
         version: link:../kernel
@@ -1025,6 +1052,9 @@ importers:
       '@smthrs/model':
         specifier: 0.1.0
         version: link:../model
+      '@smthrs/notifications':
+        specifier: 0.1.0
+        version: link:../notifications
       '@smthrs/plan-next':
         specifier: 0.1.0
         version: link:../plan
@@ -1059,6 +1089,12 @@ importers:
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
+      '@smthrs/flows-next':
+        specifier: 0.1.0
+        version: link:../flows
+      '@smthrs/testing':
+        specifier: 0.1.0
+        version: link:../testing
       '@types/node':
         specifier: 25.9.5
         version: 25.9.5

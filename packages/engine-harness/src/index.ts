@@ -33,6 +33,12 @@ export * as StandardFlows from "./StandardFlows.ts"
  * @category constructors
  * @since 0.1.0
  */
+export * as HarnessExecutor from "./HarnessExecutor.ts"
+
+/**
+ * @category constructors
+ * @since 0.1.0
+ */
 export * as ChildFlows from "./ChildFlows.ts"
 
 /**

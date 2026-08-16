@@ -4,22 +4,47 @@
  * @since 0.1.0
  */
 import { NodeCrypto, NodeHttpClient, NodeHttpServer, NodeServices, NodeSocket } from "@effect/platform-node"
-import { ControlRpcs, ControlServer, SqlControlRuntime } from "@smthrs/control"
+import {
+  ControlExecutor,
+  ControlRpcs,
+  ControlRuntime,
+  ControlServer,
+  SqlControlRuntime,
+  SystemFlows
+} from "@smthrs/control"
 import * as DurableWriter from "@smthrs/database-next/DurableWriter"
 import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
+import * as FlowEngineLike from "@smthrs/engine-harness/FlowEngineLike"
+import * as HarnessExecutor from "@smthrs/engine-harness/HarnessExecutor"
+import * as StandardFlows from "@smthrs/engine-harness/StandardFlows"
+import * as StepBoundary from "@smthrs/engine-store-next/StepBoundary"
+import * as WorkspaceSandbox from "@smthrs/engine-store-next/WorkspaceSandbox"
+import * as NodeFlowsRuntime from "@smthrs/flows-next/NodeRuntime"
+import type * as Sandbox from "@smthrs/harness/Sandbox"
+import * as NodeJj from "@smthrs/jj-next/node/NodeJj"
 import { Migrations, SqlJournal } from "@smthrs/journal-next"
+import type * as Journal from "@smthrs/journal-next/Journal"
+import * as KernelChildProcessSpawner from "@smthrs/kernel-next/ChildProcessSpawner"
 import * as KernelFileSystem from "@smthrs/kernel-next/FileSystem"
 import * as GrantStore from "@smthrs/kernel-next/GrantStore"
 import * as Workspace from "@smthrs/kernel-next/Workspace"
+import * as MemoryStore from "@smthrs/memory/MemoryStore"
+import * as Recall from "@smthrs/memory/Recall"
+import type * as ModelError from "@smthrs/model/ModelError"
+import * as RequestExecutor from "@smthrs/model/RequestExecutor"
+import * as Route from "@smthrs/model/Route"
+import type { NotificationQueue } from "@smthrs/notifications"
 import * as AtomicFileSystem from "@smthrs/platform-node-next/AtomicFileSystem"
 import type * as Descriptor from "@smthrs/registry/Descriptor"
 import * as Discovery from "@smthrs/registry/Discovery"
 import * as Registry from "@smthrs/registry/Registry"
 import { Migrations as RunStoreMigrations, RunStore } from "@smthrs/run-store-next"
-import { Effect, Layer } from "effect"
+import type { FileSystem, Path, Result } from "effect"
+import { Effect, Layer, Redacted } from "effect"
 import { HttpRouter } from "effect/unstable/http"
 import { RpcSerialization } from "effect/unstable/rpc"
 import { Socket } from "effect/unstable/socket"
+import type { SqlClient } from "effect/unstable/sql/SqlClient"
 import { mkdirSync } from "node:fs"
 import { createServer } from "node:http"
 import type { ListenOptions } from "node:net"
@@ -163,6 +188,49 @@ export const layerRegistry = (root: string = process.cwd()): Layer.Layer<Registr
 export const databasePath = (root: string): string => join(root, ".flows", "control.db")
 
 /**
+ * Where the durable flow engine keeps executions, attempts, cache entries,
+ * and wake state. The control plane has a separate connection and schema in
+ * {@link databasePath}; keeping the files separate makes each composition's
+ * migration ownership explicit.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const executionDatabasePath = (root: string): string => join(root, ".flows", "engine.db")
+
+/**
+ * `Application.Engine` plus the shared database seam the Node composition
+ * hangs additional stores off — the memory store reuses the same connection
+ * the runtime and journal commit against.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface EngineDurable extends Application.Engine {
+  readonly stores: Layer.Layer<DurableWriter.DurableWriter | SqlClient>
+}
+
+/** The reserved system catalog in the durable runtime's flow shape. */
+const systemFlows: ReadonlyArray<ControlRuntime.MemoryFlow> = SystemFlows.catalog.map((entry) => ({
+  flowId: entry.flowId,
+  description: `Reserved ${entry.verb} system flow`,
+  deployClass: entry.deployClass,
+  envelope: { capabilities: [], flows: [], budget: {} }
+}))
+
+/** Projects one discovered flow into the durable runtime's flow shape. */
+const durableFlow = (descriptor: Descriptor.FlowDescriptor): ControlRuntime.MemoryFlow => ({
+  flowId: descriptor.name,
+  description: descriptor.description,
+  deployClass: false,
+  envelope: {
+    capabilities: descriptor.capabilities,
+    flows: descriptor.flows,
+    budget: {}
+  }
+})
+
+/**
  * Provides the durable local engine: `SqlControlRuntime` and the production
  * SQL journal, both over one SQLite file under the project root.
  *
@@ -172,10 +240,17 @@ export const databasePath = (root: string): string => join(root, ".flows", "cont
  * the journal is deliberate: the fenced run transitions and the events that
  * describe them then commit against the same database.
  *
+ * With a `registry`, the runtime knows every discovered flow as well as the
+ * reserved system catalog, so `flows plan <flow>` plans a project flow
+ * instead of failing `FlowNotFound`.
+ *
  * @category layers
  * @since 0.1.0
  */
-export const engineDurable = (root: string = process.cwd()): Application.Engine => {
+export const engineDurable = (
+  root: string = process.cwd(),
+  registry?: Layer.Layer<Registry.Registry> | undefined
+): EngineDurable => {
   const file = databasePath(root)
   // Suspended so a `--remote` invocation, which never builds this layer, does
   // not leave an empty `.flows/` behind. SQLite opens a file but will not
@@ -198,22 +273,191 @@ export const engineDurable = (root: string = process.cwd()): Application.Engine 
     Layer.provideMerge(database),
     Layer.orDie
   )
+  const runtime = registry === undefined
+    ? SqlControlRuntime.layer().pipe(Layer.provide([stores, NodeCrypto.layer]), Layer.orDie)
+    : Layer.effect(ControlRuntime.ControlRuntime)(
+      Effect.gen(function*() {
+        const registryService = yield* Registry.Registry
+        const discovered = yield* registryService.list()
+        return yield* SqlControlRuntime.make({ flows: [...systemFlows, ...discovered.map(durableFlow)] })
+      })
+    ).pipe(Layer.provide([stores, NodeCrypto.layer, registry]), Layer.orDie)
   return {
-    runtime: SqlControlRuntime.layer().pipe(Layer.provide([stores, NodeCrypto.layer]), Layer.orDie),
-    journal: stores
+    runtime,
+    journal: stores,
+    stores
   }
+}
+
+const apiKeyVariable: Readonly<Record<string, string>> = {
+  anthropic: "ANTHROPIC_API_KEY",
+  openai: "OPENAI_API_KEY"
+}
+
+/**
+ * Resolves a `provider:modelId` seat into a live model route, with the API
+ * key read from the given environment — usually `process.env`, passed in as a
+ * value so nothing below this composition touches the process directly.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const resolveSeat = (
+  environment: Readonly<Record<string, string | undefined>>
+): HarnessExecutor.Options["resolveSeat"] =>
+(seat) =>
+  Effect.gen(function*() {
+    const separator = seat.indexOf(":")
+    const provider = separator < 0 ? "anthropic" : seat.slice(0, separator)
+    const modelId = separator < 0 ? seat : seat.slice(separator + 1)
+    const variable = apiKeyVariable[provider]
+    if (variable === undefined) {
+      return yield* new HarnessExecutor.SeatUnresolved({
+        seat,
+        message: `No route is configured for the ${provider} provider`
+      })
+    }
+    const key = environment[variable]
+    if (key === undefined || key.length === 0) {
+      return yield* new HarnessExecutor.SeatUnresolved({
+        seat,
+        message: `Set ${variable} to run the ${seat} seat`
+      })
+    }
+    // The two provider routes have distinct body types, so each branch is
+    // erased into the seat shape on its own rather than through a union.
+    return yield* provider === "anthropic"
+      ? seatOf(Route.anthropic({ apiKey: Redacted.make(key) }), seat, modelId)
+      : seatOf(Route.openai({ apiKey: Redacted.make(key) }), seat, modelId)
+  })
+
+const seatOf = <Body, Frame, Event, State>(
+  configured: Result.Result<Route.Route<Body, Frame, Event, State>, ModelError.ModelError>,
+  seat: string,
+  modelId: string
+): Effect.Effect<HarnessExecutor.Seat, HarnessExecutor.SeatUnresolved> =>
+  Effect.gen(function*() {
+    const routeConfig = yield* Effect.fromResult(configured).pipe(
+      Effect.mapError((error) => new HarnessExecutor.SeatUnresolved({ seat, message: error.message }))
+    )
+    const model = yield* Route.toModel(routeConfig).pipe(
+      Effect.provide(RequestExecutor.layer.pipe(Layer.provide(NodeHttpClient.layerUndici)))
+    )
+    return {
+      model,
+      route: FlowEngineLike.routeResolver(routeConfig),
+      contextWindowTokens: HarnessExecutor.contextWindowTokensFor(modelId)
+    }
+  })
+
+/**
+ * The explicit sandbox budget every locally executed cell runs under. Never
+ * unlimited: an unbounded QuickJS cell can hang the frame.
+ */
+const cellLimits: Sandbox.Limits = {
+  memoryBytes: 256 * 1024 * 1024,
+  steps: 50_000_000
+}
+
+/**
+ * Provides the production run executor: the engine-harness composition root
+ * over the durable control stores, the local flow registry, and the standard
+ * host capabilities — filesystem and shell through the kernel's guarded
+ * layers, durable memory over the control database, approval and steering
+ * wired back into the control plane by the executor itself.
+ *
+ * The durable engine is built through `@smthrs/flows-next/NodeRuntime`, whose
+ * final registration phase constructs `HarnessExecutor`. This is deliberate:
+ * the executor cannot accept a launch until the engine database is migrated,
+ * its stores and sweepers are live, and the agent flow body has been
+ * registered. The resulting engine state is durable, and no launch can race
+ * ahead of that durability-sensitive startup order.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
+export const layerExecutor = (
+  registry: Layer.Layer<Registry.Registry>,
+  engine: EngineDurable,
+  root: string = process.cwd(),
+  environment: Readonly<Record<string, string | undefined>> = process.env
+): Layer.Layer<
+  ControlExecutor.ControlExecutor,
+  never,
+  ControlRuntime.ControlRuntime | Journal.Journal | NotificationQueue.NotificationQueue | Registry.Registry
+> => {
+  const grants = GrantStore.layerNoop
+  // The same guarded platform the registry discovers under: kernel FileSystem
+  // over descriptor-relative atomic access, with the Node service bundle
+  // (Path, raw spawner, crypto) merged through.
+  const host = Layer.provideMerge(AtomicFileSystem.layer, NodeServices.layer)
+  const platform = Layer.orDie(KernelFileSystem.layer).pipe(
+    Layer.provide([Workspace.layer(root), grants]),
+    Layer.provideMerge(host)
+  )
+  const guarded = KernelChildProcessSpawner.layer.pipe(
+    Layer.provide(grants),
+    Layer.provideMerge(platform)
+  )
+  const memory = MemoryStore.layer.pipe(Layer.provide(engine.stores), Layer.orDie)
+  const registration = Layer.effect(ControlExecutor.ControlExecutor)(
+    Effect.gen(function*() {
+      const filesystemServices = yield* Effect.context<FileSystem.FileSystem | Path.Path>()
+      const shellServices = yield* Effect.context<
+        KernelChildProcessSpawner.ChildProcessSpawner | Path.Path
+      >()
+      const memoryServices = yield* Effect.context<MemoryStore.MemoryStore | Recall.Recall>()
+      return yield* HarnessExecutor.make({
+        resolveSeat: resolveSeat(environment),
+        flows: [
+          StandardFlows.filesystem(filesystemServices),
+          StandardFlows.shell(shellServices),
+          StandardFlows.memory(memoryServices)
+        ],
+        limits: cellLimits
+      })
+    })
+  ).pipe(
+    Layer.provide([
+      guarded,
+      memory,
+      Recall.layerNoop
+    ])
+  )
+  return NodeFlowsRuntime.layer(
+    {
+      filename: executionDatabasePath(root),
+      owner: { hostId: "flows-cli" },
+      // The local CLI has one engine process at a time. A later supervised or
+      // multi-process host must replace this with a real liveness answer.
+      isAlive: () => Effect.succeed(false)
+    },
+    StepBoundary.layer,
+    WorkspaceSandbox.layerFileSystem(),
+    registration
+  ).pipe(
+    Layer.provide([platform, NodeCrypto.layer, NodeJj.layer]),
+    // Failure to open or migrate the local execution engine is a startup
+    // defect, just like the control database above: no command can execute
+    // honestly without this composition.
+    Layer.orDie
+  )
 }
 
 /**
  * Provides the application-selected Control implementation with Node HTTP and
- * WebSocket client transports.
+ * WebSocket client transports. Local compositions get the production run
+ * executor; remote ones talk to a server that owns its own.
  *
  * @category layers
  * @since 0.1.0
  */
 export const layerControl = (applicationConfig: Application.Config) => {
   const remote = applicationConfig.remote ?? "http://127.0.0.1"
-  return Application.layer(applicationConfig, layerRegistry(), engineDurable()).pipe(
+  const registry = layerRegistry()
+  const engine = engineDurable(process.cwd(), registry)
+  const executor = applicationConfig.remote === undefined ? layerExecutor(registry, engine) : undefined
+  return Application.layer(applicationConfig, registry, engine, executor).pipe(
     Layer.provide([
       NodeHttpClient.layerUndici,
       websocketLayer(remote, applicationConfig.credential),

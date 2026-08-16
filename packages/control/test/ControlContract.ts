@@ -290,6 +290,47 @@ export const contract = (name: string, harness: Harness): void => {
         expect(again).toEqual([])
       }))
 
+    test("registers an in-run approval token that approve turns into a grant", () =>
+      Effect.gen(function*() {
+        const control = yield* Control
+        const runtime = yield* ControlRuntime
+        const { runId } = yield* start
+        const envelope: Envelope = { capabilities: [], flows: ["ask"], budget: {} }
+        const target = { _tag: "Node" as const, runId, requestId: "ask-1", digest: "ask-digest", envelope }
+
+        // Registration is idempotent: every parked attempt re-registers.
+        const first = yield* runtime.registerApproval(target)
+        const again = yield* runtime.registerApproval(target)
+        expect(first).toEqual({ tokenId: "ask-1", target, resolved: false })
+        expect(again).toEqual(first)
+
+        // A target that disagrees with what was registered is refused, exactly
+        // as lookupApproval refuses it.
+        const mismatched = yield* Effect.flip(runtime.registerApproval({ ...target, digest: "other" }))
+        expect(mismatched).toBeInstanceOf(PlanDigestMismatch)
+
+        // The public approve verb resolves the registered token and installs
+        // the grant a resumed attempt reads its decision from.
+        yield* control.approve({ target, scope: "run", idempotencyKey: "approve:ask-1" })
+        const resolved = yield* runtime.registerApproval(target)
+        expect(resolved.resolved).toBe(true)
+        const grants = yield* runtime.grants
+        expect(grants.some((grant) => grant.tokenId === "ask-1")).toBe(true)
+      }))
+
+    test("refuses to register an in-run approval against an unknown run", () =>
+      Effect.gen(function*() {
+        const runtime = yield* ControlRuntime
+        const missing = yield* Effect.flip(runtime.registerApproval({
+          _tag: "Node",
+          runId: "run-unknown",
+          requestId: "ask-x",
+          digest: "ask-digest",
+          envelope: { capabilities: [], flows: [], budget: {} }
+        }))
+        expect(missing).toBeInstanceOf(RunNotFound)
+      }))
+
     it("reports running only after a real executor accepts the launch", async () => {
       const invoked: Array<string> = []
       const executor = ControlExecutor.make({

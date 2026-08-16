@@ -481,6 +481,45 @@ export const make_ = (
         if (row.resolved !== 0) return yield* new AlreadyResolved({ requestId: tokenId })
         return { tokenId, target: stored, resolved: false }
       }),
+      registerApproval: Effect.fn("SqlControlRuntime.registerApproval")(function*(
+        target: Extract<ApprovalTarget, { readonly _tag: "Node" }>
+      ) {
+        yield* requireRow(target.runId)
+        yield* sql`
+          INSERT INTO control_tokens (token_id, target_json, resolved)
+          VALUES (${target.requestId}, ${JSON.stringify(target)}, 0)
+          ON CONFLICT (token_id) DO NOTHING
+        `.pipe(Effect.mapError(persistence("register an approval token")))
+        const rows = yield* sql<TokenRow>`
+          SELECT token_id AS "tokenId", target_json AS "targetJson", resolved
+          FROM control_tokens WHERE token_id = ${target.requestId}
+        `.pipe(query("read an approval token"))
+        const row = rows[0]
+        if (row === undefined) {
+          return yield* Effect.fail(
+            new PersistenceError({
+              operation: "register an approval token",
+              message: "A registered approval token could not be read back"
+            })
+          )
+        }
+        const stored = JSON.parse(row.targetJson) as ApprovalTarget
+        if (stored.digest !== target.digest) {
+          return yield* new PlanDigestMismatch({
+            planId: target.requestId,
+            expected: stored.digest,
+            actual: target.digest
+          })
+        }
+        if (!sameEnvelope(stored.envelope, target.envelope)) {
+          return yield* new EnvelopeMismatch({
+            planId: target.requestId,
+            expected: canonical(stored.envelope),
+            actual: canonical(target.envelope)
+          })
+        }
+        return { tokenId: row.tokenId, target: stored, resolved: row.resolved !== 0 }
+      }),
       installBulkGrant: Effect.fn("SqlControlRuntime.installBulkGrant")(function*(
         token: ApprovalToken,
         envelope: Envelope,
