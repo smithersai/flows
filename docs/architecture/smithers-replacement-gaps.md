@@ -206,10 +206,12 @@ gap.
    `cellRegistry`, `cellFlows`, and `cellModelRequest`. Pause attribution,
    hijack, quota, and checkpoints still need seams as injected services and
    constructor options at the sites that own them, not as a lifecycle registry.
-2. **No packaged production layer.** Nothing composes database + migrations +
-   journal + engine-store + kernel + Host + engine into one importable layer.
-   Smithers cannot adopt the engine as a dependency until this exists — it is
-   the literal cutover artifact.
+2. **~~No packaged production layer.~~ Closed.** `@smthrs/flows-next/NodeRuntime`
+   composes database + migrations + journal + engine-store + kernel + artifact
+   store + engine into one importable layer, with `registerFlows` as the final
+   startup phase (`packages/flows/src/NodeRuntime.ts`). Residual: it installs
+   no signal handlers, and its only consumer in this repository is
+   `examples/src/durable-layer.ts`, so no package test gates it.
 3. **Handler re-registration on restart.** Flow registrations are in-memory; a
    restarted process must re-register before driving stored runs. Smithers'
    resume path assumes the engine can pick up any persisted run; the cutover
@@ -274,8 +276,9 @@ existing smithers CLI unchanged.
    migration for live runs.
 2. **Engine loop for new runs only (shim: dual-engine routing).** New runs
    execute on `Engine.FlowEngine` + `DurableEngineState`; existing runs finish
-   on the old loop. Requires the packaged production layer and the
-   registration-before-resume guarantee. Waiting states route through the
+   on the old loop. The packaged production layer this needs now exists
+   (`@smthrs/flows-next/NodeRuntime`); the registration-before-resume
+   guarantee is that layer's `registerFlows` phase. Waiting states route through the
    taxonomy instead of `engine.js`'s inline cases.
 3. **RunControl (retire `supervisor.js`, `pause`, `cancel` paths).** The
    claim-by-proxy process is already replaced by the run driver's own sweep

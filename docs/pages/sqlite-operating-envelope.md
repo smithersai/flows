@@ -83,6 +83,19 @@ and adds client and driver tests for typed failure propagation
 ([issue #7235](https://github.com/Effect-TS/effect/issues/7235),
 [PR #7236](https://github.com/Effect-TS/effect/pull/7236)).
 
+That fix merged on 2026-08-13 and first shipped in `effect@4.0.0-rc.109`
+(2026-08-14). **This repository pins `4.0.0-rc.108` (2026-08-12), so the defect
+is live against the installed substrate.** It is degraded rather than avoided:
+`WriteRetry.isRetryableWriteError` and `DurableWriter.fromSqlError` both match
+the defect's message text and classify it into the transient busy vocabulary
+(`packages/database/src/internal/WriteRetry.ts`,
+`packages/database/src/DurableWriter.ts`), so a lost `BEGIN IMMEDIATE` race
+retries instead of killing the run, and
+`packages/database/test/contract/DatabaseWriteContract.ts` pins that
+classification. Moving the pin is the real fix and is not part of this release.
+The pin and its known upstream issues are tracked in
+[implementation status](https://github.com/smithersai/flows/blob/main/docs/architecture/implementation-status.md#substrate-pin-and-known-upstream-issues).
+
 ## Multi-Process Rules
 
 Multiple local processes may open the same SQLite file, and this repository tests

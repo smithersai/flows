@@ -14,7 +14,13 @@ For a first pass, read:
 6. [Getting started](guides/getting-started.md)
 7. [Writing a flow](guides/writing-a-flow.md)
 
-Read [implementation status](architecture/implementation-status.md) before choosing a deployment architecture. It distinguishes working library surfaces from planned integration work. Private-alpha operators should also read the [alpha notes](alpha-notes.md) for current operational limits.
+Read [implementation status](architecture/implementation-status.md) before choosing a deployment architecture. It distinguishes working library surfaces from planned integration work. Three sections there answer the questions that come up first:
+
+- [Not in release 1](architecture/implementation-status.md#not-in-release-1) — subsystems that exist in this tree and are not part of release 1: `@smthrs/triggers`, `@smthrs/evals`, `@smthrs/gateway`, memory semantic recall, and OTLP export.
+- [Abandoned runs and supervision](architecture/implementation-status.md#abandoned-runs-and-supervision) — abandoned runs are **not** auto-resumed in this release, and the manual resume path.
+- [Substrate pin and known upstream issues](architecture/implementation-status.md#substrate-pin-and-known-upstream-issues) — the exact `effect@4.0.0-rc.108` pin and the upstream defects tracked against it.
+
+Private-alpha operators should also read the [alpha notes](alpha-notes.md) for current operational limits.
 
 ## Concepts
 

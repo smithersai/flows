@@ -78,7 +78,8 @@ export const describeContract = (harness: Harness): void => {
     // Both concurrent cases run as real assertions on every harness. A
     // multi-connection SQLite harness trips Effect's upstream `BEGIN`-failure
     // rollback defect ("cannot rollback - no transaction is active",
-    // Effect-TS/effect#7235, fixed upstream by #7236, unreleased), but
+    // Effect-TS/effect#7235, fixed upstream by #7236 and first released in
+    // effect@4.0.0-rc.109; this workspace pins rc.108, so it is still live), but
     // `withWriteRetry` classifies that defect as transient write contention
     // and retries it, so the contract holds regardless.
     it.live("does not lose an update when two writers read-modify-write one row concurrently", () =>

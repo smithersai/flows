@@ -601,7 +601,7 @@ They already appear, sometimes inconsistently, in the local architecture docs.
 | G-02 | No durable process-tree registry/reaper | Relevant to agent/child-process integrations; Smithers #972/#1332 and containment commits are direct prior art |
 | G-03 | No checkpoint host capability or durable worktree-lane lifecycle | Smithers checkpoint publication, retry, provenance, restore, and worktree cleanup code is directly applicable |
 | G-04 | No quota-error classifier and wake policy | Smithers provider classification belongs behind an injected seam, not hard-coded in core |
-| G-05 | No packaged production layer | Blocks a clean Smithers cutover even where primitives exist |
+| G-05 | No packaged production layer at the audit baseline; `@smthrs/flows-next/NodeRuntime` has since shipped one | Cutover artifact now exists; residual is that no package test gates it |
 | G-06 | SQLite-only shipped storage/migration layers | Smithers' PGlite/Postgres installations cannot adopt the store as written |
 | G-07 | Event-driven resume signal is absent | Polling is correct fallback but adds latency/load and complicates bounded retry semantics |
 | G-08 | Artifact GC is shipped as explicit mark/sweep; chunked transfer and download policy remain absent | Smithers #1349/#1491 make retention and worktree cleanup operational requirements |

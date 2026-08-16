@@ -277,7 +277,8 @@ describe("SqlJournal durable emission across connections", () => {
   // Two real connections both hit BEGIN contention on the same SQLite file,
   // and Effect's SqlClient.makeWithTransaction issues ROLLBACK even when
   // BEGIN itself failed, raising "cannot rollback - no transaction is active"
-  // (Effect-TS/effect#7235, fixed unreleased by Effect-TS/effect#7236).
+  // (Effect-TS/effect#7235, fixed by Effect-TS/effect#7236 and first released
+  // in effect@4.0.0-rc.109 — this workspace pins rc.108, so it is still live).
   // `withWriteRetry` classifies that defect as transient write contention and
   // retries it, so this holds as a real assertion.
   it.effect(

@@ -6,6 +6,41 @@ This page distinguishes usable source-backed behavior from contracts and planned
 
 This library releases as a production pilot/beta. Its APIs are pre-1.0 contracts and may change without backward compatibility. The `@smthrs/*-next` engine package manifests currently use version `0.1.0` and pin `effect` to exactly `4.0.0-rc.108`, which is a release candidate.
 
+## Substrate pin and known upstream issues
+
+`effect` is pinned to exactly `4.0.0-rc.108` in every manifest, as are the `@effect/*` packages that follow Effect's own version line (`@effect/platform-node`, `@effect/platform-node-shared`, `@effect/platform-bun`, `@effect/sql-sqlite-node`, `@effect/opentelemetry`, `@effect/vitest`). Pinning a release candidate means an upstream defect is not fixed by a patch range: adopting a fix requires moving the pin across the whole workspace. This section is where known upstream defects against the pin are tracked. There is no separate tracker.
+
+| Upstream issue | Upstream status | Status against the pin |
+| --- | --- | --- |
+| [Effect-TS/effect#7235](https://github.com/Effect-TS/effect/issues/7235) — when `SqlClient.makeWithTransaction` cannot start `BEGIN IMMEDIATE` under contention, the failure branch still tries to roll back, so the typed `SqlError` is lost and the fiber dies with an unrecoverable defect containing `cannot rollback - no transaction is active` | Fixed by [PR #7236](https://github.com/Effect-TS/effect/pull/7236), merged 2026-08-13, first published in `effect@4.0.0-rc.109` (2026-08-14) | **Present in the pinned `4.0.0-rc.108`**, which was published 2026-08-12. Mitigated here rather than avoided: `WriteRetry.isRetryableWriteError` and `DurableWriter.fromSqlError` both match the defect's message text and classify it into the transient busy vocabulary, so a lost `BEGIN IMMEDIATE` race retries instead of killing the run (`packages/database/src/internal/WriteRetry.ts:74`, `packages/database/src/DurableWriter.ts:124`), and `packages/database/test/contract/DatabaseWriteContract.ts` pins that classification. See the [SQLite operating envelope](../pages/sqlite-operating-envelope.md#write-contention). |
+
+## Not in release 1
+
+Release 1 ships the engine group only. `scripts/pack-release.mjs` packs the workspaces whose manifest declares `smthrs.group === "engine"`, skips every other group, and throws on a manifest that declares no known group (`scripts/pack-release.mjs:20-21,40-43`); `.github/workflows/release.yml:46-50` gates on the same field. The following subsystems exist in this tree and are **not** part of release 1.
+
+| Subsystem | Why it is out of release 1 |
+| --- | --- |
+| `@smthrs/triggers` | Declares `smthrs.group: "agent"`, so the release train never packs it. |
+| `@smthrs/evals` | Declares `smthrs.group: "agent"`, so the release train never packs it. |
+| `@smthrs/gateway` | Declares `smthrs.group: "agent"`, and its supervision runtime is a noop — see [abandoned runs and supervision](#abandoned-runs-and-supervision). |
+| Memory semantic recall (`@smthrs/memory` `RecallSemantic`) | `@smthrs/memory` declares `smthrs.group: "agent"`, and semantic recall additionally needs an embedding provider the caller injects, because no embedding route ships (`packages/memory/src/Embedding.ts:4-6`). |
+| Observability OTLP export (`@smthrs/observability-next` `Otlp`) | The module is published with the engine group, but no composition in this repository installs it — `Otlp` is referenced only by its own package tests — so it is an opt-in layer an application wires itself, not a shipped default. See [telemetry](../pages/telemetry.md). |
+
+## Abandoned runs and supervision
+
+**Abandoned runs are not auto-resumed in this release.** Nothing in the tree watches for runs whose owner died and starts a process to pick them up. `@smthrs/gateway`'s `SuperviseRuntime` declares the `scan`/`resume` contract and ships only `make`, `makeNoop` (empty scan, successful resume), and `layerNoop` (`packages/gateway/src/SuperviseRuntime.ts:121,129,142`), plus a test double at `packages/gateway/src/test/TestSuperviseRuntime.ts`. There is no production implementation, and no code outside that module, its test double, and that double's test refers to it.
+
+What does recover automatically is scoped to a process that is already running the engine **and** has the flow registered. On the one-second heartbeat cadence (`packages/run-store/src/Heartbeat.ts:24`), each engine driver sweeps parked runs for pending cancels and enumerates `running` rows whose heartbeat is older than the 30-second stale cutoff (`Heartbeat.ts:33`), re-driving up to 64 per tick through the ordinary claim/steal path (`packages/engine-store/src/internal/RunDriver.ts:160,1375,1412`). A wake for a flow the sweeping process has not registered logs a once-per-run warning and leaves the row parked (`RunDriver.ts:1074`).
+
+The manual resume path for an abandoned run is therefore:
+
+1. Start (or restart) a host process composed through `@smthrs/flows-next/NodeRuntime` — `NodeRuntime.layer(options, stepBoundary, workspaceSandbox, registerFlows)` — against the same SQLite `filename` the dead owner used.
+2. Make `registerFlows` register every flow that has stored runs. Registration is the final startup phase of that composition, and the engine's registration hook re-arms durable clocks and deferred wakes, so nothing resumes before its flow exists in the process.
+3. Supply an `Options.isAlive` that answers truthfully for the dead owner. Steal is refused while `isAlive` reports the recorded owner alive, and the driver journals a `steal-refused-owner-alive` decision (`packages/engine-store/src/internal/RunDriver.ts:392`); only once it answers `false` does the exact-snapshot claim take the row.
+4. Wait one stale window. Within 30 seconds of a frozen heartbeat the sweep re-drives the run; there is nothing to invoke by hand.
+
+If no such process is running, the run stays where it is. Persisted state is not lost, but it does not advance.
+
 ## Support matrix
 
 Support means durable engine execution. A package that bundles for a platform is not necessarily runnable there. The supported production target is Node.js `>=22.19.0` with local SQLite.
@@ -70,7 +105,7 @@ Support means durable engine execution. A package that bundles for a platform is
 - Chunked/resumable artifact transfer (`.smithers/tickets/cas-chunked-transfer.md`) and a Bazel-style remote download policy — a `RemoteOutputChecker` analogue with `all`/`toplevel`/`minimal` (`.smithers/tickets/remote-cache-download-policy.md`). Materialization is read-through today, so a metadata-only replay state is representable, but there is no dial to choose it. Artifact garbage collection shipped as `@smthrs/engine-store-next` `ArtifactGc` over `@smthrs/artifacts-next` `ArtifactSweep` (`docs/pages/artifact-gc.md`).
 - The human diff-review gate: `docs/specs/Concepts/Diff Review.md` renders a pending copy-back as a `PermissionRequired` bundle a person accepts, whole or by hunk, before it reaches the host. The engine applies a settled bundle without that gate today (`.smithers/tickets/diff-review-gate.md`).
 - The transaction's `FileSystem` surface is deliberately partial — temp files, streams, sinks, and watches have no meaning over a functional map and refuse rather than lie (`.smithers/tickets/sandbox-filesystem-surface.md`).
-- A packaged production layer that composes database, migrations, journal stores, durable deferred/clock state, kernel, Host, and engine.
+- ~~A packaged production layer that composes database, migrations, journal stores, durable deferred/clock state, kernel, Host, and engine.~~ **Shipped** as the `@smthrs/flows-next/NodeRuntime` subpath (`packages/flows/src/NodeRuntime.ts`): `storage` provides the migrated database and durable stores, `layer` and `make` add the engine and run `registerFlows` as the final startup phase, and shutdown is scope closure. Two caveats: the module installs no process or signal handlers by design (`NodeRuntime.ts` module docs), and its only consumer in this repository is `examples/src/durable-layer.ts:13,36,76` — no package test exercises it, so the composition is proven by the example, not by a gate.
 - Cross-process event-driven wake. The in-process `WakeBus` completes `resumeSignal` today; a wake published in another process still lands through polling and sweeps.
 - Injectable retry classification, shareability, and wait/wake seams. Cache-conflict verdicts (`Inconsistency`) and owner identity (`OwnerIdentity`) are services today; the rest is still fixed engine behavior with no service or option in front of it.
 - Graph-level failure policies such as quarantine or continue-on-failure.
