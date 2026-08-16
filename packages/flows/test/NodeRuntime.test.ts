@@ -23,19 +23,20 @@
  * what has to notice the completed deferred and drive the run home.
  *
  * The host seams are supplied here rather than by the library, the same way a
- * program supplies them: `@effect/platform-node` for the filesystem and
- * SHA-256, and a `Jj` stub because the flows below take no compensable
- * snapshot.
+ * program supplies them: a tiny Node filesystem bridge for the one directory
+ * creation the composition owns, SHA-256 over `node:crypto`, and a `Jj` stub
+ * because the flows below take no compensable snapshot.
  */
-import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
-import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
 import { afterAll, describe, expect, it } from "@effect/vitest"
+import * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
+import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
-import { existsSync, mkdtempSync, rmSync } from "node:fs"
+import { createHash, webcrypto } from "node:crypto"
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
@@ -83,8 +84,31 @@ const stubJj = Layer.succeed(
   })
 )
 
+/** SHA-256 and random bytes from Node's built-in crypto service. */
+const hostCrypto: Layer.Layer<Crypto.Crypto> = Layer.succeed(
+  Crypto.Crypto,
+  Crypto.make({
+    randomBytes: (size) => webcrypto.getRandomValues(new Uint8Array(size)),
+    digest: (algorithm, data) =>
+      Effect.succeed(
+        new Uint8Array(createHash(algorithm.replace("-", "").toLowerCase()).update(data).digest())
+      )
+  })
+)
+
+/** The composition itself only needs to create the configured database parent. */
+const hostFileSystem: Layer.Layer<FileSystem.FileSystem> = Layer.succeed(
+  FileSystem.FileSystem,
+  FileSystem.makeNoop({
+    makeDirectory: (path, options) =>
+      Effect.sync(() => {
+        mkdirSync(path, { recursive: options?.recursive })
+      })
+  })
+)
+
 /** The three services the composition leaves to the host program. */
-const host = Layer.mergeAll(NodeCrypto.layer, NodeFileSystem.layer, stubJj)
+const host = Layer.mergeAll(hostCrypto, hostFileSystem, stubJj)
 
 /** Every dispatch the journey makes, so a replayed one is visible as a count. */
 const dispatches = { assess: 0, read: 0, tally: 0 }
