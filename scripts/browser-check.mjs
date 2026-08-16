@@ -94,6 +94,12 @@ const NODE_ONLY = [
     entry: "packages/database/src/node/NodeDatabase.ts",
     expect: "node:sqlite",
     reason: "the Node database layer is node:sqlite through @effect/sql-sqlite-node"
+  },
+  {
+    name: "@smthrs/flows-next/NodeRuntime",
+    entry: "packages/flows/src/NodeRuntime.ts",
+    expect: "node:sqlite",
+    reason: "the supported production composition opens the database through NodeDatabase"
   }
 ]
 

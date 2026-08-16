@@ -102,7 +102,15 @@ export const storage = (filename: string) => {
   ).pipe(Layer.provideMerge(database))
 }
 
-const composition = <BoundaryError, BoundaryRequirements, SandboxError, SandboxRequirements, Registered, RegistrationError, RegistrationRequirements>(
+const composition = <
+  BoundaryError,
+  BoundaryRequirements,
+  SandboxError,
+  SandboxRequirements,
+  Registered,
+  RegistrationError,
+  RegistrationRequirements
+>(
   options: Options,
   stepBoundary: Layer.Layer<StepBoundary.Service, BoundaryError, BoundaryRequirements>,
   workspaceSandbox: Layer.Layer<WorkspaceSandbox.Service, SandboxError, SandboxRequirements>,
@@ -133,7 +141,15 @@ const composition = <BoundaryError, BoundaryRequirements, SandboxError, SandboxR
  * @since 0.1.0
  * @category constructors
  */
-export const make = <BoundaryError, BoundaryRequirements, SandboxError, SandboxRequirements, Registered, RegistrationError, RegistrationRequirements>(
+export const make = <
+  BoundaryError,
+  BoundaryRequirements,
+  SandboxError,
+  SandboxRequirements,
+  Registered,
+  RegistrationError,
+  RegistrationRequirements
+>(
   options: Options,
   stepBoundary: Layer.Layer<StepBoundary.Service, BoundaryError, BoundaryRequirements>,
   workspaceSandbox: Layer.Layer<WorkspaceSandbox.Service, SandboxError, SandboxRequirements>,
@@ -152,7 +168,15 @@ export const make = <BoundaryError, BoundaryRequirements, SandboxError, SandboxR
  * @since 0.1.0
  * @category layers
  */
-export const layer = <BoundaryError, BoundaryRequirements, SandboxError, SandboxRequirements, Registered, RegistrationError, RegistrationRequirements>(
+export const layer = <
+  BoundaryError,
+  BoundaryRequirements,
+  SandboxError,
+  SandboxRequirements,
+  Registered,
+  RegistrationError,
+  RegistrationRequirements
+>(
   options: Options,
   stepBoundary: Layer.Layer<StepBoundary.Service, BoundaryError, BoundaryRequirements>,
   workspaceSandbox: Layer.Layer<WorkspaceSandbox.Service, SandboxError, SandboxRequirements>,
