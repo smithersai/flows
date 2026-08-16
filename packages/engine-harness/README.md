@@ -48,6 +48,30 @@ const run = Effect.gen(function*() {
 
 The legacy provider-tool-call loop is `@smthrs/harness/LegacyHarness`, kept for foreign CLI adapters and named as legacy everywhere it appears.
 
+## The composition root: `HarnessExecutor`
+
+`HarnessExecutor.layer(options)` is the production `ControlExecutor` for
+`@smthrs/control`: when the control plane accepts a launch, the executor looks
+the flow up in the registry, loads its markdown prompt body, resolves its
+`provider:modelId` seat through the host's `resolveSeat`, and runs
+`CellHarness.run` as the body of one durable flow execution whose id is the
+control run id.
+
+The composition declares what the spec demands of a host: explicit
+`Sandbox.Limits` (never unlimited), a resolved `contextWindowTokens` per seat
+(`contextWindowTokensFor` is the catalog; zero would silently disable
+compaction), a `Steering.Source` over the journal-backed notification queue
+`Control.steer` admits into, and an approval `ask` gated in `authorize` —
+before the durable boundary opens — that registers an in-run approval token,
+parks the run with an encoded `Permission.PermissionRequired`, and is
+re-decided against the grant store when `Control.approve` and
+`Control.resume` bring the run back.
+
+`@smthrs/cli`'s `NodeControl.layerExecutor` is the Node wiring: real
+`Route.anthropic` / `Route.openai` routes with API keys read from the
+environment, and `StandardFlows.filesystem/shell/memory` over the kernel's
+guarded host layers.
+
 ## The engine port
 
 ```ts
