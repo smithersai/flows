@@ -429,6 +429,29 @@ describe("Sandbox.layerRestricted", () => {
 })
 
 describe("QuickJSSandbox", () => {
+  it("preserves a JSON __proto__ key as an own data property", async () => {
+    const payload = JSON.parse("{\"__proto__\":{\"unexpected\":\"prototype\"}}") as Schema.Json
+    const outcome = await evaluate(
+      QuickJSSandbox.layer,
+      `const result = await ctx.call("fs/list", {})
+       return {
+         intent: "complete",
+         output: [
+           Object.keys(result).join(","),
+           Object.hasOwn(result, "__proto__"),
+           Object.prototype.hasOwnProperty.call(result, "__proto__"),
+           Object.getPrototypeOf(result) === Object.prototype ? "" : "yes"
+         ].join("|")
+       }`,
+      { call: handler({ "fs/list": payload }, []) }
+    )
+
+    expect(outcome).toMatchObject({
+      _tag: "settled",
+      transition: { _tag: "complete", output: "__proto__|true|true|" }
+    })
+  })
+
   it("carries a 2 MB flow result across the WebAssembly boundary", async () => {
     const payload = `${"x".repeat(2 * 1024 * 1024)}🗼`
     const outcome = await evaluate(

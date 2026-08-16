@@ -132,7 +132,7 @@ const handleFromJson = (context: QuickJSContext, value: Schema.Json): QuickJSHan
     for (const [key, item] of Object.entries(value)) {
       const child = handleFromJson(context, item)
       try {
-        context.setProp(container, key, child)
+        context.defineProp(container, key, { value: child, enumerable: true, configurable: true })
       } finally {
         child.dispose()
       }
