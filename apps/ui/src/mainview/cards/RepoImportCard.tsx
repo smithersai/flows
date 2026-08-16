@@ -39,7 +39,7 @@ export const RepoImportCardBody = ({
 					<Button
 						size="sm"
 						variant="outline"
-						data-command="repos.import"
+						data-flow="repos.import"
 						onClick={() => onRunCommand("repos.import", repo)}
 					>
 						<RefreshCw size={14} /> Try again

@@ -1,6 +1,6 @@
 /*
  * The one target-repo resolution rule for repo-scoped commands (issues, PRs,
- * environment, import), following the workflow.create precedent (Wave 12 §2):
+ * environment, import), following the flow.create precedent (Wave 12 §2):
  * an explicit trailing `owner/repo` token wins; otherwise a single watched
  * repository is the target; otherwise the answer is an honest error naming the
  * choice — the target is a genuine user decision, never a guess.

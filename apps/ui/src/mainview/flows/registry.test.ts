@@ -182,12 +182,12 @@ describe("command registry bindings", () => {
 			"repos.watch.confirm",
 			"clear",
 			"browser",
-			"workflow.create",
-			"workflow.repo.choose",
-			"workflow.run.stop",
-			"workflow.run.retry",
-			"workflow.list",
-			"workflow.run",
+			"flow.create",
+			"flow.repo.choose",
+			"flow.run.stop",
+			"flow.run.retry",
+			"flow.list",
+			"flow.run",
 			"card.maximize",
 			"card.minimize",
 			"copy-message",
@@ -234,7 +234,7 @@ describe("command registry bindings", () => {
 			"files.read",
 			"repos.app",
 			"reload",
-			"commands",
+			"flows",
 		]);
 
 		expect((await controller.commands.run("connect")).status).toBe("executed");

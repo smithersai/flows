@@ -21,7 +21,7 @@
 import { ASK_HONEST_LINES, type ImpossibleAskClass } from "./Instructions";
 
 /** The commands that launch a run on the user's workspace. */
-export const RUN_LAUNCH_COMMANDS: ReadonlyArray<string> = ["workflow.create", "workflow.run"];
+export const RUN_LAUNCH_COMMANDS: ReadonlyArray<string> = ["flow.create", "flow.run"];
 
 /**
  * The command a model tool call would launch a run with, if any. The model
@@ -83,7 +83,7 @@ export const claimsRunState = (text: string): boolean => {
  * one about its own layout, so it names the card instead of pointing at it.
  */
 export const deterministicRunLine = (command: string): string =>
-	command === "workflow.create"
+	command === "flow.create"
 		? "I started a create-workflow run — the run card shows its real progress."
 		: "I started that run — the run card shows its real progress.";
 

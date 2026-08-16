@@ -30,7 +30,7 @@ export const KeysCardBody = ({
 					<Button
 						size="sm"
 						variant="outline"
-						data-command="keys.remove"
+						data-flow="keys.remove"
 						aria-label={`Remove the ${key.provider} key`}
 						onClick={() => onRunCommand("keys.remove", key.provider)}
 					>

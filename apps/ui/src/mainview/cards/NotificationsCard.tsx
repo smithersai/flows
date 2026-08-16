@@ -32,7 +32,7 @@ export const NotificationsCardBody = ({
 			<Button
 				size="sm"
 				variant="outline"
-				data-command="notifications.read"
+				data-flow="notifications.read"
 				onClick={() => onRunCommand("notifications.read")}
 			>
 				Mark all read

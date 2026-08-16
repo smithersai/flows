@@ -28,11 +28,11 @@ import {
 	WORKFLOW_STREAM_PATH,
 } from "smithers-shared/AgentApiRoutes";
 import type { NativeAgent, NativeRepositories } from "../native/NativeBridge";
-import { createCommandRegistry } from "../commands/Commands";
-import type { CommandOutcome, CommandRegistry } from "../commands/Commands";
-import type { SlashItem } from "../commands/registry";
-import type { Command } from "../commands/Commands";
-import { flowRequirements, parseSubmit } from "../commands/registry";
+import { createCommandRegistry } from "../flows/Commands";
+import type { CommandOutcome, CommandRegistry } from "../flows/Commands";
+import type { SlashItem } from "../flows/registry";
+import type { Command } from "../flows/Commands";
+import { flowRequirements, parseSubmit } from "../flows/registry";
 import { createAppStatusSeam } from "./seams/AppStatusSeam";
 import type { AppStatusSeam } from "./seams/AppStatusSeam";
 import { createBillingSeam } from "./seams/BillingSeam";
@@ -64,7 +64,7 @@ import {
 } from "./RunClaims";
 import type { ImpossibleAskClass } from "./Instructions";
 import { smithersInstructions } from "./Instructions";
-import { agentVisibleCatalog } from "../commands/agentTools";
+import { agentVisibleCatalog } from "../flows/agentTools";
 import { CardPatchSchema, CardSchema, DEFAULT_PALETTE, isPalette, PALETTES, WORLD_DISPLAY_NAME } from "./AppState";
 import type { Palette } from "./AppState";
 import type { Card, RecoDigestPayload, RecoRecommendationPayload, WorldDocument } from "./AppState";
@@ -976,7 +976,7 @@ export const createAppController = (
 	 * from its own store — it does not need GitHub. The first-run digest DOES,
 	 * and when GitHub refuses that read (live on canary: `degraded:
 	 * github_rejected`, HTTP 401) the degraded answer carries no `watched`, so
-	 * the app came up believing the user watches nothing: `workflow.create` sent
+	 * the app came up believing the user watches nothing: `flow.create` sent
 	 * them back to the onboarding chooser they had already answered, and the
 	 * runtime context told the model `needsSelection`, which had it say "I need a
 	 * repository to watch before I can create a workflow" to someone watching
@@ -1902,7 +1902,7 @@ export const createAppController = (
 				"Hold a streaming conversation in this chat and read its visible transcript.",
 				'Run app commands through the "commands" tool — the same code path as the UI buttons and slash commands.',
 				"Render structured cards (plans, approvals, statuses, recommendations) in the transcript.",
-				"Create, list, and run Smithers workflows on the user's watched repositories (workflow.create, workflow.list, workflow.run) — runs report live as embedded cards in this chat.",
+				"Create, list, and run Smithers workflows on the user's watched repositories (flow.create, flow.list, flow.run) — runs report live as embedded cards in this chat.",
 				...(repositories.available
 					? ["Connect a local repository the user picks in the native picker."]
 					: []),
@@ -2884,7 +2884,7 @@ export const createAppController = (
 		/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value) && !/(?:^|\/)\.{1,2}(?:\/|$)/.test(value);
 
 	/**
-	 * `workflow.create <description> [owner/repo]` — a trailing `owner/repo`
+	 * `flow.create <description> [owner/repo]` — a trailing `owner/repo`
 	 * token is the target, everything before it is the description. Anything
 	 * that is not a repository name stays part of the description.
 	 */
@@ -2946,7 +2946,7 @@ export const createAppController = (
 	};
 
 	const provisionWorkspace = (repo: string): Promise<true | string> =>
-		withToast(`workflow.provision.${repo}`, `Preparing your ${repo} workspace…`, "Workspace ready", () =>
+		withToast(`flow.provision.${repo}`, `Preparing your ${repo} workspace…`, "Workspace ready", () =>
 			provisionWorkspaceImpl(repo),
 		);
 
@@ -3020,17 +3020,17 @@ export const createAppController = (
 	const pumpPokes = new Map<string, () => void>();
 	const runPumps = new Map<string, { stopped: boolean }>();
 
-	const liveRunCards = (repo?: string): Array<Extract<Card, { kind: "workflow-run" }>> =>
+	const liveRunCards = (repo?: string): Array<Extract<Card, { kind: "flow-run" }>> =>
 		[...store.collections.cards.values()]
 			.filter(
 				(card) =>
-					card.kind === "workflow-run" &&
+					card.kind === "flow-run" &&
 					(card.payload.phase === "launching" ||
 						card.payload.phase === "running" ||
 						card.payload.phase === "waiting-approval" ||
 						card.payload.phase === "reconnecting") &&
 					(repo === undefined || card.payload.repo === repo),
-			) as Array<Extract<Card, { kind: "workflow-run" }>>;
+			) as Array<Extract<Card, { kind: "flow-run" }>>;
 
 	const closeRunStreamIfIdle = (repo: string): void => {
 		if (liveRunCards(repo).length > 0) return;
@@ -3071,11 +3071,11 @@ export const createAppController = (
 
 	const patchRunCard = (
 		cardId: string,
-		patch: Partial<Extract<Card, { kind: "workflow-run" }>["payload"]>,
+		patch: Partial<Extract<Card, { kind: "flow-run" }>["payload"]>,
 		status?: Card["status"],
 	): void => {
 		const card = store.collections.cards.get(cardId);
-		if (card === undefined || card.kind !== "workflow-run") return;
+		if (card === undefined || card.kind !== "flow-run") return;
 		store.dispatch({
 			type: "card.updated",
 			actor: "system",
@@ -3231,7 +3231,7 @@ export const createAppController = (
 			for (;;) {
 				if (pump.stopped) return;
 				const card = store.collections.cards.get(cardId);
-				if (card === undefined || card.kind !== "workflow-run") return;
+				if (card === undefined || card.kind !== "flow-run") return;
 				if (
 					card.payload.phase === "completed" ||
 					card.payload.phase === "failed" ||
@@ -3428,11 +3428,11 @@ export const createAppController = (
 		readonly title: string;
 		readonly firstStep: string;
 	}): string => {
-		const cardId = `workflow-run-${args.runId}`;
+		const cardId = `flow-run-${args.runId}`;
 		const existing = store.collections.cards.get(cardId);
 		const card: Card = {
 			id: cardId,
-			kind: "workflow-run",
+			kind: "flow-run",
 			title: args.title,
 			status: "active",
 			createdAt: existing?.createdAt ?? Date.now(),
@@ -3507,7 +3507,7 @@ export const createAppController = (
 		/*
 		 * A QUESTION is not a failure. A bare string result marks the outcome
 		 * `failed`, and live on canary the transcript read "Smithers tried
-		 * /workflow.create — failed: You watch 3 repositories…" beside the card
+		 * /flow.create — failed: You watch 3 repositories…" beside the card
 		 * that had just asked them, correctly, which one. The command did exactly
 		 * what it should; the value carries the question to the model, and the
 		 * card carries it to the human (§2b — values never render raw).
@@ -3544,11 +3544,11 @@ export const createAppController = (
 	): Promise<string | void | { readonly value: string }> => {
 		const guard = workflowIdentityGuard();
 		if (guard !== undefined) return guard;
-		// §2: `workflow.create <description> [owner/repo]` — one argument string
+		// §2: `flow.create <description> [owner/repo]` — one argument string
 		// for both the slash form and the agent tool.
 		const split = repoArg === undefined ? splitDescriptionAndRepo(rawDescription) : { description: rawDescription.trim(), repo: repoArg };
 		const description = split.description;
-		if (description === "") return "workflow.create needs a description of what the workflow should do";
+		if (description === "") return "flow.create needs a description of what the workflow should do";
 		const target = workflowTargetRepoOrAsk(split.repo, true);
 		if ("chooser" in target) return openChooserForWorkflow(target.chooser);
 		if ("ask" in target) return askWhichWatchedRepo(description, target.ask);
@@ -3649,9 +3649,9 @@ export const createAppController = (
 	 * "Stop" is stop WATCHING: this seam has no cancelRun, and saying the run was
 	 * cancelled would be the same kind of lie §1 is about.
 	 */
-	const runCardFor = (cardId: string): Extract<Card, { kind: "workflow-run" }> | undefined => {
+	const runCardFor = (cardId: string): Extract<Card, { kind: "flow-run" }> | undefined => {
 		const card = store.collections.cards.get(cardId);
-		return card?.kind === "workflow-run" ? card : undefined;
+		return card?.kind === "flow-run" ? card : undefined;
 	};
 
 	const stopWatchingRun = (cardId: string): string | void => {

@@ -69,7 +69,7 @@ const pillStatus = (card: Card): string => {
 	if (card.kind === "connect" || card.kind === "world" || card.kind === "browser") {
 		return "done";
 	}
-	if (card.kind === "workflow-run") {
+	if (card.kind === "flow-run") {
 		if (card.payload.phase === "completed") return "done";
 		if (card.payload.phase === "failed" || card.payload.phase === "cancelled" || card.payload.phase === "no-capacity")
 			return "failed";
@@ -287,16 +287,16 @@ const RecoCardBody = ({
 						<p className="smithers-card-note">Answered — the feedback is logged.</p>
 					) : (
 						<div className="reco-actions">
-							<Button size="sm" data-command="reco.accept" onClick={() => onRecoAction(card.id, "accept")}>
+							<Button size="sm" data-flow="reco.accept" onClick={() => onRecoAction(card.id, "accept")}>
 								Do it
 							</Button>
-							<Button variant="outline" size="sm" data-command="reco.edit" onClick={() => onRecoAction(card.id, "edit")}>
+							<Button variant="outline" size="sm" data-flow="reco.edit" onClick={() => onRecoAction(card.id, "edit")}>
 								Edit first
 							</Button>
 							<Button
 								variant="ghost"
 								size="sm"
-								data-command="reco.dismiss"
+								data-flow="reco.dismiss"
 								title="Dismiss (Esc or d)"
 								onClick={() => onRecoAction(card.id, "dismiss")}
 							>
@@ -626,7 +626,7 @@ const RepoChooserCardBody = ({
 				</Button>
 				<Button
 					size="sm"
-					data-command="repos.watch.confirm"
+					data-flow="repos.watch.confirm"
 					disabled={saving}
 					loading={saving}
 					onClick={() => onReposConfirm()}
@@ -672,7 +672,7 @@ const ConnectCardBody = ({
 			{card.payload.github.connected ? (
 				<Badge variant="success">Connected ✓ as {card.payload.github.login ?? "you"}</Badge>
 			) : (
-				<Button size="sm" data-command="auth.sign-in" onClick={() => onConnectGitHub()}>
+				<Button size="sm" data-flow="auth.sign-in" onClick={() => onConnectGitHub()}>
 					Connect
 				</Button>
 			)}
@@ -686,7 +686,7 @@ const ConnectCardBody = ({
 					<strong>Local repository</strong>
 					<span>A repository on this machine, read directly.</span>
 				</span>
-				<Button size="sm" variant="outline" data-command="connector.add" onClick={() => onConnectLocal()}>
+				<Button size="sm" variant="outline" data-flow="connector.add" onClick={() => onConnectLocal()}>
 					Connect
 				</Button>
 			</li>
@@ -699,7 +699,7 @@ const ConnectCardBody = ({
 				<strong>Smithers Cloud repository</strong>
 				<span>Import a GitHub repository into hosted workspace storage.</span>
 			</span>
-			<Button size="sm" variant="outline" data-command="repos.import" onClick={() => onRunCommand("repos.import")}>
+			<Button size="sm" variant="outline" data-flow="repos.import" onClick={() => onRunCommand("repos.import")}>
 				Import
 			</Button>
 		</li>
@@ -835,17 +835,17 @@ const WorkflowRunCardBody = ({
 	onStopRun,
 	onRetryRun,
 }: {
-	readonly card: Extract<Card, { kind: "workflow-run" }>;
+	readonly card: Extract<Card, { kind: "flow-run" }>;
 	readonly onStopRun: (cardId: string) => void;
 	readonly onRetryRun: (cardId: string) => void;
 }) => {
 	const { phase, steps, result, error } = card.payload;
 	return (
-		<div className="workflow-run-card">
+		<div className="flow-run-card">
 			{result !== null ? <Markdown className="smithers-card-markdown" content={result} /> : null}
 			<p className="smithers-card-note">{WORKFLOW_RUN_PHASE_WORDS[phase] ?? phase}</p>
 			{steps.length > 0 ? (
-				<ul className="workflow-run-steps">
+				<ul className="flow-run-steps">
 					{steps.map((step, index) => (
 						<li key={`${index}-${step}`}>{step}</li>
 					))}
@@ -853,14 +853,14 @@ const WorkflowRunCardBody = ({
 			) : null}
 			{/* §3: the two acts a quiet run offers — both registered commands. */}
 			{phase === "quiet" ? (
-				<div className="workflow-run-actions">
-					<Button size="sm" data-command="workflow.run.retry" onClick={() => onRetryRun(card.id)}>
+				<div className="flow-run-actions">
+					<Button size="sm" data-flow="flow.run.retry" onClick={() => onRetryRun(card.id)}>
 						Check again
 					</Button>
 					<Button
 						size="sm"
 						variant="outline"
-						data-command="workflow.run.stop"
+						data-flow="flow.run.stop"
 						onClick={() => onStopRun(card.id)}
 					>
 						Stop watching
@@ -927,7 +927,7 @@ const WorkflowRepoCardBody = ({
 							aria-selected={position === index}
 							data-highlighted={position === index}
 							className="workflow-repo-row"
-							data-command="workflow.repo.choose"
+							data-flow="flow.repo.choose"
 							onMouseEnter={() => setHighlighted(position)}
 							onClick={() => onChooseWorkflowRepo(repo)}
 						>
@@ -940,7 +940,7 @@ const WorkflowRepoCardBody = ({
 	);
 };
 
-/* The workspace's workflows (workflow.list) — each row's Run is a command binding. */
+/* The workspace's workflows (flow.list) — each row's Run is a command binding. */
 const WorkflowListCardBody = ({
 	card,
 	onRunWorkflow,
@@ -963,7 +963,7 @@ const WorkflowListCardBody = ({
 					<Button
 						size="sm"
 						variant="outline"
-						data-command="workflow.run"
+						data-flow="flow.run"
 						onClick={() => onRunWorkflow(workflow.key)}
 					>
 						Run
@@ -1025,7 +1025,7 @@ export function CardView({
 							variant="ghost"
 							size="icon"
 							className="card-maximize-btn"
-							data-command="card.minimize"
+							data-flow="card.minimize"
 							aria-label="Minimize card"
 							title="Minimize card"
 							onClick={() => onMinimize()}
@@ -1037,7 +1037,7 @@ export function CardView({
 							variant="ghost"
 							size="icon"
 							className="card-maximize-btn"
-							data-command="card.maximize"
+							data-flow="card.maximize"
 							aria-label="Maximize card"
 							title="Maximize card"
 							onClick={() => onMaximize(card.id)}
@@ -1087,7 +1087,7 @@ export function CardView({
 						/>
 					) : null}
 					{card.kind === "browser" ? <BrowserCardBody card={card} /> : null}
-					{card.kind === "workflow-run" ? (
+					{card.kind === "flow-run" ? (
 						<WorkflowRunCardBody card={card} onStopRun={onStopRun} onRetryRun={onRetryRun} />
 					) : null}
 					{card.kind === "workflow-list" ? <WorkflowListCardBody card={card} onRunWorkflow={onRunWorkflow} /> : null}

@@ -132,7 +132,7 @@ export const ThemePickerCardBody = ({
 					type="button"
 					role="option"
 					aria-selected={selected}
-					data-command="theme"
+					data-flow="theme"
 					aria-label={`Switch to the ${swatch.label} color theme`}
 					style={swatchStyle(swatch, selected)}
 					onClick={() => onRunCommand("theme", swatch.key)}

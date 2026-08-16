@@ -149,7 +149,7 @@ export function ConnectorsSurface({ controller }: { readonly controller: AppCont
 								<Button
 									size="sm"
 									variant="outline"
-									data-command={row.action.command}
+									data-flow={row.action.command}
 									data-row-action
 									disabled={row.action.disabled === true}
 									loading={row.action.command === "connector.add" && selecting}

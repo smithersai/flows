@@ -4,7 +4,7 @@
  * CardView threads from App.tsx (parity.test.ts allowlists it). List rows open
  * the detail (issues.view); the detail carries the one state toggle
  * (issues.close / issues.reopen). Every interactive element carries
- * data-command with its registered command name.
+ * data-flow with its registered command name.
  */
 import { Badge, Button, Markdown } from "@smthrs/ui";
 import { MessageSquare } from "lucide-react";
@@ -38,7 +38,7 @@ export const IssueListCardBody = ({
 					<Button
 						variant="ghost"
 						size="sm"
-						data-command="issues.view"
+						data-flow="issues.view"
 						onClick={() => onRunCommand("issues.view", `${issue.number} ${card.payload.repo}`)}
 					>
 						<span className="world-card-title">
@@ -107,7 +107,7 @@ export const IssueCardBody = ({
 				<Button
 					variant="outline"
 					size="sm"
-					data-command={toggleCommand}
+					data-flow={toggleCommand}
 					onClick={() => onRunCommand(toggleCommand, `${number} ${repo}`)}
 				>
 					{state === "open" ? "Close issue" : "Reopen issue"}

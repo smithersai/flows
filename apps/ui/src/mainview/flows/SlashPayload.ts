@@ -80,15 +80,15 @@ const GRAMMAR: Readonly<Record<string, (args: string | undefined) => Parsed>> = 
 	 * repo-shaped word as the description. Splitting here would change which
 	 * inputs name a target.
 	 */
-	"workflow.create": (args) => ok({ description: trimmed(args) }),
-	"workflow.repo.choose": (args) =>
-		required("repo", args, "workflow.repo.choose needs a repository name"),
-	"workflow.run.stop": (args) => required("cardId", args, "workflow.run.stop needs the card id"),
-	"workflow.run.retry": (args) => required("cardId", args, "workflow.run.retry needs the card id"),
-	"workflow.run": (args) => {
+	"flow.create": (args) => ok({ description: trimmed(args) }),
+	"flow.repo.choose": (args) =>
+		required("repo", args, "flow.repo.choose needs a repository name"),
+	"flow.run.stop": (args) => required("cardId", args, "flow.run.stop needs the card id"),
+	"flow.run.retry": (args) => required("cardId", args, "flow.run.retry needs the card id"),
+	"flow.run": (args) => {
 		const [name, repo] = tokensOf(args);
 		if (name === undefined) {
-			return no("workflow.run needs a workflow name: /workflow.run create-workflow");
+			return no("flow.run needs a workflow name: /flow.run create-workflow");
 		}
 		return ok(repo === undefined ? { name } : { name, repo });
 	},

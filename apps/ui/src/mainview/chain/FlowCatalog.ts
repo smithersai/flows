@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { Catalog } from "@smthrs/chain-next";
-import type { CommandRegistry } from "../commands/Commands";
-import type { FlowEntry } from "../commands/registry";
+import type { CommandRegistry } from "../flows/Commands";
+import type { FlowEntry } from "../flows/registry";
 
 /*
  * The thin adapter that lets the legacy chain runtime call registered flows.

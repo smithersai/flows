@@ -50,7 +50,7 @@ import type {
 } from "./AppState";
 
 const SESSION_ID = "main";
-const APP_SCHEMA_VERSION = 8;
+const APP_SCHEMA_VERSION = 9;
 
 /** The stable ids the reco seam's first-run surfaces reuse, so a boot refresh upserts instead of duplicating. */
 export const RECO_DIGEST_MESSAGE_ID = "message-reco-digest";
