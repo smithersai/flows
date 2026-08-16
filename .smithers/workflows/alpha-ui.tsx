@@ -780,15 +780,20 @@ export default smithers((ctx) => {
                     still bounds the race on main, and the land prompt's
                     fetch-rebase-retry loop is what makes a rejected push safe. */}
                 <MergeQueue id="landQueue" maxConcurrency={3}>
-                  <Sequence>
-                    <Task id={`${lane.key}LandRun`} agent={landSeat} output={outputs.alphaUiLand} retries={8}>
-                      {landPrompt(lane)}
-                    </Task>
-                    <Task id={`${lane.key}LandVerify`} output={outputs.alphaUiLandCheck} retries={2}>
-                      {verifyLand(lane.key)}
-                    </Task>
-                  </Sequence>
+                  <Task id={`${lane.key}LandRun`} agent={landSeat} output={outputs.alphaUiLand} retries={8}>
+                    {landPrompt(lane)}
+                  </Task>
                 </MergeQueue>
+                {/* The verify is a cheap deterministic git check and must stay
+                    OUTSIDE the merge queue: inside it, it competes for the same
+                    scarce slots as the 30-60 minute land agents and starves
+                    (observed: one verify pending 0 attempts for 90 minutes while
+                    three lands held every slot), which stalls the lane sequence
+                    and with it the panel. Sequence position already orders it
+                    after the land. */}
+                <Task id={`${lane.key}LandVerify`} output={outputs.alphaUiLandCheck} retries={2}>
+                  {verifyLand(lane.key)}
+                </Task>
                 <Loop
                   id={`${lane.key}PolishLoop`}
                   skipIf={!landVerified(lane.key)}
