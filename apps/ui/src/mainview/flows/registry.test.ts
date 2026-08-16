@@ -84,7 +84,7 @@ describe("command registry pure model", () => {
 			{ name: "connect", summary: "c" },
 		];
 		const items = slashItems(chatState, "", commands);
-		expect(items[0]?.command.name).toBe("connect");
+		expect(items[0]?.flow.name).toBe("connect");
 		expect(items[0]?.recommended).toBe(true);
 		expect(items.filter((item) => item.recommended)).toHaveLength(2);
 	});
@@ -383,7 +383,7 @@ describe("command registry bindings", () => {
 		expect(toggle?.metadata.aliasOf).toBeUndefined();
 		expect(toggle?.metadata.hidden).toBeUndefined();
 		// Listed, so the human can find the toggle in the slash menu.
-		expect(controller.slashItems("dark-mode").map((item) => item.command.name)).toContain("dark-mode");
+		expect(controller.slashItems("dark-mode").map((item) => item.flow.name)).toContain("dark-mode");
 		// The args hint is what makes `/theme <palette>` parse as an invocation.
 		expect(controller.commands.find("theme")?.metadata.args).toBeDefined();
 
@@ -442,7 +442,7 @@ describe("command registry bindings", () => {
 	test("slashItems surfaces the recommended command first for a bare /", async () => {
 		const { controller } = await freshController();
 		const items = controller.slashItems("");
-		expect(items[0]?.command.name).toBe("connect");
+		expect(items[0]?.flow.name).toBe("connect");
 		expect(items[0]?.recommended).toBe(true);
 	});
 

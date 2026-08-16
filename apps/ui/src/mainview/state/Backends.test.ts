@@ -233,7 +233,7 @@ describe("identity session record", () => {
 		);
 		expect(reply?.role).toBe("smithers");
 		expect(reply?.status).toBe("complete");
-		expect(reply?.action).toEqual({ command: "auth.sign-in", label: "Sign in with GitHub" });
+		expect(reply?.action).toEqual({ flow: "auth.sign-in", label: "Sign in with GitHub" });
 	});
 
 	test("a non-allowlisted send attempt resolves to a calm request-access reply", async () => {
@@ -259,7 +259,7 @@ describe("identity session record", () => {
 		const reply = [...store.collections.messages.values()].find((message) =>
 			message.text.includes("design partners only"),
 		);
-		expect(reply?.action).toEqual({ command: "auth.request-access", label: "Request access" });
+		expect(reply?.action).toEqual({ flow: "auth.request-access", label: "Request access" });
 	});
 
 	test("a non-allowlisted send after the request states the honest waiting state", async () => {
@@ -288,7 +288,7 @@ describe("identity session record", () => {
 			entry.text.includes("GitHub sign-in didn't finish"),
 		);
 		expect(message?.role).toBe("smithers");
-		expect(message?.action).toEqual({ command: "auth.sign-in", label: "Try sign-in again" });
+		expect(message?.action).toEqual({ flow: "auth.sign-in", label: "Try sign-in again" });
 		expect(controller.handleAuthReturn("")).toBe(false);
 		expect(controller.handleAuthReturn("?theme=dark")).toBe(false);
 	});

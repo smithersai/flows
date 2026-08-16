@@ -307,11 +307,11 @@ describe("the reco seam's first-run answer", () => {
 		});
 		await controller.loadFirstRunReco();
 		const items = controller.slashItems("");
-		expect(items[0]?.command.name).toBe("reco.accept");
+		expect(items[0]?.flow.name).toBe("reco.accept");
 		expect(items[0]?.recommended).toBe(true);
 		// The bare listing is CAPPED (SLASH_MENU_CAP) — the reco verbs stay
 		// reachable by typing, which is the filter path.
-		expect(controller.slashItems("reco").map((item) => item.command.name)).toContain("reco.refresh");
+		expect(controller.slashItems("reco").map((item) => item.flow.name)).toContain("reco.refresh");
 	});
 
 	test("reco commands answer honestly when there is no recommendation", async () => {

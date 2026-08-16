@@ -196,7 +196,7 @@ describe("launch-law parity: every affordance is a command", () => {
 		// The pill row binds commands directly (§2a): the suggestion markup
 		// carries the command, and the click invokes it — never send().
 		const app = files["../App.tsx"] ?? "";
-		expect(app).toContain("data-flow={suggestion.command}");
+		expect(app).toContain("data-flow={suggestion.flow}");
 		expect(app).not.toContain('data-flow="suggest"');
 		// No standing composer status chrome (§2g): calm is the budget.
 		expect(app).not.toContain("statusText=");

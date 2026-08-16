@@ -25,7 +25,7 @@ export const MessageSchema = z.object({
 	status: z.enum(["complete", "failed", "interrupted"]),
 	statusDetail: z.string().optional(),
 	/** A message-ridden action (sign-in rides the opening message; retry rides the failed-OAuth one). */
-	action: z.object({ command: z.string(), label: z.string() }).optional(),
+	action: z.object({ flow: z.string(), label: z.string() }).optional(),
 	/** A one-line visible tool act ("Smithers ran /world.new-note") renders as a marker row, not a bubble. */
 	act: z.string().optional(),
 	createdAt: z.number(),
@@ -60,15 +60,15 @@ export type Toast = z.infer<typeof ToastSchema>;
 export const WORLD_DISPLAY_NAME = "World";
 
 /*
- * Wave 10 (§2a/§2f) — pills are command BINDINGS, never prompt strings: a
- * suggestion carries the command it invokes directly, and the suggestion set
+ * Wave 10 (§2a/§2f) — pills are flow BINDINGS, never prompt strings: a
+ * suggestion carries the flow it invokes directly, and the suggestion set
  * is DERIVED in App.tsx from live state (the one grounded recommendation, or
  * the genuinely-next step) — never fabricated, never stored.
  */
 export interface Suggestion {
 	readonly id: string;
 	readonly label: string;
-	readonly command: string;
+	readonly flow: string;
 	readonly args?: string;
 	readonly emphasis: "primary" | "secondary";
 }
@@ -639,7 +639,7 @@ export type AppTransition =
 			actor: "system";
 			text: string;
 			/** The action that rides the message (sign-in, request access, retry). */
-			action?: { command: string; label: string };
+			action?: { flow: string; label: string };
 	  };
 
 export const initialSession = (theme: Session["theme"]): Session => ({

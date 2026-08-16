@@ -226,7 +226,7 @@ describe("requirement axis — the run path", () => {
 		if (outcome.status === "failed") expect(outcome.error).toContain("already rendered in the chat");
 		await settled();
 		const prompts = [...store.collections.messages.values()].filter(
-			(message) => message.action?.command === "auth.sign-in",
+			(message) => message.action?.flow === "auth.sign-in",
 		);
 		expect(prompts).toHaveLength(1);
 	});
@@ -244,7 +244,7 @@ describe("requirement axis — the run path", () => {
 		// booted dev app has loadSession's "unavailable" answer and states the
 		// missing seam instead).
 		const prompts = [...store.collections.messages.values()].filter(
-			(message) => message.action?.command === "auth.sign-in",
+			(message) => message.action?.flow === "auth.sign-in",
 		);
 		expect(prompts).toHaveLength(1);
 	});

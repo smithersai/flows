@@ -129,13 +129,13 @@ function ComposerMenu({
 
 	const entries = [
 		{
-			command: "connect",
+			flow: "connect",
 			label: "Connect",
 			icon: <Plug size={14} aria-hidden="true" />,
 			active: surface === "connectors",
 		},
 		{
-			command: "world",
+			flow: "world",
 			label: WORLD_DISPLAY_NAME,
 			icon: <BookOpen size={14} aria-hidden="true" />,
 			active: surface === "world",
@@ -210,17 +210,17 @@ function ComposerMenu({
 					{entries.map((entry, index) => (
 						<button
 							type="button"
-							key={entry.command}
+							key={entry.flow}
 							role="menuitem"
 							className="composer-menu-item"
-							data-flow={entry.command}
+							data-flow={entry.flow}
 							data-active={entry.active}
 							aria-pressed={entry.active}
 							tabIndex={index === highlighted ? 0 : -1}
 							onFocus={() => setHighlighted(index)}
 							onClick={() => {
 								if (open) controller.runCommand("surfaces");
-								controller.runCommand(entry.command);
+								controller.runCommand(entry.flow);
 							}}
 						>
 							{entry.icon}
@@ -485,7 +485,7 @@ function App({ controller }: { readonly controller: AppController }) {
 						"The identity service isn't configured on this deployment, so sign-in may not work yet."
 					}`,
 					status: "complete",
-					action: { command: "auth.sign-in", label: "Sign in with GitHub" },
+					action: { flow: "auth.sign-in", label: "Sign in with GitHub" },
 					createdAt: 0,
 					ordinal: 0,
 				}
@@ -503,7 +503,7 @@ function App({ controller }: { readonly controller: AppController }) {
 						status: "complete",
 						...(identity.accessRequested
 							? {}
-							: { action: { command: "auth.request-access", label: "Request access" } }),
+							: { action: { flow: "auth.request-access", label: "Request access" } }),
 						createdAt: 0,
 						ordinal: 0,
 					}
@@ -533,15 +533,15 @@ function App({ controller }: { readonly controller: AppController }) {
 		identity?.state === "signed-in" && identity.allowlisted && (watched === undefined || watched.selected === null);
 	const suggestions: ReadonlyArray<SuggestionBinding> =
 		identity?.state === "signed-out"
-			? [{ id: "sign-in", label: "Sign in with GitHub", command: "auth.sign-in", emphasis: "primary" }]
+			? [{ id: "sign-in", label: "Sign in with GitHub", flow: "auth.sign-in", emphasis: "primary" }]
 			: needsSelection
-				? [{ id: "choose-repos", label: "Choose repos to watch", command: "repos.watch", emphasis: "primary" }]
+				? [{ id: "choose-repos", label: "Choose repos to watch", flow: "repos.watch", emphasis: "primary" }]
 				: recoWaiting !== undefined && recoWaiting.kind === "reco" && recoWaiting.payload.recommendation !== null
 					? [
 							{
 								id: "reco-accept",
 								label: recoWaiting.payload.recommendation.title,
-								command: "reco.accept",
+								flow: "reco.accept",
 								args: recoWaiting.id,
 								emphasis: "primary",
 							},
@@ -617,7 +617,7 @@ function App({ controller }: { readonly controller: AppController }) {
 			event.preventDefault();
 			const command =
 				slashMatches.length === 1 ? slashMatches[0] : slashMatches[slashHighlighted];
-			if (command !== undefined) runSlashCommand(command.command.name);
+			if (command !== undefined) runSlashCommand(command.flow.name);
 			return;
 		}
 		if (event.key === "Escape") {
@@ -801,9 +801,9 @@ function App({ controller }: { readonly controller: AppController }) {
 									{entry.message.action !== undefined ? (
 										<Button
 											className="message-cta"
-											data-flow={entry.message.action.command}
+											data-flow={entry.message.action.flow}
 											autoFocus={entry.message.id === "auth-state"}
-											onClick={() => controller.runCommand(entry.message.action?.command ?? "")}
+											onClick={() => controller.runCommand(entry.message.action?.flow ?? "")}
 										>
 											{entry.message.action.label}
 										</Button>
@@ -837,14 +837,14 @@ function App({ controller }: { readonly controller: AppController }) {
 								<Suggestion
 									className="smithers-suggestion"
 									data-gold={suggestion.emphasis === "primary"}
-									data-flow={suggestion.command}
+									data-flow={suggestion.flow}
 									key={suggestion.id}
 									suggestion={suggestion.label}
 									disabled={typing}
 									onClick={() =>
 										suggestion.args === undefined
-											? controller.runCommand(suggestion.command)
-											: controller.runCommandArgs(suggestion.command, suggestion.args)
+											? controller.runCommand(suggestion.flow)
+											: controller.runCommandArgs(suggestion.flow, suggestion.args)
 									}
 								>
 									<Sparkles size={12} />
@@ -857,7 +857,7 @@ function App({ controller }: { readonly controller: AppController }) {
 								{slashMatches.map((item, index) => (
 									<button
 										type="button"
-										key={item.command.name}
+										key={item.flow.name}
 										role="option"
 										aria-selected={index === slashHighlighted}
 										data-highlighted={index === slashHighlighted ? "true" : "false"}
@@ -866,10 +866,10 @@ function App({ controller }: { readonly controller: AppController }) {
 										onMouseEnter={() =>
 											setSlashMenu({ draft: session.draft, index, dismissed: false })
 										}
-										onClick={() => runSlashCommand(item.command.name)}
+										onClick={() => runSlashCommand(item.flow.name)}
 									>
-										<span className="slash-menu-name">/{item.command.name}</span>
-										<span className="slash-menu-description">{item.command.summary}</span>
+										<span className="slash-menu-name">/{item.flow.name}</span>
+										<span className="slash-menu-description">{item.flow.summary}</span>
 									</button>
 								))}
 							</div>

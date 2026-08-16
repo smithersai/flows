@@ -194,7 +194,7 @@ export function DevtoolsPanel({ controller }: { readonly controller: AppControll
 						</ul>
 					)}
 				</section>
-				<section className="devtools-section" aria-label="Command registry">
+				<section className="devtools-section" aria-label="Flow registry">
 					<h3>Registry</h3>
 					<ul className="devtools-registry">
 						{controller.commands.entries().map((entry) => (

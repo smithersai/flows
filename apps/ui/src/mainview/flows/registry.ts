@@ -209,7 +209,7 @@ export const filtered = <C extends CatalogItem>(needle: string, commands: Readon
 	commands.filter((command) => matches(command, needle));
 
 export interface SlashItem<C extends CatalogItem> {
-	readonly command: C;
+	readonly flow: C;
 	readonly recommended: boolean;
 }
 
@@ -236,12 +236,12 @@ export const slashItems = <C extends CatalogItem>(
 	const names = recommendedNames(state);
 	const recommendedItems = names.flatMap((name) => {
 		const command = shown.find((candidate) => candidate.name === name);
-		return command === undefined ? [] : [{ command, recommended: true }];
+		return command === undefined ? [] : [{ flow: command, recommended: true }];
 	});
 	const recommendedSet = new Set(names);
 	const otherItems = shown
 		.filter((command) => !recommendedSet.has(command.name))
-		.map((command) => ({ command, recommended: false }));
+		.map((command) => ({ flow: command, recommended: false }));
 	if (recommendedItems.length + otherItems.length <= SLASH_MENU_CAP) {
 		return [...recommendedItems, ...otherItems];
 	}
@@ -249,8 +249,8 @@ export const slashItems = <C extends CatalogItem>(
 	// Stable sort: recent commands by recency, everything else keeps registry order behind them.
 	const ranked = [...otherItems].sort(
 		(a, b) =>
-			(rank.get(a.command.name) ?? Number.POSITIVE_INFINITY) -
-			(rank.get(b.command.name) ?? Number.POSITIVE_INFINITY),
+			(rank.get(a.flow.name) ?? Number.POSITIVE_INFINITY) -
+			(rank.get(b.flow.name) ?? Number.POSITIVE_INFINITY),
 	);
 	return [...recommendedItems, ...ranked].slice(
 		0,

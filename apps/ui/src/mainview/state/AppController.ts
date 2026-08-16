@@ -31,7 +31,7 @@ import type { NativeAgent, NativeRepositories } from "../native/NativeBridge";
 import { createCommandRegistry } from "../flows/Commands";
 import type { CommandOutcome, CommandRegistry } from "../flows/Commands";
 import type { SlashItem } from "../flows/registry";
-import type { Command } from "../flows/Commands";
+import type { CatalogItem } from "../flows/Commands";
 import { flowRequirements, parseSubmit } from "../flows/registry";
 import { createAppStatusSeam } from "./seams/AppStatusSeam";
 import type { AppStatusSeam } from "./seams/AppStatusSeam";
@@ -94,7 +94,7 @@ export interface AppController {
 	readonly nativeRepositoriesAvailable: boolean;
 	/** The command registry: every interactive affordance routes through it. */
 	readonly commands: CommandRegistry;
-	readonly slashItems: (needle: string) => Array<SlashItem<Command>>;
+	readonly slashItems: (needle: string) => Array<SlashItem<CatalogItem>>;
 	readonly changeDraft: (draft: string) => void;
 	readonly reset: () => void;
 	readonly stop: () => void;
@@ -189,7 +189,7 @@ export interface AppController {
 	readonly resumeDeferredCommand: () => void;
 	/** Record a visible command run for the slash menu's recency ranking. */
 	readonly noteCommandRun: (name: string) => void;
-	/** Render the full visible-command catalog into the chat (the /commands answer). */
+	/** Render the full visible-flow catalog into the chat (the /flows answer). */
 	readonly showCommandCatalog: () => void;
 	/** Render the sign-in step into the chat (auth.prompt — the agent's door to login). */
 	readonly promptSignIn: () => void;
@@ -508,7 +508,7 @@ export const createAppController = (
 			type: "message.appended",
 			actor: "system",
 			text: "GitHub sign-in didn't finish — nothing was signed in. Try again whenever you're ready.",
-			action: { command: "auth.sign-in", label: "Try sign-in again" },
+			action: { flow: "auth.sign-in", label: "Try sign-in again" },
 		});
 		return true;
 	};
@@ -2345,7 +2345,7 @@ export const createAppController = (
 				type: "message.appended",
 				actor: "system",
 				text: "Sign in with GitHub first — that's the one step between you and this conversation.",
-				action: { command: "auth.sign-in", label: "Sign in with GitHub" },
+				action: { flow: "auth.sign-in", label: "Sign in with GitHub" },
 			});
 			return;
 		}
@@ -2358,7 +2358,7 @@ export const createAppController = (
 					: "Smithers is open to design partners only right now — request access and we'll open the chat.",
 				...(identity.accessRequested
 					? {}
-					: { action: { command: "auth.request-access", label: "Request access" } }),
+					: { action: { flow: "auth.request-access", label: "Request access" } }),
 			});
 			return;
 		}
@@ -3906,9 +3906,9 @@ export const createAppController = (
 			}
 			// The persisted card reconstructs the ask after a reload.
 			const ask =
-				card.payload.command === undefined
+				card.payload.flow === undefined
 					? undefined
-					: { name: card.payload.command, claim: card.payload.capability };
+					: { name: card.payload.flow, claim: card.payload.capability };
 			store.dispatch({ type: "card.approval.decision.pending", actor: "user", id });
 			void agent.resolveApproval(lineage, decision, ask).then((resolved) => {
 				if (!resolved) {
@@ -4102,12 +4102,12 @@ export const createAppController = (
 			type: "message.appended",
 			actor: "system",
 			text: "One step connects GitHub: sign in, and Smithers can read the repositories you choose.",
-			action: { command: "auth.sign-in", label: "Sign in with GitHub" },
+			action: { flow: "auth.sign-in", label: "Sign in with GitHub" },
 		});
 	};
 
 	/*
-	 * The /commands answer: the LIVE visible catalog as one chat message —
+	 * The /flows answer: the LIVE visible catalog as one chat message —
 	 * the slash menu caps at 8 for calm, so this is where "all of it" lives.
 	 * Referenced before `commands` initializes; only ever called after.
 	 */

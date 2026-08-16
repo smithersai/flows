@@ -360,6 +360,6 @@ describe("wave 10 — the auth gate is pre-model (§2a″)", () => {
 		const reply = [...store.collections.messages.values()].find((message) =>
 			message.text.includes("Sign in with GitHub first"),
 		);
-		expect(reply?.action?.command).toBe("auth.sign-in");
+		expect(reply?.action?.flow).toBe("auth.sign-in");
 	});
 });

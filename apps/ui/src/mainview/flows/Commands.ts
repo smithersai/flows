@@ -262,7 +262,7 @@ export const createCommandRegistry = (actions: CommandActions): CommandRegistry 
 };
 
 /** Re-exported so surfaces can name the catalog record without reaching for registry.ts. */
-export type { CatalogItem as Command } from "./registry";
+export type { CatalogItem } from "./registry";
 
-/** The visible catalog, for the "/commands" answer and the slash menu. */
+/** The visible catalog, for the "/flows" answer and the slash menu. */
 export const visibleItems = (registry: CommandRegistry): Array<CatalogItem> => visible(registry.all());

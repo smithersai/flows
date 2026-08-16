@@ -178,7 +178,7 @@ changes personally.
   reconstructs from the flow name — a string contract between two modules that
   the type system does not check, and that silently degrades to the framed text
   if the library ever rewords it.
-- **Workaround taken**: `apps/ui/src/mainview/commands/Commands.ts` has an
+- **Workaround taken**: `apps/ui/src/mainview/flows/Commands.ts` has an
   `unframe(name, message)` helper that strips the exact
   `` `Flow ${name} failed: ` `` prefix when present and otherwise passes the
   message through. It is correct today and fails safe (worst case the human sees
@@ -233,7 +233,7 @@ changes personally.
   `session:net-read` (asks once per session), `outbound:launch` (always asks),
   `approve:self` (structurally denied to the agent). These are policy tiers
   about the app's own surface; they have no honest `fs:`/`net:`/`proc:`
-  equivalent, and re-labelling `workflow.create` as `net:post` would both
+  equivalent, and re-labelling `flow.create` as `net:post` would both
   misdescribe it and discard the tier the policy keys on. Under the cell loop
   every app flow is therefore refused, which is what blocks swapping
   ChainRuntime for `CellTurn`/`CellHarness`.

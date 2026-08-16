@@ -60,8 +60,8 @@ export const CardSchema = z.discriminatedUnion("kind", [
 			 */
 			chain: z.boolean().optional(),
 			background: z.boolean().optional(),
-			/** The parked call's command name; with `capability` it reconstructs the ask after a reload. */
-			command: z.string().optional(),
+			/** The parked call's flow name; with `capability` it reconstructs the ask after a reload. */
+			flow: z.string().optional(),
 		}),
 	}),
 	z.object({

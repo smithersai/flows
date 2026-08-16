@@ -50,7 +50,7 @@ export function ConnectorsSurface({ controller }: { readonly controller: AppCont
 		readonly name: string;
 		readonly description: string;
 		readonly action:
-			| { readonly kind: "button"; readonly label: string; readonly command: string; readonly args?: string; readonly disabled?: boolean }
+			| { readonly kind: "button"; readonly label: string; readonly flow: string; readonly args?: string; readonly disabled?: boolean }
 			| { readonly kind: "badge"; readonly label: string; readonly variant: "success" | "outline" };
 	}
 
@@ -62,7 +62,7 @@ export function ConnectorsSurface({ controller }: { readonly controller: AppCont
 			description: "Issues, pull requests, and reviews from the repositories you choose.",
 			action: signedIn
 				? { kind: "badge", label: `Connected ✓ as ${identity?.login ?? "you"}`, variant: "success" }
-				: { kind: "button", label: "Connect", command: "auth.sign-in" },
+				: { kind: "button", label: "Connect", flow: "auth.sign-in" },
 		},
 		...(controller.nativeRepositoriesAvailable
 			? [
@@ -74,7 +74,7 @@ export function ConnectorsSurface({ controller }: { readonly controller: AppCont
 						action: {
 							kind: "button",
 							label: "Connect",
-							command: "connector.add",
+							flow: "connector.add",
 							args: "read",
 							disabled: selecting,
 						},
@@ -91,7 +91,7 @@ export function ConnectorsSurface({ controller }: { readonly controller: AppCont
 			icon: "cloud",
 			name: "Smithers Cloud repository",
 			description: "Import a GitHub repository into hosted workspace storage.",
-			action: { kind: "button", label: "Import", command: "repos.import" },
+			action: { kind: "button", label: "Import", flow: "repos.import" },
 		},
 	];
 
@@ -149,15 +149,15 @@ export function ConnectorsSurface({ controller }: { readonly controller: AppCont
 								<Button
 									size="sm"
 									variant="outline"
-									data-flow={row.action.command}
+									data-flow={row.action.flow}
 									data-row-action
 									disabled={row.action.disabled === true}
-									loading={row.action.command === "connector.add" && selecting}
+									loading={row.action.flow === "connector.add" && selecting}
 									onClick={() =>
 										row.action.kind === "button" && row.action.args !== undefined
-											? controller.runCommandArgs(row.action.command, row.action.args)
+											? controller.runCommandArgs(row.action.flow, row.action.args)
 											: row.action.kind === "button"
-												? controller.runCommand(row.action.command)
+												? controller.runCommand(row.action.flow)
 												: undefined
 									}
 								>
