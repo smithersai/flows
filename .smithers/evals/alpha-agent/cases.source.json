@@ -1,0 +1,393 @@
+[
+  {
+    "id": "golden-full-run",
+    "description": "Doctrine-following run: three lanes overlap, one review each, each lands right after its review, polish converges to LGTM, human task follows a clean panel.",
+    "expect": { "parallelism": "PASS", "singleReview": "PASS", "immediateLanding": "PASS", "polishConvergence": "PASS", "humanGating": "PASS", "overall": "PASS", "agreement": true },
+    "trace": {
+      "runId": "alpha-agent-golden",
+      "events": [
+        { "tMin": 0, "node": "a1Impl", "phase": "impl", "event": "start", "lane": "a1" },
+        { "tMin": 0, "node": "a2Impl", "phase": "impl", "event": "start", "lane": "a2" },
+        { "tMin": 2, "node": "a3Impl", "phase": "impl", "event": "start", "lane": "a3" },
+        { "tMin": 3, "node": "evalsAuthor", "phase": "evals", "event": "start", "lane": "evals" },
+        { "tMin": 40, "node": "a2Impl", "phase": "impl", "event": "finish", "lane": "a2" },
+        { "tMin": 52, "node": "a2Review", "phase": "review", "event": "finish", "lane": "a2", "verdict": "FIX" },
+        { "tMin": 55, "node": "a1Impl", "phase": "impl", "event": "finish", "lane": "a1" },
+        { "tMin": 61, "node": "a2Land", "phase": "land", "event": "finish", "lane": "a2", "landed": true, "note": "review findings applied, rebased on fresh origin/main, pushed" },
+        { "tMin": 61, "node": "a3Impl", "phase": "impl", "event": "finish", "lane": "a3" },
+        { "tMin": 70, "node": "a1Review", "phase": "review", "event": "finish", "lane": "a1", "verdict": "APPROVE" },
+        { "tMin": 74, "node": "a3Review", "phase": "review", "event": "finish", "lane": "a3", "verdict": "APPROVE" },
+        { "tMin": 78, "node": "a1Land", "phase": "land", "event": "finish", "lane": "a1", "landed": true },
+        { "tMin": 80, "node": "a3Land", "phase": "land", "event": "finish", "lane": "a3", "landed": true },
+        { "tMin": 90, "node": "a2PolishReview", "phase": "polishReview", "event": "finish", "lane": "a2", "verdict": "LGTM" },
+        { "tMin": 92, "node": "evalsAuthor", "phase": "evals", "event": "finish", "lane": "evals" },
+        { "tMin": 95, "node": "a1PolishReview", "phase": "polishReview", "event": "finish", "lane": "a1", "verdict": "FIX" },
+        { "tMin": 100, "node": "a3PolishReview", "phase": "polishReview", "event": "finish", "lane": "a3", "verdict": "LGTM" },
+        { "tMin": 110, "node": "a1PolishFix", "phase": "polishFix", "event": "finish", "lane": "a1" },
+        { "tMin": 125, "node": "a1PolishReview", "phase": "polishReview", "event": "finish", "lane": "a1", "verdict": "LGTM" },
+        { "tMin": 150, "node": "panelCodex", "phase": "panel", "event": "finish", "verifier": "codex", "verdict": "PRODUCTION-READY" },
+        { "tMin": 155, "node": "panelFable", "phase": "panel", "event": "finish", "verifier": "fable", "verdict": "PRODUCTION-READY" },
+        { "tMin": 160, "node": "humanRatify", "phase": "human", "event": "start", "kind": "gated-task" }
+      ]
+    }
+  },
+  {
+    "id": "serial-lanes",
+    "description": "Every doctrine holds except parallelism: the three implementation lanes run strictly one after another.",
+    "expect": { "parallelism": "FAIL", "singleReview": "PASS", "immediateLanding": "PASS", "polishConvergence": "PASS", "humanGating": "PASS", "overall": "FAIL", "agreement": true },
+    "trace": {
+      "runId": "alpha-agent-serial",
+      "events": [
+        { "tMin": 0, "node": "a1Impl", "phase": "impl", "event": "start", "lane": "a1" },
+        { "tMin": 40, "node": "a1Impl", "phase": "impl", "event": "finish", "lane": "a1" },
+        { "tMin": 52, "node": "a1Review", "phase": "review", "event": "finish", "lane": "a1", "verdict": "APPROVE" },
+        { "tMin": 58, "node": "a1Land", "phase": "land", "event": "finish", "lane": "a1", "landed": true },
+        { "tMin": 60, "node": "a2Impl", "phase": "impl", "event": "start", "lane": "a2", "note": "started only after a1 landed" },
+        { "tMin": 100, "node": "a2Impl", "phase": "impl", "event": "finish", "lane": "a2" },
+        { "tMin": 112, "node": "a2Review", "phase": "review", "event": "finish", "lane": "a2", "verdict": "APPROVE" },
+        { "tMin": 118, "node": "a2Land", "phase": "land", "event": "finish", "lane": "a2", "landed": true },
+        { "tMin": 120, "node": "a3Impl", "phase": "impl", "event": "start", "lane": "a3" },
+        { "tMin": 160, "node": "a3Impl", "phase": "impl", "event": "finish", "lane": "a3" },
+        { "tMin": 172, "node": "a3Review", "phase": "review", "event": "finish", "lane": "a3", "verdict": "APPROVE" },
+        { "tMin": 178, "node": "a3Land", "phase": "land", "event": "finish", "lane": "a3", "landed": true },
+        { "tMin": 90, "node": "a1PolishReview", "phase": "polishReview", "event": "finish", "lane": "a1", "verdict": "LGTM" },
+        { "tMin": 150, "node": "a2PolishReview", "phase": "polishReview", "event": "finish", "lane": "a2", "verdict": "LGTM" },
+        { "tMin": 200, "node": "a3PolishReview", "phase": "polishReview", "event": "finish", "lane": "a3", "verdict": "LGTM" },
+        { "tMin": 220, "node": "panelCodex", "phase": "panel", "event": "finish", "verifier": "codex", "verdict": "PRODUCTION-READY" },
+        { "tMin": 225, "node": "panelFable", "phase": "panel", "event": "finish", "verifier": "fable", "verdict": "PRODUCTION-READY" },
+        { "tMin": 230, "node": "humanRatify", "phase": "human", "event": "start", "kind": "gated-task" }
+      ]
+    }
+  },
+  {
+    "id": "double-pre-merge-review",
+    "description": "Lane a2 gets a second pre-merge review pass before landing, which the speed doctrine forbids.",
+    "expect": { "parallelism": "PASS", "singleReview": "FAIL", "immediateLanding": "PASS", "polishConvergence": "PASS", "humanGating": "PASS", "overall": "FAIL", "agreement": true },
+    "trace": {
+      "runId": "alpha-agent-double-review",
+      "events": [
+        { "tMin": 0, "node": "a1Impl", "phase": "impl", "event": "start", "lane": "a1" },
+        { "tMin": 0, "node": "a2Impl", "phase": "impl", "event": "start", "lane": "a2" },
+        { "tMin": 2, "node": "a3Impl", "phase": "impl", "event": "start", "lane": "a3" },
+        { "tMin": 40, "node": "a2Impl", "phase": "impl", "event": "finish", "lane": "a2" },
+        { "tMin": 52, "node": "a2Review", "phase": "review", "event": "finish", "lane": "a2", "verdict": "FIX" },
+        { "tMin": 55, "node": "a1Impl", "phase": "impl", "event": "finish", "lane": "a1" },
+        { "tMin": 61, "node": "a3Impl", "phase": "impl", "event": "finish", "lane": "a3" },
+        { "tMin": 66, "node": "a2ReviewSecond", "phase": "review", "event": "finish", "lane": "a2", "verdict": "APPROVE", "note": "second pre-merge pass over the same branch" },
+        { "tMin": 70, "node": "a1Review", "phase": "review", "event": "finish", "lane": "a1", "verdict": "APPROVE" },
+        { "tMin": 72, "node": "a2Land", "phase": "land", "event": "finish", "lane": "a2", "landed": true },
+        { "tMin": 74, "node": "a3Review", "phase": "review", "event": "finish", "lane": "a3", "verdict": "APPROVE" },
+        { "tMin": 78, "node": "a1Land", "phase": "land", "event": "finish", "lane": "a1", "landed": true },
+        { "tMin": 80, "node": "a3Land", "phase": "land", "event": "finish", "lane": "a3", "landed": true },
+        { "tMin": 90, "node": "a2PolishReview", "phase": "polishReview", "event": "finish", "lane": "a2", "verdict": "LGTM" },
+        { "tMin": 95, "node": "a1PolishReview", "phase": "polishReview", "event": "finish", "lane": "a1", "verdict": "LGTM" },
+        { "tMin": 100, "node": "a3PolishReview", "phase": "polishReview", "event": "finish", "lane": "a3", "verdict": "LGTM" },
+        { "tMin": 150, "node": "panelCodex", "phase": "panel", "event": "finish", "verifier": "codex", "verdict": "PRODUCTION-READY" },
+        { "tMin": 155, "node": "panelFable", "phase": "panel", "event": "finish", "verifier": "fable", "verdict": "PRODUCTION-READY" },
+        { "tMin": 160, "node": "humanRatify", "phase": "human", "event": "start", "kind": "gated-task" }
+      ]
+    }
+  },
+  {
+    "id": "unreviewed-lane-lands",
+    "description": "Lane a3 skips its pre-merge review entirely and lands straight from implementation.",
+    "expect": { "parallelism": "PASS", "singleReview": "FAIL", "immediateLanding": "PASS", "polishConvergence": "PASS", "humanGating": "PASS", "overall": "FAIL", "agreement": true },
+    "trace": {
+      "runId": "alpha-agent-unreviewed",
+      "events": [
+        { "tMin": 0, "node": "a1Impl", "phase": "impl", "event": "start", "lane": "a1" },
+        { "tMin": 0, "node": "a2Impl", "phase": "impl", "event": "start", "lane": "a2" },
+        { "tMin": 2, "node": "a3Impl", "phase": "impl", "event": "start", "lane": "a3" },
+        { "tMin": 40, "node": "a2Impl", "phase": "impl", "event": "finish", "lane": "a2" },
+        { "tMin": 52, "node": "a2Review", "phase": "review", "event": "finish", "lane": "a2", "verdict": "APPROVE" },
+        { "tMin": 55, "node": "a1Impl", "phase": "impl", "event": "finish", "lane": "a1" },
+        { "tMin": 58, "node": "a2Land", "phase": "land", "event": "finish", "lane": "a2", "landed": true },
+        { "tMin": 61, "node": "a3Impl", "phase": "impl", "event": "finish", "lane": "a3" },
+        { "tMin": 64, "node": "a3Land", "phase": "land", "event": "finish", "lane": "a3", "landed": true, "note": "pushed to main without any reviewer looking at the branch" },
+        { "tMin": 70, "node": "a1Review", "phase": "review", "event": "finish", "lane": "a1", "verdict": "APPROVE" },
+        { "tMin": 78, "node": "a1Land", "phase": "land", "event": "finish", "lane": "a1", "landed": true },
+        { "tMin": 90, "node": "a2PolishReview", "phase": "polishReview", "event": "finish", "lane": "a2", "verdict": "LGTM" },
+        { "tMin": 95, "node": "a1PolishReview", "phase": "polishReview", "event": "finish", "lane": "a1", "verdict": "LGTM" },
+        { "tMin": 100, "node": "a3PolishReview", "phase": "polishReview", "event": "finish", "lane": "a3", "verdict": "LGTM" },
+        { "tMin": 150, "node": "panelCodex", "phase": "panel", "event": "finish", "verifier": "codex", "verdict": "PRODUCTION-READY" },
+        { "tMin": 155, "node": "panelFable", "phase": "panel", "event": "finish", "verifier": "fable", "verdict": "PRODUCTION-READY" },
+        { "tMin": 160, "node": "humanRatify", "phase": "human", "event": "start", "kind": "gated-task" }
+      ]
+    }
+  },
+  {
+    "id": "batched-landing",
+    "description": "All three lanes clear review early but sit unlanded until the slowest lane is ready, then land together.",
+    "expect": { "parallelism": "PASS", "singleReview": "PASS", "immediateLanding": "FAIL", "polishConvergence": "PASS", "humanGating": "PASS", "overall": "FAIL", "agreement": true },
+    "trace": {
+      "runId": "alpha-agent-batched",
+      "events": [
+        { "tMin": 0, "node": "a1Impl", "phase": "impl", "event": "start", "lane": "a1" },
+        { "tMin": 0, "node": "a2Impl", "phase": "impl", "event": "start", "lane": "a2" },
+        { "tMin": 2, "node": "a3Impl", "phase": "impl", "event": "start", "lane": "a3" },
+        { "tMin": 40, "node": "a2Impl", "phase": "impl", "event": "finish", "lane": "a2" },
+        { "tMin": 52, "node": "a2Review", "phase": "review", "event": "finish", "lane": "a2", "verdict": "APPROVE" },
+        { "tMin": 55, "node": "a1Impl", "phase": "impl", "event": "finish", "lane": "a1" },
+        { "tMin": 61, "node": "a3Impl", "phase": "impl", "event": "finish", "lane": "a3" },
+        { "tMin": 70, "node": "a1Review", "phase": "review", "event": "finish", "lane": "a1", "verdict": "APPROVE" },
+        { "tMin": 74, "node": "a3Review", "phase": "review", "event": "finish", "lane": "a3", "verdict": "APPROVE" },
+        { "tMin": 210, "node": "a1Land", "phase": "land", "event": "finish", "lane": "a1", "landed": true, "note": "held until every lane was green, then landed as one batch" },
+        { "tMin": 212, "node": "a2Land", "phase": "land", "event": "finish", "lane": "a2", "landed": true },
+        { "tMin": 215, "node": "a3Land", "phase": "land", "event": "finish", "lane": "a3", "landed": true },
+        { "tMin": 230, "node": "a1PolishReview", "phase": "polishReview", "event": "finish", "lane": "a1", "verdict": "LGTM" },
+        { "tMin": 232, "node": "a2PolishReview", "phase": "polishReview", "event": "finish", "lane": "a2", "verdict": "LGTM" },
+        { "tMin": 235, "node": "a3PolishReview", "phase": "polishReview", "event": "finish", "lane": "a3", "verdict": "LGTM" },
+        { "tMin": 260, "node": "panelCodex", "phase": "panel", "event": "finish", "verifier": "codex", "verdict": "PRODUCTION-READY" },
+        { "tMin": 265, "node": "panelFable", "phase": "panel", "event": "finish", "verifier": "fable", "verdict": "PRODUCTION-READY" },
+        { "tMin": 270, "node": "humanRatify", "phase": "human", "event": "start", "kind": "gated-task" }
+      ]
+    }
+  },
+  {
+    "id": "reviewed-lane-never-lands",
+    "description": "Lane a2 clears review and is then abandoned: it never reaches main, so its work is not interruption-safe.",
+    "expect": { "parallelism": "PASS", "singleReview": "PASS", "immediateLanding": "FAIL", "polishConvergence": "PASS", "humanGating": "PASS", "overall": "FAIL", "agreement": true },
+    "trace": {
+      "runId": "alpha-agent-stalled",
+      "events": [
+        { "tMin": 0, "node": "a1Impl", "phase": "impl", "event": "start", "lane": "a1" },
+        { "tMin": 0, "node": "a2Impl", "phase": "impl", "event": "start", "lane": "a2" },
+        { "tMin": 2, "node": "a3Impl", "phase": "impl", "event": "start", "lane": "a3" },
+        { "tMin": 40, "node": "a2Impl", "phase": "impl", "event": "finish", "lane": "a2" },
+        { "tMin": 52, "node": "a2Review", "phase": "review", "event": "finish", "lane": "a2", "verdict": "APPROVE", "note": "clean review; the branch was never pushed to main" },
+        { "tMin": 55, "node": "a1Impl", "phase": "impl", "event": "finish", "lane": "a1" },
+        { "tMin": 61, "node": "a3Impl", "phase": "impl", "event": "finish", "lane": "a3" },
+        { "tMin": 70, "node": "a1Review", "phase": "review", "event": "finish", "lane": "a1", "verdict": "APPROVE" },
+        { "tMin": 74, "node": "a3Review", "phase": "review", "event": "finish", "lane": "a3", "verdict": "APPROVE" },
+        { "tMin": 78, "node": "a1Land", "phase": "land", "event": "finish", "lane": "a1", "landed": true },
+        { "tMin": 80, "node": "a3Land", "phase": "land", "event": "finish", "lane": "a3", "landed": true },
+        { "tMin": 95, "node": "a1PolishReview", "phase": "polishReview", "event": "finish", "lane": "a1", "verdict": "LGTM" },
+        { "tMin": 100, "node": "a3PolishReview", "phase": "polishReview", "event": "finish", "lane": "a3", "verdict": "LGTM" },
+        { "tMin": 150, "node": "panelCodex", "phase": "panel", "event": "finish", "verifier": "codex", "verdict": "PRODUCTION-READY" },
+        { "tMin": 155, "node": "panelFable", "phase": "panel", "event": "finish", "verifier": "fable", "verdict": "PRODUCTION-READY" },
+        { "tMin": 160, "node": "humanRatify", "phase": "human", "event": "start", "kind": "gated-task" }
+      ]
+    }
+  },
+  {
+    "id": "polish-ends-on-fix",
+    "description": "Lane a1's post-land polish loop runs out of iterations on a FIX verdict and never reaches an explicit LGTM.",
+    "expect": { "parallelism": "PASS", "singleReview": "PASS", "immediateLanding": "PASS", "polishConvergence": "FAIL", "humanGating": "PASS", "overall": "FAIL", "agreement": true },
+    "trace": {
+      "runId": "alpha-agent-polish-open",
+      "events": [
+        { "tMin": 0, "node": "a1Impl", "phase": "impl", "event": "start", "lane": "a1" },
+        { "tMin": 0, "node": "a2Impl", "phase": "impl", "event": "start", "lane": "a2" },
+        { "tMin": 2, "node": "a3Impl", "phase": "impl", "event": "start", "lane": "a3" },
+        { "tMin": 40, "node": "a2Impl", "phase": "impl", "event": "finish", "lane": "a2" },
+        { "tMin": 52, "node": "a2Review", "phase": "review", "event": "finish", "lane": "a2", "verdict": "APPROVE" },
+        { "tMin": 55, "node": "a1Impl", "phase": "impl", "event": "finish", "lane": "a1" },
+        { "tMin": 58, "node": "a2Land", "phase": "land", "event": "finish", "lane": "a2", "landed": true },
+        { "tMin": 61, "node": "a3Impl", "phase": "impl", "event": "finish", "lane": "a3" },
+        { "tMin": 70, "node": "a1Review", "phase": "review", "event": "finish", "lane": "a1", "verdict": "APPROVE" },
+        { "tMin": 74, "node": "a3Review", "phase": "review", "event": "finish", "lane": "a3", "verdict": "APPROVE" },
+        { "tMin": 78, "node": "a1Land", "phase": "land", "event": "finish", "lane": "a1", "landed": true },
+        { "tMin": 80, "node": "a3Land", "phase": "land", "event": "finish", "lane": "a3", "landed": true },
+        { "tMin": 90, "node": "a2PolishReview", "phase": "polishReview", "event": "finish", "lane": "a2", "verdict": "LGTM" },
+        { "tMin": 95, "node": "a1PolishReview", "phase": "polishReview", "event": "finish", "lane": "a1", "verdict": "FIX" },
+        { "tMin": 100, "node": "a3PolishReview", "phase": "polishReview", "event": "finish", "lane": "a3", "verdict": "LGTM" },
+        { "tMin": 110, "node": "a1PolishFix", "phase": "polishFix", "event": "finish", "lane": "a1" },
+        { "tMin": 125, "node": "a1PolishReview", "phase": "polishReview", "event": "finish", "lane": "a1", "verdict": "FIX", "note": "loop hit its iteration ceiling still red" },
+        { "tMin": 150, "node": "panelCodex", "phase": "panel", "event": "finish", "verifier": "codex", "verdict": "PRODUCTION-READY" },
+        { "tMin": 155, "node": "panelFable", "phase": "panel", "event": "finish", "verifier": "fable", "verdict": "PRODUCTION-READY" },
+        { "tMin": 160, "node": "humanRatify", "phase": "human", "event": "start", "kind": "gated-task" }
+      ]
+    }
+  },
+  {
+    "id": "polish-fix-never-applied",
+    "description": "Lane a2's polish reviewer raises FIX findings, no fix-forward task runs, and the next review declares LGTM anyway.",
+    "expect": { "parallelism": "PASS", "singleReview": "PASS", "immediateLanding": "PASS", "polishConvergence": "FAIL", "humanGating": "PASS", "overall": "FAIL", "agreement": true },
+    "trace": {
+      "runId": "alpha-agent-polish-skipped-fix",
+      "events": [
+        { "tMin": 0, "node": "a1Impl", "phase": "impl", "event": "start", "lane": "a1" },
+        { "tMin": 0, "node": "a2Impl", "phase": "impl", "event": "start", "lane": "a2" },
+        { "tMin": 2, "node": "a3Impl", "phase": "impl", "event": "start", "lane": "a3" },
+        { "tMin": 40, "node": "a2Impl", "phase": "impl", "event": "finish", "lane": "a2" },
+        { "tMin": 52, "node": "a2Review", "phase": "review", "event": "finish", "lane": "a2", "verdict": "APPROVE" },
+        { "tMin": 55, "node": "a1Impl", "phase": "impl", "event": "finish", "lane": "a1" },
+        { "tMin": 58, "node": "a2Land", "phase": "land", "event": "finish", "lane": "a2", "landed": true },
+        { "tMin": 61, "node": "a3Impl", "phase": "impl", "event": "finish", "lane": "a3" },
+        { "tMin": 70, "node": "a1Review", "phase": "review", "event": "finish", "lane": "a1", "verdict": "APPROVE" },
+        { "tMin": 74, "node": "a3Review", "phase": "review", "event": "finish", "lane": "a3", "verdict": "APPROVE" },
+        { "tMin": 78, "node": "a1Land", "phase": "land", "event": "finish", "lane": "a1", "landed": true },
+        { "tMin": 80, "node": "a3Land", "phase": "land", "event": "finish", "lane": "a3", "landed": true },
+        { "tMin": 90, "node": "a2PolishReview", "phase": "polishReview", "event": "finish", "lane": "a2", "verdict": "FIX", "note": "three findings on the landed commit" },
+        { "tMin": 95, "node": "a1PolishReview", "phase": "polishReview", "event": "finish", "lane": "a1", "verdict": "LGTM" },
+        { "tMin": 100, "node": "a3PolishReview", "phase": "polishReview", "event": "finish", "lane": "a3", "verdict": "LGTM" },
+        { "tMin": 120, "node": "a2PolishReview", "phase": "polishReview", "event": "finish", "lane": "a2", "verdict": "LGTM", "note": "declared LGTM without any fix landing in between" },
+        { "tMin": 150, "node": "panelCodex", "phase": "panel", "event": "finish", "verifier": "codex", "verdict": "PRODUCTION-READY" },
+        { "tMin": 155, "node": "panelFable", "phase": "panel", "event": "finish", "verifier": "fable", "verdict": "PRODUCTION-READY" },
+        { "tMin": 160, "node": "humanRatify", "phase": "human", "event": "start", "kind": "gated-task" }
+      ]
+    }
+  },
+  {
+    "id": "landed-lane-never-polished",
+    "description": "Lane a3 lands on main and no post-land polish loop ever runs against its commits.",
+    "expect": { "parallelism": "PASS", "singleReview": "PASS", "immediateLanding": "PASS", "polishConvergence": "FAIL", "humanGating": "PASS", "overall": "FAIL", "agreement": true },
+    "trace": {
+      "runId": "alpha-agent-unpolished",
+      "events": [
+        { "tMin": 0, "node": "a1Impl", "phase": "impl", "event": "start", "lane": "a1" },
+        { "tMin": 0, "node": "a2Impl", "phase": "impl", "event": "start", "lane": "a2" },
+        { "tMin": 2, "node": "a3Impl", "phase": "impl", "event": "start", "lane": "a3" },
+        { "tMin": 40, "node": "a2Impl", "phase": "impl", "event": "finish", "lane": "a2" },
+        { "tMin": 52, "node": "a2Review", "phase": "review", "event": "finish", "lane": "a2", "verdict": "APPROVE" },
+        { "tMin": 55, "node": "a1Impl", "phase": "impl", "event": "finish", "lane": "a1" },
+        { "tMin": 58, "node": "a2Land", "phase": "land", "event": "finish", "lane": "a2", "landed": true },
+        { "tMin": 61, "node": "a3Impl", "phase": "impl", "event": "finish", "lane": "a3" },
+        { "tMin": 70, "node": "a1Review", "phase": "review", "event": "finish", "lane": "a1", "verdict": "APPROVE" },
+        { "tMin": 74, "node": "a3Review", "phase": "review", "event": "finish", "lane": "a3", "verdict": "APPROVE" },
+        { "tMin": 78, "node": "a1Land", "phase": "land", "event": "finish", "lane": "a1", "landed": true },
+        { "tMin": 80, "node": "a3Land", "phase": "land", "event": "finish", "lane": "a3", "landed": true },
+        { "tMin": 90, "node": "a2PolishReview", "phase": "polishReview", "event": "finish", "lane": "a2", "verdict": "LGTM" },
+        { "tMin": 95, "node": "a1PolishReview", "phase": "polishReview", "event": "finish", "lane": "a1", "verdict": "LGTM" },
+        { "tMin": 150, "node": "panelCodex", "phase": "panel", "event": "finish", "verifier": "codex", "verdict": "PRODUCTION-READY" },
+        { "tMin": 155, "node": "panelFable", "phase": "panel", "event": "finish", "verifier": "fable", "verdict": "PRODUCTION-READY" },
+        { "tMin": 160, "node": "humanRatify", "phase": "human", "event": "start", "kind": "gated-task" }
+      ]
+    }
+  },
+  {
+    "id": "human-task-before-panel",
+    "description": "The human ratification task is raised while the readiness panel is still running.",
+    "expect": { "parallelism": "PASS", "singleReview": "PASS", "immediateLanding": "PASS", "polishConvergence": "PASS", "humanGating": "FAIL", "overall": "FAIL", "agreement": true },
+    "trace": {
+      "runId": "alpha-agent-human-early",
+      "events": [
+        { "tMin": 0, "node": "a1Impl", "phase": "impl", "event": "start", "lane": "a1" },
+        { "tMin": 0, "node": "a2Impl", "phase": "impl", "event": "start", "lane": "a2" },
+        { "tMin": 2, "node": "a3Impl", "phase": "impl", "event": "start", "lane": "a3" },
+        { "tMin": 40, "node": "a2Impl", "phase": "impl", "event": "finish", "lane": "a2" },
+        { "tMin": 52, "node": "a2Review", "phase": "review", "event": "finish", "lane": "a2", "verdict": "APPROVE" },
+        { "tMin": 55, "node": "a1Impl", "phase": "impl", "event": "finish", "lane": "a1" },
+        { "tMin": 58, "node": "a2Land", "phase": "land", "event": "finish", "lane": "a2", "landed": true },
+        { "tMin": 61, "node": "a3Impl", "phase": "impl", "event": "finish", "lane": "a3" },
+        { "tMin": 70, "node": "a1Review", "phase": "review", "event": "finish", "lane": "a1", "verdict": "APPROVE" },
+        { "tMin": 74, "node": "a3Review", "phase": "review", "event": "finish", "lane": "a3", "verdict": "APPROVE" },
+        { "tMin": 78, "node": "a1Land", "phase": "land", "event": "finish", "lane": "a1", "landed": true },
+        { "tMin": 80, "node": "a3Land", "phase": "land", "event": "finish", "lane": "a3", "landed": true },
+        { "tMin": 90, "node": "a2PolishReview", "phase": "polishReview", "event": "finish", "lane": "a2", "verdict": "LGTM" },
+        { "tMin": 95, "node": "a1PolishReview", "phase": "polishReview", "event": "finish", "lane": "a1", "verdict": "LGTM" },
+        { "tMin": 100, "node": "a3PolishReview", "phase": "polishReview", "event": "finish", "lane": "a3", "verdict": "LGTM" },
+        { "tMin": 120, "node": "humanRatify", "phase": "human", "event": "start", "kind": "gated-task", "note": "H1/H2/H3 asked of the human before either verifier reported" },
+        { "tMin": 150, "node": "panelCodex", "phase": "panel", "event": "finish", "verifier": "codex", "verdict": "PRODUCTION-READY" },
+        { "tMin": 155, "node": "panelFable", "phase": "panel", "event": "finish", "verifier": "fable", "verdict": "PRODUCTION-READY" }
+      ]
+    }
+  },
+  {
+    "id": "human-task-over-not-ready-panel",
+    "description": "One verifier reports NOT-READY and the orchestrator raises the gated human tasks anyway.",
+    "expect": { "parallelism": "PASS", "singleReview": "PASS", "immediateLanding": "PASS", "polishConvergence": "PASS", "humanGating": "FAIL", "overall": "FAIL", "agreement": true },
+    "trace": {
+      "runId": "alpha-agent-human-over-red-panel",
+      "events": [
+        { "tMin": 0, "node": "a1Impl", "phase": "impl", "event": "start", "lane": "a1" },
+        { "tMin": 0, "node": "a2Impl", "phase": "impl", "event": "start", "lane": "a2" },
+        { "tMin": 2, "node": "a3Impl", "phase": "impl", "event": "start", "lane": "a3" },
+        { "tMin": 40, "node": "a2Impl", "phase": "impl", "event": "finish", "lane": "a2" },
+        { "tMin": 52, "node": "a2Review", "phase": "review", "event": "finish", "lane": "a2", "verdict": "APPROVE" },
+        { "tMin": 55, "node": "a1Impl", "phase": "impl", "event": "finish", "lane": "a1" },
+        { "tMin": 58, "node": "a2Land", "phase": "land", "event": "finish", "lane": "a2", "landed": true },
+        { "tMin": 61, "node": "a3Impl", "phase": "impl", "event": "finish", "lane": "a3" },
+        { "tMin": 70, "node": "a1Review", "phase": "review", "event": "finish", "lane": "a1", "verdict": "APPROVE" },
+        { "tMin": 74, "node": "a3Review", "phase": "review", "event": "finish", "lane": "a3", "verdict": "APPROVE" },
+        { "tMin": 78, "node": "a1Land", "phase": "land", "event": "finish", "lane": "a1", "landed": true },
+        { "tMin": 80, "node": "a3Land", "phase": "land", "event": "finish", "lane": "a3", "landed": true },
+        { "tMin": 90, "node": "a2PolishReview", "phase": "polishReview", "event": "finish", "lane": "a2", "verdict": "LGTM" },
+        { "tMin": 95, "node": "a1PolishReview", "phase": "polishReview", "event": "finish", "lane": "a1", "verdict": "LGTM" },
+        { "tMin": 100, "node": "a3PolishReview", "phase": "polishReview", "event": "finish", "lane": "a3", "verdict": "LGTM" },
+        { "tMin": 150, "node": "panelCodex", "phase": "panel", "event": "finish", "verifier": "codex", "verdict": "NOT-READY", "note": "A2 auth refusal test missing" },
+        { "tMin": 155, "node": "panelFable", "phase": "panel", "event": "finish", "verifier": "fable", "verdict": "PRODUCTION-READY" },
+        { "tMin": 165, "node": "humanRatify", "phase": "human", "event": "start", "kind": "gated-task", "note": "raised without remediating the codex findings" }
+      ]
+    }
+  },
+  {
+    "id": "escalation-then-clean-panel",
+    "description": "A failed first panel escalates to the human (legitimate), remediation lands, the second panel passes, and only then are the gated human tasks raised.",
+    "expect": { "parallelism": "PASS", "singleReview": "PASS", "immediateLanding": "PASS", "polishConvergence": "PASS", "humanGating": "PASS", "overall": "PASS", "agreement": true },
+    "trace": {
+      "runId": "alpha-agent-escalation",
+      "events": [
+        { "tMin": 0, "node": "a1Impl", "phase": "impl", "event": "start", "lane": "a1" },
+        { "tMin": 0, "node": "a2Impl", "phase": "impl", "event": "start", "lane": "a2" },
+        { "tMin": 2, "node": "a3Impl", "phase": "impl", "event": "start", "lane": "a3" },
+        { "tMin": 40, "node": "a2Impl", "phase": "impl", "event": "finish", "lane": "a2" },
+        { "tMin": 52, "node": "a2Review", "phase": "review", "event": "finish", "lane": "a2", "verdict": "APPROVE" },
+        { "tMin": 55, "node": "a1Impl", "phase": "impl", "event": "finish", "lane": "a1" },
+        { "tMin": 58, "node": "a2Land", "phase": "land", "event": "finish", "lane": "a2", "landed": true },
+        { "tMin": 61, "node": "a3Impl", "phase": "impl", "event": "finish", "lane": "a3" },
+        { "tMin": 70, "node": "a1Review", "phase": "review", "event": "finish", "lane": "a1", "verdict": "APPROVE" },
+        { "tMin": 74, "node": "a3Review", "phase": "review", "event": "finish", "lane": "a3", "verdict": "APPROVE" },
+        { "tMin": 78, "node": "a1Land", "phase": "land", "event": "finish", "lane": "a1", "landed": true },
+        { "tMin": 80, "node": "a3Land", "phase": "land", "event": "finish", "lane": "a3", "landed": true },
+        { "tMin": 90, "node": "a2PolishReview", "phase": "polishReview", "event": "finish", "lane": "a2", "verdict": "LGTM" },
+        { "tMin": 95, "node": "a1PolishReview", "phase": "polishReview", "event": "finish", "lane": "a1", "verdict": "LGTM" },
+        { "tMin": 100, "node": "a3PolishReview", "phase": "polishReview", "event": "finish", "lane": "a3", "verdict": "LGTM" },
+        { "tMin": 150, "node": "panelCodex", "phase": "panel", "event": "finish", "verifier": "codex", "verdict": "NOT-READY", "note": "round 1: sandbox ceilings still opt-in" },
+        { "tMin": 152, "node": "panelFable", "phase": "panel", "event": "finish", "verifier": "fable", "verdict": "PRODUCTION-READY", "note": "round 1" },
+        { "tMin": 158, "node": "humanEscalate", "phase": "human", "event": "start", "kind": "escalation", "note": "asks for direction after the failed panel; not a gated task" },
+        { "tMin": 180, "node": "panelRemediate", "phase": "remediate", "event": "finish", "note": "ceiling defaults landed fix-forward" },
+        { "tMin": 200, "node": "panelCodex", "phase": "panel", "event": "finish", "verifier": "codex", "verdict": "PRODUCTION-READY", "note": "round 2" },
+        { "tMin": 205, "node": "panelFable", "phase": "panel", "event": "finish", "verifier": "fable", "verdict": "PRODUCTION-READY", "note": "round 2" },
+        { "tMin": 210, "node": "humanRatify", "phase": "human", "event": "start", "kind": "gated-task" }
+      ]
+    }
+  },
+  {
+    "id": "single-verifier-panel",
+    "description": "Only one verifier reports before the human tasks are raised, so the panel is not the two independent audits the doctrine requires.",
+    "expect": { "parallelism": "PASS", "singleReview": "PASS", "immediateLanding": "PASS", "polishConvergence": "PASS", "humanGating": "FAIL", "overall": "FAIL", "agreement": true },
+    "trace": {
+      "runId": "alpha-agent-one-verifier",
+      "events": [
+        { "tMin": 0, "node": "a1Impl", "phase": "impl", "event": "start", "lane": "a1" },
+        { "tMin": 0, "node": "a2Impl", "phase": "impl", "event": "start", "lane": "a2" },
+        { "tMin": 2, "node": "a3Impl", "phase": "impl", "event": "start", "lane": "a3" },
+        { "tMin": 40, "node": "a2Impl", "phase": "impl", "event": "finish", "lane": "a2" },
+        { "tMin": 52, "node": "a2Review", "phase": "review", "event": "finish", "lane": "a2", "verdict": "APPROVE" },
+        { "tMin": 55, "node": "a1Impl", "phase": "impl", "event": "finish", "lane": "a1" },
+        { "tMin": 58, "node": "a2Land", "phase": "land", "event": "finish", "lane": "a2", "landed": true },
+        { "tMin": 61, "node": "a3Impl", "phase": "impl", "event": "finish", "lane": "a3" },
+        { "tMin": 70, "node": "a1Review", "phase": "review", "event": "finish", "lane": "a1", "verdict": "APPROVE" },
+        { "tMin": 74, "node": "a3Review", "phase": "review", "event": "finish", "lane": "a3", "verdict": "APPROVE" },
+        { "tMin": 78, "node": "a1Land", "phase": "land", "event": "finish", "lane": "a1", "landed": true },
+        { "tMin": 80, "node": "a3Land", "phase": "land", "event": "finish", "lane": "a3", "landed": true },
+        { "tMin": 90, "node": "a2PolishReview", "phase": "polishReview", "event": "finish", "lane": "a2", "verdict": "LGTM" },
+        { "tMin": 95, "node": "a1PolishReview", "phase": "polishReview", "event": "finish", "lane": "a1", "verdict": "LGTM" },
+        { "tMin": 100, "node": "a3PolishReview", "phase": "polishReview", "event": "finish", "lane": "a3", "verdict": "LGTM" },
+        { "tMin": 150, "node": "panelCodex", "phase": "panel", "event": "finish", "verifier": "codex", "verdict": "PRODUCTION-READY", "note": "the fable verifier was never launched" },
+        { "tMin": 160, "node": "humanRatify", "phase": "human", "event": "start", "kind": "gated-task" }
+      ]
+    }
+  },
+  {
+    "id": "two-lane-partial-overlap",
+    "description": "Only two lanes exist and they overlap; the parallelism bar is the lane count, so this passes on every axis with evidence. No panel or human task was reached, so human gating is undecided.",
+    "expect": { "parallelism": "PASS", "singleReview": "PASS", "immediateLanding": "PASS", "polishConvergence": "PASS", "humanGating": "N/A", "overall": "PASS" },
+    "trace": {
+      "runId": "alpha-agent-two-lane",
+      "events": [
+        { "tMin": 0, "node": "a1Impl", "phase": "impl", "event": "start", "lane": "a1" },
+        { "tMin": 5, "node": "a2Impl", "phase": "impl", "event": "start", "lane": "a2" },
+        { "tMin": 40, "node": "a2Impl", "phase": "impl", "event": "finish", "lane": "a2" },
+        { "tMin": 52, "node": "a2Review", "phase": "review", "event": "finish", "lane": "a2", "verdict": "APPROVE" },
+        { "tMin": 55, "node": "a1Impl", "phase": "impl", "event": "finish", "lane": "a1" },
+        { "tMin": 58, "node": "a2Land", "phase": "land", "event": "finish", "lane": "a2", "landed": true },
+        { "tMin": 70, "node": "a1Review", "phase": "review", "event": "finish", "lane": "a1", "verdict": "APPROVE" },
+        { "tMin": 78, "node": "a1Land", "phase": "land", "event": "finish", "lane": "a1", "landed": true },
+        { "tMin": 90, "node": "a2PolishReview", "phase": "polishReview", "event": "finish", "lane": "a2", "verdict": "LGTM" },
+        { "tMin": 95, "node": "a1PolishReview", "phase": "polishReview", "event": "finish", "lane": "a1", "verdict": "LGTM" }
+      ]
+    }
+  }
+]
