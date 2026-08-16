@@ -2855,6 +2855,27 @@ export const createAppController = (
 		return undefined;
 	};
 
+	/*
+	 * Launch Checklist D-4 / AppState.ts:290-296's ruling: chat is
+	 * complimentary and a $0 balance never pauses it, but a workflow run is
+	 * non-complimentary work — the one place the pause discipline applies.
+	 * `allowedToStartWork` only ever reads false after a definitive
+	 * "ok"/"low"/"empty" balance answer (refreshBalanceImpl), so a down or
+	 * unread billing seam never blocks a launch. The refusal is dispatched
+	 * into the transcript directly (not left to the generic toast channel;
+	 * see surfaceCommandFailure) so it lands as an embedded chat message per
+	 * THE EMBED LAW regardless of whether a button, slash command, or the
+	 * agent triggered the launch.
+	 */
+	const zeroBalanceGuard = (): string | undefined => {
+		const billing = store.collections.billingAccounts.get("billing");
+		if (billing === undefined || billing.allowedToStartWork) return undefined;
+		const text =
+			"Balance is at $0 — workflow runs pause until more balance is added; chat stays free in the meantime.";
+		store.dispatch({ type: "message.appended", actor: "system", text });
+		return text;
+	};
+
 	/**
 	 * The watched set is the universe: the target repo, the wave-10 chooser
 	 * route (nothing watched, or a repo outside the set), or — wave 12 §2, when
@@ -3544,6 +3565,8 @@ export const createAppController = (
 	): Promise<string | void | { readonly value: string }> => {
 		const guard = workflowIdentityGuard();
 		if (guard !== undefined) return guard;
+		const balanceGuard = zeroBalanceGuard();
+		if (balanceGuard !== undefined) return balanceGuard;
 		// §2: `flow.create <description> [owner/repo]` — one argument string
 		// for both the slash form and the agent tool.
 		const split = repoArg === undefined ? splitDescriptionAndRepo(rawDescription) : { description: rawDescription.trim(), repo: repoArg };
@@ -3612,6 +3635,8 @@ export const createAppController = (
 	const runWorkflow = async (name: string, repoArg?: string): Promise<string | void | { readonly value: string }> => {
 		const guard = workflowIdentityGuard();
 		if (guard !== undefined) return guard;
+		const balanceGuard = zeroBalanceGuard();
+		if (balanceGuard !== undefined) return balanceGuard;
 		const target = workflowTargetRepo(repoArg);
 		if ("chooser" in target) return openChooserForWorkflow(target.chooser);
 		const repo = target.repo;
