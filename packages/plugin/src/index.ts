@@ -1,12 +1,11 @@
 /**
- * The flows plugin kernel: typed hooks, resolution and ordering, and the config
- * pipeline.
+ * The bounded cell-host plugin kernel: typed hooks, resolution and ordering,
+ * and the config pipeline.
  *
- * Governing design: `docs/architecture/plugin-system.md`.
- *
- * Vault: [[Plugin Kernel]] (`docs/specs/Specs/Plugin Kernel.md`) — the shipped
- * kernel and its stated deviations from [[Plugin API]]
- * (`docs/specs/Specs/Plugin API.md`).
+ * Governing contract: D11 in `docs/architecture/design-decisions.md`, with the
+ * shipped host catalog in `packages/engine-harness/src/CellPlugin.ts`. Durable
+ * engine extension remains dependency injection; this package does not expose
+ * an engine-wide lifecycle registry.
  *
  * @since 0.1.0
  */

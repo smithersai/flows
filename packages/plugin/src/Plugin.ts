@@ -1,11 +1,10 @@
 /**
  * The plugin object: a plain record produced by a factory function.
  *
- * Governing design: `docs/architecture/plugin-system.md` ("The plugin object").
- *
- * Vault: [[Plugin Kernel]] (`docs/specs/Specs/Plugin Kernel.md`) — the shipped
- * kernel and its stated deviations from [[Plugin API]]
- * (`docs/specs/Specs/Plugin API.md`).
+ * Governing contract: D11 in `docs/architecture/design-decisions.md`. The
+ * shipped consumer is the assembled cell host in `@smthrs/engine-harness`;
+ * durable-core policy continues to use Effect services and constructor
+ * options rather than plugin lifecycle hooks.
  *
  * @since 0.1.0
  */
@@ -16,8 +15,9 @@ import type { FlowsHooks } from "./index.ts"
 /**
  * Conditional-inclusion predicate, mirroring Vite's `apply`.
  *
- * `"engine"` = durable core only; `"harness"` = only when a harness host runs
- * the plugin list.
+ * `"engine"` and `"harness"` select the matching plugin-kernel host. The D11
+ * cell host resolves as `"harness"`; this does not make `"engine"` an
+ * engine-lifecycle hook registration.
  *
  * @category models
  * @since 0.1.0

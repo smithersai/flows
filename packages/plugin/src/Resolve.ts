@@ -1,14 +1,10 @@
 /**
  * Plugin resolution: flatten, filter, validate, order — once, at construction.
  *
- * Governing design: `docs/architecture/plugin-system.md`
- * ("Resolution and ordering rules"). Runtime dispatch is an array walk over the
- * frozen lists this module produces; there is no lookup and no registration
- * after start.
- *
- * Vault: [[Plugin Kernel]] (`docs/specs/Specs/Plugin Kernel.md`) — the shipped
- * kernel and its stated deviations from [[Plugin API]]
- * (`docs/specs/Specs/Plugin API.md`).
+ * Governing contract: D11 in `docs/architecture/design-decisions.md`. Runtime
+ * dispatch is an array walk over the frozen, host-supplied catalog this module
+ * produces; there is no lookup, late registration, or durable-engine lifecycle
+ * registry after startup.
  *
  * @since 0.1.0
  */
@@ -55,7 +51,7 @@ export interface Resolved<H = FlowsHooks> {
 export interface Options {
   /** Pre-resolution config that `apply` predicates are tested against. */
   readonly config?: FlowsConfig | undefined
-  /** Which host is resolving; matched against a string `apply`. */
+  /** Which plugin-kernel host is resolving; D11's shipped cell host uses `harness`. */
   readonly target?: "engine" | "harness" | undefined
   /** Hook names recognized by this host. Defaults to the shared config catalog. */
   readonly hooks?: Readonly<Record<string, HookKind>> | undefined

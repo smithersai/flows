@@ -2,14 +2,11 @@
  * The dispatcher: a plain service over a resolved plugin list, generic over the
  * hook interface.
  *
- * Governing design: `docs/architecture/plugin-system.md`
- * ("Hook values and hook kinds"). Each host holds an instance over its
- * augmented `FlowsHooks`, so there is no inheritance machinery and no
- * re-export dance.
- *
- * Vault: [[Plugin Kernel]] (`docs/specs/Specs/Plugin Kernel.md`) — the shipped
- * kernel and its stated deviations from [[Plugin API]]
- * (`docs/specs/Specs/Plugin API.md`).
+ * Governing contract: D11 in `docs/architecture/design-decisions.md`. Each
+ * host holds an instance over its augmented `FlowsHooks` and may dispatch only
+ * the runtime catalog it supplied. The shipped cell host owns the three
+ * waterfalls declared in `packages/engine-harness/src/CellPlugin.ts`; there is
+ * no engine-wide lifecycle dispatcher.
  *
  * Cancellation is fiber interruption via scope closure; nothing here threads an
  * `AbortSignal`.

@@ -2,11 +2,10 @@
  * Startup: resolve the plugin list, run the config pipeline, hand back a
  * dispatcher, a frozen config, and the merged layer.
  *
- * Governing design: `docs/architecture/plugin-system.md` ("Config story").
- *
- * Vault: [[Plugin Kernel]] (`docs/specs/Specs/Plugin Kernel.md`) — the shipped
- * kernel and its stated deviations from [[Plugin API]]
- * (`docs/specs/Specs/Plugin API.md`).
+ * Governing contract: D11 in `docs/architecture/design-decisions.md`, with the
+ * shipped host catalog in `packages/engine-harness/src/CellPlugin.ts`. This
+ * startup composes the bounded cell-host extension point; it does not install
+ * lifecycle hooks into the durable engine.
  *
  * Order of operations, per the spec:
  *

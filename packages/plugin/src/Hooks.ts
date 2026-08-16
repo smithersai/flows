@@ -2,11 +2,10 @@
  * The typed hook surface: hook kinds, the hook entry shape, and the shared
  * kernel's base hook catalog.
  *
- * Governing design: `docs/architecture/plugin-system.md` ("The hook catalog").
- *
- * Vault: [[Plugin Kernel]] (`docs/specs/Specs/Plugin Kernel.md`) — the shipped
- * kernel and its stated deviations from [[Plugin API]]
- * (`docs/specs/Specs/Plugin API.md`).
+ * Governing contract: D11 in `docs/architecture/design-decisions.md`. The
+ * shared catalog is limited to `config` and `configResolved`;
+ * `@smthrs/engine-harness` adds only `cellRegistry`, `cellFlows`, and
+ * `cellModelRequest`. Durable-core lifecycle policy is not a hook catalog.
  *
  * `FlowsHooks` is **open for augmentation, closed for dispatch**: a host
  * declares its hooks with `declare module "@smthrs/plugin"`, supplies the

@@ -1,17 +1,14 @@
 /**
  * Configuration shapes consumed and produced by the plugin kernel.
  *
- * Governing design: `docs/architecture/plugin-system.md`.
+ * Governing contract: D11 in `docs/architecture/design-decisions.md`. These
+ * schemas are the bounded configuration lifecycle owned by the shared plugin
+ * kernel and consumed by the assembled cell host in `@smthrs/engine-harness`.
+ * They are not placeholders for later durable-engine wiring: engine policy
+ * remains on its Effect service and constructor-option seams.
  *
- * Vault: [[Plugin Kernel]] (`docs/specs/Specs/Plugin Kernel.md`) — the shipped
- * kernel and its stated deviations from [[Plugin API]]
- * (`docs/specs/Specs/Plugin API.md`).
- *
- * The types here are deliberately minimal structural placeholders: the engine
- * and the harness wire their real option groups in a later round. What is
- * contractual today is the *shape of the pipeline* — a mutable `FlowsConfig`
- * threaded through the `config` waterfall, decoded, defaulted, and frozen into
- * a `ResolvedConfig` that is immutable for the process lifetime.
+ * A `FlowsConfig` is threaded through the `config` waterfall, decoded,
+ * defaulted, and frozen into the `ResolvedConfig` for that host composition.
  *
  * `plugins` is typed `unknown` on purpose. The plugin list lives on the config
  * the application assembles, but typing it as `PluginInput` here would make

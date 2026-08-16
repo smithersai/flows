@@ -1,11 +1,9 @@
 /**
  * The single typed failure of the plugin kernel.
  *
- * Governing design: `docs/architecture/plugin-system.md` ("Typed error codes").
- *
- * Vault: [[Plugin Kernel]] (`docs/specs/Specs/Plugin Kernel.md`) — the shipped
- * kernel and its stated deviations from [[Plugin API]]
- * (`docs/specs/Specs/Plugin API.md`).
+ * Governing contract: D11 in `docs/architecture/design-decisions.md`. These
+ * failures cover bounded plugin resolution, configuration, layer composition,
+ * and host-owned hook dispatch; they are not durable-engine lifecycle errors.
  *
  * @since 0.1.0
  */
