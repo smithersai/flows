@@ -28,7 +28,7 @@ The doctrine has six clauses:
 | `orchestrator.tsx` | The workflow under eval. Puts the model under test in the orchestrator seat and grades the plan it returns. |
 | `cases.jsonl` | Ten eval cases in the `smithers eval` JSONL case format. |
 | `scorers.md` | The rubric: the eight deterministic checks, the per-case assertions, and the judge rubrics. |
-| `baseline-report.md` | Recorded baseline scores, and exactly what was and was not executed to produce them. |
+| `baseline-report.md` | Recorded baseline scores, and exactly what was and was not executed to produce them. Also scores `.smithers/workflows/alpha-core.tsx` — the runnable workflow implementing this doctrine — by a hand reading of its static graph, since running it once per case is not affordable. |
 
 ## Running the suite
 

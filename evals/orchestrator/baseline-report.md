@@ -38,6 +38,11 @@ case, which is neither affordable nor safe as a regression suite. What the
 suite scores is the orchestrator's stated plan, and that is the whole of what
 these numbers cover. See the limits section of `README.md`.
 
+Because `alpha-core.tsx` was not executed, it is instead scored two other ways
+below, both weaker than a run and labelled as such: a hand reading of its
+static graph, and direct observation of the alpha-core run that produced this
+report.
+
 The raw JSON reports are written under `.smithers/evals/`, which is gitignored
 and therefore not committed with this report. Regenerate them with the command
 above.
@@ -152,6 +157,65 @@ this report to an unknown degree, because a model that has seen the real run
 can recall the doctrine rather than apply it. Scoring a subject with no
 exposure to this repository is the way to measure that, and this baseline
 does not do it.
+
+## The alpha-core workflow: static-graph score
+
+The cases above score orchestrator *plans*. The doctrine also has a runnable
+implementation, `.smithers/workflows/alpha-core.tsx`, and this lane's brief
+asks for it to be scored. Executing it once per case is not affordable — one
+run launches seven implementation lanes, seven reviewers, a merge queue, a
+bounded polish loop and a two-seat panel against a live repository — so what
+follows is a **hand reading of its graph, not a measured run**. It was scored
+against the same eight checks `gradePlan` applies to a subject's plan, reading
+`alpha-core.tsx` at the revision current on 2026-08-16 (625 lines). Line
+numbers are from that revision; the file is gitignored, so they will drift.
+
+| Check | Verdict | Where the graph decides it |
+| --- | --- | --- |
+| `parallelizesIndependentLanes` | pass | `<Parallel maxConcurrency={8}>` (L429) wraps all seven `laneDefs` (L214–220). The cap is at least the lane count, so no lane queues behind another. The single gated lane `c6` is filtered out until `c6Unlocked` (L431, L330) — that is, until `c2` and `c5` have landed — so gating tracks a declared dependency instead of serializing the run. |
+| `lanesIsolated` | pass | Every lane body is a `<Worktree path=".worktrees/ac-<key>" branch="alpha-core/<key>" baseBranch="main">` (L437–443). |
+| `exactlyOneReviewPerLane` | pass | The lane `<Sequence>` is impl → review → optional apply → ready (L444–489): exactly one `-review` task. The `-apply` task (L466) is conditional on `verdict === "FIX"` and applies findings; it is not a second review, and `applyPrompt` states "There is NO second review" (L240). |
+| `landsPerLane` | pass | Landing is a `<MergeQueue maxConcurrency={1} failurePolicy="quarantine">` (L494) that is a *sibling* of the lanes inside the same `<Parallel>`, emitting one `land-<key>` task per lane that is ready and not yet landed (L495–517). A lane lands while other lanes are still implementing. No end-of-run batch merge node exists anywhere in the graph. |
+| `rebaseFirst` | pass, prompt-level only | `landPrompt` (L244–253) orders fetch → `git rebase origin/main` → gates → `git push origin HEAD:main`, and on non-fast-forward re-fetches, rebases and retries up to five times. |
+| `historyPreserved` | pass, prompt-level only | `landPrompt` says "never rewrite or force-push main"; `polishFixPrompt` (L270) and `remediatePrompt` (L293) both repeat "never rewrite history" and require fix-forward. |
+| `polishConverges` | pass | `<Loop id="polish" until={polishLgtm} maxIterations={polishMax} onMaxReached="return-last">` (L521), default bound 4 (L24). It converges on an explicit `allLgtm`, which the reviewer may set true only when every landed commit has an explicit LGTM and no must-fix findings remain (L264), and the bound-reached behavior is declared rather than implicit. |
+| `panelGatesHumanTasks` | pass | The `human-tasks` task and the `alpha-handoff` `<Approval>` render only under `{panelPassed ? …}` (L598), where `panelPassed = solReady && fableReady` (L341) across two independent seats (L572–593). The panel itself renders only once `allLanded && polishSettled` (L552). |
+
+**Static score: 8/8**, which should be read for what it is. Six of the eight
+clauses are enforced structurally, by the shape of the graph. Two —
+`rebaseFirst` and `historyPreserved` — exist only as prompt text that the
+landing agent is free to disregard. A static reading *cannot* fail those two,
+so their pass carries much less weight than the other six. This is the
+README's first limit one level down: scoring a workflow's source is still
+scoring a claim, not an execution.
+
+## This run's observable behavior
+
+Some of what a static reading cannot settle is observable in the run that
+produced this report, because that run is an alpha-core execution and this
+lane (`ev`) is one of its seats. This is direct observation of a single run,
+n=1, not a measurement across runs.
+
+- **Lanes are genuinely isolated.** `git worktree list` shows six live lane
+  worktrees — `ac-c1`, `ac-c2`, `ac-c3`, `ac-c4`, `ac-c5`, `ac-ev` — each
+  checked out on its own `alpha-core/<key>` branch. `ac-c6` is absent, which
+  matches the graph's gate on `c6` rather than contradicting it.
+- **Landing is per-lane, not batched.** Over this run's window on `main`
+  (`3fcf5fcd..origin/main`), 17 commits landed and `git log --merges` over
+  that range is **empty**. The commits interleave this track with the sibling
+  agent and UI tracks instead of arriving as one end-of-run merge.
+- **This lane never pushed to `main` itself.** Its work sits as a single
+  commit on `alpha-core/ev`; landing is a separate seat's job, as the graph
+  says.
+- **The lane rebased rather than merged.** Picking this lane's work back up
+  required `git fetch origin && git rebase origin/main` onto a `main` that had
+  moved underneath it; that rebase is why the branch is one commit on top of
+  `cbd20d4e` and not a merge.
+
+What this does **not** show: a linear `main` is consistent with rebase-first
+landing, but a force-push also produces linear history. Nothing observed here
+distinguishes the two, so this section corroborates `landsPerLane` and
+`lanesIsolated` but does not independently confirm `historyPreserved`.
 
 ## Suite corrections made before this baseline
 
