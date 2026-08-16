@@ -50,7 +50,7 @@ fixed or written down here.
 
 | Package | Test | Form |
 |---|---|---|
-| `database` | `NodeDatabase concurrent open > dies with the original lock defect after the fixed open-retry budget is exhausted` | `it.live.runIf(FLOWS_SLOW_TESTS === "1")` |
+| `database` | `dies with the original lock defect after the fixed open-retry budget is exhausted` | `it.live.runIf(FLOWS_SLOW_TESTS === "1")` |
 
 **`database` — open-retry exhaustion.** The contract this test encodes is
 correct and the test passes: run under `FLOWS_SLOW_TESTS=1` on 2026-08-16 it

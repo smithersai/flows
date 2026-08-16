@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
-import { existsSync, readFileSync } from "node:fs"
-import { dirname, resolve } from "node:path"
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { dirname, join, relative, resolve } from "node:path"
 import test from "node:test"
 import { fileURLToPath } from "node:url"
 import { findPins, guardedGroups, guardedPackages, notesPath, undocumentedPins } from "./check-test-pins.mjs"
@@ -40,6 +40,9 @@ test("an environment-variable gate is a pin, inline or through a const", () => {
   const inline = `it.live.runIf(process.env.FLOWS_SLOW_TESTS === "1")("slow one", () => {})`
   assert.deepEqual(findPins(inline).map((pin) => pin.title), ["slow one"])
 
+  const nested = `it.runIf(Boolean(process.env.FLOWS_SLOW_TESTS))("slow nested", () => {})`
+  assert.deepEqual(findPins(nested).map((pin) => pin.title), ["slow nested"])
+
   const aliased = [
     `const slowTests = process.env.FLOWS_SLOW_TESTS === "1"`,
     `it.live.runIf(slowTests)("slow two", () => {})`,
@@ -48,14 +51,35 @@ test("an environment-variable gate is a pin, inline or through a const", () => {
   assert.deepEqual(findPins(aliased).map((pin) => pin.title), ["slow two", "slow three"])
 })
 
-test("a pin counts as documented only when the notes quote its title", () => {
+test("a pin counts as documented only when Surviving pins pairs its package and title", () => {
   const packages = [resolve(repoRoot, "packages", "database")]
-  assert.deepEqual(undocumentedPins(readFileSync(notesPath, "utf8"), packages), [])
+  const notes = readFileSync(notesPath, "utf8")
+  assert.deepEqual(undocumentedPins(notes, packages), [])
+
+  const wrongPackage = notes.replace("| `database` | `dies with the original lock defect", "| `other` | `dies with the original lock defect")
+  assert.equal(undocumentedPins(wrongPackage, packages).length, 1)
 
   const unexplained = undocumentedPins("# Alpha notes\n\nNothing here.\n", packages)
   assert.equal(unexplained.length, 1)
   assert.match(unexplained[0].title, /open-retry budget is exhausted/)
   assert.equal(unexplained[0].file, "packages/database/test/NodeDatabaseConcurrentOpen.test.ts")
+})
+
+test("a resolved title does not authorize re-pinning a test", () => {
+  const fixtureRoot = mkdtempSync(join(repoRoot, "scripts", ".check-test-pins-"))
+  const packageDirectory = join(fixtureRoot, "capability")
+  const title = "bounds wall time for adversarial repeated-star patterns against long non-matching resources"
+  try {
+    mkdirSync(join(packageDirectory, "test"), { recursive: true })
+    writeFileSync(join(packageDirectory, "test", "Capability.test.mjs"), `it.fails(${JSON.stringify(title)}, () => {})\n`)
+
+    const unexplained = undocumentedPins(readFileSync(notesPath, "utf8"), [packageDirectory])
+    assert.equal(unexplained.length, 1)
+    assert.equal(unexplained[0].title, title)
+    assert.equal(unexplained[0].file, relative(repoRoot, join(packageDirectory, "test", "Capability.test.mjs")))
+  } finally {
+    rmSync(fixtureRoot, { recursive: true, force: true })
+  }
 })
 
 test("the guarded set is the engine and tooling groups, read from the manifests", () => {

@@ -38,9 +38,35 @@ export const notesPath = join(repoRoot, "docs", "alpha-notes.md")
  */
 const pinPattern = /\b(?:it|test|describe)(?:\.[a-zA-Z]+)*\.(fails|skip|todo)\s*\(\s*(["'`])((?:[^\\]|\\.)*?)\2/g
 
-/** Matches a conditional suite and captures its condition and its title. */
-const conditionalPattern =
-  /\b(?:it|test|describe)(?:\.[a-zA-Z]+)*\.(skipIf|runIf)\s*\(([^)]*)\)\s*\(\s*(["'`])((?:[^\\]|\\.)*?)\3/g
+/** Matches the beginning of a conditional suite's condition. */
+const conditionalStartPattern =
+  /\b(?:it|test|describe)(?:\.[a-zA-Z]+)*\.(skipIf|runIf)\s*\(/g
+
+/** Reads the closing parenthesis paired with the one at `openIndex`. */
+const readParenthesized = (source, openIndex) => {
+  let depth = 0
+  let quote
+  for (let index = openIndex; index < source.length; index++) {
+    const character = source[index]
+    if (quote !== undefined) {
+      if (character === "\\") index++
+      else if (character === quote) quote = undefined
+      continue
+    }
+    if (character === '"' || character === "'" || character === "`") {
+      quote = character
+      continue
+    }
+    if (character === "(") depth++
+    else if (character === ")" && --depth === 0) {
+      return { text: source.slice(openIndex + 1, index), closeIndex: index }
+    }
+  }
+  return undefined
+}
+
+/** Reads the title at the start of a conditional suite's invocation. */
+const conditionalTitlePattern = /\s*\(\s*(["'`])((?:[^\\]|\\.)*?)\1/y
 
 /**
  * Whether a `skipIf`/`runIf` condition leaves the suite off in a default run.
@@ -111,26 +137,47 @@ export const findPins = (source) => {
   for (const match of source.matchAll(pinPattern)) {
     pins.push({ form: match[1], title: match[3], line: lineOf(match.index) })
   }
-  for (const match of source.matchAll(conditionalPattern)) {
-    if (!isOptIn(match[2], source)) continue
-    pins.push({ form: `${match[1]}(${match[2].trim()})`, title: match[4], line: lineOf(match.index) })
+  for (const match of source.matchAll(conditionalStartPattern)) {
+    const openIndex = match.index + match[0].length - 1
+    const condition = readParenthesized(source, openIndex)
+    if (condition === undefined || !isOptIn(condition.text, source)) continue
+    conditionalTitlePattern.lastIndex = condition.closeIndex + 1
+    const title = conditionalTitlePattern.exec(source)
+    if (title === null) continue
+    pins.push({
+      form: `${match[1]}(${condition.text.trim()})`,
+      title: title[2],
+      line: lineOf(match.index)
+    })
   }
   return pins.sort((a, b) => a.line - b.line)
 }
 
+/** The documented `{ package, title }` pairs in the Surviving pins table. */
+const survivingPins = (notes) => {
+  const section = notes.match(/^### Surviving pins\s*$([\s\S]*?)(?=^### |\z)/m)
+  if (section === null) return new Set()
+  const documented = new Set()
+  const rowPattern = /^\|\s*`([^`]+)`\s*\|\s*`([^`]+)`\s*\|/gm
+  for (const row of section[1].matchAll(rowPattern)) documented.add(`${row[1]}\u0000${row[2]}`)
+  return documented
+}
+
 /**
- * Pins across the guarded packages that docs/alpha-notes.md does not mention.
+ * Pins across the guarded packages that the Surviving pins table does not list.
  *
- * A pin counts as documented when the notes quote its title. Titles in this
- * repo are full sentences, so a substring match is specific enough to be
- * meaningful and loose enough to survive the notes reformatting the row.
+ * A pin counts as documented only when that table pairs its package and exact
+ * title. Resolved-pin history can quote the same title, but must not authorize
+ * re-pinning the test.
  */
 export const undocumentedPins = (notes = readFileSync(notesPath, "utf8"), packages = guardedPackages()) => {
   const unexplained = []
+  const documented = survivingPins(notes)
   for (const packageDirectory of packages) {
+    const packageName = relative(join(repoRoot, "packages"), packageDirectory)
     for (const file of testFilesUnder(packageDirectory)) {
       for (const pin of findPins(readFileSync(file, "utf8"))) {
-        if (notes.includes(pin.title)) continue
+        if (documented.has(`${packageName}\u0000${pin.title}`)) continue
         unexplained.push({ ...pin, file: relative(repoRoot, file) })
       }
     }
