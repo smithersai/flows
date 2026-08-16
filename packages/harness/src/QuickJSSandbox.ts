@@ -21,7 +21,7 @@
  */
 import variant from "@jitl/quickjs-singlefile-browser-release-sync"
 import { Effect, Layer, Schema } from "effect"
-import type { QuickJSContext, QuickJSRuntime, QuickJSWASMModule } from "quickjs-emscripten-core"
+import type { QuickJSContext, QuickJSHandle, QuickJSRuntime, QuickJSWASMModule } from "quickjs-emscripten-core"
 import { newQuickJSWASMModuleFromVariant } from "quickjs-emscripten-core"
 import * as Cell from "./Cell.ts"
 import type { HarnessError } from "./HarnessError.ts"
@@ -69,8 +69,7 @@ const prelude = (catalog: string): string =>
   globalThis.ctx = Object.freeze({
     call: function (flow, input) {
       if (typeof flow !== "string") return Promise.reject(new TypeError("ctx.call expects a flow name as its first argument"))
-      return bridge(flow, encodeInput(input === undefined ? null : input)).then(function (encoded) {
-        var settled = JSON.parse(encoded)
+      return bridge(flow, encodeInput(input === undefined ? null : input)).then(function (settled) {
         if (settled.ok) return settled.value
         var error = new Error(settled.message)
         error.name = "FlowCallError"
@@ -108,6 +107,41 @@ const raisedFrom = (dumped: unknown): Cell.Raised => {
     })
   }
   return new Cell.Raised({ name: "Error", message: String(dumped) })
+}
+
+/**
+ * Builds one owned QuickJS handle from the already-validated JSON result.
+ *
+ * Materializing the value directly also avoids parsing a multi-megabyte JSON
+ * string inside a promise job, which leaves QuickJS 0.32's runtime heap in an
+ * uncollectable state during disposal.
+ */
+const handleFromJson = (context: QuickJSContext, value: Schema.Json): QuickJSHandle => {
+  if (value === null) return context.null
+  switch (typeof value) {
+    case "boolean":
+      return value ? context.true : context.false
+    case "number":
+      return context.newNumber(value)
+    case "string":
+      return context.newString(value)
+  }
+
+  const container = Array.isArray(value) ? context.newArray() : context.newObject()
+  try {
+    for (const [key, item] of Object.entries(value)) {
+      const child = handleFromJson(context, item)
+      try {
+        context.setProp(container, key, child)
+      } finally {
+        child.dispose()
+      }
+    }
+    return container
+  } catch (error) {
+    container.dispose()
+    throw error
+  }
 }
 
 /**
@@ -190,11 +224,14 @@ const evaluate = (
       const flow = context.getString(flowHandle)
       const encoded = context.getString(inputHandle)
       const deferred = context.newPromise()
-      const reply = (payload: unknown): void => {
-        const handle = context.newString(JSON.stringify(payload))
-        deferred.resolve(handle)
-        handle.dispose()
-        deferred.dispose()
+      const reply = (payload: Schema.Json): void => {
+        const handle = handleFromJson(context, payload)
+        try {
+          deferred.resolve(handle)
+        } finally {
+          handle.dispose()
+          deferred.dispose()
+        }
       }
       pending.push({
         ordinal: ordinal++,

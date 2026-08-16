@@ -429,6 +429,22 @@ describe("Sandbox.layerRestricted", () => {
 })
 
 describe("QuickJSSandbox", () => {
+  it("carries a 2 MB flow result across the WebAssembly boundary", async () => {
+    const payload = `${"x".repeat(2 * 1024 * 1024)}🗼`
+    const outcome = await evaluate(
+      QuickJSSandbox.layer,
+      `const text = await ctx.call("fs/list", { path: "big" })
+       return { intent: "complete", output: text.length + ":" + text.slice(-2) }`,
+      { call: handler({ "fs/list": payload }, []) }
+    )
+
+    expect(outcome._tag).toBe("settled")
+    expect((outcome as Cell.Settled).transition).toMatchObject({
+      _tag: "complete",
+      output: `${payload.length}:🗼`
+    })
+  }, 60_000)
+
   it("enforces a declared memory limit", async () => {
     const outcome = await evaluate(
       QuickJSSandbox.layer,
