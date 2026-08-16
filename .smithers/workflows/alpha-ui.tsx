@@ -774,7 +774,12 @@ export default smithers((ctx) => {
                 >
                   {`${fixPrompt(lane)}\nThe review findings to address:\n${reviewFindingsFor(lane.key) || "(review pending)"}\n`}
                 </Task>
-                <MergeQueue id="landQueue">
+                {/* Lands are the run's critical path: measured at 32-60 min each
+                    (rebase + the nine apps gates), so a strictly serialized queue
+                    cannot clear nine lanes inside the deadline. Three at a time
+                    still bounds the race on main, and the land prompt's
+                    fetch-rebase-retry loop is what makes a rejected push safe. */}
+                <MergeQueue id="landQueue" maxConcurrency={3}>
                   <Sequence>
                     <Task id={`${lane.key}LandRun`} agent={landSeat} output={outputs.alphaUiLand} retries={8}>
                       {landPrompt(lane)}
