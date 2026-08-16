@@ -52,6 +52,11 @@ jobs:
       # operator drives it: spawned invocations against a real migrated store.
       - name: Disaster-recovery script test
         run: node --test scripts/flows-backup.test.mjs
+      # A test the default gate never runs to a pass is only acceptable when it
+      # is written down. This fails on any pin in the engine or tooling groups
+      # that docs/alpha-notes.md does not explain.
+      - name: Test-pin register guard
+        run: node --test scripts/check-test-pins.test.mjs
       # Package vitest configs with `coverage.enabled: true` compute and
       # enforce their coverage thresholds on every run — a red gate fails CI.
       - name: Test all workspaces

@@ -73,6 +73,7 @@ documented in the [plugins repository](https://github.com/smithersai/plugins).
 - [Execution and data flow](architecture/execution-data-flow.md)
 - [Design decisions](architecture/design-decisions.md)
 - [Implementation status](architecture/implementation-status.md)
+- [Alpha notes](alpha-notes.md) — known limitations for the private alpha, including the register of test pins.
 
 ## Documentation conventions
 

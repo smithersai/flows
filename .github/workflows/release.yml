@@ -73,6 +73,8 @@ jobs:
         run: node --test scripts/pack-release.test.mjs
       - name: Disaster-recovery script test
         run: node --test scripts/flows-backup.test.mjs
+      - name: Test-pin register guard
+        run: node --test scripts/check-test-pins.test.mjs
       - name: Build all workspaces from clean artifacts
         run: |
           find packages -type d -name dist -prune -exec rm -rf {} +
