@@ -51,6 +51,18 @@ jobs:
         run: pnpm run browser
       - name: Release manifest unit test
         run: node --test scripts/pack-release.test.mjs
+      # The dry-run path of release.yml is a promise about publication: a
+      # dispatched rehearsal must skip the publish step and a tag push must not.
+      # These assertions read release.yml itself, so an edit that breaks either
+      # half fails here instead of at the next release.
+      - name: Release rehearsal unit test
+        run: node --test scripts/release-rehearsal.test.mjs
+      # Publishing at a new version means retargeting the exact internal ranges
+      # too, or the published set depends on a version nobody published. The
+      # last case here asserts the tree is coherent at whatever version it
+      # currently carries.
+      - name: Release version coherence
+        run: node --test scripts/set-release-version.test.mjs
       # The operator's backup/verify/restore entry point, driven the way an
       # operator drives it: spawned invocations against a real migrated store.
       - name: Disaster-recovery script test
