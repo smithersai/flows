@@ -12,7 +12,6 @@ import {
   FlowNotFound,
   InvalidInput,
   LaunchFailed,
-  NotOwner,
   PersistenceError,
   PlanDigestMismatch,
   RunNotFound,
@@ -165,7 +164,6 @@ export const ControlRpcs = RpcGroup.make(
       ClaimLost,
       AlreadyResolved,
       InvalidInput,
-      NotOwner,
       Unauthorized,
       Unavailable,
       TransportError,
@@ -184,7 +182,6 @@ export const ControlRpcs = RpcGroup.make(
       ClaimLost,
       AlreadyResolved,
       InvalidInput,
-      NotOwner,
       Unauthorized,
       Unavailable,
       TransportError,
@@ -208,6 +205,54 @@ export interface Authenticator {
 }
 
 /**
+ * Configuration for the single-token bearer authenticator.
+ *
+ * Every request carrying the configured token receives the same principal.
+ * This is the intentionally small alpha trust boundary, not a per-user
+ * authorization system.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface BearerAuthOptions {
+  readonly token: string
+  readonly principal: Omit<typeof Principal.Type, "stampedAt">
+  readonly now?: (() => number) | undefined
+}
+
+const authorizationHeader = (headers: Readonly<Record<string, string>>): string | undefined => {
+  for (const [name, value] of Object.entries(headers)) {
+    if (name.toLowerCase() === "authorization") return value
+  }
+  return undefined
+}
+
+const bearerToken = (headers: Readonly<Record<string, string>>): string | undefined => {
+  const authorization = authorizationHeader(headers)
+  if (authorization === undefined) return undefined
+  const match = /^Bearer[\t ]+([^\t ]+)$/i.exec(authorization)
+  return match?.[1]
+}
+
+/**
+ * Authenticates one shared bearer token and stamps its server-owned principal.
+ * Missing, malformed, empty, and incorrect credentials all fail closed with
+ * the same `Unauthorized` response.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const bearerAuthenticator = (options: BearerAuthOptions): Authenticator => ({
+  authenticate: (headers) =>
+    options.token.length > 0 && bearerToken(headers) === options.token
+      ? Effect.succeed({
+        ...options.principal,
+        stampedAt: options.now?.() ?? Date.now()
+      })
+      : Effect.fail(new Unauthorized({ message: "A valid bearer credential is required" }))
+})
+
+/**
  * Provides `ControlAuth` from a transport-header authenticator.
  *
  * @category layers
@@ -222,6 +267,14 @@ export const layerAuth = (authenticator: Authenticator) =>
         (principal) => Effect.provideService(effect, ControlPrincipal, principal)
       )
   )
+
+/**
+ * Provides `ControlAuth` using one shared bearer token.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
+export const layerBearerAuth = (options: BearerAuthOptions) => layerAuth(bearerAuthenticator(options))
 
 /**
  * Permissive authentication middleware for tests and trusted in-process use.

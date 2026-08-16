@@ -2,8 +2,8 @@ import { Effect, Layer, Stream } from "effect"
 import { RpcTest } from "effect/unstable/rpc"
 import { describe, expect, it } from "vitest"
 import { isControlError } from "../src/ControlClient.ts"
-import { PlanDigestMismatch, RunNotFound, TransportError } from "../src/ControlError.ts"
-import { ControlRpcs, layerNoopAuth } from "../src/ControlRpcs.ts"
+import { PlanDigestMismatch, RunNotFound, TransportError, Unauthorized } from "../src/ControlError.ts"
+import { bearerAuthenticator, ControlRpcs, layerNoopAuth } from "../src/ControlRpcs.ts"
 import * as ControlServer from "../src/ControlServer.ts"
 import * as TestControl from "../src/test/TestControl.ts"
 
@@ -30,6 +30,37 @@ const plan = (rpc: ControlRpcClient) =>
   rpc.Plan({ flowId: "system/release", input: { release: true }, idempotencyKey: "plan" })
 
 describe("ControlRpcs", () => {
+  it("authenticates exactly the configured bearer token", async () => {
+    const authenticator = bearerAuthenticator({
+      token: "alpha-secret",
+      principal: { id: "alpha", kind: "bearer" },
+      now: () => 42
+    })
+
+    const authenticated = await Effect.runPromise(
+      authenticator.authenticate({ Authorization: "bearer alpha-secret" })
+    )
+    const refused = await Effect.runPromise(
+      authenticator.authenticate({ authorization: "Bearer wrong" }).pipe(Effect.flip)
+    )
+
+    expect(authenticated).toEqual({ id: "alpha", kind: "bearer", stampedAt: 42 })
+    expect(refused).toBeInstanceOf(Unauthorized)
+  })
+
+  it("fails closed when the configured bearer token is empty", async () => {
+    const authenticator = bearerAuthenticator({
+      token: "",
+      principal: { id: "alpha", kind: "bearer" }
+    })
+
+    const refused = await Effect.runPromise(
+      authenticator.authenticate({ authorization: "Bearer anything" }).pipe(Effect.flip)
+    )
+
+    expect(refused).toBeInstanceOf(Unauthorized)
+  })
+
   it("classifies owned failures through the control error schema union", () => {
     expect(isControlError(new RunNotFound({ runId: "missing" }))).toBe(true)
     expect(isControlError(new TransportError({ message: "offline", retryable: true }))).toBe(true)

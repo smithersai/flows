@@ -59,18 +59,6 @@ export class EnvelopeMismatch extends Schema.TaggedError<EnvelopeMismatch>()("/c
 }) {}
 
 /**
- * The caller does not hold this run's claim, so it may not act on it.
- *
- * @category errors
- * @since 0.1.0
- */
-export class NotOwner extends Schema.TaggedError<NotOwner>()("/control/NotOwner", {
-  code: constantCode("not_owner"),
-  runId: RunId,
-  ownerId: Schema.String
-}) {}
-
-/**
  * The caller's claim on this run lapsed or was fenced by a newer owner.
  *
  * @category errors
@@ -193,7 +181,6 @@ export type ControlError =
   | FlowNotFound
   | PlanDigestMismatch
   | EnvelopeMismatch
-  | NotOwner
   | ClaimLost
   | AlreadyResolved
   | InvalidInput

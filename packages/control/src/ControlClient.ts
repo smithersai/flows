@@ -4,6 +4,7 @@
  * @since 0.1.0
  */
 import { Effect, Layer, Schema, Stream } from "effect"
+import { HttpClient, HttpClientRequest } from "effect/unstable/http"
 import { RpcClient } from "effect/unstable/rpc"
 import { Control, make, type Service } from "./Control.ts"
 import {
@@ -14,7 +15,6 @@ import {
   FlowNotFound,
   InvalidInput,
   LaunchFailed,
-  NotOwner,
   PersistenceError,
   PlanDigestMismatch,
   RunNotFound,
@@ -36,7 +36,6 @@ export const isControlError = Schema.is(Schema.Union([
   FlowNotFound,
   PlanDigestMismatch,
   EnvelopeMismatch,
-  NotOwner,
   ClaimLost,
   AlreadyResolved,
   InvalidInput,
@@ -65,6 +64,8 @@ const normalize = <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, Co
  */
 export interface ClientConfig {
   readonly url: string
+  /** Bearer token attached to every HTTP RPC request when present. */
+  readonly credential?: string | undefined
 }
 
 /**
@@ -74,7 +75,14 @@ export interface ClientConfig {
  * @since 0.1.0
  */
 export const layer = (config: ClientConfig) => {
-  const http = RpcClient.layerProtocolHttp({ url: config.url })
+  const http = RpcClient.layerProtocolHttp(
+    config.credential === undefined
+      ? { url: config.url }
+      : {
+        url: config.url,
+        transformClient: HttpClient.mapRequest(HttpClientRequest.bearerToken(config.credential))
+      }
+  )
   const websocket = RpcClient.layerProtocolSocket()
   return Layer.effect(
     Control,
