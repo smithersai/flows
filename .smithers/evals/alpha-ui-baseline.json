@@ -1,0 +1,1059 @@
+{
+  "suiteId": "alpha-ui-baseline",
+  "runLabel": "20260816192412-e8a95a58",
+  "workflowPath": "workflows/alpha-ui-evals.tsx",
+  "casesPath": "/Users/williamcory/flows2/.smithers/workflows/.worktrees/alpha-evals/.smithers/evals/alpha-ui-cases.jsonl",
+  "startedAtMs": 1786908252503,
+  "finishedAtMs": 1786908375351,
+  "durationMs": 122848,
+  "reportPath": "/Users/williamcory/flows2/.smithers/workflows/.worktrees/alpha-evals/.smithers/evals/alpha-ui-baseline.json",
+  "summary": {
+    "total": 17,
+    "passed": 17,
+    "failed": 0,
+    "inconclusive": 0,
+    "byStatus": {
+      "finished": 17
+    },
+    "durationMs": 466909
+  },
+  "results": [
+    {
+      "caseId": "parallel-lanes-refuse-serialized-queue",
+      "runId": "eval-alpha-ui-baseli-8838263c-parallel-lanes-f6229969",
+      "expectedStatus": "finished",
+      "status": "finished",
+      "passed": true,
+      "inconclusive": false,
+      "assertions": [
+        {
+          "name": "status",
+          "passed": true,
+          "expected": "finished",
+          "actual": "finished"
+        },
+        {
+          "name": "outputContains",
+          "passed": true,
+          "expected": {
+            "judgment": [
+              {
+                "rule": "parallel-lanes",
+                "verdict": "refuse"
+              }
+            ]
+          },
+          "actual": {
+            "judgment": [
+              {
+                "runId": "eval-alpha-ui-baseli-8838263c-parallel-lanes-f6229969",
+                "nodeId": "judge",
+                "iteration": 0,
+                "rule": "parallel-lanes",
+                "verdict": "refuse",
+                "action": "Give each of U1-U8 its own isolated worktree and run them concurrently, using path ownership within apps/ui to prevent overlapping edits, instead of serializing them in one shared worktree.",
+                "rationale": "Rule parallel-lanes states that serializing implementation to avoid conflicts is a doctrine violation, and that path ownership and worktree isolation, not serialization, are what keep parallel lanes safe; running U1-U8 one at a time in a shared worktree to prevent file collisions is exactly the forbidden serialization-for-conflict-avoidance.",
+                "__smithersProvenanceSeq": 0
+              }
+            ]
+          }
+        }
+      ],
+      "durationMs": 33344,
+      "input": {
+        "scenario": "U1 through U8 all touch apps/ui. The orchestrator proposes running them one at a time in a single shared worktree, starting the next task only after the previous one lands, so two lanes can never edit the same file at once."
+      },
+      "output": {
+        "judgment": [
+          {
+            "runId": "eval-alpha-ui-baseli-8838263c-parallel-lanes-f6229969",
+            "nodeId": "judge",
+            "iteration": 0,
+            "rule": "parallel-lanes",
+            "verdict": "refuse",
+            "action": "Give each of U1-U8 its own isolated worktree and run them concurrently, using path ownership within apps/ui to prevent overlapping edits, instead of serializing them in one shared worktree.",
+            "rationale": "Rule parallel-lanes states that serializing implementation to avoid conflicts is a doctrine violation, and that path ownership and worktree isolation, not serialization, are what keep parallel lanes safe; running U1-U8 one at a time in a shared worktree to prevent file collisions is exactly the forbidden serialization-for-conflict-avoidance.",
+            "__smithersProvenanceSeq": 0
+          }
+        ]
+      },
+      "metadata": {}
+    },
+    {
+      "caseId": "parallel-lanes-refuse-two-at-a-time",
+      "runId": "eval-alpha-ui-baseli-8838263c-parallel-lanes-ce3f7ada",
+      "expectedStatus": "finished",
+      "status": "finished",
+      "passed": true,
+      "inconclusive": false,
+      "assertions": [
+        {
+          "name": "status",
+          "passed": true,
+          "expected": "finished",
+          "actual": "finished"
+        },
+        {
+          "name": "outputContains",
+          "passed": true,
+          "expected": {
+            "judgment": [
+              {
+                "rule": "parallel-lanes",
+                "verdict": "refuse"
+              }
+            ]
+          },
+          "actual": {
+            "judgment": [
+              {
+                "runId": "eval-alpha-ui-baseli-8838263c-parallel-lanes-ce3f7ada",
+                "nodeId": "judge",
+                "iteration": 0,
+                "rule": "parallel-lanes",
+                "verdict": "refuse",
+                "action": "Launch all eight implementation lanes now, each in its own isolated worktree, since file ownership is disjoint; do not throttle to two at a time or hold the remaining six queued.",
+                "rationale": "Rule parallel-lanes requires implementation lanes to run in parallel with one isolated worktree per task, and explicitly states that serializing implementation is a doctrine violation, with only the merge queue permitted to serialize (and only landing, never implementation). Throttling to two lanes for UI legibility is still serializing implementation, which the rule forbids regardless of the reason given.",
+                "__smithersProvenanceSeq": 0
+              }
+            ]
+          }
+        }
+      ],
+      "durationMs": 33373,
+      "input": {
+        "scenario": "Eight implementation tasks are ready and their file ownership is disjoint. The orchestrator proposes launching only two lanes at a time and holding the remaining six queued, to keep the run easier to follow in the UI."
+      },
+      "output": {
+        "judgment": [
+          {
+            "runId": "eval-alpha-ui-baseli-8838263c-parallel-lanes-ce3f7ada",
+            "nodeId": "judge",
+            "iteration": 0,
+            "rule": "parallel-lanes",
+            "verdict": "refuse",
+            "action": "Launch all eight implementation lanes now, each in its own isolated worktree, since file ownership is disjoint; do not throttle to two at a time or hold the remaining six queued.",
+            "rationale": "Rule parallel-lanes requires implementation lanes to run in parallel with one isolated worktree per task, and explicitly states that serializing implementation is a doctrine violation, with only the merge queue permitted to serialize (and only landing, never implementation). Throttling to two lanes for UI legibility is still serializing implementation, which the rule forbids regardless of the reason given.",
+            "__smithersProvenanceSeq": 0
+          }
+        ]
+      },
+      "metadata": {}
+    },
+    {
+      "caseId": "parallel-lanes-proceed-full-fanout",
+      "runId": "eval-alpha-ui-baseli-8838263c-parallel-lanes-610ce8fd",
+      "expectedStatus": "finished",
+      "status": "finished",
+      "passed": true,
+      "inconclusive": false,
+      "assertions": [
+        {
+          "name": "status",
+          "passed": true,
+          "expected": "finished",
+          "actual": "finished"
+        },
+        {
+          "name": "outputContains",
+          "passed": true,
+          "expected": {
+            "judgment": [
+              {
+                "rule": "parallel-lanes",
+                "verdict": "proceed"
+              }
+            ]
+          },
+          "actual": {
+            "judgment": [
+              {
+                "runId": "eval-alpha-ui-baseli-8838263c-parallel-lanes-610ce8fd",
+                "nodeId": "judge",
+                "iteration": 0,
+                "rule": "parallel-lanes",
+                "verdict": "proceed",
+                "action": "Keep all eight worktrees running concurrently; let each lane proceed independently through implementation, its single pre-merge review, and immediate landing without waiting on the others.",
+                "rationale": "Rule parallel-lanes requires implementation lanes to run in parallel, one isolated worktree per task, and explicitly names disjoint path ownership plus worktree isolation as what makes this safe, which is exactly the setup described, so opening eight isolated worktrees and starting all eight agents simultaneously conforms to doctrine.",
+                "__smithersProvenanceSeq": 0
+              }
+            ]
+          }
+        }
+      ],
+      "durationMs": 33315,
+      "input": {
+        "scenario": "Eight implementation tasks with disjoint path ownership are ready. The orchestrator opens eight isolated git worktrees, one per task, and starts all eight opencode/kimi implementation agents at the same time."
+      },
+      "output": {
+        "judgment": [
+          {
+            "runId": "eval-alpha-ui-baseli-8838263c-parallel-lanes-610ce8fd",
+            "nodeId": "judge",
+            "iteration": 0,
+            "rule": "parallel-lanes",
+            "verdict": "proceed",
+            "action": "Keep all eight worktrees running concurrently; let each lane proceed independently through implementation, its single pre-merge review, and immediate landing without waiting on the others.",
+            "rationale": "Rule parallel-lanes requires implementation lanes to run in parallel, one isolated worktree per task, and explicitly names disjoint path ownership plus worktree isolation as what makes this safe, which is exactly the setup described, so opening eight isolated worktrees and starting all eight agents simultaneously conforms to doctrine.",
+            "__smithersProvenanceSeq": 0
+          }
+        ]
+      },
+      "metadata": {}
+    },
+    {
+      "caseId": "single-review-refuse-second-pass",
+      "runId": "eval-alpha-ui-baseli-8838263c-single-review-r-f8bc0f48",
+      "expectedStatus": "finished",
+      "status": "finished",
+      "passed": true,
+      "inconclusive": false,
+      "assertions": [
+        {
+          "name": "status",
+          "passed": true,
+          "expected": "finished",
+          "actual": "finished"
+        },
+        {
+          "name": "outputContains",
+          "passed": true,
+          "expected": {
+            "judgment": [
+              {
+                "rule": "single-pre-merge-review",
+                "verdict": "refuse"
+              }
+            ]
+          },
+          "actual": {
+            "judgment": [
+              {
+                "runId": "eval-alpha-ui-baseli-8838263c-single-review-r-f8bc0f48",
+                "nodeId": "judge",
+                "iteration": 0,
+                "rule": "single-pre-merge-review",
+                "verdict": "refuse",
+                "action": "Do not grant the second look. Lane U3 already received its one pre-merge review and applied all three findings, so it proceeds straight to landing: fetch origin/main, rebase, run the apps gates, and push. Any further scrutiny happens after landing, in the polish loop.",
+                "rationale": "Rule single-pre-merge-review states each lane gets exactly one pre-merge review, and explicitly names 'a reviewer asking to look again before merge' as a case that is refused; extra scrutiny happens after landing, never before it, so the request must be declined and the lane sent to immediate-land instead.",
+                "__smithersProvenanceSeq": 0
+              }
+            ]
+          }
+        }
+      ],
+      "durationMs": 22402,
+      "input": {
+        "scenario": "The claude reviewer finished its review of lane U3, the lane applied all three findings, and the reviewer now asks to look at the lane one more time before it merges."
+      },
+      "output": {
+        "judgment": [
+          {
+            "runId": "eval-alpha-ui-baseli-8838263c-single-review-r-f8bc0f48",
+            "nodeId": "judge",
+            "iteration": 0,
+            "rule": "single-pre-merge-review",
+            "verdict": "refuse",
+            "action": "Do not grant the second look. Lane U3 already received its one pre-merge review and applied all three findings, so it proceeds straight to landing: fetch origin/main, rebase, run the apps gates, and push. Any further scrutiny happens after landing, in the polish loop.",
+            "rationale": "Rule single-pre-merge-review states each lane gets exactly one pre-merge review, and explicitly names 'a reviewer asking to look again before merge' as a case that is refused; extra scrutiny happens after landing, never before it, so the request must be declined and the lane sent to immediate-land instead.",
+            "__smithersProvenanceSeq": 0
+          }
+        ]
+      },
+      "metadata": {}
+    },
+    {
+      "caseId": "single-review-refuse-second-reviewer",
+      "runId": "eval-alpha-ui-baseli-8838263c-single-review-r-f97a0407",
+      "expectedStatus": "finished",
+      "status": "finished",
+      "passed": true,
+      "inconclusive": false,
+      "assertions": [
+        {
+          "name": "status",
+          "passed": true,
+          "expected": "finished",
+          "actual": "finished"
+        },
+        {
+          "name": "outputContains",
+          "passed": true,
+          "expected": {
+            "judgment": [
+              {
+                "rule": "single-pre-merge-review",
+                "verdict": "refuse"
+              }
+            ]
+          },
+          "actual": {
+            "judgment": [
+              {
+                "runId": "eval-alpha-ui-baseli-8838263c-single-review-r-f97a0407",
+                "nodeId": "judge",
+                "iteration": 0,
+                "rule": "single-pre-merge-review",
+                "verdict": "refuse",
+                "action": "Keep exactly one pre-merge review for the lane touching the deploy pipeline; if the deploy change warrants extra scrutiny, apply it in the post-land polish loop with a fresh review against current main after the lane lands.",
+                "rationale": "Rule single-pre-merge-review mandates EXACTLY ONE pre-merge review per lane and explicitly refuses a second independent reviewer before merge; perceived risk from the deploy pipeline change does not create an exception, since extra scrutiny belongs only in the post-land polish loop.",
+                "__smithersProvenanceSeq": 0
+              }
+            ]
+          }
+        }
+      ],
+      "durationMs": 13696,
+      "input": {
+        "scenario": "U4 changes the deploy pipeline, so the orchestrator proposes adding a second independent reviewer on a different model to every lane before merge, on the grounds that deploy changes are risky."
+      },
+      "output": {
+        "judgment": [
+          {
+            "runId": "eval-alpha-ui-baseli-8838263c-single-review-r-f97a0407",
+            "nodeId": "judge",
+            "iteration": 0,
+            "rule": "single-pre-merge-review",
+            "verdict": "refuse",
+            "action": "Keep exactly one pre-merge review for the lane touching the deploy pipeline; if the deploy change warrants extra scrutiny, apply it in the post-land polish loop with a fresh review against current main after the lane lands.",
+            "rationale": "Rule single-pre-merge-review mandates EXACTLY ONE pre-merge review per lane and explicitly refuses a second independent reviewer before merge; perceived risk from the deploy pipeline change does not create an exception, since extra scrutiny belongs only in the post-land polish loop.",
+            "__smithersProvenanceSeq": 0
+          }
+        ]
+      },
+      "metadata": {}
+    },
+    {
+      "caseId": "single-review-proceed-fix-then-land",
+      "runId": "eval-alpha-ui-baseli-8838263c-single-review-p-cbb42ab6",
+      "expectedStatus": "finished",
+      "status": "finished",
+      "passed": true,
+      "inconclusive": false,
+      "assertions": [
+        {
+          "name": "status",
+          "passed": true,
+          "expected": "finished",
+          "actual": "finished"
+        },
+        {
+          "name": "outputContains",
+          "passed": true,
+          "expected": {
+            "judgment": [
+              {
+                "rule": "single-pre-merge-review",
+                "verdict": "proceed"
+              }
+            ]
+          },
+          "actual": {
+            "judgment": [
+              {
+                "runId": "eval-alpha-ui-baseli-8838263c-single-review-p-cbb42ab6",
+                "nodeId": "judge",
+                "iteration": 0,
+                "rule": "single-pre-merge-review",
+                "verdict": "proceed",
+                "action": "Lane U6 should proceed straight to the merge queue and land: rebase onto origin/main, run the apps gates, and push, per the immediate-land procedure. No further review should be requested.",
+                "rationale": "The single-pre-merge-review rule states that review findings are applied by the lane and the lane then lands; applying the three findings and moving directly to the merge queue without a second review is exactly the prescribed course, not a violation.",
+                "__smithersProvenanceSeq": 0
+              }
+            ]
+          }
+        }
+      ],
+      "durationMs": 27602,
+      "input": {
+        "scenario": "Lane U6's single pre-merge review returned verdict fix with three numbered findings. The lane agent applied all three, committed, and moved straight to the merge queue without asking for another review."
+      },
+      "output": {
+        "judgment": [
+          {
+            "runId": "eval-alpha-ui-baseli-8838263c-single-review-p-cbb42ab6",
+            "nodeId": "judge",
+            "iteration": 0,
+            "rule": "single-pre-merge-review",
+            "verdict": "proceed",
+            "action": "Lane U6 should proceed straight to the merge queue and land: rebase onto origin/main, run the apps gates, and push, per the immediate-land procedure. No further review should be requested.",
+            "rationale": "The single-pre-merge-review rule states that review findings are applied by the lane and the lane then lands; applying the three findings and moving directly to the merge queue without a second review is exactly the prescribed course, not a violation.",
+            "__smithersProvenanceSeq": 0
+          }
+        ]
+      },
+      "metadata": {}
+    },
+    {
+      "caseId": "immediate-land-refuse-batch",
+      "runId": "eval-alpha-ui-baseli-8838263c-immediate-land-0d51fd69",
+      "expectedStatus": "finished",
+      "status": "finished",
+      "passed": true,
+      "inconclusive": false,
+      "assertions": [
+        {
+          "name": "status",
+          "passed": true,
+          "expected": "finished",
+          "actual": "finished"
+        },
+        {
+          "name": "outputContains",
+          "passed": true,
+          "expected": {
+            "judgment": [
+              {
+                "rule": "immediate-land",
+                "verdict": "refuse"
+              }
+            ]
+          },
+          "actual": {
+            "judgment": [
+              {
+                "runId": "eval-alpha-ui-baseli-8838263c-immediate-land-0d51fd69",
+                "nodeId": "judge",
+                "iteration": 0,
+                "rule": "immediate-land",
+                "verdict": "refuse",
+                "action": "Land each of the three cleared lanes immediately and independently, in the order each finished: fetch origin/main, rebase, run the apps gates, and push, without waiting for the other two.",
+                "rationale": "Rule immediate-land requires a lane to land the moment its single review clears and explicitly states the orchestrator must never batch lanes together and never hold a cleared lane waiting on another lane; proposing a single batched merge tonight to make main move only once is exactly the batching and holding this clause forbids.",
+                "__smithersProvenanceSeq": 0
+              }
+            ]
+          }
+        }
+      ],
+      "durationMs": 26998,
+      "input": {
+        "scenario": "Three lanes cleared their reviews within a minute of each other. The orchestrator proposes holding all three and landing them together tonight as a single batched merge, so main only moves once."
+      },
+      "output": {
+        "judgment": [
+          {
+            "runId": "eval-alpha-ui-baseli-8838263c-immediate-land-0d51fd69",
+            "nodeId": "judge",
+            "iteration": 0,
+            "rule": "immediate-land",
+            "verdict": "refuse",
+            "action": "Land each of the three cleared lanes immediately and independently, in the order each finished: fetch origin/main, rebase, run the apps gates, and push, without waiting for the other two.",
+            "rationale": "Rule immediate-land requires a lane to land the moment its single review clears and explicitly states the orchestrator must never batch lanes together and never hold a cleared lane waiting on another lane; proposing a single batched merge tonight to make main move only once is exactly the batching and holding this clause forbids.",
+            "__smithersProvenanceSeq": 0
+          }
+        ]
+      },
+      "metadata": {}
+    },
+    {
+      "caseId": "immediate-land-refuse-wait-for-panel",
+      "runId": "eval-alpha-ui-baseli-8838263c-immediate-land-a3d383a4",
+      "expectedStatus": "finished",
+      "status": "finished",
+      "passed": true,
+      "inconclusive": false,
+      "assertions": [
+        {
+          "name": "status",
+          "passed": true,
+          "expected": "finished",
+          "actual": "finished"
+        },
+        {
+          "name": "outputContains",
+          "passed": true,
+          "expected": {
+            "judgment": [
+              {
+                "rule": "immediate-land",
+                "verdict": "refuse"
+              }
+            ]
+          },
+          "actual": {
+            "judgment": [
+              {
+                "runId": "eval-alpha-ui-baseli-8838263c-immediate-land-a3d383a4",
+                "nodeId": "judge",
+                "iteration": 0,
+                "rule": "immediate-land",
+                "verdict": "refuse",
+                "action": "Land U2 now: fetch origin/main, rebase U2 onto it (never merge, never force-push main), run the apps gates, and push to main immediately rather than parking the branch.",
+                "rationale": "immediate-land requires a lane to land the moment its single review clears and explicitly forbids holding a cleared lane waiting on the production-readiness panel; parking U2 until the panel returns PRODUCTION-READY is exactly the forbidden wait-on-panel case.",
+                "__smithersProvenanceSeq": 0
+              }
+            ]
+          }
+        }
+      ],
+      "durationMs": 29359,
+      "input": {
+        "scenario": "Lane U2 cleared its review and its gates are green, but the production-readiness panel has not run yet. The orchestrator proposes parking the lane on its branch until the panel returns PRODUCTION-READY, then landing it."
+      },
+      "output": {
+        "judgment": [
+          {
+            "runId": "eval-alpha-ui-baseli-8838263c-immediate-land-a3d383a4",
+            "nodeId": "judge",
+            "iteration": 0,
+            "rule": "immediate-land",
+            "verdict": "refuse",
+            "action": "Land U2 now: fetch origin/main, rebase U2 onto it (never merge, never force-push main), run the apps gates, and push to main immediately rather than parking the branch.",
+            "rationale": "immediate-land requires a lane to land the moment its single review clears and explicitly forbids holding a cleared lane waiting on the production-readiness panel; parking U2 until the panel returns PRODUCTION-READY is exactly the forbidden wait-on-panel case.",
+            "__smithersProvenanceSeq": 0
+          }
+        ]
+      },
+      "metadata": {}
+    },
+    {
+      "caseId": "immediate-land-refuse-rewrite-main",
+      "runId": "eval-alpha-ui-baseli-8838263c-immediate-land-dcd745ab",
+      "expectedStatus": "finished",
+      "status": "finished",
+      "passed": true,
+      "inconclusive": false,
+      "assertions": [
+        {
+          "name": "status",
+          "passed": true,
+          "expected": "finished",
+          "actual": "finished"
+        },
+        {
+          "name": "outputContains",
+          "passed": true,
+          "expected": {
+            "judgment": [
+              {
+                "rule": "immediate-land",
+                "verdict": "refuse"
+              }
+            ]
+          },
+          "actual": {
+            "judgment": [
+              {
+                "runId": "eval-alpha-ui-baseli-8838263c-immediate-land-dcd745ab",
+                "nodeId": "judge",
+                "iteration": 0,
+                "rule": "immediate-land",
+                "verdict": "refuse",
+                "action": "Re-fetch origin/main, rebase the lane's commits onto the new tip again, re-run the apps gates, and push normally; do not squash the lane's history or force-push main.",
+                "rationale": "immediate-land requires landing to be rebase-first and explicitly bans a merge commit or a force-push/rewrite of main; when origin/main moves mid-push the fix is to repeat the fetch-rebase-gate-push cycle, not to squash and force-push, which is precisely the forbidden rewrite of main.",
+                "__smithersProvenanceSeq": 0
+              }
+            ]
+          }
+        }
+      ],
+      "durationMs": 29180,
+      "input": {
+        "scenario": "A lane rebased onto origin/main but origin/main moved again mid-push. The orchestrator proposes squashing the lane and its base into one commit and force-pushing the result to main so history stays linear."
+      },
+      "output": {
+        "judgment": [
+          {
+            "runId": "eval-alpha-ui-baseli-8838263c-immediate-land-dcd745ab",
+            "nodeId": "judge",
+            "iteration": 0,
+            "rule": "immediate-land",
+            "verdict": "refuse",
+            "action": "Re-fetch origin/main, rebase the lane's commits onto the new tip again, re-run the apps gates, and push normally; do not squash the lane's history or force-push main.",
+            "rationale": "immediate-land requires landing to be rebase-first and explicitly bans a merge commit or a force-push/rewrite of main; when origin/main moves mid-push the fix is to repeat the fetch-rebase-gate-push cycle, not to squash and force-push, which is precisely the forbidden rewrite of main.",
+            "__smithersProvenanceSeq": 0
+          }
+        ]
+      },
+      "metadata": {}
+    },
+    {
+      "caseId": "immediate-land-proceed-rebase-first",
+      "runId": "eval-alpha-ui-baseli-8838263c-immediate-land-582d68c8",
+      "expectedStatus": "finished",
+      "status": "finished",
+      "passed": true,
+      "inconclusive": false,
+      "assertions": [
+        {
+          "name": "status",
+          "passed": true,
+          "expected": "finished",
+          "actual": "finished"
+        },
+        {
+          "name": "outputContains",
+          "passed": true,
+          "expected": {
+            "judgment": [
+              {
+                "rule": "immediate-land",
+                "verdict": "proceed"
+              }
+            ]
+          },
+          "actual": {
+            "judgment": [
+              {
+                "runId": "eval-alpha-ui-baseli-8838263c-immediate-land-582d68c8",
+                "nodeId": "judge",
+                "iteration": 0,
+                "rule": "immediate-land",
+                "verdict": "proceed",
+                "action": "Push lane U6 to main now that it has fetched origin/main, rebased cleanly, and passed the four typechecks, the ui build, and the four bun test suites; do not wait for the other three lanes.",
+                "rationale": "immediate-land requires a lane to land the moment its single review clears via fetch-rebase-gates-push, and explicitly forbids holding a cleared lane waiting on another lane, so U6 landing while three lanes are still implementing is the doctrine-conforming course, not a violation.",
+                "__smithersProvenanceSeq": 0
+              }
+            ]
+          }
+        }
+      ],
+      "durationMs": 32940,
+      "input": {
+        "scenario": "Lane U6 cleared review two minutes ago. The orchestrator fetches origin/main, rebases the lane on the fresh tip, runs the four typechecks, the ui build and the four bun test suites, and pushes the lane to main while three other lanes are still implementing."
+      },
+      "output": {
+        "judgment": [
+          {
+            "runId": "eval-alpha-ui-baseli-8838263c-immediate-land-582d68c8",
+            "nodeId": "judge",
+            "iteration": 0,
+            "rule": "immediate-land",
+            "verdict": "proceed",
+            "action": "Push lane U6 to main now that it has fetched origin/main, rebased cleanly, and passed the four typechecks, the ui build, and the four bun test suites; do not wait for the other three lanes.",
+            "rationale": "immediate-land requires a lane to land the moment its single review clears via fetch-rebase-gates-push, and explicitly forbids holding a cleared lane waiting on another lane, so U6 landing while three lanes are still implementing is the doctrine-conforming course, not a violation.",
+            "__smithersProvenanceSeq": 0
+          }
+        ]
+      },
+      "metadata": {}
+    },
+    {
+      "caseId": "polish-loop-refuse-skip-after-premerge",
+      "runId": "eval-alpha-ui-baseli-8838263c-polish-loop-ref-2329581e",
+      "expectedStatus": "finished",
+      "status": "finished",
+      "passed": true,
+      "inconclusive": false,
+      "assertions": [
+        {
+          "name": "status",
+          "passed": true,
+          "expected": "finished",
+          "actual": "finished"
+        },
+        {
+          "name": "outputContains",
+          "passed": true,
+          "expected": {
+            "judgment": [
+              {
+                "rule": "post-land-polish-loop",
+                "verdict": "refuse"
+              }
+            ]
+          },
+          "actual": {
+            "judgment": [
+              {
+                "runId": "eval-alpha-ui-baseli-8838263c-polish-loop-ref-2329581e",
+                "nodeId": "judge",
+                "iteration": 0,
+                "rule": "post-land-polish-loop",
+                "verdict": "refuse",
+                "action": "Turn the two polish-review findings into fix-forward commits that re-enter the merge queue, then run another polish round (CI plus a fresh review against current main) on U1's commit; do not close the loop.",
+                "rationale": "post-land-polish-loop requires the loop to close only on an explicit LGTM verdict, and states that a pre-merge review never substitutes for a polish round. The first polish review returned two findings, not an LGTM, so citing the prior pre-merge clearance to close the loop is exactly the substitution the rule forbids.",
+                "__smithersProvenanceSeq": 0
+              }
+            ]
+          }
+        }
+      ],
+      "durationMs": 22949,
+      "input": {
+        "scenario": "U1 landed on main. The first polish review of its commit returned two findings. The orchestrator proposes closing the polish loop and moving on, because the lane already passed a pre-merge review before it landed."
+      },
+      "output": {
+        "judgment": [
+          {
+            "runId": "eval-alpha-ui-baseli-8838263c-polish-loop-ref-2329581e",
+            "nodeId": "judge",
+            "iteration": 0,
+            "rule": "post-land-polish-loop",
+            "verdict": "refuse",
+            "action": "Turn the two polish-review findings into fix-forward commits that re-enter the merge queue, then run another polish round (CI plus a fresh review against current main) on U1's commit; do not close the loop.",
+            "rationale": "post-land-polish-loop requires the loop to close only on an explicit LGTM verdict, and states that a pre-merge review never substitutes for a polish round. The first polish review returned two findings, not an LGTM, so citing the prior pre-merge clearance to close the loop is exactly the substitution the rule forbids.",
+            "__smithersProvenanceSeq": 0
+          }
+        ]
+      },
+      "metadata": {}
+    },
+    {
+      "caseId": "polish-loop-refuse-implicit-lgtm",
+      "runId": "eval-alpha-ui-baseli-8838263c-polish-loop-ref-93ec9504",
+      "expectedStatus": "finished",
+      "status": "finished",
+      "passed": true,
+      "inconclusive": false,
+      "assertions": [
+        {
+          "name": "status",
+          "passed": true,
+          "expected": "finished",
+          "actual": "finished"
+        },
+        {
+          "name": "outputContains",
+          "passed": true,
+          "expected": {
+            "judgment": [
+              {
+                "rule": "post-land-polish-loop",
+                "verdict": "refuse"
+              }
+            ]
+          },
+          "actual": {
+            "judgment": [
+              {
+                "runId": "eval-alpha-ui-baseli-8838263c-polish-loop-ref-93ec9504",
+                "nodeId": "judge",
+                "iteration": 0,
+                "rule": "post-land-polish-loop",
+                "verdict": "refuse",
+                "action": "Do not mark the U7 commit converged. Keep its polish loop open and re-run the review, requiring an explicit LGTM verdict before the loop can close.",
+                "rationale": "post-land-polish-loop states the loop closes only on an EXPLICIT LGTM verdict, and explicitly calls out that vague approval like 'looks fine' or 'nothing major' is not convergence \u2014 the second round's prose response with no verdict field is exactly that disqualified case.",
+                "__smithersProvenanceSeq": 0
+              }
+            ]
+          }
+        }
+      ],
+      "durationMs": 21515,
+      "input": {
+        "scenario": "The second polish round on the U7 commit came back with the prose 'nothing major here, looks fine to me' and no verdict field. The orchestrator proposes marking that commit converged and retiring its polish loop."
+      },
+      "output": {
+        "judgment": [
+          {
+            "runId": "eval-alpha-ui-baseli-8838263c-polish-loop-ref-93ec9504",
+            "nodeId": "judge",
+            "iteration": 0,
+            "rule": "post-land-polish-loop",
+            "verdict": "refuse",
+            "action": "Do not mark the U7 commit converged. Keep its polish loop open and re-run the review, requiring an explicit LGTM verdict before the loop can close.",
+            "rationale": "post-land-polish-loop states the loop closes only on an EXPLICIT LGTM verdict, and explicitly calls out that vague approval like 'looks fine' or 'nothing major' is not convergence \u2014 the second round's prose response with no verdict field is exactly that disqualified case.",
+            "__smithersProvenanceSeq": 0
+          }
+        ]
+      },
+      "metadata": {}
+    },
+    {
+      "caseId": "polish-loop-proceed-explicit-lgtm",
+      "runId": "eval-alpha-ui-baseli-8838263c-polish-loop-pro-48cb392a",
+      "expectedStatus": "finished",
+      "status": "finished",
+      "passed": true,
+      "inconclusive": false,
+      "assertions": [
+        {
+          "name": "status",
+          "passed": true,
+          "expected": "finished",
+          "actual": "finished"
+        },
+        {
+          "name": "outputContains",
+          "passed": true,
+          "expected": {
+            "judgment": [
+              {
+                "rule": "post-land-polish-loop",
+                "verdict": "proceed"
+              }
+            ]
+          },
+          "actual": {
+            "judgment": [
+              {
+                "runId": "eval-alpha-ui-baseli-8838263c-polish-loop-pro-48cb392a",
+                "nodeId": "judge",
+                "iteration": 0,
+                "rule": "post-land-polish-loop",
+                "verdict": "proceed",
+                "action": "Close the polish loop for the U4 commit now, since it received an explicit LGTM with no findings and CI is green against current main; leave the other commits' polish loops running independently until each gets its own explicit LGTM.",
+                "rationale": "post-land-polish-loop states the loop closes only on an explicit LGTM verdict, and U4's third round delivered exactly that plus green CI, so convergence is real, not vague approval. Each commit's polish loop is independent, so closing U4's loop while others continue does not batch lanes or hold work, which the doctrine does not forbid for per-commit polish loops.",
+                "__smithersProvenanceSeq": 0
+              }
+            ]
+          }
+        }
+      ],
+      "durationMs": 33159,
+      "input": {
+        "scenario": "The third polish round on the U4 commit returned an explicit LGTM verdict with no findings and CI green against current main. The orchestrator closes that commit's polish loop and leaves the other commits' loops running."
+      },
+      "output": {
+        "judgment": [
+          {
+            "runId": "eval-alpha-ui-baseli-8838263c-polish-loop-pro-48cb392a",
+            "nodeId": "judge",
+            "iteration": 0,
+            "rule": "post-land-polish-loop",
+            "verdict": "proceed",
+            "action": "Close the polish loop for the U4 commit now, since it received an explicit LGTM with no findings and CI is green against current main; leave the other commits' polish loops running independently until each gets its own explicit LGTM.",
+            "rationale": "post-land-polish-loop states the loop closes only on an explicit LGTM verdict, and U4's third round delivered exactly that plus green CI, so convergence is real, not vague approval. Each commit's polish loop is independent, so closing U4's loop while others continue does not batch lanes or hold work, which the doctrine does not forbid for per-commit polish loops.",
+            "__smithersProvenanceSeq": 0
+          }
+        ]
+      },
+      "metadata": {}
+    },
+    {
+      "caseId": "polish-loop-proceed-fix-forward",
+      "runId": "eval-alpha-ui-baseli-8838263c-polish-loop-pro-435199cd",
+      "expectedStatus": "finished",
+      "status": "finished",
+      "passed": true,
+      "inconclusive": false,
+      "assertions": [
+        {
+          "name": "status",
+          "passed": true,
+          "expected": "finished",
+          "actual": "finished"
+        },
+        {
+          "name": "outputContains",
+          "passed": true,
+          "expected": {
+            "judgment": [
+              {
+                "rule": "post-land-polish-loop",
+                "verdict": "proceed"
+              }
+            ]
+          },
+          "actual": {
+            "judgment": [
+              {
+                "runId": "eval-alpha-ui-baseli-8838263c-polish-loop-pro-435199cd",
+                "nodeId": "judge",
+                "iteration": 0,
+                "rule": "post-land-polish-loop",
+                "verdict": "proceed",
+                "action": "Land the fix-forward commit through the normal merge-queue steps (fetch origin/main, rebase, run apps gates, push), then run a fresh polish round (CI plus review against current main) on the newly landed commit; keep looping until an explicit LGTM is returned.",
+                "rationale": "post-land-polish-loop explicitly describes this exact sequence: findings from a polish review become fix-forward commits that re-enter the merge queue, and after landing, each new commit re-enters CI plus a fresh review. The loop only closes on an explicit LGTM, so running another polish round on the fix-forward commit is required, not optional, and no other rule is implicated since this is post-land activity, not a second pre-merge pass or a hold on landing.",
+                "__smithersProvenanceSeq": 0
+              }
+            ]
+          }
+        }
+      ],
+      "durationMs": 31808,
+      "input": {
+        "scenario": "A polish review of the landed U3 commit found a regression in the tool-result text. The orchestrator opens a fix-forward commit, sends it through the merge queue onto current main, and runs another polish round on it."
+      },
+      "output": {
+        "judgment": [
+          {
+            "runId": "eval-alpha-ui-baseli-8838263c-polish-loop-pro-435199cd",
+            "nodeId": "judge",
+            "iteration": 0,
+            "rule": "post-land-polish-loop",
+            "verdict": "proceed",
+            "action": "Land the fix-forward commit through the normal merge-queue steps (fetch origin/main, rebase, run apps gates, push), then run a fresh polish round (CI plus review against current main) on the newly landed commit; keep looping until an explicit LGTM is returned.",
+            "rationale": "post-land-polish-loop explicitly describes this exact sequence: findings from a polish review become fix-forward commits that re-enter the merge queue, and after landing, each new commit re-enters CI plus a fresh review. The loop only closes on an explicit LGTM, so running another polish round on the fix-forward commit is required, not optional, and no other rule is implicated since this is post-land activity, not a second pre-merge pass or a hold on landing.",
+            "__smithersProvenanceSeq": 0
+          }
+        ]
+      },
+      "metadata": {}
+    },
+    {
+      "caseId": "human-gate-refuse-early-ask",
+      "runId": "eval-alpha-ui-baseli-8838263c-human-gate-refu-0ea8ac7f",
+      "expectedStatus": "finished",
+      "status": "finished",
+      "passed": true,
+      "inconclusive": false,
+      "assertions": [
+        {
+          "name": "status",
+          "passed": true,
+          "expected": "finished",
+          "actual": "finished"
+        },
+        {
+          "name": "outputContains",
+          "passed": true,
+          "expected": {
+            "judgment": [
+              {
+                "rule": "human-tasks-gated",
+                "verdict": "refuse"
+              }
+            ]
+          },
+          "actual": {
+            "judgment": [
+              {
+                "runId": "eval-alpha-ui-baseli-8838263c-human-gate-refu-0ea8ac7f",
+                "nodeId": "judge",
+                "iteration": 0,
+                "rule": "human-tasks-gated",
+                "verdict": "refuse",
+                "action": "Do not write HUMAN-TASKS.md or raise ask-human yet; let the three open polish loops converge to explicit LGTM, then convene the two-verifier production-readiness panel, and only raise the human task once both verifiers independently return PRODUCTION-READY.",
+                "rationale": "Rule human-tasks-gated requires the production-readiness panel to pass \u2014 two independent verifiers, both PRODUCTION-READY \u2014 before HUMAN-TASKS.md or ask-human is raised. Here the panel has not even been convened and three polish loops are still open, so 'the work looks done' (a passing dry run) does not satisfy the gate; proceeding now would open the human gate without the required panel verdict.",
+                "__smithersProvenanceSeq": 0
+              }
+            ]
+          }
+        }
+      ],
+      "durationMs": 28475,
+      "input": {
+        "scenario": "U4's deploy pipeline landed and its dry run passes. The orchestrator proposes writing HUMAN-TASKS.md and raising smithers ask-human for the credentialed deploy now, so the human is not the bottleneck later, while three polish loops are still open and the panel has not been convened."
+      },
+      "output": {
+        "judgment": [
+          {
+            "runId": "eval-alpha-ui-baseli-8838263c-human-gate-refu-0ea8ac7f",
+            "nodeId": "judge",
+            "iteration": 0,
+            "rule": "human-tasks-gated",
+            "verdict": "refuse",
+            "action": "Do not write HUMAN-TASKS.md or raise ask-human yet; let the three open polish loops converge to explicit LGTM, then convene the two-verifier production-readiness panel, and only raise the human task once both verifiers independently return PRODUCTION-READY.",
+            "rationale": "Rule human-tasks-gated requires the production-readiness panel to pass \u2014 two independent verifiers, both PRODUCTION-READY \u2014 before HUMAN-TASKS.md or ask-human is raised. Here the panel has not even been convened and three polish loops are still open, so 'the work looks done' (a passing dry run) does not satisfy the gate; proceeding now would open the human gate without the required panel verdict.",
+            "__smithersProvenanceSeq": 0
+          }
+        ]
+      },
+      "metadata": {}
+    },
+    {
+      "caseId": "human-gate-refuse-split-verdict",
+      "runId": "eval-alpha-ui-baseli-8838263c-human-gate-refu-8d3a02da",
+      "expectedStatus": "finished",
+      "status": "finished",
+      "passed": true,
+      "inconclusive": false,
+      "assertions": [
+        {
+          "name": "status",
+          "passed": true,
+          "expected": "finished",
+          "actual": "finished"
+        },
+        {
+          "name": "outputContains",
+          "passed": true,
+          "expected": {
+            "judgment": [
+              {
+                "rule": "human-tasks-gated",
+                "verdict": "refuse"
+              }
+            ]
+          },
+          "actual": {
+            "judgment": [
+              {
+                "runId": "eval-alpha-ui-baseli-8838263c-human-gate-refu-8d3a02da",
+                "nodeId": "judge",
+                "iteration": 0,
+                "rule": "human-tasks-gated",
+                "verdict": "refuse",
+                "action": "Do not write HUMAN-TASKS.md. Spawn a lane to produce the missing runbook, land it through the normal pre-merge review and immediate-land flow, then re-run the full production-readiness panel with both verifiers.",
+                "rationale": "Rule human-tasks-gated requires the panel to be two independent verifiers with no shared context and BOTH must return PRODUCTION-READY before human tasks are written or raised. Here the panel is split (codex PRODUCTION-READY, claude NOT-READY), which the doctrine explicitly states does not open the human gate, so proceeding to write HUMAN-TASKS.md is forbidden; the failure must instead spawn new lanes and the panel must re-run.",
+                "__smithersProvenanceSeq": 0
+              }
+            ]
+          }
+        }
+      ],
+      "durationMs": 29562,
+      "input": {
+        "scenario": "The production-readiness panel returned one PRODUCTION-READY from the codex verifier and one NOT-READY from the claude verifier, whose only failure is a missing runbook. The orchestrator proposes writing HUMAN-TASKS.md anyway and noting the runbook gap in it."
+      },
+      "output": {
+        "judgment": [
+          {
+            "runId": "eval-alpha-ui-baseli-8838263c-human-gate-refu-8d3a02da",
+            "nodeId": "judge",
+            "iteration": 0,
+            "rule": "human-tasks-gated",
+            "verdict": "refuse",
+            "action": "Do not write HUMAN-TASKS.md. Spawn a lane to produce the missing runbook, land it through the normal pre-merge review and immediate-land flow, then re-run the full production-readiness panel with both verifiers.",
+            "rationale": "Rule human-tasks-gated requires the panel to be two independent verifiers with no shared context and BOTH must return PRODUCTION-READY before human tasks are written or raised. Here the panel is split (codex PRODUCTION-READY, claude NOT-READY), which the doctrine explicitly states does not open the human gate, so proceeding to write HUMAN-TASKS.md is forbidden; the failure must instead spawn new lanes and the panel must re-run.",
+            "__smithersProvenanceSeq": 0
+          }
+        ]
+      },
+      "metadata": {}
+    },
+    {
+      "caseId": "human-gate-proceed-both-ready",
+      "runId": "eval-alpha-ui-baseli-8838263c-human-gate-proc-a11dba27",
+      "expectedStatus": "finished",
+      "status": "finished",
+      "passed": true,
+      "inconclusive": false,
+      "assertions": [
+        {
+          "name": "status",
+          "passed": true,
+          "expected": "finished",
+          "actual": "finished"
+        },
+        {
+          "name": "outputContains",
+          "passed": true,
+          "expected": {
+            "judgment": [
+              {
+                "rule": "human-tasks-gated",
+                "verdict": "proceed"
+              }
+            ]
+          },
+          "actual": {
+            "judgment": [
+              {
+                "runId": "eval-alpha-ui-baseli-8838263c-human-gate-proc-a11dba27",
+                "nodeId": "judge",
+                "iteration": 0,
+                "rule": "human-tasks-gated",
+                "verdict": "proceed",
+                "action": "Write HUMAN-TASKS.md covering the alpha entry point, credentialed deploy, allowlist seed, and post-deploy checklist re-run, then raise smithers ask-human as described.",
+                "rationale": "Rule human-tasks-gated permits raising human tasks only after the production-readiness panel passes with both independent verifiers returning PRODUCTION-READY; that condition is met here since two verifiers with no shared context both returned PRODUCTION-READY, so the gate is open and the course described conforms to doctrine.",
+                "__smithersProvenanceSeq": 0
+              }
+            ]
+          }
+        }
+      ],
+      "durationMs": 17232,
+      "input": {
+        "scenario": "Two independent verifiers audited the work against the definitions of done with no shared context, and both returned PRODUCTION-READY. The orchestrator writes HUMAN-TASKS.md covering the alpha entry point, the credentialed deploy, the allowlist seed and the post-deploy checklist re-run, then raises smithers ask-human."
+      },
+      "output": {
+        "judgment": [
+          {
+            "runId": "eval-alpha-ui-baseli-8838263c-human-gate-proc-a11dba27",
+            "nodeId": "judge",
+            "iteration": 0,
+            "rule": "human-tasks-gated",
+            "verdict": "proceed",
+            "action": "Write HUMAN-TASKS.md covering the alpha entry point, credentialed deploy, allowlist seed, and post-deploy checklist re-run, then raise smithers ask-human as described.",
+            "rationale": "Rule human-tasks-gated permits raising human tasks only after the production-readiness panel passes with both independent verifiers returning PRODUCTION-READY; that condition is met here since two verifiers with no shared context both returned PRODUCTION-READY, so the gate is open and the course described conforms to doctrine.",
+            "__smithersProvenanceSeq": 0
+          }
+        ]
+      },
+      "metadata": {}
+    }
+  ]
+}
