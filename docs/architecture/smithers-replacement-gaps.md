@@ -109,7 +109,7 @@ run, and automatic lineage recording from ordinary engine execution (listed
 under planned integration). Done = `Continued` terminal + a restart-lineage
 fault case, matching smithers' continue-as-new and fork fault pins.
 
-### 6. Checkpoints and worktree lanes — still missing
+### 6. Host checkpoints and worktree lanes — still missing
 
 The largest remaining functional gap versus smithers' Tier-1 durability
 snapshots (`snapshot-hook`), restore/revert/rewind, and `smithers worktree`
@@ -205,10 +205,10 @@ gap.
    restarted process must re-register before driving stored runs. Smithers'
    resume path assumes the engine can pick up any persisted run; the cutover
    shim must guarantee registration-before-resume.
-4. **SQLite-only dialect parity (accepted gap, issue #78).** flows ships two
-   `SqlClient` backends behind `DurableWriter` and both are SQLite:
-   `NodeDatabase` over `@effect/sql-sqlite-node`, and the browser counterpart
-   over Effect's sqlite-wasm OPFS worker. Every package's migration set
+4. **SQLite-only dialect parity (accepted gap, issue #78).** flows ships one
+   `SqlClient` backend behind `DurableWriter`: `NodeDatabase` over
+   `@effect/sql-sqlite-node`. Browser package roots expose the driver-neutral
+   contract, but no browser SQL client layer ships here. Every package's migration set
    (`packages/{journal,run-store,step-cache,engine-store}/src/Migrations.ts`)
    is SQLite-flavoured DDL. Smithers,
    however, supports PGlite and Postgres (`packages/db/src/ensure.js` and

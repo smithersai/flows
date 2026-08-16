@@ -91,6 +91,8 @@ One near-miss is journalled rather than silent: when every gate passes but the r
 
 `CacheStore.put` is first-writer-wins. A `Conflict` is journalled as `flows.engine.cache-conflict` and handed to `Inconsistency`, whose unwired core default is strict: journal, then fail the run with `CacheConflictDetected`.
 
+When `replayOutputs` fails for a shared-cache row, `ActionPersistence` classifies a `StepBoundary.BoundaryCorruption` as recorded-evidence corruption. It journals `replay_failed` with `reason: "corruption"` and sends the evidence to `Inconsistency`; strict mode fails the replay with `CacheCorruptionDetected`, while a tolerant verdict evicts the row and falls through to a fresh execution. A `MissingArtifact` is hydrated from the shared tier and replayed once before this classification. Other replay failures are host refusals, journalled with `reason: "host"`, and fall through to a real execution. A succeeded attempt keeps its durable outcome: corrupt boundary evidence is quarantined, strict mode parks with `AttemptEvidenceQuarantined`, and a tolerant verdict returns the recorded outcome without republishing the corrupt evidence or re-executing the action.
+
 ## Replay determinism
 
 Handlers are not serialized. A resume claims the run, decodes the original payload, invokes the registered handler from the top, returns stored results at known boundaries, and dispatches at the first boundary with no recorded state.

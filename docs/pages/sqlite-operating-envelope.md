@@ -134,9 +134,9 @@ policy.
 
 The main SQLite file grows with the durable tables. This repository does not
 ship a database-wide prune job. `flows_journal_events` is the append-only
-logical WAL; public observability docs list journal checkpointing or compaction
-as planned, not implemented (`docs/pages/observability.md`,
-`docs/architecture/implementation-status.md`).
+logical WAL. Journal checkpointing and compaction are shipped as explicit or
+opt-in operations; they bound journal history when invoked but do not prune
+the other durable tables. See [Checkpoints and compaction](/compaction).
 
 SQLite's physical WAL file is bounded by SQLite checkpoint behavior, not by a
 repository setting. SQLite documents automatic checkpointing by default, but also
@@ -154,8 +154,8 @@ Run-parent edge cleanup is enforced by the SQLite `flows_run_parents_gc` trigger
 when a run row is deleted (`packages/engine-store/src/internal/EngineStateSchema.ts`,
 `packages/engine-store/test/RunParentAtomicity.test.ts`).
 
-Content-addressed cache/artifact growth is not globally garbage-collected here.
-`CombinedCacheStore.evict` is local-only and leaves shared CAS reclamation to the
-ticketed release verb (`packages/step-cache/src/CombinedCacheStore.ts`), and the
-implementation-status page lists artifact garbage collection as planned
-(`docs/architecture/implementation-status.md`).
+Content-addressed cache/artifact growth has no automatic database-wide policy.
+`CombinedCacheStore.evict` is local-only. Host-local CAS cleanup is available
+as the explicit `ArtifactGc.gc()` operation over `ArtifactSweep`; remote CAS
+retention remains outside this repository. See [Artifact GC](/artifact-gc)
+and the implementation-status page.

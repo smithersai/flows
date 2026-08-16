@@ -4,6 +4,10 @@ Smithers Flows is a durable-execution engine built on Effect. A flow is a typed 
 
 Effect ships a workflow package of its own; this engine vendors that surface rather than depending on it, and then diverges by being stricter and more cacheable. Upstream derives a run's identity by hashing the flow tag and payload, so unrelated runs with equal payloads silently join; here the caller chooses the execution ID, derivation is opt-in, and a flow with neither dies with a structured defect. Upstream derives a step's identity from its activity's name, so renaming an activity corrupts replay; here step keys are content-addressed over canonical JSON, and a step is keyed by its content, not its name. Upstream retries any interruption ten times by default; here cancellation propagates at once, and only an interrupt explicitly marked as infrastructure consumes a retry policy.
 
+## Release status
+
+Smithers Flows releases as a production pilot/beta. Its APIs are pre-1.0 contracts and may change without backward compatibility. The `@smthrs/*-next` engine package manifests currently use version `0.1.0` and pin `effect` to exactly `4.0.0-rc.108`, which is a release candidate.
+
 ## Quick start
 
 You will need Node.js 22.19 or later.

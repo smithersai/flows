@@ -84,11 +84,12 @@ bundles for the browser (`pnpm run browser`). See
 
 ## Not here
 
-Reclaiming published artifacts is an explicit `release` verb
-([Reconciliation](../../../docs/specs/Concepts/Reconciliation.md)), never a side
-effect of a store operation; the `.tmp-*` sweep reclaims crash orphans only.
-Garbage collection, chunked/resumable transfer, and a Bazel-style download
-policy are ticketed in `.smithers/tickets/`.
+Reclaiming published artifacts is an explicit `ArtifactGc.gc()` operation in
+`@smthrs/engine-store-next`, backed by the host-local `ArtifactSweep` service
+in this package. It is never a side effect of a store operation. The
+`.tmp-*` sweep reclaims crash orphans, and artifact GC removes unreferenced
+blobs only after its mark and grace-period checks. Chunked/resumable transfer
+and a Bazel-style download policy are still ticketed in `.smithers/tickets/`.
 
 See [Remote cache](../../../docs/specs/Concepts/Remote%20Cache.md) and the
 [`@smthrs/engine-store-next` reference](engine-store.md) for the publication ordering
