@@ -472,20 +472,25 @@ describe("QuickJSSandbox", () => {
   })
 
   it("enforces a wall-clock limit while a flow call is stalled", async () => {
+    let handlerEntered = false
     const outcome = await evaluate(
       QuickJSSandbox.layer,
       `await ctx.call("fs/list", {})
        return { intent: "complete", output: "unreachable" }`,
       {
-        call: () => Effect.never,
-        limits: { timeMs: 10, steps: Number.MAX_SAFE_INTEGER }
+        call: () =>
+          Effect.sync(() => {
+            handlerEntered = true
+          }).pipe(Effect.zipRight(Effect.never)),
+        limits: { timeMs: 250, steps: Number.MAX_SAFE_INTEGER }
       }
     )
 
+    expect(handlerEntered).toBe(true)
     expect(outcome).toMatchObject({
       _tag: "rejected",
       code: "limit_exceeded",
-      message: "This cell exceeded its wall-clock limit of 10 milliseconds"
+      message: "This cell exceeded its wall-clock limit of 250 milliseconds"
     })
   })
 })

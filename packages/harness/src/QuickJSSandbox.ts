@@ -217,6 +217,7 @@ const evaluate = (
     if (install.error !== undefined) {
       const failure = context.dump(install.error)
       install.error.dispose()
+      if (exhausted !== undefined) return exhausted
       return yield* new Sandbox.SandboxError({
         code: "runtime_failed",
         message: "The sandbox prelude failed to install",
