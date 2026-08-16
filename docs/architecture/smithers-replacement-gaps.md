@@ -206,12 +206,21 @@ gap.
    `cellRegistry`, `cellFlows`, and `cellModelRequest`. Pause attribution,
    hijack, quota, and checkpoints still need seams as injected services and
    constructor options at the sites that own them, not as a lifecycle registry.
-2. **~~No packaged production layer.~~ Closed.** `@smthrs/flows-next/NodeRuntime`
-   composes database + migrations + journal + engine-store + kernel + artifact
-   store + engine into one importable layer, with `registerFlows` as the final
-   startup phase (`packages/flows/src/NodeRuntime.ts`). Residual: it installs
-   no signal handlers, and its only consumer in this repository is
-   `examples/src/durable-layer.ts`, so no package test gates it.
+2. **No packaged production layer — half closed.** `@smthrs/flows-next/NodeRuntime`
+   composes database + migrations + journal + run/attempt/cache stores +
+   durable engine state + workspace + artifact store + engine into one
+   importable layer, with `registerFlows` as the final startup phase
+   (`packages/flows/src/NodeRuntime.ts`). That is the storage-and-engine half
+   of the cutover artifact. The host half is not in it: the module installs
+   neither `NodeHost.layer` nor the guarded `HostServices` kernel, so `Jj`,
+   Effect `FileSystem`, and Effect `Crypto` remain requirements the embedder
+   supplies, and `StepBoundary` and `WorkspaceSandbox` are passed in as
+   arguments (`NodeRuntime.ts:105-121,128-131`). It also installs no signal
+   handlers. Smithers can adopt the storage and engine wiring as a dependency;
+   it still writes its own host and kernel composition. Its only consumer in
+   this repository is `examples/src/durable-layer.ts`, which the recursive
+   root `test` script does run, but no package test exercises the module
+   directly.
 3. **Handler re-registration on restart.** Flow registrations are in-memory; a
    restarted process must re-register before driving stored runs. Smithers'
    resume path assumes the engine can pick up any persisted run; the cutover
@@ -276,10 +285,11 @@ existing smithers CLI unchanged.
    migration for live runs.
 2. **Engine loop for new runs only (shim: dual-engine routing).** New runs
    execute on `Engine.FlowEngine` + `DurableEngineState`; existing runs finish
-   on the old loop. The packaged production layer this needs now exists
-   (`@smthrs/flows-next/NodeRuntime`); the registration-before-resume
-   guarantee is that layer's `registerFlows` phase. Waiting states route through the
-   taxonomy instead of `engine.js`'s inline cases.
+   on the old loop. The storage-and-engine half of the packaged production
+   layer this needs now exists (`@smthrs/flows-next/NodeRuntime`), and the
+   registration-before-resume guarantee is that layer's `registerFlows` phase;
+   Smithers still supplies the host services and kernel around it. Waiting
+   states route through the taxonomy instead of `engine.js`'s inline cases.
 3. **RunControl (retire `supervisor.js`, `pause`, `cancel` paths).** The
    claim-by-proxy process is already replaced by the run driver's own sweep
    (§8), so this stage is `RunControl`: pause/cancel with attribution. The

@@ -96,7 +96,7 @@ Cost: an attribution obligation, discharged by `packages/engine/THIRD_PARTY_NOTI
 
 The runtime is `effect@4.0.0-rc.*`. Most of the former `@effect/*` ecosystem now lives at `effect/unstable/*`, and the AI, RPC, cluster, persistence, and workflow surfaces are imported from there. `@effect/sql-sqlite-node` is a dependency because it is a driver, not a rewritten core module.
 
-Cost: a release-candidate pin, exact at `4.0.0-rc.108` across every manifest, and Effect 3 documentation does not apply.
+Cost: a release-candidate pin, exact at `4.0.0-rc.108` across every release-1 engine manifest — the private `@tsflows/infra` tooling workspace is the one exception, at `4.0.0-rc.109`, and ships in no release group — and Effect 3 documentation does not apply.
 
 ## D13. No pseudo-terminal service in core
 

@@ -93,7 +93,9 @@ To resume abandoned runs manually:
 1. Start or restart a host process composed through `@smthrs/flows-next/NodeRuntime`, pointed at the same SQLite `filename`.
 2. Pass a `registerFlows` layer that registers every flow with stored runs. It is the composition's final startup phase, so nothing resumes before its flow exists in the process.
 3. Supply an `Options.isAlive` that reports the dead owner as not alive. Steal is gated on that answer; while it says the previous owner lives, its runs are not taken over.
-4. Wait one stale window — up to 30 seconds after the frozen heartbeat. There is no command to invoke.
+4. Wait out the stale window. There is no command to invoke.
+
+The 30-second cutoff is when a row becomes *eligible*, not when it is reclaimed. The steal predicate is strict (`heartbeat_at_ms < now - 30s`, `packages/run-store/src/RunStore.ts:1184`), the sweep that acts on it runs once per second, and one tick wakes at most 64 stale rows, oldest heartbeat first. So the earliest re-drive is the first tick after the heartbeat passes 30 seconds, and a run sitting behind a backlog of more than 64 stale rows waits for a later tick. `isAlive` gates the steal on top of that. Do not treat 30 seconds as an upper bound on recovery.
 
 A run with no such process running stays put. Its state is durable and it does not advance.
 

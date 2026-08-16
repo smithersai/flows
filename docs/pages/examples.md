@@ -37,7 +37,7 @@ The first three build on each other. `01` shows what the two nouns are with noth
 
 `examples/src/durable-layer.ts` composes what `EngineStore.layer` needs: the journal and its three stores, the durable deferred and clock state, a kernel `Jj`, and a `StepBoundary`, all over one SQLite file. Every persistence example reuses it, which is also why a restart in one example reads the rows a previous phase wrote.
 
-The `Jj` in that layer is a stub that records nothing. The examples use sealed actions, so the engine never needs a real snapshot, and a stub keeps the composition honest without requiring a `jj` binary on the machine. The packaged production layer these examples assemble by hand now ships as the `@smthrs/flows-next/NodeRuntime` subpath, and `durable-layer.ts` builds on it.
+The `Jj` in that layer is a stub that records nothing. The examples use sealed actions, so the engine never needs a real snapshot, and a stub keeps the composition honest without requiring a `jj` binary on the machine. The storage and engine part of what these examples once assembled by hand now ships as the `@smthrs/flows-next/NodeRuntime` subpath, and `durable-layer.ts` builds on it. The host part is still assembled here: `NodeRuntime` takes `StepBoundary` and `WorkspaceSandbox` as arguments and leaves `Jj`, Effect `FileSystem`, and Effect `Crypto` as requirements the example supplies.
 
 ## Reading next
 
