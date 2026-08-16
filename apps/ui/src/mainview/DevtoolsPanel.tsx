@@ -197,9 +197,10 @@ export function DevtoolsPanel({ controller }: { readonly controller: AppControll
 				<section className="devtools-section" aria-label="Command registry">
 					<h3>Registry</h3>
 					<ul className="devtools-registry">
-						{controller.commands.all().map((command) => (
-							<li key={command.name}>
-								<code>{command.name}</code> <span>{command.trigger ?? "both"}</span>
+						{controller.commands.entries().map((entry) => (
+							<li key={entry.binding.descriptor.name}>
+								<code>{entry.binding.descriptor.name}</code>{" "}
+								<span>{entry.binding.descriptor.modelInvocable ? "both" : "user"}</span>
 							</li>
 						))}
 					</ul>

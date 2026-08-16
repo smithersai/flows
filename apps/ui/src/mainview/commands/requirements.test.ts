@@ -5,13 +5,13 @@ import type { AppServices } from "../state/AppController";
 import { createAppStore } from "../state/AppStore";
 import type { AppStore } from "../state/AppStore";
 import type { NativeAgent, NativeRepositories } from "../native/NativeBridge";
-import { commandRequirements, unmetRequirements } from "./registry";
+import { flowRequirements, unmetRequirements } from "./registry";
 import type { CommandState } from "./registry";
 
 /*
- * The requirement axis (registry.ts commandRequirements): a user-invoked
- * command with an unmet requirement parks durably in the session row, the
- * fulfilling command runs in its place, and the parked command resumes when
+ * The requirement axis (registry.ts flowRequirements): a user-invoked flow
+ * with an unmet requirement parks durably in the session row, the fulfilling
+ * flow runs in its place, and the parked flow resumes when
  * the requirement's predicate flips true — one requirement at a time, against
  * live state. Agent invocations never park: they fail honestly with the
  * reason.
@@ -112,7 +112,7 @@ const chatState: CommandState = {
 
 describe("requirement axis — the pure model", () => {
 	test("unmetRequirements answers in declaration order, only unmet, unknown ids skipped", () => {
-		const meta = { name: "x", summary: "", requires: ["signed-in", "repos-selected", "no-such"] };
+		const meta = { summary: "", requires: ["signed-in", "repos-selected", "no-such"] };
 		expect(unmetRequirements(meta, { ...chatState, signedOut: true, needsSelection: true }).map((r) => r.id)).toEqual([
 			"signed-in",
 			"repos-selected",
@@ -121,11 +121,11 @@ describe("requirement axis — the pure model", () => {
 			"repos-selected",
 		]);
 		expect(unmetRequirements(meta, chatState)).toEqual([]);
-		expect(unmetRequirements({ name: "y", summary: "" }, { ...chatState, signedOut: true })).toEqual([]);
+		expect(unmetRequirements({ summary: "" }, { ...chatState, signedOut: true })).toEqual([]);
 	});
 
-	test("every requirement's fulfill names a registered command shape", () => {
-		for (const requirement of commandRequirements) {
+	test("every requirement's fulfill names a registered flow shape", () => {
+		for (const requirement of flowRequirements) {
 			expect(requirement.fulfill).toMatch(/^[a-z0-9_.-]+$/);
 			expect(requirement.reason.length).toBeGreaterThan(0);
 		}

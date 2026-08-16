@@ -191,7 +191,7 @@ describe("launch-law parity: every affordance is a command", () => {
 			expect(source).not.toContain("prompt: action.prompt");
 			expect(source).not.toContain("suggestion.prompt");
 		}
-		const registrySource = read("./Commands.ts");
+		const registrySource = read("./Flows.ts");
 		expect(registrySource).not.toContain('"suggest"');
 		// The pill row binds commands directly (§2a): the suggestion markup
 		// carries the command, and the click invokes it — never send().
@@ -212,7 +212,7 @@ describe("launch-law parity: every affordance is a command", () => {
 	 * summary — exactly what the launch checklist checks against the DOM.
 	 */
 	test("a button with no data-command binding has a label that resolves to a registered command", () => {
-		const registrySource = read("./Commands.ts");
+		const registrySource = read("./Flows.ts");
 		const names = [...registrySource.matchAll(/\bname:\s*"([^"]+)"/g)].map((match) => match[1] as string);
 		const summaries = [...registrySource.matchAll(/\bsummary:\s*"([^"]+)"/g)].map((match) =>
 			(match[1] as string).toLowerCase(),
@@ -259,7 +259,7 @@ describe("launch-law parity: every affordance is a command", () => {
 		expect(app).toContain("data-commands={controller.commands.all()");
 		// Registry names from the registry source itself — the same file the
 		// runtime registers — so a renamed command fails this gate.
-		const registrySource = read("./Commands.ts");
+		const registrySource = read("./Flows.ts");
 		const declared = new Set(
 			[...registrySource.matchAll(/\bname:\s*"([^"]+)"/g)].map((match) => match[1] as string),
 		);
@@ -317,16 +317,19 @@ describe("launch-law parity: every affordance is a command", () => {
 		const app = files["../App.tsx"] ?? "";
 		expect(app).toContain('runCommand("dark-mode")');
 		expect(app).not.toContain('runCommand("theme")');
-		const registrySource = read("./Commands.ts");
+		const registrySource = read("./Flows.ts");
 		const entry = (name: string): string => {
 			const start = registrySource.indexOf(`name: "${name}"`);
 			expect(start).toBeGreaterThan(-1);
-			return registrySource.slice(start, registrySource.indexOf("},", start));
+			return registrySource.slice(start, registrySource.indexOf("}),", start));
 		};
-		expect(entry("theme")).toContain('trigger: "user"');
-		expect(entry("theme")).toContain("acceptsArgs: true");
-		expect(entry("dark-mode")).toContain('trigger: "user"');
-		// The toggle is its own command now, not a hidden alias of /theme.
+		// The trigger axis is the declaration's own `userOnly`, which the binding
+		// projects as `modelInvocable: false`; the args hint is what makes
+		// `/theme <palette>` parse as an invocation.
+		expect(entry("theme")).toContain("userOnly: true");
+		expect(entry("theme")).toContain("args:");
+		expect(entry("dark-mode")).toContain("userOnly: true");
+		// The toggle is its own flow now, not a hidden alias of /theme.
 		expect(entry("dark-mode")).not.toContain("aliasOf");
 		expect(entry("dark-mode")).not.toContain("hidden");
 	});

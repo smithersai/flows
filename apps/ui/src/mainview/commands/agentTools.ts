@@ -11,8 +11,8 @@
  */
 import type { AgentToolSpec } from "smithers-shared/NativeAgent";
 import type { CommandRegistry } from "./Commands";
-import type { CommandMeta } from "./registry";
-import { visible } from "./registry";
+import type { CatalogItem, FlowEntry } from "./registry";
+import { itemOf, visible } from "./registry";
 
 export type { AgentToolSpec };
 
@@ -21,9 +21,16 @@ export interface AgentToolCall {
 	readonly arguments: string;
 }
 
-/** The commands the agent may see and call: everything except user-only browser mechanics. */
-const agentVisible = <C extends CommandMeta>(commands: ReadonlyArray<C>): Array<C> =>
-	visible(commands).filter((command) => command.trigger !== "user");
+/**
+ * The flows the agent may see and call.
+ *
+ * This is the registry itself narrowed to model-invocable entries and then to
+ * the unhidden ones — not a second catalog. The trigger axis is the
+ * descriptor's own `modelInvocable` flag, so user-only browser mechanics are
+ * absent structurally rather than by a filter that could be forgotten.
+ */
+const agentVisible = (entries: ReadonlyArray<FlowEntry>): Array<CatalogItem> =>
+	visible(entries.map(itemOf));
 
 /**
  * The agent's live catalog as instruction material (Wave 13 §F): the same set
@@ -31,12 +38,12 @@ const agentVisible = <C extends CommandMeta>(commands: ReadonlyArray<C>): Array<
  * prompt and the tool can never disagree about what the agent can do.
  */
 export const agentVisibleCatalog = (
-	commands: ReadonlyArray<CommandMeta>,
+	callable: ReadonlyArray<FlowEntry>,
 ): ReadonlyArray<{ readonly name: string; readonly summary: string; readonly args?: string }> =>
-	agentVisible(commands).map((command) => ({
+	agentVisible(callable).map((command) => ({
 		name: command.name,
 		summary: command.summary,
-		...(command.acceptsArgs === true && command.args !== undefined ? { args: command.args } : {}),
+		...(command.args === undefined ? {} : { args: command.args }),
 	}));
 
 /*
@@ -106,10 +113,10 @@ export const executeAgentToolCall = async (
 	if (input.action === "list") {
 		return JSON.stringify({
 			state: registry.state(),
-			commands: agentVisible(registry.all()).map((command) => ({
+			commands: agentVisible(registry.callable()).map((command) => ({
 				name: command.name,
 				summary: command.summary,
-				...(command.acceptsArgs === true ? { acceptsArgs: true, args: command.args } : {}),
+				...(command.args === undefined ? {} : { acceptsArgs: true, args: command.args }),
 			})),
 		});
 	}
@@ -137,8 +144,8 @@ export const executeAgentToolCall = async (
 	 * listed nor executable by the agent — the model gets the honest error
 	 * naming the visible alternative, never a silent refusal.
 	 */
-	const target = registry.all().find((command) => command.name === name);
-	if (target !== undefined && target.trigger === "user") {
+	const target = registry.find(name);
+	if (target !== undefined && !registry.callable().includes(target)) {
 		return userOnlyError(name);
 	}
 	/*
