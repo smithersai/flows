@@ -6,6 +6,9 @@ on:
       - 'apps-v*'
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     name: build + wrangler deploy
@@ -45,6 +48,7 @@ jobs:
         if: steps.mode.outputs.dry_run == 'false'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: pnpm --filter smithers-server run deploy
       - name: Upload deploy receipt
         if: always()

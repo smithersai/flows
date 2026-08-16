@@ -46,11 +46,15 @@ pnpm --filter smithers-server run deploy
    to the `dd3525a4132493566aeb38de533c8827` account, Workers Scripts + Workers
    Routes edit permissions). Export it in the shell running the deploy, or
    `wrangler login` interactively — either satisfies `wrangler`'s auth.
-2. **Build + deploy:**
+2. **Account id required:** `CLOUDFLARE_ACCOUNT_ID=dd3525a4132493566aeb38de533c8827`.
+   `wrangler.jsonc` declares no `account_id`, so if the token can reach more
+   than one Cloudflare account, `wrangler deploy` cannot pick one
+   non-interactively and aborts. Export it alongside the token.
+3. **Build + deploy:**
    ```sh
-   CLOUDFLARE_API_TOKEN=<token> pnpm --filter smithers-server run deploy
+   CLOUDFLARE_API_TOKEN=<token> CLOUDFLARE_ACCOUNT_ID=dd3525a4132493566aeb38de533c8827 pnpm --filter smithers-server run deploy
    ```
-3. **Verify:** the command prints the new Version ID and the receipt file's
+4. **Verify:** the command prints the new Version ID and the receipt file's
    path (`apps/server/deploy-receipts/latest.json`). Confirm
    `https://canary.smithers.sh` serves the new build (check a UI string you
    just changed, or the Worker's `Current Version ID` against the receipt).

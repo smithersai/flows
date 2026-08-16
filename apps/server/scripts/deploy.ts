@@ -47,7 +47,7 @@ if (build.exitCode !== 0) {
 }
 
 console.log(`[deploy] ${dryRun ? "dry-run " : ""}wrangler deploy in ${serverDir}...`);
-const deployArgs = ["bun", "x", "wrangler", "deploy", ...(dryRun ? ["--dry-run"] : [])];
+const deployArgs = ["bun", "x", "wrangler@4.123.0", "deploy", ...(dryRun ? ["--dry-run"] : [])];
 const deploy = await run(deployArgs, { cwd: serverDir, capture: true });
 if (deploy.exitCode !== 0) {
 	console.error("[deploy] wrangler deploy failed.");
