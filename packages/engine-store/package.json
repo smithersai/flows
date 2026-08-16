@@ -3,6 +3,9 @@
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
+  "smthrs": {
+    "group": "engine"
+  },
   "description": "Effect services for durable engine action persistence and replay boundaries",
   "homepage": "https://github.com/smithersai/flows",
   "repository": {
@@ -84,7 +87,6 @@
     "@smthrs/journal-next": "0.1.0",
     "@smthrs/kernel-next": "0.1.0",
     "@smthrs/keys-next": "0.1.0",
-    "@smthrs/platform-node-next": "0.1.0",
     "@smthrs/plan-next": "0.1.0",
     "@smthrs/run-store-next": "0.1.0",
     "@smthrs/step-cache-next": "0.1.0",
@@ -96,6 +98,7 @@
     "@effect/vitest": "4.0.0-rc.108",
     "@eslint/js": "9.39.1",
     "@smthrs/keys-next": "0.1.0",
+    "@smthrs/platform-node-next": "0.1.0",
     "@types/node": "25.9.5",
     "@vitest/coverage-v8": "4.1.9",
     "dprint": "0.55.2",
