@@ -196,4 +196,46 @@ describe("A-9: Escape dismisses the recommendation card in one keypress", () => 
 			evidenceKey: "0123456789abcdef",
 		});
 	});
+
+	test("Escape that closes the slash menu leaves the reco card in place", async () => {
+		const store = await createAppStore({ kind: "localStorage", storage: memoryStorage() });
+		const posts: Array<{ path: string; body: unknown }> = [];
+		const controller = createAppController(store, unavailableRepositories, silentAgent, {
+			...backend(
+				{
+					"/api/reco/first-run": json(200, GROUNDED),
+					"/api/reco/feedback": json(201, {
+						recorded: true,
+						action: "dismiss",
+						recommendationId: "review-pr:will/flows#12",
+					}),
+				},
+				posts,
+			),
+		});
+		await controller.loadFirstRunReco();
+		expect(store.collections.cards.get("reco-current")).toBeDefined();
+
+		const { host } = mount(controller);
+		expect(host.querySelector(".reco-card")).not.toBeNull();
+
+		flushSync(() => controller.changeDraft("/"));
+		expect(host.querySelector(".slash-menu")).not.toBeNull();
+
+		const composer = host.querySelector("textarea");
+		expect(composer).not.toBeNull();
+		flushSync(() => {
+			composer?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+		});
+		await settled();
+		await settled();
+
+		// The composer's own Escape handler closed the slash menu and called
+		// preventDefault(); the app-shell fallback must see that and not also
+		// dismiss the reco card underneath it.
+		expect(host.querySelector(".slash-menu")).toBeNull();
+		expect(store.collections.cards.get("reco-current")).toBeDefined();
+		expect(host.querySelector(".reco-card")).not.toBeNull();
+		expect(posts.find((post) => post.path === "/api/reco/feedback")).toBeUndefined();
+	});
 });

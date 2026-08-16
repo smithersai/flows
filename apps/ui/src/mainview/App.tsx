@@ -635,6 +635,7 @@ function App({ controller }: { readonly controller: AppController }) {
 			className="app-shell"
 			data-flows={controller.commands.all().map((command) => command.name).join(" ")}
 			onKeyDown={(event) => {
+				if (event.defaultPrevented) return;
 				if (event.key === "Escape" && session.maximizedCardId !== null) {
 					controller.runCommand("card.minimize");
 					return;
