@@ -217,10 +217,10 @@ gap.
    supplies, and `StepBoundary` and `WorkspaceSandbox` are passed in as
    arguments (`NodeRuntime.ts:105-121,128-131`). It also installs no signal
    handlers. Smithers can adopt the storage and engine wiring as a dependency;
-   it still writes its own host and kernel composition. Its only consumer in
-   this repository is `examples/src/durable-layer.ts`, which the recursive
-   root `test` script does run, but no package test exercises the module
-   directly.
+   it still writes its own host and kernel composition. Its only application
+   source consumer in this repository is `examples/src/durable-layer.ts`, and
+   `packages/flows/test/NodeRuntime.test.ts` directly gates the module over a
+   real SQLite file.
 3. **Handler re-registration on restart.** Flow registrations are in-memory; a
    restarted process must re-register before driving stored runs. Smithers'
    resume path assumes the engine can pick up any persisted run; the cutover
