@@ -9,7 +9,8 @@
 		"serve:local": "bun x wrangler dev",
 		"deploy:dry-run": "bun x wrangler deploy --dry-run",
 		"typecheck": "tsc --noEmit",
-		"test": "bun test src"
+		"test": "bun test src",
+		"seed:allowlist": "node scripts/seed-allowlist.mjs"
 	},
 	"dependencies": {
 		"smithers-shared": "workspace:*"
