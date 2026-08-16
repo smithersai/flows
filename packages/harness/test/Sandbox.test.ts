@@ -370,6 +370,41 @@ describe("Sandbox projections", () => {
     ])
   })
 
+  it("rejects invalid numeric ceilings before entering a binding", async () => {
+    let evaluations = 0
+    const sandbox = Sandbox.make({
+      capabilities: { calls: true, memoryBytes: true, steps: true, timeMs: true },
+      evaluate: () => {
+        evaluations = evaluations + 1
+        return Effect.succeed(new Cell.Rejected({ code: "stalled", message: "entered" }))
+      }
+    })
+    const request = {
+      cell: Cell.source("return null"),
+      flows: {},
+      call: handler({}, [])
+    }
+
+    for (
+      const limits of [
+        { timeMs: Number.POSITIVE_INFINITY },
+        { timeMs: Number.NaN },
+        { steps: Number.POSITIVE_INFINITY },
+        { steps: Number.NaN },
+        { memoryBytes: 0 },
+        { memoryBytes: 1 }
+      ]
+    ) {
+      const result = await Effect.runPromise(Effect.result(sandbox.evaluate({ ...request, limits })))
+      expect(result).toMatchObject({
+        _tag: "Failure",
+        failure: { code: "unsupported" }
+      })
+    }
+
+    expect(evaluations).toBe(0)
+  })
+
   it("reports which limits a binding can enforce", async () => {
     const capabilities = await Effect.gen(function*() {
       const sandbox = yield* Sandbox.Sandbox
@@ -468,13 +503,37 @@ describe("QuickJSSandbox", () => {
     })
   }, 60_000)
 
+  it("rejects pathological memory limits before QuickJS initialization", async () => {
+    for (const memoryBytes of [0, 1]) {
+      const result = await Effect.gen(function*() {
+        const sandbox = yield* Sandbox.Sandbox
+        return yield* Effect.result(
+          sandbox.evaluate({
+            cell: Cell.source("return null"),
+            flows,
+            call: handler({}, []),
+            limits: { memoryBytes }
+          })
+        )
+      }).pipe(Effect.provide(QuickJSSandbox.layer), Effect.runPromise)
+
+      expect(result).toMatchObject({
+        _tag: "Failure",
+        failure: {
+          code: "unsupported",
+          message: `The memoryBytes limit must be a safe integer of at least ${Sandbox.minimumMemoryBytes} bytes`
+        }
+      })
+    }
+  })
+
   it("enforces a declared memory limit", async () => {
     const outcome = await evaluate(
       QuickJSSandbox.layer,
       `const held = []
        for (let index = 0; index < 100000; index++) held.push({ index: index, pad: "x".repeat(64) })
        return { intent: "complete", output: String(held.length) }`,
-      { limits: { memoryBytes: 1024 * 1024 } }
+      { limits: { memoryBytes: Sandbox.minimumMemoryBytes } }
     )
     expect(outcome._tag).not.toBe("settled")
   })

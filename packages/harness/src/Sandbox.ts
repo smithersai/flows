@@ -99,19 +99,19 @@ export type Handler = (
  * @since 0.1.0
  */
 export interface Limits {
-  /** Maximum number of flow calls one cell may make. */
+  /** Maximum number of flow calls one cell may make; a non-negative safe integer. */
   readonly calls?: number | undefined
-  /** Maximum sandbox heap, in bytes. */
+  /** Maximum sandbox heap, in bytes; at least {@link minimumMemoryBytes}. */
   readonly memoryBytes?: number | undefined
   /**
    * Maximum interpreter steps before the cell is stopped.
    *
    * A step is one interrupt check, not one bytecode operation: an interpreter
    * polls its budget periodically, so this bounds work rather than counting
-   * individual operations.
+   * individual operations. The limit is a non-negative safe integer.
    */
   readonly steps?: number | undefined
-  /** Maximum wall-clock time for one cell evaluation, in milliseconds. */
+  /** Maximum wall-clock time in milliseconds; a non-negative safe integer. */
   readonly timeMs?: number | undefined
 }
 
@@ -145,6 +145,49 @@ export const defaultLimits = Object.freeze({
   steps: 1000,
   timeMs: 30_000
 })
+
+/**
+ * Smallest heap ceiling the QuickJS binding can initialize and tear down
+ * safely.
+ *
+ * QuickJS needs space for its runtime and context before cell source runs.
+ * Lower ceilings can leave a partially initialized context that aborts during
+ * disposal, so they are refused at the sandbox boundary.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const minimumMemoryBytes = 1024 * 1024
+
+const invalidLimit = (name: keyof Limits, requirement: string): SandboxError =>
+  new SandboxError({
+    code: "unsupported",
+    message: `The ${name} limit must be ${requirement}`
+  })
+
+/** Validates caller-supplied numeric limits before a binding is entered. */
+const validateLimits = (limits: Limits | undefined): SandboxError | undefined => {
+  if (limits === undefined) return undefined
+
+  for (const name of ["calls", "steps", "timeMs"] as const) {
+    const value = limits[name]
+    if (value !== undefined && (!Number.isSafeInteger(value) || value < 0)) {
+      return invalidLimit(name, "a non-negative safe integer")
+    }
+  }
+
+  if (
+    limits.memoryBytes !== undefined &&
+    (!Number.isSafeInteger(limits.memoryBytes) || limits.memoryBytes < minimumMemoryBytes)
+  ) {
+    return invalidLimit(
+      "memoryBytes",
+      `a safe integer of at least ${minimumMemoryBytes} bytes`
+    )
+  }
+
+  return undefined
+}
 
 /**
  * Fills omitted ceilings from {@link defaultLimits} for limits a binding can
@@ -212,11 +255,14 @@ export const Sandbox: Context.Service<Sandbox, Sandbox> = Context.Service("/harn
 export const make = (implementation: Sandbox): Sandbox =>
   Sandbox.of({
     ...implementation,
-    evaluate: (evaluation) =>
-      implementation.evaluate({
+    evaluate: (evaluation) => {
+      const invalid = validateLimits(evaluation.limits)
+      if (invalid !== undefined) return Effect.fail(invalid)
+      return implementation.evaluate({
         ...evaluation,
         limits: withDefaults(implementation.capabilities, evaluation.limits)
       })
+    }
   })
 
 /**
