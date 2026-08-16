@@ -8,6 +8,8 @@
 		"dev": "bun x wrangler dev",
 		"serve:local": "bun x wrangler dev",
 		"deploy:dry-run": "bun x wrangler deploy --dry-run",
+		"deploy": "bun scripts/deploy.ts",
+		"deploy:dry": "bun scripts/deploy.ts --dry-run",
 		"typecheck": "tsc --noEmit",
 		"test": "bun test src",
 		"seed:allowlist": "node scripts/seed-allowlist.mjs"

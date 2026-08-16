@@ -8,6 +8,7 @@
     "browser": "node scripts/browser-check.mjs",
     "check": "pnpm --recursive --if-present run check",
     "circular": "pnpm --recursive --if-present run circular",
+    "deploy:dry": "pnpm --filter smithers-server run deploy:dry",
     "lint": "pnpm --recursive --if-present run lint",
     "test": "pnpm --recursive --if-present run test",
     "test:examples": "pnpm --filter @smthrs/examples run test"
