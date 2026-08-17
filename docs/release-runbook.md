@@ -14,7 +14,8 @@ Rehearse first: [release rehearsal receipt](release-rehearsal.md).
 
 These are decisions and account state, not code. Do them once.
 
-- [ ] The `@smthrs` npm org exists and the publishing identity is an owner:
+- [x] The `@smthrs` npm org exists (confirmed by the owner, 2026-08-17). Still
+      confirm the publishing identity is an owner before the first publish:
       `npm org ls smthrs`
 - [ ] No engine name is already taken by someone else. All 23 were unpublished
       (`E404`) when the rehearsal checked on 2026-08-16; re-check before publishing:
@@ -22,10 +23,11 @@ These are decisions and account state, not code. Do them once.
       node scripts/pack-release.mjs --names \
         | xargs -n1 -I{} sh -c 'npm view {} name >/dev/null 2>&1 && echo "taken: {}" || echo "free:  {}"'
       ```
-- [ ] The `LICENSE` copyright holder is confirmed by the owner. `LICENSE:3`
-      currently reads `William Cory and the Smithers Flows contributors`, chosen
-      without confirmation (`REVIEW.md`, blocker 5 caveat). Change it before the
-      first publish or accept it as final; every tarball ships this file.
+- [x] The `LICENSE` copyright holder is confirmed by the owner (2026-08-17):
+      MIT, `Copyright (c) 2026 William Cory and the Smithers Flows contributors`,
+      accepted as final. This closes the `REVIEW.md` blocker 5 caveat. Every
+      tarball ships this file, and a published version is immutable, so changing
+      the holder later requires a new version.
 - [ ] The GitHub environment `npm-publish` exists on this repository and carries
       the npm credential. The workflow publishes with `--provenance` under
       `id-token: write`, so configure npm **trusted publishing** for

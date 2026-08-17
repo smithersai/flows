@@ -40,10 +40,13 @@ npm view @smthrs/time-travel-next name
 npm view @smthrs/flows-next name
 ```
 
-## H2. Confirm the LICENSE copyright holder
+## H2. Confirm the LICENSE copyright holder — DONE
 
-Confirm the copyright holder before publishing. This owner decision has been
-open since the 2026-08-05 review; see [REVIEW.md](REVIEW.md).
+Confirmed by the owner on 2026-08-17: MIT, with `LICENSE:3` reading
+`Copyright (c) 2026 William Cory and the Smithers Flows contributors`, accepted
+as final. Every engine manifest already declares `"license": "MIT"`. This closes
+the `REVIEW.md` blocker 5 caveat. A published version is immutable, so changing
+the holder after the first publish requires a new version.
 
 ## H3. Run the first actual publish
 
