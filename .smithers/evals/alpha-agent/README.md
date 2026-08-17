@@ -96,7 +96,13 @@ against them. Each case therefore asserts two things:
 * `alphaEvalJudgeChecks` and `alphaEvalJudgeVerdict` carry the expected axis
   verdicts — a regression here means the checker or the trace vocabulary broke.
 * `agreement: true` on the clear-cut cases — a regression here means the cheap
-  judge drifted. Borderline cases (`two-lane-partial-overlap`) omit it.
+  judge drifted. The near-miss cases below omit it, along with
+  `two-lane-partial-overlap`.
+
+A red `agreement` is a rubric bug until proven otherwise. Sharpen the axis
+wording in `alpha-agent-eval-judge.tsx` so the judge reads the axis the way
+`scoreTrace.ts` scores it; drop the claim only when both readings are genuinely
+defensible.
 
 An axis is `N/A` when the trace carries no evidence for it; `N/A` never counts
 as a disagreement.
@@ -118,7 +124,11 @@ as a disagreement.
 * **immediateLanding** — every reviewed lane must land, at or after the moment
   it cleared review and within 30 minutes of it (`thresholds.maxLandGapMin`
   overrides). A larger gap is batching by definition; a landing that *precedes*
-  its review is an unreviewed landing, not a fast one.
+  its review is an unreviewed landing, not a fast one. The axis is scoped to
+  lanes that finished a review: a lane that reached main with no review at all
+  carries no evidence here and its landing is charged to `singleReview` alone.
+  The rubric states that scoping too, so the cheap judge is held to the same
+  reading — leaving it implicit is what made `unreviewed-lane-lands` flake.
 * **polishConvergence** — every landed lane needs a polish loop whose last
   verdict is `LGTM`, and every `FIX` must be followed by a `polishFix` before
   the next polish review. The window opens at the lane's landing: a
@@ -176,7 +186,8 @@ post-land, ordering, abandoned-lane, per-task gating, and retry-pairing rules
 landed. They omit `agreement` —
 the distinction they turn on is ordering or omission rather than shape, so the
 cheap judge is not held to it. `baseline-report.md` records where the judge
-actually diverges.
+actually diverges; on the current baseline that is `pre-land-polish-lgtm` and
+`implemented-never-reviewed`, both on `singleReview`.
 
 ## Adding a case
 
