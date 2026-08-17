@@ -731,17 +731,42 @@ export default smithers((ctx) => {
       if (!shaOk(claimed)) {
         return { laneKey: key, verifiedTip: "invalid-or-unlanded", onMain: false }
       }
-      try {
-        execSync("git fetch origin main", { cwd: REPO, stdio: "pipe", timeout: 120000 })
-        execSync(`git merge-base --is-ancestor ${claimed} origin/main`, {
-          cwd: REPO,
-          stdio: "pipe",
-          timeout: 60000,
-        })
-        return { laneKey: key, verifiedTip: claimed, onMain: true }
-      } catch {
-        return { laneKey: key, verifiedTip: claimed, onMain: false }
+      // A fetch that could not RUN (network down, remote unreachable) is an
+      // ENVIRONMENT fault, never evidence that the lane did not land. Reporting
+      // onMain:false there is a false negative that strands the lane's polish
+      // loop and misreports the ledger — observed live, when a network outage
+      // marked three genuinely-landed lanes as unlanded. Retry the fetch, and
+      // if it still cannot run, fall back to the ancestry check against the
+      // last-known origin/main rather than inventing a verdict.
+      let fetched = false
+      for (let attempt = 0; attempt < 3 && !fetched; attempt++) {
+        try {
+          execSync("git fetch origin main", { cwd: REPO, stdio: "pipe", timeout: 120000 })
+          fetched = true
+        } catch {
+          fetched = false
+        }
       }
+      const isAncestor = () => {
+        try {
+          execSync(`git merge-base --is-ancestor ${claimed} origin/main`, {
+            cwd: REPO,
+            stdio: "pipe",
+            timeout: 60000,
+          })
+          return true
+        } catch {
+          return false
+        }
+      }
+      if (isAncestor()) {
+        return { laneKey: key, verifiedTip: claimed, onMain: true }
+      }
+      // Not an ancestor. Distinguish "verified absent" from "could not verify":
+      // only a successful fetch makes the negative trustworthy.
+      return fetched
+        ? { laneKey: key, verifiedTip: claimed, onMain: false }
+        : { laneKey: key, verifiedTip: `${claimed} (unverified: fetch unavailable)`, onMain: false }
     }
   }
 
