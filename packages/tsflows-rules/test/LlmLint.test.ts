@@ -689,14 +689,23 @@ describe("LlmLint.review resource and filesystem boundaries", () => {
       LlmLint.review({ workspaceRoot: root, executable }, payload()),
       { signal: controller.signal }
     )
-    for (let attempt = 0; attempt < 200; attempt += 1) {
+    // Booting the fake model CLI is a node process spawn plus a module load.
+    // On a machine running the whole workspace test matrix at once that takes
+    // seconds, so the wait is a deadline well inside the 30 s test timeout
+    // rather than a fixed attempt count; it still returns the moment the
+    // marker lands.
+    const startedBy = Date.now() + 20_000
+    while (Date.now() < startedBy) {
       if (await Fs.stat(started).then(() => true, () => false)) break
       await new Promise((resolve) => setTimeout(resolve, 10))
     }
     expect(await Fs.stat(started).then(() => true, () => false)).toBe(true)
     controller.abort()
     await running.catch(() => undefined)
-    await new Promise((resolve) => setTimeout(resolve, 350))
+    // The escaped grandchild writes its marker 250 ms after it is spawned, so
+    // the settle window has to outlast that timer under load for the absence
+    // of the marker to prove the process group was killed.
+    await new Promise((resolve) => setTimeout(resolve, 1_500))
     await expect(Fs.stat(marker)).rejects.toMatchObject({ code: "ENOENT" })
   })
 
