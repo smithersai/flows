@@ -6,9 +6,10 @@
 // is unit-tested here too, against the committed fixtures.
 // @ts-expect-error bun:test types are provided by the bun runtime, not @types/node
 import { describe, expect, test } from "bun:test"
-import { existsSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { renderWorkflow } from "smthrs/testing"
+import { buildCases, CASES_JSONL, casesJsonl, UNPARSABLE_CASE_ID } from "../evals/alpha-agent/build-cases.ts"
 import source from "../evals/alpha-agent/cases.source.json" with { type: "json" }
 import {
   AXES,
@@ -261,6 +262,7 @@ describe("deterministic trace scoring", () => {
     expect(maxConcurrent([{ start: 0, end: 10 }, { start: 5, end: 20 }])).toBe(2)
     expect(maxConcurrent([])).toBe(0)
   })
+
   test("maxConcurrent counts lanes, not attempts", () => {
     // Two overlapping attempts of ONE lane is one lane's worth of concurrency.
     // Counting intervals would let a lane that retried itself look parallel.
@@ -645,6 +647,42 @@ describe("deterministic trace scoring", () => {
       "r1:fable=PRODUCTION-READY",
       "r2:codex=PRODUCTION-READY",
     ])
+  })
+
+  test("the committed cases.jsonl is exactly what the source corpus generates", () => {
+    // `smithers eval` reads cases.jsonl, never cases.source.json. Without this
+    // gate a source edit passes every other test here while the runnable suite
+    // still holds the previous corpus, so the new case is never actually run.
+    const committed = readFileSync(CASES_JSONL, "utf8")
+    expect(committed).toBe(casesJsonl())
+
+    const generated = buildCases()
+    const lines = committed.trim().split("\n").map((line) => JSON.parse(line))
+    expect(lines.map((line) => line.id)).toEqual(generated.map((line) => line.id))
+    // Ids are the eval suite's primary key, so a duplicate silently shadows.
+    expect(new Set(lines.map((line) => line.id)).size).toBe(lines.length)
+
+    // Every authored case reaches the wire format, and its payload is the
+    // trace the scorer was unit-tested against, not a stale copy.
+    for (const testCase of source as any[]) {
+      const line = lines.find((candidate) => candidate.id === testCase.id)
+      expect(`${testCase.id} present in cases.jsonl: ${line !== undefined}`).toBe(`${testCase.id} present in cases.jsonl: true`)
+      expect(JSON.parse(line.input.carriedFindings)).toEqual({ caseId: testCase.id, trace: testCase.trace })
+      const checks = line.expected.outputContains.alphaEvalJudgeChecks[0]
+      for (const axis of AXES) expect(`${testCase.id}.${axis}=${checks[axis]}`).toBe(`${testCase.id}.${axis}=${testCase.expect[axis]}`)
+      expect(checks.overall).toBe(testCase.expect.overall)
+    }
+
+    // The synthetic degraded-path case has no source entry, so it is generated
+    // rather than authored and would vanish if the emitter dropped it.
+    expect(lines.length).toBe((source as any[]).length + 1)
+    const unparsable = lines[lines.length - 1]
+    expect(unparsable.id).toBe(UNPARSABLE_CASE_ID)
+    expect(parsePayload(unparsable.input.carriedFindings).ok).toBe(false)
+    expect(unparsable.expected.outputContains.alphaEvalJudgeVerdict).toBeUndefined()
+    const degraded = unparsable.expected.outputContains.alphaEvalJudgeChecks[0]
+    for (const axis of AXES) expect(degraded[axis]).toBe("N/A")
+    expect(degraded.overall).toBe("N/A")
   })
 
   test("payload parsing rejects anything that is not a trace", () => {

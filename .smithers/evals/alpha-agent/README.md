@@ -71,7 +71,7 @@ A trace is a list of node lifecycle events:
 | File | Role |
 |------|------|
 | `cases.source.json` | The readable corpus: each case's trace, description, and expected per-axis verdicts. **Edit this one.** |
-| `build-cases.ts` | Emits `cases.jsonl` from `cases.source.json`. Run `bun .smithers/evals/alpha-agent/build-cases.ts` after editing, and commit both. |
+| `build-cases.ts` | Emits `cases.jsonl` from `cases.source.json`. Run `bun .smithers/evals/alpha-agent/build-cases.ts` after editing, and commit both. Its `buildCases()`/`casesJsonl()` exports are pure, so the test asserts the committed file matches. |
 | `cases.jsonl` | Generated wire format the CLI reads. Do not hand-edit. |
 | `scoreTrace.ts` | The deterministic scorer. Pure: same trace in, same verdicts out. |
 | `baseline-report.json` / `baseline-report.md` | The committed baseline. |
@@ -185,7 +185,11 @@ actually diverges.
    only when the case is unambiguous enough to hold a cheap judge to it.
 2. `bun .smithers/evals/alpha-agent/build-cases.ts`
 3. `cd .smithers && bun test ./tests/alpha-agent-eval-judge.test.tsx` — the
-   scorer must already agree with the declared ground truth.
+   scorer must already agree with the declared ground truth, and the committed
+   `cases.jsonl` must be byte-identical to what step 2 emits. That parity check
+   is why step 2 is not optional: `smithers eval` reads only `cases.jsonl`, so
+   skipping the regeneration leaves the runnable suite on the previous corpus
+   while every other assertion here still passes.
 4. Re-run the suite and refresh the baseline.
 
 ## Input compatibility
