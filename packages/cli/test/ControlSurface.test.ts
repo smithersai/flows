@@ -1,5 +1,5 @@
 import { NodeServices } from "@effect/platform-node"
-import { Control as ControlService, ControlError } from "@smthrs/control"
+import { Control as ControlService, ControlError, type ControlSchema } from "@smthrs/control"
 import * as TestControl from "@smthrs/control/test/TestControl"
 import { Cause, Effect, Exit, Layer, Stream } from "effect"
 import { TestConsole } from "effect/testing"
@@ -265,6 +265,56 @@ describe("Control surface", () => {
     )
 
     expect(accepted.value).toMatchObject({ _tag: "Accepted", runId: expect.any(String) })
+  })
+
+  it("waits for a fresh park after resuming an owned run", async () => {
+    const runId = "run-parked-twice"
+    const event = (sequence: number, kind: string): ControlSchema.ControlEvent => ({
+      sequence,
+      kind,
+      runId,
+      occurredAt: 0,
+      payload: null
+    })
+    const committed = [event(1, "control.run.waiting-approval"), event(2, "control.run.resume")]
+    const freshPark = event(3, "control.run.waiting-approval")
+    const watched: Array<ControlSchema.WatchFilter> = []
+    // Mirrors ControlLive.watch: a snapshot returns only committed history, a
+    // follow replays committed history after the cursor and then stays open.
+    const doubleParkControl = Layer.effect(
+      ControlService.Control,
+      Effect.gen(function*() {
+        const control = yield* ControlService.Control
+        return ControlService.make({
+          ...control,
+          resume: (input) => Effect.succeed({ _tag: "Accepted", receiptId: input.idempotencyKey, runId }),
+          watch: (filter) => {
+            watched.push(filter)
+            const visible = (events: ReadonlyArray<ControlSchema.ControlEvent>) =>
+              events.filter((entry) => filter.afterSequence === undefined || entry.sequence > filter.afterSequence)
+            return filter.follow === false
+              ? Stream.fromIterable(visible(committed))
+              : Stream.fromIterable(visible([...committed, freshPark])).pipe(Stream.concat(Stream.never))
+          }
+        })
+      })
+    ).pipe(Layer.provide(testControl))
+
+    const receipt = await Effect.runPromise(
+      invoke(["--json", "run", runId, "--resume"]).pipe(
+        Effect.timeout("5 seconds"),
+        Effect.provide(ExecutorOwnership.layer(true)),
+        Effect.provide(doubleParkControl),
+        Effect.provide(scenarioServices),
+        Effect.provide(NodeServices.layer)
+      )
+    )
+
+    expect(receipt.value).toMatchObject({ _tag: "Accepted", runId })
+    // The settlement wait must scope past the committed resume event so the
+    // replayed first park cannot satisfy it.
+    expect(watched).toContainEqual({ runId, follow: false })
+    expect(watched).toContainEqual({ runId, afterSequence: 2 })
   })
 
   it("runs plan, approval, launch, and finite logs through an authenticated remote server", async () => {

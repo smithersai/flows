@@ -82,31 +82,47 @@ const render = (value: unknown) =>
 /**
  * A local CLI owns the executor layer. Keep that scope alive after accepting
  * a run so its driver is not interrupted as soon as the receipt is printed.
- * A first run may legitimately park for approval or stay `pending` when the
- * executor declines the launch; a resume must instead wait for its next
- * terminal settlement.
+ * A settlement is any event that leaves this process nothing to drive: a park
+ * for approval, a `pending` launch the executor declined, or a terminal
+ * status.
  */
+const settled = (kind: string): boolean =>
+  kind === "control.run.waiting-approval" ||
+  kind === "control.run.pending" ||
+  kind === "control.run.completed" ||
+  kind === "control.run.failed" ||
+  kind === "control.run.cancelled"
+
 const awaitRun = (
   control: ControlService.Service,
   runId: string,
-  resumable: boolean
+  afterSequence: number | undefined
 ): Effect.Effect<void, never> =>
-  control.watch({ runId }).pipe(
-    Stream.filter((event) =>
-      resumable
-        ? event.kind === "control.run.completed" || event.kind === "control.run.failed" ||
-          event.kind === "control.run.cancelled"
-        : event.kind === "control.run.waiting-approval" ||
-          event.kind === "control.run.pending" ||
-          event.kind === "control.run.completed" ||
-          event.kind === "control.run.failed" ||
-          event.kind === "control.run.cancelled"
-    ),
+  control.watch(afterSequence === undefined ? { runId } : { runId, afterSequence }).pipe(
+    Stream.filter((event) => settled(event.kind)),
     Stream.take(1),
     Stream.runDrain,
     // A transport failure still lets the process close normally; remote CLI
     // ownership belongs to the server, and the receipt was already durable.
     Effect.catchCause(() => Effect.void)
+  )
+
+/**
+ * `watch` replays committed history before following, so a resumed run's
+ * earlier park would satisfy the settlement wait immediately. The
+ * `control.run.resume` event this resume just committed marks the resume
+ * point; waiting only on events after its sequence keeps the wait live for a
+ * second park without matching the first.
+ */
+const resumePoint = (
+  control: ControlService.Service,
+  runId: string
+): Effect.Effect<number | undefined, never> =>
+  control.watch({ runId, follow: false }).pipe(
+    Stream.filter((event) => event.kind === "control.run.resume"),
+    Stream.runCollect,
+    Effect.map((events) => events.length === 0 ? undefined : Math.max(...events.map((event) => event.sequence))),
+    Effect.catchCause(() => Effect.succeed(undefined))
   )
 
 const awaitOwnedRun = (
@@ -116,9 +132,9 @@ const awaitOwnedRun = (
 ): Effect.Effect<void, never> =>
   Effect.gen(function*() {
     const ownsExecutor = yield* ExecutorOwnership.ExecutorOwnership
-    if (ownsExecutor && receipt._tag === "Accepted" && receipt.runId !== undefined) {
-      yield* awaitRun(control, receipt.runId, resumable)
-    }
+    if (!ownsExecutor || receipt._tag !== "Accepted" || receipt.runId === undefined) return
+    const afterSequence = resumable ? yield* resumePoint(control, receipt.runId) : undefined
+    yield* awaitRun(control, receipt.runId, afterSequence)
   })
 
 const plan = Command.make("plan", common, (config) =>
