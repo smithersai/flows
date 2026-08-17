@@ -36,7 +36,7 @@ import * as Registry from "@smthrs/registry/Registry"
 import type * as Fixture from "@smthrs/testing/Fixture"
 import type * as ModelLike from "@smthrs/testing/ModelLike"
 import * as RecordedModel from "@smthrs/testing/RecordedModel"
-import { Deferred, Duration, Effect, Layer, Option, Schema, Stream } from "effect"
+import { Cause, Deferred, Duration, Effect, Layer, Option, Schema, Stream } from "effect"
 import { mkdtempSync } from "node:fs"
 import { rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -176,6 +176,8 @@ interface StackOptions {
   readonly resolveSeat: HarnessExecutor.Options["resolveSeat"]
   readonly notes: Array<string>
   readonly gate: Deferred.Deferred<void>
+  /** Completes when the test tool enters its gate, before its side effect. */
+  readonly toolStarted?: Deferred.Deferred<void> | undefined
   /** Omit the host flow sources entirely, exercising the executor's default. */
   readonly bare?: boolean | undefined
 }
@@ -197,12 +199,12 @@ const stack = (options: StackOptions) => {
     FlowBinding.make({
       flow: noteFlow,
       handler: (input) =>
-        Effect.andThen(
-          Deferred.await(options.gate),
-          Effect.sync(() => {
+        (options.toolStarted === undefined ? Effect.void : Deferred.succeed(options.toolStarted, void 0)).pipe(
+          Effect.andThen(Deferred.await(options.gate)),
+          Effect.andThen(Effect.sync(() => {
             options.notes.push(input.text)
             return { saved: options.notes.length }
-          })
+          }))
         )
     })
   ])
@@ -337,6 +339,51 @@ const textOf = (request: ModelRequest.ModelRequest): string =>
     .join("\n")
 
 describe("HarnessExecutor", () => {
+  it("waits through an accepted control row before driving the engine", async () => {
+    let reads = 0
+    await Effect.runPromise(
+      HarnessExecutor.waitForRunning(
+        () => Effect.sync(() => (reads++ === 0 ? "accepted" : "running")),
+        "run-wait",
+        1
+      )
+    )
+    expect(reads).toBe(2)
+  })
+
+  it("waits for a parked execution publication before resuming it", async () => {
+    let polls = 0
+    const parked = await Effect.runPromise(
+      HarnessExecutor.waitForParked(
+        () => Effect.sync(() => (++polls === 1 ? Option.none() : Option.some({ _tag: "Suspended" }))),
+        1
+      )
+    )
+    expect(parked).toBe(true)
+    expect(polls).toBe(2)
+    await expect(Effect.runPromise(HarnessExecutor.waitForParked(() => Effect.succeed(Option.none()), 0)))
+      .resolves.toBe(false)
+  })
+
+  it("keeps cancellation and registration failures contained at the executor boundary", async () => {
+    await expect(Effect.runPromise(HarnessExecutor.preserveDriverInterrupt(() => Effect.fail("interrupted"))))
+      .resolves.toBeUndefined()
+    const failure = await Effect.runPromise(
+      Effect.flip(HarnessExecutor.registerDriver(() => Effect.fail("missing run"), "run-registration"))
+    )
+    expect(failure).toMatchObject({
+      runId: "run-registration",
+      message: "The run driver could not be registered for cancellation",
+      cause: "missing run"
+    })
+    await expect(Effect.runPromise(HarnessExecutor.settleDriverFailure(Cause.fail("engine failed"), "run-failed")))
+      .resolves.toBeUndefined()
+    const interrupted = await Effect.runPromiseExit(
+      HarnessExecutor.settleDriverFailure(Cause.interrupt(1), "run-interrupted")
+    )
+    expect(interrupted._tag).toBe("Failure")
+  })
+
   it("drives a 2-frame run through control → executor → engine, then replays it from the recorded fixture", {
     timeout: 30_000
   }, async () => {
@@ -456,6 +503,7 @@ describe("HarnessExecutor", () => {
     const status = await Effect.runPromise(
       Effect.gen(function*() {
         const gate = yield* Deferred.make<void>()
+        const toolStarted = yield* Deferred.make<void>()
         return yield* Effect.gen(function*() {
           const control = yield* Control.Control
           const runtime = yield* ControlRuntime.ControlRuntime
@@ -471,13 +519,17 @@ describe("HarnessExecutor", () => {
           if (receipt._tag !== "Accepted" || receipt.runId === undefined) {
             return yield* Effect.die("expected an accepted run")
           }
-          // The first cell is now waiting on `note/save`'s gate. Cancelling
-          // must reach the durable engine, not merely change the control row.
+          // Wait until the first cell has entered `note/save`'s gate. This
+          // makes the driver interruption deterministic rather than racing
+          // the executor's asynchronous launch.
+          yield* Deferred.await(toolStarted)
+          // Cancelling must reach the durable engine, not merely change the
+          // control row.
           yield* control.cancel({ runId: receipt.runId, idempotencyKey: "cancel:blocked-tool" })
           yield* Deferred.succeed(gate, void 0)
           yield* Effect.sleep(Duration.millis(20))
           return (yield* runtime.getRun(receipt.runId)).status
-        }).pipe(Effect.provide(stack({ resolveSeat: seat(capturing([])), notes, gate })))
+        }).pipe(Effect.provide(stack({ resolveSeat: seat(capturing([])), notes, gate, toolStarted })))
       }).pipe(Effect.scoped) as Effect.Effect<string>
     )
 

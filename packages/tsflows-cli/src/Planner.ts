@@ -380,12 +380,35 @@ type SourceMeasurement =
   | { readonly _tag: "failed"; readonly cause: unknown }
 
 /**
- * Resolves and digests one candidate under the same confinement the serial
- * walk used: the file is re-resolved with symlinks refused, its own size cap
- * is enforced before any byte is read, and a file that vanished between the
- * listing and the read reports an absent entry rather than throwing here.
+ * Resolves one candidate under the same confinement the serial walk used.
+ * Its own size cap is enforced before any byte is read, and a file that
+ * vanished between the listing and the inspection reports an absent entry
+ * rather than throwing here.
  */
-const measureSource = async (
+const inspectSource = async (
+  candidate: SourceCandidate,
+  root: string,
+  signal: AbortSignal | undefined
+): Promise<Omit<Extract<SourceMeasurement, { _tag: "measured" }>, "digest">> => {
+  signal?.throwIfAborted()
+  const resolved = await SafeFs.resolveFile(candidate.absolute, {
+    root,
+    signal,
+    symlinks: "reject",
+    what: "implementation source file"
+  })
+  if (resolved === undefined) return { _tag: "measured", entry: undefined, size: 0 }
+  const size = Number(resolved.stats.size)
+  if (!Number.isSafeInteger(size) || size < 0 || size > maximumSourceFileBytes) {
+    throw new Error(
+      `implementation source file is larger than ${maximumSourceFileBytes} bytes: ${candidate.absolute}`
+    )
+  }
+  return { _tag: "measured", entry: resolved, size }
+}
+
+/** Digests a candidate whose confined size has already been admitted. */
+const digestSource = async (
   candidate: SourceCandidate,
   root: string,
   signal: AbortSignal | undefined
@@ -417,8 +440,8 @@ const measureSource = async (
 }
 
 /**
- * Measures every candidate with a bounded pool, keeping results indexed by
- * walk position.
+ * Inspects or digests every candidate with a bounded pool, keeping results
+ * indexed by walk position.
  *
  * A worker never rejects: it records the failure at its own index instead, so
  * one file's error cannot pre-empt an earlier file's error and cannot leave a
@@ -431,7 +454,8 @@ const measureSource = async (
 const measureSources = async (
   candidates: ReadonlyArray<SourceCandidate>,
   root: string,
-  signal: AbortSignal | undefined
+  signal: AbortSignal | undefined,
+  phase: "inspect" | "digest"
 ): Promise<ReadonlyArray<SourceMeasurement>> => {
   const measured = new Array<SourceMeasurement>(candidates.length)
   let next = 0
@@ -440,7 +464,10 @@ const measureSources = async (
       const index = next
       next += 1
       try {
-        measured[index] = await measureSource(candidates[index]!, root, signal)
+        const candidate = candidates[index]!
+        measured[index] = phase === "inspect"
+          ? { ...(await inspectSource(candidate, root, signal)), digest: undefined }
+          : await digestSource(candidate, root, signal)
       } catch (cause) {
         measured[index] = { _tag: "failed", cause }
       }
@@ -546,16 +573,15 @@ const listSources = async (
     }
   }
   await visit(root, "", rootEntry, 0)
-  // The walk above only reads directories; the per-file work is the expensive
-  // half and runs in a bounded pool. Replaying its outcomes in walk order keeps
-  // the byte accounting and the reported error exactly what a one-file-at-a-time
-  // walk produced.
-  const measured = await measureSources(candidates, root, signal)
-  const found: Array<SourceDigest> = []
+  // First inspect every file in the bounded pool. This is deliberately a
+  // metadata-only pass: it establishes the root's cumulative byte limit
+  // before the separate bounded digest pool can read any source bytes.
+  const inspected = await measureSources(candidates, root, signal, "inspect")
+  const admitted: Array<SourceCandidate> = []
   for (const [index, candidate] of candidates.entries()) {
-    const outcome = measured[index]!
+    const outcome = inspected[index]!
     if (outcome._tag === "failed") throw outcome.cause
-    if (outcome.entry === undefined || outcome.digest === undefined) {
+    if (outcome.entry === undefined) {
       throw new Error(
         `implementation source file changed while it was being fingerprinted: ${candidate.absolute}`
       )
@@ -563,6 +589,18 @@ const listSources = async (
     bytesSeen += outcome.size
     if (!Number.isSafeInteger(bytesSeen) || bytesSeen > maximumSourceRootBytes) {
       throw new Error(`implementation source root exceeds ${maximumSourceRootBytes} source bytes: ${root}`)
+    }
+    admitted.push(candidate)
+  }
+  const measured = await measureSources(admitted, root, signal, "digest")
+  const found: Array<SourceDigest> = []
+  for (const [index, candidate] of admitted.entries()) {
+    const outcome = measured[index]!
+    if (outcome._tag === "failed") throw outcome.cause
+    if (outcome.entry === undefined || outcome.digest === undefined) {
+      throw new Error(
+        `implementation source file changed while it was being fingerprinted: ${candidate.absolute}`
+      )
     }
     found.push({ path: candidate.path, digest: outcome.digest, size: outcome.size })
   }

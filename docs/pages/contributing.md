@@ -14,11 +14,12 @@ Node.js 22.19 or later. `pnpm install` at the root installs every workspace.
 | cycles | `pnpm run circular` | no import cycle inside or across packages |
 | entry contract | `pnpm run browser` | ten entry points bundle for the browser and the Node-only ones still do not |
 | examples | `pnpm run test:examples` | every documented example runs against the real packages |
+| launch checklist | `pnpm run checklist` | runs the UI workspace's operator launch checklist |
 | docs | `pnpm exec vocs build` | the site builds and no page links to a dead route |
 
 `pnpm exec vocs dev` serves the site locally.
 
-All seven run before a pull request. Coverage thresholds are absolute, so a new branch in `src` without a new case fails the gate rather than passing quietly.
+The first seven run before a pull request. `pnpm run checklist` is the root alias for the UI workspace's operator-facing launch check. Coverage thresholds are absolute, so a new branch in `src` without a new case fails the gate rather than passing quietly.
 
 ## Where code goes
 

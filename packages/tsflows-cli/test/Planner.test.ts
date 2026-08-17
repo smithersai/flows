@@ -13,7 +13,8 @@ import { createHash } from "node:crypto"
 import * as Fs from "node:fs/promises"
 import * as Os from "node:os"
 import * as NodePath from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
+import { SafeFs } from "tsflows-rules"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   encodeKeyMaterial,
   fingerprintSources,
@@ -225,6 +226,26 @@ describe("implementationFingerprint", () => {
     await Fs.truncate(source, maximumSourceFileBytes + 1)
     await expect(fingerprintSources([{ name: "x", directory }]))
       .rejects.toThrow(/implementation source file is larger/)
+  })
+
+  it("rejects a source root over its cumulative ceiling before reading source bytes", async () => {
+    const directory = await scratch()
+    // Sparse files give the inspection pass real, adversarial file metadata
+    // without allocating 512 MiB. The spy makes the proof about reads rather
+    // than timing: no digest may start once the cumulative admission fails.
+    for (let index = 0; index <= 32; index += 1) {
+      const source = NodePath.join(directory, `${String(index).padStart(3, "0")}.ts`)
+      await Fs.writeFile(source, "x", "utf8")
+      await Fs.truncate(source, maximumSourceFileBytes)
+    }
+    const digest = vi.spyOn(SafeFs, "digestFile")
+    try {
+      await expect(fingerprintSources([{ name: "x", directory }]))
+        .rejects.toThrow(/implementation source root exceeds/)
+      expect(digest).not.toHaveBeenCalled()
+    } finally {
+      digest.mockRestore()
+    }
   })
 
   it.skipIf(process.platform === "win32")("does not follow symbolic links in a source tree", async () => {

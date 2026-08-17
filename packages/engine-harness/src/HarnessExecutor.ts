@@ -224,6 +224,91 @@ const agentFlow = Flow.make("engine-harness/agent", {
   body: () => Node.succeed(undefined)
 })
 
+/**
+ * Waits for ControlLive to publish its running transition before a driver
+ * starts the engine. Keeping the bounded retry here makes the publication race
+ * deterministic to exercise without coupling it to a particular scheduler.
+ *
+ * @category helpers
+ * @since 0.1.0
+ */
+export const waitForRunning = (
+  status: (runId: string) => Effect.Effect<RunStatus, unknown>,
+  runId: string,
+  attempts: number
+): Effect.Effect<void, unknown> =>
+  Effect.gen(function*() {
+    if ((yield* status(runId)) === "accepted" && attempts > 0) {
+      yield* Effect.yieldNow
+      return yield* waitForRunning(status, runId, attempts - 1)
+    }
+  })
+
+/**
+ * Polls a durable execution until it is published as parked. A missing poll is
+ * a still-live execution, so retries are bounded before a resume is attempted.
+ *
+ * @category helpers
+ * @since 0.1.0
+ */
+export const waitForParked = (
+  poll: () => Effect.Effect<Option.Option<{ readonly _tag: string }>, unknown>,
+  attempts: number
+): Effect.Effect<boolean, unknown> =>
+  Effect.gen(function*() {
+    const result = yield* poll()
+    if (Option.isNone(result)) {
+      if (attempts <= 0) return false
+      yield* Effect.sleep(Duration.millis(10))
+      return yield* waitForParked(poll, attempts - 1)
+    }
+    return result.value._tag === "Suspended"
+  })
+
+/**
+ * Keeps a control cancellation durable even when its engine interrupt fails.
+ *
+ * @category helpers
+ * @since 0.1.0
+ */
+export const preserveDriverInterrupt = <R>(
+  interrupt: () => Effect.Effect<void, unknown, R>
+): Effect.Effect<void, never, R> => interrupt().pipe(Effect.catchCause(() => Effect.void))
+
+/**
+ * Translates a failed driver registration into the executor's launch error.
+ *
+ * @category helpers
+ * @since 0.1.0
+ */
+export const registerDriver = (
+  register: () => Effect.Effect<void, unknown>,
+  runId: string
+): Effect.Effect<void, LaunchFailed> =>
+  register().pipe(
+    Effect.mapError((cause) =>
+      new LaunchFailed({
+        runId,
+        message: "The run driver could not be registered for cancellation",
+        cause
+      })
+    )
+  )
+
+/**
+ * Re-throws a cancelled driver while logging a non-interrupt engine failure.
+ *
+ * @category helpers
+ * @since 0.1.0
+ */
+export const settleDriverFailure = (cause: Cause.Cause<unknown>, runId: string): Effect.Effect<void> =>
+  Cause.hasInterruptsOnly(cause)
+    ? Effect.interrupt
+    : Effect.annotateLogs(
+      Effect.logError("An accepted agent run could not start on the engine"),
+      { runId, cause: Cause.pretty(cause) }
+    )
+
 /** Everything the executor captures at construction and re-provides per run. */
 type Services =
   | ControlRuntime
@@ -462,25 +547,13 @@ export const make = (
         return tags
       })
 
-    /**
-     * Waits for the control plane's own `running` transition before the
-     * engine starts, so a fast run cannot write its terminal status while
-     * `ControlLive.run` still holds the fence for the `running` write.
-     */
-    const awaitRunning = (runId: string, attempts: number): Effect.Effect<void> =>
-      Effect.gen(function*() {
-        const run = yield* runtime.getRun(runId).pipe(Effect.orDie)
-        /* v8 ignore start -- the wait side runs only when this fiber outruns the running write. */
-        if (run.status === "accepted" && attempts > 0) {
-          yield* Effect.yieldNow
-          return yield* awaitRunning(runId, attempts - 1)
-        }
-        /* v8 ignore stop */
-      })
-
     const driver = (runId: string, planId: string): Effect.Effect<void> =>
       Effect.gen(function*() {
-        yield* awaitRunning(runId, 4000)
+        yield* waitForRunning(
+          (id) => runtime.getRun(id).pipe(Effect.orDie, Effect.map((run) => run.status)),
+          runId,
+          4000
+        )
         yield* engine.execute(agentFlow, {
           executionId: runId,
           payload: { runId, planId },
@@ -488,40 +561,21 @@ export const make = (
         }).pipe(
           // ControlRuntime owns this driver fiber. Turn that cancellation
           // into the engine's durable cancellation before the fiber exits.
-          Effect.onInterrupt(() => engine.interrupt(agentFlow, runId).pipe(Effect.catchCause(() => Effect.void)))
+          Effect.onInterrupt(() => preserveDriverInterrupt(() => engine.interrupt(agentFlow, runId)))
         )
       }).pipe(
-        Effect.catchCause(
-          (cause) =>
-            Cause.hasInterruptsOnly(cause)
-              ? Effect.interrupt
-              : Effect.annotateLogs(
-                Effect.logError("An accepted agent run could not start on the engine"),
-                { runId, cause: Cause.pretty(cause) }
-              )
-        )
+        Effect.catchCause((cause) => settleDriverFailure(cause, runId))
       )
 
-    /**
-     * Polls until the execution is published as parked. `Option.none` is a
-     * run still in flight — a resume can arrive before the park lands — so
-     * the bridge waits, bounded, instead of resuming a live fiber.
-     */
-    const awaitParked = (runId: string, attempts: number): Effect.Effect<boolean> =>
-      Effect.gen(function*() {
-        const polled = yield* engine.poll(agentFlow, runId).pipe(
-          /* v8 ignore next -- reached only for an execution this process never started. */
-          Effect.catchTag("@smthrs/flow-next/FlowExecutionNotFound", () => Effect.succeed(Option.none()))
-        )
-        /* v8 ignore start -- the wait arm is timing-dependent: a resume can outrun the park's publication. */
-        if (Option.isNone(polled)) {
-          if (attempts <= 0) return false
-          yield* Effect.sleep(Duration.millis(10))
-          return yield* awaitParked(runId, attempts - 1)
-        }
-        /* v8 ignore stop */
-        return polled.value._tag === "Suspended"
-      })
+    const awaitParked = (runId: string, attempts: number): Effect.Effect<boolean, unknown> =>
+      waitForParked(
+        () =>
+          engine.poll(agentFlow, runId).pipe(
+            /* v8 ignore next -- reached only for an execution this process never started. */
+            Effect.catchTag("@smthrs/flow-next/FlowExecutionNotFound", () => Effect.succeed(Option.none()))
+          ),
+        attempts
+      )
 
     const resumeExecution = (runId: string): Effect.Effect<void> =>
       Effect.gen(function*() {
@@ -609,14 +663,9 @@ export const make = (
           )
         )
         const fiber = yield* Effect.forkIn(driver(input.run.runId, input.plan.card.planId), scope)
-        yield* runtime.registerFiber(input.run.runId, fiber).pipe(
-          Effect.mapError((cause) =>
-            new LaunchFailed({
-              runId: input.run.runId,
-              message: "The run driver could not be registered for cancellation",
-              cause
-            })
-          )
+        yield* registerDriver(
+          () => runtime.registerFiber(input.run.runId, fiber),
+          input.run.runId
         )
         return "accepted" as const
       })

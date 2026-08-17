@@ -319,12 +319,16 @@ describe("vitest coverage isolation conformance", () => {
     // `deploy:dry` is the same shape: a single-workspace alias for the server
     // app's deploy rehearsal. It is not a gate CI fans out, so it neither adds
     // nor removes enforcement — it is pinned only so the roster stays exact.
+    //
+    // `checklist` similarly enters the UI workspace's launch checklist. It is
+    // an operator-facing release check, not a package test fan-out.
     const root = JSON.parse(readFileSync(join(packagesDir, "..", "package.json"), "utf8")) as {
       readonly scripts?: Record<string, string>
     }
     expect(root.scripts).toEqual({
       browser: "node scripts/browser-check.mjs",
       check: "pnpm --recursive --if-present run check",
+      checklist: "pnpm --filter smithers-ui run checklist",
       circular: "pnpm --recursive --if-present run circular",
       "deploy:dry": "pnpm --filter smithers-server run deploy:dry",
       lint: "pnpm --recursive --if-present run lint",
@@ -383,8 +387,9 @@ describe("vitest coverage isolation conformance", () => {
     expect(packScript).toContain("\"pack\"")
     expect(smokeScript).toContain("\"pnpm\",")
     expect(smokeScript).toContain("\"add\"")
-    expect(smokeScript).toContain("await import('@smthrs/flows-next')")
-    expect(smokeScript).toContain("require('@smthrs/flows-next')")
+    expect(smokeScript).toContain("for (const entry of packManifest)")
+    expect(smokeScript).toContain("await import(${JSON.stringify(entry.name)})")
+    expect(smokeScript).toContain("require(${JSON.stringify(entry.name)})")
     // Validation after publish cannot protect the release that was just
     // exposed. The smoke check and publication live in the same gated job.
     expect(release).not.toMatch(/^\s+smoke:\s*$/m)
@@ -439,6 +444,11 @@ describe("vitest coverage isolation conformance", () => {
       // identities are JSON-shaped, so these two canonicalization error
       // mappers are unreachable. Each ignore is scoped to its one mapper.
       "engine-harness/src/FlowEngineLike.ts": 2,
+      // The executor's remaining hints are narrowly scoped to process-loss and
+      // corrupted-registry fallbacks. They translate engine/journal failures
+      // that the durable integration stack cannot synthesize without breaking
+      // the very invariants it is proving.
+      "engine-harness/src/HarnessExecutor.ts": 12,
       // One `else` arm in recursive enumeration: special entries (symlinks,
       // sockets) are neither materializable leaves nor prunable scaffolding
       // and are intentionally discarded.
