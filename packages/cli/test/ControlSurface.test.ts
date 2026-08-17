@@ -8,6 +8,7 @@ import { HttpServer } from "effect/unstable/http"
 import { describe, expect, it } from "vitest"
 import * as CliError from "../src/CliError.ts"
 import { cli } from "../src/Command.ts"
+import * as ExecutorOwnership from "../src/ExecutorOwnership.ts"
 import * as NodeControl from "../src/NodeControl.ts"
 import * as Output from "../src/Output.ts"
 import { packageVersion } from "../src/Version.ts"
@@ -237,6 +238,27 @@ describe("Control surface", () => {
         return yield* invoke(["--json", ...shared, "run", approval]).pipe(Effect.timeout("1 second"))
       }).pipe(
         Effect.provide(nonTerminalControl),
+        Effect.provide(scenarioServices),
+        Effect.provide(NodeServices.layer)
+      )
+    )
+
+    expect(accepted.value).toMatchObject({ _tag: "Accepted", runId: expect.any(String) })
+  })
+
+  it("renders the receipt when the owned executor declines to execute the run", async () => {
+    const accepted = await Effect.runPromise(
+      Effect.gen(function*() {
+        const planned = yield* invoke(["--json", "plan", "system/test"])
+        const card = planned.value as { readonly approval: unknown }
+        const approval = JSON.stringify(card.approval)
+        yield* invoke(["--json", "approve", approval])
+        // The noop test executor answers `pending`, so the run never reaches
+        // `running` or a terminal status; the owned wait must still settle.
+        return yield* invoke(["--json", "run", approval]).pipe(Effect.timeout("5 seconds"))
+      }).pipe(
+        Effect.provide(ExecutorOwnership.layer(true)),
+        Effect.provide(testControl),
         Effect.provide(scenarioServices),
         Effect.provide(NodeServices.layer)
       )

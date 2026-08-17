@@ -82,8 +82,9 @@ const render = (value: unknown) =>
 /**
  * A local CLI owns the executor layer. Keep that scope alive after accepting
  * a run so its driver is not interrupted as soon as the receipt is printed.
- * A first run may legitimately park for approval; a resume must instead wait
- * for its next terminal settlement.
+ * A first run may legitimately park for approval or stay `pending` when the
+ * executor declines the launch; a resume must instead wait for its next
+ * terminal settlement.
  */
 const awaitRun = (
   control: ControlService.Service,
@@ -96,6 +97,7 @@ const awaitRun = (
         ? event.kind === "control.run.completed" || event.kind === "control.run.failed" ||
           event.kind === "control.run.cancelled"
         : event.kind === "control.run.waiting-approval" ||
+          event.kind === "control.run.pending" ||
           event.kind === "control.run.completed" ||
           event.kind === "control.run.failed" ||
           event.kind === "control.run.cancelled"
