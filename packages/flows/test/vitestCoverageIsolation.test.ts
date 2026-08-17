@@ -315,6 +315,10 @@ describe("vitest coverage isolation conformance", () => {
     // `test:examples` is a named alias for the examples workspace only. The
     // root `test` fan-out already reaches it, so the alias is a documentation
     // entry point rather than a second enforcement path.
+    //
+    // `deploy:dry` is the same shape: a single-workspace alias for the server
+    // app's deploy rehearsal. It is not a gate CI fans out, so it neither adds
+    // nor removes enforcement — it is pinned only so the roster stays exact.
     const root = JSON.parse(readFileSync(join(packagesDir, "..", "package.json"), "utf8")) as {
       readonly scripts?: Record<string, string>
     }
@@ -322,6 +326,7 @@ describe("vitest coverage isolation conformance", () => {
       browser: "node scripts/browser-check.mjs",
       check: "pnpm --recursive --if-present run check",
       circular: "pnpm --recursive --if-present run circular",
+      "deploy:dry": "pnpm --filter smithers-server run deploy:dry",
       lint: "pnpm --recursive --if-present run lint",
       test: "pnpm --recursive --if-present run test",
       "test:examples": "pnpm --filter @smthrs/examples run test"
