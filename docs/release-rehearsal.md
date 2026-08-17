@@ -2,7 +2,8 @@
 
 ## Revalidation: 2026-08-16, lane `c3`
 
-**Commit:** `56382ff12162e864a96646534c70b1c3e8b50b29` before this receipt update.
+**Commit:** `4b6f7a42d22ef4ae9c1fe196569ed726dce6de75`, the reachable rebased
+equivalent of the pre-rebase receipt commit `56382ff12162e864a96646534c70b1c3e8b50b29`.
 **Host:** Node 22.19.0, pnpm 11.21.0. **Published:** nothing.
 
 The committed implementation above was revalidated from this isolated worktree.
@@ -77,31 +78,31 @@ into `/tmp/c3-rehearsal/release-packs`), with the same 23 tarballs both times.
 order the manifest records — a workspace follows every workspace dependency it declares,
 except the one documented `kernel -> platform-browser` cycle.
 
-| # | Package | Version | Tarball | Size |
-|---|---------|---------|---------|------|
-| 1 | `@smthrs/canonical-next` | 0.1.0 | `smthrs-canonical-next-0.1.0.tgz` | 9.5 kB |
-| 2 | `@smthrs/capability-next` | 0.1.0 | `smthrs-capability-next-0.1.0.tgz` | 28.8 kB |
-| 3 | `@smthrs/crypto-next` | 0.1.0 | `smthrs-crypto-next-0.1.0.tgz` | 5.8 kB |
-| 4 | `@smthrs/artifacts-next` | 0.1.0 | `smthrs-artifacts-next-0.1.0.tgz` | 75.8 kB |
-| 5 | `@smthrs/database-next` | 0.1.0 | `smthrs-database-next-0.1.0.tgz` | 48.2 kB |
-| 6 | `@smthrs/jj-next` | 0.1.0 | `smthrs-jj-next-0.1.0.tgz` | 1404.3 kB |
-| 7 | `@smthrs/journal-next` | 0.1.0 | `smthrs-journal-next-0.1.0.tgz` | 142.8 kB |
-| 8 | `@smthrs/keys-next` | 0.1.0 | `smthrs-keys-next-0.1.0.tgz` | 6.1 kB |
-| 9 | `@smthrs/observability-next` | 0.1.0 | `smthrs-observability-next-0.1.0.tgz` | 27.0 kB |
-| 10 | `@smthrs/plan-next` | 0.1.0 | `smthrs-plan-next-0.1.0.tgz` | 177.0 kB |
-| 11 | `@smthrs/flow-next` | 0.1.0 | `smthrs-flow-next-0.1.0.tgz` | 324.5 kB |
-| 12 | `@smthrs/engine-next` | 0.1.0 | `smthrs-engine-next-0.1.0.tgz` | 105.9 kB |
-| 13 | `@smthrs/run-store-next` | 0.1.0 | `smthrs-run-store-next-0.1.0.tgz` | 111.2 kB |
-| 14 | `@smthrs/step-cache-next` | 0.1.0 | `smthrs-step-cache-next-0.1.0.tgz` | 50.9 kB |
-| 15 | `@smthrs/sync-next` | 0.1.0 | `smthrs-sync-next-0.1.0.tgz` | 141.1 kB |
-| 16 | `@smthrs/kernel-next` | 0.1.0 | `smthrs-kernel-next-0.1.0.tgz` | 161.8 kB |
-| 17 | `@smthrs/engine-store-next` | 0.1.0 | `smthrs-engine-store-next-0.1.0.tgz` | 780.7 kB |
-| 18 | `@smthrs/platform-browser-next` | 0.1.0 | `smthrs-platform-browser-next-0.1.0.tgz` | 46.6 kB |
-| 19 | `@smthrs/platform-bun-next` | 0.1.0 | `smthrs-platform-bun-next-0.1.0.tgz` | 8.3 kB |
-| 20 | `@smthrs/platform-node-next` | 0.1.0 | `smthrs-platform-node-next-0.1.0.tgz` | 84.7 kB |
-| 21 | `@smthrs/sandbox-next` | 0.1.0 | `smthrs-sandbox-next-0.1.0.tgz` | 40.1 kB |
-| 22 | `@smthrs/time-travel-next` | 0.1.0 | `smthrs-time-travel-next-0.1.0.tgz` | 213.6 kB |
-| 23 | `@smthrs/flows-next` | 0.1.0 | `smthrs-flows-next-0.1.0.tgz` | 15.0 kB |
+| # | Package | Version | Tarball | Size | Smoke result |
+|---|---------|---------|---------|------|--------------|
+| 1 | `@smthrs/canonical-next` | 0.1.0 | `smthrs-canonical-next-0.1.0.tgz` | 9.5 kB | passed — ESM, CJS, and declarations |
+| 2 | `@smthrs/capability-next` | 0.1.0 | `smthrs-capability-next-0.1.0.tgz` | 28.8 kB | passed — ESM, CJS, and declarations |
+| 3 | `@smthrs/crypto-next` | 0.1.0 | `smthrs-crypto-next-0.1.0.tgz` | 5.8 kB | passed — ESM, CJS, and declarations |
+| 4 | `@smthrs/artifacts-next` | 0.1.0 | `smthrs-artifacts-next-0.1.0.tgz` | 75.8 kB | passed — ESM, CJS, and declarations |
+| 5 | `@smthrs/database-next` | 0.1.0 | `smthrs-database-next-0.1.0.tgz` | 48.2 kB | passed — ESM, CJS, and declarations |
+| 6 | `@smthrs/jj-next` | 0.1.0 | `smthrs-jj-next-0.1.0.tgz` | 1404.3 kB | passed — ESM, CJS, and declarations |
+| 7 | `@smthrs/journal-next` | 0.1.0 | `smthrs-journal-next-0.1.0.tgz` | 142.8 kB | passed — ESM, CJS, and declarations |
+| 8 | `@smthrs/keys-next` | 0.1.0 | `smthrs-keys-next-0.1.0.tgz` | 6.1 kB | passed — ESM, CJS, and declarations |
+| 9 | `@smthrs/observability-next` | 0.1.0 | `smthrs-observability-next-0.1.0.tgz` | 27.0 kB | passed — ESM, CJS, and declarations |
+| 10 | `@smthrs/plan-next` | 0.1.0 | `smthrs-plan-next-0.1.0.tgz` | 177.0 kB | passed — ESM, CJS, and declarations |
+| 11 | `@smthrs/flow-next` | 0.1.0 | `smthrs-flow-next-0.1.0.tgz` | 324.5 kB | passed — ESM, CJS, and declarations |
+| 12 | `@smthrs/engine-next` | 0.1.0 | `smthrs-engine-next-0.1.0.tgz` | 105.9 kB | passed — ESM, CJS, and declarations |
+| 13 | `@smthrs/run-store-next` | 0.1.0 | `smthrs-run-store-next-0.1.0.tgz` | 111.2 kB | passed — ESM, CJS, and declarations |
+| 14 | `@smthrs/step-cache-next` | 0.1.0 | `smthrs-step-cache-next-0.1.0.tgz` | 50.9 kB | passed — ESM, CJS, and declarations |
+| 15 | `@smthrs/sync-next` | 0.1.0 | `smthrs-sync-next-0.1.0.tgz` | 141.1 kB | passed — ESM, CJS, and declarations |
+| 16 | `@smthrs/kernel-next` | 0.1.0 | `smthrs-kernel-next-0.1.0.tgz` | 161.8 kB | passed — ESM, CJS, and declarations |
+| 17 | `@smthrs/engine-store-next` | 0.1.0 | `smthrs-engine-store-next-0.1.0.tgz` | 780.7 kB | passed — ESM, CJS, and declarations |
+| 18 | `@smthrs/platform-browser-next` | 0.1.0 | `smthrs-platform-browser-next-0.1.0.tgz` | 46.6 kB | passed — ESM, CJS, and declarations |
+| 19 | `@smthrs/platform-bun-next` | 0.1.0 | `smthrs-platform-bun-next-0.1.0.tgz` | 8.3 kB | passed — ESM, CJS, and declarations |
+| 20 | `@smthrs/platform-node-next` | 0.1.0 | `smthrs-platform-node-next-0.1.0.tgz` | 84.7 kB | passed — ESM, CJS, and declarations |
+| 21 | `@smthrs/sandbox-next` | 0.1.0 | `smthrs-sandbox-next-0.1.0.tgz` | 40.1 kB | passed — ESM, CJS, and declarations |
+| 22 | `@smthrs/time-travel-next` | 0.1.0 | `smthrs-time-travel-next-0.1.0.tgz` | 213.6 kB | passed — ESM, CJS, and declarations |
+| 23 | `@smthrs/flows-next` | 0.1.0 | `smthrs-flows-next-0.1.0.tgz` | 15.0 kB | passed — ESM, CJS, and declarations |
 
 ## 3. Smoke every tarball
 
@@ -171,7 +172,9 @@ them locally.
 
 Its workflow reader was cross-checked against `yaml@2.9.0`: for `release.yml`, the parsed
 `on`, job `env`, and the full `steps` array are structurally identical to the reference
-parser's output. Both workflow files also parse cleanly under that parser.
+parser's output. It also reads scalar flow sequences such as CI's `branches: [main]` and
+rejects unsupported nested flow collections rather than silently treating them as strings.
+Both workflow files parse cleanly under the reference parser.
 
 ```sh
 node scripts/release-rehearsal.mjs \
@@ -205,7 +208,7 @@ its passing path. The three skipped gates and the jj step are explained below.
 | 14 | `Release rehearsal unit test` | **passed**, 1s |
 | 15 | `Release version coherence` | **passed**, 1s |
 | 16 | `Disaster-recovery script test` | **passed**, 12s |
-| 17 | `Build all workspaces from clean artifacts` | **failed**, 517s — `apps/ui` only, see below |
+| 17 | `Build all workspaces from clean artifacts` | **passed**, 444s — superseding revalidation at `/tmp/flows-c3-release-followup.c82b4Q/transcript.json`; this replaces the earlier 517s `apps/ui` timeout |
 | 18 | `Pack and smoke-test release artifacts` | **passed**, 844s |
 | 19 | `Compute the publish plan` | **passed**, 1s |
 | 20 | `Publish packages in dependency order` | **skipped by its own `if: env.DRY_RUN != 'true'`** |
@@ -226,11 +229,9 @@ A real run would publish these at 0.1.0 on the latest dist-tag:
 … 23 lines, the packed order …
 ```
 
-**The one red step.** `apps/ui`'s vite build died with
-`transport invoke timed out after 60000ms` while loading `apps/ui/vite.config.ts`. That is
-a wall-clock timeout under the machine's load, not a defect: the same command exited 0
-earlier in this same session on this same tree when the machine was quieter, and `apps/ui`
-is outside both the engine release set and this change. Every engine package did build —
+**Superseded build timeout.** An earlier transcript recorded `apps/ui` timing out after
+517s while loading `apps/ui/vite.config.ts`; the full revalidation transcript named in
+the table records the same build passing in 444s. Every engine package did build —
 `pack-release.mjs` refuses to pack a workspace whose `dist/esm`, `dist/cjs`, and `.d.ts`
 outputs are not all present for every source file, and step 18 packed all 23.
 

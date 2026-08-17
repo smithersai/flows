@@ -39,10 +39,14 @@ jobs:
       # Publication is skipped only on a dispatched dry run. A tag push always
       # publishes: `inputs.dryRun` is absent there, so this resolves to false.
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dryRun }}
-      PACK_DIR: ${{ runner.temp }}/release-packs
-      PUBLISH_ORDER: ${{ runner.temp }}/publish-order.txt
     steps:
       - uses: actions/checkout@v4
+      # actionlint models GitHub's per-key expression-context rules, including
+      # the fact that `runner` is available to steps but not a job-level env.
+      - name: Validate GitHub Actions workflows
+        uses: docker://rhysd/actionlint:1.7.11
+        with:
+          args: .github/workflows/ci.yml .github/workflows/release.yml
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v4
         with:
@@ -112,6 +116,8 @@ jobs:
       # Pack from staging manifests whose exports point at built artifacts.
       # Repository manifests retain Effect's source-first export shape.
       - name: Pack and smoke-test release artifacts
+        env:
+          PACK_DIR: ${{ runner.temp }}/release-packs
         run: |
           node scripts/pack-release.mjs "$PACK_DIR"
           node scripts/smoke-release.mjs "$PACK_DIR"
@@ -124,6 +130,9 @@ jobs:
       # The plan is computed on both paths, so a dry run reports the exact set,
       # order, version, and dist-tag a real run would publish.
       - name: Compute the publish plan
+        env:
+          PACK_DIR: ${{ runner.temp }}/release-packs
+          PUBLISH_ORDER: ${{ runner.temp }}/publish-order.txt
         run: |
           release_version="${RELEASE_TAG#v}"
           publish_tag="latest"
@@ -139,6 +148,9 @@ jobs:
           cat "$PUBLISH_ORDER"
       - name: Publish packages in dependency order
         if: env.DRY_RUN != 'true'
+        env:
+          PACK_DIR: ${{ runner.temp }}/release-packs
+          PUBLISH_ORDER: ${{ runner.temp }}/publish-order.txt
         run: |
           while read -r workspace tarball; do
             spec="$workspace@$PUBLISH_VERSION"
@@ -150,6 +162,8 @@ jobs:
           done < "$PUBLISH_ORDER"
       - name: Report the skipped publication
         if: env.DRY_RUN == 'true'
+        env:
+          PUBLISH_ORDER: ${{ runner.temp }}/publish-order.txt
         run: |
           echo "Dry run: every gate, the pack, and the smoke test ran. Nothing was published."
           echo "A real run would publish these at $PUBLISH_VERSION on the $PUBLISH_DIST_TAG dist-tag:"

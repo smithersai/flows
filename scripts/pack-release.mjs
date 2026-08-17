@@ -264,7 +264,7 @@ export const main = async (args) => {
     return
   }
   if (destination === undefined) {
-    throw new Error("usage: node scripts/pack-release.mjs <output-directory> (or --list)")
+    throw new Error("usage: node scripts/pack-release.mjs <output-directory> (or --list or --names)")
   }
   const outputDirectory = resolve(repoRoot, destination)
   await mkdir(outputDirectory, { recursive: true })

@@ -11,6 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Keep this check in lockstep with release.yml: actionlint catches
+      # GitHub-only expression-context errors before either workflow runs.
+      - name: Validate GitHub Actions workflows
+        uses: docker://rhysd/actionlint:1.7.11
+        with:
+          args: .github/workflows/ci.yml .github/workflows/release.yml
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v4
         with:

@@ -84,6 +84,50 @@ const unquote = (text) => {
   return text
 }
 
+/**
+ * Reads the scalar-only flow sequences used by workflow trigger filters.
+ * Nested flow collections are rejected rather than silently treated as a
+ * string, which keeps this small reader fail-closed as workflows evolve.
+ */
+const parseFlowSequence = (text) => {
+  if (!text.startsWith("[") || !text.endsWith("]")) {
+    throw new Error(`invalid flow sequence: ${text}`)
+  }
+  const body = text.slice(1, -1).trim()
+  if (body === "") return []
+  const values = []
+  let quote
+  let start = 0
+  for (let index = 0; index <= body.length; index += 1) {
+    const character = body[index]
+    if (quote !== undefined) {
+      if (character === quote) quote = undefined
+      continue
+    }
+    if (character === "'" || character === "\"") {
+      quote = character
+      continue
+    }
+    if (character === "[" || character === "{") {
+      throw new Error(`nested flow collections are unsupported: ${text}`)
+    }
+    if (character === "," || index === body.length) {
+      const value = body.slice(start, index).trim()
+      if (value === "") throw new Error(`invalid flow sequence: ${text}`)
+      values.push(unquote(value))
+      start = index + 1
+    }
+  }
+  if (quote !== undefined) throw new Error(`unterminated quote in flow sequence: ${text}`)
+  return values
+}
+
+const parseScalar = (text) => {
+  if (text.startsWith("[")) return parseFlowSequence(text)
+  if (text.startsWith("{")) throw new Error(`flow mappings are unsupported: ${text}`)
+  return unquote(text)
+}
+
 const advance = (lines, state) => {
   while (state.index < lines.length && skippable(lines[state.index])) state.index += 1
 }
@@ -153,7 +197,7 @@ const parseMapping = (lines, state, indent) => {
     } else if (value === "") {
       mapping[key] = parseNode(lines, state, indent + 1)
     } else {
-      mapping[key] = unquote(value)
+      mapping[key] = parseScalar(value)
     }
   }
   return mapping
@@ -321,6 +365,7 @@ export const interpolate = (value, contexts) => {
  */
 export const localEquivalents = {
   "actions/checkout": "this checkout is the tree under test",
+  "docker://rhysd/actionlint:1.7.11": "the installed actionlint binary validates workflow syntax",
   "pnpm/action-setup": "pnpm on PATH",
   "actions/setup-node": "the Node and registry pin applied to PATH by --node",
   "taiki-e/install-action": "the tool already installed on PATH"

@@ -73,6 +73,15 @@ test("parseWorkflow reads mappings, sequences, block scalars, and comments", () 
   assert.equal(parsed.jobs.publish.steps[1].run, "echo one  # not a yaml comment\n\necho two\n")
 })
 
+test("parseWorkflow reads scalar flow sequences and rejects unsupported flow collections", () => {
+  const parsed = parseWorkflow("on:\n  push:\n    branches: [main, 'release/*']\n")
+  assert.deepEqual(parsed.on.push.branches, ["main", "release/*"])
+  assert.throws(
+    () => parseWorkflow("on:\n  push:\n    branches: [[main]]\n"),
+    /nested flow collections are unsupported/
+  )
+})
+
 test("stripComment leaves a hash inside quotes alone", () => {
   assert.equal(stripComment("value # trailing"), "value")
   assert.equal(stripComment("\"a # b\" # trailing"), "\"a # b\"")
@@ -119,6 +128,15 @@ test("a dispatched run with dryRun off publishes, and an empty tag input falls b
   assert.equal(env.DRY_RUN, "false")
   contexts.env = env
   assert.equal(condition(step("Publish packages in dependency order").if, contexts), true)
+})
+
+test("runner temporary paths stay at step scope, where GitHub permits the runner context", () => {
+  assert.equal(release.jobs.publish.env.PACK_DIR, undefined)
+  assert.equal(release.jobs.publish.env.PUBLISH_ORDER, undefined)
+  assert.equal(step("Pack and smoke-test release artifacts").env.PACK_DIR, "${{ runner.temp }}/release-packs")
+  assert.equal(step("Compute the publish plan").env.PUBLISH_ORDER, "${{ runner.temp }}/publish-order.txt")
+  assert.equal(step("Publish packages in dependency order").env.PACK_DIR, "${{ runner.temp }}/release-packs")
+  assert.equal(step("Report the skipped publication").env.PUBLISH_ORDER, "${{ runner.temp }}/publish-order.txt")
 })
 
 test("every gate runs on both paths; only publication is conditional", () => {
