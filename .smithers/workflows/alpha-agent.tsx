@@ -80,7 +80,10 @@ const { Workflow, smithers, outputs } = createSmithers({
 // excluded (token rejected 401); codex-1 is the live Codex account.
 // ---------------------------------------------------------------------------
 const HOME = homedir()
-const CLAUDE_ACCOUNTS = ["claude-2", "claude-3", "claude-4", "claude-5", "claude-6", "claude-7"] as const
+// claude-1 (weekly 100%), claude-2 (org_level_disabled) and claude-5
+// (out_of_credits) are quota-dead as of 2026-08-16T21:00Z and were removed:
+// a dead rung costs a whole retry before the chain advances.
+const CLAUDE_ACCOUNTS = ["claude-3", "claude-4", "claude-6", "claude-7"] as const
 
 function shuffled<T>(items: readonly T[]): T[] {
   const arr = [...items]
@@ -113,11 +116,27 @@ const codexFull = (model: string, effort: string): CodexAgent =>
     id: "smithers-account:codex-1",
   })
 
-const implPool = () => [codexFull("gpt-5.6-sol", "xhigh"), ...claudePool("claude-fable-5")]
-const reviewPool = () => [codexFull("gpt-5.6-sol", "xhigh"), ...claudePool("claude-fable-5")]
-const landPool = () => [codexFull("gpt-5.6-terra", "medium"), ...claudePool("claude-sonnet-5")]
-const opusPool = () => [...claudePool("claude-opus-5"), new ClaudeCodeAgent({ model: "claude-opus-5" })]
-const fablePool = () => [...claudePool("claude-fable-5"), new ClaudeCodeAgent({ model: "claude-fable-5" })]
+// codex-1 (pro, 0% weekly) is the only account with real headroom, so every
+// pool leads with several distinct codex seats before falling back to the
+// surviving Claude subscriptions and an ambient-auth opus tail.
+const codexSeats = (lead: string, leadEffort: string) => [
+  codexFull(lead, leadEffort),
+  codexFull("gpt-5.6-terra", "medium"),
+  codexFull("gpt-5.6-luna", "medium"),
+]
+const implPool = () => [...codexSeats("gpt-5.6-sol", "high"), ...claudePool("claude-fable-5"), new ClaudeCodeAgent({ model: "claude-opus-5" })]
+const reviewPool = () => [...codexSeats("gpt-5.6-sol", "xhigh"), ...claudePool("claude-fable-5"), new ClaudeCodeAgent({ model: "claude-opus-5" })]
+const landPool = () => [...codexSeats("gpt-5.6-terra", "medium"), ...claudePool("claude-sonnet-5"), new ClaudeCodeAgent({ model: "claude-opus-5" })]
+const opusPool = () => [
+  ...claudePool("claude-opus-5"),
+  new ClaudeCodeAgent({ model: "claude-opus-5" }),
+  ...codexSeats("gpt-5.6-sol", "high"),
+]
+const fablePool = () => [
+  ...claudePool("claude-fable-5"),
+  new ClaudeCodeAgent({ model: "claude-fable-5" }),
+  ...codexSeats("gpt-5.6-sol", "xhigh"),
+]
 
 // ---------------------------------------------------------------------------
 // Shared context
@@ -721,9 +740,9 @@ Landed work remains on main (fix-forward track). Please direct the next step. Re
                     id={`${lane.key}Impl`}
                     agent={laneAgents[lane.key].impl}
                     output={outputs.alphaImpl}
-                    retries={2}
+                    retries={8}
                     timeoutMs={lane.implMinutes * 60_000}
-                    heartbeatTimeoutMs={20 * 60_000}
+                    heartbeatTimeoutMs={40 * 60_000}
                   >
                     {implPrompt(lane)}
                   </Task>
@@ -731,7 +750,7 @@ Landed work remains on main (fix-forward track). Please direct the next step. Re
                     id={`${lane.key}Review`}
                     agent={laneAgents[lane.key].review}
                     output={outputs.alphaReview}
-                    retries={2}
+                    retries={8}
                     timeoutMs={60 * 60_000}
                     heartbeatTimeoutMs={20 * 60_000}
                   >
@@ -746,7 +765,7 @@ Landed work remains on main (fix-forward track). Please direct the next step. Re
                 id="evalsAuthor"
                 agent={evalsAgents.impl}
                 output={outputs.alphaEvals}
-                retries={2}
+                retries={8}
                 timeoutMs={120 * 60_000}
                 heartbeatTimeoutMs={20 * 60_000}
               >
@@ -763,7 +782,7 @@ Landed work remains on main (fix-forward track). Please direct the next step. Re
                 id={`${lane.key}Land`}
                 agent={laneAgents[lane.key].land}
                 output={outputs.alphaLand}
-                retries={2}
+                retries={8}
                 timeoutMs={75 * 60_000}
                 heartbeatTimeoutMs={15 * 60_000}
               >
@@ -775,7 +794,7 @@ Landed work remains on main (fix-forward track). Please direct the next step. Re
                 id="evalsLand"
                 agent={evalsAgents.land}
                 output={outputs.alphaLand}
-                retries={2}
+                retries={8}
                 timeoutMs={60 * 60_000}
                 heartbeatTimeoutMs={15 * 60_000}
               >
@@ -795,7 +814,7 @@ Landed work remains on main (fix-forward track). Please direct the next step. Re
                     id={`${k}PolishReview`}
                     agent={agentsFor.polishReview}
                     output={outputs.alphaPolish}
-                    retries={2}
+                    retries={8}
                     timeoutMs={45 * 60_000}
                     heartbeatTimeoutMs={15 * 60_000}
                   >
@@ -806,9 +825,9 @@ Landed work remains on main (fix-forward track). Please direct the next step. Re
                       id={`${k}PolishFix`}
                       agent={agentsFor.polishFix}
                       output={outputs.alphaFix}
-                      retries={2}
+                      retries={8}
                       timeoutMs={90 * 60_000}
-                      heartbeatTimeoutMs={15 * 60_000}
+                      heartbeatTimeoutMs={30 * 60_000}
                     >
                       {polishFixPrompt(k, title)}
                     </Task>
@@ -828,9 +847,9 @@ Landed work remains on main (fix-forward track). Please direct the next step. Re
                   id="panelRemediate"
                   agent={panelAgents.remediate}
                   output={outputs.alphaLand}
-                  retries={2}
+                  retries={8}
                   timeoutMs={120 * 60_000}
-                  heartbeatTimeoutMs={20 * 60_000}
+                  heartbeatTimeoutMs={40 * 60_000}
                 >
                   {remediatePrompt()}
                 </Task>
@@ -842,7 +861,7 @@ Landed work remains on main (fix-forward track). Please direct the next step. Re
                   id="panelCodex"
                   agent={panelAgents.codex}
                   output={outputs.alphaPanel}
-                  retries={2}
+                  retries={8}
                   timeoutMs={90 * 60_000}
                   heartbeatTimeoutMs={20 * 60_000}
                 >
@@ -854,7 +873,7 @@ Landed work remains on main (fix-forward track). Please direct the next step. Re
                   id="panelFable"
                   agent={panelAgents.fable}
                   output={outputs.alphaPanel}
-                  retries={2}
+                  retries={8}
                   timeoutMs={90 * 60_000}
                   heartbeatTimeoutMs={20 * 60_000}
                 >
@@ -872,7 +891,7 @@ Landed work remains on main (fix-forward track). Please direct the next step. Re
               id="humanPrep"
               agent={panelAgents.prep}
               output={outputs.alphaPrep}
-              retries={2}
+              retries={8}
               timeoutMs={45 * 60_000}
               heartbeatTimeoutMs={15 * 60_000}
             >
