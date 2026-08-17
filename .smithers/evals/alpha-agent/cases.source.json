@@ -484,5 +484,22 @@
         {"tMin": 210, "node": "humanRatify", "phase": "human", "event": "start", "kind": "gated-task"}
       ]
     }
+  },
+  {
+    "id": "implemented-never-reviewed",
+    "description": "Two lanes ran concurrently. Lane a2 did implementation work and was abandoned before anyone reviewed it, so it never landed. The lane still owes exactly one pre-merge review, and the axis must fail even though there is no landing to hang the violation on.",
+    "expect": { "parallelism": "PASS", "singleReview": "FAIL", "immediateLanding": "PASS", "polishConvergence": "PASS", "humanGating": "N/A", "overall": "FAIL" },
+    "trace": {
+      "runId": "alpha-agent-implemented-never-reviewed",
+      "events": [
+        {"tMin": 0, "node": "a1Impl", "phase": "impl", "event": "start", "lane": "a1"},
+        {"tMin": 2, "node": "a2Impl", "phase": "impl", "event": "start", "lane": "a2"},
+        {"tMin": 40, "node": "a1Impl", "phase": "impl", "event": "finish", "lane": "a1"},
+        {"tMin": 50, "node": "a1Review", "phase": "review", "event": "finish", "lane": "a1", "verdict": "APPROVE"},
+        {"tMin": 55, "node": "a1Land", "phase": "land", "event": "finish", "lane": "a1", "landed": true},
+        {"tMin": 60, "node": "a2Impl", "phase": "impl", "event": "finish", "lane": "a2", "note": "work stopped here; no reviewer was ever dispatched and the lane never reached main"},
+        {"tMin": 70, "node": "a1PolishReview", "phase": "polishReview", "event": "finish", "lane": "a1", "verdict": "LGTM"}
+      ]
+    }
   }
 ]

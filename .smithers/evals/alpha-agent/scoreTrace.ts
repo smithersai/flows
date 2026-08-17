@@ -132,6 +132,15 @@ function laneKeys(events: readonly TraceEvent[]): string[] {
   return [...keys].sort()
 }
 
+/** Lanes that ran implementation work, whether or not they ever reached review. */
+function implLanes(events: readonly TraceEvent[]): Set<string> {
+  const keys = new Set<string>()
+  for (const e of events) {
+    if (e.lane && e.phase === "impl") keys.add(e.lane)
+  }
+  return keys
+}
+
 /** Closed [start, finish] implementation intervals, one per lane. */
 function implIntervals(events: readonly TraceEvent[]): { lane: string; start: number; end: number }[] {
   const intervals: { lane: string; start: number; end: number }[] = []
@@ -182,6 +191,7 @@ function landOf(events: readonly TraceEvent[], lane: string): TraceEvent | undef
 function checkSingleReview(events: readonly TraceEvent[], violations: string[]): Verdict {
   const lanes = laneKeys(events)
   if (lanes.length === 0) return "N/A"
+  const implemented = implLanes(events)
   const before = violations.length
   let evidence = false
   for (const lane of lanes) {
@@ -190,7 +200,20 @@ function checkSingleReview(events: readonly TraceEvent[], violations: string[]):
       .sort(byTime)
     const land = landOf(events, lane)
     if (reviews.length === 0) {
-      if (land) violations.push(`singleReview: lane ${lane} landed at t=${land.tMin}min with no pre-merge review`)
+      if (land) {
+        violations.push(`singleReview: lane ${lane} landed at t=${land.tMin}min with no pre-merge review`)
+      } else if (implemented.has(lane)) {
+        // The debt is owed by the lane, not by the landing. A lane that did
+        // implementation work and was abandoned before anyone read it still
+        // consumed a review slot it never used, so the axis is decided here
+        // rather than left silent because no landing exists to hang it on.
+        const started = events
+          .filter((e) => e.lane === lane && e.phase === "impl")
+          .sort(byTime)[0]
+        violations.push(
+          `singleReview: lane ${lane} ran implementation work from t=${started.tMin}min but never finished a pre-merge review; every implementation lane owes exactly one`,
+        )
+      }
       continue
     }
     evidence = true
@@ -406,6 +429,9 @@ export function scoreTrace(payload: EvalPayload): TraceScore {
     events: events.length,
     lanes: laneKeys(events),
     maxConcurrentImpl: maxConcurrent(intervals),
+    // Recorded separately from `landed` so an implementation lane that was
+    // abandoned before review is visible as a fact, not only as a violation.
+    implemented: [...implLanes(events)].sort(),
     landed: laneKeys(events).filter((lane) => landOf(events, lane) !== undefined),
     // Round-qualified, so a stale verdict carried over from a superseded round
     // is visible in the recorded facts rather than hidden behind a flat list.
@@ -439,6 +465,14 @@ export function unscorable(caseId: string, error: string): TraceScore {
     humanGating: "N/A",
     overall: "N/A",
     violations: error,
-    stats: JSON.stringify({ events: 0, lanes: [], maxConcurrentImpl: 0, landed: [], panelVerdicts: [], humanTasks: [] }),
+    stats: JSON.stringify({
+      events: 0,
+      lanes: [],
+      maxConcurrentImpl: 0,
+      implemented: [],
+      landed: [],
+      panelVerdicts: [],
+      humanTasks: [],
+    }),
   }
 }

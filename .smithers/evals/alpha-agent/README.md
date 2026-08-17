@@ -24,7 +24,11 @@ smithers eval .smithers/workflows/alpha-agent-eval-judge.tsx \
 ```
 
 The command exits non-zero when a case fails, `5` when every red is an
-environment fault. `baseline-report.md` records the last committed baseline.
+environment fault. `baseline-report.md` records the last committed baseline and
+the isolated run store the baseline was produced in — run the suite from a
+scratch workspace outside the checkout when the shared store is in use by a live
+run, because the engine anchors `smithers.db` on the nearest ancestor holding a
+`.smithers/` directory.
 
 ## What a case is
 
@@ -104,7 +108,9 @@ as a disagreement.
   starts) do not count as overlapping.
 * **singleReview** — per lane, exactly one `review` finish before its landing.
   Zero reviews before a landing, a second pre-merge pass, and a `review` after
-  landing are all violations.
+  landing are all violations. The debt is owed by the lane, not by the landing:
+  a lane that ran `impl` work and was abandoned before anyone reviewed it fails
+  the axis too, even though it never reached main.
 * **immediateLanding** — every reviewed lane must land, at or after the moment
   it cleared review and within 30 minutes of it (`thresholds.maxLandGapMin`
   overrides). A larger gap is batching by definition; a landing that *precedes*
@@ -145,6 +151,7 @@ stale carry-over is visible in the recorded facts.
 | `partial-panel-rerun` | `humanGating` (fresh verdict plus a stale one from the failed round) |
 | `pre-land-polish-lgtm` | `polishConvergence` (the LGTM predates the landing) |
 | `landing-precedes-review` | `immediateLanding` + `singleReview` (landed before its review) |
+| `implemented-never-reviewed` | `singleReview` (a lane implemented, then abandoned before review) |
 | `escalation-then-clean-panel` | none — escalation then a passing second panel |
 | `two-lane-partial-overlap` | none — two overlapping lanes, gating undecided |
 | `unparsable-payload` | none — degrades to `N/A`, no model call |
@@ -153,11 +160,13 @@ Every axis has at least one failing case and the corpus holds three clean runs,
 so a checker that always answers `PASS` (or always `FAIL`) fails the suite. The
 test asserts that coverage property directly.
 
-`partial-panel-rerun`, `pre-land-polish-lgtm`, and `landing-precedes-review` are
-the near-miss cases: each is one field away from a clean run and each scored
-`PASS` on the checker before the round, post-land, and ordering rules landed.
-They omit `agreement` — the distinction they turn on is ordering, not shape, so
-the cheap judge is not held to it.
+`partial-panel-rerun`, `pre-land-polish-lgtm`, `landing-precedes-review`, and
+`implemented-never-reviewed` are the near-miss cases: each is one field away
+from a clean run and each scored `PASS` on the checker before the round,
+post-land, ordering, and abandoned-lane rules landed. They omit `agreement` —
+the distinction they turn on is ordering or omission rather than shape, so the
+cheap judge is not held to it. `baseline-report.md` records where the judge
+actually diverges.
 
 ## Adding a case
 

@@ -310,6 +310,55 @@ describe("deterministic trace scoring", () => {
     expect(staleFix.violations).toContain("ran no fix-forward task")
   })
 
+  test("an implementation lane abandoned before review fails singleReview", () => {
+    // The zero-review check used to hang off the landing, so a lane that was
+    // implemented and then dropped scored silent PASS: one complete lane
+    // supplied the evidence and the unreviewed one was skipped entirely.
+    const complete: TraceEvent[] = [
+      { tMin: 0, node: "a1Impl", phase: "impl", event: "start", lane: "a1" },
+      { tMin: 40, node: "a1Impl", phase: "impl", event: "finish", lane: "a1" },
+      { tMin: 50, node: "a1Review", phase: "review", event: "finish", lane: "a1", verdict: "APPROVE" },
+      { tMin: 55, node: "a1Land", phase: "land", event: "finish", lane: "a1", landed: true },
+      { tMin: 70, node: "a1PolishReview", phase: "polishReview", event: "finish", lane: "a1", verdict: "LGTM" },
+    ]
+    const abandoned = scoreTrace({
+      caseId: "abandoned",
+      trace: {
+        events: [
+          ...complete,
+          { tMin: 2, node: "a2Impl", phase: "impl", event: "start", lane: "a2" },
+          { tMin: 60, node: "a2Impl", phase: "impl", event: "finish", lane: "a2" },
+        ],
+      },
+    })
+    expect(abandoned.singleReview).toBe("FAIL")
+    expect(abandoned.overall).toBe("FAIL")
+    expect(abandoned.violations).toContain("lane a2 ran implementation work from t=2min")
+    expect(JSON.parse(abandoned.stats).implemented).toEqual(["a1", "a2"])
+
+    // A lane that never started implementing owes nothing: an empty lane key
+    // reaching the scorer must not manufacture a violation.
+    expect(
+      scoreTrace({
+        caseId: "review-only",
+        trace: { events: [...complete, { tMin: 20, node: "a2Land", phase: "land", event: "start", lane: "a2" }] },
+      }).singleReview,
+    ).toBe("PASS")
+
+    // The lane still fails when it is the only lane in the trace.
+    const solo = scoreTrace({
+      caseId: "solo",
+      trace: {
+        events: [
+          { tMin: 0, node: "a1Impl", phase: "impl", event: "start", lane: "a1" },
+          { tMin: 40, node: "a1Impl", phase: "impl", event: "finish", lane: "a1" },
+        ],
+      },
+    })
+    expect(solo.singleReview).toBe("FAIL")
+    expect(solo.overall).toBe("FAIL")
+  })
+
   test("a landing that precedes its own review is not an immediate landing", () => {
     const trace = (landAt: number) => ({
       caseId: `land-${landAt}`,
