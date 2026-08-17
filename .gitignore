@@ -74,3 +74,6 @@ packages/*/.smithers/
 .smithers/executions/
 .smithers/claude-mirror-subscriptions.json
 .smithers/logs/
+
+# Wrangler local dev-server state (miniflare sqlite, DO storage, traces)
+.wrangler/
