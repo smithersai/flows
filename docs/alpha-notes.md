@@ -36,6 +36,22 @@ use localhost-only; if an operator opts into a network bind, they must provide
 the bearer-token and TLS/ingress protections described in the
 [control-plane trust posture](guides/control-plane-trust.md).
 
+### Advisory CI lanes
+
+The required release-1 gate is `check + test (coverage gates enforced)`. The
+macOS and Windows Node suites and the `tsflows ci` shadow suite are explicitly
+advisory (`continue-on-error: true`) while they establish a stable green
+streak; their failures do not establish support for those hosts or block the
+Node/Linux private-alpha target.
+
+Two advisory lanes remain red. On Windows, the server seed-allowlist test
+constructs a module path with a doubled drive prefix, and the `jj` package's
+symlink/dirent assertions do not yet match Windows behavior. The `tsflows ci
+(shadow, advisory)` lane also does not yet hold the green streak required to
+replace the recursive pnpm gates. These are tracked CI-portability gaps, not
+waived required checks; promote either lane only after its failures are fixed
+and repeated main-branch runs are green.
+
 ## Not in release 1
 
 Release 1 packs the engine group only. The following subsystems exist in this
