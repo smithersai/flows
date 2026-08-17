@@ -32,7 +32,7 @@ A cache key says an output is a function of some declarations. It cannot see an 
 
 The alternative, admitting on the key, is what most build caches do and it is why they need hermetic sandboxes to be trustworthy.
 
-Cost: nothing is admitted today. The filesystem-backed `StepBoundary.layer` measures declared read sets and materializes declared outputs, but it cannot detect writes outside those sets, so it does not attest whole-tree verification and its evidence is deliberately refused. A jj-diff-backed boundary that could attest is Planned. One near-miss is journalled rather than silent: when every gate passes but read-set verification fails, the run continues on its own result and a `cache-provenance` entry with action `unverified_read_set` explains the missing row.
+Cost: the production sandbox composition admits results only when it has this evidence. `WorkspaceSandbox` supplies whole-tree write evidence, so a sealed action with a hard boundary can enter the shared cache; the production-composition regression test pins that path. The filesystem-backed `StepBoundary.layer` alone still measures declared read sets and materializes declared outputs but cannot detect writes outside those sets, so its evidence is deliberately refused. A jj-diff-backed boundary that could attest is Planned. One near-miss is journalled rather than silent: when every gate passes but read-set verification fails, the run continues on its own result and a `cache-provenance` entry with action `unverified_read_set` explains the missing row.
 
 ## D5. Host access is closed and decorated
 

@@ -2,8 +2,10 @@
 
 ## Revalidation: 2026-08-16, lane `c3`
 
-**Commit:** `4b6f7a42d22ef4ae9c1fe196569ed726dce6de75`, the reachable rebased
-equivalent of the pre-rebase receipt commit `56382ff12162e864a96646534c70b1c3e8b50b29`.
+**Receipt record:** `e711f6664a656fdea98db232a07897f0891326c7`, the reachable
+commit that records this revalidation. The earlier receipt commit
+`56382ff12162e864a96646534c70b1c3e8b50b29` is not a provenance anchor for
+this checkout.
 **Host:** Node 22.19.0, pnpm 11.21.0. **Published:** nothing.
 
 The committed implementation above was revalidated from this isolated worktree.

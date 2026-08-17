@@ -44,13 +44,14 @@ advisory (`continue-on-error: true`) while they establish a stable green
 streak; their failures do not establish support for those hosts or block the
 Node/Linux private-alpha target.
 
-Two advisory lanes remain red. On Windows, the server seed-allowlist test
+One advisory lane remains red. On Windows, the server seed-allowlist test
 constructs a module path with a doubled drive prefix, and the `jj` package's
 symlink/dirent assertions do not yet match Windows behavior. The `tsflows ci
-(shadow, advisory)` lane also does not yet hold the green streak required to
-replace the recursive pnpm gates. These are tracked CI-portability gaps, not
-waived required checks; promote either lane only after its failures are fixed
-and repeated main-branch runs are green.
+(shadow, advisory)` job succeeded at `81d310d7` and on the two preceding
+main-branch commits; it remains advisory while its green streak is established
+before it can replace the recursive pnpm gates. This is a tracked
+CI-portability gap, not a waived required check; promote the Windows lane only
+after its failures are fixed and repeated main-branch runs are green.
 
 ## Not in release 1
 
