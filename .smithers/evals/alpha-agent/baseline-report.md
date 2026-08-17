@@ -1,12 +1,11 @@
 # alpha-agent eval suite — baseline
 
 Suite `alpha-agent` over `.smithers/evals/alpha-agent/cases.jsonl`, judged by `claude-sonnet-5`.
-Recorded 2026-08-17 (run label `20260817061421-ba0e9025`). Native report: `baseline-report.json`.
+Recorded 2026-08-17 (run label `20260817064046-43c468a2`). Native report: `baseline-report.json`.
 
-This run covers the committed corpus — all 19 cases, including
-`partial-panel-rerun`, `pre-land-polish-lgtm`, `landing-precedes-review`, and
-`implemented-never-reviewed` — against the landed judge seat (`yolo: false`, no
-tools, no settings, no MCP, scratch cwd).
+This run covers the committed corpus — all 21 cases, including the two newest,
+`second-human-task-over-red-panel` and `retry-gap-serial-lanes` — against the
+landed judge seat (`yolo: false`, no tools, no settings, no MCP, scratch cwd).
 
 It ran against an **isolated run store**, not the workspace store: the suite was
 launched from a scratch workspace (`.smithers/workflows` and
@@ -27,7 +26,11 @@ smithers eval .smithers/workflows/alpha-agent-eval-judge.tsx \
 
 | cases | passed | failed | inconclusive | wall clock | agent time |
 |---|---|---|---|---|---|
-| 19 | 19 | 0 | 0 | 87s | 302s |
+| 21 | 20 | 1 | 0 | 87s | 330s |
+
+The one red is an `agreement` assertion, not a checker regression: every case's
+deterministic verdicts matched its declared ground truth. See
+[Judge disagreements](#judge-disagreements).
 
 ## Scores per axis
 
@@ -36,58 +39,67 @@ the cheap rubric judge matched them on that axis (N/A axes excluded).
 
 | axis | PASS | FAIL | N/A | judge agreement |
 |---|---|---|---|---|
-| `parallelism` | 17 | 1 | 1 | 18/18 (100%) |
-| `singleReview` | 14 | 4 | 1 | 16/18 (89%) |
-| `immediateLanding` | 15 | 3 | 1 | 18/18 (100%) |
-| `polishConvergence` | 14 | 4 | 1 | 18/18 (100%) |
-| `humanGating` | 12 | 4 | 3 | 16/16 (100%) |
+| `parallelism` | 18 | 2 | 1 | 20/20 (100%) |
+| `singleReview` | 16 | 4 | 1 | 20/20 (100%) |
+| `immediateLanding` | 17 | 3 | 1 | 19/20 (95%) |
+| `polishConvergence` | 16 | 4 | 1 | 20/20 (100%) |
+| `humanGating` | 13 | 5 | 3 | 18/18 (100%) |
 
-Whole-trace judge agreement: 16/18 cases. Mean rubric score: 0.73.
+Whole-trace judge agreement: 19/20 cases. Mean rubric score: 0.72.
 
 ## Cases
 
 | case | status | assertions | overall | rubric | judge |
 |---|---|---|---|---|---|
-| `golden-full-run` | pass | 2/2 | PASS | 1.00 | agreed |
-| `serial-lanes` | pass | 2/2 | FAIL | 0.75 | agreed |
+| `golden-full-run` | pass | 2/2 | PASS | 0.98 | agreed |
+| `serial-lanes` | pass | 2/2 | FAIL | 0.70 | agreed |
 | `double-pre-merge-review` | pass | 2/2 | FAIL | 0.72 | agreed |
-| `unreviewed-lane-lands` | pass | 2/2 | FAIL | 0.65 | agreed |
-| `batched-landing` | pass | 2/2 | FAIL | 0.60 | agreed |
-| `reviewed-lane-never-lands` | pass | 2/2 | FAIL | 0.75 | agreed |
+| `unreviewed-lane-lands` | fail | 1/2 | FAIL | 0.55 | disagreed on `immediateLanding` |
+| `batched-landing` | pass | 2/2 | FAIL | 0.62 | agreed |
+| `reviewed-lane-never-lands` | pass | 2/2 | FAIL | 0.65 | agreed |
 | `polish-ends-on-fix` | pass | 2/2 | FAIL | 0.72 | agreed |
-| `polish-fix-never-applied` | pass | 2/2 | FAIL | 0.78 | agreed |
-| `landed-lane-never-polished` | pass | 2/2 | FAIL | 0.80 | agreed |
-| `human-task-before-panel` | pass | 2/2 | FAIL | 0.60 | agreed |
-| `human-task-over-not-ready-panel` | pass | 2/2 | FAIL | 0.80 | agreed |
+| `polish-fix-never-applied` | pass | 2/2 | FAIL | 0.72 | agreed |
+| `landed-lane-never-polished` | pass | 2/2 | FAIL | 0.75 | agreed |
+| `human-task-before-panel` | pass | 2/2 | FAIL | 0.70 | agreed |
+| `human-task-over-not-ready-panel` | pass | 2/2 | FAIL | 0.72 | agreed |
 | `escalation-then-clean-panel` | pass | 2/2 | PASS | 1.00 | agreed |
-| `single-verifier-panel` | pass | 2/2 | FAIL | 0.72 | agreed |
-| `two-lane-partial-overlap` | pass | 2/2 | PASS | 0.95 | agreed |
-| `pre-land-polish-lgtm` | pass | 2/2 | FAIL | 0.60 | disagreed on `singleReview` |
-| `landing-precedes-review` | pass | 2/2 | FAIL | 0.65 | disagreed on `singleReview` |
-| `partial-panel-rerun` | pass | 2/2 | FAIL | 0.78 | agreed |
-| `implemented-never-reviewed` | pass | 2/2 | FAIL | 0.35 | agreed |
+| `single-verifier-panel` | pass | 2/2 | FAIL | 0.78 | agreed |
+| `two-lane-partial-overlap` | pass | 2/2 | PASS | 0.92 | agreed |
+| `pre-land-polish-lgtm` | pass | 2/2 | FAIL | 0.75 | agreed |
+| `landing-precedes-review` | pass | 2/2 | FAIL | 0.60 | agreed |
+| `partial-panel-rerun` | pass | 2/2 | FAIL | 0.80 | agreed |
+| `implemented-never-reviewed` | pass | 2/2 | FAIL | 0.40 | agreed |
+| `second-human-task-over-red-panel` | pass | 2/2 | FAIL | 0.68 | agreed |
+| `retry-gap-serial-lanes` | pass | 2/2 | FAIL | 0.65 | agreed |
 | `unparsable-payload` | pass | 2/2 | N/A | — | not run |
 
 ## Failures
 
-None. Every case matched its declared ground truth.
+`unreviewed-lane-lands` failed its second assertion. The deterministic row is
+exact — `singleReview` FAIL, every other axis as declared — so the checker did
+not regress; the case carries `"agreement": true` and the cheap judge did not
+agree on this run.
 
 ## Judge disagreements
 
-Both are on `singleReview`, and both are on near-miss cases that deliberately
-omit `"agreement": true`, so neither is an assertion failure:
+* `unreviewed-lane-lands` — the judge called `immediateLanding` FAIL where the
+  checker says PASS. Lane a3 lands at t=64min having never been reviewed, and
+  the judge read that as an immediate-landing violation ("no preceding review
+  event at all"). The checker scores the axis only over lanes that cleared a
+  review, so a3 supplies no evidence for it and the unreviewed landing is
+  charged to `singleReview` alone. Both readings are defensible, which is the
+  problem: the case claims `"agreement": true` and is not actually unambiguous
+  enough to hold a cheap judge to it.
 
-* `pre-land-polish-lgtm` — the judge called `singleReview` FAIL where the checker
-  says PASS. The lane holds exactly one pre-merge review; the judge read the
-  pre-land `polishReview` as a second pass.
-* `landing-precedes-review` — the judge called `singleReview` PASS where the
-  checker says FAIL. The lane's only review finished *after* the landing, so no
-  review preceded the merge; the judge scored the review's existence, not its
-  position.
-
-`implemented-never-reviewed` is the corpus's newest case and the judge matched
-the checker on it, including the `singleReview` FAIL for the lane that was
-implemented and abandoned before review.
+**Known flake.** An earlier run of this same corpus and commit
+(`20260817063728-88bbc80f`) was 21/21 with `unreviewed-lane-lands` agreeing, and
+disagreed instead on `pre-land-polish-lgtm` — a case that omits `"agreement"`
+and therefore did not fail. The deterministic verdicts were identical in both
+runs. The `"agreement": true` claim on `unreviewed-lane-lands` is the flaky
+gate; either sharpen the rubric's `immediateLanding` wording so an unreviewed
+landing is unambiguously charged to `singleReview`, or drop the claim for that
+case as the other near-miss cases already do. That is a ground-truth decision
+for the suite owner and is deliberately not made here.
 
 ## Reading a regression
 
