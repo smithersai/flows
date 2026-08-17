@@ -1,28 +1,38 @@
 # Private alpha notes
 
-These notes describe operational limits that alpha users and hosts must account
-for. They are statements of the shipped posture, not promises of planned
-behavior. They also record things a reader would otherwise have to discover
-from the test tree. This complements [implementation status](architecture/implementation-status.md),
-which covers supported surfaces and deployment posture.
+Flows release 1 is an engine-group private-alpha pilot: a pre-1.0 durable
+execution library for invited operators, not a general-purpose control-plane
+release. These notes are the one-page ledger of its shipped posture and limits,
+including things a reader would otherwise have to discover from the test tree.
+They are statements of current behavior, not promises of planned behavior.
 
-## Supervision
+## Support posture
 
-The agent gateway does **not** automatically recover abandoned runs in the
-private alpha (audit P1-2). `@smthrs/gateway` exposes the `SuperviseRuntime`
-host contract, but its only bundled defaults are `makeNoop` and `layerNoop`:
-the default scan returns no candidates and the default resume performs no
-work. No production gateway layer connects that contract to the durable
-engine's run-driver sweep.
+The shipped pilot target is **Node.js 22 with local SQLite**. Package manifests
+require Node.js `>=22.19.0`, and CI pins Node `22.19.0`. The durable database
+backend is `@effect/sql-sqlite-node`; see the [SQLite operating envelope](pages/sqlite-operating-envelope.md)
+before placing a database file on disk.
 
-Consequently, a run abandoned by its gateway host is not discovered, reclaimed,
-or resumed by the gateway. Operators must recover it explicitly, or use a host
-composition that runs the durable engine driver with the relevant flows
-registered. Do not rely on unattended gateway recovery for alpha workloads.
+**PostgreSQL and PGlite are unsupported.** The write-retry seam recognizes
+some of their transient failures, but release 1 ships neither a client layer
+nor a migration ladder for either backend. This accepted parity gap is tracked
+as [issue #78](architecture/implementation-status.md#planned-or-incomplete-integration).
 
-This limitation can be retired after a production gateway composition wires
-the engine recovery path and a crash-recovery test proves that a stale owner is
-reclaimed and the run makes progress automatically.
+The alpha control server defaults to loopback (`127.0.0.1`). A non-loopback
+bind requires the explicit `--listen`/`listen: true` opt-in and does not add
+TLS, token rotation, or multi-principal authorization. Keep ordinary alpha
+use localhost-only; if an operator opts into a network bind, they must provide
+the bearer-token and TLS/ingress protections described in the
+[control-plane trust posture](guides/control-plane-trust.md).
+
+## Not in release 1
+
+Release 1 packs the engine group only. The following subsystems exist in this
+repository but are not release-1 features: `@smthrs/triggers`,
+`@smthrs/evals`, `@smthrs/gateway`, memory semantic recall, and observability
+OTLP export. The [implementation-status scope table](architecture/implementation-status.md#not-in-release-1)
+explains the status of each; in particular, the published OTLP layer is
+application-wired rather than a shipped default.
 
 ## Known test pins
 
@@ -48,8 +58,8 @@ fixed or written down here.
 
 ### Surviving pins
 
-| Package | Test | Form |
-|---|---|---|
+| Package    | Test                                                                                | Form                                      |
+| ---------- | ----------------------------------------------------------------------------------- | ----------------------------------------- |
 | `database` | `dies with the original lock defect after the fixed open-retry budget is exhausted` | `it.live.runIf(FLOWS_SLOW_TESTS === "1")` |
 
 **`database` — open-retry exhaustion.** The contract this test encodes is
@@ -95,23 +105,41 @@ fixing the defect and flipping the pin, not by deleting the test — each one
 still exists as a live assertion in the same file, and each of those suites is
 green:
 
-| Package | Test | Now at |
-|---|---|---|
-| `canonical` | has no canonical form for a lone surrogate returned by `toJSON` | `test/Canonical.test.ts` |
-| `canonical` | has no canonical form for a lone surrogate key returned by `toJSON` | `test/Canonical.test.ts` |
-| `capability` | bounds wall time for adversarial repeated-star patterns against long non-matching resources | `test/Capability.property.test.ts` |
-| `capability` | completes a 10k-character non-match for a repeated-star grant pattern | `test/Capability.test.ts` |
-| `flow` | normalizes Windows and POSIX separator spellings when comparing overlaps | `test/FileBoundary.test.ts` |
-| `flow` | rejects separator variants of the same written and removed path | `test/FileBoundary.test.ts` |
-| `flow` | rejects a very deep `AndThen` graph with a typed error instead of overflowing the stack | `test/Graph.test.ts` |
-| `flow` | rejects a cyclic unknown payload with a typed error instead of overflowing the stack | `test/Graph.test.ts` |
-| `flow` | rejects a very deep unknown payload with a typed error instead of overflowing the stack | `test/Graph.test.ts` |
-| `kernel` | rejects an envelope carrying request-only payload fields | `test/GrantEvent.test.ts` |
-| `kernel` | fails closed when a page repeats its last sequence with `hasMore` | `test/JournalGrantStoreReplay.test.ts` |
-| `keys` | decodes a `key2_` key, which the version marker promises stays readable | `test/Key.test.ts` |
+| Package      | Test                                                                                        | Now at                                 |
+| ------------ | ------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `canonical`  | has no canonical form for a lone surrogate returned by `toJSON`                             | `test/Canonical.test.ts`               |
+| `canonical`  | has no canonical form for a lone surrogate key returned by `toJSON`                         | `test/Canonical.test.ts`               |
+| `capability` | bounds wall time for adversarial repeated-star patterns against long non-matching resources | `test/Capability.property.test.ts`     |
+| `capability` | completes a 10k-character non-match for a repeated-star grant pattern                       | `test/Capability.test.ts`              |
+| `flow`       | normalizes Windows and POSIX separator spellings when comparing overlaps                    | `test/FileBoundary.test.ts`            |
+| `flow`       | rejects separator variants of the same written and removed path                             | `test/FileBoundary.test.ts`            |
+| `flow`       | rejects a very deep `AndThen` graph with a typed error instead of overflowing the stack     | `test/Graph.test.ts`                   |
+| `flow`       | rejects a cyclic unknown payload with a typed error instead of overflowing the stack        | `test/Graph.test.ts`                   |
+| `flow`       | rejects a very deep unknown payload with a typed error instead of overflowing the stack     | `test/Graph.test.ts`                   |
+| `kernel`     | rejects an envelope carrying request-only payload fields                                    | `test/GrantEvent.test.ts`              |
+| `kernel`     | fails closed when a page repeats its last sequence with `hasMore`                           | `test/JournalGrantStoreReplay.test.ts` |
+| `keys`       | decodes a `key2_` key, which the version marker promises stays readable                     | `test/Key.test.ts`                     |
 
 Agent-group packages are outside this register and outside the guard; F4's
 `harness` entry belongs to that group.
+
+## Known limitations
+
+The agent gateway does **not** automatically recover abandoned runs in the
+private alpha (audit P1-2). `@smthrs/gateway` exposes the `SuperviseRuntime`
+host contract, but its only bundled defaults are `makeNoop` and `layerNoop`:
+the default scan returns no candidates and the default resume performs no
+work. No production gateway layer connects that contract to the durable
+engine's run-driver sweep.
+
+Consequently, a run abandoned by its gateway host is not discovered, reclaimed,
+or resumed by the gateway. Operators must recover it explicitly, or use a host
+composition that runs the durable engine driver with the relevant flows
+registered. Do not rely on unattended gateway recovery for alpha workloads.
+
+This limitation can be retired after a production gateway composition wires
+the engine recovery path and a crash-recovery test proves that a stale owner is
+reclaimed and the run makes progress automatically.
 
 ## Adding a pin
 
