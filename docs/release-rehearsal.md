@@ -71,7 +71,7 @@ this commit is coherent with the manifests.
 node scripts/pack-release.mjs /tmp/c3-release-packs
 ```
 
-Exit 0. Run twice: standalone, and again inside the workflow rehearsal in §4 (step 18,
+Exit 0. Run twice: standalone, and again inside the workflow rehearsal in §4 (step 21,
 into `/tmp/c3-rehearsal/release-packs`), with the same 23 tarballs both times.
 23 tarballs plus `manifest.json`. Membership is `smthrs.group === "engine"`; the
 19 agent-group and 3 tooling packages are not packed. The order below is the publication

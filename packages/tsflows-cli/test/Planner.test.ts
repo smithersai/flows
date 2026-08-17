@@ -238,7 +238,7 @@ describe("implementationFingerprint", () => {
       await Fs.writeFile(source, "x", "utf8")
       await Fs.truncate(source, maximumSourceFileBytes)
     }
-    const digest = vi.spyOn(SafeFs, "digestFile")
+    const digest = vi.spyOn(SafeFs, "digestEntry")
     try {
       await expect(fingerprintSources([{ name: "x", directory }]))
         .rejects.toThrow(/implementation source root exceeds/)
