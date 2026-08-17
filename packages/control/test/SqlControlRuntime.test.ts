@@ -9,10 +9,11 @@ import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
 import { DurableWriter } from "@smthrs/database-next/DurableWriter"
 import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import { Migrations, SqlJournal } from "@smthrs/journal-next"
+import * as Journal from "@smthrs/journal-next/Journal"
 import { NotificationQueue } from "@smthrs/notifications"
 import { Registry } from "@smthrs/registry"
 import { Migrations as RunStoreMigrations, Ownership, RunStore } from "@smthrs/run-store-next"
-import { type Crypto, Effect, Layer } from "effect"
+import { type Crypto, Deferred, Effect, Fiber, Layer, Stream } from "effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import { Control, type Service as ControlService } from "../src/Control.ts"
@@ -277,6 +278,79 @@ describe("SqlControlRuntime", () => {
 
     expect(observed.hit).toEqual({ _tag: "AlreadyApplied", receiptId: "r", runId: "run-1" })
     expect(observed.miss).toBeUndefined()
+  })
+
+  it("allows a concurrent write while a finite snapshot page is being consumed", async () => {
+    const pageStarted = Deferred.makeUnsafe<void>()
+    const releasePage = Deferred.makeUnsafe<void>()
+    let paused = false
+    const observedJournal = Layer.effect(
+      Journal.Journal,
+      Effect.map(Journal.Journal, (journal) =>
+        Journal.make({
+          ...journal,
+          entries: (options) =>
+            Effect.suspend(() => {
+              if (paused || options.limit !== 1024) return journal.entries(options)
+              paused = true
+              return Deferred.succeed(pageStarted, undefined).pipe(
+                Effect.andThen(Deferred.await(releasePage)),
+                Effect.andThen(journal.entries(options))
+              )
+            })
+        }))
+    )
+    const runtime = SqlControlRuntime.layer().pipe(Layer.orDie)
+    const notifications = NotificationQueue.layer.pipe(Layer.provide(observedJournal))
+    const control = ControlLive.layer.pipe(
+      Layer.provide([
+        runtime,
+        observedJournal,
+        notifications,
+        ControlExecutor.layerNoop(),
+        Registry.layerNoop()
+      ]),
+      Layer.provideMerge(Layer.merge(durableJournal, NodeCrypto.layer))
+    ) as Layer.Layer<Control>
+
+    const observed = await Effect.runPromise(
+      Effect.gen(function*() {
+        const control = yield* Control
+        const { runId } = yield* started
+        for (let index = 0; index < 1025; index++) {
+          yield* control.signal({
+            runId,
+            signal: { name: `seed-${index}`, payload: null },
+            idempotencyKey: `signal:seed-${index}`
+          })
+        }
+
+        const snapshot = yield* control.watch({ runId, follow: false }).pipe(
+          Stream.runCollect,
+          Effect.forkChild({ startImmediately: true })
+        )
+        yield* Deferred.await(pageStarted).pipe(Effect.timeout("1 second"))
+        const receipt = yield* control.signal({
+          runId,
+          signal: { name: "during-snapshot", payload: null },
+          idempotencyKey: "signal:during-snapshot"
+        }).pipe(Effect.timeout("1 second"))
+        yield* Deferred.succeed(releasePage, undefined)
+        const events = yield* Fiber.join(snapshot)
+        return { events, receipt }
+      }).pipe(
+        Effect.provide(control),
+        Effect.scoped,
+        Effect.orDie
+      )
+    )
+
+    expect(observed.receipt._tag).toBe("Accepted")
+    const signalNames = observed.events
+      .filter((event) => event.kind === "control.signal.delivered")
+      .map((event) => (event.payload as { readonly name: string }).name)
+    expect(signalNames).toContain("seed-1024")
+    expect(signalNames).not.toContain("during-snapshot")
   })
 
   it("owns no Node imports", async () => {

@@ -370,6 +370,10 @@ export const make_ = (
       SELECT run_id AS "runId" FROM control_runs ORDER BY created_seq
     `.pipe(query("list runs"), Effect.map((rows) => rows.map((row) => row.runId)))
 
+    const listPlanIds: Effect.Effect<ReadonlyArray<string>, PersistenceError> = sql<{ readonly planId: string }>`
+      SELECT plan_id AS "planId" FROM control_plans ORDER BY rowid
+    `.pipe(query("list plans"), Effect.map((rows) => rows.map((row) => row.planId)))
+
     const messages = (
       runId: RunId,
       kind: "steer" | "signal"
@@ -453,6 +457,7 @@ export const make_ = (
         return card
       }),
       getPlan: Effect.fn("SqlControlRuntime.getPlan")((planId: string) => Effect.map(requirePlan(planId), storedPlan)),
+      listPlanIds,
       lookupApproval: Effect.fn("SqlControlRuntime.lookupApproval")(function*(target: ApprovalTarget) {
         const tokenId = target._tag === "Plan" ? target.planId : target.requestId
         const rows = yield* sql<TokenRow>`

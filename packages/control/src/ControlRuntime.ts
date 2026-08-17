@@ -173,6 +173,7 @@ export interface MemoryOptions {
 export interface Service {
   readonly plan: (input: PlanInput) => Effect.Effect<PlanCard, FlowNotFound | InvalidInput | PersistenceError>
   readonly getPlan: (planId: string) => Effect.Effect<StoredPlan, RunNotFound | PersistenceError>
+  readonly listPlanIds: Effect.Effect<ReadonlyArray<string>, PersistenceError>
   readonly lookupApproval: (
     target: ApprovalTarget
   ) => Effect.Effect<
@@ -401,6 +402,7 @@ export const layerMemory = (options: MemoryOptions = {}): Layer.Layer<ControlRun
             Effect.map(asStored)
           )
         ),
+        listPlanIds: Effect.fn("ControlRuntime.listPlanIds")(() => Effect.sync(() => Array.from(plans.keys())))(),
         lookupApproval: Effect.fn("ControlRuntime.lookupApproval")(function*(target) {
           const tokenId = target._tag === "Plan" ? target.planId : target.requestId
           const token = yield* Effect.fromOption(Option.fromNullishOr(tokens.get(tokenId)), () =>

@@ -498,5 +498,22 @@ export const contract = (name: string, harness: Harness): void => {
 
         expect(events.map((event) => event.kind)).toContain("control.signal.delivered")
       }))
+
+    test("unscoped finite watch includes plan-only journal partitions", () =>
+      Effect.gen(function*() {
+        const control = yield* Control
+        const card = yield* control.plan({ flowId: "system/test", input: { snapshot: "plan-only" } })
+
+        const events = yield* control.watch({ follow: false }).pipe(
+          Stream.runCollect,
+          Effect.timeout("1 second")
+        )
+
+        expect(events).toContainEqual(expect.objectContaining({
+          kind: "control.plan.created",
+          runId: `plan:${card.planId}`
+        }))
+        expect((yield* control.list({ _tag: "runs" })).items).toEqual([])
+      }))
   })
 }
