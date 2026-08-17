@@ -29,6 +29,12 @@ export * as Output from "./Output.ts"
 export * as Command from "./Command.ts"
 
 /**
+ * @category configuration
+ * @since 0.1.0
+ */
+export * as Version from "./Version.ts"
+
+/**
  * @category layers
  * @since 0.1.0
  */

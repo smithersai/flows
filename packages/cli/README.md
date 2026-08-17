@@ -18,10 +18,11 @@ The root entry point exports the following namespaces; each is also available fr
 | `NodeControl`   | `Environment`, `ServerOptions`, `EngineDurable`, `makeConfig`, `config`, `projectSources`, `layerRegistry`, `databasePath`, `executionDatabasePath`, `engineDurable`, `resolveSeat`, `layerExecutor`, `layerControl`, `layerOutput`, `layer`, `layerServer`, `layerServerBearerAuth`, `layerServerNoopAuth` | Assembles Node configuration, Control, the production run executor, output, and loopback-default RPC server layers. |
 | `Output`        | `Format`, `Rendered`, `Service`, `Output`, `make`, `layer`, `exitCode`                                                                                                                                                                                                                                      | Renders deterministic human or JSON output through an injectable service.                                           |
 | `Verb`          | `Verb`, `verbs`, `find`                                                                                                                                                                                                                                                                                     | Provides reserved system-flow verb metadata and lookup.                                                             |
+| `Version`       | `packageVersion`                                                                                                                                                                                                                                                                                            | Exposes the version declared by the installed `@smthrs/cli` package metadata.                                       |
 | `bin` / `flows` | side-effect entry point                                                                                                                                                                                                                                                                                     | Runs `Command.cli`; the package also installs it as the `flows` executable.                                         |
 
 ```ts
-import { Command, NodeControl } from "@smthrs/cli"
+import { Command, NodeControl, Version } from "@smthrs/cli"
 import { Effect } from "effect"
 import { Command as Cli } from "effect/unstable/cli"
 
@@ -32,7 +33,7 @@ const config = NodeControl.makeConfig([
   "alpha-secret"
 ])
 
-const main = Cli.run(Command.cli, { version: "0.0.0" }).pipe(
+const main = Cli.run(Command.cli, { version: Version.packageVersion }).pipe(
   Effect.provide(NodeControl.layer(config))
 )
 ```

@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process"
 import { mkdtempSync, rmSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
-import { packageVersion } from "../src/Version.ts"
+import { Version } from "../src/index.ts"
 
 const executable = fileURLToPath(new URL("../src/bin.ts", import.meta.url))
 const temporaryDirectoryPrefix = fileURLToPath(new URL("../.tmp-cli-test-", import.meta.url))
@@ -26,7 +26,7 @@ describe("flows executable", () => {
 
     expect(result.error).toBeUndefined()
     expect(result.status).toBe(0)
-    expect(result.stdout).toContain(packageVersion)
+    expect(result.stdout).toContain(Version.packageVersion)
   })
 
   it("exits with usage status for malformed JSON input", () => {
