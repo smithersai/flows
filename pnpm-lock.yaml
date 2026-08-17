@@ -267,6 +267,9 @@ importers:
       '@smthrs/flow-next':
         specifier: 0.1.0
         version: link:../packages/flow
+      '@smthrs/flows-next':
+        specifier: 0.1.0
+        version: link:../packages/flows
       '@smthrs/jj-next':
         specifier: 0.1.0
         version: link:../packages/jj
