@@ -151,6 +151,12 @@ jobs:
         env:
           PACK_DIR: ${{ runner.temp }}/release-packs
           PUBLISH_ORDER: ${{ runner.temp }}/publish-order.txt
+          # Trusted publishing (id-token: write) is the primary credential and
+          # needs nothing here. This maps the documented token fallback, since a
+          # GitHub environment secret is not exported into the step by itself:
+          # unset, it is empty and pnpm falls back to trusted publishing.
+          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"
         run: |
           while read -r workspace tarball; do
             spec="$workspace@$PUBLISH_VERSION"

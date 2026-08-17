@@ -3,9 +3,9 @@
 ## Revalidation: 2026-08-16, lane `c3`
 
 **Receipt record:** `e711f6664a656fdea98db232a07897f0891326c7`, the reachable
-commit that records this revalidation. The earlier receipt commit
-`56382ff12162e864a96646534c70b1c3e8b50b29` is not a provenance anchor for
-this checkout.
+commit that records this revalidation. An earlier receipt commit was written on a
+lane branch that the landing rebase replaced, so its id does not resolve in a
+fresh clone and is deliberately not cited here.
 **Host:** Node 22.19.0, pnpm 11.21.0. **Published:** nothing.
 
 The committed implementation above was revalidated from this isolated worktree.
