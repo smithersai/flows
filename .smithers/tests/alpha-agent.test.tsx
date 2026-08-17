@@ -94,7 +94,7 @@ describe("alpha-agent workflow graph", () => {
     expect(human.needsApproval).toBe(true)
   })
 
-  test("a review row mounts that lane's land task in the serialized merge queue", async () => {
+  test("a review row mounts that lane's land task in the bounded merge queue", async () => {
     const g = await render({
       alphaReview: [
         {
@@ -112,7 +112,9 @@ describe("alpha-agent workflow graph", () => {
     expect(nodeIds).not.toContain("a2Land")
     const land = pick(g, "a1Land")
     expect(land.parallelGroupId).toBe("alphaMergeQueue")
-    expect(land.parallelMaxConcurrency).toBe(1)
+    // Bounded, not serialized: each land rebases and retries on rejection, so
+    // three at a time trades no safety for real wall clock.
+    expect(land.parallelMaxConcurrency).toBe(3)
     expect(String(land.prompt)).toContain("1. add the steer round-trip assertion")
   })
 
@@ -138,6 +140,42 @@ describe("alpha-agent workflow graph", () => {
       ],
     })
     expect(ids(withLgtm)).not.toContain("a1PolishFix")
+  })
+
+  test("a land node that finished unlanded stays queued and still gets polish", async () => {
+    const unlanded = {
+      ...landedRow("a1"),
+      landed: false,
+      landedShas: "none",
+      notes: "push rejected: origin/main advanced",
+    }
+    const g = await render({
+      alphaReview: [
+        { nodeId: "a1Review", iteration: 0, laneKey: "a1", verdict: "APPROVE", findings: "none", dodAssessment: "met, evidence run" },
+      ],
+      alphaLand: [unlanded],
+    })
+    // Still in the merge queue: reporting landed=false is not landing.
+    expect(ids(g)).toContain("a1Land")
+    // And the lane is not silently skipped by its polish loop.
+    expect(ids(g)).toContain("a1PolishReview")
+  })
+
+  test("a verified landing leaves the merge queue", async () => {
+    const g = await render({
+      alphaReview: [
+        { nodeId: "a1Review", iteration: 0, laneKey: "a1", verdict: "APPROVE", findings: "none", dodAssessment: "met, evidence run" },
+      ],
+      alphaLand: [landedRow("a1")],
+    })
+    expect(ids(g)).not.toContain("a1Land")
+    expect(ids(g)).toContain("a1PolishReview")
+  })
+
+  test("a half-reported panel is incomplete, not failed", async () => {
+    const g = await render({ alphaPanel: [panelRow("codex", "PRODUCTION-READY")] })
+    expect(ids(g)).not.toContain("panelRemediate")
+    expect(ids(g)).not.toContain("humanRatify")
   })
 
   test("a failed panel mounts remediation; a passed panel unlocks the human gate", async () => {

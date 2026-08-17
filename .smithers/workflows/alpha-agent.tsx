@@ -405,16 +405,25 @@ export default smithers((ctx) => {
     return matches.length > 0 ? matches[matches.length - 1] : undefined
   }
 
-  const laneReadyToLand = (k: string) => reviewRow(k) !== undefined
-  const landDone = (k: string) => truthy(col(landRow(k), "landed"))
+  // A land node that FINISHES while reporting landed=false has not landed: it
+  // lost a push race. Keep it queued until it reports a verified landing, or
+  // the lane strands silently and the run proceeds as if it shipped.
+  const landVerified = (k: string) => truthy(col(landRow(k), "landed"))
+  const laneReadyToLand = (k: string) => reviewRow(k) !== undefined && !landVerified(k)
+  // Polish mounts on any land ATTEMPT, not on the landed flag, so a lane whose
+  // reporting row is wrong still gets its post-land review.
+  const landAttempted = (k: string) => landRow(k) !== undefined
   const polishApproved = (k: string) => col(polishRow(k), "verdict") === "LGTM"
   const needsPolishFix = (k: string) => col(polishRow(k), "verdict") === "FIX"
   const panelPassed = () =>
     col(panelRow("codex"), "verdict") === "PRODUCTION-READY" && col(panelRow("fable"), "verdict") === "PRODUCTION-READY"
+  // Judge the panel only once BOTH verifiers have reported. A half-reported
+  // panel is incomplete, not failed; treating it as failed mounts a
+  // remediation lane against findings that do not exist yet.
   const panelHasFailure = () => {
     const codex = panelRow("codex")
     const fable = panelRow("fable")
-    if (codex === undefined && fable === undefined) return false
+    if (codex === undefined || fable === undefined) return false
     return !panelPassed()
   }
 
@@ -726,7 +735,7 @@ Landed work remains on main (fix-forward track). Please direct the next step. Re
       <Sequence>
         <Parallel>
           {/* Phase 1+2: parallel implement, one pre-merge review per lane. */}
-          <Parallel maxConcurrency={6}>
+          <Parallel maxConcurrency={8}>
             {LANES.map((lane) => (
               <Worktree
                 key={lane.key}
@@ -775,7 +784,7 @@ Landed work remains on main (fix-forward track). Please direct the next step. Re
           </Parallel>
 
           {/* Phase 3: merge queue. A lane lands the moment its review exists. */}
-          <MergeQueue id="alphaMergeQueue" maxConcurrency={1}>
+          <MergeQueue id="alphaMergeQueue" maxConcurrency={3}>
             {LANES.filter((lane) => laneReadyToLand(lane.key)).map((lane) => (
               <Task
                 key={lane.key}
@@ -804,7 +813,7 @@ Landed work remains on main (fix-forward track). Please direct the next step. Re
           </MergeQueue>
 
           {/* Phase 4: per-commit polish loops, fix-forward to explicit LGTM. */}
-          {ALL_LAND_KEYS.filter((k) => landDone(k)).map((k) => {
+          {ALL_LAND_KEYS.filter((k) => landAttempted(k)).map((k) => {
             const title = k === "evals" ? "evals suite" : LANES.find((l) => l.key === k)?.title ?? k
             const agentsFor = k === "evals" ? evalsAgents : laneAgents[k]
             return (
