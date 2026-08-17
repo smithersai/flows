@@ -2,10 +2,13 @@
  * The Node seat resolver: `provider:modelId` seats into live model routes,
  * with keys read from an environment record and never hardcoded.
  */
+import { NodeHttpClient } from "@effect/platform-node"
+import { MockAgent } from "@effect/platform-node/Undici"
 import { Control } from "@smthrs/control"
 import { HarnessExecutor } from "@smthrs/engine-harness"
-import type { Layer } from "effect"
-import { Effect } from "effect"
+import * as RequestExecutor from "@smthrs/model/RequestExecutor"
+import { Effect, Layer, Stream } from "effect"
+import * as HttpClient from "effect/unstable/http/HttpClient"
 import { existsSync } from "node:fs"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -15,9 +18,13 @@ import * as Application from "../src/Application.ts"
 import * as NodeControl from "../src/NodeControl.ts"
 
 describe("NodeControl.resolveSeat", () => {
+  const unusedExecutor = RequestExecutor.RequestExecutor.of({
+    execute: () => Effect.die(new Error("model transport was not expected"))
+  })
+
   it("refuses a seat whose provider has no route", async () => {
     const error = await Effect.runPromise(
-      Effect.flip(NodeControl.resolveSeat({})("mystery:model-x"))
+      Effect.flip(NodeControl.resolveSeat({}, unusedExecutor)("mystery:model-x"))
     )
     expect(error).toBeInstanceOf(HarnessExecutor.SeatUnresolved)
     expect(error.message).toContain("mystery")
@@ -25,12 +32,12 @@ describe("NodeControl.resolveSeat", () => {
 
   it("refuses a seat whose key variable is unset, naming the variable", async () => {
     const anthropic = await Effect.runPromise(
-      Effect.flip(NodeControl.resolveSeat({})("anthropic:claude-sonnet-4-5"))
+      Effect.flip(NodeControl.resolveSeat({}, unusedExecutor)("anthropic:claude-sonnet-4-5"))
     )
     expect(anthropic.message).toContain("ANTHROPIC_API_KEY")
 
     const openai = await Effect.runPromise(
-      Effect.flip(NodeControl.resolveSeat({})("openai:gpt-5"))
+      Effect.flip(NodeControl.resolveSeat({}, unusedExecutor)("openai:gpt-5"))
     )
     expect(openai.message).toContain("OPENAI_API_KEY")
   })
@@ -67,7 +74,7 @@ describe("NodeControl.resolveSeat", () => {
 
   it("resolves a keyed anthropic seat into a route and a nonzero context window", async () => {
     const seat = await Effect.runPromise(
-      NodeControl.resolveSeat({ ANTHROPIC_API_KEY: "test-key" })("anthropic:claude-sonnet-4-5")
+      NodeControl.resolveSeat({ ANTHROPIC_API_KEY: "test-key" }, unusedExecutor)("anthropic:claude-sonnet-4-5")
     )
     // The window comes from the model catalog, so compaction is armed rather
     // than silently disabled at zero.
@@ -85,5 +92,53 @@ describe("NodeControl.resolveSeat", () => {
     // send time and never enters the sealed request.
     expect(preparedRequest.url).toContain("api.anthropic.com")
     expect(JSON.stringify(preparedRequest.publicHeaders)).not.toContain("test-key")
+  })
+
+  it("keeps the live model transport open while a resolved seat streams", async () => {
+    const sse = [
+      "event: response.output_text.delta",
+      "data: {\"type\":\"response.output_text.delta\",\"item_id\":\"msg_1\",\"delta\":\"live\"}",
+      "",
+      "event: response.output_text.done",
+      "data: {\"type\":\"response.output_text.done\",\"item_id\":\"msg_1\"}",
+      "",
+      "event: response.completed",
+      "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\"}}",
+      "",
+      ""
+    ].join("\n")
+    const agent = new MockAgent()
+    agent.disableNetConnect()
+    agent.get("https://api.openai.com").intercept({ method: "POST", path: "/v1/responses" }).reply(200, sse, {
+      headers: { "content-type": "text/event-stream" }
+    })
+    const transport = await Effect.runPromise(
+      NodeHttpClient.makeUndici.pipe(Effect.provideService(NodeHttpClient.Dispatcher, agent))
+    )
+    const executor = await Effect.runPromise(
+      RequestExecutor.make.pipe(Effect.provideService(HttpClient.HttpClient, transport))
+    )
+    try {
+      const events = await Effect.runPromise(
+        Effect.scoped(
+          NodeControl.resolveSeat({ OPENAI_API_KEY: "test-key" }, executor)("openai:gpt-4o-mini").pipe(
+            Effect.flatMap((seat) =>
+              seat.model.stream({
+                modelId: "gpt-4o-mini",
+                system: [],
+                messages: [{ role: "user", content: [{ type: "text", text: "hello" }] }],
+                tools: [],
+                params: {}
+              }).pipe(Stream.runCollect)
+            )
+          )
+        )
+      )
+
+      expect(Array.from(events)).toContainEqual({ type: "text-delta", id: "msg_1", text: "live" })
+      expect(agent.assertNoPendingInterceptors()).toBeUndefined()
+    } finally {
+      await agent.close()
+    }
   })
 })

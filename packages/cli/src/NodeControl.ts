@@ -303,7 +303,8 @@ const apiKeyVariable: Readonly<Record<string, string>> = {
  * @since 0.1.0
  */
 export const resolveSeat = (
-  environment: Readonly<Record<string, string | undefined>>
+  environment: Readonly<Record<string, string | undefined>>,
+  executor: RequestExecutor.RequestExecutor
 ): HarnessExecutor.Options["resolveSeat"] =>
 (seat) =>
   Effect.gen(function*() {
@@ -327,12 +328,13 @@ export const resolveSeat = (
     // The two provider routes have distinct body types, so each branch is
     // erased into the seat shape on its own rather than through a union.
     return yield* provider === "anthropic"
-      ? seatOf(Route.anthropic({ apiKey: Redacted.make(key) }), seat, modelId)
-      : seatOf(Route.openai({ apiKey: Redacted.make(key) }), seat, modelId)
+      ? seatOf(Route.anthropic({ apiKey: Redacted.make(key) }), executor, seat, modelId)
+      : seatOf(Route.openai({ apiKey: Redacted.make(key) }), executor, seat, modelId)
   })
 
 const seatOf = <Body, Frame, Event, State>(
   configured: Result.Result<Route.Route<Body, Frame, Event, State>, ModelError.ModelError>,
+  executor: RequestExecutor.RequestExecutor,
   seat: string,
   modelId: string
 ): Effect.Effect<HarnessExecutor.Seat, HarnessExecutor.SeatUnresolved> =>
@@ -341,7 +343,7 @@ const seatOf = <Body, Frame, Event, State>(
       Effect.mapError((error) => new HarnessExecutor.SeatUnresolved({ seat, message: error.message }))
     )
     const model = yield* Route.toModel(routeConfig).pipe(
-      Effect.provide(RequestExecutor.layer.pipe(Layer.provide(NodeHttpClient.layerUndici)))
+      Effect.provideService(RequestExecutor.RequestExecutor, executor)
     )
     return {
       model,
@@ -402,13 +404,14 @@ export const layerExecutor = (
   const memory = MemoryStore.layer.pipe(Layer.provide(engine.stores), Layer.orDie)
   const registration = Layer.effect(ControlExecutor.ControlExecutor)(
     Effect.gen(function*() {
+      const modelExecutor = yield* RequestExecutor.RequestExecutor
       const filesystemServices = yield* Effect.context<FileSystem.FileSystem | Path.Path>()
       const shellServices = yield* Effect.context<
         KernelChildProcessSpawner.ChildProcessSpawner | Path.Path
       >()
       const memoryServices = yield* Effect.context<MemoryStore.MemoryStore | Recall.Recall>()
       return yield* HarnessExecutor.make({
-        resolveSeat: resolveSeat(environment),
+        resolveSeat: resolveSeat(environment, modelExecutor),
         flows: [
           StandardFlows.filesystem(filesystemServices),
           StandardFlows.shell(shellServices),
@@ -421,7 +424,10 @@ export const layerExecutor = (
     Layer.provide([
       guarded,
       memory,
-      Recall.layerNoop
+      Recall.layerNoop,
+      // The dispatcher must live as long as the executor. A model captures
+      // this service and uses it after seat resolution has returned.
+      RequestExecutor.layer.pipe(Layer.provide(NodeHttpClient.layerUndici))
     ])
   )
   return NodeFlowsRuntime.layer(

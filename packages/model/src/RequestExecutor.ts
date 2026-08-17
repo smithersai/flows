@@ -520,11 +520,31 @@ const transportError = (
 ): ModelError => {
   const safeHeaders = redactHeaders(error.request.headers, redactedNames)
   const hasHeaders = Object.keys(safeHeaders).length > 0
+  const reason = error.reason
+  const cause = "cause" in reason ? reason.cause : undefined
+  const causeName = cause instanceof Error && cause.name !== "Error" ? cause.name : undefined
+  const causeMessage = cause instanceof Error
+    ? cause.message
+    : typeof cause === "string" || typeof cause === "number" || typeof cause === "boolean"
+    ? String(cause)
+    : undefined
+  const causeCode = isRecord(cause) && (typeof cause.code === "string" || typeof cause.code === "number")
+    ? String(cause.code)
+    : undefined
+  const causeDetail = causeMessage === undefined || causeMessage.trim() === ""
+    ? undefined
+    : `${causeName === undefined ? "" : `${causeName} `}${
+      causeCode === undefined ? "" : `[${causeCode}] `
+    }${causeMessage}`.trim()
+  const description = "description" in reason ? reason.description : undefined
+  const details = [...new Set([description, causeDetail].filter((value): value is string => value !== undefined))]
+    .map((value) => redactBody(value, error.request, redactedNames))
+    .join(": ")
   return new ModelError({
     code: "transport",
-    message: `HTTP transport failed: ${error.reason._tag} (${error.request.method} ${
-      redactedRequestUrl(error.request)
-    }${hasHeaders ? ", headers redacted" : ""})`
+    message: `HTTP transport failed: ${error.reason._tag}${
+      details === "" ? "" : `: ${details}`
+    } (${error.request.method} ${redactedRequestUrl(error.request)}${hasHeaders ? ", headers redacted" : ""})`
   })
 }
 

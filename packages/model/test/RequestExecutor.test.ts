@@ -550,12 +550,17 @@ describe("RequestExecutor", () => {
 
   it("classifies network failures as transport errors with a redacted URL", async () => {
     const secret = "transport-query-secret"
+    const cause = Object.assign(new Error(`socket closed for ${secret}`), {
+      name: "SocketError",
+      code: "ECONNRESET"
+    })
     const client = HttpClient.make((failedRequest) =>
       Effect.fail(
         new HttpClientError.HttpClientError({
           reason: new HttpClientError.TransportError({
             request: failedRequest,
-            description: `provider echoed ${secret}`
+            description: `provider echoed ${secret}`,
+            cause
           })
         })
       )
@@ -579,6 +584,7 @@ describe("RequestExecutor", () => {
     expect(modelError.code).toBe("transport")
     expect(JSON.stringify(modelError)).not.toContain(secret)
     expect(modelError.message).toContain("%3Credacted%3E")
+    expect(modelError.message).toContain("SocketError [ECONNRESET] socket closed")
   })
 
   it("preserves a typed kernel denial without converting it to ModelError", async () => {
