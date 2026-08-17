@@ -24,6 +24,7 @@ import * as WorkspaceSandbox from "@smthrs/engine-store-next/WorkspaceSandbox"
 import * as NodeRuntime from "@smthrs/flows-next/NodeRuntime"
 import * as FlowBinding from "@smthrs/harness/FlowBinding"
 import * as Jj from "@smthrs/jj-next"
+import { Journal, JournalEvent } from "@smthrs/journal-next"
 import * as TestJournal from "@smthrs/journal-next/test/TestJournal"
 import * as Model from "@smthrs/model/Model"
 import * as ModelError from "@smthrs/model/ModelError"
@@ -445,6 +446,37 @@ describe("HarnessExecutor", () => {
     // Every recorded call was matched and consumed: the recording drove the
     // whole loop, nothing was unscripted and nothing was left over.
     expect(replayed.unconsumed).toEqual([])
+  })
+
+  it("settles resume events for runs it never launched without holding the bridge", { timeout: 30_000 }, async () => {
+    const notes: Array<string> = []
+    const outcome = await Effect.runPromise(
+      Effect.gen(function*() {
+        const gate = yield* Deferred.make<void>()
+        return yield* Effect.gen(function*() {
+          const journal = yield* Journal.Journal
+          // Three resume events for runs no executor in this process launched
+          // — a paused system flow, another process's run in a shared control
+          // database. Without the not-found fast path each would hold the
+          // single-concurrency resume bridge for its whole retry budget,
+          // starving the genuine resume below past its completion wait.
+          for (const foreign of ["foreign-1", "foreign-2", "foreign-3"]) {
+            yield* journal.emitDurable(
+              new JournalEvent.Input({
+                runId: JournalEvent.RunId.make(foreign),
+                sourceId: JournalEvent.SourceId.make("/test/foreign-control"),
+                eventType: "control.run.resume",
+                payload: { runId: foreign, status: "accepted" }
+              })
+            )
+          }
+          return yield* drive(gate)
+        }).pipe(Effect.provide(stack({ resolveSeat: seat(capturing([])), notes, gate })))
+      }).pipe(Effect.scoped) as Effect.Effect<Outcome>
+    )
+
+    expect(outcome.requestedQuestion).toBe("publish the log?")
+    expect(notes).toEqual(["frame zero note"])
   })
 
   it("accepts nothing it cannot execute: a flow without an agent body stays pending", async () => {

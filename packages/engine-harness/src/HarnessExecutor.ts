@@ -571,8 +571,16 @@ export const make = (
       waitForParked(
         () =>
           engine.poll(agentFlow, runId).pipe(
-            /* v8 ignore next -- reached only for an execution this process never started. */
-            Effect.catchTag("@smthrs/flow-next/FlowExecutionNotFound", () => Effect.succeed(Option.none()))
+            // The journal carries resume events for runs other executors own —
+            // a paused system flow, a shared control database. An execution
+            // this engine does not know will not become parked by waiting, so
+            // it is published as a settled non-parked state: the wait ends
+            // now instead of holding the single-concurrency bridge through
+            // the whole retry budget.
+            Effect.catchTag(
+              "@smthrs/flow-next/FlowExecutionNotFound",
+              () => Effect.succeed(Option.some({ _tag: "NotFound" }))
+            )
           ),
         attempts
       )
@@ -580,7 +588,8 @@ export const make = (
     const resumeExecution = (runId: string): Effect.Effect<void> =>
       Effect.gen(function*() {
         const parked = yield* awaitParked(runId, 500)
-        /* v8 ignore next -- false only when the execution settled before the resume arrived. */
+        // False when the execution settled before the resume arrived, or when
+        // the resumed run belongs to an executor other than this one.
         if (parked) yield* engine.resume(agentFlow, runId)
       }).pipe(
         Effect.catchCause(
