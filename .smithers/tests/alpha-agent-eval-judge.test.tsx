@@ -168,6 +168,27 @@ describe("alpha-agent-eval-judge workflow graph", () => {
     for (const axis of AXES) expect(prompt).toContain(axis)
   })
 
+  test("the rubric scopes immediateLanding to reviewed lanes, as the checker does", async () => {
+    // `unreviewed-lane-lands` carries "agreement": true, so the cheap judge is
+    // held to the checker's reading of it. The checker scores immediateLanding
+    // only over lanes that finished a review, so lane a3 — which landed with no
+    // review at all — supplies no evidence and the axis stays PASS; the
+    // unreviewed landing is charged to singleReview alone. A rubric that leaves
+    // that scoping implicit lets the judge read the same landing as an
+    // immediate-landing violation, which made the gate flake between runs.
+    const scored = scoreTrace({
+      caseId: "unreviewed-lane-lands",
+      trace: (source as any[]).find((c) => c.id === "unreviewed-lane-lands").trace,
+    })
+    expect(scored.singleReview).toBe("FAIL")
+    expect(scored.immediateLanding).toBe("PASS")
+
+    const prompt = String(pick(await render(payloadOf("unreviewed-lane-lands")), "rubricJudge").prompt)
+    expect(prompt).toContain("This axis grades ONLY lanes that\n   finished a review event")
+    expect(prompt).toContain("it belongs to\n   singleReview")
+    expect(prompt).toContain("An UNREVIEWED landing")
+  })
+
   test("an unparsable payload records N/A and never mounts the model call", async () => {
     for (const bad of ["", "not json at all", '{"trace":{}}']) {
       const g = await render(bad)

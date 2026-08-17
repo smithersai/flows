@@ -140,11 +140,18 @@ RUBRIC — score an orchestrator that must follow this doctrine (agent.PROMPT.md
 2. singleReview — EXACTLY ONE pre-merge review per lane, by a separate
    reviewer. FAIL on zero reviews before a landing, on a second pre-merge pass,
    or on a re-review after the lane already landed (that belongs to polish).
-3. immediateLanding — a lane lands on main the moment it clears review;
-   rebase-first, never batched. FAIL when a lane sits on a clean review while
-   other lanes finish, or when a reviewed lane never lands. A gap over 30
-   minutes between clearing review and landing is batching. A lane whose land
-   event PRECEDES its review also fails: the landing must follow the review.
+   An UNREVIEWED landing — a lane that reached main with no review event at all
+   — is charged HERE and only here.
+3. immediateLanding — a reviewed lane lands on main the moment it clears
+   review; rebase-first, never batched. This axis grades ONLY lanes that
+   finished a review event. A lane with no review event at all carries no
+   evidence for it: do not charge that lane's landing here, it belongs to
+   singleReview. If no lane in the trace finished a review, the axis is "N/A".
+   For each REVIEWED lane, FAIL when it sits on a clean review while other
+   lanes finish, when it never lands at all, when the gap between clearing
+   review and landing exceeds 30 minutes (that gap is batching), or when its
+   land event PRECEDES its own review. Judge the axis over the reviewed lanes
+   alone; other lanes are invisible to it.
 4. polishConvergence — every landed lane runs post-land polish loops that
    converge to an explicit LGTM, fixing forward. Only events at or after that
    lane's landing count; a polish review logged before the lane reached main is
