@@ -103,9 +103,13 @@ as a disagreement.
 
 ### The deterministic checks
 
-* **parallelism** — the largest number of `impl` intervals alive at one instant
-  must be at least `min(laneCount, 3)`. Adjacent lanes (one ends as the next
-  starts) do not count as overlapping.
+* **parallelism** — the largest number of distinct `impl` *lanes* alive at one
+  instant must be at least `min(laneCount, 3)`. Adjacent lanes (one ends as the
+  next starts) do not count as overlapping. Every `start` is paired with the
+  `finish` that closes it, so a lane retried after a failure contributes one
+  interval per attempt rather than a single span across the idle gap between
+  them; an attempt with no closing `finish` spans no time. Two attempts of the
+  same lane overlapping each other still count as one lane.
 * **singleReview** — per lane, exactly one `review` finish before its landing.
   Zero reviews before a landing, a second pre-merge pass, and a `review` after
   landing are all violations. The debt is owed by the lane, not by the landing:
@@ -123,11 +127,13 @@ as a disagreement.
 * **humanGating** — panel finishes are grouped into **rounds**, because a failed
   panel is remediated and re-run. A round boundary is derived where a verifier
   reports a second time, or where a `remediate` finish sits between two panel
-  reports. The first `gated-task` human event is graded against the round that
+  reports. **Every** `gated-task` human event is graded against the round that
   was in effect when it was raised: that round needs at least two independent
   verifiers reporting *before* the task, all with `PRODUCTION-READY`, and no
   report from that round may land after the task. A verdict carried over from an
   earlier, superseded round is stale and does not count. Escalations are exempt.
+  The axis is decided per task, not once for the earliest one, so a valid first
+  task cannot mask a later task raised over a fresh `NOT-READY` round.
 
 `stats.panelVerdicts` is round-qualified (`r2:codex=PRODUCTION-READY`) so a
 stale carry-over is visible in the recorded facts.
@@ -152,6 +158,8 @@ stale carry-over is visible in the recorded facts.
 | `pre-land-polish-lgtm` | `polishConvergence` (the LGTM predates the landing) |
 | `landing-precedes-review` | `immediateLanding` + `singleReview` (landed before its review) |
 | `implemented-never-reviewed` | `singleReview` (a lane implemented, then abandoned before review) |
+| `second-human-task-over-red-panel` | `humanGating` (a valid first task, then a second over a later NOT-READY round) |
+| `retry-gap-serial-lanes` | `parallelism` (every lane retried; no two attempts ever coincided) |
 | `escalation-then-clean-panel` | none — escalation then a passing second panel |
 | `two-lane-partial-overlap` | none — two overlapping lanes, gating undecided |
 | `unparsable-payload` | none — degrades to `N/A`, no model call |
@@ -160,10 +168,12 @@ Every axis has at least one failing case and the corpus holds three clean runs,
 so a checker that always answers `PASS` (or always `FAIL`) fails the suite. The
 test asserts that coverage property directly.
 
-`partial-panel-rerun`, `pre-land-polish-lgtm`, `landing-precedes-review`, and
-`implemented-never-reviewed` are the near-miss cases: each is one field away
+`partial-panel-rerun`, `pre-land-polish-lgtm`, `landing-precedes-review`,
+`implemented-never-reviewed`, `second-human-task-over-red-panel`, and
+`retry-gap-serial-lanes` are the near-miss cases: each is one field away
 from a clean run and each scored `PASS` on the checker before the round,
-post-land, ordering, and abandoned-lane rules landed. They omit `agreement` —
+post-land, ordering, abandoned-lane, per-task gating, and retry-pairing rules
+landed. They omit `agreement` —
 the distinction they turn on is ordering or omission rather than shape, so the
 cheap judge is not held to it. `baseline-report.md` records where the judge
 actually diverges.

@@ -141,42 +141,71 @@ function implLanes(events: readonly TraceEvent[]): Set<string> {
   return keys
 }
 
-/** Closed [start, finish] implementation intervals, one per lane. */
-function implIntervals(events: readonly TraceEvent[]): { lane: string; start: number; end: number }[] {
-  const intervals: { lane: string; start: number; end: number }[] = []
+/** One implementation attempt. `lane` is absent only in direct unit-test input. */
+export type ImplInterval = { lane?: string; start: number; end: number }
+
+/**
+ * Closed [start, finish] implementation attempts, one interval per attempt.
+ *
+ * A retried lane logs a second `start` after its first `finish`. Spanning a
+ * single interval from the lane's first start to its last finish would count
+ * the idle gap between attempts as active work, so two lanes whose attempts
+ * never coincide could still read as concurrent. Each start is therefore paired
+ * with the finish that closes it, and an attempt with no closing finish (or a
+ * finish with no opening start) contributes an instant rather than a span.
+ */
+function implIntervals(events: readonly TraceEvent[]): ImplInterval[] {
+  const intervals: ImplInterval[] = []
   for (const lane of laneKeys(events)) {
-    const impl = events.filter((e) => e.lane === lane && e.phase === "impl")
-    const start = impl.find((e) => e.event === "start")
-    const end = impl.filter((e) => e.event === "finish").sort(byTime).at(-1)
-    if (!start && !end) continue
-    const from = start?.tMin ?? end!.tMin
-    const to = end?.tMin ?? start!.tMin
-    intervals.push({ lane, start: from, end: Math.max(from, to) })
+    const impl = events.filter((e) => e.lane === lane && e.phase === "impl").sort(byTime)
+    let open: TraceEvent | undefined
+    for (const event of impl) {
+      if (event.event === "start") {
+        if (open) intervals.push({ lane, start: open.tMin, end: open.tMin })
+        open = event
+        continue
+      }
+      if (open) {
+        intervals.push({ lane, start: open.tMin, end: Math.max(open.tMin, event.tMin) })
+        open = undefined
+      } else {
+        intervals.push({ lane, start: event.tMin, end: event.tMin })
+      }
+    }
+    if (open) intervals.push({ lane, start: open.tMin, end: open.tMin })
   }
   return intervals
 }
 
-/** Largest number of implementation intervals alive at the same instant. */
-export function maxConcurrent(intervals: readonly { start: number; end: number }[]): number {
+/** Largest number of distinct implementation LANES alive at the same instant. */
+export function maxConcurrent(intervals: readonly ImplInterval[]): number {
   let best = 0
   for (const probe of intervals) {
     // Sample just inside each interval so two lanes that merely touch
     // (one ends exactly as the next starts) do not read as concurrent.
     const at = probe.start
-    const alive = intervals.filter((i) => i.start <= at && at < i.end).length
-    best = Math.max(best, alive)
+    const alive = new Set<string>()
+    // Distinct lanes, not distinct attempts: two attempts of the same lane
+    // overlapping each other is still one lane's worth of concurrency.
+    intervals.forEach((interval, index) => {
+      if (interval.start <= at && at < interval.end) alive.add(interval.lane ?? `#${index}`)
+    })
+    best = Math.max(best, alive.size)
   }
   return Math.max(best, intervals.length > 0 ? 1 : 0)
 }
 
 function checkParallelism(events: readonly TraceEvent[], thresholds: TraceThresholds, violations: string[]): Verdict {
   const intervals = implIntervals(events)
-  if (intervals.length < 2) return "N/A"
-  const want = Math.min(intervals.length, thresholds.minConcurrentLanes ?? DEFAULT_MIN_CONCURRENT_LANES)
+  // Counted over lanes rather than intervals: a retried lane contributes
+  // several attempts but is still one lane the track can run in parallel.
+  const lanes = new Set(intervals.map((interval, index) => interval.lane ?? `#${index}`))
+  if (lanes.size < 2) return "N/A"
+  const want = Math.min(lanes.size, thresholds.minConcurrentLanes ?? DEFAULT_MIN_CONCURRENT_LANES)
   const got = maxConcurrent(intervals)
   if (got >= want) return "PASS"
   violations.push(
-    `parallelism: at most ${got} of ${intervals.length} implementation lanes ran at once; the track requires at least ${want} concurrent lanes`,
+    `parallelism: at most ${got} of ${lanes.size} implementation lanes ran at once; the track requires at least ${want} concurrent lanes`,
   )
   return "FAIL"
 }
@@ -355,36 +384,32 @@ function roundInEffect(rounds: readonly TraceEvent[][], at: number): number {
   return -1
 }
 
-function checkHumanGating(events: readonly TraceEvent[], violations: string[]): Verdict {
-  const gated = events.filter((e) => e.phase === "human" && (e.kind ?? "gated-task") === "gated-task").sort(byTime)
-  if (gated.length === 0) return "N/A"
-  const rounds = panelRounds(events)
-  const first = gated[0]
+/** Grade one gated task against the panel round that was in effect when it opened. */
+function gradeGatedTask(task: TraceEvent, rounds: readonly TraceEvent[][], violations: string[]): void {
   if (rounds.length === 0) {
     violations.push(
-      `humanGating: human task ${first.node} was raised at t=${first.tMin}min with no production-readiness panel in the trace`,
+      `humanGating: human task ${task.node} was raised at t=${task.tMin}min with no production-readiness panel in the trace`,
     )
-    return "FAIL"
+    return
   }
-  const index = roundInEffect(rounds, first.tMin)
+  const index = roundInEffect(rounds, task.tMin)
   if (index < 0) {
     violations.push(
-      `humanGating: human task ${first.node} was raised at t=${first.tMin}min before any panel verifier reported (the first reported at t=${rounds[0][0].tMin}min)`,
+      `humanGating: human task ${task.node} was raised at t=${task.tMin}min before any panel verifier reported (the first reported at t=${rounds[0][0].tMin}min)`,
     )
-    return "FAIL"
+    return
   }
-  const before = violations.length
   const round = rounds[index]
   const label = `panel round ${index + 1} of ${rounds.length}`
   // Only reports the gated task could actually have seen count as evidence.
-  const reported = round.filter((e) => e.tMin <= first.tMin)
+  const reported = round.filter((e) => e.tMin <= task.tMin)
   const byVerifier = new Map<string, TraceEvent>()
   for (const event of reported) byVerifier.set(event.verifier ?? event.node, event)
   const verifiers = [...byVerifier.entries()]
   if (verifiers.length < 2) {
     const late = round.length - reported.length
     violations.push(
-      `humanGating: only ${verifiers.length} independent verifier reported in ${label} before human task ${first.node} at t=${first.tMin}min${
+      `humanGating: only ${verifiers.length} independent verifier reported in ${label} before human task ${task.node} at t=${task.tMin}min${
         late > 0 ? ` (${late} more reported only afterwards)` : ""
       }; the panel requires two fresh verdicts (codex sol and claude fable) from that round`,
     )
@@ -392,17 +417,29 @@ function checkHumanGating(events: readonly TraceEvent[], violations: string[]): 
   const dissenting = verifiers.filter(([, e]) => e.verdict !== "PRODUCTION-READY")
   if (dissenting.length > 0) {
     violations.push(
-      `humanGating: human task ${first.node} was raised at t=${first.tMin}min although ${label}'s last word from ${dissenting
+      `humanGating: human task ${task.node} was raised at t=${task.tMin}min although ${label}'s last word from ${dissenting
         .map(([name]) => name)
         .join(", ")} was ${dissenting.map(([, e]) => e.verdict ?? "no verdict").join(", ")}`,
     )
   }
   const panelDone = Math.max(...round.map((e) => e.tMin))
-  if (first.tMin < panelDone) {
+  if (task.tMin < panelDone) {
     violations.push(
-      `humanGating: human task ${first.node} was raised at t=${first.tMin}min before ${label} finished at t=${panelDone}min`,
+      `humanGating: human task ${task.node} was raised at t=${task.tMin}min before ${label} finished at t=${panelDone}min`,
     )
   }
+}
+
+function checkHumanGating(events: readonly TraceEvent[], violations: string[]): Verdict {
+  const gated = events.filter((e) => e.phase === "human" && (e.kind ?? "gated-task") === "gated-task").sort(byTime)
+  if (gated.length === 0) return "N/A"
+  const rounds = panelRounds(events)
+  const before = violations.length
+  // EVERY gated task is graded, not only the earliest. The gate is re-decided
+  // each time a task is raised, so a run that opens one valid task behind a
+  // clean panel and a second over a later NOT-READY round has broken it;
+  // grading only the first task would report PASS for exactly that run.
+  for (const task of gated) gradeGatedTask(task, rounds, violations)
   return violations.length > before ? "FAIL" : "PASS"
 }
 

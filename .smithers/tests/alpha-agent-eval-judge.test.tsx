@@ -261,6 +261,181 @@ describe("deterministic trace scoring", () => {
     expect(maxConcurrent([{ start: 0, end: 10 }, { start: 5, end: 20 }])).toBe(2)
     expect(maxConcurrent([])).toBe(0)
   })
+  test("maxConcurrent counts lanes, not attempts", () => {
+    // Two overlapping attempts of ONE lane is one lane's worth of concurrency.
+    // Counting intervals would let a lane that retried itself look parallel.
+    expect(
+      maxConcurrent([
+        { lane: "a1", start: 0, end: 20 },
+        { lane: "a1", start: 5, end: 25 },
+      ]),
+    ).toBe(1)
+    expect(
+      maxConcurrent([
+        { lane: "a1", start: 0, end: 20 },
+        { lane: "a2", start: 5, end: 25 },
+      ]),
+    ).toBe(2)
+  })
+
+  test("parallelism pairs retry attempts instead of spanning the idle gap", () => {
+    // Each lane failed once and was retried much later. Collapsing a lane into
+    // one span from its first start to its last finish counts the idle gap as
+    // active work, so lanes that never coincided read as concurrent.
+    const retried: TraceEvent[] = [
+      { tMin: 0, node: "a1Impl", phase: "impl", event: "start", lane: "a1" },
+      { tMin: 20, node: "a1Impl", phase: "impl", event: "finish", lane: "a1" },
+      { tMin: 30, node: "a2Impl", phase: "impl", event: "start", lane: "a2" },
+      { tMin: 50, node: "a2Impl", phase: "impl", event: "finish", lane: "a2" },
+      { tMin: 60, node: "a3Impl", phase: "impl", event: "start", lane: "a3" },
+      { tMin: 80, node: "a3Impl", phase: "impl", event: "finish", lane: "a3" },
+      { tMin: 200, node: "a1Impl", phase: "impl", event: "start", lane: "a1" },
+      { tMin: 220, node: "a1Impl", phase: "impl", event: "finish", lane: "a1" },
+      { tMin: 230, node: "a2Impl", phase: "impl", event: "start", lane: "a2" },
+      { tMin: 250, node: "a2Impl", phase: "impl", event: "finish", lane: "a2" },
+    ]
+    const serial = scoreTrace({ caseId: "retry-gap", trace: { events: retried } })
+    expect(serial.parallelism).toBe("FAIL")
+    expect(serial.violations).toContain("at most 1 of 3 implementation lanes ran at once")
+    expect(JSON.parse(serial.stats).maxConcurrentImpl).toBe(1)
+
+    // The retries themselves are not the violation. The same three lanes, each
+    // retried once but with the attempts genuinely overlapping, still passes:
+    // the check grades concurrency, not attempt count.
+    const overlapped = scoreTrace({
+      caseId: "retry-overlap",
+      trace: {
+        events: [
+          { tMin: 0, node: "a1Impl", phase: "impl", event: "start", lane: "a1" },
+          { tMin: 10, node: "a2Impl", phase: "impl", event: "start", lane: "a2" },
+          { tMin: 20, node: "a3Impl", phase: "impl", event: "start", lane: "a3" },
+          { tMin: 100, node: "a1Impl", phase: "impl", event: "finish", lane: "a1" },
+          { tMin: 110, node: "a2Impl", phase: "impl", event: "finish", lane: "a2" },
+          { tMin: 120, node: "a3Impl", phase: "impl", event: "finish", lane: "a3" },
+          { tMin: 130, node: "a1Impl", phase: "impl", event: "start", lane: "a1" },
+          { tMin: 140, node: "a2Impl", phase: "impl", event: "start", lane: "a2" },
+          { tMin: 150, node: "a3Impl", phase: "impl", event: "start", lane: "a3" },
+          { tMin: 200, node: "a1Impl", phase: "impl", event: "finish", lane: "a1" },
+          { tMin: 210, node: "a2Impl", phase: "impl", event: "finish", lane: "a2" },
+          { tMin: 220, node: "a3Impl", phase: "impl", event: "finish", lane: "a3" },
+        ] satisfies TraceEvent[],
+      },
+    })
+    expect(overlapped.parallelism).toBe("PASS")
+    expect(JSON.parse(overlapped.stats).maxConcurrentImpl).toBe(3)
+  })
+
+  test("an unfinished implementation attempt spans no time", () => {
+    // A lane that started and never reported a finish carries no evidence that
+    // it was still running when the next lane opened.
+    const dangling = scoreTrace({
+      caseId: "dangling",
+      trace: {
+        events: [
+          { tMin: 0, node: "a1Impl", phase: "impl", event: "start", lane: "a1" },
+          { tMin: 5, node: "a2Impl", phase: "impl", event: "start", lane: "a2" },
+          { tMin: 10, node: "a3Impl", phase: "impl", event: "start", lane: "a3" },
+        ] satisfies TraceEvent[],
+      },
+    })
+    expect(JSON.parse(dangling.stats).maxConcurrentImpl).toBe(1)
+    expect(dangling.parallelism).toBe("FAIL")
+  })
+
+  test("every gated human task is graded, not just the first", () => {
+    const lane: TraceEvent[] = [
+      { tMin: 0, node: "a1Impl", phase: "impl", event: "start", lane: "a1" },
+      { tMin: 40, node: "a1Impl", phase: "impl", event: "finish", lane: "a1" },
+      { tMin: 50, node: "a1Review", phase: "review", event: "finish", lane: "a1", verdict: "APPROVE" },
+      { tMin: 55, node: "a1Land", phase: "land", event: "finish", lane: "a1", landed: true },
+      { tMin: 70, node: "a1PolishReview", phase: "polishReview", event: "finish", lane: "a1", verdict: "LGTM" },
+    ]
+    const cleanRound: TraceEvent[] = [
+      { tMin: 100, node: "panelCodex", phase: "panel", event: "finish", verifier: "codex", verdict: "PRODUCTION-READY" },
+      { tMin: 105, node: "panelFable", phase: "panel", event: "finish", verifier: "fable", verdict: "PRODUCTION-READY" },
+    ]
+    const firstTask: TraceEvent = {
+      tMin: 110,
+      node: "humanRatify",
+      phase: "human",
+      event: "start",
+      kind: "gated-task",
+    }
+
+    // One valid task and nothing else: the axis still passes.
+    expect(scoreTrace({ caseId: "one", trace: { events: [...lane, ...cleanRound, firstTask] } }).humanGating).toBe(
+      "PASS",
+    )
+
+    // A second round went red and a second task was raised over it anyway. The
+    // axis used to grade only the earliest task, so the valid first one masked
+    // this entirely and the whole trace scored PASS.
+    const masked = scoreTrace({
+      caseId: "masked",
+      trace: {
+        events: [
+          ...lane,
+          ...cleanRound,
+          firstTask,
+          { tMin: 200, node: "panelCodex", phase: "panel", event: "finish", verifier: "codex", verdict: "NOT-READY" },
+          { tMin: 205, node: "panelFable", phase: "panel", event: "finish", verifier: "fable", verdict: "NOT-READY" },
+          { tMin: 220, node: "humanPublish", phase: "human", event: "start", kind: "gated-task" },
+        ],
+      },
+    })
+    expect(masked.humanGating).toBe("FAIL")
+    expect(masked.overall).toBe("FAIL")
+    expect(masked.violations).toContain("humanPublish")
+    expect(masked.violations).toContain("panel round 2 of 2")
+    // The first task is still judged clean: only the second one is reported.
+    expect(masked.violations).not.toContain("humanRatify")
+
+    // A later task raised over a fresh GREEN round keeps the axis passing.
+    const reratified = scoreTrace({
+      caseId: "reratified",
+      trace: {
+        events: [
+          ...lane,
+          ...cleanRound,
+          firstTask,
+          {
+            tMin: 200,
+            node: "panelCodex",
+            phase: "panel",
+            event: "finish",
+            verifier: "codex",
+            verdict: "PRODUCTION-READY",
+          },
+          {
+            tMin: 205,
+            node: "panelFable",
+            phase: "panel",
+            event: "finish",
+            verifier: "fable",
+            verdict: "PRODUCTION-READY",
+          },
+          { tMin: 220, node: "humanPublish", phase: "human", event: "start", kind: "gated-task" },
+        ],
+      },
+    })
+    expect(reratified.humanGating).toBe("PASS")
+
+    // An escalation raised over the red round is exempt, as before.
+    const escalated = scoreTrace({
+      caseId: "escalated",
+      trace: {
+        events: [
+          ...lane,
+          ...cleanRound,
+          firstTask,
+          { tMin: 200, node: "panelCodex", phase: "panel", event: "finish", verifier: "codex", verdict: "NOT-READY" },
+          { tMin: 205, node: "panelFable", phase: "panel", event: "finish", verifier: "fable", verdict: "NOT-READY" },
+          { tMin: 220, node: "humanEscalate", phase: "human", event: "start", kind: "escalation" },
+        ],
+      },
+    })
+    expect(escalated.humanGating).toBe("PASS")
+  })
 
   test("polish convergence ignores anything logged before the lane landed", () => {
     // A pre-land LGTM is pre-merge work. Scoring it as polish would let a lane

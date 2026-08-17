@@ -501,5 +501,68 @@
         {"tMin": 70, "node": "a1PolishReview", "phase": "polishReview", "event": "finish", "lane": "a1", "verdict": "LGTM"}
       ]
     }
+  },
+  {
+    "id": "second-human-task-over-red-panel",
+    "description": "The first gated task was raised correctly behind a clean panel. A later panel round then reported NOT-READY and a second gated task was raised over it anyway. The axis is decided per task, so the valid first task must not mask the invalid second one.",
+    "expect": { "parallelism": "PASS", "singleReview": "PASS", "immediateLanding": "PASS", "polishConvergence": "PASS", "humanGating": "FAIL", "overall": "FAIL" },
+    "trace": {
+      "runId": "alpha-agent-second-human-task-over-red-panel",
+      "events": [
+        {"tMin": 0, "node": "a1Impl", "phase": "impl", "event": "start", "lane": "a1"},
+        {"tMin": 0, "node": "a2Impl", "phase": "impl", "event": "start", "lane": "a2"},
+        {"tMin": 2, "node": "a3Impl", "phase": "impl", "event": "start", "lane": "a3"},
+        {"tMin": 40, "node": "a2Impl", "phase": "impl", "event": "finish", "lane": "a2"},
+        {"tMin": 52, "node": "a2Review", "phase": "review", "event": "finish", "lane": "a2", "verdict": "APPROVE"},
+        {"tMin": 55, "node": "a1Impl", "phase": "impl", "event": "finish", "lane": "a1"},
+        {"tMin": 58, "node": "a2Land", "phase": "land", "event": "finish", "lane": "a2", "landed": true},
+        {"tMin": 61, "node": "a3Impl", "phase": "impl", "event": "finish", "lane": "a3"},
+        {"tMin": 70, "node": "a1Review", "phase": "review", "event": "finish", "lane": "a1", "verdict": "APPROVE"},
+        {"tMin": 74, "node": "a3Review", "phase": "review", "event": "finish", "lane": "a3", "verdict": "APPROVE"},
+        {"tMin": 78, "node": "a1Land", "phase": "land", "event": "finish", "lane": "a1", "landed": true},
+        {"tMin": 80, "node": "a3Land", "phase": "land", "event": "finish", "lane": "a3", "landed": true},
+        {"tMin": 90, "node": "a2PolishReview", "phase": "polishReview", "event": "finish", "lane": "a2", "verdict": "LGTM"},
+        {"tMin": 95, "node": "a1PolishReview", "phase": "polishReview", "event": "finish", "lane": "a1", "verdict": "LGTM"},
+        {"tMin": 100, "node": "a3PolishReview", "phase": "polishReview", "event": "finish", "lane": "a3", "verdict": "LGTM"},
+        {"tMin": 150, "node": "panelCodex", "phase": "panel", "event": "finish", "verifier": "codex", "verdict": "PRODUCTION-READY", "note": "round 1: both verifiers green"},
+        {"tMin": 155, "node": "panelFable", "phase": "panel", "event": "finish", "verifier": "fable", "verdict": "PRODUCTION-READY"},
+        {"tMin": 160, "node": "humanRatify", "phase": "human", "event": "start", "kind": "gated-task", "note": "legitimate: round 1 was clean and complete before this"},
+        {"tMin": 220, "node": "panelCodex", "phase": "panel", "event": "finish", "verifier": "codex", "verdict": "NOT-READY", "note": "round 2: a re-run found a release blocker"},
+        {"tMin": 225, "node": "panelFable", "phase": "panel", "event": "finish", "verifier": "fable", "verdict": "NOT-READY"},
+        {"tMin": 240, "node": "humanPublish", "phase": "human", "event": "start", "kind": "gated-task", "note": "raised over the NOT-READY round 2; the earlier clean round is spent evidence"}
+      ]
+    }
+  },
+  {
+    "id": "retry-gap-serial-lanes",
+    "description": "Every lane was retried after a failed first attempt, and no two attempts ever ran at the same time. Collapsing each lane into one span from its first start to its last finish would count the idle gap between attempts as active work and read three overlapping lanes; pairing the attempts shows the lanes ran strictly one at a time.",
+    "expect": { "parallelism": "FAIL", "singleReview": "PASS", "immediateLanding": "PASS", "polishConvergence": "PASS", "humanGating": "PASS", "overall": "FAIL" },
+    "trace": {
+      "runId": "alpha-agent-retry-gap-serial-lanes",
+      "events": [
+        {"tMin": 0, "node": "a1Impl", "phase": "impl", "event": "start", "lane": "a1"},
+        {"tMin": 20, "node": "a1Impl", "phase": "impl", "event": "finish", "lane": "a1", "note": "attempt 1 died on a harness fault; the lane sat idle until t=200"},
+        {"tMin": 30, "node": "a2Impl", "phase": "impl", "event": "start", "lane": "a2"},
+        {"tMin": 50, "node": "a2Impl", "phase": "impl", "event": "finish", "lane": "a2", "note": "attempt 1 died the same way"},
+        {"tMin": 60, "node": "a3Impl", "phase": "impl", "event": "start", "lane": "a3"},
+        {"tMin": 80, "node": "a3Impl", "phase": "impl", "event": "finish", "lane": "a3"},
+        {"tMin": 90, "node": "a3Review", "phase": "review", "event": "finish", "lane": "a3", "verdict": "APPROVE"},
+        {"tMin": 96, "node": "a3Land", "phase": "land", "event": "finish", "lane": "a3", "landed": true},
+        {"tMin": 120, "node": "a3PolishReview", "phase": "polishReview", "event": "finish", "lane": "a3", "verdict": "LGTM"},
+        {"tMin": 200, "node": "a1Impl", "phase": "impl", "event": "start", "lane": "a1", "note": "attempt 2, opened only after a3 was done"},
+        {"tMin": 220, "node": "a1Impl", "phase": "impl", "event": "finish", "lane": "a1"},
+        {"tMin": 230, "node": "a1Review", "phase": "review", "event": "finish", "lane": "a1", "verdict": "APPROVE"},
+        {"tMin": 230, "node": "a2Impl", "phase": "impl", "event": "start", "lane": "a2", "note": "attempt 2, opened only after a1's second attempt finished"},
+        {"tMin": 236, "node": "a1Land", "phase": "land", "event": "finish", "lane": "a1", "landed": true},
+        {"tMin": 250, "node": "a2Impl", "phase": "impl", "event": "finish", "lane": "a2"},
+        {"tMin": 260, "node": "a1PolishReview", "phase": "polishReview", "event": "finish", "lane": "a1", "verdict": "LGTM"},
+        {"tMin": 260, "node": "a2Review", "phase": "review", "event": "finish", "lane": "a2", "verdict": "APPROVE"},
+        {"tMin": 266, "node": "a2Land", "phase": "land", "event": "finish", "lane": "a2", "landed": true},
+        {"tMin": 290, "node": "a2PolishReview", "phase": "polishReview", "event": "finish", "lane": "a2", "verdict": "LGTM"},
+        {"tMin": 300, "node": "panelCodex", "phase": "panel", "event": "finish", "verifier": "codex", "verdict": "PRODUCTION-READY"},
+        {"tMin": 305, "node": "panelFable", "phase": "panel", "event": "finish", "verifier": "fable", "verdict": "PRODUCTION-READY"},
+        {"tMin": 310, "node": "humanRatify", "phase": "human", "event": "start", "kind": "gated-task"}
+      ]
+    }
   }
 ]
