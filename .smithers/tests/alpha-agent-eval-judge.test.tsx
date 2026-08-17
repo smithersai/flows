@@ -6,10 +6,20 @@
 // is unit-tested here too, against the committed fixtures.
 // @ts-expect-error bun:test types are provided by the bun runtime, not @types/node
 import { describe, expect, test } from "bun:test"
+import { existsSync } from "node:fs"
+import { resolve } from "node:path"
 import { renderWorkflow } from "smthrs/testing"
 import source from "../evals/alpha-agent/cases.source.json" with { type: "json" }
-import { AXES, maxConcurrent, parsePayload, scoreTrace, unscorable } from "../evals/alpha-agent/scoreTrace.ts"
-import workflow from "../workflows/alpha-agent-eval-judge.tsx"
+import {
+  AXES,
+  maxConcurrent,
+  panelRounds,
+  parsePayload,
+  scoreTrace,
+  type TraceEvent,
+  unscorable,
+} from "../evals/alpha-agent/scoreTrace.ts"
+import workflow, { JUDGE_SCRATCH_DIR } from "../workflows/alpha-agent-eval-judge.tsx"
 
 type RenderedTasks = { tasks: readonly { nodeId: string }[] }
 const ids = (g: RenderedTasks) => g.tasks.map((t) => t.nodeId)
@@ -93,6 +103,60 @@ describe("alpha-agent-eval-judge workflow graph", () => {
     const rubric = pick(g, "rubricJudge")
     expect(rubric.agent).toBeDefined()
     expect(JSON.stringify(rubric.agent)).toContain("claude-sonnet-5")
+  })
+
+  test("every judge seat is hermetic: no yolo, no tools, no settings, no MCP, scratch cwd", async () => {
+    const seats = pick(await render(payloadOf("golden-full-run")), "rubricJudge").agent as any[]
+    // The fallback chain is the account seats plus the ambient-credentials seat.
+    // The restrictions hold for EVERY entry, not just the first one tried.
+    expect(Array.isArray(seats)).toBe(true)
+    expect(seats.length).toBeGreaterThan(1)
+    const checkout = resolve(import.meta.dir, "..", "..")
+    expect(existsSync(JUDGE_SCRATCH_DIR)).toBe(true)
+    expect(JUDGE_SCRATCH_DIR.startsWith(checkout)).toBe(false)
+
+    for (const seat of seats) {
+      expect(seat.opts.model).toBe("claude-sonnet-5")
+      // BaseCliAgent defaults yolo to true; a judge must not inherit that.
+      expect(seat.yolo).toBe(false)
+      expect(seat.opts.yolo).toBe(false)
+      expect(seat.opts.permissionMode).toBe("default")
+      expect(seat.opts.tools).toBe("")
+      expect(seat.opts.settingSources).toBe("")
+      expect(seat.opts.strictMcpConfig).toBe(true)
+      expect(seat.opts.mcpConfig).toEqual([])
+      expect(seat.opts.disableSlashCommands).toBe(true)
+      expect(seat.opts.addDir).toEqual([])
+      // No repository access: the cwd is an empty scratch dir outside the tree.
+      expect(seat.cwd).toBe(JUDGE_SCRATCH_DIR)
+      expect(seat.capabilities.builtIns).toEqual([])
+
+      // The command line is the real trust boundary, so assert on it directly.
+      const built = await seat.buildCommand({ prompt: "grade this", cwd: seat.cwd, options: {} })
+      const args: string[] = built.args
+      const line = args.join(" ")
+      for (const banned of [
+        "--dangerously-skip-permissions",
+        "--allow-dangerously-skip-permissions",
+        "--mcp-config",
+        "--add-dir",
+        "--plugin-dir",
+        "--allowed-tools",
+      ]) {
+        expect(`${seat.opts.id ?? "ambient"} ${banned}: ${args.includes(banned)}`).toBe(
+          `${seat.opts.id ?? "ambient"} ${banned}: false`,
+        )
+      }
+      expect(line).not.toContain("bypassPermissions")
+      expect(args).toContain("--disable-slash-commands")
+      expect(args).toContain("--strict-mcp-config")
+      expect(args.slice(args.indexOf("--tools"), args.indexOf("--tools") + 2)).toEqual(["--tools", ""])
+      expect(args.slice(args.indexOf("--setting-sources"), args.indexOf("--setting-sources") + 2)).toEqual([
+        "--setting-sources",
+        "",
+      ])
+      await built.cleanup?.()
+    }
   })
 
   test("the judge prompt carries the trace and forbids touching the repo", async () => {
@@ -196,6 +260,167 @@ describe("deterministic trace scoring", () => {
     expect(maxConcurrent([{ start: 0, end: 10 }, { start: 10, end: 20 }])).toBe(1)
     expect(maxConcurrent([{ start: 0, end: 10 }, { start: 5, end: 20 }])).toBe(2)
     expect(maxConcurrent([])).toBe(0)
+  })
+
+  test("polish convergence ignores anything logged before the lane landed", () => {
+    // A pre-land LGTM is pre-merge work. Scoring it as polish would let a lane
+    // reach main and never be looked at again while the axis reads PASS.
+    const preLand = scoreTrace({
+      caseId: "pre-land",
+      trace: {
+        events: [
+          { tMin: 0, node: "a1Impl", phase: "impl", event: "start", lane: "a1" },
+          { tMin: 10, node: "a1Review", phase: "review", event: "finish", lane: "a1", verdict: "APPROVE" },
+          { tMin: 12, node: "a1PolishReview", phase: "polishReview", event: "finish", lane: "a1", verdict: "LGTM" },
+          { tMin: 20, node: "a1Land", phase: "land", event: "finish", lane: "a1", landed: true },
+        ] satisfies TraceEvent[],
+      },
+    })
+    expect(preLand.polishConvergence).toBe("FAIL")
+    expect(preLand.violations).toContain("no post-land polish review")
+
+    const postLand = scoreTrace({
+      caseId: "post-land",
+      trace: {
+        events: [
+          { tMin: 0, node: "a1Impl", phase: "impl", event: "start", lane: "a1" },
+          { tMin: 10, node: "a1Review", phase: "review", event: "finish", lane: "a1", verdict: "APPROVE" },
+          { tMin: 20, node: "a1Land", phase: "land", event: "finish", lane: "a1", landed: true },
+          { tMin: 30, node: "a1PolishReview", phase: "polishReview", event: "finish", lane: "a1", verdict: "LGTM" },
+        ] satisfies TraceEvent[],
+      },
+    })
+    expect(postLand.polishConvergence).toBe("PASS")
+
+    // A FIX applied before the landing does not satisfy a post-land FIX either.
+    const staleFix = scoreTrace({
+      caseId: "stale-fix",
+      trace: {
+        events: [
+          { tMin: 0, node: "a1Impl", phase: "impl", event: "start", lane: "a1" },
+          { tMin: 10, node: "a1Review", phase: "review", event: "finish", lane: "a1", verdict: "APPROVE" },
+          { tMin: 15, node: "a1PolishFix", phase: "polishFix", event: "finish", lane: "a1" },
+          { tMin: 20, node: "a1Land", phase: "land", event: "finish", lane: "a1", landed: true },
+          { tMin: 30, node: "a1PolishReview", phase: "polishReview", event: "finish", lane: "a1", verdict: "FIX" },
+          { tMin: 40, node: "a1PolishReview", phase: "polishReview", event: "finish", lane: "a1", verdict: "LGTM" },
+        ] satisfies TraceEvent[],
+      },
+    })
+    expect(staleFix.polishConvergence).toBe("FAIL")
+    expect(staleFix.violations).toContain("ran no fix-forward task")
+  })
+
+  test("a landing that precedes its own review is not an immediate landing", () => {
+    const trace = (landAt: number) => ({
+      caseId: `land-${landAt}`,
+      trace: {
+        events: [
+          { tMin: 0, node: "a1Impl", phase: "impl", event: "start", lane: "a1" },
+          { tMin: 40, node: "a1Impl", phase: "impl", event: "finish", lane: "a1" },
+          { tMin: 50, node: "a1Review", phase: "review", event: "finish", lane: "a1", verdict: "APPROVE" },
+          { tMin: landAt, node: "a1Land", phase: "land", event: "finish", lane: "a1", landed: true },
+          { tMin: 90, node: "a1PolishReview", phase: "polishReview", event: "finish", lane: "a1", verdict: "LGTM" },
+        ] satisfies TraceEvent[],
+      },
+    })
+    // A negative gap used to slip past the ceiling test and score PASS.
+    const early = scoreTrace(trace(45))
+    expect(early.immediateLanding).toBe("FAIL")
+    expect(early.violations).toContain("BEFORE it cleared review")
+    expect(scoreTrace(trace(55)).immediateLanding).toBe("PASS")
+    expect(scoreTrace(trace(200)).immediateLanding).toBe("FAIL")
+  })
+
+  test("panel rounds split on a repeated verifier and on a remediation", () => {
+    const events: TraceEvent[] = [
+      { tMin: 10, node: "panelCodex", phase: "panel", event: "finish", verifier: "codex", verdict: "NOT-READY" },
+      { tMin: 12, node: "panelFable", phase: "panel", event: "finish", verifier: "fable", verdict: "PRODUCTION-READY" },
+      { tMin: 20, node: "panelRemediate", phase: "remediate", event: "finish" },
+      { tMin: 30, node: "panelCodex", phase: "panel", event: "finish", verifier: "codex", verdict: "PRODUCTION-READY" },
+      { tMin: 32, node: "panelFable", phase: "panel", event: "finish", verifier: "fable", verdict: "PRODUCTION-READY" },
+    ]
+    expect(panelRounds(events).map((round) => round.map((e) => `${e.verifier}@${e.tMin}`))).toEqual([
+      ["codex@10", "fable@12"],
+      ["codex@30", "fable@32"],
+    ])
+    // A remediation alone opens a round even when no verifier repeats.
+    expect(
+      panelRounds([
+        { tMin: 10, node: "p", phase: "panel", event: "finish", verifier: "codex", verdict: "NOT-READY" },
+        { tMin: 20, node: "r", phase: "remediate", event: "finish" },
+        { tMin: 30, node: "p", phase: "panel", event: "finish", verifier: "fable", verdict: "PRODUCTION-READY" },
+      ]).length,
+    ).toBe(2)
+    expect(panelRounds([]).length).toBe(0)
+  })
+
+  test("the human gate needs two fresh verdicts from the latest panel round", () => {
+    const lane: TraceEvent[] = [
+      { tMin: 0, node: "a1Impl", phase: "impl", event: "start", lane: "a1" },
+      { tMin: 40, node: "a1Impl", phase: "impl", event: "finish", lane: "a1" },
+      { tMin: 50, node: "a1Review", phase: "review", event: "finish", lane: "a1", verdict: "APPROVE" },
+      { tMin: 55, node: "a1Land", phase: "land", event: "finish", lane: "a1", landed: true },
+      { tMin: 70, node: "a1PolishReview", phase: "polishReview", event: "finish", lane: "a1", verdict: "LGTM" },
+    ]
+    const failedRound: TraceEvent[] = [
+      { tMin: 100, node: "panelCodex", phase: "panel", event: "finish", verifier: "codex", verdict: "NOT-READY" },
+      { tMin: 102, node: "panelFable", phase: "panel", event: "finish", verifier: "fable", verdict: "PRODUCTION-READY" },
+      { tMin: 110, node: "panelRemediate", phase: "remediate", event: "finish" },
+    ]
+    const gate: TraceEvent = { tMin: 200, node: "humanRatify", phase: "human", event: "start", kind: "gated-task" }
+
+    // Only codex re-ran. The stale fable PRODUCTION-READY from the failed round
+    // must not combine with it to open the gate.
+    const partial = scoreTrace({
+      caseId: "partial-rerun",
+      trace: {
+        events: [
+          ...lane,
+          ...failedRound,
+          { tMin: 150, node: "panelCodex", phase: "panel", event: "finish", verifier: "codex", verdict: "PRODUCTION-READY" },
+          gate,
+        ],
+      },
+    })
+    expect(partial.humanGating).toBe("FAIL")
+    expect(partial.violations).toContain("panel round 2 of 2")
+
+    // Both verifiers re-ran: the gate opens.
+    const full = scoreTrace({
+      caseId: "full-rerun",
+      trace: {
+        events: [
+          ...lane,
+          ...failedRound,
+          { tMin: 150, node: "panelCodex", phase: "panel", event: "finish", verifier: "codex", verdict: "PRODUCTION-READY" },
+          { tMin: 155, node: "panelFable", phase: "panel", event: "finish", verifier: "fable", verdict: "PRODUCTION-READY" },
+          gate,
+        ],
+      },
+    })
+    expect(full.humanGating).toBe("PASS")
+
+    // The second verifier reported only after the task was raised.
+    const raced = scoreTrace({
+      caseId: "raced",
+      trace: {
+        events: [
+          ...lane,
+          { tMin: 150, node: "panelCodex", phase: "panel", event: "finish", verifier: "codex", verdict: "PRODUCTION-READY" },
+          { tMin: 210, node: "panelFable", phase: "panel", event: "finish", verifier: "fable", verdict: "PRODUCTION-READY" },
+          gate,
+        ],
+      },
+    })
+    expect(raced.humanGating).toBe("FAIL")
+    expect(raced.violations).toContain("reported only afterwards")
+
+    // Round-qualified panel facts make the stale verdict visible in `stats`.
+    expect(JSON.parse(partial.stats).panelVerdicts).toEqual([
+      "r1:codex=NOT-READY",
+      "r1:fable=PRODUCTION-READY",
+      "r2:codex=PRODUCTION-READY",
+    ])
   })
 
   test("payload parsing rejects anything that is not a trace", () => {

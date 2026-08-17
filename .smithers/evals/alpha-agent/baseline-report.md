@@ -3,6 +3,17 @@
 Suite `alpha-agent` over `.smithers/evals/alpha-agent/cases.jsonl`, judged by `claude-sonnet-5`.
 Recorded 2026-08-16. Native report: `baseline-report.json`.
 
+> **Stale — refresh due.** This run covers the first 15 cases and the judge seat
+> as it was configured before the polish pass. Three cases were added
+> (`partial-panel-rerun`, `pre-land-polish-lgtm`, `landing-precedes-review`) and
+> the judge seat was locked down (`yolo: false`, no tools, no settings, no MCP,
+> scratch cwd), so the numbers below no longer describe the committed suite. The
+> deterministic half is covered meanwhile by
+> `.smithers/tests/alpha-agent-eval-judge.test.tsx`, which asserts every case's
+> ground truth and the seat restrictions without a model call. Re-run the command
+> below against a scratch run store to replace this report; it was not re-run
+> here because the shared store is in use by a live alpha-agent run.
+
 ```bash
 smithers eval .smithers/workflows/alpha-agent-eval-judge.tsx \
   --cases .smithers/evals/alpha-agent/cases.jsonl \

@@ -34,6 +34,19 @@ fleet, or any worker that touches the repository: the traces are fixtures
 written by hand, so the suite is cheap (one `claude-sonnet-5` call per case),
 hermetic, and non-recursive.
 
+The judge seat is configured to keep that guarantee rather than to assume it.
+`BaseCliAgent` defaults to `yolo: true` and the run's own cwd, so an
+unconfigured seat would hand an authored trace to a permission-bypassing
+Claude process sitting in the checkout. Every seat in the fallback chain —
+account seats and the ambient-credentials seat alike — is therefore built from
+one `JUDGE_SANDBOX` literal: `yolo: false`, `permissionMode: "default"`,
+`tools: ""` (no built-in tools), `disableSlashCommands`, `settingSources: ""`
+(no user/project/local settings file), `strictMcpConfig` with no `--mcp-config`
+(no MCP servers), no `--add-dir` or `--plugin-dir`, and `cwd` set to
+`JUDGE_SCRATCH_DIR`, an empty directory under the OS temp dir. The graph test
+asserts those restrictions on the *built command line* of every seat, so a new
+seat that skips them fails the suite.
+
 A trace is a list of node lifecycle events:
 
 ```json
@@ -92,15 +105,26 @@ as a disagreement.
 * **singleReview** — per lane, exactly one `review` finish before its landing.
   Zero reviews before a landing, a second pre-merge pass, and a `review` after
   landing are all violations.
-* **immediateLanding** — every reviewed lane must land, within 30 minutes of
-  clearing review (`thresholds.maxLandGapMin` overrides). A larger gap is
-  batching by definition.
+* **immediateLanding** — every reviewed lane must land, at or after the moment
+  it cleared review and within 30 minutes of it (`thresholds.maxLandGapMin`
+  overrides). A larger gap is batching by definition; a landing that *precedes*
+  its review is an unreviewed landing, not a fast one.
 * **polishConvergence** — every landed lane needs a polish loop whose last
   verdict is `LGTM`, and every `FIX` must be followed by a `polishFix` before
-  the next polish review.
-* **humanGating** — the first `gated-task` human event must come after the last
-  panel verifier finished, with at least two independent verifiers, all of
-  whose latest verdicts are `PRODUCTION-READY`. Escalations are exempt.
+  the next polish review. The window opens at the lane's landing: a
+  `polishReview` or `polishFix` logged earlier is pre-merge work and counts for
+  nothing, so a pre-land `LGTM` cannot stand in for a polish loop.
+* **humanGating** — panel finishes are grouped into **rounds**, because a failed
+  panel is remediated and re-run. A round boundary is derived where a verifier
+  reports a second time, or where a `remediate` finish sits between two panel
+  reports. The first `gated-task` human event is graded against the round that
+  was in effect when it was raised: that round needs at least two independent
+  verifiers reporting *before* the task, all with `PRODUCTION-READY`, and no
+  report from that round may land after the task. A verdict carried over from an
+  earlier, superseded round is stale and does not count. Escalations are exempt.
+
+`stats.panelVerdicts` is round-qualified (`r2:codex=PRODUCTION-READY`) so a
+stale carry-over is visible in the recorded facts.
 
 ## The corpus
 
@@ -118,6 +142,9 @@ as a disagreement.
 | `human-task-before-panel` | `humanGating` (raised too early) |
 | `human-task-over-not-ready-panel` | `humanGating` (panel said NOT-READY) |
 | `single-verifier-panel` | `humanGating` (one verifier) |
+| `partial-panel-rerun` | `humanGating` (fresh verdict plus a stale one from the failed round) |
+| `pre-land-polish-lgtm` | `polishConvergence` (the LGTM predates the landing) |
+| `landing-precedes-review` | `immediateLanding` + `singleReview` (landed before its review) |
 | `escalation-then-clean-panel` | none — escalation then a passing second panel |
 | `two-lane-partial-overlap` | none — two overlapping lanes, gating undecided |
 | `unparsable-payload` | none — degrades to `N/A`, no model call |
@@ -125,6 +152,12 @@ as a disagreement.
 Every axis has at least one failing case and the corpus holds three clean runs,
 so a checker that always answers `PASS` (or always `FAIL`) fails the suite. The
 test asserts that coverage property directly.
+
+`partial-panel-rerun`, `pre-land-polish-lgtm`, and `landing-precedes-review` are
+the near-miss cases: each is one field away from a clean run and each scored
+`PASS` on the checker before the round, post-land, and ordering rules landed.
+They omit `agreement` — the distinction they turn on is ordering, not shape, so
+the cheap judge is not held to it.
 
 ## Adding a case
 
