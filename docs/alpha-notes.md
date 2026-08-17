@@ -18,6 +18,17 @@ some of their transient failures, but release 1 ships neither a client layer
 nor a migration ladder for either backend. This accepted parity gap is tracked
 as [issue #78](architecture/implementation-status.md#planned-or-incomplete-integration).
 
+No other runtime is a supported durable target. The Bun lane runs the
+non-durable package suites and excludes every durable one, and no browser
+execution suite exists, so neither establishes durable-engine support. The
+[support matrix](architecture/implementation-status.md#support-matrix) states
+the status of each platform and storage combination.
+
+The substrate is a release candidate: every release-1 engine manifest pins
+`effect` to exactly `4.0.0-rc.108`. An upstream defect against that pin is not
+fixed by a patch range, so the known ones and their mitigations are tracked in
+[substrate pin and known upstream issues](architecture/implementation-status.md#substrate-pin-and-known-upstream-issues).
+
 The alpha control server defaults to loopback (`127.0.0.1`). A non-loopback
 bind requires the explicit `--listen`/`listen: true` opt-in and does not add
 TLS, token rotation, or multi-principal authorization. Keep ordinary alpha
@@ -140,6 +151,37 @@ registered. Do not rely on unattended gateway recovery for alpha workloads.
 This limitation can be retired after a production gateway composition wires
 the engine recovery path and a crash-recovery test proves that a stale owner is
 reclaimed and the run makes progress automatically.
+
+The rest of what release 1 declines to do is documented where the behavior
+lives. The items an alpha operator hits first:
+
+- **Recovery has no deadline.** Inside a process that is already running the
+  engine, the 30-second stale cutoff is an eligibility floor, not a
+  recovery-time objective: a run becomes eligible only after its heartbeat is
+  older than the cutoff, the sweep re-drives at most 64 stale rows per
+  one-second tick, and a caller-supplied `isAlive` can refuse the steal for
+  unbounded time. See [abandoned runs and supervision](architecture/implementation-status.md#abandoned-runs-and-supervision).
+- **Flow registrations are in-memory.** A restarted process resumes nothing
+  until it re-registers the handlers for its stored runs, because registration
+  is what re-arms durable clocks and deferred wakes.
+- **The production layer is half-packaged.** `@smthrs/flows-next/NodeRuntime`
+  composes database, migrations, stores, and the engine; the Host and kernel
+  half is still the caller's, and it installs no process or signal handlers.
+  `examples/src/durable-layer.ts` is the worked composition.
+- **Detached child flows are not exposed.** Subflows are attached
+  parent/child only; first-class detached execution, automatic durable
+  lineage, and structured parent cancellation policy are planned, not shipped
+  ([subflows](concepts/subflows.md#detached-children-and-lineage)).
+- **Cross-process wake is polled.** The in-process `WakeBus` completes a
+  resume signal directly; a wake published from another process still lands
+  through polling and the stale sweep.
+- **Copy-back applies without a human gate.** The engine applies a settled
+  diff bundle to the host itself. The pending-diff review gate is a spec, not
+  shipped behavior.
+
+[Implementation status](architecture/implementation-status.md) is the
+authoritative list; this section names only the limits that change how an
+alpha pilot is operated.
 
 ## Adding a pin
 
