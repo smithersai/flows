@@ -1,5 +1,7 @@
 /** @jsxImportSource smthrs */
-import { ClaudeCodeAgent, createSmithers, Task } from "smthrs"
+import { homedir } from "node:os"
+import path from "node:path"
+import { ClaudeCodeAgent, CodexAgent, KimiAgent, createSmithers, Task } from "smthrs"
 import { z } from "zod"
 
 /**
@@ -66,11 +68,33 @@ const { Workflow, smithers, outputs } = createSmithers({
   }),
 })
 
-// Two accounts so a quota stall on one never fails an eval case; the runner
-// grades a harness fault INCONCLUSIVE, which is worse than a slower retry.
+const claudeSeat = (n: number, model: string) =>
+  new ClaudeCodeAgent({
+    model,
+    configDir: path.join(homedir(), `.smithers/accounts/claude-${n}`),
+    id: `smithers-account:claude-${n}`,
+  })
+
+// The judge failover chain, ordered primary-first then ACROSS providers as
+// ui.PROMPT.md requires. Two claude seats would not be a fallback: an
+// account-level quota stall or a claude-wide incident takes both rungs down in
+// the same window, and the runner grades every case INCONCLUSIVE. Each rung
+// here is pinned to its own registered account and the providers alternate, so
+// one provider's outage costs a retry instead of the suite.
 const judge = [
-  new ClaudeCodeAgent({ model: "claude-sonnet-5" }),
-  new ClaudeCodeAgent({ model: "claude-fable-5" }),
+  claudeSeat(2, "claude-sonnet-5"),
+  new CodexAgent({
+    model: "gpt-5.6-sol",
+    configDir: path.join(homedir(), ".smithers/accounts/codex-2"),
+    id: "smithers-account:codex-2",
+    skipGitRepoCheck: true,
+  }),
+  new KimiAgent({
+    model: "kimi-k2.7-code",
+    configDir: path.join(homedir(), ".smithers/accounts/kimi-1"),
+    id: "smithers-account:kimi-1",
+  }),
+  claudeSeat(3, "claude-fable-5"),
 ]
 
 export default smithers((ctx) => (

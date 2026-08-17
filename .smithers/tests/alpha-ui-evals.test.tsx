@@ -53,6 +53,19 @@ test("the suite renders exactly one judge task", async () => {
   expect(Array.isArray(taskOf(frame, "judge").agent)).toBe(true)
 })
 
+test("the judge pool fails over across providers, not across claude seats", async () => {
+  const frame = await render("Three lanes cleared review at the same moment.")
+  const pool = taskOf(frame, "judge").agent
+  expect(Array.isArray(pool)).toBe(true)
+  const rungs = pool as object[]
+  expect(rungs.length).toBeGreaterThanOrEqual(2)
+  // ui.PROMPT.md: a pool of two claude seats is not a fallback, because one
+  // provider incident takes every rung down at once. Distinct constructors are
+  // what makes the chain cross providers.
+  const providers = new Set(rungs.map((rung) => rung.constructor.name))
+  expect(providers.size).toBeGreaterThanOrEqual(2)
+})
+
 test("the judge prompt carries the scenario and the full doctrine", async () => {
   const scenario = "The reviewer asked for a second pre-merge pass on lane U3."
   const prompt = taskOf(await render(scenario), "judge").prompt ?? ""
