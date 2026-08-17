@@ -65,6 +65,21 @@ test("a pin counts as documented only when Surviving pins pairs its package and 
   assert.equal(unexplained[0].file, "packages/database/test/NodeDatabaseConcurrentOpen.test.ts")
 })
 
+test("reads Surviving pins through ordinary z text and through end of input", () => {
+  const packages = [resolve(repoRoot, "packages", "database")]
+  const title = "dies with the original lock defect after the fixed open-retry budget is exhausted"
+  const notes = [
+    "# Alpha notes",
+    "",
+    "### Surviving pins",
+    "",
+    "A z before this row must not end the section.",
+    `| \`database\` | \`${title}\` | rationale |`
+  ].join("\n")
+
+  assert.deepEqual(undocumentedPins(notes, packages), [])
+})
+
 test("a resolved title does not authorize re-pinning a test", () => {
   const fixtureRoot = mkdtempSync(join(repoRoot, "scripts", ".check-test-pins-"))
   const packageDirectory = join(fixtureRoot, "capability")

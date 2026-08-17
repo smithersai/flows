@@ -370,6 +370,18 @@ interface SourceCandidate {
   readonly absolute: string
 }
 
+interface AdmittedSource {
+  readonly candidate: SourceCandidate
+  /** The exact regular-file entry whose size passed the root admission pass. */
+  readonly entry: SafeFs.Entry
+  readonly size: number
+}
+
+interface SourceListing {
+  readonly root: string
+  readonly sources: ReadonlyArray<AdmittedSource>
+}
+
 type SourceMeasurement =
   | {
     readonly _tag: "measured"
@@ -407,36 +419,21 @@ const inspectSource = async (
   return { _tag: "measured", entry: resolved, size }
 }
 
-/** Digests a candidate whose confined size has already been admitted. */
+/** Digests the exact entry whose confined size passed the admission pass. */
 const digestSource = async (
-  candidate: SourceCandidate,
+  source: AdmittedSource,
   root: string,
   signal: AbortSignal | undefined
 ): Promise<Extract<SourceMeasurement, { _tag: "measured" }>> => {
   signal?.throwIfAborted()
-  const resolved = await SafeFs.resolveFile(candidate.absolute, {
-    root,
-    signal,
-    symlinks: "reject",
-    what: "implementation source file"
-  })
-  if (resolved === undefined) {
-    return { _tag: "measured", entry: undefined, digest: undefined, size: 0 }
-  }
-  const size = Number(resolved.stats.size)
-  if (!Number.isSafeInteger(size) || size < 0 || size > maximumSourceFileBytes) {
-    throw new Error(
-      `implementation source file is larger than ${maximumSourceFileBytes} bytes: ${candidate.absolute}`
-    )
-  }
-  const digest = await SafeFs.digestFile(candidate.absolute, {
+  const digest = await SafeFs.digestEntry(source.entry, {
     root,
     signal,
     maximumBytes: maximumSourceFileBytes,
     symlinks: "reject",
     what: "implementation source file"
   })
-  return { _tag: "measured", entry: resolved, digest, size }
+  return { _tag: "measured", entry: source.entry, digest, size: source.size }
 }
 
 /**
@@ -452,7 +449,7 @@ const digestSource = async (
  * reported; the fingerprint and the error are unchanged.
  */
 const measureSources = async (
-  candidates: ReadonlyArray<SourceCandidate>,
+  candidates: ReadonlyArray<SourceCandidate> | ReadonlyArray<AdmittedSource>,
   root: string,
   signal: AbortSignal | undefined,
   phase: "inspect" | "digest"
@@ -466,8 +463,8 @@ const measureSources = async (
       try {
         const candidate = candidates[index]!
         measured[index] = phase === "inspect"
-          ? { ...(await inspectSource(candidate, root, signal)), digest: undefined }
-          : await digestSource(candidate, root, signal)
+          ? { ...(await inspectSource(candidate as SourceCandidate, root, signal)), digest: undefined }
+          : await digestSource(candidate as AdmittedSource, root, signal)
       } catch (cause) {
         measured[index] = { _tag: "failed", cause }
       }
@@ -496,15 +493,15 @@ const validateSourceName = (name: string, directory: string): void => {
 }
 
 /**
- * Lists one source tree's files as sorted logical relative paths, or undefined
- * when the tree is absent. Symbolic links are skipped rather than followed, so
- * the digest covers the tree as it is laid out rather than wherever a link
- * points.
+ * Lists and admits one source tree's files without reading their bytes, or
+ * returns undefined when the tree is absent. Symbolic links are skipped rather
+ * than followed, so the digest covers the tree as it is laid out rather than
+ * wherever a link points.
  */
 const listSources = async (
   directory: string,
   signal?: AbortSignal | undefined
-): Promise<ReadonlyArray<SourceDigest> | undefined> => {
+): Promise<SourceListing | undefined> => {
   let root: string
   try {
     root = await SafeFs.canonicalRoot(directory)
@@ -577,7 +574,7 @@ const listSources = async (
   // metadata-only pass: it establishes the root's cumulative byte limit
   // before the separate bounded digest pool can read any source bytes.
   const inspected = await measureSources(candidates, root, signal, "inspect")
-  const admitted: Array<SourceCandidate> = []
+  const admitted: Array<AdmittedSource> = []
   for (const [index, candidate] of candidates.entries()) {
     const outcome = inspected[index]!
     if (outcome._tag === "failed") throw outcome.cause
@@ -590,19 +587,32 @@ const listSources = async (
     if (!Number.isSafeInteger(bytesSeen) || bytesSeen > maximumSourceRootBytes) {
       throw new Error(`implementation source root exceeds ${maximumSourceRootBytes} source bytes: ${root}`)
     }
-    admitted.push(candidate)
+    admitted.push({ candidate, entry: outcome.entry, size: outcome.size })
   }
-  const measured = await measureSources(admitted, root, signal, "digest")
+  return { root, sources: admitted }
+}
+
+/** Hashes a source listing only after every root has passed byte admission. */
+const digestSources = async (
+  listing: SourceListing,
+  signal: AbortSignal | undefined
+): Promise<ReadonlyArray<SourceDigest>> => {
+  const measured = await measureSources(listing.sources, listing.root, signal, "digest")
   const found: Array<SourceDigest> = []
-  for (const [index, candidate] of admitted.entries()) {
+  let digestedBytesSeen = 0
+  for (const [index, source] of listing.sources.entries()) {
     const outcome = measured[index]!
     if (outcome._tag === "failed") throw outcome.cause
     if (outcome.entry === undefined || outcome.digest === undefined) {
       throw new Error(
-        `implementation source file changed while it was being fingerprinted: ${candidate.absolute}`
+        `implementation source file changed while it was being fingerprinted: ${source.candidate.absolute}`
       )
     }
-    found.push({ path: candidate.path, digest: outcome.digest, size: outcome.size })
+    digestedBytesSeen += outcome.size
+    if (!Number.isSafeInteger(digestedBytesSeen) || digestedBytesSeen > maximumSourceRootBytes) {
+      throw new Error(`implementation source root exceeds ${maximumSourceRootBytes} source bytes: ${listing.root}`)
+    }
+    found.push({ path: source.candidate.path, digest: outcome.digest, size: outcome.size })
   }
   return found.sort((left, right) => byCodeUnit(left.path, right.path))
 }
@@ -630,24 +640,34 @@ export const fingerprintSources = async (
   roots: ReadonlyArray<SourceRoot>,
   options: { readonly signal?: AbortSignal | undefined } = {}
 ): Promise<string> => {
+  const listings: Array<{ readonly sourceRoot: SourceRoot; readonly listing: SourceListing | undefined }> = []
+  let admittedBytes = 0
+  for (const sourceRoot of roots) {
+    options.signal?.throwIfAborted()
+    const listing = await listSources(sourceRoot.directory, options.signal)
+    if (listing !== undefined) {
+      for (const source of listing.sources) {
+        admittedBytes += source.size
+        if (!Number.isSafeInteger(admittedBytes) || admittedBytes > maximumImplementationBytes) {
+          throw new Error(`implementation sources exceed ${maximumImplementationBytes} bytes in aggregate`)
+        }
+      }
+    }
+    listings.push({ sourceRoot, listing })
+  }
   const hash = createHash("sha256")
   hash.update("tsflows-implementation/2\u0000")
-  let bytes = 0
-  for (const root of roots) {
+  for (const { sourceRoot, listing } of listings) {
     options.signal?.throwIfAborted()
-    const files = await listSources(root.directory, options.signal)
     hash.update("root\u0000")
-    updateSourceField(hash, root.name)
-    if (files === undefined) {
+    updateSourceField(hash, sourceRoot.name)
+    if (listing === undefined) {
       hash.update("absent\u0000")
       continue
     }
+    const files = await digestSources(listing, options.signal)
     hash.update(`present\u0000${files.length}\u0000`)
     for (const file of files) {
-      bytes += file.size
-      if (!Number.isSafeInteger(bytes) || bytes > maximumImplementationBytes) {
-        throw new Error(`implementation sources exceed ${maximumImplementationBytes} bytes in aggregate`)
-      }
       hash.update("file\u0000")
       updateSourceField(hash, file.path)
       hash.update(file.digest, "ascii")

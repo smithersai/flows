@@ -39,6 +39,11 @@ const R = 1n << 1n
 const W = 1n << 6n
 const RW = R | W
 
+// These fixtures assert POSIX symlink semantics against node:fs. Windows
+// symlink creation depends on external privilege/developer-mode policy, so
+// native symlink fixtures are explicitly unsupported on that host.
+const supportsNativeSymlinks = process.platform !== "win32"
+
 const OFLAG = { creat: 1, directory: 2, excl: 4, trunc: 8 } as const
 
 interface Host {
@@ -577,7 +582,7 @@ describe("WasiPreview1 path_open", () => {
     expect(h.sys.fd_seek!(explicit, 0n, 0, RET)).toBe(E.badf)
   })
 
-  it("refuses symlinks when lookupflags say nofollow, follows them otherwise", () => {
+  it.skipIf(!supportsNativeSymlinks)("refuses symlinks when lookupflags say nofollow, follows them otherwise", () => {
     const root = freshDir()
     fsModule.writeFileSync(join(root, "real.txt"), "real")
     fsModule.symlinkSync("real.txt", join(root, "link.txt"))
@@ -591,7 +596,7 @@ describe("WasiPreview1 path_open", () => {
     expect(h.sys.fd_close!(created)).toBe(E.success)
   })
 
-  it("creates the target of a dangling symlink with O_CREAT, like open(2)", () => {
+  it.skipIf(!supportsNativeSymlinks)("creates the target of a dangling symlink with O_CREAT, like open(2)", () => {
     const root = freshDir()
     fsModule.symlinkSync("created-by-open.txt", join(root, "dangling"))
     const h = host({ root })
@@ -607,7 +612,7 @@ describe("WasiPreview1 path_open", () => {
     expect(openErrno(h, "/dangling")).toBe(E.noent)
   })
 
-  it("creates through a chain of dangling links and reports cycles as ELOOP", () => {
+  it.skipIf(!supportsNativeSymlinks)("creates through a chain of dangling links and reports cycles as ELOOP", () => {
     const root = freshDir()
     fsModule.symlinkSync("two", join(root, "one"))
     fsModule.symlinkSync("final.txt", join(root, "two"))
@@ -621,7 +626,7 @@ describe("WasiPreview1 path_open", () => {
     expect(openErrno(h, "/loop-a", { oflags: OFLAG.creat, rights: W })).toBe(E.loop)
   })
 
-  it("creates through a dangling link with an absolute target", () => {
+  it.skipIf(!supportsNativeSymlinks)("creates through a dangling link with an absolute target", () => {
     const root = freshDir()
     fsModule.symlinkSync(join(root, "abs-target.txt"), join(root, "abs-link"))
     const h = host({ root })
@@ -912,7 +917,7 @@ describe("WasiPreview1 directories", () => {
     expect(h.sys.path_remove_directory!(3, a.ptr, a.len)).toBe(E.success)
   })
 
-  it("lists directories with d_type, index cookies, and spec truncation", () => {
+  it.skipIf(!supportsNativeSymlinks)("lists directories with d_type, index cookies, and spec truncation", () => {
     const root = freshDir()
     fsModule.writeFileSync(join(root, "file.txt"), "x")
     fsModule.mkdirSync(join(root, "subdir"))
@@ -1003,7 +1008,7 @@ describe("WasiPreview1 stat & times", () => {
     expect(h.view().getUint8(STAT + 16)).toBe(3)
   })
 
-  it("distinguishes lstat and stat through lookupflags", () => {
+  it.skipIf(!supportsNativeSymlinks)("distinguishes lstat and stat through lookupflags", () => {
     const root = freshDir()
     fsModule.writeFileSync(join(root, "real.txt"), "real")
     fsModule.symlinkSync("real.txt", join(root, "ln"))
@@ -1054,7 +1059,7 @@ describe("WasiPreview1 stat & times", () => {
 })
 
 describe("WasiPreview1 symlinks", () => {
-  it("creates and reads links, truncating into small buffers", () => {
+  it.skipIf(!supportsNativeSymlinks)("creates and reads links, truncating into small buffers", () => {
     const root = freshDir()
     const h = host({ root })
     const target = h.str(PATH_A, "the/target.txt")

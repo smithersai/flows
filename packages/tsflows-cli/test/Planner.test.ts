@@ -248,6 +248,42 @@ describe("implementationFingerprint", () => {
     }
   })
 
+  it("rejects aggregate source bytes across roots before hashing any root", async () => {
+    const roots = await Promise.all([scratch(), scratch(), scratch()])
+    for (const directory of roots) {
+      for (let index = 0; index < 22; index += 1) {
+        const source = NodePath.join(directory, `${String(index).padStart(3, "0")}.ts`)
+        await Fs.writeFile(source, "x", "utf8")
+        await Fs.truncate(source, maximumSourceFileBytes)
+      }
+    }
+    const digest = vi.spyOn(SafeFs, "digestEntry")
+    try {
+      await expect(fingerprintSources(roots.map((directory, index) => ({ name: `x${index}`, directory }))))
+        .rejects.toThrow(/implementation sources exceed/)
+      expect(digest).not.toHaveBeenCalled()
+    } finally {
+      digest.mockRestore()
+    }
+  })
+
+  it("rejects a source that grows after admission before hashing it", async () => {
+    const directory = await scratch()
+    const source = NodePath.join(directory, "admitted.ts")
+    await Fs.writeFile(source, "export const admitted = 1\n", "utf8")
+    const digestEntry = SafeFs.digestEntry
+    const digest = vi.spyOn(SafeFs, "digestEntry").mockImplementationOnce(async (entry, options) => {
+      await Fs.appendFile(source, "// grew after admission\n", "utf8")
+      return digestEntry(entry, options)
+    })
+    try {
+      await expect(fingerprintSources([{ name: "x", directory }]))
+        .rejects.toThrow(/changed while it was being opened/)
+    } finally {
+      digest.mockRestore()
+    }
+  })
+
   it.skipIf(process.platform === "win32")("does not follow symbolic links in a source tree", async () => {
     const directory = await scratch()
     const outside = await scratch()

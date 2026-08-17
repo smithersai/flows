@@ -155,7 +155,10 @@ export const findPins = (source) => {
 
 /** The documented `{ package, title }` pairs in the Surviving pins table. */
 const survivingPins = (notes) => {
-  const section = notes.match(/^### Surviving pins\s*$([\s\S]*?)(?=^### |\z)/m)
+  // `(?![\s\S])` is a real end-of-input assertion in ECMAScript. Unlike
+  // `\z` (which JavaScript treats as a literal `z`), it cannot stop a table
+  // at ordinary prose before its documented rows.
+  const section = notes.match(/^### Surviving pins\s*$([\s\S]*?)(?=^### |(?![\s\S]))/m)
   if (section === null) return new Set()
   const documented = new Set()
   const rowPattern = /^\|\s*`([^`]+)`\s*\|\s*`([^`]+)`\s*\|/gm

@@ -222,7 +222,7 @@ Resolved job environment for the run:
 RELEASE_TAG=v0.1.0  DRY_RUN=true  PUBLISH_VERSION=0.1.0  PUBLISH_DIST_TAG=latest
 ```
 
-Step 21 printed:
+Step 24 printed:
 
 ```
 Dry run: every gate, the pack, and the smoke test ran. Nothing was published.

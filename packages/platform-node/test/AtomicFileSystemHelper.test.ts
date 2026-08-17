@@ -624,6 +624,19 @@ describe("atomic helper response framing", () => {
       expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
     }))
 
+  it.live("fails closed when spawning the configured helper throws synchronously", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      // Node rejects a NUL-bearing executable before it can create a child or
+      // emit its asynchronous `error` event.
+      const failure = yield* run(
+        root,
+        Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.exists(join(root, "any.txt")))),
+        hostedBy("\0")
+      )
+      expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
+    }))
+
   /**
    * A response is decoded from the complete frame, never from per-chunk
    * strings, so a character split across two stdout writes survives. Decoding
@@ -706,6 +719,23 @@ describe("atomic helper result validation", () => {
       expect(info.blksize._tag).toBe("None")
       // `blocks` is absent from the payload entirely rather than null.
       expect(info.blocks._tag).toBe("None")
+    }))
+
+  it.live("accepts a stat whose optional birthtime is present", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const executable = yield* Effect.promise(() =>
+        writing(frame(
+          `{"ok":true,"value":{"type":"File","mtime":1000,"atime":2000,"birthtime":3000,"dev":1,"ino":2,` +
+            `"mode":420,"nlink":1,"uid":3,"gid":4,"rdev":0,"size":0}}`
+        ))
+      )
+      const info = yield* run(
+        root,
+        Effect.flatMap(FileSystem.FileSystem, (fs) => fs.stat(root)),
+        hostedBy(executable)
+      )
+      expect(info.birthtime._tag).toBe("Some")
     }))
 
   const readCases: ReadonlyArray<readonly [string, string]> = [

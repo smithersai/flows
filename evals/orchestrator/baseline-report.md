@@ -325,8 +325,10 @@ commit range is not time-dependent and stays checkable.
   still returns 40 after the run ends.
 - **This lane never pushed to `main` itself.** Its work sits on
   `alpha-core/ev`; landing is a separate seat's job, as the graph says.
-- **The lane branch is rebased, not merged.** `alpha-core/ev` carries three
-  commits: the suite, the static-graph scoring, and this revision. Its
+- **The lane branch is rebased, not merged.** `alpha-core/ev` carries four
+  consecutive commits: `26121495`, `7a88678d`, `6d2531d0`, and `538e9495`
+  (the suite, static-graph scoring, constrained subject, and this revision).
+  Its
   merge-base is deliberately not pinned here, because the lane is rebased onto
   current `main` before it lands and the base therefore moves — it already did
   so between the reading above and this revision, which is the rebase-first

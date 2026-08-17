@@ -506,6 +506,13 @@ const withOpen = async <A>(
     if (identity(before) !== identity(entry.stats)) {
       throw new Error(`${what} was replaced while it was being opened: ${entry.path}`)
     }
+    if (
+      sizeOf(before) !== sizeOf(entry.stats) ||
+      timestamp(before, "mtime") !== timestamp(entry.stats, "mtime") ||
+      timestamp(before, "ctime") !== timestamp(entry.stats, "ctime")
+    ) {
+      throw new Error(`${what} changed while it was being opened: ${entry.path}`)
+    }
     if (options.root !== undefined) {
       const resolved = await io.realpath(entry.path)
       if (!inside(options.root, resolved)) {
@@ -572,6 +579,61 @@ const checkedRead = async (handle: OpenFile, buffer: Uint8Array, what: string): 
  * @category digests
  * @since 0.1.0
  */
+export const digestEntry = async (
+  entry: Entry,
+  options: Options = {}
+): Promise<string | undefined> => {
+  const maximumBytes = options.maximumBytes
+  if (
+    maximumBytes !== undefined &&
+    (!Number.isSafeInteger(maximumBytes) || maximumBytes < 0)
+  ) {
+    throw new TypeError(
+      `digest byte limit must be a non-negative safe integer, received ${
+        typeof maximumBytes === "number" ? String(maximumBytes) : typeof maximumBytes
+      }`
+    )
+  }
+  const what = options.what ?? "file"
+  if (maximumBytes !== undefined && sizeOf(entry.stats) > BigInt(maximumBytes)) {
+    throw new Error(`${what} is larger than ${maximumBytes} bytes: ${entry.path}`)
+  }
+  return withOpen(entry, options, async (handle, before) => {
+    if (maximumBytes !== undefined && sizeOf(before) > BigInt(maximumBytes)) {
+      throw new Error(`${what} is larger than ${maximumBytes} bytes: ${entry.path}`)
+    }
+    const hash = createHash("sha256")
+    const buffer = new Uint8Array(chunkBytes)
+    let total = 0n
+    while (true) {
+      checkCancelled(options)
+      const bytesRead = await checkedRead(handle, buffer, what)
+      if (bytesRead === 0) break
+      total += BigInt(bytesRead)
+      if (maximumBytes !== undefined && total > BigInt(maximumBytes)) {
+        throw new Error(`${what} is larger than ${maximumBytes} bytes: ${entry.path}`)
+      }
+      hash.update(buffer.subarray(0, bytesRead))
+    }
+    const after = await handle.stat()
+    if (!stable(before, after, total)) {
+      throw new Error(`${what} changed while it was being digested: ${entry.path}`)
+    }
+    return hash.digest("hex")
+  })
+}
+
+/**
+ * Streams one confined file's SHA-256 through a bounded, reusable buffer.
+ *
+ * Returns undefined when the file does not exist, so a declared-but-missing
+ * input still contributes deterministic key material. Callers that previously
+ * admitted an {@link Entry} can use {@link digestEntry} to bind that admission
+ * to the exact object eventually hashed.
+ *
+ * @category digests
+ * @since 0.1.0
+ */
 export const digestFile = async (
   path: string,
   options: Options = {}
@@ -589,33 +651,7 @@ export const digestFile = async (
   }
   const entry = await resolveFile(path, options)
   if (entry === undefined) return undefined
-  const what = options.what ?? "file"
-  if (maximumBytes !== undefined && sizeOf(entry.stats) > BigInt(maximumBytes)) {
-    throw new Error(`${what} is larger than ${maximumBytes} bytes: ${path}`)
-  }
-  return withOpen(entry, options, async (handle, before) => {
-    if (maximumBytes !== undefined && sizeOf(before) > BigInt(maximumBytes)) {
-      throw new Error(`${what} is larger than ${maximumBytes} bytes: ${path}`)
-    }
-    const hash = createHash("sha256")
-    const buffer = new Uint8Array(chunkBytes)
-    let total = 0n
-    while (true) {
-      checkCancelled(options)
-      const bytesRead = await checkedRead(handle, buffer, what)
-      if (bytesRead === 0) break
-      total += BigInt(bytesRead)
-      if (maximumBytes !== undefined && total > BigInt(maximumBytes)) {
-        throw new Error(`${what} is larger than ${maximumBytes} bytes: ${path}`)
-      }
-      hash.update(buffer.subarray(0, bytesRead))
-    }
-    const after = await handle.stat()
-    if (!stable(before, after, total)) {
-      throw new Error(`${what} changed while it was being digested: ${path}`)
-    }
-    return hash.digest("hex")
-  })
+  return digestEntry(entry, options)
 }
 
 /**

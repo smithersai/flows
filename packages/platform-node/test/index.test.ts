@@ -1,5 +1,5 @@
 /** Barrel parity with the platform-browser and platform-bun packages. */
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "@effect/vitest"
 import * as Index from "../src/index.ts"
 import * as NodeHost from "../src/NodeHost.ts"
 
