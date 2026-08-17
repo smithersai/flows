@@ -30,6 +30,9 @@ These bundle for the browser. A resolution error in any of them fails the build.
 | `@smthrs/engine-store-next` | The durable engine over the journal. Owner identity — the last `process.pid` and `node:crypto` read — enters through the `OwnerIdentity` service, whose default draws an incarnation number where a host has no process (issue #114) |
 | `@smthrs/flows-next` | The barrel. It re-exports every engine package, so it bundles exactly when they all do |
 | `@smthrs/sync-next` | Read-only journal sync and branch protocols |
+| `@smthrs/capability-next` | Capability grants and the linear glob matcher that authorizes them |
+| `@smthrs/chain-next` | The chain contracts and their in-memory journal stand-in |
+| `@smthrs/observability-next` | Structured logging and metrics over Effect's own tags, with no exporter wired |
 | `@smthrs/time-travel-next` | Frames, replay, fork, rewind, compensation, and recovery |
 
 Bundling is not running: `@smthrs/journal-next` bundles because it depends on the `DurableWriter` *contract* and Effect's `SqlClient`, and a browser application still has to supply a browser SQL client (for example Effect's sqlite-wasm OPFS worker) to that contract. Bundling is the property that makes such a composition possible; the sqlite-wasm layer itself is not shipped here — see [implementation status](implementation-status.md).
@@ -43,8 +46,8 @@ These are Node-only, deliberately. The gate asserts each one *still* fails to bu
 | `@smthrs/platform-node-next`, `@smthrs/platform-bun-next` | Child processes, Node/Bun filesystem, and Jujutsu; the Bun bundle falls back to the `@effect/platform-node` adapters off Bun |
 | `@smthrs/jj-next/node/NodeJj`, `@smthrs/jj-next/bun/BunJj` | `node:child_process`; the jj CLI is spawned with argv and never a shell string |
 | `@smthrs/kernel-next/test/TestHost` | `effect/testing`'s `TestClock` imports `node:assert`, so the deterministic host is Node-only even though its own adapters are pure |
-| `@smthrs/database-next/node/NodeDatabase`, `@smthrs/database-next/test/TestDatabase` | `node:sqlite` through `@effect/sql-sqlite-node` |
-| `@smthrs/journal-next/test/TestJournal` | Composes `TestDatabase` |
+| `@smthrs/database-next/node/NodeDatabase` | `node:sqlite` through `@effect/sql-sqlite-node` |
+| `@smthrs/flows-next/NodeRuntime` | The supported production composition: it opens a Node SQLite file and closes over a Node scope |
 
 ## The rule this encodes
 
