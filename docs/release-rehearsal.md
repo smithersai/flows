@@ -166,9 +166,8 @@ publishing, fails a gate.
 
 `scripts/release-rehearsal.mjs` reads `release.yml`, resolves the `${{ … }}` expressions the
 runner would resolve, and executes the job's own `run:` bodies in order under Node 22.19.0.
-It executes the workflow's text rather than a hand-copied transcript of it. Steps that are
-GitHub actions have no local equivalent and are reported as skipped with what satisfies
-them locally.
+It executes the workflow's text rather than a hand-copied transcript of it. GitHub-action
+steps are reported as skipped with their documented local equivalent.
 
 Its workflow reader was cross-checked against `yaml@2.9.0`: for `release.yml`, the parsed
 `on`, job `env`, and the full `steps` array are structurally identical to the reference
@@ -193,26 +192,29 @@ its passing path. The three skipped gates and the jj step are explained below.
 | # | Step | Result |
 |---|------|--------|
 | 1 | `actions/checkout@v4` | skipped — action; locally this checkout is the tree under test |
-| 2 | `pnpm/action-setup@v6` | skipped — action; pnpm 11.21.0 on PATH |
-| 3 | `actions/setup-node@v4` | skipped — action; Node 22.19.0 pinned onto PATH |
-| 4 | (unnamed) `pnpm install --frozen-lockfile --ignore-scripts` | **passed**, 4s |
-| 5 | `Install jj` | skipped — action; jj on PATH |
-| 6 | `Initialize colocated jj repository` | skipped — jj refuses inside a Git worktree |
-| 7 | `Validate release tag` | **passed**, 8s |
-| 8 | `Typecheck all workspaces` | skipped — see below |
-| 9 | `Test all workspaces` | skipped — see below |
-| 10 | `Lint all workspaces` | skipped — see below |
-| 11 | `Circular-dependency guard` | **passed**, 140s |
-| 12 | `Browser bundle guard` | **passed**, 27s |
-| 13 | `Release manifest unit test` | **passed**, 1s |
-| 14 | `Release rehearsal unit test` | **passed**, 1s |
-| 15 | `Release version coherence` | **passed**, 1s |
-| 16 | `Disaster-recovery script test` | **passed**, 12s |
-| 17 | `Build all workspaces from clean artifacts` | **passed**, 444s — superseding revalidation at `/tmp/flows-c3-release-followup.c82b4Q/transcript.json`; this replaces the earlier 517s `apps/ui` timeout |
-| 18 | `Pack and smoke-test release artifacts` | **passed**, 844s |
-| 19 | `Compute the publish plan` | **passed**, 1s |
-| 20 | `Publish packages in dependency order` | **skipped by its own `if: env.DRY_RUN != 'true'`** |
-| 21 | `Report the skipped publication` | **passed** |
+| 2 | `Validate GitHub Actions workflows` | skipped — action; locally the installed `actionlint` binary validates workflow syntax |
+| 3 | `pnpm/action-setup@v6` | skipped — action; pnpm 11.21.0 on PATH |
+| 4 | `actions/setup-node@v4` | skipped — action; Node 22.19.0 pinned onto PATH |
+| 5 | `oven-sh/setup-bun@v2` | skipped — action; bun on PATH |
+| 6 | (unnamed) `pnpm install --frozen-lockfile --ignore-scripts` | **passed**, 5s |
+| 7 | `Install jj` | skipped — action; jj on PATH |
+| 8 | `Initialize colocated jj repository` | skipped — jj refuses inside a Git worktree |
+| 9 | `Validate release tag` | **passed**, 15s |
+| 10 | `Typecheck all workspaces` | skipped — see below |
+| 11 | `Test all workspaces` | skipped — see below |
+| 12 | `Lint all workspaces` | skipped — see below |
+| 13 | `Circular-dependency guard` | **passed**, 107s |
+| 14 | `Browser bundle guard` | **passed**, 15s |
+| 15 | `Release manifest unit test` | **passed**, 1s |
+| 16 | `Release rehearsal unit test` | **passed**, 1s |
+| 17 | `Release version coherence` | **passed**, 0s |
+| 18 | `Disaster-recovery script test` | **passed**, 7s |
+| 19 | `Test-pin register guard` | **passed**, 1s |
+| 20 | `Build all workspaces from clean artifacts` | **passed**, 336s |
+| 21 | `Pack and smoke-test release artifacts` | **passed**, 165s |
+| 22 | `Compute the publish plan` | **passed**, 0s |
+| 23 | `Publish packages in dependency order` | **skipped by its own `if: env.DRY_RUN != 'true'`** |
+| 24 | `Report the skipped publication` | **passed**, 0s |
 
 Resolved job environment for the run:
 
@@ -229,11 +231,9 @@ A real run would publish these at 0.1.0 on the latest dist-tag:
 … 23 lines, the packed order …
 ```
 
-**Superseded build timeout.** An earlier transcript recorded `apps/ui` timing out after
-517s while loading `apps/ui/vite.config.ts`; the full revalidation transcript named in
-the table records the same build passing in 444s. Every engine package did build —
-`pack-release.mjs` refuses to pack a workspace whose `dist/esm`, `dist/cjs`, and `.d.ts`
-outputs are not all present for every source file, and step 18 packed all 23.
+Every engine package did build — `pack-release.mjs` refuses to pack a workspace whose
+`dist/esm`, `dist/cjs`, and `.d.ts` outputs are not all present for every source file, and
+step 21 packed all 23.
 
 ### Targeted runs
 

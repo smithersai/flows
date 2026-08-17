@@ -1,4 +1,5 @@
 import assert from "node:assert/strict"
+import { execFileSync } from "node:child_process"
 import { existsSync, readFileSync, readdirSync } from "node:fs"
 import { dirname, join, resolve } from "node:path"
 import test from "node:test"
@@ -104,6 +105,21 @@ test("workspaces covers every non-private engine package under packages/", () =>
   assert.deepEqual([...workspaces].sort(), published.sort())
   assert.ok(manifests.some(([, manifest]) => !manifest.private && manifest.smthrs?.group === "agent"))
   assert.ok(manifests.some(([, manifest]) => manifest.smthrs?.group === "tooling"))
+})
+
+test("pack-release lists workspace directories and package names in publication order", () => {
+  const list = execFileSync(process.execPath, ["scripts/pack-release.mjs", "--list"], {
+    cwd: repoRoot,
+    encoding: "utf8"
+  })
+  const names = execFileSync(process.execPath, ["scripts/pack-release.mjs", "--names"], {
+    cwd: repoRoot,
+    encoding: "utf8"
+  })
+  const manifests = readWorkspaceManifests()
+
+  assert.deepEqual(list.trim().split("\n"), workspaces)
+  assert.deepEqual(names.trim().split("\n"), workspaces.map((directory) => manifests.get(directory).name))
 })
 
 test("pack-release order is a topological order of the workspace dependency graph", () => {

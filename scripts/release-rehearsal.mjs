@@ -368,6 +368,7 @@ export const localEquivalents = {
   "docker://rhysd/actionlint:1.7.11": "the installed actionlint binary validates workflow syntax",
   "pnpm/action-setup": "pnpm on PATH",
   "actions/setup-node": "the Node and registry pin applied to PATH by --node",
+  "oven-sh/setup-bun": "bun on PATH",
   "taiki-e/install-action": "the tool already installed on PATH"
 }
 
