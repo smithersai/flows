@@ -170,6 +170,24 @@ describe("Control surface", () => {
     }
   })
 
+  it("reports a schema-invalid approval payload truthfully", async () => {
+    const exit = await Effect.runPromise(
+      Effect.exit(runCommand(["run", "{}"])).pipe(
+        Effect.provide(testControl),
+        Effect.provide(scenarioServices),
+        Effect.provide(NodeServices.layer)
+      )
+    )
+
+    expect(Exit.isFailure(exit)).toBe(true)
+    if (Exit.isFailure(exit)) {
+      const error = Cause.squash(exit.cause)
+      expect(error).toBeInstanceOf(CliError.UsageError)
+      expect((error as CliError.UsageError).message).toBe("approval must match the expected payload schema")
+      expect(CliError.exitCode(error as CliError.UsageError)).toBe(2)
+    }
+  })
+
   it("mounts the remote parser path on a real ephemeral Node server", async () => {
     const local = await Effect.runPromise(
       invoke(["--json", "plan", "system/test"]).pipe(

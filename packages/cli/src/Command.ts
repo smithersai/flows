@@ -25,15 +25,25 @@ const common = { input, data }
 const malformedJson = (label: string): CliError.UsageError =>
   new CliError.UsageError({ message: `${label} must be valid JSON` })
 
+const schemaMismatch = (label: string): CliError.UsageError =>
+  new CliError.UsageError({ message: `${label} must match the expected payload schema` })
+
 const decodeJson = <A>(
   label: string,
   serialized: string,
   decode: (value: unknown) => A
 ): Effect.Effect<A, CliError.UsageError> =>
   Effect.try({
-    try: () => decode(JSON.parse(serialized) as unknown),
+    try: () => JSON.parse(serialized) as unknown,
     catch: () => malformedJson(label)
-  })
+  }).pipe(
+    Effect.flatMap((decoded) =>
+      Effect.try({
+        try: () => decode(decoded),
+        catch: () => schemaMismatch(label)
+      })
+    )
+  )
 
 const decodeInput = (
   entries: ReadonlyArray<string>,
