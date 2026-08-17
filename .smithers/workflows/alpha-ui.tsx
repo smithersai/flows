@@ -780,7 +780,21 @@ export default smithers((ctx) => {
                     still bounds the race on main, and the land prompt's
                     fetch-rebase-retry loop is what makes a rejected push safe. */}
                 <MergeQueue id="landQueue" maxConcurrency={3}>
-                  <Task id={`${lane.key}LandRun`} agent={landSeat} output={outputs.alphaUiLand} retries={8}>
+                  {/* continueOnFail: a land that cannot complete is a LANE
+                      outcome, not a run outcome. Without it one exhausted land
+                      kills the whole run and strands every other lane's polish,
+                      the readiness panel, and the human handoff (observed: a
+                      network outage failed all three in-flight lands at once and
+                      terminated the run). LandVerify still records on_main:false
+                      deterministically, so an unlanded lane stays visible to the
+                      panel instead of being quietly dropped. */}
+                  <Task
+                    id={`${lane.key}LandRun`}
+                    agent={landSeat}
+                    output={outputs.alphaUiLand}
+                    retries={8}
+                    continueOnFail
+                  >
                     {landPrompt(lane)}
                   </Task>
                 </MergeQueue>
