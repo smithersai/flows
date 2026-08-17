@@ -88,6 +88,60 @@ for (const [name, binding] of bindings) {
       })
     })
 
+    it("returns mutable object properties from flow calls", async () => {
+      const outcome = await evaluate(
+        binding,
+        `const result = await ctx.call("fs/list", {})
+         result.entry.name = "renamed"
+         return { intent: "complete", output: result.entry.name }`,
+        { call: handler({ "fs/list": { entry: { name: "original" } } }, []) }
+      )
+
+      expect((outcome as Cell.Settled).transition).toMatchObject({ _tag: "complete", output: "renamed" })
+    })
+
+    it("returns mutable arrays from flow calls", async () => {
+      const outcome = await evaluate(
+        binding,
+        `const result = await ctx.call("fs/list", {})
+         result.entries.push("beta")
+         result.entries[0] = "renamed"
+         return { intent: "complete", output: result.entries.join(",") }`,
+        { call: handler({ "fs/list": { entries: ["alpha"] } }, []) }
+      )
+
+      expect((outcome as Cell.Settled).transition).toMatchObject({
+        _tag: "complete",
+        output: "renamed,beta"
+      })
+    })
+
+    it("uses ordinary JSON data-property descriptors for flow results", async () => {
+      const outcome = await evaluate(
+        binding,
+        `const result = await ctx.call("fs/list", {})
+         const objectDescriptor = Object.getOwnPropertyDescriptor(result, "entry")
+         const indexDescriptor = Object.getOwnPropertyDescriptor(result.entries, "0")
+         return {
+           intent: "complete",
+           output: [
+             objectDescriptor.writable,
+             objectDescriptor.enumerable,
+             objectDescriptor.configurable,
+             indexDescriptor.writable,
+             indexDescriptor.enumerable,
+             indexDescriptor.configurable
+           ].join(",")
+         }`,
+        { call: handler({ "fs/list": { entry: "value", entries: ["alpha"] } }, []) }
+      )
+
+      expect((outcome as Cell.Settled).transition).toMatchObject({
+        _tag: "complete",
+        output: "true,true,true,true,true,true"
+      })
+    })
+
     it("denies ambient time, randomness, network, and process access", async () => {
       for (const expression of ["Date.now()", "Math.random()", "fetch(\"http://x\")", "process.exit()"]) {
         const outcome = await evaluate(binding, `return { intent: "complete", output: String(${expression}) }`)
@@ -475,7 +529,8 @@ describe("QuickJSSandbox", () => {
            Object.keys(result).join(","),
            Object.hasOwn(result, "__proto__"),
            Object.prototype.hasOwnProperty.call(result, "__proto__"),
-           Object.getPrototypeOf(result) === Object.prototype ? "" : "yes"
+           Object.getPrototypeOf(result) === Object.prototype ? "" : "yes",
+           Object.getOwnPropertyDescriptor(result, "__proto__").writable
          ].join("|")
        }`,
       { call: handler({ "fs/list": payload }, []) }
@@ -483,7 +538,7 @@ describe("QuickJSSandbox", () => {
 
     expect(outcome).toMatchObject({
       _tag: "settled",
-      transition: { _tag: "complete", output: "__proto__|true|true|" }
+      transition: { _tag: "complete", output: "__proto__|true|true||true" }
     })
   })
 
