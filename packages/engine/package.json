@@ -109,6 +109,7 @@
     "eslint-plugin-import": "2.32.0",
     "eslint-plugin-jsdoc": "64.1.0",
     "eslint-plugin-unicorn": "61.0.2",
+    "knip": "6.32.2",
     "madge": "8.0.0",
     "typescript": "6.0.3",
     "typescript-eslint": "8.65.0",

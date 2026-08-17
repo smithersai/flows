@@ -22,6 +22,7 @@ export const dependencyPolicy = DepsLint({
   sources: [glob("src/**/*.ts"), glob("test/**/*.ts")],
   deps: [lib],
   tool: "knip",
-  ignoreDependencies: ["@effect/platform-node"],
-  ignoreBinaries: []
+  ignoreDependencies: ["eslint-plugin-jsdoc"],
+  ignoreBinaries: [],
+  cwd: "packages/engine"
 })
