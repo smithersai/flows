@@ -148,12 +148,10 @@ const signalCommand = Command.make("signal", {
     )
   })).pipe(Command.withDescription("Deliver a durable JSON signal to a run"))
 
-const ls = Command.make("ls", {
-  filter: Flag.string("filter").pipe(Flag.optional)
-}, (config) =>
+const ls = Command.make("ls", {}, () =>
   Effect.gen(function*() {
     const control = yield* ControlService.Control
-    yield* render(yield* control.list({ _tag: "flows", filters: Option.getOrUndefined(config.filter) }))
+    yield* render(yield* control.list({ _tag: "flows" }))
   })).pipe(Command.withDescription("List available flows"))
 
 const ps = Command.make("ps", {

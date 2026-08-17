@@ -35,4 +35,12 @@ describe("flows executable", () => {
     expect(result.error).toBeUndefined()
     expect(result.status).toBe(2)
   })
+
+  it("rejects the unsupported flow-list filter", () => {
+    const result = run(["ls", "--filter", "review"])
+
+    expect(result.error).toBeUndefined()
+    expect(result.status).toBe(2)
+    expect(result.stderr).toContain("--filter")
+  })
 })
