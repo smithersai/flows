@@ -392,6 +392,7 @@ export const ListRequest = Schema.Union([
   }),
   Schema.TaggedStruct("runs", {
     filters: Schema.optional(Schema.Struct({
+      runId: Schema.optional(RunId),
       flowId: Schema.optional(FlowId),
       status: Schema.optional(RunStatus),
       principalId: Schema.optional(Schema.String)

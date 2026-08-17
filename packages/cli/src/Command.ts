@@ -172,7 +172,7 @@ const status = Command.make("status", {
 }, (config) =>
   Effect.gen(function*() {
     const control = yield* ControlService.Control
-    const filters = Option.isSome(config.runId) ? {} : undefined
+    const filters = Option.isSome(config.runId) ? { runId: config.runId.value } : undefined
     yield* render(yield* control.list({ _tag: "runs", filters }))
   })).pipe(Command.withDescription("Show control status"))
 

@@ -64,9 +64,11 @@ const scenario = (shared: ReadonlyArray<string> = []) =>
     const run = yield* invoke(["--json", ...shared, "run", approval])
     const runId = (run.value as { readonly runId?: unknown }).runId
     if (typeof runId !== "string") return yield* Effect.fail(new Error("run did not emit its identifier"))
+    const status = yield* invoke(["--json", ...shared, "status", runId])
+    const missingStatus = yield* invoke(["--json", ...shared, "status", `missing-${runId}`])
     const logs = yield* invoke(["--json", ...shared, "logs", runId]).pipe(Effect.timeout("2 seconds"))
 
-    return { plan, parked, approve, run, logs }
+    return { plan, parked, approve, run, runId, status, missingStatus, logs }
   })
 
 const scenarioServices = Layer.merge(TestConsole.layer, Output.layer)
@@ -232,6 +234,8 @@ describe("Control surface", () => {
     expect(isWaitingForApproval(remote.result.parked.value)).toBe(true)
     expect(local.parked.exitCode).toBe(3)
     expect(remote.result.parked.exitCode).toBe(3)
+    expect(local.status.value).toMatchObject({ _tag: "runs", items: [{ runId: local.runId }] })
+    expect(local.missingStatus.value).toEqual({ _tag: "runs", items: [] })
     expect(Array.isArray(local.logs.value)).toBe(true)
     expect((local.logs.value as ReadonlyArray<unknown>).length).toBeGreaterThan(0)
     expect(remote.hostname).toBe("127.0.0.1")

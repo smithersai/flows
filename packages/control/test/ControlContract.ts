@@ -100,6 +100,24 @@ export const contract = (name: string, harness: Harness): void => {
         })
       }))
 
+    test("filters run listings to a matching run identifier", () =>
+      Effect.gen(function*() {
+        const control = yield* Control
+        const { runId } = yield* start
+        const listed = yield* control.list({ _tag: "runs", filters: { runId } })
+
+        expect(listed).toMatchObject({ _tag: "runs", items: [{ runId }] })
+      }))
+
+    test("returns an empty run listing for a missing run identifier", () =>
+      Effect.gen(function*() {
+        const control = yield* Control
+        yield* start
+        const listed = yield* control.list({ _tag: "runs", filters: { runId: "missing-run" } })
+
+        expect(listed).toEqual({ _tag: "runs", items: [] })
+      }))
+
     test("emits a complete approval payload and parks until it is resolved", () =>
       Effect.gen(function*() {
         const control = yield* Control

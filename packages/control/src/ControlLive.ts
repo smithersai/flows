@@ -220,6 +220,9 @@ export const layer: Layer.Layer<
         }
 
         let runs = Array.from(yield* runtime.listRuns)
+        if (request.filters?.runId !== undefined) {
+          runs = runs.filter((run) => run.runId === request.filters?.runId)
+        }
         if (request.filters?.flowId !== undefined) {
           runs = runs.filter((run) => run.flowId === request.filters?.flowId)
         }
