@@ -542,6 +542,50 @@ describe("QuickJSSandbox", () => {
     })
   })
 
+  it("does not invoke hostile Object.prototype setters while materializing flow results", async () => {
+    const outcome = await evaluate(
+      QuickJSSandbox.layer,
+      `let captured = "missed"
+       Object.defineProperty(Object.prototype, "entry", {
+         configurable: true,
+         set: function () { captured = "captured" }
+       })
+       const result = await ctx.call("fs/list", {})
+       return {
+         intent: "complete",
+         output: [Object.hasOwn(result, "entry"), String(result.entry), captured].join("|")
+       }`,
+      { call: handler({ "fs/list": { entry: "preserved" } }, []) }
+    )
+
+    expect(outcome).toMatchObject({
+      _tag: "settled",
+      transition: { _tag: "complete", output: "true|preserved|missed" }
+    })
+  })
+
+  it("does not invoke hostile Array.prototype setters while materializing flow results", async () => {
+    const outcome = await evaluate(
+      QuickJSSandbox.layer,
+      `let captured = "missed"
+       Object.defineProperty(Array.prototype, "0", {
+         configurable: true,
+         set: function (value) { if (value === "preserved") captured = "captured" }
+       })
+       const result = await ctx.call("fs/list", {})
+       return {
+         intent: "complete",
+         output: [Object.hasOwn(result.entries, "0"), String(result.entries[0]), captured].join("|")
+       }`,
+      { call: handler({ "fs/list": { entries: ["preserved"] } }, []) }
+    )
+
+    expect(outcome).toMatchObject({
+      _tag: "settled",
+      transition: { _tag: "complete", output: "true|preserved|missed" }
+    })
+  })
+
   it("carries a 2 MB flow result across the WebAssembly boundary", async () => {
     const payload = `${"x".repeat(2 * 1024 * 1024)}🗼`
     const outcome = await evaluate(

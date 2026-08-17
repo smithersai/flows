@@ -118,7 +118,7 @@ const raisedFrom = (dumped: unknown): Cell.Raised => {
  */
 const handleFromJson = (
   context: QuickJSContext,
-  defineProtoProperty: QuickJSHandle,
+  defineDataProperty: QuickJSHandle,
   value: Schema.Json
 ): QuickJSHandle => {
   if (value === null) return context.null
@@ -134,12 +134,15 @@ const handleFromJson = (
   const container = Array.isArray(value) ? context.newArray() : context.newObject()
   try {
     for (const [key, item] of Object.entries(value)) {
-      const child = handleFromJson(context, defineProtoProperty, item)
+      const child = handleFromJson(context, defineDataProperty, item)
       try {
-        if (key === "__proto__") {
-          context.unwrapResult(context.callFunction(defineProtoProperty, context.undefined, container, child)).dispose()
-        } else {
-          context.setProp(container, key, child)
+        const property = context.newString(key)
+        try {
+          context.unwrapResult(
+            context.callFunction(defineDataProperty, context.undefined, container, property, child)
+          ).dispose()
+        } finally {
+          property.dispose()
         }
       } finally {
         child.dispose()
@@ -215,13 +218,13 @@ const evaluate = (
         })
         const context: QuickJSContext = runtime.newContext()
         try {
-          // Capture the pristine intrinsic before cell code can replace it. A
-          // normal assignment would invoke Object.prototype.__proto__, while
+          // Capture the pristine intrinsic before cell code can replace it.
+          // Assignment can invoke a hostile inherited setter, while
           // QuickJSContext.defineProp cannot create a writable data property.
-          const defineProtoProperty = context.unwrapResult(context.evalCode(
+          const defineDataProperty = context.unwrapResult(context.evalCode(
             `(function (defineProperty) {
-  return function (object, value) {
-    defineProperty(object, "__proto__", {
+  return function (object, key, value) {
+    defineProperty(object, key, {
       value: value,
       writable: true,
       enumerable: true,
@@ -230,21 +233,21 @@ const evaluate = (
   }
 })(Object.defineProperty)`
           ))
-          return { runtime, context, defineProtoProperty }
+          return { runtime, context, defineDataProperty }
         } catch (error) {
           context.dispose()
           runtime.dispose()
           throw error
         }
       }),
-      ({ context, defineProtoProperty, runtime }) =>
+      ({ context, defineDataProperty, runtime }) =>
         Effect.sync(() => {
-          defineProtoProperty.dispose()
+          defineDataProperty.dispose()
           context.dispose()
           runtime.dispose()
         })
     )
-    const { context, defineProtoProperty, runtime } = acquired
+    const { context, defineDataProperty, runtime } = acquired
 
     const pending: Array<Sandbox.PendingCall> = []
     let ordinal = 0
@@ -255,7 +258,7 @@ const evaluate = (
       const encoded = context.getString(inputHandle)
       const deferred = context.newPromise()
       const reply = (payload: Schema.Json): void => {
-        const handle = handleFromJson(context, defineProtoProperty, payload)
+        const handle = handleFromJson(context, defineDataProperty, payload)
         try {
           deferred.resolve(handle)
         } finally {
