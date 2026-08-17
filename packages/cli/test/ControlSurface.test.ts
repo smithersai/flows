@@ -1,6 +1,7 @@
 import { NodeServices } from "@effect/platform-node"
-import { Control as ControlService, ControlError, type ControlSchema } from "@smthrs/control"
+import { Control as ControlService, ControlError, ControlRuntime, type ControlSchema } from "@smthrs/control"
 import * as TestControl from "@smthrs/control/test/TestControl"
+import { Journal, JournalEvent } from "@smthrs/journal-next"
 import { Cause, Effect, Exit, Layer, Stream } from "effect"
 import { TestConsole } from "effect/testing"
 import { Command } from "effect/unstable/cli"
@@ -310,11 +311,77 @@ describe("Control surface", () => {
       )
     )
 
-    expect(receipt.value).toMatchObject({ _tag: "Accepted", runId })
-    // The settlement wait must scope past the committed resume event so the
-    // replayed first park cannot satisfy it.
+    // The resume mutation is keyed to the park it resumes, and the settlement
+    // wait must scope past that park so its replay cannot satisfy it.
+    expect(receipt.value).toMatchObject({
+      _tag: "Accepted",
+      runId,
+      receiptId: `cli:resume:${runId}:1`
+    })
     expect(watched).toContainEqual({ runId, follow: false })
-    expect(watched).toContainEqual({ runId, afterSequence: 2 })
+    expect(watched).toContainEqual({ runId, afterSequence: 1 })
+  })
+
+  it("re-drives a second park instead of replaying the first resume receipt", async () => {
+    const result = await Effect.runPromise(
+      Effect.gen(function*() {
+        const control = yield* ControlService.Control
+        const runtime = yield* ControlRuntime.ControlRuntime
+        const journal = yield* Journal.Journal
+
+        const planned = yield* invoke(["--json", "plan", "system/test"])
+        const card = planned.value as { readonly approval: unknown }
+        const approval = JSON.stringify(card.approval)
+        yield* invoke(["--json", "approve", approval])
+        const run = yield* invoke(["--json", "run", approval])
+        const runId = (run.value as { readonly runId?: unknown }).runId
+        if (typeof runId !== "string") return yield* Effect.fail(new Error("run did not emit its identifier"))
+
+        // One park is one fenced status write plus its journal record,
+        // exactly as the production executor publishes it.
+        const park = Effect.gen(function*() {
+          const fence = yield* runtime.claimFence(runId)
+          yield* runtime.writeStatus(runId, fence, "waiting-approval")
+          yield* journal.emitDurable(
+            new JournalEvent.Input({
+              runId: JournalEvent.RunId.make(runId),
+              sourceId: JournalEvent.SourceId.make("/test/executor"),
+              eventType: "control.run.waiting-approval",
+              payload: { runId, status: "waiting-approval" }
+            })
+          )
+        })
+
+        yield* park
+        const first = yield* invoke(["--json", "run", runId, "--resume"])
+        yield* park
+        const second = yield* invoke(["--json", "run", runId, "--resume"])
+
+        const resumes = yield* control.watch({ runId, follow: false }).pipe(
+          Stream.filter((event) => event.kind === "control.run.resume"),
+          Stream.runCollect
+        )
+        return {
+          first: first.value as { readonly _tag?: string; readonly receiptId?: string },
+          second: second.value as { readonly _tag?: string; readonly receiptId?: string },
+          resumes: resumes.length,
+          status: (yield* runtime.getRun(runId)).status
+        }
+      }).pipe(
+        Effect.provide(testControl),
+        Effect.provide(scenarioServices),
+        Effect.provide(NodeServices.layer)
+      )
+    )
+
+    // Each park keys its own resume mutation, so the second resume evaluates
+    // and emits its own `control.run.resume` instead of replaying the first
+    // resume's recorded receipt while the run stays parked.
+    expect(result.first).toMatchObject({ _tag: "Accepted" })
+    expect(result.second).toMatchObject({ _tag: "Accepted" })
+    expect(result.second.receiptId).not.toBe(result.first.receiptId)
+    expect(result.resumes).toBe(2)
+    expect(result.status).toBe("accepted")
   })
 
   it("runs plan, approval, launch, and finite logs through an authenticated remote server", async () => {

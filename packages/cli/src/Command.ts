@@ -108,18 +108,19 @@ const awaitRun = (
   )
 
 /**
- * `watch` replays committed history before following, so a resumed run's
- * earlier park would satisfy the settlement wait immediately. The
- * `control.run.resume` event this resume just committed marks the resume
- * point; waiting only on events after its sequence keeps the wait live for a
- * second park without matching the first.
+ * The sequence of the latest committed `control.run.waiting-approval` event:
+ * the park a resume applies to. It keys the resume mutation, so resuming a
+ * second park is a fresh mutation instead of a replay of the first resume's
+ * recorded receipt, and it scopes the settlement wait — `watch` replays
+ * committed history before following, so waiting only on events after the
+ * resumed park keeps the wait live for a later park without matching this one.
  */
-const resumePoint = (
+const latestPark = (
   control: ControlService.Service,
   runId: string
 ): Effect.Effect<number | undefined, never> =>
   control.watch({ runId, follow: false }).pipe(
-    Stream.filter((event) => event.kind === "control.run.resume"),
+    Stream.filter((event) => event.kind === "control.run.waiting-approval"),
     Stream.runCollect,
     Effect.map((events) => events.length === 0 ? undefined : Math.max(...events.map((event) => event.sequence))),
     Effect.catchCause(() => Effect.succeed(undefined))
@@ -128,12 +129,11 @@ const resumePoint = (
 const awaitOwnedRun = (
   control: ControlService.Service,
   receipt: ControlSchema.Receipt,
-  resumable: boolean
+  afterSequence: number | undefined
 ): Effect.Effect<void, never> =>
   Effect.gen(function*() {
     const ownsExecutor = yield* ExecutorOwnership.ExecutorOwnership
     if (!ownsExecutor || receipt._tag !== "Accepted" || receipt.runId === undefined) return
-    const afterSequence = resumable ? yield* resumePoint(control, receipt.runId) : undefined
     yield* awaitRun(control, receipt.runId, afterSequence)
   })
 
@@ -153,8 +153,14 @@ const run = Command.make("run", {
   Effect.gen(function*() {
     if (config.resume) {
       const control = yield* ControlService.Control
-      const receipt = yield* control.resume({ runId: config.plan, idempotencyKey: `cli:resume:${config.plan}` })
-      yield* awaitOwnedRun(control, receipt, true)
+      const parkSequence = yield* latestPark(control, config.plan)
+      const receipt = yield* control.resume({
+        runId: config.plan,
+        idempotencyKey: parkSequence === undefined
+          ? `cli:resume:${config.plan}`
+          : `cli:resume:${config.plan}:${parkSequence}`
+      })
+      yield* awaitOwnedRun(control, receipt, parkSequence)
       return yield* render(receipt)
     }
     const payload = yield* approval(config.plan)
@@ -170,7 +176,7 @@ const run = Command.make("run", {
       envelope: target.envelope,
       idempotencyKey: payload.idempotencyKey
     })
-    yield* awaitOwnedRun(control, receipt, false)
+    yield* awaitOwnedRun(control, receipt, undefined)
     yield* render(receipt)
   })).pipe(Command.withDescription("Run an approved plan payload, or resume a parked run"))
 
