@@ -448,7 +448,7 @@ describe("vitest coverage isolation conformance", () => {
       // corrupted-registry fallbacks. They translate engine/journal failures
       // that the durable integration stack cannot synthesize without breaking
       // the very invariants it is proving.
-      "engine-harness/src/HarnessExecutor.ts": 12,
+      "engine-harness/src/HarnessExecutor.ts": 10,
       // One `else` arm in recursive enumeration: special entries (symlinks,
       // sockets) are neither materializable leaves nor prunable scaffolding
       // and are intentionally discarded.
