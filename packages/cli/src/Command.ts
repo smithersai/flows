@@ -7,6 +7,7 @@ import { Control as ControlService, ControlSchema } from "@smthrs/control"
 import { Console, Effect, Option, Schema, Stream } from "effect"
 import { Argument, Command, Flag } from "effect/unstable/cli"
 import * as CliError from "./CliError.ts"
+import * as ExecutorOwnership from "./ExecutorOwnership.ts"
 import { Output } from "./Output.ts"
 import { find } from "./Verb.ts"
 
@@ -106,6 +107,18 @@ const awaitRun = (
     Effect.catchCause(() => Effect.void)
   )
 
+const awaitOwnedRun = (
+  control: ControlService.Service,
+  receipt: ControlSchema.Receipt,
+  resumable: boolean
+): Effect.Effect<void, never> =>
+  Effect.gen(function*() {
+    const ownsExecutor = yield* ExecutorOwnership.ExecutorOwnership
+    if (ownsExecutor && receipt._tag === "Accepted" && receipt.runId !== undefined) {
+      yield* awaitRun(control, receipt.runId, resumable)
+    }
+  })
+
 const plan = Command.make("plan", common, (config) =>
   Effect.gen(function*() {
     const decodedInput = yield* decodeInput(config.input.slice(1), config.data)
@@ -123,9 +136,7 @@ const run = Command.make("run", {
     if (config.resume) {
       const control = yield* ControlService.Control
       const receipt = yield* control.resume({ runId: config.plan, idempotencyKey: `cli:resume:${config.plan}` })
-      if (receipt._tag === "Accepted" && receipt.runId !== undefined) {
-        yield* awaitRun(control, receipt.runId, true)
-      }
+      yield* awaitOwnedRun(control, receipt, true)
       return yield* render(receipt)
     }
     const payload = yield* approval(config.plan)
@@ -141,9 +152,7 @@ const run = Command.make("run", {
       envelope: target.envelope,
       idempotencyKey: payload.idempotencyKey
     })
-    if (receipt._tag === "Accepted" && receipt.runId !== undefined) {
-      yield* awaitRun(control, receipt.runId, false)
-    }
+    yield* awaitOwnedRun(control, receipt, false)
     yield* render(receipt)
   })).pipe(Command.withDescription("Run an approved plan payload, or resume a parked run"))
 

@@ -14,6 +14,7 @@ import { Layer } from "effect"
 import type { HttpClient } from "effect/unstable/http/HttpClient"
 import type { RpcSerialization } from "effect/unstable/rpc/RpcSerialization"
 import type { Socket } from "effect/unstable/socket/Socket"
+import * as ExecutorOwnership from "./ExecutorOwnership.ts"
 
 /**
  * Configuration parsed before the command handlers are run.
@@ -130,6 +131,9 @@ export const layer = (
     >
     | undefined
 ): Layer.Layer<Control.Control, never, HttpClient | RpcSerialization | Socket> =>
-  config.remote === undefined
-    ? layerLocal(registry, engine, executor)
-    : ControlClient.layer({ url: rpcUrl(config.remote), credential: config.credential })
+  Layer.merge(
+    config.remote === undefined
+      ? layerLocal(registry, engine, executor)
+      : ControlClient.layer({ url: rpcUrl(config.remote), credential: config.credential }),
+    ExecutorOwnership.layer(config.remote === undefined && executor !== undefined)
+  )

@@ -117,6 +117,16 @@ const streamingControl = Layer.effect(
     })
   })
 ).pipe(Layer.provide(testControl))
+const nonTerminalControl = Layer.effect(
+  ControlService.Control,
+  Effect.gen(function*() {
+    const control = yield* ControlService.Control
+    return ControlService.make({
+      ...control,
+      watch: () => Stream.never
+    })
+  })
+).pipe(Layer.provide(testControl))
 
 describe("Control surface", () => {
   it("parses the remote bearer credential from either CLI spelling", () => {
@@ -214,6 +224,25 @@ describe("Control surface", () => {
     )
 
     expect(normalize(remote)).toEqual(normalize(local))
+  })
+
+  it("renders an accepted non-terminal remote run without awaiting server settlement", async () => {
+    const accepted = await Effect.runPromise(
+      Effect.gen(function*() {
+        const shared = ["--remote", "http://control.example.test"]
+        const planned = yield* invoke(["--json", ...shared, "plan", "system/test"])
+        const card = planned.value as { readonly approval: unknown }
+        const approval = JSON.stringify(card.approval)
+        yield* invoke(["--json", ...shared, "approve", approval])
+        return yield* invoke(["--json", ...shared, "run", approval]).pipe(Effect.timeout("1 second"))
+      }).pipe(
+        Effect.provide(nonTerminalControl),
+        Effect.provide(scenarioServices),
+        Effect.provide(NodeServices.layer)
+      )
+    )
+
+    expect(accepted.value).toMatchObject({ _tag: "Accepted", runId: expect.any(String) })
   })
 
   it("runs plan, approval, launch, and finite logs through an authenticated remote server", async () => {

@@ -41,6 +41,12 @@ export * as Version from "./Version.ts"
 export * as Application from "./Application.ts"
 
 /**
+ * @category execution
+ * @since 0.1.0
+ */
+export * as ExecutorOwnership from "./ExecutorOwnership.ts"
+
+/**
  * @category node
  * @since 0.1.0
  */
