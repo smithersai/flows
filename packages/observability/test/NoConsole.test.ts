@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs"
+import { type Dirent, readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
@@ -13,7 +13,7 @@ const CONSOLE_CALL = /console\.(?:log|info|warn|error|debug|trace)\s*\(/
  * reads like a real console violation instead of a missing binary.
  */
 function* sourceFiles(dir: string): Generator<string> {
-  let entries: ReturnType<typeof readdirSync<{ withFileTypes: true }>>
+  let entries: Dirent[]
   try {
     entries = readdirSync(dir, { withFileTypes: true })
   } catch {
