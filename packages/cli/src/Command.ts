@@ -68,6 +68,34 @@ const render = (value: unknown) =>
     if (!root.quiet) yield* Console.log(rendered.text)
   })
 
+/**
+ * A local CLI owns the executor layer. Keep that scope alive after accepting
+ * a run so its driver is not interrupted as soon as the receipt is printed.
+ * A first run may legitimately park for approval; a resume must instead wait
+ * for its next terminal settlement.
+ */
+const awaitRun = (
+  control: ControlService.Service,
+  runId: string,
+  resumable: boolean
+): Effect.Effect<void, never> =>
+  control.watch({ runId }).pipe(
+    Stream.filter((event) =>
+      resumable
+        ? event.kind === "control.run.completed" || event.kind === "control.run.failed" ||
+          event.kind === "control.run.cancelled"
+        : event.kind === "control.run.waiting-approval" ||
+          event.kind === "control.run.completed" ||
+          event.kind === "control.run.failed" ||
+          event.kind === "control.run.cancelled"
+    ),
+    Stream.take(1),
+    Stream.runDrain,
+    // A transport failure still lets the process close normally; remote CLI
+    // ownership belongs to the server, and the receipt was already durable.
+    Effect.catchCause(() => Effect.void)
+  )
+
 const plan = Command.make("plan", common, (config) =>
   Effect.gen(function*() {
     const decodedInput = yield* decodeInput(config.input.slice(1), config.data)
@@ -85,6 +113,9 @@ const run = Command.make("run", {
     if (config.resume) {
       const control = yield* ControlService.Control
       const receipt = yield* control.resume({ runId: config.plan, idempotencyKey: `cli:resume:${config.plan}` })
+      if (receipt._tag === "Accepted" && receipt.runId !== undefined) {
+        yield* awaitRun(control, receipt.runId, true)
+      }
       return yield* render(receipt)
     }
     const payload = yield* approval(config.plan)
@@ -100,6 +131,9 @@ const run = Command.make("run", {
       envelope: target.envelope,
       idempotencyKey: payload.idempotencyKey
     })
+    if (receipt._tag === "Accepted" && receipt.runId !== undefined) {
+      yield* awaitRun(control, receipt.runId, false)
+    }
     yield* render(receipt)
   })).pipe(Command.withDescription("Run an approved plan payload, or resume a parked run"))
 

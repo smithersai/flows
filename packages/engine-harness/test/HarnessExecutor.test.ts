@@ -451,6 +451,40 @@ describe("HarnessExecutor", () => {
     expect(notes).toEqual(["frame zero note"])
   })
 
+  it("durably cancels a driver blocked in a tool before its side effect runs", async () => {
+    const notes: Array<string> = []
+    const status = await Effect.runPromise(
+      Effect.gen(function*() {
+        const gate = yield* Deferred.make<void>()
+        return yield* Effect.gen(function*() {
+          const control = yield* Control.Control
+          const runtime = yield* ControlRuntime.ControlRuntime
+          const card = yield* control.plan({ flowId: "agents/notes", input: {} })
+          yield* control.approve(card.approval)
+          const receipt = yield* control.run({
+            _tag: "Plan",
+            planId: card.planId,
+            digest: card.digest,
+            envelope: card.envelope,
+            idempotencyKey: "run:cancelled-tool"
+          })
+          if (receipt._tag !== "Accepted" || receipt.runId === undefined) {
+            return yield* Effect.die("expected an accepted run")
+          }
+          // The first cell is now waiting on `note/save`'s gate. Cancelling
+          // must reach the durable engine, not merely change the control row.
+          yield* control.cancel({ runId: receipt.runId, idempotencyKey: "cancel:blocked-tool" })
+          yield* Deferred.succeed(gate, void 0)
+          yield* Effect.sleep(Duration.millis(20))
+          return (yield* runtime.getRun(receipt.runId)).status
+        }).pipe(Effect.provide(stack({ resolveSeat: seat(capturing([])), notes, gate })))
+      }).pipe(Effect.scoped) as Effect.Effect<string>
+    )
+
+    expect(status).toBe("cancelled")
+    expect(notes).toEqual([])
+  })
+
   it("leaves a seated flow with a module body pending: only prompt flows run on the cell harness", async () => {
     const result = await Effect.runPromise(
       Effect.gen(function*() {

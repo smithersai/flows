@@ -252,7 +252,6 @@ export const make = (
     const engine = yield* FlowRuntime.FlowRuntime
     const scope = yield* Effect.scope
     const services = yield* Effect.context<Services>()
-    const launched = new Set<string>()
 
     const emit = (
       runId: string,
@@ -389,10 +388,18 @@ export const make = (
      * frame — and every re-executed attempt settles again, so the resumed
      * run writes its own terminal status.
      */
-    const settle = (runId: string, exit: Exit.Exit<unknown, unknown>): Effect.Effect<void> =>
+    const settle = (
+      runId: string,
+      suspended: boolean,
+      exit: Exit.Exit<unknown, unknown>
+    ): Effect.Effect<void> =>
       Exit.isSuccess(exit)
         ? writeStatus(runId, "completed")
-        : Cause.hasInterruptsOnly(exit.cause)
+        // Flow suspension deliberately interrupts the user body. Process
+        // shutdown and Control.cancel do too, but neither sets the durable
+        // execution's suspension bit; reporting those as an approval wait
+        // would leave a cancelled run looking resumable.
+        : suspended && Cause.hasInterruptsOnly(exit.cause)
         ? writeStatus(runId, "waiting-approval")
         : Effect.andThen(
           Effect.annotateLogs(Effect.logWarning("An agent run failed"), {
@@ -478,15 +485,20 @@ export const make = (
           executionId: runId,
           payload: { runId, planId },
           discard: true
-        })
+        }).pipe(
+          // ControlRuntime owns this driver fiber. Turn that cancellation
+          // into the engine's durable cancellation before the fiber exits.
+          Effect.onInterrupt(() => engine.interrupt(agentFlow, runId).pipe(Effect.catchCause(() => Effect.void)))
+        )
       }).pipe(
         Effect.catchCause(
-          /* v8 ignore next 6 -- reached only when the engine refuses a registered flow. */
           (cause) =>
-            Effect.annotateLogs(
-              Effect.logError("An accepted agent run could not start on the engine"),
-              { runId, cause: Cause.pretty(cause) }
-            )
+            Cause.hasInterruptsOnly(cause)
+              ? Effect.interrupt
+              : Effect.annotateLogs(
+                Effect.logError("An accepted agent run could not start on the engine"),
+                { runId, cause: Cause.pretty(cause) }
+              )
         )
       )
 
@@ -536,10 +548,7 @@ export const make = (
     const resumeBridge = Effect.gen(function*() {
       const subscription = yield* journal.changes
       yield* Stream.fromSubscription(subscription).pipe(
-        Stream.filter((entry) =>
-          (entry.eventType === "control.run.resume" || entry.eventType === "control.run.resumed") &&
-          launched.has(entry.runId)
-        ),
+        Stream.filter((entry) => entry.eventType === "control.run.resume" || entry.eventType === "control.run.resumed"),
         Stream.mapEffect((entry) => resumeExecution(entry.runId), { concurrency: 1 }),
         Stream.runDrain
       )
@@ -555,10 +564,13 @@ export const make = (
     )
 
     yield* engine.register(agentFlow, (payload) =>
-      body(payload).pipe(
-        Effect.onExit((exit) => settle(payload.runId, exit)),
-        Effect.provide(services)
-      )).pipe(Scope.provide(scope))
+      Effect.gen(function*() {
+        const instance = yield* FlowRuntime.FlowInstance
+        return yield* body(payload).pipe(
+          Effect.onExit((exit) => settle(payload.runId, instance.suspended, exit)),
+          Effect.provide(services)
+        )
+      })).pipe(Scope.provide(scope))
 
     yield* Effect.forkIn(resumeBridge, scope)
 
@@ -596,8 +608,16 @@ export const make = (
             })
           )
         )
-        launched.add(input.run.runId)
-        yield* Effect.forkIn(driver(input.run.runId, input.plan.card.planId), scope)
+        const fiber = yield* Effect.forkIn(driver(input.run.runId, input.plan.card.planId), scope)
+        yield* runtime.registerFiber(input.run.runId, fiber).pipe(
+          Effect.mapError((cause) =>
+            new LaunchFailed({
+              runId: input.run.runId,
+              message: "The run driver could not be registered for cancellation",
+              cause
+            })
+          )
+        )
         return "accepted" as const
       })
 
