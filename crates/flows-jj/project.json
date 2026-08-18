@@ -1,0 +1,49 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "flows-jj-crate",
+  "projectType": "application",
+  "sourceRoot": "crates/flows-jj/src",
+  "tags": ["lang:rust", "type:crate"],
+  "targets": {
+    "cargo-fmt": {
+      "command": "cargo fmt --check",
+      "options": {
+        "cwd": "{workspaceRoot}"
+      },
+      "metadata": {
+        "technologies": ["rust"],
+        "description": "Checks Rust formatting with the pinned toolchain."
+      }
+    },
+    "cargo-clippy": {
+      "command": "cargo clippy --all-targets --locked -- -D warnings",
+      "options": {
+        "cwd": "{workspaceRoot}"
+      },
+      "metadata": {
+        "technologies": ["rust"],
+        "description": "Lints every Rust target with clippy, warnings denied."
+      }
+    },
+    "cargo-test": {
+      "command": "cargo test --locked",
+      "options": {
+        "cwd": "{workspaceRoot}"
+      },
+      "metadata": {
+        "technologies": ["rust"],
+        "description": "Runs the Rust test suite with the locked dependency set."
+      }
+    },
+    "wasm-repro": {
+      "command": "node --test crates/flows-jj/build-wasm.test.mjs && committed=$(mktemp) && cp packages/jj/wasm/flows_jj.wasm \"$committed\" && node crates/flows-jj/build-wasm.mjs && cmp \"$committed\" packages/jj/wasm/flows_jj.wasm",
+      "options": {
+        "cwd": "{workspaceRoot}"
+      },
+      "metadata": {
+        "technologies": ["rust", "wasm"],
+        "description": "Rebuilds flows_jj.wasm from source and byte-compares it against the committed artifact. Only runs on x86_64-unknown-linux-gnu; build-wasm.mjs refuses any other host."
+      }
+    }
+  }
+}
