@@ -1,0 +1,94 @@
+name: Bazel
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: bazel build + test
+    runs-on: ubuntu-latest
+    steps:
+      # submodules: vendor/jj holds the pinned jj fork that
+      # //crates/flows-jj builds against.
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      # Bazelisk reads .bazelversion (Bazel 8.7.0) and downloads that exact
+      # Bazel. No Node or pnpm setup follows: rules_js fetches the pinned
+      # Node toolchain and every npm package itself.
+      - name: Install bazelisk
+        run: |
+          curl -fsSL -o /usr/local/bin/bazel https://github.com/bazelbuild/bazelisk/releases/download/v1.26.0/bazelisk-linux-amd64
+          chmod +x /usr/local/bin/bazel
+
+      # rust-toolchain.toml pins the toolchain for the cargo actions under
+      # //crates/flows-jj; a bare `rustup toolchain install` reads it.
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install
+
+      # Warm the two caches Bazel populates: the repository cache (external
+      # fetches: npm tarballs, crate archives, toolchains) and the disk cache
+      # (action outputs). The action graph itself is recomputed each run.
+      - name: Cache Bazel repositories and actions
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/bazel/repository_cache
+            ~/.cache/bazel-disk-cache
+          key: bazel-${{ runner.os }}-${{ hashFiles('MODULE.bazel.lock', 'pnpm-lock.yaml', 'Cargo.lock') }}
+          restore-keys: |
+            bazel-${{ runner.os }}-
+
+      # Optional remote cache. When the SMITHERS_BAZEL_CACHE_URL variable is
+      # set, layer a Bazel Remote Cache protocol endpoint (gRPC or HTTP) on
+      # top of the local caches. The smithers cache worker in
+      # packages/build/infra does not speak that protocol today; see
+      # docs/build-systems/bazel.md.
+      - name: Configure remote cache
+        if: vars.SMITHERS_BAZEL_CACHE_URL != ''
+        run: |
+          {
+            echo "build:remote --remote_cache=${SMITHERS_BAZEL_CACHE_URL}"
+            echo "build:remote --remote_header=Authorization=Bearer ${SMITHERS_BAZEL_CACHE_TOKEN}"
+          } > .bazelrc.remote
+        env:
+          SMITHERS_BAZEL_CACHE_URL: ${{ vars.SMITHERS_BAZEL_CACHE_URL }}
+          SMITHERS_BAZEL_CACHE_TOKEN: ${{ secrets.SMITHERS_BAZEL_CACHE_TOKEN }}
+
+      # The target set is explicit, not //...: the kernel <-> platform-browser
+      # packages declare a runtime dependency cycle, which pnpm tolerates and
+      # Bazel cannot analyze, and the generated npm store farm that mirrors it
+      # lives in the root package, so no wildcard that includes the root
+      # package analyzes. Per-package link targets are tagged manual by
+      # rules_js, so the per-directory wildcards below are clean. Details and
+      # the fix are in docs/build-systems/bazel.md.
+      - name: Build
+        run: bazel --disk_cache=~/.cache/bazel-disk-cache build --config=ci //packages/... //apps/... //examples/... //crates/... //tools/...
+
+      - name: Test
+        run: bazel --disk_cache=~/.cache/bazel-disk-cache test --config=ci //packages/... //apps/... //examples/... //crates/... //tools/...
+
+      # Lint aspects over the same graph; lint actions are cached like any
+      # other.
+      - name: Lint
+        run: bazel --disk_cache=~/.cache/bazel-disk-cache build --config=ci --config=lint //packages/... --output_groups=+rules_lint_human
+
+      # Formatting gate (dprint check). Runs in the workspace, not a sandbox:
+      # dprint downloads its wasm plugins on first use.
+      - name: Format check
+        run: bazel run //tools/format:format.check
+
+      # Generated-file drift gate: fails when BUILD.bazel files are stale
+      # relative to imports and package.json files.
+      - name: Gazelle drift check
+        run: bazel run //:gazelle.check
+
+      # The wasm reproducibility gate is meaningful only on the canonical
+      # artifact host (x86_64-unknown-linux-gnu), which this job is. It
+      # compares the sandboxed Bazel build against the committed
+      # packages/jj/wasm/flows_jj.wasm byte for byte.
+      - name: Wasm reproducibility gate
+        run: bazel --disk_cache=~/.cache/bazel-disk-cache test --config=ci //crates/flows-jj:wasm_repro_test
