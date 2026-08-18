@@ -3,6 +3,12 @@ import { join } from "node:path"
 import { defineConfig } from "vitest/config"
 
 export default defineConfig({
+  // Bazel's js_test runs from a runfiles symlink forest. Vite realpaths
+  // imported modules by default, which would move their URLs outside the
+  // working directory and leave the v8 coverage include globs matching files
+  // that never "executed". TEST_SRCDIR is set only under `bazel test`, so the
+  // pnpm-driven gate is unaffected.
+  resolve: { preserveSymlinks: process.env.TEST_SRCDIR !== undefined },
   test: {
     environment: "node",
     // Vitest's 5 s default is a wall-clock budget, but no suite in this repo
