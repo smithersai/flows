@@ -1,0 +1,87 @@
+name: Turbo
+
+# Additive Turborepo lane. The required gates stay in ci.yml; this workflow
+# proves the turbo.json task graph end to end on every change:
+#   - pull requests run the AFFECTED graph only (merge-base diff)
+#   - pushes to main run the FULL graph
+# Remote caching activates as soon as the two secrets below exist; without
+# them turbo falls back to the local cache and every step still works.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: turbo-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Vercel Remote Cache. Absent secrets degrade to local-only caching.
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+  # Artifact signature verification (remoteCache.signature in turbo.json).
+  TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
+
+jobs:
+  graph:
+    name: turbo ${{ github.event_name == 'pull_request' && '--affected' || '(full)' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # --affected diffs against the merge base; depth 1 hides it.
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.19.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      # Same jj setup as ci.yml: the jj and host-contract suites exercise a
+      # real jj binary and refuse to skip silently.
+      - name: Install jj
+        uses: taiki-e/install-action@v2
+        with:
+          tool: jj-cli@0.39.0
+      - name: Initialize colocated jj repository
+        run: jj git init --colocate
+      # The graph itself is a deliverable: what turbo THINKS must run for this
+      # diff, as JSON, before anything executes.
+      - name: Record the affected graph
+        if: github.event_name == 'pull_request'
+        run: pnpm exec turbo run build check lint circular test --affected --dry=json > affected-graph.json
+      - name: Build
+        run: pnpm exec turbo run build ${{ github.event_name == 'pull_request' && '--affected' || '' }} --summarize
+      - name: Check + lint + circular
+        run: pnpm exec turbo run check lint circular ${{ github.event_name == 'pull_request' && '--affected' || '' }} --summarize
+      # The heavy vitest suites carry finite 30s per-test budgets that host
+      # parallelism starves (see the smthrs-shadow job in ci.yml), so the test
+      # fan-out stays at concurrency 2. --continue runs every affected suite
+      # even when a sibling fails, so one red package never hides another.
+      - name: Test
+        run: pnpm exec turbo run test ${{ github.event_name == 'pull_request' && '--affected' || '' }} --concurrency=2 --continue --summarize
+      # Boundaries is experimental and currently reports 210 pre-existing
+      # findings on this repository (config-file imports that leave the
+      # package, undeclared test dependencies, one circular package pair).
+      # Advisory until those are triaged; the engine-tier rule it encodes is
+      # enforced below by the query-based assertion, which is green.
+      - name: Boundaries (advisory)
+        continue-on-error: true
+        run: pnpm exec turbo boundaries
+      - name: Engine boundary assertion (turbo query)
+        run: node scripts/turbo-engine-boundary.mjs
+      # Root gates are not affected-filterable (//# tasks read the whole
+      # workspace), so they always run.
+      - name: Root gates
+        run: pnpm exec turbo run '//#browser' '//#test:scripts' '//#docs' --summarize
+      - name: Upload run summaries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: turbo-run-summaries
+          path: |
+            .turbo/runs/
+            affected-graph.json
+          if-no-files-found: ignore
