@@ -53,7 +53,7 @@ interface StandardTargets {
 }
 ```
 
-| Target  | Target         | Attributes                                                                                                                                         |
+| Target  | Target       | Attributes                                                                                                                                         |
 | ------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `lib`   | `TsBuild`    | `srcs: [sources]`, `entries: [file("src/index.ts")]`, `deps`, `tsconfig`, `tool: "tsc"`, `format: "dual"`, `outDir: "dist"`, `external: []`, `cwd` |
 | `check` | `Typecheck`  | `srcs: [sources, glob("test/**/*.ts")]`, `deps: [lib, ...deps]`, `tsconfig: testTsconfig`, `buildMode: false`, `incremental: false`, `cwd`         |

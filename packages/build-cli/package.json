@@ -13,7 +13,7 @@
   },
   "sideEffects": [],
   "bin": {
-    "smithers build": "./src/main.js"
+    "smthrs": "./src/main.js"
   },
   "exports": {
     "./package.json": "./package.json",

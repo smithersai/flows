@@ -607,7 +607,7 @@ const executionCommands = (attrs: Attrs, exec: string): ReadonlyArray<string> =>
   const pattern = shellArgument(attrs.pattern)
   return kinds.length === ciKinds.size && kinds.every((kind) => ciKinds.has(kind))
     ? [`${exec} smthrs ci ${pattern}`]
-    : kinds.map((kind) => `${exec} smithers build ${kind} ${pattern}`)
+    : kinds.map((kind) => `${exec} smthrs ${kind} ${pattern}`)
 }
 
 /** GitHub's own job-id shape: a letter or `_`, then letters, digits, `-`, `_`. */

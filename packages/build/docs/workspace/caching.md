@@ -8,12 +8,12 @@ cacheable target and stores the result after a green run.
 The planner builds four fields of key material for each target, encodes them
 deterministically, and takes the sha256 of the encoding.
 
-| Field          | Contents                                                                                                               |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `body`         | The target's flow tag, its target id, its target implementation digest, its declared output roots, and `EXECUTION_FORMAT`  |
-| `inputs`       | The ambient identity, the canonicalized attrs, the expanded declared inputs, and the dependency labels with their keys |
-| `layers`       | A catalog-declared layer identity list                                                                                 |
-| `capabilities` | A catalog-declared capability list                                                                                     |
+| Field          | Contents                                                                                                                  |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `body`         | The target's flow tag, its target id, its target implementation digest, its declared output roots, and `EXECUTION_FORMAT` |
+| `inputs`       | The ambient identity, the canonicalized attrs, the expanded declared inputs, and the dependency labels with their keys    |
+| `layers`       | A catalog-declared layer identity list                                                                                    |
+| `capabilities` | A catalog-declared capability list                                                                                        |
 
 ### The encoding is injective
 
@@ -46,7 +46,7 @@ Two substitutions happen inside `inputs.attrs` before hashing:
 
 `layers` and `capabilities` are hand-maintained tables in `packages/build-cli/src/Planner.ts`:
 
-| Target               | `layers`                   | `capabilities`                      |
+| Target             | `layers`                   | `capabilities`                      |
 | ------------------ | -------------------------- | ----------------------------------- |
 | `PnpmWorkspace`    | `["package-manager:pnpm"]` | `fs:read`, `fs:write`, `proc:spawn` |
 | `LlmLint`          | `["model:<model attr>"]`   | `git:diff`, `model:call`            |
@@ -101,12 +101,12 @@ boolean or a function of decoded attrs. This fails safe for custom targets and f
 catalog targets that invoke an external tool whose complete toolchain identity is
 not yet key material.
 
-| Target                                          | Cacheable                                                        |
+| Target                                        | Cacheable                                                        |
 | --------------------------------------------- | ---------------------------------------------------------------- |
 | `DocsParity`, `Filegroup`, `PackageJsonCheck` | Always; each is a bounded in-process check over declared content |
 | `GithubCiGen`                                 | In `contract` and `check` modes; never in `write` mode           |
 | `ToolBuild`                                   | Only when its declaration sets `cache: true`                     |
-| Every other catalog target                      | Never                                                            |
+| Every other catalog target                    | Never                                                            |
 
 Mutation, long-lived processes, model calls, and external publication are never
 cached. External compiler, test, and lint targets also remain non-cacheable until

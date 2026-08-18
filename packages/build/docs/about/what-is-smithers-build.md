@@ -51,11 +51,11 @@ See [Targets and targets](../concepts/targets.md) and
 |                   | smithers build                                                                               | Bazel                                               | Turborepo                                      | nx                                         |
 | ----------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------- | ---------------------------------------------- | ------------------------------------------ |
 | Build file        | `BUILD.ts`, plain TypeScript                                                                 | `BUILD.bazel`, Starlark                             | `turbo.json` plus package scripts              | `project.json` plus plugins                |
-| Unit of work      | Target: a target call exported by name                                                         | Target: a target call with a `name` attribute         | Task: a package script                         | Target: an executor invocation             |
+| Unit of work      | Target: a target call exported by name                                                       | Target: a target call with a `name` attribute       | Task: a package script                         | Target: an executor invocation             |
 | Dependency edges  | Direct `import` between `BUILD.ts` files                                                     | `deps` attribute holding label strings              | Inferred from `package.json` plus `dependsOn`  | Inferred from imports plus explicit config |
 | Input declaration | `file()`, `glob()`, `gitDiff()`                                                              | `srcs`, `glob()`                                    | Package directory hashing, `inputs` globs      | Named input sets                           |
 | Sandboxing        | Not implemented; the exec action spawns in the workspace                                     | Per-action sandbox                                  | None                                           | None                                       |
-| Cache key         | sha256 over target id, canonicalized attrs, input digests, and dependency keys                 | Action digest over declared inputs and command line | Hash over package files, dependencies, and env | Hash over inputs and project graph         |
+| Cache key         | sha256 over target id, canonicalized attrs, input digests, and dependency keys               | Action digest over declared inputs and command line | Hash over package files, dependencies, and env | Hash over inputs and project graph         |
 | Remote cache      | HTTP `/ac` read-through for CLI results; `/ac` and `/cas` services for the engine step cache | gRPC remote execution API                           | Vercel Remote Cache                            | Nx Cloud                                   |
 | Language          | TypeScript                                                                                   | Starlark                                            | JSON                                           | JSON plus TypeScript plugins               |
 
@@ -66,11 +66,11 @@ Bazel's. See [Actions and boundaries](../concepts/actions-and-boundaries.md).
 
 ## The three packages
 
-| Package                      | Source                        | What it holds                                                                                                                              |
-| ---------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `@smthrs/build`         | `packages/build/src/`         | Dependency installation as flows. Exports `Install` and `PackageManager`.                                                                  |
-| `@smthrs/targets` | `packages/targets/src/` | The `BUILD.ts` authoring surface: `Target.make`, `Input`, `Workspace`, `PackageDefaults`, `Exec`, `StandardPackage`, and the target catalog. |
-| `@smthrs/build-cli`     | `packages/build-cli/src/`     | The `smthrs` CLI: workspace discovery, the planner, the executor, the cache, and query and graph output.                                   |
+| Package             | Source                    | What it holds                                                                                                                                |
+| ------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@smthrs/build`     | `packages/build/src/`     | Dependency installation as flows. Exports `Install` and `PackageManager`.                                                                    |
+| `@smthrs/targets`   | `packages/targets/src/`   | The `BUILD.ts` authoring surface: `Target.make`, `Input`, `Workspace`, `PackageDefaults`, `Exec`, `StandardPackage`, and the target catalog. |
+| `@smthrs/build-cli` | `packages/build-cli/src/` | The `smthrs` CLI: workspace discovery, the planner, the executor, the cache, and query and graph output.                                     |
 
 ## Next
 

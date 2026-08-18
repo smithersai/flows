@@ -135,9 +135,9 @@ the complete host environment is never inherited.
 
 | Action                                   | Tier     | Boundary   | Cross-run admitted |
 | ---------------------------------------- | -------- | ---------- | ------------------ |
-| `smithers build/install/measure`         | `sealed` | `expected` | No                 |
-| `smithers build/install/fetch/{manager}` | `sealed` | `expected` | No                 |
-| `smithers build/install/link`            | `sealed` | `expected` | No                 |
+| `smithers-build/install/measure`         | `sealed` | `expected` | No                 |
+| `smithers-build/install/fetch/{manager}` | `sealed` | `expected` | No                 |
+| `smithers-build/install/link`            | `sealed` | `expected` | No                 |
 
 Fetch declares `.flows/store/<manager>` as a `TreeArtifact` output and returns
 a `StoreManifest` digest over canonical environment identity. The current

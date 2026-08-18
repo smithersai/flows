@@ -16,10 +16,10 @@ internal CLI surface for normalization and declaration recognition, not a
 
 ## Options
 
-| Option           | Type      | Default    | Description                                                                                                      |
-| ---------------- | --------- | ---------- | ---------------------------------------------------------------------------------------------------------------- |
+| Option           | Type      | Default    | Description                                                                                                        |
+| ---------------- | --------- | ---------- | ------------------------------------------------------------------------------------------------------------------ |
 | `cacheDirectory` | `string`  | `".flows"` | A single workspace-relative directory holding the result cache and target scratch files. Normalized and validated. |
-| `gitignored`     | `boolean` | `false`    | Ask every command to keep a root `.gitignore` entry for the resolved directory.                                  |
+| `gitignored`     | `boolean` | `false`    | Ask every command to keep a root `.gitignore` entry for the resolved directory.                                    |
 
 Both are optional. `Workspace()` with no argument is valid and yields the
 defaults.

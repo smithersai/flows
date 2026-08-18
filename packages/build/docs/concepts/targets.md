@@ -148,7 +148,7 @@ A target declares both channels as schemas. They default to `Schema.Void` and
 
 | Channel | Typical value                                                                                                                                                   |
 | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Success | `Exec.Result` for a single tool run, `Outputs` for a producing build, a target-specific struct for a multi-run target                                               |
+| Success | `Exec.Result` for a single tool run, `Outputs` for a producing build, a target-specific struct for a multi-run target                                           |
 | Error   | `Exec.ExecError` for tool runs, a `WriteFileError` or `DriftError` union for generators, `ReviewError` for `LlmLint`, `PackageManagerError` for `PnpmWorkspace` |
 
 The success value is what the result cache stores, clamped to what JSON can hold.

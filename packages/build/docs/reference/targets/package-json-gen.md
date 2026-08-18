@@ -41,7 +41,7 @@ The declaration above becomes `packageJsonCheck`, `packageJsonWrite`, and
 - `scripts` maps script names to imported target objects. During workspace
   analysis, each target must resolve to a graph label and support `build`,
   `test`, `lint`, or `run`. The resulting command is
-  `smithers build <verb> <label>`.
+  `smthrs <verb> <label>`.
 - `publish.entry` names a build target. Its declared `entries`, `outDir`, and
   `format` derive `exports`, `main`, `module`, `types`, `files`, and
   `publishConfig`. Missing or unsupported output declarations fail analysis
