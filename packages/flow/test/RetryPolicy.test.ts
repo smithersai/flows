@@ -3,10 +3,10 @@
 /**
  * `RetryPolicy` is pure data: every delay, give-up, and classification below
  * is derived without a runtime. The engine's use of these decisions — the
- * retry loop itself — is tested in `@smthrs/engine-next`.
+ * retry loop itself — is tested in `@smthrs/engine`.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Action, RetryPolicy } from "@smthrs/flow-next"
+import { Action, RetryPolicy } from "@smthrs/flow"
 import { Cause, Effect, Exit, Option, Random, Schema } from "effect"
 import { withCrypto } from "./Crypto.ts"
 
@@ -167,7 +167,7 @@ describe("decide", () => {
       reason: Schema.String
     }) {}
     class CacheCorruption extends Schema.TaggedError<CacheCorruption>()(
-      "@smthrs/engine-store-next/CacheCorruptionDetected",
+      "@smthrs/engine-store/CacheCorruptionDetected",
       { row: Schema.String }
     ) {}
     const failureSchema = Schema.Union([CallerFatal, CacheCorruption])
@@ -370,7 +370,7 @@ describe("nextDelay numeric boundaries", () => {
     // the same bytes — so the default classification refuses it even under a
     // policy that declared no nonRetryable tags at all.
     const policy = RetryPolicy.make({ initialMs: 100, factor: 2, maxMs: 1000, maxAttempts: 5 })
-    const corruption = { _tag: "@smthrs/engine-store-next/CacheCorruptionDetected" }
+    const corruption = { _tag: "@smthrs/engine-store/CacheCorruptionDetected" }
     expect(RetryPolicy.isNonRetryable(policy, corruption)).toBe(true)
     expect(RetryPolicy.decide(policy, { attempt: 1, error: corruption })).toEqual(
       RetryPolicy.giveUp("nonRetryable")

@@ -54,7 +54,7 @@
  *
  * @since 0.1.0
  */
-import { Journal, type JournalEvent } from "@smthrs/journal-next"
+import { Journal, type JournalEvent } from "@smthrs/journal"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -228,7 +228,7 @@ export interface Service {
  * @since 0.1.0
  * @category services
  */
-export class Selection extends Context.Service<Selection, Service>()("@smthrs/engine-store-next/Selection") {}
+export class Selection extends Context.Service<Selection, Service>()("@smthrs/engine-store/Selection") {}
 
 /**
  * Names a {@link Service} implementation as a selector.

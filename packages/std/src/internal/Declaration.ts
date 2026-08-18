@@ -3,7 +3,7 @@
  *
  * @since 0.1.0
  */
-import type * as Capability from "@smthrs/capability-next/Capability"
+import type * as Capability from "@smthrs/capability/Capability"
 import * as Effects from "@smthrs/core/Effects"
 
 /**

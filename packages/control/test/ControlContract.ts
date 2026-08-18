@@ -8,7 +8,7 @@
  *
  * Contract source: `.smithers/tickets/control-runtime-engine-integration.md`.
  */
-import { Journal } from "@smthrs/journal-next"
+import { Journal } from "@smthrs/journal"
 import { NotificationQueue } from "@smthrs/notifications"
 import { Cause, Effect, Exit, Fiber, type Layer, Stream } from "effect"
 import { describe, expect, it } from "vitest"

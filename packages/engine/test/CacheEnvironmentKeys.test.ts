@@ -18,8 +18,8 @@ import type * as Crypto from "effect/Crypto"
  * cannot opt out of it.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Action, Flow, FlowRuntime } from "@smthrs/flow-next"
-import { Node } from "@smthrs/plan-next"
+import { Action, Flow, FlowRuntime } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Effect, Exit, Layer, Schema } from "effect"
 import { FlowEngine } from "../src/index.ts"
 import { withCrypto } from "./Crypto.ts"

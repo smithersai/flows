@@ -6,11 +6,11 @@
  * shape of driving an execution the engine has never seen.
  *
  * The authoring semantics of `DurableClock`, `DurableDeferred`, and
- * suspension live in `@smthrs/flow-next`'s suite. What is asserted here is the
+ * suspension live in `@smthrs/flow`'s suite. What is asserted here is the
  * engine's side of the same interaction.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Action, DurableClock, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
+import { Action, DurableClock, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
 import { Cause, Deferred, Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
@@ -107,7 +107,7 @@ describe("FlowEngine.layerMemory durable waits", () => {
       // typed not-found rather than `Option.none`.
       const error = yield* Effect.flip(Parked.poll("never-started"))
       expect(error).toMatchObject({
-        _tag: "@smthrs/flow-next/FlowExecutionNotFound",
+        _tag: "@smthrs/flow/FlowExecutionNotFound",
         executionId: "never-started"
       })
     }).pipe(Effect.provide(ParkedLayer)))

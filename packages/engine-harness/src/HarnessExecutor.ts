@@ -43,14 +43,14 @@
  *
  * @since 0.1.0
  */
-import * as Capability from "@smthrs/capability-next/Capability"
-import * as Permission from "@smthrs/capability-next/Permission"
+import * as Capability from "@smthrs/capability/Capability"
+import * as Permission from "@smthrs/capability/Permission"
 import { LaunchFailed } from "@smthrs/control/ControlError"
 import * as ControlExecutor from "@smthrs/control/ControlExecutor"
 import { ControlRuntime } from "@smthrs/control/ControlRuntime"
 import type { ApprovalPayload, Envelope, RunStatus } from "@smthrs/control/ControlSchema"
 import * as Digest from "@smthrs/core/Digest"
-import { Flow, FlowRuntime } from "@smthrs/flow-next"
+import { Flow, FlowRuntime } from "@smthrs/flow"
 import type * as Cell from "@smthrs/harness/Cell"
 import type * as FlowBinding from "@smthrs/harness/FlowBinding"
 import * as HarnessError from "@smthrs/harness/HarnessError"
@@ -58,11 +58,11 @@ import * as Notifications from "@smthrs/harness/Notifications"
 import * as QuickJSSandbox from "@smthrs/harness/QuickJSSandbox"
 import type * as Sandbox from "@smthrs/harness/Sandbox"
 import * as Steering from "@smthrs/harness/Steering"
-import { Journal, JournalEvent } from "@smthrs/journal-next"
+import { Journal, JournalEvent } from "@smthrs/journal"
 import * as CanonicalJson from "@smthrs/model/CanonicalJson"
 import type * as Model from "@smthrs/model/Model"
 import type { NotificationQueue } from "@smthrs/notifications"
-import { Node } from "@smthrs/plan-next"
+import { Node } from "@smthrs/plan"
 import * as Registry from "@smthrs/registry/Registry"
 import type { Crypto } from "effect"
 import { Cause, Duration, Effect, Exit, Layer, Option, Schema, Scope, Stream } from "effect"
@@ -578,7 +578,7 @@ export const make = (
             // now instead of holding the single-concurrency bridge through
             // the whole retry budget.
             Effect.catchTag(
-              "@smthrs/flow-next/FlowExecutionNotFound",
+              "@smthrs/flow/FlowExecutionNotFound",
               () => Effect.succeed(Option.some({ _tag: "NotFound" }))
             )
           ),

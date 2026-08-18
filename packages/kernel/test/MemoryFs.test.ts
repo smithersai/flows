@@ -1,15 +1,15 @@
 /**
  * `makeMemoryFs` is the Map-backed ZenFS double the deterministic Host bundle
- * mounts. It is exercised *through* `@smthrs/platform-browser-next`'s
+ * mounts. It is exercised *through* `@smthrs/platform-browser`'s
  * `BrowserFileSystem` — the very adapter the browser runs — so a divergence
  * between the double and the real seam shows up here rather than in a test that
  * only ever talks to the double.
  *
  * The adapter's own behaviour (error mapping, stream bounds, file types) is
- * covered in `@smthrs/platform-browser-next`, not here.
+ * covered in `@smthrs/platform-browser`, not here.
  */
 import { describe, expect, it } from "@effect/vitest"
-import * as BrowserFileSystem from "@smthrs/platform-browser-next/BrowserFileSystem"
+import * as BrowserFileSystem from "@smthrs/platform-browser/BrowserFileSystem"
 import { Effect, Option, Stream } from "effect"
 import { makeMemoryFs } from "../src/test/TestHost.ts"
 

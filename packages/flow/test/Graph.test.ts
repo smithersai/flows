@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@effect/vitest"
-import { Action, Flow, Graph } from "@smthrs/flow-next"
-import { KeyMaterial, Node, Plan, Planned } from "@smthrs/plan-next"
+import { Action, Flow, Graph } from "@smthrs/flow"
+import { KeyMaterial, Node, Plan, Planned } from "@smthrs/plan"
 import { Effect, Schema } from "effect"
 import { withCrypto } from "./Crypto.ts"
 
@@ -336,7 +336,7 @@ describe("Graph.build planned values", () => {
         )
     })
     expect(() => Graph.build(flow, { path: "counter.txt" })).toThrowError(expect.objectContaining({
-      _tag: "@smthrs/plan-next/GraphBuildError",
+      _tag: "@smthrs/plan/GraphBuildError",
       code: "planned_value_computed",
       node: "root.flow.andThen",
       path: ["value"],
@@ -358,7 +358,7 @@ describe("Graph.build planned values", () => {
         )
     })
     expect(() => Graph.build(flow, { path: "counter.txt" })).toThrowError(expect.objectContaining({
-      _tag: "@smthrs/plan-next/GraphBuildError",
+      _tag: "@smthrs/plan/GraphBuildError",
       code: "planned_value_computed",
       node: expect.stringMatching(/^branch\/subject\/\d+$/),
       path: [],
@@ -387,7 +387,7 @@ describe("Graph.build composition", () => {
       body: ({ depth }): Node.Node<number> => Recursive.call({ depth })
     })
     expect(() => Graph.build(Recursive, { depth: 0 })).toThrowError(expect.objectContaining({
-      _tag: "@smthrs/plan-next/GraphBuildError",
+      _tag: "@smthrs/plan/GraphBuildError",
       code: "recursion_requires_boundary",
       node: "root.flow",
       path: [],
@@ -408,7 +408,7 @@ describe("Graph.build composition", () => {
       body: ({ depth }): Node.Node<number> => Ping.call({ depth })
     })
     expect(() => Graph.build(Ping, { depth: 0 })).toThrowError(expect.objectContaining({
-      _tag: "@smthrs/plan-next/GraphBuildError",
+      _tag: "@smthrs/plan/GraphBuildError",
       code: "recursion_requires_boundary",
       node: "root.flow.flow",
       message: expect.stringContaining("recursion/ping.to(payload)")
@@ -601,7 +601,7 @@ describe("Graph.build into a plan", () => {
     for (let index = 1; index <= 10_000; index++) deep = Node.andThen(deep, Node.succeed(index))
 
     expect(() => Graph.build(deep)).toThrowError(expect.objectContaining({
-      _tag: "@smthrs/plan-next/GraphBuildError",
+      _tag: "@smthrs/plan/GraphBuildError",
       code: "graph_too_deep",
       message: expect.stringContaining(".child()")
     }))
@@ -612,7 +612,7 @@ describe("Graph.build into a plan", () => {
     cyclic.self = cyclic
 
     expect(() => Graph.build(Node.succeed(cyclic))).toThrowError(expect.objectContaining({
-      _tag: "@smthrs/plan-next/GraphBuildError",
+      _tag: "@smthrs/plan/GraphBuildError",
       code: "cyclic_payload",
       node: "root",
       message: expect.stringContaining("acyclic")
@@ -624,7 +624,7 @@ describe("Graph.build into a plan", () => {
     for (let index = 0; index < 20_000; index++) payload = { next: payload }
 
     expect(() => Graph.build(Node.succeed(payload))).toThrowError(expect.objectContaining({
-      _tag: "@smthrs/plan-next/GraphBuildError",
+      _tag: "@smthrs/plan/GraphBuildError",
       code: "payload_too_deep",
       node: "root",
       message: expect.stringContaining("Flatten the payload")
@@ -644,7 +644,7 @@ describe("Graph.build into a plan", () => {
       ))
 
       expect(error).toMatchObject({
-        _tag: "@smthrs/plan-next/PlanError",
+        _tag: "@smthrs/plan/PlanError",
         code: "duplicate_node",
         message: expect.stringContaining("root.all.a.all.b")
       })
@@ -675,7 +675,7 @@ describe("Graph.build into a plan", () => {
         ))
 
         expect(error).toMatchObject({
-          _tag: "@smthrs/plan-next/PlanError",
+          _tag: "@smthrs/plan/PlanError",
           code: current.code,
           message: expect.stringContaining(current.dependency)
         })

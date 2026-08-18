@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest"
-import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
+import type { FileBoundary } from "@smthrs/flow/FileBoundary"
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"
 import * as FileSystem from "effect/FileSystem"
@@ -50,7 +50,7 @@ describe("StepSandbox", () => {
         workflow: Effect.flatMap(FileSystem.FileSystem, (fs) => fs.readFileString("src/secret.txt"))
       })))
       expect(failure).toMatchObject({
-        _tag: "@smthrs/engine-store-next/UndeclaredRead",
+        _tag: "@smthrs/engine-store/UndeclaredRead",
         code: "undeclared_read",
         paths: ["src/secret.txt"]
       })
@@ -71,7 +71,7 @@ describe("StepSandbox", () => {
         workflow: Effect.flatMap(FileSystem.FileSystem, (fs) => fs.readFileString("src/secret.txt"))
       })))
       expect(failure).toMatchObject({
-        _tag: "@smthrs/engine-store-next/UndeclaredRead",
+        _tag: "@smthrs/engine-store/UndeclaredRead",
         code: "undeclared_read",
         paths: ["src/secret.txt"]
       })

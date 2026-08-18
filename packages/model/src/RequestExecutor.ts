@@ -4,8 +4,8 @@
  *
  * @since 0.1.0
  */
-import type * as Permission from "@smthrs/capability-next/Permission"
-import * as KernelHttpClient from "@smthrs/kernel-next/HttpClient"
+import type * as Permission from "@smthrs/capability/Permission"
+import * as KernelHttpClient from "@smthrs/kernel/HttpClient"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import * as Duration from "effect/Duration"

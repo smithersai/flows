@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@effect/vitest"
-import { DatabaseError, DurableWriter, type Service as WriterService } from "@smthrs/database-next/DurableWriter"
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
+import { DatabaseError, DurableWriter, type Service as WriterService } from "@smthrs/database/DurableWriter"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Deferred, Effect, Fiber, Layer, PubSub, Stream, Tracer } from "effect"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"

@@ -13,7 +13,7 @@
  *
  * @since 0.1.0
  */
-import * as ChildProcessSpawner from "@smthrs/kernel-next/ChildProcessSpawner"
+import * as ChildProcessSpawner from "@smthrs/kernel/ChildProcessSpawner"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"

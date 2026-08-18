@@ -8,8 +8,8 @@
  * the per-key admission permit, and a verified hit returns from inside it.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Jj } from "@smthrs/kernel-next"
-import { type Ownership, RunStore } from "@smthrs/run-store-next"
+import { Jj } from "@smthrs/kernel"
+import { type Ownership, RunStore } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as ActionPersistence from "../src/internal/ActionPersistence.ts"

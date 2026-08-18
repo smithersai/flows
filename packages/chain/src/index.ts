@@ -1,7 +1,7 @@
 /**
  * @since 0.1.0
  *
- * `@smthrs/chain-next` — the Agent Chain spine.
+ * `@smthrs/chain` — the Agent Chain spine.
  *
  * An append-only journal of typed events, keyed replayable calls, and the
  * trampoline that runs model-authored flow scripts. The journal is the only

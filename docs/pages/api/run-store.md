@@ -1,9 +1,9 @@
-# @smthrs/run-store-next
+# @smthrs/run-store
 
-Executable run state: run rows, action attempt rows, and the ownership arbitration that fences them. Split out of [`@smthrs/journal-next`](/api/journal). Both stores write through the `@smthrs/database-next` contract, so the package root bundles for the browser.
+Executable run state: run rows, action attempt rows, and the ownership arbitration that fences them. Split out of [`@smthrs/journal`](/api/journal). Both stores write through the `@smthrs/database` contract, so the package root bundles for the browser.
 
 ```ts
-import { AttemptStore, Migrations, RunStore } from "@smthrs/run-store-next"
+import { AttemptStore, Migrations, RunStore } from "@smthrs/run-store"
 import * as Layer from "effect/Layer"
 
 const layer = Layer.mergeAll(RunStore.layer, AttemptStore.layer).pipe(
@@ -15,8 +15,8 @@ const layer = Layer.mergeAll(RunStore.layer, AttemptStore.layer).pipe(
 
 | Import | Source | Platform |
 | --- | --- | --- |
-| `@smthrs/run-store-next` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/run-store/src/index.ts) | any |
-| `@smthrs/run-store-next/test/TestRunStore` | [src/test/TestRunStore.ts](https://github.com/smithersai/flows/blob/main/packages/run-store/src/test/TestRunStore.ts) | Node |
+| `@smthrs/run-store` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/run-store/src/index.ts) | any |
+| `@smthrs/run-store/test/TestRunStore` | [src/test/TestRunStore.ts](https://github.com/smithersai/flows/blob/main/packages/run-store/src/test/TestRunStore.ts) | Node |
 
 ## RunStore
 
@@ -24,7 +24,7 @@ const layer = Layer.mergeAll(RunStore.layer, AttemptStore.layer).pipe(
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `RunStore` | service tag | `@smthrs/run-store-next/RunStore` |
+| `RunStore` | service tag | `@smthrs/run-store/RunStore` |
 | `RunStatus` | const + type | `pending`, `running`, `suspended`, `completed`, `failed`, `cancelled` |
 | `RunRow`, `RunSnapshot`, `CreateOptions`, `TransitionGuard` | interfaces | row and argument shapes |
 | `RunStoreError`, `RunStoreErrorCode` | class + codes | |

@@ -15,29 +15,29 @@ Reserve or confirm every engine-group `-next` name below. All returned E404 at
 the audit; recheck each name before publishing:
 
 ```sh
-npm view @smthrs/canonical-next name
-npm view @smthrs/capability-next name
-npm view @smthrs/crypto-next name
-npm view @smthrs/artifacts-next name
-npm view @smthrs/database-next name
-npm view @smthrs/jj-next name
-npm view @smthrs/journal-next name
-npm view @smthrs/keys-next name
-npm view @smthrs/observability-next name
-npm view @smthrs/plan-next name
-npm view @smthrs/flow-next name
-npm view @smthrs/engine-next name
-npm view @smthrs/run-store-next name
-npm view @smthrs/step-cache-next name
-npm view @smthrs/sync-next name
-npm view @smthrs/kernel-next name
-npm view @smthrs/engine-store-next name
-npm view @smthrs/platform-browser-next name
-npm view @smthrs/platform-bun-next name
-npm view @smthrs/platform-node-next name
-npm view @smthrs/sandbox-next name
-npm view @smthrs/time-travel-next name
-npm view @smthrs/flows-next name
+npm view @smthrs/canonical name
+npm view @smthrs/capability name
+npm view @smthrs/crypto name
+npm view @smthrs/artifacts name
+npm view @smthrs/database name
+npm view @smthrs/jj name
+npm view @smthrs/journal name
+npm view @smthrs/keys name
+npm view @smthrs/observability name
+npm view @smthrs/plan name
+npm view @smthrs/flow name
+npm view @smthrs/engine name
+npm view @smthrs/run-store name
+npm view @smthrs/step-cache name
+npm view @smthrs/sync name
+npm view @smthrs/kernel name
+npm view @smthrs/engine-store name
+npm view @smthrs/platform-browser name
+npm view @smthrs/platform-bun name
+npm view @smthrs/platform-node name
+npm view @smthrs/sandbox name
+npm view @smthrs/time-travel name
+npm view @smthrs/flows name
 ```
 
 ## H2. Confirm the LICENSE copyright holder — DONE

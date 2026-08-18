@@ -5,7 +5,7 @@
  * `RunStoreMetrics` and Effect's `ClusterMetrics`. The dispatch seam
  * (`internal/ActionPersistence`), the plan scheduler, the workspace sandbox,
  * and the run driver update them as outcomes are decided. No exporter ships in
- * this package; provide one — for example `@smthrs/observability-next` — and
+ * this package; provide one — for example `@smthrs/observability` — and
  * these series appear in it.
  *
  * Counters over an effect's exit are keyed by {@link ExitTag} records, so an

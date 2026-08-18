@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@effect/vitest"
-import { DurableWriter } from "@smthrs/database-next"
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
+import { DurableWriter } from "@smthrs/database"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"

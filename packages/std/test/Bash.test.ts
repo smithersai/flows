@@ -1,4 +1,4 @@
-import * as ChildProcessSpawner from "@smthrs/kernel-next/ChildProcessSpawner"
+import * as ChildProcessSpawner from "@smthrs/kernel/ChildProcessSpawner"
 import { Cause, Effect, Exit, Layer, Option, Path } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Bash from "../src/Bash.ts"

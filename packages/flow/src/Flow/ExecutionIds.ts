@@ -18,8 +18,8 @@
  *
  * @since 0.1.0
  */
-import { Sha256 } from "@smthrs/crypto-next"
-import { Key } from "@smthrs/keys-next/Key"
+import { Sha256 } from "@smthrs/crypto"
+import { Key } from "@smthrs/keys/Key"
 import * as Context from "effect/Context"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
@@ -94,7 +94,7 @@ export const derived: ExecutionIdSource = {
  * @since 0.1.0
  */
 export const CurrentExecutionIds = Context.Reference<ExecutionIdSource>(
-  "@smthrs/flow-next/Flow/CurrentExecutionIds",
+  "@smthrs/flow/Flow/CurrentExecutionIds",
   { defaultValue: () => derived }
 )
 

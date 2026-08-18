@@ -17,10 +17,10 @@
  * built-ins through `@effect/opentelemetry/NodeSdk` — so re-exporting either
  * would put a `node:` import in the root entry and break the browser bundle
  * this package guarantees. Import them by subpath instead:
- * `@smthrs/observability-next/NodeOtel`.
+ * `@smthrs/observability/NodeOtel`.
  *
  * ```ts
- * import * as Otlp from "@smthrs/observability-next"
+ * import * as Otlp from "@smthrs/observability"
  * ```
  *
  * @since 0.1.0

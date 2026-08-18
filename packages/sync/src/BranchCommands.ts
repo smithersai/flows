@@ -20,8 +20,8 @@
  *
  * @since 0.1.0
  */
-import { Journal } from "@smthrs/journal-next"
-import * as JournalEvent from "@smthrs/journal-next/JournalEvent"
+import { Journal } from "@smthrs/journal"
+import * as JournalEvent from "@smthrs/journal/JournalEvent"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -75,7 +75,7 @@ export interface Service {
  * @category services
  * @since 0.1.0
  */
-export class BranchCommands extends Context.Service<BranchCommands, Service>()("@smthrs/sync-next/BranchCommands") {}
+export class BranchCommands extends Context.Service<BranchCommands, Service>()("@smthrs/sync/BranchCommands") {}
 
 /**
  * Constructs a command ledger from an implementation.

@@ -4,8 +4,8 @@
  * what a handoff to a flow this engine has never been told about does.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
-import { Node } from "@smthrs/plan-next"
+import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Cause, Effect, Exit, Layer, Option, Schema } from "effect"
 import { FlowEngine } from "../src/index.ts"
 import { withCrypto } from "./Crypto.ts"

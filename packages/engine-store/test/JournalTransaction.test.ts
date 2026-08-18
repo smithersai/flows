@@ -1,21 +1,21 @@
 /**
- * Pins the WAL/state atomicity seam ACROSS packages: `@smthrs/journal-next`'s
- * `transact` runs a `@smthrs/run-store-next` state projection and the lifecycle
+ * Pins the WAL/state atomicity seam ACROSS packages: `@smthrs/journal`'s
+ * `transact` runs a `@smthrs/run-store` state projection and the lifecycle
  * entries describing it in ONE write transaction, because both stores write
  * through the same `DurableWriter` and so join it as savepoints. The
- * journal-only half of the contract stays in `@smthrs/journal-next`.
+ * journal-only half of the contract stays in `@smthrs/journal`.
  *
  * Prior art: `reference/temporal/service/history/workflow/transaction_impl.go`
  * submits the mutable-state mutation and its event batches as one persistence
  * request.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { DurableWriter } from "@smthrs/database-next/DurableWriter"
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
-import { Journal } from "@smthrs/journal-next/Journal"
-import { Input, type RunId, type SourceId, type SourceSeq } from "@smthrs/journal-next/JournalEvent"
-import * as SqlJournal from "@smthrs/journal-next/SqlJournal"
-import * as RunStore from "@smthrs/run-store-next/RunStore"
+import { DurableWriter } from "@smthrs/database/DurableWriter"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import { Journal } from "@smthrs/journal/Journal"
+import { Input, type RunId, type SourceId, type SourceSeq } from "@smthrs/journal/JournalEvent"
+import * as SqlJournal from "@smthrs/journal/SqlJournal"
+import * as RunStore from "@smthrs/run-store/RunStore"
 import { Effect, Layer, PubSub } from "effect"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"

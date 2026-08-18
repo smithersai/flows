@@ -1,5 +1,5 @@
-import { DurableWriter } from "@smthrs/database-next"
-import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
+import { DurableWriter } from "@smthrs/database"
+import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
 import { Effect, Layer } from "effect"
 import * as AttemptStore from "../../src/AttemptStore.ts"
 import * as Migrations from "../../src/Migrations.ts"

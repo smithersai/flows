@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { Catalog } from "@smthrs/chain-next";
+import { Catalog } from "@smthrs/chain";
 import type { CommandRegistry } from "../flows/Commands";
 import type { FlowEntry } from "../flows/registry";
 
@@ -9,7 +9,7 @@ import type { FlowEntry } from "../flows/registry";
  * This is NOT a second catalog. It holds no capability table, no trigger
  * filter, and no description copy of its own: every one of those now lives on
  * the flow declaration, and this module only restates the registry's
- * model-invocable entries in the shape `@smthrs/chain-next` expects. The set it
+ * model-invocable entries in the shape `@smthrs/chain` expects. The set it
  * exposes is `registry.callable()` verbatim, and every entry executes through
  * `registry.runForAgent` — the actor-attributed path with the user-only guard,
  * slash normalization, and the requirement axis.

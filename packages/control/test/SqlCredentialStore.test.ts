@@ -2,7 +2,7 @@
  * The durable Node host adapter for credential persistence, over the
  * production SQLite driver in `@smthrs/database`.
  */
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Cause, Effect, Exit, Option, Redacted } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Credential from "../src/Credential.ts"

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "@effect/vitest"
-import { Flow, FlowRuntime } from "@smthrs/flow-next"
-import { Journal } from "@smthrs/journal-next"
-import { Node } from "@smthrs/plan-next"
-import { Ownership, RunStore } from "@smthrs/run-store-next"
+import { Flow, FlowRuntime } from "@smthrs/flow"
+import { Journal } from "@smthrs/journal"
+import { Node } from "@smthrs/plan"
+import { Ownership, RunStore } from "@smthrs/run-store"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -97,7 +97,7 @@ describe("RunDriver cycle detection", () => {
       const failure = findCycleFailure(exit.cause)
       expect(failure).toBeInstanceOf(RunDriver.FlowCycleDetected)
       expect((failure as RunDriver.FlowCycleDetected).code).toBe("flow_cycle_detected")
-      expect((failure as RunDriver.FlowCycleDetected)._tag).toBe("@smthrs/flow-next/FlowCycleDetected")
+      expect((failure as RunDriver.FlowCycleDetected)._tag).toBe("@smthrs/flow/FlowCycleDetected")
       expect((failure as RunDriver.FlowCycleDetected).path).toEqual(["self"])
     }))
 
@@ -146,7 +146,7 @@ describe("RunDriver cycle detection", () => {
       const failure = findCycleFailure(exit.cause)
       expect(failure).toBeInstanceOf(RunDriver.FlowCycleDetected)
       expect((failure as RunDriver.FlowCycleDetected).code).toBe("flow_cycle_detected")
-      expect((failure as RunDriver.FlowCycleDetected)._tag).toBe("@smthrs/flow-next/FlowCycleDetected")
+      expect((failure as RunDriver.FlowCycleDetected)._tag).toBe("@smthrs/flow/FlowCycleDetected")
       expect((failure as RunDriver.FlowCycleDetected).path).toEqual(["a", "b"])
     }))
 
@@ -174,7 +174,7 @@ describe("RunDriver cycle detection", () => {
       const failure = findCycleFailure(exit.cause)
       expect(failure).toBeInstanceOf(RunDriver.FlowCycleDetected)
       expect((failure as RunDriver.FlowCycleDetected).code).toBe("flow_cycle_detected")
-      expect((failure as RunDriver.FlowCycleDetected)._tag).toBe("@smthrs/flow-next/FlowCycleDetected")
+      expect((failure as RunDriver.FlowCycleDetected)._tag).toBe("@smthrs/flow/FlowCycleDetected")
       expect((failure as RunDriver.FlowCycleDetected).path).toEqual(["x", "y", "z"])
     }))
 

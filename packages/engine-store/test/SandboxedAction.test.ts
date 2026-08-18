@@ -13,16 +13,16 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  */
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
 import { describe, expect, it } from "@effect/vitest"
-import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
-import { Action, Flow } from "@smthrs/flow-next"
-import { Jj } from "@smthrs/kernel-next"
-import * as KernelFileSystem from "@smthrs/kernel-next/FileSystem"
-import * as GrantStore from "@smthrs/kernel-next/GrantStore"
-import * as KernelWorkspace from "@smthrs/kernel-next/Workspace"
-import { Node } from "@smthrs/plan-next"
-import * as AtomicFileSystem from "@smthrs/platform-node-next/AtomicFileSystem"
-import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store-next"
-import { CacheStore } from "@smthrs/step-cache-next"
+import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
+import { Action, Flow } from "@smthrs/flow"
+import { Jj } from "@smthrs/kernel"
+import * as KernelFileSystem from "@smthrs/kernel/FileSystem"
+import * as GrantStore from "@smthrs/kernel/GrantStore"
+import * as KernelWorkspace from "@smthrs/kernel/Workspace"
+import { Node } from "@smthrs/plan"
+import * as AtomicFileSystem from "@smthrs/platform-node/AtomicFileSystem"
+import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
@@ -254,7 +254,7 @@ describe("sealed actions under the production composition", () => {
 
       const { failure, records, row } = yield* withCrypto(program)
       expect(failure).toMatchObject({
-        _tag: "@smthrs/engine-store-next/UndeclaredWrite",
+        _tag: "@smthrs/engine-store/UndeclaredWrite",
         paths: ["out/surprise.txt"]
       })
       // The row records the violation so a crash-replay re-emits it, and the
@@ -519,7 +519,7 @@ describe("copy-back conflict retry", () => {
         }))
       })
 
-      expect(yield* withCrypto(program)).toMatchObject({ _tag: "@smthrs/engine-store-next/MaterializationConflict" })
+      expect(yield* withCrypto(program)).toMatchObject({ _tag: "@smthrs/engine-store/MaterializationConflict" })
       expect(harness.counts()).toEqual({ executions: 2, materializations: 2 })
     }))
 

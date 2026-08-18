@@ -12,7 +12,7 @@ describe("jjError", () => {
       command: "jj restore --from abc"
     })
 
-    expect(error._tag).toBe("@smthrs/jj-next/JjError")
+    expect(error._tag).toBe("@smthrs/jj/JjError")
     expect(error.module).toBe("Jj")
     expect(error.message).toBe("conflict: Jj.restore: working copy conflicted")
     expect(error.command).toBe("jj restore --from abc")

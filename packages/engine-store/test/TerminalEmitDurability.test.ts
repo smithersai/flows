@@ -18,10 +18,10 @@
  * re-emission into a `Duplicate` on every ordinary replay.
  */
 import { describe, expect, it } from "@effect/vitest"
-import type { Action } from "@smthrs/flow-next"
-import { Journal, type JournalEvent } from "@smthrs/journal-next"
-import { Jj } from "@smthrs/kernel-next"
-import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store-next"
+import type { Action } from "@smthrs/flow"
+import { Journal, type JournalEvent } from "@smthrs/journal"
+import { Jj } from "@smthrs/kernel"
+import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
@@ -195,7 +195,7 @@ describe("replay re-emission tolerates a foreign-lineage terminal record (issue 
         const reason = outcome.replayed.cause.reasons[0]
         expect(reason?._tag).toBe("Fail")
         expect((reason as { readonly error?: unknown }).error).toMatchObject({
-          _tag: "@smthrs/journal-next/JournalError",
+          _tag: "@smthrs/journal/JournalError",
           code: "queue_overflow"
         })
       }

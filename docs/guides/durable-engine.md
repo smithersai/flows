@@ -1,6 +1,6 @@
 # Assembling a durable engine
 
-This guide describes the services required by `@smthrs/engine-store-next` and gives a local SQL-backed composition pattern. It also identifies which services must be replaced before a multi-process deployment is durable.
+This guide describes the services required by `@smthrs/engine-store` and gives a local SQL-backed composition pattern. It also identifies which services must be replaced before a multi-process deployment is durable.
 
 ## Required services
 
@@ -15,9 +15,9 @@ This guide describes the services required by `@smthrs/engine-store-next` and gi
 `TestStores.layer()` supplies the four SQL services — journal, run, attempt, and cache — over ONE in-memory SQLite database. It is useful for integration tests, not restart durability:
 
 ```ts
-import { DurableEngineState, EngineStore, StepBoundary } from "@smthrs/engine-store-next"
-import * as TestStores from "@smthrs/engine-store-next/test/TestStores"
-import { Jj } from "@smthrs/kernel-next"
+import { DurableEngineState, EngineStore, StepBoundary } from "@smthrs/engine-store"
+import * as TestStores from "@smthrs/engine-store/test/TestStores"
+import { Jj } from "@smthrs/kernel"
 import { Effect, Layer } from "effect"
 
 const jj = Jj.make({
@@ -90,7 +90,7 @@ Recovery is scoped to a process that is already running the engine and has the f
 
 To resume abandoned runs manually:
 
-1. Start or restart a host process composed through `@smthrs/flows-next/NodeRuntime`, pointed at the same SQLite `filename`.
+1. Start or restart a host process composed through `@smthrs/flows/NodeRuntime`, pointed at the same SQLite `filename`.
 2. Pass a `registerFlows` layer that registers every flow with stored runs. It is the composition's final startup phase, so nothing resumes before its flow exists in the process.
 3. Supply an `Options.isAlive` that reports the dead owner as not alive. Steal is gated on that answer; while it says the previous owner lives, its runs are not taken over.
 4. Wait out the stale window. There is no command to invoke.
@@ -99,4 +99,4 @@ The 30-second cutoff is when a row becomes *eligible*, not when it is reclaimed.
 
 A run with no such process running stays put. Its state is durable and it does not advance.
 
-See the [`@smthrs/engine-store-next` reference](../reference/engine-store.md), [Journal](../concepts/journal.md), and [Implementation status](../architecture/implementation-status.md).
+See the [`@smthrs/engine-store` reference](../reference/engine-store.md), [Journal](../concepts/journal.md), and [Implementation status](../architecture/implementation-status.md).

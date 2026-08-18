@@ -19,7 +19,7 @@
  * persisted parent edges (the `RunDriver.cancelOwned` shape) instead of
  * relying on the in-process parent link.
  */
-import { Flow, FlowRuntime } from "@smthrs/flow-next"
+import { Flow, FlowRuntime } from "@smthrs/flow"
 import { Clock, Effect, Exit, Fiber, Layer, Option } from "effect"
 import type * as Scope from "effect/Scope"
 import { FlowEngine } from "../src/index.ts"

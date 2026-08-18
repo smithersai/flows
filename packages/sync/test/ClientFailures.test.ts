@@ -4,7 +4,7 @@
  * @since 0.1.0
  */
 import { describe, expect, it } from "@effect/vitest"
-import { JournalEvent } from "@smthrs/journal-next"
+import { JournalEvent } from "@smthrs/journal"
 import { Cause, Effect, Exit, Fiber, Stream } from "effect"
 import * as Latch from "effect/Latch"
 import * as Logger from "effect/Logger"

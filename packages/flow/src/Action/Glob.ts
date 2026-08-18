@@ -3,5 +3,5 @@
  *
  * @since 0.1.0
  */
-export { Glob, matchesGlob, matchesPattern, Pattern } from "@smthrs/plan-next/FileSet"
-export type { Glob as Type } from "@smthrs/plan-next/FileSet"
+export { Glob, matchesGlob, matchesPattern, Pattern } from "@smthrs/plan/FileSet"
+export type { Glob as Type } from "@smthrs/plan/FileSet"

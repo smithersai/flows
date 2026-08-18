@@ -5,11 +5,11 @@ This page traces one flow execution through the current implementation, from a t
 ```mermaid
 sequenceDiagram
   participant Caller
-  participant Flow as @smthrs/flow-next
-  participant Driver as @smthrs/engine-store-next
-  participant Runs as @smthrs/run-store-next RunStore
+  participant Flow as @smthrs/flow
+  participant Driver as @smthrs/engine-store
+  participant Runs as @smthrs/run-store RunStore
   participant Attempts as AttemptStore / CacheStore
-  participant Host as @smthrs/kernel-next → @smthrs/platform-*
+  participant Host as @smthrs/kernel → @smthrs/platform-*
   participant Journal as Journal
 
   Caller->>Flow: flow.execute(payload, executionId)
@@ -79,7 +79,7 @@ A completed handler stores its schema-encoded `Flow.Result` in the run row and m
 The durable data has three independent readers:
 
 - `Journal.entries`, `stream`, and `project` replay committed evidence.
-- `@smthrs/sync-next` catches up and follows journal entries remotely.
-- `@smthrs/time-travel-next` reads frames and suffixes, consults cache entries, and coordinates archive/truncation through `TimeTravelStore`.
+- `@smthrs/sync` catches up and follows journal entries remotely.
+- `@smthrs/time-travel` reads frames and suffixes, consults cache entries, and coordinates archive/truncation through `TimeTravelStore`.
 
 These readers do not drive flow handlers unless an explicit resume operation enters the claim path.

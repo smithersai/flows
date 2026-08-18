@@ -1,8 +1,8 @@
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
 import { describe, expect, it } from "@effect/vitest"
-import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
-import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
-import * as KernelWorkspace from "@smthrs/kernel-next/Workspace"
+import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
+import type { FileBoundary } from "@smthrs/flow/FileBoundary"
+import * as KernelWorkspace from "@smthrs/kernel/Workspace"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
@@ -40,8 +40,8 @@ const injected = (path: string) =>
 /**
  * The eight behaviors the `engine-harness` proof of concept documented, ported
  * onto this side's declaration vocabulary (`FileBoundary` rather than
- * `Effects.Declaration`) and its identity surfaces (`@smthrs/crypto-next` rather
- * than the deleted `@smthrs/keys-next` digest module).
+ * `Effects.Declaration`) and its identity surfaces (`@smthrs/crypto` rather
+ * than the deleted `@smthrs/keys` digest module).
  */
 describe("WorkspaceSandbox conformance", () => {
   it.effect("returns functional files and queued effects without changing the host before materialization", () =>
@@ -190,7 +190,7 @@ describe("WorkspaceSandbox conformance", () => {
 
       const { conflict, files } = yield* withCrypto(program)
       expect(conflict).toMatchObject({
-        _tag: "@smthrs/engine-store-next/MaterializationConflict",
+        _tag: "@smthrs/engine-store/MaterializationConflict",
         paths: ["out/result.txt"]
       })
       expect(text(files, "out/result.txt")).toBe("current")
@@ -255,7 +255,7 @@ describe("WorkspaceSandbox conformance", () => {
     Effect.gen(function*() {
       for (const path of ["", "/absolute.txt", "nested/../escape.txt", "."]) {
         const invalid = yield* withCrypto(Effect.flip(WorkspaceSandbox.makeMemory({ [path]: "invalid" })))
-        expect(invalid).toMatchObject({ _tag: "@smthrs/engine-store-next/WorkspaceError", code: "invalid_path" })
+        expect(invalid).toMatchObject({ _tag: "@smthrs/engine-store/WorkspaceError", code: "invalid_path" })
       }
 
       const program = Effect.gen(function*() {
@@ -659,7 +659,7 @@ describe("WorkspaceSandbox filesystem host", () => {
       expect(decoder.decode(files.get("/w/out/large.txt"))).toBe(large)
       expect(decoder.decode(files.get("/w/out/small.txt"))).toBe("ok")
       expect(files.has("/w/src/in.txt")).toBe(false)
-      expect(conflict._tag).toBe("@smthrs/engine-store-next/MaterializationConflict")
+      expect(conflict._tag).toBe("@smthrs/engine-store/MaterializationConflict")
     }))
 
   it.effect("refuses a declared read path that escapes the workspace", () =>
@@ -936,7 +936,7 @@ describe("WorkspaceSandbox filesystem host atomicity", () => {
       }).pipe(Effect.provide(faultLayer(files, (call) => call === 2)))
 
       const refused = yield* withCrypto(program)
-      expect(refused).toMatchObject({ _tag: "@smthrs/engine-store-next/WorkspaceError", code: "host_unavailable" })
+      expect(refused).toMatchObject({ _tag: "@smthrs/engine-store/WorkspaceError", code: "host_unavailable" })
       // The refusing host failure travels whole in `cause`, never flattened
       // into the message.
       expect(String((refused.cause as PlatformError.PlatformError).message)).toContain("injected")
@@ -1084,7 +1084,7 @@ describe("WorkspaceSandbox filesystem host confinement", () => {
 
       const { outsideContent, refused, stillLink } = yield* withCrypto(program)
       expect(refused).toMatchObject({
-        _tag: "@smthrs/engine-store-next/WorkspaceError",
+        _tag: "@smthrs/engine-store/WorkspaceError",
         code: "path_escapes_workspace"
       })
       expect(outsideContent).toBe("OUTSIDE-ORIGINAL")

@@ -20,13 +20,13 @@ import * as Schema from "effect/Schema"
  *
  * The error is declared here because it is part of the `poll` contract this
  * package owns; every runtime — the in-memory engine and the durable
- * `@smthrs/engine-store-next` driver alike — raises it for an unknown id.
+ * `@smthrs/engine-store` driver alike — raises it for an unknown id.
  *
  * @category errors
  * @since 0.1.0
  */
 export class FlowExecutionNotFound extends Schema.TaggedError<FlowExecutionNotFound>()(
-  "@smthrs/flow-next/FlowExecutionNotFound",
+  "@smthrs/flow/FlowExecutionNotFound",
   {
     /** Stable public error code. */
     code: Schema.Literal("execution_not_found"),

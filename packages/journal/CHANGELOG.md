@@ -1,4 +1,4 @@
-# @smthrs/journal-next
+# @smthrs/journal
 
 ## [Unreleased]
 

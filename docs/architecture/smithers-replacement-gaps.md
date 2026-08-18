@@ -116,7 +116,7 @@ fault case, matching smithers' continue-as-new and fork fault pins.
 The largest remaining functional gap versus smithers' Tier-1 durability
 snapshots (`snapshot-hook`), restore/revert/rewind, and `smithers worktree`
 lanes. What exists on our side: the time-travel package's fork/rewind/replay
-over stored state, `Jj` in `@smthrs/jj-next`, and `StepBoundary`'s
+over stored state, `Jj` in `@smthrs/jj`, and `StepBoundary`'s
 filesystem-backed production layer for read-set measurement and output
 materialization. The former speculative `checkpoint` hook was removed with the
 unowned engine lifecycle catalog; the blessed cell-host plugin catalog does not
@@ -174,7 +174,7 @@ the audit's explicit rejection of a separate CLI app stands.
 ### 9. Fault-suite harness — closed as harness
 
 The P0 harness the audit demanded exists: `Notifying.wrap`/`layer`
-(`@smthrs/journal-next/test/Notifying`)
+(`@smthrs/journal/test/Notifying`)
 injects interstitial crashes and fence loss around any Effect service, and
 `FaultMatrix.test.ts` (9 it-blocks: 7 fault injections — 3 interstitial
 crashes, 4 fence losses — plus 2 tests of the `Notifying` wrapper itself)
@@ -190,7 +190,7 @@ case 16's N-subscriber bounded-memory/consistency assertions ship in
 `packages/sync/test/ServerSoak.test.ts` (identical frames to every concurrent
 subscriber, per-subscriber stream release, bounded retained heap). And
 the sandbox health taxonomy (case 02, issue #49) now ships as a host
-primitive (`@smthrs/sandbox-next`'s `SandboxHealth` probe) but has no engine-level fault case yet. Cases
+primitive (`@smthrs/sandbox`'s `SandboxHealth` probe) but has no engine-level fault case yet. Cases
 accrete as §§4–7 and those issues land; the harness itself is no longer a
 gap.
 
@@ -206,7 +206,7 @@ gap.
    `cellRegistry`, `cellFlows`, and `cellModelRequest`. Pause attribution,
    hijack, quota, and checkpoints still need seams as injected services and
    constructor options at the sites that own them, not as a lifecycle registry.
-2. **No packaged production layer — half closed.** `@smthrs/flows-next/NodeRuntime`
+2. **No packaged production layer — half closed.** `@smthrs/flows/NodeRuntime`
    composes database + migrations + journal + run/attempt/cache stores +
    durable engine state + workspace + artifact store + engine into one
    importable layer, with `registerFlows` as the final startup phase
@@ -287,7 +287,7 @@ existing smithers CLI unchanged.
 2. **Engine loop for new runs only (shim: dual-engine routing).** New runs
    execute on `Engine.FlowEngine` + `DurableEngineState`; existing runs finish
    on the old loop. The storage-and-engine half of the packaged production
-   layer this needs now exists (`@smthrs/flows-next/NodeRuntime`), and the
+   layer this needs now exists (`@smthrs/flows/NodeRuntime`), and the
    registration-before-resume guarantee is that layer's `registerFlows` phase;
    Smithers still supplies the host services and kernel around it. Waiting
    states route through the taxonomy instead of `engine.js`'s inline cases.

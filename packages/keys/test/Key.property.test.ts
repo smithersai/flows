@@ -1,5 +1,5 @@
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
-import { Canonical } from "@smthrs/canonical-next/Canonical"
+import { Canonical } from "@smthrs/canonical/Canonical"
 import { Effect, Result, Schema } from "effect"
 import { FastCheck } from "effect/testing"
 import { describe, expect, it } from "vitest"

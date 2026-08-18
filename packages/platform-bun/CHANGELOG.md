@@ -1,4 +1,4 @@
-# @smthrs/platform-bun-next
+# @smthrs/platform-bun
 
 ## [Unreleased]
 
@@ -6,12 +6,12 @@
 
 - Initial extraction from the dissolved `@smthrs/host`. `BunHost`,
   `BunFileSystem`, and `BunHttpTransport` moved here unchanged in behaviour;
-  `BunJj` had already moved to `@smthrs/jj-next` and is composed from there.
+  `BunJj` had already moved to `@smthrs/jj` and is composed from there.
 
 ### Removed
 
 - `BunHttpTransport` is gone, and with it the dependency on
-  `@smthrs/platform-browser-next` that existed only to borrow a `fetch`-backed
+  `@smthrs/platform-browser` that existed only to borrow a `fetch`-backed
   transport. An outgoing request is Effect's `HttpClient`, and `BunHost.layer`
   now provides `@effect/platform-bun`'s own `BunHttpClient.layer` with
   `RequestInit { redirect: "manual" }`, so nothing follows a redirect behind

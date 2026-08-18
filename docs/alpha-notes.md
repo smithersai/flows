@@ -39,14 +39,14 @@ the bearer-token and TLS/ingress protections described in the
 ### Advisory CI lanes
 
 The required release-1 gate is `check + test (coverage gates enforced)`. The
-macOS and Windows Node suites and the `tsflows ci` shadow suite are explicitly
+macOS and Windows Node suites and the `smthrs ci` shadow suite are explicitly
 advisory (`continue-on-error: true`) while they establish a stable green
 streak; their failures do not establish support for those hosts or block the
 Node/Linux private-alpha target.
 
 One advisory lane remains red. On Windows, the server seed-allowlist test
 constructs a module path with a doubled drive prefix, and the `jj` package's
-symlink/dirent assertions do not yet match Windows behavior. The `tsflows ci
+symlink/dirent assertions do not yet match Windows behavior. The `smthrs ci
 (shadow, advisory)` job succeeded at `81d310d7` and on the two preceding
 main-branch commits; it remains advisory while its green streak is established
 before it can replace the recursive pnpm gates. This is a tracked
@@ -108,7 +108,7 @@ never succeed would surface a retry wrapper's error instead of SQLite's own
 — run it explicitly:
 
 ```sh
-FLOWS_SLOW_TESTS=1 pnpm --filter @smthrs/database-next test
+FLOWS_SLOW_TESTS=1 pnpm --filter @smthrs/database test
 ```
 
 Closing it for the default gate needs either the ladder to become configurable
@@ -120,8 +120,8 @@ blocker.
 
 The 2026-08-16 readiness audit recorded finding F4, "`it.fails` pins: 29
 remain", distributed across engine-store, flow, kernel, time-travel,
-capability, database, harness, jj, platform-node, sync, tsflows-rules and
-tsflows-cli. That count was stale at the commit it was filed against. There are
+capability, database, harness, jj, platform-node, sync, targets and
+build-cli. That count was stale at the commit it was filed against. There are
 no `it.fails` pins anywhere in `packages/` at `3fcf5fcd`:
 
 ```sh
@@ -181,7 +181,7 @@ lives. The items an alpha operator hits first:
 - **Flow registrations are in-memory.** A restarted process resumes nothing
   until it re-registers the handlers for its stored runs, because registration
   is what re-arms durable clocks and deferred wakes.
-- **The production layer is half-packaged.** `@smthrs/flows-next/NodeRuntime`
+- **The production layer is half-packaged.** `@smthrs/flows/NodeRuntime`
   composes database, migrations, stores, and the engine; the Host and kernel
   half is still the caller's, and it installs no process or signal handlers.
   `examples/src/durable-layer.ts` is the worked composition.

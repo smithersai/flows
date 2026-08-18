@@ -7,7 +7,7 @@ own `LICENSE`.
 
 ## Effect (`Effect-TS/effect`)
 
-`@smthrs/engine-next` is a fork of Effect's unstable durable-flow runtime and
+`@smthrs/engine` is a fork of Effect's unstable durable-flow runtime and
 contains substantial portions of that source. The fork point, upstream package
 version, and a module-by-module record of what was vendored and how it was
 changed are documented in `packages/engine/VENDOR.md`:

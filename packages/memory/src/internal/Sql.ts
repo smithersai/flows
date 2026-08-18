@@ -5,7 +5,7 @@
  *
  * @since 0.1.0
  */
-import type { DatabaseError, Service as DurableWriterService } from "@smthrs/database-next/DurableWriter"
+import type { DatabaseError, Service as DurableWriterService } from "@smthrs/database/DurableWriter"
 import * as Effect from "effect/Effect"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"
 import type * as SqlError from "effect/unstable/sql/SqlError"

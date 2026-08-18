@@ -7,7 +7,7 @@
  * flow scope helpers, and the waiting annotation a durable driver reads.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Action, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
+import { Action, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
 import { Cause, Context, Effect, Exit, Fiber, Latch, Layer, Option, Schedule, Schema, Scope } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { withCrypto } from "./Crypto.ts"
@@ -18,7 +18,7 @@ const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Cr
 
 describe("FlowRuntime service identity", () => {
   it("matches its defining module path", () => {
-    expect(FlowRuntime.FlowRuntime.key).toBe("@smthrs/flow-next/FlowRuntime/FlowRuntime")
+    expect(FlowRuntime.FlowRuntime.key).toBe("@smthrs/flow/FlowRuntime/FlowRuntime")
   })
 })
 

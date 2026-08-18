@@ -1,14 +1,14 @@
-# @smthrs/platform-node-next
+# @smthrs/platform-node
 
 The Node.js Host bundle for `flows`.
 
 `@effect/platform-node` already ships `FileSystem`, `Path`,
 `ChildProcessSpawner`, and an Undici-backed `HttpClient`. This package composes
 the complete closed five-tag Host surface, including the Node `Jj` adapter from
-`@smthrs/jj-next` and the atomic filesystem adapter described below.
+`@smthrs/jj` and the atomic filesystem adapter described below.
 
 ```ts
-import { NodeHost } from "@smthrs/platform-node-next"
+import { NodeHost } from "@smthrs/platform-node"
 import { Effect } from "effect"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
@@ -29,7 +29,7 @@ There is no HTTP service either. An outgoing request is Effect's `HttpClient`,
 and the bundle provides `NodeHttpClient.layerUndici`. Undici installs no
 redirect interceptor, so every hop stays a separate, checkable request.
 
-Wrap the bundle in `@smthrs/kernel-next`'s `HostServices.layer` to get the
+Wrap the bundle in `@smthrs/kernel`'s `HostServices.layer` to get the
 permission-aware projection, where `proc:spawn` is checked against the rendered
 command line before any process starts and `net:get` / `net:post` is checked
 against the host of every URL — including each redirect hop.

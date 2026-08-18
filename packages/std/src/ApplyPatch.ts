@@ -9,7 +9,7 @@
  * @since 0.1.0
  */
 import * as Flow from "@smthrs/core/Flow"
-import * as Path from "@smthrs/kernel-next/Path"
+import * as Path from "@smthrs/kernel/Path"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Schema from "effect/Schema"

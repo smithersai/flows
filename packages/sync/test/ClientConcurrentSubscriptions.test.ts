@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest"
-import { JournalEvent } from "@smthrs/journal-next"
+import { JournalEvent } from "@smthrs/journal"
 import { Deferred, Effect, Fiber, Stream } from "effect"
 import * as SyncClient from "../src/SyncClient.ts"
 import type * as SyncProtocol from "../src/SyncProtocol.ts"

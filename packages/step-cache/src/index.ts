@@ -7,12 +7,12 @@
  * beneath it. See `docs/specs/Concepts/Journal Split.md`.
  *
  * This entry point is browser-bundleable: the service is written against the
- * driver-neutral `@smthrs/database-next` contract. The test double, which binds a
+ * driver-neutral `@smthrs/database` contract. The test double, which binds a
  * Node SQLite database, lives under an explicit subpath:
  *
  * ```ts
- * import { CacheStore } from "@smthrs/step-cache-next"
- * import * as TestCacheStore from "@smthrs/step-cache-next/test/TestCacheStore"
+ * import { CacheStore } from "@smthrs/step-cache"
+ * import * as TestCacheStore from "@smthrs/step-cache/test/TestCacheStore"
  * ```
  *
  * @since 0.1.0

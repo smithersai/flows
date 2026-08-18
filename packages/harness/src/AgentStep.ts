@@ -9,9 +9,9 @@
  *
  * @since 0.1.0
  */
-import * as Capability from "@smthrs/capability-next/Capability"
-import * as JournalEvent from "@smthrs/journal-next/JournalEvent"
-import type * as HostServices from "@smthrs/kernel-next/HostServices"
+import * as Capability from "@smthrs/capability/Capability"
+import * as JournalEvent from "@smthrs/journal/JournalEvent"
+import type * as HostServices from "@smthrs/kernel/HostServices"
 import * as ModelRequest from "@smthrs/model/ModelRequest"
 import * as Descriptor from "@smthrs/registry/Descriptor"
 import { Effect, Schema } from "effect"

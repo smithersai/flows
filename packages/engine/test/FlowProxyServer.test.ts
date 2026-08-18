@@ -2,8 +2,8 @@
 
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer"
 import { describe, expect, expectTypeOf, it } from "@effect/vitest"
-import { Action, DurableDeferred, Flow, Interpreter } from "@smthrs/flow-next"
-import { Node } from "@smthrs/plan-next"
+import { Action, DurableDeferred, Flow, Interpreter } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Effect, Exit, FileSystem, Layer, Option, Path, Schema, Scope } from "effect"
 import { Etag, HttpPlatform, HttpRouter } from "effect/unstable/http"
 import { HttpApi, HttpApiBuilder, HttpApiClient, HttpApiTest } from "effect/unstable/httpapi"
@@ -186,7 +186,7 @@ describe("FlowProxyServer.layerRpcHandlers", () => {
       // engine still reports it as a typed not-found.
       const error = yield* Effect.flip(Echo.poll("proxy-never-started"))
       expect(error).toMatchObject({
-        _tag: "@smthrs/flow-next/FlowExecutionNotFound",
+        _tag: "@smthrs/flow/FlowExecutionNotFound",
         executionId: "proxy-never-started"
       })
       expect(calls()).toBe(0)

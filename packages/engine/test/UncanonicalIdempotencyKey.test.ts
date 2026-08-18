@@ -12,8 +12,8 @@ import type * as Crypto from "effect/Crypto"
  * impossible invariant violation instead of discarding it.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Action, Flow, Interpreter } from "@smthrs/flow-next"
-import * as StepIdentity from "@smthrs/flow-next/StepIdentity"
+import { Action, Flow, Interpreter } from "@smthrs/flow"
+import * as StepIdentity from "@smthrs/flow/StepIdentity"
 import { Cause, Effect, Exit, Layer, Schema } from "effect"
 import { FlowEngine } from "../src/index.ts"
 import { invocationKey, runSync, withCrypto } from "./Crypto.ts"

@@ -1,17 +1,17 @@
-# @smthrs/sandbox-next
+# @smthrs/sandbox
 
 ## [Unreleased]
 
 ### Changed
 
 - `RemoteSandbox` is now `RemoteChildProcessSpawner`, at
-  `@smthrs/sandbox-next/RemoteChildProcessSpawner`. It was always a remote
+  `@smthrs/sandbox/RemoteChildProcessSpawner`. It was always a remote
   implementation of Effect's `ChildProcessSpawner`; it is now named like one,
   next to `NodeChildProcessSpawner`, `BunChildProcessSpawner`, and
   `BrowserChildProcessSpawner`. The identity strings follow the module path:
   the provider tag key is now
-  `@smthrs/sandbox-next/RemoteChildProcessSpawner/Provider` and `ProviderError`'s
-  `_tag` is `@smthrs/sandbox-next/RemoteChildProcessSpawner/ProviderError`. This
+  `@smthrs/sandbox/RemoteChildProcessSpawner/Provider` and `ProviderError`'s
+  `_tag` is `@smthrs/sandbox/RemoteChildProcessSpawner/ProviderError`. This
   contradicts the "every schema `_tag` is unchanged" note below on purpose: the
   package is pre-release, and a durable id that lies about where its module
   lives is worse than a break nobody has recorded runs against yet. The test
@@ -42,7 +42,7 @@
 - `ProviderError` carries its own closed `ProviderErrorCode` set (`aborted`,
   `timeout`, `unavailable`, `spawn_error`, `unknown`) instead of borrowing the
   shell's.
-- The package now depends on `@smthrs/kernel-next` — for `CommandLine.render` alone —
+- The package now depends on `@smthrs/kernel` — for `CommandLine.render` alone —
   instead of `@smthrs/host`.
 - Split remote execution and sandbox health into focused model, service,
   adapter, probe, and layer files without changing public imports.

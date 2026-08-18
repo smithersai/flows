@@ -5,10 +5,10 @@
  *
  * @since 0.1.0
  */
-import { FlowEngine } from "@smthrs/engine-next"
-import { Flow, FlowRuntime } from "@smthrs/flow-next"
-import { Journal } from "@smthrs/journal-next"
-import { Ownership, RunStore } from "@smthrs/run-store-next"
+import { FlowEngine } from "@smthrs/engine"
+import { Flow, FlowRuntime } from "@smthrs/flow"
+import { Journal } from "@smthrs/journal"
+import { Ownership, RunStore } from "@smthrs/run-store"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import type * as Crypto from "effect/Crypto"
@@ -41,7 +41,7 @@ const RunStateJson = Schema.fromJsonString(RunState)
  * parent upward — an O(depth) check, not a dependency-graph DFS — because
  * `parentExecutionId` is the only edge our runtime model can express.
  *
- * The class is declared by `@smthrs/flow-next` (it is part of the `execute`
+ * The class is declared by `@smthrs/flow` (it is part of the `execute`
  * contract) and re-exported here for the detector's callers. See
  * `docs/specs/Concepts/Run Ownership.md`.
  *
@@ -1556,7 +1556,7 @@ export const make = (
                     },
                     "succeeded",
                     // `attached` is written even though it is always false: the
-                    // lineage-tree bridge in `@smthrs/time-travel-next` reads it off
+                    // lineage-tree bridge in `@smthrs/time-travel` reads it off
                     // this payload, and an absent field there would make "this
                     // spawn is detached" indistinguishable from "this producer
                     // predates the field". A run created with a parent is a

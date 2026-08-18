@@ -117,7 +117,7 @@ export const make = <
 }
 
 const CurrentAttempt = Context.Reference<number>(
-  "@smthrs/flow-next/Action/CurrentAttempt" satisfies typeof Action.CurrentAttempt.key,
+  "@smthrs/flow/Action/CurrentAttempt" satisfies typeof Action.CurrentAttempt.key,
   { defaultValue: () => 1 }
 )
 
@@ -342,7 +342,7 @@ export const Token: Schema.brand<Schema.String, TokenTypeId> = Schema.String.pip
  * @since 4.0.0
  */
 export class TokenParsed extends Schema.Class<TokenParsed>(
-  "@smthrs/flow-next/DurableDeferred/TokenParsed"
+  "@smthrs/flow/DurableDeferred/TokenParsed"
 )({
   flowName: Schema.String,
   executionId: Schema.String,

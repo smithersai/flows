@@ -5,7 +5,7 @@ This guide shows how to define schemas, execute named actions, suspend on durabl
 ## Define the durable interface
 
 ```ts
-import { Action, DurableDeferred, Flow } from "@smthrs/flow-next"
+import { Action, DurableDeferred, Flow } from "@smthrs/flow"
 import { Effect, Schema } from "effect"
 
 class BuildFailure extends Schema.TaggedError<BuildFailure>()(

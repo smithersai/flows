@@ -2,8 +2,8 @@
  * Node-only production composition for the durable flows runtime.
  *
  * This module is deliberately a subpath export. Importing it opens a
- * `node:sqlite` database through `@smthrs/database-next/node/NodeDatabase`, so
- * the browser-safe `@smthrs/flows-next` root must not re-export it.
+ * `node:sqlite` database through `@smthrs/database/node/NodeDatabase`, so
+ * the browser-safe `@smthrs/flows` root must not re-export it.
  *
  * Construction is ordered by layer dependencies: the SQLite parent directory
  * is created before the database opens, migrations finish before any store is
@@ -15,17 +15,17 @@
  *
  * @since 0.1.0
  */
-import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
-import { DurableWriter } from "@smthrs/database-next"
-import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
-import { DurableEngineState, EngineStore, OwnerIdentity } from "@smthrs/engine-store-next"
-import * as Migrations from "@smthrs/engine-store-next/Migrations"
-import type * as StepBoundary from "@smthrs/engine-store-next/StepBoundary"
-import type * as WorkspaceSandbox from "@smthrs/engine-store-next/WorkspaceSandbox"
-import { SqlJournal } from "@smthrs/journal-next"
-import { Workspace } from "@smthrs/kernel-next"
-import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store-next"
-import { CacheStore } from "@smthrs/step-cache-next"
+import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
+import { DurableWriter } from "@smthrs/database"
+import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
+import { DurableEngineState, EngineStore, OwnerIdentity } from "@smthrs/engine-store"
+import * as Migrations from "@smthrs/engine-store/Migrations"
+import type * as StepBoundary from "@smthrs/engine-store/StepBoundary"
+import type * as WorkspaceSandbox from "@smthrs/engine-store/WorkspaceSandbox"
+import { SqlJournal } from "@smthrs/journal"
+import { Workspace } from "@smthrs/kernel"
+import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"

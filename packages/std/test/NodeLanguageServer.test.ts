@@ -1,4 +1,4 @@
-import * as ChildProcessSpawner from "@smthrs/kernel-next/ChildProcessSpawner"
+import * as ChildProcessSpawner from "@smthrs/kernel/ChildProcessSpawner"
 import { Effect, Queue, Sink, Stream } from "effect"
 import type * as ChildProcess from "effect/unstable/process/ChildProcess"
 import { ExitCode, makeHandle, ProcessId } from "effect/unstable/process/ChildProcessSpawner"

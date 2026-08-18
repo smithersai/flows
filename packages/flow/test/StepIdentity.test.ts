@@ -10,7 +10,7 @@
  * distinct identities never alias, and identical identities are stable
  * across repeated derivation.
  */
-import { StepIdentity } from "@smthrs/flow-next"
+import { StepIdentity } from "@smthrs/flow"
 import { Effect, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { runSync } from "./Crypto.ts"

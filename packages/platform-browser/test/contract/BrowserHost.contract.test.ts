@@ -11,10 +11,10 @@
  * real-mount proof in `BrowserHostSharedMount.contract.test.ts`.
  */
 import { afterAll, beforeAll, describe, expect, it } from "@effect/vitest"
-import { Jj } from "@smthrs/jj-next"
-import type { SyncFsLike } from "@smthrs/jj-next/browser/WasiFs"
-import { runHostContract } from "@smthrs/kernel-next/test/contract"
-import * as TestHost from "@smthrs/kernel-next/test/TestHost"
+import { Jj } from "@smthrs/jj"
+import type { SyncFsLike } from "@smthrs/jj/browser/WasiFs"
+import { runHostContract } from "@smthrs/kernel/test/contract"
+import * as TestHost from "@smthrs/kernel/test/TestHost"
 import * as Effect from "effect/Effect"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"
 import * as fsModule from "node:fs"
@@ -71,7 +71,7 @@ const wasmPath = fileURLToPath(new URL("../../../jj/wasm/flows_jj.wasm", import.
 if (!fsModule.existsSync(wasmPath)) {
   throw new Error(
     "[BrowserHost.contract] packages/jj/wasm/flows_jj.wasm is required for the real BrowserHost "
-      + "contract. Build it with `pnpm --filter @smthrs/jj-next run build:wasm` "
+      + "contract. Build it with `pnpm --filter @smthrs/jj run build:wasm` "
       + "(requires the rust wasm32-wasip1 toolchain and crates/flows-jj)."
   )
 }

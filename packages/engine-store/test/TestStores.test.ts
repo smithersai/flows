@@ -5,11 +5,11 @@
  */
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
 import { describe, expect, it } from "@effect/vitest"
-import { Journal } from "@smthrs/journal-next/Journal"
-import { type RunId, type SourceId } from "@smthrs/journal-next/JournalEvent"
-import { AttemptStore } from "@smthrs/run-store-next/AttemptStore"
-import { RunStore } from "@smthrs/run-store-next/RunStore"
-import { CacheStore } from "@smthrs/step-cache-next/CacheStore"
+import { Journal } from "@smthrs/journal/Journal"
+import { type RunId, type SourceId } from "@smthrs/journal/JournalEvent"
+import { AttemptStore } from "@smthrs/run-store/AttemptStore"
+import { RunStore } from "@smthrs/run-store/RunStore"
+import { CacheStore } from "@smthrs/step-cache/CacheStore"
 import { Effect, Option } from "effect"
 import * as TestStores from "../src/test/TestStores.ts"
 

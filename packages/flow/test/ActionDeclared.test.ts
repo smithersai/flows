@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@effect/vitest"
-import { Action, Flow, FlowRuntime, Graph } from "@smthrs/flow-next"
-import { Node, Planned } from "@smthrs/plan-next"
+import { Action, Flow, FlowRuntime, Graph } from "@smthrs/flow"
+import { Node, Planned } from "@smthrs/plan"
 import { Cause, Context, Effect, Exit, Layer, Schema } from "effect"
 import type * as Scope from "effect/Scope"
 import { withCrypto } from "./Crypto.ts"

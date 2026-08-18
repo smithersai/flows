@@ -12,7 +12,7 @@
  *
  * @since 0.1.0
  */
-import * as FileSet from "@smthrs/plan-next/FileSet"
+import * as FileSet from "@smthrs/plan/FileSet"
 import * as Effect from "effect/Effect"
 import type * as FileSystem from "effect/FileSystem"
 import type * as PlatformError from "effect/PlatformError"

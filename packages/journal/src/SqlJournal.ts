@@ -12,11 +12,11 @@
  * `packages/core/src/event.ts`. The bounded send queue deliberately deviates
  * from their synchronous durable writes by allocating the canonical per-run
  * sequence before admission. SQLite retry and transaction behavior comes
- * through `@smthrs/database-next`.
+ * through `@smthrs/database`.
  *
  * @since 0.1.0
  */
-import { DatabaseError, DurableWriter } from "@smthrs/database-next/DurableWriter"
+import { DatabaseError, DurableWriter } from "@smthrs/database/DurableWriter"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
@@ -230,7 +230,7 @@ const error = (code: JournalError["code"], message: string, cause?: unknown): Jo
  * transactions never see each other's list.
  */
 class Settlements extends Context.Service<Settlements, Array<Effect.Effect<void>>>()(
-  "@smthrs/journal-next/SqlJournal/Settlements"
+  "@smthrs/journal/SqlJournal/Settlements"
 ) {}
 
 const sourceKey = (runId: RunId, sourceId: SourceId): string => `${runId.length}:${runId}${sourceId.length}:${sourceId}`

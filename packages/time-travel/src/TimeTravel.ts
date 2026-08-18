@@ -13,16 +13,16 @@
  * pending rewind audit while it is being built, so the service only ever hands
  * out a store whose interrupted work is already resolved.
  *
- * The tag key `@smthrs/time-travel-next/TimeTravel` is durable identity: step keys
+ * The tag key `@smthrs/time-travel/TimeTravel` is durable identity: step keys
  * digest the resolved service set, so renaming it invalidates recorded runs.
  *
  * @since 0.1.0
  */
-import type { Jj } from "@smthrs/jj-next"
-import type * as Journal from "@smthrs/journal-next/Journal"
-import type { OwnerId } from "@smthrs/run-store-next/Ownership"
-import type * as RunStore from "@smthrs/run-store-next/RunStore"
-import type * as CacheStore from "@smthrs/step-cache-next/CacheStore"
+import type { Jj } from "@smthrs/jj"
+import type * as Journal from "@smthrs/journal/Journal"
+import type { OwnerId } from "@smthrs/run-store/Ownership"
+import type * as RunStore from "@smthrs/run-store/RunStore"
+import type * as CacheStore from "@smthrs/step-cache/CacheStore"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
@@ -166,7 +166,7 @@ const workspaceSlug = (position: Position): string =>
  * `hostId` is per-incarnation rather than a constant `"time-travel"`, and
  * `pid` is 0 because there is no process behind this identity. Ownership
  * doctrine lets a liveness probe inspect a local PID only when two owners
- * share a `hostId` (`@smthrs/run-store-next`'s `Ownership.LivenessProbe`); a shared
+ * share a `hostId` (`@smthrs/run-store`'s `Ownership.LivenessProbe`); a shared
  * constant would make two services on two machines look same-host and invite a
  * probe of PID 0. Two incarnations never claim the same host.
  */
@@ -307,7 +307,7 @@ export const make: Effect.Effect<Service, TimeTravelError, Requirements | Scope.
  * The one injectable time-travel surface.
  *
  * ```ts
- * import { TimeTravel } from "@smthrs/flows-next"
+ * import { TimeTravel } from "@smthrs/flows"
  * import * as Effect from "effect/Effect"
  *
  * const program = Effect.gen(function*() {
@@ -320,7 +320,7 @@ export const make: Effect.Effect<Service, TimeTravelError, Requirements | Scope.
  * @category services
  */
 export class TimeTravel extends Context.Service<TimeTravel, Service>()(
-  "@smthrs/time-travel-next/TimeTravel"
+  "@smthrs/time-travel/TimeTravel"
 ) {
   /**
    * Wires the machinery over the injectable contracts and recovers on build.

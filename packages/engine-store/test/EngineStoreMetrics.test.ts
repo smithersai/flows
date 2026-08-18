@@ -5,9 +5,9 @@
  * in the registry the caller provided, with the instrumented effect's exit
  * preserved byte-identically.
  */
-import { Jj } from "@smthrs/kernel-next"
-import { KeyMaterial, Plan } from "@smthrs/plan-next"
-import { type Ownership, RunStore } from "@smthrs/run-store-next"
+import { Jj } from "@smthrs/kernel"
+import { KeyMaterial, Plan } from "@smthrs/plan"
+import { type Ownership, RunStore } from "@smthrs/run-store"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"

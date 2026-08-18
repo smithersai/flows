@@ -5,7 +5,7 @@
  *
  * @since 0.1.0
  */
-import { DurableWriter } from "@smthrs/database-next/DurableWriter"
+import { DurableWriter } from "@smthrs/database/DurableWriter"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"

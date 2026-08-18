@@ -1,5 +1,5 @@
 import { Effect, Layer, Schema } from "effect";
-import { Event, Journal } from "@smthrs/chain-next";
+import { Event, Journal } from "@smthrs/chain";
 import type { AppStore } from "../state/AppStore";
 
 /*

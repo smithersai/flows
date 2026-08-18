@@ -7,7 +7,7 @@ scorers, std, testing, and triggers. The workspace globs, root TypeScript
 globs, and `StandardPackage` build rule already cover every migrated package.
 The lockfile resolves them as ordinary workspace siblings.
 
-The existing `@smthrs/observability-next` package remained the package
+The existing `@smthrs/observability` package remained the package
 identity. Its browser-safe `Otlp` surface remains available. The agent
 repository's Logger, JournalLogger, Metric, Resource, NodeOtel, BrowserOtel,
 and Otel modules were folded into the same package. NodeOtel and BrowserOtel
@@ -27,7 +27,7 @@ was reverted in its own commit, restoring the exact pre-migration queue files
 and paths.
 
 The dead chain package from the agent repository was not migrated. The
-`packages/chain` directory in this workspace is `@smthrs/chain-next`, promoted
+`packages/chain` directory in this workspace is `@smthrs/chain`, promoted
 from the app repository's vendored sources by the concurrent app migration; it
 is a different package and is unrelated to this package move. The
 agent repository's `flows` symlink package and its old workspace mount were
@@ -53,7 +53,7 @@ identity break from the plan work stream, not migration-induced drift.
 
 `pnpm install --frozen-lockfile` succeeds. Each of the nineteen migrated
 packages is verified independently with its own `check`, `test`, and `lint`
-scripts. Root-wide failures caused by concurrent app or tsflows work are not a
+scripts. Root-wide failures caused by concurrent app or smithers build work are not a
 migration completion gate and were not modified here. During verification,
 in-flight app workspace wiring temporarily made pnpm's automatic dependency
 status check attempt an inconsistent install, and in-flight core identity work

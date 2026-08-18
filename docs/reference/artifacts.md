@@ -1,9 +1,9 @@
-# `@smthrs/artifacts-next`
+# `@smthrs/artifacts`
 
 This page is the public API reference for the **content-addressed artifact
 store**: bytes addressed by their own SHA-256 digest.
 
-It is the other half of the cache. [`@smthrs/step-cache-next`](step-cache.md) maps a
+It is the other half of the cache. [`@smthrs/step-cache`](step-cache.md) maps a
 step key to a recorded result; a recorded result references its large outputs by
 digest rather than inlining them, and those bytes live here. See
 [Object model](../../../docs/specs/Specs/Object%20Model.md) (the `Cache` service
@@ -11,7 +11,7 @@ owns "a content-addressed store for artifacts"),
 [Input](../../../docs/specs/Specs/Input.md) ("large values enter by digest"), and
 [Remote cache](../../../docs/specs/Concepts/Remote%20Cache.md).
 
-The package depends on `effect` and `@smthrs/crypto-next` and nothing else, owns no
+The package depends on `effect` and `@smthrs/crypto` and nothing else, owns no
 tables, and needs no migration.
 
 ## ArtifactStore
@@ -85,12 +85,12 @@ bundles for the browser (`pnpm run browser`). See
 ## Not here
 
 Reclaiming published artifacts is an explicit `ArtifactGc.gc()` operation in
-`@smthrs/engine-store-next`, backed by the host-local `ArtifactSweep` service
+`@smthrs/engine-store`, backed by the host-local `ArtifactSweep` service
 in this package. It is never a side effect of a store operation. The
 `.tmp-*` sweep reclaims crash orphans, and artifact GC removes unreferenced
 blobs only after its mark and grace-period checks. Chunked/resumable transfer
 and a Bazel-style download policy are still ticketed in `.smithers/tickets/`.
 
 See [Remote cache](../../../docs/specs/Concepts/Remote%20Cache.md) and the
-[`@smthrs/engine-store-next` reference](engine-store.md) for the publication ordering
+[`@smthrs/engine-store` reference](engine-store.md) for the publication ordering
 that binds this store to the step cache.

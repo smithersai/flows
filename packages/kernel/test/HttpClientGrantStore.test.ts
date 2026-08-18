@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest"
-import { PermissionRequired } from "@smthrs/capability-next/Permission"
+import { PermissionRequired } from "@smthrs/capability/Permission"
 import { Effect, Fiber, Option } from "effect"
 import * as EffectHttpClient from "effect/unstable/http/HttpClient"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"

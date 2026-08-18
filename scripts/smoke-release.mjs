@@ -10,7 +10,7 @@
  * disk fails here.
  *
  * Optional peer dependencies are installed too, because a peer is exactly what
- * the consumer is told to bring: `@smthrs/platform-bun-next` resolves
+ * the consumer is told to bring: `@smthrs/platform-bun` resolves
  * `@effect/platform-bun` at import time, and without it the ESM entry throws
  * ERR_MODULE_NOT_FOUND in the consumer's project.
  *
@@ -179,8 +179,8 @@ try {
   await writeFile(
     join(smokeRoot, "smoke.mts"),
     [
-      'import * as Flows from "@smthrs/flows-next"',
-      'import { runHostContract } from "@smthrs/kernel-next/test/contract"',
+      'import * as Flows from "@smthrs/flows"',
+      'import { runHostContract } from "@smthrs/kernel/test/contract"',
       "",
       "const publicApi: typeof Flows = Flows",
       "void publicApi",

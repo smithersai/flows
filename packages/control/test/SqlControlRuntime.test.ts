@@ -6,13 +6,13 @@
  * Contract source: `.smithers/tickets/control-runtime-engine-integration.md`.
  */
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
-import { DurableWriter } from "@smthrs/database-next/DurableWriter"
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
-import { Migrations, SqlJournal } from "@smthrs/journal-next"
-import * as Journal from "@smthrs/journal-next/Journal"
+import { DurableWriter } from "@smthrs/database/DurableWriter"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import { Migrations, SqlJournal } from "@smthrs/journal"
+import * as Journal from "@smthrs/journal/Journal"
 import { NotificationQueue } from "@smthrs/notifications"
 import { Registry } from "@smthrs/registry"
-import { Migrations as RunStoreMigrations, Ownership, RunStore } from "@smthrs/run-store-next"
+import { Migrations as RunStoreMigrations, Ownership, RunStore } from "@smthrs/run-store"
 import { type Crypto, Deferred, Effect, Fiber, Layer, Stream } from "effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"

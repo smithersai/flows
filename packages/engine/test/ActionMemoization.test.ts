@@ -7,7 +7,7 @@
  * the settled result.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Action, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
+import { Action, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
 import { Effect, Exit, Layer, Option, Result, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { FlowEngine } from "../src/index.ts"

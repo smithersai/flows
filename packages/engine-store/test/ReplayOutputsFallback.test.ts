@@ -14,11 +14,11 @@
  * journalled, and the production layer mkdirs parents before materializing.
  */
 import { describe, expect, it } from "@effect/vitest"
-import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
-import { Journal } from "@smthrs/journal-next"
-import { Jj } from "@smthrs/kernel-next"
-import { type Ownership, RunStore } from "@smthrs/run-store-next"
-import { CacheStore } from "@smthrs/step-cache-next"
+import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
+import { Journal } from "@smthrs/journal"
+import { Jj } from "@smthrs/kernel"
+import { type Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
@@ -28,7 +28,7 @@ import * as StepBoundary from "../src/StepBoundary.ts"
 
 /**
  * The production boundary now needs an `ArtifactStore` as well as a
- * `FileSystem`: blob mechanics moved to `@smthrs/artifacts-next`.
+ * `FileSystem`: blob mechanics moved to `@smthrs/artifacts`.
  */
 const hostLayer = (fs: FileSystem.FileSystem) =>
   ArtifactStore.layerFileSystem().pipe(Layer.provideMerge(Layer.succeed(FileSystem.FileSystem)(fs)))

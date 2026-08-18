@@ -4,12 +4,12 @@
  *
  * @since 0.1.0
  */
-import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
-import { Sha256 } from "@smthrs/crypto-next"
-import { FileBoundary } from "@smthrs/flow-next/FileBoundary"
-import { FileInput } from "@smthrs/flow-next/FileInput"
-import { Key } from "@smthrs/keys-next"
-import * as FileSet from "@smthrs/plan-next/FileSet"
+import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
+import { Sha256 } from "@smthrs/crypto"
+import { FileBoundary } from "@smthrs/flow/FileBoundary"
+import { FileInput } from "@smthrs/flow/FileInput"
+import { Key } from "@smthrs/keys"
+import * as FileSet from "@smthrs/plan/FileSet"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import type * as Crypto from "effect/Crypto"
@@ -201,7 +201,7 @@ export type BoundaryEvidence = typeof BoundaryEvidence.Type
  * @category errors
  */
 export class UndeclaredWrite extends Schema.TaggedError<UndeclaredWrite>()(
-  "@smthrs/engine-store-next/UndeclaredWrite",
+  "@smthrs/engine-store/UndeclaredWrite",
   {
     code: Schema.Literal("undeclared_write"),
     paths: Schema.Array(Schema.String),
@@ -227,7 +227,7 @@ export class UndeclaredWrite extends Schema.TaggedError<UndeclaredWrite>()(
  * @category errors
  */
 export class MissingDeclaredOutput extends Schema.TaggedError<MissingDeclaredOutput>()(
-  "@smthrs/engine-store-next/MissingDeclaredOutput",
+  "@smthrs/engine-store/MissingDeclaredOutput",
   {
     code: Schema.Literal("missing_declared_output"),
     paths: Schema.Array(Schema.String),
@@ -247,7 +247,7 @@ export class MissingDeclaredOutput extends Schema.TaggedError<MissingDeclaredOut
  * @category errors
  */
 export class SurvivingDeclaredRemoval extends Schema.TaggedError<SurvivingDeclaredRemoval>()(
-  "@smthrs/engine-store-next/SurvivingDeclaredRemoval",
+  "@smthrs/engine-store/SurvivingDeclaredRemoval",
   {
     code: Schema.Literal("surviving_declared_removal"),
     paths: Schema.Array(Schema.String),
@@ -268,7 +268,7 @@ export class SurvivingDeclaredRemoval extends Schema.TaggedError<SurvivingDeclar
  * @category errors
  */
 export class UnsupportedBoundary extends Schema.TaggedError<UnsupportedBoundary>()(
-  "@smthrs/engine-store-next/UnsupportedBoundary",
+  "@smthrs/engine-store/UnsupportedBoundary",
   {
     code: Schema.Literal("unsupported_boundary"),
     message: Schema.String,
@@ -292,7 +292,7 @@ export class UnsupportedBoundary extends Schema.TaggedError<UnsupportedBoundary>
  * @category errors
  */
 export class BoundaryCorruption extends Schema.TaggedError<BoundaryCorruption>()(
-  "@smthrs/engine-store-next/BoundaryCorruption",
+  "@smthrs/engine-store/BoundaryCorruption",
   {
     code: Schema.Literal("boundary_corruption"),
     path: Schema.String,
@@ -313,7 +313,7 @@ export class BoundaryCorruption extends Schema.TaggedError<BoundaryCorruption>()
  * @category errors
  */
 export class MissingArtifact extends Schema.TaggedError<MissingArtifact>()(
-  "@smthrs/engine-store-next/MissingArtifact",
+  "@smthrs/engine-store/MissingArtifact",
   {
     code: Schema.Literal("missing_artifact"),
     path: Schema.String,
@@ -357,7 +357,7 @@ export interface Service {
  * @category services
  */
 export const StepBoundary: Context.Service<Service, Service> = Context.Service<Service>(
-  "@smthrs/engine-store-next/StepBoundary"
+  "@smthrs/engine-store/StepBoundary"
 )
 
 /**
@@ -587,7 +587,7 @@ export const referencedDigests = (evidence: BoundaryEvidence): ReadonlyArray<str
  *
  * The blob mechanics — content addressing, atomic publication, digest
  * verification, dedupe — belong to `artifacts` and were extracted into
- * `@smthrs/artifacts-next` (`docs/specs/Concepts/Remote Cache.md`). What stays here
+ * `@smthrs/artifacts` (`docs/specs/Concepts/Remote Cache.md`). What stays here
  * is the *policy* that decides which outputs become blobs at all: the
  * inline-versus-spill budgets are a property of how large an evidence row may
  * get, not of how bytes are stored.
@@ -700,7 +700,7 @@ export const makeFileSystem = (
     // artifact store and the persisted row carries only the reference. Every
     // property that used to live here — atomic publication, verify-once
     // dedupe, healing rewrite of a corrupt address — is now the store's, and
-    // is tested there (`@smthrs/artifacts-next`).
+    // is tested there (`@smthrs/artifacts`).
     yield* artifacts.put(bytes).pipe(Effect.mapError(artifactFailure))
     return { output: { path, digest, sizeBytes: bytes.length } satisfies MaterializedOutput, inlinedBytes: 0 }
   })
@@ -748,14 +748,14 @@ export const makeFileSystem = (
           // shared artifact tier may still hold it, so the caller gets a
           // typed, repairable failure and fetches before falling back to a
           // real execution (issue #172).
-          "@smthrs/artifacts-next/ArtifactMissing": (missing) =>
+          "@smthrs/artifacts/ArtifactMissing": (missing) =>
             Effect.fail(
               new MissingArtifact({ code: "missing_artifact", path: output.path, digest: missing.digest })
             ),
           // Corruption is a distinct typed failure from a transient host
           // error (issue #150): the caller routes it to the Inconsistency
           // receiver instead of treating it as an ordinary retryable refusal.
-          "@smthrs/artifacts-next/ArtifactCorruption": (corrupt) =>
+          "@smthrs/artifacts/ArtifactCorruption": (corrupt) =>
             Effect.fail(
               new BoundaryCorruption({
                 code: "boundary_corruption",
@@ -764,7 +764,7 @@ export const makeFileSystem = (
                 measuredDigest: corrupt.measuredDigest
               })
             ),
-          "@smthrs/artifacts-next/ArtifactStoreError": (failure) => Effect.fail(artifactFailure(failure))
+          "@smthrs/artifacts/ArtifactStoreError": (failure) => Effect.fail(artifactFailure(failure))
         })
       )
     }
@@ -988,7 +988,7 @@ export const makeFileSystem = (
  * Host access arrives through Effect's `FileSystem` tag, which the capability
  * kernel decorates in place — the same seam every host implementation (node,
  * bun, browser, sandbox) already provides. Blob storage arrives through
- * `@smthrs/artifacts-next`, so the same boundary runs over a purely local store or
+ * `@smthrs/artifacts`, so the same boundary runs over a purely local store or
  * over a local-plus-shared composition without knowing which it got.
  *
  * @since 0.1.0

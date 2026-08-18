@@ -1,9 +1,9 @@
-# @smthrs/capability-next
+# @smthrs/capability
 
-Capability values and permission failures — the leaf vocabulary of the `flows` permission kernel. This package holds only the words, never the enforcement: `@smthrs/kernel-next` owns the `GrantStore`, the decorating layers, and the journal. Both the kernel and `@smthrs/jj-next` depend on this leaf, so a protected Host service can name permission failures in its own interface without a `kernel` ↔ `jj` dependency cycle.
+Capability values and permission failures — the leaf vocabulary of the `flows` permission kernel. This package holds only the words, never the enforcement: `@smthrs/kernel` owns the `GrantStore`, the decorating layers, and the journal. Both the kernel and `@smthrs/jj` depend on this leaf, so a protected Host service can name permission failures in its own interface without a `kernel` ↔ `jj` dependency cycle.
 
 ```ts
-import { Capability, Permission } from "@smthrs/capability-next"
+import { Capability, Permission } from "@smthrs/capability"
 
 const rule = new Permission.Rule({
   effect: "allow",
@@ -11,15 +11,15 @@ const rule = new Permission.Rule({
 })
 ```
 
-Schema ids (`@smthrs/capability-next/Capability`, `@smthrs/capability-next/PermissionDenied`, …) are digested into step keys and round-trip through the grant journal, so renaming one invalidates recorded runs.
+Schema ids (`@smthrs/capability/Capability`, `@smthrs/capability/PermissionDenied`, …) are digested into step keys and round-trip through the grant journal, so renaming one invalidates recorded runs.
 
 ## Entry points
 
 | Import | Source | Platform |
 | --- | --- | --- |
-| `@smthrs/capability-next` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/capability/src/index.ts) | any |
-| `@smthrs/capability-next/Capability` | [src/Capability.ts](https://github.com/smithersai/flows/blob/main/packages/capability/src/Capability.ts) | any |
-| `@smthrs/capability-next/Permission` | [src/Permission.ts](https://github.com/smithersai/flows/blob/main/packages/capability/src/Permission.ts) | any |
+| `@smthrs/capability` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/capability/src/index.ts) | any |
+| `@smthrs/capability/Capability` | [src/Capability.ts](https://github.com/smithersai/flows/blob/main/packages/capability/src/Capability.ts) | any |
+| `@smthrs/capability/Permission` | [src/Permission.ts](https://github.com/smithersai/flows/blob/main/packages/capability/src/Permission.ts) | any |
 
 ## Capability
 

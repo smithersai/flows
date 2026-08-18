@@ -69,7 +69,7 @@ export type GraphBuildErrorCode = typeof GraphBuildErrorCode.Type
  * @since 0.1.0
  * @category errors
  */
-export class GraphBuildError extends Schema.TaggedError<GraphBuildError>()("@smthrs/plan-next/GraphBuildError", {
+export class GraphBuildError extends Schema.TaggedError<GraphBuildError>()("@smthrs/plan/GraphBuildError", {
   code: GraphBuildErrorCode,
   node: Schema.String,
   path: Schema.Array(Schema.String),

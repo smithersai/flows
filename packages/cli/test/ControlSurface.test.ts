@@ -1,7 +1,7 @@
 import { NodeServices } from "@effect/platform-node"
 import { Control as ControlService, ControlError, ControlRuntime, type ControlSchema } from "@smthrs/control"
 import * as TestControl from "@smthrs/control/test/TestControl"
-import { Journal, JournalEvent } from "@smthrs/journal-next"
+import { Journal, JournalEvent } from "@smthrs/journal"
 import { Cause, Effect, Exit, Layer, Stream } from "effect"
 import { TestConsole } from "effect/testing"
 import { Command } from "effect/unstable/cli"

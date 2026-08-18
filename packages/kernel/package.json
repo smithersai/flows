@@ -1,5 +1,5 @@
 {
-  "name": "@smthrs/kernel-next",
+  "name": "@smthrs/kernel",
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
@@ -85,10 +85,10 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@smthrs/capability-next": "0.1.0",
-    "@smthrs/jj-next": "0.1.0",
-    "@smthrs/journal-next": "0.1.0",
-    "@smthrs/platform-browser-next": "0.1.0",
+    "@smthrs/capability": "0.1.0",
+    "@smthrs/jj": "0.1.0",
+    "@smthrs/journal": "0.1.0",
+    "@smthrs/platform-browser": "0.1.0",
     "effect": "4.0.0-rc.108"
   },
   "peerDependencies": {

@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest"
 import * as Sync from "../src/index.ts"
 
-describe("@smthrs/sync-next barrel", () => {
+describe("@smthrs/sync barrel", () => {
   it("re-exports every module as its own namespace", () => {
     expect(Object.keys(Sync).sort()).toEqual([
       "BranchCommands",
@@ -65,10 +65,10 @@ describe("@smthrs/sync-next barrel", () => {
 
   it("exposes the tagged error classes with their canonical tags", () => {
     expect(new Sync.SyncError.SyncError({ code: "unknown", message: "x" })._tag).toBe(
-      "@smthrs/sync-next/SyncError"
+      "@smthrs/sync/SyncError"
     )
     expect(
       new Sync.SyncError.SyncGapError({ runId: "run" as never, expectedFrom: 1, receivedFrom: 3 } as never)._tag
-    ).toBe("@smthrs/sync-next/SyncGapError")
+    ).toBe("@smthrs/sync/SyncGapError")
   })
 })

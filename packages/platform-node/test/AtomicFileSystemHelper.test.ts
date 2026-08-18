@@ -20,9 +20,9 @@
 // TestClock never advances for them.
 
 import { afterEach, describe, expect, it } from "@effect/vitest"
-import * as KernelFileSystem from "@smthrs/kernel-next/FileSystem"
-import * as GrantStore from "@smthrs/kernel-next/GrantStore"
-import * as Workspace from "@smthrs/kernel-next/Workspace"
+import * as KernelFileSystem from "@smthrs/kernel/FileSystem"
+import * as GrantStore from "@smthrs/kernel/GrantStore"
+import * as Workspace from "@smthrs/kernel/Workspace"
 import { Effect, FileSystem, Layer, Path, type PlatformError } from "effect"
 import { execFile, spawn } from "node:child_process"
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"

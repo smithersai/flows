@@ -48,11 +48,11 @@
  *
  * @since 0.1.0
  */
-import * as Permission from "@smthrs/capability-next/Permission"
+import * as Permission from "@smthrs/capability/Permission"
 import * as Digest from "@smthrs/core/Digest"
 import type * as KeyMaterial from "@smthrs/core/KeyMaterial"
-import { Action, Flow, FlowRuntime } from "@smthrs/flow-next"
-import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
+import { Action, Flow, FlowRuntime } from "@smthrs/flow"
+import type { FileBoundary } from "@smthrs/flow/FileBoundary"
 import * as Cell from "@smthrs/harness/Cell"
 import * as EngineLike from "@smthrs/harness/EngineLike"
 import * as HarnessError from "@smthrs/harness/HarnessError"
@@ -63,8 +63,8 @@ import * as ModelError from "@smthrs/model/ModelError"
 import * as ModelEvent from "@smthrs/model/ModelEvent"
 import * as ModelRequest from "@smthrs/model/ModelRequest"
 import * as Route from "@smthrs/model/Route"
-import * as PersistedPlan from "@smthrs/plan-next/Plan"
-import * as StepKey from "@smthrs/plan-next/StepKey"
+import * as PersistedPlan from "@smthrs/plan/Plan"
+import * as StepKey from "@smthrs/plan/StepKey"
 import { Context, Crypto, Effect, Layer, Option, Schema, Stream } from "effect"
 import type * as WorkspaceSandbox from "./WorkspaceSandbox.ts"
 
@@ -365,7 +365,7 @@ export interface Options {
    * The already-recorded plan this run grows during elaboration.
    *
    * `current` reads the latest persisted generation and `append` records the
-   * value returned by `@smthrs/plan-next/Plan.append`. Hosts without a dynamic plan
+   * value returned by `@smthrs/plan/Plan.append`. Hosts without a dynamic plan
    * omit the port; hosts that supply one cannot accidentally keep elaboration
    * in an unpersisted side channel.
    */

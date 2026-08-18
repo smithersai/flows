@@ -1,9 +1,9 @@
-# @smthrs/platform-browser-next
+# @smthrs/platform-browser
 
 The two Effect platform services `@effect/platform-browser` does not ship. Its browser platform package covers HTTP, sockets, workers, key-value storage, and crypto, but a tab has no `node:fs` and cannot fork, so it ships neither a `FileSystem` nor a `ChildProcessSpawner`. A tab *can* have both, given a virtual filesystem (ZenFS) and an in-page bash interpreter (just-bash). This package is that adapter pair.
 
 ```ts
-import { BrowserServices } from "@smthrs/platform-browser-next"
+import { BrowserServices } from "@smthrs/platform-browser"
 import * as Effect from "effect/Effect"
 import { ChildProcess } from "effect/unstable/process"
 
@@ -18,10 +18,10 @@ Both backends are **arguments, not imports**: neither `@zenfs/core` nor `just-ba
 
 | Import | Source | Platform |
 | --- | --- | --- |
-| `@smthrs/platform-browser-next` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/platform-browser/src/index.ts) | any |
-| `@smthrs/platform-browser-next/BrowserFileSystem` | [src/BrowserFileSystem.ts](https://github.com/smithersai/flows/blob/main/packages/platform-browser/src/BrowserFileSystem.ts) | any |
-| `@smthrs/platform-browser-next/BrowserChildProcessSpawner` | [src/BrowserChildProcessSpawner.ts](https://github.com/smithersai/flows/blob/main/packages/platform-browser/src/BrowserChildProcessSpawner.ts) | any |
-| `@smthrs/platform-browser-next/BrowserServices` | [src/BrowserServices.ts](https://github.com/smithersai/flows/blob/main/packages/platform-browser/src/BrowserServices.ts) | any |
+| `@smthrs/platform-browser` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/platform-browser/src/index.ts) | any |
+| `@smthrs/platform-browser/BrowserFileSystem` | [src/BrowserFileSystem.ts](https://github.com/smithersai/flows/blob/main/packages/platform-browser/src/BrowserFileSystem.ts) | any |
+| `@smthrs/platform-browser/BrowserChildProcessSpawner` | [src/BrowserChildProcessSpawner.ts](https://github.com/smithersai/flows/blob/main/packages/platform-browser/src/BrowserChildProcessSpawner.ts) | any |
+| `@smthrs/platform-browser/BrowserServices` | [src/BrowserServices.ts](https://github.com/smithersai/flows/blob/main/packages/platform-browser/src/BrowserServices.ts) | any |
 
 Every module is browser-bundleable; the root barrel is one of the entry points `scripts/browser-check.mjs` executes.
 

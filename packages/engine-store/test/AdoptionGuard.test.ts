@@ -24,9 +24,9 @@
  * exact retry the journal collapses into a `Duplicate`.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Journal } from "@smthrs/journal-next"
-import { Jj } from "@smthrs/kernel-next"
-import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store-next"
+import { Journal } from "@smthrs/journal"
+import { Jj } from "@smthrs/kernel"
+import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"

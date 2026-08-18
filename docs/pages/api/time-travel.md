@@ -1,9 +1,9 @@
-# @smthrs/time-travel-next
+# @smthrs/time-travel
 
 Frame-addressed history behind ONE injectable service: inspect, fork, rewind. It reads and writes through public journal, cache, host, and time-travel store contracts.
 
 ```ts
-import { TimeTravel } from "@smthrs/time-travel-next"
+import { TimeTravel } from "@smthrs/time-travel"
 
 const timeTravel = yield* TimeTravel
 const position = { runId: "build-42", frame: { lineageId: "build-42/root", seq: 17 } }
@@ -14,7 +14,7 @@ const count = yield* timeTravel.inspect(position, { initial: 0, reduce: (state) 
 
 | Import | Source | Platform |
 | --- | --- | --- |
-| `@smthrs/time-travel-next` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/time-travel/src/index.ts) | any |
+| `@smthrs/time-travel` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/time-travel/src/index.ts) | any |
 
 ## Frame
 
@@ -53,7 +53,7 @@ const count = yield* timeTravel.inspect(position, { initial: 0, reduce: (state) 
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `TimeTravel` | service key | tag `@smthrs/time-travel-next/TimeTravel`; `yield* TimeTravel` is the whole surface |
+| `TimeTravel` | service key | tag `@smthrs/time-travel/TimeTravel`; `yield* TimeTravel` is the whole surface |
 | `TimeTravel.layer` | layer | needs only `TimeTravelStore`, `Journal`, `RunStore`, `CacheStore`, and `Jj` |
 | `make` | constructor | the scoped effect `layer` is built from |
 | `Position` | schema + type | `runId` plus a `Frame` — an address, never a snapshot |
@@ -72,7 +72,7 @@ crashed rewind never needs a call the caller has to remember.
 `Replay`, `Fork`, `Rewind`, `Retry`, `Recovery`, `Compensation`, and
 `EffectHandlerRegistry` are internal machinery under
 [src/internal/](https://github.com/smithersai/flows/blob/main/packages/time-travel/src/internal);
-the package blocks `@smthrs/time-travel-next/internal/*` at its `exports` map.
+the package blocks `@smthrs/time-travel/internal/*` at its `exports` map.
 
 ## EffectBoundary
 
@@ -86,7 +86,7 @@ a later rewind has something to assess. It stays public for that reason.
 | `guard`, `fromEntry`, `fromEntries`, `eventType` | functions + constant | records intent and outcome around an external effect |
 | `EffectRecord`, `Description`, `EffectTier`, `EffectStatus` | shapes | `intended`, `succeeded`, `unknown` |
 
-The engine is the producer: `@smthrs/engine-store-next` writes an `intended` record
+The engine is the producer: `@smthrs/engine-store` writes an `intended` record
 before an irreversible action's body runs and a terminal record after it
 settles, so an ordinary run leaves a rewind something to assess without the
 application calling `guard` by hand.

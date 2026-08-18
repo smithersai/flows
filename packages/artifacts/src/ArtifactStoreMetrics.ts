@@ -5,7 +5,7 @@
  * `ClusterMetrics`. The local `ArtifactStore` implementations update them per
  * successful operation, so a `CombinedArtifacts` stack counts once per tier it
  * actually touched. No exporter ships in this package; provide one — for
- * example `@smthrs/observability-next` — and these counters appear in it.
+ * example `@smthrs/observability` — and these counters appear in it.
  *
  * @since 0.1.0
  */

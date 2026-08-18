@@ -13,7 +13,7 @@
  *
  * @since 0.1.0
  */
-import { affectedRows, DatabaseError, DurableWriter } from "@smthrs/database-next/DurableWriter"
+import { affectedRows, DatabaseError, DurableWriter } from "@smthrs/database/DurableWriter"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -51,7 +51,7 @@ export type PlanStoreErrorCode = typeof PlanStoreErrorCode.Type
  * @since 0.1.0
  * @category errors
  */
-export class PlanStoreError extends Schema.TaggedError<PlanStoreError>()("@smthrs/plan-next/PlanStoreError", {
+export class PlanStoreError extends Schema.TaggedError<PlanStoreError>()("@smthrs/plan/PlanStoreError", {
   code: PlanStoreErrorCode,
   message: Schema.String,
   cause: Schema.optional(Schema.Unknown)
@@ -92,7 +92,7 @@ export interface Service {
  * @since 0.1.0
  * @category services
  */
-export class PlanStore extends Context.Service<PlanStore, Service>()("@smthrs/plan-next/PlanStore") {}
+export class PlanStore extends Context.Service<PlanStore, Service>()("@smthrs/plan/PlanStore") {}
 
 const error = (code: PlanStoreErrorCode, message: string, cause: unknown): PlanStoreError =>
   new PlanStoreError({ code, message, cause })

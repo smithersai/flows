@@ -3,8 +3,8 @@
  * settled wait does on replay.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Action, DurableClock, DurableDeferred, Flow, FlowRuntime, Graph, Interpreter, Sleep } from "@smthrs/flow-next"
-import { Node } from "@smthrs/plan-next"
+import { Action, DurableClock, DurableDeferred, Flow, FlowRuntime, Graph, Interpreter, Sleep } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
@@ -346,7 +346,7 @@ describe("Sleep refusals", () => {
     Effect.gen(function*() {
       expect(yield* refusal(Sleep.action.call({}))).toMatchObject({
         error: {
-          _tag: "@smthrs/flow-next/SleepRequestInvalid",
+          _tag: "@smthrs/flow/SleepRequestInvalid",
           code: "missing_deadline",
           message: expect.stringContaining("neither")
         }
@@ -357,7 +357,7 @@ describe("Sleep refusals", () => {
     Effect.gen(function*() {
       expect(yield* refusal(Sleep.action.call({ millis: 1_000, until: 5_000 }))).toMatchObject({
         error: {
-          _tag: "@smthrs/flow-next/SleepRequestInvalid",
+          _tag: "@smthrs/flow/SleepRequestInvalid",
           code: "ambiguous_deadline",
           message: expect.stringContaining("one deadline")
         }

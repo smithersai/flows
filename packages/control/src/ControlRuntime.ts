@@ -10,7 +10,7 @@
  *
  * @since 0.1.0
  */
-import type * as PersistedPlan from "@smthrs/plan-next/Plan"
+import type * as PersistedPlan from "@smthrs/plan/Plan"
 import { Context, Crypto, Effect, Fiber, Layer, Option } from "effect"
 import type { ApprovalTarget, PlanInput } from "./Control.ts"
 import {

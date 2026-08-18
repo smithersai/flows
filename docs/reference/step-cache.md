@@ -1,14 +1,14 @@
-# `@smthrs/step-cache-next`
+# `@smthrs/step-cache`
 
 This page is the public API reference for the **step result cache**: sealed
 action results addressed by step-key digest. It was split out of
-`@smthrs/journal-next` — see
+`@smthrs/journal` — see
 [`docs/specs/Concepts/Journal Split.md`](../../../docs/specs/Concepts/Journal%20Split.md).
 
 It is deliberately a *cache*. Entries may be evicted, a stale entry is a miss
 rather than a corruption, and the same admission gate serves normal execution,
 replay, and speculation validation alike. The package depends on
-`@smthrs/database-next` and nothing else.
+`@smthrs/database` and nothing else.
 
 ## CacheStore
 
@@ -42,29 +42,29 @@ tier where another machine may still hold the artifacts this one lost.
 
 **Publication order is the caller's job.** A cache entry must never be
 observable in the shared tier while an artifact it references is missing from
-the shared artifact tier; `@smthrs/engine-store-next`'s `ArtifactSync` enforces that
+the shared artifact tier; `@smthrs/engine-store`'s `ArtifactSync` enforces that
 around `put`. *When* the shared copy is written is the caller's too:
 `publication: "deferred"` makes `put` write the local tier only, so a caller
 holding a write transaction can publish afterwards rather than hold a network
 round trip across it. That is the mode the engine composes, publishing through
-its own `CacheSync` seam. See [`@smthrs/artifacts-next`](artifacts.md) and
+its own `CacheSync` seam. See [`@smthrs/artifacts`](artifacts.md) and
 [Remote cache](../../../docs/specs/Concepts/Remote%20Cache.md).
 
 ## Entry points
 
-The root is written against the driver-neutral `@smthrs/database-next` service and
+The root is written against the driver-neutral `@smthrs/database` service and
 bundles for the browser (`pnpm run browser`). The test double binds a Node
 SQLite database and is therefore imported from
-`@smthrs/step-cache-next/test/TestCacheStore`. See
+`@smthrs/step-cache/test/TestCacheStore`. See
 [browser support](../architecture/browser-support.md).
 
 ## Migrations
 
 `Migrations.set` is this package's namespaced migration set —
 `flows_step_cache` — and reserves migration id block `2000`. `Migrations.run` /
-`Migrations.layer` install it alone; `@smthrs/engine-store-next/Migrations` composes
+`Migrations.layer` install it alone; `@smthrs/engine-store/Migrations` composes
 it with the journal's, the run store's, and the engine's. See
-[`@smthrs/database-next`](database.md) for the composition rules.
+[`@smthrs/database`](database.md) for the composition rules.
 
 See [Step keys](../../../docs/specs/Concepts/Step%20Keys.md) and the
-[`@smthrs/engine-store-next` reference](engine-store.md).
+[`@smthrs/engine-store` reference](engine-store.md).

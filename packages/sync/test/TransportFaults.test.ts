@@ -8,7 +8,7 @@
 // TestClock never advances for them.
 
 import { describe, expect, it } from "@effect/vitest"
-import { Journal, JournalEvent } from "@smthrs/journal-next"
+import { Journal, JournalEvent } from "@smthrs/journal"
 import { Deferred, Effect, Fiber, type Scope, Stream } from "effect"
 import type * as SyncRpcs from "../src/SyncRpcs.ts"
 import type * as SyncServer from "../src/SyncServer.ts"

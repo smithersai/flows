@@ -100,7 +100,7 @@ describe("vitest coverage isolation conformance", () => {
   // narrow, reviewable, and self-expiring when the package enables its gate.
   const coverageGateDeferred = new Set<string>()
 
-  // These packages were migrated wholesale from the former agent and tsflows
+  // These packages were migrated wholesale from the former agent and smithers build
   // repositories. They already enforce honest measured floors, but did not
   // arrive with complete branch coverage. Treating those floors as if they
   // were 100% made this conformance suite red while every package-local gate
@@ -124,9 +124,9 @@ describe("vitest coverage isolation conformance", () => {
     "std",
     "testing",
     "triggers",
-    "tsflows",
-    "tsflows-cli",
-    "tsflows-rules"
+    "build",
+    "build-cli",
+    "targets"
   ])
 
   const assertCoverageDenominator = (source: string) => {
@@ -264,12 +264,12 @@ describe("vitest coverage isolation conformance", () => {
     // `packages/` only, so it adds no ungated publishable surface. It is a
     // workspace so its end-to-end suite resolves the real `@smthrs/*`
     // packages and runs under the root `pnpm test` fan-out.
-    // Widened a second time, deliberately (2026-08-15, tsflows absorption):
-    // `packages/tsflows/infra` is the hosted cache Cloudflare Worker that ships
-    // inside the `tsflows` package. It is private and unpublished, and it is a
+    // Widened a second time, deliberately (2026-08-15, smithers build absorption):
+    // `packages/build/infra` is the hosted cache Cloudflare Worker that ships
+    // inside the `smthrs` package. It is private and unpublished, and it is a
     // workspace member only so its own vitest suite and `tsc --noEmit` run under
     // the root fan-out instead of being dead code. It is NESTED under
-    // `packages/tsflows`, so the `packages/` universe derivation above — which
+    // `packages/build`, so the `packages/` universe derivation above — which
     // reads top-level directories only — is unaffected and no top-level
     // publishable surface escapes the gate. `sharp` and `workerd` are its
     // wrangler toolchain's postinstall builds, denied like every other.
@@ -282,7 +282,7 @@ describe("vitest coverage isolation conformance", () => {
       [
         "packages:",
         "  - \"packages/*\"",
-        "  - \"packages/tsflows/infra\"",
+        "  - \"packages/build/infra\"",
         "  - \"examples\"",
         "  - \"apps/*\"",
         "",
@@ -298,6 +298,7 @@ describe("vitest coverage isolation conformance", () => {
         "  workerd: false",
         "",
         "linkWorkspacePackages: true",
+        "verifyDepsBeforeRun: false",
         ""
       ].join("\n")
     )

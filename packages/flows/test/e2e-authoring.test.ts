@@ -13,15 +13,15 @@
  * and what a plan-time mistake costs, are exactly the facts a double cannot
  * establish (`docs/pages/contributing.md`, "Adding a test").
  *
- * The host seams come from the program, not the library. `@smthrs/flows-next`
+ * The host seams come from the program, not the library. `@smthrs/flows`
  * deliberately re-exports no `platform-*` bundle — a platform is chosen by the
  * program that runs — so this suite supplies the two host services it needs
  * itself: SHA-256 over `node:crypto`, and the in-memory SQLite database every
  * store binds to.
  */
 import { describe, expect, it } from "@effect/vitest"
-import * as DurableWriter from "@smthrs/database-next/DurableWriter"
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
+import * as DurableWriter from "@smthrs/database/DurableWriter"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import * as Crypto from "effect/Crypto"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
@@ -1138,7 +1138,7 @@ describe("journal admission is visible at the authoring boundary", () => {
         overflowServices
       )
 
-      expect(observed.overflow._tag).toBe("@smthrs/journal-next/JournalError")
+      expect(observed.overflow._tag).toBe("@smthrs/journal/JournalError")
       expect(observed.overflow.code).toBe("queue_overflow")
       expect(observed.overflow.message).toContain("journal admission queue is full")
       expect(observed.during.status).toBe("running")
@@ -1146,7 +1146,7 @@ describe("journal admission is visible at the authoring boundary", () => {
       if (Exit.isFailure(observed.exit)) {
         const reason = observed.exit.cause.reasons.find((candidate) => candidate._tag === "Fail")
         expect(reason?._tag === "Fail" ? reason.error : undefined).toMatchObject({
-          _tag: "@smthrs/journal-next/JournalError",
+          _tag: "@smthrs/journal/JournalError",
           code: "queue_overflow"
         })
       }

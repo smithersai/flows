@@ -7,11 +7,11 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * wall-clock budget is exhausted, without re-dispatching the action body.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Action, Flow, FlowRuntime, RetryPolicy, StepIdentity } from "@smthrs/flow-next"
-import { Journal } from "@smthrs/journal-next"
-import { Jj } from "@smthrs/kernel-next"
-import { Node } from "@smthrs/plan-next"
-import { AttemptStore, RunStore } from "@smthrs/run-store-next"
+import { Action, Flow, FlowRuntime, RetryPolicy, StepIdentity } from "@smthrs/flow"
+import { Journal } from "@smthrs/journal"
+import { Jj } from "@smthrs/kernel"
+import { Node } from "@smthrs/plan"
+import { AttemptStore, RunStore } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Fiber from "effect/Fiber"
@@ -195,7 +195,7 @@ describe("expirationMs survives a restart mid-retry (issue #45)", () => {
       }
       expect(persisted.result.exit.cause.some((cause) =>
         cause._tag === "Die" &&
-        cause.defect.name === "@smthrs/flow-next/RetryPolicyExpired"
+        cause.defect.name === "@smthrs/flow/RetryPolicyExpired"
       )).toBe(true)
       // The rebuilt flow never re-dispatched the action body: the budget
       // was already spent according to the durable origin.

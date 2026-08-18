@@ -6,8 +6,8 @@
  * one OS tmpdir so a split mount cannot satisfy the assertions by accident.
  */
 import { afterAll, describe, expect, it } from "@effect/vitest"
-import { Jj } from "@smthrs/jj-next"
-import type { SyncFsLike } from "@smthrs/jj-next/browser/WasiFs"
+import { Jj } from "@smthrs/jj"
+import type { SyncFsLike } from "@smthrs/jj/browser/WasiFs"
 import { Effect, FileSystem } from "effect"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
@@ -73,7 +73,7 @@ const wasmPath = fileURLToPath(new URL("../../../jj/wasm/flows_jj.wasm", import.
 if (!fsModule.existsSync(wasmPath)) {
   throw new Error(
     "[BrowserHostSharedMount.contract] packages/jj/wasm/flows_jj.wasm is required. Build it with "
-      + "`pnpm --filter @smthrs/jj-next run build:wasm` (requires the rust wasm32-wasip1 toolchain "
+      + "`pnpm --filter @smthrs/jj run build:wasm` (requires the rust wasm32-wasip1 toolchain "
       + "and crates/flows-jj)."
   )
 }

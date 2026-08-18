@@ -1,4 +1,4 @@
-import { Permission } from "@smthrs/kernel-next"
+import { Permission } from "@smthrs/kernel"
 import { Model } from "@smthrs/model"
 import { Effect, Layer, Schema, Stream } from "effect"
 import * as Cell from "../../src/Cell.ts"

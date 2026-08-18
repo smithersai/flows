@@ -1,5 +1,5 @@
 import * as Credential from "@smthrs/control/Credential"
-import * as HttpClient from "@smthrs/kernel-next/HttpClient"
+import * as HttpClient from "@smthrs/kernel/HttpClient"
 import { Effect, Layer, Redacted } from "effect"
 import * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"
 import { readFileSync } from "node:fs"

@@ -1,8 +1,8 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
 import { describe, expect, it } from "@effect/vitest"
-import { Action, DurableDeferred, Flow, Interpreter } from "@smthrs/flow-next"
-import { Node } from "@smthrs/plan-next"
+import { Action, DurableDeferred, Flow, Interpreter } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Effect, Fiber, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"

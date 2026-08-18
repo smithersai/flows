@@ -15,8 +15,8 @@
  * process.
  */
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
-import { FlowEngine } from "@smthrs/engine-next"
-import { Action, Flow, Interpreter } from "@smthrs/flow-next"
+import { FlowEngine } from "@smthrs/engine"
+import { Action, Flow, Interpreter } from "@smthrs/flow"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"

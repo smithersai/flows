@@ -79,15 +79,15 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@smthrs/canonical-next": "0.1.0",
+    "@smthrs/canonical": "0.1.0",
     "@smthrs/core": "0.1.0",
-    "@smthrs/crypto-next": "0.1.0",
-    "@smthrs/database-next": "0.1.0",
-    "@smthrs/journal-next": "0.1.0",
+    "@smthrs/crypto": "0.1.0",
+    "@smthrs/database": "0.1.0",
+    "@smthrs/journal": "0.1.0",
     "@smthrs/notifications": "0.1.0",
-    "@smthrs/plan-next": "0.1.0",
+    "@smthrs/plan": "0.1.0",
     "@smthrs/registry": "0.1.0",
-    "@smthrs/run-store-next": "0.1.0",
+    "@smthrs/run-store": "0.1.0",
     "effect": "4.0.0-rc.108"
   },
   "devDependencies": {

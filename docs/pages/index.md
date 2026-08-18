@@ -9,13 +9,13 @@ You declare an action once with Schema-typed payload, success, and error, attach
 Requires Node.js 22.19 or later.
 
 ```sh
-pnpm add @smthrs/flow-next @smthrs/engine-next effect
+pnpm add @smthrs/flow @smthrs/engine effect
 ```
 
 ```ts
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
-import { FlowEngine } from "@smthrs/engine-next"
-import { Action, Flow, Interpreter } from "@smthrs/flow-next"
+import { FlowEngine } from "@smthrs/engine"
+import { Action, Flow, Interpreter } from "@smthrs/flow"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
@@ -71,27 +71,27 @@ That engine keeps its state in the process. To survive a crash, drive the same f
 
 | Package | Role |
 | --- | --- |
-| `@smthrs/flows-next` | umbrella barrel re-exporting the engine packages below as namespaces; the `platform-*` bundles are deliberately excluded |
-| `@smthrs/canonical-next` | RFC 8785 canonical JSON as an Effect Schema |
-| `@smthrs/platform-node-next` | the Node Host bundle: Effect's Node filesystem and child-process spawner, the Undici transport, and the Node jj adapter |
-| `@smthrs/platform-bun-next` | the same bundle for Bun, over `@effect/platform-bun` |
-| `@smthrs/jj-next` | jujutsu snapshot, restore, diff, and workspace operations as a host service |
-| `@smthrs/sandbox-next` | a remote `ChildProcessSpawner` implementation and the sandbox liveness probe |
-| `@smthrs/platform-browser-next` | browser `FileSystem` and `ChildProcessSpawner` over ZenFS and just-bash |
-| `@smthrs/journal-next` | logical WAL, migrations, projections, redaction, the `OwnerId` fence |
-| `@smthrs/run-store-next` | run and attempt stores, ownership arbitration, migrations |
-| `@smthrs/step-cache-next` | the sealed step result cache and its migration |
-| `@smthrs/database-next` | driver-neutral SQL contract with transactional write retry |
-| `@smthrs/capability-next` | the capability vocabulary and typed permission failures, shared by the kernel and `@smthrs/jj-next` |
-| `@smthrs/kernel-next` | capability sets, grants, and permission-decorated host services |
-| `@smthrs/crypto-next` | injected cryptographic schema transformations |
-| `@smthrs/keys-next` | canonical flow keys |
-| `@smthrs/plan-next` | the keyed action graph, its authoring AST, its append-only store, and its diff |
-| `@smthrs/artifacts-next` | the content-addressed artifact store, local and remote |
-| `@smthrs/flow-next` | flow definitions, actions, durable primitives, retry policy |
-| `@smthrs/engine-next` | the engine that executes them, plus the RPC and HTTP façades |
-| `@smthrs/engine-store-next` | the durable engine: claims, fences, and persists runs over the journal |
-| `@smthrs/sync-next` | read-only journal replication for followers |
-| `@smthrs/time-travel-next` | replay, fork, rewind, compensation, and recovery protocols |
+| `@smthrs/flows` | umbrella barrel re-exporting the engine packages below as namespaces; the `platform-*` bundles are deliberately excluded |
+| `@smthrs/canonical` | RFC 8785 canonical JSON as an Effect Schema |
+| `@smthrs/platform-node` | the Node Host bundle: Effect's Node filesystem and child-process spawner, the Undici transport, and the Node jj adapter |
+| `@smthrs/platform-bun` | the same bundle for Bun, over `@effect/platform-bun` |
+| `@smthrs/jj` | jujutsu snapshot, restore, diff, and workspace operations as a host service |
+| `@smthrs/sandbox` | a remote `ChildProcessSpawner` implementation and the sandbox liveness probe |
+| `@smthrs/platform-browser` | browser `FileSystem` and `ChildProcessSpawner` over ZenFS and just-bash |
+| `@smthrs/journal` | logical WAL, migrations, projections, redaction, the `OwnerId` fence |
+| `@smthrs/run-store` | run and attempt stores, ownership arbitration, migrations |
+| `@smthrs/step-cache` | the sealed step result cache and its migration |
+| `@smthrs/database` | driver-neutral SQL contract with transactional write retry |
+| `@smthrs/capability` | the capability vocabulary and typed permission failures, shared by the kernel and `@smthrs/jj` |
+| `@smthrs/kernel` | capability sets, grants, and permission-decorated host services |
+| `@smthrs/crypto` | injected cryptographic schema transformations |
+| `@smthrs/keys` | canonical flow keys |
+| `@smthrs/plan` | the keyed action graph, its authoring AST, its append-only store, and its diff |
+| `@smthrs/artifacts` | the content-addressed artifact store, local and remote |
+| `@smthrs/flow` | flow definitions, actions, durable primitives, retry policy |
+| `@smthrs/engine` | the engine that executes them, plus the RPC and HTTP façades |
+| `@smthrs/engine-store` | the durable engine: claims, fences, and persists runs over the journal |
+| `@smthrs/sync` | read-only journal replication for followers |
+| `@smthrs/time-travel` | replay, fork, rewind, compensation, and recovery protocols |
 
-Packages are pre-1.0 at `0.1.0` in lockstep. Every engine package — including `@smthrs/engine-store-next` and the barrel — bundles for the browser; the `platform-node`, `platform-bun`, and driver subpaths are the deliberate Node-only entry points.
+Packages are pre-1.0 at `0.1.0` in lockstep. Every engine package — including `@smthrs/engine-store` and the barrel — bundles for the browser; the `platform-node`, `platform-bun`, and driver subpaths are the deliberate Node-only entry points.

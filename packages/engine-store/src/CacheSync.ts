@@ -31,7 +31,7 @@
  *
  * @since 0.1.0
  */
-import type { CacheStore } from "@smthrs/step-cache-next"
+import type { CacheStore } from "@smthrs/step-cache"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -69,7 +69,7 @@ export interface Service {
  * @since 0.1.0
  * @category services
  */
-export class CacheSync extends Context.Service<CacheSync, Service>()("@smthrs/engine-store-next/CacheSync") {}
+export class CacheSync extends Context.Service<CacheSync, Service>()("@smthrs/engine-store/CacheSync") {}
 
 /**
  * The single-tier implementation: there is no shared step-result tier, so a

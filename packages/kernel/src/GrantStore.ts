@@ -15,7 +15,7 @@ import {
   matches,
   subsumes,
   tierOf
-} from "@smthrs/capability-next/Capability"
+} from "@smthrs/capability/Capability"
 import {
   evaluate,
   GrantStoreError,
@@ -24,7 +24,7 @@ import {
   type PermissionRequired,
   permissionRequired,
   Rule
-} from "@smthrs/capability-next/Permission"
+} from "@smthrs/capability/Permission"
 import { Context, Deferred, Effect, Layer, type Scope, Semaphore } from "effect"
 import { allows, type CapabilitySet, current } from "./CapabilitySet.ts"
 import { DeniedGrant, EnvelopeGrant, type GrantEvent, OnceGrant, RememberedGrant, RunGrant } from "./GrantEvent.ts"
@@ -89,7 +89,7 @@ export interface Service {
  * @category services
  * @since 0.1.0
  */
-export class GrantStore extends Context.Service<GrantStore, Service>()("@smthrs/kernel-next/GrantStore") {}
+export class GrantStore extends Context.Service<GrantStore, Service>()("@smthrs/kernel/GrantStore") {}
 
 /**
  * A hook that durably records a grant decision before it becomes active.
@@ -154,7 +154,7 @@ const isEnvelopeScope = (value: string): value is "run" | "remembered" => value 
  * envelope idempotency structural rather than dependent on caller discipline.
  *
  * The ordering is the code-unit sort of `format(pattern)` — the one renderer
- * for capability identity. RFC 8785 canonical JSON (`@smthrs/canonical-next`)
+ * for capability identity. RFC 8785 canonical JSON (`@smthrs/canonical`)
  * was considered and does not fit: it canonicalizes object keys but preserves
  * array order as semantic, and the ordering that matters here is exactly the
  * pattern-array order.

@@ -18,7 +18,7 @@
  * `flows` wrapper around it. The one thing this bundle configures is
  * `redirect: "manual"`, so the runtime never walks to a second origin behind
  * the capability kernel's back; following a redirect is
- * `@smthrs/kernel-next`'s guarded `HttpClient.layer`, which rechecks every hop.
+ * `@smthrs/kernel`'s guarded `HttpClient.layer`, which rechecks every hop.
  *
  * A tab is stricter than a server about what that leaves visible. Under the
  * Fetch standard, `redirect: "manual"` hands back an *opaque-redirect*
@@ -29,8 +29,8 @@
  *
  * @since 0.1.0
  */
-import type { Jj } from "@smthrs/jj-next"
-import * as BrowserJj from "@smthrs/jj-next/browser/BrowserJj"
+import type { Jj } from "@smthrs/jj"
+import * as BrowserJj from "@smthrs/jj/browser/BrowserJj"
 import { Layer, Path } from "effect"
 import type { FileSystem } from "effect"
 import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient"

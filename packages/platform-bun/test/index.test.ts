@@ -1,7 +1,7 @@
 /**
  * The barrel, and the one dependency this package must *not* have.
  *
- * Bun used to reach into `@smthrs/platform-browser-next` purely to borrow a
+ * Bun used to reach into `@smthrs/platform-browser` purely to borrow a
  * `fetch`-backed transport. Outgoing requests are now Effect's own
  * `HttpClient` — `@effect/platform-bun/BunHttpClient` — so the browser package
  * has no business in a Bun bundle, and the resolved module graph says so.
@@ -12,7 +12,7 @@ import * as BunFileSystem from "../src/BunFileSystem.ts"
 import * as BunHost from "../src/BunHost.ts"
 import * as Index from "../src/index.ts"
 
-describe("@smthrs/platform-bun-next barrel", () => {
+describe("@smthrs/platform-bun barrel", () => {
   it("re-exports every module as a namespace", () => {
     expect(Object.keys(Index).sort()).toEqual(["BunFileSystem", "BunHost"])
     expect(Index.BunFileSystem.layer).toBe(BunFileSystem.layer)
@@ -24,8 +24,8 @@ describe("@smthrs/platform-bun-next barrel", () => {
   })
 })
 
-describe("@smthrs/platform-bun-next module graph", () => {
-  it("never resolves @smthrs/platform-browser-next", async () => {
+describe("@smthrs/platform-bun module graph", () => {
+  it("never resolves @smthrs/platform-browser", async () => {
     const result = await build({
       bundle: true,
       entryPoints: [new URL("../src/index.ts", import.meta.url).pathname],

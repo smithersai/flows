@@ -5,7 +5,7 @@
  * `ClusterMetrics`. `SqlJournal` updates them as emission receipts are
  * produced, so the counters measure admissions on the hot path rather than
  * rows read back. No exporter ships in this package; provide one — for
- * example `@smthrs/observability-next` — and these counters appear in it.
+ * example `@smthrs/observability` — and these counters appear in it.
  *
  * @since 0.1.0
  */

@@ -7,7 +7,7 @@
  *
  * @since 0.1.0
  */
-import type { JournalEvent } from "@smthrs/journal-next"
+import type { JournalEvent } from "@smthrs/journal"
 import { ModelRequest } from "@smthrs/model"
 import { Disclosure } from "@smthrs/registry"
 import type { Descriptor } from "@smthrs/registry"

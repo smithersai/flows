@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@effect/vitest"
-import type * as Capability from "@smthrs/capability-next/Capability"
-import { PermissionDenied } from "@smthrs/capability-next/Permission"
+import type * as Capability from "@smthrs/capability/Capability"
+import { PermissionDenied } from "@smthrs/capability/Permission"
 import { Effect, Option } from "effect"
 import * as EffectHttpClient from "effect/unstable/http/HttpClient"
 import type * as EffectHttpClientError from "effect/unstable/http/HttpClientError"

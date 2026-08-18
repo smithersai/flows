@@ -1,8 +1,8 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
 import { describe, expect, it } from "@effect/vitest"
-import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
-import { Node } from "@smthrs/plan-next"
+import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Cause, Context, Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { FlowEngine } from "../src/index.ts"
@@ -45,7 +45,7 @@ describe("memory engine execution surface", () => {
       // engine never recorded is a typed failure the caller can distinguish.
       const error = yield* Effect.flip(flow.poll("never-started"))
       expect(error).toMatchObject({
-        _tag: "@smthrs/flow-next/FlowExecutionNotFound",
+        _tag: "@smthrs/flow/FlowExecutionNotFound",
         code: "execution_not_found",
         executionId: "never-started"
       })

@@ -80,10 +80,10 @@
   },
   "dependencies": {
     "@jitl/quickjs-singlefile-browser-release-sync": "0.32.0",
-    "@smthrs/capability-next": "0.1.0",
+    "@smthrs/capability": "0.1.0",
     "@smthrs/core": "0.1.0",
-    "@smthrs/journal-next": "0.1.0",
-    "@smthrs/kernel-next": "0.1.0",
+    "@smthrs/journal": "0.1.0",
+    "@smthrs/kernel": "0.1.0",
     "@smthrs/model": "0.1.0",
     "@smthrs/notifications": "0.1.0",
     "@smthrs/registry": "0.1.0",

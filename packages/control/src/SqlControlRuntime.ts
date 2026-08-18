@@ -45,9 +45,9 @@
  *
  * @since 0.1.0
  */
-import { DurableWriter } from "@smthrs/database-next/DurableWriter"
-import type { Ownership } from "@smthrs/run-store-next"
-import { RunStore } from "@smthrs/run-store-next"
+import { DurableWriter } from "@smthrs/database/DurableWriter"
+import type { Ownership } from "@smthrs/run-store"
+import { RunStore } from "@smthrs/run-store"
 import { Clock, Crypto, Effect, Fiber, Layer, Option } from "effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import type { ApprovalTarget, PlanInput } from "./Control.ts"

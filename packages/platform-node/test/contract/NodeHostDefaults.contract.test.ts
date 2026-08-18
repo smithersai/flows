@@ -5,7 +5,7 @@
  * started for the run. A client that only ever refuses a connection never
  * proves the response actually comes back.
  */
-import { runHostContract } from "@smthrs/kernel-next/test/contract"
+import { runHostContract } from "@smthrs/kernel/test/contract"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
 import { spawnSync } from "node:child_process"
 import { createServer } from "node:http"

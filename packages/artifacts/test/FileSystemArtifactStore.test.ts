@@ -1,7 +1,7 @@
 /**
  * The filesystem artifact store's durability contract.
  *
- * These properties moved here from `@smthrs/engine-store-next`'s `StepBoundary`
+ * These properties moved here from `@smthrs/engine-store`'s `StepBoundary`
  * along with the code (issues #117, #131, #132, #138, #144, #145): atomic
  * publication through temp+rename, unique temp paths per writer, healing
  * rewrites of a corrupt address, and the conservative orphan sweep. Two
@@ -365,7 +365,7 @@ describe("reads, probes, and refusals", () => {
       const host = memoryFs()
       const exit = yield* withCrypto(store(host).get(digest).pipe(Effect.exit))
       expect(Exit.isFailure(exit)).toBe(true)
-      expect((errorOf(exit) as ArtifactStore.ArtifactMissing)._tag).toBe("@smthrs/artifacts-next/ArtifactMissing")
+      expect((errorOf(exit) as ArtifactStore.ArtifactMissing)._tag).toBe("@smthrs/artifacts/ArtifactMissing")
     }))
 
   it.effect("reports typed corruption when the bytes no longer hash to the address", () =>
@@ -373,7 +373,7 @@ describe("reads, probes, and refusals", () => {
       const host = memoryFs({ seed: { [blobPath]: "torn-partial-bytes" } })
       const exit = yield* withCrypto(store(host).get(digest).pipe(Effect.exit))
       const error = errorOf(exit) as ArtifactStore.ArtifactCorruption
-      expect(error._tag).toBe("@smthrs/artifacts-next/ArtifactCorruption")
+      expect(error._tag).toBe("@smthrs/artifacts/ArtifactCorruption")
       expect(error.recordedDigest).toBe(digest)
       expect(error.measuredDigest).toBe(sha256(bytes("torn-partial-bytes")))
     }))

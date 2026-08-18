@@ -22,9 +22,9 @@
  *
  * @since 0.0.0
  */
-import { FlowEngine } from "@smthrs/engine-next"
-import { Action, Flow, FlowRuntime } from "@smthrs/flow-next"
-import * as Node from "@smthrs/plan-next/Node"
+import { FlowEngine } from "@smthrs/engine"
+import { Action, Flow, FlowRuntime } from "@smthrs/flow"
+import * as Node from "@smthrs/plan/Node"
 import * as Cause from "effect/Cause"
 import * as Crypto from "effect/Crypto"
 import * as Deferred from "effect/Deferred"

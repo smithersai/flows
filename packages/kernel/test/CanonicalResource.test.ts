@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest"
-import * as Permission from "@smthrs/capability-next/Permission"
+import * as Permission from "@smthrs/capability/Permission"
 import {
   Effect,
   FileSystem as EffectFileSystem,

@@ -11,10 +11,10 @@
  *
  * @since 0.1.0
  */
-import type { Jj } from "@smthrs/jj-next"
-import * as BrowserJj from "@smthrs/jj-next/browser/BrowserJj"
-import * as BrowserChildProcessSpawner from "@smthrs/platform-browser-next/BrowserChildProcessSpawner"
-import * as BrowserFileSystem from "@smthrs/platform-browser-next/BrowserFileSystem"
+import type { Jj } from "@smthrs/jj"
+import * as BrowserJj from "@smthrs/jj/browser/BrowserJj"
+import * as BrowserChildProcessSpawner from "@smthrs/platform-browser/BrowserChildProcessSpawner"
+import * as BrowserFileSystem from "@smthrs/platform-browser/BrowserFileSystem"
 import { Effect, FileSystem, Layer, Path, Random } from "effect"
 import { TestClock } from "effect/testing"
 import type { HttpClient as EffectHttpClient } from "effect/unstable/http/HttpClient"

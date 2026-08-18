@@ -12,7 +12,7 @@
  *
  * @since 0.1.0
  */
-import * as JournalEvent from "@smthrs/journal-next/JournalEvent"
+import * as JournalEvent from "@smthrs/journal/JournalEvent"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
@@ -22,7 +22,7 @@ import * as Schema from "effect/Schema"
  * @category schemas
  * @since 0.1.0
  */
-export const BranchId = Schema.NonEmptyString.pipe(Schema.brand("@smthrs/sync-next/BranchProtocol/BranchId"))
+export const BranchId = Schema.NonEmptyString.pipe(Schema.brand("@smthrs/sync/BranchProtocol/BranchId"))
 
 /**
  * Identifier of one collaboratively edited branch.
@@ -38,7 +38,7 @@ export type BranchId = typeof BranchId.Type
  * @category schemas
  * @since 0.1.0
  */
-export const ParticipantId = Schema.NonEmptyString.pipe(Schema.brand("@smthrs/sync-next/BranchProtocol/ParticipantId"))
+export const ParticipantId = Schema.NonEmptyString.pipe(Schema.brand("@smthrs/sync/BranchProtocol/ParticipantId"))
 
 /**
  * Identifier of one connected client.
@@ -58,7 +58,7 @@ export type ParticipantId = typeof ParticipantId.Type
  * @category schemas
  * @since 0.1.0
  */
-export const CommandId = Schema.NonEmptyString.pipe(Schema.brand("@smthrs/sync-next/BranchProtocol/CommandId"))
+export const CommandId = Schema.NonEmptyString.pipe(Schema.brand("@smthrs/sync/BranchProtocol/CommandId"))
 
 /**
  * Client-minted command identifier used as the idempotency key.
@@ -152,7 +152,7 @@ export const CommandEvent = "flows/branch/command"
  * @category schemas
  * @since 0.1.0
  */
-export class ShareClaims extends Schema.Class<ShareClaims>("@smthrs/sync-next/BranchProtocol/ShareClaims")({
+export class ShareClaims extends Schema.Class<ShareClaims>("@smthrs/sync/BranchProtocol/ShareClaims")({
   branchId: BranchId,
   capabilityId: Schema.NonEmptyString,
   access: Access,
@@ -166,7 +166,7 @@ export class ShareClaims extends Schema.Class<ShareClaims>("@smthrs/sync-next/Br
  * @category schemas
  * @since 0.1.0
  */
-export class ShareCapability extends Schema.Class<ShareCapability>("@smthrs/sync-next/BranchProtocol/ShareCapability")({
+export class ShareCapability extends Schema.Class<ShareCapability>("@smthrs/sync/BranchProtocol/ShareCapability")({
   claims: ShareClaims,
   signature: Schema.String
 }) {}
@@ -177,7 +177,7 @@ export class ShareCapability extends Schema.Class<ShareCapability>("@smthrs/sync
  * @category schemas
  * @since 0.1.0
  */
-export class Cursor extends Schema.Class<Cursor>("@smthrs/sync-next/BranchProtocol/Cursor")({
+export class Cursor extends Schema.Class<Cursor>("@smthrs/sync/BranchProtocol/Cursor")({
   cardId: Schema.NonEmptyString,
   offset: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
 }) {}
@@ -191,7 +191,7 @@ export class Cursor extends Schema.Class<Cursor>("@smthrs/sync-next/BranchProtoc
  * @category schemas
  * @since 0.1.0
  */
-export class Participant extends Schema.Class<Participant>("@smthrs/sync-next/BranchProtocol/Participant")({
+export class Participant extends Schema.Class<Participant>("@smthrs/sync/BranchProtocol/Participant")({
   branchId: BranchId,
   participantId: ParticipantId,
   displayName: Schema.NonEmptyString,
@@ -211,7 +211,7 @@ export class Participant extends Schema.Class<Participant>("@smthrs/sync-next/Br
  * @since 0.1.0
  */
 export class CommandSubmission extends Schema.Class<CommandSubmission>(
-  "@smthrs/sync-next/BranchProtocol/CommandSubmission"
+  "@smthrs/sync/BranchProtocol/CommandSubmission"
 )({
   branchId: BranchId,
   commandId: CommandId,
@@ -232,7 +232,7 @@ export class CommandSubmission extends Schema.Class<CommandSubmission>(
  * @since 0.1.0
  */
 export class CommandEventPayload extends Schema.Class<CommandEventPayload>(
-  "@smthrs/sync-next/BranchProtocol/CommandEventPayload"
+  "@smthrs/sync/BranchProtocol/CommandEventPayload"
 )({
   commandId: CommandId,
   participantId: ParticipantId,
@@ -251,7 +251,7 @@ export class CommandEventPayload extends Schema.Class<CommandEventPayload>(
  * @since 0.1.0
  */
 export class CommandIdentity extends Schema.Class<CommandIdentity>(
-  "@smthrs/sync-next/BranchProtocol/CommandIdentity"
+  "@smthrs/sync/BranchProtocol/CommandIdentity"
 )({
   commandId: CommandId
 }) {}
@@ -274,7 +274,7 @@ export const SayCommand = "branch.say"
  * @category schemas
  * @since 0.1.0
  */
-export class CommandReceipt extends Schema.Class<CommandReceipt>("@smthrs/sync-next/BranchProtocol/CommandReceipt")({
+export class CommandReceipt extends Schema.Class<CommandReceipt>("@smthrs/sync/BranchProtocol/CommandReceipt")({
   branchId: BranchId,
   commandId: CommandId,
   status: Schema.Literals(["admitted", "duplicate"]),

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import * as Capability from "@smthrs/capability-next/Capability";
+import * as Capability from "@smthrs/capability/Capability";
 import * as Flow from "@smthrs/core/Flow";
 import * as CellTurn from "@smthrs/harness/CellTurn";
 import * as ContextWindow from "@smthrs/harness/ContextWindow";
@@ -21,7 +21,7 @@ import * as AppEngine from "./AppEngine";
  * here — the QuickJS browser sandbox evaluates cells, the app-side EngineLike
  * streams a seat and dispatches flow calls, and a steering source closes the
  * composition — and it pins the one blocker that stops the swap from landing:
- * the loop's capability envelope only understands `@smthrs/capability-next`
+ * the loop's capability envelope only understands `@smthrs/capability`
  * actions, while this app's flows claim the chain-era policy vocabulary.
  */
 
@@ -133,7 +133,7 @@ describe("the workspace harness cell loop runs in this app", () => {
 	 *
 	 * `CellTurn` screens a flow's declared capabilities against the run's
 	 * envelope with `Capability.parse`, which recognizes only the fixed
-	 * `@smthrs/capability-next` action set (fs:*, net:*, model:call, proc:spawn,
+	 * `@smthrs/capability` action set (fs:*, net:*, model:call, proc:spawn,
 	 * jj:*). An unparseable claim takes the `onNone: () => true` branch and is
 	 * REFUSED. Every flow in this app claims the chain-era policy vocabulary
 	 * (`app:act`, `outbound:launch`, `session:net-read`, `approve:self`), which

@@ -4,13 +4,13 @@
  * The low-level engine contract, expressed over encoded payloads and results.
  *
  * `makeUnsafe` adapts an `Encoded` implementation into the typed
- * `FlowRuntime` port that `@smthrs/flow-next` declares, adding schema decoding and
+ * `FlowRuntime` port that `@smthrs/flow` declares, adding schema decoding and
  * encoding on the way through. Durable stores implement `Encoded`, never the
  * typed port directly.
  *
  * @since 4.0.0
  */
-import type { Action, DurableClock, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow-next"
+import type { Action, DurableClock, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
 import type * as Crypto from "effect/Crypto"
 import type * as Effect from "effect/Effect"
 import type * as Exit from "effect/Exit"

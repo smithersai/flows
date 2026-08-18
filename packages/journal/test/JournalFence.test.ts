@@ -4,16 +4,16 @@
  * running run's owner, and otherwise the append fails `fence_lost` rather than
  * writing behind a live successor.
  *
- * `flows_runs` belongs to `@smthrs/run-store-next`, which depends on this package
+ * `flows_runs` belongs to `@smthrs/run-store`, which depends on this package
  * and so cannot be depended on from here. This suite therefore stands up the
  * *columns the fence reads* as a fixture, which is exactly the contract the
- * journal asserts on a table it does not own. `@smthrs/engine-store-next` — which
+ * journal asserts on a table it does not own. `@smthrs/engine-store` — which
  * composes both — pins the same behaviour against the real migrated schema in
  * its `JournalFencing` suite.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { DurableWriter } from "@smthrs/database-next/DurableWriter"
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
+import { DurableWriter } from "@smthrs/database/DurableWriter"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Effect, Layer } from "effect"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"

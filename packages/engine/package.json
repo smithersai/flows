@@ -1,12 +1,12 @@
 {
-  "name": "@smthrs/engine-next",
+  "name": "@smthrs/engine",
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
   "smthrs": {
     "group": "engine"
   },
-  "description": "The runtime that executes @smthrs/flow-next flows, plus HTTP and RPC transport projections",
+  "description": "The runtime that executes @smthrs/flow flows, plus HTTP and RPC transport projections",
   "homepage": "https://github.com/smithersai/flows",
   "repository": {
     "type": "git",
@@ -89,9 +89,9 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@smthrs/crypto-next": "0.1.0",
-    "@smthrs/flow-next": "0.1.0",
-    "@smthrs/keys-next": "0.1.0",
+    "@smthrs/crypto": "0.1.0",
+    "@smthrs/flow": "0.1.0",
+    "@smthrs/keys": "0.1.0",
     "effect": "4.0.0-rc.108"
   },
   "devDependencies": {
@@ -99,7 +99,7 @@
     "@effect/platform-node": "4.0.0-rc.108",
     "@effect/vitest": "4.0.0-rc.108",
     "@eslint/js": "9.39.1",
-    "@smthrs/plan-next": "0.1.0",
+    "@smthrs/plan": "0.1.0",
     "@types/node": "25.9.5",
     "@vitest/coverage-v8": "4.1.9",
     "dprint": "0.55.2",

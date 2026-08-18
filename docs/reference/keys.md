@@ -1,10 +1,10 @@
-# `@smthrs/keys-next`
+# `@smthrs/keys`
 
 The package turns canonical JSON into a validated flow key.
 
 ```typescript
 /** A versioned SHA-256 key derived from canonical JSON. */
-export type Key = string & Brand<"@smthrs/keys-next/Key">
+export type Key = string & Brand<"@smthrs/keys/Key">
 
 /** Converts any RFC 8785-compatible JSON value to `Key`. */
 export const Key: Schema<
@@ -14,4 +14,4 @@ export const Key: Schema<
 >
 ```
 
-`Key` serializes through [RFC 8785 canonical JSON](https://www.rfc-editor.org/rfc/rfc8785.html), then delegates hashing to `@smthrs/crypto-next`. It is irreversible and returns invalid input or crypto failures as `SchemaError`.
+`Key` serializes through [RFC 8785 canonical JSON](https://www.rfc-editor.org/rfc/rfc8785.html), then delegates hashing to `@smthrs/crypto`. It is irreversible and returns invalid input or crypto failures as `SchemaError`.

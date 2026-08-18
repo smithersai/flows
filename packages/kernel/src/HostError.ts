@@ -16,12 +16,12 @@
  * Codes are a STABLE public contract: callers branch on them, step keys digest
  * them, UIs map them to remediation. Never repurpose a code — add one.
  */
-import type { JjError } from "@smthrs/jj-next"
+import type { JjError } from "@smthrs/jj"
 
 /**
  * Every failure the Host surface is allowed to surface.
  *
- * `JjError` is declared by `@smthrs/jj-next` beside its contract; it is named here
+ * `JjError` is declared by `@smthrs/jj` beside its contract; it is named here
  * because that service is still part of the closed Host surface
  * (`HostServices.ts`). This is a type union, not a re-export — import the
  * error itself from its package.

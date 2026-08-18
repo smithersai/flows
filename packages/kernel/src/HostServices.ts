@@ -14,7 +14,7 @@
  *
  * @since 0.1.0
  */
-import { Jj as JjPort } from "@smthrs/jj-next"
+import { Jj as JjPort } from "@smthrs/jj"
 import { FileSystem as EffectFileSystem, Layer, Path as EffectPath } from "effect"
 import { HttpClient as HttpClientPort } from "effect/unstable/http/HttpClient"
 import { ChildProcessSpawner as ChildProcessSpawnerPort } from "effect/unstable/process/ChildProcessSpawner"
@@ -100,7 +100,7 @@ export const HostServiceIds = [
   "effect/FileSystem",
   "effect/Path",
   "effect/process/ChildProcessSpawner",
-  "@smthrs/jj-next/Jj",
+  "@smthrs/jj/Jj",
   "effect/HttpClient"
 ] as const
 

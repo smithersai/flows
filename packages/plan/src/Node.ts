@@ -51,7 +51,7 @@ export const TypeId: TypeId = internal.TypeId
  * @since 0.1.0
  * @category type ids
  */
-export type TypeId = "~@smthrs/plan-next/Node"
+export type TypeId = "~@smthrs/plan/Node"
 
 /**
  * The inspectable AST a node stores: closure-free, and JSON serializable for
@@ -430,7 +430,7 @@ const catch_: {
 export { catch_ as catch }
 
 /**
- * Constructs the flow-call node used by `@smthrs/flow-next` without making flow
+ * Constructs the flow-call node used by `@smthrs/flow` without making flow
  * calls part of the public authoring surface of this package.
  *
  * @since 0.1.0
@@ -444,7 +444,7 @@ export const flowCall = <A = unknown, E = never, R = never>(
 ): Node<A, E, R> => internal.makeNode<A, E, R>(internal.flowCall(declaration, flow, mode, payload))
 
 /**
- * Constructs the action-call node used by `@smthrs/flow-next` without making
+ * Constructs the action-call node used by `@smthrs/flow` without making
  * action calls part of the public authoring surface of this package.
  *
  * @since 0.1.0
@@ -457,7 +457,7 @@ export const actionCall = <A = unknown, E = never, R = never>(
 ): Node<A, E, R> => internal.makeNode<A, E, R>(internal.actionCall(declaration, action, payload))
 
 /**
- * Reads the flow or action declaration a call node names, so `@smthrs/flow-next`
+ * Reads the flow or action declaration a call node names, so `@smthrs/flow`
  * can expand a call it recorded. It is `undefined` for an AST that was
  * rehydrated from JSON, because the declaration lives beside the AST rather
  * than inside it — a graph built from such an AST keeps the call as a leaf.

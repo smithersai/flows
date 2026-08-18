@@ -13,7 +13,7 @@ import * as Schema from "effect/Schema"
  * @category schemas
  * @since 0.1.0
  */
-export const RunId = Schema.String.pipe(Schema.brand("@smthrs/journal-next/JournalEvent/RunId"))
+export const RunId = Schema.String.pipe(Schema.brand("@smthrs/journal/JournalEvent/RunId"))
 
 /**
  * Branded identifier of one durable run.
@@ -30,7 +30,7 @@ export type RunId = typeof RunId.Type
  * @since 0.1.0
  */
 export const Seq = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)).pipe(
-  Schema.brand("@smthrs/journal-next/JournalEvent/Seq")
+  Schema.brand("@smthrs/journal/JournalEvent/Seq")
 )
 
 /**
@@ -47,7 +47,7 @@ export type Seq = typeof Seq.Type
  * @category schemas
  * @since 0.1.0
  */
-export const SourceId = Schema.String.pipe(Schema.brand("@smthrs/journal-next/JournalEvent/SourceId"))
+export const SourceId = Schema.String.pipe(Schema.brand("@smthrs/journal/JournalEvent/SourceId"))
 
 /**
  * Identifier of an event producer.
@@ -64,7 +64,7 @@ export type SourceId = typeof SourceId.Type
  * @since 0.1.0
  */
 export const SourceSeq = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)).pipe(
-  Schema.brand("@smthrs/journal-next/JournalEvent/SourceSeq")
+  Schema.brand("@smthrs/journal/JournalEvent/SourceSeq")
 )
 
 /**
@@ -84,7 +84,7 @@ export type SourceSeq = typeof SourceSeq.Type
  * @category schemas
  * @since 0.1.0
  */
-export class Input extends Schema.Class<Input>("@smthrs/journal-next/JournalEvent/Input")({
+export class Input extends Schema.Class<Input>("@smthrs/journal/JournalEvent/Input")({
   runId: RunId,
   sourceId: SourceId,
   sourceSeq: Schema.optional(SourceSeq),
@@ -103,7 +103,7 @@ export class Input extends Schema.Class<Input>("@smthrs/journal-next/JournalEven
  * @category schemas
  * @since 0.1.0
  */
-export class Entry extends Schema.Class<Entry>("@smthrs/journal-next/JournalEvent/Entry")({
+export class Entry extends Schema.Class<Entry>("@smthrs/journal/JournalEvent/Entry")({
   runId: RunId,
   seq: Seq,
   eventId: Schema.String,

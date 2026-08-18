@@ -14,8 +14,8 @@
  * turn into a real execution instead of a failure.
  */
 import { describe, expect, it } from "@effect/vitest"
-import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
-import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
+import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
+import type { FileBoundary } from "@smthrs/flow/FileBoundary"
 import * as Effect from "effect/Effect"
 import * as Encoding from "effect/Encoding"
 import * as FileSystem from "effect/FileSystem"
@@ -66,7 +66,7 @@ const memoryFs = (seed: Record<string, string>) => {
 }
 
 /**
- * The blob mechanics moved to `@smthrs/artifacts-next`; the inline-versus-spill
+ * The blob mechanics moved to `@smthrs/artifacts`; the inline-versus-spill
  * budgets stayed here, so a boundary is now a policy over a store.
  */
 type BoundaryOptions = StepBoundary.FileSystemOptions & { readonly objectsDirectory?: string }
@@ -81,7 +81,7 @@ const boundaryLayer = (fs: FileSystem.FileSystem, options?: BoundaryOptions) =>
     )
   )
 
-/** The two-hex fanout address `@smthrs/artifacts-next` publishes at. */
+/** The two-hex fanout address `@smthrs/artifacts` publishes at. */
 const blobPath = (directory: string, digest: string) => `${directory}/${digest.slice(0, 2)}/${digest}`
 
 const descriptor: FileBoundary = {

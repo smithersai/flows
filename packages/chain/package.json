@@ -1,5 +1,5 @@
 {
-  "name": "@smthrs/chain-next",
+  "name": "@smthrs/chain",
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
@@ -83,7 +83,7 @@
   },
   "dependencies": {
     "@jitl/quickjs-singlefile-browser-release-sync": "0.32.0",
-    "@smthrs/capability-next": "0.1.0",
+    "@smthrs/capability": "0.1.0",
     "@smthrs/core": "0.1.0",
     "@smthrs/memory": "0.1.0",
     "@smthrs/model": "0.1.0",

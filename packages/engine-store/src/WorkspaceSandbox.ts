@@ -38,11 +38,11 @@
  *
  * @since 0.1.0
  */
-import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
-import { Sha256 } from "@smthrs/crypto-next"
-import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
-import { Workspace as KernelWorkspace } from "@smthrs/kernel-next/Workspace"
-import * as FileSet from "@smthrs/plan-next/FileSet"
+import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
+import { Sha256 } from "@smthrs/crypto"
+import type { FileBoundary } from "@smthrs/flow/FileBoundary"
+import { Workspace as KernelWorkspace } from "@smthrs/kernel/Workspace"
+import * as FileSet from "@smthrs/plan/FileSet"
 import * as Cause from "effect/Cause"
 import * as Context from "effect/Context"
 import type * as Crypto from "effect/Crypto"
@@ -189,7 +189,7 @@ export interface Workspace {
  * @since 0.1.0
  */
 export const Workspace: Context.Service<Workspace, Workspace> = Context.Service<Workspace>(
-  "@smthrs/engine-store-next/WorkspaceSandbox/Workspace"
+  "@smthrs/engine-store/WorkspaceSandbox/Workspace"
 )
 
 /**
@@ -329,7 +329,7 @@ export type WorkspaceErrorCode = typeof WorkspaceErrorCode.Type
  * @since 0.1.0
  */
 export class WorkspaceError extends Schema.TaggedError<WorkspaceError>()(
-  "@smthrs/engine-store-next/WorkspaceError",
+  "@smthrs/engine-store/WorkspaceError",
   {
     code: WorkspaceErrorCode,
     message: Schema.String,
@@ -350,7 +350,7 @@ export class WorkspaceError extends Schema.TaggedError<WorkspaceError>()(
  * @since 0.1.0
  */
 export class MaterializationConflict extends Schema.TaggedError<MaterializationConflict>()(
-  "@smthrs/engine-store-next/MaterializationConflict",
+  "@smthrs/engine-store/MaterializationConflict",
   {
     paths: Schema.Array(Schema.String),
     message: Schema.String
@@ -395,7 +395,7 @@ export interface Service {
  * @since 0.1.0
  */
 export const WorkspaceSandbox: Context.Service<Service, Service> = Context.Service<Service>(
-  "@smthrs/engine-store-next/WorkspaceSandbox"
+  "@smthrs/engine-store/WorkspaceSandbox"
 )
 
 /**
@@ -441,7 +441,7 @@ export interface Dispatcher {
  * @since 0.1.0
  */
 export const EffectDispatcher: Context.Service<Dispatcher, Dispatcher> = Context.Service<Dispatcher>(
-  "@smthrs/engine-store-next/WorkspaceSandbox/EffectDispatcher"
+  "@smthrs/engine-store/WorkspaceSandbox/EffectDispatcher"
 )
 
 /**
@@ -1324,7 +1324,7 @@ export const makeFileSystem = (
         if (change.afterDigest === undefined) continue
         const bytes = change.after ?? (yield* artifacts.get(`${change.afterDigest}`).pipe(
           Effect.mapError((error) =>
-            error._tag === "@smthrs/artifacts-next/ArtifactStoreError"
+            error._tag === "@smthrs/artifacts/ArtifactStoreError"
               ? artifactFailure(error)
               : new WorkspaceError({
                 code: "not_found",
@@ -1432,7 +1432,7 @@ export const makeFileSystem = (
  *
  * Host access arrives through Effect's `FileSystem` tag — the same tag the
  * capability kernel decorates in place — and blob retention through
- * `@smthrs/artifacts-next`, so the same sandbox runs over a purely local store or a
+ * `@smthrs/artifacts`, so the same sandbox runs over a purely local store or a
  * local-plus-shared composition without knowing which it got. The workspace
  * root arrives through the kernel's `Workspace` service, so absolute paths a
  * body resolved for itself still land inside the transaction.

@@ -1,6 +1,6 @@
 import { Effect, Fiber, Layer, Ref } from "effect";
-import { Catalog, Chain, Journal, Prompt, QuickJsRunner, Steering, SubChains } from "@smthrs/chain-next";
-import type { Author, Event, Outcome, ScriptRunner } from "@smthrs/chain-next";
+import { Catalog, Chain, Journal, Prompt, QuickJsRunner, Steering, SubChains } from "@smthrs/chain";
+import type { Author, Event, Outcome, ScriptRunner } from "@smthrs/chain";
 import { CardPatchSchema, CardSchema } from "smithers-shared/Cards";
 import type {
 	AgentChatMessage,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest"
-import { runHostContract } from "@smthrs/kernel-next/test/contract"
+import { runHostContract } from "@smthrs/kernel/test/contract"
 import { Deferred, Effect, Fiber, Schedule } from "effect"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"

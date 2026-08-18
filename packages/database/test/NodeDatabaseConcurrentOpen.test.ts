@@ -105,7 +105,7 @@ describe("NodeDatabase concurrent open", () => {
   // wait before the jittered delay even applies. It is a known limitation of
   // the default gate, not a broken contract: it passes when it is run.
   // See docs/alpha-notes.md, "Known test pins".
-  //   FLOWS_SLOW_TESTS=1 pnpm --filter @smthrs/database-next test
+  //   FLOWS_SLOW_TESTS=1 pnpm --filter @smthrs/database test
   it.live.runIf(slowTests)(
     "dies with the original lock defect after the fixed open-retry budget is exhausted",
     () =>

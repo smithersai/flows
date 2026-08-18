@@ -102,7 +102,7 @@ test("the guarded set is the engine and tooling groups, read from the manifests"
 
   const guarded = new Set(guardedPackages().map((directory) => directory.split("/").pop()))
   assert.ok(guarded.has("database"), "database is an engine package")
-  assert.ok(guarded.has("tsflows-cli"), "tsflows-cli is a tooling package")
+  assert.ok(guarded.has("build-cli"), "build-cli is a tooling package")
   assert.ok(!guarded.has("harness"), "harness is an agent package and out of scope")
 })
 

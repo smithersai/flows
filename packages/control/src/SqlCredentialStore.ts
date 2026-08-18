@@ -2,7 +2,7 @@
  * Durable credential persistence over `@smthrs/database`.
  *
  * This is the host adapter behind {@link CredentialStore} on any runtime with
- * a SQL database — the Node composition uses `@smthrs/database-next/node`, and
+ * a SQL database — the Node composition uses `@smthrs/database/node`, and
  * tests use its in-memory SQLite driver. The module itself imports no `node:*`
  * API: it speaks the driver-neutral SQL contract, so it stays bundleable and a
  * browser host that ships a SQL driver can use it unchanged.
@@ -14,7 +14,7 @@
  *
  * @since 0.1.0
  */
-import { DurableWriter } from "@smthrs/database-next/DurableWriter"
+import { DurableWriter } from "@smthrs/database/DurableWriter"
 import { Effect, Layer, Option } from "effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { CredentialConflict, Unavailable } from "./ControlError.ts"

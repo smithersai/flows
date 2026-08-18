@@ -9,8 +9,8 @@
  *
  * @since 0.0.0
  */
-import type { Jj } from "@smthrs/jj-next"
-import { Jj as JjTag } from "@smthrs/jj-next"
+import type { Jj } from "@smthrs/jj"
+import { Jj as JjTag } from "@smthrs/jj"
 import { Clock, Effect, Fiber, FileSystem, Path, Random, Ref, Stream } from "effect"
 import type { Layer } from "effect"
 import * as HttpClient from "effect/unstable/http/HttpClient"

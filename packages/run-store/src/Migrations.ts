@@ -3,14 +3,14 @@
  *
  * This package owns `flows_runs` and `flows_attempts`. It reserves migration
  * id block `1000` so its ids can never collide with the journal's or the step
- * cache's — see `@smthrs/database-next`'s `Migrations` for how the blocks compose.
+ * cache's — see `@smthrs/database`'s `Migrations` for how the blocks compose.
  *
  * Derived contracts: `docs/specs/Concepts/Run Ownership.md` and
  * `docs/specs/Concepts/Journal Split.md`.
  *
  * @since 0.1.0
  */
-import * as DatabaseMigrations from "@smthrs/database-next/Migrations"
+import * as DatabaseMigrations from "@smthrs/database/Migrations"
 import * as Layer from "effect/Layer"
 import initial from "./migrations/0001_initial.ts"
 import lineage from "./migrations/0002_lineage.ts"

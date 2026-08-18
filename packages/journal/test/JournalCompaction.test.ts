@@ -16,8 +16,8 @@
  * (`reference/temporal/common/persistence/history_manager.go`).
  */
 import { describe, expect, it } from "@effect/vitest"
-import { DurableWriter } from "@smthrs/database-next/DurableWriter"
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
+import { DurableWriter } from "@smthrs/database/DurableWriter"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Cause, Deferred, Effect, Exit, Fiber, Layer, Option } from "effect"
 import * as Stream from "effect/Stream"
 import { TestClock } from "effect/testing"

@@ -4,7 +4,7 @@
  * @since 0.1.0
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Journal, JournalEvent } from "@smthrs/journal-next"
+import { Journal, JournalEvent } from "@smthrs/journal"
 import { Effect, Layer, Stream } from "effect"
 import * as RunCatalog from "../src/RunCatalog.ts"
 import { SyncError } from "../src/SyncError.ts"

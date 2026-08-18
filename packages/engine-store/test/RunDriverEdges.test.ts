@@ -1,8 +1,8 @@
 import { describe, expect, it } from "@effect/vitest"
-import { Flow, FlowRuntime } from "@smthrs/flow-next"
-import { Journal } from "@smthrs/journal-next"
-import { Node } from "@smthrs/plan-next"
-import { Ownership, RunStore } from "@smthrs/run-store-next"
+import { Flow, FlowRuntime } from "@smthrs/flow"
+import { Journal } from "@smthrs/journal"
+import { Node } from "@smthrs/plan"
+import { Ownership, RunStore } from "@smthrs/run-store"
 import * as Cause from "effect/Cause"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
@@ -262,7 +262,7 @@ describe("RunDriver poll", () => {
       })))
 
       expect(result.missing).toMatchObject({
-        _tag: "@smthrs/flow-next/FlowExecutionNotFound",
+        _tag: "@smthrs/flow/FlowExecutionNotFound",
         code: "execution_not_found",
         executionId: "absent"
       })

@@ -1,6 +1,6 @@
 # Step keys and content addressing
 
-`@smthrs/keys-next` only provides the generic `Key` transformation. `@smthrs/crypto-next` provides SHA-256. The engine owns the policy deciding what data is hashed.
+`@smthrs/keys` only provides the generic `Key` transformation. `@smthrs/crypto` provides SHA-256. The engine owns the policy deciding what data is hashed.
 
 For a sealed action with an `idempotencyKey`, the engine hashes:
 

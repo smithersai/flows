@@ -8,7 +8,7 @@
  * a sibling machine gets a hit it cannot materialize.
  */
 import { describe, expect, it } from "@effect/vitest"
-import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
+import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"

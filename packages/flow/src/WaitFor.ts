@@ -43,7 +43,7 @@ import { annotateWaiting } from "./FlowRuntime/WaitingAnnotation.ts"
  * @since 0.1.0
  */
 export class WaitForRequestInvalid extends Schema.TaggedError<WaitForRequestInvalid>()(
-  "@smthrs/flow-next/WaitForRequestInvalid",
+  "@smthrs/flow/WaitForRequestInvalid",
   {
     code: Schema.Literals([
       "missing_target",

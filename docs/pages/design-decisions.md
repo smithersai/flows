@@ -20,7 +20,7 @@ Cost: local computation between boundaries must be deterministic. `Date.now()`, 
 
 ## D3. Key computation sits above storage
 
-`@smthrs/engine-next` computes a cache key or an invocation key before it calls `FlowEngine.Encoded.actionExecute`. The memory engine and the durable engine receive the same identity.
+`@smthrs/engine` computes a cache key or an invocation key before it calls `FlowEngine.Encoded.actionExecute`. The memory engine and the durable engine receive the same identity.
 
 The alternative was letting each engine derive identity from its own storage addresses, which produces two key policies that drift.
 
@@ -36,7 +36,7 @@ Cost: the production sandbox composition admits results only when it has this ev
 
 ## D5. Host access is closed and decorated
 
-The host surface is exactly `FileSystem`, `Path`, `ChildProcessSpawner`, `Jj`, and `HttpClient` — four of them Effect's own tags — with Effect's `Clock` and `Random` treated as swappable built-ins. `@smthrs/kernel-next` decorates those services with grant checks instead of asking every flow to remember to check permissions. A `flows`-defined one-hop `HttpTransport` used to sit in the last slot so redirects could be authorized hop by hop; it was deleted once the same guarantee could be had from Effect alone — host bundles hand over a client that never follows a redirect, and the kernel composes Effect's own `HttpClient.followRedirects` above the grant check.
+The host surface is exactly `FileSystem`, `Path`, `ChildProcessSpawner`, `Jj`, and `HttpClient` — four of them Effect's own tags — with Effect's `Clock` and `Random` treated as swappable built-ins. `@smthrs/kernel` decorates those services with grant checks instead of asking every flow to remember to check permissions. A `flows`-defined one-hop `HttpTransport` used to sit in the last slot so redirects could be authorized hop by hop; it was deleted once the same guarantee could be had from Effect alone — host bundles hand over a client that never follows a redirect, and the kernel composes Effect's own `HttpClient.followRedirects` above the grant check.
 
 Four of those five slots hold Effect's own tags rather than `flows` wrappers, and the last two arrived by the same argument. `flows` used to define a `Shell` service with `exec` and `stream`, which was `effect/unstable/process` with fewer features and a second error type to keep honest. It was deleted; `flows` now supplies implementations of Effect's spawner (Node, Bun, an in-browser just-bash one) and adds only the `proc:spawn` capability check on top. `HttpTransport` went the same way once its one genuine contribution — hop-by-hop redirect authorization — turned out to be expressible as `followRedirects` composed above the guard. A wrapper earns its place by adding something; the shell wrapper added a `timeoutMs` option that `Effect.timeout` already covers, and the transport added a second way to reach the network.
 
@@ -80,7 +80,7 @@ Cost: time travel depends on explicit effect-boundary records, lineage edges, an
 
 ## D10. Remote sync is read-only
 
-`@smthrs/sync-next` exports catch-up and follow over journal entries. Mutation, resume, and permission decisions are outside the protocol on purpose.
+`@smthrs/sync` exports catch-up and follow over journal entries. Mutation, resume, and permission decisions are outside the protocol on purpose.
 
 The alternative, a bidirectional protocol, turns every follower into a potential writer and makes ownership a distributed problem.
 
@@ -88,7 +88,7 @@ Cost: a follower can rebuild a read model but cannot act on it through this prot
 
 ## D11. The engine vendors Effect's unstable workflow surface
 
-`@smthrs/flow-next` and `@smthrs/engine-next` vendor Effect's `unstable/workflow` rather than depending on it, because the upstream API is explicitly unstable and this engine needs to change its identity and retry semantics.
+`@smthrs/flow` and `@smthrs/engine` vendor Effect's `unstable/workflow` rather than depending on it, because the upstream API is explicitly unstable and this engine needs to change its identity and retry semantics.
 
 Cost: an attribution obligation, discharged by `packages/engine/THIRD_PARTY_NOTICES.md` reproducing Effect's MIT notice and `VENDOR.md` recording what was taken and why. Upstream changes have to be merged by hand.
 
@@ -96,7 +96,7 @@ Cost: an attribution obligation, discharged by `packages/engine/THIRD_PARTY_NOTI
 
 The runtime is `effect@4.0.0-rc.*`. Most of the former `@effect/*` ecosystem now lives at `effect/unstable/*`, and the AI, RPC, cluster, persistence, and workflow surfaces are imported from there. `@effect/sql-sqlite-node` is a dependency because it is a driver, not a rewritten core module.
 
-Cost: a release-candidate pin, exact at `4.0.0-rc.108` across every release-1 engine manifest — the private `@tsflows/infra` tooling workspace is the one exception, at `4.0.0-rc.109`, and ships in no release group — and Effect 3 documentation does not apply.
+Cost: a release-candidate pin, exact at `4.0.0-rc.108` across every release-1 engine manifest — the private `@smthrs/build-infra` tooling workspace is the one exception, at `4.0.0-rc.109`, and ships in no release group — and Effect 3 documentation does not apply.
 
 ## D13. No pseudo-terminal service in core
 

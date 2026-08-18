@@ -5,11 +5,11 @@
  * interleaving of two concurrently admitted nodes — rather than from the
  * `DeterministicHelper` the vault rejected. Nothing here sleeps.
  */
-import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
-import { Journal } from "@smthrs/journal-next"
-import { Jj } from "@smthrs/kernel-next"
-import { KeyMaterial, Plan, PlanStore, StepKey } from "@smthrs/plan-next"
-import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store-next"
+import type { FileBoundary } from "@smthrs/flow/FileBoundary"
+import { Journal } from "@smthrs/journal"
+import { Jj } from "@smthrs/kernel"
+import { KeyMaterial, Plan, PlanStore, StepKey } from "@smthrs/plan"
+import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"

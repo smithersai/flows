@@ -1,4 +1,4 @@
-import * as HttpClient from "@smthrs/kernel-next/HttpClient"
+import * as HttpClient from "@smthrs/kernel/HttpClient"
 import { Effect, Layer } from "effect"
 import * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"
 import { readFileSync } from "node:fs"

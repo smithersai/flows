@@ -1,11 +1,11 @@
-# @smthrs/jj-next
+# @smthrs/jj
 
 Jujutsu version control as a portable Effect host service. `flows` snapshots the
 working copy around every step, so jj is host access — it goes through a layer
 like the filesystem does, not through an ad-hoc `spawn`.
 
 ```sh
-pnpm add @smthrs/jj-next
+pnpm add @smthrs/jj
 ```
 
 ## Entry points
@@ -17,10 +17,10 @@ importing the contract never resolves a `node:` built-in.
 
 | Import                              | Platform                                            |
 | ----------------------------------- | --------------------------------------------------- |
-| `@smthrs/jj-next`                   | any — contract only; bundles for the browser        |
-| `@smthrs/jj-next/browser/BrowserJj` | browser — jj-lib compiled to WASM over a virtual FS |
-| `@smthrs/jj-next/node/NodeJj`       | Node (`node:child_process`)                         |
-| `@smthrs/jj-next/bun/BunJj`         | Bun, reusing the Node adapter                       |
+| `@smthrs/jj`                   | any — contract only; bundles for the browser        |
+| `@smthrs/jj/browser/BrowserJj` | browser — jj-lib compiled to WASM over a virtual FS |
+| `@smthrs/jj/node/NodeJj`       | Node (`node:child_process`)                         |
+| `@smthrs/jj/bun/BunJj`         | Bun, reusing the Node adapter                       |
 
 `pnpm run browser` at the repository root pins that table.
 
@@ -28,7 +28,7 @@ importing the contract never resolves a `node:` built-in.
 
 | Export                              | Meaning                                                                  |
 | ----------------------------------- | ------------------------------------------------------------------------ |
-| `Jj`                                | The service interface and its tag (`@smthrs/jj-next/Jj`).                |
+| `Jj`                                | The service interface and its tag (`@smthrs/jj/Jj`).                |
 | `ChangeId`                          | The durable handle a run uses to name workspace state.                   |
 | `JjErrorCode`, `JjError`, `jjError` | The closed failure vocabulary and its constructor.                       |
 | `make`, `makeNoop`, `layerNoop`     | Complete, stubbed, and layered service construction.                     |
@@ -37,8 +37,8 @@ importing the contract never resolves a `node:` built-in.
 | `BrowserJj.layerUnsupported`        | The fallback for hosts that ship no wasm module — fails `not_installed`. |
 
 ```ts
-import { Jj } from "@smthrs/jj-next"
-import * as NodeJj from "@smthrs/jj-next/node/NodeJj"
+import { Jj } from "@smthrs/jj"
+import * as NodeJj from "@smthrs/jj/node/NodeJj"
 import { Effect } from "effect"
 
 const program = Effect.gen(function*() {
@@ -70,8 +70,8 @@ filesystem mount and the wasm bytes, so both arrive as arguments. The library
 never fetches — hand it a compiled `WebAssembly.Module` or the raw bytes.
 
 ```ts
-import { Jj } from "@smthrs/jj-next"
-import * as BrowserJj from "@smthrs/jj-next/browser/BrowserJj"
+import { Jj } from "@smthrs/jj"
+import * as BrowserJj from "@smthrs/jj/browser/BrowserJj"
 import { configureSingle, fs } from "@zenfs/core"
 import { IndexedDB } from "@zenfs/dom"
 import { Effect } from "effect"

@@ -5,7 +5,7 @@
  * and nothing else. It reserves migration id block `4000` — the next free
  * block after the journal (`0`), the run store (`1000`), the step cache
  * (`2000`), and the engine store (`3000`) — so its first migration is id
- * `4001`. See `@smthrs/database-next`'s `Migrations` for how the blocks compose and
+ * `4001`. See `@smthrs/database`'s `Migrations` for how the blocks compose and
  * why a set landing at or below the applied high-water mark is rejected rather
  * than silently assumed done.
  *
@@ -14,7 +14,7 @@
  *
  * @since 0.1.0
  */
-import * as DatabaseMigrations from "@smthrs/database-next/Migrations"
+import * as DatabaseMigrations from "@smthrs/database/Migrations"
 import * as Layer from "effect/Layer"
 import initial from "./migrations/0001_initial.ts"
 

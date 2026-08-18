@@ -1,11 +1,11 @@
-# @smthrs/plan-next
+# @smthrs/plan
 
 The persisted plan: a keyed action graph, its append-only store, its diff, and the step-key compiler that gives every node its identity. Above the persisted form sits the authoring AST — `Node` describes a plan as pure data, and `Planned` is the placeholder a body sees where a step result will be.
 
-The package performs no I/O beyond the database and executes nothing. Driving a plan is [`@smthrs/engine-store-next`](/api/engine-store)'s `PlanScheduler`.
+The package performs no I/O beyond the database and executes nothing. Driving a plan is [`@smthrs/engine-store`](/api/engine-store)'s `PlanScheduler`.
 
 ```ts
-import { Plan, PlanStore } from "@smthrs/plan-next"
+import { Plan, PlanStore } from "@smthrs/plan"
 
 const plan = yield* Plan.compile({
   planId: "review-4821",
@@ -46,7 +46,7 @@ yield* store.record(plan, Date.now())
 
 | Import | Source | Platform |
 | --- | --- | --- |
-| `@smthrs/plan-next` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/plan/src/index.ts) | Node and browser |
+| `@smthrs/plan` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/plan/src/index.ts) | Node and browser |
 
 ## KeyMaterial
 
@@ -69,7 +69,7 @@ What a planner declares about one node, handed to the compiler.
 
 [src/StepKey.ts](https://github.com/smithersai/flows/blob/main/packages/plan/src/StepKey.ts)
 
-The compiler from material to a [`@smthrs/keys-next`](/api/keys) `Key`.
+The compiler from material to a [`@smthrs/keys`](/api/keys) `Key`.
 
 | Export | Kind | Notes |
 | --- | --- | --- |
@@ -205,7 +205,7 @@ The verdict is the key: two nodes with the same id and the same key are the same
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `PlanStore` | service tag | `@smthrs/plan-next/PlanStore` |
+| `PlanStore` | service tag | `@smthrs/plan/PlanStore` |
 | `Service` | interface | `record`, `append`, `get` |
 | `make`, `layer` | SQL implementation | over `DurableWriter` and Effect's `SqlClient` |
 | `RecordResult` | type | `Recorded`, `ExistingSame`, or `Conflict` carrying the existing digest |
@@ -225,6 +225,6 @@ The verdict is the key: two nodes with the same id and the same key are the same
 | `run` | effect | apply this set alone |
 | `layer` | layer | applies it at construction |
 
-Block `4000` is the next free block after the journal (`0`), the run store (`1000`), the step cache (`2000`), and the engine store (`3000`). [`@smthrs/engine-store-next`](/api/engine-store)'s `Migrations.sets` composes this set **last**, because `Migrator` decides what to run from a single high-water mark and a set whose ids sit below an already-applied one would be assumed done.
+Block `4000` is the next free block after the journal (`0`), the run store (`1000`), the step cache (`2000`), and the engine store (`3000`). [`@smthrs/engine-store`](/api/engine-store)'s `Migrations.sets` composes this set **last**, because `Migrator` decides what to run from a single high-water mark and a set whose ids sit below an already-applied one would be assumed done.
 
 Append-only is enforced in SQL rather than by convention. Triggers raise on any UPDATE or DELETE of `flows_plan_nodes` and `flows_plan_edges`, and `flows_plans` accepts only an UPDATE that raises the generation and leaves `base_digest` alone. The migration also creates the `flows_plan_nodes_order` index.

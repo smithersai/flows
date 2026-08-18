@@ -3,8 +3,8 @@
  * registry the caller provided, keyed by channel and receipt.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { DurableWriter, type Service as WriterService } from "@smthrs/database-next/DurableWriter"
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
+import { DurableWriter, type Service as WriterService } from "@smthrs/database/DurableWriter"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Deferred, Effect, Layer, Metric } from "effect"
 import { TestClock } from "effect/testing"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"

@@ -1,6 +1,6 @@
-# `@smthrs/flow-next`
+# `@smthrs/flow`
 
-This page is the public API reference for the flow authoring model: typed flows, recorded actions, durable deferreds/clocks/queues, retry policy, step identity, and the runtime port those APIs execute against. It contains no engine implementation — that is [`@smthrs/engine-next`](engine.md).
+This page is the public API reference for the flow authoring model: typed flows, recorded actions, durable deferreds/clocks/queues, retry policy, step identity, and the runtime port those APIs execute against. It contains no engine implementation — that is [`@smthrs/engine`](engine.md).
 
 ## `Flow`
 
@@ -50,4 +50,4 @@ Deferred tokens encode flow name, execution ID, and deferred name so another pro
 
 `FlowRuntime` is the service tag the authoring APIs are written against: registration, execution, polling, safe/unsafe interruption, resume, action execution, deferred lookup/completion, and clock scheduling. `FlowInstance` holds one execution's mutable frontier state, and `annotateWaiting` declares how the flow is about to wait so a durable driver can park it under that reason and token. `FlowCycleDetected` is the typed failure `execute` can return. `CancelRequestFailed` is the typed, recoverable failure returned by public interrupt surfaces when a durable runtime cannot transactionally record the run and its linked descendants; no ephemeral interruption occurs and durable cancellation state remains unchanged.
 
-This package declares the port and depends on nothing that implements it, so the dependency direction is `@smthrs/flow-next` ← `@smthrs/engine-next` ← durable stores, with no cycle and no type-only escape hatch back.
+This package declares the port and depends on nothing that implements it, so the dependency direction is `@smthrs/flow` ← `@smthrs/engine` ← durable stores, with no cycle and no type-only escape hatch back.

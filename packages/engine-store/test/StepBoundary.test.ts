@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@effect/vitest"
-import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
-import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
+import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
+import type { FileBoundary } from "@smthrs/flow/FileBoundary"
 import * as Effect from "effect/Effect"
 import * as Encoding from "effect/Encoding"
 import * as FileSystem from "effect/FileSystem"
@@ -11,7 +11,7 @@ import * as StepBoundary from "../src/StepBoundary.ts"
 
 /**
  * The production boundary now needs an `ArtifactStore` as well as a
- * `FileSystem`: blob mechanics moved to `@smthrs/artifacts-next`.
+ * `FileSystem`: blob mechanics moved to `@smthrs/artifacts`.
  */
 const hostLayer = (fs: FileSystem.FileSystem) =>
   ArtifactStore.layerFileSystem().pipe(Layer.provideMerge(Layer.succeed(FileSystem.FileSystem)(fs)))
@@ -32,7 +32,7 @@ describe("StepBoundary", () => {
         return yield* Effect.flip(boundary.settle(prepared))
       }).pipe(Effect.provide(StepBoundary.layerTest({ changedPaths: ["surprise.txt"], diffIdentity: "d1" })))
       expect(yield* withCrypto(program)).toMatchObject({
-        _tag: "@smthrs/engine-store-next/UndeclaredWrite",
+        _tag: "@smthrs/engine-store/UndeclaredWrite",
         code: "undeclared_write",
         paths: ["surprise.txt"],
         diffIdentity: "d1"
@@ -98,7 +98,7 @@ describe("StepBoundary", () => {
         return yield* Effect.flip(boundary.settle(prepared))
       }).pipe(Effect.provide(StepBoundary.layerTest({ missingOutputs: ["output.txt"], diffIdentity: "d4" })))
       expect(yield* withCrypto(program)).toMatchObject({
-        _tag: "@smthrs/engine-store-next/MissingDeclaredOutput",
+        _tag: "@smthrs/engine-store/MissingDeclaredOutput",
         code: "missing_declared_output",
         paths: ["output.txt"],
         diffIdentity: "d4"
@@ -148,7 +148,7 @@ describe("StepBoundary", () => {
       }).pipe(Effect.provide(StepBoundary.layerTest({ survivingRemovals: ["stale.txt"] })))
       const failure = yield* withCrypto(program)
       expect(failure).toMatchObject({
-        _tag: "@smthrs/engine-store-next/SurvivingDeclaredRemoval",
+        _tag: "@smthrs/engine-store/SurvivingDeclaredRemoval",
         code: "surviving_declared_removal",
         paths: ["stale.txt"]
       })
@@ -177,7 +177,7 @@ describe("StepBoundary", () => {
         return yield* Effect.flip(boundary.prepare(descriptor))
       }).pipe(Effect.provide(StepBoundary.layerTest({ supported: false })))
       expect(yield* withCrypto(program)).toMatchObject({
-        _tag: "@smthrs/engine-store-next/UnsupportedBoundary",
+        _tag: "@smthrs/engine-store/UnsupportedBoundary",
         code: "unsupported_boundary"
       })
     }))
@@ -594,7 +594,7 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
         }).pipe(Effect.provide(host.layer))
       )
       expect(failure).toMatchObject({
-        _tag: "@smthrs/engine-store-next/UndeclaredWrite",
+        _tag: "@smthrs/engine-store/UndeclaredWrite",
         code: "undeclared_write",
         paths: ["input.txt"]
       })
@@ -631,7 +631,7 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
         }).pipe(Effect.provide(host.layer))
       )
       expect(failure).toMatchObject({
-        _tag: "@smthrs/engine-store-next/MissingDeclaredOutput",
+        _tag: "@smthrs/engine-store/MissingDeclaredOutput",
         code: "missing_declared_output",
         paths: ["output.txt"]
       })
@@ -702,7 +702,7 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
         }).pipe(Effect.provide(host.layer))
       )
       expect(failure).toMatchObject({
-        _tag: "@smthrs/engine-store-next/SurvivingDeclaredRemoval",
+        _tag: "@smthrs/engine-store/SurvivingDeclaredRemoval",
         code: "surviving_declared_removal",
         paths: ["stale.txt"]
       })
@@ -1183,7 +1183,7 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
         }).pipe(Effect.provide(host.layer))
       )
       expect(failure).toMatchObject({
-        _tag: "@smthrs/engine-store-next/BoundaryCorruption",
+        _tag: "@smthrs/engine-store/BoundaryCorruption",
         code: "boundary_corruption",
         path: "output.txt",
         recordedDigest: "aa".repeat(32),
@@ -1207,7 +1207,7 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
         }).pipe(Effect.provide(host.layer))
       )
       expect(failure).toMatchObject({
-        _tag: "@smthrs/engine-store-next/BoundaryCorruption",
+        _tag: "@smthrs/engine-store/BoundaryCorruption",
         code: "boundary_corruption",
         path: "legacy.txt",
         recordedDigest: "legacy_inline",

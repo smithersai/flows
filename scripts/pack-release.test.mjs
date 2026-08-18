@@ -132,8 +132,8 @@ test("pack-release order is a topological order of the workspace dependency grap
     }
   }
 
-  // @smthrs/kernel-next publishes kernel/test/TestHost, which imports
-  // @smthrs/platform-browser-next, and platform-browser imports @smthrs/kernel-next
+  // @smthrs/kernel publishes kernel/test/TestHost, which imports
+  // @smthrs/platform-browser, and platform-browser imports @smthrs/kernel
   // back. That cycle is the one edge publication order cannot respect. A
   // second entry here is a new cycle, and a new release-ordering hazard.
   assert.deepEqual(unordered.sort(), ["kernel -> platform-browser"])

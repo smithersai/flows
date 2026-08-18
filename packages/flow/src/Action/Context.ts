@@ -21,7 +21,7 @@ import type { CacheEnvironment } from "./CacheEnvironment.ts"
  * @since 0.1.0
  */
 export const CurrentCacheEnvironment = Context.Reference<CacheEnvironment | undefined>(
-  "@smthrs/flow-next/Action/CurrentCacheEnvironment",
+  "@smthrs/flow/Action/CurrentCacheEnvironment",
   { defaultValue: () => undefined }
 )
 
@@ -79,7 +79,7 @@ export interface OrdinalSlot {
  * @since 0.1.0
  */
 export const CurrentOrdinal = Context.Reference<OrdinalSlot | undefined>(
-  "@smthrs/flow-next/Action/CurrentOrdinal",
+  "@smthrs/flow/Action/CurrentOrdinal",
   { defaultValue: () => undefined }
 )
 
@@ -91,7 +91,7 @@ export const CurrentOrdinal = Context.Reference<OrdinalSlot | undefined>(
  * @since 4.0.0
  */
 export const CurrentAttempt = Context.Reference<number>(
-  "@smthrs/flow-next/Action/CurrentAttempt",
+  "@smthrs/flow/Action/CurrentAttempt",
   { defaultValue: () => 1 }
 )
 
@@ -121,6 +121,6 @@ export const CurrentAttempt = Context.Reference<number>(
  * @since 0.1.0
  */
 export const CurrentInvocationKey = Context.Reference<string | undefined>(
-  "@smthrs/flow-next/Action/CurrentInvocationKey",
+  "@smthrs/flow/Action/CurrentInvocationKey",
   { defaultValue: () => undefined }
 )

@@ -6,7 +6,7 @@
  * offering "retry", a driver deciding whether to back off — branch on *why*
  * the operation was refused, and a closed code list keeps that branch
  * exhaustive. The tag itself is wire format, so it stays
- * `@smthrs/time-travel-next/TimeTravelError` even as the code list grows.
+ * `@smthrs/time-travel/TimeTravelError` even as the code list grows.
  *
  * @since 0.1.0
  */
@@ -53,7 +53,7 @@ export type TimeTravelErrorCode = typeof TimeTravelErrorCode.Type
  * @since 0.1.0
  * @category errors
  */
-export class TimeTravelError extends Schema.TaggedError<TimeTravelError>()("@smthrs/time-travel-next/TimeTravelError", {
+export class TimeTravelError extends Schema.TaggedError<TimeTravelError>()("@smthrs/time-travel/TimeTravelError", {
   code: TimeTravelErrorCode,
   message: Schema.String,
   cause: Schema.optional(Schema.Unknown)

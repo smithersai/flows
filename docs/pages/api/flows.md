@@ -1,11 +1,11 @@
-# @smthrs/flows-next
+# @smthrs/flows
 
-The umbrella barrel. It re-exports the engine packages as namespaces, so one dependency gives you the whole surface without collapsing each package's `make` / `makeNoop` / `layerNoop` trio into a shared namespace. There are two exceptions: `@smthrs/flow-next`'s authoring model is re-exported flat, so `Flow`, `Action`, and their siblings sit at the top level, and `@smthrs/time-travel-next` contributes the `TimeTravel` *service key* flat rather than a namespace, so `yield* TimeTravel` is the whole onboarding and `TimeTravel.layer` provides it.
+The umbrella barrel. It re-exports the engine packages as namespaces, so one dependency gives you the whole surface without collapsing each package's `make` / `makeNoop` / `layerNoop` trio into a shared namespace. There are two exceptions: `@smthrs/flow`'s authoring model is re-exported flat, so `Flow`, `Action`, and their siblings sit at the top level, and `@smthrs/time-travel` contributes the `TimeTravel` *service key* flat rather than a namespace, so `yield* TimeTravel` is the whole onboarding and `TimeTravel.layer` provides it.
 
-The `@smthrs/platform-*` bundles are deliberately absent, for the same reason `effect`'s index does not re-export `@effect/platform-node`: a platform bundle is chosen by the program that runs, not by the library it depends on. Import [`@smthrs/platform-node-next`](/api/platform-node), [`@smthrs/platform-bun-next`](/api/platform-bun), or [`@smthrs/platform-browser-next`](/api/platform-browser) directly.
+The `@smthrs/platform-*` bundles are deliberately absent, for the same reason `effect`'s index does not re-export `@effect/platform-node`: a platform bundle is chosen by the program that runs, not by the library it depends on. Import [`@smthrs/platform-node`](/api/platform-node), [`@smthrs/platform-bun`](/api/platform-bun), or [`@smthrs/platform-browser`](/api/platform-browser) directly.
 
 ```ts
-import { Action, Flow, Kernel, RunStore } from "@smthrs/flows-next"
+import { Action, Flow, Kernel, RunStore } from "@smthrs/flows"
 import * as Schema from "effect/Schema"
 
 const jj = Kernel.Jj.layerNoop({})
@@ -27,32 +27,32 @@ This entry point bundles for the browser: it re-exports only package roots, each
 
 | Import | Source | Platform |
 | --- | --- | --- |
-| `@smthrs/flows-next` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/flows/src/index.ts) | Node and browser |
+| `@smthrs/flows` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/flows/src/index.ts) | Node and browser |
 
 ## Namespaces
 
 | Namespace | Package | Reference |
 | --- | --- | --- |
-| `Canonical` | `@smthrs/canonical-next` | [Canonical](/api/canonical) |
-| `Capability` | `@smthrs/capability-next` | [Capability](/api/capability) |
-| `Crypto` | `@smthrs/crypto-next` | [Crypto](/api/crypto) |
-| `Database` | `@smthrs/database-next` | [Database](/api/database) |
-| `Engine` | `@smthrs/engine-next` | [Engine](/api/engine) |
-| `Action`, `DurableClock`, `DurableDeferred`, `DurableQueue`, `Flow`, `FlowRuntime`, `RetryPolicy`, `StepIdentity` | `@smthrs/flow-next` (re-exported flat) | [Flow](/api/flow) |
-| `EngineStore` | `@smthrs/engine-store-next` | [EngineStore](/api/engine-store) |
-| `Jj` | `@smthrs/jj-next` | [Jj](/api/jj) |
-| `Journal` | `@smthrs/journal-next` | [Journal](/api/journal) |
-| `RunStore` | `@smthrs/run-store-next` | [RunStore](/api/run-store) |
-| `StepCache` | `@smthrs/step-cache-next` | [StepCache](/api/step-cache) |
-| `Kernel` | `@smthrs/kernel-next` | [Kernel](/api/kernel) |
-| `Keys` | `@smthrs/keys-next` | [Keys](/api/keys) |
-| `Plan` | `@smthrs/plan-next` | [Plan](/api/plan) |
-| `Artifacts` | `@smthrs/artifacts-next` | [Artifacts](/api/artifacts) |
-| `Sandbox` | `@smthrs/sandbox-next` | [Sandbox](/api/sandbox) |
-| `Sync` | `@smthrs/sync-next` | [Sync](/api/sync) |
-| `TimeTravel` | `@smthrs/time-travel-next` (the service key, re-exported flat) | [TimeTravel](/api/time-travel) |
+| `Canonical` | `@smthrs/canonical` | [Canonical](/api/canonical) |
+| `Capability` | `@smthrs/capability` | [Capability](/api/capability) |
+| `Crypto` | `@smthrs/crypto` | [Crypto](/api/crypto) |
+| `Database` | `@smthrs/database` | [Database](/api/database) |
+| `Engine` | `@smthrs/engine` | [Engine](/api/engine) |
+| `Action`, `DurableClock`, `DurableDeferred`, `DurableQueue`, `Flow`, `FlowRuntime`, `RetryPolicy`, `StepIdentity` | `@smthrs/flow` (re-exported flat) | [Flow](/api/flow) |
+| `EngineStore` | `@smthrs/engine-store` | [EngineStore](/api/engine-store) |
+| `Jj` | `@smthrs/jj` | [Jj](/api/jj) |
+| `Journal` | `@smthrs/journal` | [Journal](/api/journal) |
+| `RunStore` | `@smthrs/run-store` | [RunStore](/api/run-store) |
+| `StepCache` | `@smthrs/step-cache` | [StepCache](/api/step-cache) |
+| `Kernel` | `@smthrs/kernel` | [Kernel](/api/kernel) |
+| `Keys` | `@smthrs/keys` | [Keys](/api/keys) |
+| `Plan` | `@smthrs/plan` | [Plan](/api/plan) |
+| `Artifacts` | `@smthrs/artifacts` | [Artifacts](/api/artifacts) |
+| `Sandbox` | `@smthrs/sandbox` | [Sandbox](/api/sandbox) |
+| `Sync` | `@smthrs/sync` | [Sync](/api/sync) |
+| `TimeTravel` | `@smthrs/time-travel` (the service key, re-exported flat) | [TimeTravel](/api/time-travel) |
 
-The rest of `@smthrs/time-travel-next` — `Frame`, `TimeTravelStore`, its two store layers, and `EffectBoundary` — is reached through that package directly, not through the barrel.
+The rest of `@smthrs/time-travel` — `Frame`, `TimeTravelStore`, its two store layers, and `EffectBoundary` — is reached through that package directly, not through the barrel.
 
 ## Own exports
 

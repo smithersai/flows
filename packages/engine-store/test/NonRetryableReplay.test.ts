@@ -13,12 +13,12 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * just the fact that an attempt happened.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Action, Flow, RetryPolicy } from "@smthrs/flow-next"
-import { Journal } from "@smthrs/journal-next"
-import * as Notifying from "@smthrs/journal-next/test/Notifying"
-import { Jj } from "@smthrs/kernel-next"
-import { Node } from "@smthrs/plan-next"
-import { AttemptStore, RunStore } from "@smthrs/run-store-next"
+import { Action, Flow, RetryPolicy } from "@smthrs/flow"
+import { Journal } from "@smthrs/journal"
+import * as Notifying from "@smthrs/journal/test/Notifying"
+import { Jj } from "@smthrs/kernel"
+import { Node } from "@smthrs/plan"
+import { AttemptStore, RunStore } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
@@ -104,7 +104,7 @@ describe("non-retryable classification against the real error class (issue #165)
       recordedDigest: "aa".repeat(32),
       measuredDigest: "bb".repeat(32)
     })
-    expect(RetryPolicy.errorTag(corruption)).toBe("@smthrs/engine-store-next/CacheCorruptionDetected")
+    expect(RetryPolicy.errorTag(corruption)).toBe("@smthrs/engine-store/CacheCorruptionDetected")
     expect(RetryPolicy.defaultNonRetryable).toContain(RetryPolicy.errorTag(corruption))
     const policy = RetryPolicy.make({ initialMs: 1, factor: 2, maxMs: 10, maxAttempts: 10 })
     expect(RetryPolicy.isNonRetryable(policy, corruption)).toBe(true)

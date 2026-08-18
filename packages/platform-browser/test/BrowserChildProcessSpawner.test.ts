@@ -9,7 +9,7 @@
  * directory rather than a double.
  */
 import { afterAll, beforeAll, describe, expect, it } from "@effect/vitest"
-import * as CommandLine from "@smthrs/kernel-next/CommandLine"
+import * as CommandLine from "@smthrs/kernel/CommandLine"
 import { Deferred, Effect, Exit, Fiber, Layer, Option, Path, Sink, Stream } from "effect"
 import { ChildProcess } from "effect/unstable/process"
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"

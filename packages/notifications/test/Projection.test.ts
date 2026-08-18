@@ -1,5 +1,5 @@
-import { Journal, JournalEvent } from "@smthrs/journal-next"
-import * as TestJournal from "@smthrs/journal-next/test/TestJournal"
+import { Journal, JournalEvent } from "@smthrs/journal"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Effect, Stream } from "effect"
 import { describe, expect, it } from "vitest"
 import type { Notification } from "../src/Notification.ts"

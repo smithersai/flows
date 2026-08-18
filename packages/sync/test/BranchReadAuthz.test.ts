@@ -10,8 +10,8 @@
  * @since 0.1.0
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Journal, JournalEvent } from "@smthrs/journal-next"
-import * as TestJournal from "@smthrs/journal-next/test/TestJournal"
+import { Journal, JournalEvent } from "@smthrs/journal"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Effect, Fiber, Layer, type Scope, Stream } from "effect"
 import { TestClock } from "effect/testing"
 import { type BranchId, branchRunId, type ShareCapability } from "../src/BranchProtocol.ts"

@@ -35,7 +35,7 @@ import { GraphBuildError } from "./GraphBuildError.ts"
  * @since 0.1.0
  * @category symbols
  */
-export const TypeId: unique symbol = Symbol.for("@smthrs/plan-next/Planned")
+export const TypeId: unique symbol = Symbol.for("@smthrs/plan/Planned")
 
 /**
  * The type-level form of {@link TypeId}.

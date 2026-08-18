@@ -1,4 +1,4 @@
-import * as TestJournal from "@smthrs/journal-next/test/TestJournal"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { NotificationQueue } from "@smthrs/notifications"
 import type * as NotificationModel from "@smthrs/notifications/Notification"
 import { Effect, Layer, Schema } from "effect"

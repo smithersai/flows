@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import type { StorageApi } from "@tanstack/db";
 import { Effect, Layer } from "effect";
-import { Author, Catalog, Chain, Journal, ScriptRunner } from "@smthrs/chain-next";
-import type { Outcome } from "@smthrs/chain-next";
+import { Author, Catalog, Chain, Journal, ScriptRunner } from "@smthrs/chain";
+import type { Outcome } from "@smthrs/chain";
 import { createAppStore } from "../state/AppStore";
 import type { AppStore } from "../state/AppStore";
 import { layerCollection } from "./CollectionJournal";

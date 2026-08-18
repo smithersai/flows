@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@effect/vitest"
-import { isJjError, Jj } from "@smthrs/jj-next"
-import * as BrowserFileSystem from "@smthrs/platform-browser-next/BrowserFileSystem"
+import { isJjError, Jj } from "@smthrs/jj"
+import * as BrowserFileSystem from "@smthrs/platform-browser/BrowserFileSystem"
 import { Clock, Effect, FileSystem, Random, Stream } from "effect"
 import { TestClock } from "effect/testing"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"

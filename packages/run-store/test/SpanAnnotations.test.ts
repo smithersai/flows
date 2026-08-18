@@ -3,8 +3,8 @@
  * `Effect.annotateCurrentSpan` runs at the top of each operation, so a trace
  * viewer can tell which run a span operated on without reading its SQL.
  */
-import { DurableWriter } from "@smthrs/database-next"
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
+import { DurableWriter } from "@smthrs/database"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Effect, Fiber, Layer, Metric, Tracer } from "effect"
 import { TestClock } from "effect/testing"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"

@@ -7,16 +7,16 @@
  *
  * @since 0.1.0
  */
-import { Sha256 } from "@smthrs/crypto-next"
-import { FlowEngine } from "@smthrs/engine-next"
-import type { Action } from "@smthrs/flow-next"
-import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
-import { Journal, type JournalEvent } from "@smthrs/journal-next"
-import { Jj } from "@smthrs/kernel-next"
-import { Key } from "@smthrs/keys-next"
-import * as FileSet from "@smthrs/plan-next/FileSet"
-import { AttemptStore, Ownership, RunStore } from "@smthrs/run-store-next"
-import { CacheStore } from "@smthrs/step-cache-next"
+import { Sha256 } from "@smthrs/crypto"
+import { FlowEngine } from "@smthrs/engine"
+import type { Action } from "@smthrs/flow"
+import type { FileBoundary } from "@smthrs/flow/FileBoundary"
+import { Journal, type JournalEvent } from "@smthrs/journal"
+import { Jj } from "@smthrs/kernel"
+import { Key } from "@smthrs/keys"
+import * as FileSet from "@smthrs/plan/FileSet"
+import { AttemptStore, Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
@@ -39,7 +39,7 @@ import * as SandboxedExecution from "./SandboxedExecution.ts"
  * The boundary declaration an action may carry alongside its input.
  *
  * Aliased to `FileBoundary` rather than re-declared so the dispatch path and
- * the `@smthrs/flow-next` declaration cannot drift apart; it is a distinct name only
+ * the `@smthrs/flow` declaration cannot drift apart; it is a distinct name only
  * because "metadata" is how the action input refers to it.
  *
  * @since 0.1.0
@@ -84,7 +84,7 @@ export interface ActionInput {
  * @category errors
  */
 export class AttemptSuspended extends Schema.TaggedError<AttemptSuspended>()(
-  "@smthrs/engine-store-next/AttemptSuspended",
+  "@smthrs/engine-store/AttemptSuspended",
   {
     code: Schema.Literal("attempt_suspended"),
     runId: Schema.String,
@@ -107,7 +107,7 @@ export class AttemptSuspended extends Schema.TaggedError<AttemptSuspended>()(
  */
 export class IrreversibleRetryRequiresIdempotencyKey
   extends Schema.TaggedError<IrreversibleRetryRequiresIdempotencyKey>()(
-    "@smthrs/engine-store-next/IrreversibleRetryRequiresIdempotencyKey",
+    "@smthrs/engine-store/IrreversibleRetryRequiresIdempotencyKey",
     {
       code: Schema.Literal("irreversible_retry_requires_idempotency_key"),
       key: Schema.String
@@ -126,7 +126,7 @@ export class IrreversibleRetryRequiresIdempotencyKey
  * @category errors
  */
 export class AttemptAdmissionRejected extends Schema.TaggedError<AttemptAdmissionRejected>()(
-  "@smthrs/engine-store-next/AttemptAdmissionRejected",
+  "@smthrs/engine-store/AttemptAdmissionRejected",
   {
     code: Schema.Literal("attempt_admission_rejected"),
     keyDigest: Schema.String,
@@ -146,7 +146,7 @@ export class AttemptAdmissionRejected extends Schema.TaggedError<AttemptAdmissio
  * @category errors
  */
 export class CacheConflictDetected extends Schema.TaggedError<CacheConflictDetected>()(
-  "@smthrs/engine-store-next/CacheConflictDetected",
+  "@smthrs/engine-store/CacheConflictDetected",
   {
     code: Schema.Literal("cache_conflict_detected"),
     keyDigest: Schema.String,
@@ -165,7 +165,7 @@ export class CacheConflictDetected extends Schema.TaggedError<CacheConflictDetec
  * @category errors
  */
 export class CacheCorruptionDetected extends Schema.TaggedError<CacheCorruptionDetected>()(
-  "@smthrs/engine-store-next/CacheCorruptionDetected",
+  "@smthrs/engine-store/CacheCorruptionDetected",
   {
     code: Schema.Literal("cache_corruption_detected"),
     keyDigest: Schema.String,
@@ -193,7 +193,7 @@ export class CacheCorruptionDetected extends Schema.TaggedError<CacheCorruptionD
  * @category errors
  */
 export class AttemptEvidenceQuarantined extends Schema.TaggedError<AttemptEvidenceQuarantined>()(
-  "@smthrs/engine-store-next/AttemptEvidenceQuarantined",
+  "@smthrs/engine-store/AttemptEvidenceQuarantined",
   {
     code: Schema.Literal("attempt_evidence_quarantined"),
     keyDigest: Schema.String,

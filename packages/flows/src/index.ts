@@ -1,7 +1,7 @@
 /**
  * @since 0.1.0
  *
- * `@smthrs/flows-next` — the barrel package for the durable flow engine.
+ * `@smthrs/flows` — the barrel package for the durable flow engine.
  *
  * Every engine package is re-exported here as a namespace, the way `effect`'s
  * own index does it, so one dependency gives you the whole engine surface
@@ -14,31 +14,31 @@
  * platform bundle is chosen by the program that runs, not by the library it
  * depends on, and pulling all three in here would make one import resolve
  * `node:child_process`, ZenFS, and Bun at once. Import
- * `@smthrs/platform-node-next`, `@smthrs/platform-bun-next`, or
- * `@smthrs/platform-browser-next` directly.
+ * `@smthrs/platform-node`, `@smthrs/platform-bun`, or
+ * `@smthrs/platform-browser` directly.
  *
  * Depend on the individual `@smthrs/*` packages instead when you want a
  * narrower dependency footprint — this barrel is a convenience, not a new
  * seam. The only API of its own is {@link namespaces}, the runtime list of
  * the re-exported namespace names.
  *
- * The one exception is `@smthrs/flow-next`: the authoring model is re-exported
+ * The one exception is `@smthrs/flow`: the authoring model is re-exported
  * *flat*, so `Flow`, `Action`, `RetryPolicy`, `DurableDeferred`,
  * `DurableClock`, `DurableQueue`, `FlowRuntime`, and `StepIdentity` sit at the
  * top level beside the infrastructure namespaces. Writing a flow is the point
  * of the library; `Flows.Flow.Flow.make` would be noise.
  *
  * ```ts
- * import { Action, Engine, Flow, Journal } from "@smthrs/flows-next"
+ * import { Action, Engine, Flow, Journal } from "@smthrs/flows"
  * ```
  *
- * `@smthrs/time-travel-next` is the second: `TimeTravel` is a *service key*, not a
+ * `@smthrs/time-travel` is the second: `TimeTravel` is a *service key*, not a
  * namespace, so `const timeTravel = yield* Flows.TimeTravel` is the entire
  * onboarding and `Flows.TimeTravel.layer` provides it. Effect's own index
  * makes exactly this trade for `./Function.ts` — one flat re-export where the
  * surface is what you reach for, namespaces everywhere else. The rest of that
  * package (`Frame`, `TimeTravelStore`, the two store layers,
- * `EffectBoundary`) is reached through `@smthrs/time-travel-next` directly; see
+ * `EffectBoundary`) is reached through `@smthrs/time-travel` directly; see
  * `docs/specs/Concepts/Time Travel Service.md`.
  *
  * There is no plugin namespace and no hook catalog: extension in `flows` is
@@ -47,31 +47,31 @@
  * service — or a different constructor option — at the seam that owns it.
  */
 
-export * as Artifacts from "@smthrs/artifacts-next"
-export * as Canonical from "@smthrs/canonical-next"
-export * as Capability from "@smthrs/capability-next"
-export * as Crypto from "@smthrs/crypto-next"
-export * as Database from "@smthrs/database-next"
-export * as Engine from "@smthrs/engine-next"
-export * as EngineStore from "@smthrs/engine-store-next"
-export * from "@smthrs/flow-next"
-export * as Jj from "@smthrs/jj-next"
-export * as Journal from "@smthrs/journal-next"
-export * as Kernel from "@smthrs/kernel-next"
-export * as Keys from "@smthrs/keys-next"
-export * as Observability from "@smthrs/observability-next"
-export * as Plan from "@smthrs/plan-next"
-export * as RunStore from "@smthrs/run-store-next"
-export * as Sandbox from "@smthrs/sandbox-next"
-export * as StepCache from "@smthrs/step-cache-next"
-export * as Sync from "@smthrs/sync-next"
-export { TimeTravel } from "@smthrs/time-travel-next"
+export * as Artifacts from "@smthrs/artifacts"
+export * as Canonical from "@smthrs/canonical"
+export * as Capability from "@smthrs/capability"
+export * as Crypto from "@smthrs/crypto"
+export * as Database from "@smthrs/database"
+export * as Engine from "@smthrs/engine"
+export * as EngineStore from "@smthrs/engine-store"
+export * from "@smthrs/flow"
+export * as Jj from "@smthrs/jj"
+export * as Journal from "@smthrs/journal"
+export * as Kernel from "@smthrs/kernel"
+export * as Keys from "@smthrs/keys"
+export * as Observability from "@smthrs/observability"
+export * as Plan from "@smthrs/plan"
+export * as RunStore from "@smthrs/run-store"
+export * as Sandbox from "@smthrs/sandbox"
+export * as StepCache from "@smthrs/step-cache"
+export * as Sync from "@smthrs/sync"
+export { TimeTravel } from "@smthrs/time-travel"
 
 /**
  * The namespace names this barrel re-exports, sorted.
  *
  * It covers both re-export styles: the per-package namespaces and the flat
- * authoring names `@smthrs/flow-next` contributes.
+ * authoring names `@smthrs/flow` contributes.
  *
  * Pure re-exports carry no executable statements, so before this constant
  * the package's enforced 100% coverage gate evaluated an empty denominator

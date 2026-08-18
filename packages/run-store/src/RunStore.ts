@@ -9,8 +9,8 @@
  *
  * @since 0.1.0
  */
-import { DurableWriter, fromSqlError } from "@smthrs/database-next/DurableWriter"
-import type { OwnerId } from "@smthrs/journal-next/OwnerId"
+import { DurableWriter, fromSqlError } from "@smthrs/database/DurableWriter"
+import type { OwnerId } from "@smthrs/journal/OwnerId"
 import { Cause, Clock, Context, Duration, Effect, Layer, Metric, Schema } from "effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import type * as SqlError from "effect/unstable/sql/SqlError"
@@ -79,7 +79,7 @@ export type RunStoreErrorCode = typeof RunStoreErrorCode.Type
  * @since 0.1.0
  * @category errors
  */
-export class RunStoreError extends Schema.TaggedError<RunStoreError>()("@smthrs/run-store-next/RunStoreError", {
+export class RunStoreError extends Schema.TaggedError<RunStoreError>()("@smthrs/run-store/RunStoreError", {
   code: RunStoreErrorCode,
   method: Schema.String,
   message: Schema.String,
@@ -354,7 +354,7 @@ export interface Service {
  * @since 0.1.0
  * @category services
  */
-export class RunStore extends Context.Service<RunStore, Service>()("@smthrs/run-store-next/RunStore") {}
+export class RunStore extends Context.Service<RunStore, Service>()("@smthrs/run-store/RunStore") {}
 
 const claimed = (claimedAtMs: number): ClaimOutcome => ({ _tag: "Claimed", claimedAtMs })
 const notFound = { _tag: "NotFound" } as const

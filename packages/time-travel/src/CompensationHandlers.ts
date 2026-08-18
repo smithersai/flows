@@ -23,7 +23,7 @@
  * `register`, or the immutable-service dance behind them.
  *
  * ```ts
- * import { CompensationHandlers } from "@smthrs/time-travel-next"
+ * import { CompensationHandlers } from "@smthrs/time-travel"
  * import * as Effect from "effect/Effect"
  *
  * const refund = CompensationHandlers.layer([{
@@ -98,7 +98,7 @@ export interface Handler {
  * @category services
  */
 export class CompensationHandlers extends Context.Service<CompensationHandlers, ReadonlyArray<Handler>>()(
-  "@smthrs/time-travel-next/CompensationHandlers"
+  "@smthrs/time-travel/CompensationHandlers"
 ) {}
 
 /**

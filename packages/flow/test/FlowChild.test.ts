@@ -8,8 +8,8 @@
  * caller cannot satisfy. Both refusals and the boundary they point at are here.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Action, DurableDeferred, Flow, FlowRuntime, Graph, Interpreter } from "@smthrs/flow-next"
-import { Node } from "@smthrs/plan-next"
+import { Action, DurableDeferred, Flow, FlowRuntime, Graph, Interpreter } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Effect, Exit, Layer, Option, Schema } from "effect"
 import { withCrypto } from "./Crypto.ts"
 import { layerMemory, makeInstance } from "./MemoryFlowRuntime.ts"
@@ -158,7 +158,7 @@ describe("Graph.build placement refusal", () => {
     }).annotate(Flow.Placement, { host: "worker" })
 
     expect(() => Graph.build(Local, {})).toThrowError(expect.objectContaining({
-      _tag: "@smthrs/plan-next/GraphBuildError",
+      _tag: "@smthrs/plan/GraphBuildError",
       code: "placement_requires_boundary",
       node: "root.flow",
       path: [],
@@ -353,7 +353,7 @@ describe("the interpreter drives a child boundary as a real execution", () => {
       expect(Exit.isFailure(exit)).toBe(true)
       expect(Exit.isFailure(exit) && exit.cause.reasons[0]).toMatchObject({
         error: {
-          _tag: "@smthrs/flow-next/InterpreterError",
+          _tag: "@smthrs/flow/InterpreterError",
           code: "unsupported_call",
           node: "root",
           message: expect.stringContaining("lost its declaration")

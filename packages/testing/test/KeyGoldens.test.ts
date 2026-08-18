@@ -1,7 +1,7 @@
 import { describe, it } from "@effect/vitest"
 import * as Core from "@smthrs/core"
 import * as Digest from "@smthrs/core/Digest"
-import * as StepKey from "@smthrs/plan-next/StepKey"
+import * as StepKey from "@smthrs/plan/StepKey"
 import * as Effect from "effect/Effect"
 import { expect } from "vitest"
 import * as Plan from "../src/Plan.ts"
@@ -13,13 +13,13 @@ import goldens from "./fixtures/key-goldens.json" with { type: "json" }
 // here is a cache-identity break, never a test to re-record casually.
 //
 // The goldens were re-pinned once, deliberately, when the agent side moved off
-// the deleted `@smthrs/keys-next/StepKey` and onto `@smthrs/plan`'s revived
+// the deleted `@smthrs/keys/StepKey` and onto `@smthrs/plan`'s revived
 // compiler. That compiler emits `@smthrs/keys` `Key` values — `key1_` over
 // canonical JSON — instead of the old private `sk1_` digest format, because the
 // engine dispatches under `Key` and a plan keyed in a second format could never
 // be the thing the step cache is consulted against. Same material, same hash,
 // one namespace: the values below are the first pinning of the new format.
-// The graph root was re-pinned deliberately after `@smthrs/plan-next` moved
+// The graph root was re-pinned deliberately after `@smthrs/plan` moved
 // function identities from FNV-1a source hashes to SHA-256 source hashes. The
 // leaf keys are unchanged; only the parent plan material includes that identity.
 

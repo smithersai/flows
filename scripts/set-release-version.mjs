@@ -5,7 +5,7 @@
  * The release workflow refuses a tag whose version does not match every engine
  * manifest, and the published packages depend on their siblings by exact
  * version. So a release bump is not `version` alone: an engine package
- * published as 0.1.0-next.0 that still depends on `@smthrs/kernel-next@0.1.0`
+ * published as 0.1.0-next.0 that still depends on `@smthrs/kernel@0.1.0`
  * installs to a version nobody published. This rewrites both halves in one
  * pass, across every group, so the workspace stays resolvable afterwards.
  *

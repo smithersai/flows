@@ -12,33 +12,33 @@ import {
   SqlControlRuntime,
   SystemFlows
 } from "@smthrs/control"
-import * as DurableWriter from "@smthrs/database-next/DurableWriter"
-import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
+import * as DurableWriter from "@smthrs/database/DurableWriter"
+import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
 import * as FlowEngineLike from "@smthrs/engine-harness/FlowEngineLike"
 import * as HarnessExecutor from "@smthrs/engine-harness/HarnessExecutor"
 import * as StandardFlows from "@smthrs/engine-harness/StandardFlows"
-import * as StepBoundary from "@smthrs/engine-store-next/StepBoundary"
-import * as WorkspaceSandbox from "@smthrs/engine-store-next/WorkspaceSandbox"
-import * as NodeFlowsRuntime from "@smthrs/flows-next/NodeRuntime"
+import * as StepBoundary from "@smthrs/engine-store/StepBoundary"
+import * as WorkspaceSandbox from "@smthrs/engine-store/WorkspaceSandbox"
+import * as NodeFlowsRuntime from "@smthrs/flows/NodeRuntime"
 import type * as Sandbox from "@smthrs/harness/Sandbox"
-import * as NodeJj from "@smthrs/jj-next/node/NodeJj"
-import { Migrations, SqlJournal } from "@smthrs/journal-next"
-import type * as Journal from "@smthrs/journal-next/Journal"
-import * as KernelChildProcessSpawner from "@smthrs/kernel-next/ChildProcessSpawner"
-import * as KernelFileSystem from "@smthrs/kernel-next/FileSystem"
-import * as GrantStore from "@smthrs/kernel-next/GrantStore"
-import * as Workspace from "@smthrs/kernel-next/Workspace"
+import * as NodeJj from "@smthrs/jj/node/NodeJj"
+import { Migrations, SqlJournal } from "@smthrs/journal"
+import type * as Journal from "@smthrs/journal/Journal"
+import * as KernelChildProcessSpawner from "@smthrs/kernel/ChildProcessSpawner"
+import * as KernelFileSystem from "@smthrs/kernel/FileSystem"
+import * as GrantStore from "@smthrs/kernel/GrantStore"
+import * as Workspace from "@smthrs/kernel/Workspace"
 import * as MemoryStore from "@smthrs/memory/MemoryStore"
 import * as Recall from "@smthrs/memory/Recall"
 import type * as ModelError from "@smthrs/model/ModelError"
 import * as RequestExecutor from "@smthrs/model/RequestExecutor"
 import * as Route from "@smthrs/model/Route"
 import type { NotificationQueue } from "@smthrs/notifications"
-import * as AtomicFileSystem from "@smthrs/platform-node-next/AtomicFileSystem"
+import * as AtomicFileSystem from "@smthrs/platform-node/AtomicFileSystem"
 import type * as Descriptor from "@smthrs/registry/Descriptor"
 import * as Discovery from "@smthrs/registry/Discovery"
 import * as Registry from "@smthrs/registry/Registry"
-import { Migrations as RunStoreMigrations, RunStore } from "@smthrs/run-store-next"
+import { Migrations as RunStoreMigrations, RunStore } from "@smthrs/run-store"
 import type { FileSystem, Path, Result } from "effect"
 import { Effect, Layer, Redacted } from "effect"
 import { HttpRouter } from "effect/unstable/http"
@@ -368,7 +368,7 @@ const cellLimits: Sandbox.Limits = {
  * layers, durable memory over the control database, approval and steering
  * wired back into the control plane by the executor itself.
  *
- * The durable engine is built through `@smthrs/flows-next/NodeRuntime`, whose
+ * The durable engine is built through `@smthrs/flows/NodeRuntime`, whose
  * final registration phase constructs `HarnessExecutor`. This is deliberate:
  * the executor cannot accept a launch until the engine database is migrated,
  * its stores and sweepers are live, and the agent flow body has been

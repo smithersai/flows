@@ -4,9 +4,9 @@
 
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
 import { afterEach, describe, expect, it } from "@effect/vitest"
-import * as KernelFileSystem from "@smthrs/kernel-next/FileSystem"
-import * as GrantStore from "@smthrs/kernel-next/GrantStore"
-import * as Workspace from "@smthrs/kernel-next/Workspace"
+import * as KernelFileSystem from "@smthrs/kernel/FileSystem"
+import * as GrantStore from "@smthrs/kernel/GrantStore"
+import * as Workspace from "@smthrs/kernel/Workspace"
 import { Effect, Fiber, FileSystem, Layer, Path } from "effect"
 import { execFile } from "node:child_process"
 import {

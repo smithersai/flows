@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest"
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Cause, Deferred, Effect, Exit, Fiber, Layer, Result, Stream } from "effect"
 import { Journal } from "../src/Journal.ts"
 import { Input, type RunId, type Seq, type SourceId } from "../src/JournalEvent.ts"

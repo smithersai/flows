@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@effect/vitest"
-import { DurableWriter } from "@smthrs/database-next/DurableWriter"
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
+import { DurableWriter } from "@smthrs/database/DurableWriter"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Effect, Layer, Option } from "effect"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as AttemptStore from "../src/AttemptStore.ts"

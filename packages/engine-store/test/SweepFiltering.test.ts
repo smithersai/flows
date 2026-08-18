@@ -11,12 +11,12 @@
  * the filter's cancel predicate reads `flows_runs.cancel_requested_at_ms`.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { DurableWriter } from "@smthrs/database-next"
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
-import { Flow, FlowRuntime } from "@smthrs/flow-next"
-import { SqlJournal } from "@smthrs/journal-next"
-import { Node } from "@smthrs/plan-next"
-import { Ownership, RunStore } from "@smthrs/run-store-next"
+import { DurableWriter } from "@smthrs/database"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import { Flow, FlowRuntime } from "@smthrs/flow"
+import { SqlJournal } from "@smthrs/journal"
+import { Node } from "@smthrs/plan"
+import { Ownership, RunStore } from "@smthrs/run-store"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"

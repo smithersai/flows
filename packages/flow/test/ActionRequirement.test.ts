@@ -14,8 +14,8 @@
  * fails the gate whether or not the suite is run.
  */
 import { describe, expect, expectTypeOf, it } from "@effect/vitest"
-import { Action, Flow, FlowRuntime, Graph, Interpreter, Sleep, WaitFor } from "@smthrs/flow-next"
-import { Node } from "@smthrs/plan-next"
+import { Action, Flow, FlowRuntime, Graph, Interpreter, Sleep, WaitFor } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Effect, Exit, Layer, Option, Schema, Scope } from "effect"
 import { withCrypto } from "./Crypto.ts"
 import { layerMemory } from "./MemoryFlowRuntime.ts"
@@ -363,7 +363,7 @@ describe("toLayer provides the requirement it mints", () => {
     })
 
     expect(again.requirement.key).toBe(Charge.requirement.key)
-    expect(Charge.requirement.key).toBe("@smthrs/flow-next/Action/Requirement/requirement/charge")
+    expect(Charge.requirement.key).toBe("@smthrs/flow/Action/Requirement/requirement/charge")
     // An annotated copy is still the same declaration, and names the same slot.
     expect(Charge.annotate(Action.CurrentAttempt, 1).requirement.key).toBe(Charge.requirement.key)
   })

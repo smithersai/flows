@@ -1,6 +1,6 @@
 import * as Core from "@smthrs/core"
-import * as JournalPackage from "@smthrs/journal-next"
-import * as TestJournal from "@smthrs/journal-next/test/TestJournal"
+import * as JournalPackage from "@smthrs/journal"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import * as Effect from "effect/Effect"
 import { describe, expect, it } from "vitest"
 import type { JournalEntryLike } from "../../src/EngineSubject.ts"

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest"
-import type { JjError } from "@smthrs/jj-next"
+import type { JjError } from "@smthrs/jj"
 import { Effect, PlatformError, Stream } from "effect"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"
 import * as ChildProcessSpawner from "../src/ChildProcessSpawner.ts"

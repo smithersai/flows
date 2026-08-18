@@ -25,7 +25,7 @@
  *
  * @since 0.1.0
  */
-import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
+import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
 import * as Context from "effect/Context"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
@@ -43,7 +43,7 @@ import * as Schema from "effect/Schema"
  * @category errors
  */
 export class ArtifactPublicationFailed extends Schema.TaggedError<ArtifactPublicationFailed>()(
-  "@smthrs/engine-store-next/ArtifactPublicationFailed",
+  "@smthrs/engine-store/ArtifactPublicationFailed",
   {
     code: Schema.Literal("artifact_publication_failed"),
     digests: Schema.Array(Schema.String),
@@ -100,7 +100,7 @@ export interface Service {
  * @since 0.1.0
  * @category services
  */
-export class ArtifactSync extends Context.Service<ArtifactSync, Service>()("@smthrs/engine-store-next/ArtifactSync") {}
+export class ArtifactSync extends Context.Service<ArtifactSync, Service>()("@smthrs/engine-store/ArtifactSync") {}
 
 /**
  * The single-tier implementation: there is no shared artifact store, so there

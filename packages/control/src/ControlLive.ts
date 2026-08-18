@@ -4,7 +4,7 @@
  *
  * @since 0.1.0
  */
-import { Journal, JournalEvent } from "@smthrs/journal-next"
+import { Journal, JournalEvent } from "@smthrs/journal"
 import { NotificationQueue } from "@smthrs/notifications"
 import { Registry } from "@smthrs/registry"
 import { Effect, Layer, Option, Semaphore, Stream } from "effect"

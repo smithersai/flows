@@ -5,7 +5,7 @@
  * capability declared unsupported quietly succeed.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { JjError } from "@smthrs/jj-next"
+import { JjError } from "@smthrs/jj"
 import { Cause, Effect, Exit } from "effect"
 import { tmpdir } from "node:os"
 import { isAbsolute, relative, sep } from "node:path"

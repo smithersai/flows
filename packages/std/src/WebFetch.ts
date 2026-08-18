@@ -5,7 +5,7 @@
  * @since 0.1.0
  */
 import * as Flow from "@smthrs/core/Flow"
-import * as HttpClient from "@smthrs/kernel-next/HttpClient"
+import * as HttpClient from "@smthrs/kernel/HttpClient"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"

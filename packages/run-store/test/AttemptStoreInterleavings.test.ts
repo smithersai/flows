@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest"
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Effect, Layer, Option } from "effect"
 import * as AttemptStore from "../src/AttemptStore.ts"
 import * as Migrations from "../src/Migrations.ts"

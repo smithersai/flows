@@ -126,7 +126,7 @@ export interface Service {
  * @category services
  */
 export class Reconciliation
-  extends Context.Service<Reconciliation, Service>()("@smthrs/engine-store-next/Reconciliation")
+  extends Context.Service<Reconciliation, Service>()("@smthrs/engine-store/Reconciliation")
 {}
 
 /**

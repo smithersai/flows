@@ -2,17 +2,17 @@
  * Journal schema migrations.
  *
  * The journal owns exactly one table family, `flows_journal_events`. Run and
- * attempt state migrate from `@smthrs/run-store-next`, the step cache from
- * `@smthrs/step-cache-next`, and the durable deferred/clock tables from
- * `@smthrs/engine-store-next`; an application composes those sets with this one
- * through `@smthrs/database-next`'s `Migrations.layer`.
+ * attempt state migrate from `@smthrs/run-store`, the step cache from
+ * `@smthrs/step-cache`, and the durable deferred/clock tables from
+ * `@smthrs/engine-store`; an application composes those sets with this one
+ * through `@smthrs/database`'s `Migrations.layer`.
  *
  * Derived contracts: `docs/specs/Concepts/Journal Queue.md` and
  * `docs/specs/Concepts/Journal Split.md`.
  *
  * @since 0.1.0
  */
-import * as DatabaseMigrations from "@smthrs/database-next/Migrations"
+import * as DatabaseMigrations from "@smthrs/database/Migrations"
 import * as Layer from "effect/Layer"
 import initial from "./migrations/0001_initial.ts"
 import checkpoints from "./migrations/0002_checkpoints.ts"

@@ -15,8 +15,8 @@
  *
  * @since 0.1.0
  */
-import { Canonical } from "@smthrs/canonical-next/Canonical"
-import { Sha256 } from "@smthrs/crypto-next"
+import { Canonical } from "@smthrs/canonical/Canonical"
+import { Sha256 } from "@smthrs/crypto"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import * as SchemaGetter from "effect/SchemaGetter"
@@ -34,7 +34,7 @@ import * as SchemaGetter from "effect/SchemaGetter"
  * @since 0.1.0
  */
 const KeyValue = Schema.String.check(Schema.isPattern(/^key[1-9][0-9]*_[0-9a-f]{64}$/)).pipe(
-  Schema.brand("@smthrs/keys-next/Key")
+  Schema.brand("@smthrs/keys/Key")
 )
 
 /**

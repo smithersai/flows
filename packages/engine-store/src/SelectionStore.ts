@@ -18,7 +18,7 @@
  *
  * @since 0.1.0
  */
-import { DurableWriter } from "@smthrs/database-next/DurableWriter"
+import { DurableWriter } from "@smthrs/database/DurableWriter"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
@@ -88,7 +88,7 @@ export interface Service {
  * @since 0.1.0
  */
 export class SelectionStore extends Context.Service<SelectionStore, Service>()(
-  "@smthrs/engine-store-next/SelectionStore"
+  "@smthrs/engine-store/SelectionStore"
 ) {}
 
 const EvidenceListFromJsonString = Schema.fromJsonString(Schema.Array(Schema.String))

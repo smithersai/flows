@@ -30,7 +30,7 @@ the same 23 tarballs and smoke-tested every ESM/CJS entry plus declarations.
 The omitted three broad gates were separately attempted: `pnpm run check` ran for
 711 seconds and failed only in the unowned `examples/` package (`src/02-run-durably.ts`
 and four sibling examples have `Effect<…, any>` where `Effect<…, never>` is required;
-`src/durable-layer.ts` cannot resolve `@smthrs/flows-next/NodeRuntime`). No release
+`src/durable-layer.ts` cannot resolve `@smthrs/flows/NodeRuntime`). No release
 lane file caused or was changed to address that inherited failure.
 
 For the requested prerelease rehearsal identifier, a local-only annotated tag
@@ -82,29 +82,29 @@ except the one documented `kernel -> platform-browser` cycle.
 
 | # | Package | Version | Tarball | Size | Smoke result |
 |---|---------|---------|---------|------|--------------|
-| 1 | `@smthrs/canonical-next` | 0.1.0 | `smthrs-canonical-next-0.1.0.tgz` | 9.5 kB | passed — ESM, CJS, and declarations |
-| 2 | `@smthrs/capability-next` | 0.1.0 | `smthrs-capability-next-0.1.0.tgz` | 28.8 kB | passed — ESM, CJS, and declarations |
-| 3 | `@smthrs/crypto-next` | 0.1.0 | `smthrs-crypto-next-0.1.0.tgz` | 5.8 kB | passed — ESM, CJS, and declarations |
-| 4 | `@smthrs/artifacts-next` | 0.1.0 | `smthrs-artifacts-next-0.1.0.tgz` | 75.8 kB | passed — ESM, CJS, and declarations |
-| 5 | `@smthrs/database-next` | 0.1.0 | `smthrs-database-next-0.1.0.tgz` | 48.2 kB | passed — ESM, CJS, and declarations |
-| 6 | `@smthrs/jj-next` | 0.1.0 | `smthrs-jj-next-0.1.0.tgz` | 1404.3 kB | passed — ESM, CJS, and declarations |
-| 7 | `@smthrs/journal-next` | 0.1.0 | `smthrs-journal-next-0.1.0.tgz` | 142.8 kB | passed — ESM, CJS, and declarations |
-| 8 | `@smthrs/keys-next` | 0.1.0 | `smthrs-keys-next-0.1.0.tgz` | 6.1 kB | passed — ESM, CJS, and declarations |
-| 9 | `@smthrs/observability-next` | 0.1.0 | `smthrs-observability-next-0.1.0.tgz` | 27.0 kB | passed — ESM, CJS, and declarations |
-| 10 | `@smthrs/plan-next` | 0.1.0 | `smthrs-plan-next-0.1.0.tgz` | 177.0 kB | passed — ESM, CJS, and declarations |
-| 11 | `@smthrs/flow-next` | 0.1.0 | `smthrs-flow-next-0.1.0.tgz` | 324.5 kB | passed — ESM, CJS, and declarations |
-| 12 | `@smthrs/engine-next` | 0.1.0 | `smthrs-engine-next-0.1.0.tgz` | 105.9 kB | passed — ESM, CJS, and declarations |
-| 13 | `@smthrs/run-store-next` | 0.1.0 | `smthrs-run-store-next-0.1.0.tgz` | 111.2 kB | passed — ESM, CJS, and declarations |
-| 14 | `@smthrs/step-cache-next` | 0.1.0 | `smthrs-step-cache-next-0.1.0.tgz` | 50.9 kB | passed — ESM, CJS, and declarations |
-| 15 | `@smthrs/sync-next` | 0.1.0 | `smthrs-sync-next-0.1.0.tgz` | 141.1 kB | passed — ESM, CJS, and declarations |
-| 16 | `@smthrs/kernel-next` | 0.1.0 | `smthrs-kernel-next-0.1.0.tgz` | 161.8 kB | passed — ESM, CJS, and declarations |
-| 17 | `@smthrs/engine-store-next` | 0.1.0 | `smthrs-engine-store-next-0.1.0.tgz` | 780.7 kB | passed — ESM, CJS, and declarations |
-| 18 | `@smthrs/platform-browser-next` | 0.1.0 | `smthrs-platform-browser-next-0.1.0.tgz` | 46.6 kB | passed — ESM, CJS, and declarations |
-| 19 | `@smthrs/platform-bun-next` | 0.1.0 | `smthrs-platform-bun-next-0.1.0.tgz` | 8.3 kB | passed — ESM, CJS, and declarations |
-| 20 | `@smthrs/platform-node-next` | 0.1.0 | `smthrs-platform-node-next-0.1.0.tgz` | 84.7 kB | passed — ESM, CJS, and declarations |
-| 21 | `@smthrs/sandbox-next` | 0.1.0 | `smthrs-sandbox-next-0.1.0.tgz` | 40.1 kB | passed — ESM, CJS, and declarations |
-| 22 | `@smthrs/time-travel-next` | 0.1.0 | `smthrs-time-travel-next-0.1.0.tgz` | 213.6 kB | passed — ESM, CJS, and declarations |
-| 23 | `@smthrs/flows-next` | 0.1.0 | `smthrs-flows-next-0.1.0.tgz` | 15.0 kB | passed — ESM, CJS, and declarations |
+| 1 | `@smthrs/canonical` | 0.1.0 | `smthrs-canonical-next-0.1.0.tgz` | 9.5 kB | passed — ESM, CJS, and declarations |
+| 2 | `@smthrs/capability` | 0.1.0 | `smthrs-capability-next-0.1.0.tgz` | 28.8 kB | passed — ESM, CJS, and declarations |
+| 3 | `@smthrs/crypto` | 0.1.0 | `smthrs-crypto-next-0.1.0.tgz` | 5.8 kB | passed — ESM, CJS, and declarations |
+| 4 | `@smthrs/artifacts` | 0.1.0 | `smthrs-artifacts-next-0.1.0.tgz` | 75.8 kB | passed — ESM, CJS, and declarations |
+| 5 | `@smthrs/database` | 0.1.0 | `smthrs-database-next-0.1.0.tgz` | 48.2 kB | passed — ESM, CJS, and declarations |
+| 6 | `@smthrs/jj` | 0.1.0 | `smthrs-jj-next-0.1.0.tgz` | 1404.3 kB | passed — ESM, CJS, and declarations |
+| 7 | `@smthrs/journal` | 0.1.0 | `smthrs-journal-next-0.1.0.tgz` | 142.8 kB | passed — ESM, CJS, and declarations |
+| 8 | `@smthrs/keys` | 0.1.0 | `smthrs-keys-next-0.1.0.tgz` | 6.1 kB | passed — ESM, CJS, and declarations |
+| 9 | `@smthrs/observability` | 0.1.0 | `smthrs-observability-next-0.1.0.tgz` | 27.0 kB | passed — ESM, CJS, and declarations |
+| 10 | `@smthrs/plan` | 0.1.0 | `smthrs-plan-next-0.1.0.tgz` | 177.0 kB | passed — ESM, CJS, and declarations |
+| 11 | `@smthrs/flow` | 0.1.0 | `smthrs-flow-next-0.1.0.tgz` | 324.5 kB | passed — ESM, CJS, and declarations |
+| 12 | `@smthrs/engine` | 0.1.0 | `smthrs-engine-next-0.1.0.tgz` | 105.9 kB | passed — ESM, CJS, and declarations |
+| 13 | `@smthrs/run-store` | 0.1.0 | `smthrs-run-store-next-0.1.0.tgz` | 111.2 kB | passed — ESM, CJS, and declarations |
+| 14 | `@smthrs/step-cache` | 0.1.0 | `smthrs-step-cache-next-0.1.0.tgz` | 50.9 kB | passed — ESM, CJS, and declarations |
+| 15 | `@smthrs/sync` | 0.1.0 | `smthrs-sync-next-0.1.0.tgz` | 141.1 kB | passed — ESM, CJS, and declarations |
+| 16 | `@smthrs/kernel` | 0.1.0 | `smthrs-kernel-next-0.1.0.tgz` | 161.8 kB | passed — ESM, CJS, and declarations |
+| 17 | `@smthrs/engine-store` | 0.1.0 | `smthrs-engine-store-next-0.1.0.tgz` | 780.7 kB | passed — ESM, CJS, and declarations |
+| 18 | `@smthrs/platform-browser` | 0.1.0 | `smthrs-platform-browser-next-0.1.0.tgz` | 46.6 kB | passed — ESM, CJS, and declarations |
+| 19 | `@smthrs/platform-bun` | 0.1.0 | `smthrs-platform-bun-next-0.1.0.tgz` | 8.3 kB | passed — ESM, CJS, and declarations |
+| 20 | `@smthrs/platform-node` | 0.1.0 | `smthrs-platform-node-next-0.1.0.tgz` | 84.7 kB | passed — ESM, CJS, and declarations |
+| 21 | `@smthrs/sandbox` | 0.1.0 | `smthrs-sandbox-next-0.1.0.tgz` | 40.1 kB | passed — ESM, CJS, and declarations |
+| 22 | `@smthrs/time-travel` | 0.1.0 | `smthrs-time-travel-next-0.1.0.tgz` | 213.6 kB | passed — ESM, CJS, and declarations |
+| 23 | `@smthrs/flows` | 0.1.0 | `smthrs-flows-next-0.1.0.tgz` | 15.0 kB | passed — ESM, CJS, and declarations |
 
 ## 3. Smoke every tarball
 
@@ -122,8 +122,8 @@ test, then loads each package through its published entry twice: `await import(n
 All 23 packages loaded on both module systems. The tail of the run:
 
 ```
-smoke ok   @smthrs/time-travel-next@0.1.0 (smthrs-time-travel-next-0.1.0.tgz, 213.6 kB)
-smoke ok   @smthrs/flows-next@0.1.0 (smthrs-flows-next-0.1.0.tgz, 15.0 kB)
+smoke ok   @smthrs/time-travel@0.1.0 (smthrs-time-travel-next-0.1.0.tgz, 213.6 kB)
+smoke ok   @smthrs/flows@0.1.0 (smthrs-flows-next-0.1.0.tgz, 15.0 kB)
 
 release smoke holds: 23 tarballs install, import, and typecheck on node 22.19.0.
 ```
@@ -134,9 +134,9 @@ installed declarations.
 Two defects in the previous smoke were found and fixed by this rehearsal, in
 `scripts/smoke-release.mjs`:
 
-1. It only loaded `@smthrs/flows-next`. 22 of 23 tarballs were never imported at all, so
+1. It only loaded `@smthrs/flows`. 22 of 23 tarballs were never imported at all, so
    a package could have shipped an unloadable entry and the release would have passed.
-2. `@smthrs/platform-bun-next` does not load in a consumer project without
+2. `@smthrs/platform-bun` does not load in a consumer project without
    `@effect/platform-bun`, which it declares as an *optional* peer. The smoke now
    installs the optional peers the packed manifests declare, which is what a consumer is
    told to do, and fails if a packed entry cannot resolve. Reproduced before the fix:
@@ -229,7 +229,7 @@ Step 24 printed:
 ```
 Dry run: every gate, the pack, and the smoke test ran. Nothing was published.
 A real run would publish these at 0.1.0 on the latest dist-tag:
-@smthrs/canonical-next smthrs-canonical-next-0.1.0.tgz
+@smthrs/canonical smthrs-canonical-next-0.1.0.tgz
 … 23 lines, the packed order …
 ```
 

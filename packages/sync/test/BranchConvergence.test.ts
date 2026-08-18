@@ -6,8 +6,8 @@
  * @since 0.1.0
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Journal } from "@smthrs/journal-next"
-import * as TestJournal from "@smthrs/journal-next/test/TestJournal"
+import { Journal } from "@smthrs/journal"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Effect, Layer, Stream } from "effect"
 import { TestClock } from "effect/testing"
 import * as BranchCommands from "../src/BranchCommands.ts"

@@ -10,8 +10,8 @@
  *
  * @since 0.1.0
  */
-import { DatabaseError, DurableWriter } from "@smthrs/database-next/DurableWriter"
-import type { OwnerId } from "@smthrs/run-store-next/Ownership"
+import { DatabaseError, DurableWriter } from "@smthrs/database/DurableWriter"
+import type { OwnerId } from "@smthrs/run-store/Ownership"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -334,7 +334,7 @@ export type AttemptSurvivors = typeof AttemptSurvivors.Type
  * @category errors
  */
 export class RunParentCycleError extends Schema.TaggedError<RunParentCycleError>()(
-  "@smthrs/engine-store-next/RunParentCycleError",
+  "@smthrs/engine-store/RunParentCycleError",
   {
     path: Schema.Array(Schema.String)
   }
@@ -351,7 +351,7 @@ export type RecordRunParentOutcome =
   | { readonly _tag: "Existing"; readonly edge: RunParentEdge }
 
 /**
- * Minimal durable state missing from the current `@smthrs/journal-next` contract.
+ * Minimal durable state missing from the current `@smthrs/journal` contract.
  *
  * A successful mutation means the row is durable. Callers may therefore
  * journal and schedule a wake only after the mutation returns.
@@ -360,20 +360,20 @@ export type RecordRunParentOutcome =
  * @category models
  */
 export interface Service {
-  // TODO(piece-6): fold into @smthrs/journal-next — needs DeferredStore.get(flowName, executionId, deferredName).
+  // TODO(piece-6): fold into @smthrs/journal — needs DeferredStore.get(flowName, executionId, deferredName).
   readonly deferred: (address: DeferredAddress) => Effect.Effect<Option.Option<DeferredRow>>
-  // TODO(piece-6): fold into @smthrs/journal-next — needs DeferredStore.completeFirstWriterWins(row).
+  // TODO(piece-6): fold into @smthrs/journal — needs DeferredStore.completeFirstWriterWins(row).
   readonly completeDeferred: (row: DeferredRow) => Effect.Effect<CompleteDeferredOutcome>
-  // TODO(piece-6): fold into @smthrs/journal-next — needs ClockStore.get(flowName, executionId, clockName).
+  // TODO(piece-6): fold into @smthrs/journal — needs ClockStore.get(flowName, executionId, clockName).
   readonly clock: (address: ClockAddress) => Effect.Effect<Option.Option<ClockRow>>
-  // TODO(piece-6): fold into @smthrs/journal-next — needs ClockStore.scheduleFirstWriterWins(rowWithAbsoluteDueAtMs).
+  // TODO(piece-6): fold into @smthrs/journal — needs ClockStore.scheduleFirstWriterWins(rowWithAbsoluteDueAtMs).
   readonly scheduleClock: (row: ClockRow, owner?: OwnerId) => Effect.Effect<ScheduleClockOutcome>
-  // TODO(piece-6): fold into @smthrs/journal-next — needs ClockStore.completeOnce(address, completedAtMs).
+  // TODO(piece-6): fold into @smthrs/journal — needs ClockStore.completeOnce(address, completedAtMs).
   readonly completeClock: (
     address: ClockAddress,
     completedAtMs: number
   ) => Effect.Effect<CompleteClockOutcome>
-  // TODO(piece-6): fold into @smthrs/journal-next — needs ClockStore.due(nowMs).
+  // TODO(piece-6): fold into @smthrs/journal — needs ClockStore.due(nowMs).
   readonly dueClocks: (nowMs: number) => Effect.Effect<ReadonlyArray<ClockRow>>
   /**
    * Lists uncompleted clock rows scoped to an execution or flow, with no
@@ -511,7 +511,7 @@ export interface Service {
  * @category services
  */
 export class DurableEngineState extends Context.Service<DurableEngineState, Service>()(
-  "@smthrs/engine-store-next/DurableEngineState"
+  "@smthrs/engine-store/DurableEngineState"
 ) {}
 
 /** @private */

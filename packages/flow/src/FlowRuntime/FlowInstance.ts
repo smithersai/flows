@@ -25,8 +25,8 @@ import type { WaitingAnnotation } from "./WaitingAnnotation.ts"
  *
  * The service stores the execution ID, flow definition, long-lived scope,
  * suspension and interruption flags, the stored failure cause, and action
- * coordination state for a single flow run. `@smthrs/flow-next` declares the
- * contract; a runtime — `@smthrs/engine-next` — constructs the value.
+ * coordination state for a single flow run. `@smthrs/flow` declares the
+ * contract; a runtime — `@smthrs/engine` — constructs the value.
  *
  * @category services
  * @since 4.0.0
@@ -117,4 +117,4 @@ export class FlowInstance extends Context.Service<
       readonly keylessInFlight: Set<string>
     }
   }
->()("@smthrs/flow-next/FlowRuntime/FlowInstance") {}
+>()("@smthrs/flow/FlowRuntime/FlowInstance") {}

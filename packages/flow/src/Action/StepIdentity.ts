@@ -24,8 +24,8 @@
  *
  * @since 0.1.0
  */
-import { Sha256 } from "@smthrs/crypto-next"
-import { Key, type Key as KeyType } from "@smthrs/keys-next"
+import { Sha256 } from "@smthrs/crypto"
+import { Key, type Key as KeyType } from "@smthrs/keys"
 import * as Context from "effect/Context"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
@@ -56,7 +56,7 @@ const Invocation = Schema.Struct({
  * @category services
  */
 export class DispatchSite extends Context.Service<DispatchSite, string>()(
-  "@smthrs/flow-next/Action/DispatchSite"
+  "@smthrs/flow/Action/DispatchSite"
 ) {}
 
 /**

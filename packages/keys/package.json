@@ -1,5 +1,5 @@
 {
-  "name": "@smthrs/keys-next",
+  "name": "@smthrs/keys",
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
@@ -79,8 +79,8 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@smthrs/canonical-next": "0.1.0",
-    "@smthrs/crypto-next": "0.1.0",
+    "@smthrs/canonical": "0.1.0",
+    "@smthrs/crypto": "0.1.0",
     "effect": "4.0.0-rc.108"
   },
   "devDependencies": {

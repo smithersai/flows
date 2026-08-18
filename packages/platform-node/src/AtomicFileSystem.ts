@@ -31,7 +31,7 @@
  * @since 0.1.0
  */
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
-import * as KernelFileSystem from "@smthrs/kernel-next/FileSystem"
+import * as KernelFileSystem from "@smthrs/kernel/FileSystem"
 import { Effect, FileSystem, Layer, Option, PlatformError } from "effect"
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process"
 import { accessSync, constants, realpathSync, statSync } from "node:fs"

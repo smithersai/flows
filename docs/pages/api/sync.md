@@ -1,9 +1,9 @@
-# @smthrs/sync-next
+# @smthrs/sync
 
 Read-only journal replication over Effect RPC, plus a branch protocol for shared, presence-aware run views. Nothing here mutates a run.
 
 ```ts
-import { SyncClient } from "@smthrs/sync-next"
+import { SyncClient } from "@smthrs/sync"
 import * as Stream from "effect/Stream"
 
 const frames = SyncClient.Sync.pipe(
@@ -15,9 +15,9 @@ const frames = SyncClient.Sync.pipe(
 
 | Import | Source | Platform |
 | --- | --- | --- |
-| `@smthrs/sync-next` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/sync/src/index.ts) | any |
-| `@smthrs/sync-next/test/TestSync` | [src/test/TestSync.ts](https://github.com/smithersai/flows/blob/main/packages/sync/src/test/TestSync.ts) | any |
-| `@smthrs/sync-next/test/TestSocket` | [src/test/TestSocket.ts](https://github.com/smithersai/flows/blob/main/packages/sync/src/test/TestSocket.ts) | any |
+| `@smthrs/sync` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/sync/src/index.ts) | any |
+| `@smthrs/sync/test/TestSync` | [src/test/TestSync.ts](https://github.com/smithersai/flows/blob/main/packages/sync/src/test/TestSync.ts) | any |
+| `@smthrs/sync/test/TestSocket` | [src/test/TestSocket.ts](https://github.com/smithersai/flows/blob/main/packages/sync/src/test/TestSocket.ts) | any |
 
 ## SyncProtocol
 

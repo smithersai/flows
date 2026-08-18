@@ -278,7 +278,7 @@ export interface Service {
  * @category services
  */
 export class TimeTravelStore extends Context.Service<TimeTravelStore, Service>()(
-  "@smthrs/time-travel-next/TimeTravelStore"
+  "@smthrs/time-travel/TimeTravelStore"
 ) {}
 /**
  * Brands a {@link Service} implementation as a `TimeTravelStore`, so a new

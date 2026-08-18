@@ -16,8 +16,8 @@
  *
  * @since 0.1.0
  */
-import { make as makeCapability } from "@smthrs/capability-next/Capability"
-import { permissionDenied, type PermissionError, toPlatformError } from "@smthrs/capability-next/Permission"
+import { make as makeCapability } from "@smthrs/capability/Capability"
+import { permissionDenied, type PermissionError, toPlatformError } from "@smthrs/capability/Permission"
 import {
   Effect,
   Encoding,

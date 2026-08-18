@@ -3,15 +3,15 @@
  * live flows SQLite store together with its artifact objects, verifies a
  * backup's recorded digests, and restores a backup into a fresh store
  * directory with every pre-backup ownership fence invalidated. The mechanics
- * live in `@smthrs/engine-store-next/DisasterRecovery`; this script only
+ * live in `@smthrs/engine-store/DisasterRecovery`; this script only
  * parses arguments and composes the Node host layers. Cadence and procedure:
  * `docs/pages/disaster-recovery.md`.
  */
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
-import { DurableWriter } from "@smthrs/database-next"
-import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
-import * as DisasterRecovery from "@smthrs/engine-store-next/DisasterRecovery"
+import { DurableWriter } from "@smthrs/database"
+import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
+import * as DisasterRecovery from "@smthrs/engine-store/DisasterRecovery"
 import { Effect, Layer } from "effect"
 import { resolve } from "node:path"
 import { pathToFileURL } from "node:url"

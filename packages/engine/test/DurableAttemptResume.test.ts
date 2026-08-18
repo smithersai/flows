@@ -9,8 +9,8 @@ import type * as Crypto from "effect/Crypto"
  * and the retry decision sees the true attempt count.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Action, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow-next"
-import { Node } from "@smthrs/plan-next"
+import { Action, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Cause, Effect, Exit, Layer, Option, Schema } from "effect"
 import { FlowEngine } from "../src/index.ts"
 import { withCrypto } from "./Crypto.ts"

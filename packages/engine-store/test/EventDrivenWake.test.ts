@@ -9,9 +9,9 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * poll interval elapses.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { DurableDeferred, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow-next"
-import { Jj } from "@smthrs/kernel-next"
-import { RunStore } from "@smthrs/run-store-next"
+import { DurableDeferred, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow"
+import { Jj } from "@smthrs/kernel"
+import { RunStore } from "@smthrs/run-store"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"

@@ -5,7 +5,7 @@
  * a cell returned, every flow call is its own boundary with its own identity,
  * and an unusable cell is durable evidence rather than a crash.
  */
-import { Capability, Permission } from "@smthrs/kernel-next"
+import { Capability, Permission } from "@smthrs/kernel"
 import { ModelEvent, ModelRequest } from "@smthrs/model"
 import { Descriptor } from "@smthrs/registry"
 import { Effect, Option, Result, Schema, Stream } from "effect"

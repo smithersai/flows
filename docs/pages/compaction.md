@@ -1,6 +1,6 @@
 # Checkpoints and compaction
 
-The journal is an append-only history, and a long-lived run makes it unbounded. Checkpoints and compaction bound it: a checkpoint durably captures the state that replays a run from a journal offset, and compaction deletes the entries strictly below a checkpoint. Both live on the `Journal` service in `@smthrs/journal-next`. Nothing is deleted unless a caller asks: compaction is explicit or opt-in by policy, never automatic by default.
+The journal is an append-only history, and a long-lived run makes it unbounded. Checkpoints and compaction bound it: a checkpoint durably captures the state that replays a run from a journal offset, and compaction deletes the entries strictly below a checkpoint. Both live on the `Journal` service in `@smthrs/journal`. Nothing is deleted unless a caller asks: compaction is explicit or opt-in by policy, never automatic by default.
 
 The design follows Temporal, where the durable "snapshot" is mutable state pinned to a history offset and a reader of trimmed history gets a typed error, never a silently shortened history (`reference/temporal/common/persistence/history_manager.go`).
 
@@ -47,7 +47,7 @@ Compaction refuses rather than guesses:
 Sequence gaps are normal in the journal (rejected admissions consume sequences), so a follower cannot detect compaction by looking for holes. Compacted history is therefore reported explicitly:
 
 - Every live in-process `stream` registers its durable cursor. `compact` refuses with `reader_behind` while any of them is behind the boundary, so a live follower's next page is never deleted out from under it.
-- Every other reader — `entries` pollers, `stream` subscribers in other processes, sync followers — is covered on the read side: a read whose cursor starts below the floor fails with `compacted`, carrying `checkpointSeq`, the floor to resync from. `@smthrs/sync-next` reads through `Journal.entries` and `Journal.stream`, so a remote follower behind the floor sees its read or subscription fail rather than a gapped history.
+- Every other reader — `entries` pollers, `stream` subscribers in other processes, sync followers — is covered on the read side: a read whose cursor starts below the floor fails with `compacted`, carrying `checkpointSeq`, the floor to resync from. `@smthrs/sync` reads through `Journal.entries` and `Journal.stream`, so a remote follower behind the floor sees its read or subscription fail rather than a gapped history.
 
 Resync is three steps:
 
@@ -86,7 +86,7 @@ Constraints on `capture`:
 
 **Choose boundaries that dominate producer retries.** Compaction truncates the durable producer-retry window: a retry of a source event whose row was compacted away is admitted as a new event, not deduplicated. Checkpoint only at sequences where no producer can still retry an event at or below the boundary — in the engine's terms, at quiescent points where every in-flight action outcome is already durable.
 
-**Do not compact runs you intend to fork or rewind below the checkpoint.** `@smthrs/time-travel-next` forks copy the parent's surviving journal rows; history below the floor is gone. Compaction trades auditability below the boundary for bounded storage — that is its point — so keep full history on runs where the audit trail matters more than the disk.
+**Do not compact runs you intend to fork or rewind below the checkpoint.** `@smthrs/time-travel` forks copy the parent's surviving journal rows; history below the floor is gone. Compaction trades auditability below the boundary for bounded storage — that is its point — so keep full history on runs where the audit trail matters more than the disk.
 
 **Checkpoint state is unbounded by the journal.** Persist a digest or a reference if your replay state is large; the row is a single `state_json` column.
 

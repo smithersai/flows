@@ -1,8 +1,8 @@
 import { describe, expect, it } from "@effect/vitest"
-import { Journal } from "@smthrs/journal-next"
-import { Jj } from "@smthrs/kernel-next"
-import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store-next"
-import { CacheStore } from "@smthrs/step-cache-next"
+import { Journal } from "@smthrs/journal"
+import { Jj } from "@smthrs/kernel"
+import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import { Effect, Layer, Option } from "effect"
 import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
@@ -147,7 +147,7 @@ describe("engine-store action tiers", () => {
       const result = yield* withCrypto(program)
       expect(result.withoutKey).toMatchObject({
         _tag: "Failure",
-        failure: { _tag: "@smthrs/engine-store-next/IrreversibleRetryRequiresIdempotencyKey" }
+        failure: { _tag: "@smthrs/engine-store/IrreversibleRetryRequiresIdempotencyKey" }
       })
       expect(result.withKey).toBe("once")
     }))
@@ -176,7 +176,7 @@ describe("engine-store action tiers", () => {
       )
       expect(yield* withCrypto(hard)).toMatchObject({
         _tag: "Failure",
-        failure: { _tag: "@smthrs/engine-store-next/UndeclaredWrite" }
+        failure: { _tag: "@smthrs/engine-store/UndeclaredWrite" }
       })
 
       const expected = Effect.gen(function*() {

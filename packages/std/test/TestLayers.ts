@@ -1,7 +1,7 @@
-import * as GrantStore from "@smthrs/kernel-next/GrantStore"
-import * as HostServices from "@smthrs/kernel-next/HostServices"
-import * as TestHost from "@smthrs/kernel-next/test/TestHost"
-import * as Workspace from "@smthrs/kernel-next/Workspace"
+import * as GrantStore from "@smthrs/kernel/GrantStore"
+import * as HostServices from "@smthrs/kernel/HostServices"
+import * as TestHost from "@smthrs/kernel/test/TestHost"
+import * as Workspace from "@smthrs/kernel/Workspace"
 import type { PlatformError } from "effect"
 import * as Layer from "effect/Layer"
 

@@ -4,7 +4,7 @@
  * Minting an {@link OwnerId} is an act of nondeterminism against the host: it
  * reads a process identifier and draws a fresh nonce. Both belong behind a
  * port rather than in the composition itself — the closed-host doctrine in
- * `@smthrs/kernel-next`'s `HostServices` admits no ambient `process` and no static
+ * `@smthrs/kernel`'s `HostServices` admits no ambient `process` and no static
  * `node:crypto` import, and browser support is a hard requirement, so a store
  * that reached for either directly could not be composed in a tab at all.
  *
@@ -12,7 +12,7 @@
  *
  * @since 0.1.0
  */
-import type { OwnerId } from "@smthrs/journal-next/OwnerId"
+import type { OwnerId } from "@smthrs/journal/OwnerId"
 import * as Context from "effect/Context"
 import * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
@@ -41,7 +41,7 @@ export interface Service {
  * @since 0.1.0
  */
 export class OwnerIdentity
-  extends Context.Service<OwnerIdentity, Service>()("@smthrs/engine-store-next/OwnerIdentity")
+  extends Context.Service<OwnerIdentity, Service>()("@smthrs/engine-store/OwnerIdentity")
 {}
 
 /**

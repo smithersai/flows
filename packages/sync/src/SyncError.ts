@@ -3,7 +3,7 @@
  *
  * @since 0.1.0
  */
-import * as JournalEvent from "@smthrs/journal-next/JournalEvent"
+import * as JournalEvent from "@smthrs/journal/JournalEvent"
 import * as Predicate from "effect/Predicate"
 import * as Schema from "effect/Schema"
 
@@ -26,7 +26,7 @@ export const ErrorCode = Schema.Literals([
   "optimistic_timeout",
   "closed",
   "unknown"
-]).annotate({ identifier: "@smthrs/sync-next/ErrorCode" })
+]).annotate({ identifier: "@smthrs/sync/ErrorCode" })
 
 /**
  * Stable error code returned by a sync operation.
@@ -42,7 +42,7 @@ export type ErrorCode = typeof ErrorCode.Type
  * @category errors
  * @since 0.1.0
  */
-export class SyncError extends Schema.TaggedError<SyncError>()("@smthrs/sync-next/SyncError", {
+export class SyncError extends Schema.TaggedError<SyncError>()("@smthrs/sync/SyncError", {
   code: ErrorCode,
   message: Schema.String,
   cause: Schema.optional(Schema.Unknown)
@@ -52,7 +52,7 @@ export class SyncError extends Schema.TaggedError<SyncError>()("@smthrs/sync-nex
    *
    * @since 0.1.0
    */
-  static readonly is = (value: unknown): value is SyncError => Predicate.isTagged(value, "@smthrs/sync-next/SyncError")
+  static readonly is = (value: unknown): value is SyncError => Predicate.isTagged(value, "@smthrs/sync/SyncError")
 }
 
 /**
@@ -62,7 +62,7 @@ export class SyncError extends Schema.TaggedError<SyncError>()("@smthrs/sync-nex
  * @category errors
  * @since 0.1.0
  */
-export class SyncGapError extends Schema.TaggedError<SyncGapError>()("@smthrs/sync-next/SyncGapError", {
+export class SyncGapError extends Schema.TaggedError<SyncGapError>()("@smthrs/sync/SyncGapError", {
   runId: JournalEvent.RunId,
   expectedFrom: JournalEvent.Seq,
   receivedFrom: JournalEvent.Seq

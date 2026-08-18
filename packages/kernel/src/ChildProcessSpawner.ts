@@ -21,8 +21,8 @@
  *
  * @since 0.1.0
  */
-import { make as makeCapability } from "@smthrs/capability-next/Capability"
-import { toPlatformError } from "@smthrs/capability-next/Permission"
+import { make as makeCapability } from "@smthrs/capability/Capability"
+import { toPlatformError } from "@smthrs/capability/Permission"
 import { Effect, Layer } from "effect"
 import { systemError } from "effect/PlatformError"
 import type * as ChildProcess from "effect/unstable/process/ChildProcess"

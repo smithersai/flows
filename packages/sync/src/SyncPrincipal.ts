@@ -78,7 +78,7 @@ export const isWorkspace = (principal: Principal): principal is Workspace => pri
  * @since 0.1.0
  */
 export const SyncPrincipal: Context.Reference<Principal> = Context.Reference<Principal>(
-  "@smthrs/sync-next/SyncPrincipal",
+  "@smthrs/sync/SyncPrincipal",
   { defaultValue: () => anonymous }
 )
 

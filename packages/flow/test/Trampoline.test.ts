@@ -5,12 +5,12 @@
  * each of `done` / `to` / `park`.
  *
  * Following a handoff to the next round is the ENGINE's job, so the port
- * fixture here settles a handed-off round as itself; `@smthrs/engine-next` and
- * `@smthrs/engine-store-next` own the lineage tests.
+ * fixture here settles a handed-off round as itself; `@smthrs/engine` and
+ * `@smthrs/engine-store` own the lineage tests.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Action, Flow, FlowRuntime, Graph, Interpreter } from "@smthrs/flow-next"
-import { Node } from "@smthrs/plan-next"
+import { Action, Flow, FlowRuntime, Graph, Interpreter } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Effect, Layer, Option, Schema } from "effect"
 import { withCrypto } from "./Crypto.ts"
 import { layerMemory, makeInstance } from "./MemoryFlowRuntime.ts"
@@ -239,7 +239,7 @@ describe("Flow.MaxRoundsExceeded", () => {
       message: "past the budget"
     })
 
-    expect(error._tag).toBe("@smthrs/flow-next/MaxRoundsExceeded")
+    expect(error._tag).toBe("@smthrs/flow/MaxRoundsExceeded")
     expect(error.code).toBe("max_rounds_exceeded")
     expect(error.roundOrdinal).toBe(3)
   })

@@ -19,8 +19,8 @@
  * boundary it commits across is the same one a second process would cross.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { DurableWriter, layer as writerLayer } from "@smthrs/database-next/DurableWriter"
-import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
+import { DurableWriter, layer as writerLayer } from "@smthrs/database/DurableWriter"
+import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
 import { Context, Deferred, Effect, Fiber, Layer } from "effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import type * as Statement from "effect/unstable/sql/Statement"

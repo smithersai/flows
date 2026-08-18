@@ -12,11 +12,11 @@
  * against its dependencies' current values before reuse).
  */
 import { describe, expect, it } from "@effect/vitest"
-import type { FileInput } from "@smthrs/flow-next/FileInput"
-import { Journal } from "@smthrs/journal-next"
-import { Jj } from "@smthrs/kernel-next"
-import { type Ownership, RunStore } from "@smthrs/run-store-next"
-import { CacheStore } from "@smthrs/step-cache-next"
+import type { FileInput } from "@smthrs/flow/FileInput"
+import { Journal } from "@smthrs/journal"
+import { Jj } from "@smthrs/kernel"
+import { type Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Metric from "effect/Metric"

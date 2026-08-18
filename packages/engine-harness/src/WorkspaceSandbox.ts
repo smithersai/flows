@@ -8,4 +8,4 @@
  *
  * @since 0.1.0
  */
-export * from "@smthrs/engine-store-next/WorkspaceSandbox"
+export * from "@smthrs/engine-store/WorkspaceSandbox"

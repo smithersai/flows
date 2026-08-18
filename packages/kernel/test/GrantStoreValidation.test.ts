@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@effect/vitest"
-import { Capability, CapabilityPattern } from "@smthrs/capability-next/Capability"
-import type { Rule } from "@smthrs/capability-next/Permission"
+import { Capability, CapabilityPattern } from "@smthrs/capability/Capability"
+import type { Rule } from "@smthrs/capability/Permission"
 import { Effect, Fiber } from "effect"
 import type { GrantEvent } from "../src/GrantEvent.ts"
 import * as GrantStore from "../src/GrantStore.ts"

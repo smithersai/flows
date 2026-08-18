@@ -4,8 +4,8 @@
  * @since 0.1.0
  */
 import * as Flow from "@smthrs/core/Flow"
-import type * as ChildProcessSpawner from "@smthrs/kernel-next/ChildProcessSpawner"
-import * as Path from "@smthrs/kernel-next/Path"
+import type * as ChildProcessSpawner from "@smthrs/kernel/ChildProcessSpawner"
+import * as Path from "@smthrs/kernel/Path"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import { capability, envelope } from "./internal/Declaration.ts"

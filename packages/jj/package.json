@@ -1,5 +1,5 @@
 {
-  "name": "@smthrs/jj-next",
+  "name": "@smthrs/jj",
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
@@ -86,7 +86,7 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@smthrs/capability-next": "0.1.0",
+    "@smthrs/capability": "0.1.0",
     "effect": "4.0.0-rc.108"
   },
   "devDependencies": {

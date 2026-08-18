@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import type { StorageApi } from "@tanstack/db";
 import { Effect, Layer } from "effect";
-import { Author, ScriptRunner } from "@smthrs/chain-next";
-import type { Catalog } from "@smthrs/chain-next";
+import { Author, ScriptRunner } from "@smthrs/chain";
+import type { Catalog } from "@smthrs/chain";
 import type { AgentTurnFrame, StartAgentTurnRequest } from "smithers-shared/NativeAgent";
 import type { NativeAgent, NativeRepositories } from "../native/NativeBridge";
 import { createAppController } from "../state/AppController";

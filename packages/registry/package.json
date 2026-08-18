@@ -80,7 +80,7 @@
   },
   "dependencies": {
     "@smthrs/core": "0.1.0",
-    "@smthrs/kernel-next": "0.1.0",
+    "@smthrs/kernel": "0.1.0",
     "effect": "4.0.0-rc.108",
     "yaml": "2.9.0"
   },

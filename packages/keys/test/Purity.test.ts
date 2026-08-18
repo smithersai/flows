@@ -16,7 +16,7 @@ const sourceFiles = async (directory: string): Promise<Array<string>> => {
 }
 
 /**
- * The complete dependency surface `@smthrs/keys-next` is allowed.
+ * The complete dependency surface `@smthrs/keys` is allowed.
  *
  * A key is a digest of a canonical document, and that is all this package
  * does: `effect` supplies the schema runtime, and the two workspace packages
@@ -26,7 +26,7 @@ const sourceFiles = async (directory: string): Promise<Array<string>> => {
  * where hashing arrives through the injected Effect `Crypto` service rather
  * than through an import.
  */
-const allowedPackages = ["@smthrs/canonical-next", "@smthrs/crypto-next", "effect"]
+const allowedPackages = ["@smthrs/canonical", "@smthrs/crypto", "effect"]
 
 /** Every static module specifier in a source file. */
 const moduleSpecifiers = (source: string): Array<string> => {
@@ -120,8 +120,8 @@ describe("source purity", () => {
       moduleSpecifiers(source).map((specifier) => `${relative(sourceRoot, file)} -> ${specifier}`)
     )
     expect(found.sort()).toEqual([
-      "Key.ts -> @smthrs/canonical-next/Canonical",
-      "Key.ts -> @smthrs/crypto-next",
+      "Key.ts -> @smthrs/canonical/Canonical",
+      "Key.ts -> @smthrs/crypto",
       "Key.ts -> effect/Effect",
       "Key.ts -> effect/Schema",
       "Key.ts -> effect/SchemaGetter",

@@ -1,4 +1,4 @@
-import { Capability, CapabilityPattern } from "@smthrs/capability-next/Capability"
+import { Capability, CapabilityPattern } from "@smthrs/capability/Capability"
 import { describe, expect, it } from "vitest"
 import * as GrantEvent from "../src/GrantEvent.ts"
 
@@ -86,7 +86,7 @@ describe("GrantEvent schema", () => {
     }],
     ["a tag and payload from different grant variants", {
       ...once,
-      _tag: "@smthrs/kernel-next/GrantEvent/RunGrant",
+      _tag: "@smthrs/kernel/GrantEvent/RunGrant",
       eventType: "flows.kernel.grant.run.v1"
     }],
     ["an envelope with a once scope", { ...envelope, scope: "once" }]

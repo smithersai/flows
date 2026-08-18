@@ -29,13 +29,13 @@
  * @since 0.1.0
  */
 
-import { type Capability, make as makeCapability } from "@smthrs/capability-next/Capability"
+import { type Capability, make as makeCapability } from "@smthrs/capability/Capability"
 import {
   formatError,
   isPermissionError,
   PermissionDenied,
   type PermissionError
-} from "@smthrs/capability-next/Permission"
+} from "@smthrs/capability/Permission"
 import { Context, Effect, Layer, Option } from "effect"
 import * as EffectHttpClient from "effect/unstable/http/HttpClient"
 import * as HttpClientError from "effect/unstable/http/HttpClientError"
@@ -74,7 +74,7 @@ export { make } from "effect/unstable/http/HttpClient"
  * @since 0.1.0
  */
 export const ModelCall: Context.Reference<string | undefined> = Context.Reference<string | undefined>(
-  "@smthrs/kernel-next/HttpClient/ModelCall",
+  "@smthrs/kernel/HttpClient/ModelCall",
   { defaultValue: (): string | undefined => undefined }
 )
 

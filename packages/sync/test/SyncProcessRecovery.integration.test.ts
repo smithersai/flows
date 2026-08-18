@@ -5,7 +5,7 @@
  */
 import * as NodeSocket from "@effect/platform-node/NodeSocket"
 import { describe, expect, it } from "@effect/vitest"
-import { JournalEvent } from "@smthrs/journal-next"
+import { JournalEvent } from "@smthrs/journal"
 import { Effect, Schema, Stream } from "effect"
 import * as RpcClient from "effect/unstable/rpc/RpcClient"
 import * as RpcSerialization from "effect/unstable/rpc/RpcSerialization"

@@ -3,8 +3,8 @@
  *
  * @since 0.1.0
  */
-import * as Journal from "@smthrs/journal-next/Journal"
-import type * as JournalEvent from "@smthrs/journal-next/JournalEvent"
+import * as Journal from "@smthrs/journal/Journal"
+import type * as JournalEvent from "@smthrs/journal/JournalEvent"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"

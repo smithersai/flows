@@ -1,8 +1,8 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
 import { describe, expect, it } from "@effect/vitest"
-import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
-import { Node } from "@smthrs/plan-next"
+import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Cause, Effect, Exit, Layer, Result, Schedule, Schema, Scope } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { FlowEngine } from "../src/index.ts"
@@ -300,7 +300,7 @@ describe("infrastructure interrupt retry", () => {
       expect(Exit.isFailure(exit) && Cause.hasFails(exit.cause)).toBe(true)
       expect(
         Exit.isFailure(exit) && (Cause.squash(exit.cause) as Action.InfraInterrupt)._tag
-      ).toBe("@smthrs/flow-next/InfraInterrupt")
+      ).toBe("@smthrs/flow/InfraInterrupt")
     }).pipe(provideHost)
   })
 })

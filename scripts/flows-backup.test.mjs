@@ -71,9 +71,9 @@ test("the script backs up, verifies, and restores a real store", async () => {
     Migrations,
     { Effect, Layer }
   ] = await Promise.all([
-    import("@smthrs/database-next"),
-    import("@smthrs/database-next/node/NodeDatabase"),
-    import("@smthrs/engine-store-next/Migrations"),
+    import("@smthrs/database"),
+    import("@smthrs/database/node/NodeDatabase"),
+    import("@smthrs/engine-store/Migrations"),
     import("effect")
   ])
   await Effect.runPromise(

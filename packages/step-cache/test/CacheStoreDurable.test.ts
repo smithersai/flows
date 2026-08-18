@@ -15,8 +15,8 @@
  * boundary above it adds no further serialization.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { DurableWriter } from "@smthrs/database-next"
-import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
+import { DurableWriter } from "@smthrs/database"
+import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
 import * as Context from "effect/Context"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"

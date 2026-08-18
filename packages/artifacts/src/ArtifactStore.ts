@@ -17,7 +17,7 @@
  *
  * @since 0.1.0
  */
-import { Sha256 } from "@smthrs/crypto-next"
+import { Sha256 } from "@smthrs/crypto"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import type * as Crypto from "effect/Crypto"
@@ -32,7 +32,7 @@ import * as ArtifactStoreMetrics from "./ArtifactStoreMetrics.ts"
 
 /**
  * Schema for a content address: exactly 64 lowercase hexadecimal SHA-256
- * characters, branded by `@smthrs/crypto-next`. Re-exported so a consumer never has
+ * characters, branded by `@smthrs/crypto`. Re-exported so a consumer never has
  * to reach past this package for the address type it stores under.
  *
  * @category schemas
@@ -88,7 +88,7 @@ export type ArtifactStoreErrorCode = typeof ArtifactStoreErrorCode.Type
  * @since 0.1.0
  */
 export class ArtifactStoreError extends Schema.TaggedError<ArtifactStoreError>()(
-  "@smthrs/artifacts-next/ArtifactStoreError",
+  "@smthrs/artifacts/ArtifactStoreError",
   {
     code: ArtifactStoreErrorCode,
     message: Schema.String,
@@ -107,7 +107,7 @@ export class ArtifactStoreError extends Schema.TaggedError<ArtifactStoreError>()
  * @since 0.1.0
  */
 export class ArtifactMissing extends Schema.TaggedError<ArtifactMissing>()(
-  "@smthrs/artifacts-next/ArtifactMissing",
+  "@smthrs/artifacts/ArtifactMissing",
   {
     code: Schema.Literal("artifact_missing"),
     digest: Schema.String
@@ -125,7 +125,7 @@ export class ArtifactMissing extends Schema.TaggedError<ArtifactMissing>()(
  * @since 0.1.0
  */
 export class ArtifactCorruption extends Schema.TaggedError<ArtifactCorruption>()(
-  "@smthrs/artifacts-next/ArtifactCorruption",
+  "@smthrs/artifacts/ArtifactCorruption",
   {
     code: Schema.Literal("artifact_corruption"),
     recordedDigest: Schema.String,
@@ -179,7 +179,7 @@ export interface Service {
  * @category services
  * @since 0.1.0
  */
-export class ArtifactStore extends Context.Service<ArtifactStore, Service>()("@smthrs/artifacts-next/ArtifactStore") {}
+export class ArtifactStore extends Context.Service<ArtifactStore, Service>()("@smthrs/artifacts/ArtifactStore") {}
 
 const error = (code: ArtifactStoreErrorCode, message: string, cause?: unknown): ArtifactStoreError =>
   new ArtifactStoreError({ code, message, ...(cause === undefined ? {} : { cause }) })
@@ -310,7 +310,7 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
    *
    * This is a sweep of scratch files, not garbage collection. Reclaiming
    * *published* artifacts is `ArtifactSweep` driven by an explicit
-   * `ArtifactGc.gc()` call in `@smthrs/engine-store-next` — an explicit verb per
+   * `ArtifactGc.gc()` call in `@smthrs/engine-store` — an explicit verb per
    * `docs/specs/Concepts/Reconciliation.md`, never folded in here.
    */
   let sweepDone = false
@@ -338,7 +338,7 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
    * we rename it to avoid data loss in the case of machine crashes (the OS may
    * reorder the writes and the rename)". It is best-effort here because
    * `FileSystem.open` is one of the operations a browser backend does not
-   * serve (`@smthrs/platform-browser-next`'s `BrowserFileSystem` fails it rather
+   * serve (`@smthrs/platform-browser`'s `BrowserFileSystem` fails it rather
    * than pretending). A host without writable handles still gets the
    * temp+rename atomicity; it just does not get the crash-durability bound.
    */

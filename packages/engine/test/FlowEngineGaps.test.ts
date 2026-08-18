@@ -1,8 +1,8 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
 import { describe, expect, it } from "@effect/vitest"
-import { Action, DurableDeferred, Flow, FlowRuntime, Interpreter, RetryPolicy } from "@smthrs/flow-next"
-import { Node } from "@smthrs/plan-next"
+import { Action, DurableDeferred, Flow, FlowRuntime, Interpreter, RetryPolicy } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Cause, Deferred, Effect, Exit, Fiber, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
@@ -428,7 +428,7 @@ describe("suspended resume policy", () => {
       // for this loop.
       const suspended = yield* pollUntil(
         flow.poll("run-late").pipe(
-          Effect.catchTag("@smthrs/flow-next/FlowExecutionNotFound", () => Effect.succeedNone)
+          Effect.catchTag("@smthrs/flow/FlowExecutionNotFound", () => Effect.succeedNone)
         ),
         isSuspended
       )
@@ -481,7 +481,7 @@ describe("action retry give-up reasons", () => {
       if (result._tag === "Complete") {
         expect(Exit.isFailure(result.exit)).toBe(true)
         expect(Exit.isFailure(result.exit) && Cause.squash(result.exit.cause)).toMatchObject({
-          _tag: "@smthrs/flow-next/RetryPolicyExpired",
+          _tag: "@smthrs/flow/RetryPolicyExpired",
           actionName: "Gaps/durable-retry-origin",
           attempt: 1,
           expirationMs: 1,
@@ -533,7 +533,7 @@ describe("action retry give-up reasons", () => {
       expect(Exit.isFailure(exit)).toBe(true)
       const defect = Exit.isFailure(exit) ? Cause.squash(exit.cause) : undefined
       expect((defect as RetryPolicy.RetryAttemptsExhausted)._tag).toBe(
-        "@smthrs/flow-next/RetryAttemptsExhausted"
+        "@smthrs/flow/RetryAttemptsExhausted"
       )
       expect((defect as RetryPolicy.RetryAttemptsExhausted).attempt).toBe(1)
       expect((defect as RetryPolicy.RetryAttemptsExhausted).maxAttempts).toBe(1)
@@ -612,7 +612,7 @@ describe("memory engine lifecycle", () => {
       // poll reports as a typed not-found rather than `Option.none`.
       const error = yield* Effect.flip(flow.poll("never-started"))
       expect(error).toMatchObject({
-        _tag: "@smthrs/flow-next/FlowExecutionNotFound",
+        _tag: "@smthrs/flow/FlowExecutionNotFound",
         executionId: "never-started"
       })
     }).pipe(Effect.provide(layer))

@@ -9,9 +9,9 @@
  */
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
-import { StepBoundary, WorkspaceSandbox } from "@smthrs/engine-store-next"
-import * as NodeRuntime from "@smthrs/flows-next/NodeRuntime"
-import { Jj } from "@smthrs/kernel-next"
+import { StepBoundary, WorkspaceSandbox } from "@smthrs/engine-store"
+import * as NodeRuntime from "@smthrs/flows/NodeRuntime"
+import { Jj } from "@smthrs/kernel"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 

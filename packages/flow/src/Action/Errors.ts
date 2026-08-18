@@ -3,7 +3,7 @@
 /**
  * Defines typed action execution and identity failures.
  *
- * The `_tag` strings below keep the `@smthrs/engine-next/` prefix they were minted
+ * The `_tag` strings below keep the `@smthrs/engine/` prefix they were minted
  * with. A tag is wire format: durable stores persist encoded exits carrying
  * it, so renaming one to match this package would make every stored row
  * decode as an unknown error on replay. The owning package moved; the tag did
@@ -22,7 +22,7 @@ import * as Schema from "effect/Schema"
  * @since 0.1.0
  */
 export class InfraInterrupt extends Schema.TaggedError<InfraInterrupt>()(
-  "@smthrs/flow-next/InfraInterrupt",
+  "@smthrs/flow/InfraInterrupt",
   {
     code: Schema.Literal("infra_interrupt").pipe(
       Schema.withConstructorDefault(Effect.succeed("infra_interrupt"))
@@ -40,7 +40,7 @@ export class InfraInterrupt extends Schema.TaggedError<InfraInterrupt>()(
  */
 export class IrreversibleRetryRequiresIdempotencyKey
   extends Schema.TaggedError<IrreversibleRetryRequiresIdempotencyKey>()(
-    "@smthrs/flow-next/IrreversibleRetryRequiresIdempotencyKey",
+    "@smthrs/flow/IrreversibleRetryRequiresIdempotencyKey",
     {
       code: Schema.Literal("irreversible_retry_requires_idempotency_key").pipe(
         Schema.withConstructorDefault(Effect.succeed("irreversible_retry_requires_idempotency_key"))
@@ -68,7 +68,7 @@ export class IrreversibleRetryRequiresIdempotencyKey
  * @since 0.1.0
  */
 export class ConcurrentKeylessDispatch extends Schema.TaggedError<ConcurrentKeylessDispatch>()(
-  "@smthrs/flow-next/ConcurrentKeylessDispatch",
+  "@smthrs/flow/ConcurrentKeylessDispatch",
   {
     code: Schema.Literal("concurrent_keyless_dispatch").pipe(
       Schema.withConstructorDefault(Effect.succeed("concurrent_keyless_dispatch"))
@@ -87,7 +87,7 @@ export class ConcurrentKeylessDispatch extends Schema.TaggedError<ConcurrentKeyl
  * @since 0.1.0
  */
 export class UncanonicalIdempotencyKey extends Schema.TaggedError<UncanonicalIdempotencyKey>()(
-  "@smthrs/flow-next/UncanonicalIdempotencyKey",
+  "@smthrs/flow/UncanonicalIdempotencyKey",
   {
     code: Schema.Literal("uncanonical_idempotency_key").pipe(
       Schema.withConstructorDefault(Effect.succeed("uncanonical_idempotency_key"))

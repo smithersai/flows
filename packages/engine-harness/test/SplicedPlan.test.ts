@@ -1,8 +1,8 @@
 /** The main plan value grows when the harness elaborates a child batch. */
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
 import * as HarnessPlan from "@smthrs/harness/Plan"
-import * as PersistedPlan from "@smthrs/plan-next/Plan"
-import * as StepKey from "@smthrs/plan-next/StepKey"
+import * as PersistedPlan from "@smthrs/plan/Plan"
+import * as StepKey from "@smthrs/plan/StepKey"
 import { Effect, Option } from "effect"
 import { describe, expect, it } from "vitest"
 import * as FlowEngineLike from "../src/FlowEngineLike.ts"

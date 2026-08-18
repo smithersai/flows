@@ -7,7 +7,7 @@
  * the same tree sees the first's snapshots).
  *
  * The artifact is committed at `packages/jj/wasm/flows_jj.wasm` and built by
- * `pnpm --filter @smthrs/jj-next run build:wasm` (delegating to
+ * `pnpm --filter @smthrs/jj run build:wasm` (delegating to
  * `crates/flows-jj/build-wasm.mjs`). When it is absent the suite skips —
  * loudly, so a missing artifact is never mistaken for passing coverage.
  */
@@ -30,7 +30,7 @@ if (wasmBytes === undefined) {
   // eslint-disable-next-line no-console
   console.warn(
     "[BrowserJjContract] packages/jj/wasm/flows_jj.wasm is not built — the real-artifact "
-      + "contract suite is SKIPPED. Build it with `pnpm --filter @smthrs/jj-next run build:wasm` "
+      + "contract suite is SKIPPED. Build it with `pnpm --filter @smthrs/jj run build:wasm` "
       + "(requires the rust wasm32-wasip1 toolchain and crates/flows-jj)."
   )
 }

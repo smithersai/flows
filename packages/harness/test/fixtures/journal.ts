@@ -1,5 +1,5 @@
 /** @since 0.1.0 */
-import { JournalEvent } from "@smthrs/journal-next"
+import { JournalEvent } from "@smthrs/journal"
 import { ModelEvent, ModelRequest } from "@smthrs/model"
 import * as AgentEvent from "../../src/AgentEvent.ts"
 import * as Plan from "../../src/Plan.ts"

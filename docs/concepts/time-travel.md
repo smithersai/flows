@@ -1,7 +1,7 @@
 # Time travel
 
 This page explains the inspect, fork, and rewind operations of the one
-`TimeTravel` service in `@smthrs/time-travel-next`, and the snapshot, compensation,
+`TimeTravel` service in `@smthrs/time-travel`, and the snapshot, compensation,
 and recovery machinery behind them. It also identifies the integration work the
 durable engine does not yet perform automatically.
 
@@ -10,7 +10,7 @@ durable engine does not yet perform automatically.
 A `Frame` identifies a durable point by lineage and journal sequence:
 
 ```ts
-import { Frame } from "@smthrs/time-travel-next"
+import { Frame } from "@smthrs/time-travel"
 
 const frame: Frame.Frame = {
   lineageId: "build-42/root",
@@ -93,4 +93,4 @@ Step 8 is why recovery is not an operation: building `TimeTravel.layer` finishes
 
 The time-travel package is implemented and tested as a protocol library, but `EngineStore` does not automatically create every snapshot, lineage edge, or effect-boundary record it consumes. Applications must wire those records and migrations explicitly. Automatic end-to-end integration is **Planned**.
 
-See [Determinism and replay](determinism-and-replay.md), [Subflows](subflows.md), and the [`@smthrs/time-travel-next` reference](../reference/time-travel.md).
+See [Determinism and replay](determinism-and-replay.md), [Subflows](subflows.md), and the [`@smthrs/time-travel` reference](../reference/time-travel.md).

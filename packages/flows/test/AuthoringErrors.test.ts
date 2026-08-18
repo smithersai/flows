@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest"
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -117,7 +117,7 @@ describe("authoring input errors", () => {
       }))
 
       expect(observed.error).toMatchObject({
-        _tag: "@smthrs/flow-next/InterpreterError",
+        _tag: "@smthrs/flow/InterpreterError",
         code: "unresolved_action",
         flow: "authoring/missing-flow"
       })
@@ -218,7 +218,7 @@ describe("authoring input errors", () => {
         expect(reason?._tag).toBe("Fail")
         const error = reason?._tag === "Fail" ? reason.error : undefined
         expect(error).toMatchObject({
-          _tag: "@smthrs/flow-next/FlowExecutionNotFound",
+          _tag: "@smthrs/flow/FlowExecutionNotFound",
           executionId: "unknown-execution"
         })
         expect(String(error)).toContain("unknown-execution")

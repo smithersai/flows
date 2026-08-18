@@ -11,7 +11,7 @@
  * is the engine's single retry decision point: the core default a pluggable
  * `resolveRetry` resolution can later dispatch in front of.
  *
- * The terminal failures below keep the `@smthrs/engine-next/` `_tag` prefix they
+ * The terminal failures below keep the `@smthrs/engine/` `_tag` prefix they
  * were minted with: a tag is wire format, and durable stores hold encoded
  * exits carrying it, so renaming one would make stored rows decode as an
  * unknown error on replay.
@@ -159,7 +159,7 @@ export const giveUp = (reason: GiveUp["reason"]): RetryDecision => ({
  * @since 0.1.0
  */
 export class RetryPolicyExpired extends Schema.TaggedError<RetryPolicyExpired>()(
-  "@smthrs/flow-next/RetryPolicyExpired",
+  "@smthrs/flow/RetryPolicyExpired",
   {
     code: Schema.Literal("retry_policy_expired").pipe(
       Schema.withConstructorDefault(Effect.succeed("retry_policy_expired"))
@@ -178,7 +178,7 @@ export class RetryPolicyExpired extends Schema.TaggedError<RetryPolicyExpired>()
  * @since 0.1.0
  */
 export class RetryAttemptsExhausted extends Schema.TaggedError<RetryAttemptsExhausted>()(
-  "@smthrs/flow-next/RetryAttemptsExhausted",
+  "@smthrs/flow/RetryAttemptsExhausted",
   {
     code: Schema.Literal("retry_attempts_exhausted").pipe(
       Schema.withConstructorDefault(Effect.succeed("retry_attempts_exhausted"))
@@ -305,8 +305,8 @@ export const errorTag = (error: unknown): string | undefined => {
  * @since 0.1.0
  */
 export const defaultNonRetryable: ReadonlyArray<string> = [
-  "@smthrs/engine-store-next/CacheCorruptionDetected",
-  "@smthrs/engine-store-next/AttemptEvidenceQuarantined"
+  "@smthrs/engine-store/CacheCorruptionDetected",
+  "@smthrs/engine-store/AttemptEvidenceQuarantined"
 ]
 
 /**

@@ -35,7 +35,7 @@
  *
  * @since 0.1.0
  */
-import * as ArtifactSweep from "@smthrs/artifacts-next/ArtifactSweep"
+import * as ArtifactSweep from "@smthrs/artifacts/ArtifactSweep"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
@@ -71,7 +71,7 @@ export type ArtifactGcErrorCode = typeof ArtifactGcErrorCode.Type
  * @since 0.1.0
  */
 export class ArtifactGcError extends Schema.TaggedError<ArtifactGcError>()(
-  "@smthrs/engine-store-next/ArtifactGcError",
+  "@smthrs/engine-store/ArtifactGcError",
   {
     code: ArtifactGcErrorCode,
     message: Schema.String,
@@ -104,7 +104,7 @@ export interface Policy {
  * @since 0.1.0
  */
 export class ArtifactGcPolicy extends Context.Service<ArtifactGcPolicy, Policy>()(
-  "@smthrs/engine-store-next/ArtifactGcPolicy"
+  "@smthrs/engine-store/ArtifactGcPolicy"
 ) {}
 
 /**
@@ -175,7 +175,7 @@ export interface Service {
  * @category services
  * @since 0.1.0
  */
-export class ArtifactGc extends Context.Service<ArtifactGc, Service>()("@smthrs/engine-store-next/ArtifactGc") {}
+export class ArtifactGc extends Context.Service<ArtifactGc, Service>()("@smthrs/engine-store/ArtifactGc") {}
 
 /**
  * Two weeks, git's `gc.pruneExpire` default. The bound is deliberately far

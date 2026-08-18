@@ -4,7 +4,7 @@
  */
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
 import * as Core from "@smthrs/core"
-import * as PersistedPlan from "@smthrs/plan-next/Plan"
+import * as PersistedPlan from "@smthrs/plan/Plan"
 import { Effect, Result } from "effect"
 import { describe, expect, it } from "vitest"
 import { Control } from "../src/Control.ts"

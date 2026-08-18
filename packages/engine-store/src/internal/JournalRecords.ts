@@ -3,7 +3,7 @@
  *
  * @since 0.1.0
  */
-import { Journal, JournalEvent } from "@smthrs/journal-next"
+import { Journal, JournalEvent } from "@smthrs/journal"
 import * as Effect from "effect/Effect"
 
 /**

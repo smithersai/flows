@@ -24,33 +24,33 @@ const repoRoot = resolve(fileURLToPath(import.meta.url), "..", "..")
  * browser; any resolution or syntax error fails the gate.
  */
 const BROWSER_SAFE = [
-  { name: "@smthrs/artifacts-next", entry: "packages/artifacts/src/index.ts" },
-  { name: "@smthrs/canonical-next", entry: "packages/canonical/src/index.ts" },
-  { name: "@smthrs/capability-next", entry: "packages/capability/src/index.ts" },
-  { name: "@smthrs/chain-next", entry: "packages/chain/src/index.ts" },
-  { name: "@smthrs/crypto-next", entry: "packages/crypto/src/index.ts" },
-  { name: "@smthrs/jj-next", entry: "packages/jj/src/index.ts" },
-  { name: "@smthrs/jj-next/browser/BrowserJj", entry: "packages/jj/src/browser/BrowserJj.ts" },
-  { name: "@smthrs/platform-browser-next", entry: "packages/platform-browser/src/index.ts" },
+  { name: "@smthrs/artifacts", entry: "packages/artifacts/src/index.ts" },
+  { name: "@smthrs/canonical", entry: "packages/canonical/src/index.ts" },
+  { name: "@smthrs/capability", entry: "packages/capability/src/index.ts" },
+  { name: "@smthrs/chain", entry: "packages/chain/src/index.ts" },
+  { name: "@smthrs/crypto", entry: "packages/crypto/src/index.ts" },
+  { name: "@smthrs/jj", entry: "packages/jj/src/index.ts" },
+  { name: "@smthrs/jj/browser/BrowserJj", entry: "packages/jj/src/browser/BrowserJj.ts" },
+  { name: "@smthrs/platform-browser", entry: "packages/platform-browser/src/index.ts" },
   {
-    name: "@smthrs/platform-browser-next/BrowserHost",
+    name: "@smthrs/platform-browser/BrowserHost",
     entry: "packages/platform-browser/src/BrowserHost.ts"
   },
-  { name: "@smthrs/sandbox-next", entry: "packages/sandbox/src/index.ts" },
-  { name: "@smthrs/kernel-next", entry: "packages/kernel/src/index.ts" },
-  { name: "@smthrs/keys-next", entry: "packages/keys/src/index.ts" },
-  { name: "@smthrs/plan-next", entry: "packages/plan/src/index.ts" },
-  { name: "@smthrs/database-next", entry: "packages/database/src/index.ts" },
-  { name: "@smthrs/journal-next", entry: "packages/journal/src/index.ts" },
-  { name: "@smthrs/run-store-next", entry: "packages/run-store/src/index.ts" },
-  { name: "@smthrs/step-cache-next", entry: "packages/step-cache/src/index.ts" },
-  { name: "@smthrs/flow-next", entry: "packages/flow/src/index.ts" },
-  { name: "@smthrs/engine-next", entry: "packages/engine/src/index.ts" },
-  { name: "@smthrs/engine-store-next", entry: "packages/engine-store/src/index.ts" },
-  { name: "@smthrs/flows-next", entry: "packages/flows/src/index.ts" },
-  { name: "@smthrs/observability-next", entry: "packages/observability/src/index.ts" },
-  { name: "@smthrs/sync-next", entry: "packages/sync/src/index.ts" },
-  { name: "@smthrs/time-travel-next", entry: "packages/time-travel/src/index.ts" }
+  { name: "@smthrs/sandbox", entry: "packages/sandbox/src/index.ts" },
+  { name: "@smthrs/kernel", entry: "packages/kernel/src/index.ts" },
+  { name: "@smthrs/keys", entry: "packages/keys/src/index.ts" },
+  { name: "@smthrs/plan", entry: "packages/plan/src/index.ts" },
+  { name: "@smthrs/database", entry: "packages/database/src/index.ts" },
+  { name: "@smthrs/journal", entry: "packages/journal/src/index.ts" },
+  { name: "@smthrs/run-store", entry: "packages/run-store/src/index.ts" },
+  { name: "@smthrs/step-cache", entry: "packages/step-cache/src/index.ts" },
+  { name: "@smthrs/flow", entry: "packages/flow/src/index.ts" },
+  { name: "@smthrs/engine", entry: "packages/engine/src/index.ts" },
+  { name: "@smthrs/engine-store", entry: "packages/engine-store/src/index.ts" },
+  { name: "@smthrs/flows", entry: "packages/flows/src/index.ts" },
+  { name: "@smthrs/observability", entry: "packages/observability/src/index.ts" },
+  { name: "@smthrs/sync", entry: "packages/sync/src/index.ts" },
+  { name: "@smthrs/time-travel", entry: "packages/time-travel/src/index.ts" }
 ]
 
 /**
@@ -60,43 +60,43 @@ const BROWSER_SAFE = [
  */
 const NODE_ONLY = [
   {
-    name: "@smthrs/platform-node-next",
+    name: "@smthrs/platform-node",
     entry: "packages/platform-node/src/index.ts",
     expect: "node:child_process",
     reason: "the Node host bundle spawns child processes"
   },
   {
-    name: "@smthrs/platform-bun-next",
+    name: "@smthrs/platform-bun",
     entry: "packages/platform-bun/src/index.ts",
     expect: "node:fs",
     reason: "the Bun bundle falls back to the @effect/platform-node adapters off Bun"
   },
   {
-    name: "@smthrs/kernel-next/test/TestHost",
+    name: "@smthrs/kernel/test/TestHost",
     entry: "packages/kernel/src/test/TestHost.ts",
     expect: "node:assert",
     reason: "effect/testing's TestClock pulls node:assert"
   },
   {
-    name: "@smthrs/jj-next/node/NodeJj",
+    name: "@smthrs/jj/node/NodeJj",
     entry: "packages/jj/src/node/NodeJj.ts",
     expect: "node:child_process",
     reason: "the Node jj adapter spawns the jj CLI"
   },
   {
-    name: "@smthrs/jj-next/bun/BunJj",
+    name: "@smthrs/jj/bun/BunJj",
     entry: "packages/jj/src/bun/BunJj.ts",
     expect: "node:child_process",
     reason: "the Bun jj adapter reuses the Node child-process implementation"
   },
   {
-    name: "@smthrs/database-next/node/NodeDatabase",
+    name: "@smthrs/database/node/NodeDatabase",
     entry: "packages/database/src/node/NodeDatabase.ts",
     expect: "node:sqlite",
     reason: "the Node database layer is node:sqlite through @effect/sql-sqlite-node"
   },
   {
-    name: "@smthrs/flows-next/NodeRuntime",
+    name: "@smthrs/flows/NodeRuntime",
     entry: "packages/flows/src/NodeRuntime.ts",
     expect: "node:sqlite",
     reason: "the supported production composition opens the database through NodeDatabase"

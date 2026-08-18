@@ -52,7 +52,7 @@ describe("makeMemory", () => {
     Effect.gen(function*() {
       const artifacts = ArtifactStore.makeMemory()
       const exit = yield* withCrypto(artifacts.get(digest).pipe(Effect.exit))
-      expect((errorOf(exit) as ArtifactStore.ArtifactMissing)._tag).toBe("@smthrs/artifacts-next/ArtifactMissing")
+      expect((errorOf(exit) as ArtifactStore.ArtifactMissing)._tag).toBe("@smthrs/artifacts/ArtifactMissing")
       expect(yield* withCrypto(artifacts.has(digest))).toBe(false)
     }))
 

@@ -25,7 +25,7 @@ import * as SchemaIssue from "effect/SchemaIssue"
  * @since 0.1.0
  */
 const Digest = Schema.String.check(Schema.isPattern(/^[0-9a-f]{64}$/)).pipe(
-  Schema.brand("@smthrs/crypto-next/Sha256/Digest")
+  Schema.brand("@smthrs/crypto/Sha256/Digest")
 )
 
 /**

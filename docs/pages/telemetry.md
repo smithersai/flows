@@ -4,10 +4,10 @@ How an application exports what the stores already measure. The spans and counte
 
 ## One layer
 
-`@smthrs/observability-next` composes Effect's own OTLP logger, metrics exporter, and tracer (`effect/unstable/observability`) into one layer with the flows service identity as the default resource. It depends on `effect` alone: no OpenTelemetry SDK is involved, and nothing in it resolves a `node:` built-in, so the same entry point bundles for Node and for the browser.
+`@smthrs/observability` composes Effect's own OTLP logger, metrics exporter, and tracer (`effect/unstable/observability`) into one layer with the flows service identity as the default resource. It depends on `effect` alone: no OpenTelemetry SDK is involved, and nothing in it resolves a `node:` built-in, so the same entry point bundles for Node and for the browser.
 
 ```typescript
-import * as Otlp from "@smthrs/observability-next/Otlp"
+import * as Otlp from "@smthrs/observability/Otlp"
 import { Effect } from "effect"
 
 const Telemetry = Otlp.layerFetch({
@@ -26,7 +26,7 @@ Three layers cover the deployment shapes:
 | Layer | Use |
 | --- | --- |
 | `Otlp.layerFetch(options)` | the default: export over the host's global `fetch` (Node 22, every browser) |
-| `Otlp.layer(options)` | the same wiring minus the HTTP client, for a host that provides its own `HttpClient` — for example Undici via `@smthrs/platform-node-next`'s `NodeHttpClient` |
+| `Otlp.layer(options)` | the same wiring minus the HTTP client, for a host that provides its own `HttpClient` — for example Undici via `@smthrs/platform-node`'s `NodeHttpClient` |
 | `Otlp.layerNoop` | no collector: provides nothing, so wiring code switches layers rather than branches |
 
 ### Options
@@ -51,16 +51,16 @@ Metrics are the hot-path series the store packages define beside the code that u
 
 | Counter | Attributes | Updated by |
 | --- | --- | --- |
-| `flows_journal_writes` | `channel` = `durable` \| `lossy`; `receipt` = `accepted` \| `duplicate` \| `dropped` | `@smthrs/journal-next` `SqlJournal`, once per emission receipt |
-| `flows_db_write_retries` | none | `@smthrs/database-next` `DurableWriter`, once per scheduled transaction replay after a transient conflict |
-| `flows_run_claims` | `op` = `claim` \| `claim_and_own` \| `activate` \| `steal`; `outcome` = the operation's result tag in snake case | `@smthrs/run-store-next` `RunStore` |
+| `flows_journal_writes` | `channel` = `durable` \| `lossy`; `receipt` = `accepted` \| `duplicate` \| `dropped` | `@smthrs/journal` `SqlJournal`, once per emission receipt |
+| `flows_db_write_retries` | none | `@smthrs/database` `DurableWriter`, once per scheduled transaction replay after a transient conflict |
+| `flows_run_claims` | `op` = `claim` \| `claim_and_own` \| `activate` \| `steal`; `outcome` = the operation's result tag in snake case | `@smthrs/run-store` `RunStore` |
 | `flows_run_heartbeats` | `outcome` = `updated` \| `fence_lost` \| `not_found` | `RunStore.heartbeat`; `fence_lost` is the fencing event |
 | `flows_run_transitions` | `outcome` = `transitioned` \| `fence_lost` \| `not_found` \| `guard_failed`; `to` = target status | `RunStore.transitionOwned` |
-| `flows_step_cache_lookups` | `outcome` = `hit` \| `miss` | `@smthrs/step-cache-next` `CacheStore.get` |
+| `flows_step_cache_lookups` | `outcome` = `hit` \| `miss` | `@smthrs/step-cache` `CacheStore.get` |
 | `flows_step_cache_puts` | `outcome` = `inserted` \| `existing_same` \| `conflict` | `CacheStore.put`, after the write transaction returns |
-| `flows_artifact_puts` | none | `@smthrs/artifacts-next` local stores, once per successful put, dedupe included |
+| `flows_artifact_puts` | none | `@smthrs/artifacts` local stores, once per successful put, dedupe included |
 | `flows_artifact_gets` | none | once per successful digest-verified get; typed misses are error evidence, not throughput |
-| `flows_engine_dispatches` | `outcome` = `success` \| `failure` \| `interrupt` | `@smthrs/engine-store-next` `ActionPersistence`, once per durable dispatch — cache-served and fresh alike |
+| `flows_engine_dispatches` | `outcome` = `success` \| `failure` \| `interrupt` | `@smthrs/engine-store` `ActionPersistence`, once per durable dispatch — cache-served and fresh alike |
 | `flows_engine_scheduler_admissions` | none | `PlanScheduler`, once per admission pass that launched at least one dispatch |
 | `flows_engine_scheduler_nodes` | `outcome` = `built` \| `clean` \| `failed` \| `skipped` \| `deferred` | `PlanScheduler`, once per node settlement |
 | `flows_engine_sandbox_executions` | `outcome` = `success` \| `failure` \| `interrupt` | `WorkspaceSandbox.execute` |
@@ -86,7 +86,7 @@ The handles are exported (`JournalMetrics`, `RunStoreMetrics`, `CacheStoreMetric
 Updates resolve the metric registry from the running Effect context, so a test provides a fresh registry and reads it back — no exporter, no network:
 
 ```typescript
-import { CacheStoreMetrics } from "@smthrs/step-cache-next"
+import { CacheStoreMetrics } from "@smthrs/step-cache"
 import { assert, it } from "@effect/vitest"
 import { Effect, Metric } from "effect"
 

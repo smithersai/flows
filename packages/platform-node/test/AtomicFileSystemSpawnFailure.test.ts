@@ -15,7 +15,7 @@ vi.mock("node:child_process", async (importOriginal) => {
   }
 })
 
-import * as KernelFileSystem from "@smthrs/kernel-next/FileSystem"
+import * as KernelFileSystem from "@smthrs/kernel/FileSystem"
 import { Effect, FileSystem, Layer } from "effect"
 import * as AtomicFileSystem from "../src/AtomicFileSystem.ts"
 

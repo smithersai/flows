@@ -36,7 +36,7 @@ import { sha256 } from "./sha256.ts"
  * @since 0.1.0
  * @private
  */
-export const TypeId = "~@smthrs/plan-next/Node" as const
+export const TypeId = "~@smthrs/plan/Node" as const
 
 /**
  * The type-level form of {@link TypeId}.
@@ -206,7 +206,7 @@ export interface FunctionIdentity {
 }
 
 /** @private */
-const CapturedTypeId = Symbol.for("@smthrs/plan-next/Node/CapturedFunction")
+const CapturedTypeId = Symbol.for("@smthrs/plan/Node/CapturedFunction")
 
 /** @private */
 interface CapturedMetadata {

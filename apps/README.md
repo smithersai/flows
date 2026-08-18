@@ -18,7 +18,7 @@ state and the canary.smithers.sh custom-domain binding.
 `@smthrs/*` dependencies resolve as workspace links into `packages/`
 (the vendored copies under `vendor/smthrs` are gone). `@smthrs/chain`
 had no living source elsewhere and was promoted to `packages/chain`
-(`@smthrs/chain-next`).
+(`@smthrs/chain`).
 
 Product-level docs (`DESIGN.md`, `MIGRATION.md`, `WAVE*-RECEIPT.md`,
 `reports/`) live at this level because they cover UI and Worker waves

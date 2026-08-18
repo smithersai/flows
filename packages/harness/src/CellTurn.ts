@@ -16,7 +16,7 @@
  * @since 0.1.0
  */
 import { Effects, type KeyMaterial, Placement } from "@smthrs/core"
-import { Capability, CapabilitySet, Permission } from "@smthrs/kernel-next"
+import { Capability, CapabilitySet, Permission } from "@smthrs/kernel"
 import { CanonicalJson, type Model, ModelEvent, ModelRequest } from "@smthrs/model"
 import { Descriptor } from "@smthrs/registry"
 import { Effect, Option, Queue, Result, Schema, Stream } from "effect"

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@effect/vitest"
-import { RunStore } from "@smthrs/run-store-next"
-import { heartbeatStaleAfter } from "@smthrs/run-store-next/Ownership"
+import { RunStore } from "@smthrs/run-store"
+import { heartbeatStaleAfter } from "@smthrs/run-store/Ownership"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"

@@ -1,5 +1,5 @@
-import { Journal, JournalEvent } from "@smthrs/journal-next"
-import * as TestJournal from "@smthrs/journal-next/test/TestJournal"
+import { Journal, JournalEvent } from "@smthrs/journal"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Effect, Layer, Logger } from "effect"
 import { describe, expect, it } from "vitest"
 import { layerJournalForwarding } from "../src/JournalLogger.ts"

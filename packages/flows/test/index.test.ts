@@ -1,4 +1,4 @@
-import * as FlowPackage from "@smthrs/flow-next"
+import * as FlowPackage from "@smthrs/flow"
 import * as Effect from "effect/Effect"
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join, resolve } from "node:path"
@@ -43,15 +43,15 @@ const isFile = (path: string) => {
 //
 // The agent group is a separate release surface built on the engine; this
 // barrel gathers the durable engine only. The tooling group is excluded for
-// the same class of reason, decided in review when tsflows was absorbed into
-// this repo (2026-08-15). It is the BUILD.ts build system — `tsflows`
-// (install/package-manager actions), `tsflows-rules` (BUILD.ts rules), and
-// `tsflows-cli` (the `tsflows` binary) — not part of the durable flow engine
+// the same class of reason, decided in review when smithers build was absorbed into
+// this repo (2026-08-15). It is the BUILD.ts build system — `@smthrs/build`
+// (install/package-manager actions), `@smthrs/targets` (BUILD.ts rules), and
+// `@smthrs/build-cli` (the `smthrs` binary) — not part of the durable flow engine
 // surface this barrel exists to gather.
 // Re-exporting them would also break two invariants the barrel holds today:
-// `tsflows-rules` and `tsflows-cli` are `private: true` and never published, so
-// the published `@smthrs/flows-next` would depend on packages no consumer can
-// resolve; and `tsflows-cli` pulls `@effect/platform-node`, which would drag
+// `@smthrs/targets` and `@smthrs/build-cli` are `private: true` and never published, so
+// the published `@smthrs/flows` would depend on packages no consumer can
+// resolve; and `@smthrs/build-cli` pulls `@effect/platform-node`, which would drag
 // `node:child_process` into the barrel that `pnpm browser` asserts is
 // browser-safe. Reach them through their own packages.
 const namespaceName = (directory: string) =>
@@ -78,7 +78,7 @@ const packageNamesForGroup = (group: PackageGroup) =>
 const enginePackageNames = packageNamesForGroup("engine")
 const namespacedEnginePackageNames = enginePackageNames
   .filter((name) => name !== "flows" && name !== "flow" && !isPlatformBundle(name))
-// `@smthrs/flow-next` is the one package re-exported FLAT rather than as a single
+// `@smthrs/flow` is the one package re-exported FLAT rather than as a single
 // namespace: writing a flow is the point of the library, so `Flow`,
 // `Action`, `RetryPolicy`, and their siblings sit at the top level. Its
 // contribution is therefore derived from the package's own exports, not from
@@ -118,11 +118,11 @@ describe("barrel", () => {
     expect(packageNamesForGroup("agent").length).toBeGreaterThan(0)
   })
 
-  it("excludes the tsflows build tooling, and there is some to exclude", () => {
+  it("excludes the smthrs build tooling, and there is some to exclude", () => {
     // Same guard as the platform bundles above: the tooling group must remain
     // represented rather than turning its exclusion into a silent no-op.
-    expect(packageNamesForGroup("tooling").sort()).toEqual(["tsflows", "tsflows-cli", "tsflows-rules"])
-    expect(expected.filter((name) => name.startsWith("Tsflows"))).toEqual([])
+    expect(packageNamesForGroup("tooling").sort()).toEqual(["build", "build-cli", "targets"])
+    expect(expected.filter((name) => name.startsWith("Build"))).toEqual([])
   })
 
   it("re-exports every engine package as a namespace", () => {
@@ -155,7 +155,7 @@ describe("barrel", () => {
       return timeTravel
     })
     expect(program).toBeDefined()
-    expect(Flows.TimeTravel.key).toBe("@smthrs/time-travel-next/TimeTravel")
+    expect(Flows.TimeTravel.key).toBe("@smthrs/time-travel/TimeTravel")
     expect(Flows.TimeTravel.layer).toBeDefined()
   })
 })

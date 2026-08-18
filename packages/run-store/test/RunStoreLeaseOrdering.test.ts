@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@effect/vitest"
-import type { DurableWriter } from "@smthrs/database-next"
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
+import type { DurableWriter } from "@smthrs/database"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Effect, Exit } from "effect"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as Migrations from "../src/Migrations.ts"

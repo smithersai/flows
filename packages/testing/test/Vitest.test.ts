@@ -1,4 +1,4 @@
-import * as Journal from "@smthrs/journal-next"
+import * as Journal from "@smthrs/journal"
 import { Clock, Context, Effect, Layer, Ref } from "effect"
 import * as TestClock from "effect/testing/TestClock"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"

@@ -1,4 +1,4 @@
-import { Capability } from "@smthrs/kernel-next"
+import { Capability } from "@smthrs/kernel"
 import { ModelEvent, ModelRequest } from "@smthrs/model"
 import { Descriptor, Registry } from "@smthrs/registry"
 import { Cause, Effect, Layer, Option, Schema, Stream } from "effect"

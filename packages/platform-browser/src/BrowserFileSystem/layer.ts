@@ -3,7 +3,7 @@
  *
  * @since 0.1.0
  */
-import { withIsolatedFileSystem } from "@smthrs/kernel-next/FileSystem"
+import { withIsolatedFileSystem } from "@smthrs/kernel/FileSystem"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import { make } from "./make.ts"

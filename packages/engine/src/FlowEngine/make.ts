@@ -2,7 +2,7 @@
 
 /**
  * Adapts a low-level `Encoded` implementation into the typed `FlowRuntime`
- * port `@smthrs/flow-next` declares.
+ * port `@smthrs/flow` declares.
  *
  * @since 4.0.0
  */
@@ -14,7 +14,7 @@ import {
   FlowRuntime,
   RetryPolicy,
   StepIdentity
-} from "@smthrs/flow-next"
+} from "@smthrs/flow"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
@@ -39,7 +39,7 @@ const toJsonExit = Exit.map((value: any) => value ?? null)
  * @private
  */
 const ActionOrdinalScope = Context.Service<never, string>(
-  "@smthrs/engine-next/FlowEngine/ActionOrdinalScope"
+  "@smthrs/engine/FlowEngine/ActionOrdinalScope"
 )
 
 /**

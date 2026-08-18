@@ -1,7 +1,7 @@
 /**
  * Drives a persisted plan: the node scheduler.
  *
- * `@smthrs/plan-next` makes the plan a value; this makes it run. The scheduler
+ * `@smthrs/plan` makes the plan a value; this makes it run. The scheduler
  * walks the persisted graph, dispatches ready nodes through the same
  * `internal/ActionPersistence` seam every action uses — so the shared step
  * cache, the workspace sandbox's execute→materialize transaction, attempt
@@ -60,15 +60,15 @@
  *
  * @since 0.1.0
  */
-import { Sha256 } from "@smthrs/crypto-next"
-import { FlowEngine } from "@smthrs/engine-next"
-import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
-import { Journal, type JournalEvent } from "@smthrs/journal-next"
-import type { Jj } from "@smthrs/kernel-next"
-import { Plan, PlanStore, StepKey } from "@smthrs/plan-next"
-import * as FileSet from "@smthrs/plan-next/FileSet"
-import type { AttemptStore, Ownership, RunStore } from "@smthrs/run-store-next"
-import type { CacheStore } from "@smthrs/step-cache-next"
+import { Sha256 } from "@smthrs/crypto"
+import { FlowEngine } from "@smthrs/engine"
+import type { FileBoundary } from "@smthrs/flow/FileBoundary"
+import { Journal, type JournalEvent } from "@smthrs/journal"
+import type { Jj } from "@smthrs/kernel"
+import { Plan, PlanStore, StepKey } from "@smthrs/plan"
+import * as FileSet from "@smthrs/plan/FileSet"
+import type { AttemptStore, Ownership, RunStore } from "@smthrs/run-store"
+import type { CacheStore } from "@smthrs/step-cache"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
@@ -169,7 +169,7 @@ export interface Executor {
  * @since 0.1.0
  * @category services
  */
-export class NodeExecutor extends Context.Service<NodeExecutor, Executor>()("@smthrs/engine-store-next/NodeExecutor") {}
+export class NodeExecutor extends Context.Service<NodeExecutor, Executor>()("@smthrs/engine-store/NodeExecutor") {}
 
 /**
  * Provides a plain {@link Executor} value as the {@link NodeExecutor} service.
@@ -291,7 +291,7 @@ export type Requirements =
  * @since 0.1.0
  * @category errors
  */
-export class SchedulerError extends Schema.TaggedError<SchedulerError>()("@smthrs/engine-store-next/SchedulerError", {
+export class SchedulerError extends Schema.TaggedError<SchedulerError>()("@smthrs/engine-store/SchedulerError", {
   code: Schema.Literals(["boundary_unavailable", "key_uncomputable", "elaboration_failed", "store_failed"]),
   message: Schema.String,
   cause: Schema.optional(Schema.Unknown)
@@ -321,7 +321,7 @@ export interface Service {
  * @category services
  */
 export class PlanScheduler
-  extends Context.Service<PlanScheduler, Service>()("@smthrs/engine-store-next/PlanScheduler")
+  extends Context.Service<PlanScheduler, Service>()("@smthrs/engine-store/PlanScheduler")
 {}
 
 /**

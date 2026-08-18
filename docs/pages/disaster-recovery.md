@@ -1,6 +1,6 @@
 # Disaster recovery
 
-How to back up a durable flows store, verify the backup, and restore it after data loss. The durable state of a deployment is one SQLite file (journal, runs, attempts, step cache, engine state) plus one content-addressed objects directory. The tooling lives in `@smthrs/engine-store-next`'s `DisasterRecovery` module and is exposed to operators as `scripts/flows-backup.mjs`. The automated restore drill that pins this whole procedure is `packages/engine-store/test/RestoreDrill.test.ts`.
+How to back up a durable flows store, verify the backup, and restore it after data loss. The durable state of a deployment is one SQLite file (journal, runs, attempts, step cache, engine state) plus one content-addressed objects directory. The tooling lives in `@smthrs/engine-store`'s `DisasterRecovery` module and is exposed to operators as `scripts/flows-backup.mjs`. The automated restore drill that pins this whole procedure is `packages/engine-store/test/RestoreDrill.test.ts`.
 
 ## What a backup contains
 
@@ -23,7 +23,7 @@ node scripts/flows-backup.mjs backup <database-file> <backup-directory> [objects
 The backup directory must be empty or absent. From code, compose `DisasterRecovery.backup` over the existing layers — `SqlClient` on the live database, `FileSystem`, and `Crypto`:
 
 ```ts
-import { DisasterRecovery } from "@smthrs/engine-store-next"
+import { DisasterRecovery } from "@smthrs/engine-store"
 
 const manifest = yield* DisasterRecovery.backup({
   directory: "/backups/2026-08-13T12-00",
@@ -94,4 +94,4 @@ const summary = yield* DisasterRecovery.fence(restored.manifest) // over the res
 - **Remote artifact tiers.** `RemoteArtifacts` content is not walked. The backup captures the local objects directory; a restored store backed by a remote tier heals remote misses through the normal read-through path.
 - **Retention, encryption, and off-host transport.** The backup directory is plain files; scheduling, rotation, encryption, and shipping it off the host are the operator's platform.
 - **Non-SQLite backends.** `backup` speaks SQLite (`VACUUM INTO`) and fails with its `sql` error code on any other `SqlClient`.
-- **Restarting the work.** Restore and fence make the store usable again; they do not run anything. Abandoned runs are not auto-resumed in this release: the supervision runtime in `@smthrs/gateway` is a noop (`packages/gateway/src/SuperviseRuntime.ts`), so nothing scans a restored store and launches a worker for it. `fence` changes every restored `running` row into an ownerless `suspended` row and clears its heartbeat. Those rows are immediately claimable, but they are not stale-running rows and no periodic sweep discovers them. Bring up a process composed through `@smthrs/flows-next/NodeRuntime` with every relevant flow registered, then explicitly re-drive each restored run through its flow definition's `resume(executionId)` operation. The procedure is in [Using the durable engine](https://github.com/smithersai/flows/blob/main/docs/guides/durable-engine.md#abandoned-runs-are-not-auto-resumed).
+- **Restarting the work.** Restore and fence make the store usable again; they do not run anything. Abandoned runs are not auto-resumed in this release: the supervision runtime in `@smthrs/gateway` is a noop (`packages/gateway/src/SuperviseRuntime.ts`), so nothing scans a restored store and launches a worker for it. `fence` changes every restored `running` row into an ownerless `suspended` row and clears its heartbeat. Those rows are immediately claimable, but they are not stale-running rows and no periodic sweep discovers them. Bring up a process composed through `@smthrs/flows/NodeRuntime` with every relevant flow registered, then explicitly re-drive each restored run through its flow definition's `resume(executionId)` operation. The procedure is in [Using the durable engine](https://github.com/smithersai/flows/blob/main/docs/guides/durable-engine.md#abandoned-runs-are-not-auto-resumed).

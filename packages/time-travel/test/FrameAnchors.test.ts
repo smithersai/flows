@@ -8,8 +8,8 @@
  * store contract both implementations answer.
  */
 import { describe, expect, it } from "@effect/vitest"
-import * as Journal from "@smthrs/journal-next/Journal"
-import type * as JournalEvent from "@smthrs/journal-next/JournalEvent"
+import * as Journal from "@smthrs/journal/Journal"
+import type * as JournalEvent from "@smthrs/journal/JournalEvent"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as SnapshotProjector from "../src/internal/SnapshotProjector.ts"

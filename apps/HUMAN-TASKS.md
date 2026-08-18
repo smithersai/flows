@@ -54,7 +54,7 @@ once by a claude agent, and landed on `main` individually.
   (`apps/ui/src/mainview/ZeroBalanceLaunch.test.ts`).
 - **U7** — `pnpm run checklist -- --target <origin>`, runbook at
   `apps/ui/scripts/README.md`. See H4.
-- **U8** — `apps/ui/.gitignore` reconciled, `@smthrs/chain-next` added to
+- **U8** — `apps/ui/.gitignore` reconciled, `@smthrs/chain` added to
   `scripts/browser-check.mjs`, both recorded in `apps/MIGRATION.md`.
 - **Evals** — `.smithers/evals` suite (17 cases) with a committed baseline
   report at 17/17.

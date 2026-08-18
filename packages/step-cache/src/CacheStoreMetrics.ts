@@ -4,7 +4,7 @@
  * This module only defines the metric handles, following the shape of Effect's
  * `ClusterMetrics`. `CacheStore` updates them as lookups and recordings
  * resolve. No exporter ships in this package; provide one — for example
- * `@smthrs/observability-next` — and these counters appear in it.
+ * `@smthrs/observability` — and these counters appear in it.
  *
  * @since 0.1.0
  */

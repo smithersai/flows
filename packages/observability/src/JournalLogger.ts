@@ -3,8 +3,8 @@
  *
  * @since 0.1.0
  */
-import * as Journal from "@smthrs/journal-next/Journal"
-import * as JournalEvent from "@smthrs/journal-next/JournalEvent"
+import * as Journal from "@smthrs/journal/Journal"
+import * as JournalEvent from "@smthrs/journal/JournalEvent"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Logger from "effect/Logger"

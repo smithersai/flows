@@ -3,8 +3,8 @@
  *
  * @since 0.1.0
  */
-import type { LivenessEvidence, OwnerId } from "@smthrs/run-store-next/Ownership"
-import type { RunRow } from "@smthrs/run-store-next/RunStore"
+import type { LivenessEvidence, OwnerId } from "@smthrs/run-store/Ownership"
+import type { RunRow } from "@smthrs/run-store/RunStore"
 import { Context, Effect, Layer, Schema } from "effect"
 
 /**

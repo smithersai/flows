@@ -11,7 +11,7 @@ Most of what you would want from an observability stack is already a durable row
 | what happened to this run, in order | `Journal.entries({ runId, limit })` |
 | what is happening now | `Journal.stream({ runId, afterSequence })` |
 | a derived view over history | `Journal.project(projection, options)` |
-| the same from another process | `@smthrs/sync-next` `Read` and `Subscribe` |
+| the same from another process | `@smthrs/sync` `Read` and `Subscribe` |
 | the state at a past point | `TimeTravel.inspect(position, projection)` |
 | the resync point of a compacted run | `Journal.latestCheckpoint(runId)` |
 
@@ -27,19 +27,19 @@ Executable state is deliberately outside that chokepoint. Run state, attempt che
 
 ## Tracing
 
-`@smthrs/flow-next` and `@smthrs/engine-next` open the spans below through Effect's tracer. These packages install no exporter; provide one from your application — `@smthrs/observability-next` is the shipped default, wired on [Telemetry](/telemetry) — and these spans appear in it.
+`@smthrs/flow` and `@smthrs/engine` open the spans below through Effect's tracer. These packages install no exporter; provide one from your application — `@smthrs/observability` is the shipped default, wired on [Telemetry](/telemetry) — and these spans appear in it.
 
 | Span | Attributes | Source |
 | --- | --- | --- |
-| `<FlowTag>.execute` | `executionId` | `@smthrs/flow-next` `Flow/make.ts` |
-| `<FlowTag>.poll` | `executionId` | `@smthrs/flow-next` `Flow/make.ts` |
-| `<FlowTag>.interrupt` | `executionId` | `@smthrs/flow-next` `Flow/make.ts` |
-| `<FlowTag>.resume` | `executionId` | `@smthrs/flow-next` `Flow/make.ts` |
-| `Action.execute` | `executionId`, `action`, `attempt`, `tier`, `outcome` | `@smthrs/flow-next` `Action/make.ts`, around every action dispatch; the computed key is on its `FlowEngine.actionExecute` child span |
-| `FlowEngine.deferredResult` | `name`, `executionId` | `@smthrs/engine-next` `FlowEngine/make.ts` |
-| `FlowEngine.deferredDone` | `name`, `executionId` | `@smthrs/engine-next` `FlowEngine/make.ts` |
-| `FlowEngine.scheduleClock` | `executionId`, `name` | `@smthrs/engine-next` `FlowEngine/make.ts` |
-| `DurableQueue/<name>/worker` | parented to the offering span through `Tracer.externalSpan` | `@smthrs/flow-next` `DurableQueue.ts` |
+| `<FlowTag>.execute` | `executionId` | `@smthrs/flow` `Flow/make.ts` |
+| `<FlowTag>.poll` | `executionId` | `@smthrs/flow` `Flow/make.ts` |
+| `<FlowTag>.interrupt` | `executionId` | `@smthrs/flow` `Flow/make.ts` |
+| `<FlowTag>.resume` | `executionId` | `@smthrs/flow` `Flow/make.ts` |
+| `Action.execute` | `executionId`, `action`, `attempt`, `tier`, `outcome` | `@smthrs/flow` `Action/make.ts`, around every action dispatch; the computed key is on its `FlowEngine.actionExecute` child span |
+| `FlowEngine.deferredResult` | `name`, `executionId` | `@smthrs/engine` `FlowEngine/make.ts` |
+| `FlowEngine.deferredDone` | `name`, `executionId` | `@smthrs/engine` `FlowEngine/make.ts` |
+| `FlowEngine.scheduleClock` | `executionId`, `name` | `@smthrs/engine` `FlowEngine/make.ts` |
+| `DurableQueue/<name>/worker` | parented to the offering span through `Tracer.externalSpan` | `@smthrs/flow` `DurableQueue.ts` |
 
 The store packages open one `Effect.fn` span per service operation, named `Module.method` (`RunStore.claim`, `CacheStore.get`, `Journal.emitDurable`, `ActionPersistence.execute`, `PlanScheduler.dispatch`, `WorkspaceSandbox.materialize`, `TimeTravel.fork`, `BranchShare.verify`, `SandboxHealth.probe`, and so on). Every hot-path span annotates the identifiers a debugger needs, as the operation's first statement (`Effect.annotateCurrentSpan`), with values computed mid-operation — a key digest, a diff identity — annotated the moment they exist:
 
@@ -85,14 +85,14 @@ Ambient log context rides on `Effect.annotateLogs`: the run driver annotates `ru
 
 | Aid | Where | Use |
 | --- | --- | --- |
-| `Notifying.wrap` and `Notifying.layer` | `@smthrs/journal-next/test/Notifying` | inject a crash or fence loss at a chosen interstitial around any Effect service |
-| `TestHost.layer` | `@smthrs/kernel-next/test/TestHost` | in-memory filesystem, scripted command interpreter, seeded random, deterministic clock |
-| `TestJournal.layer()` | `@smthrs/journal-next/test/TestJournal` | the SQL journal over in-memory SQLite |
-| `TestStores.layer()` | `@smthrs/engine-store-next/test/TestStores` | the four SQL stores over ONE in-memory SQLite database |
-| `TestDatabase.layer` | `@smthrs/database-next/test/TestDatabase` | in-memory SQLite |
-| `TestSocket.makePair` | `@smthrs/sync-next/test/TestSocket` | a fault-injecting socket pair for sync |
-| `DurableEngineState.layerMemory` | `@smthrs/engine-store-next` | deterministic waits with no database |
-| `Inconsistency.layerStrict` | `@smthrs/engine-store-next` | fail the run on a cache conflict rather than continuing |
+| `Notifying.wrap` and `Notifying.layer` | `@smthrs/journal/test/Notifying` | inject a crash or fence loss at a chosen interstitial around any Effect service |
+| `TestHost.layer` | `@smthrs/kernel/test/TestHost` | in-memory filesystem, scripted command interpreter, seeded random, deterministic clock |
+| `TestJournal.layer()` | `@smthrs/journal/test/TestJournal` | the SQL journal over in-memory SQLite |
+| `TestStores.layer()` | `@smthrs/engine-store/test/TestStores` | the four SQL stores over ONE in-memory SQLite database |
+| `TestDatabase.layer` | `@smthrs/database/test/TestDatabase` | in-memory SQLite |
+| `TestSocket.makePair` | `@smthrs/sync/test/TestSocket` | a fault-injecting socket pair for sync |
+| `DurableEngineState.layerMemory` | `@smthrs/engine-store` | deterministic waits with no database |
+| `Inconsistency.layerStrict` | `@smthrs/engine-store` | fail the run on a cache conflict rather than continuing |
 | stable error codes | `EngineStore.Errors` | switch on `code` or `_tag` when triaging |
 
 ## What is missing
@@ -105,4 +105,4 @@ Ambient log context rides on `Effect.annotateLogs`: the run driver annotates `ru
 
 Latency histograms and store-span attributes, formerly listed here as planned or absent, shipped: dispatch, scheduler-dispatch, and sandbox durations are `Metric.timer` histograms in `EngineStoreMetrics`, and the store spans carry the identifier attributes tabled under Tracing above.
 
-Journal checkpointing and compaction, formerly listed here as planned, shipped in `@smthrs/journal-next`: [Checkpoints and compaction](/compaction).
+Journal checkpointing and compaction, formerly listed here as planned, shipped in `@smthrs/journal`: [Checkpoints and compaction](/compaction).

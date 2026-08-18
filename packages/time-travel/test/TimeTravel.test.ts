@@ -9,11 +9,11 @@
  * user has to remember to make.
  */
 import { describe, expect, it } from "@effect/vitest"
-import * as Jj from "@smthrs/jj-next"
-import { Journal } from "@smthrs/journal-next"
-import type * as JournalEvent from "@smthrs/journal-next/JournalEvent"
-import { RunStore } from "@smthrs/run-store-next"
-import { CacheStore } from "@smthrs/step-cache-next"
+import * as Jj from "@smthrs/jj"
+import { Journal } from "@smthrs/journal"
+import type * as JournalEvent from "@smthrs/journal/JournalEvent"
+import { RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import * as Deferred from "effect/Deferred"
@@ -387,7 +387,7 @@ describe("TimeTravel wiring", () => {
       expect(result.secondPass.archive.archived).toBe(0)
       expect(claimedOwners).toHaveLength(2)
       expect(claimedOwners[0]).not.toEqual(claimedOwners[1])
-      expect(TimeTravel.key).toBe("@smthrs/time-travel-next/TimeTravel")
+      expect(TimeTravel.key).toBe("@smthrs/time-travel/TimeTravel")
       expect(store.state().audits.filter((audit) => audit.status === "completed")).toHaveLength(2)
     }))
 
@@ -431,7 +431,7 @@ describe("TimeTravel wiring", () => {
             expect(restarted).toEqual(first)
             expect(new Set(restarted.map((row) => row.step_key_digest)).size).toBe(2)
             expect(dispatches).toBe(1)
-            expect(TimeTravel.key).toBe("@smthrs/time-travel-next/TimeTravel")
+            expect(TimeTravel.key).toBe("@smthrs/time-travel/TimeTravel")
           }))
       }),
     { timeout: 30_000 }

@@ -3,8 +3,8 @@
  * provided, keyed by the outcome the store actually resolved.
  */
 import { describe, expect, it } from "@effect/vitest"
-import type { DurableWriter } from "@smthrs/database-next"
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
+import type { DurableWriter } from "@smthrs/database"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import * as Effect from "effect/Effect"
 import * as Metric from "effect/Metric"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"

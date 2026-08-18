@@ -7,9 +7,9 @@
  *
  * @since 0.0.0
  */
-import * as TestJournal from "@smthrs/journal-next/test/TestJournal"
-import * as Kernel from "@smthrs/kernel-next"
-import * as TestHost from "@smthrs/kernel-next/test/TestHost"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import * as Kernel from "@smthrs/kernel"
+import * as TestHost from "@smthrs/kernel/test/TestHost"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"

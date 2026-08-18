@@ -1,4 +1,4 @@
-import * as FileSet from "@smthrs/plan-next/FileSet"
+import * as FileSet from "@smthrs/plan/FileSet"
 import * as Schema from "effect/Schema"
 import { describe, expect, it } from "vitest"
 

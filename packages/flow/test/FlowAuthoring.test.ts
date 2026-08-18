@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from "@effect/vitest"
-import { Flow } from "@smthrs/flow-next"
-import { Node, Planned } from "@smthrs/plan-next"
+import { Flow } from "@smthrs/flow"
+import { Node, Planned } from "@smthrs/plan"
 import { Context, Effect, Schema } from "effect"
 
 describe("Flow body and calls", () => {

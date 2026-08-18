@@ -10,9 +10,9 @@
  */
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
 import { describe, expect, it } from "@effect/vitest"
-import { DurableWriter } from "@smthrs/database-next"
-import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
+import { DurableWriter } from "@smthrs/database"
+import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import * as Cause from "effect/Cause"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"

@@ -7,8 +7,8 @@
  * declarations share one name, because that is how a descriptor ends up
  * dispatched to somebody else's implementation.
  */
-import * as Capability from "@smthrs/capability-next/Capability"
-import * as Permission from "@smthrs/capability-next/Permission"
+import * as Capability from "@smthrs/capability/Capability"
+import * as Permission from "@smthrs/capability/Permission"
 import * as Flow from "@smthrs/core/Flow"
 import * as Descriptor from "@smthrs/registry/Descriptor"
 import * as Registry from "@smthrs/registry/Registry"

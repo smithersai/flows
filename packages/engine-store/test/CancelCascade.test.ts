@@ -18,9 +18,9 @@
  * the state machine rather than of a timing hook.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Flow, FlowRuntime } from "@smthrs/flow-next"
-import { Journal } from "@smthrs/journal-next"
-import { Ownership, RunStore } from "@smthrs/run-store-next"
+import { Flow, FlowRuntime } from "@smthrs/flow"
+import { Journal } from "@smthrs/journal"
+import { Ownership, RunStore } from "@smthrs/run-store"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Duration from "effect/Duration"

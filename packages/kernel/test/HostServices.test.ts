@@ -1,7 +1,7 @@
 import { describe, expect, it } from "@effect/vitest"
-import * as Capability from "@smthrs/capability-next/Capability"
-import * as Permission from "@smthrs/capability-next/Permission"
-import * as HostJj from "@smthrs/jj-next"
+import * as Capability from "@smthrs/capability/Capability"
+import * as Permission from "@smthrs/capability/Permission"
+import * as HostJj from "@smthrs/jj"
 import { Effect, Fiber, FileSystem as EffectFileSystem, Option, Path as EffectPath, type PlatformError } from "effect"
 import * as EffectHttpClient from "effect/unstable/http/HttpClient"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"
@@ -45,7 +45,7 @@ describe("HostServices", () => {
       "effect/FileSystem",
       "effect/Path",
       "effect/process/ChildProcessSpawner",
-      "@smthrs/jj-next/Jj",
+      "@smthrs/jj/Jj",
       "effect/HttpClient"
     ])
     expect(HostServices.HostServiceTags).toHaveLength(HostServices.HostServiceIds.length)

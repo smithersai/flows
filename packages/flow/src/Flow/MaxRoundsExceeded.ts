@@ -24,7 +24,7 @@ import * as Schema from "effect/Schema"
  * @since 0.1.0
  */
 export class MaxRoundsExceeded extends Schema.TaggedError<MaxRoundsExceeded>()(
-  "@smthrs/flow-next/MaxRoundsExceeded",
+  "@smthrs/flow/MaxRoundsExceeded",
   {
     code: Schema.Literal("max_rounds_exceeded").pipe(
       Schema.withConstructorDefault(Effect.succeed("max_rounds_exceeded"))

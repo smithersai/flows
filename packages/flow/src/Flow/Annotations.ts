@@ -5,7 +5,7 @@
  *
  * @since 4.0.0
  */
-import * as FileSet from "@smthrs/plan-next/FileSet"
+import * as FileSet from "@smthrs/plan/FileSet"
 import * as Context from "effect/Context"
 import { constFalse, constTrue } from "effect/Function"
 import * as Schema from "effect/Schema"
@@ -59,7 +59,7 @@ export type PlacementDirective = typeof PlacementDirective.Type
  * @since 0.1.0
  */
 export const Capabilities = Context.Reference<ReadonlyArray<string>>(
-  "@smthrs/flow-next/Flow/Capabilities",
+  "@smthrs/flow/Flow/Capabilities",
   { defaultValue: () => [] }
 )
 
@@ -69,7 +69,7 @@ export const Capabilities = Context.Reference<ReadonlyArray<string>>(
  * @category annotations
  * @since 0.1.0
  */
-export const EffectsDeclaration = Context.Service<Effects>("@smthrs/flow-next/Flow/EffectsDeclaration")
+export const EffectsDeclaration = Context.Service<Effects>("@smthrs/flow/Flow/EffectsDeclaration")
 
 /**
  * Required annotation key for a flow's schema-encodable placement directive.
@@ -77,7 +77,7 @@ export const EffectsDeclaration = Context.Service<Effects>("@smthrs/flow-next/Fl
  * @category annotations
  * @since 0.1.0
  */
-export const Placement = Context.Service<PlacementDirective>("@smthrs/flow-next/Flow/Placement")
+export const Placement = Context.Service<PlacementDirective>("@smthrs/flow/Flow/Placement")
 
 /**
  * Captures defects for a flow and includes them in the result of the flow or its actions.
@@ -90,7 +90,7 @@ export const Placement = Context.Service<PlacementDirective>("@smthrs/flow-next/
  * @since 4.0.0
  */
 export const CaptureDefects = Context.Reference<boolean>(
-  "@smthrs/flow-next/Flow/CaptureDefects",
+  "@smthrs/flow/Flow/CaptureDefects",
   {
     defaultValue: constTrue
   }
@@ -107,7 +107,7 @@ export const CaptureDefects = Context.Reference<boolean>(
  * @since 4.0.0
  */
 export const SuspendOnFailure = Context.Reference<boolean>(
-  "@smthrs/flow-next/Flow/SuspendOnFailure",
+  "@smthrs/flow/Flow/SuspendOnFailure",
   {
     defaultValue: constFalse
   }

@@ -1,4 +1,4 @@
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"

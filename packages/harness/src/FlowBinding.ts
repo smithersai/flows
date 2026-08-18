@@ -37,7 +37,7 @@
  *
  * @since 0.1.0
  */
-import * as Permission from "@smthrs/capability-next/Permission"
+import * as Permission from "@smthrs/capability/Permission"
 import type * as Effects from "@smthrs/core/Effects"
 import * as Descriptor from "@smthrs/registry/Descriptor"
 import * as Registry from "@smthrs/registry/Registry"

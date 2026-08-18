@@ -7,10 +7,10 @@
  * shared cache even when the declared output capture succeeds.
  */
 import { describe, expect, it } from "@effect/vitest"
-import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
-import { Jj } from "@smthrs/kernel-next"
-import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store-next"
-import { CacheStore } from "@smthrs/step-cache-next"
+import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
+import { Jj } from "@smthrs/kernel"
+import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"

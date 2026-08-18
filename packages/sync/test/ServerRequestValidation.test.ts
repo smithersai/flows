@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest"
-import { Journal, JournalEvent } from "@smthrs/journal-next"
+import { Journal, JournalEvent } from "@smthrs/journal"
 import { Effect, Layer, Schema, Stream } from "effect"
 import * as RunCatalog from "../src/RunCatalog.ts"
 import * as SyncPrincipal from "../src/SyncPrincipal.ts"

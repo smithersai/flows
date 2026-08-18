@@ -29,10 +29,10 @@
  * flow body never ran.
  */
 import { describe, expect, it } from "@effect/vitest"
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
-import { Flow, FlowRuntime } from "@smthrs/flow-next"
-import { SqlJournal } from "@smthrs/journal-next"
-import { RunStore } from "@smthrs/run-store-next"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import { Flow, FlowRuntime } from "@smthrs/flow"
+import { SqlJournal } from "@smthrs/journal"
+import { RunStore } from "@smthrs/run-store"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"

@@ -64,7 +64,7 @@ export interface DurableQueue<
  * **Example** (Defining a durable queue with workers)
  *
  * ```ts
- * import { Action, DurableQueue, Flow, Interpreter } from "@smthrs/flow-next"
+ * import { Action, DurableQueue, Flow, Interpreter } from "@smthrs/flow"
  * import { Effect, Layer, Schema } from "effect"
  *
  * // Define a DurableQueue that can be used to derive workers and offer items for

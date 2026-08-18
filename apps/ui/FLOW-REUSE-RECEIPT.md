@@ -113,7 +113,7 @@ imported upstream API names, and the chat.smithers.sh wire paths.
 
 ## Workarounds taken
 
-1. **`pnpm install` could not run.** `packages/tsflows/package.json` carries an
+1. **`pnpm install` could not run.** `packages/build/package.json` carries an
    unresolved jj rebase conflict (`<<<<<<< conflict 1 of 1`) in the working
    copy, which makes the manifest invalid JSON and aborts every pnpm command.
    It is not this port's file and `packages/` was read-only, so it was not
@@ -130,7 +130,7 @@ imported upstream API names, and the chat.smithers.sh wire paths.
    prefix so a human sees the handler's own copy. It fails safe. Entry 1 below
    is the honest fix.
 3. **The chain adapter survives stage 2.** `chain/FlowCatalog.ts` still restates
-   bindings in `@smthrs/chain-next`'s `Catalog.Entry` shape, because the chain
+   bindings in `@smthrs/chain`'s `Catalog.Entry` shape, because the chain
    runtime is still the agent loop. It holds no source of truth of its own and
    is deleted when stage 3's blocker clears.
 

@@ -2,7 +2,7 @@
  * The fencing token the journal accepts on durable appends.
  *
  * `OwnerId` lives here rather than with the ownership *arbitration* in
- * `@smthrs/run-store-next` because the journal is what it fences: `emitDurable`
+ * `@smthrs/run-store` because the journal is what it fences: `emitDurable`
  * takes an owner and refuses the append when the persisted fence has moved on.
  * The journal therefore defines the token, and the run store — which stores it
  * on runs and arbitrates who holds it — imports it.

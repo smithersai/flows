@@ -4,10 +4,10 @@
  * Revived from the module deleted at `f5f3dda` (then
  * `packages/keys/src/StepKey.ts`). Two deliberate deviations from the original:
  *
- * 1. **It lives here, not in `@smthrs/keys-next`.** That package was reduced to the
+ * 1. **It lives here, not in `@smthrs/keys`.** That package was reduced to the
  *    single `Key` transformation on purpose; a compiler that understands plan
  *    material belongs above it.
- * 2. **It produces `@smthrs/keys-next` `Key` values, not a second `sk1_` digest
+ * 2. **It produces `@smthrs/keys` `Key` values, not a second `sk1_` digest
  *    format.** The original minted its own prefix over a private `Digest`
  *    module. The engine dispatches under `Key` (`FlowEngine/ActionKey.ts`),
  *    so a plan whose node keys were a *different* string format could never be
@@ -25,7 +25,7 @@
  *
  * @since 0.1.0
  */
-import { Key } from "@smthrs/keys-next"
+import { Key } from "@smthrs/keys"
 import type * as Crypto from "effect/Crypto"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
@@ -53,7 +53,7 @@ export type StepKey = Key
  * @since 0.1.0
  * @category symbols
  */
-const DigestInputTypeId: unique symbol = Symbol.for("@smthrs/plan-next/StepKey/DigestInput")
+const DigestInputTypeId: unique symbol = Symbol.for("@smthrs/plan/StepKey/DigestInput")
 
 /**
  * A precomputed digest supplied as a step input rather than a literal value.
@@ -224,7 +224,7 @@ export interface OrdinalIdentity {
  * @since 0.1.0
  * @category errors
  */
-export class KeyMaterialError extends Schema.TaggedError<KeyMaterialError>()("@smthrs/plan-next/KeyMaterialError", {
+export class KeyMaterialError extends Schema.TaggedError<KeyMaterialError>()("@smthrs/plan/KeyMaterialError", {
   code: Schema.Literals(["missing_dependency", "non_content_material"]),
   message: Schema.String
 }) {}

@@ -10,8 +10,8 @@
  *
  * @since 0.1.0
  */
-import { Sha256 } from "@smthrs/crypto-next"
-import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
+import { Sha256 } from "@smthrs/crypto"
+import type { FileBoundary } from "@smthrs/flow/FileBoundary"
 import * as Cause from "effect/Cause"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"

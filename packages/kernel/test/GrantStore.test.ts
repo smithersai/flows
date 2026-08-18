@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@effect/vitest"
-import { Capability, CapabilityPattern } from "@smthrs/capability-next/Capability"
-import { GrantStoreError, PermissionDenied, PermissionRequired, Rule } from "@smthrs/capability-next/Permission"
+import { Capability, CapabilityPattern } from "@smthrs/capability/Capability"
+import { GrantStoreError, PermissionDenied, PermissionRequired, Rule } from "@smthrs/capability/Permission"
 import { Deferred, Effect, Fiber } from "effect"
 import { attenuate } from "../src/CapabilitySet.ts"
 import type { GrantEvent } from "../src/GrantEvent.ts"

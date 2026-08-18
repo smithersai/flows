@@ -3,7 +3,7 @@
  *
  * @since 0.1.0
  */
-import * as PersistedPlan from "@smthrs/plan-next/Plan"
+import * as PersistedPlan from "@smthrs/plan/Plan"
 import { Schema } from "effect"
 
 /**

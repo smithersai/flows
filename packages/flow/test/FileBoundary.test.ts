@@ -8,8 +8,8 @@
  * makes the absence legitimate, and that only means anything while the two
  * sets stay disjoint.
  */
-import { FileBoundary } from "@smthrs/flow-next/FileBoundary"
-import { FileSet } from "@smthrs/plan-next"
+import { FileBoundary } from "@smthrs/flow/FileBoundary"
+import { FileSet } from "@smthrs/plan"
 import * as Schema from "effect/Schema"
 import { describe, expect, it } from "vitest"
 

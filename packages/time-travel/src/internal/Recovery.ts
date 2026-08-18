@@ -3,11 +3,11 @@
  *
  * @since 0.1.0
  */
-import type { Jj } from "@smthrs/jj-next"
-import * as Journal from "@smthrs/journal-next/Journal"
-import type * as JournalEvent from "@smthrs/journal-next/JournalEvent"
-import type { LivenessEvidence, OwnerId } from "@smthrs/run-store-next/Ownership"
-import * as RunStore from "@smthrs/run-store-next/RunStore"
+import type { Jj } from "@smthrs/jj"
+import * as Journal from "@smthrs/journal/Journal"
+import type * as JournalEvent from "@smthrs/journal/JournalEvent"
+import type { LivenessEvidence, OwnerId } from "@smthrs/run-store/Ownership"
+import * as RunStore from "@smthrs/run-store/RunStore"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"

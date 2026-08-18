@@ -1,6 +1,6 @@
 # Artifact GC
 
-Explicit mark/sweep garbage collection for the content-addressed artifact store. It ships in two halves: `@smthrs/engine-store-next` `ArtifactGc` computes the live set from the durable roots and drives the collection, and `@smthrs/artifacts-next` `ArtifactSweep` enumerates and deletes blobs on the host. Nothing runs automatically; `gc()` is a verb a caller invokes.
+Explicit mark/sweep garbage collection for the content-addressed artifact store. It ships in two halves: `@smthrs/engine-store` `ArtifactGc` computes the live set from the durable roots and drives the collection, and `@smthrs/artifacts` `ArtifactSweep` enumerates and deletes blobs on the host. Nothing runs automatically; `gc()` is a verb a caller invokes.
 
 ## Scope
 
@@ -8,8 +8,8 @@ The composition has two content-addressed stores. Only one accumulates garbage.
 
 | Store | Grows how | Collected here |
 | --- | --- | --- |
-| Artifact store (`.flows/objects`, `@smthrs/artifacts-next`) | Every output over the inline bound is spilled as a blob; nothing deletes a published blob | Yes |
-| Step cache (`flows_step_cache`, `@smthrs/step-cache-next`) | One bounded row per step key | No — its rows are the roots of this graph and never become unreachable; removing one is the eviction policy `CacheStore.evict` already serves |
+| Artifact store (`.flows/objects`, `@smthrs/artifacts`) | Every output over the inline bound is spilled as a blob; nothing deletes a published blob | Yes |
+| Step cache (`flows_step_cache`, `@smthrs/step-cache`) | One bounded row per step key | No — its rows are the roots of this graph and never become unreachable; removing one is the eviction policy `CacheStore.evict` already serves |
 
 The remote artifact tier is also out of scope: a shared tier can neither be enumerated nor safely swept by one client, so it owns its own retention. Bazel draws the same line — its disk-cache collector is client-side while the remote cache keeps its own policy.
 
@@ -23,8 +23,8 @@ The grace period is git's model (`gc.pruneExpire`, two weeks by default): a blob
 ## Usage
 
 ```ts
-import { ArtifactSweep } from "@smthrs/artifacts-next"
-import { ArtifactGc } from "@smthrs/engine-store-next"
+import { ArtifactSweep } from "@smthrs/artifacts"
+import { ArtifactGc } from "@smthrs/engine-store"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 

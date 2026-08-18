@@ -8,9 +8,9 @@
  *
  * @since 0.1.0
  */
-import { Canonical } from "@smthrs/canonical-next"
-import { Sha256 } from "@smthrs/crypto-next"
-import type * as PersistedPlan from "@smthrs/plan-next/Plan"
+import { Canonical } from "@smthrs/canonical"
+import { Sha256 } from "@smthrs/crypto"
+import type * as PersistedPlan from "@smthrs/plan/Plan"
 import { Effect, Schema } from "effect"
 import type { ApprovalTarget } from "../Control.ts"
 import type { Envelope, FlowId, IdempotencyKey, PlanCard, PlanNode, Receipt, RunId } from "../ControlSchema.ts"

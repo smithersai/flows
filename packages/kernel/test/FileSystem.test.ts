@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@effect/vitest"
-import * as Capability from "@smthrs/capability-next/Capability"
-import * as Permission from "@smthrs/capability-next/Permission"
+import * as Capability from "@smthrs/capability/Capability"
+import * as Permission from "@smthrs/capability/Permission"
 import { Effect, FileSystem as EffectFileSystem, Option, Path as EffectPath, type PlatformError, Stream } from "effect"
 import * as FileSystem from "../src/FileSystem.ts"
 import { GrantStore } from "../src/GrantStore.ts"

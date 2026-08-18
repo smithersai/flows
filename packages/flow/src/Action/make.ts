@@ -5,7 +5,7 @@
  *
  * @since 4.0.0
  */
-import * as Node from "@smthrs/plan-next/Node"
+import * as Node from "@smthrs/plan/Node"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Effectable from "effect/Effectable"
@@ -129,7 +129,7 @@ const makeDeclared = <
   // compared by their string key, so re-minting one for an annotated copy of
   // this declaration names the same slot the original does.
   const requirement = Context.Service<Requirement<Tag>, Implementation>(
-    `@smthrs/flow-next/Action/Requirement/${tag}`
+    `@smthrs/flow/Action/Requirement/${tag}`
   )
   const self: Declared<Tag, PayloadSchema, Success, Error> = {
     [TypeId]: TypeId,
@@ -332,7 +332,7 @@ export const makeSystem = <
     never
   >
 
-const isInfraInterrupt = Predicate.isTagged("@smthrs/flow-next/InfraInterrupt")
+const isInfraInterrupt = Predicate.isTagged("@smthrs/flow/InfraInterrupt")
 
 const retryInfraInterrupt = (
   name: string,

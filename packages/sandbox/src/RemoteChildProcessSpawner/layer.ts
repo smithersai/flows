@@ -10,7 +10,7 @@
  *
  * @since 0.1.0
  */
-import * as CommandLine from "@smthrs/kernel-next/CommandLine"
+import * as CommandLine from "@smthrs/kernel/CommandLine"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -186,7 +186,7 @@ const handleOf = (
  * installed by `Provider.open`.
  *
  * The command reaches the provider as the same rendered line
- * `@smthrs/kernel-next/ChildProcessSpawner` writes as the `proc:spawn` capability
+ * `@smthrs/kernel/ChildProcessSpawner` writes as the `proc:spawn` capability
  * resource, so a grant and the thing it authorizes read the same.
  *
  * @category layers

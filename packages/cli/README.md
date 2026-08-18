@@ -45,7 +45,7 @@ Control servers bind `127.0.0.1` by default. See the [control-plane trust postur
 ## Manual smoke: run an agent flow with a real key
 
 The local composition executes approved agent flows through the production
-executor and the SQLite-backed `@smthrs/flows-next/NodeRuntime`. To verify
+executor and the SQLite-backed `@smthrs/flows/NodeRuntime`. To verify
 against a real provider:
 
 1. Create a markdown prompt flow in the project:

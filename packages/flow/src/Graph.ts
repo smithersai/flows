@@ -36,7 +36,7 @@
  * exit condition and the handoff site are visible topology before anything
  * runs, and the predicate rides the branch's key material as a digest.
  *
- * What comes out is `@smthrs/plan-next` shaped: {@link Graph.drafts} feeds
+ * What comes out is `@smthrs/plan` shaped: {@link Graph.drafts} feeds
  * `Plan.compile` and `Plan.append` unchanged, and the `Ref`/`Pending` inputs a
  * node's key material names are what the compiler turns into dependency
  * digests and the plan turns into edges. Structural node ids are derived only
@@ -54,11 +54,11 @@
  *
  * @since 0.1.0
  */
-import { GraphBuildError } from "@smthrs/plan-next/GraphBuildError"
-import * as KeyMaterial from "@smthrs/plan-next/KeyMaterial"
-import * as Node from "@smthrs/plan-next/Node"
-import type * as Plan from "@smthrs/plan-next/Plan"
-import * as Planned from "@smthrs/plan-next/Planned"
+import { GraphBuildError } from "@smthrs/plan/GraphBuildError"
+import * as KeyMaterial from "@smthrs/plan/KeyMaterial"
+import * as Node from "@smthrs/plan/Node"
+import type * as Plan from "@smthrs/plan/Plan"
+import * as Planned from "@smthrs/plan/Planned"
 import * as Context from "effect/Context"
 import * as Option from "effect/Option"
 import * as Predicate from "effect/Predicate"
@@ -353,7 +353,7 @@ const isContainer = (value: unknown): value is Record<string, unknown> | Readonl
  * key — `JSON.parse` produces it as an own data property — and both outcomes
  * are wrong here: a hydrated payload would be planned and run with a field
  * its author wrote missing, and two payloads that differ only in that field
- * would hash to one key. `@smthrs/plan-next`'s AST cloner answers this the
+ * would hash to one key. `@smthrs/plan`'s AST cloner answers this the
  * same way.
  *
  * @private

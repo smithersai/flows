@@ -8,12 +8,12 @@
  *
  * The wiring below is the same one the package's own suites use: a real
  * `SyncServer` over a real SQL journal, connected to a real `SyncClient`
- * through the in-memory socket pair from `@smthrs/sync-next/test/TestSocket`.
+ * through the in-memory socket pair from `@smthrs/sync/test/TestSocket`.
  * Swap the socket for a network transport and the follower code is unchanged.
  */
-import { Journal, JournalEvent } from "@smthrs/journal-next"
-import * as TestSocket from "@smthrs/sync-next/test/TestSocket"
-import * as TestSync from "@smthrs/sync-next/test/TestSync"
+import { Journal, JournalEvent } from "@smthrs/journal"
+import * as TestSocket from "@smthrs/sync/test/TestSocket"
+import * as TestSync from "@smthrs/sync/test/TestSync"
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"
 import * as Stream from "effect/Stream"

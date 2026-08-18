@@ -7,7 +7,7 @@
  * fence the SQL layer enforces).
  */
 import { describe, expect, it } from "@effect/vitest"
-import type { Ownership } from "@smthrs/run-store-next"
+import type { Ownership } from "@smthrs/run-store"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"

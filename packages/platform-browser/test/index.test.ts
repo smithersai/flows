@@ -18,7 +18,7 @@ const bash: BrowserChildProcessSpawner.JustBashLike = {
   run: async (command) => ({ stdout: command, stderr: "", exitCode: 0 })
 }
 
-describe("@smthrs/platform-browser-next barrel", () => {
+describe("@smthrs/platform-browser barrel", () => {
   it("re-exports every module as a namespace", () => {
     expect(Object.keys(Index).sort()).toEqual(
       [

@@ -12,7 +12,7 @@
  * connection, and the stale writer is then released into a database that has
  * moved on.
  *
- * `flows_runs` belongs to `@smthrs/run-store-next`, which depends on this
+ * `flows_runs` belongs to `@smthrs/run-store`, which depends on this
  * package, so the columns the fence reads are stood up here as a fixture — the
  * same contract `JournalFence.test.ts` asserts.
  *
@@ -21,8 +21,8 @@
  * `renewRangeLocked`), reduced to one SQL predicate.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { DurableWriter, layer as writerLayer } from "@smthrs/database-next/DurableWriter"
-import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
+import { DurableWriter, layer as writerLayer } from "@smthrs/database/DurableWriter"
+import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
 import { Context, Deferred, Effect, Fiber, Layer } from "effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { mkdtemp, rm } from "node:fs/promises"

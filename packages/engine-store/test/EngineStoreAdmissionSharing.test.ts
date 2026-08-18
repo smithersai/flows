@@ -18,9 +18,9 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * loser waits out the winner's span and replays its terminal row.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Action, Flow } from "@smthrs/flow-next"
-import { Jj } from "@smthrs/kernel-next"
-import { Node } from "@smthrs/plan-next"
+import { Action, Flow } from "@smthrs/flow"
+import { Jj } from "@smthrs/kernel"
+import { Node } from "@smthrs/plan"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"

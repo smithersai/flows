@@ -7,7 +7,7 @@ own `LICENSE`.
 
 ## Effect (`Effect-TS/effect`)
 
-`@smthrs/engine-next` is a fork of Effect's unstable durable-flow runtime and
+`@smthrs/engine` is a fork of Effect's unstable durable-flow runtime and
 contains substantial portions of that source. The fork point, upstream package
 version, and a module-by-module record of what was vendored and how it was
 changed are documented in `packages/engine/VENDOR.md`:
@@ -52,7 +52,7 @@ above applies to those dependencies as well as to the vendored engine source.
 
 ## jj (`jj-vcs/jj`)
 
-`@smthrs/jj-next` ships `wasm/flows_jj.wasm`, a `wasm32-wasip1` build of
+`@smthrs/jj` ships `wasm/flows_jj.wasm`, a `wasm32-wasip1` build of
 `crates/flows-jj` that statically links `jj-lib` — vendored as the
 `vendor/jj` git submodule, a fork of Jujutsu pinned via `.gitmodules` — and
 jj-lib's transitive Rust dependency closure.

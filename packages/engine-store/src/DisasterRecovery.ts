@@ -31,8 +31,8 @@
  *
  * @since 0.1.0
  */
-import { Sha256 } from "@smthrs/crypto-next"
-import { DurableWriter } from "@smthrs/database-next/DurableWriter"
+import { Sha256 } from "@smthrs/crypto"
+import { DurableWriter } from "@smthrs/database/DurableWriter"
 import * as Clock from "effect/Clock"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
@@ -181,7 +181,7 @@ export type DisasterRecoveryErrorCode = typeof DisasterRecoveryErrorCode.Type
  * @category errors
  */
 export class DisasterRecoveryError extends Schema.TaggedError<DisasterRecoveryError>()(
-  "@smthrs/engine-store-next/DisasterRecoveryError",
+  "@smthrs/engine-store/DisasterRecoveryError",
   {
     code: DisasterRecoveryErrorCode,
     method: Schema.String,

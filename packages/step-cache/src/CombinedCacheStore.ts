@@ -12,7 +12,7 @@
  * is missing from the shared artifact tier — Bazel's REAPI ordering constraint
  * at `UploadManifest.java:630-633`, stated there as "action results may fail to
  * validate server-side if they are accessed before all blobs they refer to are
- * present". `@smthrs/engine-store-next`'s `ArtifactSync` enforces it around
+ * present". `@smthrs/engine-store`'s `ArtifactSync` enforces it around
  * `put`. This module cannot: it does not know what an entry references.
  *
  * *When* the shared copy is written is configurable for the same reason — see
@@ -44,7 +44,7 @@ export interface Options {
    * - `"deferred"`: `put` writes the **local tier only**, and publishing to the
    *   shared tier belongs to the caller.
    *
-   * `"deferred"` exists for one caller: `@smthrs/engine-store-next` commits the
+   * `"deferred"` exists for one caller: `@smthrs/engine-store` commits the
    * cache row and the journal record that explains it inside a single
    * `DurableWriter` transaction, and a host call must never be held across a
    * write transaction — an inline `put` would hold a network round trip inside

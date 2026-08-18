@@ -9,9 +9,9 @@
  * journals.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Journal } from "@smthrs/journal-next"
-import { Jj } from "@smthrs/kernel-next"
-import { type Ownership, RunStore } from "@smthrs/run-store-next"
+import { Journal } from "@smthrs/journal"
+import { Jj } from "@smthrs/kernel"
+import { type Ownership, RunStore } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as ActionPersistence from "../src/internal/ActionPersistence.ts"

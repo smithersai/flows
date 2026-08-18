@@ -8,7 +8,7 @@
  *
  * @since 0.1.0
  */
-import { Action } from "@smthrs/flow-next"
+import { Action } from "@smthrs/flow"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import type { FlowsConfig } from "./Config.ts"

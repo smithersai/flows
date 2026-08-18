@@ -3,7 +3,7 @@
  * `docs/specs/Research/Pi Reference Findings 2026-07-27.md`.
  * Coverage manifest: `docs/reference/test-parity.md`.
  */
-import type { JournalEvent } from "@smthrs/journal-next"
+import type { JournalEvent } from "@smthrs/journal"
 import { ModelEvent, ModelRequest } from "@smthrs/model"
 import { Option, Result, Schema } from "effect"
 import { describe, expect, it } from "vitest"

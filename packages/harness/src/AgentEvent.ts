@@ -3,7 +3,7 @@
  *
  * @since 0.1.0
  */
-import * as Permission from "@smthrs/capability-next/Permission"
+import * as Permission from "@smthrs/capability/Permission"
 import * as ModelEvent from "@smthrs/model/ModelEvent"
 import * as ModelRequest from "@smthrs/model/ModelRequest"
 import { Schema } from "effect"

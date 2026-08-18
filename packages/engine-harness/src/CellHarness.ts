@@ -30,8 +30,8 @@
  *
  * @since 0.1.0
  */
-import * as Capability from "@smthrs/capability-next/Capability"
-import type { FlowRuntime } from "@smthrs/flow-next"
+import * as Capability from "@smthrs/capability/Capability"
+import type { FlowRuntime } from "@smthrs/flow"
 import type * as AgentEvent from "@smthrs/harness/AgentEvent"
 import type * as Cell from "@smthrs/harness/Cell"
 import * as CellCalls from "@smthrs/harness/CellCalls"

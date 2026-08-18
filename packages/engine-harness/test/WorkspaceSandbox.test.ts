@@ -1,5 +1,5 @@
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
-import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
+import type { FileBoundary } from "@smthrs/flow/FileBoundary"
 import { Crypto, Effect, Layer } from "effect"
 import { describe, expect, it } from "vitest"
 import * as InMemoryWorkspaceSandbox from "../src/InMemoryWorkspaceSandbox.ts"

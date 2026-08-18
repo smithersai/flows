@@ -4,7 +4,7 @@
  * @since 0.1.0
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Journal, JournalEvent } from "@smthrs/journal-next"
+import { Journal, JournalEvent } from "@smthrs/journal"
 import { Effect, Fiber, type Scope, Stream } from "effect"
 import * as SyncClient from "../src/SyncClient.ts"
 import * as SyncRpcs from "../src/SyncRpcs.ts"

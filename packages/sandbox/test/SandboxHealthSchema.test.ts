@@ -73,20 +73,20 @@ describe("SandboxHealth durable schemas", () => {
     const decodedWithoutCause = Schema.decodeSync(ProviderError)(encodedWithoutCause)
 
     expect(encodedWithCause).toEqual({
-      _tag: "@smthrs/sandbox-next/RemoteChildProcessSpawner/ProviderError",
+      _tag: "@smthrs/sandbox/RemoteChildProcessSpawner/ProviderError",
       code: "unavailable",
       message: "remote session disappeared",
       cause: { retryable: false }
     })
     expect(encodedWithoutCause).toEqual({
-      _tag: "@smthrs/sandbox-next/RemoteChildProcessSpawner/ProviderError",
+      _tag: "@smthrs/sandbox/RemoteChildProcessSpawner/ProviderError",
       code: "unknown",
       message: "unclassified provider error"
     })
     expect(Object.hasOwn(decodedWithCause, "cause")).toBe(true)
     expect(Object.hasOwn(decodedWithoutCause, "cause")).toBe(false)
-    expect(decodedWithCause._tag).toBe("@smthrs/sandbox-next/RemoteChildProcessSpawner/ProviderError")
-    expect(decodedWithoutCause._tag).toBe("@smthrs/sandbox-next/RemoteChildProcessSpawner/ProviderError")
+    expect(decodedWithCause._tag).toBe("@smthrs/sandbox/RemoteChildProcessSpawner/ProviderError")
+    expect(decodedWithoutCause._tag).toBe("@smthrs/sandbox/RemoteChildProcessSpawner/ProviderError")
   })
 
   it("decodes a journal-shaped health payload while discarding an unknown future field", () => {

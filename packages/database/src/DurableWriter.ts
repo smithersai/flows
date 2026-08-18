@@ -8,7 +8,7 @@
  * The SQL client is Effect's own `SqlClient` service and is consumed
  * directly for queries; this module adds only the write policy the durable
  * stores share, plus the dialect-neutral error vocabulary. Domain schema and
- * operations remain in `@smthrs/journal-next`.
+ * operations remain in `@smthrs/journal`.
  *
  * @since 0.1.0
  */
@@ -39,7 +39,7 @@ export type DatabaseErrorCode = typeof DatabaseErrorCode.Type
  * @category errors
  * @since 0.1.0
  */
-export class DatabaseError extends Schema.TaggedError<DatabaseError>()("@smthrs/database-next/DatabaseError", {
+export class DatabaseError extends Schema.TaggedError<DatabaseError>()("@smthrs/database/DatabaseError", {
   code: DatabaseErrorCode,
   cause: Schema.optional(Schema.Defect())
 }) {}
@@ -84,7 +84,7 @@ export interface Service {
  * @category services
  * @since 0.1.0
  */
-export class DurableWriter extends Context.Service<DurableWriter, Service>()("@smthrs/database-next/DurableWriter") {}
+export class DurableWriter extends Context.Service<DurableWriter, Service>()("@smthrs/database/DurableWriter") {}
 
 const causeCode = (cause: unknown): string | undefined => {
   if (typeof cause !== "object" || cause === null || !("code" in cause)) {

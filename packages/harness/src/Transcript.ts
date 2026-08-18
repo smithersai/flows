@@ -3,7 +3,7 @@
  *
  * @since 0.1.0
  */
-import type { JournalEvent } from "@smthrs/journal-next"
+import type { JournalEvent } from "@smthrs/journal"
 import { ModelRequest } from "@smthrs/model"
 import { Result, Schema } from "effect"
 import * as AgentEvent from "./AgentEvent.ts"

@@ -1,11 +1,11 @@
 import { describe, expect, it } from "@effect/vitest"
-import * as Capability from "@smthrs/capability-next/Capability"
-import { PermissionRequired, Rule } from "@smthrs/capability-next/Permission"
-import * as JournalModule from "@smthrs/journal-next/Journal"
-import { Journal } from "@smthrs/journal-next/Journal"
-import * as JournalEvent from "@smthrs/journal-next/JournalEvent"
-import { Entry, Input, type RunId, type Seq, type SourceId } from "@smthrs/journal-next/JournalEvent"
-import * as TestJournal from "@smthrs/journal-next/test/TestJournal"
+import * as Capability from "@smthrs/capability/Capability"
+import { PermissionRequired, Rule } from "@smthrs/capability/Permission"
+import * as JournalModule from "@smthrs/journal/Journal"
+import { Journal } from "@smthrs/journal/Journal"
+import * as JournalEvent from "@smthrs/journal/JournalEvent"
+import { Entry, Input, type RunId, type Seq, type SourceId } from "@smthrs/journal/JournalEvent"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Deferred, Effect, Fiber, Layer, Ref } from "effect"
 import type * as Scope from "effect/Scope"
 import { spawnSync } from "node:child_process"
@@ -45,9 +45,9 @@ const grantEventModuleUrl = new URL("../src/GrantEvent.ts", import.meta.url).hre
 const workspaceModuleUrl = new URL("../src/Workspace.ts", import.meta.url).href
 
 const repeatedCursorProgram = `
-  import { Capability, CapabilityPattern } from "@smthrs/capability-next/Capability"
-  import * as JournalModule from "@smthrs/journal-next/Journal"
-  import { Entry } from "@smthrs/journal-next/JournalEvent"
+  import { Capability, CapabilityPattern } from "@smthrs/capability/Capability"
+  import * as JournalModule from "@smthrs/journal/Journal"
+  import { Entry } from "@smthrs/journal/JournalEvent"
   import { Effect } from "effect"
   import * as GrantEvent from ${JSON.stringify(grantEventModuleUrl)}
   import * as JournalGrantStore from ${JSON.stringify(journalGrantStoreModuleUrl)}

@@ -1,7 +1,7 @@
 /**
  * The synchronous face of the main tree's hashing chokepoint.
  *
- * `@smthrs/keys-next/Digest` was deleted at `f5f3dda`, which reduced `@smthrs/keys`
+ * `@smthrs/keys/Digest` was deleted at `f5f3dda`, which reduced `@smthrs/keys`
  * to the canonical `Key` schema and moved hashing to `@smthrs/crypto`'s
  * `Sha256` and canonicalization to `@smthrs/canonical`'s `Canonical`. Both
  * successors are Effect schemas that read the injected `Crypto` service, and
@@ -20,8 +20,8 @@
  *
  * @since 0.1.0
  */
-import { Canonical } from "@smthrs/canonical-next"
-import { Sha256 } from "@smthrs/crypto-next"
+import { Canonical } from "@smthrs/canonical"
+import { Sha256 } from "@smthrs/crypto"
 import * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -75,7 +75,7 @@ const decodeCanonical = Schema.decodeUnknownEffect(Canonical)
 /**
  * Returns the full lowercase SHA-256 digest of UTF-8 string or byte input.
  *
- * This is the signature `@smthrs/keys-next/Digest.digest` carried, preserved so the
+ * This is the signature `@smthrs/keys/Digest.digest` carried, preserved so the
  * agent-side call sites keep producing the digests already recorded in goldens
  * and journals.
  *

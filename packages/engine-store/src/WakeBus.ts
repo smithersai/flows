@@ -70,7 +70,7 @@ export interface Service {
  * @category services
  * @since 0.1.0
  */
-export class WakeBus extends Context.Service<WakeBus, Service>()("@smthrs/engine-store-next/WakeBus") {}
+export class WakeBus extends Context.Service<WakeBus, Service>()("@smthrs/engine-store/WakeBus") {}
 
 /**
  * Constructs a wake bus. Registration and delivery are plain in-memory

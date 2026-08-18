@@ -1,9 +1,9 @@
-# @smthrs/step-cache-next
+# @smthrs/step-cache
 
-Sealed step results addressed by step-key digest. Split out of [`@smthrs/journal-next`](/api/journal); it depends on `@smthrs/database-next` and nothing else, so the package root bundles for the browser.
+Sealed step results addressed by step-key digest. Split out of [`@smthrs/journal`](/api/journal); it depends on `@smthrs/database` and nothing else, so the package root bundles for the browser.
 
 ```ts
-import { CacheStore, Migrations } from "@smthrs/step-cache-next"
+import { CacheStore, Migrations } from "@smthrs/step-cache"
 import * as Layer from "effect/Layer"
 
 const layer = CacheStore.layer.pipe(Layer.provideMerge(Migrations.layer))
@@ -13,8 +13,8 @@ const layer = CacheStore.layer.pipe(Layer.provideMerge(Migrations.layer))
 
 | Import | Source | Platform |
 | --- | --- | --- |
-| `@smthrs/step-cache-next` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/step-cache/src/index.ts) | any |
-| `@smthrs/step-cache-next/test/TestCacheStore` | [src/test/TestCacheStore.ts](https://github.com/smithersai/flows/blob/main/packages/step-cache/src/test/TestCacheStore.ts) | Node |
+| `@smthrs/step-cache` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/step-cache/src/index.ts) | any |
+| `@smthrs/step-cache/test/TestCacheStore` | [src/test/TestCacheStore.ts](https://github.com/smithersai/flows/blob/main/packages/step-cache/src/test/TestCacheStore.ts) | Node |
 
 ## CacheStore
 
@@ -59,7 +59,7 @@ const layer = CacheStore.layer.pipe(Layer.provideMerge(Migrations.layer))
 | `Options` | interface | the `local` and `remote` tiers, plus `publication: "inline" \| "deferred"` |
 | `make`, `layer` | constructor + layer | local-first lookup with write-back into the local SQL store; eviction stays local |
 
-`publication` defaults to `"inline"`, which writes both tiers in `put`. `"deferred"` writes the local tier only and leaves the shared write to the caller — for a caller holding a write transaction, which must never span a host call. `@smthrs/engine-store-next` composes this mode and publishes through its `CacheSync` seam once the transaction commits.
+`publication` defaults to `"inline"`, which writes both tiers in `put`. `"deferred"` writes the local tier only and leaves the shared write to the caller — for a caller holding a write transaction, which must never span a host call. `@smthrs/engine-store` composes this mode and publishes through its `CacheSync` seam once the transaction commits.
 
 ## Migrations
 

@@ -5,8 +5,8 @@
  * body re-driven after a park does with the effects it already ran.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Action, Flow, FlowRuntime, Interpreter, StepIdentity } from "@smthrs/flow-next"
-import { Node, Planned } from "@smthrs/plan-next"
+import { Action, Flow, FlowRuntime, Interpreter, StepIdentity } from "@smthrs/flow"
+import { Node, Planned } from "@smthrs/plan"
 import { Cause, Deferred, Effect, Exit, Fiber, Layer, Option, Schema } from "effect"
 import { FlowEngine } from "../src/index.ts"
 import { withCrypto } from "./Crypto.ts"

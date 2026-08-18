@@ -24,7 +24,7 @@ import * as Schema from "effect/Schema"
  *
  * The error is declared here because it is part of the `interrupt` contract
  * this package owns; the durable implementation lives in
- * `@smthrs/engine-store-next`'s `RunDriver`.
+ * `@smthrs/engine-store`'s `RunDriver`.
  *
  * @category errors
  * @since 0.1.0

@@ -4,8 +4,8 @@
  * replay.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Action, DurableDeferred, Flow, FlowRuntime, Graph, Interpreter, WaitFor } from "@smthrs/flow-next"
-import { Node } from "@smthrs/plan-next"
+import { Action, DurableDeferred, Flow, FlowRuntime, Graph, Interpreter, WaitFor } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { withCrypto } from "./Crypto.ts"
@@ -226,7 +226,7 @@ describe("WaitFor refusals", () => {
     Effect.gen(function*() {
       expect(yield* refusal(WaitFor.action.call({}))).toMatchObject({
         error: {
-          _tag: "@smthrs/flow-next/WaitForRequestInvalid",
+          _tag: "@smthrs/flow/WaitForRequestInvalid",
           code: "missing_target",
           message: expect.stringContaining("neither")
         }
@@ -239,7 +239,7 @@ describe("WaitFor refusals", () => {
         yield* refusal(WaitFor.action.call({ name: "gate", token: "anything" }))
       ).toMatchObject({
         error: {
-          _tag: "@smthrs/flow-next/WaitForRequestInvalid",
+          _tag: "@smthrs/flow/WaitForRequestInvalid",
           code: "ambiguous_target",
           message: expect.stringContaining("one wait point")
         }
@@ -250,7 +250,7 @@ describe("WaitFor refusals", () => {
     Effect.gen(function*() {
       expect(yield* refusal(WaitFor.action.call({ token: "not a token" }))).toMatchObject({
         error: {
-          _tag: "@smthrs/flow-next/WaitForRequestInvalid",
+          _tag: "@smthrs/flow/WaitForRequestInvalid",
           code: "malformed_token"
         }
       })
@@ -265,7 +265,7 @@ describe("WaitFor refusals", () => {
 
       expect(yield* refusal(WaitFor.action.call({ token: foreign }))).toMatchObject({
         error: {
-          _tag: "@smthrs/flow-next/WaitForRequestInvalid",
+          _tag: "@smthrs/flow/WaitForRequestInvalid",
           code: "foreign_execution",
           message: expect.stringContaining("some-other-execution")
         }
@@ -284,7 +284,7 @@ describe("WaitFor refusals", () => {
 
       expect(yield* refusal(WaitFor.action.call({ token: foreign }))).toMatchObject({
         error: {
-          _tag: "@smthrs/flow-next/WaitForRequestInvalid",
+          _tag: "@smthrs/flow/WaitForRequestInvalid",
           code: "foreign_execution",
           message: expect.stringContaining("waitFor/other")
         }

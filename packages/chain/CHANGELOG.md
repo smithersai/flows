@@ -1,10 +1,10 @@
-# @smthrs/chain-next
+# @smthrs/chain
 
 ## [Unreleased]
 
 ### Breaking Changes
 
-- Renamed the package from `@smthrs/chain` to `@smthrs/chain-next`, the name
+- Renamed the package from `@smthrs/chain` to `@smthrs/chain`, the name
   every unreleased flows package carries until the smithers parity release.
 
 ### Changed
@@ -16,7 +16,7 @@
   and the sibling `tsconfig.json`, `tsconfig.test.json`, `eslint.config.js`,
   `dprint.json`, `vitest.config.ts`, and build scripts restored.
 - Rewrote the `@smthrs/capability` import specifiers to
-  `@smthrs/capability-next`.
+  `@smthrs/capability`.
 
 ## 0.0.0
 

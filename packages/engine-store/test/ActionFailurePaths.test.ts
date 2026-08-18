@@ -4,11 +4,11 @@
  * attempt rows, and the fence guard on the failed-attempt finish path.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Journal, type JournalEvent } from "@smthrs/journal-next"
-import * as Notifying from "@smthrs/journal-next/test/Notifying"
-import { Jj } from "@smthrs/kernel-next"
-import { AttemptStore, Ownership, RunStore } from "@smthrs/run-store-next"
-import { CacheStore } from "@smthrs/step-cache-next"
+import { Journal, type JournalEvent } from "@smthrs/journal"
+import * as Notifying from "@smthrs/journal/test/Notifying"
+import { Jj } from "@smthrs/kernel"
+import { AttemptStore, Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import type * as Crypto from "effect/Crypto"
@@ -181,7 +181,7 @@ describe("action executor failure paths", () => {
       const failure = Exit.isFailure(result.exit)
         ? Cause.squash(result.exit.cause) as { readonly _tag?: string }
         : {}
-      expect(failure._tag).toBe("@smthrs/engine-store-next/UnsupportedBoundary")
+      expect(failure._tag).toBe("@smthrs/engine-store/UnsupportedBoundary")
       expect(Option.getOrThrow(result.row).state).toBe("failed")
       const eventTypes = result.events.map((event) => event.eventType)
       expect(eventTypes).toContain("flows.engine.hard-violation")
@@ -219,7 +219,7 @@ describe("action executor failure paths", () => {
       const failure = Exit.isFailure(result.exit)
         ? Cause.squash(result.exit.cause) as { readonly _tag?: string }
         : {}
-      expect(failure._tag).toBe("@smthrs/engine-store-next/UnsupportedBoundary")
+      expect(failure._tag).toBe("@smthrs/engine-store/UnsupportedBoundary")
       expect(Option.getOrThrow(result.row).state).toBe("failed")
       const eventTypes = result.events.map((event) => event.eventType)
       expect(eventTypes).toContain("flows.engine.hard-violation")
@@ -255,7 +255,7 @@ describe("action executor failure paths", () => {
       const failure = Exit.isFailure(result.exit)
         ? Cause.squash(result.exit.cause) as { readonly _tag?: string }
         : {}
-      expect(failure._tag).toBe("@smthrs/engine-store-next/UndeclaredWrite")
+      expect(failure._tag).toBe("@smthrs/engine-store/UndeclaredWrite")
       expect(Option.getOrThrow(result.row).state).toBe("failed")
       expect(Option.isNone(result.cached)).toBe(true)
       const eventTypes = result.events.map((event) => event.eventType)
@@ -288,7 +288,7 @@ describe("action executor failure paths", () => {
       const failure = Exit.isFailure(result.exit)
         ? Cause.squash(result.exit.cause) as { readonly _tag?: string }
         : {}
-      expect(failure._tag).toBe("@smthrs/engine-store-next/AttemptSuspended")
+      expect(failure._tag).toBe("@smthrs/engine-store/AttemptSuspended")
     }))
 
   it.effect("fence lost while finishing a FAILED attempt: the finish is discarded and no failed lifecycle record leaks", () =>

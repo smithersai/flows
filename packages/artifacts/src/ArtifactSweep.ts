@@ -92,7 +92,7 @@ export interface Service {
  * @category services
  * @since 0.1.0
  */
-export class ArtifactSweep extends Context.Service<ArtifactSweep, Service>()("@smthrs/artifacts-next/ArtifactSweep") {}
+export class ArtifactSweep extends Context.Service<ArtifactSweep, Service>()("@smthrs/artifacts/ArtifactSweep") {}
 
 const error = (message: string, cause?: unknown): ArtifactStore.ArtifactStoreError =>
   new ArtifactStore.ArtifactStoreError({

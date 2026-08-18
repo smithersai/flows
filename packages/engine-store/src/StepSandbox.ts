@@ -3,8 +3,8 @@
  *
  * @since 0.1.0
  */
-import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
-import * as KernelWorkspace from "@smthrs/kernel-next/Workspace"
+import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
+import * as KernelWorkspace from "@smthrs/kernel/Workspace"
 import * as Context from "effect/Context"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
@@ -21,7 +21,7 @@ import * as WorkspaceSandbox from "./WorkspaceSandbox.ts"
  * @since 0.1.0
  */
 export class UndeclaredRead extends Schema.TaggedError<UndeclaredRead>()(
-  "@smthrs/engine-store-next/UndeclaredRead",
+  "@smthrs/engine-store/UndeclaredRead",
   {
     code: Schema.Literal("undeclared_read"),
     paths: Schema.Array(Schema.String),
@@ -46,7 +46,7 @@ export interface Service {
  * @since 0.1.0
  */
 export const StepSandbox: Context.Service<Service, Service> = Context.Service<Service>(
-  "@smthrs/engine-store-next/StepSandbox"
+  "@smthrs/engine-store/StepSandbox"
 )
 
 /**

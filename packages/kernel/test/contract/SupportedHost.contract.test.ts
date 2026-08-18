@@ -5,8 +5,8 @@
  * unsupported — a scripted interpreter takes no stdin, and a browser-shaped
  * bundle has no jj and no network — so the suite's "declared supported"
  * branches for stdin, Jj, and HttpClient would otherwise go unasserted
- * here. The real bundles that exercise them live in `@smthrs/platform-node-next`
- * and `@smthrs/platform-bun-next`, which the kernel must not depend on: a
+ * here. The real bundles that exercise them live in `@smthrs/platform-node`
+ * and `@smthrs/platform-bun`, which the kernel must not depend on: a
  * capability kernel that needed a platform package to be tested would not be
  * a kernel.
  *
@@ -16,12 +16,12 @@
  * It also takes **every default the suite offers** — no `execCommand`, no
  * `scratchPath`. Those `??` fallbacks are the suite's own contract with an
  * adapter author who declares nothing, and the only other bundle that
- * exercised them (`NodeHostDefaults`) now lives in `@smthrs/platform-node-next`.
+ * exercised them (`NodeHostDefaults`) now lives in `@smthrs/platform-node`.
  * A default nobody runs is a default nobody has checked.
  */
-import * as JjService from "@smthrs/jj-next"
-import type { Jj } from "@smthrs/jj-next"
-import * as BrowserFileSystem from "@smthrs/platform-browser-next/BrowserFileSystem"
+import * as JjService from "@smthrs/jj"
+import type { Jj } from "@smthrs/jj"
+import * as BrowserFileSystem from "@smthrs/platform-browser/BrowserFileSystem"
 import { Effect, Layer, Path, Sink, Stream } from "effect"
 import * as EffectHttpClient from "effect/unstable/http/HttpClient"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"

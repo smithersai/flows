@@ -9,7 +9,7 @@ import * as NodeOtel from "../src/NodeOtel.ts"
  * them down. Nothing here networks — the OTLP exporters buffer until their
  * batch interval, and the scope closes first.
  *
- * These layers are reached by subpath (`@smthrs/observability-next/NodeOtel`)
+ * These layers are reached by subpath (`@smthrs/observability/NodeOtel`)
  * rather than from the root entry, which stays free of `node:` imports so the
  * package keeps bundling for the browser.
  */

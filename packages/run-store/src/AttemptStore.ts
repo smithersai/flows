@@ -13,8 +13,8 @@
  *
  * @since 0.1.0
  */
-import { DatabaseError, DurableWriter } from "@smthrs/database-next/DurableWriter"
-import type { OwnerId } from "@smthrs/journal-next/OwnerId"
+import { DatabaseError, DurableWriter } from "@smthrs/database/DurableWriter"
+import type { OwnerId } from "@smthrs/journal/OwnerId"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -58,7 +58,7 @@ export type AttemptStoreErrorCode = typeof AttemptStoreErrorCode.Type
  * @since 0.1.0
  */
 export class AttemptStoreError extends Schema.TaggedError<AttemptStoreError>()(
-  "@smthrs/run-store-next/AttemptStoreError",
+  "@smthrs/run-store/AttemptStoreError",
   {
     code: AttemptStoreErrorCode,
     message: Schema.String,
@@ -292,7 +292,7 @@ export interface Service {
  * @category services
  * @since 0.1.0
  */
-export class AttemptStore extends Context.Service<AttemptStore, Service>()("@smthrs/run-store-next/AttemptStore") {}
+export class AttemptStore extends Context.Service<AttemptStore, Service>()("@smthrs/run-store/AttemptStore") {}
 
 const NonNegativeSafeInt = Schema.Int.check(
   Schema.isGreaterThanOrEqualTo(0),

@@ -31,12 +31,12 @@
  * @since 0.1.0
  */
 import * as Flow from "@smthrs/core/Flow"
-import { DurableClock } from "@smthrs/flow-next"
-import type { FlowRuntime } from "@smthrs/flow-next"
+import { DurableClock } from "@smthrs/flow"
+import type { FlowRuntime } from "@smthrs/flow"
 import * as FlowBinding from "@smthrs/harness/FlowBinding"
 import type { HarnessError } from "@smthrs/harness/HarnessError"
-import type * as ChildProcessSpawner from "@smthrs/kernel-next/ChildProcessSpawner"
-import type * as Path from "@smthrs/kernel-next/Path"
+import type * as ChildProcessSpawner from "@smthrs/kernel/ChildProcessSpawner"
+import type * as Path from "@smthrs/kernel/Path"
 import * as MemoryFlows from "@smthrs/memory/Flows"
 import type * as MemoryStore from "@smthrs/memory/MemoryStore"
 import type * as Recall from "@smthrs/memory/Recall"

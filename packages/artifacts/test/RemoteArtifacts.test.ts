@@ -123,7 +123,7 @@ describe("downloads", () => {
     Effect.gen(function*() {
       const tier = remote(() => new Response(null, { status: 404 }))
       const exit = yield* withCrypto(Effect.flatMap(tier.store, (store) => store.get(digest)).pipe(Effect.exit))
-      expect((errorOf(exit) as ArtifactStore.ArtifactMissing)._tag).toBe("@smthrs/artifacts-next/ArtifactMissing")
+      expect((errorOf(exit) as ArtifactStore.ArtifactMissing)._tag).toBe("@smthrs/artifacts/ArtifactMissing")
     }))
 
   it.effect("refuses content that does not hash to the requested address", () =>
@@ -133,7 +133,7 @@ describe("downloads", () => {
       const tier = remote(() => new Response("something else entirely"))
       const exit = yield* withCrypto(Effect.flatMap(tier.store, (store) => store.get(digest)).pipe(Effect.exit))
       const failure = errorOf(exit) as ArtifactStore.ArtifactCorruption
-      expect(failure._tag).toBe("@smthrs/artifacts-next/ArtifactCorruption")
+      expect(failure._tag).toBe("@smthrs/artifacts/ArtifactCorruption")
       expect(failure.recordedDigest).toBe(digest)
     }))
 
@@ -211,7 +211,7 @@ describe("downloads", () => {
       const tier = remote(() => new Response(null, { status: 200 }))
       const exit = yield* withCrypto(Effect.flatMap(tier.store, (store) => store.get(digest)).pipe(Effect.exit))
       const failure = errorOf(exit) as ArtifactStore.ArtifactCorruption
-      expect(failure._tag).toBe("@smthrs/artifacts-next/ArtifactCorruption")
+      expect(failure._tag).toBe("@smthrs/artifacts/ArtifactCorruption")
       expect(failure.measuredDigest).toBe(sha256(bytes("")))
     }))
 

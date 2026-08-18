@@ -21,4 +21,4 @@ export * as SuperviseRuntime from "./SuperviseRuntime.ts"
  * @since 0.1.0
  * @category services
  */
-export * as Sync from "@smthrs/sync-next"
+export * as Sync from "@smthrs/sync"

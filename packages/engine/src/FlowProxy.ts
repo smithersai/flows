@@ -11,7 +11,7 @@
  *
  * @since 4.0.0
  */
-import type { Flow } from "@smthrs/flow-next"
+import type { Flow } from "@smthrs/flow"
 import type { NonEmptyReadonlyArray } from "effect/Array"
 import * as Schema from "effect/Schema"
 import * as HttpApiEndpoint from "effect/unstable/httpapi/HttpApiEndpoint"
@@ -42,8 +42,8 @@ const executePayload = <Payload extends Flow.AnyStructSchema>(
  * ```ts
  * import { Layer, Schema } from "effect"
  * import { RpcServer } from "effect/unstable/rpc"
- * import { FlowProxy, FlowProxyServer } from "@smthrs/engine-next"
- * import { Flow } from "@smthrs/flow-next"
+ * import { FlowProxy, FlowProxyServer } from "@smthrs/engine"
+ * import { Flow } from "@smthrs/flow"
  *
  * const EmailFlow = Flow.make("EmailFlow", {
  *   payload: {
@@ -125,8 +125,8 @@ export type ConvertRpcs<Flows extends Flow.Any, Prefix extends string> = Flows e
  * ```ts
  * import { Layer, Schema } from "effect"
  * import { HttpApi, HttpApiBuilder } from "effect/unstable/httpapi"
- * import { FlowProxy, FlowProxyServer } from "@smthrs/engine-next"
- * import { Flow } from "@smthrs/flow-next"
+ * import { FlowProxy, FlowProxyServer } from "@smthrs/engine"
+ * import { Flow } from "@smthrs/flow"
  *
  * const EmailFlow = Flow.make("EmailFlow", {
  *   payload: {

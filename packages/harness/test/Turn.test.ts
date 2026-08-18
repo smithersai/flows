@@ -3,7 +3,7 @@
  * `docs/specs/Research/Pi Reference Findings 2026-07-27.md`.
  * Coverage manifest: `docs/reference/test-parity.md`.
  */
-import { Capability, Permission } from "@smthrs/kernel-next"
+import { Capability, Permission } from "@smthrs/kernel"
 import { Model, ModelError, ModelEvent, ModelRequest } from "@smthrs/model"
 import { Effect, Layer, Option, Schema, Stream } from "effect"
 import { describe, expect, it } from "vitest"

@@ -108,7 +108,7 @@ workspace member, and everything is committed on `merge-agent-packages`.
   kernel, platform-browser; bare: core, memory, model, patterns, registry;
   `@smthrs/ui` remains a published npm dep). `effect` moved
   `4.0.0-beta.102` → `4.0.0-rc.108` (the workspace pin).
-- `@smthrs/chain` was promoted to `packages/chain` as `@smthrs/chain-next`.
+- `@smthrs/chain` was promoted to `packages/chain` as `@smthrs/chain`.
   Why: the upstream agent repo deleted its source (only `dist/` leftovers
   remain there) and the merge spec excluded it, so the vendored copy was
   the only living source. It was verified md5-identical to `agent@ed41681`
@@ -143,5 +143,5 @@ workspace member, and everything is committed on `merge-agent-packages`.
   repo rule says identity = defining module path. Durable-key decision
   deferred to will.
 - Done: `scripts/browser-check.mjs` browser-safe entry list already includes
-  `@smthrs/chain-next` (landed in b57af599); verified green via
+  `@smthrs/chain` (landed in b57af599); verified green via
   `node scripts/browser-check.mjs`.

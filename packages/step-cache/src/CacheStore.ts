@@ -9,8 +9,8 @@
  *
  * @since 0.1.0
  */
-import { Canonical } from "@smthrs/canonical-next/Canonical"
-import { affectedRows, DatabaseError, DurableWriter } from "@smthrs/database-next/DurableWriter"
+import { Canonical } from "@smthrs/canonical/Canonical"
+import { affectedRows, DatabaseError, DurableWriter } from "@smthrs/database/DurableWriter"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -56,7 +56,7 @@ export type CacheStoreErrorCode = typeof CacheStoreErrorCode.Type
  * @since 0.1.0
  */
 export class CacheStoreError extends Schema.TaggedError<CacheStoreError>()(
-  "@smthrs/step-cache-next/CacheStoreError",
+  "@smthrs/step-cache/CacheStoreError",
   {
     code: CacheStoreErrorCode,
     message: Schema.String,
@@ -181,7 +181,7 @@ export interface Service {
  * @category services
  * @since 0.1.0
  */
-export class CacheStore extends Context.Service<CacheStore, Service>()("@smthrs/step-cache-next/CacheStore") {}
+export class CacheStore extends Context.Service<CacheStore, Service>()("@smthrs/step-cache/CacheStore") {}
 
 const CacheRow = Schema.Struct({
   key_digest: Schema.NonEmptyString,
@@ -206,7 +206,7 @@ const error = (code: CacheStoreErrorCode, message: string, cause?: unknown): Cac
  * `ActionPersistence` routes `Conflict` to the `Inconsistency` receiver whose
  * core default verdict is `fail` — the run failed with `CacheConflictDetected`
  * naming a divergence that did not exist. Canonicalizing on the way in makes
- * the text comparison a structural one, which is what `@smthrs/canonical-next`
+ * the text comparison a structural one, which is what `@smthrs/canonical`
  * exists for.
  *
  * `RemoteCacheStore.put` runs the same check before serializing an entry onto

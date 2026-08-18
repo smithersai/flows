@@ -1,7 +1,7 @@
 # SQLite Operating Envelope
 
 This page is the operator contract for a durable store backed by
-`@smthrs/database-next/node/NodeDatabase`. Each assertion points at the source,
+`@smthrs/database/node/NodeDatabase`. Each assertion points at the source,
 test, or upstream database/client document that establishes it.
 
 ## Supported Backend

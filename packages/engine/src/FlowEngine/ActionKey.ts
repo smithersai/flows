@@ -6,8 +6,8 @@
  * @private
  * @since 0.1.0
  */
-import { Action, Flow, StepIdentity } from "@smthrs/flow-next"
-import { Key, type Key as KeyType } from "@smthrs/keys-next"
+import { Action, Flow, StepIdentity } from "@smthrs/flow"
+import { Key, type Key as KeyType } from "@smthrs/keys"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"

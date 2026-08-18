@@ -100,7 +100,7 @@ for name in $(node scripts/pack-release.mjs --names); do
 done
 
 # Provenance attestation is attached.
-npm view @smthrs/flows-next@0.1.0-next.0 --json \
+npm view @smthrs/flows@0.1.0-next.0 --json \
   | node -e 'let s="";process.stdin.on("data",c=>s+=c)
       .on("end",()=>console.log(JSON.parse(s).dist.attestations ?? "NO ATTESTATION"))'
 
@@ -115,7 +115,7 @@ for name in $(node "$repo/scripts/pack-release.mjs" --names); do
 done
 ```
 
-`@smthrs/platform-bun-next` declares `@effect/platform-bun` as an optional peer.
+`@smthrs/platform-bun` declares `@effect/platform-bun` as an optional peer.
 Install it in the verification project too, or that one import fails by design.
 
 ## 5. If it goes wrong
@@ -123,8 +123,8 @@ Install it in the verification project too, or that one import fails by design.
 npm versions are immutable. Do not try to republish a version.
 
 - Broken publish, under 72 hours old and nobody depends on it:
-  `npm unpublish @smthrs/<name>-next@0.1.0-next.0`
-- Otherwise: `npm deprecate @smthrs/<name>-next@0.1.0-next.0 "superseded by
+  `npm unpublish @smthrs/<name>@0.1.0-next.0`
+- Otherwise: `npm deprecate @smthrs/<name>@0.1.0-next.0 "superseded by
   0.1.0-next.1"`, then repeat from step 1 with the next version.
 - Partial publish (some names landed, the run died): fix, re-push the same tag.
   The publish loop leaves published versions in place and continues.

@@ -9,7 +9,7 @@
  *
  * @since 0.0.0
  */
-import type { CancelRequestFailed, FlowCycleDetected } from "@smthrs/flow-next/FlowRuntime"
+import type { CancelRequestFailed, FlowCycleDetected } from "@smthrs/flow/FlowRuntime"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 

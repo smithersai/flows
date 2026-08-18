@@ -601,7 +601,7 @@ They already appear, sometimes inconsistently, in the local architecture docs.
 | G-02 | No durable process-tree registry/reaper | Relevant to agent/child-process integrations; Smithers #972/#1332 and containment commits are direct prior art |
 | G-03 | No checkpoint host capability or durable worktree-lane lifecycle | Smithers checkpoint publication, retry, provenance, restore, and worktree cleanup code is directly applicable |
 | G-04 | No quota-error classifier and wake policy | Smithers provider classification belongs behind an injected seam, not hard-coded in core |
-| G-05 | No packaged production layer at the audit baseline; `@smthrs/flows-next/NodeRuntime` has since shipped the storage-and-engine half | Half the cutover artifact exists; host services, the guarded kernel, `StepBoundary`, and `WorkspaceSandbox` are still the embedder's. `packages/flows/test/NodeRuntime.test.ts` directly gates that module over real SQLite. |
+| G-05 | No packaged production layer at the audit baseline; `@smthrs/flows/NodeRuntime` has since shipped the storage-and-engine half | Half the cutover artifact exists; host services, the guarded kernel, `StepBoundary`, and `WorkspaceSandbox` are still the embedder's. `packages/flows/test/NodeRuntime.test.ts` directly gates that module over real SQLite. |
 | G-06 | SQLite-only shipped storage/migration layers | Smithers' PGlite/Postgres installations cannot adopt the store as written |
 | G-07 | Event-driven resume signal is absent | Polling is correct fallback but adds latency/load and complicates bounded retry semantics |
 | G-08 | Artifact GC is shipped as explicit mark/sweep; chunked transfer and download policy remain absent | Smithers #1349/#1491 make retention and worktree cleanup operational requirements |
@@ -684,10 +684,10 @@ boundaries already debugged under failure:
   scope finalizer ran zero times after terminal cancellation.
 - Focused two-instance branch-command test: failed its exactly-once assertion,
   observing two durable writes for one command ID.
-- TypeScript checks passed for `@smthrs/engine-store-next`,
-  `@smthrs/engine-next`, `@smthrs/run-store-next`,
-  `@smthrs/time-travel-next`, `@smthrs/journal-next`, and
-  `@smthrs/sync-next` at the audit baseline.
+- TypeScript checks passed for `@smthrs/engine-store`,
+  `@smthrs/engine`, `@smthrs/run-store`,
+  `@smthrs/time-travel`, `@smthrs/journal`, and
+  `@smthrs/sync` at the audit baseline.
 - No full repository test run was performed, per repository instructions.
 - All temporary audit tests were removed. Only this report was added; unrelated
   worktree edits were not modified.

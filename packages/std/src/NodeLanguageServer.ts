@@ -11,7 +11,7 @@
  *
  * @since 0.1.0
  */
-import * as ChildProcessSpawner from "@smthrs/kernel-next/ChildProcessSpawner"
+import * as ChildProcessSpawner from "@smthrs/kernel/ChildProcessSpawner"
 import { Deferred, Effect, Layer, Queue, type Scope, Stream } from "effect"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"
 import { pathToFileURL } from "node:url"

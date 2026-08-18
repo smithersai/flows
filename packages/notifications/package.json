@@ -79,7 +79,7 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@smthrs/journal-next": "0.1.0",
+    "@smthrs/journal": "0.1.0",
     "effect": "4.0.0-rc.108"
   },
   "devDependencies": {

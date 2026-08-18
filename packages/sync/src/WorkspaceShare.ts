@@ -38,7 +38,7 @@ import { SyncError } from "./SyncError.ts"
  * @category schemas
  * @since 0.1.0
  */
-export class WorkspaceClaims extends Schema.Class<WorkspaceClaims>("@smthrs/sync-next/WorkspaceShare/WorkspaceClaims")({
+export class WorkspaceClaims extends Schema.Class<WorkspaceClaims>("@smthrs/sync/WorkspaceShare/WorkspaceClaims")({
   kid: Schema.NonEmptyString,
   capabilityId: Schema.NonEmptyString,
   access: Access,
@@ -53,7 +53,7 @@ export class WorkspaceClaims extends Schema.Class<WorkspaceClaims>("@smthrs/sync
  * @since 0.1.0
  */
 export class WorkspaceCapability extends Schema.Class<WorkspaceCapability>(
-  "@smthrs/sync-next/WorkspaceShare/WorkspaceCapability"
+  "@smthrs/sync/WorkspaceShare/WorkspaceCapability"
 )({
   claims: WorkspaceClaims,
   signature: Schema.String
@@ -119,7 +119,7 @@ export interface Service {
  * @category services
  * @since 0.1.0
  */
-export class WorkspaceShare extends Context.Service<WorkspaceShare, Service>()("@smthrs/sync-next/WorkspaceShare") {}
+export class WorkspaceShare extends Context.Service<WorkspaceShare, Service>()("@smthrs/sync/WorkspaceShare") {}
 
 /**
  * Constructs a workspace share authority from an implementation.
@@ -183,7 +183,7 @@ export interface Keyring {
  * signature can never be replayed as any other scheme's signature under a
  * shared secret.
  */
-const schemeLabel = "@smthrs/sync-next/WorkspaceShare/v1"
+const schemeLabel = "@smthrs/sync/WorkspaceShare/v1"
 
 const canonical = (claims: WorkspaceClaims): string =>
   shareSigner.lengthPrefixed([

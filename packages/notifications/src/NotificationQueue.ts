@@ -5,7 +5,7 @@
  *
  * @since 0.1.0
  */
-import { Journal, JournalEvent } from "@smthrs/journal-next"
+import { Journal, JournalEvent } from "@smthrs/journal"
 import { Context, Effect, Layer, Option, Schema } from "effect"
 import type * as NotificationModel from "./Notification.ts"
 import * as NotificationEvent from "./NotificationEvent.ts"

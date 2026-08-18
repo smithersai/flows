@@ -24,7 +24,7 @@ import { canonicalize } from "./internal/canonicalize.ts"
 
 /** @private */
 const CanonicalString = Schema.String.pipe(
-  Schema.brand("@smthrs/canonical-next/Canonical")
+  Schema.brand("@smthrs/canonical/Canonical")
 )
 
 /**

@@ -14,8 +14,8 @@ import type * as Crypto from "effect/Crypto"
  * concurrent invocations distinguishable.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Action, Flow, FlowRuntime, StepIdentity } from "@smthrs/flow-next"
-import { Node } from "@smthrs/plan-next"
+import { Action, Flow, FlowRuntime, StepIdentity } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Cause, Deferred, Effect, Exit, Fiber, Layer, Scheduler, Schema } from "effect"
 import { FlowEngine } from "../src/index.ts"
 import { withCrypto } from "./Crypto.ts"

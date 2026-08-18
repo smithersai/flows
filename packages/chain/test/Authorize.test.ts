@@ -1,5 +1,5 @@
-import { CapabilityPattern } from "@smthrs/capability-next/Capability"
-import { Rule } from "@smthrs/capability-next/Permission"
+import { CapabilityPattern } from "@smthrs/capability/Capability"
+import { Rule } from "@smthrs/capability/Permission"
 import { Effect, Layer, Option } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Author from "../src/Author.ts"

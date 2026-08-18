@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@effect/vitest"
-import { Flow, FlowRuntime } from "@smthrs/flow-next"
-import { Node } from "@smthrs/plan-next"
+import { Flow, FlowRuntime } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Effect, Layer } from "effect"
 import { withCrypto } from "./Crypto.ts"
 import { layerMemory } from "./MemoryFlowRuntime.ts"

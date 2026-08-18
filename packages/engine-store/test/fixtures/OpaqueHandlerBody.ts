@@ -1,4 +1,4 @@
-import { Node } from "@smthrs/plan-next"
+import { Node } from "@smthrs/plan"
 
 /**
  * Marks a test flow whose behavior is supplied directly at the runtime

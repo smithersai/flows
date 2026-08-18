@@ -5,7 +5,7 @@
  * @since 0.1.0
  */
 import * as Credential from "@smthrs/control/Credential"
-import * as HttpClient from "@smthrs/kernel-next/HttpClient"
+import * as HttpClient from "@smthrs/kernel/HttpClient"
 import { Clock, Effect, Layer, Redacted, Schema } from "effect"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
 import * as StdError from "./StdError.ts"

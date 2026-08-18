@@ -7,8 +7,8 @@
  * @since 0.1.0
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Journal, JournalEvent } from "@smthrs/journal-next"
-import * as TestJournal from "@smthrs/journal-next/test/TestJournal"
+import { Journal, JournalEvent } from "@smthrs/journal"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Effect, Encoding, Layer, Redacted, Stream } from "effect"
 import { TestClock } from "effect/testing"
 import * as RpcClient from "effect/unstable/rpc/RpcClient"

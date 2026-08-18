@@ -9,13 +9,13 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * without touching the poisoned evidence or re-running the action.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Action, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow-next"
-import { Journal } from "@smthrs/journal-next"
-import * as Notifying from "@smthrs/journal-next/test/Notifying"
-import { Jj } from "@smthrs/kernel-next"
-import { Node } from "@smthrs/plan-next"
-import { AttemptStore, RunStore } from "@smthrs/run-store-next"
-import { CacheStore } from "@smthrs/step-cache-next"
+import { Action, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow"
+import { Journal } from "@smthrs/journal"
+import * as Notifying from "@smthrs/journal/test/Notifying"
+import { Jj } from "@smthrs/kernel"
+import { Node } from "@smthrs/plan"
+import { AttemptStore, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
@@ -65,7 +65,7 @@ describe("succeeded-row corruption quarantines its evidence and heals on resume 
       recordedDigest: "aa".repeat(32),
       measuredDigest: "bb".repeat(32)
     })
-    expect(RetryPolicy.errorTag(quarantined)).toBe("@smthrs/engine-store-next/AttemptEvidenceQuarantined")
+    expect(RetryPolicy.errorTag(quarantined)).toBe("@smthrs/engine-store/AttemptEvidenceQuarantined")
     expect(RetryPolicy.defaultNonRetryable).toContain(RetryPolicy.errorTag(quarantined))
     const policy = RetryPolicy.make({ initialMs: 1, factor: 2, maxMs: 10, maxAttempts: 10 })
     expect(RetryPolicy.isNonRetryable(policy, quarantined)).toBe(true)
