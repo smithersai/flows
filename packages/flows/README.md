@@ -15,8 +15,8 @@ import { Engine, EngineStore, Journal, Kernel } from "@smthrs/flows"
 
 ## Public API
 
-| Namespace                                                                                                         | Re-exported package                                        |
-| ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Namespace                                                                                                         | Re-exported package                                   |
+| ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
 | `Canonical`                                                                                                       | `@smthrs/canonical`                                   |
 | `Capability`                                                                                                      | `@smthrs/capability`                                  |
 | `Crypto`                                                                                                          | `@smthrs/crypto`                                      |

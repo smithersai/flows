@@ -917,7 +917,9 @@ export const readOutputManifest = (
       if (entry === undefined) return `output ${expected} is not recorded as an exact object`
       const { contentDigest, fileCount, path } = entry
       if (path !== expected) {
-        return `the output manifest records ${JSON.stringify(path)} where the target declares ${JSON.stringify(expected)}`
+        return `the output manifest records ${JSON.stringify(path)} where the target declares ${
+          JSON.stringify(expected)
+        }`
       }
       if (seen.has(expected)) return `the output manifest records ${expected} twice`
       seen.add(expected)

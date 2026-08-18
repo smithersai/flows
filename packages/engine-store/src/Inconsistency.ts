@@ -97,9 +97,7 @@ export interface Service {
  * @category services
  * @since 0.1.0
  */
-export class Inconsistency
-  extends Context.Service<Inconsistency, Service>()("@smthrs/engine-store/Inconsistency")
-{}
+export class Inconsistency extends Context.Service<Inconsistency, Service>()("@smthrs/engine-store/Inconsistency") {}
 
 /**
  * Options for constructing a journaling inconsistency receiver.

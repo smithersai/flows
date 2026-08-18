@@ -125,9 +125,7 @@ export interface Service {
  * @since 0.1.0
  * @category services
  */
-export class Reconciliation
-  extends Context.Service<Reconciliation, Service>()("@smthrs/engine-store/Reconciliation")
-{}
+export class Reconciliation extends Context.Service<Reconciliation, Service>()("@smthrs/engine-store/Reconciliation") {}
 
 /**
  * Names a {@link Service} implementation as a reconciler.
