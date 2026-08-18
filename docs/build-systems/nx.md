@@ -202,10 +202,11 @@ installing first.
 ## 3. Where Nx is genuinely better
 
 - **`nx affected`**. The headline feature, and it works. Measured on this
-  repo: a one-line change to `packages/crypto/src/index.ts` selects 51 of
-  52 projects (crypto is a transitive dependency of nearly everything —
-  an accurate blast radius, and itself a useful signal). A change to a leaf
-  package selects that package alone. Our system has no change-impact
+  repo: a one-line change to `packages/crypto/src/index.ts` selects 31 of
+  52 projects (crypto is a transitive dependency of most of the graph — an
+  accurate blast radius, and itself a useful signal). A one-line change to
+  a leaf package (`packages/triggers`) selects that package alone: 6 tasks,
+  6.2s instead of the full surface. Our system has no change-impact
   analysis; CI runs the full gate surface every time.
 - **Cache ergonomics**. `cache: true` plus `inputs`/`outputs` per target
   name, with daemon, terminal UI, and `nx reset`. Measured here: 123-task
@@ -352,4 +353,5 @@ installing first.
 | `check` + `fmt` + `circular` (123 tasks, 47 projects) | 1m42s | 1.1s |
 | `build` (44 projects) | 43.7s | ~1s |
 | `test` (51 projects) | 2m48s | 209ms |
-| `nx affected` on `packages/crypto/src/index.ts` | 51 of 52 projects selected | — |
+| `nx affected` on a one-line `packages/crypto` change | 31 of 52 projects, 61 check+test tasks, 2m47s | — |
+| `nx affected` on a one-line `packages/triggers` change | 1 project, 6 tasks, 6.2s | — |
