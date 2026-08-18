@@ -9,7 +9,7 @@
     "workflow:run": "smithers workflow run",
     "workflow:inspect": "smithers workflow inspect",
     "workflow:skills": "smithers workflow skills",
-    "test": "bun test ./tests/alpha-ui.test.tsx ./tests/alpha-ui-evals.test.tsx ./tests/alpha-agent.test.tsx ./tests/alpha-agent-eval-judge.test.tsx"
+    "test": "bun test ./tests/alpha-ui.test.tsx ./tests/alpha-ui-evals.test.tsx ./tests/alpha-agent.test.tsx ./tests/alpha-agent-eval-judge.test.tsx ./tests/upstream-drift.test.tsx"
   },
   "dependencies": {
     "@milkdown/crepe": "7.21.2",
