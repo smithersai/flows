@@ -1,0 +1,6 @@
+package(default_visibility = ["//visibility:public"])
+
+sh_binary(
+    name = "cargo_action",
+    srcs = ["cargo_action.sh"],
+)

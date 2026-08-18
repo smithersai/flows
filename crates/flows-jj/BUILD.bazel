@@ -1,0 +1,113 @@
+# Bazel targets for the flows-jj crate.
+#
+# The idiomatic rules_rust path — crate_universe over the committed
+# Cargo.lock — cannot render this graph: cargo-bazel's splicer requires every
+# manifest as a Bazel label, and the pinned jj fork is a git submodule
+# (vendor/jj) whose tree cannot carry committed BUILD files. The full
+# analysis is in docs/build-systems/bazel.md.
+#
+# What is here instead: the pinned cargo toolchain (rust-toolchain.toml)
+# runs inside sandboxed Bazel actions over an offline, lockfile-verified
+# crate registry (@cargo_registry) and the submodule tree exposed as inputs
+# (@vendor_jj). Each action is cached like any other, at whole-workspace
+# granularity rather than crate_universe's per-crate granularity.
+load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
+
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "sources",
+    srcs = glob(
+        [
+            "src/**/*.rs",
+            "tests/**/*.rs",
+        ],
+    ) + ["Cargo.toml"],
+)
+
+# Environment plumbing shared by every cargo action below.
+CARGO_ENV = {
+    "ROOT_MANIFEST": "$(execpath //:Cargo.toml)",
+    "LOCKFILE": "$(execpath //:Cargo.lock)",
+    "TOOLCHAIN_FILE": "$(execpath //:rust-toolchain.toml)",
+    "CRATE_MANIFEST": "$(execpath :Cargo.toml)",
+    "VENDOR_MANIFEST": "$(execpath @vendor_jj//:jj/Cargo.toml)",
+    "REGISTRY_MARKER": "$(execpath @cargo_registry//:cargo-home/BAZEL_MARKER)",
+}
+
+# genrule has no env attribute; the same assignments go on the command line.
+CARGO_ENV_CMD = " ".join(["%s='%s'" % (k, v) for k, v in CARGO_ENV.items()])
+
+CARGO_INPUTS = [
+    ":sources",
+    "Cargo.toml",
+    "//:Cargo.toml",
+    "//:Cargo.lock",
+    "//:rust-toolchain.toml",
+    "@vendor_jj//:tree",
+    "@vendor_jj//:jj/Cargo.toml",
+    "@cargo_registry//:registry",
+    "@cargo_registry//:cargo-home/BAZEL_MARKER",
+]
+
+# The wasm32-wasip1 reactor module, built with the root Cargo.toml release
+# profile and the same path remapping as crates/flows-jj/build-wasm.mjs.
+genrule(
+    name = "flows_jj_wasm",
+    srcs = CARGO_INPUTS,
+    outs = ["flows_jj.wasm"],
+    cmd = "%s $(location //tools/cargo:cargo_action) build-wasm $@" % CARGO_ENV_CMD,
+    tools = ["//tools/cargo:cargo_action"],
+)
+
+# `cargo test --locked`, unit and integration suites.
+sh_test(
+    name = "cargo_test",
+    # A cold build compiles jj-lib and its dependency tree.
+    timeout = "eternal",
+    srcs = ["//tools/cargo:cargo_action.sh"],
+    args = ["test"],
+    data = CARGO_INPUTS,
+    env = CARGO_ENV,
+)
+
+# `cargo fmt --check`.
+sh_test(
+    name = "rustfmt_test",
+    srcs = ["//tools/cargo:cargo_action.sh"],
+    args = ["fmt"],
+    data = CARGO_INPUTS,
+    env = CARGO_ENV,
+)
+
+# `cargo clippy --all-targets --locked -- -D warnings`.
+sh_test(
+    name = "clippy_test",
+    timeout = "eternal",
+    srcs = ["//tools/cargo:cargo_action.sh"],
+    args = ["clippy"],
+    data = CARGO_INPUTS,
+    env = CARGO_ENV,
+)
+
+# The reproducibility gate, Bazel-native: byte-compare the sandboxed build
+# against the committed artifact.
+#
+# Manual, not part of `bazel test //...`: the committed artifact is built on
+# x86_64-unknown-linux-gnu, and rustc's -C metadata carries the host triple
+# into symbol hashing and codegen order (crates/flows-jj/build-wasm.mjs
+# documents the mechanism), so bytes only compare equal on the canonical
+# host. Bazel's sandboxing removes the checkout-path and toolchain-version
+# variables; it cannot remove the host-triple variable. On the canonical
+# host this gate is real: run it with
+# `bazel test //crates/flows-jj:wasm_repro_test --config=ci`.
+diff_test(
+    name = "wasm_repro_test",
+    file1 = ":flows_jj.wasm",
+    file2 = "//packages/jj/wasm:flows_jj.wasm",
+    tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+)

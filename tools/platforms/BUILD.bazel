@@ -1,0 +1,15 @@
+package(default_visibility = ["//visibility:public"])
+
+# The target platform for the flows_jj.wasm artifact. rules_rust registers a
+# wasm32-wasip1 toolchain (see MODULE.bazel extra_target_triples) whose
+# constraints match these values, so building with
+# `--platforms=//tools/platforms:wasm32-wasip1` transitions the Rust build to
+# the WASI toolchain. The flows_jj_wasm target in //crates/flows-jj applies
+# this transition itself, so consumers do not pass the flag.
+platform(
+    name = "wasm32-wasip1",
+    constraint_values = [
+        "@platforms//cpu:wasm32",
+        "@platforms//os:wasi",
+    ],
+)
