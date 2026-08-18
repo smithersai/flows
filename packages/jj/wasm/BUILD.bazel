@@ -1,0 +1,5 @@
+package(default_visibility = ["//visibility:public"])
+
+# The committed wasm32-wasip1 artifact. It is the reference half of the
+# byte-reproducibility gate in //crates/flows-jj:wasm_repro_test.
+exports_files(["flows_jj.wasm"])

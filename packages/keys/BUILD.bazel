@@ -1,0 +1,159 @@
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+load("@aspect_rules_ts//ts:defs.bzl", "ts_config", "ts_project")
+load("@npm//:defs.bzl", "npm_link_all_packages")
+load("//tools/js:defs.bzl", "workspace_npm_package")
+load("//tools/vitest:defs.bzl", "vitest_test")
+
+# Gazelle maintains npm_link_all_packages, the ts_config rules, and the pkg
+# npm_package in this file. The src/ and test/ trees are excluded from the
+# walk: the JS plugin generates one Bazel package per directory, which cannot
+# express this repository's package-rooted tsconfigs (rootDir "src",
+# outDir "dist/esm", exports -> ./src/*.ts), so the ts_project and vitest
+# targets are maintained by hand. See docs/build-systems/bazel.md.
+# gazelle:exclude src
+# gazelle:exclude test
+# gazelle:js_npm_package disabled
+
+npm_link_all_packages(name = "node_modules")
+
+ts_config(
+    name = "tsconfig",
+    src = "tsconfig.json",
+    visibility = [":__subpackages__"],
+    deps = [
+        ":node_modules/@types/node",
+        ":package.json",
+    ],
+)
+
+# The library build: tsc transpiles and emits ESM + declarations + maps to
+# dist/esm, matching the package's own tsconfig exactly.
+ts_project(
+    name = "ts",
+    srcs = glob(["src/**/*.ts"]),
+    declaration = True,
+    declaration_map = True,
+    out_dir = "dist/esm",
+    root_dir = "src",
+    source_map = True,
+    transpiler = "tsc",
+    tsconfig = ":tsconfig",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":node_modules/@smthrs/canonical",
+        ":node_modules/@smthrs/crypto",
+        ":node_modules/effect",
+    ],
+)
+
+# The test typecheck: `tsc -p tsconfig.test.json --noEmit`, the second half of
+# the package's `check` script.
+ts_project(
+    name = "ts_tests",
+    testonly = True,
+    srcs = glob([
+        "src/**/*.ts",
+        "test/**/*.ts",
+    ]),
+    composite = False,
+    declaration = False,
+    declaration_map = False,
+    no_emit = True,
+    out_dir = "dist/esm",
+    root_dir = ".",
+    source_map = True,
+    transpiler = "tsc",
+    tsconfig = ":tsconfig_test",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":node_modules/@effect/platform-node",
+        ":node_modules/@smthrs/canonical",
+        ":node_modules/@smthrs/crypto",
+        ":node_modules/@types/node",
+        ":node_modules/effect",
+        ":node_modules/typescript",
+        ":node_modules/vitest",
+    ],
+)
+
+# The raw sources for the test runner: Vitest transpiles TypeScript itself,
+# and js_test runfiles propagate DefaultInfo, not JsInfo sources.
+filegroup(
+    name = "sources",
+    srcs = glob([
+        "src/**/*.ts",
+        "test/**/*.ts",
+    ]),
+)
+
+# The Vitest suite, coverage-gated by the thresholds in vitest.config.ts.
+vitest_test(
+    name = "test",
+    coverage = True,
+    deps = [
+        ":node_modules/@smthrs/canonical",
+        ":node_modules/@smthrs/crypto",
+        ":node_modules/effect",
+        ":node_modules/typescript",
+        ":node_modules/vitest",
+        ":sources",
+        ":ts",
+        ":ts_tests",
+    ],
+)
+
+# The raw sources, published as-is: the exports map points at src/.
+filegroup(
+    name = "package_sources",
+    srcs = glob(["src/**/*.ts"]),
+)
+
+# The publishable package: sources (the exports map points at src/), plus the
+# compiled dist/ for the publishConfig exports. Instantiated through
+# //tools/js so Gazelle does not rewrite the srcs list.
+workspace_npm_package(
+    name = "pkg",
+    srcs = [
+        "CHANGELOG.md",
+        "LICENSE",
+        "README.md",
+        "package.json",
+        ":package_sources",
+        ":ts",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+
+# The ESLint flat config as a js_library so the rules_lint aspect gathers the
+# config, the shared jsdoc convention, and every plugin package as declared
+# action inputs.
+js_library(
+    name = "eslint_config",
+    srcs = ["eslint.config.js"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":node_modules/@eslint/js",
+        ":node_modules/@types/node",
+        ":node_modules/effect",
+        ":node_modules/eslint-import-resolver-typescript",
+        ":node_modules/eslint-plugin-import",
+        ":node_modules/eslint-plugin-jsdoc",
+        ":node_modules/eslint-plugin-unicorn",
+        ":node_modules/typescript",
+        ":node_modules/typescript-eslint",
+        "//:eslint_jsdoc",
+    ],
+)
+
+exports_files(["dprint.json"])
+
+ts_config(
+    name = "tsconfig_test",
+    src = "tsconfig.test.json",
+    visibility = [":__subpackages__"],
+    deps = [
+        ":package.json",
+        ":tsconfig",
+    ],
+)
