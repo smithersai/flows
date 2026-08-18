@@ -1,0 +1,12 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tags": ["agent"],
+  "tasks": {
+    "prompts": {
+      "inputs": ["prompts/*.mdx", "scripts/prompts.mjs"],
+      "outputs": [],
+      "cache": false
+    }
+  }
+}

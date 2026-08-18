@@ -323,18 +323,32 @@ describe("vitest coverage isolation conformance", () => {
     //
     // `checklist` similarly enters the UI workspace's launch checklist. It is
     // an operator-facing release check, not a package test fan-out.
+    //
+    // `docs`, `test:scripts`, and the three `cargo:*` entries are the root
+    // gates the Turborepo graph addresses as `//#` root tasks (see
+    // turbo.json): docs parity, the five `node --test scripts/*.test.mjs`
+    // gates as one invocation, and the pinned-toolchain cargo fmt/clippy/test
+    // gates. They add enforcement paths; they remove none. `docs` invokes the
+    // build CLI from source because the published `smthrs` bin name no longer
+    // exists on main.
     const root = JSON.parse(readFileSync(join(packagesDir, "..", "package.json"), "utf8")) as {
       readonly scripts?: Record<string, string>
     }
     expect(root.scripts).toEqual({
       browser: "node scripts/browser-check.mjs",
+      "cargo:clippy": "cargo clippy --all-targets --locked -- -D warnings",
+      "cargo:fmt": "cargo fmt --check",
+      "cargo:test": "cargo test --locked",
       check: "pnpm --recursive --if-present run check",
       checklist: "pnpm --filter smithers-ui run checklist",
       circular: "pnpm --recursive --if-present run circular",
       "deploy:dry": "pnpm --filter smithers-server run deploy:dry",
+      docs: "node packages/build-cli/src/main.js docs '//...'",
       lint: "pnpm --recursive --if-present run lint",
       test: "pnpm --recursive --if-present run test",
-      "test:examples": "pnpm --filter @smthrs/examples run test"
+      "test:examples": "pnpm --filter @smthrs/examples run test",
+      "test:scripts":
+        "node --test scripts/pack-release.test.mjs scripts/release-rehearsal.test.mjs scripts/set-release-version.test.mjs scripts/flows-backup.test.mjs scripts/check-test-pins.test.mjs"
     })
   })
 

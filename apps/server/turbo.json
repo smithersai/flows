@@ -1,0 +1,47 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "deploy": {
+      "dependsOn": ["smithers-ui#build"],
+      "inputs": ["src/**", "scripts/**", "wrangler.jsonc", "tsconfig.json", "package.json"],
+      "outputs": ["deploy-receipts/**"],
+      "cache": false,
+      "interactive": true,
+      "passThroughEnv": ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID"]
+    },
+    "deploy:dry": {
+      "dependsOn": ["smithers-ui#build"],
+      "inputs": ["src/**", "scripts/**", "wrangler.jsonc", "tsconfig.json", "package.json"],
+      "outputs": ["deploy-receipts/**"],
+      "cache": false
+    },
+    "deploy:dry-run": {
+      "dependsOn": ["smithers-ui#build"],
+      "inputs": ["src/**", "scripts/**", "wrangler.jsonc", "tsconfig.json", "package.json"],
+      "outputs": [],
+      "cache": false
+    },
+    "test": {
+      "inputs": ["src/**", "scripts/**", "tsconfig.json", "package.json"],
+      "outputs": []
+    },
+    "dev": {
+      "dependsOn": ["smithers-ui#build"],
+      "cache": false,
+      "persistent": true,
+      "interactive": true
+    },
+    "serve:local": {
+      "dependsOn": ["smithers-ui#build"],
+      "cache": false,
+      "persistent": true,
+      "interactive": true
+    },
+    "seed:allowlist": {
+      "cache": false,
+      "outputs": [],
+      "passThroughEnv": ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID"]
+    }
+  }
+}

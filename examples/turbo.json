@@ -1,0 +1,14 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "check": {
+      "inputs": ["src/**", "test/**", "tsconfig.json", "package.json"],
+      "outputs": []
+    },
+    "test": {
+      "inputs": ["src/**", "test/**", "vitest.config.ts", "tsconfig.json", "package.json"],
+      "outputs": []
+    }
+  }
+}

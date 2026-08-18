@@ -1,0 +1,51 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "extends": [
+    "//"
+  ],
+  "tags": [
+    "tooling"
+  ],
+  "tasks": {
+    "check": {
+      "inputs": [
+        "alchemy.run.ts",
+        "worker/**",
+        "scripts/**",
+        "tsconfig.json",
+        "package.json"
+      ],
+      "outputs": []
+    },
+    "test": {
+      "inputs": [
+        "worker/**",
+        "scripts/**",
+        "vitest.config.ts",
+        "tsconfig.json",
+        "package.json"
+      ],
+      "outputs": []
+    },
+    "deploy": {
+      "cache": false,
+      "interactive": true,
+      "outputs": [],
+      "passThroughEnv": [
+        "SMITHERS_CACHE_TOKEN",
+        "CLOUDFLARE_API_TOKEN",
+        "CLOUDFLARE_ACCOUNT_ID"
+      ]
+    },
+    "deploy:dev": {
+      "cache": false,
+      "interactive": true,
+      "outputs": [],
+      "passThroughEnv": [
+        "SMITHERS_CACHE_TOKEN",
+        "CLOUDFLARE_API_TOKEN",
+        "CLOUDFLARE_ACCOUNT_ID"
+      ]
+    }
+  }
+}

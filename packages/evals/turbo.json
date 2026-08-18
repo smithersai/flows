@@ -1,0 +1,11 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tags": ["agent"],
+  "tasks": {
+    "score-gate": {
+      "inputs": ["src/**", "scripts/**", "test/**", "tsconfig.json", "package.json"],
+      "outputs": []
+    }
+  }
+}

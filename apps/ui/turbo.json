@@ -1,0 +1,90 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "inputs": [
+        "src/**",
+        "vite.config.ts",
+        "postcss.config.js",
+        "tailwind.config.js",
+        "electrobun.config.ts",
+        "tsconfig.json",
+        "package.json"
+      ],
+      "outputs": ["dist/**"],
+      "env": ["SMITHERS_CHAT_URL", "SMITHERS_CHAT_ORIGIN"]
+    },
+    "test": {
+      "inputs": ["src/**", "scripts/**", "tsconfig.json", "package.json"],
+      "outputs": []
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true,
+      "interactive": true,
+      "passThroughEnv": ["SMITHERS_DEV_UPSTREAM", "SMITHERS_CHAT_URL", "SMITHERS_CHAT_ORIGIN", "SMITHERS_APP_URL"]
+    },
+    "dev:hmr": {
+      "cache": false,
+      "persistent": true,
+      "interactive": true,
+      "passThroughEnv": ["SMITHERS_DEV_UPSTREAM", "SMITHERS_CHAT_URL", "SMITHERS_CHAT_ORIGIN"]
+    },
+    "hmr": {
+      "cache": false,
+      "persistent": true,
+      "interactive": true,
+      "passThroughEnv": ["SMITHERS_DEV_UPSTREAM", "SMITHERS_CHAT_URL", "SMITHERS_CHAT_ORIGIN"]
+    },
+    "web": {
+      "cache": false,
+      "persistent": true,
+      "interactive": true,
+      "passThroughEnv": ["SMITHERS_DEV_UPSTREAM", "SMITHERS_CHAT_URL", "SMITHERS_CHAT_ORIGIN"]
+    },
+    "start": {
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": true,
+      "interactive": true
+    },
+    "start:canary": {
+      "cache": false,
+      "persistent": true,
+      "interactive": true,
+      "passThroughEnv": ["SMITHERS_APP_URL"]
+    },
+    "build:canary": {
+      "dependsOn": ["build"],
+      "outputs": [],
+      "cache": false,
+      "passThroughEnv": ["SMITHERS_APP_URL"]
+    },
+    "serve:local": {
+      "cache": false,
+      "persistent": true,
+      "interactive": true
+    },
+    "test:e2e:web": {
+      "cache": false,
+      "outputs": []
+    },
+    "test:e2e:web:context": {
+      "cache": false,
+      "outputs": []
+    },
+    "test:e2e:web:shell": {
+      "cache": false,
+      "outputs": []
+    },
+    "test:e2e:worker": {
+      "cache": false,
+      "outputs": []
+    },
+    "checklist": {
+      "cache": false,
+      "outputs": []
+    }
+  }
+}

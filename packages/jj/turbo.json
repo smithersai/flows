@@ -1,0 +1,19 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tags": ["engine"],
+  "tasks": {
+    "build:wasm": {
+      "inputs": [
+        "../../crates/flows-jj/**",
+        "../../Cargo.toml",
+        "../../Cargo.lock",
+        "../../rust-toolchain.toml",
+        "../../vendor/jj/**"
+      ],
+      "outputs": ["wasm/flows_jj.wasm"],
+      "cache": false,
+      "passThroughEnv": ["CARGO_TARGET_DIR", "CARGO_HOME", "RUSTUP_HOME", "RUSTUP_TOOLCHAIN"]
+    }
+  }
+}

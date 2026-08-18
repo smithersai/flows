@@ -1,0 +1,116 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "ui": "tui",
+  "envMode": "strict",
+  "globalEnv": ["CI", "NODE_ENV"],
+  "globalDependencies": ["eslint.jsdoc.js", "pnpm-lock.yaml", "rust-toolchain.toml"],
+  "remoteCache": {
+    "enabled": true,
+    "signature": true
+  },
+  "boundaries": {
+    "tags": {
+      "engine": {
+        "dependencies": {
+          "allow": ["engine"]
+        }
+      },
+      "agent": {
+        "dependencies": {
+          "allow": ["engine", "agent"]
+        }
+      },
+      "tooling": {
+        "dependencies": {
+          "allow": ["engine", "agent", "tooling"]
+        }
+      }
+    }
+  },
+  "tasks": {
+    "build": {
+      "inputs": ["src/**", "scripts/**", "tsconfig.json", "package.json"],
+      "outputs": ["dist/**"]
+    },
+    "check": {
+      "inputs": ["src/**", "test/**", "tsconfig.json", "tsconfig.test.json", "package.json"],
+      "outputs": ["dist/**", "*.tsbuildinfo", "dist/**/*.tsbuildinfo"]
+    },
+    "lint": {
+      "inputs": ["$TURBO_DEFAULT$", "../../eslint.jsdoc.js"],
+      "outputs": []
+    },
+    "format": {
+      "inputs": ["$TURBO_DEFAULT$"],
+      "outputs": [],
+      "cache": false
+    },
+    "circular": {
+      "inputs": ["src/**", "scripts/circular.mjs", "tsconfig.json", "package.json"],
+      "outputs": []
+    },
+    "test": {
+      "inputs": ["src/**", "test/**", "vitest.config.ts", "tsconfig.json", "tsconfig.test.json", "package.json"],
+      "outputs": [],
+      "env": ["FC_SEED", "FC_NUM_RUNS", "FLOWS_SLOW_TESTS", "FLOWS_FAKE_JJ", "FLOWS_FAKE_JJ_MARKER", "JJ_EDITOR", "PYTHONPATH"],
+      "passThroughEnv": ["SMITHERS_CACHE_TOKEN", "SMITHERS_CACHE_URL", "NPM_TOKEN"]
+    },
+    "coverage": {
+      "inputs": ["src/**", "test/**", "vitest.config.ts", "tsconfig.json", "tsconfig.test.json", "package.json"],
+      "outputs": [],
+      "env": ["FC_SEED", "FC_NUM_RUNS", "FLOWS_SLOW_TESTS", "FLOWS_FAKE_JJ", "FLOWS_FAKE_JJ_MARKER", "JJ_EDITOR", "PYTHONPATH"],
+      "passThroughEnv": ["SMITHERS_CACHE_TOKEN", "SMITHERS_CACHE_URL", "NPM_TOKEN"]
+    },
+    "typecheck": {
+      "inputs": ["src/**", "scripts/**", "tsconfig.json", "package.json"],
+      "outputs": []
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true,
+      "interactive": true
+    },
+    "//#browser": {
+      "inputs": ["scripts/browser-check.mjs", "packages/*/src/**", "packages/*/package.json", "packages/*/tsconfig.json"],
+      "outputs": []
+    },
+    "//#test:scripts": {
+      "inputs": [
+        "scripts/**",
+        ".github/workflows/release.yml",
+        "packages/*/package.json",
+        "packages/*/src/**",
+        "packages/*/test/**",
+        "packages/*/scripts/**"
+      ],
+      "outputs": [],
+      "passThroughEnv": ["SMITHERS_CACHE_TOKEN", "SMITHERS_CACHE_URL", "SMTHRS_ALLOW_PUBLISH", "NPM_TOKEN"]
+    },
+    "//#docs": {
+      "inputs": [
+        "BUILD.ts",
+        "packages/*/BUILD.ts",
+        "packages/*/README.md",
+        "packages/*/package.json",
+        "packages/targets/src/**",
+        "packages/build/src/**",
+        "packages/build-cli/src/**"
+      ],
+      "outputs": [],
+      "passThroughEnv": ["SMITHERS_CACHE_TOKEN", "SMITHERS_CACHE_URL"]
+    },
+    "//#cargo:fmt": {
+      "inputs": ["crates/**", "vendor/jj/**", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml"],
+      "outputs": []
+    },
+    "//#cargo:clippy": {
+      "inputs": ["crates/**", "vendor/jj/**", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml"],
+      "outputs": []
+    },
+    "//#cargo:test": {
+      "inputs": ["crates/**", "vendor/jj/**", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml"],
+      "outputs": [],
+      "passThroughEnv": ["CARGO_TARGET_DIR", "CARGO_HOME", "RUSTUP_HOME"]
+    }
+  }
+}

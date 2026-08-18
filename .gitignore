@@ -1,5 +1,7 @@
 node_modules/
 dist/
+.turbo/
+/out/
 /flows
 .smithers/
 .artifacts/
