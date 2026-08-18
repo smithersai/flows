@@ -47,6 +47,13 @@ jobs:
           tool: jj-cli@0.39.0
       - name: Initialize colocated jj repository
         run: jj git init --colocate
+      # --affected diffs against TURBO_SCM_BASE when set. On pull requests, pin
+      # it to the base SHA so the affected graph is exactly this PR's changes
+      # no matter what the checkout's merge history looks like. Pushes to main
+      # run the full graph, so no base is needed there.
+      - name: Pin the affected base to the PR base
+        if: github.event_name == 'pull_request'
+        run: echo "TURBO_SCM_BASE=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_ENV"
       # The graph itself is a deliverable: what turbo THINKS must run for this
       # diff, as JSON, before anything executes.
       - name: Record the affected graph
