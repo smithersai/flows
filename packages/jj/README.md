@@ -15,8 +15,8 @@ error, and the no-op layer only. Every implementation lives under an explicit
 subpath, the way `effect` keeps `@effect/platform-node` out of `effect`, so
 importing the contract never resolves a `node:` built-in.
 
-| Import                              | Platform                                            |
-| ----------------------------------- | --------------------------------------------------- |
+| Import                         | Platform                                            |
+| ------------------------------ | --------------------------------------------------- |
 | `@smthrs/jj`                   | any — contract only; bundles for the browser        |
 | `@smthrs/jj/browser/BrowserJj` | browser — jj-lib compiled to WASM over a virtual FS |
 | `@smthrs/jj/node/NodeJj`       | Node (`node:child_process`)                         |
@@ -28,7 +28,7 @@ importing the contract never resolves a `node:` built-in.
 
 | Export                              | Meaning                                                                  |
 | ----------------------------------- | ------------------------------------------------------------------------ |
-| `Jj`                                | The service interface and its tag (`@smthrs/jj/Jj`).                |
+| `Jj`                                | The service interface and its tag (`@smthrs/jj/Jj`).                     |
 | `ChangeId`                          | The durable handle a run uses to name workspace state.                   |
 | `JjErrorCode`, `JjError`, `jjError` | The closed failure vocabulary and its constructor.                       |
 | `make`, `makeNoop`, `layerNoop`     | Complete, stubbed, and layered service construction.                     |

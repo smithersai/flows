@@ -27,7 +27,7 @@ exists for future additions and is unused. See
 
 ## Build
 
-| Target                           | Kinds   | Cacheable    | Status   | Summary                                                                        |
+| Target                         | Kinds   | Cacheable    | Status   | Summary                                                                        |
 | ------------------------------ | ------- | ------------ | -------- | ------------------------------------------------------------------------------ |
 | [TsBuild](ts-build.md)         | `build` | Never        | Executes | Builds a JavaScript distribution with `tsc -p` or `tsup`.                      |
 | [DtsBuild](dts-build.md)       | `build` | Never        | Executes | Emits type declarations with `tsc --emitDeclarationOnly` or `tsup --dts-only`. |
@@ -37,7 +37,7 @@ exists for future additions and is unused. See
 
 ## Test
 
-| Target                                 | Kinds  | Cacheable | Status   | Summary                                         |
+| Target                               | Kinds  | Cacheable | Status   | Summary                                         |
 | ------------------------------------ | ------ | --------- | -------- | ----------------------------------------------- |
 | [Vitest](vitest.md)                  | `test` | Never     | Executes | Runs `vitest run` over a declared test set.     |
 | [VitestCoverage](vitest-coverage.md) | `test` | Never     | Executes | Runs `vitest run` with coverage and thresholds. |
@@ -45,7 +45,7 @@ exists for future additions and is unused. See
 
 ## Lint
 
-| Target                           | Kinds  | Cacheable | Status   | Summary                                                                               |
+| Target                         | Kinds  | Cacheable | Status   | Summary                                                                               |
 | ------------------------------ | ------ | --------- | -------- | ------------------------------------------------------------------------------------- |
 | [EsLint](es-lint.md)           | `lint` | Never     | Executes | Runs ESLint over declared source sets with a flat config.                             |
 | [BiomeCheck](biome-check.md)   | `lint` | Never     | Executes | Runs `biome check` and `biome format` without writing files.                          |
@@ -55,7 +55,7 @@ exists for future additions and is unused. See
 
 ## Generation
 
-| Target                                    | Kinds           | Cacheable                          | Status   | Summary                                                                      |
+| Target                                  | Kinds           | Cacheable                          | Status   | Summary                                                                      |
 | --------------------------------------- | --------------- | ---------------------------------- | -------- | ---------------------------------------------------------------------------- |
 | [SortPackageJson](sort-package-json.md) | `build`, `lint` | Never                              | Executes | Validates or rewrites `package.json` key ordering.                           |
 | [PackageJson](package-json-gen.md)      | `lint` / `run`  | Check only                         | Executes | Expands a typed manifest declaration into check, write, and refresh targets. |
@@ -63,7 +63,7 @@ exists for future additions and is unused. See
 
 ## Documentation
 
-| Target                         | Kinds  | Cacheable | Status   | Summary                                                |
+| Target                       | Kinds  | Cacheable | Status   | Summary                                                |
 | ---------------------------- | ------ | --------- | -------- | ------------------------------------------------------ |
 | [DocsParity](docs-parity.md) | `docs` | Always    | Executes | Requires a substantive README beside a package's code. |
 
@@ -72,7 +72,7 @@ exists for future additions and is unused. See
 
 ## Install, release, and processes
 
-| Target                               | Kinds | Cacheable | Status                                  | Summary                                                            |
+| Target                             | Kinds | Cacheable | Status                                  | Summary                                                            |
 | ---------------------------------- | ----- | --------- | --------------------------------------- | ------------------------------------------------------------------ |
 | [PnpmWorkspace](pnpm-workspace.md) | `run` | Never     | Executes                                | Runs the smthrs install flow for a pnpm workspace.                 |
 | [NewPackage](new-package.md)       | `run` | Never     | Executes                                | Scaffolds one package named with the invocation's `--name` option. |
@@ -84,7 +84,7 @@ exists for future additions and is unused. See
 
 ## File sets
 
-| Target                      | Kinds | Cacheable | Status                   | Summary                                                       |
+| Target                    | Kinds | Cacheable | Status                   | Summary                                                       |
 | ------------------------- | ----- | --------- | ------------------------ | ------------------------------------------------------------- |
 | [Filegroup](filegroup.md) | none  | Always    | Executes as a dependency | Names a set of files under one label, composing transitively. |
 
@@ -103,13 +103,13 @@ under `build`, `test`, or `lint`. It is still addressable by label, listed by
 
 These modules are not targets. They are documented elsewhere.
 
-| Module            | Documented in                                                                                               |
-| ----------------- | ----------------------------------------------------------------------------------------------------------- |
-| `Target`            | [Writing targets](../../extending/writing-targets.md), [Targets and targets](../../concepts/targets.md) |
-| `Input`           | [Inputs](../../concepts/inputs.md)                                                                          |
-| `Exec`            | [Actions and boundaries](../../concepts/actions-and-boundaries.md)                                          |
-| `Workspace`       | [Workspace reference](../config.md)                                                                         |
-| `PackageDefaults` | [Default targets](../../extending/default-targets.md)                                                           |
+| Module            | Documented in                                                                                           |
+| ----------------- | ------------------------------------------------------------------------------------------------------- |
+| `Target`          | [Writing targets](../../extending/writing-targets.md), [Targets and targets](../../concepts/targets.md) |
+| `Input`           | [Inputs](../../concepts/inputs.md)                                                                      |
+| `Exec`            | [Actions and boundaries](../../concepts/actions-and-boundaries.md)                                      |
+| `Workspace`       | [Workspace reference](../config.md)                                                                     |
+| `PackageDefaults` | [Default targets](../../extending/default-targets.md)                                                   |
 
 ## Conventions shared by every tool-running target
 

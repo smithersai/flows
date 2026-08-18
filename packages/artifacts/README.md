@@ -17,7 +17,7 @@ The package name says what it stores, per the naming rule in
 
 | Export                                             | Meaning                                                                                                                                 |
 | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `ArtifactStore.ArtifactStore`                      | The service tag. Identity `@smthrs/artifacts/ArtifactStore`                                                                        |
+| `ArtifactStore.ArtifactStore`                      | The service tag. Identity `@smthrs/artifacts/ArtifactStore`                                                                             |
 | `ArtifactStore.Service`                            | `put(bytes)`, `get(digest)`, `has(digest)`, `findMissing(digests)`                                                                      |
 | `ArtifactStore.ArtifactMissing`                    | The typed miss — the answer a read-through composition acts on                                                                          |
 | `ArtifactStore.ArtifactCorruption`                 | Bytes at an address no longer hash to it                                                                                                |
@@ -25,7 +25,7 @@ The package name says what it stores, per the naming rule in
 | `ArtifactStore.makeFileSystem`, `.layerFileSystem` | Over Effect's `FileSystem` tag                                                                                                          |
 | `ArtifactStore.makeMemory`, `.layerMemory`         | For tests and browser hosts with no durable filesystem                                                                                  |
 | `ArtifactStore.makeNoop`, `.layerNoop`             | Everything unavailable, with per-method overrides                                                                                       |
-| `ArtifactSweep.ArtifactSweep`                      | The sweep tag. Identity `@smthrs/artifacts/ArtifactSweep`                                                                          |
+| `ArtifactSweep.ArtifactSweep`                      | The sweep tag. Identity `@smthrs/artifacts/ArtifactSweep`                                                                               |
 | `ArtifactSweep.Service`                            | `inventory`, `remove(digest, { ifUnmodifiedSinceMs })` — host-local enumeration and mtime-fenced deletion for the engine's `ArtifactGc` |
 | `ArtifactSweep.makeFileSystem`, `.layerFileSystem` | Over the same objects directory the store publishes into                                                                                |
 | `ArtifactSweep.makeNoop`, `.layerNoop`             | Everything unavailable, with per-method overrides                                                                                       |

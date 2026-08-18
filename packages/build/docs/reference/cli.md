@@ -241,9 +241,9 @@ Options: the [common options](#common-options) only.
 
 A bare label or pattern returns:
 
-| Field     | Description                                    |
-| --------- | ---------------------------------------------- |
-| `query`   | The expression as given                        |
+| Field     | Description                                      |
+| --------- | ------------------------------------------------ |
+| `query`   | The expression as given                          |
 | `targets` | One `{label, target, kinds}` per selected target |
 
 `deps(label)` returns:
@@ -292,7 +292,7 @@ Result:
 | `format`   | `"mermaid"` or `"text"`                  |
 | `graph`    | The rendered graph string                |
 | `roots`    | The root labels                          |
-| `targets`  | One `{label, target}` per planned target   |
+| `targets`  | One `{label, target}` per planned target |
 | `edges`    | `{from, to}` pairs                       |
 | `warnings` | Planner warnings; currently always empty |
 
@@ -321,8 +321,8 @@ Each planned target:
 | Field            | Description                                              |
 | ---------------- | -------------------------------------------------------- |
 | `label`          | The target's label                                       |
-| `target`           | The target id                                              |
-| `kinds`          | The verbs the target participates in                       |
+| `target`         | The target id                                            |
+| `kinds`          | The verbs the target participates in                     |
 | `attrs`          | The verb-effective attrs the executor passes to the flow |
 | `dependencies`   | Direct dependency labels                                 |
 | `declaredInputs` | One `{declaration, files, digest}` per declared input    |
@@ -359,7 +359,7 @@ Each report:
 | Field        | Description                          |
 | ------------ | ------------------------------------ |
 | `label`      | The target's label                   |
-| `target`       | The target id                          |
+| `target`     | The target id                        |
 | `status`     | `hit`, `ran`, `failed`, or `skipped` |
 | `durationMs` | Time spent on this target            |
 | `key`        | The content key                      |

@@ -32,24 +32,24 @@ pnpm add @smthrs/journal
 The root exports these namespaces, also available from matching
 `@smthrs/journal/*` subpaths.
 
-| Namespace      | Public exports                                                                                                                                                                                                                  |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `JournalEvent` | Branded schema/types `RunId`, `Seq`, `SourceId`, and `SourceSeq`; input/committed schemas `Input` and `Entry`; deterministic `makeEventId`.                                                                                     |
-| `Journal`      | `Journal` / `Service` operations `emitLossy`, `emitDurable`, `transact`, `stream`, `entries`, `changes`, `project`, and `flush`; typed errors, receipts, and read options; constructors and no-op layer.                        |
-| `SqlJournal`   | `SqlJournalOptions` and database-backed `layer(options)` with explicit lossy and durable channels.                                                                                                                              |
-| `Projection`   | Reproducible `Projection` model and identity constructor `make`.                                                                                                                                                                |
-| `Redaction`    | The payload redaction applied to journal entries before they are written.                                                                                                                                                       |
+| Namespace      | Public exports                                                                                                                                                                                                             |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `JournalEvent` | Branded schema/types `RunId`, `Seq`, `SourceId`, and `SourceSeq`; input/committed schemas `Input` and `Entry`; deterministic `makeEventId`.                                                                                |
+| `Journal`      | `Journal` / `Service` operations `emitLossy`, `emitDurable`, `transact`, `stream`, `entries`, `changes`, `project`, and `flush`; typed errors, receipts, and read options; constructors and no-op layer.                   |
+| `SqlJournal`   | `SqlJournalOptions` and database-backed `layer(options)` with explicit lossy and durable channels.                                                                                                                         |
+| `Projection`   | Reproducible `Projection` model and identity constructor `make`.                                                                                                                                                           |
+| `Redaction`    | The payload redaction applied to journal entries before they are written.                                                                                                                                                  |
 | `OwnerId`      | `OwnerId` — `hostId`, `pid`, `nonce` — the fencing token `emitDurable` accepts. Defined here because the journal is what it fences; `@smthrs/run-store`'s `Ownership` re-exports it alongside the arbitration built on it. |
-| `Migrations`   | `set` (the namespaced migration set for `flows_journal_events`), `run`, and prerequisite `layer`.                                                                                                                               |
+| `Migrations`   | `set` (the namespaced migration set for `flows_journal_events`), `run`, and prerequisite `layer`.                                                                                                                          |
 
 The root is written against the driver-neutral `@smthrs/database` contract
 and bundles for the browser. The test doubles bind a Node SQLite database, so
 they live under explicit subpaths:
 
-| Import                                  | Public exports                                                                                                                                                                                                                                                                                     |
-| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Import                             | Public exports                                                                                                                                                                                                                                                                      |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@smthrs/journal/test/TestJournal` | **Node only.** `TestJournalOptions` and `layer(options?)`, providing a migrated in-memory `Journal`. `@smthrs/run-store/test/TestRunStore` and `@smthrs/step-cache/test/TestCacheStore` provide theirs; `@smthrs/engine-store/test/TestStores` provides all four over ONE database. |
-| `@smthrs/journal/test/Notifying`   | `Order`, `Hook`, `wrap`, and `layer` inject before/after notifications around Effect-valued service operations.                                                                                                                                                                                    |
+| `@smthrs/journal/test/Notifying`   | `Order`, `Hook`, `wrap`, and `layer` inject before/after notifications around Effect-valued service operations.                                                                                                                                                                     |
 
 The single `migrations/0001_initial` module creates this package's table.
 `Migrations.run` and `Migrations.layer` install it alone; an application that

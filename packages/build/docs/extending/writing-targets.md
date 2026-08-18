@@ -35,16 +35,16 @@ export const Typecheck = Target.make("Typecheck", {
 
 ## Options
 
-| Option           | Required | Purpose                                                            |
-| ---------------- | -------- | ------------------------------------------------------------------ |
+| Option           | Required | Purpose                                                              |
+| ---------------- | -------- | -------------------------------------------------------------------- |
 | `attrs`          | Yes      | The target's attribute schema. It is also the flow's payload schema. |
 | `kinds`          | Yes      | Which verbs the target participates in. Deduplicated.                |
-| `implementation` | Yes      | The pure plan-time body: decoded attrs to a plan node.             |
-| `success`        | No       | The success schema. Defaults to `Schema.Void`.                     |
-| `error`          | No       | The error schema. Defaults to `Schema.Never`.                      |
-| `inputs`         | No       | Extra declared inputs derived from the decoded attrs.              |
-| `cache`          | No       | A boolean or a function of the decoded attrs. Defaults to `true`.  |
-| `attrsForKind`   | No       | Map the decoded attrs to what one verb executes with.              |
+| `implementation` | Yes      | The pure plan-time body: decoded attrs to a plan node.               |
+| `success`        | No       | The success schema. Defaults to `Schema.Void`.                       |
+| `error`          | No       | The error schema. Defaults to `Schema.Never`.                        |
+| `inputs`         | No       | Extra declared inputs derived from the decoded attrs.                |
+| `cache`          | No       | A boolean or a function of the decoded attrs. Defaults to `true`.    |
+| `attrsForKind`   | No       | Map the decoded attrs to what one verb executes with.                |
 
 ## The attrs schema
 

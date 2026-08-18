@@ -15,9 +15,9 @@ import {
   NodeStdio
 } from "@effect/platform-node"
 import { Install, PackageManager, Runtime } from "@smthrs/build"
-import * as Config from "@smthrs/targets/Config"
 import { FlowEngine } from "@smthrs/engine"
 import { Action, Graph, Interpreter } from "@smthrs/flow"
+import * as Config from "@smthrs/targets/Config"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import { createHash } from "node:crypto"

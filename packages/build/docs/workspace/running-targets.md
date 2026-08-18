@@ -57,7 +57,7 @@ The executor gives each target its own in-memory runtime and provides:
 The irreversible-exec implementation is intentionally absent. A target that
 calls it fails at interpretation with `unresolved_action`.
 
-| Target                                                           | Root verb       | Executes today                                            |
+| Target                                                         | Root verb       | Executes today                                            |
 | -------------------------------------------------------------- | --------------- | --------------------------------------------------------- |
 | `TsBuild`, `DtsBuild`, `Typecheck`, `ToolBuild`, `TypedocDocs` | `build`         | Yes                                                       |
 | `Vitest`, `VitestCoverage`                                     | `test`          | Yes                                                       |

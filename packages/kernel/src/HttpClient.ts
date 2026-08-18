@@ -30,12 +30,7 @@
  */
 
 import { type Capability, make as makeCapability } from "@smthrs/capability/Capability"
-import {
-  formatError,
-  isPermissionError,
-  PermissionDenied,
-  type PermissionError
-} from "@smthrs/capability/Permission"
+import { formatError, isPermissionError, PermissionDenied, type PermissionError } from "@smthrs/capability/Permission"
 import { Context, Effect, Layer, Option } from "effect"
 import * as EffectHttpClient from "effect/unstable/http/HttpClient"
 import * as HttpClientError from "effect/unstable/http/HttpClientError"

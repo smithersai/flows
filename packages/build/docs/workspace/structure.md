@@ -152,10 +152,10 @@ workspace-level declarations are in scope. See
 Two directories are never part of the workspace as far as discovery, globs, and
 digests are concerned.
 
-| Path                                              | What it holds                                                                                           | Configurable                              |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| Path                                              | What it holds                                                                                             | Configurable                              |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
 | The resolved cache directory, `.flows` by default | The CLI result cache under `<cacheDirectory>/cache`, and target scratch such as the generated knip config | Yes, through `Workspace` or `--cache-dir` |
-| `.flows/store/<manager>`                          | Package-manager store populated by fetch                                                                | No                                        |
+| `.flows/store/<manager>`                          | Package-manager store populated by fetch                                                                  | No                                        |
 
 The store stays fixed because fetch declares it as a `TreeArtifact` boundary, and
 a declared boundary is key material that must mean the same thing on every

@@ -320,9 +320,7 @@ export interface Service {
  * @since 0.1.0
  * @category services
  */
-export class PlanScheduler
-  extends Context.Service<PlanScheduler, Service>()("@smthrs/engine-store/PlanScheduler")
-{}
+export class PlanScheduler extends Context.Service<PlanScheduler, Service>()("@smthrs/engine-store/PlanScheduler") {}
 
 /**
  * The declared digest handed to `StepBoundary.prepare` when the scheduler is

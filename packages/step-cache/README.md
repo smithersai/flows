@@ -32,8 +32,8 @@ The root is written against the driver-neutral `@smthrs/database` contract and
 bundles for the browser. The test double binds a Node SQLite database, so it
 lives under an explicit subpath:
 
-| Import                                        | Public exports                                                |
-| --------------------------------------------- | ------------------------------------------------------------- |
+| Import                                   | Public exports                                                |
+| ---------------------------------------- | ------------------------------------------------------------- |
 | `@smthrs/step-cache/test/TestCacheStore` | **Node only.** `layer`, providing a migrated in-memory cache. |
 
 An engine needs this package, `@smthrs/journal`, and `@smthrs/run-store` over

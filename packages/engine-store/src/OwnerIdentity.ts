@@ -40,9 +40,7 @@ export interface Service {
  * @category services
  * @since 0.1.0
  */
-export class OwnerIdentity
-  extends Context.Service<OwnerIdentity, Service>()("@smthrs/engine-store/OwnerIdentity")
-{}
+export class OwnerIdentity extends Context.Service<OwnerIdentity, Service>()("@smthrs/engine-store/OwnerIdentity") {}
 
 /**
  * Constructs an owner identity source from an implementation.

@@ -7,9 +7,9 @@ install step.
 
 ## Compile-time dependencies
 
-| Dependency            | Version        | Use                                            |
-| --------------------- | -------------- | ---------------------------------------------- |
-| `effect`              | `4.0.0-rc.108` | Effects, schemas, layers, files, and processes |
+| Dependency       | Version        | Use                                            |
+| ---------------- | -------------- | ---------------------------------------------- |
+| `effect`         | `4.0.0-rc.108` | Effects, schemas, layers, files, and processes |
 | `@smthrs/flow`   | `0.1.0`        | Actions, flows, annotations, and file inputs   |
 | `@smthrs/plan`   | `0.1.0`        | Planned nodes                                  |
 | `@smthrs/crypto` | `0.1.0`        | SHA-256 digests                                |

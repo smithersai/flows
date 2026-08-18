@@ -62,9 +62,7 @@ const buildFile = (options: string): string =>
   `export const workspace = Workspace(${options})\n`
 
 const remoteCacheBuildFile = (options: string): string =>
-  `import { RemoteCache, Secret } from "${
-    NodePath.resolve(import.meta.dirname, "../../targets/src/Smithers.ts")
-  }"\n` +
+  `import { RemoteCache, Secret } from "${NodePath.resolve(import.meta.dirname, "../../targets/src/Smithers.ts")}"\n` +
   `export const remoteCache = RemoteCache.make(${options})\n`
 
 /**
@@ -247,9 +245,7 @@ describe("resolveRemoteCache", () => {
   it("validates a structurally forged declaration", async () => {
     await write(
       "BUILD.ts",
-      `import { RemoteCache } from "${
-        NodePath.resolve(import.meta.dirname, "../../targets/src/Smithers.ts")
-      }"\n` +
+      `import { RemoteCache } from "${NodePath.resolve(import.meta.dirname, "../../targets/src/Smithers.ts")}"\n` +
         "export const remoteCache = {\n" +
         "  [RemoteCache.TypeId]: RemoteCache.TypeId,\n" +
         "  endpoint: \"http://insecure.example.test\",\n" +

@@ -17,17 +17,17 @@ wired is marked as such on the page that covers it.
 
 ## Getting started
 
-| Page                                          | Description                                                                    |
-| --------------------------------------------- | ------------------------------------------------------------------------------ |
-| [Install](getting-started/install.md)         | Wire `@smthrs/targets` and the CLI into an existing pnpm workspace. |
-| [First build](getting-started/first-build.md) | Write a root `BUILD.ts` and one package `BUILD.ts`, then run every verb.       |
+| Page                                          | Description                                                              |
+| --------------------------------------------- | ------------------------------------------------------------------------ |
+| [Install](getting-started/install.md)         | Wire `@smthrs/targets` and the CLI into an existing pnpm workspace.      |
+| [First build](getting-started/first-build.md) | Write a root `BUILD.ts` and one package `BUILD.ts`, then run every verb. |
 
 ## Workspace
 
 | Page                                                    | Description                                                                                                         |
 | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| [Structure](workspace/structure.md)                     | Discovery, `BUILD.ts` placement, package boundaries, default-target synthesis.                                        |
-| [Writing BUILD files](workspace/writing-build-files.md) | Targets as named exports, target calls, import edges, macros.                                                         |
+| [Structure](workspace/structure.md)                     | Discovery, `BUILD.ts` placement, package boundaries, default-target synthesis.                                      |
+| [Writing BUILD files](workspace/writing-build-files.md) | Targets as named exports, target calls, import edges, macros.                                                       |
 | [Configuration](workspace/configuration.md)             | The `Workspace` declaration, `cacheDirectory`, `gitignored`, `--cache-dir`.                                         |
 | [Running targets](workspace/running-targets.md)         | `install`, target verbs including `run` and `docs`, `ci`, and what actually executes.                               |
 | [Querying](workspace/querying.md)                       | `query`, `deps()`, and `graph`.                                                                                     |
@@ -40,7 +40,7 @@ wired is marked as such on the page that covers it.
 | Page                                                         | Description                                                                        |
 | ------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
 | [Labels](concepts/labels.md)                                 | The `//pkg:target` grammar, package defaults, and `//...` patterns.                |
-| [Targets and targets](concepts/targets.md)           | A target is a flow with planner metadata.                                          |
+| [Targets and targets](concepts/targets.md)                   | A target is a flow with planner metadata.                                          |
 | [Inputs](concepts/inputs.md)                                 | `file()`, `glob()`, `gitDiff()`, and when they are digested.                       |
 | [Dependencies](concepts/dependencies.md)                     | Import edges, `deps` attributes, and transitive planning.                          |
 | [Actions and boundaries](concepts/actions-and-boundaries.md) | Sealed actions, `TreeArtifact` writes, host state, and hermeticity.                |
@@ -48,16 +48,16 @@ wired is marked as such on the page that covers it.
 
 ## Extending
 
-| Page                                          | Description                                                                        |
-| --------------------------------------------- | ---------------------------------------------------------------------------------- |
-| [Writing targets](extending/writing-targets.md)   | `Target.make`: the attrs schema, the plan-time implementation, and typed failures. |
-| [Writing macros](extending/writing-macros.md) | `StandardPackage` as the worked example.                                           |
-| [Default targets](extending/default-targets.md)   | `PackageDefaults`, `directories`, `marker`, `unless`, and `macro`.                 |
+| Page                                            | Description                                                                        |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------- |
+| [Writing targets](extending/writing-targets.md) | `Target.make`: the attrs schema, the plan-time implementation, and typed failures. |
+| [Writing macros](extending/writing-macros.md)   | `StandardPackage` as the worked example.                                           |
+| [Default targets](extending/default-targets.md) | `PackageDefaults`, `directories`, `marker`, `unless`, and `macro`.                 |
 
 ## Reference
 
-| Page                                      | Description                                                    |
-| ----------------------------------------- | -------------------------------------------------------------- |
-| [CLI](reference/cli.md)                   | Every verb, flag, output shape, and exit code.                 |
-| [Workspace](reference/config.md)          | The `Workspace` declaration and its exact validation targets.    |
+| Page                                          | Description                                                      |
+| --------------------------------------------- | ---------------------------------------------------------------- |
+| [CLI](reference/cli.md)                       | Every verb, flag, output shape, and exit code.                   |
+| [Workspace](reference/config.md)              | The `Workspace` declaration and its exact validation targets.    |
 | [Target catalog](reference/targets/README.md) | One page per target, with attribute tables and execution status. |
