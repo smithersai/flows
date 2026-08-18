@@ -1,0 +1,107 @@
+# Bazel module for the flows workspace.
+#
+# Bzlmod only: there is no WORKSPACE file and .bazelrc sets
+# --enable_workspace=false. Every dependency below is pinned and recorded in
+# MODULE.bazel.lock, which is committed and verified by CI.
+module(
+    name = "flows",
+    version = "0.0.0",
+)
+
+bazel_dep(name = "aspect_bazel_lib", version = "2.22.5")
+bazel_dep(name = "aspect_rules_js", version = "3.4.0")
+bazel_dep(name = "aspect_rules_ts", version = "3.10.0")
+bazel_dep(name = "aspect_rules_lint", version = "2.7.2")
+bazel_dep(name = "aspect_gazelle_prebuilt", version = "0.0.24")
+bazel_dep(name = "rules_multirun", version = "0.14.0")
+bazel_dep(name = "rules_nodejs", version = "6.7.5")
+bazel_dep(name = "rules_rust", version = "0.73.0")
+bazel_dep(name = "bazel_skylib", version = "1.9.2")
+bazel_dep(name = "platforms", version = "1.1.0")
+
+# -----------------------------------------------------------------------------
+# Hermetic Node.js toolchain.
+#
+# The interpreter is fetched by Bazel, pinned to the same floor the packages
+# declare in package.json "engines". Nothing here resolves node from PATH.
+# -----------------------------------------------------------------------------
+node = use_extension("@rules_nodejs//nodejs:extensions.bzl", "node")
+node.toolchain(node_version = "22.19.0")
+use_repo(node, "nodejs_toolchains")
+
+# Hermetic pnpm, pinned to the version in the root package.json
+# "packageManager" field. Used for `bazel run @pnpm -- ...` and for lockfile
+# maintenance targets.
+pnpm = use_extension("@aspect_rules_js//npm:extensions.bzl", "pnpm")
+pnpm.pnpm(pnpm_version = "11.21.0")
+use_repo(pnpm, "pnpm")
+
+# -----------------------------------------------------------------------------
+# npm dependencies.
+#
+# npm_translate_lock reads pnpm-lock.yaml (lockfileVersion 9.0) and the
+# pnpm-workspace.yaml next to it, and materializes one repository (@npm) with
+# a content-addressed store of every package. No pnpm install runs; Bazel
+# fetches each tarball itself and verifies the integrity hash recorded in the
+# lockfile.
+#
+# Lifecycle hooks: pnpm-workspace.yaml carries an allowBuilds table that sets
+# every package to false, and CI installs with --ignore-scripts, so this
+# repository never executes dependency lifecycle scripts. npm_translate_lock
+# runs no lifecycle hooks unless they are explicitly allowlisted in
+# `lifecycle_hooks`, so the default already matches the repository policy.
+# -----------------------------------------------------------------------------
+npm = use_extension("@aspect_rules_js//npm:extensions.bzl", "npm")
+npm.npm_translate_lock(
+    name = "npm",
+    npmrc = "//:.npmrc",
+    pnpm_lock = "//:pnpm-lock.yaml",
+    verify_node_modules_ignored = "//:.bazelignore",
+)
+use_repo(npm, "npm")
+
+# -----------------------------------------------------------------------------
+# TypeScript toolchain.
+#
+# rules_ts fetches tsc from npm at the version the packages pin. The version
+# is read from a package manifest so the Bazel toolchain and the pnpm
+# toolchain cannot drift.
+# -----------------------------------------------------------------------------
+ts = use_extension("@aspect_rules_ts//ts:extensions.bzl", "typescript")
+ts.deps(version_from = "//packages/canonical:package.json")
+use_repo(ts, "npm_typescript")
+
+# -----------------------------------------------------------------------------
+# Rust toolchain and crates.
+#
+# The toolchain version matches rust-toolchain.toml (1.89.0, minimal profile,
+# clippy + rustfmt, wasm32-wasip1 target). rules_rust fetches rustc; rustup
+# on the host is never consulted.
+#
+# crate_universe renders the root Cargo workspace (crates/flows-jj) plus its
+# path dependency on the pinned jj fork in vendor/jj into Bazel targets under
+# @crates, keyed on the committed Cargo.lock.
+# -----------------------------------------------------------------------------
+rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
+rust.toolchain(
+    edition = "2024",
+    extra_target_triples = ["wasm32-wasip1"],
+    versions = ["1.89.0"],
+)
+use_repo(rust, "rust_toolchains")
+
+register_toolchains("@rust_toolchains//:all")
+
+# crate_universe is NOT wired: cargo-bazel's splicer requires every manifest
+# in the dependency graph as a Bazel label, and the pinned jj fork lives in a
+# git submodule (vendor/jj) that cannot carry committed BUILD files, so
+# jj-lib's manifest and its workspace root are not label-addressable. The
+# Rust build instead runs the pinned cargo toolchain in a sandboxed action
+# over an offline registry; see tools/cargo/ and docs/build-systems/bazel.md.
+vendor_jj = use_repo_rule("//tools/cargo:vendor_jj.bzl", "vendor_jj_repository")
+
+vendor_jj(name = "vendor_jj")
+
+cargo_registry = use_repo_rule("//tools/cargo:registry.bzl", "cargo_registry_repository")
+
+cargo_registry(name = "cargo_registry")

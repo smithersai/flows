@@ -1,0 +1,91 @@
+# Root Bazel package for the flows workspace.
+#
+# NOTE: the `BUILD.ts` files in this repository belong to the in-repo smithers
+# build system, not to Bazel. Bazel loads only files named `BUILD` or
+# `BUILD.bazel`; this repository standardizes on `BUILD.bazel` so the two
+# systems can never be confused, and no `BUILD.ts` file is read, modified, or
+# deleted by anything in the Bazel setup.
+load("@aspect_gazelle_prebuilt//:def.bzl", "aspect_gazelle")
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+load("@aspect_rules_ts//ts:defs.bzl", "ts_config")
+load("@npm//:defs.bzl", "npm_link_all_packages")
+
+# ---------------------------------------------------------------------------
+# Gazelle
+#
+# `bazel run //:gazelle` walks the workspace and generates BUILD.bazel files
+# from package.json files and import statements. `bazel test //:gazelle.check`
+# (wired with_check below) fails in CI when the committed files are stale.
+#
+# Directives for the JS plugin. Most packages keep their tsconfig in
+# tsconfig.json and the test tsconfig in tsconfig.test.json; the second
+# js_tsconfig_file line applies the test tsconfig to the generated *_tests
+# target group.
+# ---------------------------------------------------------------------------
+# gazelle:js_pnpm_lockfile pnpm-lock.yaml
+# gazelle:js_files .bazel-no-root-sources
+# gazelle:js_test_files .bazel-no-root-test-sources
+# gazelle:exclude lint
+# gazelle:js_tsconfig_file tsconfig.json
+# gazelle:js_tsconfig_file {dirname}_tests tsconfig.test.json
+# gazelle:js_validate_import_statements warn
+# gazelle:js_tsconfig_package_deps enabled
+# gazelle:js_npm_package_target_name pkg
+# gazelle:js_visibility //:__subpackages__
+# gazelle:exclude vendor
+# gazelle:exclude docs
+# gazelle:exclude evals
+aspect_gazelle(
+    name = "gazelle",
+    languages = ["js"],
+    with_check = True,
+)
+
+exports_files(
+    [
+        ".npmrc",
+        "Cargo.lock",
+        "Cargo.toml",
+        "eslint.jsdoc.js",
+        "rust-toolchain.toml",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "tsconfig.base.json",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# The shared jsdoc convention, imported by every package's eslint.config.js as
+# ../../eslint.jsdoc.js. Wrapped in a js_library so package-level configs can
+# declare it as a dependency.
+js_library(
+    name = "eslint_jsdoc",
+    srcs = ["eslint.jsdoc.js"],
+    visibility = ["//visibility:public"],
+    deps = [":node_modules/eslint-plugin-jsdoc"],
+)
+
+# The aggregator flat config the lint aspect discovers from the bin root.
+# Deps carry each package's config and plugin closure into the action.
+js_library(
+    name = "eslint_config",
+    srcs = ["eslint.config.js"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//packages/canonical:eslint_config",
+        "//packages/crypto:eslint_config",
+        "//packages/keys:eslint_config",
+    ],
+)
+
+ts_config(
+    name = "tsconfig",
+    src = "tsconfig.json",
+    visibility = [":__subpackages__"],
+    deps = [
+        ":package.json",
+        ":tsconfig.base.json",
+    ],
+)
+
+npm_link_all_packages(name = "node_modules")
