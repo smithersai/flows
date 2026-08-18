@@ -45,6 +45,12 @@ export const moduleBoundaries = {
           ["@smthrs/kernel", "@smthrs/platform-browser"],
           ["@smthrs/platform-browser", "@smthrs/kernel"]
         ],
+        // The rule treats any dynamic import as a lazy-loading boundary and
+        // forbids static imports of the same library. packages/chain's test
+        // suite dynamically imports @smthrs/memory as a test technique while
+        // its sources import it statically; that is not a lazy-load
+        // architecture, so the specifier is exempted here.
+        checkDynamicDependenciesExceptions: ["@smthrs/memory"],
         allow: [],
         depConstraints: [
           {

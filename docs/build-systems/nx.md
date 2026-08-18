@@ -220,11 +220,13 @@ installing first.
   the graph but no visualization.
 - **Module boundaries as lint**. `@nx/enforce-module-boundaries` turned
   `smthrs.group` into an enforced rule with a two-line import per package.
-  It also immediately found two things the repo's own gates miss: a
+  It also immediately found things the repo's own gates miss: a
   cross-package runtime cycle (`@smthrs/kernel` ⇄
-  `@smthrs/platform-browser`, allowlisted in `eslint.boundaries.js`) and
-  the dev-time cycles through `BUILD.ts` files. The repo's madge guard only
-  sees per-package cycles.
+  `@smthrs/platform-browser`, allowlisted in `eslint.boundaries.js`), the
+  dev-time cycles through `BUILD.ts` files, and a static/dynamic import
+  mix in `packages/chain` (the rule reads any dynamic import as a
+  lazy-loading boundary; the specifier is exempted with a comment). The
+  repo's madge guard only sees per-package cycles.
 - **`nx release`** covers version bumping from conventional commits, fixed
   release groups, internal range retargeting (`updateDependents: auto`),
   changelogs, and publish ordering. `release.yml` hand-rolls the same
