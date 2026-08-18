@@ -1,0 +1,9 @@
+load("@npm//packages/canonical:eslint/package_json.bzl", eslint_bin = "bin")
+
+package(default_visibility = ["//visibility:public"])
+
+# The eslint CLI from the npm dependency graph, run under the hermetic Node
+# toolchain. The aspect in linters.bzl supplies each package's config and
+# plugin packages as action inputs; this target is only the interpreter plus
+# eslint's own transitive dependencies.
+eslint_bin.eslint_binary(name = "eslint")

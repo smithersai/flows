@@ -1,0 +1,41 @@
+"""dprint formatting targets.
+
+rules_lint's formatter framework has no dprint integration (Prettier is its
+JS/TS formatter), so formatting is wired directly against the dprint CLI from
+the npm dependency graph, matching the repository's per-package
+`dprint fmt` / `dprint check` scripts.
+
+These targets run in the workspace (`bazel run`), not in a sandbox, because
+dprint downloads its wasm plugins from plugins.dprint.dev on first use and
+writes formatted files in place. Vendoring the plugins would make the check
+hermetic; see docs/build-systems/bazel.md.
+"""
+
+load("@npm//packages/canonical:dprint/package_json.bzl", dprint_bin = "bin")
+
+package(default_visibility = ["//visibility:public"])
+
+# The dprint CLI from the npm graph. The sh wrappers below invoke it once per
+# wired package from that package's directory, so dprint discovers each
+# package's own dprint.json exactly as the pnpm scripts do.
+dprint_bin.dprint_binary(
+    name = "dprint",
+    visibility = ["//visibility:private"],
+)
+
+# Format every wired package in place: `bazel run //tools/format`.
+sh_binary(
+    name = "format",
+    srcs = ["dprint.sh"],
+    args = ["fmt"],
+    data = [":dprint"],
+)
+
+# CI gate: exits non-zero when any file is not formatted.
+# `bazel run //tools/format.check`.
+sh_binary(
+    name = "format.check",
+    srcs = ["dprint.sh"],
+    args = ["check"],
+    data = [":dprint"],
+)
