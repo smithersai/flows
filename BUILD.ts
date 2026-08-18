@@ -3,11 +3,11 @@
  *
  * Every TypeScript-specific root file is declared here and generated from this
  * file: the workspace definition, the workspace tsconfig, and the lockfile.
- * `nodeModules` is a target produced by the `Install` rule, keyed on the
+ * `nodeModules` is a target produced by the `Install` target, keyed on the
  * declared toolchain and the generated lockfile.
  *
  * The runtime and the package manager are declared once and passed to every
- * target that runs a tool. Nothing in the rule catalog spells `pnpm` or `node`
+ * target that runs a tool. Nothing in the target catalog spells `pnpm` or `node`
  * into an argv any more, so switching either is an edit to this file.
  */
 import { Smithers } from "@smthrs/targets"
@@ -59,6 +59,10 @@ export const workspace = Smithers.PnpmWorkspace({
     "es5-ext": false,
     esbuild: false,
     "msgpackr-extract": false,
+    // apps/ui's live-* checks drive Playwright. Its postinstall downloads
+    // browsers; those checks run against a system or already-installed
+    // browser, so an install never pulls one down.
+    playwright: false,
     sharp: false,
     "unrs-resolver": false,
     "vue-demi": false,
@@ -97,7 +101,7 @@ export const tsconfig = Smithers.Tsconfig({
 /**
  * Generates `pnpm-lock.yaml` from the workspace definition and every package
  * manifest. The lockfile is this target's output and the install target's
- * input, which is why the two are separate: a rule cannot be keyed on a file it
+ * input, which is why the two are separate: a target cannot be keyed on a file it
  * produces.
  */
 export const lockfile = Smithers.Lockfile({

@@ -2,7 +2,11 @@
 	"compilerOptions": {
 		"target": "ES2022",
 		"useDefineForClassFields": true,
-		"lib": ["ES2022", "DOM", "DOM.Iterable"],
+		"lib": [
+			"ES2022",
+			"DOM",
+			"DOM.Iterable"
+		],
 		"module": "ESNext",
 		"skipLibCheck": true,
 		"moduleResolution": "bundler",
@@ -16,6 +20,16 @@
 		"noUnusedParameters": true,
 		"noFallthroughCasesInSwitch": true
 	},
-	"include": ["src"],
-	"exclude": ["node_modules", "dist", "build", "../../package/dist"]
+	"include": [
+		"src",
+		"scripts",
+		"vite.config.ts",
+		"electrobun.config.ts"
+	],
+	"exclude": [
+		"node_modules",
+		"dist",
+		"build",
+		"../../package/dist"
+	]
 }

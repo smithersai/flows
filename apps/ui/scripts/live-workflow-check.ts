@@ -18,14 +18,13 @@
  *
  * Usage: bun scripts/live-workflow-check.ts [screenshots-dir]
  */
-import { createRequire } from "node:module";
 import { mkdirSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { chromium } from "playwright";
 import { resetPersistedStore } from "./live-store-reset";
 
-const require = createRequire("/Users/williamcory/flows/ui/package.json");
-const { chromium } = require("playwright") as typeof import("playwright");
-
-const PROFILE = process.env.MULTI_E2E_PROFILE ?? "/Users/williamcory/.multi-e2e-profile";
+const PROFILE = process.env.MULTI_E2E_PROFILE ?? join(homedir(), ".multi-e2e-profile");
 const BASE = process.env.CANARY_URL ?? "https://canary.smithers.sh";
 const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 const dir = process.argv[2] ?? `reports/live-checks/${timestamp}-workflows`;

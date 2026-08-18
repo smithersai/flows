@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import type { Plugin } from "vite";
 import react from "@vitejs/plugin-react";
@@ -36,11 +37,19 @@ const smithersAgentApi = (): Plugin => {
 	};
 };
 
+/*
+ * Resolved against this file, not the shell's working directory: `vite
+ * --config apps/ui/vite.config.ts` from the repository root used to serve 404s
+ * because a bare "src/mainview" resolved under the root instead. Every path
+ * below is absolute for the same reason.
+ */
+const here = fileURLToPath(new URL(".", import.meta.url));
+
 export default defineConfig({
 	plugins: [react(), smithersAgentApi()],
-	root: "src/mainview",
+	root: `${here}src/mainview`,
 	build: {
-		outDir: "../../dist",
+		outDir: `${here}dist`,
 		emptyOutDir: true,
 	},
 	server: {

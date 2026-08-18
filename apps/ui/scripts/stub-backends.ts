@@ -17,11 +17,23 @@
  * values to pass as --var).
  */
 
+import type { Server } from "bun";
+
 const json = (status: number, body: unknown, headers: Record<string, string> = {}): Response =>
 	new Response(JSON.stringify(body), {
 		status,
 		headers: { "content-type": "application/json", ...headers },
 	});
+
+/**
+ * Bun types a served port as optional because a unix-socket server has none.
+ * These stubs all bind TCP on port 0, so the assigned port is always there —
+ * and a stub that somehow did not bind must fail loudly, not report port 0.
+ */
+const listeningPort = (server: Server<undefined>): number => {
+	if (server.port === undefined) throw new Error("stub server bound no TCP port");
+	return server.port;
+};
 
 export interface StubHandle {
 	readonly port: number;
@@ -115,7 +127,7 @@ export const createStubIdentity = (extraAllowedOrigins: ReadonlyArray<string> = 
 		return session === undefined ? undefined : { token, ...session };
 	};
 
-	const server = Bun.serve({
+	const server: Server<undefined> = Bun.serve({
 		port: 0,
 		async fetch(request) {
 			const url = new URL(request.url);
@@ -301,7 +313,7 @@ export const createStubIdentity = (extraAllowedOrigins: ReadonlyArray<string> = 
 			return json(404, { status: "error", message: `identity stub: no route ${url.pathname}` });
 		},
 	});
-	return { port: server.port, stop: () => server.stop(true) };
+	return { port: listeningPort(server), stop: () => server.stop(true) };
 };
 
 /* ------------------------------------------------------------------ */
@@ -331,7 +343,7 @@ export const createStubBilling = (extraAllowedOrigins: ReadonlyArray<string> = [
 	let lastBalanceAuth: { mode: "trusted" | "bearer"; account: string } | null = null;
 	const grants: Array<Record<string, unknown>> = [];
 
-	const server = Bun.serve({
+	const server: Server<undefined> = Bun.serve({
 		port: 0,
 		async fetch(request) {
 			const url = new URL(request.url);
@@ -497,7 +509,7 @@ export const createStubBilling = (extraAllowedOrigins: ReadonlyArray<string> = [
 			return json(404, { status: "error", message: `billing stub: no route ${url.pathname}` });
 		},
 	});
-	return { port: server.port, stop: () => server.stop(true) };
+	return { port: listeningPort(server), stop: () => server.stop(true) };
 };
 
 /* ------------------------------------------------------------------ */
@@ -674,7 +686,7 @@ export const createStubGateway = (): StubHandle => {
 		}
 	};
 
-	const server = Bun.serve({
+	const server: Server<undefined> = Bun.serve({
 		port: 0,
 		async fetch(request) {
 			const url = new URL(request.url);
@@ -759,7 +771,7 @@ export const createStubGateway = (): StubHandle => {
 					gateways.set(id, { repo, token: STUB_GATEWAY_TOKEN });
 				}
 				return json(200, {
-					base_url: `http://127.0.0.1:${server.port}/api/gateways/${id}`,
+					base_url: `http://127.0.0.1:${listeningPort(server)}/api/gateways/${id}`,
 					token: gateways.get(id)?.token,
 					expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
 					gateway_id: id,
@@ -836,7 +848,7 @@ export const createStubGateway = (): StubHandle => {
 			return json(404, { status: "error", message: `gateway stub: no route ${url.pathname}` });
 		},
 	});
-	return { port: server.port, stop: () => server.stop(true) };
+	return { port: listeningPort(server), stop: () => server.stop(true) };
 };
 
 /* ------------------------------------------------------------------ */
@@ -935,7 +947,7 @@ export const createStubReco = (extraAllowedOrigins: ReadonlyArray<string> = []):
 		return cookie !== null && cookie.includes("stub_session=");
 	};
 
-	const server = Bun.serve({
+	const server: Server<undefined> = Bun.serve({
 		port: 0,
 		async fetch(request) {
 			const url = new URL(request.url);
@@ -1062,7 +1074,7 @@ export const createStubReco = (extraAllowedOrigins: ReadonlyArray<string> = []):
 			return json(404, { status: "error", message: `reco stub: no route ${url.pathname}` });
 		},
 	});
-	return { port: server.port, stop: () => server.stop(true) };
+	return { port: listeningPort(server), stop: () => server.stop(true) };
 };
 
 /* Standalone mode: print the --var lines for `bun run serve:local`. */

@@ -117,3 +117,23 @@ row's status is `fail`, `0` otherwise (a dry run, or a run made entirely of
 - `live-check.ts`, `live-signed-in-check.ts`, `live-workflow-check.ts`, `canary-seam-probe.ts`, `launch-seam-probe.ts` — browser-driven and HTTP live checks against a real deployment (see each file's header comment for invocation and required env/profile).
 - `live-store-reset.ts` — shared helper: clears a page's persisted store (OPFS/localStorage) over CDP, keeping cookies.
 - `launch-mint-session.ts` — mints a Playwright storage-state file for the live checks.
+
+### Two browser drivers, on purpose
+
+`launch-checklist.ts` drives a **system Chrome over the DevTools protocol**
+(`headless-page.ts`): no browser download, no Playwright. The `live-*.ts`
+scripts drive **Playwright**, because they need a persistent profile to carry a
+real GitHub OAuth session through a redirect — the one thing the checklist
+cannot do. Playwright is a devDependency of this package; it used to be
+`require`d over an absolute path into a sibling checkout, which made those three
+scripts runnable on exactly one machine.
+
+Playwright's browser download is not part of `pnpm install` (the workspace
+blocks package build scripts). Install a browser once with
+`pnpm --filter smithers-ui exec playwright install chromium`, or point
+`MULTI_E2E_PROFILE` at a profile whose browser is already on the machine.
+
+Everything under `scripts/` is covered by `pnpm --filter smithers-ui run
+typecheck`. It was not until 2026-08-18, which is how the foreign-path
+`require` and nine assertions against a card kind that no longer exists
+(`workflow-run`, renamed to `flow-run`) both survived in here.

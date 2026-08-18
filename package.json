@@ -9,6 +9,7 @@
     "check": "pnpm --recursive --if-present run check",
     "checklist": "pnpm --filter smithers-ui run checklist",
     "circular": "pnpm --recursive --if-present run circular",
+    "dev": "pnpm --filter smithers-ui run web",
     "deploy:dry": "pnpm --filter smithers-server run deploy:dry",
     "lint": "pnpm --recursive --if-present run lint",
     "test": "pnpm --recursive --if-present run test",

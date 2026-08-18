@@ -78,6 +78,59 @@ describe("command registry pure model", () => {
 		expect(matches(command, "")).toBe(true);
 	});
 
+	test("a needle that names a flow exactly leads the listing, ahead of a summary match", () => {
+		// The shape of the real defect: /flows listed flow.list first, because
+		// its summary reads "List the workflows on your workspace" and it is
+		// declared earlier in the registry than the flow actually named `flows`.
+		const commands = [
+			{ name: "flow.list", summary: "List the workflows on your workspace" },
+			{ name: "flows", summary: "List everything Smithers can do" },
+		];
+		const items = slashItems(chatState, "flows", commands);
+		expect(items.map((item) => item.flow.name)).toEqual(["flows", "flow.list"]);
+	});
+
+	test("a name match outranks a summary-only match, even when the summary match is recommended", () => {
+		const commands = [
+			// `connect` is chatState's leading recommendation, and its summary
+			// happens to carry the needle. A name match still leads.
+			{ name: "connect", summary: "Connect the repos you work in" },
+			{ name: "repos.watch", summary: "Choose what to watch" },
+			{ name: "repos.list", summary: "Show them" },
+		];
+		expect(slashItems(chatState, "repos", commands).map((item) => item.flow.name)).toEqual([
+			"repos.watch",
+			"repos.list",
+			"connect",
+		]);
+	});
+
+	test("an exact name outranks the recommendation, which still leads a bare /", () => {
+		const commands = [
+			{ name: "connect", summary: "Connect work to Smithers" },
+			{ name: "keys", summary: "Your connected keys" },
+		];
+		// connect is chatState's recommendation; naming keys beats it.
+		expect(slashItems(chatState, "", commands)[0]?.flow.name).toBe("connect");
+		const named = slashItems(chatState, "keys", commands);
+		expect(named[0]?.flow.name).toBe("keys");
+		expect(named[0]?.recommended).toBe(false);
+		// Naming the recommendation itself keeps it flagged as one.
+		expect(slashItems(chatState, "connect", commands)[0]).toEqual({
+			flow: commands[0],
+			recommended: true,
+		});
+	});
+
+	test("the exact match is never listed twice", () => {
+		const commands = [
+			{ name: "connect", summary: "Connect work to Smithers" },
+			{ name: "connectors", summary: "Manage connectors" },
+		];
+		const items = slashItems(chatState, "connect", commands);
+		expect(items.map((item) => item.flow.name)).toEqual(["connect", "connectors"]);
+	});
+
 	test("the slash listing puts the recommended command first", () => {
 		const commands = [
 			{ name: "world", summary: "w" },
@@ -444,6 +497,24 @@ describe("command registry bindings", () => {
 		const items = controller.slashItems("");
 		expect(items[0]?.flow.name).toBe("connect");
 		expect(items[0]?.recommended).toBe(true);
+	});
+
+	/*
+	 * The registered catalog, not a fixture: typing a whole flow name and
+	 * pressing Enter runs THAT flow. The composer's Enter takes the first item
+	 * of this listing, so first-ness is the whole contract. Every registered
+	 * name is checked, because the defect this pins was one name whose text
+	 * happened to appear inside another flow's summary.
+	 */
+	test("every registered flow leads its own name's listing", async () => {
+		const { controller } = await freshController();
+		const listed = controller.commands.all().filter((command) => command.hidden !== true);
+		// Not a vacuous pass: the whole registered catalog is under test.
+		expect(listed.length).toBeGreaterThan(40);
+		const misdirected = listed
+			.map((command) => ({ typed: command.name, leads: controller.slashItems(command.name)[0]?.flow.name }))
+			.filter((row) => row.leads !== row.typed);
+		expect(misdirected).toEqual([]);
 	});
 
 	test("the agent tool lists commands and executes them through the same path", async () => {

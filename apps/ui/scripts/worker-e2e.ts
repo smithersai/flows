@@ -28,6 +28,8 @@ import {
 	STUB_PRODUCT_TOKEN,
 } from "./stub-backends";
 import { createAppController } from "../src/mainview/state/AppController";
+import type { CommandOutcome } from "../src/mainview/flows/Commands";
+import type { NativeRepositories } from "../src/mainview/native/NativeBridge";
 import { createAppStore } from "../src/mainview/state/AppStore";
 import { createWebAgent } from "../src/mainview/native/WebAgent";
 
@@ -65,11 +67,18 @@ const cleanup = (): void => {
 	gateway.stop();
 	reco.stop();
 };
-const fail = async (reason: string): Promise<never> => {
+/*
+ * A function declaration, synchronous, returning never — all three on purpose.
+ * TypeScript only narrows past a never-returning call when the callee is a
+ * declared function and the call is the whole statement, so the previous
+ * awaited async const taught the checker nothing and every guard below it
+ * re-widened. cleanup() is synchronous, so there was never anything to await.
+ */
+function fail(reason: string): never {
 	console.error(`FAIL: ${reason}`);
 	cleanup();
 	process.exit(1);
-};
+}
 
 // A stub chat.smithers.sh: emits one NDJSON turn (delta, card, done) per POST.
 // In tool-loop mode (armed via /stub/arm-tool-loop) it plays the chat worker's
@@ -306,7 +315,7 @@ const bootWorker = async (vars: Record<string, string>): Promise<void> => {
 		}
 		await wait(500);
 	}
-	await fail("wrangler dev never came up.");
+	fail("wrangler dev never came up.");
 };
 
 const stopWorker = async (): Promise<void> => {
@@ -329,9 +338,9 @@ await bootWorker({ SMITHERS_CHAT_URL: `http://127.0.0.1:${chatUpstream.port}/cha
 
 const page = await fetch(WORKER_ORIGIN);
 const html = await page.text();
-if (!html.includes("<")) await fail("the root page did not look like HTML.");
+if (!html.includes("<")) fail("the root page did not look like HTML.");
 for (const header of ["cross-origin-opener-policy", "cross-origin-embedder-policy"]) {
-	if (page.headers.get(header) === null) await fail(`missing ${header} on the SPA response.`);
+	if (page.headers.get(header) === null) fail(`missing ${header} on the SPA response.`);
 }
 console.log("ok: SPA served with COOP/COEP headers.");
 
@@ -344,9 +353,9 @@ const turn = await fetch(`${WORKER_ORIGIN}/api/agent/turn`, {
 		instructions: "Be brief.",
 	}),
 });
-if (turn.status !== 200) await fail(`/api/agent/turn answered HTTP ${turn.status}: ${await turn.text()}`);
+if (turn.status !== 200) fail(`/api/agent/turn answered HTTP ${turn.status}: ${await turn.text()}`);
 if (turn.headers.get("content-type") !== "application/x-ndjson") {
-	await fail(`unexpected content-type: ${turn.headers.get("content-type")}`);
+	fail(`unexpected content-type: ${turn.headers.get("content-type")}`);
 }
 const lines = (await turn.text())
 	.trim()
@@ -354,7 +363,7 @@ const lines = (await turn.text())
 	.map((line) => JSON.parse(line) as { type: string });
 const kinds = lines.map((line) => line.type);
 if (kinds[0] !== "delta" || !kinds.includes("card") || kinds[kinds.length - 1] !== "done") {
-	await fail(`the streamed turn did not carry delta → card → done frames (saw ${kinds.join(",")}).`);
+	fail(`the streamed turn did not carry delta → card → done frames (saw ${kinds.join(",")}).`);
 }
 console.log(`ok: one streamed chat turn completed through /api/agent/turn (${kinds.join(" → ")}).`);
 
@@ -363,7 +372,7 @@ const cancel = await fetch(`${WORKER_ORIGIN}/api/agent/turn/cancel`, {
 	headers: { "content-type": "application/json" },
 	body: JSON.stringify({ runId: "e2e-run-1" }),
 });
-if (cancel.status !== 200) await fail(`/api/agent/turn/cancel answered HTTP ${cancel.status}`);
+if (cancel.status !== 200) fail(`/api/agent/turn/cancel answered HTTP ${cancel.status}`);
 console.log("ok: cancel endpoint answered.");
 
 /* ----- Wave 6c (B-3): the server-side kill, mid-stream, over real HTTP ----- */
@@ -372,7 +381,7 @@ console.log("ok: cancel endpoint answered.");
 // route and the turn's own stream must end with the honest terminal frame —
 // never a silent stop, never a 500, and never done:stop after a kill.
 const armSlow = await fetch(`http://127.0.0.1:${chatUpstream.port}/stub/arm-slow`, { method: "POST" });
-if (armSlow.status !== 200) await fail("the stub arm-slow control failed.");
+if (armSlow.status !== 200) fail("the stub arm-slow control failed.");
 const slowTurn = await fetch(`${WORKER_ORIGIN}/api/agent/turn`, {
 	method: "POST",
 	headers: { "content-type": "application/json" },
@@ -382,7 +391,7 @@ const slowTurn = await fetch(`${WORKER_ORIGIN}/api/agent/turn`, {
 		instructions: "Be brief.",
 	}),
 });
-if (slowTurn.status !== 200) await fail(`the slow turn answered HTTP ${slowTurn.status}.`);
+if (slowTurn.status !== 200) fail(`the slow turn answered HTTP ${slowTurn.status}.`);
 const slowReader = slowTurn.body!.getReader();
 const slowDecoder = new TextDecoder();
 let slowBuffer = "";
@@ -401,16 +410,16 @@ const readSlowFrame = async (): Promise<Record<string, unknown>> => {
 	}
 };
 const firstSlow = await readSlowFrame();
-if (firstSlow.type !== "delta") await fail(`the slow turn did not start streaming (saw ${firstSlow.type}).`);
+if (firstSlow.type !== "delta") fail(`the slow turn did not start streaming (saw ${firstSlow.type}).`);
 const midKill = await fetch(`${WORKER_ORIGIN}/api/agent/turn/cancel`, {
 	method: "POST",
 	headers: { "content-type": "application/json" },
 	body: JSON.stringify({ runId: "e2e-run-kill" }),
 });
-if (midKill.status !== 200) await fail(`the mid-stream kill answered HTTP ${midKill.status}.`);
+if (midKill.status !== 200) fail(`the mid-stream kill answered HTTP ${midKill.status}.`);
 const midKillBody = (await midKill.json()) as { status?: string };
 if (midKillBody.status !== "cancelled") {
-	await fail(`the mid-stream kill did not report cancelled: ${JSON.stringify(midKillBody)}.`);
+	fail(`the mid-stream kill did not report cancelled: ${JSON.stringify(midKillBody)}.`);
 }
 let terminal: Record<string, unknown> | undefined;
 for (let seen = 0; seen < 40; seen += 1) {
@@ -422,7 +431,7 @@ for (let seen = 0; seen < 40; seen += 1) {
 	}
 }
 if (terminal?.reason !== "cancelled") {
-	await fail(`the killed turn did not end with the honest cancelled frame (saw ${JSON.stringify(terminal)}).`);
+	fail(`the killed turn did not end with the honest cancelled frame (saw ${JSON.stringify(terminal)}).`);
 }
 // A second kill on the now-settled turn is the honest not-found, never an error.
 const lateKill = await fetch(`${WORKER_ORIGIN}/api/agent/turn/cancel`, {
@@ -432,20 +441,20 @@ const lateKill = await fetch(`${WORKER_ORIGIN}/api/agent/turn/cancel`, {
 });
 const lateKillBody = (await lateKill.json()) as { status?: string };
 if (lateKill.status !== 200 || lateKillBody.status !== "not-found") {
-	await fail(`killing the settled turn did not answer not-found: HTTP ${lateKill.status} ${JSON.stringify(lateKillBody)}.`);
+	fail(`killing the settled turn did not answer not-found: HTTP ${lateKill.status} ${JSON.stringify(lateKillBody)}.`);
 }
 console.log(
 	"ok: server-side kill mid-stream — cancel answered cancelled, the stream ended with done:cancelled (never done:stop), and a late kill is not-found.",
 );
 const armDefault = await fetch(`http://127.0.0.1:${chatUpstream.port}/stub/arm-default`, { method: "POST" });
-if (armDefault.status !== 200) await fail("the stub arm-default control failed.");
+if (armDefault.status !== 200) fail("the stub arm-default control failed.");
 
 const seam501 = async (path: string, envName: string, init?: RequestInit): Promise<void> => {
 	const response = await fetch(`${WORKER_ORIGIN}${path}`, init);
-	if (response.status !== 501) await fail(`${path} answered HTTP ${response.status}, expected 501.`);
+	if (response.status !== 501) fail(`${path} answered HTTP ${response.status}, expected 501.`);
 	const body = (await response.json()) as { message?: string };
 	if (body.message?.includes(envName) !== true) {
-		await fail(`${path}'s 501 was not honest about the missing ${envName}.`);
+		fail(`${path}'s 501 was not honest about the missing ${envName}.`);
 	}
 };
 await seam501("/v1/rpc/getRun", "GATEWAY_UPSTREAM_URL", { method: "POST", body: "{}" });
@@ -467,12 +476,12 @@ console.log("ok: reco seam 501s honestly with no upstream configured.");
 // The admin surface is non-enumerable: signed-out probes get the canonical
 // 404, byte-identical to any unknown /api/* route.
 const unknownRoute = await fetch(`${WORKER_ORIGIN}/api/definitely-not-a-route`);
-if (unknownRoute.status !== 404) await fail(`an unknown /api route answered HTTP ${unknownRoute.status}.`);
+if (unknownRoute.status !== 404) fail(`an unknown /api route answered HTTP ${unknownRoute.status}.`);
 const unknownBody = await unknownRoute.text();
 for (const path of ["/api/admin/requests", "/api/admin/health", "/api/admin/feedback"]) {
 	const probe = await fetch(`${WORKER_ORIGIN}${path}`);
 	if (probe.status !== 404 || (await probe.text()) !== unknownBody) {
-		await fail(`${path} was enumerable (HTTP ${probe.status} or a different body than an unknown route).`);
+		fail(`${path} was enumerable (HTTP ${probe.status} or a different body than an unknown route).`);
 	}
 }
 console.log("ok: the admin surface answers signed-out probes byte-identically to an unknown route (404, never 403).");
@@ -490,7 +499,7 @@ for (const [path, init] of [
 		headers: { "content-type": "text/plain", origin: "https://evil.example" },
 	});
 	if (crossOrigin.status !== 403) {
-		await fail(`${path} answered a cross-origin request with HTTP ${crossOrigin.status}, expected 403.`);
+		fail(`${path} answered a cross-origin request with HTTP ${crossOrigin.status}, expected 403.`);
 	}
 }
 console.log("ok: cross-origin requests to the API are refused (403) before any credential is spent.");
@@ -520,10 +529,10 @@ await bootWorker({
 
 // The auth journey: signed-out → sign-in → non-allowlisted → request-access → allowlisted → chat.
 const scopes = await fetch(`${WORKER_ORIGIN}/api/auth/scopes`);
-if (scopes.status !== 200) await fail(`/api/auth/scopes answered HTTP ${scopes.status}.`);
+if (scopes.status !== 200) fail(`/api/auth/scopes answered HTTP ${scopes.status}.`);
 const scopesBody = (await scopes.json()) as { scopes?: Array<{ plain: string }> };
 if (!Array.isArray(scopesBody.scopes) || scopesBody.scopes.length === 0) {
-	await fail("the scopes route did not return a plain-words scope list.");
+	fail("the scopes route did not return a plain-words scope list.");
 }
 
 const anon = await fetch(`${WORKER_ORIGIN}/api/auth/session`);
@@ -531,7 +540,7 @@ const anonBody = (await anon.json()) as { status?: string };
 // Wave 8: the seam restates the expected signed-out 401 as a resolved 200 —
 // the browser logs any 4xx as a console error even when the client handles it.
 if (anon.status !== 200 || anonBody.status !== "signed-out") {
-	await fail(`a signed-out session check answered HTTP ${anon.status} ${JSON.stringify(anonBody)}, expected 200 signed-out.`);
+	fail(`a signed-out session check answered HTTP ${anon.status} ${JSON.stringify(anonBody)}, expected 200 signed-out.`);
 }
 
 /* ----- Wave 8: no dead ends on the OAuth navigation routes ----- */
@@ -540,7 +549,7 @@ if (anon.status !== 200 || anonBody.status !== "signed-out") {
 // the live deployment), a browser navigation must land on the branded honest
 // page — never raw JSON — while a machine caller keeps the JSON, status intact.
 const oauthDown = await fetch(`http://127.0.0.1:${identity.port}/stub/oauth-down`, { method: "POST" });
-if (oauthDown.status !== 200) await fail("the stub oauth-down control failed.");
+if (oauthDown.status !== 200) fail("the stub oauth-down control failed.");
 const BROWSER_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
 for (const [path, code, heading] of [
 	["/api/auth/github/start", "oauth_not_configured", "isn't switched on yet"],
@@ -551,43 +560,43 @@ for (const [path, code, heading] of [
 		redirect: "manual",
 	});
 	const pageBody = await page.text();
-	if (page.status !== 503) await fail(`${path} answered HTTP ${page.status} for a browser, expected the honest 503 page.`);
+	if (page.status !== 503) fail(`${path} answered HTTP ${page.status} for a browser, expected the honest 503 page.`);
 	if (page.headers.get("content-type")?.includes("text/html") !== true) {
-		await fail(`${path} did not answer HTML for a browser (content-type ${page.headers.get("content-type")}).`);
+		fail(`${path} did not answer HTML for a browser (content-type ${page.headers.get("content-type")}).`);
 	}
-	if (!pageBody.includes('href="/"')) await fail(`${path}'s honest page offers no way back home.`);
-	if (!pageBody.includes(heading)) await fail(`${path}'s page did not state honestly what happened (missing "${heading}").`);
+	if (!pageBody.includes('href="/"')) fail(`${path}'s honest page offers no way back home.`);
+	if (!pageBody.includes(heading)) fail(`${path}'s page did not state honestly what happened (missing "${heading}").`);
 	const machine = await fetch(`${WORKER_ORIGIN}${path}`, {
 		headers: { accept: "application/json" },
 		redirect: "manual",
 	});
 	const machineBody = (await machine.json()) as { code?: string };
 	if (machine.status !== 503 || machineBody.code !== code) {
-		await fail(`${path} did not keep the machine-readable answer for Accept: application/json (HTTP ${machine.status} ${JSON.stringify(machineBody)}).`);
+		fail(`${path} did not keep the machine-readable answer for Accept: application/json (HTTP ${machine.status} ${JSON.stringify(machineBody)}).`);
 	}
 }
 console.log(
 	"ok: OAuth navigation errors render the branded honest page with the way home for browsers, and keep the JSON + status for Accept: application/json.",
 );
 const oauthUp = await fetch(`http://127.0.0.1:${identity.port}/stub/oauth-up`, { method: "POST" });
-if (oauthUp.status !== 200) await fail("the stub oauth-up control failed.");
+if (oauthUp.status !== 200) fail("the stub oauth-up control failed.");
 
 const start = await fetch(`${WORKER_ORIGIN}/api/auth/github/start`, { redirect: "manual" });
 const startLocation = start.headers.get("location");
 if (start.status !== 302 || startLocation === null) {
-	await fail(`the sign-in start did not redirect (HTTP ${start.status}).`);
+	fail(`the sign-in start did not redirect (HTTP ${start.status}).`);
 }
 const callback = await fetch(`${WORKER_ORIGIN}${startLocation}`, { redirect: "manual" });
 const setCookie = callback.headers.get("set-cookie");
 if (callback.status !== 302 || setCookie === null || !setCookie.includes("stub_session=")) {
-	await fail("the sign-in callback did not issue a session cookie.");
+	fail("the sign-in callback did not issue a session cookie.");
 }
 const cookie = setCookie.split(";")[0] ?? "";
 
 const session1 = await fetch(`${WORKER_ORIGIN}/api/auth/session`, { headers: { cookie } });
 const session1Body = (await session1.json()) as { login?: string; allowlisted?: boolean };
 if (session1.status !== 200 || session1Body.login !== "will" || session1Body.allowlisted !== false) {
-	await fail(`the signed-in session was not the non-allowlisted stub user: ${JSON.stringify(session1Body)}.`);
+	fail(`the signed-in session was not the non-allowlisted stub user: ${JSON.stringify(session1Body)}.`);
 }
 
 const requestAccess = await fetch(`${WORKER_ORIGIN}/api/identity/request-access`, {
@@ -595,25 +604,31 @@ const requestAccess = await fetch(`${WORKER_ORIGIN}/api/identity/request-access`
 	headers: { "content-type": "application/json", cookie },
 	body: JSON.stringify({ login: "will" }),
 });
-if (requestAccess.status !== 200) await fail(`request-access answered HTTP ${requestAccess.status}.`);
+if (requestAccess.status !== 200) fail(`request-access answered HTTP ${requestAccess.status}.`);
 const requestAccessAgain = await fetch(`${WORKER_ORIGIN}/api/identity/request-access`, {
 	method: "POST",
 	headers: { "content-type": "application/json", cookie },
 	body: JSON.stringify({ login: "will" }),
 });
 if (requestAccessAgain.status !== 200) {
-	await fail(`request-access was not idempotent (second POST HTTP ${requestAccessAgain.status}).`);
+	fail(`request-access was not idempotent (second POST HTTP ${requestAccessAgain.status}).`);
 }
 
 /* ---- Wave 9: auth states are conversation states in the real client ---- */
 
-const noNativeRepos = {
+const noNativeRepos: NativeRepositories = {
 	available: false,
 	pickLocalRepository: async () => ({
-		status: "error" as const,
+		status: "error",
 		code: "native-required",
 		message: "no native bridge in the e2e",
 	}),
+};
+
+/** The line a flow answered with, whichever of the three ways it ended. */
+const outcomeLine = (outcome: CommandOutcome): string => {
+	if (outcome.status === "failed") return outcome.error;
+	return outcome.status === "executed" ? (outcome.value ?? "") : "";
 };
 const e2eMemoryStorage = (): import("@tanstack/db").StorageApi => {
 	const data = new Map<string, string>();
@@ -644,18 +659,18 @@ const e2eMemoryStorage = (): import("@tanstack/db").StorageApi => {
 		);
 		await controller.loadSession();
 		if (store.collections.identitySessions.get("identity")?.state !== "signed-out") {
-			await fail("the real client did not record the signed-out answer.");
+			fail("the real client did not record the signed-out answer.");
 		}
 		controller.send("hello — is anyone there?");
 		await wait(300);
 		const reply = [...store.collections.messages.values()].find(
-			(message) => message.action?.command === "auth.sign-in",
+			(message) => message.action?.flow === "auth.sign-in",
 		);
-		if (turnPosts !== 0) await fail("a signed-out send reached the turn route.");
+		if (turnPosts !== 0) fail("a signed-out send reached the turn route.");
 		if (reply === undefined || !reply.text.includes("Sign in with GitHub first")) {
-			await fail("a signed-out send did not resolve to the calm sign-in reply.");
+			fail("a signed-out send did not resolve to the calm sign-in reply.");
 		}
-		if (store.session().phase !== "idle") await fail("a signed-out send left the composer busy.");
+		if (store.session().phase !== "idle") fail("a signed-out send left the composer busy.");
 	} finally {
 		globalThis.fetch = pristine;
 	}
@@ -684,19 +699,19 @@ console.log("ok: signed-out chat — attempted send resolves to the calm sign-in
 		await controller.loadSession();
 		const identity = store.collections.identitySessions.get("identity");
 		if (identity?.state !== "signed-in" || identity.allowlisted) {
-			await fail("the real client did not record the non-allowlisted answer.");
+			fail("the real client did not record the non-allowlisted answer.");
 		}
-		if (!controller.runCommand("auth.request-access")) await fail("auth.request-access is not registered.");
+		if (!controller.runCommand("auth.request-access")) fail("auth.request-access is not registered.");
 		await wait(300);
 		if (store.collections.identitySessions.get("identity")?.accessRequested !== true) {
-			await fail("request access through the chat did not confirm.");
+			fail("request access through the chat did not confirm.");
 		}
 		controller.send("hello?");
 		await wait(300);
 		const reply = [...store.collections.messages.values()].find((message) =>
 			message.text.includes("Your request is already in"),
 		);
-		if (reply === undefined) await fail("a non-allowlisted send did not state the honest waiting state.");
+		if (reply === undefined) fail("a non-allowlisted send did not state the honest waiting state.");
 	} finally {
 		globalThis.fetch = pristine;
 	}
@@ -714,15 +729,15 @@ console.log("ok: non-allowlisted chat — request access via the chat's command;
 		{ baseUrl: WORKER_ORIGIN },
 	);
 	if (!controller.handleAuthReturn("?auth=failed")) {
-		await fail("the failed-OAuth return was not recognized.");
+		fail("the failed-OAuth return was not recognized.");
 	}
 	const message = [...store.collections.messages.values()].find((entry) =>
 		entry.text.includes("GitHub sign-in didn't finish"),
 	);
-	if (message === undefined || message.action?.command !== "auth.sign-in") {
-		await fail("the failed-OAuth return did not render as a chat message with the retry action.");
+	if (message === undefined || message.action?.flow !== "auth.sign-in") {
+		fail("the failed-OAuth return did not render as a chat message with the retry action.");
 	}
-	if (controller.handleAuthReturn("?")) await fail("a clean boot was mistaken for a failed OAuth return.");
+	if (controller.handleAuthReturn("?")) fail("a clean boot was mistaken for a failed OAuth return.");
 }
 console.log("ok: failed-OAuth return — honest chat message with the retry sign-in action, never a bare page.");
 
@@ -732,12 +747,12 @@ const allow = await fetch(`http://127.0.0.1:${identity.port}/stub/allowlist`, {
 	headers: { "content-type": "application/json" },
 	body: JSON.stringify({ login: "will" }),
 });
-if (allow.status !== 200) await fail("the stub allowlist control failed.");
+if (allow.status !== 200) fail("the stub allowlist control failed.");
 
 const session2 = await fetch(`${WORKER_ORIGIN}/api/auth/session`, { headers: { cookie } });
 const session2Body = (await session2.json()) as { allowlisted?: boolean };
 if (session2.status !== 200 || session2Body.allowlisted !== true) {
-	await fail(`the session did not turn allowlisted after the admin act: ${JSON.stringify(session2Body)}.`);
+	fail(`the session did not turn allowlisted after the admin act: ${JSON.stringify(session2Body)}.`);
 }
 
 // Allowlisted → chat: a streamed turn completes through the same worker.
@@ -750,7 +765,7 @@ const journeyTurn = await fetch(`${WORKER_ORIGIN}/api/agent/turn`, {
 		instructions: "Be brief.",
 	}),
 });
-if (journeyTurn.status !== 200) await fail(`the allowlisted chat turn answered HTTP ${journeyTurn.status}.`);
+if (journeyTurn.status !== 200) fail(`the allowlisted chat turn answered HTTP ${journeyTurn.status}.`);
 await journeyTurn.text();
 console.log(
 	"ok: auth journey through the stub identity upstream (signed-out → sign-in → non-allowlisted → request-access → allowlisted → chat).",
@@ -758,37 +773,37 @@ console.log(
 
 // Balance in dollars, then drain to $0.
 const balance1 = await fetch(`${WORKER_ORIGIN}/api/billing/balance`, { headers: { cookie } });
-if (balance1.status !== 200) await fail(`/api/billing/balance answered HTTP ${balance1.status}.`);
+if (balance1.status !== 200) fail(`/api/billing/balance answered HTTP ${balance1.status}.`);
 const balance1Body = (await balance1.json()) as {
 	balance?: { totalUsd?: string };
 	state?: string;
 	allowedToStartWork?: boolean;
 };
 if (balance1Body.balance?.totalUsd !== "500" || balance1Body.allowedToStartWork !== true) {
-	await fail(`the balance did not read $500 with work allowed: ${JSON.stringify(balance1Body)}.`);
+	fail(`the balance did not read $500 with work allowed: ${JSON.stringify(balance1Body)}.`);
 }
 // Wave 13: the signed-in read billed AS THE USER — the trusted-caller path
 // (service token + validated login), never the deployment-wide bearer.
 const lastAuth = await fetch(`http://127.0.0.1:${billing.port}/stub/last-auth`);
 const lastAuthBody = (await lastAuth.json()) as { lastBalanceAuth?: { mode?: string; account?: string } | null };
 if (lastAuthBody.lastBalanceAuth?.mode !== "trusted" || lastAuthBody.lastBalanceAuth.account !== "will") {
-	await fail(`the signed-in balance read did not bill as the user: ${JSON.stringify(lastAuthBody)}.`);
+	fail(`the signed-in balance read did not bill as the user: ${JSON.stringify(lastAuthBody)}.`);
 }
 
 const charge = await fetch(`http://127.0.0.1:${billing.port}/stub/charge`, { method: "POST" });
-if (charge.status !== 200) await fail("the stub charge control failed.");
+if (charge.status !== 200) fail("the stub charge control failed.");
 const usage = await fetch(`${WORKER_ORIGIN}/api/billing/usage?run=e2e-run-2`, { headers: { cookie } });
 const usageBody = (await usage.json()) as { totalUsd?: string; charges?: Array<unknown> };
 if (usage.status !== 200 || usageBody.totalUsd !== "0.05375" || usageBody.charges?.length !== 1) {
-	await fail(`the per-run usage did not read in dollars: ${JSON.stringify(usageBody)}.`);
+	fail(`the per-run usage did not read in dollars: ${JSON.stringify(usageBody)}.`);
 }
 
 const drain = await fetch(`http://127.0.0.1:${billing.port}/stub/drain`, { method: "POST" });
-if (drain.status !== 200) await fail("the stub drain control failed.");
+if (drain.status !== 200) fail("the stub drain control failed.");
 const balance2 = await fetch(`${WORKER_ORIGIN}/api/billing/balance`, { headers: { cookie } });
 const balance2Body = (await balance2.json()) as { state?: string; allowedToStartWork?: boolean };
 if (balance2.status !== 200 || balance2Body.state !== "empty" || balance2Body.allowedToStartWork !== false) {
-	await fail(`the drained balance did not read empty/paused: ${JSON.stringify(balance2Body)}.`);
+	fail(`the drained balance did not read empty/paused: ${JSON.stringify(balance2Body)}.`);
 }
 console.log(
 	"ok: balance reads in dollars and drains to $0 with allowedToStartWork:false — the signed-in read billed AS THE USER through the trusted-caller path (stub billing, which — like the real worker — answers only an allowed origin carrying the service token + validated login, or the Cloud user bearer fallback).",
@@ -810,7 +825,7 @@ const decide = async (approved: boolean): Promise<Response> =>
 const approve = await decide(true);
 const approveEcho = (await approve.json()) as { approved?: boolean; runId?: string; nodeId?: string };
 if (approve.status !== 200 || approveEcho.approved !== true || approveEcho.runId !== "run_01") {
-	await fail(`the approve round trip did not echo: HTTP ${approve.status} ${JSON.stringify(approveEcho)}.`);
+	fail(`the approve round trip did not echo: HTTP ${approve.status} ${JSON.stringify(approveEcho)}.`);
 }
 const forwarded = await fetch(`http://127.0.0.1:${gateway.port}/stub/last-approval`);
 const forwardedBody = (await forwarded.json()) as {
@@ -818,20 +833,20 @@ const forwardedBody = (await forwarded.json()) as {
 	body?: { runId?: string; decision?: { approved?: boolean } };
 };
 if (forwardedBody.headers?.["x-user-id"] !== "will" || forwardedBody.body?.decision?.approved !== true) {
-	await fail(`the Worker did not forward the decision with injected identity: ${JSON.stringify(forwardedBody)}.`);
+	fail(`the Worker did not forward the decision with injected identity: ${JSON.stringify(forwardedBody)}.`);
 }
 
 const deny = await decide(false);
 const denyEcho = (await deny.json()) as { approved?: boolean };
 if (deny.status !== 200 || denyEcho.approved !== false) {
-	await fail(`the deny round trip did not echo approved:false: HTTP ${deny.status}.`);
+	fail(`the deny round trip did not echo approved:false: HTTP ${deny.status}.`);
 }
 
 const forceFail = await fetch(`http://127.0.0.1:${gateway.port}/stub/fail-approval`, { method: "POST" });
-if (forceFail.status !== 200) await fail("the stub fail-approval control failed.");
+if (forceFail.status !== 200) fail("the stub fail-approval control failed.");
 const failedDecision = await decide(true);
 if (failedDecision.status !== 500) {
-	await fail(`a gateway failure did not pass through honestly (HTTP ${failedDecision.status}).`);
+	fail(`a gateway failure did not pass through honestly (HTTP ${failedDecision.status}).`);
 }
 console.log(
 	"ok: approval round trip through the gateway double — approve echo, deny echo, injected identity, honest failure.",
@@ -842,7 +857,7 @@ console.log(
 // Wave 10: with no selection recorded, first-run answers needsSelection with
 // the candidates inline — never an all-repos digest.
 const firstRun = await fetch(`${WORKER_ORIGIN}/api/reco/first-run`, { headers: { cookie } });
-if (firstRun.status !== 200) await fail(`/api/reco/first-run answered HTTP ${firstRun.status}.`);
+if (firstRun.status !== 200) fail(`/api/reco/first-run answered HTTP ${firstRun.status}.`);
 const firstRunBody = (await firstRun.json()) as {
 	needsSelection?: boolean;
 	candidates?: Array<{ fullName?: string; openIssues?: number }>;
@@ -854,18 +869,18 @@ if (
 	firstRunBody.candidates.length !== 3 ||
 	firstRunBody.digest !== undefined
 ) {
-	await fail(`the first-run answer was not the one-round-trip needsSelection: ${JSON.stringify(firstRunBody)}.`);
+	fail(`the first-run answer was not the one-round-trip needsSelection: ${JSON.stringify(firstRunBody)}.`);
 }
 // GET watched states the never-chosen null; the candidates route lists the repos.
 const watchedGet = await fetch(`${WORKER_ORIGIN}/api/reco/watched`, { headers: { cookie } });
 const watchedGetBody = (await watchedGet.json()) as { selected?: unknown };
 if (watchedGet.status !== 200 || watchedGetBody.selected !== null) {
-	await fail(`GET /api/reco/watched did not state the null selection: ${JSON.stringify(watchedGetBody)}.`);
+	fail(`GET /api/reco/watched did not state the null selection: ${JSON.stringify(watchedGetBody)}.`);
 }
 const reposList = await fetch(`${WORKER_ORIGIN}/api/reco/repos`, { headers: { cookie } });
 const reposListBody = (await reposList.json()) as { candidates?: Array<{ fullName?: string }> };
 if (reposList.status !== 200 || reposListBody.candidates?.[0]?.fullName !== "will/flows") {
-	await fail(`GET /api/reco/repos did not list the candidates: ${JSON.stringify(reposListBody)}.`);
+	fail(`GET /api/reco/repos did not list the candidates: ${JSON.stringify(reposListBody)}.`);
 }
 
 // The full onboarding journey, driven by the REAL client against the running
@@ -894,14 +909,14 @@ try {
 		await wait(100);
 	}
 	const chooser = onboardingStore.collections.cards.get("repo-chooser");
-	if (chooser?.kind !== "repo-chooser") await fail("the onboarding chooser card did not open on first run.");
+	if (chooser?.kind !== "repo-chooser") fail("the onboarding chooser card did not open on first run.");
 	if (chooser.kind === "repo-chooser" && chooser.payload.candidates.length !== 3) {
-		await fail("the chooser did not carry the inline candidates.");
+		fail("the chooser did not carry the inline candidates.");
 	}
 	// The non-admin refresh absence (§2): /reset resolves exactly like a typo.
-	if (onboardingController.runCommand("reset")) await fail("reset was registered for a non-admin session.");
+	if (onboardingController.runCommand("reset")) fail("reset was registered for a non-admin session.");
 	if ((await onboardingController.commands.run("reset")).status !== "unknown-command") {
-		await fail("/reset for a non-admin did not resolve as an unknown command.");
+		fail("/reset for a non-admin did not resolve as an unknown command.");
 	}
 	// Toggle two repos and confirm through the card's own commands.
 	await onboardingController.commands.run("repos.watch.toggle", "will/flows");
@@ -912,24 +927,24 @@ try {
 		await wait(100);
 	}
 	const watchedRow = onboardingStore.collections.watchedRepos.get("watched");
-	if (watchedRow?.via !== "onboarding" || watchedRow.selected.join(",") !== "will/flows,will/mvp") {
-		await fail(`the selection did not land locally: ${JSON.stringify(watchedRow)}.`);
+	if (watchedRow?.via !== "onboarding" || (watchedRow.selected ?? []).join(",") !== "will/flows,will/mvp") {
+		fail(`the selection did not land locally: ${JSON.stringify(watchedRow)}.`);
 	}
 	const stubWatched = await fetch(`http://127.0.0.1:${reco.port}/stub/watched`);
 	const stubWatchedBody = (await stubWatched.json()) as {
 		watched?: { selected?: Array<string>; via?: string } | null;
 	};
 	if (stubWatchedBody.watched?.via !== "onboarding" || stubWatchedBody.watched.selected?.length !== 2) {
-		await fail(`the stub did not record the onboarding selection: ${JSON.stringify(stubWatchedBody)}.`);
+		fail(`the stub did not record the onboarding selection: ${JSON.stringify(stubWatchedBody)}.`);
 	}
 	const confirmLine = [...onboardingStore.collections.messages.values()].find((message) =>
 		message.text.includes("change this anytime — just ask"),
 	);
 	if (confirmLine === undefined || !confirmLine.text.includes("Watching 2 repositories")) {
-		await fail("the confirm line did not name the watched set and the just-ask path.");
+		fail("the confirm line did not name the watched set and the just-ask path.");
 	}
 	if (onboardingStore.collections.cards.get("repo-chooser") !== undefined) {
-		await fail("the chooser card was still open after the confirm.");
+		fail("the chooser card was still open after the confirm.");
 	}
 	for (let attempt = 0; attempt < 50; attempt += 1) {
 		const digest = onboardingStore.collections.messages.get("message-reco-digest");
@@ -938,12 +953,12 @@ try {
 	}
 	const digestMessage = onboardingStore.collections.messages.get("message-reco-digest");
 	if (digestMessage === undefined || !digestMessage.text.includes("2 repo")) {
-		await fail("the scoped digest did not arrive after the selection.");
+		fail("the scoped digest did not arrive after the selection.");
 	}
 	// The one recommendation pill binds the reco command (§2a) — derived.
 	if (!onboardingController.commands.state().hasRecommendation) {
 		// The stub's scoped digest carries one recommendation; the state must see it.
-		await fail("the scoped recommendation was not reflected in the command state.");
+		fail("the scoped recommendation was not reflected in the command state.");
 	}
 } finally {
 	globalThis.fetch = pristineFetchForOnboarding;
@@ -966,7 +981,7 @@ if (
 	scopedRunBody.digest?.reposConsidered !== 2 ||
 	scopedRunBody.watched?.length !== 2
 ) {
-	await fail(`the scoped first-run answer did not survive the proxy: ${JSON.stringify(scopedRunBody)}.`);
+	fail(`the scoped first-run answer did not survive the proxy: ${JSON.stringify(scopedRunBody)}.`);
 }
 for (const action of ["accept", "dismiss"] as const) {
 	const feedback = await fetch(`${WORKER_ORIGIN}/api/reco/feedback`, {
@@ -978,13 +993,13 @@ for (const action of ["accept", "dismiss"] as const) {
 			evidenceKey: scopedRunBody.recommendation?.evidenceKey,
 		}),
 	});
-	if (feedback.status !== 201) await fail(`reco feedback (${action}) answered HTTP ${feedback.status}.`);
+	if (feedback.status !== 201) fail(`reco feedback (${action}) answered HTTP ${feedback.status}.`);
 }
 // A signed-in NON-admin probe is just as undetectable as a signed-out one.
 const memberUnknown = await fetch(`${WORKER_ORIGIN}/api/nope`, { headers: { cookie } });
 const memberProbe = await fetch(`${WORKER_ORIGIN}/api/admin/requests`, { headers: { cookie } });
 if (memberProbe.status !== 404 || (await memberProbe.text()) !== (await memberUnknown.text())) {
-	await fail("the admin surface was enumerable to a signed-in non-admin.");
+	fail("the admin surface was enumerable to a signed-in non-admin.");
 }
 console.log(
 	"ok: reco first-run scoped to the watched set + feedback round-trip through the seam; a signed-in non-admin probe is byte-identical to an unknown route.",
@@ -993,7 +1008,7 @@ console.log(
 /* ------------------- Wave 3b: the admin journey ------------------- */
 
 const makeAdmin = await fetch(`http://127.0.0.1:${identity.port}/stub/make-admin`, { method: "POST" });
-if (makeAdmin.status !== 200) await fail("the stub make-admin control failed.");
+if (makeAdmin.status !== 200) fail("the stub make-admin control failed.");
 
 // Allowlist add, attributed.
 const adminAdd = await fetch(`${WORKER_ORIGIN}/api/admin/allowlist`, {
@@ -1001,14 +1016,14 @@ const adminAdd = await fetch(`${WORKER_ORIGIN}/api/admin/allowlist`, {
 	headers: { "content-type": "application/json", cookie },
 	body: JSON.stringify({ login: "octocat", action: "add" }),
 });
-if (adminAdd.status !== 201) await fail(`admin allowlist add answered HTTP ${adminAdd.status}.`);
+if (adminAdd.status !== 201) fail(`admin allowlist add answered HTTP ${adminAdd.status}.`);
 const writes = await fetch(`http://127.0.0.1:${identity.port}/stub/allowlist-writes`);
 const writesBody = (await writes.json()) as {
 	writes?: Array<{ login: string; requester: string; requestedAt: string }>;
 };
 const write = writesBody.writes?.find((entry) => entry.login === "octocat");
 if (write?.requester !== "will" || !Number.isFinite(Date.parse(write.requestedAt))) {
-	await fail(`the allowlist write was not attributed to the admin with a fresh timestamp: ${JSON.stringify(write)}.`);
+	fail(`the allowlist write was not attributed to the admin with a fresh timestamp: ${JSON.stringify(write)}.`);
 }
 
 // Grant, attributed, with a fresh admin: grant id.
@@ -1017,21 +1032,21 @@ const adminGrant = await fetch(`${WORKER_ORIGIN}/api/admin/grant`, {
 	headers: { "content-type": "application/json", cookie },
 	body: JSON.stringify({ login: "octocat", amountUsd: 25 }),
 });
-if (adminGrant.status !== 201) await fail(`admin grant answered HTTP ${adminGrant.status}.`);
+if (adminGrant.status !== 201) fail(`admin grant answered HTTP ${adminGrant.status}.`);
 const grants = await fetch(`http://127.0.0.1:${billing.port}/stub/grants`);
 const grantsBody = (await grants.json()) as {
 	grants?: Array<{ userId: string; grantId: string; requester: string; amountUsd: number }>;
 };
 const grant = grantsBody.grants?.find((entry) => entry.userId === "octocat");
 if (grant?.requester !== "will" || grant.amountUsd !== 25 || !grant.grantId.startsWith("admin:")) {
-	await fail(`the grant did not reach billing with attribution: ${JSON.stringify(grant)}.`);
+	fail(`the grant did not reach billing with attribution: ${JSON.stringify(grant)}.`);
 }
 
 // The request queue read (will's request-access from the journey above is in it).
 const queue = await fetch(`${WORKER_ORIGIN}/api/admin/requests`, { headers: { cookie } });
 const queueBody = (await queue.json()) as { requests?: Array<{ login: string }> };
 if (queue.status !== 200 || !queueBody.requests?.some((entry) => entry.login === "will")) {
-	await fail(`the admin queue read did not list the pending request: ${JSON.stringify(queueBody)}.`);
+	fail(`the admin queue read did not list the pending request: ${JSON.stringify(queueBody)}.`);
 }
 
 // The reco feedback log read shows the day-one events.
@@ -1041,7 +1056,7 @@ const feedbackLogBody = (await feedbackLog.json()) as {
 };
 const logged = feedbackLogBody.all?.find((section) => section.login === "will")?.entries ?? [];
 if (feedbackLog.status !== 200 || logged.length !== 2) {
-	await fail(`the admin feedback log did not show the two posted events: ${JSON.stringify(feedbackLogBody)}.`);
+	fail(`the admin feedback log did not show the two posted events: ${JSON.stringify(feedbackLogBody)}.`);
 }
 
 // "What failed overnight?" — real reads, honest lines.
@@ -1051,13 +1066,13 @@ const healthBody = (await health.json()) as {
 	queueDepth?: number | null;
 	charges?: { chargeCount: number } | null;
 };
-if (health.status !== 200) await fail(`admin health answered HTTP ${health.status}.`);
+if (health.status !== 200) fail(`admin health answered HTTP ${health.status}.`);
 const healthMap = Object.fromEntries((healthBody.services ?? []).map((s) => [s.name, s.status]));
 if (healthMap.billing !== "ok" || healthMap.identity !== "ok" || healthMap.reco !== "ok") {
-	await fail(`admin health did not read all three services: ${JSON.stringify(healthBody)}.`);
+	fail(`admin health did not read all three services: ${JSON.stringify(healthBody)}.`);
 }
 if (healthBody.queueDepth !== 1 || healthBody.charges?.chargeCount !== 1) {
-	await fail(`admin health missed the queue depth or charge totals: ${JSON.stringify(healthBody)}.`);
+	fail(`admin health missed the queue depth or charge totals: ${JSON.stringify(healthBody)}.`);
 }
 console.log(
 	"ok: the admin journey — allowlist add with attribution, grant with attribution + fresh id, queue read, reco feedback log, health card facts.",
@@ -1065,11 +1080,11 @@ console.log(
 
 // The degraded reco answer stays honest through the seam.
 const degrade = await fetch(`http://127.0.0.1:${reco.port}/stub/degrade`, { method: "POST" });
-if (degrade.status !== 200) await fail("the stub degrade control failed.");
+if (degrade.status !== 200) fail("the stub degrade control failed.");
 const degradedRun = await fetch(`${WORKER_ORIGIN}/api/reco/first-run`, { headers: { cookie } });
 const degradedBody = (await degradedRun.json()) as { degraded?: boolean; honestMessage?: string };
 if (degradedBody.degraded !== true || typeof degradedBody.honestMessage !== "string") {
-	await fail(`the degraded first-run answer did not pass through honestly: ${JSON.stringify(degradedBody)}.`);
+	fail(`the degraded first-run answer did not pass through honestly: ${JSON.stringify(degradedBody)}.`);
 }
 console.log("ok: degraded reco answers render the honestMessage, never a fake digest.");
 
@@ -1080,7 +1095,7 @@ console.log("ok: degraded reco answers render the honestMessage, never a fake di
 // the cancel route mid-flight, and assert the UI store records the turn as
 // interrupted with the honest line — never silently complete or failed.
 const armSlow2 = await fetch(`http://127.0.0.1:${chatUpstream.port}/stub/arm-slow`, { method: "POST" });
-if (armSlow2.status !== 200) await fail("the stub arm-slow control failed (phase B).");
+if (armSlow2.status !== 200) fail("the stub arm-slow control failed (phase B).");
 const memoryStorageForKill = (): import("@tanstack/db").StorageApi => {
 	const data = new Map<string, string>();
 	return {
@@ -1133,7 +1148,7 @@ const killController = createAppController(
 try {
 	killController.send("a slow turn to kill");
 	for (let attempt = 0; attempt < 100 && killedRunId === undefined; attempt += 1) await wait(100);
-	if (killedRunId === undefined) await fail("never observed the client's turn runId on the wire.");
+	if (killedRunId === undefined) fail("never observed the client's turn runId on the wire.");
 	const clientKill = await fetch(`${WORKER_ORIGIN}/api/agent/turn/cancel`, {
 		method: "POST",
 		headers: { "content-type": "application/json" },
@@ -1141,7 +1156,7 @@ try {
 	});
 	const clientKillBody = (await clientKill.json()) as { status?: string };
 	if (clientKill.status !== 200 || clientKillBody.status !== "cancelled") {
-		await fail(`the client-turn kill did not answer cancelled: HTTP ${clientKill.status} ${JSON.stringify(clientKillBody)}.`);
+		fail(`the client-turn kill did not answer cancelled: HTTP ${clientKill.status} ${JSON.stringify(clientKillBody)}.`);
 	}
 	let recorded = false;
 	for (let attempt = 0; attempt < 100; attempt += 1) {
@@ -1160,13 +1175,13 @@ try {
 	}
 	if (!recorded) {
 		const messages = [...killStore.collections.messages.values()].map((m) => `${m.id}:${m.status}`);
-		await fail(`the killed turn was not recorded interrupted in the UI store (${messages.join(", ")}).`);
+		fail(`the killed turn was not recorded interrupted in the UI store (${messages.join(", ")}).`);
 	}
 } finally {
 	globalThis.fetch = originalFetch;
 }
 const armDefault2 = await fetch(`http://127.0.0.1:${chatUpstream.port}/stub/arm-default`, { method: "POST" });
-if (armDefault2.status !== 200) await fail("the stub arm-default control failed (phase B).");
+if (armDefault2.status !== 200) fail("the stub arm-default control failed (phase B).");
 console.log(
 	"ok: the kill surfaces in the real client — the store records the turn interrupted with the honest line and the session returns to idle.",
 );
@@ -1178,7 +1193,7 @@ console.log(
 // /world.new-note, the registry executes it, the continuation goes back, and
 // the final text acknowledges it.
 const arm = await fetch(`http://127.0.0.1:${chatUpstream.port}/stub/arm-tool-loop`, { method: "POST" });
-if (arm.status !== 200) await fail("the stub arm-tool-loop control failed.");
+if (arm.status !== 200) fail("the stub arm-tool-loop control failed.");
 
 const memoryStorage = (): import("@tanstack/db").StorageApi => {
 	const data = new Map<string, string>();
@@ -1225,11 +1240,11 @@ for (let attempt = 0; attempt < 100; attempt += 1) {
 	await wait(100);
 }
 if (!ack) {
-	await fail("the tool loop did not complete: note, acknowledging final text, and idle phase were not all observed.");
+	fail("the tool loop did not complete: note, acknowledging final text, and idle phase were not all observed.");
 }
 const actLines = [...e2eStore.collections.messages.values()].filter((message) => message.act !== undefined);
 if (actLines.length !== 1 || actLines[0]?.text !== "Smithers ran /world.new-note") {
-	await fail(`the tool act was not visible in the transcript: ${JSON.stringify(actLines.map((m) => m.text))}.`);
+	fail(`the tool act was not visible in the transcript: ${JSON.stringify(actLines.map((m) => m.text))}.`);
 }
 console.log(
 	"ok: tool loop end to end — the stub model called /world.new-note, the registry created the note, the final text acknowledged it, and the act line rendered.",
@@ -1244,7 +1259,7 @@ globalThis.fetch = originalFetchForTools;
 const armRepos = await fetch(`http://127.0.0.1:${chatUpstream.port}/stub/arm-tool-loop-repos`, {
 	method: "POST",
 });
-if (armRepos.status !== 200) await fail("the stub arm-tool-loop-repos control failed.");
+if (armRepos.status !== 200) fail("the stub arm-tool-loop-repos control failed.");
 globalThis.fetch = (async (input: unknown, init?: RequestInit) => {
 	const base = typeof input === "string" || input instanceof URL ? new Request(input, init) : (input as Request);
 	return originalFetchForTools(withSessionCookie(base));
@@ -1270,23 +1285,23 @@ try {
 		}
 		await wait(100);
 	}
-	if (!opened) await fail("the agent's repos.watch invocation did not open the chooser card in the transcript.");
+	if (!opened) fail("the agent's repos.watch invocation did not open the chooser card in the transcript.");
 	// THE EMBED LAW: the agent's invocation never moved the surface.
 	if (agentStore.session().surface !== "chat") {
-		await fail("the agent's repos.watch invocation opened a takeover instead of the embedded card.");
+		fail("the agent's repos.watch invocation opened a takeover instead of the embedded card.");
 	}
 	const agentChooser = agentStore.collections.cards.get("repo-chooser");
-	if (agentChooser?.kind !== "repo-chooser") await fail("the agent chooser card was not a repo-chooser.");
+	if (agentChooser?.kind !== "repo-chooser") fail("the agent chooser card was not a repo-chooser.");
 	if (agentChooser.kind === "repo-chooser") {
-		if (agentChooser.payload.via !== "agent") await fail("the agent-opened chooser did not record via:agent.");
+		if (agentChooser.payload.via !== "agent") fail("the agent-opened chooser did not record via:agent.");
 		// Pre-selected on top of the current set (will/flows, will/mvp from onboarding).
 		if (!agentChooser.payload.selected.includes("will/smithers")) {
-			await fail(`the agent's repo argument did not pre-select: ${JSON.stringify(agentChooser.payload.selected)}.`);
+			fail(`the agent's repo argument did not pre-select: ${JSON.stringify(agentChooser.payload.selected)}.`);
 		}
 	}
 	const agentActs = [...agentStore.collections.messages.values()].filter((message) => message.act !== undefined);
 	if (agentActs.length !== 1 || agentActs[0]?.text !== "Smithers ran /repos.watch") {
-		await fail(`the agent act line was not the compact one-liner: ${JSON.stringify(agentActs.map((m) => m.text))}.`);
+		fail(`the agent act line was not the compact one-liner: ${JSON.stringify(agentActs.map((m) => m.text))}.`);
 	}
 	// The user's confirm is the act that is genuinely theirs.
 	await agentController.commands.run("repos.watch.confirm");
@@ -1299,13 +1314,13 @@ try {
 		watched?: { selected?: Array<string>; via?: string } | null;
 	};
 	if (stubWatchedAfterBody.watched?.via !== "agent" || !stubWatchedAfterBody.watched.selected?.includes("will/smithers")) {
-		await fail(`the agent-path selection did not land via:agent: ${JSON.stringify(stubWatchedAfterBody)}.`);
+		fail(`the agent-path selection did not land via:agent: ${JSON.stringify(stubWatchedAfterBody)}.`);
 	}
 } finally {
 	globalThis.fetch = originalFetchForTools;
 }
 const armDefault3 = await fetch(`http://127.0.0.1:${chatUpstream.port}/stub/arm-default`, { method: "POST" });
-if (armDefault3.status !== 200) await fail("the stub arm-default control failed (agent repos section).");
+if (armDefault3.status !== 200) fail("the stub arm-default control failed (agent repos section).");
 console.log(
 	"ok: agent-tool selection change — the tool-loop double invoked /repos.watch, the embedded chooser opened pre-selected (via:agent), the surface never changed, and the confirm landed the new set.",
 );
@@ -1322,7 +1337,7 @@ console.log(
 // The degraded-reco section above left the seam degraded; a scoped digest is
 // what mirrors the watched set into the client, so restore the healthy answer.
 const undegrade = await fetch(`http://127.0.0.1:${reco.port}/stub/undegrade`, { method: "POST" });
-if (undegrade.status !== 200) await fail("the stub undegrade control failed.");
+if (undegrade.status !== 200) fail("the stub undegrade control failed.");
 globalThis.fetch = (async (input: unknown, init?: RequestInit) => {
 	const base = typeof input === "string" || input instanceof URL ? new Request(input, init) : (input as Request);
 	return originalFetchForTools(withSessionCookie(base));
@@ -1347,30 +1362,30 @@ try {
 	const asked = await wfController.commands.run("workflow.create", "a workflow that summarizes my open issues");
 	// A question is an honest answer, not a launch: the command says what it
 	// needs (the wave-10 chooser convention) and the card carries the choice.
-	const askedLine = asked.status === "failed" ? asked.error : (asked.value ?? "");
+	const askedLine = outcomeLine(asked);
 	if (!askedLine.includes("choose the one this workflow belongs to")) {
-		await fail(`workflow.create did not ask which watched repo: ${JSON.stringify(asked)}.`);
+		fail(`workflow.create did not ask which watched repo: ${JSON.stringify(asked)}.`);
 	}
 	const askCard = wfStore.collections.cards.get("workflow-repo");
 	if (askCard?.kind !== "workflow-repo" || askCard.payload.repos.length < 2) {
-		await fail(`the which-repo question did not render as an embedded card: ${JSON.stringify(askCard)}.`);
+		fail(`the which-repo question did not render as an embedded card: ${JSON.stringify(askCard)}.`);
 	}
-	if (wfStore.session().surface !== "chat") await fail("the which-repo question moved the surface.");
+	if (wfStore.session().surface !== "chat") fail("the which-repo question moved the surface.");
 	const beforeAsk = ((await (await fetch(`http://127.0.0.1:${gateway.port}/stub/relay-state`)).json()) as {
 		runs: Array<unknown>;
 	}).runs.length;
-	if (beforeAsk !== 0) await fail("the which-repo question launched something on a guess.");
+	if (beforeAsk !== 0) fail("the which-repo question launched something on a guess.");
 	const chosenRepo = askCard.kind === "workflow-repo" ? (askCard.payload.repos[0] ?? "") : "";
 
 	const created = await wfController.commands.run("workflow.repo.choose", chosenRepo);
 	if (created.status !== "executed") {
-		await fail(`workflow.repo.choose did not execute: ${JSON.stringify(created)}.`);
+		fail(`workflow.repo.choose did not execute: ${JSON.stringify(created)}.`);
 	}
 	// §1: the tool result is a MINIMAL machine acknowledgment, not a paragraph
 	// of warnings the model can round up from.
 	const createdValue = created.status === "executed" ? (created.value ?? "") : "";
 	if (!/^run-started workflow=create-workflow run=\S+ repo=\S+$/.test(createdValue)) {
-		await fail(`the launch did not answer a minimal machine acknowledgment: ${JSON.stringify(createdValue)}.`);
+		fail(`the launch did not answer a minimal machine acknowledgment: ${JSON.stringify(createdValue)}.`);
 	}
 
 	// The relay saw a provision and exactly one launch, with the user's words
@@ -1380,26 +1395,26 @@ try {
 		provisions: number;
 		runs: Array<{ runId: string; workflow: string; input: unknown; status: string }>;
 	};
-	if (relayBody.provisions < 1) await fail("the workflow seam never provisioned a gateway.");
+	if (relayBody.provisions < 1) fail("the workflow seam never provisioned a gateway.");
 	if (relayBody.runs.length !== 1 || relayBody.runs[0]?.workflow !== "create-workflow") {
-		await fail(`the relay did not see one create-workflow launch: ${JSON.stringify(relayBody.runs)}.`);
+		fail(`the relay did not see one create-workflow launch: ${JSON.stringify(relayBody.runs)}.`);
 	}
 	if (JSON.stringify(relayBody.runs[0]?.input) !== JSON.stringify({ prompt: "a workflow that summarizes my open issues" })) {
-		await fail(`create-workflow's input was not the user's description: ${JSON.stringify(relayBody.runs[0]?.input)}.`);
+		fail(`create-workflow's input was not the user's description: ${JSON.stringify(relayBody.runs[0]?.input)}.`);
 	}
 	const runId = relayBody.runs[0]?.runId ?? "";
 	const runCardId = `workflow-run-${runId}`;
 
 	// THE EMBED LAW: a card in the transcript, and the surface never moved.
 	const launched = wfStore.collections.cards.get(runCardId);
-	if (launched?.kind !== "workflow-run") await fail("the launch did not render an embedded run card.");
-	if (wfStore.session().surface !== "chat") await fail("the run card opened a takeover instead of embedding.");
+	if (launched?.kind !== "flow-run") fail("the launch did not render an embedded run card.");
+	if (wfStore.session().surface !== "chat") fail("the run card opened a takeover instead of embedding.");
 
 	// The run goes live and parks on its approval gate.
 	let parked: string | undefined;
 	for (let attempt = 0; attempt < 100; attempt += 1) {
 		const card = wfStore.collections.cards.get(runCardId);
-		if (card?.kind === "workflow-run" && card.payload.phase === "waiting-approval") {
+		if (card?.kind === "flow-run" && card.payload.phase === "waiting-approval") {
 			parked = [...wfStore.collections.cards.values()].find(
 				(entry) => entry.kind === "approval" && entry.id.startsWith(`approval-${runId}-`),
 			)?.id;
@@ -1407,14 +1422,14 @@ try {
 		}
 		await wait(100);
 	}
-	if (parked === undefined) await fail("the run card never reached waiting-approval with an approval card.");
+	if (parked === undefined) fail("the run card never reached waiting-approval with an approval card.");
 	const liveCard = wfStore.collections.cards.get(runCardId);
-	if (liveCard?.kind === "workflow-run") {
+	if (liveCard?.kind === "flow-run") {
 		// Node progress in WORDS, never a raw payload.
 		const steps = liveCard.payload.steps.join(" ");
-		if (!steps.includes("clarify")) await fail(`the run card did not narrate node progress: ${steps}.`);
-		if (steps.includes("{")) await fail(`the run card leaked a raw payload: ${steps}.`);
-		if (liveCard.payload.lastSeq < 1) await fail("the run card's event cursor never advanced.");
+		if (!steps.includes("clarify")) fail(`the run card did not narrate node progress: ${steps}.`);
+		if (steps.includes("{")) fail(`the run card leaked a raw payload: ${steps}.`);
+		if (liveCard.payload.lastSeq < 1) fail("the run card's event cursor never advanced.");
 	}
 
 	// The outbound act waits for the human's explicit yes.
@@ -1422,23 +1437,23 @@ try {
 	let completed = false;
 	for (let attempt = 0; attempt < 120; attempt += 1) {
 		const card = wfStore.collections.cards.get(runCardId);
-		if (card?.kind === "workflow-run" && card.payload.phase === "completed") {
+		if (card?.kind === "flow-run" && card.payload.phase === "completed") {
 			completed = true;
 			break;
 		}
 		await wait(100);
 	}
-	if (!completed) await fail("the approved run never completed on the run card.");
+	if (!completed) fail("the approved run never completed on the run card.");
 	const done = wfStore.collections.cards.get(runCardId);
-	if (done?.kind === "workflow-run") {
+	if (done?.kind === "flow-run") {
 		if (done.payload.result === null || !done.payload.result.includes("summarize-open-issues")) {
-			await fail(`the completed card did not lead with the result: ${JSON.stringify(done.payload.result)}.`);
+			fail(`the completed card did not lead with the result: ${JSON.stringify(done.payload.result)}.`);
 		}
 	}
 	const resultLine = [...wfStore.collections.messages.values()].find((message) =>
 		message.text.includes("summarize-open-issues"),
 	);
-	if (resultLine === undefined) await fail("the completed run never stated its result in the chat.");
+	if (resultLine === undefined) fail("the completed run never stated its result in the chat.");
 
 	// The decision round-tripped through the per-user gateway (the relay path),
 	// not the static upstream: the stub recorded it via /v1/rpc/submitApproval
@@ -1446,17 +1461,17 @@ try {
 	const lastApproval = await fetch(`http://127.0.0.1:${gateway.port}/stub/last-approval`);
 	const lastApprovalBody = (await lastApproval.json()) as { body?: { runId?: string; decision?: unknown } } | null;
 	if (lastApprovalBody?.body?.runId !== runId) {
-		await fail(`the approval did not reach the gateway for this run: ${JSON.stringify(lastApprovalBody)}.`);
+		fail(`the approval did not reach the gateway for this run: ${JSON.stringify(lastApprovalBody)}.`);
 	}
 
 	// workflow.list presents the workspace's workflows as an embedded card.
 	const listed = await wfController.commands.run("workflow.list");
-	if (listed.status !== "executed") await fail(`workflow.list did not execute: ${JSON.stringify(listed)}.`);
+	if (listed.status !== "executed") fail(`workflow.list did not execute: ${JSON.stringify(listed)}.`);
 	const listCard = [...wfStore.collections.cards.values()].find((card) => card.kind === "workflow-list");
 	if (listCard?.kind !== "workflow-list" || !listCard.payload.workflows.some((entry) => entry.key === "create-workflow")) {
-		await fail("workflow.list did not render the workspace's workflows as an embedded card.");
+		fail("workflow.list did not render the workspace's workflows as an embedded card.");
 	}
-	if (wfStore.session().surface !== "chat") await fail("workflow.list moved the surface.");
+	if (wfStore.session().surface !== "chat") fail("workflow.list moved the surface.");
 
 	// A gateway token must never have reached this browser client. The client
 	// only ever talks to /api/workflow/*; the Worker holds the credential.
@@ -1467,20 +1482,20 @@ try {
 	});
 	const provisionText = await provisionProbe.text();
 	if (provisionText.includes("smithers_gateway") || provisionText.includes("smithers_pat")) {
-		await fail("the provision answer leaked a credential to the browser.");
+		fail("the provision answer leaked a credential to the browser.");
 	}
 	// And provision-or-resume is idempotent — that probe resumed, it did not
 	// mint a second gateway for the repo.
 	const afterProbe = await fetch(`http://127.0.0.1:${gateway.port}/stub/relay-state`);
 	const afterProbeBody = (await afterProbe.json()) as { gateways: Array<string> };
 	if (afterProbeBody.gateways.length !== 1) {
-		await fail(`provision-or-resume was not idempotent: ${JSON.stringify(afterProbeBody.gateways)}.`);
+		fail(`provision-or-resume was not idempotent: ${JSON.stringify(afterProbeBody.gateways)}.`);
 	}
 
 	// The §5 taxonomy, end to end: no_capacity is an honest state, not a retry
 	// loop and not a 500 in the browser's face.
 	const armNoCapacity = await fetch(`http://127.0.0.1:${gateway.port}/stub/no-capacity`, { method: "POST" });
-	if (armNoCapacity.status !== 200) await fail("the stub no-capacity control failed.");
+	if (armNoCapacity.status !== 200) fail("the stub no-capacity control failed.");
 	const beforeNoCapacity = ((await (await fetch(`http://127.0.0.1:${gateway.port}/stub/relay-state`)).json()) as {
 		provisions: number;
 	}).provisions;
@@ -1491,13 +1506,13 @@ try {
 	});
 	const noCapacityBody = (await noCapacity.json()) as { status?: string; message?: string };
 	if (noCapacity.status !== 200 || noCapacityBody.status !== "no-capacity") {
-		await fail(`no_capacity did not surface as an honest state: HTTP ${noCapacity.status} ${JSON.stringify(noCapacityBody)}.`);
+		fail(`no_capacity did not surface as an honest state: HTTP ${noCapacity.status} ${JSON.stringify(noCapacityBody)}.`);
 	}
 	const afterNoCapacity = ((await (await fetch(`http://127.0.0.1:${gateway.port}/stub/relay-state`)).json()) as {
 		provisions: number;
 	}).provisions;
 	if (afterNoCapacity - beforeNoCapacity !== 1) {
-		await fail(`no_capacity was retry-looped (${afterNoCapacity - beforeNoCapacity} provision attempts).`);
+		fail(`no_capacity was retry-looped (${afterNoCapacity - beforeNoCapacity} provision attempts).`);
 	}
 	await fetch(`http://127.0.0.1:${gateway.port}/stub/capacity`, { method: "POST" });
 
@@ -1514,12 +1529,12 @@ try {
 	});
 	const noCloudRepoBody = (await noCloudRepo.json()) as { status?: string; message?: string };
 	if (noCloudRepo.status !== 200 || noCloudRepoBody.status !== "no-cloud-repo") {
-		await fail(`a repo with no Cloud counterpart was not its own state: ${JSON.stringify(noCloudRepoBody)}.`);
+		fail(`a repo with no Cloud counterpart was not its own state: ${JSON.stringify(noCloudRepoBody)}.`);
 	}
 	const noCloudSaid = await wfController.commands.run("workflow.create", "summarize my issues will/smithers");
-	const noCloudLine = noCloudSaid.status === "failed" ? noCloudSaid.error : (noCloudSaid.value ?? "");
+	const noCloudLine = outcomeLine(noCloudSaid);
 	if (!noCloudLine.includes("isn't on Smithers Cloud yet")) {
-		await fail(`the client did not state the no-Cloud-repo case honestly: ${JSON.stringify(noCloudLine)}.`);
+		fail(`the client did not state the no-Cloud-repo case honestly: ${JSON.stringify(noCloudLine)}.`);
 	}
 	await fetch(`http://127.0.0.1:${gateway.port}/stub/cloud-repo`, { method: "POST" });
 
@@ -1541,20 +1556,20 @@ try {
 	await quietController.loadFirstRunReco();
 	const stalledLaunch = await quietController.commands.run("workflow.run", `wave4-relay-proof ${chosenRepo}`);
 	if (stalledLaunch.status !== "executed") {
-		await fail(`the stalled run did not launch: ${JSON.stringify(stalledLaunch)}.`);
+		fail(`the stalled run did not launch: ${JSON.stringify(stalledLaunch)}.`);
 	}
 	const stalledRunId = /run=(\S+)/.exec(stalledLaunch.status === "executed" ? (stalledLaunch.value ?? "") : "")?.[1] ?? "";
 	const quietCardId = `workflow-run-${stalledRunId}`;
 	let wentQuiet = false;
 	for (let attempt = 0; attempt < 120; attempt += 1) {
 		const card = quietStore.collections.cards.get(quietCardId);
-		if (card?.kind === "workflow-run" && card.payload.phase === "quiet") {
+		if (card?.kind === "flow-run" && card.payload.phase === "quiet") {
 			wentQuiet = true;
 			break;
 		}
 		await wait(100);
 	}
-	if (!wentQuiet) await fail("a run that never progressed never reached the honest quiet state.");
+	if (!wentQuiet) fail("a run that never progressed never reached the honest quiet state.");
 	/*
 	 * The pump STOPPED hammering the workspace — read off the relay's own count
 	 * of event reads, not off the card. (The first cut of this check compared a
@@ -1565,38 +1580,38 @@ try {
 		((await (await fetch(`http://127.0.0.1:${gateway.port}/stub/relay-state`)).json()) as { eventReads: number })
 			.eventReads;
 	const readsAtQuiet = await relayReads();
-	if (readsAtQuiet < 1) await fail("the stalled run never reached the relay.");
+	if (readsAtQuiet < 1) fail("the stalled run never reached the relay.");
 	await wait(600);
 	const stillQuiet = quietStore.collections.cards.get(quietCardId);
-	if (stillQuiet?.kind !== "workflow-run" || stillQuiet.payload.phase !== "quiet") {
-		await fail("the quiet card did not hold its stance.");
+	if (stillQuiet?.kind !== "flow-run" || stillQuiet.payload.phase !== "quiet") {
+		fail("the quiet card did not hold its stance.");
 	}
 	const readsAfterQuiet = await relayReads();
 	if (readsAfterQuiet !== readsAtQuiet) {
-		await fail(
+		fail(
 			`the quiet card kept polling the workspace: ${readsAtQuiet} → ${readsAfterQuiet} event reads after it went quiet.`,
 		);
 	}
 	// The two acts are registered commands: check again, or stop watching.
 	const retried = await quietController.commands.run("workflow.run.retry", quietCardId);
-	if (retried.status !== "executed") await fail(`workflow.run.retry did not execute: ${JSON.stringify(retried)}.`);
+	if (retried.status !== "executed") fail(`workflow.run.retry did not execute: ${JSON.stringify(retried)}.`);
 	// "Check again" really re-reads the workspace — otherwise it is a label.
 	await wait(500);
 	if ((await relayReads()) <= readsAfterQuiet) {
-		await fail("workflow.run.retry did not actually check the run again.");
+		fail("workflow.run.retry did not actually check the run again.");
 	}
 	const stopped = await quietController.commands.run("workflow.run.stop", quietCardId);
-	if (stopped.status !== "executed") await fail(`workflow.run.stop did not execute: ${JSON.stringify(stopped)}.`);
+	if (stopped.status !== "executed") fail(`workflow.run.stop did not execute: ${JSON.stringify(stopped)}.`);
 	await wait(300);
 	const stoppedCard = quietStore.collections.cards.get(quietCardId);
-	if (stoppedCard?.kind !== "workflow-run" || stoppedCard.payload.phase !== "stopped") {
-		await fail(`stop watching did not settle the card honestly: ${JSON.stringify(stoppedCard)}.`);
+	if (stoppedCard?.kind !== "flow-run" || stoppedCard.payload.phase !== "stopped") {
+		fail(`stop watching did not settle the card honestly: ${JSON.stringify(stoppedCard)}.`);
 	}
 	// Stop is stop: no further reads reach the relay for this run.
 	const readsAtStop = await relayReads();
 	await wait(600);
 	if ((await relayReads()) !== readsAtStop) {
-		await fail("stop watching did not stop the pump — the relay was still being polled.");
+		fail("stop watching did not stop the pump — the relay was still being polled.");
 	}
 	await fetch(`http://127.0.0.1:${gateway.port}/stub/lively-runs`, { method: "POST" });
 
@@ -1609,7 +1624,7 @@ try {
 	});
 	const noIdentityBody = (await noIdentity.json()) as { status?: string };
 	if (noIdentityBody.status !== "no-cloud-identity") {
-		await fail(`a missing Cloud identity was not stated honestly: ${JSON.stringify(noIdentityBody)}.`);
+		fail(`a missing Cloud identity was not stated honestly: ${JSON.stringify(noIdentityBody)}.`);
 	}
 	await fetch(`http://127.0.0.1:${identity.port}/stub/cloud-identity`, { method: "POST" });
 	/*
@@ -1621,7 +1636,7 @@ try {
 	const armLie = await fetch(`http://127.0.0.1:${chatUpstream.port}/stub/arm-tool-loop-workflow-lie`, {
 		method: "POST",
 	});
-	if (armLie.status !== 200) await fail("the stub arm-tool-loop-workflow-lie control failed.");
+	if (armLie.status !== 200) fail("the stub arm-tool-loop-workflow-lie control failed.");
 	const truthStore = await createAppStore({ kind: "localStorage", storage: e2eMemoryStorage() });
 	const truthController = createAppController(truthStore, noNativeRepos, createWebAgent({ baseUrl: WORKER_ORIGIN }), {
 		baseUrl: WORKER_ORIGIN,
@@ -1634,29 +1649,29 @@ try {
 	for (let attempt = 0; attempt < 120; attempt += 1) {
 		if (
 			truthStore.session().phase === "idle" &&
-			[...truthStore.collections.cards.values()].some((card) => card.kind === "workflow-run")
+			[...truthStore.collections.cards.values()].some((card) => card.kind === "flow-run")
 		) {
 			settledTurn = true;
 			break;
 		}
 		await wait(100);
 	}
-	if (!settledTurn) await fail("the replayed wave-11 turn never settled with a run card.");
+	if (!settledTurn) fail("the replayed wave-11 turn never settled with a run card.");
 	const renderedTurn = [...truthStore.collections.messages.values()]
 		.sort((left, right) => left.ordinal - right.ordinal)
 		.map((message) => message.text)
 		.join("\n");
 	if (renderedTurn.includes("has been created")) {
-		await fail(`the rendered turn shipped the wave-11 claim: ${JSON.stringify(renderedTurn)}.`);
+		fail(`the rendered turn shipped the wave-11 claim: ${JSON.stringify(renderedTurn)}.`);
 	}
 	if (renderedTurn.includes("summarize-open-issues")) {
-		await fail(`the rendered turn shipped the invented workflow name: ${JSON.stringify(renderedTurn)}.`);
+		fail(`the rendered turn shipped the invented workflow name: ${JSON.stringify(renderedTurn)}.`);
 	}
 	if (!renderedTurn.includes("I started a create-workflow run — the run card shows its real progress.")) {
-		await fail(`the deterministic line was not rendered in its place: ${JSON.stringify(renderedTurn)}.`);
+		fail(`the deterministic line was not rendered in its place: ${JSON.stringify(renderedTurn)}.`);
 	}
 	if (!renderedTurn.includes("Smithers started a create-workflow run on will/flows")) {
-		await fail(`the deterministic act line did not name the run the client started: ${JSON.stringify(renderedTurn)}.`);
+		fail(`the deterministic act line did not name the run the client started: ${JSON.stringify(renderedTurn)}.`);
 	}
 	await fetch(`http://127.0.0.1:${chatUpstream.port}/stub/arm-default`, { method: "POST" });
 } finally {

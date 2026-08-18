@@ -20,36 +20,15 @@
  *       (c) Accept: application/json still gets the machine-readable answer.
  *     Screenshots land in reports/live-checks/<timestamp>/ by default.
  *
- * Playwright is borrowed from ~/flows/ui's node_modules — the mvp itself does
- * not depend on it — using the already-downloaded chromium build.
+ * Playwright is a devDependency of this package. It used to be borrowed over an
+ * absolute path into a sibling checkout, which made this script runnable on
+ * exactly one machine.
  */
-import { createRequire } from "node:module";
 import { mkdirSync } from "node:fs";
+import { chromium } from "playwright";
+import type { Page } from "playwright";
 import { fileURLToPath } from "node:url";
 import { createStubIdentity } from "./stub-backends";
-
-interface PlaywrightPage {
-	goto: (url: string) => Promise<{ status: () => number } | null>;
-	waitForSelector: (selector: string, options?: { timeout?: number }) => Promise<unknown>;
-	waitForNavigation: (options?: { waitUntil?: string }) => Promise<{ status: () => number } | null>;
-	click: (selector: string) => Promise<void>;
-	url: () => string;
-	textContent: (selector: string) => Promise<string | null>;
-	evaluate: <T>(fn: (selector: string) => T, arg: string) => Promise<T>;
-	screenshot: (options: { path: string; fullPage?: boolean }) => Promise<unknown>;
-	on: (event: string, listener: (arg: { type: () => string; text: () => string }) => void) => void;
-	close: () => Promise<void>;
-}
-
-interface PlaywrightBrowser {
-	newPage: () => Promise<PlaywrightPage>;
-	close: () => Promise<void>;
-}
-
-const require = createRequire("/Users/williamcory/flows/ui/package.json");
-const { chromium } = require("playwright") as {
-	chromium: { launch: (options: { headless: boolean }) => Promise<PlaywrightBrowser> };
-};
 
 const mode = process.argv[2] ?? "local";
 if (mode !== "local" && mode !== "live") {
@@ -70,7 +49,7 @@ const check = (label: string, ok: boolean, detail: string): void => {
 };
 
 /** Console errors seen on the page: error-type console messages + uncaught exceptions. */
-const collectConsoleErrors = (page: PlaywrightPage): Array<string> => {
+const collectConsoleErrors = (page: Page): Array<string> => {
 	const errors: Array<string> = [];
 	page.on("console", (message) => {
 		if (typeof message.type === "function" && message.type() === "error") errors.push(message.text());
@@ -87,11 +66,11 @@ const WORKER_PORT = 8791;
 const WORKER_ORIGIN = `http://127.0.0.1:${WORKER_PORT}`;
 
 /** textContent auto-waits 30s for a MISSING element — a negative probe must not. */
-const present = (page: PlaywrightPage, selector: string): Promise<boolean> =>
+const present = (page: Page, selector: string): Promise<boolean> =>
 	page.evaluate((sel) => document.querySelector(sel) !== null, selector);
 
 /** Assert the one-page signed-out chat: transcript + composer, the opening sign-in message, no landing view. */
-const checkSignedOutChat = async (page: PlaywrightPage, consoleErrors: ReadonlyArray<string>): Promise<void> => {
+const checkSignedOutChat = async (page: Page, consoleErrors: ReadonlyArray<string>): Promise<void> => {
 	try {
 		await page.waitForSelector('[data-command="auth.sign-in"]', { timeout: 30_000 });
 	} catch {

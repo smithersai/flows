@@ -205,8 +205,35 @@ export const matches = (command: CatalogItem, needle: string): boolean => {
 	return command.name.toLowerCase().includes(query) || command.summary.toLowerCase().includes(query);
 };
 
-export const filtered = <C extends CatalogItem>(needle: string, commands: ReadonlyArray<C>): Array<C> =>
-	commands.filter((command) => matches(command, needle));
+/**
+ * How directly a flow answers a needle, best first: its own name exactly, then
+ * a name that starts with it, then a name that contains it, then a match that
+ * only the summary carried.
+ *
+ * Matching on the summary is what makes the menu searchable ("/repo" finds the
+ * flows that talk about repositories), but it must never outrank a name. Before
+ * this rank existed, `/flows` listed `flow.list` first — its summary reads
+ * "List the workflows on your workspace" and it is declared 450 lines earlier
+ * in the registry — so Enter ran a different flow than the one the user typed.
+ */
+const nameRank = (command: CatalogItem, query: string): number => {
+	if (query === "") return 0;
+	const name = command.name.toLowerCase();
+	if (name === query) return 0;
+	if (name.startsWith(query)) return 1;
+	if (name.includes(query)) return 2;
+	return 3;
+};
+
+/**
+ * The matching flows, closest match first. Registry order still decides inside
+ * a rank: the sort is stable, so this only ever moves a better answer forward.
+ */
+export const filtered = <C extends CatalogItem>(needle: string, commands: ReadonlyArray<C>): Array<C> => {
+	const query = needle.trim().toLowerCase();
+	const shown = commands.filter((command) => matches(command, needle));
+	return shown.sort((left, right) => nameRank(left, query) - nameRank(right, query));
+};
 
 export interface SlashItem<C extends CatalogItem> {
 	readonly flow: C;
@@ -221,11 +248,18 @@ export interface SlashItem<C extends CatalogItem> {
 export const SLASH_MENU_CAP = 8;
 
 /**
- * The slash menu's listing: matching recommendations in recommendation order
- * (the first is gold — bare "/" + Enter runs it), then the remaining matching
- * commands. Commands never appear in both sections. At or under the cap the
- * remainder keeps registry order; over it, recency ranks the remainder and
- * the listing cuts at the cap.
+ * The slash menu's listing, best answer first — because the composer's Enter
+ * runs whatever leads it.
+ *
+ * Match quality orders the listing (`nameRank`); a recommendation leads only
+ * among equally good matches. For a bare "/" every flow ranks the same, so the
+ * recommendations lead in recommendation order and the first is gold, exactly
+ * as the doctrine says. Type a flow's whole name and that flow leads instead:
+ * the user was more specific than the app's suggestion.
+ *
+ * Commands never appear twice. At or under the cap the remainder keeps registry
+ * order; over it, recency ranks the remainder and the listing cuts at the cap —
+ * but a recommendation, and anything the user named outright, always survives.
  */
 export const slashItems = <C extends CatalogItem>(
 	state: CommandState,
@@ -233,29 +267,41 @@ export const slashItems = <C extends CatalogItem>(
 	commands: ReadonlyArray<C>,
 ): Array<SlashItem<C>> => {
 	const shown = filtered(needle, visible(commands));
+	const query = needle.trim().toLowerCase();
 	const names = recommendedNames(state);
-	const recommendedItems = names.flatMap((name) => {
-		const command = shown.find((candidate) => candidate.name === name);
-		return command === undefined ? [] : [{ flow: command, recommended: true }];
-	});
 	const recommendedSet = new Set(names);
-	const otherItems = shown
-		.filter((command) => !recommendedSet.has(command.name))
-		.map((command) => ({ flow: command, recommended: false }));
-	if (recommendedItems.length + otherItems.length <= SLASH_MENU_CAP) {
-		return [...recommendedItems, ...otherItems];
-	}
-	const rank = new Map((state.recent ?? []).map((name, index) => [name, index]));
-	// Stable sort: recent commands by recency, everything else keeps registry order behind them.
-	const ranked = [...otherItems].sort(
-		(a, b) =>
-			(rank.get(a.flow.name) ?? Number.POSITIVE_INFINITY) -
-			(rank.get(b.flow.name) ?? Number.POSITIVE_INFINITY),
-	);
-	return [...recommendedItems, ...ranked].slice(
-		0,
-		Math.max(SLASH_MENU_CAP, recommendedItems.length),
-	);
+	// Within one rank, the recommendations lead in recommendation order.
+	const ordered = [0, 1, 2, 3].flatMap((rank) => {
+		const tier = shown.filter((command) => nameRank(command, query) === rank);
+		return [
+			...names.flatMap((name) => {
+				const command = tier.find((candidate) => candidate.name === name);
+				return command === undefined ? [] : [{ flow: command, recommended: true }];
+			}),
+			...tier
+				.filter((command) => !recommendedSet.has(command.name))
+				.map((command) => ({ flow: command, recommended: false })),
+		];
+	});
+	if (ordered.length <= SLASH_MENU_CAP) return ordered;
+	// Over the cap. What the user named outright (an exact or prefix name match)
+	// is never cut, and neither is a recommendation; recency decides who else
+	// gets in. Recency chooses the survivors, never their order — the listing
+	// above is the only ordering rule.
+	const kept = (item: SlashItem<C>): boolean => item.recommended || nameRank(item.flow, query) <= 1;
+	const survivors = ordered.filter(kept);
+	const recency = new Map((state.recent ?? []).map((name, index) => [name, index]));
+	// Stable sort: recent commands by recency, everything else keeps its order behind them.
+	const ranked = ordered
+		.filter((item) => !kept(item))
+		.sort(
+			(a, b) =>
+				(recency.get(a.flow.name) ?? Number.POSITIVE_INFINITY) -
+				(recency.get(b.flow.name) ?? Number.POSITIVE_INFINITY),
+		);
+	const room = Math.max(SLASH_MENU_CAP, survivors.length) - survivors.length;
+	const admitted = new Set([...survivors, ...ranked.slice(0, room)].map((item) => item.flow.name));
+	return ordered.filter((item) => admitted.has(item.flow.name));
 };
 
 /** How a composer submit resolves under the flows-are-the-app doctrine. */

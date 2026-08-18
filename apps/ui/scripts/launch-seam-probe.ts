@@ -107,7 +107,9 @@ const adminBody = await adminProbe.text();
 const unknownBody = await unknownProbe.text();
 check(
 	"admin surface is non-enumerable for non-admins (404 byte-identical, no 501)",
-	adminProbe.status === 404 && adminBody === unknownBody && adminProbe.status !== 501,
+	// 404 is the whole assertion: it is neither the 403 that would confirm the
+	// route exists nor the 501 an unimplemented seam would answer.
+	adminProbe.status === 404 && adminBody === unknownBody,
 	`admin HTTP ${adminProbe.status} vs unknown HTTP ${unknownProbe.status}, byte-identical: ${adminBody === unknownBody}`,
 );
 
