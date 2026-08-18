@@ -1,0 +1,103 @@
+# Bazel configuration for the flows workspace.
+#
+# Bazelisk reads .bazelversion and runs Bazel 8.7.0. 9.2.0 is the current
+# release line; 8.7.0 is the newest 8.x LTS, which is the line the Aspect
+# rules (rules_js, rules_ts, rules_lint) and rules_rust test against. Upgrade
+# deliberately, not by accident.
+
+# This repository is bzlmod-only. There is no WORKSPACE file; disabling the
+# workspace mechanism makes a stray WORKSPACE file an error instead of a
+# silent second dependency graph.
+common --enable_bzlmod
+common --enable_workspace=false
+
+# Print which rc files and options took effect. Cheap insurance when a flag
+# "isn't applying".
+common --announce_rc
+
+# ---------------------------------------------------------------------------
+# Caching
+# ---------------------------------------------------------------------------
+
+# On-disk action cache, shared across `bazel clean` and output-base resets.
+# With no path it lives under the bazelisk install user root, outside the
+# workspace, so it never dirties the tree.
+build --disk_cache
+
+# Bazel's default repository cache (under the output user root) already
+# persists external fetches (npm tarballs, crate archives, toolchains)
+# across ; nothing to configure.
+
+# ---------------------------------------------------------------------------
+# Hermeticity and sandboxing
+# ---------------------------------------------------------------------------
+
+# Actions run in a sandbox with only their declared inputs. These are the
+# defaults on Bazel 8 for Linux and macOS; they are stated explicitly because
+# this repository's reproducibility claims rest on them.
+build --spawn_strategy=sandboxed
+build --incompatible_strict_action_env
+
+# Sandbox failures should be loud, not silently retried without a sandbox.
+build --sandbox_debug
+
+# The cargo bridge actions (tools/cargo) invoke the host rustup shims, which
+# live under $HOME/.cargo/bin. The toolchain itself is pinned by
+# rust-toolchain.toml; HOME passthrough only locates the shims.
+build --action_env=HOME
+test --action_env=HOME
+
+# ---------------------------------------------------------------------------
+# Remote cache
+# ---------------------------------------------------------------------------
+#
+# `--config=remote` layers the remote cache on top of the local disk cache.
+# Bazel does not expand environment variables in rc files, so the endpoint and
+# credentials are passed by CI (see .github/workflows/bazel.yml) or written to
+# a gitignored .bazelrc.remote:
+#
+#   build:remote --remote_cache=https://build.example.com
+#   build:remote --remote_header=Authorization=Bearer <token>
+#
+# try-import does not fail when the file is absent.
+try-import %workspace%/.bazelrc.remote
+
+# Build without the Bytes: with a remote cache, download only the outputs the
+# final targets actually need, not every intermediate. Correct for CI, where
+# most actions are cache hits.
+build:remote --remote_download_minimal
+build:remote --remote_download_toplevel
+
+# ---------------------------------------------------------------------------
+# CI
+# ---------------------------------------------------------------------------
+#
+# `bazel test --config=ci //...` is the CI entry point.
+build:ci --config=remote
+build:ci --color=yes
+build:ci --show_timestamps
+# Never flake a gate on a hung download.
+build:ci --remote_timeout=60
+# Test output: print failures in full, keep passes quiet.
+test:ci --test_output=errors
+test:ci --test_summary=detailed
+
+# ---------------------------------------------------------------------------
+# Lint
+# ---------------------------------------------------------------------------
+#
+# `bazel build --config=lint //...` runs every registered linter as an aspect
+# over the normal build: lint actions are cached and remotely executed like
+# any other action, and a lint failure fails the build.
+build:lint --aspects=//tools/lint:linters.bzl%eslint
+build:lint --output_groups=+rules_lint_human
+
+# ---------------------------------------------------------------------------
+# Gazelle
+# ---------------------------------------------------------------------------
+#
+# `bazel run //:gazelle` regenerates BUILD.bazel files from imports.
+# `bazel test //:gazelle.check` fails when the committed files are stale.
+
+# The JS gazelle plugin is prebuilt (aspect_gazelle_prebuilt); no Go, Rust,
+# or LLVM toolchain is needed to run it.

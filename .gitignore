@@ -77,3 +77,6 @@ packages/*/.smithers/
 
 # Wrangler local dev-server state (miniflare sqlite, DO storage, traces)
 .wrangler/
+
+# Bazel
+bazel-*

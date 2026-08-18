@@ -1,0 +1,56 @@
+# Bazel must not treat pnpm's node_modules trees as packages. rules_js
+# verifies every workspace importer's node_modules is listed here
+# (see verify_node_modules_ignored in MODULE.bazel). Keep this list in
+# sync with the package globs in pnpm-workspace.yaml.
+node_modules
+packages/artifacts/node_modules
+packages/build/node_modules
+packages/build-cli/node_modules
+packages/canonical/node_modules
+packages/capability/node_modules
+packages/chain/node_modules
+packages/cli/node_modules
+packages/control/node_modules
+packages/core/node_modules
+packages/crypto/node_modules
+packages/database/node_modules
+packages/engine/node_modules
+packages/engine-harness/node_modules
+packages/engine-store/node_modules
+packages/evals/node_modules
+packages/flow/node_modules
+packages/flows/node_modules
+packages/fs/node_modules
+packages/gateway/node_modules
+packages/harness/node_modules
+packages/jj/node_modules
+packages/journal/node_modules
+packages/kernel/node_modules
+packages/keys/node_modules
+packages/memory/node_modules
+packages/model/node_modules
+packages/notifications/node_modules
+packages/observability/node_modules
+packages/patterns/node_modules
+packages/plan/node_modules
+packages/platform-browser/node_modules
+packages/platform-bun/node_modules
+packages/platform-node/node_modules
+packages/plugin/node_modules
+packages/registry/node_modules
+packages/run-store/node_modules
+packages/sandbox/node_modules
+packages/scorers/node_modules
+packages/std/node_modules
+packages/step-cache/node_modules
+packages/sync/node_modules
+packages/targets/node_modules
+packages/testing/node_modules
+packages/time-travel/node_modules
+packages/triggers/node_modules
+packages/build/infra/node_modules
+examples/node_modules
+apps/server/node_modules
+apps/shared/node_modules
+apps/tui/node_modules
+apps/ui/node_modules
