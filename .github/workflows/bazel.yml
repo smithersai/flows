@@ -65,16 +65,19 @@ jobs:
       # package analyzes. Per-package link targets are tagged manual by
       # rules_js, so the per-directory wildcards below are clean. Details and
       # the fix are in docs/build-systems/bazel.md.
+      # --disk_cache is a command option, not a startup option: it must follow
+      # the subcommand (`bazel --disk_cache=... build` is a fatal "unknown
+      # startup option"). $HOME, not ~: bash does not expand a tilde after `=`.
       - name: Build
-        run: bazel --disk_cache=~/.cache/bazel-disk-cache build --config=ci //packages/... //apps/... //examples/... //crates/... //tools/...
+        run: bazel build --disk_cache=$HOME/.cache/bazel-disk-cache --config=ci //packages/... //apps/... //examples/... //crates/... //tools/...
 
       - name: Test
-        run: bazel --disk_cache=~/.cache/bazel-disk-cache test --config=ci //packages/... //apps/... //examples/... //crates/... //tools/...
+        run: bazel test --disk_cache=$HOME/.cache/bazel-disk-cache --config=ci //packages/... //apps/... //examples/... //crates/... //tools/...
 
       # Lint aspects over the same graph; lint actions are cached like any
       # other.
       - name: Lint
-        run: bazel --disk_cache=~/.cache/bazel-disk-cache build --config=ci --config=lint //packages/... --output_groups=+rules_lint_human
+        run: bazel build --disk_cache=$HOME/.cache/bazel-disk-cache --config=ci --config=lint //packages/... --output_groups=+rules_lint_human
 
       # Formatting gate (dprint check). Runs in the workspace, not a sandbox:
       # dprint downloads its wasm plugins on first use.
@@ -91,4 +94,4 @@ jobs:
       # compares the sandboxed Bazel build against the committed
       # packages/jj/wasm/flows_jj.wasm byte for byte.
       - name: Wasm reproducibility gate
-        run: bazel --disk_cache=~/.cache/bazel-disk-cache test --config=ci //crates/flows-jj:wasm_repro_test
+        run: bazel test --disk_cache=$HOME/.cache/bazel-disk-cache --config=ci //crates/flows-jj:wasm_repro_test

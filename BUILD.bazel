@@ -14,7 +14,7 @@ load("@npm//:defs.bzl", "npm_link_all_packages")
 # Gazelle
 #
 # `bazel run //:gazelle` walks the workspace and generates BUILD.bazel files
-# from package.json files and import statements. `bazel test //:gazelle.check`
+# from package.json files and import statements. `bazel run //:gazelle.check`
 # (wired with_check below) fails in CI when the committed files are stale.
 #
 # Directives for the JS plugin. Most packages keep their tsconfig in

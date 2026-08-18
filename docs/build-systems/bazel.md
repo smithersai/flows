@@ -23,7 +23,7 @@ with Bazel 8.7.0 under bazelisk, on 2026-08-18.
 | `.bazelversion` | Pins Bazel 8.7.0 for bazelisk. 9.2.0 is the current release line; 8.7.0 is the newest 8.x LTS and the line the Aspect rules and rules_rust test against. |
 | `MODULE.bazel` | The bzlmod module. Pins `aspect_rules_js` 3.4.0, `aspect_rules_ts` 3.10.0, `aspect_rules_lint` 2.7.2, `aspect_gazelle_prebuilt` 0.0.24, `rules_nodejs` 6.7.5, `rules_rust` 0.73.0, `bazel_skylib` 1.9.2, `platforms` 1.1.0, `rules_multirun` 0.14.0. Declares the hermetic Node 22.19.0 toolchain, hermetic pnpm 11.21.0, `npm_translate_lock` over `pnpm-lock.yaml`, the TypeScript toolchain (version read from `packages/canonical/package.json` so it cannot drift from the pnpm side), and the Rust 1.89.0 toolchain with the `wasm32-wasip1` target. |
 | `MODULE.bazel.lock` | The committed bzlmod lockfile. Bazel verifies it on every run. |
-| `.bazelrc` | `common --enable_bzlmod`, `common --enable_workspace=false` (bzlmod-only), `build --disk_cache`, sandboxing flags stated explicitly, a `--config=remote` section (Build without the Bytes via `--remote_download_minimal`/`--remote_download_toplevel`), a `--config=ci` section, and a `--config=lint` section that attaches the ESLint aspect. |
+| `.bazelrc` | `common --enable_bzlmod`, `common --enable_workspace=false` (bzlmod-only), `build --disk_cache=%workspace%/.bazel-cache` (a valueless `--disk_cache` is a trap: rc files are one token stream, so it consumes the next flag as its path; the path is explicit and gitignored), sandboxing flags stated explicitly, a `--config=remote` section (Build without the Bytes via `--remote_download_toplevel`), a `--config=ci` section, and a `--config=lint` section that attaches the ESLint aspect. |
 | `.bazelignore` | Every workspace importer's `node_modules`, plus `docs` and `evals`. `npm_translate_lock` verifies this list (`verify_node_modules_ignored`). |
 | `BUILD.bazel` (root) | `npm_link_all_packages` for the root manifest, the `gazelle` target and its JS-plugin directives, the `gazelle.check` drift gate, the shared `eslint_jsdoc` js_library, and the root aggregator `eslint_config`. |
 | `eslint.config.js` (root, new) | Aggregator flat config the lint aspect discovers from the bin root. Imports each wired package's own `eslint.config.js` with `files` globs re-scoped. Not consulted by per-package `pnpm run lint`. |
@@ -227,7 +227,7 @@ section 4); the toolchain pin still comes from `rust-toolchain.toml`.
 needed. Nx has Nx Cloud (proprietary, task-granular); Turborepo has a remote
 cache HTTP API (task-granular). Neither has remote execution. This PR wires
 `--config=remote` with Build without the Bytes
-(`--remote_download_minimal`), but no endpoint is configured by default.
+(`--remote_download_toplevel`), but no endpoint is configured by default.
 
 Could Bazel point at the repository's own cache worker in
 `packages/build/infra`? Not today. The worker serves a custom HTTP protocol:
@@ -397,6 +397,17 @@ the target set is not `//...` requires understanding the kernel cycle, the
 link farm, and the analysis model. The failure messages are good (the cycle
 error names both packages), but the volume of new concepts — loading vs
 analysis vs execution, runfiles, sandboxing, transitions — is real.
+
+**Flag parsing is a footgun.** The first version of this PR's `.bazelrc`
+carried a valueless `build --disk_cache`, expecting Bazel's default cache
+location. rc files are one token stream, so the flag consumed the next line's
+`--spawn_strategy=sandboxed` as its path: the disk cache silently became a
+directory named `--spawn_strategy=sandboxed` inside the workspace, and the
+sandbox flag silently never applied (sandboxing kept working only because it
+is the macOS default). No warning, in either direction. The same review found
+`bazel --disk_cache=... build` in the CI workflow, which is a fatal "unknown
+startup option", and `~` after `=`, which bash does not expand. None of this
+is Starlark, but all of it is the Bazel surface a team has to learn.
 
 ## 6. What a migration would involve, and what our system should copy
 

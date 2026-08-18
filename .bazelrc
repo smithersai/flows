@@ -20,13 +20,19 @@ common --announce_rc
 # ---------------------------------------------------------------------------
 
 # On-disk action cache, shared across `bazel clean` and output-base resets.
-# With no path it lives under the bazelisk install user root, outside the
-# workspace, so it never dirties the tree.
-build --disk_cache
+# --disk_cache takes a path; a valueless spelling does NOT mean "default
+# location". rc files are one token stream, so a bare `--disk_cache`
+# consumes the next flag as its path (here it created a cache directory
+# literally named `--spawn_strategy=sandboxed` in the workspace and silently
+# dropped the spawn-strategy flag). `%workspace%` is not substituted in flag
+# values either (only in import paths); a relative path resolves against the
+# client's working directory, so run Bazel from the workspace root. The cache
+# directory is gitignored at any depth.
+build --disk_cache=.bazel-cache
 
 # Bazel's default repository cache (under the output user root) already
 # persists external fetches (npm tarballs, crate archives, toolchains)
-# across ; nothing to configure.
+# across cleans and invocations; nothing to configure.
 
 # ---------------------------------------------------------------------------
 # Hermeticity and sandboxing
@@ -64,8 +70,9 @@ try-import %workspace%/.bazelrc.remote
 
 # Build without the Bytes: with a remote cache, download only the outputs the
 # final targets actually need, not every intermediate. Correct for CI, where
-# most actions are cache hits.
-build:remote --remote_download_minimal
+# most actions are cache hits. toplevel and minimal are two spellings of the
+# same knob (--remote_download_outputs); naming both sets it twice, and the
+# last one silently wins.
 build:remote --remote_download_toplevel
 
 # ---------------------------------------------------------------------------
@@ -97,7 +104,7 @@ build:lint --output_groups=+rules_lint_human
 # ---------------------------------------------------------------------------
 #
 # `bazel run //:gazelle` regenerates BUILD.bazel files from imports.
-# `bazel test //:gazelle.check` fails when the committed files are stale.
+# `bazel run //:gazelle.check` fails when the committed files are stale.
 
 # The JS gazelle plugin is prebuilt (aspect_gazelle_prebuilt); no Go, Rust,
 # or LLVM toolchain is needed to run it.

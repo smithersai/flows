@@ -80,3 +80,6 @@ packages/*/.smithers/
 
 # Bazel
 bazel-*
+
+# Local Bazel disk cache (configured in .bazelrc)
+.bazel-cache/
