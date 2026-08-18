@@ -3,22 +3,23 @@
  * six rule calls.
  *
  * These targets are executable and must stay equivalent to what
- * `StandardPackage({ cwd: "packages/flow", deps: [plan] })` emits; the file
- * exists to show the expansion, not to diverge from it.
+ * `StandardPackage({ packageManager, cwd: "packages/flow", deps: [plan] })`
+ * emits; the file exists to show the expansion, not to diverge from it.
  */
-import { DocsParity, Dprint, EsLint, file, glob, TsBuild, Typecheck, Vitest } from "tsflows-rules"
-import { rootJSDocConfig } from "../../BUILD.ts"
+import { Smithers } from "@smthrs/targets"
+import { packageManager, rootJSDocConfig } from "../../BUILD.ts"
 import { lib as plan } from "../plan/BUILD.ts"
 
 const cwd = "packages/flow"
-const sources = glob("src/**/*.ts")
-const tests = glob("test/**/*.test.ts")
+const sources = Smithers.glob("src/**/*.ts")
+const tests = Smithers.glob("test/**/*.test.ts")
 
-export const lib = TsBuild({
+export const lib = Smithers.TsBuild({
+  packageManager,
   srcs: [sources],
-  entries: [file("src/index.ts")],
+  entries: [Smithers.file("src/index.ts")],
   deps: [plan],
-  tsconfig: file("tsconfig.json"),
+  tsconfig: Smithers.file("tsconfig.json"),
   tool: "tsc",
   format: "dual",
   outDir: "dist",
@@ -26,44 +27,48 @@ export const lib = TsBuild({
   cwd
 })
 
-export const check = Typecheck({
-  srcs: [sources, glob("test/**/*.ts")],
+export const check = Smithers.Typecheck({
+  packageManager,
+  srcs: [sources, Smithers.glob("test/**/*.ts")],
   deps: [lib, plan],
-  tsconfig: file("tsconfig.test.json"),
+  tsconfig: Smithers.file("tsconfig.test.json"),
   buildMode: false,
   incremental: false,
   cwd
 })
 
-export const test = Vitest({
+export const test = Smithers.Vitest({
+  packageManager,
   tests: [tests],
   sources: [sources],
   deps: [lib, plan],
-  config: file("vitest.config.ts"),
+  config: Smithers.file("vitest.config.ts"),
   environment: "node",
   passWithNoTests: false,
   cwd
 })
 
-export const lint = EsLint({
+export const lint = Smithers.EsLint({
+  packageManager,
   sources: [sources],
   deps: [],
-  configs: [file("eslint.config.js"), rootJSDocConfig],
+  configs: [Smithers.file("eslint.config.js"), rootJSDocConfig],
   maxWarnings: 0,
   fix: false,
   cwd
 })
 
-export const fmt = Dprint({
-  sources: [sources, glob("test/**/*.ts")],
+export const fmt = Smithers.Dprint({
+  packageManager,
+  sources: [sources, Smithers.glob("test/**/*.ts")],
   deps: [],
-  config: file("dprint.json"),
+  config: Smithers.file("dprint.json"),
   fix: false,
   cwd
 })
 
-export const docs = DocsParity({
-  readme: file("README.md"),
+export const docs = Smithers.DocsParity({
+  readme: Smithers.file("README.md"),
   deps: [],
   cwd
 })

@@ -3,6 +3,11 @@
  *
  * `cwd` anchors every emitted tool run in this package directory.
  */
-import { StandardPackage } from "tsflows-rules"
+import { Smithers } from "@smthrs/targets"
+import { packageManager } from "../../BUILD.ts"
 
-export const { check, docs, fmt, lib, lint, test } = StandardPackage({ deps: [], cwd: "packages/plan" })
+export const { check, docs, fmt, lib, lint, test } = Smithers.StandardPackage({
+  packageManager,
+  deps: [],
+  cwd: "packages/plan"
+})

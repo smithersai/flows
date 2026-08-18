@@ -10,7 +10,7 @@ Bring the two packages failing the DocsParity gate up to the colocated-docs
 contract (`docs/specs/Concepts/Colocated Docs.md`), then enable the `docs`
 kind in CI.
 
-- At landing time of item 0002, `tsflows docs //...` fails exactly two
+- At landing time of item 0002, `smthrs docs //...` fails exactly two
   packages: `packages/crypto` (53 prose characters) and `packages/keys`
   (64), both below the 120-character prose floor. Every other package
   passes.
@@ -21,7 +21,7 @@ kind in CI.
   `BUILD.ts` files destructuring `{ lib, test, lint }` from
   `StandardPackage`; add `docs` to those destructurings so they gain the
   target.
-- When `tsflows docs //...` is green, add the `docs` kind to the CI
+- When `smthrs docs //...` is green, add the `docs` kind to the CI
   generator declaration in the root `BUILD.ts` (read the current
   `GithubCiGen` shape first; the file has grown) and regenerate the CI
   workflow, so doc drift becomes a red check from then on.

@@ -1,6 +1,6 @@
 packages:
   - "packages/*"
-  - "packages/tsflows/infra"
+  - "packages/build/infra"
   - "examples"
   - "apps/*"
 
@@ -16,3 +16,4 @@ allowBuilds:
   workerd: false
 
 linkWorkspacePackages: true
+verifyDepsBeforeRun: false

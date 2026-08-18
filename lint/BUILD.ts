@@ -6,10 +6,10 @@
  * build; the two documentation lints report at `warning` while their rubrics
  * are tuned.
  */
-import { LlmLint, gitDiff, glob } from "tsflows-rules"
+import { Smithers } from "@smthrs/targets"
 
 /** The base revision every first-wave lint diffs against. */
-const changes = gitDiff("origin/main")
+const changes = Smithers.gitDiff("origin/main")
 
 /** The cheap fast codex tier the first wave runs on. */
 const model = "gpt-5.6-luna"
@@ -25,18 +25,18 @@ const prompt = "You are reviewing a diff in `flows`, an Effect v4 coding-agent h
  * @since 0.1.0
  * @category lint
  */
-export const durableIdentityGuard = LlmLint({
+export const durableIdentityGuard = Smithers.LlmLint({
   changes,
   include: [
-    glob("//packages/engine-store/src/**"),
-    glob("//packages/run-store/src/**"),
-    glob("//packages/step-cache/src/**"),
-    glob("//packages/journal/src/**"),
-    glob("//packages/database/src/**"),
-    glob("//packages/engine-store/src/migrations/**"),
-    glob("//packages/run-store/src/migrations/**"),
-    glob("//packages/step-cache/src/migrations/**"),
-    glob("//packages/journal/src/migrations/**")
+    Smithers.glob("//packages/engine-store/src/**"),
+    Smithers.glob("//packages/run-store/src/**"),
+    Smithers.glob("//packages/step-cache/src/**"),
+    Smithers.glob("//packages/journal/src/**"),
+    Smithers.glob("//packages/database/src/**"),
+    Smithers.glob("//packages/engine-store/src/migrations/**"),
+    Smithers.glob("//packages/run-store/src/migrations/**"),
+    Smithers.glob("//packages/step-cache/src/migrations/**"),
+    Smithers.glob("//packages/journal/src/migrations/**")
   ],
   deps: [],
   prompt,
@@ -66,10 +66,10 @@ export const durableIdentityGuard = LlmLint({
  * @since 0.1.0
  * @category lint
  */
-export const docsReferenceSync = LlmLint({
+export const docsReferenceSync = Smithers.LlmLint({
   changes,
-  include: [glob("//packages/*/src/**")],
-  context: [glob("//docs/reference/*.md"), glob("//docs/concepts/**/*.md"), glob("//docs/guides/**/*.md")],
+  include: [Smithers.glob("//packages/*/src/**")],
+  context: [Smithers.glob("//docs/reference/*.md"), Smithers.glob("//docs/concepts/**/*.md"), Smithers.glob("//docs/guides/**/*.md")],
   deps: [],
   prompt,
   rubric: [
@@ -95,9 +95,9 @@ export const docsReferenceSync = LlmLint({
  * @since 0.1.0
  * @category lint
  */
-export const jsdocTruthfulness = LlmLint({
+export const jsdocTruthfulness = Smithers.LlmLint({
   changes,
-  include: [glob("//packages/*/src/**/*.ts")],
+  include: [Smithers.glob("//packages/*/src/**/*.ts")],
   deps: [],
   prompt,
   rubric: [

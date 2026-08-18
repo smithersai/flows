@@ -47,7 +47,7 @@ jobs:
       - name: Lint all workspaces
         run: pnpm run lint
       - name: Documentation parity
-        run: pnpm exec tsflows docs '//...'
+        run: pnpm exec smthrs docs '//...'
       - name: Circular-dependency guard
         run: pnpm run circular
       # Browser support is a hard requirement met through layers: the contract
@@ -265,12 +265,12 @@ jobs:
         run: pnpm test
 
   # Shadow lane for the dogfooded build system: the same gate surface as the
-  # `test` job's check/lint/test steps, planned and executed as tsflows
+  # `test` job's check/lint/test steps, planned and executed as smithers build
   # targets (lib+check, lint+fmt, test — 130 targets over 26 packages).
   # Advisory until it holds a green streak with verdicts matching the pnpm
   # gates; then it becomes required and the recursive scripts retire.
-  tsflows-shadow:
-    name: tsflows ci (shadow, advisory)
+  smthrs-shadow:
+    name: smthrs ci (shadow, advisory)
     runs-on: ubuntu-latest
     continue-on-error: true
     timeout-minutes: 90
@@ -294,7 +294,7 @@ jobs:
       # per-test budgets that host parallelism on a 4-core runner starves
       # when several run at once.
       - name: Execute the merged ci graph
-        run: node packages/tsflows-cli/src/main.js ci "//packages/..." --jobs 2
+        run: node packages/build-cli/src/main.js ci "//packages/..." --jobs 2
 
   node-windows:
     name: node suite (Windows, advisory)

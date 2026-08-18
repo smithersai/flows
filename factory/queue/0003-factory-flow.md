@@ -16,7 +16,7 @@ replacing the smithers DDD pack as this repo's operator.
 - Phases as steps with kernel-enforced envelopes: docs (writes `docs/**` and
   package READMEs only) → gate (vault check + docs parity) → implement (lane
   based at the item's anchor, per `docs/specs/Concepts/Worktree Lanes.md`) →
-  verify (affected tsflows targets) → land (merge queue onto `vibe`) →
+  verify (affected smithers build targets) → land (merge queue onto `vibe`) →
   retell (fold into `main`, tree-equality gate).
 - The retell step is the cutover point described in the Clean History note
   (`docs/specs/Concepts/Clean History.md`): when it ships, landings move

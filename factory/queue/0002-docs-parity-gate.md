@@ -4,10 +4,10 @@ anchor: head
 priority: p0
 ---
 
-# Docs parity gate as a tsflows rule
+# Docs parity gate as a smithers build rule
 
 Implement the parity gate from `docs/specs/Concepts/Colocated Docs.md` as a
-tsflows rule wired into `BUILD.ts`, so package documentation is a declared
+smithers build rule wired into `BUILD.ts`, so package documentation is a declared
 build input and doc drift is a cache miss.
 
 - A `DocsParity` rule per package: README.md present and non-trivial, every
@@ -23,8 +23,8 @@ build input and doc drift is a cache miss.
 
 ## Landed
 
-Shipped in the outer repo as `tsflows/rules/src/DocsParity.ts`, exported from
-`tsflows/rules/src/index.ts` and emitted by `StandardPackage` as a fourth
+Shipped in the outer repo as `smithers build/rules/src/DocsParity.ts`, exported from
+`smithers build/rules/src/index.ts` and emitted by `StandardPackage` as a fourth
 target beside `lib`, `test`, and `lint`.
 
 - The rule owns README presence and quality only: the file exists, carries a
@@ -35,7 +35,7 @@ target beside `lib`, `test`, and `lint`.
 - JSDoc parity is deliberately not duplicated. The root `eslint.jsdoc.js`
   already requires a description, `@since`, and `@category` on every exported
   declaration, and `StandardPackage` runs it under `lint`.
-- The rule participates in a new `docs` kind, invoked with `tsflows docs
+- The rule participates in a new `docs` kind, invoked with `smthrs docs
   //...`. `ciKinds` keeps `build`, `test`, and `lint`, so the gate does not
   turn CI red before the README backfill.
 - The Colocated Docs note records the resolved surface and how it was decided.

@@ -5,7 +5,9 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "paths": {
-      "*": ["./*"]
+      "*": [
+        "./*"
+      ]
     }
   },
   "include": [
@@ -15,5 +17,8 @@
     "packages/storage/*/test/**/*",
     "packages/coding-agent/examples/**/*"
   ],
-  "exclude": ["**/dist/**", "packages/coding-agent/examples/extensions/gondolin/**"]
+  "exclude": [
+    "**/dist/**",
+    "packages/coding-agent/examples/extensions/gondolin/**"
+  ]
 }

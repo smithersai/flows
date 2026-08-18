@@ -11,12 +11,18 @@ importers:
       '@effect/platform-node':
         specifier: 4.0.0-rc.108
         version: 4.0.0-rc.108(effect@4.0.0-rc.108)(ioredis@5.11.1(supports-color@8.1.1))
-      '@smthrs/database-next':
+      '@smthrs/build-cli':
+        specifier: 0.1.0
+        version: link:packages/build-cli
+      '@smthrs/database':
         specifier: workspace:*
         version: link:packages/database
-      '@smthrs/engine-store-next':
+      '@smthrs/engine-store':
         specifier: workspace:*
         version: link:packages/engine-store
+      '@smthrs/targets':
+        specifier: 0.1.0
+        version: link:packages/targets
       effect:
         specifier: 4.0.0-rc.108
         version: 4.0.0-rc.108
@@ -35,12 +41,6 @@ importers:
       react-dom:
         specifier: ^19.2.8
         version: 19.2.8(react@19.2.8)
-      tsflows-cli:
-        specifier: 0.1.0
-        version: link:packages/tsflows-cli
-      tsflows-rules:
-        specifier: 0.1.0
-        version: link:packages/tsflows-rules
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@25.9.5)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.12)(yaml@2.9.0)
@@ -128,34 +128,34 @@ importers:
       '@journeyapps/wa-sqlite':
         specifier: 1.7.2
         version: 1.7.2
-      '@smthrs/canonical-next':
+      '@smthrs/canonical':
         specifier: workspace:*
         version: link:../../packages/canonical
-      '@smthrs/capability-next':
+      '@smthrs/capability':
         specifier: workspace:*
         version: link:../../packages/capability
-      '@smthrs/chain-next':
+      '@smthrs/chain':
         specifier: workspace:*
         version: link:../../packages/chain
       '@smthrs/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@smthrs/crypto-next':
+      '@smthrs/crypto':
         specifier: workspace:*
         version: link:../../packages/crypto
-      '@smthrs/database-next':
+      '@smthrs/database':
         specifier: workspace:*
         version: link:../../packages/database
       '@smthrs/harness':
         specifier: workspace:*
         version: link:../../packages/harness
-      '@smthrs/jj-next':
+      '@smthrs/jj':
         specifier: workspace:*
         version: link:../../packages/jj
-      '@smthrs/journal-next':
+      '@smthrs/journal':
         specifier: workspace:*
         version: link:../../packages/journal
-      '@smthrs/kernel-next':
+      '@smthrs/kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
       '@smthrs/memory':
@@ -167,7 +167,7 @@ importers:
       '@smthrs/patterns':
         specifier: workspace:*
         version: link:../../packages/patterns
-      '@smthrs/platform-browser-next':
+      '@smthrs/platform-browser':
         specifier: workspace:*
         version: link:../../packages/platform-browser
       '@smthrs/registry':
@@ -252,52 +252,52 @@ importers:
 
   examples:
     dependencies:
-      '@smthrs/artifacts-next':
+      '@smthrs/artifacts':
         specifier: 0.1.0
         version: link:../packages/artifacts
-      '@smthrs/database-next':
+      '@smthrs/database':
         specifier: 0.1.0
         version: link:../packages/database
-      '@smthrs/engine-next':
+      '@smthrs/engine':
         specifier: 0.1.0
         version: link:../packages/engine
-      '@smthrs/engine-store-next':
+      '@smthrs/engine-store':
         specifier: 0.1.0
         version: link:../packages/engine-store
-      '@smthrs/flow-next':
+      '@smthrs/flow':
         specifier: 0.1.0
         version: link:../packages/flow
-      '@smthrs/flows-next':
+      '@smthrs/flows':
         specifier: 0.1.0
         version: link:../packages/flows
-      '@smthrs/jj-next':
+      '@smthrs/jj':
         specifier: 0.1.0
         version: link:../packages/jj
-      '@smthrs/journal-next':
+      '@smthrs/journal':
         specifier: 0.1.0
         version: link:../packages/journal
-      '@smthrs/kernel-next':
+      '@smthrs/kernel':
         specifier: 0.1.0
         version: link:../packages/kernel
-      '@smthrs/keys-next':
+      '@smthrs/keys':
         specifier: 0.1.0
         version: link:../packages/keys
-      '@smthrs/platform-browser-next':
+      '@smthrs/platform-browser':
         specifier: 0.1.0
         version: link:../packages/platform-browser
-      '@smthrs/platform-node-next':
+      '@smthrs/platform-node':
         specifier: 0.1.0
         version: link:../packages/platform-node
-      '@smthrs/run-store-next':
+      '@smthrs/run-store':
         specifier: 0.1.0
         version: link:../packages/run-store
-      '@smthrs/step-cache-next':
+      '@smthrs/step-cache':
         specifier: 0.1.0
         version: link:../packages/step-cache
-      '@smthrs/sync-next':
+      '@smthrs/sync':
         specifier: 0.1.0
         version: link:../packages/sync
-      '@smthrs/time-travel-next':
+      '@smthrs/time-travel':
         specifier: 0.1.0
         version: link:../packages/time-travel
       effect:
@@ -325,7 +325,7 @@ importers:
 
   packages/artifacts:
     dependencies:
-      '@smthrs/crypto-next':
+      '@smthrs/crypto':
         specifier: 0.1.0
         version: link:../crypto
       effect:
@@ -380,6 +380,189 @@ importers:
       typescript-eslint:
         specifier: 8.65.0
         version: 8.65.0(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3)
+      vitest:
+        specifier: 4.1.9
+        version: 4.1.9(@opentelemetry/api@1.9.0)(@types/node@25.9.5)(@vitest/coverage-v8@4.1.9)(happy-dom@20.11.2)(vite@8.2.1(@types/node@25.9.5)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.12)(yaml@2.9.0))
+
+  packages/build:
+    dependencies:
+      '@smthrs/crypto':
+        specifier: 0.1.0
+        version: link:../crypto
+      '@smthrs/flow':
+        specifier: 0.1.0
+        version: link:../flow
+      '@smthrs/plan':
+        specifier: 0.1.0
+        version: link:../plan
+      effect:
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108
+    devDependencies:
+      '@effect/language-service':
+        specifier: 0.87.1
+        version: 0.87.1
+      '@effect/platform-node':
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108(effect@4.0.0-rc.108)(ioredis@5.11.1(supports-color@8.1.1))
+      '@eslint/js':
+        specifier: 9.39.1
+        version: 9.39.1
+      '@types/node':
+        specifier: 25.9.5
+        version: 25.9.5
+      '@vitest/coverage-v8':
+        specifier: 4.1.9
+        version: 4.1.9(vitest@4.1.9)
+      dprint:
+        specifier: 0.55.2
+        version: 0.55.2
+      esbuild:
+        specifier: 0.28.1
+        version: 0.28.1
+      eslint:
+        specifier: 9.39.1
+        version: 9.39.1(jiti@2.7.0)(supports-color@8.1.1)
+      eslint-import-resolver-typescript:
+        specifier: 4.4.5
+        version: 4.4.5(eslint-plugin-import@2.32.0)(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)
+      eslint-plugin-import:
+        specifier: 2.32.0
+        version: 2.32.0(@typescript-eslint/parser@8.65.0(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3))(eslint-import-resolver-typescript@4.4.5)(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)
+      eslint-plugin-jsdoc:
+        specifier: 64.1.0
+        version: 64.1.0(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)
+      eslint-plugin-unicorn:
+        specifier: 61.0.2
+        version: 61.0.2(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))
+      madge:
+        specifier: 8.0.0
+        version: 8.0.0(supports-color@8.1.1)(typescript@6.0.3)
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      typescript-eslint:
+        specifier: 8.65.0
+        version: 8.65.0(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3)
+      vitest:
+        specifier: 4.1.9
+        version: 4.1.9(@opentelemetry/api@1.9.0)(@types/node@25.9.5)(@vitest/coverage-v8@4.1.9)(happy-dom@20.11.2)(vite@8.2.1(@types/node@25.9.5)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.12)(yaml@2.9.0))
+
+  packages/build-cli:
+    dependencies:
+      '@effect/platform-node':
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108(effect@4.0.0-rc.108)(ioredis@5.11.1(supports-color@8.1.1))
+      '@effect/platform-node-shared':
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108(effect@4.0.0-rc.108)
+      '@smthrs/build':
+        specifier: 0.1.0
+        version: link:../build
+      '@smthrs/canonical':
+        specifier: 0.1.0
+        version: link:../canonical
+      '@smthrs/crypto':
+        specifier: 0.1.0
+        version: link:../crypto
+      '@smthrs/engine':
+        specifier: 0.1.0
+        version: link:../engine
+      '@smthrs/flow':
+        specifier: 0.1.0
+        version: link:../flow
+      '@smthrs/keys':
+        specifier: 0.1.0
+        version: link:../keys
+      '@smthrs/plan':
+        specifier: 0.1.0
+        version: link:../plan
+      '@smthrs/targets':
+        specifier: 0.1.0
+        version: link:../targets
+      effect:
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108
+      ignore:
+        specifier: 7.0.6
+        version: 7.0.6
+      incur:
+        specifier: 0.5.1
+        version: 0.5.1
+      minimatch:
+        specifier: 10.2.6
+        version: 10.2.6
+      tsx:
+        specifier: 4.23.12
+        version: 4.23.12
+    devDependencies:
+      '@effect/language-service':
+        specifier: 0.87.1
+        version: 0.87.1
+      '@eslint/js':
+        specifier: 9.39.1
+        version: 9.39.1
+      '@types/node':
+        specifier: 25.9.5
+        version: 25.9.5
+      '@vitest/coverage-v8':
+        specifier: 4.1.9
+        version: 4.1.9(vitest@4.1.9)
+      dprint:
+        specifier: 0.55.2
+        version: 0.55.2
+      eslint:
+        specifier: 9.39.1
+        version: 9.39.1(jiti@2.7.0)(supports-color@8.1.1)
+      eslint-import-resolver-typescript:
+        specifier: 4.4.5
+        version: 4.4.5(eslint-plugin-import@2.32.0)(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)
+      eslint-plugin-import:
+        specifier: 2.32.0
+        version: 2.32.0(@typescript-eslint/parser@8.65.0(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3))(eslint-import-resolver-typescript@4.4.5)(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)
+      eslint-plugin-jsdoc:
+        specifier: 64.1.0
+        version: 64.1.0(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)
+      eslint-plugin-unicorn:
+        specifier: 61.0.2
+        version: 61.0.2(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))
+      madge:
+        specifier: 8.0.0
+        version: 8.0.0(supports-color@8.1.1)(typescript@6.0.3)
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      typescript-eslint:
+        specifier: 8.65.0
+        version: 8.65.0(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3)
+      vitest:
+        specifier: 4.1.9
+        version: 4.1.9(@opentelemetry/api@1.9.0)(@types/node@25.9.5)(@vitest/coverage-v8@4.1.9)(happy-dom@20.11.2)(vite@8.2.1(@types/node@25.9.5)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.12)(yaml@2.9.0))
+
+  packages/build/infra:
+    dependencies:
+      '@effect/platform-bun':
+        specifier: 4.0.0-rc.109
+        version: 4.0.0-rc.109(effect@4.0.0-rc.109)
+      '@effect/platform-node':
+        specifier: 4.0.0-rc.109
+        version: 4.0.0-rc.109(effect@4.0.0-rc.109)(redis@6.2.1(@opentelemetry/api@1.9.0))
+      alchemy:
+        specifier: 2.0.0-beta.72
+        version: 2.0.0-beta.72(@effect/platform-bun@4.0.0-rc.109(effect@4.0.0-rc.109))(@effect/platform-node@4.0.0-rc.109(effect@4.0.0-rc.109)(redis@6.2.1(@opentelemetry/api@1.9.0)))(@types/react@19.2.18)(effect@4.0.0-rc.109)(react-devtools-core@7.0.1)(supports-color@8.1.1)(typescript@6.0.3)(vite@8.2.1(@types/node@25.9.5)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.12)(yaml@2.9.0))(vitest@4.1.9)(ws@8.21.3)
+      effect:
+        specifier: 4.0.0-rc.109
+        version: 4.0.0-rc.109
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: 5.20260814.1
+        version: 5.20260814.1
+      '@types/node':
+        specifier: 25.9.5
+        version: 25.9.5
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
       vitest:
         specifier: 4.1.9
         version: 4.1.9(@opentelemetry/api@1.9.0)(@types/node@25.9.5)(@vitest/coverage-v8@4.1.9)(happy-dom@20.11.2)(vite@8.2.1(@types/node@25.9.5)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.12)(yaml@2.9.0))
@@ -496,7 +679,7 @@ importers:
       '@jitl/quickjs-singlefile-browser-release-sync':
         specifier: 0.32.0
         version: 0.32.0
-      '@smthrs/capability-next':
+      '@smthrs/capability':
         specifier: 0.1.0
         version: link:../capability
       '@smthrs/core':
@@ -578,28 +761,28 @@ importers:
       '@smthrs/control':
         specifier: 0.1.0
         version: link:../control
-      '@smthrs/database-next':
+      '@smthrs/database':
         specifier: 0.1.0
         version: link:../database
       '@smthrs/engine-harness':
         specifier: 0.1.0
         version: link:../engine-harness
-      '@smthrs/engine-store-next':
+      '@smthrs/engine-store':
         specifier: 0.1.0
         version: link:../engine-store
-      '@smthrs/flows-next':
+      '@smthrs/flows':
         specifier: 0.1.0
         version: link:../flows
       '@smthrs/harness':
         specifier: 0.1.0
         version: link:../harness
-      '@smthrs/jj-next':
+      '@smthrs/jj':
         specifier: 0.1.0
         version: link:../jj
-      '@smthrs/journal-next':
+      '@smthrs/journal':
         specifier: 0.1.0
         version: link:../journal
-      '@smthrs/kernel-next':
+      '@smthrs/kernel':
         specifier: 0.1.0
         version: link:../kernel
       '@smthrs/memory':
@@ -611,13 +794,13 @@ importers:
       '@smthrs/notifications':
         specifier: 0.1.0
         version: link:../notifications
-      '@smthrs/platform-node-next':
+      '@smthrs/platform-node':
         specifier: 0.1.0
         version: link:../platform-node
       '@smthrs/registry':
         specifier: 0.1.0
         version: link:../registry
-      '@smthrs/run-store-next':
+      '@smthrs/run-store':
         specifier: 0.1.0
         version: link:../run-store
       effect:
@@ -675,31 +858,31 @@ importers:
 
   packages/control:
     dependencies:
-      '@smthrs/canonical-next':
+      '@smthrs/canonical':
         specifier: 0.1.0
         version: link:../canonical
       '@smthrs/core':
         specifier: 0.1.0
         version: link:../core
-      '@smthrs/crypto-next':
+      '@smthrs/crypto':
         specifier: 0.1.0
         version: link:../crypto
-      '@smthrs/database-next':
+      '@smthrs/database':
         specifier: 0.1.0
         version: link:../database
-      '@smthrs/journal-next':
+      '@smthrs/journal':
         specifier: 0.1.0
         version: link:../journal
       '@smthrs/notifications':
         specifier: 0.1.0
         version: link:../notifications
-      '@smthrs/plan-next':
+      '@smthrs/plan':
         specifier: 0.1.0
         version: link:../plan
       '@smthrs/registry':
         specifier: 0.1.0
         version: link:../registry
-      '@smthrs/run-store-next':
+      '@smthrs/run-store':
         specifier: 0.1.0
         version: link:../run-store
       effect:
@@ -757,10 +940,10 @@ importers:
 
   packages/core:
     dependencies:
-      '@smthrs/canonical-next':
+      '@smthrs/canonical':
         specifier: 0.1.0
         version: link:../canonical
-      '@smthrs/crypto-next':
+      '@smthrs/crypto':
         specifier: 0.1.0
         version: link:../crypto
       effect:
@@ -940,13 +1123,13 @@ importers:
 
   packages/engine:
     dependencies:
-      '@smthrs/crypto-next':
+      '@smthrs/crypto':
         specifier: 0.1.0
         version: link:../crypto
-      '@smthrs/flow-next':
+      '@smthrs/flow':
         specifier: 0.1.0
         version: link:../flow
-      '@smthrs/keys-next':
+      '@smthrs/keys':
         specifier: 0.1.0
         version: link:../keys
       effect:
@@ -965,7 +1148,7 @@ importers:
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
-      '@smthrs/plan-next':
+      '@smthrs/plan':
         specifier: 0.1.0
         version: link:../plan
       '@types/node':
@@ -1013,10 +1196,10 @@ importers:
 
   packages/engine-harness:
     dependencies:
-      '@smthrs/artifacts-next':
+      '@smthrs/artifacts':
         specifier: 0.1.0
         version: link:../artifacts
-      '@smthrs/capability-next':
+      '@smthrs/capability':
         specifier: 0.1.0
         version: link:../capability
       '@smthrs/control':
@@ -1025,25 +1208,25 @@ importers:
       '@smthrs/core':
         specifier: 0.1.0
         version: link:../core
-      '@smthrs/engine-next':
+      '@smthrs/engine':
         specifier: 0.1.0
         version: link:../engine
-      '@smthrs/engine-store-next':
+      '@smthrs/engine-store':
         specifier: 0.1.0
         version: link:../engine-store
-      '@smthrs/flow-next':
+      '@smthrs/flow':
         specifier: 0.1.0
         version: link:../flow
       '@smthrs/harness':
         specifier: 0.1.0
         version: link:../harness
-      '@smthrs/jj-next':
+      '@smthrs/jj':
         specifier: 0.1.0
         version: link:../jj
-      '@smthrs/journal-next':
+      '@smthrs/journal':
         specifier: 0.1.0
         version: link:../journal
-      '@smthrs/kernel-next':
+      '@smthrs/kernel':
         specifier: 0.1.0
         version: link:../kernel
       '@smthrs/memory':
@@ -1055,10 +1238,10 @@ importers:
       '@smthrs/notifications':
         specifier: 0.1.0
         version: link:../notifications
-      '@smthrs/plan-next':
+      '@smthrs/plan':
         specifier: 0.1.0
         version: link:../plan
-      '@smthrs/platform-browser-next':
+      '@smthrs/platform-browser':
         specifier: 0.1.0
         version: link:../platform-browser
       '@smthrs/plugin':
@@ -1067,13 +1250,13 @@ importers:
       '@smthrs/registry':
         specifier: 0.1.0
         version: link:../registry
-      '@smthrs/run-store-next':
+      '@smthrs/run-store':
         specifier: 0.1.0
         version: link:../run-store
       '@smthrs/std':
         specifier: 0.1.0
         version: link:../std
-      '@smthrs/step-cache-next':
+      '@smthrs/step-cache':
         specifier: 0.1.0
         version: link:../step-cache
       effect:
@@ -1089,7 +1272,7 @@ importers:
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
-      '@smthrs/flows-next':
+      '@smthrs/flows':
         specifier: 0.1.0
         version: link:../flows
       '@smthrs/testing':
@@ -1137,37 +1320,37 @@ importers:
 
   packages/engine-store:
     dependencies:
-      '@smthrs/artifacts-next':
+      '@smthrs/artifacts':
         specifier: 0.1.0
         version: link:../artifacts
-      '@smthrs/crypto-next':
+      '@smthrs/crypto':
         specifier: 0.1.0
         version: link:../crypto
-      '@smthrs/database-next':
+      '@smthrs/database':
         specifier: 0.1.0
         version: link:../database
-      '@smthrs/engine-next':
+      '@smthrs/engine':
         specifier: 0.1.0
         version: link:../engine
-      '@smthrs/flow-next':
+      '@smthrs/flow':
         specifier: 0.1.0
         version: link:../flow
-      '@smthrs/journal-next':
+      '@smthrs/journal':
         specifier: 0.1.0
         version: link:../journal
-      '@smthrs/kernel-next':
+      '@smthrs/kernel':
         specifier: 0.1.0
         version: link:../kernel
-      '@smthrs/keys-next':
+      '@smthrs/keys':
         specifier: 0.1.0
         version: link:../keys
-      '@smthrs/plan-next':
+      '@smthrs/plan':
         specifier: 0.1.0
         version: link:../plan
-      '@smthrs/run-store-next':
+      '@smthrs/run-store':
         specifier: 0.1.0
         version: link:../run-store
-      '@smthrs/step-cache-next':
+      '@smthrs/step-cache':
         specifier: 0.1.0
         version: link:../step-cache
       effect:
@@ -1186,7 +1369,7 @@ importers:
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
-      '@smthrs/platform-node-next':
+      '@smthrs/platform-node':
         specifier: 0.1.0
         version: link:../platform-node
       '@types/node':
@@ -1295,13 +1478,13 @@ importers:
 
   packages/flow:
     dependencies:
-      '@smthrs/crypto-next':
+      '@smthrs/crypto':
         specifier: 0.1.0
         version: link:../crypto
-      '@smthrs/keys-next':
+      '@smthrs/keys':
         specifier: 0.1.0
         version: link:../keys
-      '@smthrs/plan-next':
+      '@smthrs/plan':
         specifier: 0.1.0
         version: link:../plan
       effect:
@@ -1362,61 +1545,61 @@ importers:
 
   packages/flows:
     dependencies:
-      '@smthrs/artifacts-next':
+      '@smthrs/artifacts':
         specifier: 0.1.0
         version: link:../artifacts
-      '@smthrs/canonical-next':
+      '@smthrs/canonical':
         specifier: 0.1.0
         version: link:../canonical
-      '@smthrs/capability-next':
+      '@smthrs/capability':
         specifier: 0.1.0
         version: link:../capability
-      '@smthrs/crypto-next':
+      '@smthrs/crypto':
         specifier: 0.1.0
         version: link:../crypto
-      '@smthrs/database-next':
+      '@smthrs/database':
         specifier: 0.1.0
         version: link:../database
-      '@smthrs/engine-next':
+      '@smthrs/engine':
         specifier: 0.1.0
         version: link:../engine
-      '@smthrs/engine-store-next':
+      '@smthrs/engine-store':
         specifier: 0.1.0
         version: link:../engine-store
-      '@smthrs/flow-next':
+      '@smthrs/flow':
         specifier: 0.1.0
         version: link:../flow
-      '@smthrs/jj-next':
+      '@smthrs/jj':
         specifier: 0.1.0
         version: link:../jj
-      '@smthrs/journal-next':
+      '@smthrs/journal':
         specifier: 0.1.0
         version: link:../journal
-      '@smthrs/kernel-next':
+      '@smthrs/kernel':
         specifier: 0.1.0
         version: link:../kernel
-      '@smthrs/keys-next':
+      '@smthrs/keys':
         specifier: 0.1.0
         version: link:../keys
-      '@smthrs/observability-next':
+      '@smthrs/observability':
         specifier: 0.1.0
         version: link:../observability
-      '@smthrs/plan-next':
+      '@smthrs/plan':
         specifier: 0.1.0
         version: link:../plan
-      '@smthrs/run-store-next':
+      '@smthrs/run-store':
         specifier: 0.1.0
         version: link:../run-store
-      '@smthrs/sandbox-next':
+      '@smthrs/sandbox':
         specifier: 0.1.0
         version: link:../sandbox
-      '@smthrs/step-cache-next':
+      '@smthrs/step-cache':
         specifier: 0.1.0
         version: link:../step-cache
-      '@smthrs/sync-next':
+      '@smthrs/sync':
         specifier: 0.1.0
         version: link:../sync
-      '@smthrs/time-travel-next':
+      '@smthrs/time-travel':
         specifier: 0.1.0
         version: link:../time-travel
       effect:
@@ -1547,16 +1730,16 @@ importers:
       '@smthrs/control':
         specifier: 0.1.0
         version: link:../control
-      '@smthrs/journal-next':
+      '@smthrs/journal':
         specifier: 0.1.0
         version: link:../journal
       '@smthrs/notifications':
         specifier: 0.1.0
         version: link:../notifications
-      '@smthrs/run-store-next':
+      '@smthrs/run-store':
         specifier: 0.1.0
         version: link:../run-store
-      '@smthrs/sync-next':
+      '@smthrs/sync':
         specifier: 0.1.0
         version: link:../sync
       effect:
@@ -1617,16 +1800,16 @@ importers:
       '@jitl/quickjs-singlefile-browser-release-sync':
         specifier: 0.32.0
         version: 0.32.0
-      '@smthrs/capability-next':
+      '@smthrs/capability':
         specifier: 0.1.0
         version: link:../capability
       '@smthrs/core':
         specifier: 0.1.0
         version: link:../core
-      '@smthrs/journal-next':
+      '@smthrs/journal':
         specifier: 0.1.0
         version: link:../journal
-      '@smthrs/kernel-next':
+      '@smthrs/kernel':
         specifier: 0.1.0
         version: link:../kernel
       '@smthrs/model':
@@ -1699,7 +1882,7 @@ importers:
 
   packages/jj:
     dependencies:
-      '@smthrs/capability-next':
+      '@smthrs/capability':
         specifier: 0.1.0
         version: link:../capability
       effect:
@@ -1757,7 +1940,7 @@ importers:
 
   packages/journal:
     dependencies:
-      '@smthrs/database-next':
+      '@smthrs/database':
         specifier: 0.1.0
         version: link:../database
       effect:
@@ -1815,16 +1998,16 @@ importers:
 
   packages/kernel:
     dependencies:
-      '@smthrs/capability-next':
+      '@smthrs/capability':
         specifier: 0.1.0
         version: link:../capability
-      '@smthrs/jj-next':
+      '@smthrs/jj':
         specifier: 0.1.0
         version: link:../jj
-      '@smthrs/journal-next':
+      '@smthrs/journal':
         specifier: 0.1.0
         version: link:../journal
-      '@smthrs/platform-browser-next':
+      '@smthrs/platform-browser':
         specifier: 0.1.0
         version: link:../platform-browser
       effect:
@@ -1882,10 +2065,10 @@ importers:
 
   packages/keys:
     dependencies:
-      '@smthrs/canonical-next':
+      '@smthrs/canonical':
         specifier: 0.1.0
         version: link:../canonical
-      '@smthrs/crypto-next':
+      '@smthrs/crypto':
         specifier: 0.1.0
         version: link:../crypto
       effect:
@@ -1949,7 +2132,7 @@ importers:
       '@smthrs/core':
         specifier: 0.1.0
         version: link:../core
-      '@smthrs/database-next':
+      '@smthrs/database':
         specifier: 0.1.0
         version: link:../database
       '@smthrs/model':
@@ -2013,10 +2196,10 @@ importers:
 
   packages/model:
     dependencies:
-      '@smthrs/capability-next':
+      '@smthrs/capability':
         specifier: 0.1.0
         version: link:../capability
-      '@smthrs/kernel-next':
+      '@smthrs/kernel':
         specifier: 0.1.0
         version: link:../kernel
       effect:
@@ -2074,7 +2257,7 @@ importers:
 
   packages/notifications:
     dependencies:
-      '@smthrs/journal-next':
+      '@smthrs/journal':
         specifier: 0.1.0
         version: link:../journal
       effect:
@@ -2162,7 +2345,7 @@ importers:
       '@opentelemetry/sdk-trace-web':
         specifier: 2.9.0
         version: 2.9.0(@opentelemetry/api@1.9.0)
-      '@smthrs/journal-next':
+      '@smthrs/journal':
         specifier: 0.1.0
         version: link:../journal
       effect:
@@ -2278,10 +2461,10 @@ importers:
 
   packages/plan:
     dependencies:
-      '@smthrs/database-next':
+      '@smthrs/database':
         specifier: 0.1.0
         version: link:../database
-      '@smthrs/keys-next':
+      '@smthrs/keys':
         specifier: 0.1.0
         version: link:../keys
       effect:
@@ -2342,10 +2525,10 @@ importers:
 
   packages/platform-browser:
     dependencies:
-      '@smthrs/jj-next':
+      '@smthrs/jj':
         specifier: 0.1.0
         version: link:../jj
-      '@smthrs/kernel-next':
+      '@smthrs/kernel':
         specifier: 0.1.0
         version: link:../kernel
       effect:
@@ -2406,10 +2589,10 @@ importers:
       '@effect/platform-node':
         specifier: 4.0.0-rc.108
         version: 4.0.0-rc.108(effect@4.0.0-rc.108)(ioredis@5.11.1(supports-color@8.1.1))
-      '@smthrs/jj-next':
+      '@smthrs/jj':
         specifier: 0.1.0
         version: link:../jj
-      '@smthrs/kernel-next':
+      '@smthrs/kernel':
         specifier: 0.1.0
         version: link:../kernel
       effect:
@@ -2473,10 +2656,10 @@ importers:
       '@effect/platform-node':
         specifier: 4.0.0-rc.108
         version: 4.0.0-rc.108(effect@4.0.0-rc.108)(ioredis@5.11.1(supports-color@8.1.1))
-      '@smthrs/jj-next':
+      '@smthrs/jj':
         specifier: 0.1.0
         version: link:../jj
-      '@smthrs/kernel-next':
+      '@smthrs/kernel':
         specifier: 0.1.0
         version: link:../kernel
       effect:
@@ -2534,7 +2717,7 @@ importers:
 
   packages/plugin:
     dependencies:
-      '@smthrs/flow-next':
+      '@smthrs/flow':
         specifier: 0.1.0
         version: link:../flow
       effect:
@@ -2595,7 +2778,7 @@ importers:
       '@smthrs/core':
         specifier: 0.1.0
         version: link:../core
-      '@smthrs/kernel-next':
+      '@smthrs/kernel':
         specifier: 0.1.0
         version: link:../kernel
       effect:
@@ -2659,10 +2842,10 @@ importers:
 
   packages/run-store:
     dependencies:
-      '@smthrs/database-next':
+      '@smthrs/database':
         specifier: 0.1.0
         version: link:../database
-      '@smthrs/journal-next':
+      '@smthrs/journal':
         specifier: 0.1.0
         version: link:../journal
       effect:
@@ -2720,7 +2903,7 @@ importers:
 
   packages/sandbox:
     dependencies:
-      '@smthrs/kernel-next':
+      '@smthrs/kernel':
         specifier: 0.1.0
         version: link:../kernel
       effect:
@@ -2781,7 +2964,7 @@ importers:
       '@smthrs/core':
         specifier: 0.1.0
         version: link:../core
-      '@smthrs/database-next':
+      '@smthrs/database':
         specifier: 0.1.0
         version: link:../database
       effect:
@@ -2839,7 +3022,7 @@ importers:
 
   packages/std:
     dependencies:
-      '@smthrs/capability-next':
+      '@smthrs/capability':
         specifier: 0.1.0
         version: link:../capability
       '@smthrs/control':
@@ -2848,7 +3031,7 @@ importers:
       '@smthrs/core':
         specifier: 0.1.0
         version: link:../core
-      '@smthrs/kernel-next':
+      '@smthrs/kernel':
         specifier: 0.1.0
         version: link:../kernel
       effect:
@@ -2906,10 +3089,10 @@ importers:
 
   packages/step-cache:
     dependencies:
-      '@smthrs/canonical-next':
+      '@smthrs/canonical':
         specifier: 0.1.0
         version: link:../canonical
-      '@smthrs/database-next':
+      '@smthrs/database':
         specifier: 0.1.0
         version: link:../database
       effect:
@@ -2967,7 +3150,7 @@ importers:
 
   packages/sync:
     dependencies:
-      '@smthrs/journal-next':
+      '@smthrs/journal':
         specifier: 0.1.0
         version: link:../journal
       effect:
@@ -3023,6 +3206,82 @@ importers:
         specifier: 4.1.9
         version: 4.1.9(@opentelemetry/api@1.9.0)(@types/node@25.9.5)(@vitest/coverage-v8@4.1.9)(happy-dom@20.11.2)(vite@8.2.1(@types/node@25.9.5)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.12)(yaml@2.9.0))
 
+  packages/targets:
+    dependencies:
+      '@smthrs/build':
+        specifier: 0.1.0
+        version: link:../build
+      '@smthrs/canonical':
+        specifier: 0.1.0
+        version: link:../canonical
+      '@smthrs/crypto':
+        specifier: 0.1.0
+        version: link:../crypto
+      '@smthrs/database':
+        specifier: 0.1.0
+        version: link:../database
+      '@smthrs/flow':
+        specifier: 0.1.0
+        version: link:../flow
+      '@smthrs/keys':
+        specifier: 0.1.0
+        version: link:../keys
+      '@smthrs/plan':
+        specifier: 0.1.0
+        version: link:../plan
+      ignore:
+        specifier: 7.0.6
+        version: 7.0.6
+      minimatch:
+        specifier: 10.2.6
+        version: 10.2.6
+    devDependencies:
+      '@effect/language-service':
+        specifier: 0.87.1
+        version: 0.87.1
+      '@eslint/js':
+        specifier: 9.39.1
+        version: 9.39.1
+      '@types/node':
+        specifier: 25.9.5
+        version: 25.9.5
+      '@vitest/coverage-v8':
+        specifier: 4.1.9
+        version: 4.1.9(vitest@4.1.9)
+      dprint:
+        specifier: 0.55.2
+        version: 0.55.2
+      effect:
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108
+      eslint:
+        specifier: 9.39.1
+        version: 9.39.1(jiti@2.7.0)(supports-color@8.1.1)
+      eslint-import-resolver-typescript:
+        specifier: 4.4.5
+        version: 4.4.5(eslint-plugin-import@2.32.0)(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)
+      eslint-plugin-import:
+        specifier: 2.32.0
+        version: 2.32.0(@typescript-eslint/parser@8.65.0(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3))(eslint-import-resolver-typescript@4.4.5)(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)
+      eslint-plugin-jsdoc:
+        specifier: 64.1.0
+        version: 64.1.0(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)
+      eslint-plugin-unicorn:
+        specifier: 61.0.2
+        version: 61.0.2(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))
+      madge:
+        specifier: 8.0.0
+        version: 8.0.0(supports-color@8.1.1)(typescript@6.0.3)
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      typescript-eslint:
+        specifier: 8.65.0
+        version: 8.65.0(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3)
+      vitest:
+        specifier: 4.1.9
+        version: 4.1.9(@opentelemetry/api@1.9.0)(@types/node@25.9.5)(@vitest/coverage-v8@4.1.9)(happy-dom@20.11.2)(vite@8.2.1(@types/node@25.9.5)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.12)(yaml@2.9.0))
+
   packages/testing:
     dependencies:
       '@effect/vitest':
@@ -3031,22 +3290,22 @@ importers:
       '@smthrs/core':
         specifier: 0.1.0
         version: link:../core
-      '@smthrs/engine-next':
+      '@smthrs/engine':
         specifier: 0.1.0
         version: link:../engine
-      '@smthrs/flow-next':
+      '@smthrs/flow':
         specifier: 0.1.0
         version: link:../flow
-      '@smthrs/jj-next':
+      '@smthrs/jj':
         specifier: 0.1.0
         version: link:../jj
-      '@smthrs/journal-next':
+      '@smthrs/journal':
         specifier: 0.1.0
         version: link:../journal
-      '@smthrs/kernel-next':
+      '@smthrs/kernel':
         specifier: 0.1.0
         version: link:../kernel
-      '@smthrs/plan-next':
+      '@smthrs/plan':
         specifier: 0.1.0
         version: link:../plan
       effect:
@@ -3107,22 +3366,22 @@ importers:
 
   packages/time-travel:
     dependencies:
-      '@smthrs/database-next':
+      '@smthrs/database':
         specifier: 0.1.0
         version: link:../database
-      '@smthrs/engine-store-next':
+      '@smthrs/engine-store':
         specifier: 0.1.0
         version: link:../engine-store
-      '@smthrs/jj-next':
+      '@smthrs/jj':
         specifier: 0.1.0
         version: link:../jj
-      '@smthrs/journal-next':
+      '@smthrs/journal':
         specifier: 0.1.0
         version: link:../journal
-      '@smthrs/run-store-next':
+      '@smthrs/run-store':
         specifier: 0.1.0
         version: link:../run-store
-      '@smthrs/step-cache-next':
+      '@smthrs/step-cache':
         specifier: 0.1.0
         version: link:../step-cache
       effect:
@@ -3141,19 +3400,19 @@ importers:
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
-      '@smthrs/artifacts-next':
+      '@smthrs/artifacts':
         specifier: 0.1.0
         version: link:../artifacts
-      '@smthrs/engine-next':
+      '@smthrs/engine':
         specifier: 0.1.0
         version: link:../engine
-      '@smthrs/flow-next':
+      '@smthrs/flow':
         specifier: 0.1.0
         version: link:../flow
-      '@smthrs/kernel-next':
+      '@smthrs/kernel':
         specifier: 0.1.0
         version: link:../kernel
-      '@smthrs/plan-next':
+      '@smthrs/plan':
         specifier: 0.1.0
         version: link:../plan
       '@types/node':
@@ -3204,7 +3463,7 @@ importers:
       '@smthrs/core':
         specifier: 0.1.0
         version: link:../core
-      '@smthrs/database-next':
+      '@smthrs/database':
         specifier: 0.1.0
         version: link:../database
       effect:
@@ -3256,265 +3515,6 @@ importers:
       typescript-eslint:
         specifier: 8.65.0
         version: 8.65.0(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3)
-      vitest:
-        specifier: 4.1.9
-        version: 4.1.9(@opentelemetry/api@1.9.0)(@types/node@25.9.5)(@vitest/coverage-v8@4.1.9)(happy-dom@20.11.2)(vite@8.2.1(@types/node@25.9.5)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.12)(yaml@2.9.0))
-
-  packages/tsflows:
-    dependencies:
-      '@smthrs/crypto-next':
-        specifier: 0.1.0
-        version: link:../crypto
-      '@smthrs/flow-next':
-        specifier: 0.1.0
-        version: link:../flow
-      '@smthrs/plan-next':
-        specifier: 0.1.0
-        version: link:../plan
-      effect:
-        specifier: 4.0.0-rc.108
-        version: 4.0.0-rc.108
-    devDependencies:
-      '@effect/language-service':
-        specifier: 0.87.1
-        version: 0.87.1
-      '@effect/platform-node':
-        specifier: 4.0.0-rc.108
-        version: 4.0.0-rc.108(effect@4.0.0-rc.108)(ioredis@5.11.1(supports-color@8.1.1))
-      '@eslint/js':
-        specifier: 9.39.1
-        version: 9.39.1
-      '@types/node':
-        specifier: 25.9.5
-        version: 25.9.5
-      '@vitest/coverage-v8':
-        specifier: 4.1.9
-        version: 4.1.9(vitest@4.1.9)
-      dprint:
-        specifier: 0.55.2
-        version: 0.55.2
-      esbuild:
-        specifier: 0.28.1
-        version: 0.28.1
-      eslint:
-        specifier: 9.39.1
-        version: 9.39.1(jiti@2.7.0)(supports-color@8.1.1)
-      eslint-import-resolver-typescript:
-        specifier: 4.4.5
-        version: 4.4.5(eslint-plugin-import@2.32.0)(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)
-      eslint-plugin-import:
-        specifier: 2.32.0
-        version: 2.32.0(@typescript-eslint/parser@8.65.0(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3))(eslint-import-resolver-typescript@4.4.5)(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)
-      eslint-plugin-jsdoc:
-        specifier: 64.1.0
-        version: 64.1.0(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)
-      eslint-plugin-unicorn:
-        specifier: 61.0.2
-        version: 61.0.2(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))
-      madge:
-        specifier: 8.0.0
-        version: 8.0.0(supports-color@8.1.1)(typescript@6.0.3)
-      typescript:
-        specifier: 6.0.3
-        version: 6.0.3
-      typescript-eslint:
-        specifier: 8.65.0
-        version: 8.65.0(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3)
-      vitest:
-        specifier: 4.1.9
-        version: 4.1.9(@opentelemetry/api@1.9.0)(@types/node@25.9.5)(@vitest/coverage-v8@4.1.9)(happy-dom@20.11.2)(vite@8.2.1(@types/node@25.9.5)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.12)(yaml@2.9.0))
-
-  packages/tsflows-cli:
-    dependencies:
-      '@effect/platform-node':
-        specifier: 4.0.0-rc.108
-        version: 4.0.0-rc.108(effect@4.0.0-rc.108)(ioredis@5.11.1(supports-color@8.1.1))
-      '@effect/platform-node-shared':
-        specifier: 4.0.0-rc.108
-        version: 4.0.0-rc.108(effect@4.0.0-rc.108)
-      '@smthrs/canonical-next':
-        specifier: 0.1.0
-        version: link:../canonical
-      '@smthrs/crypto-next':
-        specifier: 0.1.0
-        version: link:../crypto
-      '@smthrs/engine-next':
-        specifier: 0.1.0
-        version: link:../engine
-      '@smthrs/flow-next':
-        specifier: 0.1.0
-        version: link:../flow
-      '@smthrs/keys-next':
-        specifier: 0.1.0
-        version: link:../keys
-      '@smthrs/plan-next':
-        specifier: 0.1.0
-        version: link:../plan
-      '@smthrs/tsflows-next':
-        specifier: 0.1.0
-        version: link:../tsflows
-      effect:
-        specifier: 4.0.0-rc.108
-        version: 4.0.0-rc.108
-      ignore:
-        specifier: 7.0.6
-        version: 7.0.6
-      incur:
-        specifier: 0.5.1
-        version: 0.5.1
-      minimatch:
-        specifier: 10.2.6
-        version: 10.2.6
-      tsflows-rules:
-        specifier: 0.1.0
-        version: link:../tsflows-rules
-      tsx:
-        specifier: 4.23.12
-        version: 4.23.12
-    devDependencies:
-      '@effect/language-service':
-        specifier: 0.87.1
-        version: 0.87.1
-      '@eslint/js':
-        specifier: 9.39.1
-        version: 9.39.1
-      '@types/node':
-        specifier: 25.9.5
-        version: 25.9.5
-      '@vitest/coverage-v8':
-        specifier: 4.1.9
-        version: 4.1.9(vitest@4.1.9)
-      dprint:
-        specifier: 0.55.2
-        version: 0.55.2
-      eslint:
-        specifier: 9.39.1
-        version: 9.39.1(jiti@2.7.0)(supports-color@8.1.1)
-      eslint-import-resolver-typescript:
-        specifier: 4.4.5
-        version: 4.4.5(eslint-plugin-import@2.32.0)(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)
-      eslint-plugin-import:
-        specifier: 2.32.0
-        version: 2.32.0(@typescript-eslint/parser@8.65.0(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3))(eslint-import-resolver-typescript@4.4.5)(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)
-      eslint-plugin-jsdoc:
-        specifier: 64.1.0
-        version: 64.1.0(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)
-      eslint-plugin-unicorn:
-        specifier: 61.0.2
-        version: 61.0.2(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))
-      madge:
-        specifier: 8.0.0
-        version: 8.0.0(supports-color@8.1.1)(typescript@6.0.3)
-      typescript:
-        specifier: 6.0.3
-        version: 6.0.3
-      typescript-eslint:
-        specifier: 8.65.0
-        version: 8.65.0(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3)
-      vitest:
-        specifier: 4.1.9
-        version: 4.1.9(@opentelemetry/api@1.9.0)(@types/node@25.9.5)(@vitest/coverage-v8@4.1.9)(happy-dom@20.11.2)(vite@8.2.1(@types/node@25.9.5)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.12)(yaml@2.9.0))
-
-  packages/tsflows-rules:
-    dependencies:
-      '@smthrs/canonical-next':
-        specifier: 0.1.0
-        version: link:../canonical
-      '@smthrs/crypto-next':
-        specifier: 0.1.0
-        version: link:../crypto
-      '@smthrs/database-next':
-        specifier: 0.1.0
-        version: link:../database
-      '@smthrs/flow-next':
-        specifier: 0.1.0
-        version: link:../flow
-      '@smthrs/keys-next':
-        specifier: 0.1.0
-        version: link:../keys
-      '@smthrs/plan-next':
-        specifier: 0.1.0
-        version: link:../plan
-      '@smthrs/tsflows-next':
-        specifier: 0.1.0
-        version: link:../tsflows
-      ignore:
-        specifier: 7.0.6
-        version: 7.0.6
-      minimatch:
-        specifier: 10.2.6
-        version: 10.2.6
-    devDependencies:
-      '@effect/language-service':
-        specifier: 0.87.1
-        version: 0.87.1
-      '@eslint/js':
-        specifier: 9.39.1
-        version: 9.39.1
-      '@types/node':
-        specifier: 25.9.5
-        version: 25.9.5
-      '@vitest/coverage-v8':
-        specifier: 4.1.9
-        version: 4.1.9(vitest@4.1.9)
-      dprint:
-        specifier: 0.55.2
-        version: 0.55.2
-      effect:
-        specifier: 4.0.0-rc.108
-        version: 4.0.0-rc.108
-      eslint:
-        specifier: 9.39.1
-        version: 9.39.1(jiti@2.7.0)(supports-color@8.1.1)
-      eslint-import-resolver-typescript:
-        specifier: 4.4.5
-        version: 4.4.5(eslint-plugin-import@2.32.0)(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)
-      eslint-plugin-import:
-        specifier: 2.32.0
-        version: 2.32.0(@typescript-eslint/parser@8.65.0(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3))(eslint-import-resolver-typescript@4.4.5)(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)
-      eslint-plugin-jsdoc:
-        specifier: 64.1.0
-        version: 64.1.0(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)
-      eslint-plugin-unicorn:
-        specifier: 61.0.2
-        version: 61.0.2(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))
-      madge:
-        specifier: 8.0.0
-        version: 8.0.0(supports-color@8.1.1)(typescript@6.0.3)
-      typescript:
-        specifier: 6.0.3
-        version: 6.0.3
-      typescript-eslint:
-        specifier: 8.65.0
-        version: 8.65.0(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3)
-      vitest:
-        specifier: 4.1.9
-        version: 4.1.9(@opentelemetry/api@1.9.0)(@types/node@25.9.5)(@vitest/coverage-v8@4.1.9)(happy-dom@20.11.2)(vite@8.2.1(@types/node@25.9.5)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.12)(yaml@2.9.0))
-
-  packages/tsflows/infra:
-    dependencies:
-      '@effect/platform-bun':
-        specifier: 4.0.0-rc.109
-        version: 4.0.0-rc.109(effect@4.0.0-rc.109)
-      '@effect/platform-node':
-        specifier: 4.0.0-rc.109
-        version: 4.0.0-rc.109(effect@4.0.0-rc.109)(redis@6.2.1(@opentelemetry/api@1.9.0))
-      alchemy:
-        specifier: 2.0.0-beta.72
-        version: 2.0.0-beta.72(@effect/platform-bun@4.0.0-rc.109(effect@4.0.0-rc.109))(@effect/platform-node@4.0.0-rc.109(effect@4.0.0-rc.109)(redis@6.2.1(@opentelemetry/api@1.9.0)))(@types/react@19.2.18)(effect@4.0.0-rc.109)(react-devtools-core@7.0.1)(supports-color@8.1.1)(typescript@6.0.3)(vite@8.2.1(@types/node@25.9.5)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.12)(yaml@2.9.0))(vitest@4.1.9)(ws@8.21.3)
-      effect:
-        specifier: 4.0.0-rc.109
-        version: 4.0.0-rc.109
-    devDependencies:
-      '@cloudflare/workers-types':
-        specifier: 5.20260814.1
-        version: 5.20260814.1
-      '@types/node':
-        specifier: 25.9.5
-        version: 25.9.5
-      typescript:
-        specifier: 6.0.3
-        version: 6.0.3
       vitest:
         specifier: 4.1.9
         version: 4.1.9(@opentelemetry/api@1.9.0)(@types/node@25.9.5)(@vitest/coverage-v8@4.1.9)(happy-dom@20.11.2)(vite@8.2.1(@types/node@25.9.5)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.12)(yaml@2.9.0))
@@ -13997,7 +13997,7 @@ snapshots:
 
   '@img/sharp-wasm32@0.34.5':
     dependencies:
-      '@emnapi/runtime': 1.11.1
+      '@emnapi/runtime': 1.11.2
     optional: true
 
   '@img/sharp-win32-arm64@0.34.5':
