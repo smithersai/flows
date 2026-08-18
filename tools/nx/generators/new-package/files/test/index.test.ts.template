@@ -1,0 +1,12 @@
+/**
+ * Tests for <%= name %>.
+ *
+ * @since 0.1.0
+ */
+import { describe, expect, it } from "vitest"
+
+describe("<%= name %>", () => {
+  it("is scaffolded", () => {
+    expect(true).toBe(true)
+  })
+})

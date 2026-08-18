@@ -1,0 +1,9 @@
+{
+  "generators": {
+    "new-package": {
+      "factory": "./generators/new-package/generator.ts",
+      "schema": "./generators/new-package/schema.json",
+      "description": "Scaffolds a conventional workspace package under packages/: manifest with smthrs.group, the standard script set, tsconfig pair, flat eslint config, dprint config, vitest config, build and circular scripts, one source file, one test, and a README. Writes no project.json — target inference covers the package the same way it covers every existing one."
+    }
+  }
+}

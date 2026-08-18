@@ -1,0 +1,8 @@
+{
+  "name": "@flows/nx-plugin",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Local Nx plugin for the flows workspace: smthrs.group tags, dprint target inference, and the new-package generator.",
+  "main": "./plugin.ts",
+  "generators": "./generators.json"
+}

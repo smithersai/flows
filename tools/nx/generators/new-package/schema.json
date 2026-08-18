@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "new-package",
+  "title": "New workspace package",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Package directory name under packages/. Published as @smthrs/<name>.",
+      "$default": {
+        "$source": "argv",
+        "index": 0
+      }
+    },
+    "group": {
+      "type": "string",
+      "description": "Dependency tier recorded as smthrs.group and mapped onto the group:<tier> Nx tag.",
+      "enum": ["engine", "agent", "tooling"],
+      "default": "agent"
+    },
+    "description": {
+      "type": "string",
+      "description": "One-sentence package description for the manifest and README.",
+      "default": "TODO: describe this package."
+    }
+  },
+  "required": ["name"]
+}
