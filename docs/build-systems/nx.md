@@ -288,7 +288,7 @@ installing first.
   23.1.1 each. The install adds roughly 1,300 packages to the store. The
   version lockstep matters: mixed `@nx/*` versions are a classic failure
   mode, and `nx migrate` is the supported upgrade path.
-- **Config surface**: `nx.json` (190 lines), `.nxignore`,
+- **Config surface**: `nx.json` (189 lines), `.nxignore`,
   `crates/flows-jj/project.json`, `eslint.boundaries.js`, a local plugin,
   a generator, and one import line in 45 eslint configs. Smaller than the
   rule catalog it shadows, but it is a second build system living next to
@@ -322,10 +322,17 @@ installing first.
 
 1. Land this branch. Existing gates are unaffected (verified: the five
    `node --test` script gates, the browser gate, and the pnpm recursive
-   check/lint/test/build scripts behave identically; the 14 `dprint check`
-   README failures and the missing `smthrs` bin reproduce byte-identically
-   on a pristine `origin/main` checkout, so they are pre-existing, not
-   caused by this branch).
+   check/lint/test/build scripts behave identically). At the original
+   branch point the workspace had two red gates that were not this
+   branch's doing: 14 packages' READMEs failed `dprint check` and the
+   `smthrs` bin was missing (the package rename had mangled the bin name
+   to `"smithers build"`). `main` fixed both after the branch point
+   (`39bd390d`, `ceb784b6`), and the branch is rebased onto those fixes.
+   Re-verified after the rebase: `pnpm exec smthrs docs '//...'` runs
+   green, `dprint check` passes on the 14 formerly failing packages, and
+   the rebase invalidated exactly the right cache entries — the first
+   post-rebase `nx run-many -t fmt` re-ran the 14 packages whose READMEs
+   changed and hit the cache for the other 31.
 2. Decide the source of truth for lint. Either keep script-based lint
    (this branch) or refactor the flat configs so `eslint .` is valid and
    register `@nx/eslint`. The former is zero work; the latter makes the
