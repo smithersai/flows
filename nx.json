@@ -1,0 +1,189 @@
+{
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "defaultBase": "main",
+  "namedInputs": {
+    "sharedGlobals": [
+      "{workspaceRoot}/tsconfig.base.json",
+      "{workspaceRoot}/eslint.jsdoc.js",
+      "{workspaceRoot}/eslint.boundaries.js",
+      "{workspaceRoot}/pnpm-workspace.yaml",
+      "{workspaceRoot}/rust-toolchain.toml"
+    ],
+    "default": [
+      "{projectRoot}/**/*",
+      "sharedGlobals"
+    ],
+    "production": [
+      "default",
+      "!{projectRoot}/test/**/*",
+      "!{projectRoot}/**/*.test.ts",
+      "!{projectRoot}/**/*.test.tsx",
+      "!{projectRoot}/**/*.spec.ts",
+      "!{projectRoot}/tsconfig.test.json",
+      "!{projectRoot}/vitest.config.ts",
+      "!{projectRoot}/eslint.config.js",
+      "!{projectRoot}/dprint.json",
+      "!{projectRoot}/**/*.md"
+    ]
+  },
+  "plugins": [
+    {
+      "plugin": "@nx/js/typescript",
+      "options": {
+        "typecheck": false,
+        "build": false
+      }
+    },
+    {
+      "plugin": "@nx/vite",
+      "include": [
+        "packages/**"
+      ],
+      "options": {
+        "buildTargetName": "build",
+        "devTargetName": "dev",
+        "previewTargetName": "preview",
+        "serveStaticTargetName": "serve:static"
+      }
+    },
+    {
+      "plugin": "@nx/vitest",
+      "include": [
+        "packages/**"
+      ],
+      "options": {
+        "testTargetName": "test",
+        "testMode": "run"
+      }
+    },
+    "./tools/nx"
+  ],
+  "targetDefaults": {
+    "build": {
+      "cache": true,
+      "inputs": [
+        "production",
+        "^production"
+      ],
+      "outputs": [
+        "{projectRoot}/dist"
+      ]
+    },
+    "check": {
+      "cache": true,
+      "inputs": [
+        "default",
+        "^default"
+      ]
+    },
+    "typecheck": {
+      "cache": true,
+      "inputs": [
+        "default",
+        "^default"
+      ]
+    },
+    "lint": {
+      "cache": true,
+      "inputs": [
+        "default",
+        "^default"
+      ]
+    },
+    "fmt": {
+      "cache": true,
+      "inputs": [
+        "default"
+      ]
+    },
+    "circular": {
+      "cache": true,
+      "inputs": [
+        "default",
+        "^default"
+      ]
+    },
+    "test": {
+      "cache": true,
+      "inputs": [
+        "default",
+        "^default"
+      ]
+    },
+    "coverage": {
+      "cache": true,
+      "inputs": [
+        "default",
+        "^default"
+      ]
+    },
+    "cargo-fmt": {
+      "cache": true,
+      "inputs": [
+        "{projectRoot}/**/*",
+        "{workspaceRoot}/Cargo.toml",
+        "{workspaceRoot}/rust-toolchain.toml"
+      ]
+    },
+    "cargo-clippy": {
+      "cache": true,
+      "inputs": [
+        "{projectRoot}/**/*",
+        "{workspaceRoot}/Cargo.toml",
+        "{workspaceRoot}/Cargo.lock",
+        "{workspaceRoot}/rust-toolchain.toml",
+        "{workspaceRoot}/vendor/jj"
+      ]
+    },
+    "cargo-test": {
+      "cache": true,
+      "inputs": [
+        "{projectRoot}/**/*",
+        "{workspaceRoot}/Cargo.toml",
+        "{workspaceRoot}/Cargo.lock",
+        "{workspaceRoot}/rust-toolchain.toml",
+        "{workspaceRoot}/vendor/jj"
+      ]
+    },
+    "wasm-repro": {
+      "cache": false,
+      "inputs": [
+        "{projectRoot}/**/*",
+        "{workspaceRoot}/Cargo.toml",
+        "{workspaceRoot}/Cargo.lock",
+        "{workspaceRoot}/rust-toolchain.toml",
+        "{workspaceRoot}/vendor/jj",
+        "{workspaceRoot}/packages/jj/wasm/flows_jj.wasm"
+      ]
+    }
+  },
+  "release": {
+    "projects": [
+      "tag:group:engine"
+    ],
+    "projectsRelationship": "fixed",
+    "version": {
+      "conventionalCommits": true,
+      "generatorOptions": {
+        "updateDependents": "auto",
+        "packageRoot": "packages/{projectName}"
+      },
+      "fallbackCurrentVersionResolver": "disk"
+    },
+    "changelog": {
+      "workspaceChangelog": {
+        "createRelease": "github"
+      },
+      "projectChangelogs": false,
+      "automaticFromRef": true
+    },
+    "git": {
+      "commit": true,
+      "tag": true,
+      "commitMessage": "🔖 release: v{version}"
+    },
+    "releaseTag": {
+      "pattern": "v{version}"
+    }
+  }
+}

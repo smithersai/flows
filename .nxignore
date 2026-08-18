@@ -1,0 +1,21 @@
+# Directories Nx must never treat as project inputs or scan for projects.
+# The pinned jj fork is a git submodule and enters cargo task hashes through
+# the explicit `vendor/jj` input on the rust targets, not through a scan.
+vendor/jj/**
+
+# Cargo build output.
+target/**
+
+# Derived workspace state.
+.flows/
+.artifacts/
+.smithers/
+smithers.db*
+
+# Documentation site build output.
+docs/.vocs/
+docs/dist/
+
+# Agent scratch.
+reference/
+plans/
