@@ -34,7 +34,7 @@
     },
     "check": {
       "inputs": ["src/**", "test/**", "tsconfig.json", "tsconfig.test.json", "package.json"],
-      "outputs": ["dist/**", "*.tsbuildinfo", "dist/**/*.tsbuildinfo"]
+      "outputs": ["dist/**"]
     },
     "lint": {
       "inputs": ["$TURBO_DEFAULT$", "../../eslint.jsdoc.js"],
