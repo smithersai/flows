@@ -125,7 +125,6 @@ workspace_npm_package(
     visibility = ["//visibility:public"],
 )
 
-
 # The ESLint flat config as a js_library so the rules_lint aspect gathers the
 # config, the shared jsdoc convention, and every plugin package as declared
 # action inputs.

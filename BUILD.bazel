@@ -26,6 +26,7 @@ load("@npm//:defs.bzl", "npm_link_all_packages")
 # gazelle:js_files .bazel-no-root-sources
 # gazelle:js_test_files .bazel-no-root-test-sources
 # gazelle:exclude lint
+# gazelle:exclude apps/ui/.smithers
 # gazelle:js_tsconfig_file tsconfig.json
 # gazelle:js_tsconfig_file {dirname}_tests tsconfig.test.json
 # gazelle:js_validate_import_statements warn
