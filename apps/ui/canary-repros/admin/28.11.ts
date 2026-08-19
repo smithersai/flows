@@ -20,9 +20,6 @@ import { open, run, body } from "./_lib";
 
 const { context, page } = await open();
 
-// Make sure the default engine is selected — a leftover /debug.backend chain
-// would poison this measurement with 501s that belong to 26.1.
-await run(page, "/debug.backend proxy", 3000).catch(() => {});
 await page.reload({ waitUntil: "domcontentloaded" });
 await page.waitForTimeout(6000);
 
