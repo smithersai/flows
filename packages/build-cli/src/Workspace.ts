@@ -1882,6 +1882,16 @@ export class Workspace {
         expanded.push(input)
         continue
       }
+      if (declaration._tag === "Produced") {
+        // The producer's output manifest exists only after the producer runs,
+        // so the digest `Input.producedDigest` computes cannot be measured
+        // while the plan is being walked. The planner and executor wiring
+        // that supplies the manifest is a later lane; until it lands, refuse
+        // here rather than falling through to the GitDiff read below.
+        throw new Error(
+          "a Produced input cannot be expanded at plan time: the producer's output manifest exists only after the producer runs"
+        )
+      }
       const base = Input.validateGitBase(declaration.base)
       const names = await runGit(
         this.root,
