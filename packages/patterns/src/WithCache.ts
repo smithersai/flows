@@ -20,6 +20,7 @@ import { PatternError } from "./PatternError.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Options {
   readonly ttl?: Duration.Input | undefined
@@ -75,6 +76,7 @@ const declaration = (inner: Flow.Any, options: Options): Flow.Any => {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (options: Options = {}): Pattern.Decorator => (inner) => declaration(inner, options)
 
@@ -86,6 +88,7 @@ export const make = (options: Options = {}): Pattern.Decorator => (inner) => dec
  *
  * @category combinators
  * @since 0.1.0
+ * @slop
  */
 export const withCache = (inner: Flow.Any, options: Options = {}): Flow.Any =>
   Compose.seal(Pattern.decorate(inner, make(options)))

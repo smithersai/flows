@@ -62,6 +62,19 @@ const bodies = (store: AppStore): string[] =>
 	[...store.collections.messages.values()].map((message) => message.text);
 
 describe("the debug reads render for the human", () => {
+	test("/debug.backend answers the human", async () => {
+		const store = await adminStore();
+		const controller = createAppController(store, unavailableRepositories, agentWithGrants({ count: 0 }), {
+			fetchImpl: async () => new Response("{}", { status: 200 }),
+		});
+		const before = store.collections.messages.size;
+		controller.send("/debug.backend");
+		await settled();
+		await settled();
+		expect(store.collections.messages.size).toBe(before + 1);
+		expect(bodies(store).at(-1)).toContain("agent backend: chain");
+	});
+
 	test.each([
 		["debug.snapshot", "App state snapshot"],
 		["debug.events", "Transition journal tail"],

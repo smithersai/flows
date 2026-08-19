@@ -49,6 +49,7 @@ export default defineConfig({
     { text: "Telemetry", link: "/telemetry" },
     { text: "Examples", link: "/examples" },
     { text: "Design decisions", link: "/design-decisions" },
+    { text: "Comparisons", link: "/comparisons" },
     { text: "External", link: "/external" },
     { text: "Contributor plan", link: "/contributing" }
   ],

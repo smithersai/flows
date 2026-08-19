@@ -9,6 +9,12 @@
  * The runtime and the package manager are declared once and passed to every
  * target that runs a tool. Nothing in the target catalog spells `pnpm` or `node`
  * into an argv any more, so switching either is an edit to this file.
+ *
+ * Nothing in this file is a command. Targets are declared here; the argv each
+ * one runs is rendered inside its implementation, from these declarations. A
+ * `run:` string, a raw executable name, or a shell fragment in a BUILD.ts file
+ * is a gate outside the build graph — unplanned, unkeyed, unaddressable — and
+ * the schemas in `@smthrs/targets` no longer have a field that would hold one.
  */
 import { Smithers } from "@smthrs/targets"
 
@@ -42,6 +48,32 @@ export const runtime = Smithers.Runtime.Node({ version: ">=22.19.0" })
  * itself a program the runtime executes.
  */
 export const packageManager = Smithers.PackageManager.Pnpm({ version: "11.21.0", runtime })
+
+/**
+ * The second interpreter the workspace supports.
+ *
+ * It is a declaration, not a preference: the Bun compatibility matrix in
+ * `ci/BUILD.ts` and the UI end-to-end targets in `apps/ui/BUILD.ts` run under
+ * it, and both take it from here rather than spelling `bun` into an argv.
+ */
+export const bunRuntime = Smithers.Runtime.Bun({ version: ">=1.3.0" })
+
+/**
+ * Bun as a package manager, for the targets that run tools under it.
+ *
+ * Bun is its own runtime, so the declaration carries no separate version.
+ */
+export const bunPackageManager = Smithers.PackageManager.BunPackages({ runtime: bunRuntime })
+
+/**
+ * The Rust toolchain the crates build with.
+ *
+ * `rust-toolchain.toml` pins the compiler, the `wasm32-wasip1` target, and the
+ * rustfmt and clippy components. The declaration names that pin, so the cargo
+ * targets and the pipeline's toolchain install are keyed on the same file and
+ * cannot drift from each other.
+ */
+export const rustToolchain = Smithers.RustToolchain.Pinned({})
 
 // ---------------------------------------------------------------------------
 // Secrets
@@ -122,7 +154,12 @@ export const tsconfig = Smithers.Tsconfig({
   },
   include: [
     "BUILD.ts",
+    "apps/*/BUILD.ts",
+    "ci/BUILD.ts",
+    "crates/*/BUILD.ts",
+    "evals/*/BUILD.ts",
     "lint/BUILD.ts",
+    "scripts/BUILD.ts",
     "packages/*/BUILD.ts",
     "packages/*/src/**/*",
     "packages/*/test/**/*",
@@ -155,429 +192,221 @@ export const nodeModules = Smithers.Install({
 })
 
 // ---------------------------------------------------------------------------
-// Workspace policy
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
 // GitHub Actions
 // ---------------------------------------------------------------------------
 
 /** The runner every job in the pipeline uses unless it names another. */
 const ubuntu = "ubuntu-latest"
 
-/** Checks the tree out with no submodules. */
-const checkout = { uses: "actions/checkout@v4" } as const
+/** Node as the pipeline installs it, with the pnpm store cached. */
+const node = Smithers.CiToolchain.Node({ runtime, release: "22.19.0" })
+
+/** Node without the pnpm store cache, for a job whose install is not the hot path. */
+const bareNode = Smithers.CiToolchain.Node({ runtime, release: "22.19.0", cachePackageStore: false })
+
+/** Bun as the pipeline installs it. */
+const bun = Smithers.CiToolchain.Bun({ runtime: bunRuntime, release: "1.3.14" })
 
 /**
- * Checks the tree out with submodules. jj-lib is a git submodule at
- * `vendor/jj`; the crates in `crates/` build against it, so a checkout without
- * it dies on a missing `vendor/jj/lib/Cargo.toml`.
+ * The jj binary the real-binary suites require.
+ *
+ * Issue #163: without jj on PATH those suites fail loudly rather than skipping
+ * silently. A GitHub checkout is a git repository and not a jj one, so the
+ * colocated metadata is initialized before the contracts run.
  */
-const checkoutWithSubmodules = {
-  uses: "actions/checkout@v4",
-  with: { submodules: "recursive" }
-} as const
-
-/** Installs the pinned Node, with the pnpm store cached. */
-const setupNode = {
-  uses: "actions/setup-node@v4",
-  with: { "node-version": "22.19.0", cache: "pnpm" }
-} as const
-
-/** Installs Node without the pnpm cache, for a job that never runs pnpm. */
-const setupBareNode = {
-  uses: "actions/setup-node@v4",
-  with: { "node-version": "22.19.0" }
-} as const
-
-const setupPnpm = { uses: "pnpm/action-setup@v6" } as const
-
-/**
- * Installs the pinned Bun. The pin has to name a published oven-sh/bun
- * release: setup-bun downloads the release asset, so a version that exists
- * only as a local build 404s.
- */
-const setupBun = {
-  uses: "oven-sh/setup-bun@v2",
-  with: { "bun-version": "1.3.14" }
-} as const
-
-/** The frozen, script-free workspace install every JavaScript job runs. */
-const install = { run: "pnpm install --frozen-lockfile --ignore-scripts" } as const
-
-/**
- * Issue #163: the real-binary NodeJj suite requires jj on PATH; without it the
- * suite fails loudly on CI (it no longer skips silently). `install-action`
- * fetches the prebuilt jj-cli release binary — no cargo build. Keep the
- * version pinned. A GitHub checkout is not itself a jj repo, so the colocated
- * metadata is initialized before those contracts run.
- */
-const installJj = [
-  { name: "Install jj", uses: "taiki-e/install-action@v2", with: { tool: "jj-cli@0.39.0" } },
-  { name: "Initialize colocated jj repository", run: "jj git init --colocate" }
-] as const
-
-/** Installs the toolchain `rust-toolchain.toml` pins, components and target included. */
-const installRust = { name: "Install pinned Rust toolchain", run: "rustup toolchain install" } as const
+const jj = Smithers.CiToolchain.Jj({ release: "0.39.0" })
 
 /**
  * The GitHub Actions pipeline, generated from this declaration.
  *
- * Every job below is the whole pipeline: `.github/workflows/ci.yml` is a
- * generated root file like `pnpm-workspace.yaml` and `tsconfig.json`, written
- * by `smthrs build //:ci` and drift-checked by every other verb. Editing the
- * YAML directly fails the check; edit this declaration instead.
+ * `.github/workflows/ci.yml` is a generated root file like `pnpm-workspace.yaml`
+ * and `tsconfig.json`, written by `smthrs build //:ci` and drift-checked by every
+ * other verb. Editing the YAML directly fails the check; edit this declaration
+ * instead.
  *
- * The first job listed receives the generated pipeline step, so
- * `smthrs-shadow` is first: it is the lane that executes the target graph, and
- * it stays advisory (`continueOnError`) until it holds a green streak with
- * verdicts matching the pnpm gates.
+ * NOTHING BELOW IS A COMMAND. A job declares what a runner must provide before
+ * it can work (`toolchain`) and which targets it runs (`steps`). Every argv the
+ * generated file carries — the checkout, the installs, the toolchain setup, and
+ * each `pnpm exec smthrs <verb> <pattern>` — is rendered by `GithubCiGen` from
+ * those declarations and from the runtime and package-manager declarations at
+ * the top of this file. A gate that is not a target cannot be added to the
+ * pipeline; it has to become a target first, in the package that owns it. That
+ * is the same rule Bazel enforces by having no way to write a command in a
+ * `BUILD` file at all.
  */
 export const ci = Smithers.GithubCiGen({
   packageManager,
   cacheUrlSecret: cacheUrl,
   cacheTokenSecret: cacheToken,
-  // The CLI verbs the generated step runs across `pattern`. These are typed
-  // values, not strings: `Verb.Build` either exists or the file does not
-  // compile, and there is no `Verb.Run`, because an unattended pipeline must
-  // not start a development server or a source-tree scaffold. Declaring every
-  // verb is the aggregate `ci` command, so the step collapses to one
-  // `smthrs ci` invocation rather than four that re-plan the same graph.
-  pipelineVerbs: Smithers.Verb.all,
-  pattern: "//packages/...",
-  // Two concurrent targets: the heavy vitest suites carry finite 30s per-test
-  // budgets that host parallelism on a 4-core runner starves when several run
-  // at once.
-  parallelism: 2,
   workflowDispatch: false,
   mode: "check",
-  gates: [{ name: "documentation parity", command: "pnpm exec smthrs docs '//...'", job: "test" }],
-  requiredJobs: [
-    "smthrs-shadow",
-    "test",
-    "apps-e2e",
-    "rust",
-    "wasm-repro",
-    "bun",
-    "browser",
-    "node-macos",
-    "node-windows"
+  gates: [
+    // Claims that outlive the job list. Checked structurally against the steps
+    // below, so dropping the invocation is a throw at plan time.
+    { name: "documentation parity", verb: Smithers.Verb.Docs, pattern: "//packages/...", job: "test" },
+    { name: "browser contract", verb: Smithers.Verb.Test, pattern: "//scripts:browserContract" }
   ],
+  requiredJobs: ["test", "apps-e2e", "rust", "wasm-repro", "bun", "browser", "node-macos", "node-windows"],
   jobs: [
-    // Shadow lane for the dogfooded build system: the same gate surface as the
-    // `test` job's check/lint/test steps, planned and executed as smithers
-    // build targets. Advisory until it holds a green streak; then it becomes
-    // required and the recursive scripts retire. The generated pipeline step
-    // is appended to this job.
-    {
-      id: "smthrs-shadow",
-      name: "smthrs ci (shadow, advisory)",
-      runsOn: ubuntu,
-      continueOnError: true,
-      timeoutMinutes: 90,
-      // Same jj setup as the Node job: the jj and time-travel suites exercise
-      // a real jj binary and refuse to skip silently.
-      steps: [checkout, setupPnpm, setupNode, install, ...installJj]
-    },
     {
       id: "test",
-      name: "check + test (coverage gates enforced)",
+      name: "workspace graph (coverage gates enforced)",
       runsOn: ubuntu,
-      steps: [
-        checkout,
+      toolchain: Smithers.CiToolchain.Needs({
+        runtimes: [node, bun],
+        jj,
         // actionlint catches GitHub-only expression-context errors before any
         // workflow runs. Every file in .github/workflows/ is named here, and
         // apps/server/scripts/canary/workflow-wiring.test.ts fails when one is
         // missing: an unlinted workflow is a workflow whose expression errors
         // surface at 03:00 on a schedule instead of in review.
+        workflowLint: Smithers.CiToolchain.Actionlint({
+          release: "1.7.11",
+          workflows: [
+            ".github/workflows/ci.yml",
+            ".github/workflows/release.yml",
+            ".github/workflows/apps-deploy.yml",
+            ".github/workflows/canary.yml"
+          ]
+        })
+      }),
+      steps: [
+        // The aggregate verb over the package graph: build, test, lint, and
+        // docs in one invocation rather than four that re-plan the same graph.
+        // StandardPackage expands each package into lib, check, test, lint,
+        // fmt, docs, and circular, so this is what the recursive pnpm scripts
+        // used to cover. Two concurrent targets: the heavy vitest suites carry
+        // finite 30s per-test budgets that host parallelism on a 4-core runner
+        // starves when several run at once.
+        { name: "Workspace targets", verb: Smithers.Verb.Ci, pattern: "//packages/...", parallelism: 2 },
+        // The operator and release script gates, including the browser contract
+        // and the release pack-and-smoke chain.
+        { name: "Script gates", verb: Smithers.Verb.Test, pattern: "//scripts/..." },
+        // The offline agent evaluation suite and its own typecheck. Both gate
+        // on the committed baseline, and neither reaches the network.
         {
-          name: "Validate GitHub Actions workflows",
-          uses: "docker://rhysd/actionlint:1.7.11",
-          with: {
-            args:
-              ".github/workflows/ci.yml .github/workflows/release.yml .github/workflows/apps-deploy.yml .github/workflows/canary.yml"
-          }
+          name: "Agent eval suite (offline, baseline-gated)",
+          verb: Smithers.Verb.Test,
+          pattern: "//evals/agent:suite"
         },
-        setupPnpm,
-        setupNode,
-        setupBun,
-        install,
-        ...installJj,
-        { name: "Typecheck all workspaces", run: "pnpm run check" },
-        // Issue #38: lint (eslint --max-warnings=0 + dprint) and the
-        // circular-dependency guard gate every workspace — the issue-#8 class
-        // of lint-only regression can no longer merge green.
-        { name: "Lint all workspaces", run: "pnpm run lint" },
-        { name: "Documentation parity", run: "pnpm exec smthrs docs '//...'" },
-        { name: "Circular-dependency guard", run: "pnpm run circular" },
-        // Browser support is a hard requirement met through layers: the
-        // contract entry points must bundle for the browser, and the
-        // documented Node-only ones must still be Node-only.
-        // scripts/browser-check.mjs gates both.
-        { name: "Browser bundle guard", run: "pnpm run browser" },
-        { name: "Release manifest unit test", run: "node --test scripts/pack-release.test.mjs" },
-        // The dry-run path of release.yml is a promise about publication: a
-        // dispatched rehearsal must skip the publish step and a tag push must
-        // not. These assertions read release.yml itself, so an edit that
-        // breaks either half fails here instead of at the next release.
-        { name: "Release rehearsal unit test", run: "node --test scripts/release-rehearsal.test.mjs" },
-        // Publishing at a new version means retargeting the exact internal
-        // ranges too, or the published set depends on a version nobody
-        // published. The last case there asserts the tree is coherent at
-        // whatever version it currently carries.
-        { name: "Release version coherence", run: "node --test scripts/set-release-version.test.mjs" },
-        // The operator's backup/verify/restore entry point, driven the way an
-        // operator drives it: spawned invocations against a real migrated
-        // store.
-        { name: "Disaster-recovery script test", run: "node --test scripts/flows-backup.test.mjs" },
-        // A test the default gate never runs to a pass is only acceptable when
-        // it is written down. This fails on any pin in the engine or tooling
-        // groups that docs/alpha-notes.md does not explain.
-        { name: "Test-pin register guard", run: "node --test scripts/check-test-pins.test.mjs" },
-        // Package vitest configs with `coverage.enabled: true` compute and
-        // enforce their coverage thresholds on every run — a red gate fails
-        // CI.
-        { name: "Test all workspaces", run: "pnpm test" },
-        {
-          name: "Build all workspaces from clean artifacts",
-          run: "find packages -type d -name dist -prune -exec rm -rf {} +\npnpm --recursive --if-present run build"
-        },
-        {
-          name: "Pack and smoke-test release artifacts",
-          env: { PACK_DIR: "${{ runner.temp }}/release-packs" },
-          run: "node scripts/pack-release.mjs \"$PACK_DIR\"\nnode scripts/smoke-release.mjs \"$PACK_DIR\""
-        }
+        { name: "Agent eval typecheck", verb: Smithers.Verb.Build, pattern: "//evals/agent:types" },
+        // The workflow this declaration generates, drift-checked against the
+        // checked-in file. Without this step the generated-file contract would
+        // hold everywhere except for the file describing the pipeline itself.
+        { name: "Generated workflow drift", verb: Smithers.Verb.Lint, pattern: "//:ci" }
       ]
     },
-    // Issue I-1: the apps' end-to-end suites. Before this job the tree's only
-    // e2e coverage ran on one laptop by hand — `pnpm test` resolves to
-    // `bun test src` per workspace, which is unit only.
-    //
-    // This is a separate job, not a step of `test`, on purpose. It boots
-    // wrangler dev and a real Chrome, so folding it into the unit gate would
-    // put minutes of browser work in front of every push for no added signal.
-    //
-    // No jj here. The `test` job installs jj and colocates the checkout for
-    // packages/jj and packages/time-travel; nothing under apps/ imports
-    // @smthrs/jj or spawns the binary, so both steps would only cost time.
+    // Issue I-1: the apps' end-to-end suites, a separate job because they boot
+    // wrangler dev and a real Chrome. No jj: nothing under apps/ spawns it.
     {
       id: "apps-e2e",
       name: "apps e2e (worker + browser)",
       runsOn: ubuntu,
       timeoutMinutes: 30,
-      steps: [
-        checkout,
-        setupPnpm,
-        setupNode,
-        setupBun,
-        install,
-        // No Chrome install step: the ubuntu-latest image ships Google Chrome
-        // stable at /usr/bin/google-chrome, which BROWSER_CANDIDATES in
-        // apps/ui/src/launch-checklist/BrowserLaunch.ts already probes. Assert
-        // it rather than assume it, so an image change fails here with a
-        // readable message instead of inside a CDP connect timeout.
-        {
-          name: "Assert the runner ships a browser findBrowser can discover",
-          run: "if [ ! -x /usr/bin/google-chrome ]; then\n" +
-            "  echo \"/usr/bin/google-chrome is missing from this runner image.\" >&2\n" +
-            "  echo \"findBrowser only probes BROWSER_CANDIDATES\" >&2\n" +
-            "  echo \"(apps/ui/src/launch-checklist/BrowserLaunch.ts). Install Chrome\" >&2\n" +
-            "  echo \"at one of those paths, or set CHECKLIST_BROWSER on this job.\" >&2\n" +
-            "  exit 1\n" +
-            "fi\n" +
-            "/usr/bin/google-chrome --version"
-        },
-        // Hermetic: builds the SPA, boots `wrangler dev` against
-        // scripts/stub-backends.ts twice, and asserts 26 named outcomes.
-        // workerd runs locally, so no Cloudflare credential is involved and no
-        // model spend happens.
-        { name: "Worker e2e", run: "pnpm --filter smithers-ui run test:e2e:worker" },
-        { name: "Browser e2e", run: "pnpm --filter smithers-ui run test:e2e" },
+      toolchain: Smithers.CiToolchain.Needs({
+        runtimes: [node, bun],
+        // The ubuntu-latest image ships Google Chrome stable at this path, which
+        // BROWSER_CANDIDATES in apps/ui/src/launch-checklist/BrowserLaunch.ts
+        // already probes. Assert it rather than assume it.
+        browser: Smithers.CiToolchain.Browser({
+          executable: "/usr/bin/google-chrome",
+          reason: "findBrowser only probes BROWSER_CANDIDATES in apps/ui/src/launch-checklist/BrowserLaunch.ts"
+        }),
         // Screenshots land in /tmp and launch-checklist reports under
-        // apps/reports; collect both into one directory so the upload has a
-        // single root.
-        //
-        // Both steps run unconditionally, and deliberately carry no `if:`.
-        // packages/flows/test/vitestCoverageIsolation.test.ts (issue #176)
-        // pins `expect(ci).not.toMatch(/^\s*if:/m)` — no step condition
-        // anywhere in the generated file — so that nobody has to adjudicate in
-        // review which conditions are load-bearing. `|| true` on each copy and
-        // `if-no-files-found: ignore` on the upload give the same result on a
-        // green run: an empty collection and no artifact. Do not "fix" this by
-        // adding `if: failure()`; it will fail that pin, and the renderer has
-        // no way to emit a step condition at all.
-        {
-          name: "Collect e2e artifacts",
-          run: "mkdir -p \"$RUNNER_TEMP/e2e-artifacts\"\n" +
-            "cp /tmp/smithers-*.png \"$RUNNER_TEMP/e2e-artifacts/\" 2>/dev/null || true\n" +
-            "cp -R apps/reports \"$RUNNER_TEMP/e2e-artifacts/reports\" 2>/dev/null || true"
-        },
-        {
-          name: "Upload e2e artifacts",
-          uses: "actions/upload-artifact@v4",
-          with: {
-            name: "apps-e2e-artifacts",
-            path: "${{ runner.temp }}/e2e-artifacts",
-            "if-no-files-found": "ignore"
-          }
-        }
-      ]
+        // apps/reports; both are collected into one directory so the upload has
+        // a single root.
+        artifacts: Smithers.CiToolchain.Artifacts({
+          artifact: "apps-e2e-artifacts",
+          sources: [{ from: "/tmp/smithers-*.png" }, { from: "apps/reports", as: "reports" }]
+        })
+      }),
+      steps: [{ name: "UI end-to-end suites", verb: Smithers.Verb.Test, pattern: "//apps/ui" }]
     },
-    // rust-toolchain.toml pins the toolchain for the two Rust jobs; a bare
-    // `rustup toolchain install` reads it, so the pin cannot drift from what
-    // CI runs. It also pins the wasm32-wasip1 target and the rustfmt and
-    // clippy components.
+    // rust-toolchain.toml pins the toolchain for the two Rust jobs; the declared
+    // toolchain names that pin, and a bare `rustup toolchain install` reads it,
+    // so the pin cannot drift from what CI runs.
     {
       id: "rust",
       name: "rust fmt + clippy + test",
       runsOn: ubuntu,
       timeoutMinutes: 30,
+      toolchain: Smithers.CiToolchain.Needs({
+        submodules: true,
+        runtimes: [bareNode],
+        rust: Smithers.CiToolchain.Rust({ toolchain: rustToolchain })
+      }),
       steps: [
-        checkoutWithSubmodules,
-        installRust,
-        // Registry state and compiled dependencies, keyed on Cargo.lock. The
-        // native jj-lib build dominates this job's time without it.
-        { uses: "Swatinem/rust-cache@v2" },
-        { name: "Format", run: "cargo fmt --check" },
-        { name: "Clippy", run: "cargo clippy --all-targets --locked -- -D warnings" },
-        { name: "Test", run: "cargo test --locked" }
+        { name: "Cargo lint gates", verb: Smithers.Verb.Lint, pattern: "//crates/flows-jj" },
+        { name: "Cargo test suite", verb: Smithers.Verb.Test, pattern: "//crates/flows-jj:cargoTest" }
       ]
     },
     // The committed packages/jj/wasm/flows_jj.wasm is a reproducibility
     // contract: rebuilding it from source with the pinned toolchain must give
-    // the same bytes. build-wasm.mjs remaps every machine-specific source
-    // prefix (checkout path, CARGO_HOME, toolchain sysroot) to fixed tokens,
-    // which is what makes the comparison meaningful across machines. No build
-    // cache here on purpose — the rebuild is the point.
-    //
-    // This runner's host triple is part of the contract. Cargo builds build
-    // scripts for the host, so their metadata hash — and every symbol hash
-    // above them — carries the host triple, and the same sources produce a
-    // different module on macOS or on arm64 Linux. The committed bytes are the
-    // x86_64-unknown-linux-gnu build; build-wasm.mjs refuses to run on any
-    // other host, so a runner change fails here with that message rather than
-    // a byte diff.
+    // the same bytes. No build cache here on purpose — the rebuild is the point.
+    // The runner's host triple is part of the contract, and build-wasm.mjs
+    // refuses to run on any other host, so a runner change fails with that
+    // message rather than a byte diff.
     {
       id: "wasm-repro",
       name: "wasm reproducibility",
       runsOn: ubuntu,
       timeoutMinutes: 30,
+      toolchain: Smithers.CiToolchain.Needs({
+        submodules: true,
+        runtimes: [bareNode],
+        rust: Smithers.CiToolchain.Rust({ toolchain: rustToolchain, cache: false })
+      }),
       steps: [
-        checkoutWithSubmodules,
-        setupBareNode,
-        installRust,
-        { name: "Build-script unit tests", run: "node --test crates/flows-jj/build-wasm.test.mjs" },
+        { name: "Build-script unit tests", verb: Smithers.Verb.Test, pattern: "//crates/flows-jj:buildScript" },
         {
-          name: "Rebuild flows_jj.wasm from source",
-          // A scratch target dir keeps the rebuild clean-room and exercises
-          // the script's CARGO_TARGET_DIR handling.
-          env: { CARGO_TARGET_DIR: "${{ runner.temp }}/wasm-target" },
-          run: "cp packages/jj/wasm/flows_jj.wasm \"$RUNNER_TEMP/flows_jj.committed.wasm\"\n" +
-            "node crates/flows-jj/build-wasm.mjs"
-        },
-        {
-          name: "Byte-compare against the committed artifact",
-          run: "if ! cmp \"$RUNNER_TEMP/flows_jj.committed.wasm\" packages/jj/wasm/flows_jj.wasm; then\n" +
-            "  echo \"packages/jj/wasm/flows_jj.wasm does not reproduce from source.\" >&2\n" +
-            "  echo \"Rebuild it with the pinned toolchain on x86_64-unknown-linux-gnu\" >&2\n" +
-            "  echo \"and commit the result. On that host:\" >&2\n" +
-            "  echo \"  node crates/flows-jj/build-wasm.mjs\" >&2\n" +
-            "  echo \"On any other host the same script prints the container command.\" >&2\n" +
-            "  exit 1\n" +
-            "fi"
+          name: "Rebuild and byte-compare flows_jj.wasm",
+          verb: Smithers.Verb.Test,
+          pattern: "//crates/flows-jj:wasmReproducibility"
         }
       ]
     },
-    // Runtime-compatibility check: the suites below pass under bun today
-    // (verified locally on bun 1.3.14, 2026-08-15). Coverage is disabled
-    // because @vitest/coverage-v8 needs V8's inspector and bun runs
-    // JavaScriptCore; the Node `test` job stays the coverage gate.
-    //
-    // Excluded suites, with the failure that keeps each one out:
-    // - database, engine-store, flows, journal, kernel, plan, run-store,
-    //   step-cache, sync, time-travel (and examples): bun's node:sqlite binds
-    //   the host SQLite, built with SQLITE_OMIT_LOAD_EXTENSION, which the
-    //   @effect/sql-sqlite-node layer requires.
-    // - jj: NodeJjClassification expects spawn failures to classify as
-    //   'unknown'; bun's child_process error shape classifies as
-    //   'not_installed'.
-    // - platform-node: the Node host contract suite asserts Node-host
-    //   behavior and is not expected to pass on bun.
+    // Runtime compatibility: the suites in //ci pass under bun today. Which
+    // packages are in that matrix, and why every other one is excluded, is
+    // recorded in ci/BUILD.ts.
     {
       id: "bun",
       name: "test on bun",
       runsOn: ubuntu,
       timeoutMinutes: 30,
-      steps: [
-        checkout,
-        setupPnpm,
-        setupNode,
-        setupBun,
-        install,
-        // Same jj setup as the Node job: the Bun host contract exercises a
-        // successful `jj status` when the binary is present.
-        ...installJj,
-        {
-          name: "Test bun-compatible suites",
-          run:
-            "for pkg in artifacts canonical capability crypto engine flow keys platform-browser platform-bun sandbox; do\n" +
-            "  (cd \"packages/$pkg\" && bun node_modules/vitest/vitest.mjs run --coverage.enabled=false)\n" +
-            "done"
-        }
-      ]
+      toolchain: Smithers.CiToolchain.Needs({ runtimes: [node, bun], jj }),
+      steps: [{ name: "Bun-compatible suites", verb: Smithers.Verb.Test, pattern: "//ci/..." }]
     },
-    // The browser contract as its own gate. scripts/browser-check.mjs bundles
-    // every browser entry point and pins the documented Node-only ones. No
-    // real browser-runner suite exists in this repo yet (no playwright,
-    // webdriverio, or @vitest/browser tests); when one lands, run it here
-    // instead of inventing a new harness.
+    // The browser contract as its own gate. No real browser-runner suite exists
+    // in this repository yet; when one lands, run it here instead of inventing a
+    // new harness.
     {
       id: "browser",
       name: "browser bundle gate",
       runsOn: ubuntu,
       timeoutMinutes: 10,
-      steps: [
-        checkout,
-        setupPnpm,
-        setupNode,
-        install,
-        { name: "Browser bundle guard", run: "pnpm run browser" }
-      ]
+      toolchain: Smithers.CiToolchain.Needs({ runtimes: [node] }),
+      steps: [{ name: "Browser bundle guard", verb: Smithers.Verb.Test, pattern: "//scripts:browserContract" }]
     },
-    // Advisory OS coverage for the Node suite. Both jobs become required (drop
-    // continueOnError) once they prove a stable green streak. Windows path
-    // pitfalls are expected and are not chased in this lane.
+    // Advisory OS coverage for the package test suites. Both jobs become
+    // required (drop continueOnError) once they prove a stable green streak.
+    // Windows path pitfalls are expected and are not chased in this lane.
     {
       id: "node-macos",
-      name: "node suite (macOS, advisory)",
+      name: "package suites (macOS, advisory)",
       runsOn: "macos-latest",
       continueOnError: true,
       timeoutMinutes: 60,
-      steps: [
-        checkout,
-        setupPnpm,
-        setupNode,
-        setupBun,
-        install,
-        ...installJj,
-        { name: "Test all workspaces", run: "pnpm test" }
-      ]
+      toolchain: Smithers.CiToolchain.Needs({ runtimes: [node, bun], jj }),
+      steps: [{ name: "Package test targets", verb: Smithers.Verb.Test, pattern: "//packages/..." }]
     },
     {
       id: "node-windows",
-      name: "node suite (Windows, advisory)",
+      name: "package suites (Windows, advisory)",
       runsOn: "windows-latest",
       continueOnError: true,
       timeoutMinutes: 60,
-      steps: [
-        checkout,
-        setupPnpm,
-        setupNode,
-        setupBun,
-        install,
-        ...installJj,
-        { name: "Test all workspaces", run: "pnpm test" }
-      ]
+      toolchain: Smithers.CiToolchain.Needs({ runtimes: [node, bun], jj }),
+      steps: [{ name: "Package test targets", verb: Smithers.Verb.Test, pattern: "//packages/..." }]
     }
   ]
 })

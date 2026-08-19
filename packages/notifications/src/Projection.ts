@@ -14,6 +14,7 @@ import * as NotificationState from "./NotificationState.ts"
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const defaultCapacity = 128
 
@@ -23,6 +24,7 @@ export const defaultCapacity = 128
  *
  * @category projections
  * @since 0.1.0
+ * @slop
  */
 export const derive = JournalProjection.make({
   name: "flows/notifications",

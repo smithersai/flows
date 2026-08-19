@@ -15,6 +15,7 @@ import * as Schema from "effect/Schema"
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const GrantTier = Schema.Literals(["sealed", "compensable", "irreversible"])
 
@@ -23,6 +24,7 @@ export const GrantTier = Schema.Literals(["sealed", "compensable", "irreversible
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const GrantScope = Schema.Literals(["once", "run", "remembered"])
 
@@ -34,6 +36,7 @@ export const GrantScope = Schema.Literals(["once", "run", "remembered"])
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class OnceGrant extends Schema.TaggedClass<OnceGrant>()("@smthrs/kernel/GrantEvent/OnceGrant", {
   eventType: Schema.Literal("flows.kernel.grant.once.v1"),
@@ -51,6 +54,7 @@ export class OnceGrant extends Schema.TaggedClass<OnceGrant>()("@smthrs/kernel/G
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class RememberedGrant extends Schema.TaggedClass<RememberedGrant>()(
   "@smthrs/kernel/GrantEvent/RememberedGrant",
@@ -71,6 +75,7 @@ export class RememberedGrant extends Schema.TaggedClass<RememberedGrant>()(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class RunGrant extends Schema.TaggedClass<RunGrant>()("@smthrs/kernel/GrantEvent/RunGrant", {
   eventType: Schema.Literal("flows.kernel.grant.run.v1"),
@@ -88,6 +93,7 @@ export class RunGrant extends Schema.TaggedClass<RunGrant>()("@smthrs/kernel/Gra
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class DeniedGrant extends Schema.TaggedClass<DeniedGrant>()("@smthrs/kernel/GrantEvent/DeniedGrant", {
   eventType: Schema.Literal("flows.kernel.grant.denied.v1"),
@@ -111,6 +117,7 @@ export class DeniedGrant extends Schema.TaggedClass<DeniedGrant>()("@smthrs/kern
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class EnvelopeGrant extends Schema.TaggedClass<EnvelopeGrant>()(
   "@smthrs/kernel/GrantEvent/EnvelopeGrant",
@@ -128,6 +135,7 @@ export class EnvelopeGrant extends Schema.TaggedClass<EnvelopeGrant>()(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const GrantEventSchema = Schema.Union([
   OnceGrant,
@@ -142,6 +150,7 @@ export const GrantEventSchema = Schema.Union([
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type GrantEvent = typeof GrantEventSchema.Type
 
@@ -156,6 +165,7 @@ export type GrantEvent = typeof GrantEventSchema.Type
  *
  * @category decoding
  * @since 0.1.0
+ * @slop
  */
 export const decode = Schema.decodeUnknownResult(GrantEventSchema, { onExcessProperty: "error" })
 
@@ -164,5 +174,6 @@ export const decode = Schema.decodeUnknownResult(GrantEventSchema, { onExcessPro
  *
  * @category encoding
  * @since 0.1.0
+ * @slop
  */
 export const encode = Schema.encodeUnknownResult(GrantEventSchema)

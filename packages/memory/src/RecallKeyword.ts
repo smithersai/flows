@@ -19,6 +19,7 @@ import * as Recall from "./Recall.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Row {
   readonly bank?: string | undefined
@@ -82,6 +83,7 @@ const run = (input: Recall.Input): Effect.Effect<Recall.Output, MemoryError.Memo
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const recall = run
 
@@ -90,6 +92,7 @@ export const recall = run
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer: Layer.Layer<Recall.Recall, never, MemoryStore.MemoryStore> = Layer.effect(
   Recall.Recall,
@@ -105,6 +108,7 @@ export const layer: Layer.Layer<Recall.Recall, never, MemoryStore.MemoryStore> =
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const normalizeQueryTerms = normalize
 
@@ -114,5 +118,6 @@ export const normalizeQueryTerms = normalize
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const scoreRow = score

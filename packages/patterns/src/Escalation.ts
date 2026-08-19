@@ -18,6 +18,7 @@ import { PatternError } from "./PatternError.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface MakeOptions {
   readonly rungs: ReadonlyArray<Flow.Any>
@@ -29,6 +30,7 @@ export interface MakeOptions {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface RuntimeOptions<I, A, E, R, E2, R2> {
   readonly rungs: ReadonlyArray<(input: I) => Effect.Effect<A, E, R>>
@@ -53,6 +55,7 @@ const accepted = (value: unknown): boolean =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (options: MakeOptions): Flow.Flow<typeof Schema.Unknown, typeof Schema.Unknown, unknown> => {
   if (options.rungs.length === 0) {
@@ -92,6 +95,7 @@ export const make = (options: MakeOptions): Flow.Flow<typeof Schema.Unknown, typ
  *
  * @category combinators
  * @since 0.1.0
+ * @slop
  */
 export const run = <I, A, E, R, E2, R2>(
   input: I,

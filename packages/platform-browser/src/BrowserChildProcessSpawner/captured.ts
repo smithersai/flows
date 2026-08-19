@@ -28,6 +28,7 @@ const encoder = new TextEncoder()
  *
  * @private
  * @since 0.1.0
+ * @slop
  */
 export const captured = (
   text: string,

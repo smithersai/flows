@@ -22,6 +22,7 @@ import * as Lineage from "./Lineage.ts"
  *
  * @category constructors
  * @since 4.0.0
+ * @slop
  */
 export const makeInstance = (
   flow: Flow.Any,

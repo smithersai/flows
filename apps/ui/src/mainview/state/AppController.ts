@@ -165,6 +165,13 @@ export interface AppController {
 	readonly describeAgentBackend: (backend: string) => string | { readonly value: string };
 	/* The composer surfaces menu — the /surfaces command's open state. */
 	readonly toggleSurfacesMenu: () => void;
+	/*
+	 * The composer connect menu's open state. Not a command — the chip is a
+	 * pointer affordance, not a registry entry — but the state is still the
+	 * store's, reached through the dispatcher with the actor recorded.
+	 */
+	readonly toggleConnectMenu: () => void;
+	readonly closeConnectMenu: () => void;
 	readonly debugSnapshot: () => { readonly value: string };
 	readonly debugEvents: () => { readonly value: string };
 	readonly debugSeams: () => Promise<string | void | { readonly value: string }>;
@@ -2649,6 +2656,24 @@ export const createAppController = (
 		});
 	};
 
+	const toggleConnectMenu = (): void => {
+		store.dispatch({
+			type: "connect-menu.toggled",
+			actor: "user",
+			open: store.session().connectMenuOpen !== true,
+		});
+	};
+
+	/*
+	 * Escape, an outside press, and picking an entry all CLOSE — they are not
+	 * toggles, and dispatching one against an already-closed menu would write a
+	 * transition that changed nothing into the journal.
+	 */
+	const closeConnectMenu = (): void => {
+		if (store.session().connectMenuOpen !== true) return;
+		store.dispatch({ type: "connect-menu.toggled", actor: "user", open: false });
+	};
+
 	/*
 	 * The one backend, named once. `/debug.backend` reports it and the manual
 	 * checklist quotes it, so drift between what runs and what is claimed shows
@@ -2666,7 +2691,12 @@ export const createAppController = (
 		if (asked !== "") {
 			return `there is one backend and it cannot be switched: ${AGENT_BACKEND}`;
 		}
-		return { value: `agent backend: ${AGENT_BACKEND}` };
+		const value = `agent backend: ${AGENT_BACKEND}`;
+		// A backend answer the human cannot see is a backend they cannot trust.
+		if (commandActor !== "smithers") {
+			store.dispatch({ type: "message.appended", actor: "system", text: value });
+		}
+		return { value };
 	};
 
 	/*
@@ -4500,6 +4530,8 @@ export const createAppController = (
 		minimizeCard,
 		toggleDevtools,
 		toggleSurfacesMenu,
+		toggleConnectMenu,
+		closeConnectMenu,
 		describeAgentBackend,
 		debugSnapshot,
 		debugEvents,
@@ -4690,6 +4722,8 @@ export const createAppController = (
 		minimizeCard,
 		toggleDevtools,
 		toggleSurfacesMenu,
+		toggleConnectMenu,
+		closeConnectMenu,
 		describeAgentBackend,
 		debugSnapshot,
 		debugEvents,

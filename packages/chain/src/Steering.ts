@@ -17,6 +17,7 @@ import { Context, Effect, Layer, Ref, Schema } from "effect"
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class SteeringError extends Schema.TaggedError<SteeringError>()("/chain/SteeringError", {
   code: Schema.Literal("steering_unavailable").pipe(
@@ -31,6 +32,7 @@ export class SteeringError extends Schema.TaggedError<SteeringError>()("/chain/S
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export interface Service {
   readonly admit: (message: string) => Effect.Effect<void, SteeringError>
@@ -48,6 +50,7 @@ export interface Service {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export class Steering extends Context.Service<Steering, Service>()("/chain/Steering") {}
 
@@ -56,6 +59,7 @@ export class Steering extends Context.Service<Steering, Service>()("/chain/Steer
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (implementation: Service): Service => Steering.of(implementation)
 
@@ -67,6 +71,7 @@ const unavailable = (operation: string): SteeringError => new SteeringError({ me
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (overrides: Partial<Service> = {}): Service =>
   make({
@@ -80,6 +85,7 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<Steering> =>
   Layer.succeed(Steering)(makeNoop(overrides))
@@ -89,6 +95,7 @@ export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<Steerin
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerMemory = (initial: ReadonlyArray<string> = []): Layer.Layer<Steering> =>
   Layer.effect(Steering)(

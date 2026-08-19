@@ -32,6 +32,7 @@ import * as BrowserFileSystem from "./BrowserFileSystem/index.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type BrowserServices = ChildProcessSpawner | FileSystem | Path
 
@@ -41,6 +42,7 @@ export type BrowserServices = ChildProcessSpawner | FileSystem | Path
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (options: {
   readonly bash: BrowserChildProcessSpawner.JustBashLike

@@ -21,6 +21,7 @@ import type { Kind } from "../Namespace.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface DatabaseService extends DurableWriterService {
   readonly sql: SqlClient.SqlClient
@@ -31,6 +32,7 @@ export interface DatabaseService extends DurableWriterService {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface FtsRecord {
   readonly recordId: string
@@ -45,6 +47,7 @@ export interface FtsRecord {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface FtsMatch {
   readonly record_id: string
@@ -60,6 +63,7 @@ const ftsTable = (kind: Kind): string => `memory_fts_${kind}`
  *
  * @category migrations
  * @since 0.1.0
+ * @slop
  */
 export const migrate = (database: DatabaseService): Effect.Effect<void, DatabaseError | SqlError.SqlError> => {
   const { sql } = database
@@ -164,6 +168,7 @@ export const migrate = (database: DatabaseService): Effect.Effect<void, Database
  *
  * @category queries
  * @since 0.1.0
+ * @slop
  */
 export const isFtsEnabled = (
   database: DatabaseService,
@@ -180,6 +185,7 @@ export const isFtsEnabled = (
  *
  * @category migrations
  * @since 0.1.0
+ * @slop
  */
 export const enableFts = (
   database: DatabaseService,
@@ -212,6 +218,7 @@ export const enableFts = (
  *
  * @category projections
  * @since 0.1.0
+ * @slop
  */
 export const replaceFtsRecord = (
   database: DatabaseService,
@@ -237,6 +244,7 @@ export const replaceFtsRecord = (
  *
  * @category projections
  * @since 0.1.0
+ * @slop
  */
 export const deleteFtsRecord = (
   database: DatabaseService,
@@ -257,6 +265,7 @@ export const deleteFtsRecord = (
  *
  * @category queries
  * @since 0.1.0
+ * @slop
  */
 export const searchFts = (
   database: DatabaseService,

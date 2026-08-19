@@ -10,6 +10,7 @@ import * as Schema from "effect/Schema"
 
 /**
  * @since 0.1.0
+ * @slop
  * @private
  */
 export interface FlowDetails extends Flow.Any {
@@ -21,6 +22,7 @@ export interface FlowDetails extends Flow.Any {
 
 /**
  * @since 0.1.0
+ * @slop
  * @private
  */
 export interface EffectIntersection {
@@ -33,12 +35,14 @@ export interface EffectIntersection {
 
 /**
  * @since 0.1.0
+ * @slop
  * @private
  */
 export const details = (flow: Flow.Any): FlowDetails => flow as FlowDetails
 
 /**
  * @since 0.1.0
+ * @slop
  * @private
  */
 export const call = (flow: Flow.Any, input: unknown): Node.Node<unknown, unknown> =>
@@ -73,6 +77,7 @@ const tierOf = (declaration: Effects.Declaration): keyof typeof tierRank => decl
 
 /**
  * @since 0.1.0
+ * @slop
  * @private
  */
 export const intersectEffects = (
@@ -117,6 +122,7 @@ export const intersectEffects = (
 
 /**
  * @since 0.1.0
+ * @slop
  * @private
  */
 export const intersectCapabilities = (
@@ -126,6 +132,7 @@ export const intersectCapabilities = (
 
 /**
  * @since 0.1.0
+ * @slop
  * @private
  */
 export const redeclare = (
@@ -153,6 +160,7 @@ export const redeclare = (
 
 /**
  * @since 0.1.0
+ * @slop
  * @private
  */
 export const seal = (flow: Flow.Any): Flow.Any =>
@@ -179,6 +187,7 @@ const sameSchema = (left: Schema.Top, right: Schema.Top): boolean => {
 
 /**
  * @since 0.1.0
+ * @slop
  * @private
  */
 export const schemasCompatible = (
@@ -193,6 +202,7 @@ export const schemasCompatible = (
 
 /**
  * @since 0.1.0
+ * @slop
  * @private
  */
 export const displayName = (flow: Flow.Any): string => details(flow).name ?? "anonymous"

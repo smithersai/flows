@@ -17,6 +17,7 @@ import type { FlowId, IdempotencyKey, Receipt, RunId, RunSummary, SignalPayload 
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface RawInbound {
   readonly body: Uint8Array
@@ -29,6 +30,7 @@ export interface RawInbound {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type InboundResult =
   | { readonly _tag: "Start"; readonly flowId: FlowId; readonly input: unknown }
@@ -40,6 +42,7 @@ export type InboundResult =
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Delivery {
   readonly cursor: string
@@ -52,6 +55,7 @@ export interface Delivery {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface DeliveryProjection {
   readonly cursor: string
@@ -68,6 +72,7 @@ export interface DeliveryProjection {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export interface Channel<A = unknown> {
   readonly name: string
@@ -83,6 +88,7 @@ export interface Channel<A = unknown> {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface IngestRequest {
   readonly channel: string
@@ -94,6 +100,7 @@ export interface IngestRequest {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface ProjectRequest {
   readonly channel: string
@@ -105,6 +112,7 @@ export interface ProjectRequest {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export interface Channels {
   readonly register: (channel: Channel) => Effect.Effect<void>
@@ -118,6 +126,7 @@ export interface Channels {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export const Channels: Context.Service<Channels, Channels> = Context.Service("/control/Channels")
 
@@ -135,6 +144,7 @@ const deliveryKey = (channel: string, run: RunSummary): string =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = Effect.gen(function*() {
   const channels = yield* Ref.make(new Map<string, Channel>())
@@ -214,5 +224,6 @@ export const make = Effect.gen(function*() {
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = Layer.effect(Channels, make)

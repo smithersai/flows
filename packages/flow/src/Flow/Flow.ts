@@ -42,6 +42,7 @@ import type { TypeId } from "./TypeId.ts"
  *
  * @category models
  * @since 4.0.0
+ * @slop
  */
 export type BodySuccess<A> = A | Planned.Planned<A> | Outcome<A | Planned.Planned<A>, unknown>
 
@@ -52,6 +53,7 @@ export type BodySuccess<A> = A | Planned.Planned<A> | Outcome<A | Planned.Planne
  *
  * @category models
  * @since 4.0.0
+ * @slop
  */
 export interface Flow<
   Tag extends string,
@@ -297,6 +299,7 @@ export interface Flow<
  *
  * @category schemas
  * @since 4.0.0
+ * @slop
  */
 export interface AnyStructSchema extends Schema.Top {
   readonly fields: Schema.Struct.Fields
@@ -308,6 +311,7 @@ export interface AnyStructSchema extends Schema.Top {
  *
  * @category models
  * @since 4.0.0
+ * @slop
  */
 export interface Execution<Tag extends string> {
   readonly _: unique symbol
@@ -320,6 +324,7 @@ export interface Execution<Tag extends string> {
  *
  * @category models
  * @since 4.0.0
+ * @slop
  */
 export interface Any {
   new(_: never): {}
@@ -343,6 +348,7 @@ export interface Any {
  *
  * @category models
  * @since 4.0.0
+ * @slop
  */
 export interface AnyWithProps extends Any {
   readonly payloadSchema: AnyStructSchema
@@ -368,6 +374,7 @@ export interface AnyWithProps extends Any {
  *
  * @category models
  * @since 4.0.0
+ * @slop
  */
 export type PayloadSchema<W> = W extends Flow<
   infer _Name,
@@ -384,6 +391,7 @@ export type PayloadSchema<W> = W extends Flow<
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Requirements<W> = W extends Flow<
   infer _Name,
@@ -400,6 +408,7 @@ export type Requirements<W> = W extends Flow<
  *
  * @category models
  * @since 4.0.0
+ * @slop
  */
 export type RequirementsClient<Flows extends Any> = Flows extends Flow<
   infer _Name,
@@ -419,6 +428,7 @@ export type RequirementsClient<Flows extends Any> = Flows extends Flow<
  *
  * @category models
  * @since 4.0.0
+ * @slop
  */
 export type RequirementsHandler<Flows extends Any> = Flows extends Flow<
   infer _Name,

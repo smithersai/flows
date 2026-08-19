@@ -18,18 +18,21 @@ import { sha256 } from "./sha256.ts"
 /**
  * @since 0.0.0
  * @private
+ * @slop
  */
 export const TypeId = "~flows/core/Node" as const
 
 /**
  * @since 0.0.0
  * @private
+ * @slop
  */
 export type TypeId = typeof TypeId
 
 /**
  * @since 0.0.0
  * @private
+ * @slop
  */
 export interface Succeed {
   readonly _tag: "Succeed"
@@ -40,6 +43,7 @@ export interface Succeed {
 /**
  * @since 0.0.0
  * @private
+ * @slop
  */
 export interface All {
   readonly _tag: "All"
@@ -50,6 +54,7 @@ export interface All {
 /**
  * @since 0.0.0
  * @private
+ * @slop
  */
 export interface Dynamic {
   readonly _tag: "Dynamic"
@@ -64,6 +69,7 @@ export interface Dynamic {
 /**
  * @since 0.0.0
  * @private
+ * @slop
  */
 export interface AndThen {
   readonly _tag: "AndThen"
@@ -76,6 +82,7 @@ export interface AndThen {
 /**
  * @since 0.0.0
  * @private
+ * @slop
  */
 export interface Map {
   readonly _tag: "Map"
@@ -87,6 +94,7 @@ export interface Map {
 /**
  * @since 0.0.0
  * @private
+ * @slop
  */
 export interface FunctionIdentity {
   readonly _tag: "FunctionIdentity"
@@ -197,6 +205,7 @@ const freezeCapture = (input: unknown, seen: WeakSet<object>): void => {
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const capture = <Args extends ReadonlyArray<unknown>, A>(
   captures: Readonly<Record<string, unknown>>,
@@ -220,6 +229,7 @@ export const capture = <Args extends ReadonlyArray<unknown>, A>(
 /**
  * @since 0.0.0
  * @private
+ * @slop
  */
 export interface FlowCall {
   readonly _tag: "FlowCall"
@@ -231,6 +241,7 @@ export interface FlowCall {
 /**
  * @since 0.0.0
  * @private
+ * @slop
  */
 export type NodeAst = Succeed | All | Dynamic | AndThen | Map | FlowCall
 
@@ -242,6 +253,7 @@ const flows = new WeakMap<FlowCall, unknown>()
 /**
  * @since 0.0.0
  * @private
+ * @slop
  */
 export const functionIdentity = (operation: unknown): OperationIdentity => {
   if (typeof operation !== "function") throw new TypeError("function identity requires a function")
@@ -262,6 +274,7 @@ export const functionIdentity = (operation: unknown): OperationIdentity => {
 /**
  * @since 0.0.0
  * @private
+ * @slop
  */
 export interface Node<out A, out E = never> extends Pipeable.Pipeable {
   readonly [TypeId]: {
@@ -274,6 +287,7 @@ export interface Node<out A, out E = never> extends Pipeable.Pipeable {
 /**
  * @since 0.0.0
  * @private
+ * @slop
  */
 export const NodeProto = {
   [TypeId]: {
@@ -289,6 +303,7 @@ export const NodeProto = {
 /**
  * @since 0.0.0
  * @private
+ * @slop
  */
 export const makeNode = <A = unknown, E = never>(ast: NodeAst): Node<A, E> =>
   Object.assign(Object.create(NodeProto), { ast })
@@ -296,6 +311,7 @@ export const makeNode = <A = unknown, E = never>(ast: NodeAst): Node<A, E> =>
 /**
  * @since 0.0.0
  * @private
+ * @slop
  */
 export const succeed = (value: unknown, annotations: Context.Context<never>): Succeed => ({
   _tag: "Succeed",
@@ -306,6 +322,7 @@ export const succeed = (value: unknown, annotations: Context.Context<never>): Su
 /**
  * @since 0.0.0
  * @private
+ * @slop
  */
 export const all = (
   nodes: Readonly<Record<string, NodeAst>>,
@@ -319,6 +336,7 @@ export const all = (
 /**
  * @since 0.0.0
  * @private
+ * @slop
  */
 export const dynamic = (
   options: Omit<Dynamic, "_tag" | "annotations">,
@@ -332,6 +350,7 @@ export const dynamic = (
 /**
  * @since 0.0.0
  * @private
+ * @slop
  */
 export const andThen = (
   first: NodeAst,
@@ -352,6 +371,7 @@ export const andThen = (
 /**
  * @since 0.0.0
  * @private
+ * @slop
  */
 export const andThenNode = (
   first: NodeAst,
@@ -372,6 +392,7 @@ export const andThenNode = (
 /**
  * @since 0.0.0
  * @private
+ * @slop
  */
 export const map = (
   first: NodeAst,
@@ -392,12 +413,14 @@ export const map = (
 /**
  * @since 0.0.0
  * @private
+ * @slop
  */
 export const operation = (ast: AndThen | Map): Operation | undefined => operations.get(ast)
 
 /**
  * @since 0.0.0
  * @private
+ * @slop
  */
 export const flowCall = (
   flow: unknown,
@@ -418,12 +441,14 @@ export const flowCall = (
 /**
  * @since 0.0.0
  * @private
+ * @slop
  */
 export const flow = (ast: FlowCall): unknown => flows.get(ast)
 
 /**
  * @since 0.0.0
  * @private
+ * @slop
  */
 export const withAnnotations = (
   ast: NodeAst,

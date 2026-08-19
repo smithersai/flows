@@ -22,6 +22,7 @@ import type * as Catalog from "./Catalog.ts"
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class AuthorizeError extends Schema.TaggedError<AuthorizeError>()("/chain/AuthorizeError", {
   code: Schema.Literals(["denied", "approval_required", "authorize_unavailable"]),
@@ -35,6 +36,7 @@ export class AuthorizeError extends Schema.TaggedError<AuthorizeError>()("/chain
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Request {
   readonly name: string
@@ -48,6 +50,7 @@ export interface Request {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export interface Service {
   readonly authorize: (request: Request) => Effect.Effect<void, AuthorizeError>
@@ -58,6 +61,7 @@ export interface Service {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export class Authorize extends Context.Service<Authorize, Service>()("/chain/Authorize") {}
 
@@ -66,6 +70,7 @@ export class Authorize extends Context.Service<Authorize, Service>()("/chain/Aut
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (implementation: Service): Service => Authorize.of(implementation)
 
@@ -75,6 +80,7 @@ export const make = (implementation: Service): Service => Authorize.of(implement
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (overrides: Partial<Service> = {}): Service =>
   make({
@@ -89,6 +95,7 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<Authorize> =>
   Layer.succeed(Authorize)(makeNoop(overrides))
@@ -101,6 +108,7 @@ export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<Authori
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const claimPattern = (declared: string): Option.Option<Capability.CapabilityPattern> => {
   if (declared === "*") {
@@ -128,6 +136,7 @@ export const claimPattern = (declared: string): Option.Option<Capability.Capabil
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerRules = (rules: ReadonlyArray<Permission.Rule>): Layer.Layer<Authorize> =>
   Layer.succeed(Authorize)(
@@ -178,6 +187,7 @@ export const layerRules = (rules: ReadonlyArray<Permission.Rule>): Layer.Layer<A
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerAllowAll: Layer.Layer<Authorize> = Layer.succeed(Authorize)(
   make({ authorize: Effect.fn("Authorize.authorize")(() => Effect.void) })

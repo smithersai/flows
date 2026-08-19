@@ -14,6 +14,7 @@ import { Data } from "effect"
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export interface Options {
   readonly image?: string | undefined
@@ -26,6 +27,7 @@ export interface Options {
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export type Placement = Data.TaggedEnum<{
   readonly "flows/core/Placement/Local": Readonly<Record<never, never>>
@@ -41,6 +43,7 @@ const constructors = Data.taggedEnum<Placement>()
  *
  * @category constructors
  * @since 0.0.0
+ * @slop
  */
 export const local = (): Placement => constructors["flows/core/Placement/Local"]()
 
@@ -49,6 +52,7 @@ export const local = (): Placement => constructors["flows/core/Placement/Local"]
  *
  * @category constructors
  * @since 0.0.0
+ * @slop
  */
 export const client = (): Placement => constructors["flows/core/Placement/Client"]()
 
@@ -57,6 +61,7 @@ export const client = (): Placement => constructors["flows/core/Placement/Client
  *
  * @category constructors
  * @since 0.0.0
+ * @slop
  */
 export const sandbox = (options: Options = {}): Placement =>
   constructors["flows/core/Placement/Sandbox"]({ ...options })
@@ -66,5 +71,6 @@ export const sandbox = (options: Options = {}): Placement =>
  *
  * @category constructors
  * @since 0.0.0
+ * @slop
  */
 export const remote = (options: Options = {}): Placement => constructors["flows/core/Placement/Remote"]({ ...options })

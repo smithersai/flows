@@ -10,6 +10,7 @@ import type { ModelRequest, ToolDefinition } from "./ModelRequest.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ProtocolId = "anthropic-messages" | "openai-responses"
 
@@ -18,6 +19,7 @@ export type ProtocolId = "anthropic-messages" | "openai-responses"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Resolution {
   readonly immediate: ReadonlyArray<ToolDefinition>
@@ -120,6 +122,7 @@ const lazyTool = (tool: ToolDefinition): ToolDefinition => ({
  *
  * @category predicates
  * @since 0.1.0
+ * @slop
  */
 export const supportsDeferred = (protocolId: ProtocolId, modelId: string): boolean =>
   protocolId === "anthropic-messages"
@@ -135,6 +138,7 @@ export const supportsDeferred = (protocolId: ProtocolId, modelId: string): boole
  *
  * @category operations
  * @since 0.1.0
+ * @slop
  */
 export const resolve = (request: ModelRequest, native: boolean): Resolution => {
   const tools = uniqueTools(request.tools)

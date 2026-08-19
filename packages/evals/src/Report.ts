@@ -23,6 +23,7 @@ const canonical = (value: unknown): unknown => {
  *
  * @category serialization
  * @since 0.1.0
+ * @slop
  */
 export const json = (report: RegressionReport): string => `${JSON.stringify(canonical(report))}\n`
 
@@ -31,6 +32,7 @@ export const json = (report: RegressionReport): string => `${JSON.stringify(cano
  *
  * @category serialization
  * @since 0.1.0
+ * @slop
  */
 export const renderJson = json
 
@@ -41,6 +43,7 @@ const cell = (value: string): string => value.replaceAll("|", "\\|").replaceAll(
  *
  * @category rendering
  * @since 0.1.0
+ * @slop
  */
 export const markdown = (report: RegressionReport): string => {
   const lines = [
@@ -92,5 +95,6 @@ export const markdown = (report: RegressionReport): string => {
  *
  * @category rendering
  * @since 0.1.0
+ * @slop
  */
 export const renderMarkdown = markdown

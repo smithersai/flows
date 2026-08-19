@@ -14,6 +14,7 @@
  *
  * @category namespace exports
  * @since 0.1.0
+ * @slop
  */
 export * as Author from "./Author.ts"
 
@@ -22,6 +23,7 @@ export * as Author from "./Author.ts"
  *
  * @category namespace exports
  * @since 0.1.0
+ * @slop
  */
 export * as Authorize from "./Authorize.ts"
 
@@ -30,6 +32,7 @@ export * as Authorize from "./Authorize.ts"
  *
  * @category namespace exports
  * @since 0.1.0
+ * @slop
  */
 export * as CallKey from "./CallKey.ts"
 
@@ -38,6 +41,7 @@ export * as CallKey from "./CallKey.ts"
  *
  * @category namespace exports
  * @since 0.1.0
+ * @slop
  */
 export * as Catalog from "./Catalog.ts"
 
@@ -46,6 +50,7 @@ export * as Catalog from "./Catalog.ts"
  *
  * @category namespace exports
  * @since 0.1.0
+ * @slop
  */
 export * as Chain from "./Chain.ts"
 
@@ -54,6 +59,7 @@ export * as Chain from "./Chain.ts"
  *
  * @category namespace exports
  * @since 0.1.0
+ * @slop
  */
 export * as Event from "./Event.ts"
 
@@ -62,6 +68,7 @@ export * as Event from "./Event.ts"
  *
  * @category namespace exports
  * @since 0.1.0
+ * @slop
  */
 export * as MemoryEntries from "./MemoryEntries.ts"
 
@@ -70,6 +77,7 @@ export * as MemoryEntries from "./MemoryEntries.ts"
  *
  * @category namespace exports
  * @since 0.1.0
+ * @slop
  */
 export * as ModelAuthor from "./ModelAuthor.ts"
 
@@ -78,6 +86,7 @@ export * as ModelAuthor from "./ModelAuthor.ts"
  *
  * @category namespace exports
  * @since 0.1.0
+ * @slop
  */
 export * as Journal from "./Journal.ts"
 
@@ -86,6 +95,7 @@ export * as Journal from "./Journal.ts"
  *
  * @category namespace exports
  * @since 0.1.0
+ * @slop
  */
 export * as Observation from "./Observation.ts"
 
@@ -94,6 +104,7 @@ export * as Observation from "./Observation.ts"
  *
  * @category namespace exports
  * @since 0.1.0
+ * @slop
  */
 export * as Outcome from "./Outcome.ts"
 
@@ -102,6 +113,7 @@ export * as Outcome from "./Outcome.ts"
  *
  * @category namespace exports
  * @since 0.1.0
+ * @slop
  */
 export * as Prompt from "./Prompt.ts"
 
@@ -110,6 +122,7 @@ export * as Prompt from "./Prompt.ts"
  *
  * @category namespace exports
  * @since 0.1.0
+ * @slop
  */
 export * as QuickJsRunner from "./QuickJsRunner.ts"
 
@@ -118,6 +131,7 @@ export * as QuickJsRunner from "./QuickJsRunner.ts"
  *
  * @category namespace exports
  * @since 0.1.0
+ * @slop
  */
 export * as RegistryCatalog from "./RegistryCatalog.ts"
 
@@ -126,6 +140,7 @@ export * as RegistryCatalog from "./RegistryCatalog.ts"
  *
  * @category namespace exports
  * @since 0.1.0
+ * @slop
  */
 export * as Script from "./Script.ts"
 
@@ -134,6 +149,7 @@ export * as Script from "./Script.ts"
  *
  * @category namespace exports
  * @since 0.1.0
+ * @slop
  */
 export * as ScriptRunner from "./ScriptRunner.ts"
 
@@ -142,6 +158,7 @@ export * as ScriptRunner from "./ScriptRunner.ts"
  *
  * @category namespace exports
  * @since 0.1.0
+ * @slop
  */
 export * as Steering from "./Steering.ts"
 
@@ -150,5 +167,6 @@ export * as Steering from "./Steering.ts"
  *
  * @category namespace exports
  * @since 0.1.0
+ * @slop
  */
 export * as SubChains from "./SubChains.ts"

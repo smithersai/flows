@@ -14,6 +14,7 @@ import { EvalError } from "./EvalError.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Binding = ScorerBinding.Binding
 
@@ -22,6 +23,7 @@ export type Binding = ScorerBinding.Binding
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Case {
   readonly name: string
@@ -34,6 +36,7 @@ export interface Case {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type SuiteCase = Case
 
@@ -42,6 +45,7 @@ export type SuiteCase = Case
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface MakeOptions {
   readonly name: string
@@ -55,6 +59,7 @@ export interface MakeOptions {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type SuiteOptions = MakeOptions
 
@@ -63,6 +68,7 @@ export type SuiteOptions = MakeOptions
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Suite {
   readonly name: string
@@ -94,6 +100,7 @@ const validate = (options: MakeOptions): EvalError | undefined => {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (options: MakeOptions): Effect.Effect<Suite, EvalError> => {
   const error = validate(options)
@@ -112,6 +119,7 @@ export const make = (options: MakeOptions): Effect.Effect<Suite, EvalError> => {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface JsonLinesOptions {
   readonly name: string
@@ -130,6 +138,7 @@ const jsonCase = Schema.Struct({
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const fromJsonLines = (text: string, options: JsonLinesOptions): Effect.Effect<Suite, EvalError> =>
   Effect.gen(function*() {

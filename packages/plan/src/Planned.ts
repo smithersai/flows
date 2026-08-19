@@ -34,6 +34,7 @@ import { GraphBuildError } from "./GraphBuildError.ts"
  *
  * @since 0.1.0
  * @category symbols
+ * @slop
  */
 export const TypeId: unique symbol = Symbol.for("@smthrs/plan/Planned")
 
@@ -42,6 +43,7 @@ export const TypeId: unique symbol = Symbol.for("@smthrs/plan/Planned")
  *
  * @since 0.1.0
  * @category symbols
+ * @slop
  */
 export type TypeId = typeof TypeId
 
@@ -51,6 +53,7 @@ export type TypeId = typeof TypeId
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Reference {
   readonly node: string
@@ -63,6 +66,7 @@ export interface Reference {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Identity<out T> extends Reference {
   readonly _T: Types.Covariant<T>
@@ -78,6 +82,7 @@ export interface Identity<out T> extends Reference {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type Planned<T> =
   & { readonly [TypeId]: Identity<T> }
@@ -157,6 +162,7 @@ const placeholder = (reference: Reference): unknown => {
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const make = <T>(node: string): Planned<T> => placeholder({ node, path: [] }) as Planned<T>
 
@@ -170,6 +176,7 @@ const carrier = (value: unknown): value is { readonly [TypeId]?: Reference } =>
  *
  * @since 0.1.0
  * @category accessors
+ * @slop
  */
 export const reference = (value: unknown): Reference | undefined => carrier(value) ? value[TypeId] : undefined
 
@@ -178,5 +185,6 @@ export const reference = (value: unknown): Reference | undefined => carrier(valu
  *
  * @since 0.1.0
  * @category guards
+ * @slop
  */
 export const isPlanned = (value: unknown): value is Planned<unknown> => reference(value) !== undefined

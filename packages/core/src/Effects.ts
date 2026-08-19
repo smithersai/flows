@@ -12,6 +12,7 @@
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export interface Declaration {
   readonly reads: ReadonlyArray<string>
@@ -27,6 +28,7 @@ export interface Declaration {
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export interface MakeOptions {
   readonly reads: Iterable<string>
@@ -41,6 +43,7 @@ export interface MakeOptions {
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export type NarrowResult =
   | { readonly ok: true }
@@ -57,6 +60,7 @@ const normalize = (paths: Iterable<string>): ReadonlyArray<string> => [...new Se
  *
  * @category constructors
  * @since 0.0.0
+ * @slop
  */
 export const make = (input: MakeOptions): Declaration => ({
   reads: normalize(input.reads),
@@ -75,6 +79,7 @@ export const make = (input: MakeOptions): Declaration => ({
  *
  * @category predicates
  * @since 0.0.0
+ * @slop
  */
 export const covers = (envelope: string, path: string): boolean =>
   envelope === path ||
@@ -93,6 +98,7 @@ const outside = (envelope: ReadonlyArray<string>, paths: ReadonlyArray<string>):
  *
  * @category validation
  * @since 0.0.0
+ * @slop
  */
 export const narrow = (envelope: Declaration, step: Declaration): NarrowResult => {
   const paths = normalize([...outside(envelope.reads, step.reads), ...outside(envelope.writes, step.writes)])
@@ -119,6 +125,7 @@ export const narrow = (envelope: Declaration, step: Declaration): NarrowResult =
  *
  * @category analysis
  * @since 0.0.0
+ * @slop
  */
 export const overlaps = (a: Declaration, b: Declaration): ReadonlyArray<string> => {
   const matches: Array<string> = []
@@ -139,6 +146,7 @@ export const overlaps = (a: Declaration, b: Declaration): ReadonlyArray<string> 
  *
  * @category constructors
  * @since 0.0.0
+ * @slop
  */
 export const sealed = (declaration: Declaration): Declaration =>
   make({ ...declaration, mode: "hermetic", tier: "sealed" })

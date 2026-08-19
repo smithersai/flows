@@ -30,6 +30,7 @@ import { ControlRpcs } from "./ControlRpcs.ts"
  *
  * @category refinements
  * @since 0.1.0
+ * @slop
  */
 export const isControlError = Schema.is(Schema.Union([
   RunNotFound,
@@ -61,6 +62,7 @@ const normalize = <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, Co
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface ClientConfig {
   readonly url: string
@@ -73,6 +75,7 @@ export interface ClientConfig {
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (config: ClientConfig) => {
   const http = RpcClient.layerProtocolHttp(

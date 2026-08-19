@@ -8,5 +8,6 @@
     "inlineSources": false,
     "sourceMap": false
   },
-  "include": ["*.ts"]
+  "include": ["*.ts"],
+  "exclude": ["BUILD.ts"]
 }

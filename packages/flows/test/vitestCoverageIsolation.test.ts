@@ -350,24 +350,52 @@ describe("vitest coverage isolation conformance", () => {
     })
   })
 
-  it("pins the CI steps that reach the aggregators and the jj install (issue #166)", () => {
-    // The yml is the last unpinned hop: a step that stops calling `pnpm test`
-    // (or drops the jj install the real-binary host suite requires, issue
+  it("pins the CI steps that reach the target graph and the jj install (issue #166)", () => {
+    // The yml is the last unpinned hop: a step that stops running the package
+    // graph (or drops the jj install the real-binary host suite requires, issue
     // #163) skips enforcement with every conformance cell green. Source-text
     // pins, matching the config-source approach used across this suite.
+    //
+    // The gates used to be `pnpm run check`, `pnpm run lint`, `pnpm run
+    // circular`, `pnpm run browser`, and `pnpm test` — five recursive scripts
+    // named as raw strings in BUILD.ts. They are targets now, so what is pinned
+    // is the verb-and-pattern invocation that plans them: `smthrs ci` over the
+    // package graph covers lib, check, test, lint, fmt, docs, and circular for
+    // every package, and the browser contract is its own labelled target.
     const ci = readFileSync(join(packagesDir, "..", ".github", "workflows", "ci.yml"), "utf8")
     expect(ci).toMatch(/^\s*- uses: pnpm\/action-setup@v6$/m)
     expect(ci).toMatch(/^\s*- run: pnpm install --frozen-lockfile --ignore-scripts$/m)
-    expect(ci).toMatch(/^\s*run: pnpm run check$/m)
-    expect(ci).toMatch(/^\s*run: pnpm run lint$/m)
-    expect(ci).toMatch(/^\s*run: pnpm run circular$/m)
-    // Browser support is a hard requirement met through layers; `pnpm run
-    // browser` is the only thing that proves it, so CI has to call it
+    expect(ci).toMatch(/^\s*run: pnpm exec smthrs ci '\/\/packages\/\.\.\.'/m)
+    expect(ci).toMatch(/^\s*run: pnpm exec smthrs test '\/\/scripts\/\.\.\.'$/m)
+    // Browser support is a hard requirement met through layers; the browser
+    // contract target is the only thing that proves it, so CI has to run it
     // (REVIEW.md blocker 7).
-    expect(ci).toMatch(/^\s*run: pnpm run browser$/m)
-    expect(ci).toMatch(/^\s*run: pnpm test$/m)
+    expect(ci).toMatch(/^\s*run: pnpm exec smthrs test '\/\/scripts:browserContract'$/m)
+    expect(ci).toMatch(/^\s*run: pnpm exec smthrs test '\/\/packages\/\.\.\.'$/m)
     expect(ci).toMatch(/tool: jj-cli@\d+\.\d+\.\d+/)
     expect(ci).toMatch(/^\s*run: jj git init --colocate$/m)
+  })
+
+  it("keeps every CI step a target invocation, never a hand-written command", () => {
+    // The rule this pins: a BUILD.ts file declares targets, and the argv a
+    // target runs is rendered inside its implementation. A `run:` line in the
+    // generated workflow that is not a target invocation, an install, or a
+    // toolchain step derived from a declaration would mean someone reopened the
+    // free-form step surface that `GithubCiGen` deleted.
+    const ci = readFileSync(join(packagesDir, "..", ".github", "workflows", "ci.yml"), "utf8")
+    const commands = [...ci.matchAll(/^\s*(?:- )?run: (?!\|)(.+)$/gm)].map((match) => match[1]!)
+    expect(commands.length).toBeGreaterThan(0)
+    const derived = [
+      /^pnpm exec smthrs (?:build|test|lint|docs|ci) '\/\/[^']*'( --jobs \d+)?$/,
+      /^pnpm install --frozen-lockfile --ignore-scripts$/,
+      /^rustup toolchain install$/,
+      /^jj git init --colocate$/
+    ]
+    expect(commands.filter((command) => !derived.some((shape) => shape.test(command)))).toEqual([])
+    // No recursive pnpm script survives as a gate: those are what the target
+    // graph replaced.
+    expect(ci).not.toMatch(/^\s*run: pnpm run /m)
+    expect(ci).not.toMatch(/^\s*run: node --test /m)
   })
 
   it("smoke-validates packed artifacts before rerunnable publication", () => {

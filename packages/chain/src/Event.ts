@@ -30,6 +30,7 @@ const scoped = { chain: Schema.optional(Schema.String) }
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const ChainStarted = Schema.TaggedStruct("ChainStarted", {
   ...scoped,
@@ -42,6 +43,7 @@ export const ChainStarted = Schema.TaggedStruct("ChainStarted", {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ChainStarted = typeof ChainStarted.Type
 
@@ -51,6 +53,7 @@ export type ChainStarted = typeof ChainStarted.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const LinkAuthored = Schema.TaggedStruct("LinkAuthored", {
   ...scoped,
@@ -63,6 +66,7 @@ export const LinkAuthored = Schema.TaggedStruct("LinkAuthored", {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type LinkAuthored = typeof LinkAuthored.Type
 
@@ -72,6 +76,7 @@ export type LinkAuthored = typeof LinkAuthored.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const CallSettled = Schema.TaggedStruct("CallSettled", {
   ...scoped,
@@ -87,6 +92,7 @@ export const CallSettled = Schema.TaggedStruct("CallSettled", {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type CallSettled = typeof CallSettled.Type
 
@@ -96,6 +102,7 @@ export type CallSettled = typeof CallSettled.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const GateRejected = Schema.TaggedStruct("GateRejected", {
   ...scoped,
@@ -109,6 +116,7 @@ export const GateRejected = Schema.TaggedStruct("GateRejected", {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type GateRejected = typeof GateRejected.Type
 
@@ -117,6 +125,7 @@ export type GateRejected = typeof GateRejected.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const LinkEnded = Schema.TaggedStruct("LinkEnded", {
   ...scoped,
@@ -129,6 +138,7 @@ export const LinkEnded = Schema.TaggedStruct("LinkEnded", {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type LinkEnded = typeof LinkEnded.Type
 
@@ -141,6 +151,7 @@ export type LinkEnded = typeof LinkEnded.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const SteeringDrained = Schema.TaggedStruct("SteeringDrained", {
   ...scoped,
@@ -154,6 +165,7 @@ export const SteeringDrained = Schema.TaggedStruct("SteeringDrained", {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type SteeringDrained = typeof SteeringDrained.Type
 
@@ -162,6 +174,7 @@ export type SteeringDrained = typeof SteeringDrained.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Event = Schema.Union([ChainStarted, LinkAuthored, CallSettled, GateRejected, LinkEnded, SteeringDrained])
 
@@ -170,6 +183,7 @@ export const Event = Schema.Union([ChainStarted, LinkAuthored, CallSettled, Gate
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Event = typeof Event.Type
 
@@ -178,6 +192,7 @@ export type Event = typeof Event.Type
  *
  * @category folds
  * @since 0.1.0
+ * @slop
  */
 export const inChain = (event: Event, chain: string): boolean => (event.chain ?? "") === chain
 
@@ -186,6 +201,7 @@ export const inChain = (event: Event, chain: string): boolean => (event.chain ??
  *
  * @category folds
  * @since 0.1.0
+ * @slop
  */
 export const started = (events: ReadonlyArray<Event>, chain = ""): boolean =>
   events.some((event) => event._tag === "ChainStarted" && inChain(event, chain))
@@ -196,6 +212,7 @@ export const started = (events: ReadonlyArray<Event>, chain = ""): boolean =>
  *
  * @category folds
  * @since 0.1.0
+ * @slop
  */
 export const linkCount = (events: ReadonlyArray<Event>, chain = ""): number =>
   events.filter((event) => event._tag === "LinkEnded" && inChain(event, chain)).length
@@ -205,6 +222,7 @@ export const linkCount = (events: ReadonlyArray<Event>, chain = ""): number =>
  *
  * @category folds
  * @since 0.1.0
+ * @slop
  */
 export const authored = (events: ReadonlyArray<Event>, link: number, chain = ""): Script.Script | undefined => {
   for (const event of events) {
@@ -218,6 +236,7 @@ export const authored = (events: ReadonlyArray<Event>, link: number, chain = "")
  *
  * @category folds
  * @since 0.1.0
+ * @slop
  */
 export const settled = (events: ReadonlyArray<Event>, link: number, chain = ""): ReadonlyMap<number, CallSettled> => {
   const calls = new Map<number, CallSettled>()
@@ -235,6 +254,7 @@ export const settled = (events: ReadonlyArray<Event>, link: number, chain = ""):
  *
  * @category folds
  * @since 0.1.0
+ * @slop
  */
 export const rejected = (events: ReadonlyArray<Event>, link: number, chain = ""): ReadonlyMap<number, GateRejected> => {
   const rejections = new Map<number, GateRejected>()
@@ -252,6 +272,7 @@ export const rejected = (events: ReadonlyArray<Event>, link: number, chain = "")
  *
  * @category folds
  * @since 0.1.0
+ * @slop
  */
 export const observations = (
   events: ReadonlyArray<Event>,
@@ -270,6 +291,7 @@ export const observations = (
  *
  * @category folds
  * @since 0.1.0
+ * @slop
  */
 export const steeringLines = (events: ReadonlyArray<Event>, link: number, chain = ""): ReadonlyArray<string> =>
   events.flatMap((event) =>
@@ -282,6 +304,7 @@ export const steeringLines = (events: ReadonlyArray<Event>, link: number, chain 
  *
  * @category folds
  * @since 0.1.0
+ * @slop
  */
 export const steeredOrdinals = (events: ReadonlyArray<Event>, link: number, chain = ""): ReadonlySet<number> =>
   new Set(
@@ -297,6 +320,7 @@ export const steeredOrdinals = (events: ReadonlyArray<Event>, link: number, chai
  *
  * @category folds
  * @since 0.1.0
+ * @slop
  */
 export const terminal = (events: ReadonlyArray<Event>, chain = ""): Outcome.Terminal | undefined => {
   const last = [...events].reverse().find(

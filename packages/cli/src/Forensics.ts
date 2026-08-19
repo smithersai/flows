@@ -25,6 +25,7 @@ import type { ControlSchema } from "@smthrs/control"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Refusal {
   readonly message: string
@@ -36,6 +37,7 @@ export interface Refusal {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Digest {
   /** The last `control.run.*` transition seen, or undefined before launch. */
@@ -102,6 +104,7 @@ const compact = (value: unknown, width: number): string => {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const digest = (events: ReadonlyArray<ControlSchema.ControlEvent>): Digest => {
   let status: string | undefined
@@ -247,6 +250,7 @@ const label = (name: string): string => name.padEnd(10)
  *
  * @category rendering
  * @since 0.1.0
+ * @slop
  */
 export const renderDiagnosis = (
   run: { readonly runId?: string; readonly flowId?: string } | undefined,
@@ -294,6 +298,7 @@ const offset = (at: number, start: number): string => {
  *
  * @category rendering
  * @since 0.1.0
+ * @slop
  */
 export const eventLine = (event: ControlSchema.ControlEvent): string => {
   const payload = asRecord(event.payload)
@@ -348,6 +353,7 @@ export const eventLine = (event: ControlSchema.ControlEvent): string => {
  *
  * @category rendering
  * @since 0.1.0
+ * @slop
  */
 export const renderTranscript = (events: ReadonlyArray<ControlSchema.ControlEvent>): string => {
   if (events.length === 0) return "No events."

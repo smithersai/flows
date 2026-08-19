@@ -36,6 +36,7 @@ const CanonicalString = Schema.String.pipe(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Canonical = typeof Canonical.Type
 
@@ -52,6 +53,7 @@ export type Canonical = typeof Canonical.Type
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const Canonical = Schema.Unknown.pipe(
   Schema.decodeTo(CanonicalString, {

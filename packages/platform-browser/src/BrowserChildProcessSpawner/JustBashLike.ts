@@ -15,6 +15,7 @@
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface JustBashLike {
   /** Run a command line through the interpreter and return its captured result. */

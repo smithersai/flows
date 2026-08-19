@@ -35,6 +35,7 @@ import * as ArtifactStore from "./ArtifactStore.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface BlobStat {
   readonly digest: string
@@ -47,6 +48,7 @@ export interface BlobStat {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface RemoveOptions {
   /**
@@ -64,6 +66,7 @@ export interface RemoveOptions {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Service {
   /**
@@ -91,6 +94,7 @@ export interface Service {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export class ArtifactSweep extends Context.Service<ArtifactSweep, Service>()("@smthrs/artifacts/ArtifactSweep") {}
 
@@ -120,6 +124,7 @@ const defaultDirectory = ".flows/objects"
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeFileSystem = (
   fs: FileSystem.FileSystem,
@@ -195,6 +200,7 @@ export const makeFileSystem = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerFileSystem = (
   options: ArtifactStore.FileSystemOptions = {}
@@ -207,6 +213,7 @@ export const layerFileSystem = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (overrides: Partial<Service> = {}): Service => ({
   inventory: Effect.fail(error("inventory is unavailable")),
@@ -219,6 +226,7 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service => ({
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<ArtifactSweep> =>
   Layer.succeed(ArtifactSweep)(makeNoop(overrides))

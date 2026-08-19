@@ -22,6 +22,7 @@ const hasCode = (cause: unknown, code: string): boolean =>
  *
  * @private
  * @since 0.1.0
+ * @slop
  */
 export const platformError = (method: string, path: string) => (cause: unknown): PlatformError.PlatformError =>
   PlatformError.systemError({

@@ -37,6 +37,7 @@ const TypeId = "~effect/flow/DurableDeferred"
  *
  * @category models
  * @since 4.0.0
+ * @slop
  */
 export interface DurableDeferred<
   Success extends Schema.Constraint,
@@ -56,6 +57,7 @@ export interface DurableDeferred<
  *
  * @category models
  * @since 4.0.0
+ * @slop
  */
 export interface Any {
   readonly [TypeId]: typeof TypeId
@@ -68,6 +70,7 @@ export interface Any {
  *
  * @category models
  * @since 4.0.0
+ * @slop
  */
 export interface AnyWithProps {
   readonly [TypeId]: typeof TypeId
@@ -83,6 +86,7 @@ export interface AnyWithProps {
  *
  * @category constructors
  * @since 4.0.0
+ * @slop
  */
 export const make = <
   Success extends Schema.Constraint = Schema.Void,
@@ -175,6 +179,7 @@ export {
  *
  * @category combinators
  * @since 4.0.0
+ * @slop
  */
 export const into: {
   <Success extends Schema.Constraint, Error extends Schema.Constraint>(
@@ -263,6 +268,7 @@ export const into: {
  *
  * @category racing
  * @since 4.0.0
+ * @slop
  */
 export const raceAll = <
   const Effects extends NonEmptyReadonlyArray<Effect.Effect<any, any, any>>,
@@ -306,6 +312,7 @@ export const raceAll = <
  *
  * @category type IDs
  * @since 4.0.0
+ * @slop
  */
 export const TokenTypeId = "~effect/flow/DurableDeferred/Token"
 
@@ -314,6 +321,7 @@ export const TokenTypeId = "~effect/flow/DurableDeferred/Token"
  *
  * @category type IDs
  * @since 4.0.0
+ * @slop
  */
 export type TokenTypeId = typeof TokenTypeId
 
@@ -323,6 +331,7 @@ export type TokenTypeId = typeof TokenTypeId
  *
  * @category token
  * @since 4.0.0
+ * @slop
  */
 export type Token = Brand.Branded<string, TokenTypeId>
 
@@ -331,6 +340,7 @@ export type Token = Brand.Branded<string, TokenTypeId>
  *
  * @category token
  * @since 4.0.0
+ * @slop
  */
 export const Token: Schema.brand<Schema.String, TokenTypeId> = Schema.String.pipe(Schema.brand(TokenTypeId))
 
@@ -340,6 +350,7 @@ export const Token: Schema.brand<Schema.String, TokenTypeId> = Schema.String.pip
  *
  * @category token
  * @since 4.0.0
+ * @slop
  */
 export class TokenParsed extends Schema.Class<TokenParsed>(
   "@smthrs/flow/DurableDeferred/TokenParsed"
@@ -415,6 +426,7 @@ export class TokenParsed extends Schema.Class<TokenParsed>(
  *
  * @category token
  * @since 4.0.0
+ * @slop
  */
 export const token: <Success extends Schema.Constraint, Error extends Schema.Constraint>(
   self: DurableDeferred<Success, Error>
@@ -435,6 +447,7 @@ export const token: <Success extends Schema.Constraint, Error extends Schema.Con
  *
  * @category token
  * @since 4.0.0
+ * @slop
  */
 export const tokenFromExecutionId: {
   (options: {
@@ -469,6 +482,7 @@ export const tokenFromExecutionId: {
  *
  * @category token
  * @since 4.0.0
+ * @slop
  */
 export const tokenFromPayload: {
   <W extends Flow.Any>(options: {
@@ -514,6 +528,7 @@ export const tokenFromPayload: {
  *
  * @category combinators
  * @since 4.0.0
+ * @slop
  */
 export const done: {
   <Success extends Schema.Constraint, Error extends Schema.Constraint>(options: {
@@ -567,6 +582,7 @@ export const done: {
  *
  * @category combinators
  * @since 4.0.0
+ * @slop
  */
 export const succeed: {
   <Success extends Schema.Constraint, Error extends Schema.Constraint>(options: {
@@ -602,6 +618,7 @@ export const succeed: {
  *
  * @category combinators
  * @since 4.0.0
+ * @slop
  */
 export const fail: {
   <Success extends Schema.Constraint, Error extends Schema.Constraint>(options: {
@@ -637,6 +654,7 @@ export const fail: {
  *
  * @category combinators
  * @since 4.0.0
+ * @slop
  */
 export const failCause: {
   <Success extends Schema.Constraint, Error extends Schema.Constraint>(options: {

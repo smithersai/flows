@@ -92,5 +92,6 @@ const serialize = (value: unknown, ancestors: WeakSet<object>): string | undefin
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const canonicalize = (value: unknown): string | undefined => serialize(value, new WeakSet())

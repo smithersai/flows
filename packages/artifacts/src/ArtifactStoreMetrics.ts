@@ -18,6 +18,7 @@ import * as Metric from "effect/Metric"
  *
  * @category metrics
  * @since 0.1.0
+ * @slop
  */
 export const puts = Metric.counter("flows_artifact_puts", {
   description: "Successful artifact puts, including deduplicated ones"
@@ -30,6 +31,7 @@ export const puts = Metric.counter("flows_artifact_puts", {
  *
  * @category metrics
  * @since 0.1.0
+ * @slop
  */
 export const gets = Metric.counter("flows_artifact_gets", {
   description: "Successful artifact gets"

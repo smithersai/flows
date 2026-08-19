@@ -30,6 +30,7 @@ import type { WaitingAnnotation } from "./WaitingAnnotation.ts"
  *
  * @category services
  * @since 4.0.0
+ * @slop
  */
 export class FlowInstance extends Context.Service<
   FlowInstance,

@@ -44,6 +44,7 @@ const KeyValue = Schema.String.check(Schema.isPattern(/^key[1-9][0-9]*_[0-9a-f]{
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Key = typeof Key.Type
 
@@ -56,6 +57,7 @@ export type Key = typeof Key.Type
  *
  * @category transformations
  * @since 0.1.0
+ * @slop
  */
 export const Key = Schema.Unknown.pipe(
   Schema.decodeTo(KeyValue, {

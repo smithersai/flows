@@ -19,6 +19,7 @@ import { PatternError } from "./PatternError.ts"
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const Approved = Schema.Literal("approved")
 
@@ -27,6 +28,7 @@ export const Approved = Schema.Literal("approved")
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Approved = typeof Approved.Type
 
@@ -35,6 +37,7 @@ export type Approved = typeof Approved.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Options {
   readonly reason: string
@@ -78,6 +81,7 @@ const declaration = (inner: Flow.Any, options: Options): Flow.Any => {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (options: Options): Pattern.Decorator => (inner) => declaration(inner, options)
 
@@ -89,5 +93,6 @@ export const make = (options: Options): Pattern.Decorator => (inner) => declarat
  *
  * @category combinators
  * @since 0.1.0
+ * @slop
  */
 export const withApproval = (inner: Flow.Any, options: Options): Flow.Any => Pattern.decorate(inner, make(options))

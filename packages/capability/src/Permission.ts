@@ -21,6 +21,7 @@ import { Capability, CapabilityPattern, type EffectTier, format, matches } from 
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class PermissionRequired extends Schema.TaggedError<PermissionRequired>()(
   "@smthrs/capability/PermissionRequired",
@@ -50,6 +51,7 @@ export class PermissionRequired extends Schema.TaggedError<PermissionRequired>()
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class PermissionDenied extends Schema.TaggedError<PermissionDenied>()(
   "@smthrs/capability/PermissionDenied",
@@ -73,6 +75,7 @@ export class PermissionDenied extends Schema.TaggedError<PermissionDenied>()(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const GrantStoreErrorCode = Schema.Literals([
   "duplicate_request",
@@ -87,6 +90,7 @@ export const GrantStoreErrorCode = Schema.Literals([
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type GrantStoreErrorCode = typeof GrantStoreErrorCode.Type
 
@@ -98,6 +102,7 @@ export type GrantStoreErrorCode = typeof GrantStoreErrorCode.Type
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class GrantStoreError extends Schema.TaggedError<GrantStoreError>()(
   "@smthrs/capability/GrantStoreError",
@@ -113,6 +118,7 @@ export class GrantStoreError extends Schema.TaggedError<GrantStoreError>()(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type RuleEffect = "allow" | "deny" | "ask"
 
@@ -123,6 +129,7 @@ const RuleEffect = Schema.Literals(["allow", "deny", "ask"])
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class Rule extends Schema.Class<Rule>("@smthrs/capability/Permission/Rule")({
   effect: RuleEffect,
@@ -139,6 +146,7 @@ export class Rule extends Schema.Class<Rule>("@smthrs/capability/Permission/Rule
  *
  * @category policy
  * @since 0.1.0
+ * @slop
  */
 export const evaluate = (
   rulesets: ReadonlyArray<ReadonlyArray<Rule>>,
@@ -171,6 +179,7 @@ export const evaluate = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const permissionRequired = (options: {
   readonly requestId: string
@@ -193,6 +202,7 @@ export const permissionRequired = (options: {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const permissionDenied = (capability: Capability, reason: string): PermissionDenied =>
   new PermissionDenied({
@@ -210,6 +220,7 @@ export const permissionDenied = (capability: Capability, reason: string): Permis
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type PermissionError = PermissionRequired | PermissionDenied | GrantStoreError
 
@@ -218,6 +229,7 @@ export type PermissionError = PermissionRequired | PermissionDenied | GrantStore
  *
  * @category refinements
  * @since 0.1.0
+ * @slop
  */
 export const isPermissionError = (input: unknown): input is PermissionError =>
   typeof input === "object" && input !== null && "_tag" in input &&
@@ -231,6 +243,7 @@ export const isPermissionError = (input: unknown): input is PermissionError =>
  *
  * @category formatting
  * @since 0.1.0
+ * @slop
  */
 export const formatError = (error: PermissionError): string => {
   switch (error._tag) {
@@ -262,6 +275,7 @@ export const formatError = (error: PermissionError): string => {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const toPlatformError = (options: {
   readonly module: string
@@ -285,6 +299,7 @@ export const toPlatformError = (options: {
  *
  * @category refinements
  * @since 0.1.0
+ * @slop
  */
 export const fromPlatformError = (error: PlatformError): Option.Option<PermissionError> =>
   isPermissionError(error.reason.cause) ? Option.some(error.reason.cause) : Option.none()

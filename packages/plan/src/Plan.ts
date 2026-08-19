@@ -32,6 +32,7 @@ import * as StepKey from "./StepKey.ts"
  *
  * @since 0.1.0
  * @category schemas
+ * @slop
  */
 export const KeyDigest = Schema.String.check(Schema.isPattern(/^key1_[0-9a-f]{64}$/))
 
@@ -41,6 +42,7 @@ export const KeyDigest = Schema.String.check(Schema.isPattern(/^key1_[0-9a-f]{64
  *
  * @since 0.1.0
  * @category schemas
+ * @slop
  */
 export const NodeEffects = Schema.Struct({
   reads: Schema.Array(FileSet.ReadDeclaration),
@@ -61,6 +63,7 @@ export const NodeEffects = Schema.Struct({
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type NodeEffects = typeof NodeEffects.Type
 
@@ -70,6 +73,7 @@ export type NodeEffects = typeof NodeEffects.Type
  *
  * @since 0.1.0
  * @category schemas
+ * @slop
  */
 export const PairStrategy = Schema.Literals(["serialize", "lane", "fail"])
 
@@ -78,6 +82,7 @@ export const PairStrategy = Schema.Literals(["serialize", "lane", "fail"])
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type PairStrategy = typeof PairStrategy.Type
 
@@ -89,6 +94,7 @@ export type PairStrategy = typeof PairStrategy.Type
  *
  * @since 0.1.0
  * @category schemas
+ * @slop
  */
 export const RuntimeStrategy = Schema.Literals(["delay-rebase", "stop-merge"])
 
@@ -97,6 +103,7 @@ export const RuntimeStrategy = Schema.Literals(["delay-rebase", "stop-merge"])
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type RuntimeStrategy = typeof RuntimeStrategy.Type
 
@@ -106,6 +113,7 @@ export type RuntimeStrategy = typeof RuntimeStrategy.Type
  *
  * @since 0.1.0
  * @category schemas
+ * @slop
  */
 export const ConflictAnnotation = Schema.Struct({
   with: Schema.NonEmptyString,
@@ -119,6 +127,7 @@ export const ConflictAnnotation = Schema.Struct({
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type ConflictAnnotation = typeof ConflictAnnotation.Type
 
@@ -138,6 +147,7 @@ export type ConflictAnnotation = typeof ConflictAnnotation.Type
  *
  * @since 0.1.0
  * @category schemas
+ * @slop
  */
 export const PlanNode = Schema.Struct({
   id: Schema.NonEmptyString,
@@ -158,6 +168,7 @@ export const PlanNode = Schema.Struct({
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type PlanNode = typeof PlanNode.Type
 
@@ -170,6 +181,7 @@ export type PlanNode = typeof PlanNode.Type
  *
  * @since 0.1.0
  * @category schemas
+ * @slop
  */
 export const Plan = Schema.Struct({
   planId: Schema.NonEmptyString,
@@ -185,6 +197,7 @@ export const Plan = Schema.Struct({
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type Plan = typeof Plan.Type
 
@@ -193,6 +206,7 @@ export type Plan = typeof Plan.Type
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface NodeDraft {
   readonly id: string
@@ -211,6 +225,7 @@ export interface NodeDraft {
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export class PlanError extends Schema.TaggedError<PlanError>()("@smthrs/plan/PlanError", {
   code: Schema.Literals(["cycle", "unknown_dependency", "duplicate_node", "overlap_forbidden", "invalid_effects"]),
@@ -593,6 +608,7 @@ const keyNodes = (
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const compile = (options: {
   readonly planId: string
@@ -617,6 +633,7 @@ export const compile = (options: {
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const append = (
   plan: Plan,
@@ -636,6 +653,7 @@ export const append = (
  *
  * @since 0.1.0
  * @category accessors
+ * @slop
  */
 export const generationNodes = (plan: Plan): ReadonlyArray<PlanNode> =>
   plan.nodes.filter((node) => node.generation === plan.generation)

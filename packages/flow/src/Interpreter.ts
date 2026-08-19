@@ -78,6 +78,7 @@ import * as Graph from "./Graph.ts"
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class InterpreterError extends Schema.TaggedError<InterpreterError>()(
   "@smthrs/flow/InterpreterError",
@@ -102,6 +103,7 @@ export class InterpreterError extends Schema.TaggedError<InterpreterError>()(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Interpretation {
   readonly value: unknown
@@ -144,6 +146,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const childExecutionId = (
   parentExecutionId: string,
@@ -171,6 +174,7 @@ export const childExecutionId = (
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const interpret = (
   flowOrNode: Parameters<typeof Graph.build>[0],
@@ -623,6 +627,7 @@ const settle = (value: unknown): Effect.Effect<unknown, never, FlowInstance> => 
  *
  * @since 0.1.0
  * @category layers
+ * @slop
  */
 export const layer = <
   Tag extends string,

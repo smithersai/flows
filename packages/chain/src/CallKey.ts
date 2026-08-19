@@ -15,6 +15,7 @@ import { Schema } from "effect"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const LinkId = Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(0)))
 
@@ -23,6 +24,7 @@ export const LinkId = Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type LinkId = typeof LinkId.Type
 
@@ -31,6 +33,7 @@ export type LinkId = typeof LinkId.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Ordinal = Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(0)))
 
@@ -39,6 +42,7 @@ export const Ordinal = Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualT
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Ordinal = typeof Ordinal.Type
 
@@ -48,6 +52,7 @@ export type Ordinal = typeof Ordinal.Type
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const harnessDigest = ""
 
@@ -58,6 +63,7 @@ export const harnessDigest = ""
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const CallKey = Schema.Struct({
   link: LinkId,
@@ -71,6 +77,7 @@ export const CallKey = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type CallKey = typeof CallKey.Type
 
@@ -79,6 +86,7 @@ export type CallKey = typeof CallKey.Type
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (
   link: number,

@@ -15,6 +15,7 @@ import { FsError } from "./FsError.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Kind = "module" | "markdown" | "skill"
 
@@ -26,6 +27,7 @@ export type Kind = "module" | "markdown" | "skill"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Route {
   readonly name: string
@@ -50,6 +52,7 @@ export interface Route {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Name = string
 
@@ -58,6 +61,7 @@ export type Name = string
  *
  * @category utility types
  * @since 0.1.0
+ * @slop
  */
 export type Input<_N extends Name> = unknown
 
@@ -66,6 +70,7 @@ export type Input<_N extends Name> = unknown
  *
  * @category utility types
  * @since 0.1.0
+ * @slop
  */
 export type Output<_N extends Name> = unknown
 
@@ -86,6 +91,7 @@ const loadFailed = (route: Route, cause: unknown): FsError =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const load = (route: Route): Effect.Effect<Flow.Any, FsError> =>
   Effect.gen(function*() {

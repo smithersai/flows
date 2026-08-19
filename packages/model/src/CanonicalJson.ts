@@ -52,6 +52,7 @@ const canonicalize = (value: unknown, path = "$", ancestors = new Set<object>())
  *
  * @category encoding
  * @since 0.1.0
+ * @slop
  */
 export const stringify = (value: unknown): string => JSON.stringify(canonicalize(value))
 
@@ -60,6 +61,7 @@ export const stringify = (value: unknown): string => JSON.stringify(canonicalize
  *
  * @category encoding
  * @since 0.1.0
+ * @slop
  */
 export const bytes = (value: unknown): Uint8Array => encoder.encode(stringify(value))
 
@@ -70,6 +72,7 @@ export const bytes = (value: unknown): Uint8Array => encoder.encode(stringify(va
  *
  * @category hashing
  * @since 0.1.0
+ * @slop
  */
 export const shortHash = (input: string): string => {
   let first = 0xdeadbeef

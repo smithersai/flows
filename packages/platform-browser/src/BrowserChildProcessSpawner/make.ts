@@ -66,6 +66,7 @@ const resolveEnvironment = (
  *
  * @private
  * @since 0.1.0
+ * @slop
  */
 export const make = (bash: JustBashLike) =>
   Effect.gen(function*() {

@@ -39,6 +39,7 @@ import type * as KeyMaterial from "./KeyMaterial.ts"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type StepKey = Key
 
@@ -60,6 +61,7 @@ const DigestInputTypeId: unique symbol = Symbol.for("@smthrs/plan/StepKey/Digest
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface DigestInput {
   readonly [DigestInputTypeId]: typeof DigestInputTypeId
@@ -86,6 +88,7 @@ export interface DigestInput {
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const digestInput = (
   digest: string,
@@ -105,6 +108,7 @@ export const digestInput = (
  *
  * @since 0.1.0
  * @category guards
+ * @slop
  */
 export const isDigestInput = (value: unknown): value is DigestInput =>
   typeof value === "object" && value !== null && DigestInputTypeId in value &&
@@ -133,6 +137,7 @@ export const isDigestInput = (value: unknown): value is DigestInput =>
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface EnvironmentIdentity {
   readonly declared: boolean
@@ -152,6 +157,7 @@ export interface EnvironmentIdentity {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface DigestMemo {
   readonly digest: (
@@ -167,6 +173,7 @@ export interface DigestMemo {
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const makeDigestMemo = (): DigestMemo => {
   const entries = new Map<string, Deferred.Deferred<StepKey, Schema.SchemaError>>()
@@ -190,6 +197,7 @@ export const makeDigestMemo = (): DigestMemo => {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface ContentIdentity {
   readonly body: unknown
@@ -210,6 +218,7 @@ export interface ContentIdentity {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface OrdinalIdentity {
   readonly runId: string
@@ -223,6 +232,7 @@ export interface OrdinalIdentity {
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export class KeyMaterialError extends Schema.TaggedError<KeyMaterialError>()("@smthrs/plan/KeyMaterialError", {
   code: Schema.Literals(["missing_dependency", "non_content_material"]),
@@ -295,6 +305,7 @@ const decodeKey = Schema.decodeUnknownEffect(Key)
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const content = (
   identity: ContentIdentity
@@ -315,6 +326,7 @@ export const content = (
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const ordinal = (
   identity: OrdinalIdentity
@@ -333,6 +345,7 @@ export const ordinal = (
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const fromKeyMaterial = (
   material: KeyMaterial.KeyMaterial,
@@ -419,6 +432,7 @@ const orderingOnly = "ordering-only"
  *
  * @since 0.1.0
  * @category utilities
+ * @slop
  */
 export const project = (value: unknown, path: ReadonlyArray<string>): unknown => {
   let current = value
@@ -453,6 +467,7 @@ export const project = (value: unknown, path: ReadonlyArray<string>): unknown =>
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const dispatchIdentity = (options: {
   readonly material: KeyMaterial.KeyMaterial

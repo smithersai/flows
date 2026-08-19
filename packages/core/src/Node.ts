@@ -28,6 +28,7 @@ import type * as Placement from "./Placement.ts"
  *
  * @category type ids
  * @since 0.0.0
+ * @slop
  */
 export const TypeId: TypeId = internal.TypeId
 
@@ -36,6 +37,7 @@ export const TypeId: TypeId = internal.TypeId
  *
  * @category type ids
  * @since 0.0.0
+ * @slop
  */
 export type TypeId = "~flows/core/Node"
 
@@ -44,6 +46,7 @@ export type TypeId = "~flows/core/Node"
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export type Ast = internal.NodeAst
 
@@ -52,6 +55,7 @@ export type Ast = internal.NodeAst
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export interface Node<out A, out E = never> extends Pipeable.Pipeable {
   readonly [TypeId]: {
@@ -66,6 +70,7 @@ export interface Node<out A, out E = never> extends Pipeable.Pipeable {
  *
  * @category utility types
  * @since 0.0.0
+ * @slop
  */
 export type Any = Node<unknown, unknown>
 
@@ -79,6 +84,7 @@ export type Any = Node<unknown, unknown>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const capture = <Args extends ReadonlyArray<unknown>, A>(
   captures: Readonly<Record<string, unknown>>,
@@ -90,6 +96,7 @@ export const capture = <Args extends ReadonlyArray<unknown>, A>(
  *
  * @category utility types
  * @since 0.0.0
+ * @slop
  */
 export type Success<N> = N extends Node<infer A, infer _E> ? A : never
 
@@ -98,6 +105,7 @@ export type Success<N> = N extends Node<infer A, infer _E> ? A : never
  *
  * @category utility types
  * @since 0.0.0
+ * @slop
  */
 export type Error<N> = N extends Node<infer _A, infer E> ? E : never
 
@@ -106,6 +114,7 @@ export type Error<N> = N extends Node<infer _A, infer E> ? E : never
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export interface DynamicOptions {
   readonly model?: string | undefined
@@ -120,6 +129,7 @@ export interface DynamicOptions {
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export const NodeBuildErrorCode = Schema.Literals(["invalid_all_member", "invalid_continuation"])
 
@@ -128,6 +138,7 @@ export const NodeBuildErrorCode = Schema.Literals(["invalid_all_member", "invali
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export type NodeBuildErrorCode = typeof NodeBuildErrorCode.Type
 
@@ -136,6 +147,7 @@ export type NodeBuildErrorCode = typeof NodeBuildErrorCode.Type
  *
  * @category errors
  * @since 0.0.0
+ * @slop
  */
 export class NodeBuildError extends Schema.TaggedError<NodeBuildError>()("flows/core/NodeBuildError", {
   code: NodeBuildErrorCode,
@@ -148,6 +160,7 @@ export class NodeBuildError extends Schema.TaggedError<NodeBuildError>()("flows/
  *
  * @category guards
  * @since 0.0.0
+ * @slop
  */
 export const isNode = (value: unknown): value is Any => Predicate.hasProperty(value, TypeId)
 
@@ -156,6 +169,7 @@ export const isNode = (value: unknown): value is Any => Predicate.hasProperty(va
  *
  * @category constructors
  * @since 0.0.0
+ * @slop
  */
 export const succeed = <A>(value: A): Node<A> => internal.makeNode<A>(internal.succeed(value, Annotations.empty))
 
@@ -164,6 +178,7 @@ export const succeed = <A>(value: A): Node<A> => internal.makeNode<A>(internal.s
  *
  * @category constructors
  * @since 0.0.0
+ * @slop
  */
 export const all = <const R extends Readonly<Record<string, Any>>>(
   nodes: R
@@ -190,6 +205,7 @@ export const all = <const R extends Readonly<Record<string, Any>>>(
  *
  * @category constructors
  * @since 0.0.0
+ * @slop
  */
 export function dynamic<A>(
   options: DynamicOptions & { readonly output?: { readonly Type: A } }
@@ -200,6 +216,7 @@ export function dynamic<A>(
  *
  * @category constructors
  * @since 0.0.0
+ * @slop
  */
 export function dynamic(options: DynamicOptions): Node<unknown>
 
@@ -215,6 +232,7 @@ export function dynamic(options: DynamicOptions): Node<unknown> {
  *
  * @category mapping
  * @since 0.0.0
+ * @slop
  */
 export const map: {
   <A, B>(f: (a: A) => B): <E>(self: Node<A, E>) => Node<B, E>
@@ -237,6 +255,7 @@ export const map: {
  *
  * @category sequencing
  * @since 0.0.0
+ * @slop
  */
 export const andThen: {
   <A, B, E2>(f: (a: A) => Node<B, E2>): <E>(self: Node<A, E>) => Node<B, E | E2>
@@ -278,6 +297,7 @@ const annotate = <A, E, I, S>(
  *
  * @category annotations
  * @since 0.0.0
+ * @slop
  */
 export const within: {
   (placement: Placement.Placement): <A, E>(self: Node<A, E>) => Node<A, E>
@@ -293,6 +313,7 @@ export const within: {
  *
  * @category annotations
  * @since 0.0.0
+ * @slop
  */
 export const lane: {
   (options: Annotations.LaneOptions): <A, E>(self: Node<A, E>) => Node<A, E>
@@ -308,6 +329,7 @@ export const lane: {
  *
  * @category annotations
  * @since 0.0.0
+ * @slop
  */
 export const withEffects: {
   (declaration: Effects.Declaration): <A, E>(self: Node<A, E>) => Node<A, E>

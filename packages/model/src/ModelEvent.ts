@@ -9,6 +9,7 @@ import { AssistantMessage, JsonObject, StopReason, ToolCallPart } from "./ModelR
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Usage = Object.assign(
   Schema.Struct({
@@ -29,6 +30,7 @@ export const Usage = Object.assign(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Usage = typeof Usage.Type
 
@@ -38,6 +40,7 @@ export type Usage = typeof Usage.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const TextStart = Schema.Struct({ type: Schema.Literal("text-start"), id: Schema.String })
 /**
@@ -45,6 +48,7 @@ export const TextStart = Schema.Struct({ type: Schema.Literal("text-start"), id:
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type TextStart = typeof TextStart.Type
 /**
@@ -52,6 +56,7 @@ export type TextStart = typeof TextStart.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const TextDelta = Schema.Struct({ type: Schema.Literal("text-delta"), id: Schema.String, text: Schema.String })
 /**
@@ -59,6 +64,7 @@ export const TextDelta = Schema.Struct({ type: Schema.Literal("text-delta"), id:
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type TextDelta = typeof TextDelta.Type
 /**
@@ -66,6 +72,7 @@ export type TextDelta = typeof TextDelta.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const TextEnd = Schema.Struct({ type: Schema.Literal("text-end"), id: Schema.String })
 /**
@@ -73,6 +80,7 @@ export const TextEnd = Schema.Struct({ type: Schema.Literal("text-end"), id: Sch
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type TextEnd = typeof TextEnd.Type
 /**
@@ -81,6 +89,7 @@ export type TextEnd = typeof TextEnd.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const ThinkingStart = Schema.Struct({
   type: Schema.Literal("thinking-start"),
@@ -92,6 +101,7 @@ export const ThinkingStart = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ThinkingStart = typeof ThinkingStart.Type
 /**
@@ -99,6 +109,7 @@ export type ThinkingStart = typeof ThinkingStart.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const ThinkingDelta = Schema.Struct({
   type: Schema.Literal("thinking-delta"),
@@ -110,6 +121,7 @@ export const ThinkingDelta = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ThinkingDelta = typeof ThinkingDelta.Type
 /**
@@ -117,6 +129,7 @@ export type ThinkingDelta = typeof ThinkingDelta.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const ThinkingEnd = Schema.Struct({ type: Schema.Literal("thinking-end"), id: Schema.String })
 /**
@@ -124,6 +137,7 @@ export const ThinkingEnd = Schema.Struct({ type: Schema.Literal("thinking-end"),
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ThinkingEnd = typeof ThinkingEnd.Type
 /**
@@ -131,6 +145,7 @@ export type ThinkingEnd = typeof ThinkingEnd.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const ToolCallStart = Schema.Struct({
   type: Schema.Literal("tool-call-start"),
@@ -142,6 +157,7 @@ export const ToolCallStart = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ToolCallStart = typeof ToolCallStart.Type
 /**
@@ -149,6 +165,7 @@ export type ToolCallStart = typeof ToolCallStart.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const ToolCallDelta = Schema.Struct({
   type: Schema.Literal("tool-call-delta"),
@@ -160,6 +177,7 @@ export const ToolCallDelta = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ToolCallDelta = typeof ToolCallDelta.Type
 /**
@@ -168,6 +186,7 @@ export type ToolCallDelta = typeof ToolCallDelta.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const ToolCallEnd = Schema.Struct({
   type: Schema.Literal("tool-call-end"),
@@ -179,6 +198,7 @@ export const ToolCallEnd = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ToolCallEnd = typeof ToolCallEnd.Type
 /**
@@ -188,6 +208,7 @@ export type ToolCallEnd = typeof ToolCallEnd.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const ToolResult = Schema.Struct({
   type: Schema.Literal("tool-result"),
@@ -200,6 +221,7 @@ export const ToolResult = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ToolResult = typeof ToolResult.Type
 /**
@@ -208,6 +230,7 @@ export type ToolResult = typeof ToolResult.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const UsageEvent = Schema.Struct({
   type: Schema.Literal("usage"),
@@ -223,6 +246,7 @@ export const UsageEvent = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type UsageEvent = typeof UsageEvent.Type
 /**
@@ -230,6 +254,7 @@ export type UsageEvent = typeof UsageEvent.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Settle = Schema.Struct({
   type: Schema.Literal("settle"),
@@ -246,6 +271,7 @@ export const Settle = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Settle = typeof Settle.Type
 
@@ -255,6 +281,7 @@ export type Settle = typeof Settle.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const ModelEvent = Object.assign(
   Schema.Union([
@@ -293,6 +320,7 @@ export const ModelEvent = Object.assign(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ModelEvent = typeof ModelEvent.Type
 
@@ -307,6 +335,7 @@ const decodeToolArguments = Schema.decodeUnknownOption(
  *
  * @category destructors
  * @since 0.1.0
+ * @slop
  */
 export function settledMessage(
   events: Iterable<ModelEvent>

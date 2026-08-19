@@ -18,6 +18,7 @@ const closingFence = /^---[ \t]*(?=\r?\n|$)/m
  *
  * @since 0.0.0
  * @category parsing
+ * @slop
  */
 export const split = (text: string): { readonly frontmatter: string | undefined; readonly body: string } => {
   const opening = openingFence.exec(text)
@@ -45,6 +46,7 @@ export const split = (text: string): { readonly frontmatter: string | undefined;
  *
  * @since 0.0.0
  * @category parsing
+ * @slop
  */
 export const parse = (frontmatter: string): Result.Result<Record<string, unknown>, string> => {
   const document = parseDocument(frontmatter, {

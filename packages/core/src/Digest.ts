@@ -39,6 +39,7 @@ import { sha256 } from "./internal/sha256.ts"
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export const crypto: Crypto.Crypto = Crypto.make({
   randomBytes: () => {
@@ -52,6 +53,7 @@ export const crypto: Crypto.Crypto = Crypto.make({
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer: Layer.Layer<Crypto.Crypto> = Layer.succeed(Crypto.Crypto)(crypto)
 
@@ -64,6 +66,7 @@ export const layer: Layer.Layer<Crypto.Crypto> = Layer.succeed(Crypto.Crypto)(cr
  *
  * @category execution
  * @since 0.1.0
+ * @slop
  */
 export const runSync = <A, E>(effect: Effect.Effect<A, E, Crypto.Crypto>): A =>
   Effect.runSync(Effect.provideService(effect, Crypto.Crypto, crypto))
@@ -81,6 +84,7 @@ const decodeCanonical = Schema.decodeUnknownEffect(Canonical)
  *
  * @category hashing
  * @since 0.1.0
+ * @slop
  */
 export const digest = (input: Uint8Array | string): string => runSync(decodeSha256(input))
 
@@ -92,5 +96,6 @@ export const digest = (input: Uint8Array | string): string => runSync(decodeSha2
  *
  * @category serialization
  * @since 0.1.0
+ * @slop
  */
 export const canonical = (value: unknown): string => runSync(decodeCanonical(value))

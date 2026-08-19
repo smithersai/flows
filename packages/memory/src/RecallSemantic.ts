@@ -24,6 +24,7 @@ import * as Recall from "./Recall.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Vector {
   readonly bank: string
@@ -42,6 +43,7 @@ export interface Vector {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export interface VectorStore {
   readonly upsert: (vector: Vector) => Effect.Effect<void, MemoryError.MemoryError>
@@ -53,6 +55,7 @@ export interface VectorStore {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Options {
   readonly vectorStore: VectorStore
@@ -78,6 +81,7 @@ interface SqlVectorRow {
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const budgetLimits = {
   low: 3,
@@ -90,6 +94,7 @@ export const budgetLimits = {
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const defaultModel = Embedding.inProcessModel
 const defaultHalfLifeMs = 7 * 24 * 60 * 60 * 1000
@@ -114,6 +119,7 @@ const sqlError = (cause: unknown): MemoryError.MemoryError =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeSqlVectorStore = (database: DatabaseService): VectorStore => ({
   upsert: (vector) =>
@@ -219,6 +225,7 @@ const recency = (updatedAtMs: number, nowMs: number, halfLifeMs: number): number
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const recall = (
   input: Recall.Input,
@@ -299,6 +306,7 @@ export const recall = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeProjector = (options: Options): (row: {
   readonly bank: string
@@ -344,6 +352,7 @@ export const makeProjector = (options: Options): (row: {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const projectAfterCommit = (
   projector: ReturnType<typeof makeProjector>,
@@ -357,6 +366,7 @@ export const projectAfterCommit = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const decorateStore = (
   store: MemoryStore.Service,
@@ -400,6 +410,7 @@ export const decorateStore = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (
   options: Options
@@ -425,6 +436,7 @@ export const layer = (
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const cosineSimilarity = cosine
 
@@ -435,5 +447,6 @@ export const cosineSimilarity = cosine
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const recencyDecay = recency

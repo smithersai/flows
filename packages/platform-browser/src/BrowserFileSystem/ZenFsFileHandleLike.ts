@@ -9,6 +9,7 @@
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface ZenFsFileHandleLike {
   readonly read: (

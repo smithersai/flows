@@ -17,6 +17,7 @@ import type { Route } from "./Route.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface ScanConfig {
   readonly root: string
@@ -30,6 +31,7 @@ export interface ScanConfig {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Warning {
   readonly code: string
@@ -44,6 +46,7 @@ export interface Warning {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface ScanResult {
   readonly routes: ReadonlyArray<Route>
@@ -84,6 +87,7 @@ const discoveryFailure = (cause: unknown): FsError =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const scan = (config: ScanConfig): Effect.Effect<ScanResult, FsError, FileSystem.FileSystem | Path.Path> =>
   Effect.gen(function*() {

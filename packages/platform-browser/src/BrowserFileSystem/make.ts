@@ -83,6 +83,7 @@ const unsupported = (method: string): Effect.Effect<never, PlatformError.Platfor
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (fs: ZenFsPromisesLike): FileSystem.FileSystem =>
   FileSystem.makeNoop({

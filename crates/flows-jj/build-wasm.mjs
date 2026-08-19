@@ -33,13 +33,18 @@
  * of its own: an out-of-tree target directory builds the same bytes as the
  * in-tree default, verified on the canonical host and on macOS.
  *
+ * `--verify` rebuilds without writing and compares the result against the
+ * committed artifact, which is the reproducibility gate itself. Without it the
+ * gate was three shell steps — copy the committed bytes aside, rebuild over
+ * them, `cmp` — that only a workflow file could sequence.
+ *
  * Run it from anywhere: `node crates/flows-jj/build-wasm.mjs`.
  * Prerequisite: rustup — `rust-toolchain.toml` supplies the toolchain,
  * the `wasm32-wasip1` target, and the components. Off the canonical host,
  * run it in a container; `foreignHostError` prints the command.
  */
 import { spawnSync } from "node:child_process"
-import { copyFileSync, mkdirSync, statSync } from "node:fs"
+import { copyFileSync, mkdirSync, readFileSync, statSync } from "node:fs"
 import { homedir } from "node:os"
 import { join, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
@@ -138,6 +143,22 @@ export const buildEnvironment = (env, flags) => {
   return environment
 }
 
+/**
+ * The reproducibility failure between the committed artifact and a fresh
+ * build, or undefined when the two are byte-identical.
+ *
+ * The message names the one host the committed bytes belong to, because a
+ * mismatch on any other host is expected and is not a source problem.
+ */
+export const reproductionFailure = (committed, rebuilt) =>
+  committed.equals(rebuilt) ? undefined : [
+    "error: packages/jj/wasm/flows_jj.wasm does not reproduce from source.",
+    `  committed ${committed.length} bytes, rebuilt ${rebuilt.length} bytes`,
+    `  Rebuild it with the pinned toolchain on ${canonicalHost} and commit the result:`,
+    "    node crates/flows-jj/build-wasm.mjs",
+    "  On any other host the same script prints the container command."
+  ].join("\n")
+
 const isMain = process.argv[1] !== undefined &&
   import.meta.url === pathToFileURL(resolve(process.argv[1])).href
 
@@ -198,8 +219,17 @@ if (isMain) {
     process.exit(build.status ?? 1)
   }
 
-  mkdirSync(destinationDir, { recursive: true })
-  copyFileSync(artifact, destination)
-  const { size } = statSync(destination)
-  console.log(`built ${destination} (${(size / 1024 / 1024).toFixed(2)} MiB)`)
+  if (process.argv.slice(2).includes("--verify")) {
+    const failure = reproductionFailure(readFileSync(destination), readFileSync(artifact))
+    if (failure !== undefined) {
+      console.error(failure)
+      process.exit(1)
+    }
+    console.log(`verified ${destination} reproduces from source`)
+  } else {
+    mkdirSync(destinationDir, { recursive: true })
+    copyFileSync(artifact, destination)
+    const { size } = statSync(destination)
+    console.log(`built ${destination} (${(size / 1024 / 1024).toFixed(2)} MiB)`)
+  }
 }

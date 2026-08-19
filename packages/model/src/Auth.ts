@@ -16,6 +16,7 @@ import { ModelError } from "./ModelError.ts"
  *
  * @since 0.1.0
  * @category constants
+ * @slop
  */
 export const credentialNamePattern =
   /authorization|api[-_]?key|access[-_]?token|refresh[-_]?token|id[-_]?token|token|secret|credential|password|passphrase|passwd|signature|x-amz-signature|cookie|set[-_]?cookie/i
@@ -25,6 +26,7 @@ export const credentialNamePattern =
  *
  * @since 0.1.0
  * @category predicates
+ * @slop
  */
 export const isCredentialName = (name: string): boolean => credentialNamePattern.test(name)
 
@@ -33,6 +35,7 @@ export const isCredentialName = (name: string): boolean => credentialNamePattern
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type Redacted<A = string> = EffectRedacted.Redacted<A>
 
@@ -46,6 +49,7 @@ export type Redacted<A = string> = EffectRedacted.Redacted<A>
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Auth {
   readonly sign: (headers: Record<string, string>) => Effect.Effect<Record<string, string>, ModelError>
@@ -64,6 +68,7 @@ const secret = (key: Redacted<string>): Effect.Effect<string, ModelError> =>
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const apiKeyHeader = (name: string, key: Redacted<string>): Auth => ({
   sign: Effect.fn("Auth.sign")((headers) => secret(key).pipe(Effect.map((value) => ({ ...headers, [name]: value }))))
@@ -74,6 +79,7 @@ export const apiKeyHeader = (name: string, key: Redacted<string>): Auth => ({
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const bearer = (key: Redacted<string>): Auth => ({
   sign: Effect.fn("Auth.sign")((headers) =>

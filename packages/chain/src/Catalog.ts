@@ -17,6 +17,7 @@ import { Clock, Context, type Effect, Layer, Random, Schema } from "effect"
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class CallError extends Schema.TaggedError<CallError>()("/chain/CallError", {
   name: Schema.String,
@@ -36,6 +37,7 @@ export class CallError extends Schema.TaggedError<CallError>()("/chain/CallError
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface CallSlot {
   readonly chain: string
@@ -49,6 +51,7 @@ export interface CallSlot {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Entry {
   readonly name: string
@@ -72,6 +75,7 @@ export interface Entry {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export interface Service {
   readonly entries: ReadonlyArray<Entry>
@@ -83,6 +87,7 @@ export interface Service {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export class Catalog extends Context.Service<Catalog, Service>()("/chain/Catalog") {}
 
@@ -92,6 +97,7 @@ export class Catalog extends Context.Service<Catalog, Service>()("/chain/Catalog
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const entryDigest = (entry: Entry): string =>
   // An empty override falls back too: every call key pins a non-empty
@@ -111,6 +117,7 @@ export const entryDigest = (entry: Entry): string =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (entries: ReadonlyArray<Entry>): Service => {
   const byName = new Map(entries.map((entry) => [entry.name, entry]))
@@ -127,6 +134,7 @@ export const make = (entries: ReadonlyArray<Entry>): Service => {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const system: ReadonlyArray<Entry> = [
   {
@@ -153,6 +161,7 @@ export const system: ReadonlyArray<Entry> = [
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const withSystem = (entries: ReadonlyArray<Entry>): ReadonlyArray<Entry> => [...system, ...entries]
 
@@ -161,6 +170,7 @@ export const withSystem = (entries: ReadonlyArray<Entry>): ReadonlyArray<Entry> 
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (): Service => make([])
 
@@ -169,6 +179,7 @@ export const makeNoop = (): Service => make([])
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (entries: ReadonlyArray<Entry>): Layer.Layer<Catalog> => Layer.succeed(Catalog)(make(entries))
 
@@ -177,5 +188,6 @@ export const layer = (entries: ReadonlyArray<Entry>): Layer.Layer<Catalog> => La
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop: Layer.Layer<Catalog> = Layer.succeed(Catalog)(makeNoop())

@@ -23,6 +23,7 @@ import * as Catalog from "./Catalog.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Implementation = (payload: unknown) => Effect.Effect<unknown, Catalog.CallError>
 
@@ -32,6 +33,7 @@ export type Implementation = (payload: unknown) => Effect.Effect<unknown, Catalo
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type PromptRunner = (
   rendered: string,
@@ -45,6 +47,7 @@ export type PromptRunner = (
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Options {
   readonly implementations?: ReadonlyMap<string, Implementation> | undefined
@@ -62,6 +65,7 @@ export interface Options {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const declarationDigest = (descriptor: Descriptor.FlowDescriptor): string =>
   Digest.digest(Digest.canonical({
@@ -123,6 +127,7 @@ const markdownHandler = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (options: Options = {}): Effect.Effect<Catalog.Service, never, Registry.Registry> =>
   Effect.gen(function*() {
@@ -163,6 +168,7 @@ export const make = (options: Options = {}): Effect.Effect<Catalog.Service, neve
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (options: Options = {}): Layer.Layer<Catalog.Catalog, never, Registry.Registry> =>
   Layer.effect(Catalog.Catalog)(make(options))

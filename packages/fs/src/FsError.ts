@@ -10,6 +10,7 @@ import { Schema } from "effect"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Code = Schema.Literals([
   "discovery_failed",
@@ -29,6 +30,7 @@ export const Code = Schema.Literals([
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Code = typeof Code.Type
 
@@ -40,6 +42,7 @@ export type Code = typeof Code.Type
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class FsError extends Schema.TaggedError<FsError>()("flows/fs/FsError", {
   code: Code,

@@ -37,6 +37,7 @@ import type { Any } from "./Flow.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface ExecutionIdSource {
   readonly mint: (
@@ -77,6 +78,7 @@ const canonicalKey = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const derived: ExecutionIdSource = {
   mint: (flow, payload) =>
@@ -92,6 +94,7 @@ export const derived: ExecutionIdSource = {
  *
  * @category idempotency
  * @since 0.1.0
+ * @slop
  */
 export const CurrentExecutionIds = Context.Reference<ExecutionIdSource>(
   "@smthrs/flow/Flow/CurrentExecutionIds",
@@ -111,6 +114,7 @@ export const CurrentExecutionIds = Context.Reference<ExecutionIdSource>(
  *
  * @category idempotency
  * @since 0.1.0
+ * @slop
  */
 export const layerExecutionIds = (
   source: ExecutionIdSource

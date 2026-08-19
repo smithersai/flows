@@ -93,6 +93,7 @@ const encoder = new TextEncoder()
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const sha256 = (input: string): string => {
   const message = encoder.encode(input)

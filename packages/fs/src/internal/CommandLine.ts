@@ -11,6 +11,7 @@ import { FsError } from "../FsError.ts"
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export interface ParsedFlags {
   readonly args: ReadonlyArray<string>
@@ -32,6 +33,7 @@ const parseError = (description: string): FsError =>
  *
  * @category parsing
  * @since 0.0.0
+ * @slop
  */
 export const lex = (commandString: string): Effect.Effect<ReadonlyArray<string>, FsError> =>
   Effect.suspend(() => {
@@ -110,6 +112,7 @@ const append = (options: Record<string, unknown>, name: string, value: unknown):
  *
  * @category parsing
  * @since 0.0.0
+ * @slop
  */
 export const parseFlags = (argv: ReadonlyArray<string>): ParsedFlags => {
   const args: Array<string> = []

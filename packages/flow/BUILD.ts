@@ -7,7 +7,7 @@
  * emits; the file exists to show the expansion, not to diverge from it.
  */
 import { Smithers } from "@smthrs/targets"
-import { packageManager, rootJSDocConfig } from "../../BUILD.ts"
+import { packageManager, rootJSDocConfig, runtime } from "../../BUILD.ts"
 import { lib as plan } from "../plan/BUILD.ts"
 
 const cwd = "packages/flow"
@@ -68,6 +68,20 @@ export const fmt = Smithers.Dprint({
 
 export const docs = Smithers.DocsParity({
   readme: Smithers.file("README.md"),
+  deps: [],
+  cwd
+})
+
+/**
+ * The package's circular-dependency guard, run under the declared runtime.
+ *
+ * @since 0.1.0
+ * @category test
+ */
+export const circular = Smithers.NodeTest({
+  runtime,
+  runner: Smithers.entrypoint(Smithers.file("scripts/circular.mjs")),
+  srcs: [sources],
   deps: [],
   cwd
 })

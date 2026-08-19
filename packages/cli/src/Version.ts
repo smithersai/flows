@@ -14,5 +14,6 @@ if (typeof metadata.version !== "string") {
  *
  * @category configuration
  * @since 0.1.0
+ * @slop
  */
 export const packageVersion = metadata.version

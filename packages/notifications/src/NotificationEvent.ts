@@ -13,6 +13,7 @@ import * as Notification from "./Notification.ts"
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const AdmittedEventType = "flows/notifications/Admitted"
 
@@ -21,6 +22,7 @@ export const AdmittedEventType = "flows/notifications/Admitted"
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const PromotedEventType = "flows/notifications/Promoted"
 
@@ -31,6 +33,7 @@ const AdmissionDecision = Schema.Literals(["admitted", "coalesced", "rejected-fu
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Admitted = Schema.Struct({
   notification: Notification.Notification,
@@ -42,6 +45,7 @@ export const Admitted = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Admitted = typeof Admitted.Type
 
@@ -50,6 +54,7 @@ export type Admitted = typeof Admitted.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Promoted = Schema.Struct({
   boundary: Schema.String,
@@ -62,6 +67,7 @@ export const Promoted = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Promoted = typeof Promoted.Type
 
@@ -70,6 +76,7 @@ export type Promoted = typeof Promoted.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Event = Admitted | Promoted
 
@@ -84,6 +91,7 @@ const decodePromoted = Schema.decodeUnknownOption(Promoted)
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const fromEntry = (entry: JournalEvent.Entry): Option.Option<Event> => {
   if (entry.eventType === AdmittedEventType) {

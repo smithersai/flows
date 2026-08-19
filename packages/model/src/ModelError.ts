@@ -7,6 +7,7 @@ import { Schema } from "effect"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const ModelErrorCode = Schema.Literals([
   "invalid_request",
@@ -27,6 +28,7 @@ export const ModelErrorCode = Schema.Literals([
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ModelErrorCode = typeof ModelErrorCode.Type
 
@@ -51,6 +53,7 @@ const overflowSignal =
  *
  * @category refinements
  * @since 0.1.0
+ * @slop
  */
 export const isContextOverflow = (providerCode: string | undefined, message: string): boolean =>
   overflowSignal.test(`${providerCode ?? ""} ${message}`)
@@ -68,6 +71,7 @@ export const isContextOverflow = (providerCode: string | undefined, message: str
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class ModelError extends Schema.TaggedError<ModelError>()("flows/model/ModelError", {
   code: ModelErrorCode,

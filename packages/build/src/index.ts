@@ -13,6 +13,7 @@
  *
  * @category namespace exports
  * @since 0.1.0
+ * @slop
  */
 export * as Install from "./Install.ts"
 
@@ -21,6 +22,7 @@ export * as Install from "./Install.ts"
  *
  * @category namespace exports
  * @since 0.1.0
+ * @slop
  */
 export * as PackageManager from "./PackageManager.ts"
 
@@ -30,5 +32,6 @@ export * as PackageManager from "./PackageManager.ts"
  *
  * @category namespace exports
  * @since 0.1.0
+ * @slop
  */
 export * as Runtime from "./Runtime.ts"

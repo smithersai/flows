@@ -6,6 +6,7 @@ import {
   canonicalHost,
   foreignHostError,
   remapFlags,
+  reproductionFailure,
   rustcCommitHash,
   rustcHost,
   targetDir
@@ -109,4 +110,18 @@ test("buildEnvironment deletes an ambient CARGO_ENCODED_RUSTFLAGS", () => {
     ["--remap-path-prefix=/a=/flows"]
   )
   assert.equal("CARGO_ENCODED_RUSTFLAGS" in environment, false)
+})
+
+test("reproductionFailure accepts byte-identical artifacts", () => {
+  assert.equal(
+    reproductionFailure(Buffer.from([0, 1, 2]), Buffer.from([0, 1, 2])),
+    undefined
+  )
+})
+
+test("reproductionFailure names the canonical host and both sizes on drift", () => {
+  const failure = reproductionFailure(Buffer.from([0, 1, 2]), Buffer.from([0, 1]))
+  assert.match(failure, /does not reproduce from source/)
+  assert.match(failure, /committed 3 bytes, rebuilt 2 bytes/)
+  assert.match(failure, new RegExp(canonicalHost))
 })

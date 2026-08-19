@@ -41,6 +41,7 @@ import { Workspace } from "./Workspace.ts"
  *
  * @since 0.1.0
  * @category security
+ * @slop
  */
 export const AtomicFileSystemTypeId = Symbol.for("@smthrs/kernel/AtomicFileSystem")
 
@@ -48,6 +49,7 @@ export const AtomicFileSystemTypeId = Symbol.for("@smthrs/kernel/AtomicFileSyste
  *
  * @since 0.1.0
  * @category security
+ * @slop
  */
 export interface AtomicRequest {
   readonly operation: string
@@ -67,6 +69,7 @@ export interface AtomicRequest {
  *
  * @since 0.1.0
  * @category security
+ * @slop
  */
 export interface AtomicFileSystem {
   readonly execute: <A>(request: AtomicRequest) => Effect.Effect<A, PlatformError.PlatformError>
@@ -82,6 +85,7 @@ export interface AtomicFileSystem {
  *
  * @since 0.1.0
  * @category security
+ * @slop
  */
 export type AtomicHostFileSystem = EffectFileSystem.FileSystem & {
   readonly [AtomicFileSystemTypeId]: AtomicFileSystem
@@ -91,6 +95,7 @@ export type AtomicHostFileSystem = EffectFileSystem.FileSystem & {
  *
  * @since 0.1.0
  * @category security
+ * @slop
  */
 export const withAtomicFileSystem = (
   fileSystem: EffectFileSystem.FileSystem,
@@ -104,6 +109,7 @@ export const withAtomicFileSystem = (
  *
  * @since 0.1.0
  * @category security
+ * @slop
  */
 export const withIsolatedFileSystem = (
   fileSystem: EffectFileSystem.FileSystem
@@ -195,6 +201,7 @@ const identityOf = (info: EffectFileSystem.File.Info): Option.Option<string> =>
  *
  * @category security
  * @since 0.1.0
+ * @slop
  */
 export const canonicalResource = (
   fileSystem: EffectFileSystem.FileSystem,
@@ -269,6 +276,7 @@ export const canonicalResource = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer: Layer.Layer<
   EffectFileSystem.FileSystem,

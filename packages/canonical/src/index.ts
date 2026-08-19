@@ -18,5 +18,6 @@
 /**
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export * from "./Canonical.ts"

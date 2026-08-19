@@ -3,7 +3,7 @@
  * dispatcher, a frozen config, and the merged layer.
  *
  * Governing contract: D11 in `docs/architecture/design-decisions.md`, with the
- * shipped host catalog in `packages/engine-harness/src/CellPlugin.ts`. This
+ * shipped host catalog in `packages/agent/src/CellPlugin.ts`. This
  * startup composes the bounded cell-host extension point; it does not install
  * lifecycle hooks into the durable engine.
  *

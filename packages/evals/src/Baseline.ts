@@ -13,6 +13,7 @@ import type { Observation, RunResult } from "./Runner.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const version = 1 as const
 
@@ -21,6 +22,7 @@ export const version = 1 as const
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Record {
   readonly suite: string
@@ -35,6 +37,7 @@ export interface Record {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Baseline {
   readonly version: typeof version
@@ -77,6 +80,7 @@ const validate = (value: unknown): Effect.Effect<Baseline, EvalError> => {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const fromRun = (run: RunResult): Effect.Effect<Baseline, EvalError> => {
   const records: Array<Record> = run.observations.flatMap((observation: Observation) =>
@@ -98,6 +102,7 @@ export const fromRun = (run: RunResult): Effect.Effect<Baseline, EvalError> => {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (
   baseline: Omit<Baseline, "version"> & { readonly version?: typeof version }
@@ -108,6 +113,7 @@ export const make = (
  *
  * @category serialization
  * @since 0.1.0
+ * @slop
  */
 export const write = (baseline: Baseline): string => {
   const records = [...baseline.records].sort((left, right) =>
@@ -123,6 +129,7 @@ export const write = (baseline: Baseline): string => {
  *
  * @category serialization
  * @since 0.1.0
+ * @slop
  */
 export const load = (text: string): Effect.Effect<Baseline, EvalError> =>
   Effect.try({
@@ -135,5 +142,6 @@ export const load = (text: string): Effect.Effect<Baseline, EvalError> =>
  *
  * @category serialization
  * @since 0.1.0
+ * @slop
  */
 export const parse = load

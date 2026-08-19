@@ -113,6 +113,7 @@ const status = () => jj("status", ["status"])
  *
  * @category layers
  * @since 1.0.0
+ * @slop
  */
 export const layer: Layer.Layer<Jj> = Layer.succeed(Jj)({
   snapshot,

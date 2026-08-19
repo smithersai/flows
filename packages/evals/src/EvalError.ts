@@ -11,6 +11,7 @@ import * as Schema from "effect/Schema"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const EvalErrorCode = Schema.Literals(["invalid_suite", "invalid_baseline", "missing_ground_truth", "executor"])
 
@@ -19,6 +20,7 @@ export const EvalErrorCode = Schema.Literals(["invalid_suite", "invalid_baseline
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type EvalErrorCode = typeof EvalErrorCode.Type
 
@@ -27,6 +29,7 @@ export type EvalErrorCode = typeof EvalErrorCode.Type
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class EvalError extends Schema.TaggedError<EvalError>()("flows/evals/EvalError", {
   code: EvalErrorCode,

@@ -66,6 +66,7 @@ interface VisitResult {
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export interface AnnotationsProjection {
   readonly placement: Placement.Placement | undefined
@@ -78,6 +79,7 @@ export interface AnnotationsProjection {
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export interface GraphNode {
   readonly id: string
@@ -97,6 +99,7 @@ export interface GraphNode {
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export interface Edge {
   readonly from: string
@@ -109,6 +112,7 @@ export interface Edge {
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export interface Conflict {
   readonly nodes: readonly [string, string]
@@ -122,6 +126,7 @@ export interface Conflict {
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export interface EffectEntry {
   readonly nodeId: string
@@ -134,6 +139,7 @@ export interface EffectEntry {
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export interface PlacementEntry {
   readonly nodeId: string
@@ -145,6 +151,7 @@ export interface PlacementEntry {
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export interface LayerRequest {
   readonly nodeId: string
@@ -164,6 +171,7 @@ export interface LayerRequest {
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export interface BuildOptions {
   readonly resolveLayers?: ((request: LayerRequest) => Iterable<string>) | undefined
@@ -174,6 +182,7 @@ export interface BuildOptions {
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export const GraphBuildErrorCode = Schema.Literals([
   "effect_outside_envelope",
@@ -188,6 +197,7 @@ export const GraphBuildErrorCode = Schema.Literals([
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export type GraphBuildErrorCode = typeof GraphBuildErrorCode.Type
 
@@ -197,6 +207,7 @@ export type GraphBuildErrorCode = typeof GraphBuildErrorCode.Type
  *
  * @category errors
  * @since 0.0.0
+ * @slop
  */
 export class GraphBuildError extends Schema.TaggedError<GraphBuildError>()("flows/core/GraphBuildError", {
   code: GraphBuildErrorCode,
@@ -221,6 +232,7 @@ interface GraphImpl {
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export type Graph = GraphImpl
 
@@ -392,6 +404,7 @@ const strategy = (left: Effects.Declaration, right: Effects.Declaration): Confli
  *
  * @category constructors
  * @since 0.0.0
+ * @slop
  */
 export const build = (
   flowOrNode: Flow.Any | Node.Any,
@@ -768,6 +781,7 @@ export const build = (
  *
  * @category getters
  * @since 0.0.0
+ * @slop
  */
 export const nodes = (graph: Graph): ReadonlyArray<GraphNode> => graph.nodes as ReadonlyArray<GraphNode>
 
@@ -776,6 +790,7 @@ export const nodes = (graph: Graph): ReadonlyArray<GraphNode> => graph.nodes as 
  *
  * @category getters
  * @since 0.0.0
+ * @slop
  */
 export const edges = (graph: Graph): ReadonlyArray<Edge> => graph.edges
 
@@ -784,6 +799,7 @@ export const edges = (graph: Graph): ReadonlyArray<Edge> => graph.edges
  *
  * @category getters
  * @since 0.0.0
+ * @slop
  */
 export const effects = (graph: Graph): ReadonlyArray<EffectEntry> =>
   graph.nodes
@@ -799,6 +815,7 @@ export const effects = (graph: Graph): ReadonlyArray<EffectEntry> =>
  *
  * @category getters
  * @since 0.0.0
+ * @slop
  */
 export const placements = (graph: Graph): ReadonlyArray<PlacementEntry> =>
   graph.nodes.flatMap((node) => node.placement === undefined ? [] : [{ nodeId: node.id, placement: node.placement }])
@@ -808,6 +825,7 @@ export const placements = (graph: Graph): ReadonlyArray<PlacementEntry> =>
  *
  * @category getters
  * @since 0.0.0
+ * @slop
  */
 export const conflicts = (graph: Graph): ReadonlyArray<Conflict> => graph.conflicts
 
@@ -816,6 +834,7 @@ export const conflicts = (graph: Graph): ReadonlyArray<Conflict> => graph.confli
  *
  * @category getters
  * @since 0.0.0
+ * @slop
  */
 export const diagnostics = (graph: Graph): ReadonlyArray<GraphBuildError> => graph.diagnostics
 
@@ -826,6 +845,7 @@ export const diagnostics = (graph: Graph): ReadonlyArray<GraphBuildError> => gra
  *
  * @category getters
  * @since 0.0.0
+ * @slop
  */
 export const keyMaterial = (
   graph: Graph

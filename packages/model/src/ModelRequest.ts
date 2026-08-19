@@ -12,6 +12,7 @@ import { Schema } from "effect"
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const JsonObject = Schema.Json.pipe(
   Schema.refine(
@@ -25,6 +26,7 @@ export const JsonObject = Schema.Json.pipe(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type JsonObject = typeof JsonObject.Type
 
@@ -34,6 +36,7 @@ export type JsonObject = typeof JsonObject.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const StopReason = Schema.Literals([
   "stop",
@@ -50,6 +53,7 @@ export const StopReason = Schema.Literals([
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type StopReason = typeof StopReason.Type
 
@@ -59,6 +63,7 @@ export type StopReason = typeof StopReason.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const SystemPart = Object.assign(
   Schema.Struct({ type: Schema.Literal("text"), text: Schema.String }).annotate({
@@ -72,6 +77,7 @@ export const SystemPart = Object.assign(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type SystemPart = typeof SystemPart.Type
 
@@ -80,6 +86,7 @@ export type SystemPart = typeof SystemPart.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const TextPart = Object.assign(
   Schema.Struct({ type: Schema.Literal("text"), text: Schema.String }).annotate({ identifier: "flows/model/TextPart" }),
@@ -91,6 +98,7 @@ export const TextPart = Object.assign(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type TextPart = typeof TextPart.Type
 
@@ -100,6 +108,7 @@ export type TextPart = typeof TextPart.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const ThinkingPart = Object.assign(
   Schema.Struct({
@@ -121,6 +130,7 @@ export const ThinkingPart = Object.assign(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ThinkingPart = typeof ThinkingPart.Type
 
@@ -130,6 +140,7 @@ export type ThinkingPart = typeof ThinkingPart.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const ToolCallPart = Object.assign(
   Schema.Struct({
@@ -151,6 +162,7 @@ export const ToolCallPart = Object.assign(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ToolCallPart = typeof ToolCallPart.Type
 
@@ -160,6 +172,7 @@ export type ToolCallPart = typeof ToolCallPart.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const ToolResultPart = Object.assign(
   Schema.Struct({
@@ -187,6 +200,7 @@ export const ToolResultPart = Object.assign(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ToolResultPart = typeof ToolResultPart.Type
 
@@ -195,6 +209,7 @@ export type ToolResultPart = typeof ToolResultPart.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const ContentPart = Schema.Union([TextPart, ThinkingPart, ToolCallPart, ToolResultPart]).pipe(
   Schema.toTaggedUnion("type")
@@ -205,6 +220,7 @@ export const ContentPart = Schema.Union([TextPart, ThinkingPart, ToolCallPart, T
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ContentPart = typeof ContentPart.Type
 
@@ -214,6 +230,7 @@ export type ContentPart = typeof ContentPart.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const AssistantContentPart = Schema.Union([TextPart, ThinkingPart, ToolCallPart]).pipe(
   Schema.toTaggedUnion("type")
@@ -224,6 +241,7 @@ export const AssistantContentPart = Schema.Union([TextPart, ThinkingPart, ToolCa
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type AssistantContentPart = typeof AssistantContentPart.Type
 
@@ -233,6 +251,7 @@ export type AssistantContentPart = typeof AssistantContentPart.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class UserMessage extends Schema.Class<UserMessage>("flows/model/UserMessage")({
   role: Schema.Literal("user"),
@@ -245,6 +264,7 @@ export class UserMessage extends Schema.Class<UserMessage>("flows/model/UserMess
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class AssistantMessage extends Schema.Class<AssistantMessage>("flows/model/AssistantMessage")({
   role: Schema.Literal("assistant"),
@@ -263,6 +283,7 @@ export class AssistantMessage extends Schema.Class<AssistantMessage>("flows/mode
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class ToolMessage extends Schema.Class<ToolMessage>("flows/model/ToolMessage")({
   role: Schema.Literal("tool"),
@@ -275,6 +296,7 @@ export class ToolMessage extends Schema.Class<ToolMessage>("flows/model/ToolMess
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Message = Object.assign(
   Schema.Union([UserMessage, AssistantMessage, ToolMessage]).pipe(Schema.toTaggedUnion("role")),
@@ -307,6 +329,7 @@ export const Message = Object.assign(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Message = typeof Message.Type
 
@@ -323,6 +346,7 @@ const contentParts = (
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class ToolDefinition extends Schema.Class<ToolDefinition>("flows/model/ToolDefinition")({
   name: Schema.String,
@@ -348,6 +372,7 @@ export class ToolDefinition extends Schema.Class<ToolDefinition>("flows/model/To
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const ReasoningEffort = Schema.Literals([
   "none",
@@ -363,6 +388,7 @@ export const ReasoningEffort = Schema.Literals([
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ReasoningEffort = typeof ReasoningEffort.Type
 
@@ -372,6 +398,7 @@ export type ReasoningEffort = typeof ReasoningEffort.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class GenerationParams extends Schema.Class<GenerationParams>("flows/model/GenerationParams")({
   maxTokens: Schema.optional(Schema.Finite),
@@ -402,6 +429,7 @@ export class GenerationParams extends Schema.Class<GenerationParams>("flows/mode
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const ToolChoice = Schema.Literal("none")
 
@@ -410,6 +438,7 @@ export const ToolChoice = Schema.Literal("none")
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ToolChoice = typeof ToolChoice.Type
 
@@ -419,6 +448,7 @@ export type ToolChoice = typeof ToolChoice.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class ModelRequest extends Schema.Class<ModelRequest>("flows/model/ModelRequest")({
   modelId: Schema.String,

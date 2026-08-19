@@ -18,8 +18,14 @@
  * `scripts/browser-check.mjs` at the repository root pins that.
  */
 
-/** Bun's `FileSystem`, which is Effect's Node implementation. */
+/**
+ * Bun's `FileSystem`, which is Effect's Node implementation.
+ * @slop
+ */
 export * as BunFileSystem from "./BunFileSystem.ts"
 
-/** The complete closed Host bundle for Bun. */
+/**
+ * The complete closed Host bundle for Bun.
+ * @slop
+ */
 export * as BunHost from "./BunHost.ts"

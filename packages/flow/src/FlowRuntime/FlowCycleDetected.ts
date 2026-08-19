@@ -24,6 +24,7 @@ import * as Schema from "effect/Schema"
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class FlowCycleDetected extends Schema.TaggedError<FlowCycleDetected>()(
   "@smthrs/flow/FlowCycleDetected",

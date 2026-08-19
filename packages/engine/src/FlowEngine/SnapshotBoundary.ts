@@ -14,6 +14,7 @@ import type * as Effect from "effect/Effect"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface SnapshotBoundaryOptions {
   readonly flow: Flow.Any
@@ -30,6 +31,7 @@ export interface SnapshotBoundaryOptions {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export class SnapshotBoundary extends Context.Service<
   SnapshotBoundary,

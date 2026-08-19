@@ -28,6 +28,7 @@ const output = Schema.String
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export interface MarkdownFrontmatter {
   readonly name?: string
@@ -50,6 +51,7 @@ export interface MarkdownFrontmatter {
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export interface SkillDocument {
   readonly name: string
@@ -64,6 +66,7 @@ export interface SkillDocument {
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export const MarkdownErrorCode = Schema.Literals([
   "skill_missing_frontmatter",
@@ -77,6 +80,7 @@ export const MarkdownErrorCode = Schema.Literals([
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export type MarkdownErrorCode = typeof MarkdownErrorCode.Type
 
@@ -85,6 +89,7 @@ export type MarkdownErrorCode = typeof MarkdownErrorCode.Type
  *
  * @category errors
  * @since 0.0.0
+ * @slop
  */
 export class MarkdownError extends Schema.TaggedError<MarkdownError>()("flows/core/MarkdownError", {
   code: MarkdownErrorCode,
@@ -101,6 +106,7 @@ export class MarkdownError extends Schema.TaggedError<MarkdownError>()("flows/co
  *
  * @category constructors
  * @since 0.0.0
+ * @slop
  */
 export const lowerMarkdown = (
   frontmatter: MarkdownFrontmatter,
@@ -143,6 +149,7 @@ export const lowerMarkdown = (
  *
  * @category constructors
  * @since 0.0.0
+ * @slop
  */
 export const parseSkill = (text: string): Result.Result<SkillDocument, MarkdownError> => {
   const split = SkillFrontmatter.split(text)
@@ -224,6 +231,7 @@ export const parseSkill = (text: string): Result.Result<SkillDocument, MarkdownE
  *
  * @category constructors
  * @since 0.0.0
+ * @slop
  */
 export const lowerSkill = (
   text: string

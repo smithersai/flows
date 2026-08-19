@@ -33,6 +33,7 @@ type Page =
   | { path: '/artifact-gc'; render: 'static' }
   | { path: '/code-design'; render: 'static' }
   | { path: '/compaction'; render: 'static' }
+  | { path: '/comparisons'; render: 'static' }
   | { path: '/contributing'; render: 'static' }
   | { path: '/data-structures'; render: 'static' }
   | { path: '/design-decisions'; render: 'static' }

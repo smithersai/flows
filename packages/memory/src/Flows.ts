@@ -22,6 +22,7 @@ import * as Recall from "./Recall.ts"
  *
  * @category identifiers
  * @since 0.1.0
+ * @slop
  */
 export const rememberName = "remember"
 
@@ -30,6 +31,7 @@ export const rememberName = "remember"
  *
  * @category identifiers
  * @since 0.1.0
+ * @slop
  */
 export const recallName = "recall"
 
@@ -38,6 +40,7 @@ export const recallName = "recall"
  *
  * @category descriptions
  * @since 0.1.0
+ * @slop
  */
 export const rememberDescription = "Persist a memory record in a named bank."
 
@@ -46,6 +49,7 @@ export const rememberDescription = "Persist a memory record in a named bank."
  *
  * @category descriptions
  * @since 0.1.0
+ * @slop
  */
 export const recallDescription = "Recall advisory memory rows from named banks."
 
@@ -54,6 +58,7 @@ export const recallDescription = "Recall advisory memory rows from named banks."
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const RememberInput = Schema.Struct({
   bank: Schema.String,
@@ -67,6 +72,7 @@ export const RememberInput = Schema.Struct({
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const RememberOutput = Schema.Struct({ key: Schema.String })
 
@@ -75,6 +81,7 @@ export const RememberOutput = Schema.Struct({ key: Schema.String })
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const RecallInput = Recall.Input
 
@@ -83,6 +90,7 @@ export const RecallInput = Recall.Input
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const RecallOutput = Recall.Output
 
@@ -91,6 +99,7 @@ export const RecallOutput = Recall.Output
  *
  * @category effects
  * @since 0.1.0
+ * @slop
  */
 export const rememberEffects = Effects.make({
   reads: ["memory/**"],
@@ -105,6 +114,7 @@ export const rememberEffects = Effects.make({
  *
  * @category effects
  * @since 0.1.0
+ * @slop
  */
 export const recallEffects = Effects.make({
   reads: ["memory/**"],
@@ -119,6 +129,7 @@ export const recallEffects = Effects.make({
  *
  * @category flows
  * @since 0.1.0
+ * @slop
  */
 export const remember = Flow.make({
   name: rememberName,
@@ -133,6 +144,7 @@ export const remember = Flow.make({
  *
  * @category flows
  * @since 0.1.0
+ * @slop
  */
 export const recall = Flow.make<typeof RecallInput, typeof RecallOutput, never>({
   name: recallName,
@@ -147,6 +159,7 @@ export const recall = Flow.make<typeof RecallInput, typeof RecallOutput, never>(
  *
  * @category slots
  * @since 0.1.0
+ * @slop
  */
 export const recallSlot = Recall.slot
 
@@ -155,6 +168,7 @@ export const recallSlot = Recall.slot
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const bindRecall = (supplied: Flow.Any): Flow.Any => Pattern.bind(recallSlot, supplied)
 
@@ -163,6 +177,7 @@ export const bindRecall = (supplied: Flow.Any): Flow.Any => Pattern.bind(recallS
  *
  * @category handlers
  * @since 0.1.0
+ * @slop
  */
 export const runRemember = (
   input: RememberInputType
@@ -183,6 +198,7 @@ export const runRemember = (
  *
  * @category handlers
  * @since 0.1.0
+ * @slop
  */
 export const runRecall = (
   input: RecallInputType
@@ -194,6 +210,7 @@ export const runRecall = (
  *
  * @category handlers
  * @since 0.1.0
+ * @slop
  */
 export const handlers = {
   remember: runRemember,
@@ -205,6 +222,7 @@ export const handlers = {
  *
  * @category types
  * @since 0.1.0
+ * @slop
  */
 export type RememberInputType = typeof RememberInput.Type
 
@@ -213,6 +231,7 @@ export type RememberInputType = typeof RememberInput.Type
  *
  * @category types
  * @since 0.1.0
+ * @slop
  */
 export type RecallInputType = Recall.Input
 
@@ -221,5 +240,6 @@ export type RecallInputType = Recall.Input
  *
  * @category types
  * @since 0.1.0
+ * @slop
  */
 export type RecallOutputType = Recall.Output

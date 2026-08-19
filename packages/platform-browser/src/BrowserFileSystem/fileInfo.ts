@@ -22,6 +22,7 @@ const fileType = (stats: ZenFsStatsLike): FileSystem.File.Type =>
  *
  * @private
  * @since 0.1.0
+ * @slop
  */
 export const fileInfo = (stats: ZenFsStatsLike): FileSystem.File.Info => ({
   type: fileType(stats),

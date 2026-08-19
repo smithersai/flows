@@ -11,6 +11,7 @@ import type { ModelRequest } from "./ModelRequest.ts"
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export type ModelFailure = ModelError | PermissionRequired | PermissionDenied | GrantStoreError
 
@@ -20,6 +21,7 @@ export type ModelFailure = ModelError | PermissionRequired | PermissionDenied | 
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export interface Model {
   /** Streams model progress; cancellation is fiber interruption only. */
@@ -31,6 +33,7 @@ export interface Model {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export const Model: Context.Service<Model, Model> = Context.Service("/model/Model")
 
@@ -39,6 +42,7 @@ export const Model: Context.Service<Model, Model> = Context.Service("/model/Mode
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (implementation: Model): Model => Model.of(implementation)
 
@@ -47,6 +51,7 @@ export const make = (implementation: Model): Model => Model.of(implementation)
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (implementation: Model): Layer.Layer<Model> => Layer.succeed(Model)(make(implementation))
 
@@ -57,6 +62,7 @@ export const layer = (implementation: Model): Layer.Layer<Model> => Layer.succee
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (overrides: Partial<Model> = {}): Model =>
   Model.of({
@@ -76,6 +82,7 @@ export const makeNoop = (overrides: Partial<Model> = {}): Model =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop = (overrides: Partial<Model> = {}): Layer.Layer<Model> =>
   Layer.succeed(Model)(makeNoop(overrides))

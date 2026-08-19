@@ -21,6 +21,7 @@ import { make } from "./make.ts"
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (
   bash: JustBashLike

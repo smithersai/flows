@@ -10,6 +10,7 @@ import { Schema } from "effect"
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class UsageError extends Schema.TaggedError<UsageError>()("/cli/UsageError", {
   message: Schema.String
@@ -20,6 +21,7 @@ export class UsageError extends Schema.TaggedError<UsageError>()("/cli/UsageErro
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class UnsupportedError extends Schema.TaggedError<UnsupportedError>()("/cli/UnsupportedError", {
   message: Schema.String
@@ -30,6 +32,7 @@ export class UnsupportedError extends Schema.TaggedError<UnsupportedError>()("/c
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type CliError = UsageError | UnsupportedError
 
@@ -38,5 +41,6 @@ export type CliError = UsageError | UnsupportedError
  *
  * @category getters
  * @since 0.1.0
+ * @slop
  */
 export const exitCode = (error: CliError): number => error._tag === "/cli/UsageError" ? 2 : 1

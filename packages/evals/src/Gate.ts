@@ -15,6 +15,7 @@ import type { Report } from "./Regression.ts"
  * @see docs/specs/Concepts/Scoring.md
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Options {
   readonly mean?: number | undefined
@@ -47,6 +48,7 @@ const samples = (report: Report): ReadonlyArray<ScoreSample> =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const check = (report: Report, options: Options = {}): Effect.Effect<Verdict, ScoreGateError> =>
   Effect.gen(function*() {
@@ -73,6 +75,7 @@ export const check = (report: Report, options: Options = {}): Effect.Effect<Verd
  *
  * @category grading
  * @since 0.1.0
+ * @slop
  */
 export const ciGrade = (verdict: Verdict): { readonly exitCode: 0 | 5; readonly summary: string } =>
   verdict._tag === "Passed"

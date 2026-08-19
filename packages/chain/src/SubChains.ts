@@ -35,6 +35,7 @@ import * as ScriptRunner from "./ScriptRunner.ts"
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const agentName = "agent"
 
@@ -43,6 +44,7 @@ export const agentName = "agent"
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const agentDescription = "Run a sub-agent chain to completion and return its terminal outcome as data"
 
@@ -53,6 +55,7 @@ export const agentDescription = "Run a sub-agent chain to completion and return 
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const agentCapability = "proc:spawn:agent"
 
@@ -69,6 +72,7 @@ const decodeInput = Schema.decodeUnknownOption(AgentInput)
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Options {
   /** Entries every chain in the tree can call; the agent and system entries are appended. */
@@ -95,6 +99,7 @@ const derivedSegment = /^\d+\.\d+$/
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const contractDigest = (options: Options): string =>
   Digest.digest(Digest.canonical({
@@ -114,6 +119,7 @@ export const contractDigest = (options: Options): string =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (
   options: Options
@@ -211,6 +217,7 @@ export const make = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (
   options: Options

@@ -41,6 +41,7 @@ import { annotateWaiting } from "./FlowRuntime/WaitingAnnotation.ts"
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class WaitForRequestInvalid extends Schema.TaggedError<WaitForRequestInvalid>()(
   "@smthrs/flow/WaitForRequestInvalid",
@@ -60,6 +61,7 @@ export class WaitForRequestInvalid extends Schema.TaggedError<WaitForRequestInva
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const tag = "system/wait-for"
 
@@ -79,6 +81,7 @@ export const tag = "system/wait-for"
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const deferred = (name: string): DurableDeferred.DurableDeferred<typeof Schema.Json> =>
   DurableDeferred.make(`WaitFor/${name}`, { success: Schema.Json })
@@ -95,6 +98,7 @@ export const deferred = (name: string): DurableDeferred.DurableDeferred<typeof S
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const action: Action.Declared<
   typeof tag,
@@ -211,6 +215,7 @@ const target = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer: Layer.Layer<never, never, FlowRuntime> = action.toLayer((payload) =>
   Effect.gen(function*() {

@@ -10,6 +10,7 @@ import * as Schema from "effect/Schema"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const MemoryErrorCode = Schema.Literals([
   "not_found",
@@ -26,6 +27,7 @@ export const MemoryErrorCode = Schema.Literals([
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type MemoryErrorCode = typeof MemoryErrorCode.Type
 
@@ -34,6 +36,7 @@ export type MemoryErrorCode = typeof MemoryErrorCode.Type
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class MemoryError extends Schema.TaggedError<MemoryError>()("flows/memory/MemoryError", {
   code: MemoryErrorCode,

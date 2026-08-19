@@ -946,6 +946,13 @@ export const createAppStore = async (
 					});
 					break;
 
+				case "connect-menu.toggled":
+					collections.sessions.update(SESSION_ID, (draft) => {
+						draft.connectMenuOpen = transition.open;
+						draft.revision = revision;
+					});
+					break;
+
 				case "command.deferred":
 					collections.sessions.update(SESSION_ID, (draft) => {
 						draft.pendingCommand = {

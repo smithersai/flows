@@ -589,6 +589,7 @@ const retryFailures = <A, R>(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ErrorClassifier = (status: number, body: string) => ModelError
 
@@ -597,6 +598,7 @@ export type ErrorClassifier = (status: number, body: string) => ModelError
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface ExecuteOptions {
   readonly modelId: string
@@ -609,6 +611,7 @@ export interface ExecuteOptions {
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export type RequestError =
   | ModelError
@@ -624,6 +627,7 @@ export type RequestError =
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export interface RequestExecutor {
   readonly execute: (
@@ -637,6 +641,7 @@ export interface RequestExecutor {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export const RequestExecutor: Context.Service<RequestExecutor, RequestExecutor> = Context.Service<
   RequestExecutor,
@@ -648,6 +653,7 @@ export const RequestExecutor: Context.Service<RequestExecutor, RequestExecutor> 
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make: Effect.Effect<RequestExecutor, never, KernelHttpClient.HttpClient> = Effect.gen(function*() {
   const http = yield* KernelHttpClient.HttpClient
@@ -677,6 +683,7 @@ export const make: Effect.Effect<RequestExecutor, never, KernelHttpClient.HttpCl
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer: Layer.Layer<RequestExecutor, never, KernelHttpClient.HttpClient> = Layer.effect(
   RequestExecutor,

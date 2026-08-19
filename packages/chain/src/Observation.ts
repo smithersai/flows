@@ -15,6 +15,7 @@ import { Schema } from "effect"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Kind = Schema.Literals([
   "shape",
@@ -30,6 +31,7 @@ export const Kind = Schema.Literals([
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Kind = typeof Kind.Type
 
@@ -38,6 +40,7 @@ export type Kind = typeof Kind.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Observation = Schema.Struct({
   kind: Kind,
@@ -49,6 +52,7 @@ export const Observation = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Observation = typeof Observation.Type
 
@@ -57,6 +61,7 @@ export type Observation = typeof Observation.Type
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (kind: Kind, message: string): Observation => ({ kind, message })
 
@@ -65,5 +70,6 @@ export const make = (kind: Kind, message: string): Observation => ({ kind, messa
  *
  * @category projections
  * @since 0.1.0
+ * @slop
  */
 export const render = (observation: Observation): string => `[${observation.kind}] ${observation.message}`

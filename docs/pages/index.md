@@ -4,6 +4,8 @@ Smithers Flows is an Effect-based durable-execution engine: typed flows that rec
 
 You declare an action once with Schema-typed payload, success, and error, attach its implementation as a layer, and write a flow whose pure body names it. The engine persists run state in SQLite through the journal, computes a content-addressed key for each action, and stores each attempt's encoded result. When a process restarts, it claims the run, re-plans the flow and drives it from the top, and replays every recorded step; the first step without a record is where new work happens. A capability kernel bounds what flow code can reach on the host, read-only sync streams journal entries to followers, and time travel forks and rewinds run history.
 
+A build system remembers what it has done so it can skip it. A workflow engine remembers what it has done so it can resume it. The record is the same; only the reason differs. Flows keeps that record once, content-addressed, and gets both: finished work is skipped, and a crashed run picks up where it left off. [Comparisons](/comparisons) sets the implementation against TurboRepo, Nx, and Bazel.
+
 ## Quick start
 
 Requires Node.js 22.19 or later.
@@ -65,6 +67,7 @@ That engine keeps its state in the process. To survive a crash, drive the same f
 | change the engine | [Internal details](/internals) and [Contributor plan](/contributing) |
 | debug a running flow | [Observability](/observability) |
 | understand why it works this way | [Design decisions](/design-decisions) |
+| compare it with TurboRepo, Nx, and Bazel | [Comparisons](/comparisons) |
 | find out what it cannot do yet | [External](/external) |
 
 ## Packages
