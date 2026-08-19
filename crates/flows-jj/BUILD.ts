@@ -12,7 +12,7 @@
  * `//crates/flows-jj` under the test verb would pull it into both.
  */
 import { Smithers } from "@smthrs/targets"
-import { rustToolchain, runtime } from "../../BUILD.ts"
+import { runtime, rustToolchain } from "../../BUILD.ts"
 
 const cwd = "."
 
