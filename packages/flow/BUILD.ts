@@ -1,6 +1,6 @@
 /**
  * Standard package targets, written as `StandardPackage` desugared into its
- * six rule calls.
+ * six target calls.
  *
  * These targets are executable and must stay equivalent to what
  * `StandardPackage({ packageManager, cwd: "packages/flow", deps: [plan] })`

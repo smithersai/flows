@@ -3,7 +3,7 @@
  * carried as a standalone workspace root:
  *
  * - `lib`, `check`, `test`, `lint`, `fmt`, and `docs` are this package's own
- *   standard targets. This BUILD.ts suppresses default-rule synthesis, so
+ *   standard targets. This BUILD.ts suppresses default-target synthesis, so
  *   they must be declared here explicitly.
  * - `template` is the inert shared manifest every package merges under.
  * - `packageDefaults` synthesizes a standard package's targets, and its
