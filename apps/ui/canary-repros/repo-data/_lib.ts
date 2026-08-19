@@ -45,10 +45,20 @@ export const runFlow = async (page: Page, line: string): Promise<void> => {
 	await composer.press("Enter");
 };
 
-/** The whole rendered transcript, whitespace-collapsed. */
+/**
+ * Everything the app said, whitespace-collapsed.
+ *
+ * The transcript is not the app's only answering surface: a flow that REFUSES
+ * says so on the shared toast stack, which is a sibling of the transcript in
+ * the DOM. Reading only `.smithers-transcript` reported an honest, visible
+ * refusal as "rendered nothing at all".
+ */
 export const transcript = async (page: Page): Promise<string> => {
 	const text = (await page.locator(".smithers-transcript").innerText().catch(() => "")) || (await page.locator("body").innerText());
-	return text.replace(/\s+/g, " ");
+	const toasts = await page
+		.evaluate(() => [...document.querySelectorAll(".toast")].map((toast) => (toast as HTMLElement).innerText).join(" "))
+		.catch(() => "");
+	return `${text} ${toasts}`.replace(/\s+/g, " ");
 };
 
 /** Wait until the transcript grows past `before` and settles. */
