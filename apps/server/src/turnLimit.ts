@@ -1,5 +1,13 @@
 /**
- * A per-login ceiling on turns, because a turn spends model dollars.
+ * A per-login ceiling on model calls, because every one of them spends model
+ * dollars.
+ *
+ * The unit is ONE CALL TO A MODEL-SPENDING ROUTE, not one thing the user typed.
+ * That distinction became load-bearing when the browser Agent Chain became the
+ * only chat backend: the loop runs in the page and authors a fresh link over
+ * `/api/model/stream` for each step of a turn, bounded at 32 links, so one
+ * message can spend many units where the old server-side turn spent exactly
+ * one. The ceiling below is sized in those units.
  *
  * Chat is complimentary during the alpha (DESIGN.md §1): a $0 balance never
  * pauses the composer, and the zero-balance guard in the client covers workflow
@@ -20,8 +28,18 @@
  * edge) does not matter, and one counter is far cheaper than a timestamp list.
  */
 
-/** Turns one login may start per window. Roughly ten times a hard chat hour. */
-export const TURN_WINDOW_MAX = 120;
+/**
+ * Model calls one login may start per window.
+ *
+ * A heavy hour of conversation is about sixty messages, and a chain turn
+ * authors a handful of links for each — so sixteen calls a message is already a
+ * pessimistic reading of a hard hour. A thousand keeps the same ten-times
+ * headroom the ceiling has always had, and still stops a lifted cookie posting
+ * as fast as the network allows: at the alpha's rate card a spent window is
+ * about a dollar, which is a bug someone notices rather than an invoice nobody
+ * saw coming.
+ */
+export const TURN_WINDOW_MAX = 1000;
 
 /** The window the ceiling applies over. */
 export const TURN_WINDOW_MS = 60 * 60 * 1000;
@@ -120,7 +138,7 @@ export const turnLimitResponse = (budget: TurnBudget, isolationHeaders: Record<s
 		JSON.stringify({
 			status: "error",
 			code: "turn_rate_limited",
-			message: `That is more than ${TURN_WINDOW_MAX} turns in an hour, which no one types by hand — something is looping. Chat resumes on its own in about ${Math.ceil(seconds / 60)} minutes. Nothing was charged and your balance is untouched.`,
+			message: `That is more than ${TURN_WINDOW_MAX} model calls in an hour, which no conversation reaches by hand — something is looping. Chat resumes on its own in about ${Math.ceil(seconds / 60)} minutes. Nothing was charged and your balance is untouched.`,
 			retryAt: new Date(retryAt).toISOString(),
 		}),
 		{

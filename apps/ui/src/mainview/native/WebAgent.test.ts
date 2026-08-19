@@ -229,7 +229,7 @@ describe("createWebAgent", () => {
 						status: "error",
 						code: "turn_rate_limited",
 						message:
-							"That is more than 120 turns in an hour, which no one types by hand — something is looping. Chat resumes on its own in about 12 minutes. Nothing was charged and your balance is untouched.",
+							"That is more than 1000 model calls in an hour, which no conversation reaches by hand — something is looping. Chat resumes on its own in about 12 minutes. Nothing was charged and your balance is untouched.",
 					}),
 					{ status: 429, headers: { "content-type": "application/json", "retry-after": "720" } },
 				),
