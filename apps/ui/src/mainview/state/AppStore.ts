@@ -548,9 +548,18 @@ const repositoryCapabilities = (
 	];
 };
 
-const nextOrdinal = (messages: AppCollections["messages"]): number => {
+/*
+ * The next place at the END of the transcript.
+ *
+ * Messages and cards are ONE ordered list, so they must number themselves off
+ * one counter. Numbering a message over the messages alone put every message
+ * posted after a card above that card — and because the ordinals persist, the
+ * wrong order survived a reload (§7.5).
+ */
+const nextOrdinal = (collections: Pick<AppCollections, "messages" | "cards">): number => {
 	let highest = -1;
-	for (const message of messages.values()) highest = Math.max(highest, message.ordinal);
+	for (const message of collections.messages.values()) highest = Math.max(highest, message.ordinal);
+	for (const card of collections.cards.values()) highest = Math.max(highest, card.ordinal);
 	return highest + 1;
 };
 
@@ -672,7 +681,7 @@ export const createAppStore = async (
 						text,
 						status: "complete",
 						createdAt,
-						ordinal: nextOrdinal(collections.messages),
+						ordinal: nextOrdinal(collections),
 					});
 					collections.sessions.update(SESSION_ID, (draft) => {
 						draft.draft = "";
@@ -693,7 +702,7 @@ export const createAppStore = async (
 							reasoning: transition.channel === "reasoning" ? transition.delta : undefined,
 							status: "complete",
 							createdAt,
-							ordinal: nextOrdinal(collections.messages),
+							ordinal: nextOrdinal(collections),
 						});
 					} else {
 						collections.messages.update(messageId, (draft) => {
@@ -729,7 +738,7 @@ export const createAppStore = async (
 							text: `I couldn't complete that turn. ${transition.message}`,
 							status: "failed",
 							createdAt,
-							ordinal: nextOrdinal(collections.messages),
+							ordinal: nextOrdinal(collections),
 						});
 					} else {
 						collections.messages.update(messageId, (draft) => {
@@ -780,7 +789,7 @@ export const createAppStore = async (
 							text: detail,
 							status: "interrupted",
 							createdAt,
-							ordinal: nextOrdinal(collections.messages),
+							ordinal: nextOrdinal(collections),
 						});
 					}
 					collections.sessions.update(SESSION_ID, (draft) => {
@@ -828,7 +837,7 @@ export const createAppStore = async (
 							text: "That turn was interrupted when the app closed.",
 							status: "interrupted",
 							createdAt,
-							ordinal: nextOrdinal(collections.messages),
+							ordinal: nextOrdinal(collections),
 						});
 					}
 					collections.sessions.update(SESSION_ID, (draft) => {
@@ -1000,7 +1009,7 @@ export const createAppStore = async (
 							text: "Welcome — before I read anything, choose which repositories I should watch. Nothing else is touched.",
 							status: "complete",
 							createdAt,
-							ordinal: seedOnly ? 0 : nextOrdinal(collections.messages),
+							ordinal: seedOnly ? 0 : nextOrdinal(collections),
 						});
 					}
 					if (collections.cards.get(RECO_CARD_ID) !== undefined) {
@@ -1488,7 +1497,7 @@ export const createAppStore = async (
 							? existingDigest.ordinal
 							: seedOnly
 								? 0
-								: nextOrdinal(collections.messages);
+								: nextOrdinal(collections);
 					if (seedOnly && existingDigest === undefined) {
 						const seedKey = [...collections.messages.keys()][0];
 						if (seedKey !== undefined) collections.messages.delete(seedKey);
@@ -1559,7 +1568,7 @@ export const createAppStore = async (
 							text: transition.message,
 							status: "complete",
 							createdAt,
-							ordinal: seedOnly ? 0 : nextOrdinal(collections.messages),
+							ordinal: seedOnly ? 0 : nextOrdinal(collections),
 						});
 					} else {
 						collections.messages.update(RECO_DIGEST_MESSAGE_ID, (draft) => {
@@ -1605,14 +1614,14 @@ export const createAppStore = async (
 						text: steered,
 						status: "complete",
 						createdAt,
-						ordinal: nextOrdinal(collections.messages),
+						ordinal: nextOrdinal(collections),
 					});
 					// The turn's prose continues AFTER the steer, so the turn bubble
 					// moves below it; deltas keep appending to the same message.
 					const turnBubble = collections.messages.get(`message-${transition.turnId}-smithers`);
 					if (turnBubble !== undefined) {
 						collections.messages.update(turnBubble.id, (draft) => {
-							draft.ordinal = nextOrdinal(collections.messages);
+							draft.ordinal = nextOrdinal(collections);
 						});
 					}
 					collections.sessions.update(SESSION_ID, (draft) => {
@@ -1630,7 +1639,7 @@ export const createAppStore = async (
 						act: transition.text,
 						status: "complete",
 						createdAt,
-						ordinal: nextOrdinal(collections.messages),
+						ordinal: nextOrdinal(collections),
 					});
 					collections.sessions.update(SESSION_ID, (draft) => {
 						draft.revision = revision;
@@ -1649,7 +1658,7 @@ export const createAppStore = async (
 							text: transition.text,
 							status: "complete",
 							createdAt,
-							ordinal: nextOrdinal(collections.messages),
+							ordinal: nextOrdinal(collections),
 						});
 					} else {
 						collections.messages.update(messageId, (draft) => {
@@ -1670,7 +1679,7 @@ export const createAppStore = async (
 						...(transition.action === undefined ? {} : { action: transition.action }),
 						status: "complete",
 						createdAt,
-						ordinal: nextOrdinal(collections.messages),
+						ordinal: nextOrdinal(collections),
 					});
 					collections.sessions.update(SESSION_ID, (draft) => {
 						draft.revision = revision;
