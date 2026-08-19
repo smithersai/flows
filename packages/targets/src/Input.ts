@@ -16,6 +16,7 @@ import type { Dirent } from "node:fs"
 import * as NodePath from "node:path"
 import * as Config from "./Config.ts"
 import * as SafeFs from "./SafeFs.ts"
+import * as Target from "./Target.ts"
 
 /**
  * Schema for a lazily expanded glob.
@@ -106,12 +107,81 @@ export const NpmPackage = Schema.TaggedStruct("NpmPackage", {
 export type NpmPackage = typeof NpmPackage.Type
 
 /**
+ * Selects every declared output of a producer.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const producedRoot = "."
+
+/**
+ * A `Produced` declaration named a target or a path it cannot key on.
+ *
+ * `target` is the producer label the declaration referenced, or the empty
+ * string when the reference is not a target at all. `path` is the selector
+ * exactly as the author wrote it.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
+export class ProducedError extends Schema.TaggedError<ProducedError>()(
+  "smithers-build/ProducedError",
+  {
+    target: Schema.String,
+    path: Schema.String,
+    message: Schema.NonEmptyString
+  }
+) {}
+
+/**
+ * Schema for a producer target reference carried by {@link Produced}.
+ *
+ * The reference is suspended so this module and `Target` may import each
+ * other: the guard runs when a declaration is constructed, never while the
+ * module graph is still initializing.
+ */
+const ProducerTarget = Schema.suspend(() => Target.Target)
+
+/**
+ * Schema for an output-keyed dependency edge.
+ *
+ * A `Produced` declaration keys the consumer on the bytes the producer emits,
+ * not on the producer's target key. The two differ whenever the producer is
+ * not cacheable: an agent invoked with unchanged attrs and unchanged declared
+ * inputs holds its target key still while emitting different bytes on every
+ * run, so a consumer keyed on the edge alone would replay a result about
+ * output that no longer exists.
+ *
+ * `path` selects manifest entries, not files. {@link producedRoot} selects
+ * every declared output of the producer. Any other value must equal one of the
+ * producer's declared output paths exactly. Selection stops at that
+ * granularity because the digest a consumer keys on is the `contentDigest`
+ * that output capture already computed for a declared path; naming a file
+ * inside one would require a second digest of the same bytes.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const Produced = Schema.TaggedStruct("Produced", {
+  target: ProducerTarget,
+  path: Schema.NonEmptyString
+})
+
+/**
+ * An output-keyed dependency edge.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type Produced = typeof Produced.Type
+
+/**
  * Schema for every declared input value the planner understands.
  *
  * @category schemas
  * @since 0.1.0
  */
-export const Declared = Schema.Union([Glob, File, GitDiff, NpmPackage])
+export const Declared = Schema.Union([Glob, File, GitDiff, NpmPackage, Produced])
 
 /**
  * Every declared input value the planner understands.
@@ -181,6 +251,154 @@ export const file = (path: string): File => File.make({ path })
  * @since 0.1.0
  */
 export const gitDiff = (base: string): GitDiff => GitDiff.make({ base: validateGitBase(base) })
+
+/**
+ * One entry of a producer's output manifest.
+ *
+ * The shape is the structural subset of `ToolBuild.Output` a consumer keys on.
+ * It is declared here rather than imported so key material never depends on
+ * the rule that happens to have produced it.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface ProducedOutput {
+  readonly path: string
+  readonly contentDigest: string
+}
+
+/**
+ * A producer's output manifest, the success payload of every capturing build
+ * target.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface ProducedOutputs {
+  readonly outputs: ReadonlyArray<ProducedOutput>
+}
+
+/**
+ * Creates an output-keyed dependency edge on a producer target.
+ *
+ * The producer must declare outputs. A target that declares none promises no
+ * bytes to key on, so the declaration is refused where the author wrote it
+ * rather than at plan time, when the label alone would be the diagnostic.
+ *
+ * `path` defaults to {@link producedRoot}, which selects every declared
+ * output. Any other value must equal one of the producer's declared output
+ * paths exactly.
+ *
+ * @example
+ * ```ts
+ * import { Smithers } from "@smthrs/targets"
+ *
+ * declare const compile: Smithers.Target.AnyTarget
+ * const compiled = Smithers.Input.produced(compile, "dist")
+ * ```
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const produced = (target: Target.AnyTarget, path: string = producedRoot): Produced => {
+  if (!Target.isTarget(target)) {
+    throw new ProducedError({
+      target: "",
+      path,
+      message: "a produced input must reference a BUILD.ts target"
+    })
+  }
+  const metadata = Target.metadata(target)
+  const outputs = metadata.outputs
+  if (outputs === undefined) {
+    throw new ProducedError({
+      target: metadata.target,
+      path,
+      message: `${metadata.target} declares no outputs, so nothing it produces can be keyed on`
+    })
+  }
+  if (path === "") {
+    throw new ProducedError({
+      target: metadata.target,
+      path,
+      message: "a produced input must name a declared output path or \".\""
+    })
+  }
+  if (path !== producedRoot && !outputs.paths.includes(path)) {
+    throw new ProducedError({
+      target: metadata.target,
+      path,
+      message: `${metadata.target} does not declare the output ${JSON.stringify(path)}; it declares ${
+        outputs.paths.map((declared) => JSON.stringify(declared)).join(", ")
+      }`
+    })
+  }
+  return Produced.make({ target, path })
+}
+
+/**
+ * Selects the manifest entries one {@link Produced} declaration keys on.
+ *
+ * A selector of {@link producedRoot} selects every entry, ordered by path so
+ * two runs that report the same outputs in a different order agree. Any other
+ * selector selects the single entry whose declared path it names. A manifest
+ * that does not carry the selected path fails: the producer reported an output
+ * set its consumer cannot key on.
+ *
+ * @category expansion
+ * @since 0.1.0
+ */
+export const producedSelection = (
+  declaration: Produced,
+  manifest: ProducedOutputs
+): ReadonlyArray<ProducedOutput> => {
+  const label = Target.metadata(declaration.target).target
+  if (declaration.path === producedRoot) {
+    return [...manifest.outputs]
+      .map((entry) => ({ path: entry.path, contentDigest: entry.contentDigest }))
+      .sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0)
+  }
+  const found = manifest.outputs.filter((entry) => entry.path === declaration.path)
+  if (found.length !== 1) {
+    throw new ProducedError({
+      target: label,
+      path: declaration.path,
+      message: found.length === 0
+        ? `${label} reported no output named ${JSON.stringify(declaration.path)}`
+        : `${label} reported the output ${JSON.stringify(declaration.path)} ${found.length} times`
+    })
+  }
+  return [{ path: found[0]!.path, contentDigest: found[0]!.contentDigest }]
+}
+
+/**
+ * Computes the key material one {@link Produced} declaration contributes.
+ *
+ * The digest covers both halves of the edge: `producerKey`, the planned key of
+ * the producer, and the `contentDigest` of every selected manifest entry. The
+ * content half is what output capture already computed for that declared path;
+ * this function combines existing digests and never reads a byte, so a
+ * consumer and the artifact store agree on what identifies a subtree.
+ *
+ * Keying on both halves is what makes an uncached producer safe to depend on.
+ * The producer key alone stands still across two runs that emit different
+ * bytes; the content digest alone would collide two producers that emit the
+ * same bytes for different reasons.
+ *
+ * @category digests
+ * @since 0.1.0
+ */
+export const producedDigest = (
+  declaration: Produced,
+  producerKey: string,
+  manifest: ProducedOutputs
+): string =>
+  digestText(JSON.stringify({
+    target: Target.metadata(declaration.target).target,
+    producerKey,
+    path: declaration.path,
+    outputs: producedSelection(declaration, manifest).map((entry) => [entry.path, entry.contentDigest])
+  }))
 
 /** Reports whether UTF-8 encoding can preserve a string without replacement. */
 const isWellFormed = (value: string): boolean => {

@@ -1,3 +1,4 @@
+import * as Schema from "effect/Schema"
 import { execFileSync } from "node:child_process"
 import { createHash } from "node:crypto"
 import * as Fs from "node:fs/promises"
@@ -6,6 +7,7 @@ import * as NodePath from "node:path"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import * as Input from "../src/Input.ts"
 import * as SafeFs from "../src/SafeFs.ts"
+import * as Target from "../src/Target.ts"
 
 let root: string
 let outside: string
@@ -486,5 +488,59 @@ describe("Input.gitDiff", () => {
 
   it("accepts an ordinary revision expression", () => {
     expect(Input.gitDiff("origin/main...HEAD")).toEqual({ _tag: "GitDiff", base: "origin/main...HEAD" })
+  })
+})
+
+describe("Input.produced", () => {
+  const Producer = Target.make("InputTestProducer", {
+    attrs: Schema.Struct({ name: Schema.NonEmptyString }),
+    kinds: ["build"],
+    outputs: () => ({ cwd: ".", paths: ["dist", "report.json"] }),
+    implementation: () => Target.notImplemented("InputTestProducer")
+  })
+
+  const Sterile = Target.make("InputTestSterile", {
+    attrs: Schema.Struct({}),
+    kinds: ["build"],
+    implementation: () => Target.notImplemented("InputTestSterile")
+  })
+
+  it("declares an output-keyed edge on the whole output tree", () => {
+    const producer = Producer({ name: "one" })
+    const declaration = Input.produced(producer)
+    expect(declaration._tag).toBe("Produced")
+    expect(declaration.path).toBe(Input.producedRoot)
+    expect(declaration.target).toBe(producer)
+    expect(Input.isDeclared(declaration)).toBe(true)
+  })
+
+  it("declares an output-keyed edge on one declared output", () => {
+    const declaration = Input.produced(Producer({ name: "one" }), "report.json")
+    expect(declaration.path).toBe("report.json")
+    expect(Input.isDeclared(declaration)).toBe(true)
+  })
+
+  it("refuses a producer that declares no outputs", () => {
+    const producer = Sterile({})
+    expect(() => Input.produced(producer)).toThrow(Input.ProducedError)
+    try {
+      Input.produced(producer)
+      expect.unreachable("the declaration was accepted")
+    } catch (cause) {
+      expect(cause).toBeInstanceOf(Input.ProducedError)
+      const error = cause as Input.ProducedError
+      expect(error._tag).toBe("smithers-build/ProducedError")
+      expect(error.target).toBe("InputTestSterile")
+      expect(error.message).toMatch(/declares no outputs/)
+    }
+  })
+
+  it("refuses a selector the producer does not declare", () => {
+    expect(() => Input.produced(Producer({ name: "one" }), "coverage"))
+      .toThrow(/does not declare the output "coverage"/)
+  })
+
+  it("refuses a reference that is not a target", () => {
+    expect(() => Input.produced({ dist: "dist" } as never)).toThrow(/must reference a BUILD.ts target/)
   })
 })

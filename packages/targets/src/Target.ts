@@ -586,6 +586,11 @@ const collect = (
   }
   if (Input.isDeclared(value)) {
     inputs.push(value)
+    // An output-keyed edge is still an edge. The declaration carries the
+    // producer so the consumer keys on the bytes it emits; recording the
+    // producer here is what also puts the producer's key in that consumer's
+    // key material and orders the two targets in the plan.
+    if (value._tag === "Produced") dependencies.push(value.target)
     return
   }
   if (typeof value !== "object" || value === null || seen.has(value)) return
