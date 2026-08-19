@@ -6,8 +6,8 @@
  * program whose exit code is the verdict. Bazel spells that `nodejs_test`, and
  * this target is modelled on it. The deviation is the runner union below: Bazel
  * hands the entry point to a launcher and lets the program pick its own harness,
- * while this target names the two forms explicitly so the interpreter flag never
- * has to be written by a BUILD.ts author.
+ * while this target names the three forms explicitly so the interpreter flag
+ * never has to be written by a BUILD.ts author.
  *
  * The interpreter is the declared {@link Runtime}, never a hardcoded `node`, so
  * the same declaration runs under Bun by editing one line in the root BUILD.ts.
@@ -53,6 +53,33 @@ export const TestRunner = Schema.Struct({
 export type TestRunner = typeof TestRunner.Type
 
 /**
+ * Schema for a run of the runtime's own test runner over the suites under the
+ * named directories.
+ *
+ * `paths` are directories the runner discovers test files under, relative to
+ * `cwd` — the shape of a package's whole unit suite (`bun test src`,
+ * `node --test src`). They are path filters, not key material: the declared
+ * `srcs` are what re-key the target, the same division the Vitest target draws
+ * between its `cwd` and its declared inputs.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const TestSuite = Schema.Struct({
+  name: Schema.Literal("suite"),
+  paths: Schema.NonEmptyArray(Schema.NonEmptyString).check(Schema.isMaxLength(maximumArguments))
+})
+
+/**
+ * A run of the runtime's own test runner over the suites under the named
+ * directories.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type TestSuite = typeof TestSuite.Type
+
+/**
  * Schema for a run of one program that gates on its exit code.
  *
  * @category schemas
@@ -82,7 +109,7 @@ export type Entrypoint = typeof Entrypoint.Type
  * @category schemas
  * @since 0.1.0
  */
-export const Runner = Schema.Union([TestRunner, Entrypoint])
+export const Runner = Schema.Union([TestRunner, TestSuite, Entrypoint])
 
 /**
  * How a declared test program is started.
@@ -107,6 +134,23 @@ export type Runner = typeof Runner.Type
  */
 export const testRunner = (tests: readonly [Input.File, ...Array<Input.File>]): TestRunner =>
   TestRunner.make({ name: "test-runner", tests })
+
+/**
+ * Declares a run of the runtime's own test runner over the suites under the
+ * given directories.
+ *
+ * @example
+ * ```ts
+ * import { Smithers } from "@smthrs/targets"
+ *
+ * const runner = Smithers.testSuite(["src"])
+ * ```
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const testSuite = (paths: readonly [string, ...Array<string>]): TestSuite =>
+  TestSuite.make({ name: "suite", paths })
 
 /**
  * Declares a run of one program that gates on its exit code.
@@ -166,10 +210,16 @@ const workspacePath = (path: string): string => path.startsWith("//") ? path.sli
  * @category rendering
  * @since 0.1.0
  */
-export const runArgv = (attrs: Attrs): ReadonlyArray<string> =>
-  attrs.runner.name === "test-runner"
-    ? Runtime.test(attrs.runtime, attrs.runner.tests.map((test) => workspacePath(test.path)))
-    : Runtime.run(attrs.runtime, [workspacePath(attrs.runner.entry.path), ...attrs.runner.args])
+export const runArgv = (attrs: Attrs): ReadonlyArray<string> => {
+  switch (attrs.runner.name) {
+    case "test-runner":
+      return Runtime.test(attrs.runtime, attrs.runner.tests.map((test) => workspacePath(test.path)))
+    case "suite":
+      return Runtime.test(attrs.runtime, attrs.runner.paths.map(workspacePath))
+    case "entrypoint":
+      return Runtime.run(attrs.runtime, [workspacePath(attrs.runner.entry.path), ...attrs.runner.args])
+  }
+}
 
 /**
  * Runs one declared JavaScript program as a test gate.

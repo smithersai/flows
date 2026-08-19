@@ -175,7 +175,7 @@ export { CargoLint, CargoTest } from "./Cargo.ts"
 /** @category targets @since 0.1.0 */
 export { NodeTest } from "./NodeTest.ts"
 /** @category constructors @since 0.1.0 */
-export { entrypoint, testRunner } from "./NodeTest.ts"
+export { entrypoint, testRunner, testSuite } from "./NodeTest.ts"
 /** @category targets @since 0.1.0 */
 export { NodeBinary } from "./NodeBinary.ts"
 /** @category actions @since 0.1.0 */

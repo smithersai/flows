@@ -1,0 +1,18 @@
+import { open, send } from "./drv.ts";
+const REPO = "codeplanesmithers/canary-sandbox";
+const { context, page } = await open({ width: 1280, height: 950 });
+await send(page, `/files.list . ${REPO}`, 20000);
+const before = await page.locator("body").innerText();
+await send(page, `/files.read does-not-exist.txt ${REPO}`, 14000);
+const after = await page.locator("body").innerText();
+console.log("BODY DELTA (files.read missing):", JSON.stringify(after.slice(before.length)));
+console.log("changed at all:", before !== after);
+console.log("toasts:", await page.evaluate(()=>Array.from(document.querySelectorAll('[data-slot*="toast"],[class*="toast"],[role="status"],[role="alert"]')).map(e=>(e as HTMLElement).innerText.replace(/\s+/g," ").trim()).filter(Boolean)));
+await page.screenshot({path:"/tmp/cards-lane/77b-fileread.png", fullPage:true});
+const b2 = await page.locator("body").innerText();
+await send(page, `/prs.view 99 ${REPO}`, 14000);
+const a2 = await page.locator("body").innerText();
+console.log("BODY DELTA (prs.view 99):", JSON.stringify(a2.slice(b2.length)));
+console.log("toasts2:", await page.evaluate(()=>Array.from(document.querySelectorAll('[data-slot*="toast"],[class*="toast"],[role="status"],[role="alert"]')).map(e=>(e as HTMLElement).innerText.replace(/\s+/g," ").trim()).filter(Boolean)));
+await page.screenshot({path:"/tmp/cards-lane/77b-prsview.png", fullPage:true});
+await context.close();

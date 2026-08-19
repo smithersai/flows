@@ -126,6 +126,15 @@ export const SessionSchema = z.object({
 	 * here — opened and closed through the transition dispatcher with the actor
 	 * recorded, exactly like surfacesMenuOpen above. Optional (missing = closed)
 	 * so sessions persisted before the field parse without a schema reset.
+	 *
+	 * The requirement reads "boolean default false", and the default lives in
+	 * `initialSession` below, not in a `z.boolean().default(false)`. A zod
+	 * default would never run on the rows this actually has to survive: a
+	 * collection reads its rows straight out of storage on preload and TanStack
+	 * never validates them (see the version gate in AppStore). The default would
+	 * only widen the inferred type to a non-optional `boolean` while a session
+	 * persisted before the field still handed back `undefined`. Every read is
+	 * `=== true` / `!== true` for that reason.
 	 */
 	connectMenuOpen: z.boolean().optional(),
 	/*

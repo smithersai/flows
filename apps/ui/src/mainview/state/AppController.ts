@@ -1,27 +1,7 @@
-import { parseWikilinks, restoreWikilinks } from "@smthrs/ui/vault";
 import type { RepositoryAccess } from "smithers-shared/NativeRepository";
 import type { AgentChatMessage, AgentTurnFrame, FetchLike } from "smithers-shared/NativeAgent";
 import {
-	ADMIN_ALLOWLIST_PATH,
-	ADMIN_FEEDBACK_PATH,
-	ADMIN_GRANT_PATH,
-	ADMIN_HEALTH_PATH,
-	ADMIN_REQUESTS_PATH,
-	AUTH_LOGOUT_PATH,
-	AUTH_SCOPES_PATH,
-	AUTH_NATIVE_CLAIM_PATH,
-	AUTH_NATIVE_START_PATH,
-	AUTH_SESSION_PATH,
-	AUTH_SIGN_IN_PATH,
 	APPROVAL_DECISION_PATH,
-	BILLING_BALANCE_PATH,
-	IDENTITY_REQUEST_ACCESS_PATH,
-	RECO_FEEDBACK_PATH,
-	RECO_FIRST_RUN_PATH,
-	RECO_REPOS_PATH,
-	RECO_WATCHED_PATH,
-	TOOLS_BROWSER_FETCH_PATH,
-	MODEL_STREAM_PATH,
 	WORKFLOW_EVENTS_PATH,
 	WORKFLOW_PROVISION_PATH,
 	WORKFLOW_RPC_PATH,
@@ -29,7 +9,7 @@ import {
 } from "smithers-shared/AgentApiRoutes";
 import type { NativeAgent, NativeRepositories } from "../native/NativeBridge";
 import { createCommandRegistry } from "../flows/Commands";
-import type { CommandOutcome, CommandRegistry } from "../flows/Commands";
+import type { CommandRegistry } from "../flows/Commands";
 import type { SlashItem } from "../flows/registry";
 import type { CatalogItem } from "../flows/Commands";
 import { flowRequirements, parseSubmit } from "../flows/registry";
@@ -65,39 +45,31 @@ import {
 import type { ImpossibleAskClass } from "./Instructions";
 import { smithersInstructions } from "./Instructions";
 import { agentVisibleCatalog } from "../flows/agentTools";
-import { CardPatchSchema, CardSchema, DEFAULT_PALETTE, isPalette, PALETTES, WORLD_DISPLAY_NAME } from "./AppState";
-import type { Palette } from "./AppState";
-import type { Card, RecoDigestPayload, RecoRecommendationPayload, WorldDocument } from "./AppState";
+import { CardPatchSchema, CardSchema } from "./AppState";
+import type { Card } from "./AppState";
 import type { AppStore } from "./AppStore";
-import { REPO_CHOOSER_CARD_ID, THEME_PICKER_CARD_ID } from "./AppStore";
 import { AGENT_RUNTIME_CONTEXT_VERSION } from "smithers-shared/AgentContext";
 import type { AgentRuntimeContext } from "smithers-shared/AgentContext";
-import { foldLineages } from "../chain/DebugFolds";
-
+import { createControllerContext } from "./controller/context";
+import type { ActiveTurn, PendingToolCall } from "./controller/context";
+import { createFailureController, ZERO_BALANCE_EXHAUSTED_TEXT } from "./controller/failures";
+import { createWorldController } from "./controller/world";
+import { createPresentationController } from "./controller/presentation";
+import { createConnectorController } from "./controller/connectors";
+import { createAuthBillingController } from "./controller/auth-billing";
+import { createWorkflowController } from "./controller/workflows";
 /**
  * The client-side tool-loop leg cap, mirroring the chat worker's
  * CHAT_MAX_TOOL_LEGS default (8): over it the turn ends honestly instead of
  * looping forever on a model that keeps calling tools.
  */
 const MAX_TOOL_LEGS = 8;
-
 /**
  * The chain's own doors (DESIGN.md §14): calls that ARE the surface — the
  * author seat and the transcript doors — rather than acts on the app, so
  * they never render an act row of their own.
  */
 const CHAIN_SURFACE_CALLS = new Set(["author", "say", "card.show", "card.update"]);
-
-/**
- * Launch Checklist D-4's exhausted-balance refusal, shared between the
- * `zeroBalanceGuard` that dispatches it as a transcript message and
- * `surfaceCommandFailure`, which recognizes it to skip its toast (the
- * refusal is already an embedded chat message; a toast would double-surface
- * it). Names the upgrade path per the definition of done: "how to proceed".
- */
-const ZERO_BALANCE_EXHAUSTED_TEXT =
-	"Balance is at $0 — workflow runs pause until more balance is added. Run /billing.upgrade to add balance; chat stays free in the meantime.";
-
 export interface AppController {
 	readonly store: AppStore;
 	readonly nativeAgentAvailable: boolean;
@@ -274,7 +246,6 @@ export interface AppController {
 	readonly adminFeedback: () => Promise<string | void>;
 	readonly adminHealth: () => Promise<string | void>;
 }
-
 /**
  * The product-Worker backend seams the controller talks to. Injectable so tests
  * bind honest doubles instead of a network; production uses same-origin fetch.
@@ -312,58 +283,6 @@ export interface AppServices {
 	readonly seamTimeoutMs?: number;
 }
 
-const documentPath = (store: AppStore): string => {
-	const paths = new Set([...store.collections.worldDocuments.values()].map((document) => document.path));
-	let suffix = 1;
-	while (paths.has(`Untitled ${suffix}.md`)) suffix += 1;
-	return `Untitled ${suffix}.md`;
-};
-
-const updateDocumentBody = (document: WorldDocument, body: string) => {
-	const restoredBody = restoreWikilinks(body);
-	return {
-		id: document.id,
-		path: document.path,
-		title: document.title,
-		body: restoredBody,
-		links: [...new Set(parseWikilinks(restoredBody).map((link) => link.target).filter(Boolean))],
-		tags: document.tags,
-		sources: [...new Set([...document.sources, "user:world-editor"])],
-		confidence: document.confidence,
-	};
-};
-
-interface PendingToolCall {
-	readonly callId: string;
-	readonly name: string;
-	readonly args: string;
-}
-
-interface ActiveTurn {
-	readonly id: string;
-	receivedText: boolean;
-	/** Executed tool legs of this logical turn (capped at MAX_TOOL_LEGS). */
-	toolLegs: number;
-	/** The function_call / function_call_output items accumulated across legs. */
-	readonly toolItems: AgentChatMessage[];
-	pendingCall: PendingToolCall | undefined;
-	/*
-	 * Wave 12 §1: the run-launch command this turn actually executed, if any.
-	 * Once set, the model's remaining text for the turn is held back and only
-	 * rendered if it claims nothing about run state (see RunClaims.ts).
-	 */
-	runLaunch: string | undefined;
-	/*
-	 * Wave 13c: the impossible-ask class the user's message asked for, if any
-	 * (detected from the ask alone at send time). Once set, the model's text
-	 * for the turn is held back like a launch turn's and only rendered if it
-	 * offers the act the class names — never for ordinary conversation.
-	 */
-	askClass: ImpossibleAskClass | undefined;
-	/** Text deltas withheld from the transcript while a claim check is pending. */
-	claimBuffer: string;
-}
-
 /**
  * Environment-agnostic: the native bridge is injected by the composition root so this
  * module never pulls the Electrobun runtime into pure-web or test contexts.
@@ -374,568 +293,10 @@ export const createAppController = (
 	agent: NativeAgent,
 	services: AppServices = {},
 ): AppController => {
-	let activeTurn: ActiveTurn | undefined;
-	/*
-	 * The actor commands dispatch under: "user" for buttons/slash/keyboard,
-	 * "smithers" while a model tool call runs through the same registry path,
-	 * so the journal records who actually drove the change.
-	 */
-	let commandActor: "user" | "smithers" = "user";
-	/** Announce an identity change to the other tabs; wired by watchIdentityAcrossTabs. */
-	let identityChanged: () => void = () => {};
-	const baseUrl = services.baseUrl ?? "";
-	/*
-	 * The wire tap (DESIGN.md §14 debug mode): a bounded in-memory ring around
-	 * the one fetch seam every controller call flows through. Records method,
-	 * url, status, and duration. Never persisted. This is the only capture
-	 * debug mode adds beyond what the app already stores.
-	 */
-	const netRing: Array<{
-		readonly at: number;
-		readonly method: string;
-		readonly url: string;
-		readonly status: number | "error";
-		readonly ms: number;
-	}> = [];
-	const recordNet = (entry: (typeof netRing)[number]): void => {
-		netRing.push(entry);
-		if (netRing.length > 100) netRing.shift();
-	};
-	const rawHttp: FetchLike = services.fetchImpl ?? fetch.bind(globalThis);
-	/*
-	 * Mid-session 401 recovery (multi's AUTH_REQUIRED discipline, one seam):
-	 * a 401 off any /api call while the app believes it is signed in means the
-	 * cookie expired — bursts collapse into ONE identity re-probe, and the
-	 * definitive answer drives the auth conversation state (loadSession never
-	 * 401s itself: the Worker restates signed-out as 200). A 401 while
-	 * signed-out is the expected state and probes nothing.
-	 */
-	let authReprobeAt = 0;
-	const noteUnauthorized = (url: string): void => {
-		if (!url.includes("/api/") || url.includes("/api/auth/")) return;
-		const identity = store.collections.identitySessions.get("identity");
-		if (identity?.state !== "signed-in") return;
-		const now = Date.now();
-		if (now - authReprobeAt < 10_000) return;
-		authReprobeAt = now;
-		void loadSession();
-	};
-
-	const http: FetchLike = async (input, init) => {
-		const started = Date.now();
-		const method =
-			init?.method ?? (input instanceof Request ? input.method : "GET");
-		const url =
-			typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-		try {
-			const response = await rawHttp(input, init);
-			recordNet({ at: started, method, url, status: response.status, ms: Date.now() - started });
-			if (response.status === 401) noteUnauthorized(url);
-			return response;
-		} catch (error) {
-			recordNet({ at: started, method, url, status: "error", ms: Date.now() - started });
-			throw error;
-		}
-	};
-
-	/*
-	 * A request that never answers has to become an answer.
-	 *
-	 * §22.6 / A.18: `POST /api/workflow/provision` never replied, so
-	 * "Preparing your … workspace…" stood past 120s with no run card, no
-	 * timeout and no error — the silent-failure family with a spinner on top.
-	 * A bounded wait turns it into an honest refusal. It rides only on the
-	 * request/response seams; the streaming paths (the turn, the model relay)
-	 * carry no deadline, because a long stream is not a hang.
-	 */
-	const SEAM_TIMEOUT_MS = services.seamTimeoutMs ?? 30_000;
-	/**
-	 * One request, with a deadline on it.
-	 *
-	 * Built from an AbortController rather than `AbortSignal.timeout` so the
-	 * timer is CLEARED the moment the request settles: a dangling timer per
-	 * request holds the process open outside a browser, and the deadline is
-	 * about the request, not about the page.
-	 */
-	const boundedFetch = async (url: string, init: RequestInit): Promise<Response> => {
-		if (typeof AbortController !== "function") return http(url, init);
-		const aborter = new AbortController();
-		const timer = setTimeout(() => aborter.abort(new Error("seam timeout")), SEAM_TIMEOUT_MS);
-		unref(timer);
-		try {
-			return await http(url, { ...init, signal: aborter.signal });
-		} finally {
-			clearTimeout(timer);
-		}
-	};
-
-	const errorMessageOf = async (response: Response, fallback: string): Promise<string> => {
-		const body = (await response.text().catch(() => "")).trim();
-		try {
-			const parsed: unknown = JSON.parse(body);
-			if (
-				typeof parsed === "object" &&
-				parsed !== null &&
-				"message" in parsed &&
-				typeof parsed.message === "string"
-			) {
-				return parsed.message;
-			}
-		} catch {
-			// A non-JSON error body carries no better message than the fallback.
-		}
-		return body === "" ? fallback : `${fallback} (${body.slice(0, 200)})`;
-	};
-
-	/*
-	 * The 300ms toast law (2026-08-09): background work not settled within
-	 * 300ms states what is running on the shared toast stack; work under
-	 * 300ms never flashes anything. `work` answers true on success or the
-	 * honest failure line — a failure toast stays until dismissed, an ok
-	 * toast resolves into the result and dismisses itself.
-	 */
-	const toastDebounceMs = services.toastDebounceMs ?? 300;
-	const toastAutoDismissMs = services.toastAutoDismissMs ?? 4000;
-	const workflowPollMs = services.workflowPollMs ?? 2500;
-	const unref = (timer: ReturnType<typeof setTimeout>): void => {
-		// Bun/Node timers hold the process open (e2e scripts); browser timers don't.
-		(timer as { unref?: () => void }).unref?.();
-	};
-	/*
-	 * One toast per flow key, so a re-run of the same flow owns the slot: the
-	 * run counter keeps a finished run from resolving OR auto-dismissing the
-	 * toast a newer run is using — a running notice must never silently vanish
-	 * while the work it names is still in flight.
-	 */
-	const toastRuns = new Map<string, number>();
-	const withToast = async <T>(
-		key: string,
-		title: string,
-		doneTitle: string,
-		work: () => Promise<T | string>,
-	): Promise<T | string> => {
-		const run = (toastRuns.get(key) ?? 0) + 1;
-		toastRuns.set(key, run);
-		let shown = false;
-		const debounce = setTimeout(() => {
-			if (toastRuns.get(key) !== run) return;
-			shown = true;
-			store.dispatch({ type: "toast.shown", actor: "system", key, title });
-		}, toastDebounceMs);
-		unref(debounce);
-		let outcome: T | string;
-		try {
-			outcome = await work();
-		} catch {
-			// A thrown flow is still an honest failure — never a toast stuck "running".
-			outcome = `${title.replace(/…$/, "")} didn't finish — the app hit an unexpected error.`;
-		} finally {
-			clearTimeout(debounce);
-		}
-		// A newer run of the same flow owns the toast now; this one reports nothing.
-		if (toastRuns.get(key) !== run) return outcome;
-		// Resolve whatever is on screen for this key — including a toast an
-		// earlier (slower) run put up, or a failed one this run just retried.
-		if (!shown && store.collections.toasts.get(`toast-${key}`) === undefined) return outcome;
-		// A string outcome is the honest failure line; anything else is success
-		// (true, or a value the caller consumes — e.g. the browser tool's read).
-		const ok = typeof outcome !== "string";
-		store.dispatch({
-			type: "toast.resolved",
-			actor: "system",
-			key,
-			status: ok ? "ok" : "failed",
-			// Settled work states its result, never the running sentence: an ok
-			// toast reads as done for the seconds before it dismisses itself, and
-			// a failure keeps the attempt's title with the honest line under it.
-			...(ok ? { title: doneTitle } : {}),
-			detail: ok ? "" : (outcome as string),
-		});
-		if (ok) {
-			const dismiss = setTimeout(() => {
-				if (toastRuns.get(key) !== run) return;
-				store.dispatch({ type: "toast.dismissed", actor: "system", id: `toast-${key}` });
-			}, toastAutoDismissMs);
-			unref(dismiss);
-		}
-		return outcome;
-	};
-
-	const dismissToast = (id: string): void => {
-		store.dispatch({ type: "toast.dismissed", actor: "user", id });
-	};
-
-	/** Returning from a failed OAuth redirect is a chat message, never a bare page. */
-	const handleAuthReturn = (search: string): boolean => {
-		const params = new URLSearchParams(search);
-		const auth = params.get("auth");
-		if (auth !== "failed" && auth !== "error") return false;
-		store.dispatch({
-			type: "message.appended",
-			actor: "system",
-			text: "GitHub sign-in didn't finish — nothing was signed in. Try again whenever you're ready.",
-			action: { flow: "auth.sign-in", label: "Try sign-in again" },
-		});
-		return true;
-	};
-
-	/*
-	 * Identity seam. Only definitive answers gate the app: a signed-out or
-	 * non-allowlisted response drives the landing states; "unavailable" (seam
-	 * unset or unreachable) is recorded honestly but never blocks the surface.
-	 */
-	const fetchScopesPlain = async (): Promise<string | null> => {
-		try {
-			const response = await http(`${baseUrl}${AUTH_SCOPES_PATH}`);
-			if (!response.ok) {
-				await response.body?.cancel();
-				return null;
-			}
-			const body = (await response.json()) as { scopes?: unknown };
-			if (!Array.isArray(body.scopes)) return null;
-			const plains = body.scopes
-				.map((scope) =>
-					typeof scope === "object" && scope !== null && "plain" in scope && typeof scope.plain === "string"
-						? scope.plain.trim()
-						: "",
-				)
-				.filter((plain) => plain !== "");
-			if (plains.length === 0) return null;
-			// The identity worker writes each scope as a whole sentence
-			// ("See your GitHub profile — your username, name, and avatar."), so
-			// they are stated after a lead-in, never spliced into one.
-			return `Before GitHub asks, here is what Smithers will use: ${plains.join(" ")}`;
-		} catch {
-			return null;
-		}
-	};
-
-	const dispatchSignedOut = async (): Promise<void> => {
-		const scopesPlain = await fetchScopesPlain();
-		store.dispatch({
-			type: "identity.session.loaded",
-			actor: "system",
-			state: "signed-out",
-			login: null,
-			allowlisted: false,
-			admin: false,
-			scopesPlain,
-		});
-	};
-
-	const dispatchUnavailable = (): void => {
-		store.dispatch({
-			type: "identity.session.loaded",
-			actor: "system",
-			state: "unavailable",
-			login: null,
-			allowlisted: false,
-			admin: false,
-			scopesPlain: null,
-		});
-	};
-
-	const loadSession = async (): Promise<void> => {
-		const previous = store.collections.identitySessions.get("identity");
-		let response: Response;
-		try {
-			response = await http(`${baseUrl}${AUTH_SESSION_PATH}`);
-		} catch {
-			dispatchUnavailable();
-			return;
-		}
-		// Signed-out is the expected resolved answer, never an error path: the
-		// identity upstream states it as 401/403, the product Worker's seam
-		// restates it as 200 { status: "signed-out" } so the browser never logs
-		// the expected answer as a console error. Both shapes resolve the same.
-		if (response.status === 401 || response.status === 403) {
-			await response.body?.cancel();
-			await dispatchSignedOut();
-			return;
-		}
-		if (!response.ok) {
-			await response.body?.cancel();
-			dispatchUnavailable();
-			return;
-		}
-		const body = (await response.json().catch(() => undefined)) as
-			| { status?: unknown; login?: unknown; allowlisted?: unknown; admin?: unknown }
-			| undefined;
-		if (body?.status === "signed-out") {
-			await dispatchSignedOut();
-			return;
-		}
-		if (body === undefined || typeof body.login !== "string" || body.login === "") {
-			dispatchUnavailable();
-			return;
-		}
-		store.dispatch({
-			type: "identity.session.loaded",
-			actor: "system",
-			state: "signed-in",
-			login: body.login,
-			allowlisted: body.allowlisted === true,
-			admin: body.admin === true,
-			scopesPlain: null,
-		});
-		if (previous?.state !== "signed-in" || previous.login !== body.login) identityChanged();
-		// The balance read is driven by the session answer, not fired blind at
-		// boot: signed out it could only come back 401 — the expected state,
-		// logged by the browser as a console error anyway.
-		void refreshBalance();
-		// Beat 5: entering chat signed-in reads the reco seam's first-run answer.
-		if (body.allowlisted === true) {
-			void loadFirstRunReco();
-			// Wave 11: a live run card's event pump resumes from its lastSeq.
-			resumeWorkflowRuns();
-		}
-		// The signed-in answer can satisfy a parked command's requirement — the
-		// command that deferred into this sign-in continues here, across the
-		// OAuth redirect.
-		resumeDeferredCommand();
-	};
-
-	/*
-	 * The native sign-in handoff (device-flow style): the embedded webview has
-	 * no platform authenticator, so GitHub passkeys CANNOT complete inside it
-	 * (the live failure: GitHub's cross-device Bluetooth fallback dying in the
-	 * window). OAuth runs in the SYSTEM browser instead — start mints a
-	 * one-time handoff, openExternal launches the browser at the OAuth start
-	 * bound to it, and the page polls the claim same-origin until the session
-	 * cookie lands in the app's own jar. One toast narrates the whole arc.
-	 */
-	const handoffPollMs = services.handoffPollMs ?? 2000;
-	const nativeSignIn = async (openExternal: (url: string) => Promise<boolean>): Promise<void> => {
-		const key = "auth.sign-in.handoff";
-		const fail = (detail: string): void => {
-			store.dispatch({ type: "toast.resolved", actor: "system", key, status: "failed", detail });
-		};
-		store.dispatch({ type: "toast.shown", actor: "system", key, title: "Finishing sign-in in your browser…" });
-		let start: { handoffId?: unknown; pollSecret?: unknown } | undefined;
-		try {
-			const response = await http(`${baseUrl}${AUTH_NATIVE_START_PATH}`, { method: "POST" });
-			if (!response.ok) {
-				fail(await errorMessageOf(response, "Sign-in couldn't start. Try again."));
-				return;
-			}
-			start = (await response.json().catch(() => undefined)) as typeof start;
-		} catch {
-			fail("Sign-in couldn't start — the identity service didn't answer.");
-			return;
-		}
-		if (typeof start?.handoffId !== "string" || typeof start.pollSecret !== "string") {
-			fail("Sign-in couldn't start — the identity service answered in an unexpected shape.");
-			return;
-		}
-		const origin = baseUrl !== "" ? baseUrl : typeof window === "undefined" ? "" : window.location.origin;
-		const opened = await openExternal(
-			`${origin}${AUTH_SIGN_IN_PATH}?handoff=${encodeURIComponent(start.handoffId)}`,
-		);
-		if (!opened) {
-			fail("Your browser couldn't be opened. Try again.");
-			return;
-		}
-		// ~5 minutes of patience: OAuth in another app takes as long as it takes.
-		for (let attempt = 0; attempt < 150; attempt += 1) {
-			await new Promise((resolve) => {
-				const timer = setTimeout(resolve, handoffPollMs);
-				unref(timer);
-			});
-			let claim: Response;
-			try {
-				claim = await http(`${baseUrl}${AUTH_NATIVE_CLAIM_PATH}`, {
-					method: "POST",
-					headers: { "content-type": "application/json" },
-					body: JSON.stringify({ handoffId: start.handoffId, pollSecret: start.pollSecret }),
-				});
-			} catch {
-				continue; // A dropped poll is not a failed sign-in.
-			}
-			if (claim.status === 404) {
-				fail("That sign-in expired — try again.");
-				return;
-			}
-			const body = (await claim.json().catch(() => undefined)) as
-				| { status?: unknown; message?: unknown }
-				| undefined;
-			if (body?.status === "pending") continue;
-			if (body?.status === "ready") {
-				// The claim's Set-Cookie is in the jar; the session probe states it.
-				await loadSession();
-				const identity = store.collections.identitySessions.get("identity");
-				store.dispatch({
-					type: "toast.resolved",
-					actor: "system",
-					key,
-					status: "ok",
-					title: "Signed in",
-					detail:
-						identity?.state === "signed-in"
-							? `Connected as ${identity.login ?? "you"}.`
-							: "Signed in — loading your session…",
-				});
-				return;
-			}
-			if (body?.status === "failed") {
-				fail(typeof body.message === "string" ? body.message : "Sign-in didn't finish. Try again.");
-				return;
-			}
-		}
-		fail("Sign-in timed out — try again whenever you're ready.");
-	};
-
-	/*
-	 * Sign-in navigates ONLY when the identity seam has answered that it
-	 * exists (multi's startSignIn discipline): navigating blindly off a build
-	 * with no seam just reloads the SPA — a flash with no answer, which reads
-	 * as a silent failure. Every refusal states itself as a toast. With the
-	 * native shell's openExternal door, sign-in runs the handoff instead of
-	 * navigating: the webview page survives, and passkeys work in the real
-	 * browser.
-	 */
-	const signIn = (): void => {
-		const identity = store.collections.identitySessions.get("identity");
-		const toast = (key: string, title: string, detail: string): void => {
-			store.dispatch({ type: "toast.shown", actor: "system", key, title });
-			store.dispatch({ type: "toast.resolved", actor: "system", key, status: "failed", detail });
-		};
-		if (identity?.state === "signed-in") {
-			toast(
-				"auth.sign-in.already",
-				`Already connected as ${identity.login ?? "you"}`,
-				"GitHub is connected — /auth.sign-out switches accounts.",
-			);
-			return;
-		}
-		if (identity === undefined || identity.state === "unavailable") {
-			toast(
-				"auth.sign-in.unavailable",
-				"Sign-in isn't available on this build",
-				"No identity service is configured here — use the deployed app to sign in.",
-			);
-			return;
-		}
-		if (identity.state === "unknown") {
-			toast(
-				"auth.sign-in.pending",
-				"Still checking sign-in availability",
-				"The identity service hasn't answered yet — try again in a moment.",
-			);
-			return;
-		}
-		const openExternal = services.openExternal;
-		if (openExternal !== undefined) {
-			void nativeSignIn(openExternal);
-			return;
-		}
-		if (typeof window !== "undefined") window.location.assign(`${baseUrl}${AUTH_SIGN_IN_PATH}`);
-	};
-
-	/*
-	 * Sign-out that does not sign out must SAY so. Returning void on a failed
-	 * logout left the user looking at their own signed-in session with no hint
-	 * that the act had failed — the silent-failure shape, on the one act whose
-	 * whole point is that it took effect.
-	 */
-	const signOut = async (): Promise<string | void> => {
-		try {
-			const response = await http(`${baseUrl}${AUTH_LOGOUT_PATH}`, { method: "POST" });
-			if (!response.ok) {
-				return await errorMessageOf(response, "Signing out didn't go through — you are still signed in.");
-			}
-		} catch {
-			return "Signing out didn't go through — the identity service didn't answer. You are still signed in.";
-		}
-		store.dispatch({ type: "identity.session.cleared", actor: "user" });
-		identityChanged();
-	};
-
-	/*
-	 * A.38: this used to answer nothing at all when there was nothing to do.
-	 * For a non-allowlisted account the auth message carries both the filed
-	 * request and any failure, so the outcome is visible where it belongs; for
-	 * everyone else the flow now says why it did nothing instead of POSTing
-	 * quietly and returning.
-	 */
-	const requestAccess = async (): Promise<string | void> => {
-		const identity = store.collections.identitySessions.get("identity");
-		if (identity === undefined || identity.state !== "signed-in" || identity.login === null) {
-			return "Sign in with GitHub first — an access request needs an account to attach to.";
-		}
-		if (identity.allowlisted) {
-			return `You already have access as ${identity.login} — there is no request to file.`;
-		}
-		try {
-			const response = await http(`${baseUrl}${IDENTITY_REQUEST_ACCESS_PATH}`, {
-				method: "POST",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ login: identity.login }),
-			});
-			if (!response.ok) {
-				store.dispatch({
-					type: "identity.access.failed",
-					actor: "system",
-					message: await errorMessageOf(response, "The access request did not go through. Try again."),
-				});
-				return;
-			}
-		} catch {
-			store.dispatch({
-				type: "identity.access.failed",
-				actor: "system",
-				message: "The access request did not go through. Try again.",
-			});
-			return;
-		}
-		store.dispatch({ type: "identity.access.requested", actor: "user" });
-	};
-
-	/** Billing seam: dollars only; chat is complimentary, so a definitive $0 never pauses it. */
-	const refreshBalanceImpl = async (): Promise<true | string> => {
-		let response: Response;
-		try {
-			response = await http(`${baseUrl}${BILLING_BALANCE_PATH}`);
-		} catch {
-			store.dispatch({ type: "billing.unavailable", actor: "system" });
-			return "Your balance couldn't be refreshed — the billing service didn't answer.";
-		}
-		if (!response.ok) {
-			await response.body?.cancel();
-			store.dispatch({ type: "billing.unavailable", actor: "system" });
-			return "Your balance couldn't be refreshed right now.";
-		}
-		const body = (await response.json().catch(() => undefined)) as
-			| {
-					state?: unknown;
-					allowedToStartWork?: unknown;
-					balance?: { totalUsd?: unknown; lifetimeChargedUsd?: unknown; chargeCount?: unknown };
-			  }
-			| undefined;
-		const state = body?.state;
-		if (
-			body === undefined ||
-			(state !== "ok" && state !== "low" && state !== "empty") ||
-			typeof body.allowedToStartWork !== "boolean" ||
-			typeof body.balance?.totalUsd !== "string"
-		) {
-			store.dispatch({ type: "billing.unavailable", actor: "system" });
-			return "Your balance couldn't be refreshed right now.";
-		}
-		store.dispatch({
-			type: "billing.refreshed",
-			actor: "system",
-			state,
-			totalUsd: body.balance.totalUsd,
-			allowedToStartWork: body.allowedToStartWork,
-			lifetimeChargedUsd:
-				typeof body.balance.lifetimeChargedUsd === "string" ? body.balance.lifetimeChargedUsd : "0",
-			chargeCount: typeof body.balance.chargeCount === "number" ? body.balance.chargeCount : 0,
-		});
-		return true;
-	};
-
-	const refreshBalance = (): Promise<void> =>
-		withToast("billing.balance.refresh", "Refreshing your balance…", "Balance is up to date", refreshBalanceImpl).then(() => undefined);
+	const ctx = createControllerContext(store, repositories, agent, services);
+	const { baseUrl, http, boundedFetch, errorMessageOf, unref, workflowPollMs } = ctx;
+	const { withToast, dismissToast, surfaceCommandFailure } = createFailureController(ctx);
+	ctx.withToast = withToast;
 
 	const nextTranscriptOrdinal = (): number => {
 		let highest = -1;
@@ -954,7 +315,7 @@ export const createAppController = (
 		baseUrl,
 		store,
 		dispatch: store.dispatch,
-		actor: () => commandActor,
+		actor: () => ctx.commandActor,
 		nextOrdinal: nextTranscriptOrdinal,
 	};
 	const issuesSeam = createIssuesSeam(seamCtx);
@@ -968,961 +329,25 @@ export const createAppController = (
 	const filesSeam = createFilesSeam(seamCtx);
 	const appStatusSeam = createAppStatusSeam(seamCtx);
 
-	/*
-	 * §22.7: this returned void, so the model's own `billing.balance` call
-	 * handed it NOTHING back and it answered from a guess — "$0.00" one line
-	 * above the card the same call had just rendered reading "$519 left". A
-	 * tool that can be invoked and cannot be read confabulates on every data
-	 * question, not just this one.
-	 */
-	const showBalance = async (): Promise<string | { readonly value: string }> => {
-		await refreshBalance();
-		const account = store.collections.billingAccounts.get("billing");
-		if (account === undefined || account.state === "unknown" || account.state === "unavailable") {
-			return "The billing service didn't answer, so there is no balance to state right now.";
-		}
-		// One balance card, re-surfaced at the end of the transcript each time it
-		// is asked for: leaving it at its old ordinal would answer the command
-		// with a silent no-op once the conversation has moved past it.
-		const card: Card = {
-			id: "billing-balance",
-			kind: "balance",
-			title: "Balance",
-			status: "active",
-			createdAt: Date.now(),
-			ordinal: nextTranscriptOrdinal(),
-			payload: {
-				totalUsd: account.totalUsd ?? "0",
-				state: account.state,
-				allowedToStartWork: account.allowedToStartWork,
-				lifetimeChargedUsd: account.lifetimeChargedUsd ?? "0",
-				chargeCount: account.chargeCount,
-				// The first-run line, stated once: an untouched grant reads
-				// "You have $500 of usage on us." — after any charge it is gone.
-				introUsd: account.chargeCount === 0 ? account.totalUsd : null,
-			},
-		};
-		store.dispatch({ type: "card.upsert", actor: "system", card });
-		return {
-			value: `balance: $${account.totalUsd ?? "0"} left; $${account.lifetimeChargedUsd ?? "0"} spent across ${account.chargeCount} turn(s)`,
-		};
-	};
-
-	/*
-	 * The recommendations seam (Wave 3b, Beat 5 — "Smithers has already read").
-	 * The digest sentence becomes the first Smithers message and the one
-	 * recommendation a card; a degraded answer renders its honestMessage,
-	 * never filler. Every accept/edit/dismiss posts feedback (the day-one
-	 * logging law) and a failed post leaves the card retryable with the honest
-	 * error — the approval discipline, applied to recommendations.
-	 */
-	interface RepoCandidate {
-		readonly fullName: string;
-		readonly private: boolean;
-		readonly pushedAt: string | null;
-		readonly openIssues: number;
-	}
-
-	/** The reco seam's candidate rows, validated; anything off-shape is dropped. */
-	const parseRepoCandidates = (wire: unknown): RepoCandidate[] =>
-		(Array.isArray(wire) ? wire : [])
-			.filter(
-				(candidate) =>
-					typeof candidate === "object" &&
-					candidate !== null &&
-					typeof (candidate as { fullName?: unknown }).fullName === "string",
-			)
-			.map((candidate) => {
-				const row = candidate as {
-					fullName: string;
-					private?: unknown;
-					pushedAt?: unknown;
-					openIssues?: unknown;
-				};
-				return {
-					fullName: row.fullName,
-					private: row.private === true,
-					pushedAt: typeof row.pushedAt === "string" ? row.pushedAt : null,
-					openIssues: typeof row.openIssues === "number" ? row.openIssues : 0,
-				};
-			});
-
-	/** Mirror the seam's selection locally, keeping provenance the row already holds. */
-	const mirrorWatched = (selected: ReadonlyArray<string>): void => {
-		const existing = store.collections.watchedRepos.get("watched");
-		if (
-			existing !== undefined &&
-			existing.selected !== null &&
-			existing.selected.length === selected.length &&
-			existing.selected.every((name, index) => name === selected[index])
-		) {
-			return;
-		}
-		store.dispatch({
-			type: "watched.replaced",
-			actor: "system",
-			selected: [...selected],
-			selectedAt: existing?.selectedAt ?? null,
-			via: existing?.via ?? null,
-		});
-	};
-
-	/**
-	 * Read the DURABLE watched selection and mirror it locally.
-	 *
-	 * The selection lives on the reco seam and `GET /api/reco/watched` answers it
-	 * from its own store — it does not need GitHub. The first-run digest DOES,
-	 * and when GitHub refuses that read (live on canary: `degraded:
-	 * github_rejected`, HTTP 401) the degraded answer carries no `watched`, so
-	 * the app came up believing the user watches nothing: `flow.create` sent
-	 * them back to the onboarding chooser they had already answered, and the
-	 * runtime context told the model `needsSelection`, which had it say "I need a
-	 * repository to watch before I can create a workflow" to someone watching
-	 * three. A degraded digest is not a forgotten selection.
-	 */
-	const loadWatchedSelection = async (): Promise<void> => {
-		try {
-			const response = await http(`${baseUrl}${RECO_WATCHED_PATH}`);
-			if (!response.ok) {
-				await response.body?.cancel();
-				return;
-			}
-			const body = (await response.json().catch(() => undefined)) as { selected?: unknown } | undefined;
-			if (!Array.isArray(body?.selected)) return;
-			mirrorWatched(body.selected.filter((name): name is string => typeof name === "string"));
-		} catch {
-			// The honest message the caller already rendered is the whole answer.
-		}
-	};
-
-	/** The chooser card, when one is in the transcript. */
-	const chooserCard = (): Extract<Card, { kind: "repo-chooser" }> | undefined => {
-		const card = store.collections.cards.get(REPO_CHOOSER_CARD_ID);
-		return card?.kind === "repo-chooser" ? card : undefined;
-	};
-
-	const patchChooser = (
-		patch: Partial<Extract<Card, { kind: "repo-chooser" }>["payload"]>,
-		status?: Card["status"],
-	): void => {
-		const card = chooserCard();
-		if (card === undefined) return;
-		store.dispatch({
-			type: "card.updated",
-			actor: commandActor,
-			id: card.id,
-			patch: { payload: { ...card.payload, ...patch }, ...(status === undefined ? {} : { status }) },
-		});
-	};
-
-	/*
-	 * Open the repo chooser — the one onboarding question, and the "just ask"
-	 * path later. Candidates come from the selection read when one exists
-	 * (pre-filled), else from GET /api/reco/repos; the agent's optional repo
-	 * argument pre-selects on top. The card is embedded in the transcript for
-	 * every actor — a chooser is never a takeover.
-	 */
-	const openRepoChooserImpl = async (preselect?: string): Promise<true | string> => {
-		/*
-		 * The chooser lists the USER'S repositories: without a signed-in
-		 * session it can only open empty (the live bug: an empty "No
-		 * repositories match" chooser while signed out). The sign-in step
-		 * renders instead — promptSignIn answers every identity state
-		 * honestly, including a build with no identity seam at all.
-		 */
-		const chooserIdentity = store.collections.identitySessions.get("identity");
-		if (chooserIdentity?.state !== "signed-in") {
-			promptSignIn();
-			return "GitHub isn't connected yet — the chooser lists your repositories, so the sign-in step comes first.";
-		}
-		const via = commandActor === "smithers" ? "agent" : "command";
-		let candidates: RepoCandidate[] | undefined;
-		let selected: string[] = [];
-		try {
-			const watchedResponse = await http(`${baseUrl}${RECO_WATCHED_PATH}`);
-			if (watchedResponse.ok) {
-				const watchedBody = (await watchedResponse.json().catch(() => undefined)) as
-					| { selected?: unknown }
-					| undefined;
-				if (Array.isArray(watchedBody?.selected)) {
-					selected = watchedBody.selected.filter((name): name is string => typeof name === "string");
-				}
-			} else {
-				await watchedResponse.body?.cancel();
-			}
-			const reposResponse = await http(`${baseUrl}${RECO_REPOS_PATH}`);
-			if (reposResponse.ok) {
-				const reposBody = (await reposResponse.json().catch(() => undefined)) as
-					| { candidates?: unknown }
-					| undefined;
-				candidates = parseRepoCandidates(reposBody?.candidates);
-			} else {
-				await reposResponse.body?.cancel();
-			}
-		} catch {
-			return "The recommendations service didn't answer — the chooser couldn't open. Try again.";
-		}
-		if (candidates === undefined) {
-			return "The recommendations service didn't answer — the chooser couldn't open. Try again.";
-		}
-		// A pre-selected name the candidates list doesn't know is stated, not
-		// silently dropped — and the chooser still opens with what IS visible.
-		const preselectKnown = preselect === undefined || candidates.some((candidate) => candidate.fullName === preselect);
-		const mergedSelection =
-			preselect === undefined || !preselectKnown || selected.includes(preselect)
-				? selected
-				: [...selected, preselect];
-		const existing = chooserCard();
-		let highest = -1;
-		for (const message of store.collections.messages.values()) highest = Math.max(highest, message.ordinal);
-		for (const card of store.collections.cards.values()) highest = Math.max(highest, card.ordinal);
-		const card: Card = {
-			id: REPO_CHOOSER_CARD_ID,
-			kind: "repo-chooser",
-			title: "Choose the repositories Smithers watches",
-			status: "active",
-			createdAt: existing?.createdAt ?? Date.now(),
-			ordinal: highest + 1,
-			payload: { candidates, selected: mergedSelection, via, phase: "choosing" },
-		};
-		store.dispatch({ type: "card.upsert", actor: commandActor, card });
-		if (!preselectKnown && preselect !== undefined) {
-			return `I couldn't find ${preselect} among your repositories — the chooser is open with the ones I can see.`;
-		}
-		return true;
-	};
-
-	const openRepoChooser = (preselect?: string): Promise<string | void> =>
-		withToast(
-			"reco.chooser",
-			"Reading your repositories…",
-			"Your repositories are ready to choose",
-			() => openRepoChooserImpl(preselect),
-		).then((outcome) => (outcome === true ? undefined : outcome));
-
-	/*
-	 * A.12: the toggle used to add ANY name to the selection, so
-	 * `/repos.watch.toggle no-such/repo` silently put a repository the account
-	 * does not have into the set the confirm would persist. The chooser's own
-	 * rows are the universe — the sibling `/repos.watch <repo>` already refuses
-	 * by name, and this now answers the same way.
-	 */
-	const toggleWatchedRepo = (fullName: string): string | void => {
-		const card = chooserCard();
-		if (card === undefined) return "The repository chooser isn't open — run /repos.watch first.";
-		if (card.payload.phase === "saving") return;
-		const known = card.payload.candidates.some((repo) => repo.fullName === fullName);
-		if (!known) {
-			return `I couldn't find ${fullName} among your repositories — the chooser is open with the ones I can see.`;
-		}
-		const selected = card.payload.selected.includes(fullName)
-			? card.payload.selected.filter((name) => name !== fullName)
-			: [...card.payload.selected, fullName];
-		patchChooser({ selected, phase: "choosing" });
-	};
-
-	const selectAllWatchedRepos = (): void => {
-		const card = chooserCard();
-		if (card === undefined || card.payload.phase === "saving") return;
-		patchChooser({ selected: card.payload.candidates.map((candidate) => candidate.fullName), phase: "choosing" });
-	};
-
-	const selectNoWatchedRepos = (): void => {
-		const card = chooserCard();
-		if (card === undefined || card.payload.phase === "saving") return;
-		patchChooser({ selected: [], phase: "choosing" });
-	};
-
-	/*
-	 * Confirm → PUT /api/reco/watched with the chooser's via → one calm line
-	 * naming what is watched AND that asking changes it → the scoped digest
-	 * arrives (the 300ms toast law covers the compute).
-	 */
-	const confirmWatchedReposImpl = async (): Promise<true | string> => {
-		const card = chooserCard();
-		if (card === undefined) return "There is no repository chooser open.";
-		if (card.payload.phase === "saving") return true;
-		const { selected, via } = card.payload;
-		patchChooser({ phase: "saving" });
-		let echoed: { selected?: unknown; selectedAt?: unknown; via?: unknown } | undefined;
-		try {
-			const response = await http(`${baseUrl}${RECO_WATCHED_PATH}`, {
-				method: "PUT",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ selected, via }),
-			});
-			if (!response.ok) {
-				const message = await errorMessageOf(response, "The selection didn't save. Try again.");
-				patchChooser({ phase: "failed", error: message }, "error");
-				return message;
-			}
-			echoed = (await response.json().catch(() => undefined)) as typeof echoed;
-		} catch {
-			const message = "The selection didn't save — the recommendations service is unreachable.";
-			patchChooser({ phase: "failed", error: message }, "error");
-			return message;
-		}
-		const saved = Array.isArray(echoed?.selected)
-			? echoed.selected.filter((name): name is string => typeof name === "string")
-			: selected;
-		store.dispatch({
-			type: "watched.replaced",
-			actor: commandActor,
-			selected: saved,
-			selectedAt: typeof echoed?.selectedAt === "string" ? echoed.selectedAt : new Date().toISOString(),
-			via: typeof echoed?.via === "string" && ["onboarding", "command", "agent"].includes(echoed.via)
-				? (echoed.via as "onboarding" | "command" | "agent")
-				: via,
-		});
-		store.dispatch({ type: "card.removed", actor: commandActor, id: card.id });
-		store.dispatch({
-			type: "message.appended",
-			actor: "system",
-			text:
-				saved.length === 0
-					? "Watching no repositories for now. You can change this anytime — just ask."
-					: `Watching ${saved.length} ${saved.length === 1 ? "repository" : "repositories"}: ${saved.join(", ")}. You can change this anytime — just ask.`,
-		});
-		// The scoped digest + one recommendation arrive for the watched set.
-		void loadFirstRunReco(true);
-		// A confirmed selection can satisfy a parked command's repos-selected
-		// requirement — the command that deferred into this chooser continues.
-		resumeDeferredCommand();
-		return true;
-	};
-
-	const confirmWatchedRepos = (): Promise<string | void> =>
-		withToast("reco.watched.save", "Saving your selection…", "Selection saved", confirmWatchedReposImpl).then(
-			(outcome) => (outcome === true ? undefined : outcome),
-		);
-	const loadFirstRunRecoImpl = async (bump: boolean): Promise<true | string> => {
-		let response: Response;
-		try {
-			response = await http(`${baseUrl}${RECO_FIRST_RUN_PATH}`);
-		} catch {
-			const message =
-				"I couldn't reach the recommendations service just now — ask me anything and we'll start from here.";
-			store.dispatch({ type: "reco.message.loaded", actor: "system", message });
-			return message;
-		}
-		if (!response.ok) {
-			const message = await errorMessageOf(response, "The recommendations service didn't answer.");
-			store.dispatch({ type: "reco.message.loaded", actor: "system", message });
-			return message;
-		}
-		const body = (await response.json().catch(() => undefined)) as
-			| {
-					degraded?: unknown;
-					honestMessage?: unknown;
-					needsSelection?: unknown;
-					emptySelection?: unknown;
-					candidates?: unknown;
-					watched?: unknown;
-					digest?: {
-						computedAt?: unknown;
-						reposConsidered?: unknown;
-						openIssues?: unknown;
-						openPullRequests?: unknown;
-						staleCount?: unknown;
-						mostActiveRepo?: { name?: unknown } | null;
-						oldestWaiting?: {
-							repo?: unknown;
-							number?: unknown;
-							title?: unknown;
-							url?: unknown;
-							waitingDays?: unknown;
-						} | null;
-						untriagedInMostActive?: unknown;
-						sentence?: unknown;
-					};
-					recommendation?: {
-						id?: unknown;
-						title?: unknown;
-						proposes?: unknown;
-						whyNow?: unknown;
-						whatHappens?: unknown;
-						subject?: { url?: unknown };
-						evidenceKey?: unknown;
-						whatChanged?: unknown;
-					} | null;
-			  }
-			| undefined;
-		if (body?.degraded === true) {
-			const message =
-				typeof body.honestMessage === "string" && body.honestMessage.trim() !== ""
-					? body.honestMessage
-					: "I couldn't read your GitHub work just now — ask me anything and we'll start from here.";
-			// A degraded answer IS the seam's honest success state — the work
-			// itself succeeded, so the toast resolves ok; the message says the rest.
-			store.dispatch({ type: "reco.message.loaded", actor: "system", message });
-			// The digest needed GitHub; the SELECTION does not. Keep it.
-			await loadWatchedSelection();
-			return true;
-		}
-		/*
-		 * Wave 10 onboarding: no watched-repos selection yet. The candidates
-		 * ride inline so the chooser renders in one round trip; the chooser
-		 * card IS the conversation's one question.
-		 */
-		if (body?.needsSelection === true) {
-			const candidates = parseRepoCandidates(body.candidates);
-			store.dispatch({ type: "reco.selection.needed", actor: "system", candidates });
-			return true;
-		}
-		// Chose-zero is an honest state, never a fabricated digest.
-		if (body?.emptySelection === true) {
-			const message =
-				typeof body.honestMessage === "string" && body.honestMessage.trim() !== ""
-					? body.honestMessage
-					: "You're watching no repositories right now — ask me to watch some and we'll start from there.";
-			store.dispatch({ type: "reco.message.loaded", actor: "system", message });
-			return true;
-		}
-		const digest = body?.digest;
-		if (
-			body === undefined ||
-			digest === undefined ||
-			typeof digest.sentence !== "string" ||
-			digest.sentence.trim() === "" ||
-			typeof digest.computedAt !== "string" ||
-			typeof digest.reposConsidered !== "number" ||
-			typeof digest.openIssues !== "number" ||
-			typeof digest.openPullRequests !== "number" ||
-			typeof digest.staleCount !== "number" ||
-			typeof digest.untriagedInMostActive !== "number"
-		) {
-			const message =
-				"The recommendations service answered in a shape I didn't understand — nothing is lost; ask me anything.";
-			store.dispatch({ type: "reco.message.loaded", actor: "system", message });
-			return message;
-		}
-		const digestPayload: RecoDigestPayload = {
-			computedAt: digest.computedAt,
-			reposConsidered: digest.reposConsidered,
-			openIssues: digest.openIssues,
-			openPullRequests: digest.openPullRequests,
-			staleCount: digest.staleCount,
-			mostActiveRepo:
-				digest.mostActiveRepo !== null &&
-				digest.mostActiveRepo !== undefined &&
-				typeof digest.mostActiveRepo.name === "string"
-					? digest.mostActiveRepo.name
-					: null,
-			oldestWaiting:
-				digest.oldestWaiting !== null &&
-				digest.oldestWaiting !== undefined &&
-				typeof digest.oldestWaiting.repo === "string" &&
-				typeof digest.oldestWaiting.number === "number" &&
-				typeof digest.oldestWaiting.title === "string" &&
-				typeof digest.oldestWaiting.url === "string" &&
-				typeof digest.oldestWaiting.waitingDays === "number"
-					? {
-							label: `${digest.oldestWaiting.repo}#${digest.oldestWaiting.number} — ${digest.oldestWaiting.title}`,
-							url: digest.oldestWaiting.url,
-							waitingDays: digest.oldestWaiting.waitingDays,
-						}
-					: null,
-			untriagedInMostActive: digest.untriagedInMostActive,
-		};
-		const wire = body.recommendation;
-		const recommendation: RecoRecommendationPayload | null =
-			wire !== null &&
-			wire !== undefined &&
-			typeof wire.id === "string" &&
-			typeof wire.title === "string" &&
-			typeof wire.proposes === "string" &&
-			typeof wire.whyNow === "string" &&
-			typeof wire.whatHappens === "string" &&
-			typeof wire.evidenceKey === "string" &&
-			typeof wire.subject?.url === "string"
-				? {
-						id: wire.id,
-						title: wire.title,
-						proposes: wire.proposes,
-						whyNow: wire.whyNow,
-						whatHappens: wire.whatHappens,
-						subjectUrl: wire.subject.url,
-						evidenceKey: wire.evidenceKey,
-						...(typeof wire.whatChanged === "string" ? { whatChanged: wire.whatChanged } : {}),
-					}
-				: null;
-		store.dispatch({
-			type: "reco.digest.loaded",
-			actor: "system",
-			sentence: digest.sentence,
-			digest: digestPayload,
-			recommendation,
-			bump,
-		});
-		// A scoped digest proves a selection exists — mirror it (the local
-		// record keeps the chooser's pre-fill and the agent context honest).
-		if (Array.isArray(body.watched)) {
-			const names = body.watched.filter((name): name is string => typeof name === "string");
-			mirrorWatched(names);
-		}
-		return true;
-	};
-
-	const loadFirstRunReco = (bump = false): Promise<void> =>
-		withToast(
-			"reco.first-run",
-			bump ? "Refreshing what I found…" : "Reading your repos…",
-			bump ? "Refreshed what I found" : "Read your repos",
-			() => loadFirstRunRecoImpl(bump),
-		).then(() => undefined);
-
-	/** The live recommendation card: the named one, else the active one carrying a recommendation. */
-	const recoCard = (cardId?: string): Extract<Card, { kind: "reco" }> | undefined => {
-		if (cardId !== undefined) {
-			const card = store.collections.cards.get(cardId);
-			return card?.kind === "reco" ? (card as Extract<Card, { kind: "reco" }>) : undefined;
-		}
-		const found = [...store.collections.cards.values()].find(
-			// "error" is a failed feedback post: retryable, never terminal.
-			(card) => card.kind === "reco" && card.status !== "acted" && card.payload.recommendation !== null,
-		);
-		return found as Extract<Card, { kind: "reco" }> | undefined;
-	};
-
-	/** Every accept/edit/dismiss posts feedback; a failed post leaves the card retryable. */
-	const postRecoFeedback = async (
-		card: Extract<Card, { kind: "reco" }>,
-		action: "accept" | "edit" | "dismiss",
-	): Promise<true | string> => {
-		const recommendation = card.payload.recommendation;
-		if (recommendation === null) return "There is no recommendation to answer.";
-		try {
-			const response = await http(`${baseUrl}${RECO_FEEDBACK_PATH}`, {
-				method: "POST",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({
-					recommendationId: recommendation.id,
-					action,
-					evidenceKey: recommendation.evidenceKey,
-				}),
-			});
-			if (!response.ok) {
-				const message = await errorMessageOf(response, "The feedback post didn't go through. Try again.");
-				store.dispatch({ type: "reco.feedback.failed", actor: "system", cardId: card.id, message });
-				return message;
-			}
-		} catch {
-			const message = "The feedback post didn't go through. Try again.";
-			store.dispatch({ type: "reco.feedback.failed", actor: "system", cardId: card.id, message });
-			return message;
-		}
-		return true;
-	};
-
-	const postRecoFeedbackWithToast = (
-		card: Extract<Card, { kind: "reco" }>,
-		action: "accept" | "edit" | "dismiss",
-	): Promise<true | string> =>
-		withToast("reco.feedback", "Posting your feedback…", "Feedback posted", () => postRecoFeedback(card, action));
-
-	const acceptRecommendation = async (cardId?: string): Promise<string | void> => {
-		const card = recoCard(cardId);
-		const recommendation = card?.payload.recommendation;
-		if (card === undefined || recommendation === null || recommendation === undefined) {
-			return "There is no current recommendation to accept.";
-		}
-		if (card.status === "acted") return "That recommendation was already answered.";
-		if ((await postRecoFeedbackWithToast(card, "accept")) !== true) return undefined;
-		store.dispatch({ type: "card.updated", actor: commandActor, id: card.id, patch: { status: "acted" } });
-		// Accept runs the recommendation's affordance: the proposed work starts
-		// as an ordinary turn through the same send path as everything else.
-		send(recommendation.proposes);
-		return undefined;
-	};
-
-	const editRecommendation = async (cardId?: string): Promise<string | void> => {
-		const card = recoCard(cardId);
-		const recommendation = card?.payload.recommendation;
-		if (card === undefined || recommendation === null || recommendation === undefined) {
-			return "There is no current recommendation to edit.";
-		}
-		if (card.status === "acted") return "That recommendation was already answered.";
-		if ((await postRecoFeedbackWithToast(card, "edit")) !== true) return undefined;
-		store.dispatch({ type: "card.updated", actor: commandActor, id: card.id, patch: { status: "acted" } });
-		// Edit opens the composer prefilled with the proposal, ready to reshape.
-		store.dispatch({
-			type: "composer.control.changed",
-			actor: "system",
-			owner: "user",
-			draft: recommendation.proposes,
-		});
-		return undefined;
-	};
-
-	const dismissRecommendation = async (cardId?: string): Promise<string | void> => {
-		const card = recoCard(cardId);
-		if (card === undefined || card.payload.recommendation === null) {
-			return "There is no current recommendation to dismiss.";
-		}
-		if (card.status === "acted") return "That recommendation was already answered.";
-		if ((await postRecoFeedbackWithToast(card, "dismiss")) !== true) return undefined;
-		// Dismiss removes the card without argument.
-		store.dispatch({ type: "card.removed", actor: commandActor, id: card.id });
-		return undefined;
-	};
-
-	const refreshRecommendation = async (): Promise<string | void> => {
-		await loadFirstRunReco(true);
-		return undefined;
-	};
-
-	/*
-	 * The admin plugin's controller half. Every read and write goes through the
-	 * product Worker's /api/admin/* routes, which re-validate the session and
-	 * answer 404-never-403 to non-admins; a 404 here therefore means "not an
-	 * admin (or not configured)" and is surfaced as an honest line.
-	 */
-	const adminAllowlistImpl = async (action: "add" | "remove", login: string): Promise<true | string> => {
-		try {
-			const response = await http(`${baseUrl}${ADMIN_ALLOWLIST_PATH}`, {
-				method: "POST",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ login, action }),
-			});
-			if (!response.ok) {
-				const message = await errorMessageOf(response, "The allowlist change didn't go through.");
-				store.dispatch({ type: "message.appended", actor: "system", text: message });
-				return message;
-			}
-			const echo = (await response.json().catch(() => undefined)) as
-				| { applied?: unknown; duplicate?: unknown }
-				| undefined;
-			const verb = action === "add" ? "added to" : "removed from";
-			store.dispatch({
-				type: "message.appended",
-				actor: "system",
-				text:
-					echo?.duplicate === true
-						? `${login} was already ${action === "add" ? "on" : "off"} the allowlist — nothing changed.`
-						: `${login} ${verb} the allowlist, recorded under your name.`,
-			});
-		} catch {
-			const message = "The allowlist change didn't go through — the admin route didn't answer.";
-			store.dispatch({ type: "message.appended", actor: "system", text: message });
-			return message;
-		}
-		return true;
-	};
-
-	const adminAllowlist = (action: "add" | "remove", login: string): Promise<string | void> =>
-		withToast("admin.allowlist", "Updating the allowlist…", "Allowlist updated", () => adminAllowlistImpl(action, login)).then(
-			() => undefined,
-		);
-
-	const adminGrant = (amountUsd: number, login: string): string | void => {
-		// Never post directly: the confirmation card states exactly what will happen first.
-		const card: Card = {
-			id: `grant-${crypto.randomUUID()}`,
-			kind: "grant-confirm",
-			title: `Grant $${amountUsd} to ${login}?`,
-			status: "active",
-			createdAt: Date.now(),
-			ordinal: nextTranscriptOrdinal(),
-			payload: { login, amountUsd, phase: "confirm" },
-		};
-		store.dispatch({ type: "card.upsert", actor: commandActor, card });
-		return undefined;
-	};
-
-	const adminGrantConfirm = async (cardId: string): Promise<string | void> => {
-		const card = store.collections.cards.get(cardId);
-		if (card === undefined || card.kind !== "grant-confirm") return "That grant confirmation is gone.";
-		if (card.payload.phase === "granted") return "That grant was already posted.";
-		if (card.payload.phase === "sending") return undefined;
-		const { login, amountUsd } = card.payload;
-		store.dispatch({
-			type: "card.updated",
-			actor: commandActor,
-			id: card.id,
-			patch: { payload: { login, amountUsd, phase: "sending" } },
-		});
-		await withToast("admin.grant", `Granting $${amountUsd} to ${login}…`, `Granted $${amountUsd} to ${login}`, async () => {
-			try {
-				const response = await http(`${baseUrl}${ADMIN_GRANT_PATH}`, {
-					method: "POST",
-					headers: { "content-type": "application/json" },
-					body: JSON.stringify({ login, amountUsd }),
-				});
-				if (!response.ok) {
-					const message = await errorMessageOf(response, "The grant didn't go through.");
-					store.dispatch({
-						type: "card.updated",
-						actor: "system",
-						id: card.id,
-						patch: { status: "error", payload: { login, amountUsd, phase: "failed", error: message } },
-					});
-					return message;
-				}
-				const echo = (await response.json().catch(() => undefined)) as
-					| { grantId?: unknown; duplicate?: unknown }
-					| undefined;
-				store.dispatch({
-					type: "card.updated",
-					actor: "system",
-					id: card.id,
-					patch: {
-						status: "acted",
-						payload: {
-							login,
-							amountUsd,
-							phase: "granted",
-							...(typeof echo?.grantId === "string" ? { grantId: echo.grantId } : {}),
-						},
-					},
-				});
-			} catch {
-				const message = "The grant didn't go through — the admin route didn't answer.";
-				store.dispatch({
-					type: "card.updated",
-					actor: "system",
-					id: card.id,
-					patch: { status: "error", payload: { login, amountUsd, phase: "failed", error: message } },
-				});
-				return message;
-			}
-			return true;
-		});
-		return undefined;
-	};
-
-	const adminGrantCancel = (cardId: string): string | void => {
-		const card = store.collections.cards.get(cardId);
-		if (card === undefined || card.kind !== "grant-confirm") return "That grant confirmation is gone.";
-		if (card.payload.phase === "sending") return "That grant is already being posted — a moment.";
-		store.dispatch({ type: "card.removed", actor: commandActor, id: card.id });
-		return undefined;
-	};
-
-	const ADMIN_REQUESTS_CARD_ID = "admin-requests";
-
-	/** Re-read the queue and refresh the queue card (also the post-approve refresh). */
-	const adminRequestsImpl = async (): Promise<true | string> => {
-		try {
-			const response = await http(`${baseUrl}${ADMIN_REQUESTS_PATH}`);
-			if (!response.ok) {
-				const message = await errorMessageOf(response, "The request queue didn't answer.");
-				store.dispatch({ type: "message.appended", actor: "system", text: message });
-				return message;
-			}
-			const body = (await response.json().catch(() => undefined)) as
-				| { requests?: Array<{ login?: unknown; note?: unknown; createdAt?: unknown }> }
-				| undefined;
-			const requests = (Array.isArray(body?.requests) ? body.requests : [])
-				.filter((row) => typeof row.login === "string")
-				.map((row) => ({
-					login: row.login as string,
-					note: typeof row.note === "string" ? row.note : null,
-					createdAt: typeof row.createdAt === "string" ? row.createdAt : "",
-				}));
-			const existing = store.collections.cards.get(ADMIN_REQUESTS_CARD_ID);
-			const card: Card = {
-				id: ADMIN_REQUESTS_CARD_ID,
-				kind: "request-queue",
-				title: `Request-access queue — ${requests.length} waiting`,
-				status: "active",
-				createdAt: existing?.createdAt ?? Date.now(),
-				ordinal: nextTranscriptOrdinal(),
-				payload: { requests, approving: null },
-			};
-			store.dispatch({ type: "card.upsert", actor: "system", card });
-		} catch {
-			const message = "The request queue didn't answer — the admin route is unreachable.";
-			store.dispatch({ type: "message.appended", actor: "system", text: message });
-			return message;
-		}
-		return true;
-	};
-
-	const adminRequests = (): Promise<string | void> =>
-		withToast("admin.requests", "Reading the request queue…", "Request queue read", adminRequestsImpl).then(() => undefined);
-
-	const adminQueueApprove = async (login: string): Promise<string | void> => {
-		const card = store.collections.cards.get(ADMIN_REQUESTS_CARD_ID);
-		if (card !== undefined && card.kind === "request-queue") {
-			store.dispatch({
-				type: "card.updated",
-				actor: commandActor,
-				id: card.id,
-				patch: { payload: { ...card.payload, approving: login, error: undefined } },
-			});
-		}
-		const post = await withToast("admin.queue.approve", `Approving ${login}…`, `${login} approved`, async () => {
-			try {
-				const response = await http(`${baseUrl}${ADMIN_ALLOWLIST_PATH}`, {
-					method: "POST",
-					headers: { "content-type": "application/json" },
-					body: JSON.stringify({ login, action: "add" }),
-				});
-				if (!response.ok) {
-					const message = await errorMessageOf(response, `Approving ${login} didn't go through.`);
-					const current = store.collections.cards.get(ADMIN_REQUESTS_CARD_ID);
-					if (current !== undefined && current.kind === "request-queue") {
-						store.dispatch({
-							type: "card.updated",
-							actor: "system",
-							id: current.id,
-							patch: { status: "error", payload: { ...current.payload, approving: null, error: message } },
-						});
-					}
-					return message;
-				}
-			} catch {
-				const message = `Approving ${login} didn't go through — the admin route didn't answer.`;
-				const current = store.collections.cards.get(ADMIN_REQUESTS_CARD_ID);
-				if (current !== undefined && current.kind === "request-queue") {
-					store.dispatch({
-						type: "card.updated",
-						actor: "system",
-						id: current.id,
-						patch: { status: "error", payload: { ...current.payload, approving: null, error: message } },
-					});
-				}
-				return message;
-			}
-			return true;
-		});
-		if (post !== true) return undefined;
-		// The queue card re-reads from the server — never from local optimism.
-		await adminRequests();
-		return undefined;
-	};
-
-	const adminFeedbackImpl = async (): Promise<true | string> => {
-		try {
-			const response = await http(`${baseUrl}${ADMIN_FEEDBACK_PATH}`);
-			if (!response.ok) {
-				const message = await errorMessageOf(response, "The feedback log didn't answer.");
-				store.dispatch({ type: "message.appended", actor: "system", text: message });
-				return message;
-			}
-			const body = (await response.json().catch(() => undefined)) as
-				| {
-						all?: Array<{
-							login?: unknown;
-							entries?: Array<{ at?: unknown; action?: unknown; recommendationId?: unknown }>;
-						}>;
-				  }
-				| undefined;
-			const sections = (Array.isArray(body?.all) ? body.all : [])
-				.filter((section) => typeof section.login === "string")
-				.map((section) => ({
-					login: section.login as string,
-					entries: (Array.isArray(section.entries) ? section.entries : [])
-						.filter(
-							(entry) =>
-								typeof entry.at === "string" &&
-								(entry.action === "accept" || entry.action === "edit" || entry.action === "dismiss") &&
-								typeof entry.recommendationId === "string",
-						)
-						.map((entry) => ({
-							at: entry.at as string,
-							action: entry.action as "accept" | "edit" | "dismiss",
-							recommendationId: entry.recommendationId as string,
-						})),
-				}));
-			const existing = store.collections.cards.get("admin-reco-log");
-			const total = sections.reduce((count, section) => count + section.entries.length, 0);
-			const card: Card = {
-				id: "admin-reco-log",
-				kind: "reco-log",
-				title: `Recommendation feedback — ${total} event${total === 1 ? "" : "s"}`,
-				status: "active",
-				createdAt: existing?.createdAt ?? Date.now(),
-				ordinal: nextTranscriptOrdinal(),
-				payload: { sections },
-			};
-			store.dispatch({ type: "card.upsert", actor: "system", card });
-		} catch {
-			const message = "The feedback log didn't answer — the admin route is unreachable.";
-			store.dispatch({ type: "message.appended", actor: "system", text: message });
-			return message;
-		}
-		return true;
-	};
-
-	const adminFeedback = (): Promise<string | void> =>
-		withToast("admin.feedback", "Reading the feedback log…", "Feedback log read", adminFeedbackImpl).then(() => undefined);
-
-	const adminHealthImpl = async (): Promise<true | string> => {
-		try {
-			const response = await http(`${baseUrl}${ADMIN_HEALTH_PATH}`);
-			if (!response.ok) {
-				const message = await errorMessageOf(response, "The health read didn't answer.");
-				store.dispatch({ type: "message.appended", actor: "system", text: message });
-				return message;
-			}
-			const body = (await response.json().catch(() => undefined)) as
-				| {
-						services?: Array<{ name?: unknown; status?: unknown; detail?: unknown }>;
-						charges?: { chargeCount?: unknown; lifetimeChargedUsd?: unknown } | null;
-						queueDepth?: unknown;
-						checkedAt?: unknown;
-				  }
-				| undefined;
-			if (!Array.isArray(body?.services)) {
-				const message = "The health read answered in a shape I didn't understand.";
-				store.dispatch({ type: "message.appended", actor: "system", text: message });
-				return message;
-			}
-			const services = body.services
-				.filter(
-					(service) =>
-						typeof service.name === "string" &&
-						(service.status === "ok" || service.status === "failed" || service.status === "unconfigured") &&
-						typeof service.detail === "string",
-				)
-				.map((service) => ({
-					name: service.name as string,
-					status: service.status as "ok" | "failed" | "unconfigured",
-					detail: service.detail as string,
-				}));
-			const charges =
-				body.charges !== null &&
-				body.charges !== undefined &&
-				typeof body.charges.chargeCount === "number" &&
-				typeof body.charges.lifetimeChargedUsd === "string"
-					? { chargeCount: body.charges.chargeCount, lifetimeChargedUsd: body.charges.lifetimeChargedUsd }
-					: null;
-			const existing = store.collections.cards.get("admin-health");
-			const card: Card = {
-				id: "admin-health",
-				kind: "admin-health",
-				title: "What failed overnight?",
-				status: services.some((service) => service.status === "failed") ? "error" : "active",
-				createdAt: existing?.createdAt ?? Date.now(),
-				ordinal: nextTranscriptOrdinal(),
-				payload: {
-					services,
-					queueDepth: typeof body.queueDepth === "number" ? body.queueDepth : null,
-					charges,
-					checkedAt: typeof body.checkedAt === "string" ? body.checkedAt : new Date().toISOString(),
-				},
-			};
-			store.dispatch({ type: "card.upsert", actor: "system", card });
-		} catch {
-			const message = "The health read didn't answer — the admin route is unreachable.";
-			store.dispatch({ type: "message.appended", actor: "system", text: message });
-			return message;
-		}
-		return true;
-	};
-
-	const adminHealth = (): Promise<string | void> =>
-		withToast("admin.health", "Reading service health…", "Service health read", adminHealthImpl).then(() => undefined);
-
-	/*
-	 * Chat is complimentary during the alpha: the billing seam records each
-	 * turn's true cost and debits zero, so the UI carries NO per-turn dollar
-	 * line. The balance chip still refreshes from the real answer after a turn.
-	 */
-	const settleTurnBilling = (): void => {
-		void refreshBalance();
-	};
+	const {
+		handleAuthReturn,
+		loadSession,
+		signIn,
+		signOut,
+		requestAccess,
+		refreshBalance,
+		showBalance,
+		adminAllowlist,
+		adminGrant,
+		adminGrantConfirm,
+		adminGrantCancel,
+		adminRequests,
+		adminQueueApprove,
+		adminFeedback,
+		adminHealth,
+		settleTurnBilling,
+		watchIdentityAcrossTabs,
+	} = createAuthBillingController(ctx, nextTranscriptOrdinal);
 
 	const handleCardFrame = (frame: Extract<AgentTurnFrame, { type: "card" | "card.update" }>): void => {
 		if (frame.type === "card") {
@@ -1952,6 +377,7 @@ export const createAppController = (
 				role: message.role === "user" ? ("user" as const) : ("assistant" as const),
 				content: message.text,
 			}));
+	ctx.contextMessages = contextMessages;
 
 	/*
 	 * The hidden runtime context, freshly derived from live collections on EVERY
@@ -2081,9 +507,9 @@ export const createAppController = (
 				context: agentRuntimeContext(),
 			})
 			.then((result) => {
-				if (result.status !== "error" || activeTurn?.id !== turnId) return;
-				const turn = activeTurn;
-				activeTurn = undefined;
+				if (result.status !== "error" || ctx.activeTurn?.id !== turnId) return;
+				const turn = ctx.activeTurn;
+				ctx.activeTurn = undefined;
 				// §1: a leg that never started still ends a turn that launched a
 				// run, and a claim streamed before the launch is already on screen.
 				settleRunClaims(turn);
@@ -2096,9 +522,9 @@ export const createAppController = (
 				settleTurnBilling();
 			})
 			.catch(() => {
-				if (activeTurn?.id !== turnId) return;
-				const turn = activeTurn;
-				activeTurn = undefined;
+				if (ctx.activeTurn?.id !== turnId) return;
+				const turn = ctx.activeTurn;
+				ctx.activeTurn = undefined;
 				settleRunClaims(turn);
 				store.dispatch({
 					type: "message.response.failed",
@@ -2178,7 +604,7 @@ export const createAppController = (
 		// executeForAgent runs as actor smithers (withAgentActor) — the same
 		// dispatch path as buttons and slash, with the agent attribution.
 		const result = await commands.executeForAgent({ name: call.name, arguments: call.args });
-		if (activeTurn?.id !== turn.id) return;
+		if (ctx.activeTurn?.id !== turn.id) return;
 		/*
 		 * Wave 12 §1: a real launch arms the deterministic claim surface for the
 		 * rest of this turn. A refusal or a chooser route launched nothing, so
@@ -2257,7 +683,7 @@ export const createAppController = (
 	};
 
 	agent.subscribe((frame: AgentTurnFrame) => {
-		if (frame.runId !== activeTurn?.id) return;
+		if (frame.runId !== ctx.activeTurn?.id) return;
 		if (frame.type === "card" || frame.type === "card.update") {
 			handleCardFrame(frame);
 			return;
@@ -2265,13 +691,13 @@ export const createAppController = (
 		if (frame.type === "tool_call") {
 			// The model asked for a command; the done frame right after it ends
 			// this leg, and the continuation is driven from there.
-			activeTurn.pendingCall = { callId: frame.call_id, name: frame.name, args: frame.arguments };
+			ctx.activeTurn.pendingCall = { callId: frame.call_id, name: frame.name, args: frame.arguments };
 			return;
 		}
 		if (frame.type === "delta") {
 			if (frame.text === "") return;
 			if (frame.kind === "text") {
-				activeTurn.receivedText = true;
+				ctx.activeTurn.receivedText = true;
 				/*
 				 * Wave 12 §1: after a run launch the model's words are held until
 				 * the turn settles, so a claim is never rendered even for the beat
@@ -2280,8 +706,8 @@ export const createAppController = (
 				 * Wave 13c: the same hold applies when the user's ask named an
 				 * impossible class — the offer is reviewed before it renders.
 				 */
-				if (activeTurn.runLaunch !== undefined || activeTurn.askClass !== undefined) {
-					activeTurn.claimBuffer += frame.text;
+				if (ctx.activeTurn.runLaunch !== undefined || ctx.activeTurn.askClass !== undefined) {
+					ctx.activeTurn.claimBuffer += frame.text;
 					return;
 				}
 			}
@@ -2308,7 +734,7 @@ export const createAppController = (
 			// A chain turn that ends without prose is still a worked turn: the
 			// authored link is the proof, so the empty-response failure branch
 			// below never applies to a chain turn.
-			activeTurn.receivedText = true;
+			ctx.activeTurn.receivedText = true;
 			return;
 		}
 		if (frame.type === "call.settled") {
@@ -2316,7 +742,7 @@ export const createAppController = (
 			// surface exactly as the tool loop did, so the model's prose about
 			// the run substitutes at settle instead of rendering as a claim.
 			if (RUN_LAUNCH_COMMANDS.includes(frame.name)) {
-				activeTurn.runLaunch = frame.name;
+				ctx.activeTurn.runLaunch = frame.name;
 			}
 			if (!CHAIN_SURFACE_CALLS.has(frame.name) && !frame.name.startsWith("sys/")) {
 				store.dispatch({
@@ -2362,7 +788,7 @@ export const createAppController = (
 			return;
 		}
 		if (frame.type !== "done") return;
-		const turn = activeTurn;
+		const turn = ctx.activeTurn;
 		// A kill outranks a pending tool call: the terminal frame the Worker
 		// injects for a server-side kill can land between the model's
 		// `tool_call` frame and the upstream's own `done`. Continuing there
@@ -2374,7 +800,7 @@ export const createAppController = (
 			turn.pendingCall !== undefined
 		) {
 			if (turn.toolLegs >= MAX_TOOL_LEGS) {
-				activeTurn = undefined;
+				ctx.activeTurn = undefined;
 				settleRunClaims(turn);
 				store.dispatch({
 					type: "message.response.failed",
@@ -2388,7 +814,7 @@ export const createAppController = (
 			void continueToolLeg(turn);
 			return;
 		}
-		activeTurn = undefined;
+		ctx.activeTurn = undefined;
 		settleRunClaims(turn);
 		if (frame.error !== undefined) {
 			store.dispatch({
@@ -2431,24 +857,6 @@ export const createAppController = (
 		settleTurnBilling();
 	});
 
-	/*
-	 * A failed flow has no channel of its own to answer into — dropping the
-	 * outcome reads as a silent no-op (the "did it even run?" bug). Every
-	 * invocation the human makes — a pointer press OR a name typed into the
-	 * composer — states its refusal as a toast; executes that render their own
-	 * error UI return void and never reach this. The zero-balance refusal is
-	 * the one exception: `zeroBalanceGuard` already dispatched it as an
-	 * embedded transcript message, so toasting it too would double-surface the
-	 * same refusal.
-	 */
-	const surfaceCommandFailure = (name: string, outcome: CommandOutcome): void => {
-		if (outcome.status !== "failed") return;
-		if (outcome.error === ZERO_BALANCE_EXHAUSTED_TEXT) return;
-		const key = `command.failed.${name}`;
-		store.dispatch({ type: "toast.shown", actor: "system", key, title: `/${name} didn't run` });
-		store.dispatch({ type: "toast.resolved", actor: "system", key, status: "failed", detail: outcome.error });
-	};
-
 	const send = (text: string): void => {
 		const parsed = parseSubmit(text, commands.all());
 		if (parsed.kind === "empty") return;
@@ -2489,7 +897,7 @@ export const createAppController = (
 			 * proxy) keeps today's behavior — the input is not eaten, it stays
 			 * in the composer.
 			 */
-			const turn = activeTurn;
+			const turn = ctx.activeTurn;
 			if (turn !== undefined && agent.steer !== undefined) {
 				// Wave 13c holds apply to steered asks too: an impossible ask
 				// admitted mid-turn arms the same review the opening prompt gets.
@@ -2536,7 +944,7 @@ export const createAppController = (
 			return;
 		}
 		const turnId = crypto.randomUUID();
-		activeTurn = {
+		ctx.activeTurn = {
 			id: turnId,
 			receivedText: false,
 			toolLegs: 0,
@@ -2548,510 +956,23 @@ export const createAppController = (
 			askClass: impossibleAskOf(prompt),
 			claimBuffer: "",
 		};
-		store.dispatch({ type: "message.submitted", actor: commandActor, turnId, text: prompt });
+		store.dispatch({ type: "message.submitted", actor: ctx.commandActor, turnId, text: prompt });
 		launchLeg(turnId, contextMessages());
 	};
 
 	const reset = (): void => {
-		if (activeTurn !== undefined) void agent.cancelTurn(activeTurn.id);
-		activeTurn = undefined;
+		if (ctx.activeTurn !== undefined) void agent.cancelTurn(ctx.activeTurn.id);
+		ctx.activeTurn = undefined;
 		stopWorkflowPumps();
 		store.dispatch({ type: "conversation.reset", actor: "user" });
 	};
 
-	const showChat = (): void => {
-		store.dispatch({ type: "surface.changed", actor: commandActor, surface: "chat" });
-	};
-
-	/*
-	 * Toggles toggle (§2c): invoking the command for the currently-open pane
-	 * returns to the chat. And THE EMBED LAW's in-app half (§2c″): the AGENT's
-	 * invocation renders an embedded card in the transcript instead — a
-	 * surface-maximizing takeover is structurally unavailable to the model.
-	 */
-	const showWorld = (): void => {
-		if (commandActor === "smithers") {
-			const snapshot = store.worldStateSnapshot();
-			let highest = -1;
-			for (const message of store.collections.messages.values()) highest = Math.max(highest, message.ordinal);
-			for (const card of store.collections.cards.values()) highest = Math.max(highest, card.ordinal);
-			const card: Card = {
-				id: "world-embedded",
-				kind: "world",
-				title: WORLD_DISPLAY_NAME,
-				status: "active",
-				createdAt: Date.now(),
-				ordinal: highest + 1,
-				payload: {
-					documents: snapshot.documents.map((document) => ({
-						path: document.path,
-						title: document.title,
-						confidence: document.confidence,
-					})),
-				},
-			};
-			store.dispatch({ type: "card.upsert", actor: "smithers", card });
-			return;
-		}
-		store.dispatch({
-			type: "surface.changed",
-			actor: "user",
-			surface: store.session().surface === "world" ? "chat" : "world",
-		});
-	};
-
-	const showConnectors = (): void => {
-		if (commandActor === "smithers") {
-			const identity = store.collections.identitySessions.get("identity");
-			let highest = -1;
-			for (const message of store.collections.messages.values()) highest = Math.max(highest, message.ordinal);
-			for (const card of store.collections.cards.values()) highest = Math.max(highest, card.ordinal);
-			const card: Card = {
-				id: "connect-embedded",
-				kind: "connect",
-				title: "Connect work to Smithers",
-				status: "active",
-				createdAt: Date.now(),
-				ordinal: highest + 1,
-				payload: {
-					github: {
-						connected: identity?.state === "signed-in",
-						login: identity?.login ?? null,
-					},
-					nativeAvailable: repositories.available,
-				},
-			};
-			store.dispatch({ type: "card.upsert", actor: "smithers", card });
-			return;
-		}
-		store.dispatch({
-			type: "surface.changed",
-			actor: "user",
-			surface: store.session().surface === "connectors" ? "chat" : "connectors",
-		});
-	};
-
-	const maximizeCard = (id: string): string | void => {
-		if (store.collections.cards.get(id) === undefined) return `There is no card with id ${id}.`;
-		store.dispatch({ type: "card.maximized", actor: "user", id });
-	};
-
-	const minimizeCard = (): void => {
-		store.dispatch({ type: "card.minimized", actor: "user" });
-	};
-
-	const toggleDevtools = (): void => {
-		// The command registers only for admins; the guard keeps the state
-		// honest even if a stale binding fires in a non-admin session.
-		const identity = store.collections.identitySessions.get("identity");
-		if (identity?.state !== "signed-in" || !identity.admin) return;
-		store.dispatch({ type: "devtools.toggled", actor: "user", open: !store.session().devtoolsOpen });
-	};
-
-	const toggleSurfacesMenu = (): void => {
-		store.dispatch({
-			type: "surfaces-menu.toggled",
-			actor: "user",
-			open: !store.session().surfacesMenuOpen,
-		});
-	};
-
-	const toggleConnectMenu = (): void => {
-		store.dispatch({
-			type: "connect-menu.toggled",
-			actor: "user",
-			open: store.session().connectMenuOpen !== true,
-		});
-	};
-
-	/*
-	 * Escape, an outside press, and picking an entry all CLOSE — they are not
-	 * toggles, and dispatching one against an already-closed menu would write a
-	 * transition that changed nothing into the journal.
-	 */
-	const closeConnectMenu = (): void => {
-		if (store.session().connectMenuOpen !== true) return;
-		store.dispatch({ type: "connect-menu.toggled", actor: "user", open: false });
-	};
-
-	/*
-	 * The one backend, named once. `/debug.backend` reports it and the manual
-	 * checklist quotes it, so drift between what runs and what is claimed shows
-	 * up as a failing row rather than as a confident wrong sentence.
-	 */
-	const AGENT_BACKEND = "chain (in-browser Agent Chain over /api/model/stream)";
-
-	/*
-	 * DESIGN.md §14: what drives a turn. A read, not a switch — Smithers has one
-	 * backend, so there is nothing here to flip and an argument is answered
-	 * honestly rather than silently ignored.
-	 */
-	const describeAgentBackend = (backend: string): string | { readonly value: string } => {
-		const asked = backend.trim();
-		if (asked !== "") {
-			return `there is one backend and it cannot be switched: ${AGENT_BACKEND}`;
-		}
-		const value = `agent backend: ${AGENT_BACKEND}`;
-		// A backend answer the human cannot see is a backend they cannot trust.
-		if (commandActor !== "smithers") {
-			store.dispatch({ type: "message.appended", actor: "system", text: value });
-		}
-		return { value };
-	};
-
-	/*
-	 * The debug reads (§2d): one typed surface the dev-tools panel renders and
-	 * the agent invokes to answer "what is happening" for admin sessions.
-	 */
-	/*
-	 * A debug read the HUMAN asked for renders in the transcript.
-	 *
-	 * `{ value }` is the agent boundary's channel and never renders on its own
-	 * (§2b), so a read whose only answer is a value is a silent no-op for the
-	 * person who typed it. `debug.seams` already showed the shape: surface
-	 * first, return the value second. These four now do the same. The agent's
-	 * own invocation still renders nothing — it reads the value in its tool
-	 * result, and pasting the payload into the chat as well would be noise.
-	 */
-	const DEBUG_READ_LIMIT = 4000;
-	const surfaceDebugRead = (title: string, payload: string): { readonly value: string } => {
-		if (commandActor !== "smithers") {
-			const shown =
-				payload.length <= DEBUG_READ_LIMIT
-					? payload
-					: `${payload.slice(0, DEBUG_READ_LIMIT)}\n\n… truncated at ${DEBUG_READ_LIMIT} of ${payload.length} characters. The dev-tools panel (/admin.devtools) holds the whole read.`;
-			store.dispatch({
-				type: "message.appended",
-				actor: "system",
-				text: `${title}\n\n\`\`\`json\n${shown}\n\`\`\``,
-			});
-		}
-		return { value: payload };
-	};
-
-	const debugSnapshot = (): { readonly value: string } => {
-		const identity = store.collections.identitySessions.get("identity");
-		const billing = store.collections.billingAccounts.get("billing");
-		const watched = store.collections.watchedRepos.get("watched");
-		return surfaceDebugRead(
-			"App state snapshot",
-			JSON.stringify({
-				surface: store.session().surface,
-				phase: store.session().phase,
-				revision: store.session().revision,
-				messages: store.collections.messages.size,
-				cards: [...store.collections.cards.values()].map((card) => `${card.kind}:${card.status}`),
-				worldDocuments: store.collections.worldDocuments.size,
-				identity:
-					identity === undefined
-						? null
-						: { state: identity.state, login: identity.login, allowlisted: identity.allowlisted, admin: identity.admin },
-				billing: billing === undefined ? null : { state: billing.state, totalUsd: billing.totalUsd },
-				watchedRepos: watched?.selected ?? null,
-				commands: commands.entries().map((entry) => ({
-					name: entry.binding.descriptor.name,
-					trigger: entry.binding.descriptor.modelInvocable ? "both" : "user",
-					hidden: entry.metadata.hidden === true,
-				})),
-			}),
-		);
-	};
-
-	const debugEvents = (): { readonly value: string } => {
-		const tail = [...store.collections.transitions.values()]
-			.sort((left, right) => left.revision - right.revision)
-			.slice(-40)
-			.map((record) => ({
-				revision: record.revision,
-				actor: record.actor,
-				type: record.type,
-				at: new Date(record.createdAt).toISOString(),
-			}));
-		return surfaceDebugRead("Transition journal tail", JSON.stringify(tail));
-	};
-
-	const debugChain = (): { readonly value: string } => {
-		// The journal fold, whole: every lineage (turns and backgrounds), each
-		// link's script, calls, rejections, steering, outcome, and the author
-		// contexts — the two-histories view. Full payloads by design: the
-		// admin panel is the raw-payload surface the transcript never is.
-		return surfaceDebugRead(
-			"Chain journal x-ray",
-			JSON.stringify(foldLineages([...store.collections.chainEvents.values()])),
-		);
-	};
-
-	const netTap = (): string => JSON.stringify([...netRing].reverse());
-
-	const debugNet = (): { readonly value: string } => surfaceDebugRead("Network tap", netTap());
-
-	const resetGrants = async (): Promise<string | { readonly value: string }> => {
-		if (agent.revokeGrants === undefined) return "this backend holds no grants";
-		await agent.revokeGrants();
-		// A revocation the human cannot see is a revocation they cannot trust.
-		if (commandActor !== "smithers") {
-			store.dispatch({
-				type: "message.appended",
-				actor: "system",
-				text: "The chain's session grants are revoked — the next tool call asks for permission again.",
-			});
-		}
-		return { value: "chain grants revoked" };
-	};
-
-	const debugSeams = async (): Promise<string | void | { readonly value: string }> => {
-		// admin.health is a VIEW over this same read, not a separate path.
-		await adminHealth();
-		const card = store.collections.cards.get("admin-health");
-		if (card === undefined || card.kind !== "admin-health") {
-			return "The seam probe didn't land — see the honest line in the chat.";
-		}
-		return { value: JSON.stringify(card.payload) };
-	};
-
-	/*
-	 * /clear (§2h): sweep the outgoing transcript for anything that belongs in
-	 * world (decisions, facts, preferences — provenance chat-sweep, actor
-	 * smithers), apply it, THEN clear. A failed sweep clears nothing.
-	 */
-	const SWEEP_INSTRUCTIONS = [
-		"You are sweeping a chat transcript before it is cleared.",
-		"Extract anything that belongs in long-term world memory: decisions the user made, durable facts about their work, stated preferences.",
-		'Answer with ONLY JSON: {"notes":[{"title":"...","body":"...","confidence":0.0}...]} — body is markdown, confidence is 0..1.',
-		'If nothing is worth keeping, answer {"notes":[]}. No prose, no fences.',
-	].join("\n");
-
-	interface SweepNote {
-		readonly title: string;
-		readonly body: string;
-		readonly confidence: number;
-	}
-
-	const runSweep = async (transcript: ReadonlyArray<AgentChatMessage>): Promise<SweepNote[] | undefined> => {
-		let response: Response;
-		try {
-			response = await http(`${baseUrl}${MODEL_STREAM_PATH}`, {
-				method: "POST",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({
-					messages: transcript,
-					instructions: SWEEP_INSTRUCTIONS,
-				}),
-			});
-		} catch {
-			return undefined;
-		}
-		if (!response.ok || response.body === null) {
-			await response.body?.cancel();
-			return undefined;
-		}
-		const raw = await response.text();
-		let text = "";
-		for (const line of raw.split("\n")) {
-			if (line.trim() === "") continue;
-			try {
-				const frame: unknown = JSON.parse(line);
-				if (
-					typeof frame === "object" &&
-					frame !== null &&
-					(frame as { type?: unknown }).type === "delta" &&
-					(frame as { kind?: unknown }).kind === "text" &&
-					typeof (frame as { text?: unknown }).text === "string"
-				) {
-					text += (frame as { text: string }).text;
-				}
-			} catch {
-				// An unparseable line is not sweep output.
-			}
-		}
-		const match = /\{[\s\S]*\}/.exec(text);
-		if (match === null) return undefined;
-		try {
-			const parsed: unknown = JSON.parse(match[0]);
-			if (typeof parsed !== "object" || parsed === null) return undefined;
-			const notes = (parsed as { notes?: unknown }).notes;
-			if (!Array.isArray(notes)) return undefined;
-			return notes
-				.filter(
-					(note) =>
-						typeof note === "object" &&
-						note !== null &&
-						typeof (note as { title?: unknown }).title === "string" &&
-						typeof (note as { body?: unknown }).body === "string" &&
-						(note as { title: string }).title.trim() !== "",
-				)
-				.map((note) => {
-					const row = note as { title: string; body: string; confidence?: unknown };
-					return {
-						title: row.title.trim(),
-						body: row.body,
-						confidence:
-							typeof row.confidence === "number" && row.confidence >= 0 && row.confidence <= 1
-								? row.confidence
-								: 0.6,
-					};
-				});
-		} catch {
-			return undefined;
-		}
-	};
-
-	const clearConversationImpl = async (): Promise<true | string> => {
-		const identity = store.collections.identitySessions.get("identity");
-		const canSweep = identity?.state === "signed-in" && identity.allowlisted;
-		const transcript = contextMessages();
-		let kept = 0;
-		if (canSweep && transcript.length > 0) {
-			const notes = await runSweep(transcript);
-			if (notes === undefined) {
-				// A failed sweep leaves the chat UNcleared — nothing is silently lost.
-				const message = "I couldn't finish reviewing the conversation, so I left it exactly as it was. Try /clear again in a moment.";
-				store.dispatch({ type: "message.appended", actor: "system", text: message });
-				return message;
-			}
-			for (const note of notes) {
-				const path = `${note.title.replace(/[\\/:*?"<>|]/g, "-")}.md`;
-				const existing = [...store.collections.worldDocuments.values()].find(
-					(document) => document.path === path,
-				);
-				store.dispatch({
-					type: "world.document.upserted",
-					actor: "smithers",
-					document: {
-						id: existing?.id ?? crypto.randomUUID(),
-						path,
-						title: note.title,
-						body: note.body.startsWith("#") ? note.body : `# ${note.title}\n\n${note.body}\n`,
-						links: existing?.links ?? [],
-						tags: existing?.tags ?? [],
-						sources: [...new Set([...(existing?.sources ?? []), "chat-sweep"])],
-						confidence: note.confidence,
-					},
-				});
-				kept += 1;
-			}
-		}
-		if (activeTurn !== undefined) void agent.cancelTurn(activeTurn.id);
-		activeTurn = undefined;
-		stopWorkflowPumps();
-		store.dispatch({ type: "conversation.cleared", actor: "user", kept });
-		return true;
-	};
-
-	const clearConversation = (): Promise<string | void> =>
-		withToast("chat.clear", `Reviewing the conversation for what to keep…`, "Conversation reviewed", clearConversationImpl).then(
-			(outcome) => (outcome === true ? undefined : outcome),
-		);
-
-	/*
-	 * The browser tool + surface (§2d/§2d′): the server-side guarded fetch
-	 * reads the page; the embedded card shows it (iframe when the site allows
-	 * framing, the honest blocked state when not). The agent's invocation
-	 * hands the extracted text back as the tool result — the transcript only
-	 * ever carries the one-line act ("Smithers read <host>").
-	 */
-	const openBrowserImpl = async (url: string): Promise<true | string | { readonly value: string }> => {
-		let outcome:
-			| {
-					status?: unknown;
-					finalUrl?: unknown;
-					text?: unknown;
-					frameable?: unknown;
-					blockReason?: unknown;
-			  }
-			| undefined;
-		try {
-			const response = await http(`${baseUrl}${TOOLS_BROWSER_FETCH_PATH}`, {
-				method: "POST",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ url }),
-			});
-			if (!response.ok) {
-				const message = await errorMessageOf(response, "That page couldn't be read.");
-				const card = browserCard(url, { error: message });
-				store.dispatch({ type: "card.upsert", actor: commandActor, card });
-				return message;
-			}
-			outcome = (await response.json().catch(() => undefined)) as typeof outcome;
-		} catch {
-			const message = "That page couldn't be read — the browser service didn't answer.";
-			store.dispatch({ type: "card.upsert", actor: commandActor, card: browserCard(url, { error: message }) });
-			return message;
-		}
-		if (outcome === undefined || typeof outcome.status !== "number") {
-			const message = "The browser service answered in a shape I didn't understand.";
-			store.dispatch({ type: "card.upsert", actor: commandActor, card: browserCard(url, { error: message }) });
-			return message;
-		}
-		const card = browserCard(url, {
-			finalUrl: typeof outcome.finalUrl === "string" ? outcome.finalUrl : url,
-			status: outcome.status,
-			frameable: outcome.frameable !== false,
-			blockReason: typeof outcome.blockReason === "string" ? outcome.blockReason : null,
-		});
-		store.dispatch({ type: "card.upsert", actor: commandActor, card });
-		const text = typeof outcome.text === "string" ? outcome.text : "";
-		if (commandActor === "smithers") {
-			// The read IS the tool result for the model; the card is the surface.
-			return { value: text === "" ? `Read ${url} (HTTP ${outcome.status}) — the page had no readable text.` : text };
-		}
-		return true;
-	};
-
-	const browserCardId = (url: string): string => `browser-${url}`;
-
-	const browserCard = (
-		url: string,
-		result:
-			| { finalUrl: string; status: number; frameable: boolean; blockReason: string | null }
-			| { error: string },
-	): Card => {
-		const id = browserCardId(url);
-		const existing = store.collections.cards.get(id);
-		let highest = -1;
-		for (const message of store.collections.messages.values()) highest = Math.max(highest, message.ordinal);
-		for (const card of store.collections.cards.values()) highest = Math.max(highest, card.ordinal);
-		const payload: Extract<Card, { kind: "browser" }>["payload"] =
-			"error" in result
-				? { url, finalUrl: null, status: null, frameable: false, blockReason: null, error: result.error }
-				: {
-						url,
-						finalUrl: result.finalUrl,
-						status: result.status,
-						frameable: result.frameable,
-						blockReason: result.blockReason,
-					};
-		return {
-			id,
-			kind: "browser",
-			title: (() => {
-				try {
-					return new URL(url).host;
-				} catch {
-					return url;
-				}
-			})(),
-			status: "error" in result ? "error" : "active",
-			createdAt: existing?.createdAt ?? Date.now(),
-			ordinal: existing?.ordinal ?? highest + 1,
-			payload,
-		};
-	};
-
-	const openBrowser = (url: string): Promise<string | void | { readonly value: string }> => {
-		let host = url;
-		try {
-			host = new URL(url).host;
-		} catch {
-			// The invalid-URL case is the impl's honest error.
-		}
-		return withToast("browser.fetch", `Reading ${host}…`, `Read ${host}`, () => openBrowserImpl(url)).then(
-			(outcome) => {
-				if (outcome === true) return undefined;
-				return outcome;
-			},
-		);
-	};
+	const {
+		showChat, showWorld, showConnectors, maximizeCard, minimizeCard, toggleDevtools,
+		toggleSurfacesMenu, toggleConnectMenu, closeConnectMenu, describeAgentBackend,
+		debugSnapshot, debugEvents, debugChain, netTap, debugNet, resetGrants, debugSeams,
+		openBrowser, toggleTheme, setPalette,
+	} = createPresentationController(ctx, adminHealth);
 
 	/*
 	 * Wave 11 — workflows in the conversation ("make me a workflow").
@@ -3279,10 +1200,6 @@ export const createAppController = (
 			});
 
 	/** The relay SSE change stream pokes live pumps so progress lands the second it happens. */
-	const runStreams = new Map<string, EventSource>();
-	const pumpPokes = new Map<string, () => void>();
-	const runPumps = new Map<string, { stopped: boolean }>();
-
 	const liveRunCards = (repo?: string): Array<Extract<Card, { kind: "flow-run" }>> =>
 		[...store.collections.cards.values()]
 			.filter(
@@ -3297,12 +1214,12 @@ export const createAppController = (
 
 	const closeRunStreamIfIdle = (repo: string): void => {
 		if (liveRunCards(repo).length > 0) return;
-		runStreams.get(repo)?.close();
-		runStreams.delete(repo);
+		ctx.runStreams.get(repo)?.close();
+		ctx.runStreams.delete(repo);
 	};
 
 	const ensureRunStream = (repo: string): void => {
-		if (typeof EventSource === "undefined" || runStreams.has(repo)) return;
+		if (typeof EventSource === "undefined" || ctx.runStreams.has(repo)) return;
 		try {
 			const source = new EventSource(`${baseUrl}${WORKFLOW_STREAM_PATH}?repo=${encodeURIComponent(repo)}`);
 			// A change frame means fresh state exists NOW — poke this repo's pumps
@@ -3310,9 +1227,9 @@ export const createAppController = (
 			// its own and replays via Last-Event-ID through the seam; the poll
 			// loop below is the floor, so a dead stream never stalls a card.
 			source.addEventListener("change", () => {
-				for (const card of liveRunCards(repo)) pumpPokes.get(card.id)?.();
+				for (const card of liveRunCards(repo)) ctx.pumpPokes.get(card.id)?.();
 			});
-			runStreams.set(repo, source);
+			ctx.runStreams.set(repo, source);
 		} catch {
 			// The poll cadence alone carries the run card.
 		}
@@ -3321,13 +1238,13 @@ export const createAppController = (
 	const pokeableWait = (cardId: string, ms: number): Promise<void> =>
 		new Promise((resolve) => {
 			const timer = setTimeout(() => {
-				pumpPokes.delete(cardId);
+				ctx.pumpPokes.delete(cardId);
 				resolve();
 			}, ms);
 			unref(timer);
-			pumpPokes.set(cardId, () => {
+			ctx.pumpPokes.set(cardId, () => {
 				clearTimeout(timer);
-				pumpPokes.delete(cardId);
+				ctx.pumpPokes.delete(cardId);
 				resolve();
 			});
 		});
@@ -3477,9 +1394,9 @@ export const createAppController = (
 	 * stream pokes it for immediacy; the cadence is the floor.
 	 */
 	const pumpWorkflowRun = async (cardId: string): Promise<void> => {
-		if (runPumps.has(cardId)) return;
+		if (ctx.runPumps.has(cardId)) return;
 		const pump = { stopped: false };
-		runPumps.set(cardId, pump);
+		ctx.runPumps.set(cardId, pump);
 		let failures = 0;
 		let repo = "";
 		/** The engine's first stated reason a step could not run, if it gave one. */
@@ -3676,9 +1593,9 @@ export const createAppController = (
 			 * strip the live pump out of the registry — leaving the SSE poke
 			 * pointing at nothing and letting a second pump start beside it.
 			 */
-			if (runPumps.get(cardId) === pump) {
-				pumpPokes.delete(cardId);
-				runPumps.delete(cardId);
+			if (ctx.runPumps.get(cardId) === pump) {
+				ctx.pumpPokes.delete(cardId);
+				ctx.runPumps.delete(cardId);
 				if (repo !== "") closeRunStreamIfIdle(repo);
 			}
 		}
@@ -3710,7 +1627,7 @@ export const createAppController = (
 				lastSeq: 0,
 			},
 		};
-		store.dispatch({ type: "card.upsert", actor: commandActor, card });
+		store.dispatch({ type: "card.upsert", actor: ctx.commandActor, card });
 		void pumpWorkflowRun(cardId);
 		return cardId;
 	};
@@ -3756,7 +1673,7 @@ export const createAppController = (
 		const existing = store.collections.cards.get(WORKFLOW_REPO_CARD_ID);
 		store.dispatch({
 			type: "card.upsert",
-			actor: commandActor,
+			actor: ctx.commandActor,
 			card: {
 				id: WORKFLOW_REPO_CARD_ID,
 				kind: "workflow-repo",
@@ -3865,7 +1782,7 @@ export const createAppController = (
 			ordinal: nextTranscriptOrdinal(),
 			payload: { repo, workflows },
 		};
-		store.dispatch({ type: "card.upsert", actor: commandActor, card });
+		store.dispatch({ type: "card.upsert", actor: ctx.commandActor, card });
 		return {
 			value:
 				workflows.length === 0
@@ -3924,10 +1841,10 @@ export const createAppController = (
 	const stopWatchingRun = (cardId: string): string | void => {
 		const card = runCardFor(cardId);
 		if (card === undefined) return "That isn't a run card.";
-		const pump = runPumps.get(cardId);
+		const pump = ctx.runPumps.get(cardId);
 		if (pump !== undefined) pump.stopped = true;
-		runPumps.delete(cardId);
-		pumpPokes.get(cardId)?.();
+		ctx.runPumps.delete(cardId);
+		ctx.pumpPokes.get(cardId)?.();
 		patchRunCard(cardId, {
 			phase: "stopped",
 			steps: [...card.payload.steps, "Stopped watching this run."].slice(-RUN_STEPS_TAIL),
@@ -3951,14 +1868,25 @@ export const createAppController = (
 	const resumeWorkflowRuns = (): void => {
 		for (const card of liveRunCards()) void pumpWorkflowRun(card.id);
 	};
+	ctx.resumeWorkflowRuns = resumeWorkflowRuns;
 
 	const stopWorkflowPumps = (): void => {
-		for (const pump of runPumps.values()) pump.stopped = true;
-		runPumps.clear();
-		pumpPokes.clear();
-		for (const source of runStreams.values()) source.close();
-		runStreams.clear();
+		for (const pump of ctx.runPumps.values()) pump.stopped = true;
+		ctx.runPumps.clear();
+		ctx.pumpPokes.clear();
+		for (const source of ctx.runStreams.values()) source.close();
+		ctx.runStreams.clear();
 	};
+	ctx.stopWorkflowPumps = stopWorkflowPumps;
+	const {
+		clearConversation,
+		selectWorldDocument,
+		changeWorldDocument,
+		createWorldDocument,
+		removeWorldDocument,
+		confirmWorldDelete,
+		cancelWorldDelete,
+	} = createWorldController(ctx);
 
 	const forwardApprovalDecision = async (
 		card: Extract<Card, { kind: "approval" }>,
@@ -4023,47 +1951,13 @@ export const createAppController = (
 		});
 	};
 
-	const connectLocalRepository = async (access: RepositoryAccess): Promise<void> => {
-		const operation = store.collections.connectorOperations.get("connector-operation");
-		if (operation?.phase !== "idle") return;
-		store.dispatch({ type: "connector.local.requested", actor: "user", access });
-		try {
-			const result = await repositories.pickLocalRepository(access);
-			switch (result.status) {
-				case "connected":
-					store.dispatch({
-						type: "connector.local.connected",
-						actor: "system",
-						access,
-						repository: result.repository,
-					});
-					break;
-				case "cancelled":
-					store.dispatch({ type: "connector.local.cancelled", actor: "user" });
-					break;
-				case "error":
-					store.dispatch({
-						type: "connector.local.failed",
-						actor: "system",
-						message: result.message,
-					});
-					break;
-			}
-		} catch {
-			store.dispatch({
-				type: "connector.local.failed",
-				actor: "system",
-				message: "The native repository picker stopped responding. Try again.",
-			});
-		}
-	};
 
 	const stop = (): void => {
-		if (activeTurn === undefined) return;
-		const turn = activeTurn;
+		if (ctx.activeTurn === undefined) return;
+		const turn = ctx.activeTurn;
 		const turnId = turn.id;
 		void agent.cancelTurn(turnId);
-		activeTurn = undefined;
+		ctx.activeTurn = undefined;
 		/*
 		 * §1: stopping does not un-launch the run, so the claim surface still
 		 * belongs to the client. Anything the model streamed before the tool call
@@ -4083,84 +1977,7 @@ export const createAppController = (
 		store.dispatch({ type: "composer.changed", actor: "user", draft });
 	};
 
-	const makeConnectorReadOnly = (id: string): void => {
-		store.dispatch({
-			type: "connector.access.changed",
-			actor: "user",
-			id,
-			access: "read",
-		});
-	};
 
-	const removeConnector = (id: string): void => {
-		store.dispatch({ type: "connector.removed", actor: "user", id });
-	};
-
-	/*
-	 * A.34: an id-scoped act used to dispatch blindly, so a note id that does
-	 * not exist was a silent no-op — the reducer dropped it and the human was
-	 * told nothing. An act names what it could not find.
-	 */
-	const selectWorldDocument = (id: string): string | void => {
-		if (store.collections.worldDocuments.get(id) === undefined) {
-			return `There is no ${WORLD_DISPLAY_NAME} note with id ${id}.`;
-		}
-		store.dispatch({ type: "world.document.selected", actor: "user", id });
-	};
-
-	const changeWorldDocument = (id: string, body: string): void => {
-		const document = store.collections.worldDocuments.get(id);
-		if (document === undefined || document.body === body) return;
-		store.dispatch({
-			type: "world.document.upserted",
-			actor: "user",
-			document: updateDocumentBody(document, body),
-		});
-	};
-
-	const createWorldDocument = (): void => {
-		const path = documentPath(store);
-		const title = path.replace(/\.md$/, "");
-		store.dispatch({
-			type: "world.document.upserted",
-			actor: commandActor,
-			document: {
-				id: crypto.randomUUID(),
-				path,
-				title,
-				body: `# ${title}\n\n`,
-				links: [],
-				tags: [],
-				sources: ["user:world-editor"],
-				confidence: 1,
-			},
-		});
-	};
-
-	/*
-	 * §10.6 / §28.4 / A.34: deleting a note is not undoable, so `/world.delete`
-	 * ASKS — from the trash button and from the composer alike. It used to
-	 * delete outright whenever it was typed, because the only confirm lived in
-	 * a component's local state and the flow bypassed it.
-	 */
-	const removeWorldDocument = (id: string): string | void => {
-		if (store.collections.worldDocuments.get(id) === undefined) {
-			return `There is no ${WORLD_DISPLAY_NAME} note with id ${id} to delete.`;
-		}
-		store.dispatch({ type: "world.delete.asked", actor: commandActor, id });
-	};
-
-	/** The human's answer to that question: yes. */
-	const confirmWorldDelete = (): string | void => {
-		const id = store.session().pendingWorldDeleteId ?? null;
-		if (id === null) return "No note is waiting to be deleted.";
-		store.dispatch({ type: "world.document.removed", actor: "user", id });
-	};
-
-	/** The human's answer to that question: no. */
-	const cancelWorldDelete = (): void => {
-		store.dispatch({ type: "world.delete.asked", actor: "user", id: null });
-	};
 
 	const decideApproval = (id: string, decision: "approved" | "denied"): void => {
 		const card = store.collections.cards.get(id);
@@ -4190,7 +2007,7 @@ export const createAppController = (
 			 */
 			if (
 				card.payload.background !== true &&
-				(store.session().phase !== "idle" || activeTurn !== undefined)
+				(store.session().phase !== "idle" || ctx.activeTurn !== undefined)
 			) {
 				store.dispatch({
 					type: "card.approval.decision.failed",
@@ -4252,8 +2069,8 @@ export const createAppController = (
 	 * lifecycle, so rendering and settlement need no special path.
 	 */
 	const resumeChainTurn = (lineage: string): void => {
-		if (store.session().phase !== "idle" || activeTurn !== undefined) return;
-		activeTurn = {
+		if (store.session().phase !== "idle" || ctx.activeTurn !== undefined) return;
+		ctx.activeTurn = {
 			id: lineage,
 			receivedText: true,
 			toolLegs: 0,
@@ -4268,8 +2085,8 @@ export const createAppController = (
 			.startTurn({ runId: lineage, messages: contextMessages(), instructions: "" })
 			.then((result) => {
 				if (result.status === "error") {
-					const turn = activeTurn;
-					activeTurn = undefined;
+					const turn = ctx.activeTurn;
+					ctx.activeTurn = undefined;
 					store.dispatch({
 						type: "message.response.failed",
 						actor: "system",
@@ -4290,7 +2107,7 @@ export const createAppController = (
 	 * that produced it.
 	 */
 	const retryLastTurn = (): void => {
-		if (store.session().phase !== "idle" || activeTurn !== undefined) return;
+		if (store.session().phase !== "idle" || ctx.activeTurn !== undefined) return;
 		const last = [...store.collections.messages.values()]
 			.filter((message) => message.role === "user")
 			.sort((left, right) => right.ordinal - left.ordinal)[0];
@@ -4298,7 +2115,7 @@ export const createAppController = (
 		if (turnId === undefined) return;
 		store.dispatch({ type: "message.retried", actor: "user", turnId });
 		if (store.session().phase !== "responding") return;
-		activeTurn = {
+		ctx.activeTurn = {
 			id: turnId,
 			receivedText: false,
 			toolLegs: 0,
@@ -4309,74 +2126,6 @@ export const createAppController = (
 			claimBuffer: "",
 		};
 		launchLeg(turnId, contextMessages());
-	};
-
-	const toggleTheme = (): void => {
-		store.dispatch({
-			type: "theme.changed",
-			actor: "user",
-			theme: store.session().theme === "dark" ? "light" : "dark",
-		});
-	};
-
-	/*
-	 * The color theme (/theme), the axis orthogonal to the light/dark toggle.
-	 * Which palette to wear is the human's own choice, so an unrecognized key
-	 * is never rounded to the nearest one: the answer is the list itself, one
-	 * calm line, and a bare /theme states where they already are.
-	 */
-	const themePickerCard = (): Extract<Card, { kind: "theme-picker" }> | undefined => {
-		const card = store.collections.cards.get(THEME_PICKER_CARD_ID);
-		return card?.kind === "theme-picker" ? card : undefined;
-	};
-
-	/*
-	 * Bare /theme answers with the picker card, not a sentence: one swatch per
-	 * palette, each painted in its own colors, upserted to the transcript's
-	 * tail like the repo chooser. An unrecognized key opens the same picker —
-	 * the list of valid answers IS the interface.
-	 */
-	const openThemePicker = (selected: Palette): void => {
-		const existing = themePickerCard();
-		let highest = -1;
-		for (const message of store.collections.messages.values()) highest = Math.max(highest, message.ordinal);
-		for (const card of store.collections.cards.values()) highest = Math.max(highest, card.ordinal);
-		store.dispatch({
-			type: "card.upsert",
-			actor: "user",
-			card: {
-				id: THEME_PICKER_CARD_ID,
-				kind: "theme-picker",
-				title: "Color themes",
-				status: "active",
-				createdAt: existing?.createdAt ?? Date.now(),
-				ordinal: highest + 1,
-				payload: { selected },
-			},
-		});
-	};
-
-	const setPalette = (args: string): string | void => {
-		const requested = args.trim().toLowerCase();
-		const current = store.session().palette ?? DEFAULT_PALETTE;
-		if (requested === "") {
-			openThemePicker(current);
-			return;
-		}
-		if (!isPalette(requested)) {
-			openThemePicker(current);
-			return `theme needs one of: ${PALETTES.join(", ")}`;
-		}
-		store.dispatch({ type: "palette.changed", actor: "user", palette: requested });
-		// The open picker follows the choice, so its "current" mark stays honest.
-		const picker = themePickerCard();
-		if (picker !== undefined) {
-			store.dispatch({
-				type: "card.upsert",
-				actor: "user",
-				card: { ...picker, payload: { selected: requested } },
-			});
-		}
 	};
 
 	/*
@@ -4478,6 +2227,23 @@ export const createAppController = (
 			});
 		});
 	};
+	ctx.resumeDeferredCommand = resumeDeferredCommand;
+
+	const {
+		openRepoChooser,
+		toggleWatchedRepo,
+		selectAllWatchedRepos,
+		selectNoWatchedRepos,
+		confirmWatchedRepos,
+		loadFirstRunReco,
+		acceptRecommendation,
+		editRecommendation,
+		dismissRecommendation,
+		refreshRecommendation,
+		connectLocalRepository,
+		makeConnectorReadOnly,
+		removeConnector,
+	} = createConnectorController(ctx, send, promptSignIn);
 
 	/*
 	 * The agent's entry point ALWAYS runs as actor smithers (wired through
@@ -4488,11 +2254,11 @@ export const createAppController = (
 	const commands = createCommandRegistry({
 		changeDraft,
 		withAgentActor: async <T>(work: () => Promise<T>): Promise<T> => {
-			commandActor = "smithers";
+			ctx.commandActor = "smithers";
 			try {
 				return await work();
 			} finally {
-				commandActor = "user";
+				ctx.commandActor = "user";
 			}
 		},
 		reset,
@@ -4625,43 +2391,7 @@ export const createAppController = (
 			};
 		},
 	});
-
-	/*
-	 * §2.5 / §23.4 — identity is shared between tabs; the app's copy of it was
-	 * not. The session cookie is per-origin, so signing in on one tab signs in
-	 * every tab, yet a tab that had already read `/api/auth/session` kept
-	 * rendering the signed-out card until someone reloaded it by hand — and the
-	 * same asymmetry ran the other way after a sign-out.
-	 *
-	 * A tab re-reads the session whenever it comes back to the foreground, and
-	 * a tab that changes identity itself tells its siblings at once. This is a
-	 * host subscription, not React lifecycle, so it lives with the state it
-	 * corrects.
-	 */
-	const IDENTITY_CHANNEL = "smithers.identity";
-	const watchIdentityAcrossTabs = (): void => {
-		if (typeof document === "undefined" || typeof window === "undefined") return;
-		let reading = false;
-		const reread = (): void => {
-			if (reading || document.visibilityState === "hidden") return;
-			reading = true;
-			void loadSession().finally(() => {
-				reading = false;
-			});
-		};
-		document.addEventListener("visibilitychange", reread);
-		window.addEventListener("focus", reread);
-		if (typeof BroadcastChannel === "undefined") return;
-		const channel = new BroadcastChannel(IDENTITY_CHANNEL);
-		channel.onmessage = () => {
-			// A sibling's identity changed: re-read the seam rather than trust
-			// the message — the cookie is the authority, not the announcement.
-			void loadSession();
-		};
-		identityChanged = () => {
-			channel.postMessage("changed");
-		};
-	};
+	ctx.commands = commands;
 
 	watchIdentityAcrossTabs();
 

@@ -51,6 +51,27 @@ describe("NodeTest", () => {
     expect(Runtime.test(bun, ["a.mjs"])).toEqual(["bun", "test", "a.mjs"])
   })
 
+  it("runs a whole suite by directory under the runtime's own runner", () => {
+    // The shape of a package's unit gate: `bun test src`, `node --test src`.
+    // The paths are filters relative to cwd; the declared srcs carry the key
+    // material.
+    const attrs = attrsOf<NodeTest.Attrs>(NodeTest.NodeTest({
+      runtime: bun,
+      runner: NodeTest.testSuite(["src", "scripts"]),
+      srcs: [],
+      deps: [],
+      cwd: "apps/server"
+    }))
+    expect(NodeTest.runArgv(attrs)).toEqual(["bun", "test", "src", "scripts"])
+    expect(attrs.cwd).toBe("apps/server")
+    expect(NodeTest.runArgv(attrsOf<NodeTest.Attrs>(NodeTest.NodeTest({
+      runtime,
+      runner: NodeTest.testSuite(["src"]),
+      srcs: [],
+      deps: []
+    })))).toEqual(["node", "--test", "src"])
+  })
+
   it("runs an entry point with its declared arguments", () => {
     const attrs = attrsOf<NodeTest.Attrs>(NodeTest.NodeTest({
       runtime,
@@ -82,6 +103,7 @@ describe("NodeTest", () => {
     const declare = (runner: unknown): unknown =>
       NodeTest.NodeTest({ runtime, runner: runner as never, srcs: [], deps: [] })
     expect(() => declare({ name: "test-runner", tests: [] })).toThrow()
+    expect(() => declare({ name: "suite", paths: [] })).toThrow()
     expect(() => declare({ name: "entrypoint" })).toThrow()
     expect(() => declare({ name: "shell", command: "node --test a.mjs" })).toThrow()
     // A field the chosen form does not have never reaches the argv, so it

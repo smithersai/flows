@@ -173,3 +173,100 @@ describe("the composer hot path: typing never re-renders the transcript", () => 
 		expect(view.controller.store.session().connectMenuOpen).toBe(false);
 	});
 });
+
+/*
+ * The connect menu's open state belongs to the store.
+ *
+ * It used to be a `useState` inside ComposerConnect, which made the component
+ * the authority on whether it was open — nothing else could open it, close it,
+ * or read it, and no journal entry recorded that it had happened. It is a
+ * session field now, written only through the `connect-menu.toggled`
+ * transition. These tests pin all three halves of that: the store round-trip
+ * the projection follows, and the two dismissals (an outside press, Escape)
+ * that have to reach the store rather than a local setter.
+ */
+
+/** Let a `requestAnimationFrame`-deferred focus call land before asserting. */
+const frame = (): Promise<void> =>
+	new Promise((resolve) => {
+		requestAnimationFrame(() => resolve());
+	});
+
+const connectTrigger = (host: HTMLElement): HTMLButtonElement | null =>
+	host.querySelector<HTMLButtonElement>(".composer-connect-trigger");
+
+const connectList = (host: HTMLElement): HTMLElement | null =>
+	host.querySelector<HTMLElement>(".composer-connect-list");
+
+describe("the connect menu's open state lives in the store", () => {
+	test("the open state round-trips through the connect-menu.toggled transition", async () => {
+		const view = await mountCounted();
+		const { store } = view.controller;
+		expect(store.session().connectMenuOpen).toBe(false);
+		expect(connectList(view.host)).toBeNull();
+
+		// Dispatched at the store, with no component involved at all: the menu
+		// is a projection of the session, so this alone has to open it.
+		await view.act(() => store.dispatch({ type: "connect-menu.toggled", actor: "user", open: true }));
+
+		expect(store.session().connectMenuOpen).toBe(true);
+		expect(connectList(view.host)).not.toBeNull();
+		expect(connectTrigger(view.host)?.getAttribute("aria-expanded")).toBe("true");
+
+		await view.act(() => store.dispatch({ type: "connect-menu.toggled", actor: "user", open: false }));
+
+		expect(store.session().connectMenuOpen).toBe(false);
+		expect(connectList(view.host)).toBeNull();
+		expect(connectTrigger(view.host)?.getAttribute("aria-expanded")).toBe("false");
+
+		// Both ends were recorded — the journal is what a store-owned menu buys.
+		const toggles = [...store.collections.transitions.values()].filter(
+			(record) => record.type === "connect-menu.toggled",
+		);
+		expect(toggles.map((record) => JSON.parse(record.payload).open)).toEqual([true, false]);
+	});
+
+	test("opening from the trigger, then a pointer press outside, closes it", async () => {
+		const view = await mountCounted();
+		const { store } = view.controller;
+
+		await view.act(() => connectTrigger(view.host)?.click());
+		expect(store.session().connectMenuOpen).toBe(true);
+		expect(connectList(view.host)).not.toBeNull();
+
+		// A press inside the menu is not a dismissal.
+		await view.act(() => {
+			connectList(view.host)?.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+		});
+		expect(store.session().connectMenuOpen).toBe(true);
+
+		await view.act(() => {
+			document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+		});
+
+		expect(store.session().connectMenuOpen).toBe(false);
+		expect(connectList(view.host)).toBeNull();
+	});
+
+	test("opening from the trigger, then Escape, closes it and returns focus", async () => {
+		const view = await mountCounted();
+		const { store } = view.controller;
+
+		await view.act(() => connectTrigger(view.host)?.click());
+		expect(store.session().connectMenuOpen).toBe(true);
+		const list = connectList(view.host);
+		expect(list).not.toBeNull();
+
+		await view.act(() => {
+			list?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+		});
+		await frame();
+
+		expect(store.session().connectMenuOpen).toBe(false);
+		expect(connectList(view.host)).toBeNull();
+		// Escape must not strand focus on a node that no longer exists.
+		const trigger = connectTrigger(view.host);
+		expect(trigger).not.toBeNull();
+		expect(document.activeElement).toBe(trigger);
+	});
+});
