@@ -308,157 +308,86 @@ describe("checking verbs do not mutate the working tree", () => {
   })
 })
 
-describe("the CI workflow contract", () => {
-  const workflow = [
-    "name: CI",
-    "on:",
-    "  push:",
-    "    branches: [main]",
-    "jobs:",
-    "  test:",
-    "    runs-on: ubuntu-latest",
-    "    steps:",
-    "      - run: pnpm install --frozen-lockfile",
-    "      - name: Typecheck",
-    "        run: pnpm run check",
-    "      - name: Lint",
-    "        run: pnpm run lint",
-    "  rust:",
-    "    runs-on: ubuntu-latest",
-    "    steps:",
-    "      - run: cargo test --locked",
-    ""
-  ].join("\n")
-
-  const contractWorkspace = async (): Promise<void> => {
-    await write("BUILD.ts", "export const root = 1\n")
-    await write(
-      "packages/pipeline/BUILD.ts",
-      `import { GithubCiGen, PackageManager, Runtime } from "${rulesModule}"\n` +
-        `const packageManager = PackageManager.Pnpm({ version: "11.21.0", runtime: Runtime.Node({ version: ">=22.19.0" }) })\n` +
-        `export const ci = GithubCiGen({\n` +
-        `  packageManager,\n` +
-        `  workflowName: "CI",\n` +
-        `  pushBranches: ["main"],\n` +
-        `  pullRequest: true,\n` +
-        `  workflowDispatch: false,\n` +
-        `  cancelInProgress: true,\n` +
-        `  jobs: [],\n` +
-        `  requiredJobs: ["test", "rust"],\n` +
-        `  gates: [\n` +
-        `    { name: "typecheck", command: "pnpm run check", job: "test" },\n` +
-        `    { name: "lint", command: "pnpm run lint", job: "test" },\n` +
-        `    { name: "rust test", command: "cargo test --locked", job: "rust" }\n` +
-        `  ],\n` +
-        `  output: ".github/workflows/ci.yml"\n` +
-        `})\n`
-    )
-  }
-
-  it("passes while the workflow still runs every declared gate", async () => {
-    await contractWorkspace()
-    await write(".github/workflows/ci.yml", workflow)
-    const summary = await run("lint", "//...")
-
-    expect(summary.ok).toBe(true)
-    expect(status(summary, "//packages/pipeline:ci")).toBe("ran")
-  })
-
-  it("fails, without rewriting the file, when a gate is deleted", async () => {
-    await contractWorkspace()
-    const stripped = workflow.replace("      - name: Lint\n        run: pnpm run lint\n", "")
-    await write(".github/workflows/ci.yml", stripped)
-    const summary = await run("lint", "//...")
-
-    expect(summary.ok).toBe(false)
-    expect(summary.results[0]!.error).toContain("lint")
-    // The whole point: a workflow the contract rejects is reported, never
-    // replaced with generated output.
-    expect(await read(".github/workflows/ci.yml")).toBe(stripped)
-  })
-
-  it("fails when a required job is deleted", async () => {
-    await contractWorkspace()
-    const withoutRust = workflow.slice(0, workflow.indexOf("  rust:"))
-    await write(".github/workflows/ci.yml", withoutRust)
-    const summary = await run("lint", "//...")
-
-    expect(summary.ok).toBe(false)
-    expect(summary.results[0]!.error).toContain("rust")
-  })
-
-  it("fails when the workflow file is missing entirely", async () => {
-    await contractWorkspace()
-    const summary = await run("lint", "//...")
-
-    expect(summary.ok).toBe(false)
-  })
-})
-
 /**
- * The generating half of the same target. Contract mode is what a repository
- * with a hand-written pipeline uses; `write` is the path that owns the file,
- * and the only proof it is safe is a workflow on disk that runs the declared
- * install, then the workspace-pinned CLI, and satisfies its own gates.
+ * The generated CI workflow, end to end.
+ *
+ * A job declares what it requires and which targets it runs; every step the
+ * file carries is derived from those declarations. What is pinned here is that
+ * the derivation reaches disk, that the checking verb reports a hand edit
+ * without repairing it, and that a declaration promising coverage it does not
+ * deliver fails before any file is written.
  */
 describe("the CI workflow generator", () => {
-  const writingWorkspace = async (mode: string): Promise<void> => {
+  const pipeline = (options: {
+    readonly mode: string
+    readonly gates?: string
+    readonly requiredJobs?: string
+    readonly steps?: string
+  }): string =>
+    `import { CiToolchain, GithubCiGen, PackageManager, Runtime, Verb } from "${rulesModule}"\n` +
+    `const runtime = Runtime.Node({ version: ">=22.19.0" })\n` +
+    `const packageManager = PackageManager.Pnpm({ version: "11.21.0", runtime })\n` +
+    `export const ci = GithubCiGen({\n` +
+    `  packageManager,\n` +
+    `  workflowName: "CI",\n` +
+    `  pushBranches: ["main"],\n` +
+    `  pullRequest: true,\n` +
+    `  workflowDispatch: false,\n` +
+    `  cancelInProgress: true,\n` +
+    `  requiredJobs: [${options.requiredJobs ?? "\"test\""}],\n` +
+    `  gates: [${options.gates ?? "{ name: \"packages\", verb: Verb.Test, pattern: \"//packages/...\" }"}],\n` +
+    `  jobs: [{\n` +
+    `    id: "test",\n` +
+    `    runsOn: "ubuntu-latest",\n` +
+    `    toolchain: CiToolchain.Needs({\n` +
+    `      runtimes: [CiToolchain.Node({ runtime, release: "22.19.0" })]\n` +
+    `    }),\n` +
+    `    steps: [${options.steps ?? "{ verb: Verb.Test, pattern: \"//packages/...\" }"}]\n` +
+    `  }],\n` +
+    `  output: ".github/workflows/generated.yml",\n` +
+    `  mode: "${options.mode}"\n` +
+    `})\n`
+
+  const workspaceWith = async (source: string): Promise<void> => {
     await write("BUILD.ts", "export const root = 1\n")
-    await write(
-      "packages/pipeline/BUILD.ts",
-      `import { GithubCiGen, PackageManager, Runtime } from "${rulesModule}"\n` +
-        `const packageManager = PackageManager.Pnpm({ version: "11.21.0", runtime: Runtime.Node({ version: ">=22.19.0" }) })\n` +
-        `export const ci = GithubCiGen({\n` +
-        `  packageManager,\n` +
-        `  workflowName: "CI",\n` +
-        `  pushBranches: ["main"],\n` +
-        `  pullRequest: true,\n` +
-        `  workflowDispatch: false,\n` +
-        `  cancelInProgress: true,\n` +
-        `  install: "pnpm install --frozen-lockfile",\n` +
-        `  requiredJobs: ["test"],\n` +
-        `  gates: [{ name: "typecheck", command: "pnpm run check", job: "test" }],\n` +
-        `  jobs: [{\n` +
-        `    id: "test",\n` +
-        `    runsOn: "ubuntu-latest",\n` +
-        `    steps: [\n` +
-        `      { uses: "actions/checkout@v4" },\n` +
-        `      { run: "pnpm install --frozen-lockfile" },\n` +
-        `      { name: "Typecheck", run: "pnpm run check" }\n` +
-        `    ]\n` +
-        `  }],\n` +
-        `  output: ".github/workflows/generated.yml",\n` +
-        `  mode: "${mode}"\n` +
-        `})\n`
-    )
+    await write("packages/pipeline/BUILD.ts", source)
   }
 
   it("writes a workflow that installs from the lockfile and runs the pinned CLI", async () => {
-    await writingWorkspace("write")
+    await workspaceWith(pipeline({ mode: "write" }))
     const summary = await run("build", "//...")
 
     expect(summary.ok).toBe(true)
     const generated = await read(".github/workflows/generated.yml")
-    const install = generated.indexOf("- run: pnpm install --frozen-lockfile")
+    // The install argv comes from the declared package manager, never from an
+    // attr a BUILD.ts file wrote.
+    const install = generated.indexOf("- run: pnpm install --frozen-lockfile --ignore-scripts")
     // The pattern is rendered as one single-quoted shell word, so the runner's
     // shell cannot expand or re-split it.
-    const execute = generated.indexOf("- run: pnpm exec smthrs ci '//...'")
+    const execute = generated.indexOf("- run: pnpm exec smthrs test '//packages/...'")
     expect(install).toBeGreaterThan(-1)
     // The workspace-pinned CLI, after the install that pinned it, and nothing
     // fetched from a registry.
     expect(execute).toBeGreaterThan(install)
     expect(generated).not.toContain("dlx")
+    // Every step is a derived one. Nothing here was authored as a command.
+    expect(generated).not.toContain("pnpm run ")
+    expect(generated).not.toContain("node --test ")
   })
 
   it("lints the workflow it just wrote, and reports a hand edit without repairing it", async () => {
-    await writingWorkspace("write")
+    await workspaceWith(pipeline({ mode: "write" }))
     await run("build", "//...")
     const generated = await read(".github/workflows/generated.yml")
 
     // The `lint` form of a writing target is the checking form.
     expect((await run("lint", "//...")).ok).toBe(true)
 
-    const edited = generated.replace("        run: pnpm run check\n", "        run: echo skipped\n")
+    const edited = generated.replace(
+      "      - run: pnpm exec smthrs test '//packages/...'\n",
+      "      - run: echo skipped\n"
+    )
+    expect(edited).not.toBe(generated)
     await write(".github/workflows/generated.yml", edited)
     const drifted = await run("lint", "//...")
 
@@ -466,32 +395,42 @@ describe("the CI workflow generator", () => {
     expect(await read(".github/workflows/generated.yml")).toBe(edited)
   })
 
-  it("fails the run, without writing, when the declaration is one write mode refuses", async () => {
-    await write("BUILD.ts", "export const root = 1\n")
-    await write(
-      "packages/pipeline/BUILD.ts",
-      `import { GithubCiGen, PackageManager, Runtime } from "${rulesModule}"\n` +
-        `const packageManager = PackageManager.Pnpm({ version: "11.21.0", runtime: Runtime.Node({ version: ">=22.19.0" }) })\n` +
-        `export const ci = GithubCiGen({\n` +
-        `  packageManager,\n` +
-        `  workflowName: "CI",\n` +
-        `  pushBranches: ["main"],\n` +
-        `  pullRequest: true,\n` +
-        `  workflowDispatch: false,\n` +
-        `  cancelInProgress: true,\n` +
-        `  requiredJobs: [],\n` +
-        `  gates: [],\n` +
-        // No step performs the declared install, so the pinned CLI would not
-        // be in the tree when the generated step runs it.
-        `  jobs: [{ id: "test", runsOn: "ubuntu-latest", steps: [{ run: "echo hello" }] }],\n` +
-        `  output: ".github/workflows/generated.yml",\n` +
-        `  mode: "write"\n` +
-        `})\n`
-    )
+  it("fails the checking verb when the workflow file is missing entirely", async () => {
+    await workspaceWith(pipeline({ mode: "check" }))
+    expect((await run("lint", "//...")).ok).toBe(false)
+  })
+
+  it("fails, without writing, when no job performs a declared gate", async () => {
+    await workspaceWith(pipeline({
+      mode: "write",
+      gates: `{ name: "documentation parity", verb: Verb.Docs, pattern: "//docs/..." }`
+    }))
     const result = await invoke(["build", "//..."])
 
     expect(result.code).not.toBe(0)
-    expect(result.output).toContain("no step runs the declared install")
+    expect(result.output).toContain("does not run documentation parity")
+    await expect(read(".github/workflows/generated.yml")).rejects.toThrow()
+  })
+
+  it("fails, without writing, when a required job is not declared", async () => {
+    await workspaceWith(pipeline({ mode: "write", requiredJobs: `"test", "rust"` }))
+    const result = await invoke(["build", "//..."])
+
+    expect(result.code).not.toBe(0)
+    expect(result.output).toContain("missing required jobs: rust")
+    await expect(read(".github/workflows/generated.yml")).rejects.toThrow()
+  })
+
+  it("fails, without writing, when a step names something the label grammar rejects", async () => {
+    await workspaceWith(pipeline({
+      mode: "write",
+      gates: "",
+      steps: `{ verb: Verb.Test, pattern: "--help" }`
+    }))
+    const result = await invoke(["build", "//..."])
+
+    expect(result.code).not.toBe(0)
+    expect(result.output).toContain("is not a target pattern")
     await expect(read(".github/workflows/generated.yml")).rejects.toThrow()
   })
 })
