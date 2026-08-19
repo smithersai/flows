@@ -16,6 +16,13 @@ export default {
 		watchIgnore: ["dist/**"],
 		mac: {
 			bundleCEF: false,
+			/*
+			 * §27.2: the bundle's Info.plist declared CFBundleIconFile "AppIcon"
+			 * and shipped no icon, so macOS drew the generic application icon in
+			 * the Dock, Finder and Cmd-Tab. `icon.iconset` carries the same mark
+			 * the browser tab uses, at every size iconutil asks for.
+			 */
+			icons: "icon.iconset",
 		},
 		linux: {
 			bundleCEF: false,
