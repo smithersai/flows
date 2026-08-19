@@ -13,6 +13,20 @@
 import { Smithers } from "@smthrs/targets"
 
 // ---------------------------------------------------------------------------
+// Files
+// ---------------------------------------------------------------------------
+
+/**
+ * Every root file a target consumes is declared here, once. Targets reference
+ * these declarations; nothing declares a file inline.
+ */
+export const rootPackageJson = Smithers.file("//package.json")
+export const rootTsconfig = Smithers.file("//tsconfig.base.json")
+export const workspaceTsconfig = Smithers.file("//tsconfig.json")
+export const rootJSDocConfig = Smithers.file("//eslint.jsdoc.js")
+export const pnpmWorkspace = Smithers.file("//pnpm-workspace.yaml")
+
+// ---------------------------------------------------------------------------
 // Toolchain
 // ---------------------------------------------------------------------------
 
@@ -99,7 +113,7 @@ export const workspace = Smithers.PnpmWorkspace({
 
 /** Generates and drift-checks the workspace `tsconfig.json`. */
 export const tsconfig = Smithers.Tsconfig({
-  extends: Smithers.file("tsconfig.base.json"),
+  extends: rootTsconfig,
   compilerOptions: {
     noEmit: true,
     module: "NodeNext",
@@ -107,6 +121,9 @@ export const tsconfig = Smithers.Tsconfig({
     paths: { "*": ["./*"] }
   },
   include: [
+    "BUILD.ts",
+    "lint/BUILD.ts",
+    "packages/*/BUILD.ts",
     "packages/*/src/**/*",
     "packages/*/test/**/*",
     "packages/storage/*/src/**/*",
@@ -138,14 +155,8 @@ export const nodeModules = Smithers.Install({
 })
 
 // ---------------------------------------------------------------------------
-// Shared declarations and workspace policy
+// Workspace policy
 // ---------------------------------------------------------------------------
-
-export const rootPackageJson = Smithers.file("//package.json")
-export const rootTsconfig = Smithers.file("//tsconfig.base.json")
-export const workspaceTsconfig = Smithers.file("//tsconfig.json")
-export const rootJSDocConfig = Smithers.file("//eslint.jsdoc.js")
-export const pnpmWorkspace = Smithers.file("//pnpm-workspace.yaml")
 
 // .github/workflows/ci.yml is hand-written. This target's default `contract`
 // mode only verifies the checked-in workflow still runs the declared gates;
@@ -154,10 +165,23 @@ export const ci = Smithers.GithubCiGen({
   packageManager,
   cacheUrlSecret: cacheUrl,
   cacheTokenSecret: cacheToken,
+  // Each kind is a smthrs CLI verb the generated pipeline runs across the
+  // whole target graph: `smthrs build //...`, `smthrs test //...`, and so on.
+  // When the list is exactly these four, the pipeline collapses to one
+  // `smthrs ci //...` step.
   kinds: ["build", "test", "lint", "docs"],
   gates: [{ name: "documentation parity", command: "pnpm exec smthrs docs '//...'", job: "test" }]
 })
 
+/**
+ * Default targets for packages that have no BUILD.ts file of their own.
+ *
+ * The planner matches every `packages/*` directory that contains a
+ * `package.json` and lacks a `BUILD.ts`, then applies the `StandardPackage`
+ * macro to each match with these attrs, synthesizing the conventional `lib`,
+ * `check`, `test`, `lint`, `fmt`, and `docs` targets. A package writes its own
+ * BUILD.ts only when it deviates from the standard layout.
+ */
 export const packageDefaults = Smithers.PackageDefaults({
   directories: "packages/*",
   macro: Smithers.StandardPackage,

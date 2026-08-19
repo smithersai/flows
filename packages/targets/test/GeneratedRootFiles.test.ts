@@ -235,6 +235,9 @@ describe("the checked-in root files match what BUILD.ts declares", () => {
         paths: { "*": ["./*"] }
       },
       include: [
+        "BUILD.ts",
+        "lint/BUILD.ts",
+        "packages/*/BUILD.ts",
         "packages/*/src/**/*",
         "packages/*/test/**/*",
         "packages/storage/*/src/**/*",
