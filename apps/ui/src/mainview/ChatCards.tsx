@@ -811,10 +811,23 @@ const BrowserCardBody = ({ card }: { readonly card: Extract<Card, { kind: "brows
 				<ExternalLink size={12} aria-hidden="true" /> {shownUrl}
 			</p>
 			{frameable ? (
+				/*
+				 * §8.13: the app document is cross-origin isolated (COEP
+				 * require-corp) because OPFS needs it, and under that policy Chrome
+				 * blocks every cross-origin frame whose response carries no CORP
+				 * header — which is practically every site on the public web. The
+				 * frame went to chrome-error:// and the card rendered an empty white
+				 * box while its pill still read DONE. A credentialless frame is the
+				 * escape hatch the policy ships with: it loads third-party documents
+				 * without credentials and without demanding CORP of them, and the
+				 * document stays isolated.
+				 */
 				<iframe
 					className="browser-card-frame"
 					src={shownUrl}
 					title={shownUrl}
+					// @ts-expect-error React has no typing for the credentialless attribute yet.
+					credentialless=""
 					sandbox="allow-scripts allow-same-origin"
 				/>
 			) : (

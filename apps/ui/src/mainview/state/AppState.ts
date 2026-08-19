@@ -121,6 +121,14 @@ export const SessionSchema = z.object({
 	/** The composer surfaces menu (the /surfaces command's open state). */
 	surfacesMenuOpen: z.boolean(),
 	/*
+	 * The note `/world.delete` is asking about (§10.6, §28.4). Deleting is not
+	 * undoable, so the flow ASKS and the answer is an act of its own — and the
+	 * question lives in the store rather than in a component's local state,
+	 * because a component is a projection and never an authority. Optional so
+	 * sessions persisted before the field parse without a schema reset.
+	 */
+	pendingWorldDeleteId: z.string().nullable().optional(),
+	/*
 	 * Which backend drives a turn (DESIGN.md §14): the chat.smithers.sh proxy
 	 * with the client tool loop, or the Agent Chain runtime. Optional (missing
 	 * = proxy) so persisted sessions from before the flag parse without a
@@ -479,6 +487,15 @@ export type AppTransition =
 			id: string;
 	  }
 	| {
+			/*
+			 * The delete question, asked and answered (§10.6). `id: null` is the
+			 * answer "no" — the dialog closes and the note stays.
+			 */
+			type: "world.delete.asked";
+			actor: Actor;
+			id: string | null;
+	  }
+	| {
 			type: "connector.local.requested";
 			actor: "user";
 			access: RepositoryAccess;
@@ -666,6 +683,7 @@ export const initialSession = (theme: Session["theme"]): Session => ({
 	maximizedCardId: null,
 	devtoolsOpen: false,
 	surfacesMenuOpen: false,
+	pendingWorldDeleteId: null,
 	agentBackend: "proxy",
 	revision: 0,
 });

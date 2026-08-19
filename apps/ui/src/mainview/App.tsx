@@ -6,7 +6,6 @@ import {
 	ChatTranscript,
 	EmptyState,
 	FileTree,
-	Markdown,
 	Marker,
 	Reasoning,
 	SmithersUiStyles,
@@ -46,6 +45,7 @@ import { scrubToolEcho } from "./state/MessageScrub";
 import { timeLabel } from "./Timestamps";
 import { tabOutOf } from "./FocusRing";
 import { stampFlows } from "./FlowStamp";
+import { RichMarkdown } from "./RichMarkdown";
 import type { Card, Message, Suggestion as SuggestionBinding } from "./state/AppState";
 import { WORLD_DISPLAY_NAME } from "./state/AppState";
 
@@ -841,7 +841,10 @@ function App({ controller }: { readonly controller: AppController }) {
 										// scrubToolEcho: a weak model's tool call written into prose
 										// is wire debris, never content — stripped at render only;
 										// the store and dev-tools keep the raw truth.
-										<Markdown className="message-markdown" content={scrubToolEcho(entry.message.text)} />
+										<RichMarkdown
+											className="message-markdown"
+											content={scrubToolEcho(entry.message.text)}
+										/>
 									) : null}
 									{/* The synthetic auth message has no clock time to tell. */}
 									{entry.message.createdAt > 0 ? (

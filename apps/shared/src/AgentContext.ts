@@ -53,7 +53,29 @@ export const AgentRuntimeContextSchema = z.object({
 		connected: z.boolean(),
 		login: z.string().nullable(),
 		watchedRepos: z.union([z.number().int().nonnegative(), z.literal("unselected")]).nullable(),
+		/*
+		 * The chosen repositories BY NAME. A count alone left the model
+		 * declining to answer "what repos do you watch?" while the names were
+		 * served plainly by the seam it was already reading (§22.7). Optional so
+		 * a boundary built before this field still validates the payload.
+		 */
+		watchedRepoNames: z.array(z.string()).optional(),
 	}),
+	/*
+	 * The account's own money, as the client already holds it. Asked "what is my
+	 * balance right now?", the model answered "$0.00" one line above a card its
+	 * own tool call had just rendered reading "$519 left" — it had no figure in
+	 * context and confabulated one (§22.7). Optional for the same reason.
+	 */
+	billing: z
+		.object({
+			state: z.string(),
+			totalUsd: z.string().nullable(),
+			lifetimeChargedUsd: z.string().nullable(),
+			chargeCount: z.number().int().nonnegative(),
+		})
+		.nullable()
+		.optional(),
 	worldState: z.object({
 		documentCount: z.number().int().nonnegative(),
 		documents: z.array(AgentRuntimeWorldDocumentSchema),
@@ -117,8 +139,20 @@ export const renderAgentRuntimeContext = (context: AgentRuntimeContext): string 
 		lines.push(
 			`- GitHub: CONNECTED as ${context.github.login ?? "a GitHub user"} (sign-in and the GitHub connector are one act) — ${watched}.`,
 		);
+		const names = context.github.watchedRepoNames ?? [];
+		if (names.length > 0) {
+			lines.push(`  Watched repositories, by name: ${names.join(", ")}.`);
+		}
 	} else {
 		lines.push("- GitHub: not connected (no signed-in session).");
+	}
+	const billing = context.billing;
+	if (billing !== undefined && billing !== null) {
+		lines.push(
+			billing.state === "unavailable" || billing.state === "unknown"
+				? `- Balance: the billing service did not answer (${billing.state}) — say so rather than naming a figure.`
+				: `- Balance: $${billing.totalUsd ?? "0"} left; $${billing.lifetimeChargedUsd ?? "0"} spent across ${billing.chargeCount} turn(s). This IS the number — never state a different one.`,
+		);
 	}
 	if (context.worldState.documentCount === 0) {
 		lines.push("- World state: no documents yet.");

@@ -11,25 +11,63 @@ export interface WebAgentOptions {
 	readonly fetchImpl?: FetchLike;
 }
 
-/** The boundary answers failures as `{ status, message }`; surface that, not raw JSON. */
-const errorDetail = async (response: Response): Promise<string> => {
-	const body = (await response.text().catch(() => "")).trim();
-	let detail = body;
+/**
+ * What a status MEANS, in the product's own words.
+ *
+ * Rendering `HTTP <status>: <body>` for every status made the app's honesty
+ * depend on every upstream writing user-facing prose. Our own limiter does
+ * (§24.3 confirms that path reads correctly); a model provider answers
+ * `{"type":"error","error":{"type":"rate_limit_error",…}}` and a Worker crash
+ * answers a Cloudflare HTML page, and both were pasted into the chat raw.
+ * The status is classified here so the sentence is right whatever the upstream
+ * sent, and the upstream's own prose is kept only when it reads as prose.
+ */
+const statusSentence = (status: number): string | undefined => {
+	if (status === 429) return "The model provider is rate-limiting this account. Try again in a minute.";
+	if (status === 401 || status === 403) return "That turn wasn't authorized — sign in again and retry.";
+	if (status === 402) return "That turn wasn't run because the account has no balance left.";
+	if (status === 408 || status === 504) return "That turn timed out before the model answered.";
+	if (status === 502 || status === 503) return "Smithers Cloud is unreachable right now. Try again in a moment.";
+	if (status >= 500) return "Smithers Cloud hit an error on that turn.";
+	return undefined;
+};
+
+/** Body text that was written for a person, not transport plumbing. */
+const readableDetail = (body: string): string | undefined => {
+	if (body === "") return undefined;
 	try {
 		const parsed: unknown = JSON.parse(body);
 		if (
 			typeof parsed === "object" &&
 			parsed !== null &&
 			"message" in parsed &&
-			typeof parsed.message === "string"
+			typeof parsed.message === "string" &&
+			parsed.message !== ""
 		) {
-			detail = parsed.message;
+			return parsed.message.slice(0, MAX_ERROR_BYTES);
 		}
+		// Any other JSON shape — a provider's nested error object included — is a
+		// wire payload. Pasting it into the chat is how the raw 429 body shipped.
+		return undefined;
 	} catch {
-		// A non-JSON body (a proxy error page, say) is already the best detail available.
+		// Not JSON. An HTML error page is plumbing; a plain sentence is not.
+		if (/^\s*<|<\/[a-z]+>/i.test(body)) return undefined;
+		return body.slice(0, MAX_ERROR_BYTES);
 	}
-	detail = detail.slice(0, MAX_ERROR_BYTES);
-	return `Smithers web agent failed (HTTP ${response.status})${detail === "" ? "." : `: ${detail}`}`;
+};
+
+/** The boundary answers failures as `{ status, message }`; surface that, not raw JSON. */
+const errorDetail = async (response: Response): Promise<string> => {
+	const body = (await response.text().catch(() => "")).trim();
+	const detail = readableDetail(body);
+	const classified = statusSentence(response.status);
+	if (detail !== undefined) {
+		// The upstream wrote for a person: that sentence leads, and the status
+		// stays available for a bug report.
+		return `Smithers web agent failed (HTTP ${response.status}): ${detail}`;
+	}
+	if (classified !== undefined) return `${classified} (HTTP ${response.status})`;
+	return `Smithers web agent failed (HTTP ${response.status}).`;
 };
 
 const streamFrames = async (

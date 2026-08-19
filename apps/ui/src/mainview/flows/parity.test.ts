@@ -55,7 +55,6 @@ const handlers = (source: string): Array<HandlerRef> => {
  */
 const PRESENTATION_ONLY = [
 	"setSlashMenu", // slash-menu hover highlight: local presentation state
-	"setDeleteTarget", // opens the confirm dialog; the delete itself is onConfirm
 	"setConfirmReset", // opens the reset confirm (§28.4); the reset itself is onConfirm
 	"setPendingRemovalId", // same pattern for connector removal
 	"setCopied", // copy feedback flash; the clipboard write routes via onCopy
