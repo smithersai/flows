@@ -40,7 +40,12 @@ import type * as Path from "@smthrs/kernel/Path"
 import * as MemoryFlows from "@smthrs/memory/Flows"
 import type * as MemoryStore from "@smthrs/memory/MemoryStore"
 import type * as Recall from "@smthrs/memory/Recall"
+import * as ApplyPatch from "@smthrs/std/ApplyPatch"
 import * as Bash from "@smthrs/std/Bash"
+import * as Edit from "@smthrs/std/Edit"
+import * as Glob from "@smthrs/std/Glob"
+import * as Grep from "@smthrs/std/Grep"
+import * as Ls from "@smthrs/std/Ls"
 import * as Read from "@smthrs/std/Read"
 import * as Write from "@smthrs/std/Write"
 import type { Context } from "effect"
@@ -48,7 +53,19 @@ import { Duration, Effect, Schema } from "effect"
 import type * as FileSystem from "effect/FileSystem"
 
 /**
- * Reading and writing files, as two ordinary flows.
+ * The standard filesystem capabilities, as ordinary flows.
+ *
+ * All seven are bound, not just `read` and `write`. A host that offers whole-
+ * file writes and nothing else forces every edit through "read the file, then
+ * write the whole file back", and a model that has an editing tool in its
+ * training reaches for one it does not have instead: on SWE-bench instances the
+ * built-in harness would emit `apply_patch` heredocs into `bash`, watch the
+ * shell report `apply_patch: command not found`, and finish the run claiming a
+ * fix it never applied. `@smthrs/std` already declares and implements every one
+ * of these; the production composition simply was not offering them.
+ *
+ * Each handler needs only `FileSystem` and `Path`, which is why they compose
+ * from the one context the host already built for `read`.
  *
  * @category constructors
  * @since 0.1.0
@@ -58,7 +75,12 @@ export const filesystem = (
 ): FlowBinding.Source =>
   FlowBinding.source("std/filesystem", [
     FlowBinding.provide(FlowBinding.make({ flow: Read.flow, handler: Read.run }), services),
-    FlowBinding.provide(FlowBinding.make({ flow: Write.flow, handler: Write.run }), services)
+    FlowBinding.provide(FlowBinding.make({ flow: Write.flow, handler: Write.run }), services),
+    FlowBinding.provide(FlowBinding.make({ flow: Edit.flow, handler: Edit.run }), services),
+    FlowBinding.provide(FlowBinding.make({ flow: ApplyPatch.flow, handler: ApplyPatch.run }), services),
+    FlowBinding.provide(FlowBinding.make({ flow: Ls.flow, handler: Ls.run }), services),
+    FlowBinding.provide(FlowBinding.make({ flow: Glob.flow, handler: Glob.run }), services),
+    FlowBinding.provide(FlowBinding.make({ flow: Grep.flow, handler: Grep.run }), services)
   ])
 
 /**
