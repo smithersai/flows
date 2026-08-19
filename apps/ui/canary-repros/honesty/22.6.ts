@@ -74,13 +74,28 @@ if (options === 0) {
 	failures.push("/flow.create never rendered the repository chooser");
 } else {
 	await chooser.last().click();
-	await page.waitForTimeout(75_000);
+	/*
+	 * Past the provisioning deadline, not short of it. The app polls a 409
+	 * "provisioning" answer to a bounded 90s deadline and THEN refuses out
+	 * loud; a 75s window measured the spinner mid-flight and reported the
+	 * bound as its absence.
+	 */
+	await page.waitForTimeout(100_000);
 	const afterFlow = await page.locator("body").innerText();
 	const flowAdded = afterFlow
 		.split("\n")
 		.filter((line) => line.trim() !== "" && !beforeFlow.includes(line.trim()));
-	console.log("A. after choosing a repository (75s):", JSON.stringify(flowAdded.slice(-6)));
-	const stillPreparing = afterFlow.includes("Preparing your") && !/\brun\b/i.test(flowAdded.join(" "));
+	console.log("A. after choosing a repository (100s):", JSON.stringify(flowAdded.slice(-6)));
+	/*
+	 * The row is "each refusal names a next step, and the next step actually
+	 * works". A next step that cannot finish must at least SAY so — an answer
+	 * of any kind ends the silent-spinner defect this repro was written for.
+	 */
+	const answered = /didn't run|still being prepared|couldn't be prepared|isn't on Smithers Cloud/i.test(
+		flowAdded.join(" "),
+	);
+	const stillPreparing =
+		afterFlow.includes("Preparing your") && !/\brun\b/i.test(flowAdded.join(" ")) && !answered;
 	if (stillPreparing) {
 		failures.push(
 			"the workflow next step never lands: 'Preparing your <repo> workspace…' stands 75s+ with no run card, no timeout and no error (POST /api/workflow/provision does not answer)",
