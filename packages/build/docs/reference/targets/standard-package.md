@@ -53,14 +53,14 @@ interface StandardTargets {
 }
 ```
 
-| Target  | Target       | Attributes                                                                                                                                         |
-| ------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lib`   | `TsBuild`    | `srcs: [sources]`, `entries: [file("src/index.ts")]`, `deps`, `tsconfig`, `tool: "tsc"`, `format: "dual"`, `outDir: "dist"`, `external: []`, `cwd` |
-| `check` | `Typecheck`  | `srcs: [sources, glob("test/**/*.ts")]`, `deps: [lib, ...deps]`, `tsconfig: testTsconfig`, `buildMode: false`, `incremental: false`, `cwd`         |
-| `test`  | `Vitest`     | `tests: [tests]`, `sources: [sources]`, `deps: [lib, ...deps]`, `config: vitestConfig`, `environment: "node"`, `passWithNoTests: false`, `cwd`     |
-| `lint`  | `EsLint`     | `sources: [sources]`, `deps: []`, `configs: eslintConfigs`, `maxWarnings: 0`, `fix: false`, `cwd`                                                  |
-| `fmt`   | `Dprint`     | `sources: [sources, glob("test/**/*.ts")]`, `deps: []`, `config: dprintConfig`, `fix: false`, `cwd`                                                |
-| `docs`  | `DocsParity` | `readme`, `deps: []`, `cwd`                                                                                                                        |
+| Target  | Target       | Attributes                                                                                                                                     |
+| ------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib`   | `TsBuild`    | `srcs: [sources]`, `entries: [file("src/index.ts")]`, `deps`, `tsconfig`, `tool: { name: "tsc" }`, `format: "dual"`, `outDir: "dist"`, `cwd`   |
+| `check` | `Typecheck`  | `srcs: [sources, glob("test/**/*.ts")]`, `deps: [lib, ...deps]`, `tsconfig: testTsconfig`, `buildMode: false`, `incremental: false`, `cwd`     |
+| `test`  | `Vitest`     | `tests: [tests]`, `sources: [sources]`, `deps: [lib, ...deps]`, `config: vitestConfig`, `environment: "node"`, `passWithNoTests: false`, `cwd` |
+| `lint`  | `EsLint`     | `sources: [sources]`, `deps: []`, `configs: eslintConfigs`, `maxWarnings: 0`, `fix: false`, `cwd`                                              |
+| `fmt`   | `Dprint`     | `sources: [sources, glob("test/**/*.ts")]`, `deps: []`, `config: dprintConfig`, `fix: false`, `cwd`                                            |
+| `docs`  | `DocsParity` | `readme`, `deps: []`, `cwd`                                                                                                                    |
 
 Every emitted target call also receives `packageManager: options.packageManager`.
 

@@ -1,7 +1,9 @@
 # GithubCiGen
 
-Verifies an existing GitHub Actions workflow, or explicitly renders one from
-declared jobs. The default is a non-mutating structural contract.
+Generates the GitHub Actions CI workflow from declared jobs. The workflow is a
+generated root file on the same terms as `pnpm-workspace.yaml` and
+`tsconfig.json`: BUILD.ts is the only description of the pipeline, `write`
+renders it, and `check` — the default — fails on drift.
 
 ```ts
 import { Smithers } from "@smthrs/targets"
@@ -13,30 +15,39 @@ export const ci = Smithers.GithubCiGen({
   packageManager,
   workflowName: "CI",
   pattern: "//...",
-  kinds: ["build", "test", "lint"],
+  pipelineVerbs: [Smithers.Verb.Build, Smithers.Verb.Test, Smithers.Verb.Lint],
   pushBranches: ["main"],
   pullRequest: true,
   workflowDispatch: true,
   cancelInProgress: true,
   install: "pnpm install --frozen-lockfile",
-  jobs: [],
-  requiredJobs: ["test", "rust", "browser"],
+  jobs: [
+    {
+      id: "test",
+      runsOn: "ubuntu-latest",
+      steps: [
+        { uses: "actions/checkout@v4" },
+        { uses: "pnpm/action-setup@v6" },
+        { run: "pnpm install --frozen-lockfile" },
+        { name: "Typecheck", run: "pnpm run check" }
+      ]
+    }
+  ],
+  requiredJobs: ["test"],
   gates: [
-    { name: "typecheck", command: "pnpm run check", job: "test" },
-    { name: "rust tests", command: "cargo test --locked", job: "rust" }
+    { name: "typecheck", command: "pnpm run check", job: "test" }
   ],
   output: ".github/workflows/ci.yml",
-  mode: "contract"
+  mode: "check"
 })
 ```
 
 ## Modes
 
-| Mode       | Behavior                                                                                                                  |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `contract` | Default. Parses the checked-in workflow and fails with `DriftError` if a required job or gate is absent. It never writes. |
-| `check`    | Renders declared jobs and byte-compares the result with the checked-in workflow. It never writes.                         |
-| `write`    | Explicit generation. Validates and writes the rendered workflow.                                                          |
+| Mode    | Behavior                                                                                                   |
+| ------- | ---------------------------------------------------------------------------------------------------------- |
+| `check` | Default. Renders declared jobs and byte-compares the result with the checked-in workflow. It never writes. |
+| `write` | Explicit generation. Validates and writes the rendered workflow.                                           |
 
 The `lint` form maps `write` to `check`. `smthrs ci` plans lint first, so CI is
 also non-mutating even if a target explicitly declares write mode. Only an
@@ -44,30 +55,31 @@ explicit `smthrs build` of a `mode: "write"` target generates a file.
 
 ## Attributes
 
-| Name               | Type                               | Default                               | Description                                                                                                                                                                                                                                                                     |
-| ------------------ | ---------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `workflowName`     | `string`                           | `"CI"`                                | Generated workflow name.                                                                                                                                                                                                                                                        |
-| `pattern`          | `string`                           | `"//..."`                             | Pattern executed by the generated smithers build step. Must be `//...`, `//pkg/...`, `//pkg`, `//pkg:target`, or `//:target`; rendered as one single-quoted shell word.                                                                                                         |
-| `kinds`            | `Array<Target.Kind>`               | build, test, lint, docs               | Pipeline-safe verbs emitted by generation: `build`, `test`, `lint`, and `docs`. The complete default set emits one `smthrs ci` command. `run` stays manual because run targets may be long-lived or mutate the source tree.                                                     |
-| `pushBranches`     | `Array<string>`                    | `["main"]`                            | Generated push branches.                                                                                                                                                                                                                                                        |
-| `pullRequest`      | `boolean`                          | `true`                                | Generated pull-request trigger.                                                                                                                                                                                                                                                 |
-| `workflowDispatch` | `boolean`                          | `true`                                | Generated manual trigger.                                                                                                                                                                                                                                                       |
-| `cancelInProgress` | `boolean`                          | `true`                                | Generated concurrency policy.                                                                                                                                                                                                                                                   |
-| `install`          | `string`                           | The declared manager's frozen install | Lockfile-respecting install command. Unsupported commands, and flags that can omit a pinned dependency, are rejected; the job that runs smithers build must run an install line that passes the same policy. It also selects the workspace-binary runner of the generated step. |
-| `packageManager`   | `PackageManager.PackageManager`    | required                              | The declared package manager. The generated pipeline installs with it and runs the smthrs binary through it, so a workspace that switches managers gets a regenerated workflow.                                                                                                 |
-| `cacheUrlSecret`   | `Secret.Secret`                    | optional                              | The declared secret supplying the remote-cache endpoint override. The generated step reads the repository secret of the same name.                                                                                                                                              |
-| `cacheTokenSecret` | `Secret.Secret`                    | optional                              | The declared secret supplying the remote-cache bearer token. The generated step reads the repository secret of the same name.                                                                                                                                                   |
-| `jobs`             | `Array<Job>`                       | `[]`                                  | Jobs rendered by `write` and `check`; may be empty in contract mode. A job's optional `timeoutMinutes` must be a whole number from 1 to 360.                                                                                                                                    |
-| `gates`            | `Array<Gate>`                      | `[]`                                  | Named commands an unconditional step must still run, or actions it must still use, optionally in one job.                                                                                                                                                                       |
-| `requiredJobs`     | `Array<string>`                    | `[]`                                  | Job ids the workflow must define **and run unconditionally**, in every mode.                                                                                                                                                                                                    |
-| `output`           | `string`                           | `".github/workflows/ci.yml"`          | Workspace-relative workflow path.                                                                                                                                                                                                                                               |
-| `mode`             | `"contract" \| "check" \| "write"` | `"contract"`                          | Output handling described above.                                                                                                                                                                                                                                                |
+| Name               | Type                            | Default                               | Description                                                                                                                                                                                                                                                                                                       |
+| ------------------ | ------------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `workflowName`     | `string`                        | `"CI"`                                | Generated workflow name.                                                                                                                                                                                                                                                                                          |
+| `pattern`          | `string`                        | `"//..."`                             | Pattern executed by the generated smithers build step. Must be `//...`, `//pkg/...`, `//pkg`, `//pkg:target`, or `//:target`; rendered as one single-quoted shell word.                                                                                                                                           |
+| `pipelineVerbs`    | `Array<Verb.Verb>`              | `Verb.all`                            | Typed verb values the generated step runs across `pattern`: `Verb.Build`, `Verb.Test`, `Verb.Lint`, and `Verb.Docs`. The complete set emits one `smthrs ci` command; other sets emit one command per verb. `Verb` defines no `run` value at all, because run targets may be long-lived or mutate the source tree. |
+| `pushBranches`     | `Array<string>`                 | `["main"]`                            | Generated push branches.                                                                                                                                                                                                                                                                                          |
+| `pullRequest`      | `boolean`                       | `true`                                | Generated pull-request trigger.                                                                                                                                                                                                                                                                                   |
+| `workflowDispatch` | `boolean`                       | `true`                                | Generated manual trigger.                                                                                                                                                                                                                                                                                         |
+| `cancelInProgress` | `boolean`                       | `true`                                | Generated concurrency policy.                                                                                                                                                                                                                                                                                     |
+| `install`          | `string`                        | The declared manager's frozen install | Lockfile-respecting install command. Unsupported commands, and flags that can omit a pinned dependency, are rejected; the job that runs smithers build must run an install line that passes the same policy. It also selects the workspace-binary runner of the generated step.                                   |
+| `packageManager`   | `PackageManager.PackageManager` | required                              | The declared package manager. The generated pipeline installs with it and runs the smthrs binary through it, so a workspace that switches managers gets a regenerated workflow.                                                                                                                                   |
+| `cacheUrlSecret`   | `Secret.Secret`                 | optional                              | The declared secret supplying the remote-cache endpoint override. The generated step reads the repository secret of the same name.                                                                                                                                                                                |
+| `cacheTokenSecret` | `Secret.Secret`                 | optional                              | The declared secret supplying the remote-cache bearer token. The generated step reads the repository secret of the same name.                                                                                                                                                                                     |
+| `jobs`             | `Array<Job>`                    | `[]`                                  | Jobs rendered by `write` and `check`; the render refuses an empty list. A job's optional `timeoutMinutes` must be a whole number from 1 to 360.                                                                                                                                                                   |
+| `gates`            | `Array<Gate>`                   | `[]`                                  | Named commands an unconditional step must still run, or actions it must still use, optionally in one job.                                                                                                                                                                                                         |
+| `requiredJobs`     | `Array<string>`                 | `[]`                                  | Job ids the workflow must define **and run unconditionally**, in every mode.                                                                                                                                                                                                                                      |
+| `output`           | `string`                        | `".github/workflows/ci.yml"`          | Workspace-relative workflow path.                                                                                                                                                                                                                                                                                 |
+| `mode`             | `"check" \| "write"`            | `"check"`                             | Output handling described above.                                                                                                                                                                                                                                                                                  |
 
-## Contract and generation guarantees
+## Generation guarantees
 
-Contract mode preserves a hand-written production pipeline, including comments,
-platform lanes, matrices, and advisory jobs, while making required gates
-machine-checkable. The parser reads job ids, every `run` and `uses` command, and
+What keeps the generator from silently deleting a repository's gates is the
+render itself: before writing or comparing anything, the rendered workflow is
+re-parsed and checked against every declared gate. The parser reads job ids,
+every `run` and `uses` command, and
 the `if:` and `continue-on-error:` of every job and step,
 including sequences written at their key's own indentation (`steps:` and
 `needs:` in the common compact style), and rejects a duplicate mapping key at every level it reads — a repeated
@@ -75,8 +87,9 @@ top-level key, job id, job field, or step field. YAML shadows all of them and
 keeps the last, so a gate could otherwise match a job, a `steps:` block, or a
 `run:` script GitHub never executes. A key is read unquoted, so `"test":` and
 `test:` are the same job id, both to a gate and to the duplicate check. A
-missing file, malformed workflow, missing job, or missing/wrong-job gate is a
-typed `DriftError` carrying the workflow path.
+dropped gate or required job is a throw at plan time, before any file is
+written; drift between the checked-in workflow and the render is a typed
+`DriftError` carrying the workflow path.
 
 Quoted scalar values are decoded before shell scanning. JSON-compatible
 double-quoted escapes and YAML's doubled-single-quote form are supported;
@@ -84,22 +97,15 @@ other YAML-only escape forms are refused. The scanner therefore never treats
 the source spelling of an escape as a different shell program and invents a
 gate outside a quote that GitHub actually places inside it.
 
-The contract reader admits only a regular, non-symlink workflow file of at
-most 1 MiB. It opens nonblocking and no-follow where the host supports those
-flags, verifies the opened descriptor against the file it inspected, performs
-a bounded read even if the file grows, and rejects invalid UTF-8. A FIFO,
-device, socket, symlink, path escape, or oversized file therefore fails the
-contract instead of hanging the check or turning it into an unbounded read.
-
 ### What a required job proves
 
-A `requiredJobs` entry asserts that the job RUNS, on the same terms as a gate.
-A job that carries an `if:` is one GitHub may skip, so only an unconditional job
-(or one whose condition is the literal `true` / `${{ true }}`) satisfies the
-entry. A job that exists but is conditional is reported as `id (conditional)`
-rather than as missing, because the id is right there in the file.
-`continue-on-error` is left advisory here for the same reason it is left
-advisory for gates.
+A `requiredJobs` entry asserts that the render defines the job: removing a job
+without removing its entry is a throw at plan time rather than a pipeline that
+quietly stopped running a lane. The renderer has no way to emit a job or step
+`if:` at all, so every rendered job runs unconditionally. For reading a
+workflow file directly, `GithubWorkflow.missingRequiredJobs` applies the
+stricter run-unconditionally test and reports a conditional job as
+`id (conditional)` rather than as missing.
 
 ### What a gate proves
 
@@ -151,8 +157,8 @@ never run.
 
 ### What generation refuses
 
-- an empty job list, an empty `kinds` list, and any declared `requiredJobs` id
-  the render does not define;
+- an empty job list, an empty `pipelineVerbs` list, and any declared
+  `requiredJobs` id the render does not define;
 - an install command that is not one of `pnpm install --frozen-lockfile`,
   `npm ci`, `yarn install --immutable`, or `bun install --frozen-lockfile`,
   **or** that carries a flag outside that package manager's allowlist. The
@@ -176,9 +182,11 @@ never run.
   negative values are rejected by the runner and larger ones are silently
   capped, so both render a job that does not enforce what it declares. The attrs
   schema bounds it and `render` checks it again;
-- the manual `run` kind. Run targets may start long-lived development services
-  or mutate the source tree (for example, a scaffold), so generated CI admits
-  only `build`, `test`, `lint`, and `docs`;
+- nothing needs refusing for the manual `run` kind: `Verb` defines no `run`
+  value, so a pipeline that runs `run` targets is a declaration that cannot be
+  written. Run targets may start long-lived development services or mutate the
+  source tree (for example, a scaffold), which is why only `Verb.Build`,
+  `Verb.Test`, `Verb.Lint`, and `Verb.Docs` exist;
 - a control character in a rendered value, such as the carriage return of a
   CRLF script, which the shell cannot run;
 - a `pattern` outside the CLI's label grammar. The supported forms are exactly
@@ -209,24 +217,24 @@ scalar, which GitHub still evaluates.
 
 The first rendered job receives the smthrs command, running the workspace
 binary the declared install pinned — `pnpm exec`, `npm exec --no-install --`,
-`yarn run`, or `bun run`. Nothing is fetched from a registry. A complete
-build/test/lint set uses one `pnpm exec smthrs ci '<pattern>'`; other sets
+`yarn run`, or `bun run`. Nothing is fetched from a registry. Declaring every
+verb (`Verb.all`) uses one `pnpm exec smthrs ci '<pattern>'`; other sets
 receive one command per verb. The pattern is rendered as one single-quoted shell
 word, which is a literal in every default GitHub Actions shell (`bash` on Linux
 and macOS, `pwsh` on Windows), so the runner cannot glob-expand or re-split it.
 
-In contract and check modes the output is a declared input and the target is
-cacheable. Write mode is non-cacheable and declares the workflow as an output,
-not an input.
+In check mode the output is a declared input and the target is cacheable.
+Write mode is non-cacheable and declares the workflow as an output, not an
+input.
 
 ## Channels and status
 
-|          |                                                                              |
-| -------- | ---------------------------------------------------------------------------- |
-| Kinds    | `build`, `lint`                                                              |
-| Success  | `Schema.Void`                                                                |
-| Error    | `WriteFileError \| DriftError`                                               |
-| Executes | Yes. The executor provides write, byte-check, and workflow-contract actions. |
+|          |                                                          |
+| -------- | -------------------------------------------------------- |
+| Kinds    | `build`, `lint`                                          |
+| Success  | `Schema.Void`                                            |
+| Error    | `WriteFileError \| DriftError`                           |
+| Executes | Yes. The executor provides write and byte-check actions. |
 
 ## See also
 

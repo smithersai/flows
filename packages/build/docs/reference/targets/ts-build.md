@@ -13,28 +13,30 @@ export const lib = Smithers.TsBuild({
   entries: [Smithers.file("src/index.ts")],
   deps: [],
   tsconfig: Smithers.file("tsconfig.json"),
-  tool: "tsc",
+  tool: { name: "tsc" },
   format: "dual",
   outDir: "dist",
-  external: [],
   cwd: "packages/flow"
 })
 ```
 
 ## Attributes
 
-| Name             | Type                            | Default  | Description                                                                                |
-| ---------------- | ------------------------------- | -------- | ------------------------------------------------------------------------------------------ |
-| `packageManager` | `PackageManager.PackageManager` | required | The declared package manager the tool runs through; its name and version are key material. |
-| `srcs`           | `Array<Input.Declared>`         | required | Source declarations. Digested as key material.                                             |
-| `entries`        | `Array<Input.File>`             | required | Entry point declarations. Passed to `tsup`; key material only for `tsc`.                   |
-| `deps`           | `Array<Target.Target>`          | required | Dependency targets.                                                                        |
-| `tsconfig`       | `Input.File`                    | required | The tsconfig the build uses.                                                               |
-| `tool`           | `"tsup" \| "tsc"`               | required | Which builder to run.                                                                      |
-| `format`         | `"esm" \| "cjs" \| "dual"`      | required | Output module format. Passed to `tsup`; key material only for `tsc`.                       |
-| `outDir`         | `string`                        | required | Output directory, relative to `cwd`. Also the captured output path.                        |
-| `external`       | `Array<string>`                 | required | Packages left unbundled. Passed to `tsup`; key material only for `tsc`.                    |
-| `cwd`            | `string`                        | `"."`    | Workspace-relative directory the tool runs in.                                             |
+| Name             | Type                            | Default  | Description                                                                                                                                                         |
+| ---------------- | ------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packageManager` | `PackageManager.PackageManager` | required | The declared package manager the tool runs through; its name and version are key material.                                                                          |
+| `srcs`           | `Array<Input.Declared>`         | required | Source declarations. Digested as key material.                                                                                                                      |
+| `entries`        | `Array<Input.File>`             | required | Entry point declarations. Passed to `tsup`; key material only for `tsc`.                                                                                            |
+| `deps`           | `Array<Target.Target>`          | required | Dependency targets.                                                                                                                                                 |
+| `tsconfig`       | `Input.File`                    | required | The tsconfig the build uses.                                                                                                                                        |
+| `tool`           | `TsBuild.Tool`                  | required | Which builder to run: `{ name: "tsc" }` or `{ name: "tsup", external }`. A discriminated union, so a declaration cannot carry a flag the selected tool never reads. |
+| `format`         | `"esm" \| "cjs" \| "dual"`      | required | Output module format. Passed to `tsup`; key material only for `tsc`.                                                                                                |
+| `outDir`         | `string`                        | required | Output directory, relative to `cwd`. Also the captured output path.                                                                                                 |
+| `cwd`            | `string`                        | `"."`    | Workspace-relative directory the tool runs in.                                                                                                                      |
+
+The `tsup` variant's `external` lists the packages left unbundled, forwarded
+as `--external`. The `tsc` variant carries no flags: the tsconfig owns every
+emit option, and `tsc` has no bundle to exclude a package from.
 
 ## Command
 

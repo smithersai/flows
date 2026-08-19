@@ -31,6 +31,11 @@ record, not a design.
 - **Verb-aware package labels.** `smthrs lint //packages/plan` selects the
   package's lint-participating targets instead of refusing on the
   build-only default target.
+- **Workflow generation (2026-08-19).** `.github/workflows/ci.yml` is a
+  generated root file. The root `BUILD.ts` declares it through `GithubCiGen`
+  with `mode: "check"`, `smthrs build //:ci` regenerates it, and every other
+  verb drift-checks it — the same terms as `pnpm-workspace.yaml` and
+  `tsconfig.json`. The pipeline verbs are typed `Verb` values.
 
 ## Not yet adopted
 
@@ -39,18 +44,16 @@ record, not a design.
   run only as workflow steps. Expressing them as targets needs a catalog
   target for root-anchored script runs; hand-rolled `Target.make` calls in the
   root `BUILD.ts` are against the configuration style.
-- **Workflow generation.** `.github/workflows/ci.yml` is hand-written. The
-  `GithubCiGen` root target is deliberately withdrawn until generation is
-  adopted, because its write mode's default output is the real workflow
-  file.
 - **Caching.** TsBuild, Typecheck, Vitest, EsLint, and Dprint are
   `cache: false`: their input contracts are not yet complete key material
   (the external toolchain versions are not folded in). Until they opt in,
   the shadow lane re-runs everything. The remote cache service is
   implemented but not deployed, and no `RemoteCache` declaration exists in
   the root `BUILD.ts`.
-- **The `docs` verb in ci.** DocsParity joins the `ci` verb set once the
-  README backfill (factory queue item 0007) lands.
+- **Green `docs` verdicts.** DocsParity is in the `ci` verb set — the root
+  declaration's `pipelineVerbs: Verb.all` includes `Verb.Docs` — but its
+  verdicts stay red until the README backfill (factory queue item 0007)
+  lands.
 
 ## Promotion criteria for the shadow lane
 

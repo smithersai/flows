@@ -22,12 +22,12 @@ declaration the caller passes in.
 
 ## Attributes
 
-| Name             | Type             | Default  | Description                                                          |
-| ---------------- | ---------------- | -------- | -------------------------------------------------------------------- |
-| `packageManager` | `PackageManager` | required | The declared manager, from `PackageManager.Pnpm`, `.Npm`, `.Yarn`, … |
-| `lockfile`       | `Target \| null` | `null`   | The `Lockfile` target, when the lockfile is generated                |
-| `manifest`       | `Target \| null` | `null`   | The root-manifest target, when it is generated                       |
-| `workspace`      | `Target \| null` | `null`   | The workspace-definition target, when it is generated                |
+| Name             | Type             | Default  | Description                                                        |
+| ---------------- | ---------------- | -------- | ------------------------------------------------------------------ |
+| `packageManager` | `PackageManager` | required | The declared manager, from `PackageManager.Pnpm` or `.BunPackages` |
+| `lockfile`       | `Target \| null` | `null`   | The `Lockfile` target, when the lockfile is generated              |
+| `manifest`       | `Target \| null` | `null`   | The root-manifest target, when it is generated                     |
+| `workspace`      | `Target \| null` | `null`   | The workspace-definition target, when it is generated              |
 
 The three optional attributes are dependency edges, not file declarations. They
 order the generators before the install. The lockfile's _content_ still reaches

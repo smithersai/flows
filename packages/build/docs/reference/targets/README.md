@@ -12,7 +12,7 @@ import { Smithers } from "@smthrs/targets"
 ## Execution status
 
 The CLI executor supplies the shared exec, generated-file write/check,
-workflow-contract, documentation-parity, filegroup, LLM-review,
+documentation-parity, filegroup, LLM-review,
 package-manifest, output-capture, scaffold, and install implementations. It
 deliberately does not supply the irreversible-exec implementation, so a target
 that publishes externally or applies release versioning fails at interpretation
@@ -55,11 +55,11 @@ exists for future additions and is unused. See
 
 ## Generation
 
-| Target                                  | Kinds           | Cacheable                          | Status   | Summary                                                                      |
-| --------------------------------------- | --------------- | ---------------------------------- | -------- | ---------------------------------------------------------------------------- |
-| [SortPackageJson](sort-package-json.md) | `build`, `lint` | Never                              | Executes | Validates or rewrites `package.json` key ordering.                           |
-| [PackageJson](package-json-gen.md)      | `lint` / `run`  | Check only                         | Executes | Expands a typed manifest declaration into check, write, and refresh targets. |
-| [GithubCiGen](github-ci-gen.md)         | `build`, `lint` | Effective `contract`/`check` modes | Executes | Generates the GitHub Actions CI workflow from attrs.                         |
+| Target                                  | Kinds           | Cacheable              | Status   | Summary                                                                      |
+| --------------------------------------- | --------------- | ---------------------- | -------- | ---------------------------------------------------------------------------- |
+| [SortPackageJson](sort-package-json.md) | `build`, `lint` | Never                  | Executes | Validates or rewrites `package.json` key ordering.                           |
+| [PackageJson](package-json-gen.md)      | `lint` / `run`  | Check only             | Executes | Expands a typed manifest declaration into check, write, and refresh targets. |
+| [GithubCiGen](github-ci-gen.md)         | `build`, `lint` | Effective `check` mode | Executes | Generates the GitHub Actions CI workflow from attrs.                         |
 
 ## Documentation
 

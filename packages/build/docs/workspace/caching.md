@@ -104,7 +104,7 @@ not yet key material.
 | Target                                        | Cacheable                                                        |
 | --------------------------------------------- | ---------------------------------------------------------------- |
 | `DocsParity`, `Filegroup`, `PackageJsonCheck` | Always; each is a bounded in-process check over declared content |
-| `GithubCiGen`                                 | In `contract` and `check` modes; never in `write` mode           |
+| `GithubCiGen`                                 | In `check` mode; never in `write` mode                           |
 | `ToolBuild`                                   | Only when its declaration sets `cache: true`                     |
 | Every other catalog target                    | Never                                                            |
 

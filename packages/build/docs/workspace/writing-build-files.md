@@ -28,10 +28,9 @@ export const lib = Smithers.TsBuild({
   entries: [Smithers.file("src/index.ts")],
   deps: [],
   tsconfig: Smithers.file("tsconfig.json"),
-  tool: "tsc",
+  tool: { name: "tsc" },
   format: "dual",
   outDir: "dist",
-  external: [],
   cwd: "packages/flow"
 })
 
