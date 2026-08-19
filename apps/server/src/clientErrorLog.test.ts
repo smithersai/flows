@@ -1,8 +1,17 @@
 import { describe, expect, test } from "bun:test";
 import worker from "./index";
 import type { WorkerEnv } from "./index";
-import { appendClientError, CLIENT_ERROR_LOG_LIMIT, ClientErrorLog, readClientErrors } from "./clientErrorLog";
-import type { ClientErrorNamespace, ClientErrorStorage } from "./clientErrorLog";
+import {
+	appendClientError,
+	bounded,
+	capRecord,
+	CLIENT_ERROR_LOG_LIMIT,
+	CLIENT_ERROR_LOG_MAX_BYTES,
+	CLIENT_ERROR_RECORD_MAX_BYTES,
+	ClientErrorLog,
+	readClientErrors,
+} from "./clientErrorLog";
+import type { ClientErrorNamespace, ClientErrorRecord, ClientErrorStorage } from "./clientErrorLog";
 
 /*
  * What broke in a user's browser has to survive longer than a `wrangler tail`.
@@ -216,5 +225,63 @@ describe("the client-error route and its admin read", () => {
 			expect(body.total).toBe(0);
 			expect(body.note).toContain("nothing is stored");
 		});
+	});
+});
+
+/*
+ * The log lives under one storage key with a 128 KiB ceiling, and the route
+ * accepts reports of up to 16 KiB. A count-only bound would let the value grow
+ * past the limit, the put would throw, and — since appending must never fail
+ * the report — the throw would be swallowed and the log would quietly stop
+ * recording. These hold the byte bound that prevents exactly that.
+ */
+describe("the log stays inside one storage value", () => {
+	const bigReport = (chars: number, at: string): ClientErrorRecord => ({
+		at,
+		report: { message: "x".repeat(chars) },
+	});
+
+	test("a single oversized report is truncated, and says so", () => {
+		const capped = capRecord(bigReport(20_000, "2026-08-18T00:00:00.000Z"));
+		expect(JSON.stringify(capped).length).toBeLessThanOrEqual(CLIENT_ERROR_RECORD_MAX_BYTES);
+		expect(String(capped.report)).toContain("truncated from");
+		// The head of the report survives — what broke is usually in the first lines.
+		expect(String(capped.report)).toContain("xxxxx");
+		expect(capped.at).toBe("2026-08-18T00:00:00.000Z");
+	});
+
+	test("a small report is left exactly as it was", () => {
+		const small: ClientErrorRecord = { at: "2026-08-18T00:00:00.000Z", report: { message: "boom" } };
+		expect(capRecord(small)).toEqual(small);
+	});
+
+	test("the log never exceeds its byte budget, whatever it is fed", async () => {
+		const logs = memoryLog();
+		for (let index = 0; index < CLIENT_ERROR_LOG_LIMIT + 20; index += 1) {
+			await appendClientError(logs, bigReport(16_000, new Date(index).toISOString()));
+		}
+		const read = await readClientErrors(logs);
+		expect(JSON.stringify(read.reports).length).toBeLessThanOrEqual(CLIENT_ERROR_LOG_MAX_BYTES);
+		// Still a useful log, not one record.
+		expect(read.reports.length).toBeGreaterThan(10);
+		// And the newest survived: eviction takes from the old end.
+		expect(read.reports[0]?.at).toBe(new Date(CLIENT_ERROR_LOG_LIMIT + 19).toISOString());
+	});
+
+	test("both bounds hold together: small reports are capped by count, large ones by bytes", () => {
+		const small = Array.from({ length: 400 }, (_, index) => ({
+			at: new Date(index).toISOString(),
+			report: { i: index },
+		}));
+		expect(bounded(small)).toHaveLength(CLIENT_ERROR_LOG_LIMIT);
+		const large = Array.from({ length: 400 }, (_, index) => capRecord(bigReport(16_000, new Date(index).toISOString())));
+		const boundedLarge = bounded(large);
+		expect(boundedLarge.length).toBeLessThan(CLIENT_ERROR_LOG_LIMIT);
+		expect(JSON.stringify(boundedLarge).length).toBeLessThanOrEqual(CLIENT_ERROR_LOG_MAX_BYTES);
+	});
+
+	test("one report that alone exceeds the budget is still kept, not dropped into silence", () => {
+		const huge: ClientErrorRecord = { at: "2026-08-18T00:00:00.000Z", report: "y".repeat(200_000) };
+		expect(bounded([huge])).toHaveLength(1);
 	});
 });

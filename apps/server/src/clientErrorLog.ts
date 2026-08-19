@@ -22,6 +22,26 @@
 /** Reports kept. At the route's own ceiling of 120/minute this is a couple of minutes of a storm. */
 export const CLIENT_ERROR_LOG_LIMIT = 200;
 
+/**
+ * The whole log lives under one Durable Object storage key, and a stored value
+ * may not exceed 128 KiB. The route accepts a report of up to 16 KiB, so a
+ * count alone is not a bound: two hundred large ones would be megabytes, the
+ * `put` would throw, and — because appending must never fail the report — the
+ * throw would be swallowed and the log would silently stop recording. Which is
+ * the exact failure this module exists to end.
+ *
+ * So the real constraint is bytes. The budget is set well under the limit to
+ * leave room for the key and the store's own framing.
+ */
+export const CLIENT_ERROR_LOG_MAX_BYTES = 96 * 1024;
+
+/**
+ * The most one report may occupy. A stack trace is worth keeping and a 16 KiB
+ * blob is not worth evicting fifty other reports for, so an oversized one is
+ * truncated rather than dropped: what broke is usually in the first lines.
+ */
+export const CLIENT_ERROR_RECORD_MAX_BYTES = 4 * 1024;
+
 export interface ClientErrorStorage {
 	readonly get: <T>(key: string) => Promise<T | undefined>;
 	readonly put: (key: string, value: unknown) => Promise<void>;
@@ -48,6 +68,24 @@ export interface ClientErrorRecord {
 
 const LOG_KEY = "reports";
 
+const sizeOf = (value: unknown): number => JSON.stringify(value)?.length ?? 0;
+
+/** One report, cut to its byte budget. The truncation is stated, never silent. */
+export const capRecord = (record: ClientErrorRecord): ClientErrorRecord => {
+	if (sizeOf(record) <= CLIENT_ERROR_RECORD_MAX_BYTES) return record;
+	const text = typeof record.report === "string" ? record.report : JSON.stringify(record.report) ?? "";
+	// Leave room for the surrounding fields and the note.
+	const room = Math.max(0, CLIENT_ERROR_RECORD_MAX_BYTES - sizeOf({ ...record, report: "" }) - 40);
+	return { ...record, report: `${text.slice(0, room)}… [truncated from ${text.length} characters]` };
+};
+
+/** The newest reports that fit, both bounds enforced: count and bytes. */
+export const bounded = (records: ReadonlyArray<ClientErrorRecord>): Array<ClientErrorRecord> => {
+	const kept = records.slice(0, CLIENT_ERROR_LOG_LIMIT);
+	while (kept.length > 1 && sizeOf(kept) > CLIENT_ERROR_LOG_MAX_BYTES) kept.pop();
+	return kept;
+};
+
 /** Every deployment shares one log; the name is fixed so any request finds it. */
 export const CLIENT_ERROR_LOG_NAME = "client-errors";
 
@@ -63,7 +101,7 @@ export class ClientErrorLog {
 				if (record === undefined) return new Response("bad record", { status: 400 });
 				// Newest first, oldest evicted: a storm never buries the report
 				// that is being read right now.
-				const next = [record, ...stored].slice(0, CLIENT_ERROR_LOG_LIMIT);
+				const next = bounded([capRecord(record), ...stored]);
 				await this.ctx.storage.put(LOG_KEY, next);
 				return new Response(JSON.stringify({ status: "ok", kept: next.length }), {
 					headers: { "content-type": "application/json" },
