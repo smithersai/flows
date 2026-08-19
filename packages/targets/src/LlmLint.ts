@@ -8,6 +8,7 @@
  *
  * @since 0.1.0
  */
+import { spawnEnvironmentNames } from "@smthrs/build/PackageManager"
 import { Action, type FlowRuntime } from "@smthrs/flow"
 import * as Effect from "effect/Effect"
 import type * as Layer from "effect/Layer"
@@ -15,6 +16,8 @@ import * as Schema from "effect/Schema"
 import { minimatch } from "minimatch"
 import * as NodeChildProcess from "node:child_process"
 import * as NodePath from "node:path"
+import type * as Config from "./Config.ts"
+import { declaredEnvironment } from "./Exec.ts"
 import { failureMessage } from "./GeneratedFile.ts"
 import * as Input from "./Input.ts"
 import * as SafeFs from "./SafeFs.ts"
@@ -338,6 +341,7 @@ interface SpawnOptions {
   readonly stdoutBytes: number
   readonly timeoutMs: number
   readonly sensitiveEnv: ReadonlyArray<string>
+  readonly inherited?: Readonly<Record<string, string>> | undefined
   readonly git: boolean
 }
 
@@ -439,17 +443,37 @@ const spawnError = (message: string, code?: string | undefined): NodeJS.ErrnoExc
   return error
 }
 
-/** Builds the subprocess environment while withholding cache credentials and injection hooks. */
+/**
+ * Builds the subprocess environment from the shared allowlist.
+ *
+ * This path used to copy all of `process.env` and delete a denylist, so the
+ * closed environment a tool run gets through `Exec` did not hold for a model
+ * CLI or for git. It now starts from the same
+ * allowlist, in the same order: allowlist, declared values, forced values,
+ * git values, denylist last.
+ *
+ * A model CLI that needs a provider credential gets it by naming the variable
+ * in the workspace sandbox policy, which also folds the value into key
+ * material. It is no longer inherited silently.
+ */
 const spawnEnvironment = (
   sensitiveEnv: ReadonlyArray<string>,
-  git: boolean
+  git: boolean,
+  inherited: Readonly<Record<string, string>> = {}
 ): NodeJS.ProcessEnv => {
-  const env: NodeJS.ProcessEnv = { ...process.env }
-  delete env["NODE_OPTIONS"]
-  delete env["NODE_PATH"]
-  delete env["SMITHERS_CACHE_URL"]
-  delete env["SMITHERS_CACHE_TOKEN"]
-  for (const name of sensitiveEnv) delete env[name]
+  const env: NodeJS.ProcessEnv = Object.create(null)
+  const folded = new Set<string>()
+  for (const name of spawnEnvironmentNames) {
+    const key = process.platform === "win32" ? name.toUpperCase() : name
+    if (folded.has(key)) continue
+    const value = process.platform === "win32"
+      ? process.env[Object.keys(process.env).find((entry) => entry.toUpperCase() === key) ?? name]
+      : process.env[name]
+    if (value === undefined) continue
+    folded.add(key)
+    env[name] = value
+  }
+  for (const [name, value] of Object.entries(inherited)) env[name] = value
   env["CLICOLOR"] = "0"
   env["FORCE_COLOR"] = "0"
   env["LANG"] = "C"
@@ -463,6 +487,13 @@ const spawnEnvironment = (
     env["GIT_PAGER"] = "cat"
     env["GIT_TERMINAL_PROMPT"] = "0"
   }
+  // The withholding pass runs last so a declared name cannot add back a
+  // variable this boundary withholds.
+  delete env["NODE_OPTIONS"]
+  delete env["NODE_PATH"]
+  delete env["SMITHERS_CACHE_URL"]
+  delete env["SMITHERS_CACHE_TOKEN"]
+  for (const name of sensitiveEnv) delete env[name]
   return env
 }
 
@@ -479,7 +510,7 @@ const spawnText = (
       child = NodeChildProcess.spawn(executable, args, {
         cwd,
         detached: true,
-        env: spawnEnvironment(options.sensitiveEnv, options.git),
+        env: spawnEnvironment(options.sensitiveEnv, options.git, options.inherited),
         stdio: [options.stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"],
         windowsHide: true
       })
@@ -945,6 +976,7 @@ interface RuntimeOptions {
   readonly executable: string
   readonly timeoutMs: number
   readonly sensitiveEnv: ReadonlyArray<string>
+  readonly inherited: Readonly<Record<string, string>>
 }
 
 const runtimeOptions = async (
@@ -953,6 +985,7 @@ const runtimeOptions = async (
     readonly executable?: string | undefined
     readonly timeoutMs?: number | undefined
     readonly sensitiveEnv?: ReadonlyArray<string> | undefined
+    readonly sandbox?: Config.Sandbox | undefined
   },
   engine: Engine,
   signal: AbortSignal
@@ -971,7 +1004,8 @@ const runtimeOptions = async (
       true
     ),
     timeoutMs: validatedTimeout(options.timeoutMs),
-    sensitiveEnv: sensitiveNames(options.sensitiveEnv)
+    sensitiveEnv: sensitiveNames(options.sensitiveEnv),
+    inherited: declaredEnvironment(options.sandbox)
   }
 }
 
@@ -1025,6 +1059,7 @@ export const promptEngine = (
               stdoutBytes: maximumModelOutputBytes,
               timeoutMs: runtime.timeoutMs,
               sensitiveEnv: runtime.sensitiveEnv,
+              inherited: runtime.inherited,
               git: false
             }
           ).pipe(
@@ -1098,6 +1133,7 @@ const reviewBatch = (
           stdoutBytes: maximumModelOutputBytes,
           timeoutMs: runtime.timeoutMs,
           sensitiveEnv: runtime.sensitiveEnv,
+          inherited: runtime.inherited,
           git: false
         }
       )
@@ -1271,6 +1307,7 @@ export const LlmReviewLive = (options: {
   readonly executable?: string | undefined
   readonly timeoutMs?: number | undefined
   readonly sensitiveEnv?: ReadonlyArray<string> | undefined
+  readonly sandbox?: Config.Sandbox | undefined
 }): Layer.Layer<Action.Requirement<"smithers-build/llm-review">, never, FlowRuntime.FlowRuntime> =>
   LlmReview.toLayer((payload) => review(options, payload))
 

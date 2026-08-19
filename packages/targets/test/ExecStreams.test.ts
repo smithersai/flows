@@ -270,6 +270,113 @@ describe("payload and environment boundary", () => {
     }
   })
 
+  /**
+   * A deliberate widening. The package manager and this boundary used to carry
+   * two different allowlists, and the manager's carried the proxy and
+   * certificate variables a registry fetch needs. They are now one list, so a
+   * tool run inherits those names too. Everything outside the list is still
+   * absent.
+   */
+  it("inherits the shared allowlist, proxy and certificate variables included", async () => {
+    const previous = {
+      proxy: process.env["HTTPS_PROXY"],
+      certificate: process.env["SSL_CERT_FILE"],
+      other: process.env["SMITHERS_EXEC_NOT_ALLOWLISTED"]
+    }
+    process.env["HTTPS_PROXY"] = "http://127.0.0.1:9"
+    process.env["SSL_CERT_FILE"] = "/dev/null"
+    process.env["SMITHERS_EXEC_NOT_ALLOWLISTED"] = "must-not-leak"
+    try {
+      const result = await succeeded(payload(
+        "process.stdout.write(JSON.stringify({" +
+          "proxy: process.env.HTTPS_PROXY," +
+          "certificate: process.env.SSL_CERT_FILE," +
+          "other: process.env.SMITHERS_EXEC_NOT_ALLOWLISTED" +
+          "}))"
+      ))
+      expect(JSON.parse(result.stdout)).toEqual({ proxy: "http://127.0.0.1:9", certificate: "/dev/null" })
+    } finally {
+      if (previous.proxy === undefined) delete process.env["HTTPS_PROXY"]
+      else process.env["HTTPS_PROXY"] = previous.proxy
+      if (previous.certificate === undefined) delete process.env["SSL_CERT_FILE"]
+      else process.env["SSL_CERT_FILE"] = previous.certificate
+      if (previous.other === undefined) delete process.env["SMITHERS_EXEC_NOT_ALLOWLISTED"]
+      else process.env["SMITHERS_EXEC_NOT_ALLOWLISTED"] = previous.other
+    }
+  })
+
+  it("passes a value the workspace declared and withholds the same name undeclared", async () => {
+    const previous = process.env["SMITHERS_EXEC_DECLARED_HOST"]
+    process.env["SMITHERS_EXEC_DECLARED_HOST"] = "from-the-host"
+    try {
+      const program = payload("process.stdout.write(String(process.env.SMITHERS_EXEC_DECLARED_HOST))")
+      const declared = await Effect.runPromiseExit(Exec.run({
+        workspaceRoot: root,
+        sandbox: { projection: "declared", environment: ["SMITHERS_EXEC_DECLARED_HOST"] }
+      }, program))
+      const undeclared = await Effect.runPromiseExit(Exec.run({ workspaceRoot: root }, program))
+
+      if (!Exit.isSuccess(declared) || !Exit.isSuccess(undeclared)) throw new Error("expected success")
+      expect(declared.value.stdout).toBe("from-the-host")
+      expect(undeclared.value.stdout).toBe("undefined")
+    } finally {
+      if (previous === undefined) delete process.env["SMITHERS_EXEC_DECLARED_HOST"]
+      else process.env["SMITHERS_EXEC_DECLARED_HOST"] = previous
+    }
+  })
+
+  /**
+   * The order is allowlist, declared values, forced values, payload merge,
+   * withholding, secrets. The withholding pass runs after both merges, so
+   * neither a BUILD.ts declaration nor a workspace declaration can add a
+   * withheld name back.
+   */
+  it("withholds a sensitive name that the policy and the payload both declare", async () => {
+    const previous = process.env["SMITHERS_EXEC_WITHHELD"]
+    process.env["SMITHERS_EXEC_WITHHELD"] = "from-the-host"
+    try {
+      const exit = await Effect.runPromiseExit(Exec.run({
+        workspaceRoot: root,
+        sensitiveEnv: ["SMITHERS_EXEC_WITHHELD"],
+        sandbox: { projection: "declared", environment: ["SMITHERS_EXEC_WITHHELD"] }
+      }, payload(
+        "process.stdout.write(String(process.env.SMITHERS_EXEC_WITHHELD))",
+        { env: { SMITHERS_EXEC_WITHHELD: "declared-by-the-rule" } }
+      )))
+
+      if (!Exit.isSuccess(exit)) throw new Error("expected success")
+      expect(exit.value.stdout).toBe("undefined")
+    } finally {
+      if (previous === undefined) delete process.env["SMITHERS_EXEC_WITHHELD"]
+      else process.env["SMITHERS_EXEC_WITHHELD"] = previous
+    }
+  })
+
+  /**
+   * A declared environment name is an input, so its value has to reach the key
+   * a result is filed under. A policy that declares nothing contributes
+   * nothing and leaves every existing key unchanged.
+   */
+  it("makes a declared environment value key material", () => {
+    const previous = process.env["SMITHERS_EXEC_KEYED"]
+    try {
+      const sandbox = { projection: "declared" as const, environment: ["SMITHERS_EXEC_KEYED"] }
+      delete process.env["SMITHERS_EXEC_KEYED"]
+      const unset = Exec.environmentKeyMaterial(sandbox)
+      process.env["SMITHERS_EXEC_KEYED"] = "one"
+      const one = Exec.environmentKeyMaterial(sandbox)
+      process.env["SMITHERS_EXEC_KEYED"] = "two"
+      const two = Exec.environmentKeyMaterial(sandbox)
+
+      expect(new Set([unset, one, two]).size).toBe(3)
+      expect(Exec.environmentKeyMaterial(undefined)).toBe("")
+      expect(Exec.environmentKeyMaterial({ projection: "forced", environment: [] })).toBe("")
+    } finally {
+      if (previous === undefined) delete process.env["SMITHERS_EXEC_KEYED"]
+      else process.env["SMITHERS_EXEC_KEYED"] = previous
+    }
+  })
+
   it("removes a sensitive value even when the payload tries to add it back", async () => {
     const value = payload(
       "process.stdout.write(String(process.env.SMITHERS_PRIVATE_VALUE))",

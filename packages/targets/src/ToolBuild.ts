@@ -815,6 +815,11 @@ export const measureOutput = async (
  * one file twice, names one output below another, or names the workspace root
  * fails before it can read a byte.
  *
+ * The root measured is always the workspace. A projected tool run copies its
+ * declared outputs back into the workspace before the exec action settles, so
+ * capture, declared-output verification, and input revalidation all agree on
+ * which root they are looking at whether or not the run was projected.
+ *
  * @category execution
  * @since 0.1.0
  */
@@ -991,7 +996,7 @@ export const CaptureOutputs = Action.make("smithers-build/capture-outputs", {
 
 /**
  * Implements {@link CaptureOutputs} with {@link measureOutputs}, resolving
- * declared paths against `workspaceRoot`.
+ * declared paths against `workspaceRoot`, including for a projected run.
  *
  * @category layers
  * @since 0.1.0

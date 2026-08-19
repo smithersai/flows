@@ -17,10 +17,27 @@ smithers build borrows four disciplines from Bazel:
 4. Publication is atomic and first-writer-safe. Readers see either the old
    complete value or the new complete value, never a partial file.
 
-The implementation does not yet have Bazel's sandbox. It therefore does not
-claim that effects declarations prove hermetic execution, and it does not admit
-install actions to a shared engine cache. Being explicit about that difference
-is part of the design: a weak observation is not relabelled as a hard boundary.
+The implementation has input-projected execution, not Bazel's sandbox. A
+projected tool run happens in a scratch root holding exactly the target's
+declared inputs, and its declared outputs are copied back when it settles, so
+an undeclared read fails where it happens instead of poisoning a key that
+cannot see it. That is a determinism boundary, not a security boundary: a
+spawned native process keeps the ambient authority of the user who spawned it
+and can still open an absolute path or reach the network. Projection is opt-in
+and off by default, so effects declarations still do not prove hermetic
+execution and install actions are still not admitted to a shared engine cache.
+Being explicit about that difference is part of the design: a weak observation
+is not relabelled as a hard boundary.
+
+The child environment is closed in both directions. The tool-execution
+boundary, the package manager, and the model-review boundary all start from one
+shared allowlist, defined once in `PackageManager.spawnEnvironmentNames`, and
+add nothing else. A workspace that needs another host variable declares it in
+its sandbox policy, and the declared value becomes key material, so a target
+that reads it is keyed on what it read. One path is not yet reconciled: the
+CLI's `Workspace.runGit` still spreads `process.env` into its child, so the
+closed environment is a property of tool execution rather than of the whole
+process today.
 
 ## 2. Authoring and analysis
 
@@ -42,7 +59,11 @@ Before cache admission and after execution, the executor re-expands declared
 inputs and compares exact path/digest snapshots. This closes the ordinary
 plan-to-execution race. A final change between the last comparison and a tool's
 own syscall remains impossible to close portably without a snapshotting or
-descriptor-relative sandbox.
+descriptor-relative sandbox. Projection narrows the window rather than closing
+it: a projected run copies each declared input under confinement, refuses a
+file that changed while it was being copied, and the tool then reads the copy,
+so a workspace edit after the copy is invisible to that run. The copy itself is
+still made after the plan's measurement.
 
 `BUILD.ts` evaluation is a trust boundary, not a sandbox boundary. A repository
 module can run any code available to the user. The CLI never pretends that
@@ -245,7 +266,11 @@ barriers.
 
 ## 9. Known limitations
 
-1. **No general sandbox.** Effects declarations do not confine arbitrary tools.
+1. **Projection, not a general sandbox.** Input-projected execution confines
+   which files a cooperating tool finds, and it is off by default because most
+   rules do not yet declare a complete input set. It is a determinism boundary:
+   it does not deny an absolute path, a network call, or anything else a
+   spawned native process may already do.
 2. **No shared install replay.** All install boundaries remain `expected`.
 3. **Only pnpm installation.** npm, Bun, and Yarn refuse explicitly.
 4. **Whole-lockfile granularity.** There is no rules_js-style per-package fetch

@@ -372,9 +372,31 @@ const failureMessage = (cause: unknown): string => {
   }
 }
 
-const bootstrapEnvironment = [
-  "HTTP_PROXY",
+/**
+ * The one environment allowlist every spawn path in the build system starts
+ * from.
+ *
+ * A child gets these host values and nothing else. The list is the union of
+ * what the package manager needs to reach a registry — proxy and certificate
+ * variables — and what a tool needs to find an executable, write a temporary
+ * file, and start at all. `CI` is the cross-tool convention that switches a
+ * tool into non-interactive mode; withholding it made pnpm treat a hosted
+ * runner as an interactive terminal and abort on its first would-be prompt.
+ *
+ * Every other host variable is an unkeyed input. A workspace that needs one
+ * declares it in its sandbox policy, which folds the value into key material.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const spawnEnvironmentNames: ReadonlyArray<string> = Object.freeze([
+  "APPDATA",
+  "CI",
+  "COMSPEC",
+  "HOME",
   "HTTPS_PROXY",
+  "HTTP_PROXY",
+  "LOCALAPPDATA",
   "NO_PROXY",
   "PATH",
   "PATHEXT",
@@ -384,11 +406,13 @@ const bootstrapEnvironment = [
   "TEMP",
   "TMP",
   "TMPDIR",
+  "USERPROFILE",
   "WINDIR",
+  "XDG_CACHE_HOME",
   "http_proxy",
   "https_proxy",
   "no_proxy"
-] as const
+])
 
 const timeoutOf = (value: unknown): number => {
   const timeout = value ?? defaultCommandTimeoutMs
@@ -790,7 +814,7 @@ const managerEnvironment = (
         )
       }
     }
-    for (const name of [...bootstrapEnvironment, ...referenced]) {
+    for (const name of [...spawnEnvironmentNames, ...referenced]) {
       const value = sourceValue(source, name, windows)
       if (value !== undefined && env[name] === undefined) env[name] = value
     }

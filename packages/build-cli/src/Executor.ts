@@ -15,8 +15,9 @@
  */
 import { FlowEngine } from "@smthrs/engine"
 import { Action, type Flow, Interpreter } from "@smthrs/flow"
+import type * as Config from "@smthrs/targets/Config"
 import { CheckDocsLive } from "@smthrs/targets/DocsParity"
-import { ExecLive } from "@smthrs/targets/Exec"
+import { environmentKeyMaterial, ExecLive } from "@smthrs/targets/Exec"
 import { ExpandFilegroupLive, isFilegroup } from "@smthrs/targets/Filegroup"
 import { CheckFileLive, WriteFileLive } from "@smthrs/targets/GeneratedFile"
 import { CheckWorkflowLive } from "@smthrs/targets/GithubCiGen"
@@ -30,6 +31,7 @@ import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
 import type * as Schema from "effect/Schema"
+import { createHash } from "node:crypto"
 import * as Os from "node:os"
 import { performance } from "node:perf_hooks"
 import * as NodeUtil from "node:util/types"
@@ -115,6 +117,12 @@ export interface ExecuteOptions {
   readonly signal?: AbortSignal | undefined
   readonly packageName?: string | undefined
   readonly log?: ((line: string) => void) | undefined
+  /**
+   * The workspace sandbox policy. It decides whether a target runs projected
+   * and which host environment values a tool may read. Omitted, every target
+   * runs exactly as it ran before projection existed.
+   */
+  readonly sandbox?: Config.Sandbox | undefined
 }
 
 /**
@@ -233,20 +241,39 @@ const runTarget = (
   attrs: unknown,
   executionId: string,
   sensitiveEnv: ReadonlyArray<string>,
+  planned?: Planner.PlannedTarget | undefined,
+  sandbox?: Config.Sandbox | undefined,
   packageName?: string | undefined,
   signal?: AbortSignal | undefined
 ): Promise<Exit.Exit<unknown, unknown>> => {
   const flow = target as unknown as Executable
+  // The planner already expanded this target's declared inputs and recorded a
+  // digest per file. A projected run seeds its scratch root from exactly that
+  // list, so the files a tool can open are the files the key was computed from.
+  const declaredInputs = planned === undefined
+    ? []
+    : [...new Set(planned.declaredInputs.flatMap((input) => input.files.map((file) => file.path)))].sort()
   const runtime = Layer.mergeAll(
     layerInstall,
-    ExecLive({ workspaceRoot, cacheDirectory, sensitiveEnv }),
+    ExecLive({
+      workspaceRoot,
+      cacheDirectory,
+      sensitiveEnv,
+      sandbox,
+      declaredInputs,
+      declaredOutputs: planned?.declaredOutputs
+    }),
+    // Output capture always measures the workspace. A projected run copies its
+    // declared outputs back before the exec action settles, so capture,
+    // declared-output verification, and input revalidation all agree on which
+    // root they are measuring.
     CaptureOutputsLive({ workspaceRoot, cacheDirectory }),
     ExpandFilegroupLive({ workspaceRoot, cacheDirectory }),
     WriteFileLive({ workspaceRoot }),
     CheckFileLive({ workspaceRoot }),
     CheckWorkflowLive({ workspaceRoot }),
     CheckDocsLive({ workspaceRoot }),
-    LlmReviewLive({ workspaceRoot, sensitiveEnv }),
+    LlmReviewLive({ workspaceRoot, sensitiveEnv, sandbox }),
     SyncPackageJsonLive({ workspaceRoot, cacheDirectory }),
     ScaffoldPackageLive({ workspaceRoot, packageName }),
     Target.layerNotImplemented,
@@ -880,6 +907,17 @@ export const execute = async (options: ExecuteOptions): Promise<Summary> => {
     token: options.remoteCache?.token,
     warn: log
   })
+  // A declared environment name is an input, so its value has to reach the key
+  // a result is filed under. The planner's key material carries node version,
+  // platform, arch, the lockfile digest, and an implementation fingerprint, and
+  // no environment value, so the executor folds the declared values in here.
+  // A policy that declares nothing contributes the empty string and leaves
+  // every key exactly as the planner computed it.
+  const environmentMaterial = environmentKeyMaterial(options.sandbox)
+  const cacheKey = (target: Planner.PlannedTarget): string =>
+    environmentMaterial === ""
+      ? target.keyPreview
+      : createHash("sha256").update(`${target.keyPreview}\n${environmentMaterial}`).digest("hex")
   const byLabel = new Map(options.targets.map((target) => [target.label, target]))
   const reports = new Map<string, TargetReport>()
   const notGreen = new Set<string>()
@@ -926,7 +964,7 @@ export const execute = async (options: ExecuteOptions): Promise<Summary> => {
     if (beforeRun !== undefined) return fail(beforeRun)
     const flow = flows.get(label)!
     if (readCache && target.cacheable) {
-      const cached = await store.get(target.keyPreview).catch(() => null)
+      const cached = await store.get(cacheKey(target)).catch(() => null)
       // A decoded entry filed under the right key is not yet an answer for
       // this target: it must also name this target and this label. A store that
       // was hand edited, shared with another workspace, or answered by a
@@ -972,6 +1010,8 @@ export const execute = async (options: ExecuteOptions): Promise<Summary> => {
       isFilegroup(flow) ? filegroupAttrs(target) : target.attrs,
       `smithers-build-target-${target.keyPreview.slice(0, 24)}`,
       options.remoteCache === undefined ? [] : [options.remoteCache.tokenEnv],
+      target,
+      options.sandbox,
       options.packageName,
       options.signal
     )
@@ -1006,8 +1046,8 @@ export const execute = async (options: ExecuteOptions): Promise<Summary> => {
       log(`smthrs: skipped the cache store for ${label} because its result does not round trip: ${encoded.reason}`)
       return
     }
-    await store.put(target.keyPreview, {
-      key: target.keyPreview,
+    await store.put(cacheKey(target), {
+      key: cacheKey(target),
       target: target.target,
       label,
       exitOk: true,

@@ -8,16 +8,20 @@
  *
  * @since 0.1.0
  */
+import { spawnEnvironmentNames } from "@smthrs/build/PackageManager"
 import { Action, type FlowRuntime } from "@smthrs/flow"
 import * as Effect from "effect/Effect"
 import type * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import * as NodeChildProcess from "node:child_process"
+import { createHash, randomUUID } from "node:crypto"
 import * as NodeFs from "node:fs"
+import * as Fs from "node:fs/promises"
 import * as NodePath from "node:path"
 import * as NodeUtil from "node:util/types"
 import * as Config from "./Config.ts"
 import { failureMessage } from "./GeneratedFile.ts"
+import * as Project from "./Project.ts"
 import * as SafeFs from "./SafeFs.ts"
 import * as Secret from "./Secret.ts"
 import * as SecretProxy from "./SecretProxy.ts"
@@ -32,6 +36,28 @@ import * as SecretProxy from "./SecretProxy.ts"
  * @since 0.1.0
  */
 export const cacheDirectoryToken = "{smthrs:cache-directory}"
+
+/**
+ * Placeholder resolved to the absolute root the child runs against.
+ *
+ * The root is the workspace root for an ordinary run and the scratch root for
+ * a projected one. Both are host locations, so they are substituted into argv
+ * immediately before the spawn for the same reason the cache directory is: a
+ * real path in the payload would make every workspace location, and every
+ * projected run, a distinct step key.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const scratchRootToken = "{smthrs:root}"
+
+/**
+ * Maximum number of extra files one payload may ask to project.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const maximumProjectedInputs = 4_096
 
 /**
  * Maximum length kept for captured stdout and stderr, in UTF-16 code units.
@@ -85,6 +111,11 @@ const maximumSecrets = 64
  * `cwd` is resolved against the workspace root at execution time. `argv[0]`
  * is the executable. `env` is merged over a small, documented host bootstrap
  * environment rather than the complete `process.env`.
+ * `projection` opts one run into input-projected execution: the run happens in
+ * a scratch root holding exactly the declared inputs, so an undeclared read
+ * fails instead of succeeding invisibly. It carries only the mode and the
+ * extra workspace-relative paths this run needs beyond its target's declared
+ * inputs, never a host path.
  * `expectedExitCodes` lists the exit codes treated as success and defaults
  * to `[0]`. `timeoutMs` bounds the process lifetime and defaults to ten
  * minutes. `after` carries the planned result of an upstream step this run
@@ -95,6 +126,27 @@ const maximumSecrets = 64
  * @category schemas
  * @since 0.1.0
  */
+/**
+ * The projection a rule asks for.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const Projection = Schema.Struct({
+  mode: Schema.Literals(["workspace", "projected"]),
+  inputs: Schema.Array(Schema.String.check(Schema.isMaxLength(maximumTextBytes))).check(
+    Schema.isMaxLength(maximumProjectedInputs)
+  )
+})
+
+/**
+ * How one tool run sees the workspace.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type Projection = typeof Projection.Type
+
 export const Payload = Schema.Struct({
   cwd: Schema.NonEmptyString.check(Schema.isMaxLength(maximumTextBytes)),
   argv: Schema.NonEmptyArray(Schema.String.check(Schema.isMaxLength(maximumTextBytes))).check(
@@ -115,6 +167,7 @@ export const Payload = Schema.Struct({
     Schema.isGreaterThanOrEqualTo(1),
     Schema.isLessThanOrEqualTo(maximumTimeoutMs)
   ).pipe(Schema.withConstructorDefault(Effect.succeed(defaultTimeoutMs))),
+  projection: Schema.optional(Projection),
   after: Schema.optional(Schema.Unknown)
 })
 
@@ -330,32 +383,20 @@ const keepTail = (text: string, limit: number): string => {
 const tail = (text: string): string => keepTail(text, stderrTailLimit)
 
 /**
- * Host variables needed to find executables and satisfy operating-system
- * process startup, plus `CI` — the cross-tool convention that switches a
- * tool into non-interactive mode. Withholding `CI` made pnpm treat a hosted
- * runner as an interactive terminal and abort on its first would-be prompt;
- * the variable carries a mode, not machine identity, so inheriting it keeps
- * tool behavior aligned with the host the run is actually on.
+ * Host variables needed to find executables, reach a registry, and satisfy
+ * operating-system process startup.
+ *
+ * This is the one allowlist every spawn path in the build system shares. It is
+ * defined once, in `@smthrs/build/PackageManager`, because the package manager
+ * and this boundary previously carried two different lists and an allowlist
+ * that holds on only one of two spawn paths is not a closed environment.
+ * Anything else a target needs is declared in the workspace sandbox policy,
+ * which folds the value into key material.
  *
  * @category constants
  * @since 0.1.0
  */
-export const inheritedEnvironmentNames: ReadonlyArray<string> = Object.freeze([
-  "APPDATA",
-  "CI",
-  "COMSPEC",
-  "HOME",
-  "LOCALAPPDATA",
-  "PATH",
-  "PATHEXT",
-  "SYSTEMROOT",
-  "TEMP",
-  "TMP",
-  "TMPDIR",
-  "USERPROFILE",
-  "WINDIR",
-  "XDG_CACHE_HOME"
-])
+export const inheritedEnvironmentNames: ReadonlyArray<string> = spawnEnvironmentNames
 
 const usableText = (value: string, what: string): string => {
   if (value.includes("\0") || !value.isWellFormed()) throw new TypeError(`${what} is not usable text`)
@@ -365,7 +406,16 @@ const usableText = (value: string, what: string): string => {
 /** Re-decodes and applies aggregate limits at the child-process trust boundary. */
 const validatedPayload = (untrusted: Payload): Payload => {
   const record = plainRecord(untrusted, "exec payload")
-  const allowed = new Set(["after", "argv", "cwd", "env", "expectedExitCodes", "secrets", "timeoutMs"])
+  const allowed = new Set([
+    "after",
+    "argv",
+    "cwd",
+    "env",
+    "expectedExitCodes",
+    "projection",
+    "secrets",
+    "timeoutMs"
+  ])
   exactKeys(record, allowed, "exec payload")
   const environment = plainRecord(requiredDataMember(record, "env", "exec payload"), "exec environment")
   const environmentEntries = inspect("exec environment", () => Reflect.ownKeys(environment))
@@ -376,6 +426,23 @@ const validatedPayload = (untrusted: Payload): Payload => {
   for (const name of environmentEntries) {
     if (typeof name !== "string") throw new TypeError("exec environment contains a symbol property")
     untrustedEnv[name] = requiredDataMember(environment, name, "exec environment")
+  }
+  const projectionDescriptor = Object.getOwnPropertyDescriptor(record, "projection")
+  let projection: { readonly mode: string; readonly inputs: Array<unknown> } | undefined
+  if (projectionDescriptor !== undefined) {
+    const declared = plainRecord(
+      requiredDataMember(record, "projection", "exec payload"),
+      "exec projection"
+    )
+    exactKeys(declared, new Set(["inputs", "mode"]), "exec projection")
+    projection = {
+      mode: requiredDataMember(declared, "mode", "exec projection") as string,
+      inputs: dataArray(
+        requiredDataMember(declared, "inputs", "exec projection"),
+        "exec projection inputs",
+        maximumProjectedInputs
+      )
+    }
   }
   const after = Object.getOwnPropertyDescriptor(record, "after")
   const candidate = {
@@ -393,6 +460,7 @@ const validatedPayload = (untrusted: Payload): Payload => {
       maximumSecrets
     ),
     timeoutMs: requiredDataMember(record, "timeoutMs", "exec payload"),
+    ...(projection === undefined ? {} : { projection }),
     ...(after === undefined ? {} : { after: requiredDataMember(record, "after", "exec payload") })
   }
   const payload = Schema.decodeUnknownSync(Payload)(candidate)
@@ -451,12 +519,23 @@ const validatedPayload = (untrusted: Payload): Payload => {
       )
     }
   }
+  if (payload.projection !== undefined) {
+    for (const path of payload.projection.inputs) {
+      usableText(path, "exec projected input")
+      // The transfer resolves every declared path the same way; doing it here
+      // too refuses an unusable declaration before anything is spawned.
+      Project.resolveProjectedPath(path)
+    }
+  }
   return {
     ...payload,
     argv: [...payload.argv],
     env,
     secrets: [...payload.secrets],
-    expectedExitCodes: [...payload.expectedExitCodes]
+    expectedExitCodes: [...payload.expectedExitCodes],
+    ...(payload.projection === undefined ? {} : {
+      projection: { mode: payload.projection.mode, inputs: [...payload.projection.inputs] }
+    })
   }
 }
 
@@ -484,7 +563,54 @@ const hostValue = (name: string): string | undefined => {
 }
 
 /**
+ * Reads the host values a workspace declared in its sandbox policy.
+ *
+ * A name the host does not set is absent rather than empty: "unset" and "set
+ * to the empty string" are different observations, and a target keyed on the
+ * declaration must be able to tell them apart.
+ *
+ * @category execution
+ * @since 0.1.0
+ */
+export const declaredEnvironment = (
+  sandbox: Config.Sandbox | undefined
+): Readonly<Record<string, string>> => {
+  const values: Record<string, string> = Object.create(null)
+  for (const name of sandbox?.environment ?? []) {
+    const value = hostValue(name)
+    if (value !== undefined && !value.includes("\0") && value.isWellFormed()) values[name] = value
+  }
+  return values
+}
+
+/**
+ * The key material one sandbox policy contributes.
+ *
+ * A declared environment name is an input like any other, so its value has to
+ * reach the key. The material names every declared variable in sorted order
+ * and records whether it was set and what it was set to, so setting a
+ * variable, unsetting it, and changing it all produce different material. A
+ * policy that declares nothing contributes the empty string and leaves every
+ * existing key exactly as it was.
+ *
+ * @category execution
+ * @since 0.1.0
+ */
+export const environmentKeyMaterial = (sandbox: Config.Sandbox | undefined): string => {
+  const names = [...(sandbox?.environment ?? [])].sort()
+  if (names.length === 0) return ""
+  const values = declaredEnvironment(sandbox)
+  return JSON.stringify(names.map((name) => [name, Object.hasOwn(values, name) ? values[name] : null]))
+}
+
+/**
  * Constructs the deliberately narrow ambient environment visible to a tool.
+ *
+ * The order is fixed and load bearing: the shared allowlist, then the values
+ * the workspace declared, then the forced locale and colour values, then the
+ * payload environment, then the withholding pass, then secrets. The
+ * withholding pass runs after the payload merge specifically so a BUILD.ts
+ * declaration cannot add a withheld name back.
  *
  * `secretEnv` is applied last, after withholding, because a declared secret is
  * the one case where a variable is meant to reach the child. What reaches it is
@@ -494,13 +620,23 @@ const hostValue = (name: string): string | undefined => {
 const toolEnvironment = (
   declared: Readonly<Record<string, string>>,
   sensitiveEnv: ReadonlyArray<string>,
-  secretEnv: Readonly<Record<string, string>> = {}
+  secretEnv: Readonly<Record<string, string>> = {},
+  inherited: Readonly<Record<string, string>> = {}
 ): NodeJS.ProcessEnv => {
   const env = Object.create(null) as NodeJS.ProcessEnv
+  const folded = new Set<string>()
   for (const name of inheritedEnvironmentNames) {
+    // The shared allowlist spells the proxy variables both ways, because tools
+    // split on which spelling they read. A host whose environment is
+    // case-insensitive sees the two as one name, so only the first reaches it.
+    const key = process.platform === "win32" ? name.toUpperCase() : name
+    if (folded.has(key)) continue
     const value = hostValue(name)
-    if (value !== undefined) env[name] = value
+    if (value === undefined) continue
+    folded.add(key)
+    env[name] = value
   }
+  for (const [name, value] of Object.entries(inherited)) env[name] = value
   env["CLICOLOR"] = "0"
   env["FORCE_COLOR"] = "0"
   env["LANG"] = "C"
@@ -659,11 +795,12 @@ const spawnTool = (
   cwd: string,
   payload: Payload,
   sensitiveEnv: ReadonlyArray<string>,
-  secretEnv: Readonly<Record<string, string>>
+  secretEnv: Readonly<Record<string, string>>,
+  inherited: Readonly<Record<string, string>> = {}
 ): Effect.Effect<Spawned, ExecError> =>
   Effect.callback<Spawned, ExecError>((resume) => {
     const [executable, ...args] = payload.argv
-    const env = toolEnvironment(payload.env, sensitiveEnv, secretEnv)
+    const env = toolEnvironment(payload.env, sensitiveEnv, secretEnv, inherited)
     let child: NodeChildProcess.ChildProcess
     try {
       child = NodeChildProcess.spawn(executable, args, {
@@ -817,21 +954,210 @@ const withSecretEnvironment = <A, E>(
 }
 
 /**
+ * The declared outputs one projected run copies back into the workspace.
+ *
+ * `cwd` is the workspace-relative directory the paths are declared against,
+ * matching `Target.DeclaredOutputs`.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface DeclaredOutputs {
+  readonly cwd: string
+  readonly paths: ReadonlyArray<string>
+}
+
+/**
+ * Host state one tool run executes against.
+ *
+ * `declaredInputs` and `declaredOutputs` are the planner's expanded file set
+ * and the target's declared output roots. They are host state, not payload:
+ * the planner already keys a target on them, and putting them in the payload
+ * a second time would key it on them twice.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface RunOptions {
+  readonly workspaceRoot: string
+  readonly cacheDirectory?: string | undefined
+  readonly sensitiveEnv?: ReadonlyArray<string> | undefined
+  readonly sandbox?: Config.Sandbox | undefined
+  readonly declaredInputs?: ReadonlyArray<string> | undefined
+  readonly declaredOutputs?: DeclaredOutputs | undefined
+}
+
+/**
+ * Decides whether one run is projected.
+ *
+ * The policy wins in both directions. `off` refuses a rule that asked for
+ * projection, so one declaration turns the capability off for a whole
+ * workspace. `forced` projects a rule that did not ask, which is how a
+ * workspace finds out which of its targets under-declare their inputs.
+ * `declared`, the default, leaves the choice to the rule, and no rule in the
+ * catalog asks today.
+ *
+ * @category execution
+ * @since 0.1.0
+ */
+export const projectionMode = (
+  sandbox: Config.Sandbox | undefined,
+  payload: Payload
+): "workspace" | "projected" => {
+  const policy = sandbox?.projection ?? Config.defaultSandbox.projection
+  if (policy === "off") return "workspace"
+  if (policy === "forced") return "projected"
+  return payload.projection?.mode ?? "workspace"
+}
+
+/** Joins one declared output root to its declaration directory. */
+const outputRoot = (outputs: DeclaredOutputs, path: string): string => {
+  const joined = [outputs.cwd, path].join("/")
+  return joined.split("/").filter((segment) => segment !== "" && segment !== ".").join("/")
+}
+
+/**
+ * Lists the files a projected run produced under one declared output root.
+ *
+ * A declared output may name a file or a directory. Projection copies files,
+ * so a directory is walked here and each file below it is copied back under
+ * its own relative path. A root the tool never produced contributes nothing;
+ * whether that fails the target is the executor's decision, not this one's.
+ */
+const producedFiles = async (root: string, relative: string): Promise<ReadonlyArray<string>> => {
+  let stats: NodeFs.Stats
+  try {
+    stats = await Fs.lstat(NodePath.join(root, relative))
+  } catch (cause) {
+    if (SafeFs.errorCode(cause) === "ENOENT" || SafeFs.errorCode(cause) === "ENOTDIR") return []
+    throw cause
+  }
+  if (stats.isFile()) return [relative]
+  if (!stats.isDirectory()) return []
+  const found: Array<string> = []
+  const entries = await Fs.readdir(NodePath.join(root, relative), { withFileTypes: true })
+  for (const entry of entries.sort((left, right) => (left.name < right.name ? -1 : 1))) {
+    found.push(...await producedFiles(root, `${relative}/${entry.name}`))
+  }
+  return found
+}
+
+/** Substitutes host paths into argv and resolves the working directory. */
+const resolveAgainst = (
+  root: string,
+  cacheDirectory: string,
+  payload: Payload
+): { readonly resolved: Payload; readonly cwd: string } => {
+  const substitute = (value: string): string =>
+    value.replaceAll(cacheDirectoryToken, cacheDirectory).replaceAll(scratchRootToken, root)
+  const [executable, ...args] = payload.argv
+  const resolved: Payload = {
+    ...payload,
+    argv: [substitute(executable), ...args.map(substitute)]
+  }
+  return { resolved, cwd: resolveWorkspacePath(root, resolved.cwd) }
+}
+
+/**
+ * Seeds a scratch root with the declared inputs, runs there, and copies the
+ * declared outputs back.
+ *
+ * The scratch root lives under the workspace cache directory, so it is
+ * confined by the same check every other host path this boundary hands a child
+ * gets, and it is removed whether the run succeeds, fails, or is interrupted.
+ * Outputs are copied back before this returns, so output capture, declared
+ * output verification, and input revalidation all keep measuring the workspace
+ * and no caller has to know which root a run used.
+ *
+ * This is a determinism boundary, not a security boundary. A child that opens
+ * an absolute path still reaches the workspace, and loopback stays reachable so
+ * the secret substitution proxy keeps working.
+ */
+const projectedRun = <A, E>(
+  options: RunOptions,
+  cacheDirectory: string,
+  payload: Payload,
+  diagnostic: { readonly argv: readonly [string, ...Array<string>]; readonly cwd: string },
+  use: (resolved: Payload, cwd: string) => Effect.Effect<A, E>
+): Effect.Effect<A, E | ExecError> => {
+  const failed = (cause: unknown): ExecError =>
+    execError({
+      argv: diagnostic.argv,
+      cwd: diagnostic.cwd,
+      exitCode: -1,
+      stdout: "",
+      stderr: tail(failureMessage(cause))
+    })
+  const inputs = [...new Set([...(options.declaredInputs ?? []), ...(payload.projection?.inputs ?? [])])]
+  return Effect.acquireUseRelease(
+    Effect.tryPromise({
+      try: async () => {
+        const scratch = `${cacheDirectory}/scratch/exec-${randomUUID()}`
+        const absolute = resolveWorkspacePath(options.workspaceRoot, scratch)
+        await Fs.mkdir(absolute, { recursive: true })
+        return await Fs.realpath(absolute)
+      },
+      catch: failed
+    }),
+    (scratchRoot) =>
+      Effect.flatMap(
+        Effect.tryPromise({
+          try: async (signal) => {
+            await Project.project(options.workspaceRoot, scratchRoot, inputs, { signal })
+            const { cwd, resolved } = resolveAgainst(scratchRoot, cacheDirectory, payload)
+            await Fs.mkdir(cwd, { recursive: true })
+            // A tool writes its declared outputs where the rule said they go,
+            // and an empty scratch root has none of those directories. Their
+            // parents are created here, inside the scratch root, so a rule does
+            // not have to learn a second convention to run projected.
+            for (const path of options.declaredOutputs?.paths ?? []) {
+              const relative = outputRoot(options.declaredOutputs as DeclaredOutputs, path)
+              const parent = NodePath.dirname(NodePath.join(scratchRoot, relative))
+              if (SafeFs.inside(scratchRoot, parent)) await Fs.mkdir(parent, { recursive: true })
+            }
+            return { cwd, resolved }
+          },
+          catch: failed
+        }),
+        ({ cwd, resolved }) =>
+          Effect.flatMap(use(resolved, cwd), (value) =>
+            Effect.map(
+              Effect.tryPromise({
+                try: async (signal) => {
+                  const declared = options.declaredOutputs
+                  if (declared === undefined || declared.paths.length === 0) return
+                  const produced: Array<string> = []
+                  for (const path of declared.paths) {
+                    produced.push(...await producedFiles(scratchRoot, outputRoot(declared, path)))
+                  }
+                  await Project.collect(scratchRoot, options.workspaceRoot, produced, { signal })
+                },
+                catch: failed
+              }),
+              () => value
+            ))
+      ),
+    (scratchRoot) => Effect.promise(() => Fs.rm(scratchRoot, { recursive: true, force: true }))
+  )
+}
+
+/**
  * Executes one payload with workspace confinement and bounded stream capture.
  *
  * This shared implementation backs both sealed and irreversible exec actions.
  * It strips the remote-cache credential after merging the payload environment,
  * so a BUILD.ts declaration cannot add the credential back to a child.
  *
+ * A projected run happens in a scratch root holding exactly the declared
+ * inputs. An undeclared read fails there instead of succeeding invisibly, which
+ * is the bug class projection exists to catch. Projection is off unless the
+ * rule asks for it or the workspace policy forces it.
+ *
  * @category execution
  * @since 0.1.0
  */
 export const run = (
-  options: {
-    readonly workspaceRoot: string
-    readonly cacheDirectory?: string | undefined
-    readonly sensitiveEnv?: ReadonlyArray<string> | undefined
-  },
+  options: RunOptions,
   untrustedPayload: Payload
 ): Effect.Effect<Result, ExecError> => {
   const diagnostic = declaredDiagnostic(untrustedPayload)
@@ -849,13 +1175,7 @@ export const run = (
         // settles the lexical question only: a `.flows` that is a symbolic
         // link to somewhere else entirely is refused here.
         resolveWorkspacePath(options.workspaceRoot, cacheDirectory)
-        const substitute = (value: string): string => value.replaceAll(cacheDirectoryToken, cacheDirectory)
-        const [executable, ...args] = payload.argv
-        const resolved: Payload = {
-          ...payload,
-          argv: [substitute(executable), ...args.map(substitute)]
-        }
-        return { resolved, sensitiveEnv, cwd: resolveWorkspacePath(options.workspaceRoot, resolved.cwd) }
+        return { payload, sensitiveEnv, cacheDirectory, mode: projectionMode(options.sandbox, payload) }
       },
       catch: (cause) =>
         execError({
@@ -866,27 +1186,47 @@ export const run = (
           stderr: tail(failureMessage(cause))
         })
     }),
-    ({ cwd, resolved, sensitiveEnv }) =>
-      withSecretEnvironment(resolved.secrets, diagnostic, (secretEnv) =>
-        Effect.flatMap(
-          spawnTool(cwd, resolved, sensitiveEnv, secretEnv),
-          (output) =>
-            resolved.expectedExitCodes.includes(output.exitCode)
-              ? Effect.succeed({
-                exitCode: output.exitCode,
-                stdout: output.stdout,
-                stderr: output.stderr
-              })
-              : Effect.fail(
-                execError({
-                  argv: resolved.argv,
-                  cwd: resolved.cwd,
+    ({ cacheDirectory, mode, payload, sensitiveEnv }) => {
+      const inherited = declaredEnvironment(options.sandbox)
+      const spawned = (resolved: Payload, cwd: string): Effect.Effect<Result, ExecError> =>
+        withSecretEnvironment(resolved.secrets, diagnostic, (secretEnv) =>
+          Effect.flatMap(
+            spawnTool(cwd, resolved, sensitiveEnv, secretEnv, inherited),
+            (output) =>
+              resolved.expectedExitCodes.includes(output.exitCode)
+                ? Effect.succeed({
                   exitCode: output.exitCode,
-                  stdout: output.stdoutTail,
-                  stderr: output.stderrTail
+                  stdout: output.stdout,
+                  stderr: output.stderr
                 })
-              )
-        ))
+                : Effect.fail(
+                  execError({
+                    argv: resolved.argv,
+                    cwd: resolved.cwd,
+                    exitCode: output.exitCode,
+                    stdout: output.stdoutTail,
+                    stderr: output.stderrTail
+                  })
+                )
+          ))
+      if (mode === "projected") {
+        return projectedRun(options, cacheDirectory, payload, diagnostic, spawned)
+      }
+      return Effect.flatMap(
+        Effect.try({
+          try: () => resolveAgainst(resolveWorkspacePath(options.workspaceRoot, "."), cacheDirectory, payload),
+          catch: (cause) =>
+            execError({
+              argv: diagnostic.argv,
+              cwd: diagnostic.cwd,
+              exitCode: -1,
+              stdout: "",
+              stderr: tail(failureMessage(cause))
+            })
+        }),
+        ({ cwd, resolved }) => spawned(resolved, cwd)
+      )
+    }
   )
 }
 
@@ -905,12 +1245,14 @@ export const run = (
  * links included, so substitution can never hand a tool a path outside it.
  * Killing the fiber or reaching `timeoutMs` kills the child's process group.
  *
+ * A run the workspace policy or the payload marks projected happens in a
+ * scratch root under the cache directory holding exactly the declared inputs,
+ * with the declared outputs copied back before the action settles.
+ *
  * @category layers
  * @since 0.1.0
  */
-export const ExecLive = (options: {
-  readonly workspaceRoot: string
-  readonly cacheDirectory?: string | undefined
-  readonly sensitiveEnv?: ReadonlyArray<string> | undefined
-}): Layer.Layer<Action.Requirement<"smithers-build/exec">, never, FlowRuntime.FlowRuntime> =>
+export const ExecLive = (
+  options: RunOptions
+): Layer.Layer<Action.Requirement<"smithers-build/exec">, never, FlowRuntime.FlowRuntime> =>
   Exec.toLayer((payload) => run(options, payload))
