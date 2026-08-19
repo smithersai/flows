@@ -5,6 +5,15 @@ generated root file on the same terms as `pnpm-workspace.yaml` and
 `tsconfig.json`: BUILD.ts is the only description of the pipeline, `write`
 renders it, and `check` — the default — fails on drift.
 
+**A job declares what it requires and which targets it runs. Nothing in the
+declaration is a command.** There is no `run`, no `uses`, no `command`, and no
+`args` anywhere in the attrs. Every argv the generated file carries is derived:
+the install from [`PackageManager.install`](install.md), the interpreter version
+from the declared runtime, the Rust install from the declared toolchain, and
+each pipeline step from the CLI verb and target pattern it names. A gate that is
+not a target cannot reach the pipeline; it has to become a target first, in the
+package that owns it.
+
 ```ts
 import { Smithers } from "@smthrs/targets"
 
@@ -14,28 +23,26 @@ export const packageManager = Smithers.PackageManager.Pnpm({ version: "11.21.0",
 export const ci = Smithers.GithubCiGen({
   packageManager,
   workflowName: "CI",
-  pattern: "//...",
-  pipelineVerbs: [Smithers.Verb.Build, Smithers.Verb.Test, Smithers.Verb.Lint],
   pushBranches: ["main"],
   pullRequest: true,
   workflowDispatch: true,
   cancelInProgress: true,
-  install: "pnpm install --frozen-lockfile",
   jobs: [
     {
       id: "test",
       runsOn: "ubuntu-latest",
+      toolchain: Smithers.CiToolchain.Needs({
+        runtimes: [Smithers.CiToolchain.Node({ runtime, release: "22.19.0" })]
+      }),
       steps: [
-        { uses: "actions/checkout@v4" },
-        { uses: "pnpm/action-setup@v6" },
-        { run: "pnpm install --frozen-lockfile" },
-        { name: "Typecheck", run: "pnpm run check" }
+        { name: "Workspace targets", verb: Smithers.Verb.Ci, pattern: "//packages/...", parallelism: 2 },
+        { name: "Script gates", verb: Smithers.Verb.Test, pattern: "//scripts/..." }
       ]
     }
   ],
   requiredJobs: ["test"],
   gates: [
-    { name: "typecheck", command: "pnpm run check", job: "test" }
+    { name: "documentation parity", verb: Smithers.Verb.Docs, pattern: "//packages/...", job: "test" }
   ],
   output: ".github/workflows/ci.yml",
   mode: "check"
@@ -55,146 +62,117 @@ explicit `smthrs build` of a `mode: "write"` target generates a file.
 
 ## Attributes
 
-| Name               | Type                            | Default                               | Description                                                                                                                                                                                                                                                                                                       |
-| ------------------ | ------------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `workflowName`     | `string`                        | `"CI"`                                | Generated workflow name.                                                                                                                                                                                                                                                                                          |
-| `pattern`          | `string`                        | `"//..."`                             | Pattern executed by the generated smithers build step. Must be `//...`, `//pkg/...`, `//pkg`, `//pkg:target`, or `//:target`; rendered as one single-quoted shell word.                                                                                                                                           |
-| `pipelineVerbs`    | `Array<Verb.Verb>`              | `Verb.all`                            | Typed verb values the generated step runs across `pattern`: `Verb.Build`, `Verb.Test`, `Verb.Lint`, and `Verb.Docs`. The complete set emits one `smthrs ci` command; other sets emit one command per verb. `Verb` defines no `run` value at all, because run targets may be long-lived or mutate the source tree. |
-| `pushBranches`     | `Array<string>`                 | `["main"]`                            | Generated push branches.                                                                                                                                                                                                                                                                                          |
-| `pullRequest`      | `boolean`                       | `true`                                | Generated pull-request trigger.                                                                                                                                                                                                                                                                                   |
-| `workflowDispatch` | `boolean`                       | `true`                                | Generated manual trigger.                                                                                                                                                                                                                                                                                         |
-| `cancelInProgress` | `boolean`                       | `true`                                | Generated concurrency policy.                                                                                                                                                                                                                                                                                     |
-| `install`          | `string`                        | The declared manager's frozen install | Lockfile-respecting install command. Unsupported commands, and flags that can omit a pinned dependency, are rejected; the job that runs smithers build must run an install line that passes the same policy. It also selects the workspace-binary runner of the generated step.                                   |
-| `packageManager`   | `PackageManager.PackageManager` | required                              | The declared package manager. The generated pipeline installs with it and runs the smthrs binary through it, so a workspace that switches managers gets a regenerated workflow.                                                                                                                                   |
-| `cacheUrlSecret`   | `Secret.Secret`                 | optional                              | The declared secret supplying the remote-cache endpoint override. The generated step reads the repository secret of the same name.                                                                                                                                                                                |
-| `cacheTokenSecret` | `Secret.Secret`                 | optional                              | The declared secret supplying the remote-cache bearer token. The generated step reads the repository secret of the same name.                                                                                                                                                                                     |
-| `jobs`             | `Array<Job>`                    | `[]`                                  | Jobs rendered by `write` and `check`; the render refuses an empty list. A job's optional `timeoutMinutes` must be a whole number from 1 to 360.                                                                                                                                                                   |
-| `gates`            | `Array<Gate>`                   | `[]`                                  | Named commands an unconditional step must still run, or actions it must still use, optionally in one job.                                                                                                                                                                                                         |
-| `requiredJobs`     | `Array<string>`                 | `[]`                                  | Job ids the workflow must define **and run unconditionally**, in every mode.                                                                                                                                                                                                                                      |
-| `output`           | `string`                        | `".github/workflows/ci.yml"`          | Workspace-relative workflow path.                                                                                                                                                                                                                                                                                 |
-| `mode`             | `"check" \| "write"`            | `"check"`                             | Output handling described above.                                                                                                                                                                                                                                                                                  |
+| Name               | Type                            | Default                      | Description                                                                                                                                            |
+| ------------------ | ------------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `workflowName`     | `string`                        | `"CI"`                       | Generated workflow name.                                                                                                                               |
+| `pushBranches`     | `Array<string>`                 | `["main"]`                   | Generated push branches.                                                                                                                               |
+| `pullRequest`      | `boolean`                       | `true`                       | Generated pull-request trigger.                                                                                                                        |
+| `workflowDispatch` | `boolean`                       | `true`                       | Generated manual trigger.                                                                                                                              |
+| `cancelInProgress` | `boolean`                       | `true`                       | Generated concurrency policy.                                                                                                                          |
+| `packageManager`   | `PackageManager.PackageManager` | required                     | The declared package manager. Every job installs with it and runs the smthrs binary through it, so a workspace that switches managers is regenerated.   |
+| `cacheUrlSecret`   | `Secret.Secret`                 | optional                     | The declared secret supplying the remote-cache endpoint override. Every generated target step reads the repository secret of the same name.             |
+| `cacheTokenSecret` | `Secret.Secret`                 | optional                     | The declared secret supplying the remote-cache bearer token.                                                                                           |
+| `jobs`             | `Array<Job>`                    | `[]`                         | Jobs rendered by `write` and `check`; the render refuses an empty list.                                                                                |
+| `gates`            | `Array<Gate>`                   | `[]`                         | Target invocations the pipeline must still perform, optionally in one named job. Checked structurally against the declared steps, never against text.  |
+| `requiredJobs`     | `Array<string>`                 | `[]`                         | Job ids the workflow must define, in every mode.                                                                                                       |
+| `output`           | `string`                        | `".github/workflows/ci.yml"` | Workspace-relative workflow path.                                                                                                                      |
+| `mode`             | `"check" \| "write"`            | `"check"`                    | Output handling described above.                                                                                                                       |
+
+### Job
+
+| Name              | Type                     | Default  | Description                                                                             |
+| ----------------- | ------------------------ | -------- | --------------------------------------------------------------------------------------- |
+| `id`              | `string`                 | required | GitHub job id: a letter or `_`, then letters, digits, `-`, `_`.                          |
+| `name`            | `string`                 | optional | Operator-facing job name.                                                                |
+| `runsOn`          | `string`                 | required | One runner label, or a label set `[a, b]`.                                              |
+| `timeoutMinutes`  | `number`                 | optional | A whole number from 1 to 360.                                                            |
+| `continueOnError` | `boolean`                | optional | Advisory lane.                                                                          |
+| `toolchain`       | `CiToolchain.Toolchain`  | required | What the runner must provide before the first target runs. See [CiToolchain](#citoolchain). |
+| `steps`           | `Array<TargetStep>`      | required | The target invocations this job performs. A job with none is refused.                    |
+
+### TargetStep
+
+| Name          | Type                | Default            | Description                                                                                                          |
+| ------------- | ------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `name`        | `string`            | optional           | Operator-facing step name.                                                                                           |
+| `verb`        | `Verb.PipelineVerb` | required           | `Verb.Build`, `Verb.Test`, `Verb.Lint`, `Verb.Docs`, or `Verb.Ci` — the aggregate that plans every kind in one call. |
+| `pattern`     | `string`            | required           | `//...`, `//pkg/...`, `//pkg`, `//pkg:target`, or `//:target`. Rendered as one single-quoted shell word.             |
+| `parallelism` | `number`            | the CLI's own size | `--jobs` bound, 1 to 256.                                                                                            |
+
+`Verb` defines no `run` value at all. Run targets may start long-lived
+development services or mutate the source tree, so a pipeline that runs them is
+a declaration that cannot be written.
+
+### Gate
+
+| Name      | Type        | Default  | Description                                                     |
+| --------- | ----------- | -------- | ----------------------------------------------------------------- |
+| `name`    | `string`    | required | Operator-facing name, used in the failure message.              |
+| `verb`    | `Verb.Verb` | required | The verb the invocation must run under. `Verb.Ci` satisfies any. |
+| `pattern` | `string`    | required | The exact pattern it must run over.                             |
+| `job`     | `string`    | optional | The job id the invocation must appear in.                       |
+
+A gate is a claim about coverage that outlives the job list: "the docs verb
+still runs over the packages". It is checked against the declared steps, so it
+cannot be satisfied by a comment that happens to contain the right words, and a
+wider pattern does not satisfy a narrower gate — a different pattern is a
+different claim.
+
+## CiToolchain
+
+`CiToolchain.Needs({ … })` declares what a job requires. The generator turns each
+requirement into steps, in the order a runner needs them: checkout, workflow
+lint, package-manager setup, interpreters, install, language toolchains, runner
+assertions, then the job's target steps, then artifact collection.
+
+| Name           | Type                          | Default  | Renders                                                                                  |
+| -------------- | ----------------------------- | -------- | ------------------------------------------------------------------------------------------ |
+| `submodules`   | `boolean`                     | `false`  | `actions/checkout@v4` with `submodules: recursive`.                                       |
+| `install`      | `boolean`                     | `true`   | The manager's setup action and its frozen, script-free install.                           |
+| `runtimes`     | `Array<RuntimeSetup>`         | `[]`     | `CiToolchain.Node({ runtime, release })` / `CiToolchain.Bun({ runtime, release })`.        |
+| `rust`         | `RustSetup`                   | optional | `CiToolchain.Rust({ toolchain })` — `rustup toolchain install`, plus the cache by default. |
+| `jj`           | `JjSetup`                     | optional | `CiToolchain.Jj({ release })` — the pinned jj-cli, and a colocated repository.             |
+| `browser`      | `SystemBrowser`               | optional | `CiToolchain.Browser({ executable, reason })` — asserts the runner image ships it.         |
+| `workflowLint` | `WorkflowLint`                | optional | `CiToolchain.Actionlint({ release, workflows })`.                                          |
+| `artifacts`    | `ArtifactUpload`              | optional | `CiToolchain.Artifacts({ artifact, sources })` — collect and upload.                        |
+
+Every version a runner downloads is enumerated by the schema, for the reason
+`Runtime.NodeVersion` is enumerated: the set of versions a workspace may pin is
+reviewed, not free text. A pin that names a release the publisher does not have
+is a CI failure at 03:00; a pin outside the enumeration is a type error at the
+call site. Action references are constants of the implementation, never attrs —
+an action reference is an argv by another name.
 
 ## Generation guarantees
 
-What keeps the generator from silently deleting a repository's gates is the
-render itself: before writing or comparing anything, the rendered workflow is
-re-parsed and checked against every declared gate. The parser reads job ids,
-every `run` and `uses` command, and
-the `if:` and `continue-on-error:` of every job and step,
-including sequences written at their key's own indentation (`steps:` and
-`needs:` in the common compact style), and rejects a duplicate mapping key at every level it reads — a repeated
-top-level key, job id, job field, or step field. YAML shadows all of them and
-keeps the last, so a gate could otherwise match a job, a `steps:` block, or a
-`run:` script GitHub never executes. A key is read unquoted, so `"test":` and
-`test:` are the same job id, both to a gate and to the duplicate check. A
-dropped gate or required job is a throw at plan time, before any file is
-written; drift between the checked-in workflow and the render is a typed
-`DriftError` carrying the workflow path.
-
-Quoted scalar values are decoded before shell scanning. JSON-compatible
-double-quoted escapes and YAML's doubled-single-quote form are supported;
-other YAML-only escape forms are refused. The scanner therefore never treats
-the source spelling of an escape as a different shell program and invents a
-gate outside a quote that GitHub actually places inside it.
-
-### What a required job proves
-
-A `requiredJobs` entry asserts that the render defines the job: removing a job
-without removing its entry is a throw at plan time rather than a pipeline that
-quietly stopped running a lane. The renderer has no way to emit a job or step
-`if:` at all, so every rendered job runs unconditionally. For reading a
-workflow file directly, `GithubWorkflow.missingRequiredJobs` applies the
-stricter run-unconditionally test and reports a conditional job as
-`id (conditional)` rather than as missing.
-
-### What a gate proves
-
-Gate matching is fail-closed, and it is not a substring search.
-
-A gate whose `command` is a shell command is satisfied only when that command
-begins where the shell would start reading a command — the beginning of a `run`
-script, or after `\n`, `;`, `&`, `&&`, `|`, `||`, a subshell or
-command-substitution `(`, a `NAME=value` prefix, or one of the
-`if`/`then`/`else`/`elif`/`while`/`until`/`do`/`{`/`}`/`!`/`time`/`sudo`/`exec`
-words that introduce one — outside every quoted string, and ends at a shell word
-boundary. So these do **not** satisfy a `pnpm run check` gate:
-
-| Script                                   | Why it does not count                                 |
-| ---------------------------------------- | ----------------------------------------------------- |
-| `echo pnpm run check`                    | the command is an argument; nothing typechecks        |
-| `echo "first; pnpm run check"`           | quoted data, separators included                      |
-| `# pnpm run check`                       | a shell comment runs nothing                          |
-| `pnpm run checkall`                      | a different, longer command name                      |
-| `xpnpm run check`                        | a different command name                              |
-| `cat <<'EOF'` … `pnpm run check` … `EOF` | a here-document body is data                          |
-| `check() { pnpm run check; }`            | declaring a function defers its body; it runs nothing |
-
-Literal (`|`) scripts preserve their line breaks. Folded (`>`) scripts are
-read conservatively with physical lines joined as spaces. YAML preserves a few
-of those breaks around blank or more-indented lines, but the conservative form
-can only report a gate missing; it cannot invent a shell command boundary and
-false-pass a gate.
-
-And these do: `pnpm run check`, `pnpm install --frozen-lockfile --ignore-scripts`
-(arguments and flags may follow), `if ! cmp a b; then`,
-`(cd pkg && bun vitest.mjs run)`, any line of a multiline script, and the
-command after a `&& \` line continuation, which the shell joins into one line.
-
-A gate whose `command` names an action matches a `uses` value exactly, or the
-same action at any version (`actions/checkout` matches `actions/checkout@v4`).
-`evil-org/actions/checkout@v4` does not satisfy an `actions/checkout@v4` gate.
-
-A gate is satisfied only by an **unconditional** job and step. A job or step
-carrying an `if:` may be skipped, so it cannot prove a required gate; only the
-literal `true` (and `${{ true }}`) is accepted as always-true. `continue-on-error`
-is deliberately left advisory: a gate asserts that a command still _runs_, not
-that its failure blocks a merge, and the advisory macOS and Windows lanes of a
-real pipeline are exactly what a platform-pinned gate exists to pin.
-
-Constructs the scanner does not model (backticks, `eval`) produce no command
-start at all, which reports the gate missing rather than accepting text that may
-never run.
-
 ### What generation refuses
 
-- an empty job list, an empty `pipelineVerbs` list, and any declared
-  `requiredJobs` id the render does not define;
-- an install command that is not one of `pnpm install --frozen-lockfile`,
-  `npm ci`, `yarn install --immutable`, or `bun install --frozen-lockfile`,
-  **or** that carries a flag outside that package manager's allowlist. The
-  allowlists exclude every flag that can omit a dependency the lockfile pins —
-  `--lockfile-only`, `--prod`, `--production`, `--omit=dev`, `--filter=…`,
-  `--workspace=…`, `--no-optional`, `--mode=update-lockfile` — because each one
-  satisfies an install gate and leaves the pinned workspace CLI missing.
-  `--ignore-scripts`, `--prefer-offline`, `--no-audit`, and their neighbours are
-  allowed; an unknown flag is refused rather than guessed at;
-- a first job whose install **command** does not itself pass that policy. The
-  install must be a command the shell runs, at the same boundary a gate uses —
-  a here-document body, a quoted block, and an `echo` argument install nothing,
-  even on a line of their own — and the whole command is checked, not just its
-  prefix, so `pnpm install --frozen-lockfile --prod` does not perform a declared
-  `pnpm install --frozen-lockfile`;
-- output that omits a declared gate;
-- job and step shapes GitHub Actions rejects: duplicate or malformed job ids, a
-  job with no steps, a step with both or neither of `uses` and `run`, `with:` on
-  a `run` step, and a malformed `with:`/`env:` name;
+Every refusal is a throw at plan time, before any file is written.
+
+- an empty job list, and a job that runs no targets;
+- a job that runs targets while declaring `install: false`, which would have no
+  workspace binary to run them with;
+- any declared `requiredJobs` id the render does not define;
+- a declared gate no job performs;
+- a `pattern` outside the CLI's label grammar. The supported forms are exactly
+  `//...`, `//pkg/...`, `//pkg`, `//pkg:target`, and `//:target`, with
+  components of `[A-Za-z0-9_][A-Za-z0-9._-]*`. That rejects `*` and other globs,
+  option-like values such as `--help` (which would make a step a usage message
+  exiting 0), `..` traversal, empty components, and more than one colon;
+- a `parallelism` outside 1..256, or one that is not a whole number;
 - a `timeoutMinutes` outside 1..360, or one that is not a whole number. Zero and
   negative values are rejected by the runner and larger ones are silently
   capped, so both render a job that does not enforce what it declares. The attrs
   schema bounds it and `render` checks it again;
-- nothing needs refusing for the manual `run` kind: `Verb` defines no `run`
-  value, so a pipeline that runs `run` targets is a declaration that cannot be
-  written. Run targets may start long-lived development services or mutate the
-  source tree (for example, a scaffold), which is why only `Verb.Build`,
-  `Verb.Test`, `Verb.Lint`, and `Verb.Docs` exist;
+- duplicate or malformed job ids. YAML keeps the last of a duplicated mapping
+  key, so a gate could otherwise match a job that never runs;
+- a declared path or diagnostic a shell would reinterpret: a browser executable
+  or artifact source carrying a quote, `$`, backtick, `;`, `&`, `|`, `(`, `)`,
+  `<`, `>`, whitespace, or `..`;
 - a control character in a rendered value, such as the carriage return of a
-  CRLF script, which the shell cannot run;
-- a `pattern` outside the CLI's label grammar. The supported forms are exactly
-  `//...`, `//pkg/...`, `//pkg`, `//pkg:target`, and `//:target`, with
-  components of `[A-Za-z0-9_][A-Za-z0-9._-]*`. That rejects `*` and other globs,
-  option-like values such as `--help` (which would make the pipeline's only real
-  step a usage message exiting 0), `..` traversal, empty components, and more
-  than one colon.
+  CRLF value, which the shell cannot run.
+
+### Quoting
 
 Rendered scalars are quoted unless YAML reads them back as exactly the declared
 string. Every attribute is declared a `string`, so a value that would resolve to
@@ -215,17 +193,25 @@ that label set — `[self-hosted, my label]`, `{group: g, labels: [x]}`, `[]` �
 and a job that never picks up. An expression (`${{ matrix.os }}`) is a quoted
 scalar, which GitHub still evaluates.
 
-The first rendered job receives the smthrs command, running the workspace
-binary the declared install pinned — `pnpm exec`, `npm exec --no-install --`,
-`yarn run`, or `bun run`. Nothing is fetched from a registry. Declaring every
-verb (`Verb.all`) uses one `pnpm exec smthrs ci '<pattern>'`; other sets
-receive one command per verb. The pattern is rendered as one single-quoted shell
-word, which is a literal in every default GitHub Actions shell (`bash` on Linux
-and macOS, `pwsh` on Windows), so the runner cannot glob-expand or re-split it.
+### No step conditions
+
+The renderer has no way to emit a job or step `if:` at all, so every rendered
+step runs unconditionally and nobody has to adjudicate in review which
+conditions are load-bearing. Artifact collection is best-effort by construction
+instead: the copies tolerate an empty source and the upload declares
+`if-no-files-found: ignore`, which gives the same result on a green run.
+
+### The workspace binary
+
+Every target step runs the workspace binary the declared install put in the
+tree — `pnpm exec smthrs …`, `bun x smthrs …` — so the CLI that runs is the one
+the lockfile pinned, never a fetched one. The pattern is rendered as one
+single-quoted shell word, a literal in every default GitHub Actions shell
+(`bash` on Linux and macOS, `pwsh` on Windows), so the runner cannot
+glob-expand or re-split it.
 
 In check mode the output is a declared input and the target is cacheable.
-Write mode is non-cacheable and declares the workflow as an output, not an
-input.
+Write mode is non-cacheable.
 
 ## Channels and status
 
@@ -238,6 +224,9 @@ input.
 
 ## See also
 
-- [PackageJson](package-json-gen.md)
+- [NodeTest](node-test.md) and [NodeBinary](node-binary.md) — the targets a
+  script gate becomes
+- [CargoLint / CargoTest](cargo.md) — the targets a Rust gate becomes
+- [Writing BUILD files](../../workspace/writing-build-files.md#build-files-declare-targets-never-commands)
 - [Running targets](../../workspace/running-targets.md)
 - [Remote caching](../../workspace/remote-caching.md)

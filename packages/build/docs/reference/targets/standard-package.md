@@ -1,12 +1,12 @@
 # StandardPackage
 
 Expands one conventional TypeScript package into `lib`, `check`, `test`,
-`lint`, `fmt`, and `docs`.
+`lint`, `fmt`, `docs`, and `circular`.
 
 `StandardPackage` is a **macro**, not a target. It has no id, no attrs schema, no
 node in the graph, and no label. It calls [TsBuild](ts-build.md),
 [Typecheck](typecheck.md), [Vitest](vitest.md), [EsLint](es-lint.md),
-[Dprint](dprint.md), and [DocsParity](docs-parity.md) and returns their
+[Dprint](dprint.md), [DocsParity](docs-parity.md), and [NodeTest](node-test.md) and returns their
 targets.
 
 ```ts
@@ -14,7 +14,7 @@ targets.
 import { Smithers } from "@smthrs/targets"
 import { packageManager } from "../../BUILD.ts"
 
-export const { lib, check, test, lint, fmt, docs } = Smithers.StandardPackage({
+export const { check, circular, docs, fmt, lib, lint, test } = Smithers.StandardPackage({
   packageManager,
   deps: [],
   cwd: "packages/plan"
@@ -36,6 +36,7 @@ export const { lib, check, test, lint, fmt, docs } = Smithers.StandardPackage({
 | `eslintConfigs`  | `Array<Input.File>`             | `[file("eslint.config.js"), file("//eslint.jsdoc.js")]` | The flat configs.                                                           |
 | `dprintConfig`   | `Input.File`                    | `file("dprint.json")`                                   | The dprint config.                                                          |
 | `readme`         | `Input.File`                    | `file("README.md")`                                     | The README the docs-parity target summarizes.                               |
+| `circularScript` | `Input.File`                    | `file("scripts/circular.mjs")`                          | The circular-dependency guard the package runs.                             |
 
 `vitestConfig` distinguishes `undefined`, which means "use the default", from
 `null`, which means "pass no `--config`".
@@ -50,6 +51,7 @@ interface StandardTargets {
   readonly lint: ReturnType<typeof EsLint>
   readonly fmt: ReturnType<typeof Dprint>
   readonly docs: ReturnType<typeof DocsParity>
+  readonly circular: ReturnType<typeof NodeTest>
 }
 ```
 
@@ -61,6 +63,7 @@ interface StandardTargets {
 | `lint`  | `EsLint`     | `sources: [sources]`, `deps: []`, `configs: eslintConfigs`, `maxWarnings: 0`, `fix: false`, `cwd`                                              |
 | `fmt`   | `Dprint`     | `sources: [sources, glob("test/**/*.ts")]`, `deps: []`, `config: dprintConfig`, `fix: false`, `cwd`                                            |
 | `docs`  | `DocsParity` | `readme`, `deps: []`, `cwd`                                                                                                                    |
+| `circular` | `NodeTest` | `runtime: packageManager.runtime`, `runner: entrypoint(circularScript)`, `srcs: [sources]`, `deps: []`, `cwd`                              |
 
 Every emitted target call also receives `packageManager: options.packageManager`.
 
@@ -102,4 +105,5 @@ own. The six targets it emits each carry their own; all six execute today.
 
 - [Writing macros](../../extending/writing-macros.md)
 - [TsBuild](ts-build.md), [Typecheck](typecheck.md), [Vitest](vitest.md),
-  [EsLint](es-lint.md), [Dprint](dprint.md), [DocsParity](docs-parity.md)
+  [EsLint](es-lint.md), [Dprint](dprint.md), [DocsParity](docs-parity.md),
+  [NodeTest](node-test.md)

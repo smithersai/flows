@@ -64,6 +64,59 @@ configures the workspace, and a `PackageDefaults` value declares synthesis. See
 [Configuration](configuration.md) and
 [Default targets](../extending/default-targets.md).
 
+## BUILD files declare targets, never commands
+
+A BUILD file says WHAT the workspace has. It never says how to run it.
+
+```ts
+// Wrong. This is a gate outside the build graph.
+export const ci = Smithers.GithubCiGen({
+  jobs: [{ id: "test", steps: [{ run: "node --test scripts/pack-release.test.mjs" }] }]
+})
+
+// Right. The gate is a target, and the pipeline names it.
+// scripts/BUILD.ts
+export const packManifest = Smithers.NodeTest({
+  runtime,
+  runner: Smithers.testRunner([Smithers.file("//scripts/pack-release.test.mjs")]),
+  srcs: [Smithers.glob("//scripts/**/*.mjs")],
+  deps: []
+})
+
+// BUILD.ts
+export const ci = Smithers.GithubCiGen({
+  jobs: [{ id: "test", toolchain, steps: [{ verb: Smithers.Verb.Test, pattern: "//scripts/..." }] }]
+})
+```
+
+A raw argv in a BUILD file — a `run:` string, an executable name, a shell
+fragment — is a gate the build system does not know about. It is not planned,
+not keyed, not cached, not addressable by label, and not runnable locally by the
+name CI uses. It also pins the interpreter and the package manager at the call
+site, so the workspace can no longer switch either by editing one declaration.
+
+**Argv rendering belongs in target implementations.** `PackageManager.install()`
+renders `pnpm install --frozen-lockfile --ignore-scripts`; `Runtime.test()`
+renders `node --test`; `RustToolchain.install()` renders
+`rustup toolchain install`. A declaration passes the toolchain in and the
+implementation asks it for the argv.
+
+Bazel is the prior art the rule comes from: a `BUILD` file has no way to write a
+command at all, every check is a test target, and CI is one verb over the graph
+(`bazel test //...`). If a gate does not fit an existing target type, add a
+target type — [`NodeTest`](../reference/targets/node-test.md),
+[`NodeBinary`](../reference/targets/node-binary.md), and
+[`CargoLint`/`CargoTest`](../reference/targets/cargo.md) all exist because a
+pipeline needed one — or reach for
+[`ToolBuild`](../reference/targets/tool-build.md), the deliberate escape hatch,
+and say in review why the toolchain does not deserve a type of its own.
+
+The schemas enforce this where the pressure is highest.
+[`GithubCiGen`](../reference/targets/github-ci-gen.md) has no attribute anywhere
+that accepts a command, an action reference, or a shell script: a job declares
+what it requires and which targets it runs, and the generator derives every
+step.
+
 ## Target calls
 
 A target call takes exactly one object: the target's attributes. The attrs are an
