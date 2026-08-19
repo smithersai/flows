@@ -1,0 +1,358 @@
+/**
+ * GeneratedArtifact: the write/check/contract triad over an external
+ * generator subprocess.
+ *
+ * The mode assertions run the payload the rule planned through `Exec.run`,
+ * the same call the exec layer makes, against a real temporary workspace.
+ * The key assertion plans a real workspace through the planner the CLI runs,
+ * so it measures the key the executor would cache on rather than a second
+ * key computed here.
+ */
+import * as Effect from "effect/Effect"
+import * as Fs from "node:fs/promises"
+import * as Os from "node:os"
+import * as NodePath from "node:path"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import * as Planner from "../../build-cli/src/Planner.ts"
+import { Workspace } from "../../build-cli/src/Workspace.ts"
+import * as Exec from "../src/Exec.ts"
+import { GeneratedArtifact } from "../src/GeneratedArtifact.ts"
+import * as Input from "../src/Input.ts"
+import * as Target from "../src/Target.ts"
+import { runtime } from "./toolchain.ts"
+
+let root: string
+
+const write = async (relative: string, text: string): Promise<void> => {
+  const path = NodePath.join(root, relative)
+  await Fs.mkdir(NodePath.dirname(path), { recursive: true })
+  await Fs.writeFile(path, text, "utf8")
+}
+
+const read = (relative: string): Promise<string> => Fs.readFile(NodePath.join(root, relative), "utf8")
+
+const exists = async (relative: string): Promise<boolean> =>
+  await Fs.stat(NodePath.join(root, relative)).then(() => true, () => false)
+
+beforeEach(async () => {
+  root = await Fs.realpath(await Fs.mkdtemp(NodePath.join(Os.tmpdir(), "smthrs-generated-artifact-")))
+})
+
+afterEach(async () => {
+  await Fs.rm(root, { recursive: true, force: true })
+})
+
+/** Every exec payload one target's body plans, in the order the walk reaches them. */
+const execPayloads = (target: Target.AnyTarget): ReadonlyArray<Exec.Payload> => {
+  const found: Array<(typeof Exec.Payload)["~type.make.in"]> = []
+  const visit = (node: unknown, seen: Set<object>): void => {
+    if (node === null || typeof node !== "object" || seen.has(node)) return
+    seen.add(node)
+    const ast = node as Record<string, unknown>
+    if (ast["_tag"] === "ActionCall") {
+      if (ast["action"] === "smithers-build/exec") {
+        found.push(ast["payload"] as (typeof Exec.Payload)["~type.make.in"])
+      }
+      return
+    }
+    for (const value of Object.values(ast)) visit(value, seen)
+  }
+  visit(
+    (target as unknown as { readonly body: (attrs: unknown) => { readonly ast: unknown } })
+      .body(Target.metadata(target).attrs).ast,
+    new Set()
+  )
+  // A planned payload omits the schema's constructor defaults; the exec
+  // action applies them when it validates what it receives, so the runner
+  // assertions do the same here.
+  return found.map((payload) => Exec.Payload.make(payload))
+}
+
+/** The one exec payload a GeneratedArtifact plan carries. */
+const execPayload = (target: Target.AnyTarget): Exec.Payload => {
+  const [payload] = execPayloads(target)
+  if (payload === undefined) throw new Error("GeneratedArtifact planned no exec step")
+  return payload
+}
+
+const generator = Input.file("scripts/gen.mjs")
+
+/** A generator that rewrites out.txt with fixed content. */
+const writeGenerator = (): Promise<void> =>
+  write(
+    "scripts/gen.mjs",
+    "import { writeFileSync } from \"node:fs\"\nwriteFileSync(\"out.txt\", \"alpha\\n\")\n"
+  )
+
+const declaration = {
+  runtime,
+  generator,
+  srcs: [],
+  outputs: ["out.txt"] as [string]
+}
+
+describe("write mode", () => {
+  it("regenerates the declared output", async () => {
+    await writeGenerator()
+    await write("out.txt", "stale\n")
+    const target = GeneratedArtifact({ ...declaration, mode: "write" })
+
+    const result = await Effect.runPromise(Exec.run({ workspaceRoot: root }, execPayload(target)))
+
+    expect(result.exitCode).toBe(0)
+    expect(await read("out.txt")).toBe("alpha\n")
+  })
+})
+
+describe("check mode", () => {
+  it("passes when the checked-in output matches the generated form", async () => {
+    await writeGenerator()
+    await write("out.txt", "alpha\n")
+    const target = GeneratedArtifact({ ...declaration, mode: "check" })
+
+    const result = await Effect.runPromise(Exec.run({ workspaceRoot: root }, execPayload(target)))
+
+    expect(result.exitCode).toBe(0)
+    expect(await read("out.txt")).toBe("alpha\n")
+  })
+
+  it("fails on drift and leaves the regenerated output in place", async () => {
+    await writeGenerator()
+    await write("out.txt", "stale\n")
+    const target = GeneratedArtifact({ ...declaration, mode: "check" })
+
+    const failure = await Effect.runPromise(Effect.flip(Exec.run({ workspaceRoot: root }, execPayload(target))))
+
+    expect(failure.exitCode).toBe(1)
+    expect(failure.stderr).toContain("drifted")
+    expect(failure.stderr).toContain("out.txt")
+    // Without restoreOnFailure the failed check leaves the regenerated bytes
+    // on disk, where they are the fix.
+    expect(await read("out.txt")).toBe("alpha\n")
+  })
+
+  it("fails when the checked-in output is missing", async () => {
+    await writeGenerator()
+    const target = GeneratedArtifact({ ...declaration, mode: "check" })
+
+    const failure = await Effect.runPromise(Effect.flip(Exec.run({ workspaceRoot: root }, execPayload(target))))
+
+    expect(failure.exitCode).toBe(1)
+    expect(failure.stderr).toContain("out.txt")
+  })
+})
+
+describe("restoreOnFailure", () => {
+  it("leaves the tree untouched after a failed check", async () => {
+    await write(
+      "scripts/gen.mjs",
+      [
+        "import { writeFileSync } from \"node:fs\"",
+        "writeFileSync(\"out.txt\", \"alpha\\n\")",
+        "writeFileSync(\"extra.txt\", \"new\\n\")",
+        ""
+      ].join("\n")
+    )
+    await write("out.txt", "stale\n")
+    const target = GeneratedArtifact({
+      ...declaration,
+      outputs: ["out.txt", "extra.txt"],
+      mode: "check",
+      restoreOnFailure: true
+    })
+
+    const failure = await Effect.runPromise(Effect.flip(Exec.run({ workspaceRoot: root }, execPayload(target))))
+
+    expect(failure.exitCode).toBe(1)
+    // The changed output keeps its original bytes and the output the
+    // generator created is removed again.
+    expect(await read("out.txt")).toBe("stale\n")
+    expect(await exists("extra.txt")).toBe(false)
+  })
+
+  it("leaves the tree byte-identical after a passing check", async () => {
+    await write(
+      "scripts/gen.mjs",
+      [
+        "import { writeFileSync } from \"node:fs\"",
+        "writeFileSync(\"out.txt\", \"generated at \" + new Date().toISOString() + \"\\n\")",
+        ""
+      ].join("\n")
+    )
+    await write("out.txt", "generated at 2020-01-01T00:00:00.000Z\n")
+    const target = GeneratedArtifact({
+      ...declaration,
+      mode: "check",
+      restoreOnFailure: true,
+      normalize: ["strip-timestamps"]
+    })
+
+    const result = await Effect.runPromise(Exec.run({ workspaceRoot: root }, execPayload(target)))
+
+    expect(result.exitCode).toBe(0)
+    expect(await read("out.txt")).toBe("generated at 2020-01-01T00:00:00.000Z\n")
+  })
+})
+
+describe("strip-timestamps", () => {
+  const timestamped = GeneratedArtifact({
+    ...declaration,
+    mode: "check",
+    normalize: ["strip-timestamps"]
+  })
+
+  it("makes a timestamped generator drift-stable", async () => {
+    await write(
+      "scripts/gen.mjs",
+      [
+        "import { writeFileSync } from \"node:fs\"",
+        "writeFileSync(\"out.txt\", \"generated at \" + new Date().toISOString() + \"\\n\")",
+        ""
+      ].join("\n")
+    )
+    await write("out.txt", "generated at 2020-01-01T00:00:00.000Z\n")
+
+    const result = await Effect.runPromise(Exec.run({ workspaceRoot: root }, execPayload(timestamped)))
+
+    expect(result.exitCode).toBe(0)
+  })
+
+  it("still reports drift the normalization does not explain", async () => {
+    await write(
+      "scripts/gen.mjs",
+      [
+        "import { writeFileSync } from \"node:fs\"",
+        "writeFileSync(\"out.txt\", \"generated at \" + new Date().toISOString() + \"\\n\")",
+        ""
+      ].join("\n")
+    )
+    await write("out.txt", "hand edited at 2020-01-01T00:00:00.000Z\n")
+
+    const failure = await Effect.runPromise(Effect.flip(Exec.run({ workspaceRoot: root }, execPayload(timestamped))))
+
+    expect(failure.exitCode).toBe(1)
+    expect(failure.stderr).toContain("drifted")
+  })
+})
+
+describe("contract mode", () => {
+  const contract = GeneratedArtifact({
+    ...declaration,
+    generator: Input.file("scripts/contract.mjs"),
+    mode: "contract"
+  })
+
+  /** A generator that verifies the artifact itself and exits on drift. */
+  const writeContract = (): Promise<void> =>
+    write(
+      "scripts/contract.mjs",
+      [
+        "import { readFileSync } from \"node:fs\"",
+        "let actual",
+        "try { actual = readFileSync(\"out.txt\", \"utf8\") } catch { actual = undefined }",
+        "process.exit(actual === \"alpha\\n\" ? 0 : 1)",
+        ""
+      ].join("\n")
+    )
+
+  it("trusts the generator's verdict when the artifact is clean", async () => {
+    await writeContract()
+    await write("out.txt", "alpha\n")
+
+    const result = await Effect.runPromise(Exec.run({ workspaceRoot: root }, execPayload(contract)))
+
+    expect(result.exitCode).toBe(0)
+    expect(await read("out.txt")).toBe("alpha\n")
+  })
+
+  it("fails when the generator rejects the artifact", async () => {
+    await writeContract()
+    await write("out.txt", "stale\n")
+
+    const failure = await Effect.runPromise(Effect.flip(Exec.run({ workspaceRoot: root }, execPayload(contract))))
+
+    expect(failure.exitCode).toBe(1)
+    // Contract mode never runs the drift driver and never restores: the
+    // generator did not write, so the tree is untouched.
+    expect(await read("out.txt")).toBe("stale\n")
+  })
+})
+
+describe("caching and key material", () => {
+  it("is cacheable in contract and check modes and never in write mode", () => {
+    const contract = GeneratedArtifact({ ...declaration, mode: "contract" })
+    const check = GeneratedArtifact({ ...declaration, mode: "check" })
+    const write = GeneratedArtifact({ ...declaration, mode: "write" })
+
+    expect(Target.metadata(contract).cacheable).toBe(true)
+    expect(Target.metadata(check).cacheable).toBe(true)
+    expect(Target.metadata(write).cacheable).toBe(false)
+  })
+
+  it("declares the output as an input in contract and check mode only", () => {
+    const check = GeneratedArtifact({ ...declaration, mode: "check" })
+    const write = GeneratedArtifact({ ...declaration, mode: "write" })
+
+    expect(Target.metadata(check).inputs).toContainEqual({ _tag: "File", path: "//out.txt" })
+    expect(Target.metadata(write).inputs).not.toContainEqual({ _tag: "File", path: "//out.txt" })
+  })
+
+  it("maps write to check under the lint verb", () => {
+    const target = GeneratedArtifact({ ...declaration, mode: "write" })
+    const lint = Target.metadata(target).forKind("lint")
+
+    expect((lint.attrs as { readonly mode: string }).mode).toBe("check")
+    expect(lint.cacheable).toBe(true)
+    expect(lint.inputs).toContainEqual({ _tag: "File", path: "//out.txt" })
+  })
+
+  it("re-keys when the checked-in output is edited", async () => {
+    await write("package.json", `${JSON.stringify({ name: "fixture", private: true })}\n`)
+    await writeGenerator()
+    await write("out.txt", "alpha\n")
+    const generatedArtifactModule = NodePath.resolve(import.meta.dirname, "../src/GeneratedArtifact.ts")
+    const inputModule = NodePath.resolve(import.meta.dirname, "../src/Input.ts")
+    const runtimeModule = NodePath.resolve(import.meta.dirname, "../src/Runtime.ts")
+    await write(
+      "BUILD.ts",
+      [
+        `import { GeneratedArtifact } from "${generatedArtifactModule}"`,
+        `import * as Input from "${inputModule}"`,
+        `import * as Runtime from "${runtimeModule}"`,
+        "",
+        "export const artifact = GeneratedArtifact({",
+        "  runtime: Runtime.Node({ version: \"24.9.0\" }),",
+        "  generator: Input.file(\"scripts/gen.mjs\"),",
+        "  srcs: [],",
+        "  outputs: [\"out.txt\"],",
+        "  mode: \"check\"",
+        "})",
+        ""
+      ].join("\n")
+    )
+    const planKeys = async (): Promise<Map<string, string>> => {
+      const workspace = await Workspace.make(root, root, { cacheDirectory: ".flows" })
+      const plan = await Planner.make(workspace, "lint", "//...")
+      return new Map(plan.targets.map((entry) => [entry.label, entry.keyPreview]))
+    }
+
+    const before = await planKeys()
+    const initial = before.get("//:artifact")
+    expect(initial).toBeDefined()
+
+    // The output is a declared input in check mode, so editing it re-keys.
+    await write("out.txt", "stale\n")
+    const rekeyed = (await planKeys()).get("//:artifact")
+    // Printed so a reviewer reads the two keys the assertion compares.
+    console.log(`checked-in output unchanged ${initial}\nchecked-in output edited   ${rekeyed}`)
+    expect(rekeyed).toBeDefined()
+    expect(rekeyed).not.toBe(initial)
+  })
+})
+
+describe("declaration defaults", () => {
+  it("defaults to check mode", () => {
+    const target = GeneratedArtifact({ ...declaration })
+    expect((Target.metadata(target).attrs as { readonly mode: string }).mode).toBe("check")
+  })
+})

@@ -232,7 +232,7 @@ const optedOut = declarations.filter((entry) => entry.cache === "false").map((en
 
 describe("the catalog's cache decisions", () => {
   it("finds every rule declaration", () => {
-    expect(declarations.length).toBe(34)
+    expect(declarations.length).toBe(35)
   })
 
   it("leaves exactly nine build, test, and lint rules on the default", () => {
@@ -282,7 +282,7 @@ describe("the catalog's cache decisions", () => {
     )
     // `ruleId` is Filegroup's exported constant and `${options.target}Check`
     // is generateFilePair's check half; both are read as written.
-    expect(computed.map((entry) => entry.rule)).toEqual(["GithubCiGen", "ToolBuild"])
+    expect(computed.map((entry) => entry.rule)).toEqual(["GeneratedArtifact", "GithubCiGen", "ToolBuild"])
     expect(declarations.filter((entry) => entry.cache === "true").map((entry) => entry.rule))
       .toEqual([
         "BunTest",
