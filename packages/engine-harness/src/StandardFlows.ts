@@ -69,6 +69,7 @@ import type * as FileSystem from "effect/FileSystem"
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const filesystem = (
   services: Context.Context<FileSystem.FileSystem | Path.Path>
@@ -88,6 +89,7 @@ export const filesystem = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const shell = (
   services: Context.Context<ChildProcessSpawner.ChildProcessSpawner | Path.Path>
@@ -101,6 +103,7 @@ export const shell = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const memory = (
   services: Context.Context<MemoryStore.MemoryStore | Recall.Recall>
@@ -121,6 +124,7 @@ export const memory = (
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const WaitInput = Schema.Struct({
   seconds: Schema.Number.check(Schema.isGreaterThanOrEqualTo(0)).annotate({
@@ -134,6 +138,7 @@ export const WaitInput = Schema.Struct({
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const WaitOutput = Schema.Struct({ waitedSeconds: Schema.Number })
 
@@ -146,6 +151,7 @@ export const WaitOutput = Schema.Struct({ waitedSeconds: Schema.Number })
  *
  * @category flows
  * @since 0.1.0
+ * @slop
  */
 export const waitFlow = Flow.make({
   name: "wait",
@@ -173,6 +179,7 @@ export const waitFlow = Flow.make({
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const clock = (
   services: Context.Context<FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance>
@@ -200,6 +207,7 @@ export const clock = (
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const AskInput = Schema.Struct({
   question: Schema.String.annotate({ description: "What the run needs a human to decide" }),
@@ -213,6 +221,7 @@ export const AskInput = Schema.Struct({
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const AskOutput = Schema.Struct({
   answer: Schema.String,
@@ -224,6 +233,7 @@ export const AskOutput = Schema.Struct({
  *
  * @category flows
  * @since 0.1.0
+ * @slop
  */
 export const askFlow = Flow.make({
   name: "ask",
@@ -246,6 +256,7 @@ export const askFlow = Flow.make({
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class ApprovalUnavailable extends Schema.TaggedError<ApprovalUnavailable>()(
   "flows/engine-harness/ApprovalUnavailable",
@@ -257,6 +268,7 @@ export class ApprovalUnavailable extends Schema.TaggedError<ApprovalUnavailable>
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Asker {
   readonly ask: (
@@ -269,6 +281,7 @@ export interface Asker {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const approval = (asker: Asker): FlowBinding.Source =>
   FlowBinding.source("host/approval", [
@@ -280,6 +293,7 @@ export const approval = (asker: Asker): FlowBinding.Source =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const askerNoop = (): Asker => ({
   ask: (input) =>

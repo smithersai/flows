@@ -53,6 +53,7 @@ declare module "@smthrs/plugin" {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const hooks = Object.freeze(
   {
@@ -68,6 +69,7 @@ export const hooks = Object.freeze(
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (
   input: PluginInput<FlowsHooks> = [],
@@ -84,6 +86,7 @@ export const make = (
  *
  * @category dispatch
  * @since 0.1.0
+ * @slop
  */
 export const registry = (
   plugins: Plugins.Service<FlowsHooks>,
@@ -95,6 +98,7 @@ export const registry = (
  *
  * @category dispatch
  * @since 0.1.0
+ * @slop
  */
 export const flows = (
   plugins: Plugins.Service<FlowsHooks>,
@@ -111,6 +115,7 @@ export const flows = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const fromBindings = (options: {
   readonly name: string
@@ -132,6 +137,7 @@ export const fromBindings = (options: {
  *
  * @category dispatch
  * @since 0.1.0
+ * @slop
  */
 export const modelRequest = (
   plugins: Plugins.Service<FlowsHooks>,
@@ -148,6 +154,7 @@ export const modelRequest = (
  *
  * @category identity
  * @since 0.1.0
+ * @slop
  */
 export const identity = (
   layers: ReadonlyArray<string>,

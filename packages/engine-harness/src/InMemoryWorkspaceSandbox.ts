@@ -11,6 +11,7 @@ import * as WorkspaceSandbox from "@smthrs/engine-store/WorkspaceSandbox"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type InitialFiles = WorkspaceSandbox.InitialFiles
 
@@ -19,6 +20,7 @@ export type InitialFiles = WorkspaceSandbox.InitialFiles
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type HostFile = WorkspaceSandbox.HostFile
 
@@ -27,6 +29,7 @@ export type HostFile = WorkspaceSandbox.HostFile
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type InMemoryWorkspaceSandbox = WorkspaceSandbox.MemorySandbox
 
@@ -35,5 +38,6 @@ export type InMemoryWorkspaceSandbox = WorkspaceSandbox.MemorySandbox
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = WorkspaceSandbox.makeMemory

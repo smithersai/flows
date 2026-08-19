@@ -78,6 +78,7 @@ import * as StandardFlows from "./StandardFlows.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Seat {
   readonly model: Model.Model
@@ -91,6 +92,7 @@ export interface Seat {
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class SeatUnresolved extends Schema.TaggedError<SeatUnresolved>()(
   "flows/engine-harness/SeatUnresolved",
@@ -111,6 +113,7 @@ export class SeatUnresolved extends Schema.TaggedError<SeatUnresolved>()(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Options {
   /** Turns a `provider:modelId` seat into a model, a route, and a window. */
@@ -150,6 +153,7 @@ const contextWindows: ReadonlyArray<readonly [RegExp, number]> = [
  *
  * @category resolvers
  * @since 0.1.0
+ * @slop
  */
 export const contextWindowTokensFor = (modelId: string): number => {
   for (const [pattern, tokens] of contextWindows) {
@@ -178,6 +182,7 @@ const assistantText = (message: ModelRequest.AssistantMessage): string =>
  *
  * @category projections
  * @since 0.1.0
+ * @slop
  */
 export const trace = (
   event: AgentEvent.AgentEvent
@@ -327,6 +332,7 @@ const pattern = (formatted: string): Option.Option<Capability.CapabilityPattern>
  *
  * @category conversions
  * @since 0.1.0
+ * @slop
  */
 export const patterns = (capabilities: ReadonlyArray<string>): ReadonlyArray<Capability.CapabilityPattern> =>
   capabilities.flatMap((formatted) => {
@@ -365,6 +371,7 @@ const agentFlow = Flow.make("engine-harness/agent", {
  *
  * @category helpers
  * @since 0.1.0
+ * @slop
  */
 export const waitForRunning = (
   status: (runId: string) => Effect.Effect<RunStatus, unknown>,
@@ -384,6 +391,7 @@ export const waitForRunning = (
  *
  * @category helpers
  * @since 0.1.0
+ * @slop
  */
 export const waitForParked = (
   poll: () => Effect.Effect<Option.Option<{ readonly _tag: string }>, unknown>,
@@ -404,6 +412,7 @@ export const waitForParked = (
  *
  * @category helpers
  * @since 0.1.0
+ * @slop
  */
 export const preserveDriverInterrupt = <R>(
   interrupt: () => Effect.Effect<void, unknown, R>
@@ -414,6 +423,7 @@ export const preserveDriverInterrupt = <R>(
  *
  * @category helpers
  * @since 0.1.0
+ * @slop
  */
 export const registerDriver = (
   register: () => Effect.Effect<void, unknown>,
@@ -434,6 +444,7 @@ export const registerDriver = (
  *
  * @category helpers
  * @since 0.1.0
+ * @slop
  */
 export const settleDriverFailure = (cause: Cause.Cause<unknown>, runId: string): Effect.Effect<void> =>
   Cause.hasInterruptsOnly(cause)
@@ -460,6 +471,7 @@ type Services =
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (
   options: Options
@@ -913,6 +925,7 @@ export const make = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (
   options: Options
