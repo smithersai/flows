@@ -267,16 +267,41 @@ const clickAt = async (session: CdpSession, report: Reporter, selector: string, 
 	}
 };
 
-/** Open the surfaces dropdown and invoke one of its entries — the only path the shipped UI offers. */
+/**
+ * Open the surfaces dropdown and invoke one of its entries — the only path the
+ * shipped UI offers.
+ *
+ * The trigger is clicked up to three times. A synthetic CDP click can be
+ * delivered to a page that has not yet attached the handler for it, and the
+ * event is then simply lost: no amount of extra waiting produces a menu,
+ * because nothing is pending. That is a harness artifact, not product
+ * behaviour, and it showed as a suite that passed alone and failed in a
+ * seventeen-suite run — the browser is long-lived there, so the race is easier
+ * to lose.
+ *
+ * Re-clicking keeps the assertion honest. The claim is that the trigger opens
+ * the menu, which is still proved; what is tolerated is one dropped synthetic
+ * input. A trigger that is genuinely broken never opens the menu on any
+ * attempt and still fails, with the attempt count in the message.
+ */
 const openSurface = async (session: CdpSession, report: Reporter, flow: "connect" | "world"): Promise<void> => {
-	await clickAt(session, report, ".composer-menu-trigger", `opening the surfaces menu for ${flow}`);
+	const entry = `.composer-menu-list[aria-label="Surfaces"] .composer-menu-item[data-flow="${flow}"]`;
+	const opened = async (): Promise<boolean> =>
+		(await session.page.evaluate<boolean>(`document.querySelector(${JSON.stringify(entry)}) !== null`)) === true;
+	let attempts = 0;
+	for (attempts = 1; attempts <= 3; attempts += 1) {
+		await clickAt(session, report, ".composer-menu-trigger", `opening the surfaces menu for ${flow}`);
+		const deadline = Date.now() + 5_000;
+		while (Date.now() < deadline) {
+			if (await opened()) break;
+			await wait(100);
+		}
+		if (await opened()) break;
+	}
 	await waitUntil(
 		report,
-		`the surfaces menu never opened for ${flow}`,
-		async () =>
-			(await session.page.evaluate<boolean>(
-				`document.querySelector('.composer-menu-list[aria-label="Surfaces"] .composer-menu-item[data-flow="${flow}"]') !== null`,
-			)) === true,
+		`the surfaces menu never opened for ${flow} after ${attempts} click(s) on .composer-menu-trigger`,
+		opened,
 		5_000,
 	);
 	await clickAt(

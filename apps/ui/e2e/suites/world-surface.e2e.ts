@@ -18,7 +18,7 @@
  * apps/ui/src or in the @smthrs/ui primitive App.tsx renders.
  */
 import { defineSuite } from "../Suite.ts";
-import { waitUntil } from "../Assert.ts";
+import { wait, waitUntil } from "../Assert.ts";
 import type { CdpSession } from "../Browser.ts";
 
 /** The seeded note (src/mainview/state/AppState.ts `initialWorldDocuments`). */
@@ -108,13 +108,37 @@ export default defineSuite({
 
 		await waitUntil(report, "the app shell never mounted", () => present(session, ".app-shell"));
 
-		// ── open the World pane through the composer's surfaces menu ──────────
+		/*
+		 * ── open the World pane through the composer's surfaces menu ─────────
+		 *
+		 * Clicked up to three times. A synthetic CDP click can reach a page
+		 * that has not yet attached the handler for it, and the event is then
+		 * lost — waiting longer produces nothing, because nothing is pending.
+		 * It showed as a suite that passed alone and failed in a
+		 * seventeen-suite run, where the browser is long-lived and the race is
+		 * easier to lose. A trigger that is genuinely broken still fails, on
+		 * every attempt.
+		 */
+		const worldEntry = '.composer-menu-list .composer-menu-item[data-flow="world"]';
 		report.check(
 			await click(session, ".composer-menu-trigger"),
 			"the composer's surfaces menu trigger (.composer-menu-trigger) does not exist",
 		);
-		await waitUntil(report, "the surfaces menu never opened", () =>
-			present(session, '.composer-menu-list .composer-menu-item[data-flow="world"]'),
+		for (let attempt = 1; attempt <= 3; attempt += 1) {
+			const deadline = Date.now() + 5_000;
+			let open = false;
+			while (Date.now() < deadline) {
+				if (await present(session, worldEntry)) {
+					open = true;
+					break;
+				}
+				await wait(100);
+			}
+			if (open || attempt === 3) break;
+			await click(session, ".composer-menu-trigger");
+		}
+		await waitUntil(report, "the surfaces menu never opened after three clicks on its trigger", () =>
+			present(session, worldEntry),
 		);
 		report.check(
 			await click(session, '.composer-menu-list .composer-menu-item[data-flow="world"]'),
