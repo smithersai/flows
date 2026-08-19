@@ -117,14 +117,23 @@ stack.chat.slow();                                              // 32 deltas at 
 stack.chat.requests();                                          // what the Worker forwarded
 ```
 
-`stack.modelRelay` is the Anthropic-shaped double bound to `MODEL_RELAY_URL`;
-`requests()` proves the Worker injected `MODEL_RELAY_API_KEY`.
+`stack.chat` also stands in for the model relay's upstream. `/api/model/stream`
+forwards to the SAME managed-inference upstream `/api/agent/turn` does, so one
+double serves both routes and `requests()` sees every model call the Worker made.
 
 ## Driving the real client
 
 `openClient({ origin, cookie })` builds the product's own store and controller
 over an injected fetch that attaches the cookie to same-origin requests and
 records every call.
+
+`openClient({ origin, cookie, backend: "chain" })` builds the product's SHIPPING
+wiring instead: the agent seat plus the chain runtime, authoring over
+`/api/model/stream` exactly as `main.tsx` composes it. Script the chat double
+with a fenced `flow` block and the chain runs it in process. The default,
+`"proxy"`, drives the `/api/agent/turn` seam the Worker still serves for the
+terminal client and the native shell — which is what most suites here were
+written against.
 
 **Never assign `globalThis.fetch`.** `AppController` and `createWebAgent` both
 accept a `fetchImpl`, and nothing else under `src/mainview` touches the global.
