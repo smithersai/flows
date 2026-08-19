@@ -20,6 +20,10 @@ import * as Target from "./Target.ts"
  * defaults to the workspace root. Both tools read the manifest from `cwd`,
  * so `packageJson` and `sources` are declared key material.
  *
+ * `env` declares the environment variables the tool run needs. It is key
+ * material, so a target that reads a variable such as `FC_SEED` declares it
+ * here and re-keys when the value changes.
+ *
  * @category schemas
  * @since 0.1.0
  */
@@ -30,6 +34,9 @@ export const Attrs = Schema.Struct({
   tool: Schema.Literals(["knip", "depcheck"]),
   ignoreDependencies: Schema.Array(Schema.NonEmptyString),
   ignoreBinaries: Schema.Array(Schema.NonEmptyString),
+  env: Schema.Record(Schema.String, Schema.String).pipe(
+    Schema.withConstructorDefault(Effect.succeed({}))
+  ),
   cwd: Schema.NonEmptyString.pipe(Schema.withConstructorDefault(Effect.succeed(".")))
 })
 
@@ -93,8 +100,8 @@ const fingerprint = (text: string): string => {
  * the directory stays out of attrs and every step key.
  * Tools resolve through `pnpm exec`, matching the pnpm workspace install
  * target. Key material contains package.json and source digests, dependency
- * target keys, selected tool, and ignore lists. Executing the plan requires
- * {@link Exec.ExecLive}.
+ * target keys, selected tool, ignore lists, and the declared environment.
+ * Executing the plan requires {@link Exec.ExecLive}.
  *
  * @category targets
  * @since 0.1.0
@@ -111,6 +118,7 @@ export const DepsLint = Target.make("DepsLint", {
       const ignores = [...new Set([...attrs.ignoreDependencies, ...attrs.ignoreBinaries])]
       return Target.runTool({
         cwd: attrs.cwd,
+        env: attrs.env,
         argv: PackageManager.exec(manager, [
           "depcheck",
           ...(ignores.length === 0 ? [] : [`--ignores=${ignores.join(",")}`])
@@ -120,12 +128,15 @@ export const DepsLint = Target.make("DepsLint", {
     if (attrs.ignoreDependencies.length === 0 && attrs.ignoreBinaries.length === 0) {
       return Target.runTool({
         cwd: attrs.cwd,
+        env: attrs.env,
         argv: PackageManager.exec(manager, ["knip", "--dependencies"])
       })
     }
     const config = knipConfig(attrs)
     const configPath = `${Exec.cacheDirectoryToken}/knip-${fingerprint(config)}.json`
     const fromCwd = NodePath.posix.relative(attrs.cwd, configPath)
+    // The generated-config write runs a fixed program over two argv values and
+    // reads no environment, so the declared `env` reaches the knip run alone.
     return Target.runTool({
       cwd: ".",
       argv: Runtime.evaluate(toolchain.runtime, writeProgram, [configPath, config])
@@ -133,6 +144,7 @@ export const DepsLint = Target.make("DepsLint", {
       Node.andThen((written) =>
         Target.runTool({
           cwd: attrs.cwd,
+          env: attrs.env,
           argv: PackageManager.exec(manager, ["knip", "--dependencies", "--config", fromCwd]),
           after: written
         })

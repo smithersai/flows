@@ -16,6 +16,10 @@ import * as Target from "./Target.ts"
  * `cwd` is the workspace-relative package directory `tsc` runs in and
  * defaults to the workspace root, so `tsconfig` stays package-relative.
  *
+ * `env` declares the environment variables the tool run needs. It is key
+ * material, so a target that reads a variable such as `FC_SEED` declares it
+ * here and re-keys when the value changes.
+ *
  * @category schemas
  * @since 0.1.0
  */
@@ -25,6 +29,9 @@ export const Attrs = Schema.Struct({
   tsconfig: Input.File,
   buildMode: Schema.Boolean,
   incremental: Schema.Boolean,
+  env: Schema.Record(Schema.String, Schema.String).pipe(
+    Schema.withConstructorDefault(Effect.succeed({}))
+  ),
   cwd: Schema.NonEmptyString.pipe(Schema.withConstructorDefault(Effect.succeed(".")))
 })
 
@@ -69,7 +76,7 @@ const definition = Target.make("Typecheck", {
   kinds: ["build"],
   success: Exec.Result,
   error: Exec.ExecError,
-  implementation: (attrs) => Target.runTool({ cwd: attrs.cwd, argv: checkArgv(attrs) })
+  implementation: (attrs) => Target.runTool({ cwd: attrs.cwd, env: attrs.env, argv: checkArgv(attrs) })
 })
 
 /**
@@ -104,9 +111,9 @@ const fromConfigPath = (path: string): Parameters<typeof definition>[0] => {
  * The plan runs `tsc` in `cwd` through the shared {@link Exec.Exec} action.
  * Success carries the {@link Exec.Result} run summary; the target declares no
  * output directories. Source and tsconfig digests are declared through the
- * attrs, and dependency target keys, build-mode policy, and incremental
- * policy complete the key material. This models tevm's `typecheck` target
- * and TypeScript project references.
+ * attrs, and dependency target keys, build-mode policy, incremental policy,
+ * and the declared environment complete the key material. This models tevm's
+ * `typecheck` target and TypeScript project references.
  *
  * `Typecheck("packages/plan/tsconfig.test.json")` is the path form. It runs in
  * the directory that holds the named file and expands to the same declared

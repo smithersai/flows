@@ -17,6 +17,10 @@ import * as Target from "./Target.ts"
  * the workspace root. Config paths and source patterns resolve from `cwd`
  * when the tool runs.
  *
+ * `env` declares the environment variables the tool run needs. It is key
+ * material, so a target that reads a variable such as `FC_SEED` declares it
+ * here and re-keys when the value changes.
+ *
  * @category schemas
  * @since 0.1.0
  */
@@ -26,6 +30,9 @@ export const Attrs = Schema.Struct({
   configs: Schema.Array(Input.File),
   maxWarnings: Schema.Number,
   fix: Schema.Boolean,
+  env: Schema.Record(Schema.String, Schema.String).pipe(
+    Schema.withConstructorDefault(Effect.succeed({}))
+  ),
   cwd: Schema.NonEmptyString.pipe(Schema.withConstructorDefault(Effect.succeed(".")))
 })
 
@@ -58,6 +65,7 @@ const definition = Target.make("EsLint", {
     const manager = PackageManager.registeredToolchain().packageManager
     return Target.runTool({
       cwd: attrs.cwd,
+      env: attrs.env,
       argv: PackageManager.exec(manager, [
         "eslint",
         ...(config === undefined ? [] : ["--config", config.path]),
@@ -105,10 +113,11 @@ const fromConfigPath = (path: string): Parameters<typeof definition>[0] => {
  * config is declared key material for files the flat config imports. Tools
  * resolve through the manager the workspace registered in `WORKSPACE.ts`.
  * Key material contains source and flat-config digests, dependency keys,
- * warning policy, and fix mode. The target remains non-cacheable in either
- * mode until the external ESLint toolchain is complete key material. The
- * target follows ESLint flat-config prior art and the flows repo's current
- * package lint scripts. Executing the plan requires {@link Exec.ExecLive}.
+ * warning policy, fix mode, and the declared environment. The target remains
+ * non-cacheable in either mode until the external ESLint toolchain is
+ * complete key material. The target follows ESLint flat-config prior art and
+ * the flows repo's current package lint scripts. Executing the plan requires
+ * {@link Exec.ExecLive}.
  *
  * `EsLint("packages/plan/eslint.config.js")` is the path form. It runs in the
  * directory that holds the named file and expands to the same declared inputs

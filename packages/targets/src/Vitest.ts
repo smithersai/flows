@@ -17,6 +17,10 @@ import * as Target from "./Target.ts"
  * to the workspace root. The `config` path resolves from `cwd` when the tool
  * runs.
  *
+ * `env` declares the environment variables the tool run needs. It is key
+ * material, so a target that reads a variable such as `FC_SEED` declares it
+ * here and re-keys when the value changes.
+ *
  * @category schemas
  * @since 0.1.0
  */
@@ -27,6 +31,9 @@ export const Attrs = Schema.Struct({
   config: Schema.NullOr(Input.File),
   environment: Schema.NonEmptyString,
   passWithNoTests: Schema.Boolean,
+  env: Schema.Record(Schema.String, Schema.String).pipe(
+    Schema.withConstructorDefault(Effect.succeed({}))
+  ),
   cwd: Schema.NonEmptyString.pipe(
     Schema.withConstructorDefault(Effect.succeed("."))
   )
@@ -50,6 +57,7 @@ const definition = Target.make("Vitest", {
     const manager = PackageManager.registeredToolchain().packageManager
     return Target.runTool({
       cwd: attrs.cwd,
+      env: attrs.env,
       argv: PackageManager.exec(manager, [
         "vitest",
         "run",
@@ -95,7 +103,8 @@ const fromConfigPath = (path: string): Parameters<typeof definition>[0] => {
  * The body records one {@link Exec.Exec} node that runs `vitest run` from
  * `cwd` with the declared config, environment, and empty-suite policy. Test,
  * source, and config declarations are the target's inputs, so key material
- * contains their digests plus dependency target keys. This models tevm's
+ * contains their digests plus dependency target keys and the declared
+ * environment. This models tevm's
  * `test:run` target and Vitest's deterministic run mode. Executing the plan
  * requires {@link Exec.ExecLive}.
  *

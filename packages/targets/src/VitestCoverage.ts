@@ -20,6 +20,10 @@ import * as Target from "./Target.ts"
  * inputs; `reportsDirectory` stays a string because it declares an output
  * path rather than referencing a file the target reads.
  *
+ * `env` declares the environment variables the tool run needs. It is key
+ * material, so a target that reads a variable such as `FC_SEED` declares it
+ * here and re-keys when the value changes.
+ *
  * @category schemas
  * @since 0.1.0
  */
@@ -36,6 +40,9 @@ export const Attrs = Schema.Struct({
     lines: Schema.Number,
     statements: Schema.Number
   }),
+  env: Schema.Record(Schema.String, Schema.String).pipe(
+    Schema.withConstructorDefault(Effect.succeed({}))
+  ),
   cwd: Schema.NonEmptyString.pipe(
     Schema.withConstructorDefault(Effect.succeed("."))
   )
@@ -80,6 +87,7 @@ const definition = Target.make("VitestCoverage", {
     return Node.all({
       run: Target.runTool({
         cwd: attrs.cwd,
+        env: attrs.env,
         argv: PackageManager.exec(manager, [
           "vitest",
           "run",
@@ -135,7 +143,8 @@ const fromConfigPath = (path: string): Parameters<typeof definition>[0] => {
  * thresholds. The success value carries `reportsDirectory` so downstream
  * targets can consume the written reports. Key material contains test, source,
  * and config digests, dependency keys, coverage provider, report path, and
- * thresholds. This models tevm's `test:coverage` target and Vitest coverage.
+ * thresholds, plus the declared environment. This models tevm's
+ * `test:coverage` target and Vitest coverage.
  * Executing the plan requires {@link Exec.ExecLive}.
  *
  * `VitestCoverage("packages/plan/vitest.config.ts")` is the path form. It runs

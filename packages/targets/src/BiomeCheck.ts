@@ -18,6 +18,10 @@ import * as Target from "./Target.ts"
  * the workspace root. The `config` path and every source path resolve from
  * `cwd` when the tool runs.
  *
+ * `env` declares the environment variables the tool run needs. It is key
+ * material, so a target that reads a variable such as `FC_SEED` declares it
+ * here and re-keys when the value changes.
+ *
  * @category schemas
  * @since 0.1.0
  */
@@ -28,6 +32,9 @@ export const Attrs = Schema.Struct({
   lint: Schema.Boolean,
   format: Schema.Boolean,
   unsafe: Schema.Boolean,
+  env: Schema.Record(Schema.String, Schema.String).pipe(
+    Schema.withConstructorDefault(Effect.succeed({}))
+  ),
   cwd: Schema.NonEmptyString.pipe(Schema.withConstructorDefault(Effect.succeed(".")))
 })
 
@@ -98,12 +105,14 @@ const definition = Target.make("BiomeCheck", {
       return attrs.format
         ? Target.runTool({
           cwd: attrs.cwd,
+          env: attrs.env,
           argv: PackageManager.exec(manager, ["biome", "format", ...shared])
         }).pipe(Node.map((format) => ({ check: null, format })))
         : Node.succeed({ check: null, format: null })
     }
     const checked = Target.runTool({
       cwd: attrs.cwd,
+      env: attrs.env,
       argv: PackageManager.exec(manager, [
         "biome",
         "check",
@@ -118,6 +127,7 @@ const definition = Target.make("BiomeCheck", {
       Node.andThen((check) =>
         Target.runTool({
           cwd: attrs.cwd,
+          env: attrs.env,
           argv: PackageManager.exec(manager, ["biome", "format", ...shared]),
           after: check
         }).pipe(Node.map((format) => ({ check, format })))
@@ -163,9 +173,9 @@ const fromConfigPath = (path: string): Parameters<typeof definition>[0] => {
  * the check run forwards `--unsafe`. Tools resolve through the manager the
  * workspace registered in `WORKSPACE.ts`. Key material contains source
  * and configuration digests, dependency keys, enabled check families, and
- * unsafe-target policy. This combines tevm's `lint:check` and `format:check`
- * targets using Biome prior art. Executing the plan requires
- * {@link Exec.ExecLive}.
+ * unsafe-target policy, plus the declared environment. This combines tevm's
+ * `lint:check` and `format:check` targets using Biome prior art. Executing
+ * the plan requires {@link Exec.ExecLive}.
  *
  * `BiomeCheck("packages/plan/biome.json")` is the path form. It runs in the
  * directory that holds the named file and expands to the source set

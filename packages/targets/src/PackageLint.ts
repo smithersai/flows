@@ -18,6 +18,10 @@ import * as Target from "./Target.ts"
  * defaults to the workspace root. The built artifacts arrive through `deps`
  * edges, so `packageJson` and `artifacts` are declared key material.
  *
+ * `env` declares the environment variables the tool run needs. It is key
+ * material, so a target that reads a variable such as `FC_SEED` declares it
+ * here and re-keys when the value changes.
+ *
  * @category schemas
  * @since 0.1.0
  */
@@ -28,6 +32,9 @@ export const Attrs = Schema.Struct({
   strict: Schema.Boolean,
   pack: Schema.Boolean,
   attw: Schema.Boolean,
+  env: Schema.Record(Schema.String, Schema.String).pipe(
+    Schema.withConstructorDefault(Effect.succeed({}))
+  ),
   cwd: Schema.NonEmptyString.pipe(Schema.withConstructorDefault(Effect.succeed(".")))
 })
 
@@ -69,9 +76,9 @@ export type PackageReport = typeof PackageReport.Type
  * and checks the tarball's types. Tools resolve through `pnpm exec`,
  * matching the pnpm workspace install target. Key material contains the
  * manifest, built artifact digests, dependency target keys, strictness,
- * pack policy, and arethetypeswrong policy. This models tevm's
- * `lint:package` target and follows publint and attw prior art. Executing
- * the plan requires {@link Exec.ExecLive}.
+ * pack policy, arethetypeswrong policy, and the declared environment. This
+ * models tevm's `lint:package` target and follows publint and attw prior
+ * art. Executing the plan requires {@link Exec.ExecLive}.
  *
  * @category targets
  * @since 0.1.0
@@ -85,6 +92,7 @@ export const PackageLint = Target.make("PackageLint", {
     const manager = PackageManager.registeredToolchain().packageManager
     const publint = Target.runTool({
       cwd: attrs.cwd,
+      env: attrs.env,
       argv: PackageManager.exec(manager, [
         "publint",
         ...(attrs.strict ? ["--strict"] : []),
@@ -98,6 +106,7 @@ export const PackageLint = Target.make("PackageLint", {
       Node.andThen((publint) =>
         Target.runTool({
           cwd: attrs.cwd,
+          env: attrs.env,
           argv: PackageManager.exec(manager, ["attw", "--pack", "."]),
           after: publint
         }).pipe(Node.map((attw) => ({ publint, attw })))

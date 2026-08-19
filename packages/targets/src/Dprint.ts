@@ -19,6 +19,10 @@ import * as Target from "./Target.ts"
  * purely as declared key material for the files a formatting verdict depends
  * on.
  *
+ * `env` declares the environment variables the tool run needs. It is key
+ * material, so a target that reads a variable such as `FC_SEED` declares it
+ * here and re-keys when the value changes.
+ *
  * @category schemas
  * @since 0.1.0
  */
@@ -27,6 +31,9 @@ export const Attrs = Schema.Struct({
   deps: Schema.Array(Target.Target),
   config: Input.File,
   fix: Schema.Boolean,
+  env: Schema.Record(Schema.String, Schema.String).pipe(
+    Schema.withConstructorDefault(Effect.succeed({}))
+  ),
   cwd: Schema.NonEmptyString.pipe(Schema.withConstructorDefault(Effect.succeed(".")))
 })
 
@@ -49,6 +56,7 @@ const definition = Target.make("Dprint", {
     const manager = PackageManager.registeredToolchain().packageManager
     return Target.runTool({
       cwd: attrs.cwd,
+      env: attrs.env,
       argv: PackageManager.exec(manager, [
         "dprint",
         attrs.fix ? "fmt" : "check",
@@ -90,7 +98,8 @@ const fromConfigPath = (path: string): Parameters<typeof definition>[0] => {
  * The plan records one {@link Exec.Exec} run of `dprint` from `cwd` with the
  * declared configuration passed as `--config`, mirroring the repository's
  * package lint scripts (`... && dprint check`). Key material contains the
- * source and configuration digests, dependency keys, and the fix mode. The
+ * source and configuration digests, dependency keys, the fix mode, and the
+ * declared environment. The
  * target remains non-cacheable until the external dprint toolchain is
  * complete key material, matching {@link EsLint}'s posture. Executing the
  * plan requires {@link Exec.ExecLive}.
