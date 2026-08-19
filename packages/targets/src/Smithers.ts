@@ -19,6 +19,7 @@
  */
 import * as PackageManagerModule from "./PackageManager.ts"
 import * as RuntimeModule from "./Runtime.ts"
+import * as VerbModule from "./Verb.ts"
 
 /**
  * Workspace remote-cache declarations.
@@ -146,7 +147,6 @@ export {
 /** @category targets @since 0.1.0 */
 export { GithubCiGen } from "./GithubCiGen.ts"
 /** @category actions @since 0.1.0 */
-export { CheckWorkflow, CheckWorkflowLive } from "./GithubCiGen.ts"
 /** @category parsing @since 0.1.0 */
 export * as GithubWorkflow from "./GithubWorkflow.ts"
 /** @category targets @since 0.1.0 */
@@ -219,6 +219,27 @@ export const PackageManager = PackageManagerModule
  * @since 0.1.0
  */
 export type PackageManager = PackageManagerModule.PackageManager
+
+/**
+ * The CLI verbs a generated pipeline may run across a target graph.
+ *
+ * The name is both the namespace the verb values live under and the type they
+ * have, so a BUILD.ts file writes `pipelineVerbs: [Verb.Build, Verb.Test]` and
+ * annotates the result `Verb`. The module's remaining types are reachable at
+ * `@smthrs/targets/Verb`.
+ *
+ * @category namespace exports
+ * @since 0.1.0
+ */
+export const Verb = VerbModule
+
+/**
+ * One CLI verb a generated pipeline may run.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type Verb = VerbModule.Verb
 
 /**
  * Placeholder minting and outbound secret substitution.

@@ -62,7 +62,7 @@ describe("Alchemy-style BUILD.ts constructors", () => {
     expect(attrs).toMatchObject({
       workflowName: "CI",
       pattern: "//...",
-      kinds: ["build", "test", "lint", "docs"],
+      pipelineVerbs: [{ name: "build" }, { name: "test" }, { name: "lint" }, { name: "docs" }],
       pushBranches: ["main"],
       pullRequest: true,
       workflowDispatch: true,
@@ -72,7 +72,7 @@ describe("Alchemy-style BUILD.ts constructors", () => {
       gates: [],
       requiredJobs: [],
       output: ".github/workflows/ci.yml",
-      mode: "contract"
+      mode: "check"
     })
   })
 

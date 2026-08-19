@@ -19,7 +19,6 @@ import { CheckDocsLive } from "@smthrs/targets/DocsParity"
 import { ExecLive } from "@smthrs/targets/Exec"
 import { ExpandFilegroupLive, isFilegroup } from "@smthrs/targets/Filegroup"
 import { CheckFileLive, WriteFileLive } from "@smthrs/targets/GeneratedFile"
-import { CheckWorkflowLive } from "@smthrs/targets/GithubCiGen"
 import { LlmReviewLive } from "@smthrs/targets/LlmLint"
 import { ScaffoldPackageLive } from "@smthrs/targets/NewPackage"
 import { SyncPackageJsonLive } from "@smthrs/targets/PackageJson"
@@ -250,7 +249,6 @@ const runTarget = (
     ExpandFilegroupLive({ workspaceRoot, cacheDirectory }),
     WriteFileLive({ workspaceRoot }),
     CheckFileLive({ workspaceRoot }),
-    CheckWorkflowLive({ workspaceRoot }),
     CheckDocsLive({ workspaceRoot }),
     LlmReviewLive({ workspaceRoot, sensitiveEnv }),
     SyncPackageJsonLive({ workspaceRoot, cacheDirectory }),
