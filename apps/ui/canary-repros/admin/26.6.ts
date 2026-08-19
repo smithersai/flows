@@ -10,7 +10,7 @@
  *    26.2-26.5).
  * 2. The second half of the row is UNREACHABLE on the canary: session grants
  *    belong to the CHAIN backend, and a chain turn cannot run at all because
- *    `POST /api/model/stream` answers 501 (`MODEL_RELAY_API_KEY` is unbound on
+ *    `POST /api/model/stream` answered 501 (fixed 2026-08-19; `MODEL_RELAY_API_KEY` was unbound on
  *    `smithers-mvp-web`). See 26.1.md. So "the next tool call re-asks" can
  *    never be observed here.
  *
@@ -30,8 +30,6 @@ if (who.admin !== true) {
 	process.exit(2);
 }
 
-await run(page, "/debug.backend chain", 4000);
-
 const cardsBefore = await page.locator("section.smithers-card").count();
 const messagesBefore = await page.locator("[data-role]").count();
 await run(page, "/debug.grants.reset", 7000);
@@ -39,7 +37,7 @@ const cardsAfter = await page.locator("section.smithers-card").count();
 const messagesAfter = await page.locator("[data-role]").count();
 console.log(`after /debug.grants.reset — cards ${cardsBefore} -> ${cardsAfter}, messages ${messagesBefore} -> ${messagesAfter}`);
 
-// The next tool-calling turn, on the backend that owns the grants.
+// The next tool-calling turn. There is one backend and it owns the grants.
 const before = await body(page);
 const mark = requests.length;
 const composer = page.locator("textarea.sui-chat-composer-input");
