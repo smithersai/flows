@@ -251,7 +251,7 @@ describe("BunTestCoverage plans a coverage run", () => {
 describe("BunTest and BunTestCoverage stay distinct rules", () => {
   it("plan different argv for the same test declaration", () => {
     const shared = {
-      tests: [Input.file("tests/a.test.ts")],
+      tests: [Input.file("tests/a.test.ts")] as Parameters<typeof BunTest>[0]["tests"],
       sources: [Input.glob("src/**/*.ts")],
       deps: [],
       preload: null,
