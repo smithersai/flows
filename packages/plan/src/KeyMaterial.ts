@@ -57,12 +57,20 @@ export const version = "flows/key-material/v1"
  * interpreted, which is what keeps the compiler independent of whatever the
  * flow builder decides an effect declaration looks like.
  *
+ * `@smthrs/core`'s `KeyMaterial` interface declares the same shape, field for
+ * field. The two exist because the packages are independent: that one is the
+ * type a graph builder produces, this one is the schema the key compiler
+ * validates. A field added to either must be added to both, or a key loses a
+ * dimension on one side of the seam.
+ *
  * @since 0.1.0
  * @category schemas
  */
 export const KeyMaterial = Schema.Struct({
   version: Schema.Literal(version),
   kind: Schema.Literals(["sealed", "compensable", "irreversible"]),
+  // Marks a step whose result is recorded rather than reproduced: the engine
+  // stores the first writer's result and every later reader replays it.
   // Absence claims determinism; only the explicit declaration changes identity.
   nondeterministic: Schema.optional(Schema.Literal(true)),
   body: Schema.Unknown,

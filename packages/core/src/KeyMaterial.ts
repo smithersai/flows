@@ -29,12 +29,27 @@ export type InputRef =
 /**
  * Digest-free key material for a planned node.
  *
+ * This is the same shape `@smthrs/plan`'s `KeyMaterial` schema decodes, field
+ * for field. The two declarations exist because the packages are independent:
+ * this one is the type a graph builder produces, the plan one is the schema
+ * the key compiler validates. A field added to either must be added to both,
+ * or a key loses a dimension on one side of the seam.
+ *
  * @category models
  * @since 0.0.0
  */
 export interface KeyMaterial {
   readonly version: "flows/key-material/v1"
   readonly kind: "sealed" | "compensable" | "irreversible"
+  /**
+   * Marks a step whose result is recorded rather than reproduced. The engine
+   * stores the first writer's result and every later reader replays it.
+   *
+   * Absence claims determinism, so only the explicit declaration changes
+   * identity and every key already computed for a deterministic step keeps
+   * its value.
+   */
+  readonly nondeterministic?: true | undefined
   readonly body: unknown
   readonly inputs: ReadonlyArray<InputRef>
   readonly layers: ReadonlyArray<string>
