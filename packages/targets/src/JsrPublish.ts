@@ -57,6 +57,12 @@ const publishDirectory = (path: string, context: Target.ImplementationContext): 
  * build, test, and lint graphs, including through dependencies. Executing the
  * plan requires {@link ExecIrreversibleLive} from the Changesets module.
  *
+ * This rule is declared and unwired. `StandardPackage` emits no JSR target,
+ * because the `config` attr needs a per-package `jsr.json` or `deno.json` and
+ * no package in this repository has one. A BUILD.ts that writes one can
+ * declare this rule against it today; wiring it into the package macro waits
+ * on those files existing.
+ *
  * @category targets
  * @since 0.1.0
  */

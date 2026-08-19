@@ -7,6 +7,7 @@ import { DocsParity } from "./DocsParity.ts"
 import { Dprint } from "./Dprint.ts"
 import { EsLint } from "./EsLint.ts"
 import * as Input from "./Input.ts"
+import { NpmPublish } from "./NpmPublish.ts"
 import type * as Target from "./Target.ts"
 import { TsBuild } from "./TsBuild.ts"
 import { Typecheck } from "./Typecheck.ts"
@@ -19,6 +20,14 @@ import { Vitest } from "./Vitest.ts"
  * tool runs in. It defaults to the workspace root, so a package-level
  * BUILD.ts passes its own directory, for example `packages/plan`.
  *
+ * `name`, `version`, `group`, and `private` are the package manifest fields
+ * the publish target needs. `PackageDefaults.expand` reads them from the
+ * matched directory and passes them in, so one declaration expands every
+ * package without restating any of them. A package-level BUILD.ts passes its
+ * own. Omitting `name` or `version`, declaring a group other than `engine`, or
+ * declaring the package private emits no publish target, which is the same
+ * release membership `scripts/pack-release.mjs` derives.
+ *
  * @category models
  * @since 0.1.0
  */
@@ -26,6 +35,15 @@ export interface Options {
   /** @default [] */
   readonly deps?: ReadonlyArray<Target.AnyTarget> | undefined
   readonly cwd?: string | undefined
+  readonly name?: string | undefined
+  readonly version?: string | undefined
+  readonly group?: string | undefined
+  /** @default false */
+  readonly private?: boolean | undefined
+  /** @default "https://registry.npmjs.org" */
+  readonly registry?: string | undefined
+  /** @default ".artifacts/release-packs" */
+  readonly packDirectory?: string | undefined
   readonly sources?: Input.Glob | undefined
   readonly tests?: Input.Glob | undefined
   readonly tsconfig?: Input.File | undefined
@@ -49,11 +67,67 @@ export interface StandardTargets {
   readonly lint: ReturnType<typeof EsLint>
   readonly fmt: ReturnType<typeof Dprint>
   readonly docs: ReturnType<typeof DocsParity>
+  readonly publish?: ReturnType<typeof NpmPublish> | undefined
 }
 
 /**
+ * The release group whose packages publish to npm.
+ *
+ * Membership is `smthrs.group`, exactly as `scripts/pack-release.mjs` derives
+ * it, so the publish set cannot drift from the release set the workflow packs.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const releaseGroup = "engine"
+
+/**
+ * The workspace-relative directory the staged tarballs are packed into.
+ *
+ * `.artifacts` is git-ignored, so a staged release leaves the working tree
+ * clean. Nothing in the graph writes this directory yet:
+ * `scripts/pack-release.mjs <directory>` does, and the publish target declares
+ * the archive it wrote as an input. A packing target is Wave 5 work.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const defaultPackDirectory = ".artifacts/release-packs"
+
+/**
+ * The public npm registry every publish target defaults to.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const defaultRegistry = "https://registry.npmjs.org"
+
+/**
+ * Names the archive `pnpm pack` writes for one package spec.
+ *
+ * pnpm drops the leading `@` of a scoped name and replaces its slash with a
+ * hyphen, so `@smthrs/journal` at `0.1.0` packs to `smthrs-journal-0.1.0.tgz`.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const tarballName = (name: string, version: string): string =>
+  `${name.replace(/^@/, "").replaceAll("/", "-")}-${version}.tgz`
+
+/**
+ * Names the dist-tag one version publishes under.
+ *
+ * A prerelease version publishes to `next` and a release version to `latest`,
+ * the same rule `.github/workflows/release.yml` applies to the release tag.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const distTag = (version: string): string => version.includes("-") ? "next" : "latest"
+
+/**
  * Expands one conventional package into `lib`, `check`, `test`, `lint`,
- * `fmt`, and `docs` targets.
+ * `fmt`, `docs`, and, for a publishable package, `publish` targets.
  *
  * Defaults follow the flows repository layout: sources in `src`, tests in
  * `test`, `tsc -p` over the package `tsconfig.json`, the test half of the
@@ -72,6 +146,15 @@ export interface StandardTargets {
  * the `docs` verb alone; the aggregate `ci` command plans that verb alongside
  * build, test, and lint. Callers can override any shared input without
  * replacing the macro.
+ *
+ * `publish` is emitted only for a package whose manifest names it, versions
+ * it, puts it in the {@link releaseGroup}, and does not mark it private. It
+ * publishes the staged tarball {@link defaultPackDirectory} holds, never the
+ * working directory, and carries the `run` verb gate {@link NpmPublish}
+ * declares, so the planner refuses it in a build, test, lint, or docs graph
+ * even when one reaches it through a dependency. Nothing depends on it, so
+ * `ci` neither selects nor reaches it. It depends on `lib`, because the
+ * tarball contains that build's output.
  *
  * @category macros
  * @since 0.1.0
@@ -139,5 +222,24 @@ export const StandardPackage = (options: Options): StandardTargets => {
     deps: [],
     cwd
   })
-  return { lib, check, test, lint, fmt, docs }
+  const standard = { lib, check, test, lint, fmt, docs }
+  const { group, name, version } = options
+  if (name === undefined || version === undefined || group !== releaseGroup || options.private === true) {
+    return standard
+  }
+  const packDirectory = options.packDirectory ?? defaultPackDirectory
+  const publish = NpmPublish({
+    packageJson: Input.file("package.json"),
+    tarball: Input.file(`//${packDirectory}/${tarballName(name, version)}`),
+    artifacts: [],
+    deps: [lib, ...deps],
+    package: name,
+    version,
+    registry: options.registry ?? defaultRegistry,
+    access: "public",
+    provenance: true,
+    tag: distTag(version),
+    dryRun: true
+  })
+  return { ...standard, publish }
 }
