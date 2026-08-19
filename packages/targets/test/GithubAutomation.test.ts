@@ -101,6 +101,35 @@ describe("render", () => {
     expect(rendered.endsWith("\n")).toBe(true)
     expect(rendered.split("\n").some((line) => /\s$/.test(line))).toBe(false)
   })
+
+  it("renders workflow_dispatch inputs and pull_request_target, and the reader still parses", () => {
+    const rendered = render(attrs({
+      on: {
+        pullRequestTarget: ["opened", "labeled"],
+        workflowDispatchInputs: [{ name: "issue", description: "The issue number" }]
+      }
+    }))
+    expect(rendered).toContain("  pull_request_target:\n    types: [opened, labeled]")
+    expect(rendered).toContain(
+      "  workflow_dispatch:\n    inputs:\n      issue:\n        description: The issue number\n        required: true"
+    )
+    expect(parseWorkflow(rendered).jobs.map((job) => job.id)).toEqual(["intake"])
+  })
+
+  it("installs the agent CLI on a trusted agent job and skips it when the entry needs no engine", () => {
+    expect(render(attrs())).toContain("run: npm install --global @anthropic-ai/claude-code")
+    expect(render(attrs({ agentCli: "@anthropic-ai/claude-code@2.1.0" })))
+      .toContain("run: npm install --global @anthropic-ai/claude-code@2.1.0")
+    expect(render(attrs({ jobs: [agent({ id: "proof", entry: "proof.ts", engine: false })] })))
+      .not.toContain("npm install --global")
+    expect(() => render(attrs({ agentCli: "claude; rm -rf /" }))).toThrow(AutomationDeclarationError)
+  })
+
+  it("fetches the full history only when a job asks for it", () => {
+    expect(render(attrs())).not.toContain("fetch-depth")
+    expect(render(attrs({ jobs: [agent({ id: "proof", entry: "proof.ts", fullHistory: true })] })))
+      .toContain("fetch-depth: \"0\"")
+  })
 })
 
 describe("the untrusted-input boundary", () => {
@@ -166,6 +195,19 @@ describe("the untrusted-input boundary", () => {
     const body = rendered.slice(rendered.indexOf("  sandbox:"))
     expect(body).toContain("permissions:\n      contents: read")
     expect(body).not.toContain("secrets.")
+  })
+
+  it("admits the two events that carry no untrusted actor, and only those", () => {
+    expect(untrustedInputGate).toContain("github.event_name == 'schedule'")
+    expect(untrustedInputGate).toContain("github.event_name == 'workflow_dispatch'")
+    expect(untrustedInputGate).not.toMatch(/event_name == '(?:issues|issue_comment|pull_request)/)
+  })
+
+  it("never installs the agent CLI on an untrusted-input job", () => {
+    const rendered = render(attrs({
+      jobs: [agent({ id: "sandbox", entry: "poc-run.ts", untrustedInput: true })]
+    }))
+    expect(rendered).not.toContain("npm install --global")
   })
 
   it("ands a declared condition with the gate rather than replacing it", () => {

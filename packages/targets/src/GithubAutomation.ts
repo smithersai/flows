@@ -23,18 +23,20 @@
  * that contradicts them:
  *
  * 1. **A gate condition.** The job runs only when the actor's author
- *    association is `OWNER`, `MEMBER`, or `COLLABORATOR`, or when a maintainer
+ *    association is `OWNER`, `MEMBER`, or `COLLABORATOR`, when a maintainer
  *    has applied the {@link maintainerApprovalLabel} label to the issue or
- *    pull request. A declared `condition` is ANDed with the gate, never
- *    substituted for it.
+ *    pull request, or when the event is one of the {@link trustedEvents}
+ *    (`schedule`, `workflow_dispatch`), which carry no untrusted actor. A
+ *    declared `condition` is ANDed with the gate, never substituted for it.
  * 2. **No secrets.** The job carries no declared secret, and no `secrets.`
  *    expression anywhere in its environment or its script. Passing a secret to
  *    a job that executes attacker-supplied text is the exact defect this rule
  *    exists to make unexpressible, so it is a typed refusal
  *    ({@link UntrustedJobError}) at plan time, not a lint warning.
  * 3. **Minimal read-only permissions.** The job's `GITHUB_TOKEN` gets
- *    `contents: read` and nothing else, and its checkout does not persist
- *    credentials.
+ *    `contents: read` and nothing else, its checkout does not persist
+ *    credentials, and it installs no agent CLI: with no model credential there
+ *    is nothing for one to run with.
  *
  * The refusal fails closed. A declaration the renderer cannot prove safe does
  * not render a weaker workflow; it does not render at all.
@@ -70,6 +72,16 @@ import * as Target from "./Target.ts"
 export const automationDirectory = "factory/automation"
 
 /**
+ * The npm package that provides the agent CLI `factory/automation/agent.ts`
+ * spawns. Unpinned: the entries check the CLI's output envelope and fail
+ * loudly on a shape change, and a pin here would be a pin nobody bumps.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const defaultAgentCli = "@anthropic-ai/claude-code"
+
+/**
  * The label a maintainer applies to admit an untrusted-input job.
  *
  * @category constants
@@ -89,17 +101,33 @@ const associationCheck = (path: string): string =>
   `contains(fromJSON('${JSON.stringify(trustedAssociations)}'), ${path})`
 
 /**
+ * The events that carry no untrusted actor and therefore pass the gate on
+ * their own.
+ *
+ * A `schedule` run has no actor at all. A `workflow_dispatch` run has one, but
+ * GitHub only lets a user with write access start it, which is the same trust
+ * the associations express. Without these two the gate would read all-null on
+ * a scheduled sandbox job and skip it forever.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const trustedEvents: ReadonlyArray<string> = ["schedule", "workflow_dispatch"]
+
+/**
  * The `if:` expression the renderer forces on every untrusted-input job.
  *
  * It is one constant rather than a per-job derivation because it is the whole
  * security boundary: a derivation has cases, and a case is where a gate goes
  * missing. The associations cover the three event payloads a factory workflow
- * reads, and the label covers everyone else, applied by a maintainer.
+ * reads, the label covers everyone else, applied by a maintainer, and the two
+ * {@link trustedEvents} cover runs that have no untrusted actor to check.
  *
  * @category constants
  * @since 0.1.0
  */
 export const untrustedInputGate: string = [
+  ...trustedEvents.map((event) => `github.event_name == '${event}'`),
   associationCheck("github.event.issue.author_association"),
   associationCheck("github.event.comment.author_association"),
   associationCheck("github.event.pull_request.author_association"),
@@ -211,6 +239,31 @@ export const Cron = Schema.NonEmptyString.check(
 )
 
 /**
+ * One `workflow_dispatch` input.
+ *
+ * An input is how a maintainer, or a trusted job calling `gh workflow run`,
+ * names the subject of a run that no webhook payload names. The automation
+ * entries read it from the event payload's `inputs` object.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const DispatchInput = Schema.Struct({
+  name: Schema.NonEmptyString.check(Schema.isMaxLength(64)),
+  description: Schema.NonEmptyString.check(Schema.isMaxLength(200)),
+  /** @default true */
+  required: Schema.Boolean.pipe(Schema.withConstructorDefault(Effect.succeed(true)))
+})
+
+/**
+ * One `workflow_dispatch` input.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type DispatchInput = typeof DispatchInput.Type
+
+/**
  * The trigger surface one automation workflow subscribes to.
  *
  * @category schemas
@@ -225,8 +278,21 @@ export const Triggers = Schema.Struct({
   issueComment: Schema.Array(IssueCommentActivity).pipe(
     Schema.withConstructorDefault(Effect.succeed<ReadonlyArray<typeof IssueCommentActivity.Type>>([]))
   ),
-  /** `pull_request` activity types. */
+  /** `pull_request` activity types. The checkout is the pull request's merge commit. */
   pullRequest: Schema.Array(PullRequestActivity).pipe(
+    Schema.withConstructorDefault(Effect.succeed<ReadonlyArray<typeof PullRequestActivity.Type>>([]))
+  ),
+  /**
+   * `pull_request_target` activity types.
+   *
+   * The run has the base repository's secrets and token even for a fork pull
+   * request, and its checkout is the BASE branch, never the pull request head.
+   * That is what makes it usable for a job that reads a fork's diff as data
+   * and must not run the fork's code. The vocabulary has no way to check out
+   * the head, so a job on this event cannot execute pull request code by
+   * construction. A job that must run it subscribes to `pullRequest` instead.
+   */
+  pullRequestTarget: Schema.Array(PullRequestActivity).pipe(
     Schema.withConstructorDefault(Effect.succeed<ReadonlyArray<typeof PullRequestActivity.Type>>([]))
   ),
   /** `schedule` cron expressions. */
@@ -234,7 +300,11 @@ export const Triggers = Schema.Struct({
     Schema.withConstructorDefault(Effect.succeed<ReadonlyArray<string>>([]))
   ),
   /** Whether the workflow is manually dispatchable. @default false */
-  workflowDispatch: Schema.Boolean.pipe(Schema.withConstructorDefault(Effect.succeed(false)))
+  workflowDispatch: Schema.Boolean.pipe(Schema.withConstructorDefault(Effect.succeed(false))),
+  /** The `workflow_dispatch` inputs. Implies `workflowDispatch`. @default [] */
+  workflowDispatchInputs: Schema.Array(DispatchInput).pipe(
+    Schema.withConstructorDefault(Effect.succeed<ReadonlyArray<DispatchInput>>([]))
+  )
 })
 
 /**
@@ -408,6 +478,12 @@ const jobFields = {
   ),
   /** Whether the job checks the repository out. @default true */
   checkout: Schema.Boolean.pipe(Schema.withConstructorDefault(Effect.succeed(true))),
+  /**
+   * Whether the checkout fetches the full history (`fetch-depth: 0`). A job
+   * that compares revisions, such as the proof gate, needs it; the default
+   * shallow checkout carries one commit. @default false
+   */
+  fullHistory: Schema.Boolean.pipe(Schema.withConstructorDefault(Effect.succeed(false))),
   /** Whether the job installs the workspace. @default true */
   install: Schema.Boolean.pipe(Schema.withConstructorDefault(Effect.succeed(true))),
   /** Artifacts the job downloads before its work step. @default [] */
@@ -434,6 +510,13 @@ export const AgentJob = Schema.TaggedStruct("agent", {
   ...jobFields,
   /** The entry file name under {@link automationDirectory}. */
   entry: Schema.NonEmptyString.check(Schema.isMaxLength(128)),
+  /**
+   * Whether the entry calls the agent engine, so the job installs the agent
+   * CLI ({@link Attrs} `agentCli`) before the entry runs. Never installed on
+   * an `untrustedInput` job: it holds no model credential, so the engine has
+   * nothing to run with. @default true
+   */
+  engine: Schema.Boolean.pipe(Schema.withConstructorDefault(Effect.succeed(true))),
   /** Literal argv words appended to the entry. @default [] */
   args: Schema.Array(Schema.NonEmptyString.check(Schema.isMaxLength(128))).pipe(
     Schema.withConstructorDefault(Effect.succeed<ReadonlyArray<string>>([]))
@@ -521,6 +604,13 @@ const entryShape = /^[a-z][a-z0-9-]*\.ts$/
 /** An argv word safe to render unquoted into a generated script. */
 const argumentShape = /^[A-Za-z0-9_][A-Za-z0-9._/-]*$/
 
+/** An npm package specifier, optionally scoped and versioned, safe to render unquoted. */
+const agentCliShape = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*(?:@[A-Za-z0-9][A-Za-z0-9._-]*)?$/
+
+/** Whether a trigger surface includes a manual dispatch. */
+const dispatchable = (triggers: Triggers): boolean =>
+  triggers.workflowDispatch || triggers.workflowDispatchInputs.length > 0
+
 /** A target pattern the CLI's label grammar accepts, single-quoted when run. */
 const patternShape =
   /^\/\/(?:\.\.\.|[A-Za-z0-9_][A-Za-z0-9._/-]*(?:\/\.\.\.)?(?::[A-Za-z0-9_][A-Za-z0-9._-]*)?|:[A-Za-z0-9_][A-Za-z0-9._-]*)$/
@@ -561,6 +651,14 @@ export const Attrs = Schema.Struct({
   packageManager: PackageManager.PackageManager,
   /** The Node version the generated `setup-node` step pins. @default "22.19.0" */
   nodeVersion: Schema.NonEmptyString.pipe(Schema.withConstructorDefault(Effect.succeed("22.19.0"))),
+  /**
+   * The npm package, optionally versioned, that provides the agent CLI an
+   * `agent` job with `engine: true` installs. @default
+   * "@anthropic-ai/claude-code"
+   */
+  agentCli: Schema.NonEmptyString.check(Schema.isMaxLength(128)).pipe(
+    Schema.withConstructorDefault(Effect.succeed(defaultAgentCli))
+  ),
   mode: Mode
 })
 
@@ -702,10 +800,21 @@ const validateCommon = (attrs: Attrs): void => {
   const triggers = attrs.on
   if (
     triggers.issues.length === 0 && triggers.issueComment.length === 0 &&
-    triggers.pullRequest.length === 0 && triggers.schedule.length === 0 &&
-    !triggers.workflowDispatch
+    triggers.pullRequest.length === 0 && triggers.pullRequestTarget.length === 0 &&
+    triggers.schedule.length === 0 && !dispatchable(triggers)
   ) {
     refuse(`workflow ${JSON.stringify(attrs.slug)} declares no trigger, so nothing would ever run it`)
+  }
+  const inputNames = new Set<string>()
+  for (const input of triggers.workflowDispatchInputs) {
+    if (!environmentKeyShape.test(input.name)) {
+      refuse(`${JSON.stringify(input.name)} is not a workflow_dispatch input name; use letters, digits, and "_"`)
+    }
+    if (inputNames.has(input.name)) refuse(`duplicate workflow_dispatch input ${JSON.stringify(input.name)}`)
+    inputNames.add(input.name)
+  }
+  if (!agentCliShape.test(attrs.agentCli)) {
+    refuse(`${JSON.stringify(attrs.agentCli)} is not an npm package specifier for the agent CLI`)
   }
   if (attrs.jobs.length === 0) {
     refuse(`workflow ${JSON.stringify(attrs.slug)} declares no jobs`)
@@ -779,11 +888,28 @@ const renderTriggers = (triggers: Triggers): ReadonlyArray<string> => {
   if (triggers.pullRequest.length > 0) {
     lines.push("  pull_request:", `    types: [${triggers.pullRequest.map(scalar).join(", ")}]`)
   }
+  if (triggers.pullRequestTarget.length > 0) {
+    lines.push("  pull_request_target:", `    types: [${triggers.pullRequestTarget.map(scalar).join(", ")}]`)
+  }
   if (triggers.schedule.length > 0) {
     lines.push("  schedule:")
     for (const cron of triggers.schedule) lines.push(`    - cron: ${scalar(cron)}`)
   }
-  if (triggers.workflowDispatch) lines.push("  workflow_dispatch:")
+  if (dispatchable(triggers)) {
+    lines.push("  workflow_dispatch:")
+    if (triggers.workflowDispatchInputs.length > 0) {
+      lines.push("    inputs:")
+      for (const input of triggers.workflowDispatchInputs) {
+        lines.push(
+          `      ${scalar(input.name)}:`,
+          `        description: ${scalar(input.description)}`,
+          // A literal boolean, not a quoted scalar: the field is typed boolean
+          // in the workflow schema, and "true" is a string GitHub rejects.
+          `        required: ${input.required ? "true" : "false"}`
+        )
+      }
+    }
+  }
   return lines
 }
 
@@ -809,12 +935,16 @@ const workCommand = (job: Job, exec: string): string => {
 const setupSteps = (job: Job, attrs: Attrs, install: string): ReadonlyArray<string> => {
   const lines: Array<string> = []
   if (job.checkout) {
+    const checkoutWith: Record<string, string> = {
+      // An untrusted-input job must not carry a token the checkout leaves on
+      // disk: a PoC script it runs would find it in .git/config.
+      ...(job.untrustedInput ? { "persist-credentials": "false" } : {}),
+      ...(job.fullHistory ? { "fetch-depth": "0" } : {})
+    }
     lines.push(...renderStep(
-      job.untrustedInput
-        // An untrusted-input job must not carry a token the checkout leaves on
-        // disk: a PoC script it runs would find it in .git/config.
-        ? { uses: "actions/checkout@v4", with: { "persist-credentials": "false" } }
-        : { uses: "actions/checkout@v4" },
+      Object.keys(checkoutWith).length === 0
+        ? { uses: "actions/checkout@v4" }
+        : { uses: "actions/checkout@v4", with: checkoutWith },
       "      "
     ))
   }
@@ -827,6 +957,12 @@ const setupSteps = (job: Job, attrs: Attrs, install: string): ReadonlyArray<stri
       ),
       ...renderStep({ run: install }, "      ")
     )
+  }
+  if (job._tag === "agent" && job.engine && !job.untrustedInput) {
+    lines.push(...renderStep(
+      { name: "Install the agent CLI", run: `npm install --global ${attrs.agentCli}` },
+      "      "
+    ))
   }
   for (const cache of job.caches) {
     lines.push(...renderStep({
