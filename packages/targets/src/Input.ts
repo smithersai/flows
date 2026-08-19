@@ -16,7 +16,48 @@ import type { Dirent } from "node:fs"
 import * as NodePath from "node:path"
 import * as Config from "./Config.ts"
 import * as SafeFs from "./SafeFs.ts"
-import * as Target from "./Target.ts"
+import type * as Target from "./Target.ts"
+
+/**
+ * The `Target` runtime the produced-input machinery reads.
+ *
+ * `Target` imports this module for the declared-input union, so this module
+ * cannot import `Target` back without forming an import cycle. `Target`
+ * registers these services when it initializes; every `Produced` value
+ * requires a target that `Target.make` created, so the registration is always
+ * in place before a declaration is constructed, selected, or digested.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface ProducedTargetRuntime {
+  readonly schema: Schema.Schema<Target.AnyTarget>
+  readonly isTarget: (value: unknown) => value is Target.AnyTarget
+  readonly metadata: (target: Target.AnyTarget) => Target.Metadata
+}
+
+let producedTargetRuntime: ProducedTargetRuntime | undefined
+
+/**
+ * Registers the `Target` runtime the produced-input machinery reads. `Target`
+ * calls this once when it initializes.
+ *
+ * @category registrations
+ * @since 0.1.0
+ */
+export const registerProducedTargetRuntime = (runtime: ProducedTargetRuntime): void => {
+  if (producedTargetRuntime !== undefined) {
+    throw new Error("the produced-input target runtime is already registered")
+  }
+  producedTargetRuntime = runtime
+}
+
+const producedRuntime = (): ProducedTargetRuntime => {
+  if (producedTargetRuntime === undefined) {
+    throw new Error("the produced-input target runtime is not registered: the Target module has not been evaluated")
+  }
+  return producedTargetRuntime
+}
 
 /**
  * Schema for a lazily expanded glob.
@@ -136,11 +177,12 @@ export class ProducedError extends Schema.TaggedError<ProducedError>()(
 /**
  * Schema for a producer target reference carried by {@link Produced}.
  *
- * The reference is suspended so this module and `Target` may import each
- * other: the guard runs when a declaration is constructed, never while the
- * module graph is still initializing.
+ * The reference is suspended so the schema resolves only once a declaration
+ * is constructed or examined, never while the module graph is still
+ * initializing. The registered {@link ProducedTargetRuntime} supplies the
+ * target schema.
  */
-const ProducerTarget = Schema.suspend(() => Target.Target)
+const ProducerTarget = Schema.suspend(() => producedRuntime().schema)
 
 /**
  * Schema for an output-keyed dependency edge.
@@ -301,14 +343,15 @@ export interface ProducedOutputs {
  * @since 0.1.0
  */
 export const produced = (target: Target.AnyTarget, path: string = producedRoot): Produced => {
-  if (!Target.isTarget(target)) {
+  const runtime = producedRuntime()
+  if (!runtime.isTarget(target)) {
     throw new ProducedError({
       target: "",
       path,
       message: "a produced input must reference a BUILD.ts target"
     })
   }
-  const metadata = Target.metadata(target)
+  const metadata = runtime.metadata(target)
   const outputs = metadata.outputs
   if (outputs === undefined) {
     throw new ProducedError({
@@ -352,7 +395,7 @@ export const producedSelection = (
   declaration: Produced,
   manifest: ProducedOutputs
 ): ReadonlyArray<ProducedOutput> => {
-  const label = Target.metadata(declaration.target).target
+  const label = producedRuntime().metadata(declaration.target).target
   if (declaration.path === producedRoot) {
     return [...manifest.outputs]
       .map((entry) => ({ path: entry.path, contentDigest: entry.contentDigest }))
@@ -394,7 +437,7 @@ export const producedDigest = (
   manifest: ProducedOutputs
 ): string =>
   digestText(JSON.stringify({
-    target: Target.metadata(declaration.target).target,
+    target: producedRuntime().metadata(declaration.target).target,
     producerKey,
     path: declaration.path,
     outputs: producedSelection(declaration, manifest).map((entry) => [entry.path, entry.contentDigest])

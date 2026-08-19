@@ -450,6 +450,12 @@ export const metadata = (target: AnyTarget): Metadata => {
   return ownData(target, TargetTypeId) as Metadata
 }
 
+// `Input` defines the produced-input machinery and cannot import this module
+// back without forming an import cycle, so the pieces it reads are registered
+// here when this module initializes. Every `Produced` value requires a target
+// that `make` created, so the registration always precedes its use.
+Input.registerProducedTargetRuntime({ schema: Target, isTarget, metadata })
+
 /**
  * A callable target definition.
  *
