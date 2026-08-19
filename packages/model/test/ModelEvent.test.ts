@@ -54,6 +54,27 @@ describe("ModelEvent", () => {
     expect(settled.usage).toEqual({ totalTokens: 9 })
   })
 
+  it("keeps two concurrently open text blocks separate and in order", () => {
+    const settled = Events.settledMessage([
+      { type: "text-start", id: "first" },
+      { type: "text-delta", id: "first", text: "opening " },
+      { type: "text-start", id: "second" },
+      { type: "text-delta", id: "second", text: "aside " },
+      { type: "text-delta", id: "first", text: "line" },
+      { type: "text-delta", id: "second", text: "block" },
+      { type: "text-end", id: "first" },
+      { type: "text-end", id: "second" },
+      { type: "settle", stopReason: "stop" }
+    ])
+
+    // Each id keeps its own part, ordered by the block that opened first, so an
+    // interleaved stream never merges two blocks into one.
+    expect(settled.message.content).toEqual([
+      { type: "text", text: "opening line" },
+      { type: "text", text: "aside block" }
+    ])
+  })
+
   it("encodes a missing settle as aborted", () => {
     expect(Events.settledMessage([{ type: "text-delta", id: "text", text: "partial" }]).message).toMatchObject({
       stopReason: "aborted",

@@ -74,6 +74,8 @@ jobs:
         run: node --test scripts/flows-backup.test.mjs
       - name: Test-pin register guard
         run: node --test scripts/check-test-pins.test.mjs
+      - name: Agent eval suite (offline, baseline-gated)
+        run: bun evals/agent/run.ts && npx tsc -p evals/agent
       - name: Test all workspaces
         run: pnpm test
       - name: Build all workspaces from clean artifacts

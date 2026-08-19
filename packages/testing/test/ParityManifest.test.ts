@@ -128,11 +128,17 @@ describe("ParityManifest", () => {
       status: "partial"
     })
 
+    // The three overflow-recovery rows are `skipped` because that recovery was
+    // a contract of the deleted provider-tool-call loop, not because coverage
+    // regressed: the cell loop compacts on a declared token budget instead.
     const expected = [
-      ["forces one compaction and retries after provider context overflow", "pinned"],
-      ["persists a second context overflow after one recovery", "partial"],
-      ["recovers once from a raw context overflow failure", "pinned"],
-      ["does not recover context overflow after durable assistant output", "partial"],
+      // The cell loop recovers from a failed call inside the cell; the durable
+      // half of the settlement stays engine-owned, so the row is `partial`.
+      ["durably settles local tool failures before continuing", "partial"],
+      ["forces one compaction and retries after provider context overflow", "partial"],
+      ["persists a second context overflow after one recovery", "skipped"],
+      ["recovers once from a raw context overflow failure", "skipped"],
+      ["does not recover context overflow after durable assistant output", "skipped"],
       ["forces a text response on an agent's configured final step", "pinned"],
       ["projects raw provider stream failures as terminal assistant step failures", "partial"],
       ["keeps interleaved assistant text blocks separate", "pinned"],
