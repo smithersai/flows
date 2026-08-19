@@ -4,6 +4,9 @@
 
 ### Added
 
+- Placed the run's task prompt in a prefix segment so it survives every frame; it previously lived in the rebuilt tail and vanished after frame one.
+- Widened the sealed step's transient retry to five one-second-doubling attempts; a destroyed HTTP/2 session outlives a half-second backoff.
+
 - Armed the completion audit on every executor-launched agent run; one benchmark run closed claiming an implemented fix after 16 read-only calls.
 
 - Made agent reasoning effort configurable: the flow's `effort:` frontmatter wins, then the host's `Options.reasoningEffort`, then the `high` default.

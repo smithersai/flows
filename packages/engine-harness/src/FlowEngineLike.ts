@@ -477,8 +477,12 @@ const withTransientRetry = <A, E, R>(
 ): Effect.Effect<A, E, R> =>
   Effect.retry(effect, {
     while: (error: E) => error instanceof ModelError.ModelError && retryableModelCodes.has(error.code),
-    schedule: Schedule.jittered(Schedule.exponential(500, 2)),
-    times: 3
+    // A destroyed HTTP/2 session poisons immediate retries — the first three
+    // attempts of a 500 ms schedule all land on the same dead connection and
+    // a run died exactly that way. One second doubling five times spans ~30 s,
+    // enough for the pool to re-establish and for a rate-limit window to pass.
+    schedule: Schedule.jittered(Schedule.exponential(1000, 2)),
+    times: 5
   })
 
 const ModelFailure = Schema.Union([

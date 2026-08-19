@@ -159,10 +159,25 @@ const opening = (
       modelId: modelIdFromSeat(options.seat),
       segments: [
         ...declared,
+        // The task itself is a PREFIX segment. The tail is rebuilt every
+        // frame from whatever the cell returns, so a task placed there is
+        // gone after frame one and the model works from its own summaries of
+        // its instructions — a benchmark run made the intended fix, forgot
+        // the environment teaching that lived only in the opening prompt,
+        // and parked asking a human for what the prompt had told it.
+        {
+          kind: "instructions",
+          zone: "prefix",
+          content: [ModelRequest.SystemPart.make({ text: `The task for this run:\n\n${options.prompt}` })]
+        },
         {
           kind: "transcript",
           zone: "tail",
-          content: [ModelRequest.Message.user(options.prompt)]
+          content: [
+            ModelRequest.Message.user(
+              "Begin. Your task and environment are in the system context above and remain visible every frame."
+            )
+          ]
         }
       ]
     }),
