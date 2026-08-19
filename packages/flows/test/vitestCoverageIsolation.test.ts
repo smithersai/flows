@@ -277,6 +277,12 @@ describe("vitest coverage isolation conformance", () => {
     // private entry points rather than published library packages; each app's
     // own test/build scripts participate in the root recursive gates, while
     // the package publication/coverage universe remains `packages/*`.
+    //
+    // The allowBuilds roster gained `playwright` (2026-08-18): apps/ui's
+    // live-* browser checks depend on it, and like every other entry it is
+    // DENIED — its postinstall downloads browsers, and those checks run
+    // against a system or already-installed one. Denying a build adds no
+    // ungated surface; it removes one.
     const workspace = readFileSync(join(packagesDir, "..", "pnpm-workspace.yaml"), "utf8")
     expect(workspace).toBe(
       [
@@ -292,6 +298,7 @@ describe("vitest coverage isolation conformance", () => {
         "  es5-ext: false",
         "  esbuild: false",
         "  msgpackr-extract: false",
+        "  playwright: false",
         "  sharp: false",
         "  unrs-resolver: false",
         "  vue-demi: false",
@@ -323,6 +330,10 @@ describe("vitest coverage isolation conformance", () => {
     //
     // `checklist` similarly enters the UI workspace's launch checklist. It is
     // an operator-facing release check, not a package test fan-out.
+    //
+    // `dev` is a developer entry point, not a gate: it forwards to the UI
+    // workspace's vite server so the `--configLoader runner` flag lives in one
+    // place. It runs nothing in CI and fans nothing out.
     const root = JSON.parse(readFileSync(join(packagesDir, "..", "package.json"), "utf8")) as {
       readonly scripts?: Record<string, string>
     }
@@ -332,6 +343,7 @@ describe("vitest coverage isolation conformance", () => {
       checklist: "pnpm --filter smithers-ui run checklist",
       circular: "pnpm --recursive --if-present run circular",
       "deploy:dry": "pnpm --filter smithers-server run deploy:dry",
+      dev: "pnpm --filter smithers-ui run web",
       lint: "pnpm --recursive --if-present run lint",
       test: "pnpm --recursive --if-present run test",
       "test:examples": "pnpm --filter @smthrs/examples run test"
