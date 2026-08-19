@@ -82,3 +82,4 @@ packages/*/.smithers/
 # origin, so they are never evidence and never belong in the tracked report
 # trail under apps/reports/launch-checklist/.
 apps/reports/launch-checklist/*-dry-run/
+.money-scratch/
