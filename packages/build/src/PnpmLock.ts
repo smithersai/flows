@@ -772,7 +772,7 @@ const crossCheck = (lockfile: Lockfile): void => {
 }
 
 /** @private */
-const parseSync = (source: string, maximumBytes: number): Lockfile => {
+const parseLockfile = (source: string, maximumBytes: number): Lockfile => {
   if (utf8ByteLength(source) > maximumBytes) {
     throw new PnpmLockError({
       code: "lockfile_too_large",
@@ -841,10 +841,10 @@ const parseSync = (source: string, maximumBytes: number): Lockfile => {
  * @category constructors
  * @since 0.1.0
  */
-export const parseTextOrThrow = (
+export const parseSync = (
   source: string,
   options: { readonly maximumBytes?: number } = {}
-): Lockfile => parseSync(source, options.maximumBytes ?? maximumSourceBytes)
+): Lockfile => parseLockfile(source, options.maximumBytes ?? maximumSourceBytes)
 
 /**
  * Reads lockfile source as data.
@@ -857,7 +857,7 @@ export const parse = (
   options: { readonly maximumBytes?: number } = {}
 ): Effect.Effect<Lockfile, PnpmLockError> =>
   Effect.try({
-    try: () => parseSync(source, options.maximumBytes ?? maximumSourceBytes),
+    try: () => parseLockfile(source, options.maximumBytes ?? maximumSourceBytes),
     catch: (cause) =>
       cause instanceof PnpmLockError
         ? cause

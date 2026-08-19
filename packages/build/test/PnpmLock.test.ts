@@ -88,7 +88,7 @@ const refusal = (source: string, options?: { readonly maximumBytes?: number }): 
 
 describe("PnpmLock.parse over the repository lockfile", () => {
   it("reports every package, snapshot, and importer the file states", async () => {
-    const lockfile = PnpmLock.parseTextOrThrow(await readRepositoryLockfile())
+    const lockfile = PnpmLock.parseSync(await readRepositoryLockfile())
     expect(lockfile.version).toBe("9.0")
     // The file carries 1976 `packages` entries today. The assertion is a floor
     // plus a ceiling rather than the exact count, so an ordinary dependency
@@ -102,7 +102,7 @@ describe("PnpmLock.parse over the repository lockfile", () => {
   })
 
   it("resolves `effect` with a version and an integrity", async () => {
-    const lockfile = PnpmLock.parseTextOrThrow(await readRepositoryLockfile())
+    const lockfile = PnpmLock.parseSync(await readRepositoryLockfile())
     const entries = PnpmLock.packagesNamed(lockfile, "effect")
     expect(entries.length).toBeGreaterThan(0)
     for (const entry of entries) {
@@ -117,7 +117,7 @@ describe("PnpmLock.parse over the repository lockfile", () => {
   })
 
   it("resolves a sorted transitive closure that starts at the requested snapshot", async () => {
-    const lockfile = PnpmLock.parseTextOrThrow(await readRepositoryLockfile())
+    const lockfile = PnpmLock.parseSync(await readRepositoryLockfile())
     const snapshots = PnpmLock.snapshotsNamed(lockfile, "effect")
     expect(snapshots.length).toBeGreaterThan(0)
     const identifier = snapshots[0]!.id
@@ -130,14 +130,14 @@ describe("PnpmLock.parse over the repository lockfile", () => {
 
   it("parses to a structurally identical value twice", async () => {
     const source = await readRepositoryLockfile()
-    const first = PnpmLock.parseTextOrThrow(source)
-    const second = PnpmLock.parseTextOrThrow(source)
+    const first = PnpmLock.parseSync(source)
+    const second = PnpmLock.parseSync(source)
     expect(second).toEqual(first)
     expect(JSON.stringify(second)).toBe(JSON.stringify(first))
   })
 
   it("keeps every reported list in sorted order", async () => {
-    const lockfile = PnpmLock.parseTextOrThrow(await readRepositoryLockfile())
+    const lockfile = PnpmLock.parseSync(await readRepositoryLockfile())
     expect(lockfile.packages.map((entry) => entry.key)).toEqual(
       [...lockfile.packages.map((entry) => entry.key)].sort()
     )
@@ -151,7 +151,7 @@ describe("PnpmLock.parse over the repository lockfile", () => {
 })
 
 describe("PnpmLock.parse over a stated lockfile", () => {
-  const lockfile = PnpmLock.parseTextOrThrow(fixture)
+  const lockfile = PnpmLock.parseSync(fixture)
 
   it("records importer dependencies as written, without resolving them", () => {
     expect(lockfile.importers).toEqual([
@@ -229,7 +229,7 @@ describe("PnpmLock.parse over a stated lockfile", () => {
   })
 
   it("comes to the same closure for a cyclic graph", () => {
-    const cyclic = PnpmLock.parseTextOrThrow(
+    const cyclic = PnpmLock.parseSync(
       [
         "lockfileVersion: '9.0'",
         "packages:",
@@ -284,7 +284,7 @@ describe("PnpmLock.parse refusals", () => {
     const source = `lockfileVersion: '9.0'\n\n# ${"é".repeat(8)}${String.fromCodePoint(0x1f600)}\n`
     expect(source.length).toBeLessThan(48)
     expect(refusal(source, { maximumBytes: 40 }).code).toBe("lockfile_too_large")
-    expect(PnpmLock.parseTextOrThrow(source, { maximumBytes: 64 }).version).toBe("9.0")
+    expect(PnpmLock.parseSync(source, { maximumBytes: 64 }).version).toBe("9.0")
   })
 
   it("refuses a file truncated in the middle of a line", async () => {
@@ -384,6 +384,42 @@ describe("PnpmLock.parse refusals", () => {
     expect(refusal("lockfileVersion: '9.0'\npackages:\npackages:\n").message).toContain("duplicate top-level")
   })
 
+  it("refuses a file truncated after the packages section", () => {
+    // Truncation at the end drops the snapshots the packages section needs.
+    // Every surviving line is well formed, so only the cross-section check
+    // sees the loss.
+    expect(
+      refusal(
+        [
+          "lockfileVersion: '9.0'",
+          "packages:",
+          "  a@1.0.0:",
+          "    resolution: {integrity: sha512-a==}",
+          ""
+        ].join("\n")
+      ).message
+    ).toContain("has no snapshot")
+  })
+
+  it("refuses an inline value where a section expects a block", () => {
+    expect(
+      refusal("lockfileVersion: '9.0'\npackages:\n  a@1.0.0: {}\n").message
+    ).toContain("has an inline value")
+    expect(
+      refusal(
+        [
+          "lockfileVersion: '9.0'",
+          "packages:",
+          "  a@1.0.0:",
+          "    resolution: {integrity: sha512-a==}",
+          "snapshots:",
+          "  a@1.0.0: []",
+          ""
+        ].join("\n")
+      ).message
+    ).toContain("has an inline value")
+  })
+
   it("refuses a snapshot field it does not implement", () => {
     expect(
       refusal(
@@ -467,7 +503,7 @@ describe("PnpmLock.parse refusals", () => {
   })
 
   it("keeps a quoted key that carries a colon or a comment marker", () => {
-    const lockfile = PnpmLock.parseTextOrThrow(
+    const lockfile = PnpmLock.parseSync(
       [
         "lockfileVersion: '9.0' # written by pnpm",
         "packages:",
@@ -487,11 +523,11 @@ describe("PnpmLock.parse refusals", () => {
   it("reports a refusal in the error channel rather than throwing", () => {
     const exit = Effect.runSyncExit(PnpmLock.parse("lockfileVersion: '6.0'\n"))
     expect(exit._tag).toBe("Failure")
-    expect(() => PnpmLock.parseTextOrThrow("lockfileVersion: '6.0'\n")).toThrow(PnpmLock.PnpmLockError)
+    expect(() => PnpmLock.parseSync("lockfileVersion: '6.0'\n")).toThrow(PnpmLock.PnpmLockError)
   })
 
   it("parses a lockfile that states no packages at all", () => {
-    const empty = PnpmLock.parseTextOrThrow("lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n")
+    const empty = PnpmLock.parseSync("lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n")
     expect(empty).toEqual({
       version: "9.0",
       importers: [{ id: ".", dependencies: [] }],
