@@ -250,6 +250,25 @@ test("release.yml publishes exactly the packed workspaces, in the packed order",
   assert.deepEqual([...release.matchAll(/@smthrs\/[\w-]+/g)].map((match) => match[0]), [])
 })
 
+test("the root BUILD.ts names every package manifest this suite reads", () => {
+  // `//:packReleaseTest` and `//:setReleaseVersionTest` are cacheable root
+  // targets whose key material is the manifest list in BUILD.ts. A glob
+  // cannot cross the package boundaries, so the list is hand-maintained, and
+  // this case is what keeps it complete: a manifest on disk that BUILD.ts does
+  // not name is a gate replaying green over a package it never keyed.
+  const packagesRoot = join(repoRoot, "packages")
+  const onDisk = readdirSync(packagesRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && existsSync(join(packagesRoot, entry.name, "package.json")))
+    .map((entry) => `//packages/${entry.name}/package.json`)
+    .sort()
+  const build = readFileSync(join(repoRoot, "BUILD.ts"), "utf8")
+  const declared = [...build.matchAll(/Smithers\.file\("(\/\/packages\/[^/"]+\/package\.json)"\)/g)]
+    .map((match) => match[1])
+    .sort()
+
+  assert.deepEqual(declared, onDisk)
+})
+
 test("every gate target in ci.yml also runs in release.yml", () => {
   assert.deepEqual(parityGaps(workflow("ci.yml"), workflow("release.yml")), [])
 })

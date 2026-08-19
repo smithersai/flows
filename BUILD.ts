@@ -119,8 +119,10 @@ export const nodeModules = Smithers.Install({ lockfile, workspace })
  * refuses the target. A rooted `Smithers.file` declaration crosses a package
  * boundary the way a glob cannot, so the gates below name the files.
  *
- * The list is maintenance the planner enforces: a new package whose manifest
- * is missing here leaves a gate that reads it cacheable on incomplete key
+ * The list is maintenance, and `scripts/pack-release.test.mjs` polices it: one
+ * of its cases reads this file and fails when a `packages/*\/package.json`
+ * on disk is not named here. Without that check a new package whose manifest
+ * is missing here would leave a gate that reads it cacheable on incomplete key
  * material, which is exactly the manifest drift `//:packReleaseTest` and
  * `//:setReleaseVersionTest` exist to catch.
  */
@@ -315,7 +317,15 @@ export const setReleaseVersionTest = Smithers.ToolBuild({
 /**
  * The disaster-recovery script test. `ci.yml`'s `Disaster-recovery script
  * test` step. It spawns `scripts/flows-backup.mjs` against stores it builds in
- * a temporary directory, so the two scripts are the whole read set.
+ * a temporary directory.
+ *
+ * `cache: false`, for the same reason as `//:circular`. The script under test
+ * imports `@smthrs/database` and `@smthrs/engine-store/DisasterRecovery`
+ * straight from their `src/` exports, so its real read set is the transitive
+ * source closure of two packages, and that closure sits behind package
+ * boundaries a root declaration cannot reach. A root target that names only
+ * the two scripts and claims a cache would replay green over a change to the
+ * backup writer it exists to exercise.
  *
  * @since 0.1.0
  * @category build
@@ -331,7 +341,7 @@ export const flowsBackupTest = Smithers.ToolBuild({
   outputs: [],
   deps: [],
   env: {},
-  cache: true,
+  cache: false,
   cwd: "."
 })
 

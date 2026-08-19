@@ -37,10 +37,16 @@ import "./toolchain.ts"
  */
 const realWorkflowPath = NodePath.resolve(
   import.meta.dirname,
-  "../../.github/workflows/ci.yml"
+  "../../../.github/workflows/ci.yml"
 )
 
-const readReal = async (): Promise<string | undefined> => Fs.readFile(realWorkflowPath, "utf8").catch(() => undefined)
+/**
+ * The checked-in workflow. A missing file is a failure, not a skip: every case
+ * that reads it is a proof about this repository's own pipeline, and a proof
+ * that silently returns when the file is absent is no proof. This path was
+ * wrong once, and every case below passed for the whole time it was.
+ */
+const readReal = async (): Promise<string> => Fs.readFile(realWorkflowPath, "utf8")
 
 /** Most focused fixtures omit trigger prose; supply the smallest real trigger. */
 const parseWorkflow = (source: string): ReturnType<typeof parseStrictWorkflow> =>
@@ -437,7 +443,6 @@ describe("parseWorkflow", () => {
 
   it("parses the flows repository's own pipeline", async () => {
     const source = await readReal()
-    if (source === undefined) return
     const workflow = parseWorkflow(source)
     expect(workflow.name).toBe("CI")
     expect(workflow.jobs.map((job) => job.id)).toEqual([
@@ -447,6 +452,7 @@ describe("parseWorkflow", () => {
       "bun",
       "browser",
       "node-macos",
+      "smthrs-shadow",
       "node-windows"
     ])
     // Every job has at least a checkout, so no job parsed as empty.
@@ -460,7 +466,6 @@ describe("parseWorkflow", () => {
    */
   it("holds the flows pipeline's required jobs to running unconditionally", async () => {
     const source = await readReal()
-    if (source === undefined) return
     const required = ["test", "rust", "wasm-repro", "bun", "browser", "node-macos", "node-windows"]
     expect(missingRequiredJobs(parseWorkflow(source), required)).toEqual([])
     const skipped = source.replace(/^ {2}bun:$/m, "  bun:\n    if: false")
@@ -483,7 +488,6 @@ describe("parseWorkflow", () => {
    */
   it("runs only scripts and files the flows repository actually has", async () => {
     const source = await readReal()
-    if (source === undefined) return
     const manifest = JSON.parse(
       await Fs.readFile(NodePath.resolve(realWorkflowPath, "../../../package.json"), "utf8")
     ) as { readonly scripts?: Readonly<Record<string, string>> }
@@ -1757,14 +1761,12 @@ describe("the checked-in ci.yml satisfies the //:ci contract", () => {
 
   it("runs every gate the roster declares", async () => {
     const source = await readReal()
-    if (source === undefined) return
     const { gates } = await roster()
     expect(missingGates(parseStrictWorkflow(source), gates)).toEqual([])
   })
 
   it("runs every job the roster requires, unconditionally", async () => {
     const source = await readReal()
-    if (source === undefined) return
     const { requiredJobs } = await roster()
     expect(missingRequiredJobs(parseStrictWorkflow(source), requiredJobs)).toEqual([])
   })
@@ -1775,7 +1777,6 @@ describe("the checked-in ci.yml satisfies the //:ci contract", () => {
    */
   it("fails when a gate is deleted from ci.yml", async () => {
     const source = await readReal()
-    if (source === undefined) return
     const { gates } = await roster()
     const deleted = source.replace("      - name: Circular-dependency guard\n        run: pnpm run circular\n", "")
     expect(deleted).not.toBe(source)
@@ -1789,7 +1790,6 @@ describe("the checked-in ci.yml satisfies the //:ci contract", () => {
    */
   it("fails when a required job becomes conditional", async () => {
     const source = await readReal()
-    if (source === undefined) return
     const { requiredJobs } = await roster()
     const skipped = source.replace(/^ {2}browser:$/m, "  browser:\n    if: ${{ github.event_name == 'push' }}")
     expect(skipped).not.toBe(source)
@@ -1805,7 +1805,6 @@ describe("the checked-in ci.yml satisfies the //:ci contract", () => {
    */
   it("keeps an advisory job satisfying the gates it carries", async () => {
     const source = await readReal()
-    if (source === undefined) return
     const { gates, requiredJobs } = await roster()
     const advisory = source.replace(/^ {2}browser:$/m, "  browser:\n    continue-on-error: true")
     expect(advisory).not.toBe(source)
