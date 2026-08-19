@@ -510,7 +510,21 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
           }
         }
         const exit = yield* Effect.orDie(
-          Schema.decodeEffect(action.exitSchemaPartial)(toJsonExit(result.exit))
+          Schema.decodeEffect(action.exitSchemaPartial)(toJsonExit(result.exit)).pipe(
+            // An action whose recorded outcome does not match its declared
+            // schemas is a defect either way, but `orDie` alone reports only
+            // the schema mismatch — "Expected /harness/HarnessError at
+            // [cause][failures][0][error][_tag]" — and never the error that
+            // actually occurred, which can leave a real failure (a refused
+            // step boundary, say) undiagnosable. Naming the action and its
+            // recorded exit turns that into one legible log line.
+            Effect.tapError(() =>
+              Effect.annotateLogs(
+                Effect.logError("A recorded action outcome does not match the action's declared schemas"),
+                { action: action.name, exit: JSON.stringify(toJsonExit(result.exit)).slice(0, 4096) }
+              )
+            )
+          )
         )
         return new Flow.Complete({ exit })
       }
