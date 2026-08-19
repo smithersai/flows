@@ -43,6 +43,15 @@ const SOCKET_OPEN_TIMEOUT_MS = 15_000;
 /** How long one /json/new probe may hang before the next attempt. */
 const TARGET_PROBE_TIMEOUT_MS = 5_000;
 
+/*
+ * How long one navigation waits, and how many navigations a mount gets. See
+ * `navigate`: a page that lands mid-`wrangler dev` reload never mounts however
+ * long it is given, so the budget stays modest and the retry does the work.
+ */
+const DOCUMENT_BUDGET_MS = 20_000;
+const MOUNT_BUDGET_MS = 20_000;
+const NAVIGATE_ATTEMPTS = 3;
+
 const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
@@ -306,17 +315,48 @@ export const createE2eBrowser = (origin: string): E2eBrowser => {
 			}
 			return answer?.result?.value as T;
 		};
-		const navigate = async (): Promise<void> => {
-			await cdp.send("Page.navigate", { url: origin });
-			for (let attempt = 0; attempt < 80; attempt += 1) {
-				const ready = await evaluate<boolean>(`document.readyState === "complete"`).catch((error: unknown) => {
+		/*
+		 * `readyState === "complete"` means the document loaded, not that the app
+		 * rendered. React mounts after it, and the gap widens on a loaded machine
+		 * or across a `wrangler dev` reload — enough that a suite's own mount wait
+		 * can time out against a product that is merely slow. That produced a
+		 * roaming flake: whichever suite happened to run while the machine was
+		 * busy failed on "the composer never mounted", in a different suite each
+		 * run.
+		 *
+		 * Waiting for the mount here, once, fixes it for every suite. The shell's
+		 * `[data-flows]` manifest is the signal: the app publishes it from the
+		 * live registry, so its presence means React rendered and the registry is
+		 * up, not merely that HTML arrived.
+		 *
+		 * A navigation that lands mid-reload never mounts at all, so the whole
+		 * navigation is retried rather than waited on longer. After the last
+		 * attempt this throws: an app that truly never mounts is a product
+		 * failure and must not be smoothed into a silent pass.
+		 */
+		const settle = async (predicate: string, budgetMs: number): Promise<boolean> => {
+			const deadline = Date.now() + budgetMs;
+			while (Date.now() < deadline) {
+				const met = await evaluate<boolean>(predicate).catch((error: unknown) => {
 					// A page that stopped answering is not a page that is still loading.
 					if (error instanceof CdpTimeoutError || error instanceof BrowserLaunchError) throw error;
 					return false;
 				});
-				if (ready === true) return;
+				if (met === true) return true;
 				await wait(250);
 			}
+			return false;
+		};
+		const navigate = async (): Promise<void> => {
+			for (let attempt = 1; attempt <= NAVIGATE_ATTEMPTS; attempt += 1) {
+				await cdp.send("Page.navigate", { url: origin });
+				if (!(await settle(`document.readyState === "complete"`, DOCUMENT_BUDGET_MS))) continue;
+				if (await settle(`document.querySelector("[data-flows]") !== null`, MOUNT_BUDGET_MS)) return;
+			}
+			throw new Error(
+				`${origin} never mounted its app shell: no [data-flows] manifest after ${NAVIGATE_ATTEMPTS} navigations, ` +
+					`each waiting ${DOCUMENT_BUDGET_MS}ms for the document and ${MOUNT_BUDGET_MS}ms for the mount.`,
+			);
 		};
 		const dispatch = async (descriptor: {
 			key: string;
