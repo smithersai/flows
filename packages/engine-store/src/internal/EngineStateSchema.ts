@@ -24,6 +24,7 @@ import type * as SqlClient from "effect/unstable/sql/SqlClient"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type Dialect = "sqlite" | "postgres"
 
@@ -32,6 +33,7 @@ export type Dialect = "sqlite" | "postgres"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Statement {
   /** The schema object's name, as it appears in the catalog. */
@@ -54,6 +56,7 @@ export interface Statement {
  *
  * @since 0.1.0
  * @category constants
+ * @slop
  */
 export const statements: ReadonlyArray<Statement> = [
   {
@@ -122,6 +125,7 @@ export const statements: ReadonlyArray<Statement> = [
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const apply = (sql: SqlClient.SqlClient, writer: WriterService): Effect.Effect<void> =>
   Effect.forEach(

@@ -23,6 +23,7 @@ import type * as PlatformError from "effect/PlatformError"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface EnumerationOptions {
   /**
@@ -44,6 +45,7 @@ const defaultResolve = (path: string): string => path === "" ? "." : path
  *
  * @since 0.1.0
  * @category accessors
+ * @slop
  */
 export const filesUnder = (
   fs: FileSystem.FileSystem,
@@ -76,6 +78,7 @@ export const filesUnder = (
  *
  * @since 0.1.0
  * @category accessors
+ * @slop
  */
 export const entriesUnder = (
   fs: FileSystem.FileSystem,
@@ -111,6 +114,7 @@ export const entriesUnder = (
  *
  * @since 0.1.0
  * @category accessors
+ * @slop
  */
 export const staticPrefix = (pattern: string): string => {
   const segments = pattern.replaceAll("\\", "/").split("/")
@@ -129,6 +133,7 @@ export const staticPrefix = (pattern: string): string => {
  *
  * @since 0.1.0
  * @category accessors
+ * @slop
  */
 export const expandGlob = (
   fs: FileSystem.FileSystem,
