@@ -35,9 +35,9 @@ The first three build on each other. `01` shows what the two nouns are with noth
 
 `07`, `08`, and `09` cover the seams around the engine rather than the engine itself: replicating history to a second process, running one program on two host adapters, and staying inside the browser-safe entry points.
 
-`11` is the agent seam. `AgentAction.make` declares a model call as an ordinary action — same tag, same `.call()`, same plan node — and ships the implementation with it, so the author writes a seat, a system prompt, a prompt built from the payload, and an `output` schema instead of a `toLayer`. The schema is rendered into the run's teaching and enforced on the way out, which is why the second step reads `research.summary` as a `string`. The example resolves every seat to a scripted model, so it runs in CI with no API key.
-
 `10` is `02` plus telemetry. The flow body and the engine layers do not change; providing `Otlp.layerFetch` is the entire wiring, and the example reads the same run through the export, through `Journal.entries`, and through a tagged metric view with `Metric.value`. [Telemetry](/telemetry) documents the layer; [Observability](/observability) tables the spans it exports.
+
+`11` is the agent seam. `AgentAction.make` declares a model call as an ordinary action — same tag, same `.call()`, same plan node — and ships the implementation with it, so the author writes a seat, a system prompt, a prompt built from the payload, and an `output` schema instead of a `toLayer`. The schema is rendered into the run's teaching and enforced on the way out, which is why the second step reads `research.summary` as a `string`. The example resolves every seat to a scripted model, so it runs in CI with no API key.
 
 ## The shared durable layer
 
