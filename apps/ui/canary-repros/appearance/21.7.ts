@@ -77,7 +77,19 @@ const measure = async (width: number, height: number, label: string): Promise<Re
 					const rect = element.getBoundingClientRect();
 					const ownText = [...element.childNodes].some((n) => n.nodeType === 3 && (n.textContent ?? "").trim().length > 2);
 					if (ownText && rect.width > 0 && rect.right > box.left && rect.left < box.right && rect.bottom > box.top && rect.top < box.bottom) {
-						occluded.push({ tag: element.tagName, text: element.innerText.slice(0, 54).replace(/\n/g, " "), rect: [Math.round(rect.x), Math.round(rect.y), Math.round(rect.width), Math.round(rect.height)] });
+						/*
+						 * A box that intersects the chrome is only OCCLUDED if it is
+						 * actually painted there. The transcript scroller clips its
+						 * content, so an element scrolled above the viewport keeps a
+						 * rect that overlaps the chrome while being invisible — counting
+						 * those made a fixed layout read as a failure.
+						 */
+						const px = Math.min(Math.max((Math.max(rect.left, box.left) + Math.min(rect.right, box.right)) / 2, 0), window.innerWidth - 1);
+						const py = Math.min(Math.max((Math.max(rect.top, box.top) + Math.min(rect.bottom, box.bottom)) / 2, 0), window.innerHeight - 1);
+						const painted = document.elementFromPoint(px, py);
+						if (painted !== null && element.contains(painted)) {
+							occluded.push({ tag: element.tagName, text: element.innerText.slice(0, 54).replace(/\n/g, " "), rect: [Math.round(rect.x), Math.round(rect.y), Math.round(rect.width), Math.round(rect.height)] });
+						}
 					}
 					walk(child);
 				}

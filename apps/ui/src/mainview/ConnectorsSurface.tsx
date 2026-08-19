@@ -164,7 +164,13 @@ export function ConnectorsSurface({ controller }: { readonly controller: AppCont
 									{row.action.label}
 								</Button>
 							) : (
-								<Badge variant={row.action.variant} data-row-action tabIndex={0}>
+								/*
+								 * §21.2: a status badge is not interactive. Giving it a tab
+								 * stop put a control in the ring that does nothing when
+								 * activated, so a keyboard user pays a keystroke for it and
+								 * gets no act back.
+								 */
+								<Badge variant={row.action.variant} data-row-action>
 									{row.action.label}
 								</Badge>
 							)}
