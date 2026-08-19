@@ -102,12 +102,67 @@ describe("NpmLock", () => {
 
   it("refuses an unknown package at the declaration call", () => {
     const npm = NpmLock.NpmLock({ lockfile: Input.file(repoLockfile) })
-    // The full message also names the declaration's BUILD.ts line when the
-    // call site is a BUILD.ts frame; the scratch-workspace verification
-    // exercises that path through the real CLI.
     expect(() => npm("definitely-not-a-real-package-xyz")).toThrow(
       /npm\("definitely-not-a-real-package-xyz"\) names no package in .*pnpm-lock\.yaml/
     )
+  })
+
+  it("names the BUILD.ts line of an unknown package and anchors // at the WORKSPACE.ts root", async () => {
+    // `WORKSPACE.ts` marks the workspace root; the handle is built in a
+    // subpackage BUILD.ts, so `//pnpm-lock.yaml` must resolve upward to the
+    // root, not to the BUILD.ts directory.
+    await write("WORKSPACE.ts", "export {}\n")
+    await write("pnpm-lock.yaml", lockfileSource())
+    const build = await write(
+      "packages/lib/BUILD.ts",
+      `import * as Input from ${JSON.stringify(NodePath.resolve(here, "../src/Input.ts"))}\n` +
+        `import * as NpmLock from ${JSON.stringify(NodePath.resolve(here, "../src/NpmLock.ts"))}\n` +
+        "const npm = NpmLock.NpmLock({ lockfile: Input.file(\"//pnpm-lock.yaml\") })\n" +
+        "export const effect = npm(\"effect\")\n" +
+        "export const missing = () => npm(\"missing\")\n"
+    )
+    const module = await import(build) as { effect: Input.NpmPackage; missing: () => Input.NpmPackage }
+    expect(module.effect.versions).toEqual(["effect@1.0.0"])
+    // The line is asserted as present, not as its value: the test runner's
+    // module transform shifts line numbers, while tsx, which the CLI evaluates
+    // BUILD.ts through, reports the authored line.
+    expect(module.missing).toThrow(
+      new RegExp(`names no package in .*pnpm-lock\\.yaml, declared at ${build.replaceAll(".", "\\.")}:\\d+$`)
+    )
+  })
+
+  it("anchors // at the workspace root when the handle is built in a plain module", async () => {
+    // A BUILD.ts cannot import WORKSPACE.ts, so the documented pattern builds
+    // the handle in a shared plain module. The anchor still resolves from that
+    // module's directory up to the WORKSPACE.ts root.
+    await write("WORKSPACE.ts", "export {}\n")
+    await write("pnpm-lock.yaml", lockfileSource({ effectVersion: "3.0.0" }))
+    await write(
+      "tools/npm.ts",
+      `import * as Input from ${JSON.stringify(NodePath.resolve(here, "../src/Input.ts"))}\n` +
+        `import * as NpmLock from ${JSON.stringify(NodePath.resolve(here, "../src/NpmLock.ts"))}\n` +
+        "export const npm = NpmLock.NpmLock({ lockfile: Input.file(\"//pnpm-lock.yaml\") })\n"
+    )
+    const build = await write(
+      "packages/lib/BUILD.ts",
+      "import { npm } from \"../../tools/npm.ts\"\n" +
+        "export const effect = npm(\"effect\")\n"
+    )
+    const module = await import(build) as { effect: Input.NpmPackage }
+    expect(module.effect.versions).toEqual(["effect@3.0.0"])
+  })
+
+  it("refuses a // anchor when no WORKSPACE.ts marks a root above the declaring module", async () => {
+    await write("pnpm-lock.yaml", lockfileSource())
+    const build = await write(
+      "packages/lib/BUILD.ts",
+      `import * as Input from ${JSON.stringify(NodePath.resolve(here, "../src/Input.ts"))}\n` +
+        `import * as NpmLock from ${JSON.stringify(NodePath.resolve(here, "../src/NpmLock.ts"))}\n` +
+        "const npm = NpmLock.NpmLock({ lockfile: Input.file(\"//pnpm-lock.yaml\") })\n" +
+        "export const effect = () => npm(\"effect\")\n"
+    )
+    const module = await import(build) as { effect: () => Input.NpmPackage }
+    expect(module.effect).toThrow(/no WORKSPACE\.ts marks a workspace root/)
   })
 
   it("produces the same digest for the same pinned version in two workspaces", async () => {

@@ -50,8 +50,10 @@ import * as PackageManager from "./PackageManager.ts"
 export interface Options {
   /**
    * The lockfile the accessor resolves packages from. A `//` prefix anchors
-   * the path at the directory of the declaring `WORKSPACE.ts`; an absolute
-   * path is used as given, which is how tests point a handle at a fixture.
+   * the path at the workspace root, the nearest ancestor of the declaring
+   * module that holds a `WORKSPACE.ts`. A relative path anchors at the
+   * declaring module's directory. An absolute path is used as given, which is
+   * how tests point a handle at a fixture.
    *
    * @default the registered package manager's lockfile, at the workspace root
    */
@@ -69,12 +71,42 @@ export interface NpmLock {
   (name: string): Input.NpmPackage
 }
 
-/** The declaration file frames a lockfile path or a refusal is reported against. */
+/** The declaration files a refusal is reported against. */
 const declarationFileNames: ReadonlyArray<string> = ["WORKSPACE.ts", "BUILD.ts"]
 
 interface Site {
   readonly path: string
   readonly line: number | undefined
+}
+
+const thisModule = fileURLToPath(import.meta.url)
+
+/** The call sites above this module, outermost last, as absolute paths. */
+const callerSites = (): ReadonlyArray<Site> => {
+  let sites: ReturnType<typeof getCallSites>
+  try {
+    sites = getCallSites(100, { sourceMap: true })
+  } catch {
+    return []
+  }
+  const found: Array<Site> = []
+  for (const site of sites) {
+    let file = site.scriptName
+    try {
+      if (file.startsWith("file:")) file = fileURLToPath(file)
+    } catch {
+      continue
+    }
+    if (!NodePath.isAbsolute(file)) continue
+    const path = NodePath.resolve(file)
+    if (path === thisModule) continue
+    const line = typeof site.lineNumber === "number" && Number.isSafeInteger(site.lineNumber) &&
+        site.lineNumber > 0
+      ? site.lineNumber
+      : undefined
+    found.push({ path, line })
+  }
+  return found
 }
 
 /**
@@ -83,28 +115,39 @@ interface Site {
  * a refusal names the declaration line the author has to edit, never a frame
  * inside this package.
  */
-const declarationSite = (): Site | undefined => {
-  let sites: ReturnType<typeof getCallSites>
+const declarationSite = (): Site | undefined =>
+  callerSites().find((site) => declarationFileNames.includes(NodePath.basename(site.path)))
+
+/**
+ * The module that called the constructor: the first frame outside this file.
+ * A handle is constructed in `WORKSPACE.ts`, in a `BUILD.ts`, or in a plain
+ * module a `BUILD.ts` imports, and the `//` anchor resolves from that
+ * module's directory in every case.
+ */
+const declaringModule = (): Site | undefined => callerSites()[0]
+
+const isFile = (path: string): boolean => {
   try {
-    sites = getCallSites(100, { sourceMap: true })
+    return NodeFs.statSync(path).isFile()
   } catch {
-    return undefined
+    return false
   }
-  for (const site of sites) {
-    let file = site.scriptName
-    try {
-      if (file.startsWith("file:")) file = fileURLToPath(file)
-    } catch {
-      continue
-    }
-    if (!declarationFileNames.includes(NodePath.basename(file))) continue
-    const line = typeof site.lineNumber === "number" && Number.isSafeInteger(site.lineNumber) &&
-        site.lineNumber > 0
-      ? site.lineNumber
-      : undefined
-    return { path: NodePath.resolve(file), line }
+}
+
+/**
+ * The nearest ancestor of `directory`, inclusive, that holds a
+ * `WORKSPACE.ts`, which is the file that marks a workspace root. The
+ * `//` anchor means the workspace root, not the declaring file's directory,
+ * so a handle built in `packages/foo/BUILD.ts` finds the root lockfile.
+ */
+const workspaceRootAbove = (directory: string): string | undefined => {
+  let current = directory
+  for (;;) {
+    if (isFile(NodePath.join(current, "WORKSPACE.ts"))) return current
+    const parent = NodePath.dirname(current)
+    if (parent === current) return undefined
+    current = parent
   }
-  return undefined
 }
 
 const formatSite = (site: Site | undefined): string =>
@@ -159,33 +202,35 @@ interface Resolved {
  * export const lib = Smithers.TsBuild({ srcs: [sources, npm("effect")], ... })
  * ```
  *
- * A BUILD.ts evaluates in a module instance separate from the one the engine
- * uses for `WORKSPACE.ts`, so it constructs the accessor (or imports it from
- * a plain module) instead of importing `WORKSPACE.ts`: importing a
- * declaration file from a BUILD.ts evaluates that file a second time, and
- * `registerToolchains` refuses the repeated registration. Construction is
- * inert, so a per-package accessor costs nothing until a name is addressed.
- * The lockfile path anchors at the nearest `WORKSPACE.ts` or `BUILD.ts`
- * frame above the constructor call; a workspace-rooted anchor therefore
- * belongs in a root-level module.
+ * The engine imports `WORKSPACE.ts` under a marked module URL, so a BUILD.ts
+ * that imports `./WORKSPACE.ts` evaluates the file a second time and
+ * `registerToolchains` refuses the repeated registration. A BUILD.ts
+ * therefore constructs its own accessor, or imports one from a plain module
+ * that every BUILD.ts shares. Construction is inert, so a per-package
+ * accessor costs nothing until a name is addressed, and the `//` anchor
+ * resolves to the workspace root from any declaring module.
  *
  * @category constructors
  * @since 0.1.0
  */
 export const NpmLock = (options: Options = {}): NpmLock => {
   if (typeof options !== "object" || options === null) {
-    throw new TypeError("NpmLock requires an options object, for example NpmLock({ lockfile: Smithers.file(\"//pnpm-lock.yaml\") })")
+    throw new TypeError(
+      "NpmLock requires an options object, for example NpmLock({ lockfile: Smithers.file(\"//pnpm-lock.yaml\") })"
+    )
   }
   const lockfile = options.lockfile
   if (lockfile !== undefined && !Input.isDeclared(lockfile)) {
-    throw new TypeError("NpmLock requires the lockfile as a declared file, for example Smithers.file(\"//pnpm-lock.yaml\")")
+    throw new TypeError(
+      "NpmLock requires the lockfile as a declared file, for example Smithers.file(\"//pnpm-lock.yaml\")"
+    )
   }
   if (lockfile !== undefined && lockfile._tag !== "File") {
     throw new TypeError("NpmLock requires the lockfile as a file declaration, not a glob or a diff")
   }
-  const home = declarationSite()
+  const home = declaringModule()
   let resolved: Resolved | undefined
-  const resolve = (): Resolved => {
+  const resolve = (caller: Site | undefined): Resolved => {
     if (resolved !== undefined) return resolved
     const manager = PackageManager.registeredToolchain().packageManager
     if (manager.name !== "pnpm") {
@@ -199,17 +244,30 @@ export const NpmLock = (options: Options = {}): NpmLock => {
     // The `//` anchor is checked before absoluteness: POSIX treats a leading
     // `//` as absolute, which would read the lockfile from the filesystem
     // root instead of the workspace root.
-    const path = text.startsWith("//") || !NodePath.isAbsolute(text)
-      ? (() => {
-        if (home === undefined) {
+    const path = (() => {
+      if (text.startsWith("//")) {
+        const root = [home, caller]
+          .flatMap((site) => site === undefined ? [] : [NodePath.dirname(site.path)])
+          .map(workspaceRootAbove)
+          .find((found) => found !== undefined)
+        if (root === undefined) {
           throw new Error(
-            `NpmLock cannot resolve ${JSON.stringify(text)}: the declaration site is unknown, ` +
-              "so no workspace root can be inferred; declare the lockfile with an absolute path"
+            `NpmLock declared at ${formatSite(home)} cannot resolve ${JSON.stringify(text)}: ` +
+              "no WORKSPACE.ts marks a workspace root above the declaring module; " +
+              "declare the lockfile with an absolute path"
           )
         }
-        return NodePath.join(NodePath.dirname(home.path), text.startsWith("//") ? text.slice(2) : text)
-      })()
-      : text
+        return NodePath.join(root, text.slice(2))
+      }
+      if (NodePath.isAbsolute(text)) return text
+      if (home === undefined) {
+        throw new Error(
+          `NpmLock cannot resolve ${JSON.stringify(text)}: the declaration site is unknown, ` +
+            "so no directory can anchor a relative path; declare the lockfile with an absolute path"
+        )
+      }
+      return NodePath.join(NodePath.dirname(home.path), text)
+    })()
     const stat = (() => {
       try {
         return NodeFs.statSync(path)
@@ -239,7 +297,7 @@ export const NpmLock = (options: Options = {}): NpmLock => {
   }
   return (name: string): Input.NpmPackage => {
     const site = declarationSite()
-    const parsed = resolve()
+    const parsed = resolve(site)
     const entries = PnpmLock.packagesNamed(parsed.lockfile, usableName(name, site))
     if (entries.length === 0) {
       throw new Error(
@@ -259,8 +317,8 @@ export const NpmLock = (options: Options = {}): NpmLock => {
     }
     return Input.NpmPackage.make({
       name,
-      versions: entries.map((entry) => entry.key),
-      closure: Input.digestText(closures.join("\n"))
+      versions: entries.map((entry) => entry.key).sort(),
+      closure: Input.digestText(closures.sort().join("\n"))
     })
   }
 }
@@ -275,5 +333,4 @@ export const NpmLock = (options: Options = {}): NpmLock => {
  * @category digests
  * @since 0.1.0
  */
-export const npmPackageDigest = (declaration: Input.NpmPackage): string =>
-  Input.digestText(JSON.stringify(declaration))
+export const npmPackageDigest = (declaration: Input.NpmPackage): string => Input.digestText(JSON.stringify(declaration))
