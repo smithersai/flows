@@ -50,6 +50,23 @@ const order = (store: AppStore): string[] =>
 		.sort((left, right) => left.ordinal - right.ordinal)
 		.map((entry) => entry.label);
 
+describe("a pending question never survives a restart", () => {
+	test("an unanswered /world.delete confirm is dropped at boot, not re-asked", async () => {
+		const storage = memoryStorage();
+		const first = await createAppStore({ kind: "localStorage", storage });
+		const note = [...first.collections.worldDocuments.values()][0];
+		expect(note).toBeDefined();
+		first.dispatch({ type: "world.delete.asked", actor: "user", id: note?.id ?? "" });
+		expect(first.session().pendingWorldDeleteId).toBe(note?.id ?? "");
+
+		// The same persisted store, opened again — the modal's overlay swallows
+		// every pointer press, so re-asking makes the whole app unreachable.
+		const second = await createAppStore({ kind: "localStorage", storage });
+		expect(second.session().pendingWorldDeleteId ?? null).toBeNull();
+		expect(second.collections.worldDocuments.get(note?.id ?? "")).toBeDefined();
+	});
+});
+
 describe("messages and cards share one transcript counter", () => {
 	test("a message posted after a card sorts below it", async () => {
 		const store = await createAppStore({ kind: "localStorage", storage: memoryStorage() });
