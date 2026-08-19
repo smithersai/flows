@@ -173,6 +173,32 @@ describe("createWebAgent", () => {
 		});
 	});
 
+	/*
+	 * The turn ceiling's refusal is written to be read by a person: it names a
+	 * loop and says nothing was charged, because someone who trips it hit a bug
+	 * and must never be sent to billing. That is only true if the sentence
+	 * actually reaches the transcript, which is what this pins.
+	 */
+	test("surfaces the turn ceiling's refusal verbatim, so the user reads the real reason", async () => {
+		const agent = createWebAgent({
+			fetchImpl: async () =>
+				new Response(
+					JSON.stringify({
+						status: "error",
+						code: "turn_rate_limited",
+						message:
+							"That is more than 120 turns in an hour, which no one types by hand — something is looping. Chat resumes on its own in about 12 minutes. Nothing was charged and your balance is untouched.",
+					}),
+					{ status: 429, headers: { "content-type": "application/json", "retry-after": "720" } },
+				),
+		});
+		const result = await agent.startTurn(request);
+		expect(result.status).toBe("error");
+		expect(result.status === "error" ? result.message : "").toContain("something is looping");
+		expect(result.status === "error" ? result.message : "").toContain("balance is untouched");
+		expect(result.status === "error" ? result.message : "").not.toContain("upgrade");
+	});
+
 	test("rejects a duplicate runId while a turn is active", async () => {
 		const agent = createWebAgent({
 			fetchImpl: async () =>
