@@ -39,8 +39,12 @@ export type Macro = (attrs: never) => object
  *
  * The planner matches `directories` against workspace directories that contain
  * the `marker` file and lack the `unless` file, then applies the macro to
- * every match. Declare workspace-wide defaults in the root BUILD.ts file; the
- * planner loads it before it synthesizes anything.
+ * every match. A `null` marker drops the marker requirement: every directory
+ * that matches the glob, directly holds at least one discovered file, and
+ * lacks the `unless` file is eligible. That is the folder-unit form, which
+ * synthesizes targets for a folder inside a package without asking the folder
+ * for a `package.json`. Declare workspace-wide defaults in the root BUILD.ts
+ * file; the planner loads it before it synthesizes anything.
  *
  * @category models
  * @since 0.1.0
@@ -48,7 +52,7 @@ export type Macro = (attrs: never) => object
 export interface PackageDefaults {
   readonly [TypeId]: typeof TypeId
   readonly directories: Input.Glob
-  readonly marker: string
+  readonly marker: string | null
   readonly unless: string
   readonly macro: Macro
   readonly attrs: Readonly<Record<string, unknown>>
@@ -62,8 +66,8 @@ export interface PackageDefaults {
  */
 export interface Options {
   readonly directories: string | Input.Glob
-  /** @default "package.json" */
-  readonly marker?: string | undefined
+  /** Pass `null` to synthesize marker-less directories. @default "package.json" */
+  readonly marker?: string | null | undefined
   /** @default "BUILD.ts" */
   readonly unless?: string | undefined
   readonly macro: Macro
@@ -71,8 +75,8 @@ export interface Options {
   readonly attrs?: Readonly<Record<string, unknown>> | undefined
 }
 
-const Marker = Schema.NonEmptyString.pipe(
-  Schema.withConstructorDefault(Effect.succeed("package.json"))
+const Marker = Schema.NullOr(Schema.NonEmptyString).pipe(
+  Schema.withConstructorDefault(Effect.succeed<string | null>("package.json"))
 )
 
 const Unless = Schema.NonEmptyString.pipe(
@@ -177,7 +181,7 @@ export const isPackageDefaults = (value: unknown): value is PackageDefaults => {
     own(directories, "_tag") === "Glob" &&
     typeof own(directories, "pattern") === "string" &&
     isStringArray(own(directories, "exclude")) &&
-    typeof own(value, "marker") === "string" &&
+    (typeof own(value, "marker") === "string" || own(value, "marker") === null) &&
     typeof own(value, "unless") === "string" &&
     typeof own(value, "macro") === "function" &&
     isDataRecord(own(value, "attrs"))

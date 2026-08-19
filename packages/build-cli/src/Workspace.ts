@@ -879,6 +879,10 @@ export class Workspace {
   private readonly scanned = new Map<string, Promise<ReadonlyArray<Imports.Import>>>()
   /** Which target of a build unit declares which file, by unit directory. */
   private readonly declaringTargets = new Map<string, Promise<ReadonlyMap<string, ReadonlyArray<string>>>>()
+  /** Packages whose subpackage edges are already linked. */
+  private readonly linked = new Set<string>()
+  /** Packages whose subpackage linking is in flight, so a nested unit that reaches back does not recurse. */
+  private readonly linking = new Set<string>()
   /** Whether any BUILD.ts file in the workspace names a visibility at all. */
   private visibilityProbe: Promise<boolean> | undefined
   /** BUILD.ts files whose import has started and not finished. */
@@ -1152,7 +1156,8 @@ export class Workspace {
 
   private eligible(entry: PackageDefaultsEntry, directory: string): boolean {
     const prefix = directory === "" ? "" : `${directory}/`
-    return this.hasFile(`${prefix}${entry.declaration.marker}`) &&
+    const marker = entry.declaration.marker
+    return (marker === null || this.hasFile(`${prefix}${marker}`)) &&
       !this.hasFile(`${prefix}${entry.declaration.unless}`) &&
       PackageDefaults.matches(entry.declaration, entry.packagePath, directory)
   }
@@ -1173,15 +1178,18 @@ export class Workspace {
     const expansion = PackageDefaults.expand(entry.declaration, directory)
     const targets = new Map<string, Target.AnyTarget>()
     for (const [name, target] of expansion.targets) this.register(targets, directory, name, target)
-    // A synthesized manifest may only name targets from the same macro
-    // application. There is no BUILD.ts here to import another package's
-    // targets from, so the record the macro just returned is the whole graph a
-    // declaration can reach, and a name outside it fails now.
+    // A synthesized manifest may name the macro's own targets and any target
+    // the index has already registered — the parent package's, or a folder
+    // unit's loaded earlier — so a unit's manifest can point at targets
+    // outside its own macro application. Synthesis is synchronous, so a
+    // target whose package nothing has loaded yet has no label and still
+    // fails here, naming the load order as the fix.
     const resolve = (target: Target.AnyTarget): string => {
       const label = this.targetLabels.get(target)
-      if (label === undefined || !targets.has(label.slice(label.indexOf(":") + 1))) {
+      if (label === undefined) {
         throw new Error(
-          `the default target for //${directory} declares a manifest naming a target it did not synthesize`
+          `the default target for //${directory} declares a manifest naming a target with no label; ` +
+            `load the package that exports it before this directory is synthesized`
         )
       }
       return label
@@ -1195,8 +1203,14 @@ export class Workspace {
 
   /**
    * Lists every directory eligible for default-target synthesis, in sorted
-   * order: it matches a declaration's glob, contains the marker file, and has
-   * no BUILD.ts (or other `unless`) file.
+   * order: it matches a declaration's glob, contains the marker file when the
+   * declaration names one, and has no BUILD.ts (or other `unless`) file.
+   *
+   * A marker-less declaration has no file to enumerate candidates from, so its
+   * candidates come from the directory side of the listing instead: every
+   * directory that directly holds at least one discovered file. A folder that
+   * contains only further folders is not a candidate, because a unit with no
+   * files of its own has nothing to build.
    *
    * @category synthesis
    * @since 0.1.0
@@ -1204,9 +1218,18 @@ export class Workspace {
   synthesizedDirectories(): ReadonlyArray<string> {
     const directories = new Set<string>()
     for (const entry of this.defaultRules) {
-      const suffix = `/${entry.declaration.marker}`
+      const marker = entry.declaration.marker
+      if (marker === null) {
+        for (const file of this.files) {
+          const parent = posix(NodePath.dirname(file))
+          const directory = parent === "." ? "" : parent
+          if (this.eligible(entry, directory)) directories.add(directory)
+        }
+        continue
+      }
+      const suffix = `/${marker}`
       for (const file of this.files) {
-        const directory = file === entry.declaration.marker
+        const directory = file === marker
           ? ""
           : file.endsWith(suffix)
           ? file.slice(0, -suffix.length)
@@ -1236,13 +1259,20 @@ export class Workspace {
     const selected = this.buildFiles.filter((file) => file.startsWith(prefix))
     const modules = await Promise.all(selected.map((file) => this.loadBuild(file)))
     await this.ensureDefaults()
-    const synthesized: Array<Target.AnyTarget> = []
+    const synthesized: Array<readonly [string, ReadonlyMap<string, Target.AnyTarget>]> = []
     for (const directory of this.synthesizedDirectories()) {
       if (directory !== pattern.packagePath && !directory.startsWith(prefix)) continue
       const targets = this.synthesizeDirectory(directory)
-      if (targets !== undefined) synthesized.push(...targets.values())
+      if (targets !== undefined) synthesized.push([directory, targets])
     }
-    return [...modules.flatMap((module) => [...module.targets.values()]), ...synthesized]
+    await Promise.all([
+      ...modules.map((module) => this.linkSubunits(packagePathForBuild(module.file), module.targets)),
+      ...synthesized.map(([directory, targets]) => this.linkSubunits(directory, targets))
+    ])
+    return [
+      ...modules.flatMap((module) => [...module.targets.values()]),
+      ...synthesized.flatMap(([, targets]) => [...targets.values()])
+    ]
   }
 
   /**
@@ -1255,13 +1285,16 @@ export class Workspace {
   async packageTargets(packagePath: string): Promise<ReadonlyMap<string, Target.AnyTarget>> {
     const buildFile = this.buildForPackage(packagePath)
     if (this.buildFiles.includes(buildFile)) {
-      return (await this.loadBuild(buildFile)).targets
+      const module = await this.loadBuild(buildFile)
+      await this.linkSubunits(packagePath, module.targets)
+      return module.targets
     }
     await this.ensureDefaults()
     const targets = this.synthesizeDirectory(packagePath)
     if (targets === undefined) {
       throw new Error(`package //${packagePath} has no BUILD.ts and matches no default target`)
     }
+    await this.linkSubunits(packagePath, targets)
     return targets
   }
 
@@ -1410,6 +1443,75 @@ export class Workspace {
       }
     }
     return pruned
+  }
+
+  /**
+   * Adds a dependency edge from every target a subpackage boundary prunes to
+   * the default target of the subpackage that prunes it.
+   *
+   * Adding a nested BUILD.ts truncates the parent's declared globs (see
+   * {@link prunedGlobs}) while the parent's tools keep reading the subtree, so
+   * the parent's key stops covering files its actions consume. The planner
+   * refuses that plan unless the parent's dependency closure reaches the
+   * subpackage. Hand-writing that edge in every parent is the boilerplate D13
+   * exists to remove, so the index derives it: the boundary is a fact of the
+   * file listing, and the unit's default target is the edge's only honest
+   * endpoint. The edge folds the unit's key into the parent's, which is
+   * exactly the coverage the guard asks for.
+   *
+   * Two costs are deliberate. Planning a package now evaluates the BUILD.ts of
+   * every folder unit nested inside it, where an exact-label plan previously
+   * stayed lazy. And the edge is appended to the target's metadata dependency
+   * list rather than declared in attrs, because attrs are key material and the
+   * boundary is not: the workspace derives the same edge from the same listing
+   * on every machine. The append reaches the shared base view, so a rule that
+   * re-derives its dependencies per verb through `attrsForKind` keeps only its
+   * declared edges for that verb; no catalog rule used as a package macro does
+   * that.
+   */
+  private async linkSubunits(
+    packagePath: string,
+    targets: ReadonlyMap<string, Target.AnyTarget>
+  ): Promise<void> {
+    if (this.linked.has(packagePath) || this.linking.has(packagePath)) return
+    if (this.subpackages(packagePath).length === 0) {
+      this.linked.add(packagePath)
+      return
+    }
+    this.linking.add(packagePath)
+    try {
+      for (const target of targets.values()) {
+        for (const pruned of this.prunedGlobs(target)) {
+          const unit = await this.packageTargets(pruned.directory)
+          const dependency = this.defaultTargetOrUndefined(pruned.directory, unit)
+          // A unit with no default target gives the edge no endpoint. Skip it
+          // and let the planner's pruning guard refuse the target: its error
+          // names the glob, the boundary, and the files, which a missing
+          // edge here cannot say better.
+          if (dependency === undefined) continue
+          const metadata = Target.metadata(target)
+          if (!metadata.dependencies.includes(dependency)) {
+            (metadata.dependencies as Array<Target.AnyTarget>).push(dependency)
+          }
+        }
+      }
+      this.linked.add(packagePath)
+    } finally {
+      this.linking.delete(packagePath)
+    }
+  }
+
+  /** The package's default target, or undefined when no candidate resolves one. */
+  private defaultTargetOrUndefined(
+    packagePath: string,
+    targets: ReadonlyMap<string, Target.AnyTarget>
+  ): Target.AnyTarget | undefined {
+    const basename = packagePath === "" ? "" : packagePath.split("/").at(-1) ?? ""
+    for (const candidate of ["lib", "nodeModules", basename, "default"]) {
+      const target = targets.get(candidate)
+      if (target !== undefined) return target
+    }
+    return targets.size === 1 ? [...targets.values()][0]! : undefined
   }
 
   /**

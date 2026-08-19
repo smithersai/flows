@@ -2,8 +2,11 @@
  * Workspace package scaffolding.
  *
  * `//:newPackage` writes the smallest tree a workspace default target can pick
- * up: a manifest, a tsconfig, one source file, one test, and a README. It
- * deliberately writes NO `BUILD.ts`. A standard package needs none — the root
+ * up: a manifest, the two tsconfigs, the vitest, eslint, and dprint configs,
+ * one source file, one test, and a README. The four tool configs are the same
+ * files all 45 hand-written packages carry, because the synthesized `check`,
+ * `test`, `lint`, and `fmt` targets declare them as inputs. It deliberately
+ * writes NO `BUILD.ts`. A standard package needs none — the root
  * default target synthesizes its `lib`, `test`, `lint`, and manifest targets from
  * the directory alone — and scaffolding one would opt the new package out of
  * exactly the defaults it was created to follow.
@@ -153,6 +156,166 @@ const sourceIdentifier = (name: string): string => {
 }
 
 /**
+ * The `tsconfig.test.json` every hand-written package carries.
+ *
+ * It extends the package tsconfig and turns off emit, which is what the
+ * synthesized `check` target runs `tsc -p` against.
+ */
+const testTsconfig = (): string =>
+  `${
+    JSON.stringify(
+      {
+        extends: "./tsconfig.json",
+        compilerOptions: {
+          rootDir: ".",
+          noEmit: true,
+          declaration: false,
+          declarationMap: false,
+          composite: false,
+          resolveJsonModule: true
+        },
+        include: ["src/**/*", "test/**/*"]
+      },
+      undefined,
+      2
+    )
+  }\n`
+
+/**
+ * The `vitest.config.ts` every hand-written package carries.
+ *
+ * The coverage report directory names the package, so two packages' runs never
+ * share the scratch directory the v8 provider clears at run start.
+ */
+const vitestConfig = (name: string): string =>
+  `import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { defineConfig } from "vitest/config"
+
+export default defineConfig({
+  test: {
+    environment: "node",
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
+    coverage: {
+      enabled: true,
+      provider: "v8",
+      reportsDirectory: join(tmpdir(), \`flows-${directoryName(name)}-coverage-\${process.pid}\`),
+      include: ["src/**"],
+      thresholds: {
+        branches: 100,
+        functions: 100,
+        lines: 100,
+        statements: 100
+      }
+    }
+  }
+})
+`
+
+/**
+ * The `eslint.config.js` most hand-written packages carry.
+ *
+ * The jsdoc convention import is rooted two levels up, which matches the
+ * default `packages/<name>` layout the same way the `tsconfigExtends` default
+ * does.
+ */
+const eslintConfig = (): string =>
+  `import js from "@eslint/js"
+import importPlugin from "eslint-plugin-import"
+import unicorn from "eslint-plugin-unicorn"
+import tseslint from "typescript-eslint"
+import { jsdocConvention } from "../../eslint.jsdoc.js"
+
+export default tseslint.config(
+  {
+    ignores: ["**/dist", "**/build", "**/coverage"]
+  },
+  js.configs.recommended,
+  importPlugin.flatConfigs.recommended,
+  importPlugin.flatConfigs.typescript,
+  {
+    files: ["src/**/*.ts"],
+    extends: [tseslint.configs.recommended],
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname
+      }
+    },
+    settings: {
+      "import/resolver": {
+        typescript: {
+          project: ["./tsconfig.json"]
+        }
+      }
+    },
+    plugins: {
+      unicorn
+    },
+    rules: {
+      "@typescript-eslint/array-type": ["error", { default: "generic", readonly: "generic" }],
+      "@typescript-eslint/consistent-type-imports": ["error", { fixStyle: "inline-type-imports" }],
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-import-type-side-effects": "error",
+      "@typescript-eslint/no-unnecessary-type-assertion": "error",
+      "@typescript-eslint/no-unnecessary-type-constraint": "error",
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
+      "@typescript-eslint/no-useless-empty-export": "error",
+      "import/no-duplicates": "error",
+      "import/no-empty-named-blocks": "error",
+      "import/no-self-import": "error",
+      "no-await-in-loop": "off",
+      "no-console": "error",
+      "no-fallthrough": "off",
+      "no-shadow": "off",
+      "no-unneeded-ternary": "error",
+      "no-unused-vars": "off",
+      "no-useless-concat": "error",
+      "no-useless-constructor": "error",
+      "no-var": "error",
+      "object-shorthand": "off",
+      "require-yield": "off",
+      "unicorn/no-abusive-eslint-disable": "error",
+      "unicorn/no-accessor-recursion": "error",
+      "unicorn/prefer-array-flat-map": "error"
+    }
+  },
+  ...jsdocConvention
+)
+`
+
+/** The `dprint.json` every hand-written package carries. */
+const dprintConfig = (): string =>
+  `${
+    JSON.stringify(
+      {
+        $schema: "https://dprint.dev/schemas/v0.json",
+        incremental: false,
+        includes: ["**/*.{ts,tsx,js,jsx,json,md}"],
+        indentWidth: 2,
+        lineWidth: 120,
+        newLineKind: "lf",
+        typescript: {
+          semiColons: "asi",
+          quoteStyle: "alwaysDouble",
+          trailingCommas: "never",
+          operatorPosition: "maintain",
+          "arrowFunction.useParentheses": "force"
+        },
+        excludes: ["**/dist", "**/build", "**/coverage", ".smithers"],
+        plugins: [
+          "https://plugins.dprint.dev/typescript-0.93.4.wasm",
+          "https://plugins.dprint.dev/markdown-0.20.0.wasm",
+          "https://plugins.dprint.dev/json-0.21.1.wasm"
+        ]
+      },
+      undefined,
+      2
+    )
+  }\n`
+
+/**
  * The static boilerplate a scaffolded package starts from.
  *
  * A model could write a better README and a better first test, and the
@@ -189,6 +352,10 @@ export const boilerplate = (
         )
       }\n`
     ],
+    ["tsconfig.test.json", testTsconfig()],
+    ["vitest.config.ts", vitestConfig(name)],
+    ["eslint.config.js", eslintConfig()],
+    ["dprint.json", dprintConfig()],
     [
       "src/index.ts",
       `/**\n * ${name}\n *\n * @since 0.1.0\n */\n\n/**\n * The package name.\n *\n * @category constants\n * @since 0.1.0\n */\nexport const ${identifier} = ${

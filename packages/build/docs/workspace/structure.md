@@ -67,8 +67,25 @@ packages/flow/BUILD.ts       -> //packages/flow
 packages/flow/test/BUILD.ts  -> //packages/flow/test
 ```
 
-There is no `subpackages` target and no visibility system. Nesting a `BUILD.ts`
-inside another package's directory simply creates a second package.
+Nesting a `BUILD.ts` inside another package's directory creates a folder unit:
+a second package, addressable at its own depth, while the parent keeps its own
+targets. The unit is additive in the label space, but it is a package boundary
+for globs, and that has teeth.
+
+- The parent's declared globs stop at the boundary. A `src/**/*.ts` glob in the
+  parent no longer measures the unit's files, while the parent's tools — `tsc`
+  over the parent, say — still read them.
+- The index answers by deriving the dependency the guard requires: every parent
+  target whose glob the boundary prunes gains an edge to the unit's default
+  target, so the subtree re-enters the parent's key through the unit's own
+  declared inputs. Planning a package therefore evaluates the `BUILD.ts` of
+  every unit nested inside it.
+- A unit with no default target gives the edge no endpoint. The planner then
+  refuses the parent's plan and names the glob, the boundary, and the files,
+  rather than planning with a shrunken input set.
+- A marker-less synthesized unit holds no `BUILD.ts`, so it is not a boundary:
+  the parent's globs still cover it, and no edge is derived. Add the file when
+  the folder should diverge from the parent or restrict visibility.
 
 ## Lazy evaluation
 
@@ -132,20 +149,33 @@ export const packageDefaults = Smithers.PackageDefaults({
 
 A directory is eligible when all three hold:
 
-- it contains the `marker` file,
+- it contains the `marker` file, unless the declaration's marker is `null`,
 - it does not contain the `unless` file, which defaults to `BUILD.ts`,
 - it matches the declaration's `directories` glob, resolved against the package
   that declared it.
 
-The first eligible declaration wins. Its macro receives `{ cwd: <directory>, ...attrs }`,
-so a synthesized package runs its tools inside itself, and declared `attrs` still
-override `cwd`. Every target in the returned object is registered under a
-path-derived label, with names sorted so synthesis is deterministic. A macro that
-returns no targets fails with `default target synthesized no targets for //<dir>`.
+A marker-less declaration synthesizes folder units: any directory matching the
+glob that directly holds at least one file and has no `BUILD.ts`. The first
+eligible declaration wins. Its macro receives
+`{ cwd: <directory>, name, version, group, private, ...attrs }`, with the
+manifest fields undefined for a directory without a readable `package.json`,
+so a synthesized package runs its tools inside itself, and declared `attrs`
+still override `cwd`. Every target in the returned object is registered under a
+path-derived label, with names sorted so synthesis is deterministic. A macro
+that returns no targets fails with
+`default target synthesized no targets for //<dir>`.
 
 The root `BUILD.ts` is always loaded before any synthesis decision, so
 workspace-level declarations are in scope. See
-[Default targets](../extending/default-targets.md).
+[Default targets](../extending/default-rules.md).
+
+Not every workspace member is covered. `apps/server`, `apps/shared`,
+`apps/tui`, `apps/ui`, `examples`, and `packages/build/infra` carry a
+`package.json` and appear in `pnpm-workspace.yaml`, but they match no
+declaration's glob and hold no `BUILD.ts`, so they have zero build-system
+targets even though the root `pnpm test` runs their suites. The gap is
+documented rather than fixed; closing it is a declaration change, not a
+planner change.
 
 ## Host state
 

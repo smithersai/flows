@@ -9,6 +9,13 @@
  * key stops changing when they change. Under `cache: true` that is a stale
  * green, which is why the guard has to land before the cache default flips.
  *
+ * The index derives the covering edge itself: every target a boundary prunes
+ * gains a dependency on the default target of the package that prunes it, so
+ * the subtree re-enters the parent's key through the unit's own declared
+ * inputs. The guard remains as the backstop for a package the index never
+ * linked, and a unit with no unambiguous default target fails the plan,
+ * because the edge then has no honest endpoint.
+ *
  * These cases reproduce the scratch-workspace finding exactly: two source
  * files, one nested BUILD.ts, and a diff of the declared input set.
  */
@@ -104,15 +111,32 @@ describe("subpackage pruning", () => {
     expect(files).toContain("pkg/src/internal/b.ts")
   })
 
-  it("refuses the plan when a nested BUILD.ts prunes a declared glob", async () => {
+  it("derives the covering edge when a nested BUILD.ts prunes a declared glob", async () => {
     await write("pkg/src/internal/BUILD.ts", internalBuild)
-    // Before this guard the plan succeeded and quietly dropped
-    // `pkg/src/internal/b.ts`, while `tsc` kept compiling it.
-    await expect(plan("//pkg:lib")).rejects.toThrow(Planner.SubpackagePruningError)
+    // Before the guard the plan succeeded and quietly dropped
+    // `pkg/src/internal/b.ts`, while `tsc` kept compiling it. The plan now
+    // succeeds openly: the parent depends on the unit's default target, and
+    // the subtree is measured by the unit's own declared inputs.
+    const result = await plan("//pkg:lib")
+    expect(result.edges).toContainEqual({ from: "//pkg/src/internal:lib", to: "//pkg:lib" })
+    const parent = result.targets.find((target) => target.label === "//pkg:lib")!
+    const parentFiles = parent.declaredInputs.flatMap((input) => input.files.map((file) => file.path))
+    expect(parentFiles).not.toContain("pkg/src/internal/b.ts")
+    const whole = result.targets.flatMap((target) => target.declaredInputs)
+      .flatMap((input) => input.files.map((file) => file.path))
+    expect(whole).toContain("pkg/src/internal/b.ts")
   })
 
-  it("names the target, the subpackage, and the files the boundary removed", async () => {
-    await write("pkg/src/internal/BUILD.ts", internalBuild)
+  it("refuses the plan when the pruning unit has no default target to edge to", async () => {
+    // The derived edge ends at the unit's default target. Two exports and no
+    // conventional name means no default, so no edge is derived and the guard
+    // refuses the plan, naming the target, the boundary, and the files.
+    await write(
+      "pkg/src/internal/BUILD.ts",
+      internalBuild.replace("export const lib =", "export const alpha =") +
+      internalBuild.replace("export const lib =", "export const beta =")
+    )
+    await expect(plan("//pkg:lib")).rejects.toThrow(Planner.SubpackagePruningError)
     await expect(plan("//pkg:lib")).rejects.toThrow(/\/\/pkg:lib declares the glob "src\/\*\*\/\*\.ts"/)
     await expect(plan("//pkg:lib")).rejects.toThrow(/BUILD\.ts file in \/\/pkg\/src\/internal/)
     await expect(plan("//pkg:lib")).rejects.toThrow(/pkg\/src\/internal\/b\.ts/)

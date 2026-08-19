@@ -49,11 +49,35 @@ describe("scaffold", () => {
     expect(report.files).toEqual([
       "packages/widget/package.json",
       "packages/widget/tsconfig.json",
+      "packages/widget/tsconfig.test.json",
+      "packages/widget/vitest.config.ts",
+      "packages/widget/eslint.config.js",
+      "packages/widget/dprint.json",
       "packages/widget/src/index.ts",
       "packages/widget/test/index.test.ts",
       "packages/widget/README.md"
     ])
     expect(await Fs.readdir(NodePath.join(root, "packages/widget"))).not.toContain("BUILD.ts")
+  })
+
+  it("writes the four tool configs the synthesized targets declare", async () => {
+    await run("@smthrs/widget")
+    const read = (file: string) => Fs.readFile(NodePath.join(root, "packages/widget", file), "utf8")
+    const testTsconfig = JSON.parse(await read("tsconfig.test.json")) as {
+      readonly extends: string
+      readonly compilerOptions: { readonly noEmit: boolean }
+      readonly include: ReadonlyArray<string>
+    }
+    expect(testTsconfig.extends).toBe("./tsconfig.json")
+    expect(testTsconfig.compilerOptions.noEmit).toBe(true)
+    expect(testTsconfig.include).toEqual(["src/**/*", "test/**/*"])
+    const vitest = await read("vitest.config.ts")
+    expect(vitest).toContain("flows-widget-coverage-")
+    expect(vitest).toContain(`environment: "node"`)
+    const eslint = await read("eslint.config.js")
+    expect(eslint).toContain(`from "../../eslint.jsdoc.js"`)
+    const dprint = JSON.parse(await read("dprint.json")) as { readonly lineWidth: number }
+    expect(dprint.lineWidth).toBe(120)
   })
 
   it("writes a manifest carrying the template fields", async () => {
@@ -84,9 +108,11 @@ describe("scaffold", () => {
   })
 
   it("always generates a valid non-reserved JavaScript binding", () => {
-    expect(boilerplate("123", payload)[2]?.[1]).toContain("export const package123")
-    expect(boilerplate("default", payload)[2]?.[1]).toContain("export const packageDefault")
-    expect(boilerplate("eval", payload)[2]?.[1]).toContain("export const packageEval")
+    const source = (name: string) =>
+      boilerplate(name, payload).find(([file]) => file === "src/index.ts")?.[1] ?? ""
+    expect(source("123")).toContain("export const package123")
+    expect(source("default")).toContain("export const packageDefault")
+    expect(source("eval")).toContain("export const packageEval")
   })
 
   it("names the flag when no package name was supplied", async () => {
@@ -169,10 +195,14 @@ describe("scaffold", () => {
     expect(results.filter((result) => result.status === "rejected")).toHaveLength(1)
     expect((await Fs.readdir(NodePath.join(root, "packages/widget"))).sort()).toEqual([
       "README.md",
+      "dprint.json",
+      "eslint.config.js",
       "package.json",
       "src",
       "test",
-      "tsconfig.json"
+      "tsconfig.json",
+      "tsconfig.test.json",
+      "vitest.config.ts"
     ])
     expect(await temporaryEntries()).toEqual([])
   })
