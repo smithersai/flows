@@ -131,7 +131,9 @@ const upstreamProse = (body: string): string | undefined => {
 		typeof record.error === "object" && record.error !== null
 			? (record.error as { message?: unknown }).message
 			: record.error;
-	const prose = [record.message, nested].find((value): value is string => typeof value === "string" && value.trim() !== "");
+	const prose = [record.message, nested].find(
+		(value): value is string => typeof value === "string" && value.trim() !== "",
+	);
 	return prose === undefined ? undefined : prose.trim().slice(0, 200);
 };
 
