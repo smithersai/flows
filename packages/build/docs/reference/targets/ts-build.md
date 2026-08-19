@@ -81,11 +81,17 @@ zero without creating it fails the target.
 
 ## Status
 
-|           |                                                                         |
-| --------- | ----------------------------------------------------------------------- |
-| Kinds     | `build`                                                                 |
-| Cacheable | Never; output restoration and complete toolchain identity are not wired |
-| Executes  | Yes, through `ExecLive`                                                 |
+|           |                                                       |
+| --------- | ----------------------------------------------------- |
+| Kinds     | `build`                                               |
+| Cacheable | Yes, by default; a hit restores the declared `outDir` |
+| Executes  | Yes, through `ExecLive`                               |
+
+This target declares outputs, so a hit restores the declared tree from the
+content-addressed store before it is reported, and falls through to a normal run
+when the store cannot serve every blob. The declared toolchain and the lockfile
+digest are key material; the installed tool binary is not. See
+[Cacheability](../../workspace/caching.md#cacheability).
 
 ## See also
 

@@ -45,6 +45,12 @@ export interface Options {
   /** @default ".artifacts/release-packs" */
   readonly packDirectory?: string | undefined
   readonly sources?: Input.Glob | undefined
+  /**
+   * The test set. It defaults to every file under `test`, not to the spec
+   * files alone: a run reads its harnesses and fixtures as well as its
+   * `.test.ts` files, and a cacheable test target that declares only the spec
+   * files replays a green result after a harness edit.
+   */
   readonly tests?: Input.Glob | undefined
   readonly tsconfig?: Input.File | undefined
   readonly testTsconfig?: Input.File | undefined
@@ -147,6 +153,13 @@ export const distTag = (version: string): string => version.includes("-") ? "nex
  * build, test, and lint. Callers can override any shared input without
  * replacing the macro.
  *
+ * `test` declares the whole test directory, not the spec files alone. Vitest
+ * loads harnesses and reads fixtures of any extension, and those reads are key
+ * material only if the declaration names them. `test` results replay from
+ * cache, so a declaration narrowed to `.test.ts` reports the previous run's
+ * green after a harness edit. `check` and `fmt` already covered the whole `.ts`
+ * test tree; `test` now covers the rest of it.
+ *
  * `publish` is emitted only for a package whose manifest names it, versions
  * it, puts it in the {@link releaseGroup}, and does not mark it private. It
  * publishes the staged tarball {@link defaultPackDirectory} holds, never the
@@ -163,7 +176,7 @@ export const StandardPackage = (options: Options): StandardTargets => {
   const cwd = options.cwd ?? "."
   const deps = options.deps ?? []
   const sources = options.sources ?? Input.glob("src/**/*.ts")
-  const tests = options.tests ?? Input.glob("test/**/*.test.ts")
+  const tests = options.tests ?? Input.glob("test/**/*")
   const tsconfig = options.tsconfig ?? Input.file("tsconfig.json")
   const testTsconfig = options.testTsconfig ?? Input.file("tsconfig.test.json")
   const vitestConfig = options.vitestConfig === undefined

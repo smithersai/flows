@@ -1,6 +1,12 @@
 import * as Node from "@smthrs/plan/Node"
 import * as Schema from "effect/Schema"
-import { describe, expect, it } from "vitest"
+import * as Fs from "node:fs/promises"
+import * as Os from "node:os"
+import * as NodePath from "node:path"
+import { fileURLToPath } from "node:url"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import * as Input from "../src/Input.ts"
+import { StandardPackage } from "../src/StandardPackage.ts"
 import * as Target from "../src/Target.ts"
 
 const Leaf = Target.make("RuleTestLeaf", {
@@ -54,18 +60,41 @@ describe("Target metadata traversal", () => {
     expect(invoked).toBe(false)
   })
 
-  it("defaults arbitrary target implementations to non-cacheable", () => {
-    expect(Target.metadata(Leaf({})).cacheable).toBe(false)
+  it("defaults arbitrary target implementations to cacheable", () => {
+    expect(Target.metadata(Leaf({})).cacheable).toBe(true)
   })
 
-  it("requires a target implementation to opt into cache replay explicitly", () => {
-    const Deterministic = Target.make("RuleTestDeterministic", {
+  it("requires a target implementation to opt out of cache replay explicitly", () => {
+    const Irreplayable = Target.make("RuleTestIrreplayable", {
       attrs: Schema.Struct({}),
       kinds: ["build"],
-      cache: true,
-      implementation: () => Target.notImplemented("RuleTestDeterministic")
+      cache: false,
+      implementation: () => Target.notImplemented("RuleTestIrreplayable")
     })
-    expect(Target.metadata(Deterministic({})).cacheable).toBe(true)
+    expect(Target.metadata(Irreplayable({})).cacheable).toBe(false)
+  })
+
+  it("records the defaulted cache decision in implementation identity", () => {
+    // Both flip sites must agree. If only `cacheableFor` were flipped, a
+    // defaulted rule would report `cacheable: true` while its digest still
+    // recorded `["constant", false]`, so the digest would no longer identify
+    // the cache decision it claims to identify.
+    const implementation = () => Target.notImplemented("RuleTestDefaultedCache")
+    const definition = (cache?: boolean) =>
+      Target.make("RuleTestDefaultedCache", {
+        attrs: Schema.Struct({}),
+        kinds: ["build"],
+        ...cache === undefined ? {} : { cache },
+        implementation
+      })
+
+    const defaulted = Target.metadata(definition()({}))
+    const optedIn = Target.metadata(definition(true)({}))
+    const optedOut = Target.metadata(definition(false)({}))
+
+    expect(defaulted.cacheable).toBe(true)
+    expect(defaulted.implementationDigest).toBe(optedIn.implementationDigest)
+    expect(defaulted.implementationDigest).not.toBe(optedOut.implementationDigest)
   })
 
   it("re-derives dependencies from verb-effective attrs", () => {
@@ -157,5 +186,194 @@ describe("Target metadata traversal", () => {
 
     expect(Target.metadata(definition("first")({})).implementationDigest)
       .not.toBe(Target.metadata(definition("second")({})).implementationDigest)
+  })
+})
+
+/**
+ * The cache decision of every rule in the catalog, read from its source.
+ *
+ * A rule's cacheability is decided at `Target.make`, before any attrs exist,
+ * so reading it back from a constructed target would need one valid attrs
+ * record per rule. Reading the declaration states the property directly:
+ * which rules name a `cache` option, and which fall through to the default.
+ * The scan is exact rather than a grep, because `cache` also appears as an
+ * attrs field name in `ToolBuild` and as a local in several rules.
+ */
+const declarations = await (async () => {
+  const directory = NodePath.join(NodePath.dirname(fileURLToPath(import.meta.url)), "..", "src")
+  const found: Array<{ readonly rule: string; readonly cache: string | undefined }> = []
+  const names = (await Fs.readdir(directory)).filter((entry) => entry.endsWith(".ts")).sort()
+  for (const name of names) {
+    const source = await Fs.readFile(NodePath.join(directory, name), "utf8")
+    for (const call of source.matchAll(/Target\.make\(\s*([^,]+),\s*\{\n/g)) {
+      const open = call.index + call[0].length - 1
+      let depth = 1
+      let close = open + 1
+      for (; close < source.length && depth > 0; close += 1) {
+        if (source[close] === "{") depth += 1
+        else if (source[close] === "}") depth -= 1
+      }
+      const line = source.slice(source.lastIndexOf("\n", call.index) + 1, call.index)
+      const indent = " ".repeat(line.length - line.trimStart().length)
+      const option = new RegExp(`^${indent}  cache: (.*?),?$`, "m").exec(source.slice(open, close))
+      found.push({ rule: call[1]!.trim().replaceAll("\"", ""), cache: option?.[1] })
+    }
+  }
+  return found
+})()
+
+/** Rules that name no `cache` option and therefore take the default. */
+const defaulted = declarations.filter((entry) => entry.cache === undefined).map((entry) => entry.rule)
+
+/** Rules that opt out of replay explicitly. */
+const optedOut = declarations.filter((entry) => entry.cache === "false").map((entry) => entry.rule)
+
+describe("the catalog's cache decisions", () => {
+  it("finds every rule declaration", () => {
+    expect(declarations.length).toBe(30)
+  })
+
+  it("leaves exactly nine build, test, and lint rules on the default", () => {
+    // The rules the `cache: true` default made cacheable. For Typecheck,
+    // Vitest, VitestCoverage, BiomeCheck, DepsLint, and PackageLint a hit is a
+    // full skip: none declares outputs. DtsBuild, TsBuild, and TypedocDocs
+    // declare outputs, and a hit restores those outputs from the
+    // content-addressed store before it is reported.
+    expect(defaulted).toEqual([
+      "BiomeCheck",
+      "DepsLint",
+      "DtsBuild",
+      "PackageLint",
+      "TsBuild",
+      "Typecheck",
+      "TypedocDocs",
+      "Vitest",
+      "VitestCoverage"
+    ])
+  })
+
+  it("keeps every explicit opt-out", () => {
+    // The template entry is `GeneratedFile.generateFilePair`'s write half,
+    // which Tsconfig, PnpmWorkspaceFile, and PackageJson's pair share.
+    expect(optedOut).toEqual([
+      "Changesets",
+      "Clean",
+      "Dev",
+      "Dprint",
+      "EsLint",
+      "`${options.target}Write`",
+      "Install",
+      "JsrPublish",
+      "LlmLint",
+      "Lockfile",
+      "NewPackage",
+      "NpmPublish",
+      "PackageJsonWrite",
+      "SortPackageJson",
+      "VitestWatch"
+    ])
+  })
+
+  it("leaves the computed and explicitly cacheable rules alone", () => {
+    const computed = declarations.filter((entry) =>
+      entry.cache !== undefined && entry.cache !== "false" && entry.cache !== "true"
+    )
+    // `ruleId` is Filegroup's exported constant and `${options.target}Check`
+    // is generateFilePair's check half; both are read as written.
+    expect(computed.map((entry) => entry.rule)).toEqual(["GithubCiGen", "ToolBuild"])
+    expect(declarations.filter((entry) => entry.cache === "true").map((entry) => entry.rule))
+      .toEqual(["DocsParity", "ruleId", "`${options.target}Check`", "PackageJsonCheck"])
+  })
+})
+
+describe("a cacheable test target declares its whole test directory", () => {
+  let root: string
+
+  const write = async (relative: string, text: string): Promise<void> => {
+    const path = NodePath.join(root, relative)
+    await Fs.mkdir(NodePath.dirname(path), { recursive: true })
+    await Fs.writeFile(path, text, "utf8")
+  }
+
+  /** The package the declarations resolve against, as the planner resolves them. */
+  const packageDirectory = "packages/demo"
+
+  /** Every workspace file one target's declarations expand to. */
+  const declaredFiles = async (target: Target.AnyTarget): Promise<Array<string>> => {
+    const files: Array<string> = []
+    for (const declaration of Target.metadata(target).inputs) {
+      if (declaration._tag === "Glob") {
+        files.push(...await Input.expandGlob(root, packageDirectory, declaration))
+      } else if (declaration._tag === "File") {
+        files.push(Input.resolvePath(packageDirectory, declaration.path))
+      }
+    }
+    return files
+  }
+
+  /**
+   * The digest of everything one target declares, which is the part of its
+   * cache key a workspace edit moves.
+   */
+  const declaredDigest = async (target: Target.AnyTarget): Promise<string> => {
+    const digests = await Input.digestFiles(root, await declaredFiles(target))
+    return Input.digestText(digests.map((entry) => `${entry.path} ${entry.digest}`).join(" "))
+  }
+
+  beforeEach(async () => {
+    root = await Fs.mkdtemp(NodePath.join(Os.tmpdir(), "smthrs-standard-package-"))
+    await write("packages/demo/src/index.ts", "export const value = 1\n")
+    await write("packages/demo/tsconfig.json", "{}\n")
+    await write("packages/demo/tsconfig.test.json", "{}\n")
+    await write("packages/demo/vitest.config.ts", "export default {}\n")
+    await write("packages/demo/test/value.test.ts", "export const spec = 1\n")
+    await write("packages/demo/test/MemoryHarness.ts", "export const harness = 1\n")
+    await write("packages/demo/test/fixtures/stream.sse", "data: one\n")
+  })
+
+  afterEach(async () => {
+    await Fs.rm(root, { force: true, recursive: true })
+  })
+
+  it("is cacheable, so an undeclared read replays a stale success", () => {
+    const targets = StandardPackage({ deps: [], cwd: "packages/demo" })
+    expect(Target.metadata(targets.test).cacheable).toBe(true)
+    expect(Target.metadata(targets.check).cacheable).toBe(true)
+    expect(Target.metadata(targets.lib).cacheable).toBe(true)
+  })
+
+  it("declares the harness and the non-TypeScript fixture", async () => {
+    const files = await declaredFiles(StandardPackage({ deps: [], cwd: "packages/demo" }).test)
+    expect(files).toContain("packages/demo/test/value.test.ts")
+    expect(files).toContain("packages/demo/test/MemoryHarness.ts")
+    expect(files).toContain("packages/demo/test/fixtures/stream.sse")
+  })
+
+  it("re-keys when a harness that is not a spec file changes", async () => {
+    const test = StandardPackage({ deps: [], cwd: "packages/demo" }).test
+    const before = await declaredDigest(test)
+    await write("packages/demo/test/MemoryHarness.ts", "export const harness = 2\n")
+    expect(await declaredDigest(test)).not.toBe(before)
+  })
+
+  it("re-keys when a fixture that is not TypeScript changes", async () => {
+    const test = StandardPackage({ deps: [], cwd: "packages/demo" }).test
+    const before = await declaredDigest(test)
+    await write("packages/demo/test/fixtures/stream.sse", "data: two\n")
+    expect(await declaredDigest(test)).not.toBe(before)
+  })
+
+  it("would not have re-keyed under the spec-file-only declaration", async () => {
+    // The declaration this change widened, kept as the regression it guards:
+    // a cacheable target that declares only `test` spec files reports the
+    // previous run's green after a harness edit.
+    const narrow = StandardPackage({
+      deps: [],
+      cwd: "packages/demo",
+      tests: Input.glob("test/**/*.test.ts")
+    }).test
+    const before = await declaredDigest(narrow)
+    await write("packages/demo/test/MemoryHarness.ts", "export const harness = 3\n")
+    expect(await declaredDigest(narrow)).toBe(before)
   })
 })

@@ -514,9 +514,29 @@ export interface MakeOptions<
   readonly outputs?: ((attrs: Attrs["Type"]) => DeclaredOutputs) | undefined
   /**
    * Whether executor results may be replayed across runs. The default is
-   * false: arbitrary target bodies can consult tools, services, or host state
-   * that attrs and declared inputs do not identify. A target opts in only after
-   * its implementation has a complete deterministic input contract.
+   * true, matching Bazel and Turborepo: a target is cacheable unless it says
+   * otherwise, and the rules that must always run say so.
+   *
+   * The default used to be false, on the stated ground that arbitrary target
+   * bodies consult tools, services, and host state that attrs and declared
+   * inputs do not identify. Key material now carries the workspace toolchain
+   * and the shipped implementation's own source bytes, so a rule that declares
+   * every file it reads is identified by its key. What remains outside the key
+   * is the installed tool binary: a lockfile that has not been installed, a
+   * partial install, and a locally linked tool all key alike. That gap is why
+   * a rule whose result must not survive an unmeasured toolchain change still
+   * declares `cache: false`.
+   *
+   * A rule opts out when replaying its result would be wrong rather than
+   * merely stale. Three cases recur: the rule mutates the workspace or a
+   * registry, so a skipped run skips the effect (`Install`, `NpmPublish`,
+   * `PackageJsonWrite`); the rule's result is the fact that it just ran, so a
+   * replay defeats the gate (`Clean`, a reproducibility rebuild); or the rule
+   * reads state no declaration reaches (`Dev`, `VitestWatch`, `LlmLint`).
+   *
+   * A cacheable rule must declare every file it reads. An incomplete
+   * declaration under this default does not slow a build down, it reports a
+   * stale success.
    */
   readonly cache?: boolean | ((attrs: Attrs["Type"]) => boolean) | undefined
   /**
@@ -730,7 +750,7 @@ export const make = <
     attrsForKind: functionIdentity(options.attrsForKind),
     cache: typeof options.cache === "function"
       ? ["function", Node.functionIdentity(options.cache)]
-      : ["constant", options.cache ?? false],
+      : ["constant", options.cache ?? true],
     inputs: functionIdentity(options.inputs),
     outputs: functionIdentity(options.outputs),
     verbGate: typeof options.verbGate === "function"
@@ -758,7 +778,7 @@ export const make = <
     collect(attrs, inputs, dependencies, new Set())
     if (options.inputs !== undefined) inputs.push(...options.inputs(attrs))
     const cacheableFor = (value: Attrs["Type"]): boolean =>
-      typeof options.cache === "function" ? options.cache(value) : options.cache ?? false
+      typeof options.cache === "function" ? options.cache(value) : options.cache ?? true
     const resolvedVerbGate = typeof options.verbGate === "function" ? options.verbGate(attrs) : options.verbGate
     const verbGate = resolvedVerbGate === undefined ? undefined : [...new Set(resolvedVerbGate)]
     const outputsFor = (value: Attrs["Type"]): DeclaredOutputs | undefined =>

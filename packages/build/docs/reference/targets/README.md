@@ -25,22 +25,28 @@ action implementation. No catalog target ends in `NotImplemented`; that machiner
 exists for future additions and is unused. See
 [Running targets](../../workspace/running-targets.md#what-executes).
 
+**Cacheable** is the target's own `cache` decision. Targets are cacheable by
+default; **Never** means the rule declares `cache: false` because replaying its
+result would be wrong rather than merely stale. A hit for a target that declares
+outputs restores those outputs from the content-addressed store. See
+[Cacheability](../../workspace/caching.md#cacheability).
+
 ## Build
 
 | Target                         | Kinds   | Cacheable    | Status   | Summary                                                                        |
 | ------------------------------ | ------- | ------------ | -------- | ------------------------------------------------------------------------------ |
-| [TsBuild](ts-build.md)         | `build` | Never        | Executes | Builds a JavaScript distribution with `tsc -p` or `tsup`.                      |
-| [DtsBuild](dts-build.md)       | `build` | Never        | Executes | Emits type declarations with `tsc --emitDeclarationOnly` or `tsup --dts-only`. |
-| [Typecheck](typecheck.md)      | `build` | Never        | Executes | Checks a package with `tsc --noEmit` or TypeScript build mode.                 |
+| [TsBuild](ts-build.md)         | `build` | Always       | Executes | Builds a JavaScript distribution with `tsc -p` or `tsup`.                      |
+| [DtsBuild](dts-build.md)       | `build` | Always       | Executes | Emits type declarations with `tsc --emitDeclarationOnly` or `tsup --dts-only`. |
+| [Typecheck](typecheck.md)      | `build` | Always       | Executes | Checks a package with `tsc --noEmit` or TypeScript build mode.                 |
 | [ToolBuild](tool-build.md)     | `build` | `cache` attr | Executes | Runs an arbitrary command for a non-TypeScript toolchain.                      |
-| [TypedocDocs](typedoc-docs.md) | `build` | Never        | Executes | Generates API documentation with TypeDoc.                                      |
+| [TypedocDocs](typedoc-docs.md) | `build` | Always       | Executes | Generates API documentation with TypeDoc.                                      |
 
 ## Test
 
 | Target                               | Kinds  | Cacheable | Status   | Summary                                         |
 | ------------------------------------ | ------ | --------- | -------- | ----------------------------------------------- |
-| [Vitest](vitest.md)                  | `test` | Never     | Executes | Runs `vitest run` over a declared test set.     |
-| [VitestCoverage](vitest-coverage.md) | `test` | Never     | Executes | Runs `vitest run` with coverage and thresholds. |
+| [Vitest](vitest.md)                  | `test` | Always    | Executes | Runs `vitest run` over a declared test set.     |
+| [VitestCoverage](vitest-coverage.md) | `test` | Always    | Executes | Runs `vitest run` with coverage and thresholds. |
 | [VitestWatch](vitest-watch.md)       | `run`  | Never     | Executes | Runs an interactive `vitest watch` session.     |
 
 ## Lint
@@ -48,9 +54,9 @@ exists for future additions and is unused. See
 | Target                         | Kinds  | Cacheable | Status   | Summary                                                                               |
 | ------------------------------ | ------ | --------- | -------- | ------------------------------------------------------------------------------------- |
 | [EsLint](es-lint.md)           | `lint` | Never     | Executes | Runs ESLint over declared source sets with a flat config.                             |
-| [BiomeCheck](biome-check.md)   | `lint` | Never     | Executes | Runs `biome check` and `biome format` without writing files.                          |
-| [DepsLint](deps-lint.md)       | `lint` | Never     | Executes | Checks dependency declarations with knip or depcheck.                                 |
-| [PackageLint](package-lint.md) | `lint` | Never     | Executes | Checks the published package surface with publint and attw.                           |
+| [BiomeCheck](biome-check.md)   | `lint` | Always    | Executes | Runs `biome check` and `biome format` without writing files.                          |
+| [DepsLint](deps-lint.md)       | `lint` | Always    | Executes | Checks dependency declarations with knip or depcheck.                                 |
+| [PackageLint](package-lint.md) | `lint` | Always    | Executes | Checks the published package surface with publint and attw.                           |
 | [LlmLint](llm-lint.md)         | `lint` | Never     | Executes | Reviews changed files with a model against a rubric, through the claude or codex CLI. |
 
 ## Generation

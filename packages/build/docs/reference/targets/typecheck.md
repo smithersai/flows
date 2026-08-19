@@ -65,11 +65,16 @@ summary.
 
 ## Status
 
-|           |                                                              |
-| --------- | ------------------------------------------------------------ |
-| Kinds     | `build`                                                      |
-| Cacheable | Never; the executable toolchain is not complete key material |
-| Executes  | Yes, through `ExecLive`                                      |
+|           |                         |
+| --------- | ----------------------- |
+| Kinds     | `build`                 |
+| Cacheable | Yes, by default         |
+| Executes  | Yes, through `ExecLive` |
+
+A hit is a full skip: this target declares no outputs. The declared toolchain
+and the lockfile digest are key material; the installed tool binary is not, so
+an uninstalled or partially installed lockfile keys the same as an installed
+one. See [Cacheability](../../workspace/caching.md#cacheability).
 
 ## Notes
 

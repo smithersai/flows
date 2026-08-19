@@ -79,7 +79,7 @@ const configSite = (path: string): { readonly cwd: string; readonly name: string
 const fromConfigPath = (path: string): Parameters<typeof definition>[0] => {
   const site = configSite(path)
   return {
-    tests: [Input.glob("test/**/*.test.ts")],
+    tests: [Input.glob("test/**/*")],
     sources: [Input.glob("src/**/*.ts")],
     deps: [],
     config: Input.file(site.name),
@@ -107,6 +107,12 @@ const fromConfigPath = (path: string): Parameters<typeof definition>[0] => {
  * The config file is not parsed. The globs come from the repository
  * convention, not from vitest's own `include` patterns, so a package that
  * keeps its tests somewhere else declares them with the inline form.
+ *
+ * The test glob covers the whole test directory rather than the `.test.ts`
+ * spec files alone. Vitest imports harness modules and reads fixtures of any
+ * extension, and only a declared read is key material. Because this rule is
+ * cacheable, a declaration narrowed to the spec files replays the previous
+ * run's green result after a harness or fixture edit.
  *
  * @category targets
  * @since 0.1.0

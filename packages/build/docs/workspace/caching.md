@@ -96,22 +96,57 @@ and the resolved cache directory name. See
 
 ## Cacheability
 
-A target is **non-cacheable by default**. `Target.make` takes an explicit `cache`
-boolean or a function of decoded attrs. This fails safe for custom targets and for
-catalog targets that invoke an external tool whose complete toolchain identity is
-not yet key material.
+A target is **cacheable by default**, as in Bazel and Turborepo. `Target.make`
+takes an optional `cache` boolean or a function of decoded attrs; a rule that
+omits it is cacheable. A rule opts out when replaying its result would be wrong
+rather than merely stale.
 
-| Target                                        | Cacheable                                                        |
-| --------------------------------------------- | ---------------------------------------------------------------- |
-| `DocsParity`, `Filegroup`, `PackageJsonCheck` | Always; each is a bounded in-process check over declared content |
-| `GithubCiGen`                                 | In `contract` and `check` modes; never in `write` mode           |
-| `ToolBuild`                                   | Only when its declaration sets `cache: true`                     |
-| Every other catalog target                    | Never                                                            |
+| Target                                                                                                                                                                                                  | Cacheable                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `BiomeCheck`, `DepsLint`, `DtsBuild`, `PackageLint`, `TsBuild`, `Typecheck`, `TypedocDocs`, `Vitest`, `VitestCoverage`                                                                                  | Always, by default; each declares the files its tool reads       |
+| `DocsParity`, `Filegroup`, `PackageJsonCheck`, the check half of a generated-file pair                                                                                                                  | Always; each is a bounded in-process check over declared content |
+| `GithubCiGen`                                                                                                                                                                                           | In `contract` and `check` modes; never in `write` mode           |
+| `ToolBuild`                                                                                                                                                                                             | Only when its declaration sets `cache: true`                     |
+| `Changesets`, `Clean`, `Dev`, `Dprint`, `EsLint`, `Install`, `JsrPublish`, `LlmLint`, `Lockfile`, `NewPackage`, `NpmPublish`, `SortPackageJson`, `VitestWatch`, the write half of a generated-file pair | Never; each declares `cache: false`                              |
 
-Mutation, long-lived processes, model calls, and external publication are never
-cached. External compiler, test, and lint targets also remain non-cacheable until
-their executable and runtime toolchain are represented in the content key; a
-lockfile path or command name alone is not toolchain identity.
+Three reasons put a rule in the last row. The rule mutates the workspace or a
+registry under some form of its attrs, so a skipped run skips the effect:
+`Install`, `NpmPublish`, `JsrPublish`, `SortPackageJson`, `NewPackage`,
+`Changesets`, `Dprint` and `EsLint` under `fix: true`, and the write half of a
+generated-file pair. The rule's result is the fact that it just ran, so a
+replay defeats the gate: `Clean`, `Lockfile`, and the wasm reproducibility
+rebuild. Or the rule reads state no declaration reaches: `Dev`, `VitestWatch`,
+`LlmLint`.
+
+### What a cacheable rule owes
+
+A cacheable rule must declare every file its tool reads. Under the old
+non-cacheable default an incomplete declaration cost a rebuild. Under this
+default it reports a stale success. `Vitest` therefore declares the whole test
+directory, including harnesses and non-TypeScript fixtures, not the `.test.ts`
+spec files alone.
+
+### What is still outside the key
+
+Key material carries the declared toolchain, the lockfile digest, and the
+shipped implementation's own source bytes. It does not yet carry the installed
+tool binary: a lockfile that has not been installed, a partial install, and a
+locally linked tool all key alike. Compiler, test, and lint rules are cacheable
+in spite of that gap, because the lockfile digest re-keys them on every declared
+version change and a hit is validated against declared outputs before it is
+served. A rule whose result must not survive an unmeasured toolchain change
+still declares `cache: false`.
+
+### What a hit gives back
+
+For a rule that declares no outputs — `Typecheck`, `Vitest`, `VitestCoverage`,
+`BiomeCheck`, `DepsLint`, `PackageLint` — a hit is a full skip.
+
+For a rule that declares outputs — `TsBuild`, `DtsBuild`, `TypedocDocs` — a hit
+also restores the declared tree from the content-addressed store before it is
+reported. Deleting `packages/plan/dist` and rebuilding is a hit that puts the
+tree back, not a rebuild. When the store cannot serve every blob the entry
+addresses, the hit falls through to a normal run.
 
 ## Keys vary by verb
 
