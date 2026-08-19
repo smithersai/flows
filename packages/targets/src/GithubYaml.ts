@@ -6,9 +6,9 @@
  * workflow that no longer carries the value the declaration named: a runner
  * `false` is a `runs-on` GitHub rejects, a branch `null` is an empty entry, and
  * an environment key `NO` reaches the runner as the key `false`. There must be
- * exactly one definition of that judgement, so {@link GithubCiGen} and
- * {@link GithubAutomation} both render through this module rather than each
- * carrying a copy.
+ * exactly one definition of that judgement, so `GithubCiGen` and
+ * `GithubAutomation` both render through this module rather than each carrying
+ * a copy.
  *
  * @since 0.1.0
  */
