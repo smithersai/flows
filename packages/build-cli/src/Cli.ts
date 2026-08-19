@@ -3,10 +3,11 @@
  *
  * @since 0.1.0
  */
+import type * as Toolchains from "@smthrs/targets/PackageManager"
 import { Cli, z } from "incur"
 import * as NodePath from "node:path"
 import * as Diagnostic from "./Diagnostic.ts"
-import { runInstall } from "./engine.ts"
+import { runInstall, toolchainOf } from "./engine.ts"
 import * as Executor from "./Executor.ts"
 import * as GraphOutput from "./GraphOutput.ts"
 import * as Planner from "./Planner.ts"
@@ -16,6 +17,7 @@ import {
   resolveConfig,
   type ResolvedRemoteCache,
   resolveRemoteCache,
+  resolveToolchain,
   Workspace
 } from "./Workspace.ts"
 
@@ -71,6 +73,8 @@ interface PreparedWorkspace {
   readonly root: string
   readonly cacheDirectory: string
   readonly remoteCache?: (ResolvedRemoteCache & { readonly token?: string | undefined }) | undefined
+  /** The toolchain WORKSPACE.ts registered, or undefined when it registers none. */
+  readonly toolchain?: Toolchains.Toolchain | undefined
 }
 
 /**
@@ -98,6 +102,8 @@ const prepare = async (
   const config = await resolveConfig(root, flags.cacheDir)
   runtime.signal?.throwIfAborted()
   const remoteCache = await resolveRemoteCache(root, runtime.cacheUrl)
+  runtime.signal?.throwIfAborted()
+  const toolchain = await resolveToolchain(root)
   let preparedRemote: PreparedWorkspace["remoteCache"]
   if (remoteCache !== undefined) {
     const token = remoteCache.tokenEnv === "SMITHERS_CACHE_TOKEN"
@@ -108,8 +114,8 @@ const prepare = async (
   if (writeState && config.gitignored) await ensureGitignored(root, config.cacheDirectory)
   runtime.signal?.throwIfAborted()
   return preparedRemote === undefined
-    ? { root, cacheDirectory: config.cacheDirectory }
-    : { root, cacheDirectory: config.cacheDirectory, remoteCache: preparedRemote }
+    ? { root, cacheDirectory: config.cacheDirectory, toolchain }
+    : { root, cacheDirectory: config.cacheDirectory, remoteCache: preparedRemote, toolchain }
 }
 
 /** Opens the workspace index under the resolved cache directory. */
@@ -122,7 +128,8 @@ const openWorkspace = async (
   return {
     workspace: await Workspace.make(prepared.root, process.cwd(), {
       cacheDirectory: prepared.cacheDirectory,
-      signal: runtime.signal
+      signal: runtime.signal,
+      toolchain: prepared.toolchain
     }),
     remoteCache: prepared.remoteCache
   }
@@ -238,7 +245,11 @@ export const makeCli = (config: RuntimeConfig = {}) =>
             sensitiveEnvironment: prepared.remoteCache === undefined
               ? []
               : [prepared.remoteCache.tokenEnv],
-            signal: config.signal
+            signal: config.signal,
+            // The install verb runs a target no BUILD.ts file declares, so the
+            // declared toolchain reaches it only by being passed here. Without
+            // it the command accepts any manager and any runtime the host has.
+            toolchain: prepared.toolchain === undefined ? undefined : toolchainOf(prepared.toolchain)
           })
         } catch (cause) {
           return context.error({

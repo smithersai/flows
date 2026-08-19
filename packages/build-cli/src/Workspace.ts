@@ -10,6 +10,7 @@ import { writeGeneratedFile } from "@smthrs/targets/GeneratedFile"
 import * as Input from "@smthrs/targets/Input"
 import * as PackageDefaults from "@smthrs/targets/PackageDefaults"
 import * as PackageJson from "@smthrs/targets/PackageJson"
+import * as PackageManager from "@smthrs/targets/PackageManager"
 import * as RemoteCache from "@smthrs/targets/RemoteCache"
 import * as SafeFs from "@smthrs/targets/SafeFs"
 import * as Target from "@smthrs/targets/Target"
@@ -370,13 +371,14 @@ const namespaces = new Map<string, Promise<unknown>>()
  * dependency to its label by.
  */
 const moduleKey = async (entry: SafeFs.Entry): Promise<string> => {
-  const digest = await SafeFs.digestFile(entry.path, { what: "BUILD.ts" })
-  if (digest === undefined) throw new Error(`BUILD.ts no longer exists: ${entry.path}`)
+  const what = NodePath.basename(entry.path)
+  const digest = await SafeFs.digestFile(entry.path, { what })
+  if (digest === undefined) throw new Error(`${what} no longer exists: ${entry.path}`)
   return `${entry.path}\0${digest}`
 }
 
 /**
- * Admits one BUILD.ts file, or reports that the package has none.
+ * Admits one declaration file, or reports that the package has none.
  *
  * A probe used to be `stat(path).then((stats) => stats.isFile()).catch(() => false)`,
  * which answered "there is no BUILD.ts here" for a file this process could not
@@ -384,14 +386,16 @@ const moduleKey = async (entry: SafeFs.Entry): Promise<string> => {
  * wherever it pointed. A workspace could therefore lose its configuration
  * silently, or import a module from outside itself through a link it contains.
  *
- * A `BUILD.ts` is admitted when it resolves, inside the canonical workspace
- * root, to a regular file. A link out of the workspace is refused by name, and
- * an unreadable or unsupported entry fails rather than reading as absence.
+ * A file is admitted when it resolves, inside the canonical workspace root, to
+ * a regular file. A link out of the workspace is refused by name, and an
+ * unreadable or unsupported entry fails rather than reading as absence. The
+ * diagnostics name the file that was asked for, `BUILD.ts` or `WORKSPACE.ts`.
  */
 const buildEntry = (
   root: string,
   relative: string
-): Promise<SafeFs.Entry | undefined> => SafeFs.resolveFile(NodePath.join(root, relative), { root, what: "BUILD.ts" })
+): Promise<SafeFs.Entry | undefined> =>
+  SafeFs.resolveFile(NodePath.join(root, relative), { root, what: NodePath.basename(relative) })
 
 /**
  * Imports one BUILD.ts module through tsx's programmatic loader, at most once
@@ -437,18 +441,60 @@ export interface ResolvedConfig {
   readonly gitignored: boolean
 }
 
-const declaredConfig = (namespace: unknown): Config.Workspace | undefined => {
+/**
+ * Finds the first export of a declaration module that a guard accepts.
+ *
+ * Exports are visited in name order so a module that exports two declarations
+ * of one kind resolves the same way on every host.
+ */
+const declaredValue = <A>(namespace: unknown, accepts: (value: unknown) => value is A): A | undefined => {
   if (typeof namespace !== "object" || namespace === null) return undefined
   for (const [, value] of Object.entries(namespace).sort(([left], [right]) => byCodeUnit(left, right))) {
-    if (Config.isWorkspace(value)) return value
+    if (accepts(value)) return value
   }
   return undefined
 }
 
-const declaredRemoteCache = (namespace: unknown): RemoteCache.RemoteCache | undefined => {
-  if (typeof namespace !== "object" || namespace === null) return undefined
-  for (const [, value] of Object.entries(namespace).sort(([left], [right]) => byCodeUnit(left, right))) {
-    if (RemoteCache.isRemoteCache(value)) return value
+const declaredConfig = (namespace: unknown): Config.Workspace | undefined =>
+  declaredValue(namespace, Config.isWorkspace)
+
+const declaredRemoteCache = (namespace: unknown): RemoteCache.RemoteCache | undefined =>
+  declaredValue(namespace, RemoteCache.isRemoteCache)
+
+const declaredToolchain = (namespace: unknown): PackageManager.Toolchain | undefined =>
+  declaredValue(namespace, PackageManager.isToolchain)
+
+/**
+ * The root declaration files, in precedence order.
+ *
+ * `WORKSPACE.ts` declares what the workspace is; the root `BUILD.ts` declares
+ * targets. A workspace-level declaration written in both files is answered by
+ * `WORKSPACE.ts`, which is the file that owns it.
+ *
+ * @category discovery
+ * @since 0.1.0
+ */
+export const rootDeclarationFiles: ReadonlyArray<string> = ["WORKSPACE.ts", "BUILD.ts"]
+
+/**
+ * Reads one workspace-level declaration from the root declaration files.
+ *
+ * Both files are admitted by {@link buildEntry} and evaluated by
+ * {@link importNamespace}, so the two resolvers and target loading share one
+ * evaluation per file: the memo is keyed on the canonical path and a digest of
+ * the file's bytes, and `WORKSPACE.ts` joins it on the same terms as
+ * `BUILD.ts`.
+ */
+const rootDeclaration = async <A>(
+  canonical: string,
+  files: ReadonlyArray<string>,
+  scan: (namespace: unknown) => A | undefined
+): Promise<A | undefined> => {
+  for (const file of files) {
+    const entry = await buildEntry(canonical, file)
+    if (entry === undefined) continue
+    const declaration = scan(await importNamespace(entry))
+    if (declaration !== undefined) return declaration
   }
   return undefined
 }
@@ -457,12 +503,13 @@ const declaredRemoteCache = (namespace: unknown): RemoteCache.RemoteCache | unde
  * Resolves the cache directory a command runs under.
  *
  * Precedence is the `--cache-dir` flag, then the {@link Config} value exported
- * from the root BUILD.ts file, then `.flows`. `gitignored` comes only from the
- * declaration, because it is a workspace policy rather than a per-run choice.
- * Both the flag and the declaration are validated, so an absolute path, a
- * parent traversal, or an empty value fails the command.
+ * from `WORKSPACE.ts`, then the one exported from the root `BUILD.ts`, then
+ * `.flows`. `gitignored` comes only from the declaration, because it is a
+ * workspace policy rather than a per-run choice. Both the flag and the
+ * declaration are validated, so an absolute path, a parent traversal, or an
+ * empty value fails the command.
  *
- * The root BUILD.ts is admitted by {@link buildEntry}, so a file this process
+ * Both root files are admitted by {@link buildEntry}, so a file this process
  * cannot read fails the command instead of quietly resolving to the default
  * cache directory.
  *
@@ -474,8 +521,7 @@ export const resolveConfig = async (
   override?: string | undefined
 ): Promise<ResolvedConfig> => {
   const canonical = await SafeFs.canonicalRoot(root)
-  const entry = await buildEntry(canonical, "BUILD.ts")
-  const declaration = entry === undefined ? undefined : declaredConfig(await importNamespace(entry))
+  const declaration = await rootDeclaration(canonical, rootDeclarationFiles, declaredConfig)
   const declared = declaration ?? Config.Workspace()
   return {
     cacheDirectory: Config.normalizeCacheDirectory(override ?? declared.cacheDirectory),
@@ -498,7 +544,8 @@ export interface ResolvedRemoteCache {
  * Resolves the optional remote cache for a workspace.
  *
  * `SMITHERS_CACHE_URL`, captured by the CLI before BUILD.ts evaluation, takes
- * precedence over the root BUILD.ts declaration. The declaration still
+ * precedence over the declaration, which is read from `WORKSPACE.ts` first and
+ * from the root `BUILD.ts` second. The declaration still
  * selects the bearer-token environment variable, which defaults to
  * `SMITHERS_CACHE_TOKEN`. Token values are never returned by this discovery
  * function and never enter declaration or target key material.
@@ -511,8 +558,7 @@ export const resolveRemoteCache = async (
   endpointOverride?: string | undefined
 ): Promise<ResolvedRemoteCache | undefined> => {
   const canonical = await SafeFs.canonicalRoot(root)
-  const entry = await buildEntry(canonical, "BUILD.ts")
-  const declaration = entry === undefined ? undefined : declaredRemoteCache(await importNamespace(entry))
+  const declaration = await rootDeclaration(canonical, rootDeclarationFiles, declaredRemoteCache)
   const override = endpointOverride?.trim()
   if (override !== undefined && override !== "") {
     return {
@@ -525,6 +571,28 @@ export const resolveRemoteCache = async (
     endpoint: RemoteCache.normalizeEndpoint(declaration.endpoint),
     tokenEnv: RemoteCache.normalizeTokenEnv(declaration.token.env)
   }
+}
+
+/**
+ * Resolves the toolchain a workspace registered.
+ *
+ * The registration is read only from `WORKSPACE.ts`, the file that owns it.
+ * The root `BUILD.ts` is not consulted, because reading it here would import
+ * every root target declaration before a command has decided which targets it
+ * needs, and a workspace that registers no toolchain resolves to `undefined`
+ * rather than to a default.
+ *
+ * The resolver runs before the workspace index is opened, so it never depends
+ * on discovery.
+ *
+ * @category discovery
+ * @since 0.1.0
+ */
+export const resolveToolchain = async (
+  root: string
+): Promise<PackageManager.Toolchain | undefined> => {
+  const canonical = await SafeFs.canonicalRoot(root)
+  return rootDeclaration(canonical, ["WORKSPACE.ts"], declaredToolchain)
 }
 
 const gitignoreForms = (cacheDirectory: string): ReadonlyArray<string> => [
@@ -768,6 +836,12 @@ export class Workspace {
   readonly cacheDirectory: string
   readonly files: ReadonlyArray<string>
   readonly buildFiles: ReadonlyArray<string>
+  /**
+   * The toolchain `WORKSPACE.ts` registered, or undefined when the workspace
+   * registered none. The planner folds it into every target's ambient key
+   * material.
+   */
+  readonly toolchain: PackageManager.Toolchain | undefined
   readonly defaultRules: Array<PackageDefaultsEntry> = []
   private readonly modules = new Map<string, Promise<BuildModule>>()
   private readonly labels = new Map<string, Target.AnyTarget>()
@@ -784,13 +858,18 @@ export class Workspace {
     cwd: string,
     cacheDirectory: string,
     files: ReadonlyArray<string>,
+    toolchain: PackageManager.Toolchain | undefined,
     signal?: AbortSignal | undefined
   ) {
     this.root = root
     this.currentPackage = Label.currentPackage(root, cwd)
     this.cacheDirectory = cacheDirectory
     this.files = files
+    this.toolchain = toolchain
     this.signal = signal
+    // WORKSPACE.ts is deliberately absent from this list. It declares what the
+    // workspace is, not what it builds, and adding it would give the root
+    // package two declaration files and every glob a second package boundary.
     this.buildFiles = files.filter((file) => file === "BUILD.ts" || file.endsWith("/BUILD.ts"))
   }
 
@@ -810,6 +889,11 @@ export class Workspace {
     options: {
       readonly cacheDirectory?: string | undefined
       readonly signal?: AbortSignal | undefined
+      /**
+       * The toolchain the caller already resolved. A caller that omits it gets
+       * the one `WORKSPACE.ts` registers, resolved here.
+       */
+      readonly toolchain?: PackageManager.Toolchain | undefined
     } = {}
   ): Promise<Workspace> {
     // Module loaders report source filenames through the host's canonical
@@ -827,11 +911,13 @@ export class Workspace {
     const effectiveCwd = relativeCwd.startsWith("..") || NodePath.isAbsolute(relativeCwd)
       ? absolute
       : resolvedCwd
+    const toolchain = options.toolchain ?? await resolveToolchain(absolute)
     return new Workspace(
       absolute,
       effectiveCwd,
       cacheDirectory,
       await workspaceFiles(absolute, cacheDirectory, options.signal),
+      toolchain,
       options.signal
     )
   }

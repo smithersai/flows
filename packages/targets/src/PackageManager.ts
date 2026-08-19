@@ -325,3 +325,206 @@ export const install = (manager: PackageManager, options: InstallOptions = {}): 
     }
   }
 }
+
+/**
+ * The key-material spelling of one declared package manager.
+ *
+ * @example
+ * ```ts
+ * import * as PackageManager from "@smthrs/targets/PackageManager"
+ * import * as Runtime from "@smthrs/targets/Runtime"
+ *
+ * // "pnpm@11.21.0"
+ * const material = PackageManager.identity(
+ *   PackageManager.Pnpm({ version: "11.21.0", runtime: Runtime.Node({ version: ">=22.19.0" }) })
+ * )
+ * ```
+ *
+ * @category keys
+ * @since 0.1.0
+ */
+export const identity = (manager: PackageManager): string => `${manager.name}@${manager.version}`
+
+/**
+ * Schema for the toolchain one workspace registers.
+ *
+ * The toolchain pairs the interpreter every tool runs under with the manager
+ * that installs and launches those tools. It is the workspace-level
+ * declaration Bazel spells `register_toolchains`, so no target attr has to
+ * thread either half.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const Toolchain = Schema.TaggedStruct("Toolchain", {
+  runtime: Runtime.Runtime,
+  packageManager: PackageManager
+})
+
+/**
+ * One registered toolchain.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type Toolchain = typeof Toolchain.Type
+
+/**
+ * Options accepted by {@link registerToolchains}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface ToolchainOptions {
+  /** The interpreter every tool runs under. */
+  readonly runtime: Runtime.Runtime
+  /** The manager that installs the workspace and launches its tools. */
+  readonly packageManager: PackageManager
+}
+
+/**
+ * Checks whether a value is a registered toolchain.
+ *
+ * The check is structural rather than nominal. Discovery scans a WORKSPACE.ts
+ * namespace that a module loader may have evaluated from a second physical
+ * copy of this package, and a value from that copy is the same declaration.
+ *
+ * @category guards
+ * @since 0.1.0
+ */
+export const isToolchain = (value: unknown): value is Toolchain => {
+  if (typeof value !== "object" || value === null) return false
+  const candidate = value as {
+    readonly _tag?: unknown
+    readonly runtime?: unknown
+    readonly packageManager?: unknown
+  }
+  return candidate._tag === "Toolchain" &&
+    Runtime.isRuntime(candidate.runtime) &&
+    isPackageManager(candidate.packageManager)
+}
+
+/**
+ * The registration this process holds, and the call site that made it.
+ *
+ * The slot is process state, not host state: nothing here reads a file, a
+ * clock, or an environment variable, so WORKSPACE.ts evaluation stays as
+ * side-effect free as BUILD.ts evaluation and the read-only CLI commands keep
+ * their contract.
+ */
+let registration: { readonly toolchain: Toolchain; readonly site: string } | undefined
+
+/**
+ * Names the frame that called an exported function of this module.
+ *
+ * Frame zero is this helper and frame one is its caller inside this module, so
+ * the first frame outside is frame two. A host without stack frames reports an
+ * unknown site rather than failing, because the site appears only in a
+ * diagnostic.
+ */
+const callSite = (): string => {
+  const trace = new Error().stack
+  if (typeof trace !== "string") return "an unknown call site"
+  const frames = trace.split("\n").map((line) => line.trim()).filter((line) => line.startsWith("at "))
+  const frame = frames[2] ?? frames.at(-1)
+  return frame === undefined ? "an unknown call site" : frame.slice(3)
+}
+
+/**
+ * Registers the workspace toolchain, Bazel's `register_toolchains` move.
+ *
+ * A workspace declares its interpreter and its package manager once, in
+ * `WORKSPACE.ts`, and every target reads the registration instead of taking
+ * the declaration as an attr. The call returns the toolchain so `WORKSPACE.ts`
+ * can export it: discovery finds the declaration by scanning that module's
+ * exports, which works even when the module loader evaluated a second physical
+ * copy of this package and this process-wide slot is therefore not the one the
+ * caller wrote to.
+ *
+ * The call performs no I/O.
+ *
+ * @example
+ * ```ts
+ * import { Smithers } from "@smthrs/targets"
+ *
+ * const runtime = Smithers.Runtime.Node({ version: ">=22.19.0" })
+ * const packageManager = Smithers.PackageManager.Pnpm({ version: "11.21.0", runtime })
+ *
+ * export const toolchain = Smithers.registerToolchains({ runtime, packageManager })
+ * ```
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const registerToolchains = (options: ToolchainOptions): Toolchain => {
+  if (typeof options !== "object" || options === null) {
+    throw new TypeError("registerToolchains requires { runtime, packageManager }")
+  }
+  if (!Runtime.isRuntime(options.runtime)) {
+    throw new TypeError(
+      "registerToolchains requires a declared runtime, for example Runtime.Node({ version: \">=22.19.0\" })"
+    )
+  }
+  if (!isPackageManager(options.packageManager)) {
+    throw new TypeError(
+      "registerToolchains requires a declared package manager, for example " +
+        "PackageManager.Pnpm({ version: \"11.21.0\", runtime })"
+    )
+  }
+  const site = callSite()
+  if (registration !== undefined) {
+    throw new Error(
+      `a workspace registers toolchains once: ${registration.site} already registered ` +
+        `${identity(registration.toolchain.packageManager)} on ` +
+        `${Runtime.identity(registration.toolchain.runtime)}, and ${site} registered again`
+    )
+  }
+  const toolchain = Toolchain.make({
+    runtime: options.runtime,
+    packageManager: options.packageManager
+  })
+  registration = { toolchain, site }
+  return toolchain
+}
+
+/**
+ * Whether this process holds a toolchain registration.
+ *
+ * @category guards
+ * @since 0.1.0
+ */
+export const isRegistered = (): boolean => registration !== undefined
+
+/**
+ * Reads the registered toolchain.
+ *
+ * A read before registration is an error rather than a default. A default
+ * would answer "pnpm, any version" for a workspace that declared neither,
+ * which is the shape that turns a declared requirement into no requirement at
+ * all with nothing reported.
+ *
+ * @category accessors
+ * @since 0.1.0
+ */
+export const registeredToolchain = (): Toolchain => {
+  if (registration === undefined) {
+    throw new Error(
+      "no toolchain is registered: call registerToolchains({ runtime, packageManager }) from WORKSPACE.ts"
+    )
+  }
+  return registration.toolchain
+}
+
+/**
+ * Clears the registration this process holds.
+ *
+ * A host that evaluates more than one workspace in one process calls this
+ * between workspaces, because the slot is process-wide while a registration
+ * belongs to one workspace. Tests call it for the same reason.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const resetToolchains = (): void => {
+  registration = undefined
+}

@@ -1,0 +1,593 @@
+{
+  "newRules": [
+    {
+      "name": "Input.Produced (catalog primitive, not a Target)",
+      "purpose": "An output-keyed dependency edge: a consumer keys on the digest of a producer's declared output subtree, not on the producer's target key.",
+      "attrs": "Schema.TaggedStruct(\"Produced\", { target: Target, path: NonEmptyString /* \".\" selects all */ }); widen Input.Declared (currently Union([Glob, File, GitDiff]) at packages/targets/src/Input.ts:81) to Union([Glob, File, GitDiff, Produced]). Contributes BOTH the producer's target key AND the contentDigest of the selected subtree from its ToolBuild.Outputs manifest (packages/targets/src/ToolBuild.ts:90, field contentDigest at :72). Rejects at construction any target whose Target.declaredOutputs is undefined.",
+      "cachePolicy": "n/a — it is key material. Enables cacheability of everything downstream of an uncached producer.",
+      "covers": [
+        "Every agentic pipeline: an uncached Agent re-runs each invocation while its target key stands still, so a deps-keyed consumer would hit its own cache and replay a verdict about a patch that no longer exists. Without this the agentic graph is UNSOUND, not merely slow.",
+        "nx.json:149-158 dependentTasksOutputFiles: \"**/*\" — the surveys named this the most transferable idea in tevm; there it is an optimization, here it is a precondition",
+        "evals rescore split (evals/rescore.mjs re-grading retained .runs/ workdirs)",
+        "Smithers digestProofRow (packages/driver/src/provenance.js:156) — content-addressed upstream pinning that already exists there and gates scheduling but never feeds a key",
+        "tevm typecheck correctly re-running when an upstream .d.ts changed but its source did not"
+      ],
+      "unlocks": "Gates Agent, EvalScore, AgentApply, Review-check, GoldenFile, SizeBudget and every artifact-consuming rule. Build this first or the rest is decorative."
+    },
+    {
+      "name": "BunTest",
+      "purpose": "Runs bun's test runner as a first-class test target, the way Vitest runs vitest.",
+      "attrs": "{ runtime, packageManager, tests: Array(Input.Declared) /* MUST accept an explicit ordered file list, not only globs */, sources: Array(Input.Declared), deps: Array(Target), preload: NullOr(Input.File), timeoutMs, maxConcurrency, isolate: Boolean, pathIgnorePatterns: Array(String), reporter: NullOr(Literals([\"junit\"])), reporterOutfile, env: Record(String,String), cwd }",
+      "cachePolicy": "cache: true. Pure over (tests, sources, deps outputs, preload, env, runtime, packageManager).",
+      "covers": [
+        "~66 identical `bun test tests` entries across smithers packages/* and apps/* (e.g. /Users/williamcory/smithers/packages/accounts/package.json:8)",
+        "/Users/williamcory/smithers/.smithers/package.json:8 — ~80 explicitly named test files with --preload ./preload.ts --max-concurrency=1",
+        "/Users/williamcory/smithers/apps/cli/package.json:26 shard driver",
+        "/Users/williamcory/smithers/.github/workflows/ci.yml:233,259 workspace shards",
+        "examples/tests, examples structural suites (ci.yml:268,275)",
+        "apps/cli/tests/examples-graph-smoke.test.js (ci.yml:237)"
+      ],
+      "unlocks": "~80 targets — every package-level test in smithers. Vitest.ts:57-73 hard-codes `vitest run`; vitest appears nowhere in the smithers tree. Single largest blocked surface."
+    },
+    {
+      "name": "BunTestCoverage",
+      "purpose": "BunTest with lcov instrumentation and per-package threshold profiles, mirroring the existing Vitest / VitestCoverage split.",
+      "attrs": "BunTest attrs plus { coverageDir, coverageReporter: Literals([\"lcov\",\"text\"]), thresholds: { lines, functions, branches, statements }, profile: NullOr(Literals([\"critical\",\"library\",\"app\",\"default\"])), unsupportedReason: NullOr(NonEmptyString) }. `unsupportedReason` is required when thresholds are omitted — copies /Users/williamcory/smithers/scripts/coverage.mjs:67-73, where every unsupported package carries an explicit reason string.",
+      "cachePolicy": "cache: true.",
+      "covers": [
+        "/Users/williamcory/smithers/scripts/coverage.mjs — a bespoke aggregator that re-parses each package's test script into direct `bun test` segments (:204-212) purely because no build system owns per-target invocation",
+        "ci.yml:356-364 coverage job + artifact upload",
+        "threshold profiles and per-package overrides with written rationales (coverage.mjs:11-65)"
+      ],
+      "unlocks": "~66 coverage targets. Also deletes coverage.mjs's script-string re-parsing, which exists only because the graph did not own argv."
+    },
+    {
+      "name": "NodeTest",
+      "purpose": "Runs `node --test` suites.",
+      "attrs": "{ runtime, tests: Array(Input.File), sources: Array(Input.Declared), deps, env, cwd, concurrency }",
+      "cachePolicy": "cache: true.",
+      "covers": [
+        "/Users/williamcory/smithers/.github/workflows/ci.yml:212 check-ui-architecture.test.mjs",
+        "ci.yml:213 qualify-nanocodex-release.test.mjs",
+        "scripts/check-local-smithers.test.mjs (smithers package.json:122-123)",
+        "/Users/williamcory/tevm-monorepo/package.json:44 test:eip3155 — the only node:test suite in tevm, in no CI job"
+      ],
+      "unlocks": "~6 targets, small but trivially cheap and it closes the 'a gate exists but never runs' hole for smithers' own gate tests."
+    },
+    {
+      "name": "ScriptCheck",
+      "purpose": "Declares an arbitrary repo script as a lint- or test-kind target with a declared read set. The single missing primitive that blocks every hand-written invariant gate.",
+      "attrs": "{ runtime, script: Input.File, args: Array(String), srcs: Array(Input.Declared), deps, env: Record(String,String), cwd, kinds: Array(Literals([\"lint\",\"test\"])), expectedExitCodes: Array(Int), timeoutMs }",
+      "cachePolicy": "cache: true. Pure over (script digest, args, srcs, deps outputs, env).",
+      "covers": [
+        "smithers: check-single-effect-version, check-dependency-boundaries, check-installed-footprint, check-ui-architecture, check-no-direct-db-access, check-local-smithers, check-smithers-test-script, check-fault-skips, check-docs, check-npm-dedupe, release-next-gate — 14 gates (package.json:113-127, ci.yml:200-218)",
+        "tevm: find-missing-jsdoc (package.json:26), verify-samples.mjs (sites/core/package.json:10), dev:run fixture smoke (ci.yml:53), root depcheck",
+        "the Class-0 pure agentic lints: risk-reviewer gate classification (skills/risk-reviewer/SKILL.md:17-27), fallbackAgents authority-carryover audit (smithers-fallback-agents/SKILL.md:104-118), workflow/test/UI file pairing (skills/smithers/SKILL.md:1087-1090)",
+        "prettier --check, xo, ava (tevm cli/package.json:34) — three tools that do not need three rules"
+      ],
+      "unlocks": "~25 targets AND it is structurally load-bearing: ToolBuild.ts:1071 declares kinds:['build'] and requires every declared output to exist after the run, so today there is NO way to declare a lint- or test-kind arbitrary command at all."
+    },
+    {
+      "name": "GeneratedArtifact",
+      "purpose": "Runs an external generator subprocess and either writes its outputs or drift-checks them, with the write/check/contract triad promoted from GithubCiGen to the whole catalog.",
+      "attrs": "{ runtime, generator: Input.File, args: Array(String), srcs: Array(Input.Declared), outputs: Array(String), mode: Literals([\"contract\",\"check\",\"write\"]), deps, restoreOnFailure: Boolean /* snapshot-regenerate-compare-restore-in-finally */, normalize: Array(Literals([\"strip-timestamps\"])) , env, cwd }",
+      "cachePolicy": "cache: (attrs) => attrs.mode !== \"write\". The output file is a declared input in contract and check mode, so editing it re-keys — the exact argument at GithubCiGen.ts:869-871.",
+      "covers": [
+        "smithers: check-llms + docs:llms (16 generated artifacts, scripts/check-llms.mjs:10-27), check-sota + sota:gen, check-dts (scripts/check-dts.mjs, with restoreOnFailure), generate-component-source --check, gateway generate-openapi --check, generate-workflow-pack (currently ungated), generate-theme-registry, generate-ui-themes, generate-init-templates",
+        "tevm: createBarrelFiles.ts, updateBiomeConfig.ts (biome.json is itself generated and feeds BiomeCheck), tevm meta-package generation (tevm/package.json:431), jsr version sync, generate-target-groups.mjs, COVERAGE.md (a generated artifact with no generator)",
+        "the 78 generated CLI skills under ~/.agents/skills — currently unreproducible because the generator cannot be located"
+      ],
+      "unlocks": "~20 targets. `normalize: strip-timestamps` is not optional: generate-target-groups.mjs:18, run-fixture-suite.mjs:67 and every evals report embed `new Date().toISOString()`, so byte-comparison can never succeed without it."
+    },
+    {
+      "name": "Model (declaration, sibling of Runtime — not a Target)",
+      "purpose": "Declares the model a target runs against as a requirement the layer measures and refuses on, exactly as Runtime.Node({version}) does for the interpreter.",
+      "attrs": "Schema.TaggedStruct(\"Model\", { provider: Literals([\"claude\",\"codex\",\"endpoint\"]), name: NonEmptyString, build: NonEmptyString /* requirement; \"*\" is an explicit reviewable opt-out */, executable: NonEmptyString, decoding: { temperature, topP, seed: NullOr(Int) }, credential: NullOr(Secret.Declaration), harnessDigest: NullOr(NonEmptyString) }). Constructors Model.Claude / Model.Codex / Model.Endpoint. Declared once in the root BUILD.ts beside `runtime` and `packageManager`. The layer resolves the provider's build and fails ModelBuildMismatch BEFORE sending a prompt.",
+      "cachePolicy": "n/a — key material. `name`, `build`, `decoding` land in KeyMaterial.body; the RESOLVED build and harness digest land in `layers` alongside the frozen host-service slots (packages/kernel/src/HostServices.ts:99-105).",
+      "covers": [
+        "claude-code-review.yml:40-41 and claude.yml:38-39 leave `model:` commented out — the action default changes underneath the repo",
+        "evals/runner.mjs:12 reads a bare model name from an env var",
+        "LlmLint's `model` attr is a bare string today (lint/BUILD.ts: model = \"gpt-5.6-luna\")",
+        "the built-in Claude skills live inside a 313MB binary that moved 2.1.234 -> 2.1.235 in two days; only the binary version can ever be declared"
+      ],
+      "unlocks": "Precondition for Agent, Review, EvalSample, Workflow. Also the mechanism that makes `fallbackAgents()` inadmissible: Smithers' agentSig is desc.agent[0].id (engine.js:5558) reordered by live quota headroom, so its key drifts for reasons unrelated to the work. Models are an ORDERED NonEmptyArray; the seat/account is recorded in meta for cost attribution and is NEVER key material."
+    },
+    {
+      "name": "Agent",
+      "purpose": "Runs an agent in a sandbox and emits a patch. It never writes the workspace. Producing a patch is a build.",
+      "attrs": "{ model: Model, models: NullOr(NonEmptyArray(Model)) /* ordered failover, not a quota pool */, sandbox: Literals([\"worktree\",\"readonly\"]), prompt: NonEmptyString, promptTemplate: NullOr(Input.File), bindings: Record(String,String), context: Array(Input.Declared) /* the ENFORCED read set the sandbox materializes */, deps, tools: Array(NonEmptyString) /* granted, never inherited */, skills: Array(Input.File), outDir, resultSchema: NullOr(Input.File) /* a JSON Schema document, so it digests */, cassette: NullOr(Input.File), timeoutMs, budgetCents, secrets: Array(Secret.Declaration), cwd }. Outputs are always outDir/{patch.diff, transcript.jsonl, result.json}. `Stop` is in the SUCCESS type: [\"complete\",\"deadline\",\"budget\",\"quota\",\"refused\"] — claude-auto-update.yml:62-67 greps for 'Credit balance is too low' and downgrades it, so provider exhaustion is an outcome, not a crash.",
+      "cachePolicy": "WAVE 1: cache: false, tier compensable. Under flows' own admission gate (ActionPersistence.ts:527 requires tier===\"sealed\" AND boundaryMode===\"hard\" AND reads keyed exactly) a compensable target cannot be cache-admitted at all — which is CONSISTENT, and means wave 1 ships without solving sandboxing. WAVE 3 (after the sandbox experiment): cache: (attrs) => attrs.cassette !== null, tier sealed. A cassette is a committed content-addressed recording declared as Input.File; a hit means 'replay the exchange we recorded and you reviewed', never 'the model would say this again'.",
+      "covers": [
+        "164 smithers .smithers/workflows/*.tsx and 24 tevm ones, wherever the work is a bounded code edit",
+        "tevm jsdoc codemod (scripts/lib/GeminiClient.ts) — single file in, same file out; the best first cacheable agent target in either repo",
+        "/update-solidity, sota-research.ts, the gemini prompt enricher",
+        "claude-auto-update.yml:38-101 — with the discovered diff becoming the declared patch"
+      ],
+      "unlocks": "~200 tasks, and it is the thesis rule. The sandbox-plus-patch design is what makes the effect declarable: the patch IS the discovered diff, so no `outputs: \"discovered\"` mode is needed — and Target.ts:59-63 forbids one anyway ('an implementation must not get to decide after the fact that it produced fewer outputs than it declared')."
+    },
+    {
+      "name": "AgentApply",
+      "purpose": "Applies a produced patch to the working tree, under a bounded path allowlist. The irreversible half of Agent.",
+      "attrs": "{ patch: Input.Produced, allow: Array(NonEmptyString) /* the effective output declaration, checked BEFORE the write */, onConflict: Literals([\"fail\",\"skip\"]) /* no force, no three-way merge */, deps: Array(Target) /* the verifier that consumed those exact bytes */, cwd }",
+      "cachePolicy": "cache: false, tier irreversible, verbGate: [\"run\"] — the same protection Changesets.ts:103 gives `changeset version` and NpmPublish.ts:75 gives publish. `smthrs build //...` plans and runs the whole agent fleet and CANNOT reach it.",
+      "covers": [
+        "alpha-agent.tsx:789 *Land tasks (which exist only for their side effect and would be silently wrong to cache)",
+        "claude-auto-update.yml:99-101 push-to-main",
+        "sota-research.yml:165-176 — already hand-writes a nine-path `git add --` allowlist, which is exactly this attr"
+      ],
+      "unlocks": "Makes the safety argument a dependency edge rather than a sentence in a prompt: `deps: [coverageFixVerified]` means the patch is landable BECAUSE the suite that consumed those exact bytes passed. onConflict has no `force` deliberately — a patch that does not apply was computed against inputs that moved, so the producer is stale and should re-run; resolving here launders a stale artifact into the tree."
+    },
+    {
+      "name": "EvalSample",
+      "purpose": "Fans one Agent out over an inline case table with repeats, retaining every candidate workspace as a declared output.",
+      "attrs": "{ subject: Agent.Target, cases: Array({ name, prompt, fixtures: Array(Input.Declared), difficulty: Literals([\"easy\",\"hard\"]) }) /* INLINE, not a JSONL path */, repeats: Int, requireHard: Int, requireCases: Int, concurrency, outDir, cwd }. Implementation uses subject.child({...baseAttrs, prompt, context: [...base.context, ...case.fixtures], outDir: `${outDir}/${case.name}/${repeat}`}).",
+      "cachePolicy": "cache: false, kinds: [\"test\"]. Sampling is the point; a hit destroys the measurement.",
+      "covers": [
+        "tevm evals/runner.mjs (22 cases) and evals/real-projects/runner.mjs",
+        "34 smithers fluency suites under evals/suites/",
+        "benchmarks/{orchbench,swe-bench-pro,kanban-bench,roadmapbench,claw-eval-live,fleet}"
+      ],
+      "unlocks": "~45 suites. Cases are INLINE because BUILD.ts evaluation performs no I/O: a file-based suite collapses into one opaque action and one cache entry, so adding a 23rd case re-samples all 23. Declared inline, each case is its own plan node. requireHard/requireCases folds evals/validate-suite.mjs:16-28 into the declaration, so a drifted suite fails at BUILD evaluation before a cent is spent."
+    },
+    {
+      "name": "EvalScore",
+      "purpose": "Re-grades retained candidate workspaces with deterministic checkers. The cacheable half.",
+      "attrs": "{ runs: Input.Produced /* Input.produced(sample, \".\") */, scorers: Array(Input.File), gate: { mean, min, perCase }, baseline: NullOr(Input.File), regressionPercent, report: NonEmptyString, cwd }. Wraps the existing packages/evals (Suite, Gate, Baseline, Regression, Report) and packages/scorers (Sampling — already sha256(runId,nodeId,iteration,attempt,scorerId) rather than Math.random, so replay makes the same run-or-skip decision).",
+      "cachePolicy": "cache: true, kinds: [\"test\"]. Keyed on (retained-workdir contentDigest, scorer digests, gate thresholds).",
+      "covers": [
+        "evals/rescore.mjs — documented as 'rescore the retained candidates without giving the model another attempt'",
+        "evals/real-projects/score-candidates.mjs + the CHECK_RESULT stdout protocol",
+        "alpha-agent-eval-judge.tsx:203,220 deterministic scoreTrace as authoritative ground truth"
+      ],
+      "unlocks": "Promotes rescore.mjs from a script somebody remembers to run into an edge the graph derives. Editing a scorer re-keys EvalScore and NOT EvalSample: a scorer fix becomes a free local recomputation instead of a paid re-sample. Verdict.outcome is passed|failed|inconclusive — smithers' evalSummaryExitCode returns 5 for inconclusive and the distinction ('the thing is wrong' vs 'the harness broke') is load-bearing."
+    },
+    {
+      "name": "Review (LlmLint refactored to the mode triad)",
+      "purpose": "Model-driven review over a diff, split so CI never calls a model.",
+      "attrs": "existing LlmLint attrs plus { mode: Literals([\"contract\",\"check\",\"refresh\"]), findings: NonEmptyString /* the committed findings artifact path */ }. `contract` asserts a property of the committed findings (every declared rubric item is represented; no finding above failOn). `check` compares committed findings against the declared input digest and fails on staleness. `refresh` calls the model and rewrites the findings file.",
+      "cachePolicy": "cache: (attrs) => attrs.mode !== \"refresh\". Verbatim PackageJson.ts:882-889 — 'a fresh checkout with a cold cache and no model CLI therefore still checks green, and CI never depends on a network call. Only refresh calls the model, and it is a run target a person invokes.' PackageJsonCheck is already cache:true (PackageJson.ts:1111) and PackageJsonWrite cache:false (:1136).",
+      "covers": [
+        "the three existing lint/BUILD.ts targets: durableIdentityGuard, docsReferenceSync, jsdocTruthfulness",
+        "claude-code-review.yml:34 and smithers pr-review.yml:26",
+        "the concierge 7/7 eval gate",
+        "alpha-agent-eval-judge.tsx:207-216 rubric judge"
+      ],
+      "unlocks": "Converts LlmLint from a rule that declined its own machinery (cache:false at LlmLint.ts:1344, next to a docstring at :1327-1334 enumerating a complete key) into the catalog's canonical agentic shape. The gate reads only whether any finding meets failOn (LlmLint.ts:305-306) — the finding prose will never be byte-stable, and nothing gates on it."
+    },
+    {
+      "name": "PublishFindings",
+      "purpose": "Posts a produced findings artifact to a forge. The irreversible half of Review.",
+      "attrs": "{ findings: Input.Produced, sink: Literals([\"github-pr-review\",\"github-comment\"]), repo, prNumber, secrets: Array(Secret.Declaration), deps }",
+      "cachePolicy": "cache: false, tier irreversible, verbGate: [\"run\"].",
+      "covers": [
+        "claude-code-review.yml:34 output sink",
+        "claude.yml:32 @claude responder output sink",
+        "smithers pr-review.yml:26"
+      ],
+      "unlocks": "Resolves the survey's sharpest impossibility ('a cache hit means do not post, observationally identical to not running') by moving the deliverable out of the cacheable half entirely."
+    },
+    {
+      "name": "Service",
+      "purpose": "A scoped dependency process a test target depends on, with a readiness probe and a real port lease. Not a cacheable target.",
+      "attrs": "{ compose: NullOr(Input.File), service: NullOr(NonEmptyString), argv: NullOr(Array(String)), readyProbe: { argv, timeoutMs, intervalMs }, env, ports: Array(Int), exclusive: Boolean, teardown: Literals([\"down-v\",\"kill\"]) }. Exposed as a scoped resource via Effect scope closure, per the CLAUDE.md rule that cancellation is scope closure.",
+      "cachePolicy": "cache: false. It is a resource, not a value.",
+      "covers": [
+        "smithers Postgres lane (ci.yml:388-431) incl. the 13-chunk-per-process memory workaround",
+        "observability/docker-compose.otel.yml",
+        "packages/microsandbox realMicrosandbox.test.js — split out of the default test precisely because the service is not always present",
+        "tevm hive smoke (test/hive/run-hive.sh: boots a node on fixed 127.0.0.1:8545, polls 60s, silently reuses whatever is already listening at :77-79)",
+        "examples/vite serve:test (backgrounds anvil AND vite with &)"
+      ],
+      "unlocks": "~8 targets, but it unblocks the Postgres, hive, sandbox and browser lanes entirely — none of which any flows rule can start today. `ports` + `exclusive` are the port/resource model the surveys named as the reason hive cannot be a freely-schedulable graph node."
+    },
+    {
+      "name": "Deploy",
+      "purpose": "Publishes built artifacts to a hosting provider, with a cacheable dry-run sibling.",
+      "attrs": "{ tool: Literals([\"wrangler\",\"alchemy\"]), config: Input.File, artifacts: Array(Input.Declared), environment, mode: Literals([\"dry-run\",\"deploy\",\"destroy\"]), secrets: Array(Secret.Declaration), deps, cwd }",
+      "cachePolicy": "cache: (attrs) => attrs.mode === \"dry-run\". deploy and destroy are tier irreversible with verbGate: [\"run\"].",
+      "covers": [
+        "13 `wrangler deploy` entries across smithers apps/*",
+        "13 `wrangler deploy --dry-run` entries — a real gate that could run on every PR and is currently in no CI file",
+        "16 `wrangler delete` destroy entries",
+        "alchemy deploy/destroy in apps/{signal,bug-worker,review,telegram-summary}"
+      ],
+      "unlocks": "~45 script entries. flows publishes to npm and JSR and has no deploy concept at all. multi-stack-ops/SKILL.md:51 ('Alchemy optional bindings are conditional on process.env — deploying from a shell missing a var silently removes that binding from prod') is a direct argument for Secret's name-in-key discipline."
+    },
+    {
+      "name": "Toolchain (extends Runtime)",
+      "purpose": "Declares a non-JS toolchain as a measured requirement, so its version becomes key material.",
+      "attrs": "Extend Runtime.Name (currently Literals([\"node\",\"bun\",\"deno\"]) at Runtime.ts:28) OR add a parallel Toolchain.{Rust,Zig,Foundry,Python,Go} with { version, components: Array(String), targets: Array(String) /* triples */ }. The layer measures the host and refuses.",
+      "cachePolicy": "n/a — key material.",
+      "covers": [
+        "tevm .github/actions/setup/action.yml: rust stable (unpinned!) + rustfmt + clippy, cbindgen via cargo install, zig 0.14.0, foundry v1.7.1",
+        "the ONLY place tevm's rust/zig/bun versions are pinned is a Dockerfile flows does not read",
+        "toolchain versions asserted in five mutually-inconsistent places (.nvmrc 24.12.0, package.json ^24.0.0, flake.nix nodejs_22, Dockerfile node:24-slim, run-hive.sh hard-fails unless major===24)",
+        "smithers apt-get bubblewrap/ripgrep unpinned, plus a kernel sysctl mutation (ci.yml:157-181)"
+      ],
+      "unlocks": "Precondition for Cargo, Forge, Zig and the correctness of ToolBuild's existing rust escape hatch — ToolBuild.ts:1069 names tevm's Rust build as its motivating case and it WORKS, but rustc/cargo version is not key material anywhere, so a toolchain upgrade silently reuses a stale entry."
+    },
+    {
+      "name": "Cargo",
+      "purpose": "Rust build, test and check as one rule with an operation attr.",
+      "attrs": "{ toolchain: Toolchain.Rust, operation: Literals([\"build\",\"test\",\"check\"]), profile: Literals([\"debug\",\"release\"]), manifest: Input.File, srcs: Array(Input.Declared), lockfile: Input.File, features: Array(String), targetTriple: NullOr(NonEmptyString), outputs: Array(String), workspace: Boolean, cwd }",
+      "cachePolicy": "cache: true once the toolchain is declared. Cargo keeps its own content-addressed cache; the graph only needs the crate outputs.",
+      "covers": [
+        "3 tevm crates: resolutions-rs, runtime-rs, solc-rs (build, build:release, test)",
+        "cargo check --workspace (ci.yml:98) — the only rust check CI actually performs, and the only step with `if: success()`",
+        "nx.json:5-17 declares a build:rust targetDefault with full inputs/outputs that ZERO packages implement"
+      ],
+      "unlocks": "~8 targets. `operation: \"check\"` matters structurally: it has no outputs, and ToolBuild requires every declared output to exist after the run, so a rust check has no rule today."
+    },
+    {
+      "name": "NapiBuild",
+      "purpose": "Cross-platform native addon build, keyed on the target triple.",
+      "attrs": "{ toolchain: Toolchain.Rust, manifest: Input.File, srcs, targetTriple: NonEmptyString, platformPackage: NonEmptyString, outputs, cwd }",
+      "cachePolicy": "cache: true per triple. The triple MUST be in the key and no single host can produce all of them.",
+      "covers": [
+        "bundler-packages/resolutions-rs/package.json:39-48 — 8 declared triples incl. wasm32-wasip1-threads, 10 committed npm/<platform>/ stub packages, 10 more for runtime-rs",
+        "napi prepublish -t npm, which today runs as a prepublishOnly lifecycle hook inside `changeset publish` and rewrites manifests — invisible to any task graph, and colliding with PackageJson.ts:1131 which owns manifests in flows"
+      ],
+      "unlocks": "~4 targets plus the platform-matrix dimension. Currently run by no CI job at all."
+    },
+    {
+      "name": "ConformanceSuite",
+      "purpose": "One rule for a family of fixture-driven suites parameterized by group, hardfork, limit and report path.",
+      "attrs": "{ runtime, runner: Input.File, corpus: ExternalArtifact | Input.Declared, group, hardfork, limit: NullOr(Int), isolate: NullOr(NonEmptyString), report: NonEmptyString, traceOut: NullOr(String), traceReference: NullOr(Input.Declared), traceDiffOut: NullOr(String), negativeFixtures: Array(NonEmptyString) /* fixtures that MUST fail */, deps, env, cwd }",
+      "cachePolicy": "cache: true ONLY once the corpus is pinned by content digest instead of by an env-var path. Until then cache: false.",
+      "covers": [
+        "15 tevm root scripts (package.json:49-58) collapse to one rule with different attrs",
+        "parity aggregation (scripts/parity/run-suite.sh) — pure `cp -f ... || true` fan-in that a build graph does natively; modelling it DELETES the script",
+        "bundler-packages/config runFixture.ts:20-32, where 3 of 9 fixtures are declared as expectedErrors — hence negativeFixtures, which a naive Exec rule loses"
+      ],
+      "unlocks": "~25 tevm scripts. The typed negative artifact pattern (run-fixture-suite.mjs:55-70 writes {status:'skipped', coverage:'none', requiredInput:'...'} rather than passing silently) should be the rule's contract, not the script's."
+    },
+    {
+      "name": "ExternalArtifact",
+      "purpose": "Fetches a pinned, hash-verified third-party artifact and makes it a declared input.",
+      "attrs": "{ url: NonEmptyString, version: NonEmptyString, sha256: NonEmptyString, dest: NonEmptyString, platform: NullOr(NonEmptyString), extract: Boolean }",
+      "cachePolicy": "cache: true keyed on sha256. A missing or mismatched digest is a hard failure, never a skip.",
+      "covers": [
+        "scripts/fetch-jj-binaries.mjs (5 platform packages refuse to pack without it — a real build edge enforced today by a prepack throw)",
+        "playwright chromium install (BUILD.ts:60-64 already disables playwright's postinstall precisely because installs must not fetch browsers — flows has taken a position without giving it a rule)",
+        "zmux daemon via `gh release download` (ci.yml:283-295), whose suite silently passes when ZMUXD is unset",
+        "the external hive binary, $TEVM_*_FIXTURES corpora, the ../zevm shallow clone at unpinned HEAD"
+      ],
+      "unlocks": "~10 targets, and it converts three skip-green hazards into hard failures. This is the rule that makes ConformanceSuite cacheable."
+    },
+    {
+      "name": "ReleaseTrain",
+      "purpose": "Orders the gate set, the build, the artifact fetch and the publish into one target whose precondition is the transitive greenness of named check targets at one revision.",
+      "attrs": "{ packages: Array(Target), gates: Array(Target), tag: Literals([\"latest\",\"next\",\"snapshot\"]), version: Literals([\"explicit\",\"commit-derived\"]), otp: NullOr(Secret.Declaration), ghRelease: Boolean, dryRun: Boolean, registryProbe: Boolean /* filter already-published package@version so an interrupted publish resumes */, cwd }",
+      "cachePolicy": "cache: false, tier irreversible, verbGate: [\"run\"].",
+      "covers": [
+        "smithers scripts/publish.mjs (clean tree, tag/HEAD agreement, changelog, build, lint, typecheck, test, jj fetch, publish, gh release)",
+        "release-next.yml:50-97 — the gate re-queries the Actions API for BOTH required workflows' conclusions at the exact sha; in flows this is NATIVE ('publish depends on the transitive success of these targets at this revision') and is the single clearest 'flows replaces the CI file' win in either repo",
+        "scripts/bump.mjs version propagation across manifests + 3 hardcoded source pins + lockfiles + llms artifacts",
+        "tevm changesets: version, publish through a PATH shim, pre enter/exit, snapshot"
+      ],
+      "unlocks": "~15 tasks. NpmPublish.ts:69 publishes ONE package; nothing orchestrates. Extend Changesets.Attrs.operation (currently status|version only) with publish|pre-enter|pre-exit|snapshot. The PATH shim (scripts/pnpm-publish-wrapper/pnpm) disappears entirely once the graph owns argv construction."
+    },
+    {
+      "name": "AppBuild",
+      "purpose": "Bundler-agnostic application/site build.",
+      "attrs": "{ bundler: Literals([\"vite\",\"vocs\",\"next\",\"esbuild\",\"electrobun\",\"tsup\"]), config: Input.File, srcs: Array(Input.Declared), outDir, mode: Literals([\"development\",\"production\"]), env, deps, cwd }",
+      "cachePolicy": "cache: true.",
+      "covers": [
+        "tevm sites/core (vocs build), sites/playground (vite), examples/next (next build), docs/node (vocs), cli build:app",
+        "smithers apps/{signal,smithers} (vite), 3 electrobun desktop apps",
+        "tevm's build:dist across 57 packages is bare `tsup` — TsBuild.ts:22-36 hard-codes tool:'tsup'|'tsc' and constructs tsup argv directly, so it covers those but no site build fits"
+      ],
+      "unlocks": "~12 targets."
+    },
+    {
+      "name": "PlaywrightTest",
+      "purpose": "Browser e2e with a Service dependency for the app under test.",
+      "attrs": "{ config: Input.File, specs: Array(Input.Declared), browsers: Array(NonEmptyString), browserArtifact: ExternalArtifact, deps: Array(Target) /* incl. Service */, retries, reportDir, profile: NullOr(NonEmptyString), env, cwd }",
+      "cachePolicy": "cache: true when the browser artifact is pinned and no live service is involved; cache: false otherwise.",
+      "covers": [
+        "smithers apps/smithers playwright test, e2e browser lane, ddd:browser suite (ci.yml:247)",
+        "multi-test-github-account signed-in canary — but see longTail: its persistent profile is explicitly non-copyable",
+        "tevm `nx e2e e2e` (dead: no e2e project, no playwright config, no browser matrix anywhere in the tree)"
+      ],
+      "unlocks": "~6 targets."
+    },
+    {
+      "name": "OxLint / OxFmt",
+      "purpose": "smithers' actual linter and formatter, which the catalog does not name.",
+      "attrs": "OxLint: { packageManager, sources: Array(Input.Declared), config: NullOr(Input.File), plugins: Array(String), ignorePath: NullOr(Input.File), fix: Boolean, deps, cwd }. OxFmt: { packageManager, sources, config: Input.File, mode: Literals([\"check\",\"write\"]), deps, cwd }.",
+      "cachePolicy": "cache: (attrs) => !attrs.fix / attrs.mode === \"check\". A fix-mode task is not a target; its output set is its input set.",
+      "covers": [
+        "smithers package.json:105 lint (scripts/lint.mjs), :107-108 format (scripts/format.mjs), .smithers/package.json:9",
+        "ci.yml:82,84 — deliberately separate steps so failures attribute correctly, which is an argument for one target per tool"
+      ],
+      "unlocks": "~4 targets. Catalog has EsLint, BiomeCheck and Dprint but not oxlint/oxfmt."
+    },
+    {
+      "name": "SizeBudget",
+      "purpose": "Asserts an artifact's packed/unpacked/gzip size against fixed limits or a stored baseline.",
+      "attrs": "{ artifacts: Array(Input.Declared | Input.Produced), measure: Literals([\"packed\",\"unpacked\",\"gzip\"]), limits: { maxBytes, maxFiles, maxIncreasePercent }, baseline: NullOr(Input.Declared), mode: Literals([\"check\",\"update\"]), cwd }",
+      "cachePolicy": "cache: (attrs) => attrs.mode === \"check\", once the baseline is an in-tree declared input.",
+      "covers": [
+        "scripts/check-installed-footprint.mjs (MAX_INIT_FILES 35, MAX_INIT_BYTES 350KB, MAX_CLI_PACKED_BYTES 2.5MB, MAX_CLI_UNPACKED_BYTES 8MB)",
+        "tevm wasm-size-check.yml — a fully-written gate over a build that no longer exists; the comparison logic and .wasm-size-config.json are live and unreachable"
+      ],
+      "unlocks": "2 targets, but both are currently ungated in practice and the wasm one demonstrates a requirement a build graph must have: representing 'this gate is unreachable' rather than silently passing."
+    },
+    {
+      "name": "GoldenFile",
+      "purpose": "Diffs a produced artifact against a committed expectation, with normalization.",
+      "attrs": "{ produced: Input.Produced, golden: Input.File, normalize: Array(Literals([\"strip-timestamps\",\"sort-keys\",\"canonical-json\"])), mode: Literals([\"check\",\"update\"]), diffOut: NullOr(String) }",
+      "cachePolicy": "cache: (attrs) => attrs.mode === \"check\".",
+      "covers": [
+        "tevm EIP-3155 trace compare (package.json:54) — reference trace lives under gitignored /artifacts/, so the golden is not versioned",
+        "__rpc_snapshots__ (53 committed files) — the repo's own hand-rolled content-addressed network cache",
+        "docs drift: CI runs generate:docs (ci.yml:88) and NEVER diffs; the near-miss at tevm/package.json:428-429 appends `git status --porcelain` and exits 0 regardless"
+      ],
+      "unlocks": "~5 targets, and it is the general mechanism behind the 'the record is the input' agentic ruling."
+    },
+    {
+      "name": "Workflow (sealed smithers batch)",
+      "purpose": "Runs a Smithers workflow as a batch target — admitted ONLY when its module closure is sealed.",
+      "attrs": "{ workflow: Input.File, closure: Array(Input.Declared) /* the transitive closure readWorkflowGraphHash already computes on every run and never puts in a cache key */, input: Json, models: NonEmptyArray(Model), context: Array(Input.Declared), outDir, deadlineMs /* <= 2h, killed not parked */, budgetCents, cassette: NullOr(Input.File), cwd }. Refuses at plan time (NotSealed) any closure mounting <Approval>, <HumanTask>, <Signal>, <WaitForEvent> or <Timer>. The layer OWNS the engine as a child process rather than adopting a detached pid it polls.",
+      "cachePolicy": "cache: false in wave 1; cassette-gated later. tier compensable.",
+      "covers": [
+        "alpha-agent-eval-judge.tsx (the sealed shape: JUDGE_SANDBOX at :96-114 pins yolo:false, tools:\"\", settingSources:\"\", strictMcpConfig, cwd to an empty tmp dir)",
+        "the .smithers pack typecheck and graph unit tests (.smithers/package.json:6,11) — already pure and covered by Typecheck/BunTest"
+      ],
+      "unlocks": "A narrow slice deliberately. Three survey findings are each individually fatal to modelling a general run as a graph node: the graph is not known before it runs (alpha-agent.tsx:788 filters land-tasks by laneReadyToLand); a run is a supervised service (caretaker.sh restarts dead engines every ~3 min; runs lasted days); an approval cannot be replayed. Everything else stays an Exec target under `run`, with other targets consuming its artifacts through Input.produced."
+    },
+    {
+      "name": "AgentContextParity",
+      "purpose": "Asserts that every command, path and file named in an agent-context file (CLAUDE.md, AGENTS.md, SKILL.md, prompt .mdx) actually resolves.",
+      "attrs": "{ contextFiles: Array(Input.Declared), workspace: Input.Declared, checks: Array(Literals([\"command-resolves\",\"path-exists\",\"script-defined\",\"skill-frontmatter\"])), allow: Array(NonEmptyString) }. Reads the frontmatter dependency edges the ecosystem already declares: `requires_bin:` / `command:` in the 78 generated CLI skills, `workflow:` in /Users/williamcory/flows/.smithers/skills/*.md.",
+      "cachePolicy": "cache: true. Fully pure.",
+      "covers": [
+        "/Users/williamcory/flows/AGENTS.md:26-44 — VERIFIED STALE: test.sh does not exist, packages/ai and packages/coding-agent do not exist, root script is `pnpm --recursive --if-present run check` not `npm run check`, and AGENTS.md:24 forbids editing a file with no repo",
+        "skills/report-maker/SKILL.test.js — a skill-parity test that is DEAD where installed (repoRoot resolves outside any repo) and whose regex at :25 no longer matches SKILL.md:72",
+        "the 78 generated CLI skills, currently unreproducible from any tree"
+      ],
+      "unlocks": "1 rule, small effort, high value: this is undetected staleness in the highest-leverage input to every agentic target in the repo, and it is the cheapest correct first move on the whole agentic surface."
+    },
+    {
+      "name": "Bench",
+      "purpose": "Runs a benchmark and emits a regression verdict against a stored baseline. The timings are never the cached value.",
+      "attrs": "{ tool: Literals([\"vitest\"]), benches: Array(Input.Declared), sources, deps, baseline: NullOr(Input.Declared), regressionPercent, report: NonEmptyString, cwd }",
+      "cachePolicy": "cache: false for the measurement; the VERDICT half (compare report to baseline) is a GoldenFile/SizeBudget-shaped cacheable target.",
+      "covers": [
+        "tevm test/bench and test/test-utils bench/bench:run/bench:ui — a runner with no baseline, no threshold, and coverage thresholds pinned to 0 with autoUpdate:true",
+        "smithers benchmarks/* result.json + site"
+      ],
+      "unlocks": "~6 targets. Timing is a property of the machine, so only a regression verdict is gateable — and neither repo has the baseline-store concept that requires."
+    },
+    {
+      "name": "DockerImage / VsceRelease / ForgeBuild+ForgeDeploy",
+      "purpose": "Three small rules closing three registry/toolchain gaps.",
+      "attrs": "DockerImage: { dockerfile: Input.File, context: Array(Input.Declared), target, buildArgs, tags, cacheMounts }. VsceRelease: { built: Input.Produced, mode: Literals([\"package\",\"publish\"]), preRelease: Boolean, secrets }. ForgeBuild: { toolchain: Toolchain.Foundry, contracts: Array(Input.Declared), config: Input.File, solcVersion: NonEmptyString, outDir }. ForgeDeploy: { script, rpc: Secret, privateKey: Secret, broadcast, verify }.",
+      "cachePolicy": "DockerImage cache:true (keyed on Dockerfile + context digests). VsceRelease package cache:true / publish cache:false irreversible. ForgeBuild cache:true (solc version is key material). ForgeDeploy cache:false irreversible.",
+      "covers": [
+        "tevm Dockerfile (hand-implements the two-phase manifest-then-source install a build system does natively, and runs build:dist `|| true` so image builds succeed on a broken build)",
+        "lsp/vscode vsce package/publish — a fourth publish registry with no CI job",
+        "examples/vite forge build, examples/mud mud build + mud deploy across 3 profiles"
+      ],
+      "unlocks": "~10 targets across three otherwise-unrepresented domains."
+    }
+  ],
+  "agenticDesign": "RESOLVED POSITION. The three lenses agree on more than they disagree on; I name the five real disagreements and rule on each.\n\n=== A. THE ONE PRINCIPLE ===\nSeparate the deterministic artifact from the irreversible delivery, and make the artifact a DECLARED OUTPUT. The catalog already contains this shape three times by accident (TsBuild emits dist / NpmPublish ships it; PackageJsonCheck cache:true / PackageJsonWrite cache:false; GithubCiGen contract|check|write). The agentic surveys found it discovered independently three more times (evals/rescore.mjs; alpha-agent-eval-judge.tsx's deterministic scoreTrace as ground truth with the LLM judge scored against it; tevm's pnpm-publish-wrapper splitting pure `pack` from impure `publish` for an unrelated reason and landing on the right seam anyway).\n\nApplied: Agent -> patch.diff (build, verifiable) then AgentApply (run, irreversible). Review -> findings.json (lint) then PublishFindings (run). EvalSample -> retained workspaces (run) then EvalScore (test, cacheable).\n\n=== B. THE HEADLINE FINDING NEITHER SURVEY REPORTED ===\nflows has ALREADY SHIPPED a cacheable model-driven target, and it is not LlmLint. It is PackageJson. SyncMode = [\"check\",\"write\",\"refresh\"] (PackageJson.ts:570, VERIFIED). PackageJsonCheck is kinds:[\"lint\"], cache:true (:1111). PackageJsonWrite is kinds:[\"run\"], cache:false (:1136). The rationale at :882-889: \"check and write never call a model. A generated field resolves to the cached model answer for the current input digest; failing that, to the value already on disk; failing that, it is left out entirely. A fresh checkout with a cold cache and no model CLI therefore still checks green, and CI never depends on a network call. Only refresh calls the model, and it is a run target a person invokes.\"\n\nLlmLint is the OUTLIER, not the template. Its cache:false (VERIFIED at :1344) sits beside a docstring at :1327-1334 that enumerates a complete key — diff content, include and context globs, prompt, rubric, engine, model, model-layer identity, batchSize, failOn. The mechanism was built and then declined. Every new agentic rule copies PackageJson, not LlmLint, and LlmLint is refactored to match.\n\n=== C. DISAGREEMENT 1 — DOES cache:false GET OVERTURNED? ===\nLens A: yes, `nondeterministic: true` already exists in plan/KeyMaterial (VERIFIED at :67, folded at StepKey.ts:391) and Step Keys.md blesses model calls explicitly. Lens B: conditionally, gated on measured verdict-flip rate. Lens C: no — the only cache path is replaying a committed cassette.\n\nRESOLUTION: A is right about JOURNAL REPLAY and wrong about CACHE SHARING; C is right about sharing; B supplies the correct UNIT.\n - Journal replay (resume, fork, time-travel via CacheStore.GetOptions.recordedBy provenance fence) asks \"what did this run record\", not \"what would the model say\". It is always correct, needs no new semantics, and agentic targets get it free today. `nondeterministic: true` is exactly right for this and its first-writer-wins conflict semantics.\n - Cross-run cache SHARING requires the model's contribution to be a declared input. `nondeterministic: true` does not make it one. So sharing requires either (i) a committed artifact the target consumes as an input (the patch, the findings, the retained workdir), or (ii) a committed cassette of the model exchange.\n - The UNIT is B's: cache the verdict, not the prose. The gate reads only whether any finding meets failOn (LlmLint.ts:305-306); finding prose will never be byte-stable and nothing gates on it. cache:false currently keys cacheability to the instability of a field nothing consumes.\n\n=== D. DISAGREEMENT 2 — ARTIFACT-RECORD OR TRANSPORT-CASSETTE? ===\nThey are the same idea at different layers, and they compose. RULING: artifact-level record is the DEFAULT; transport-level cassette is the FALLBACK for outputs that are not human-reviewable. Reasons: a patch.diff or findings.json in a PR is reviewable, portable across model backends, and survives a provider change; a cassette of a codex JSONL stream is none of those, and lens C's own uncertainty flags that it may not be recordable for CLI providers at all. Consequence: Model.Endpoint can carry cassettes because @smthrs/model owns the request bytes (packages/model/src/{RequestExecutor,Protocol,CanonicalJson}.ts exist); claude and codex CLI agents may never be cassette-cacheable, and the catalog must say so rather than imply otherwise.\n\n=== E. DISAGREEMENT 3 — MODEL AS LAYER OR AS ATTR? ===\nBoth, exactly as Runtime works today. `Runtime.Node({version: \">=22.19.0\"})` is an ATTR in BUILD.ts:24 and the resolved runtime is a frozen host-service slot (HostServices.ts:99-105). Model gets the same treatment: the DECLARATION (provider, name, build requirement, decoding params) lands in KeyMaterial.body so it is reviewable in a BUILD diff; the RESOLVED build plus harness digest land in `layers` so a provider ship invalidates. Unanimous across all three lenses: the SEAT/ACCOUNT is NEVER key material. Smithers' agentSig = desc.agent[0].id (engine.js:5558) reordered by live quota headroom plus Date.now is the anti-pattern; alpha-agent-eval-judge.tsx:115-127 already hand-builds an ordered chain in preference to the pool and says why. `models` is an ORDERED NonEmptyArray; the account is recorded in meta for cost attribution only.\n\n=== F. DISAGREEMENT 4 — TTL? ===\nLens A wants TTL scoped to nondeterministic entries; B wants it for verdict-stable targets; C rejects overloading the word \"cache\". RULING: NO TTL, and this removes a whole mechanism from the build order (VERIFIED: no ttl/expire/freshness anywhere in packages/step-cache). If sharing requires a committed artifact or cassette, the entry IS a pure function of a declared input and a wall-clock expiry would be a lie. \"Frozen mediocrity\" — a schema-valid but poor answer pinned forever — is handled by the artifact being IN REVIEW (a bad patch.diff shows up in the PR diff) rather than by expiry. This is strictly better than TTL, which would silently re-spend money on a schedule with no human looking.\n\n=== G. DISAGREEMENT 5 — CAN AN AGENT TARGET BE SEALED TODAY? ===\nLens A says sandboxing is THE blocker and proposes it as the decisive experiment. Lens C assumes sandbox: \"worktree\" works and independently sets tier compensable (for a different reason: two agents racing under one key is how run-hive.sh:77-79 silently reuses someone else's server).\n\nRESOLUTION, and it is the most useful thing here: these reconcile into a shippable wave 1. flows' admission gate is VERIFIED at ActionPersistence.ts:527 — `tier === \"sealed\" && boundaryMode === \"hard\" && readsKeyedExactly`. A COMPENSABLE target cannot be cache-admitted AT ALL. So an Agent declared compensable is automatically cache:false, consistently, by the existing mechanism, with no new policy. Wave 1 ships Agent uncached and compensable and does not need the sandbox solved. Promoting Agent to sealed (and therefore cassette-cacheable) is wave 4, gated on the experiment: run an agent inside StepSandbox with a deliberately under-declared read set and confirm the read FAILS rather than succeeding unobserved. Smithers cannot do this — its capture mode is cli-text with traceCompleteness \"capture-failed\" (AgentTraceCollector.js:429) and its only substitute is one jj commit id over the whole tree (jj.js:113), which over-invalidates on every unrelated edit and guarantees a permanent miss.\n\n=== H. NO `outputs: \"discovered\"` MODE, EVER ===\nLenses B and C agree and A does not contradict. Target.ts:59-63 is explicit: \"an untrusted cache entry must never get to choose which paths are verified, and an implementation must not get to decide after the fact that it produced fewer outputs than it declared.\" The sandbox-plus-patch design gets the same expressiveness — the patch IS the discovered diff — without weakening the manifest. Where declared outputs are genuinely impossible (claude-auto-update), the substitute is AgentApply's bounded `allow` path list, checked before the write; sota-research.yml:165-176 already hand-writes exactly that as a nine-path `git add --`.\n\n=== I. THE CACHE KEY, FIELD BY FIELD ===\nReuse StepKey.ContentIdentity. No new key format.\n body: prompt TEMPLATE digest (not the rendered string — bindings go in inputs, so a miss is explainable); output-schema STRUCTURAL digest (the schema is both injected into the prompt and the validation predicate, so a hit under a changed schema serves a value the consumer cannot decode); temperature, topP, seed, maxTokens (all of them — temp 0 and temp 1 are different experiments and maxTokens truncates); decode/repair policy; mode (contract|check|refresh); rubric digest. NOT in body: retry count, attempt number, loop iteration (Smithers folds iteration and attempt at engine.js:5804, which is why its loop iteration 2 can never hit iteration 1 even when byte-identical — do not copy), cost/latency budgets, failOn (belongs to the verdict target so a threshold change does not discard the expensive half).\n layers: the existing frozen slots plus (a) resolved model snapshot, not the requested alias, (b) agent harness identity — CLI binary digest or SDK version plus injected-system-prompt digest. The harness slot is the likeliest omission and the most damaging: the built-in Claude skills live inside a 313MB binary that moved twice in two days.\n capabilities: tool SET and tool SCHEMAS. Tool IMPLEMENTATIONS follow the existing rule (a flow-implemented tool contributes its declaration identity; a tool shelling to an external binary is a layer). A SKILL IS A FILE — SKILL.md plus frontmatter is a readSet entry, digested like any other input, needing no new mechanism. Structural consequence: NETWORK CAPABILITY DECIDES CACHEABILITY. A grant of net:* to an arbitrary endpoint means the target reads a world the key does not name -> cache:false mechanically. This is how claude-auto-update.yml (whose whole point is `npm view solc versions --json`) is excluded without a policy note.\n inputs: prompt bindings as InputRef. Ref folds the DIGEST OF THE SETTLED UPSTREAM VALUE, never the upstream's plan key — so in research->plan->implement, editing the research prompt does not invalidate implement when the research output is unchanged. Without this, chained agent targets cascade-invalidate and the cache is worthless past depth one.\n hermetic.readSet: MEASURED digests, re-verified on hit. This is already built and is most of what makes shared replay safe: a measured mismatch journals stale_read_set, evicts under a provenance fence, and falls through to real execution (ActionPersistence.ts:946); an unmeasurable read set refuses the hit for this dispatch but leaves the row alone. readsKeyedExactly (:526-527) refuses cacheability while any read is still a glob, so an agent target declaring Input.Glob context is not shared-cacheable until the scheduler pins it.\n\n=== J. THE DETERMINISM BOUNDARY, AS A TAXONOMY IMPLEMENTERS CAN APPLY ===\nTwo independent axes, which every survey conflated. Axis A: is the VALUE reproducible (value-reproducible / verdict-stable / distribution-valued)? Axis B: is the point a value or a MUTATION? The catalog already rules on B in prose at PackageJson.ts:1120-1123 — \"it is never cache admissible: a hit for a target whose whole purpose is to leave a file behind would report success for a manifest that was never written.\" That sentence settles every *Land task and every deploy.\n\nClass 0 — pure, misfiled as agentic. scoreTrace.ts; workflow graph render; eval-suite manifest validation; the prefer-smithers hook (stdin JSON -> stdout JSON, no fs, no net, no clock); risk-reviewer's 4-category gate classification; the fallbackAgents authority-carryover audit; workflow/test/UI file pairing; AgentContextParity. Ordinary cacheable targets. SHIP FIRST — cheap, several are security-relevant (the fallbackAgents audit catches silent authority WIDENING).\nClass 1 — verdict over content-addressed subject. Review with the mode triad. `check` is cacheable and NEVER calls a model.\nClass 2 — distribution-valued. EvalSample (run, cache:false) / EvalScore (test, cache:true, keyed via Input.produced). Honest limit: a soak exists to re-run UNCHANGED inputs; cache:false is necessary but insufficient, and \"run again on a schedule though nothing changed\" is a scheduler concern, not a key concern.\nClass 3 — generative into the tree. Agent (build) -> deterministic verifier (test, Input.produced) -> AgentApply (run, irreversible). Two non-optional constraints: a deterministic validator sits behind every agent proposal (sota-research.ts:12-16 revalidates the model's registry with the generator's own validateRegistry; release.tsx:312-336 has a plain non-agent task read the audit's typed output and throw), and any model answer that must survive between runs lands in a NONHERMETIC field cache keyed on a COARSENED digest, never in the target's own result store.\nClass 4 — effectful. run + verbGate + irreversible, never cacheable, bounded allowlist as the verification substitute.\nClass 5 — not functions of the workspace. Do not model: checkin/remind-me (input is a lossily-compacted transcript), @claude comment triggers, human approvals (a cached approval is a security defect — the content of the approval is that a person saw THIS diff), prod canaries (value derives from re-running when nothing changed), bench timings and wasm sizes (properties of the machine), .e2e-flakes/history.json (input includes its own prior outputs across unbounded runs — state, not a build step), built-in Claude skills.\n\n=== K. KEY COARSENING, AND ITS HONEST COST ===\nThe least obvious and most important technique, already implemented at PackageJson.ts:766-772: \"The listing, not the source bytes. A package's description does not change because one line of one function did, and re-deriving it on every source edit would turn a cached nonhermetic value into a model call per commit.\" For a nonhermetic value the key covers the SEMANTIC SURFACE (exported signatures, file listing, schema shapes), not byte content. The anti-pattern is Smithers' jjPointer. THE COST MUST BE NAMED: a coarsened key is deliberately blind to changes it judges irrelevant, so every agentic rule's docstring must state WHAT IT IS CHOOSING NOT TO LOOK AT. That is a real weakening of the cache-correctness guarantee and should be documented as one, not glossed.\n\n=== L. THE ANALOGUE OF \"THE REBUILD IS THE GATE\" ===\nIn a deterministic build, regeneration is both the production and the verification, because re-derivation is cheaper than the check it replaces. For agentic work both preconditions fail: re-derivation is expensive AND unreproducible. The move is to invert the direction of trust — THE RECORD IS THE INPUT AND THE VERIFIER IS THE GATE. flows already wrote the argument down at GithubCiGen.ts:837-871: contract mode asserts a PROPERTY (every declared gate still runs) rather than byte equality, which is \"strictly weaker than byte equality and the strongest thing you can assert about an artifact you cannot reproduce.\" That is the correct DEFAULT MODE for every agentic target. A model-written JSDoc block should not be gated on \"the model would write this again\"; it should be gated on \"this block still names every parameter the signature declares\" — a property, checkable offline, cacheable, true regardless of which model wrote it.\n\n=== M. RULE SHAPE, CONCRETELY ===\nKinds vocabulary is VERIFIED at Target.ts:31 as [\"build\",\"test\",\"lint\",\"run\",\"docs\"], verbGate exists at :220, and cache accepts `boolean | ((attrs) => boolean)` at :501 with both function and constant forms already used (GithubCiGen.ts:897, ToolBuild.ts:1074). NOTHING needs to be added to the Target API for any of this. The engine changes actually required are exactly three: (1) Input.Produced plus planner support for keying on a dependency's output manifest — the only substantial one, and the design is UNSOUND without it; (2) widen captureOutputs from `<R>(produced: Node.Node<Exec.Result, Exec.ExecError, R>, ...)` (ToolBuild.ts:1044) to `<A, E, R>` — its body uses neither A nor E, so this is a one-line change that lets Agent, EvalSample and Workflow reuse it verbatim; (3) plan-time attr assertions beyond schema checks, so EvalSample.requireHard and Workflow's sealed-closure scan fail during construction via the existing declarationRejected path that names the BUILD.ts line.\n\n=== N. ONE RECONCILIATION DEFECT TO FIX ===\nVERIFIED: packages/plan/src/KeyMaterial.ts:67 has `nondeterministic`; packages/core/src/KeyMaterial.ts's KeyMaterial interface does NOT. The core interface and the plan schema disagree, so a core-planned node cannot declare nondeterminism and would take the strict conflict path — the flagship sealed case tripping the alarm the carve-out was written to silence. Fix before any agentic node is planned through core.",
+  "longTail": [
+    {
+      "task": "Rust: cargo build/test/check across 3 crates, plus cargo check --workspace (the only rust check CI runs)",
+      "gap": "Runtime.Name is VERIFIED as Literals([\"node\",\"bun\",\"deno\"]) at Runtime.ts:28. There is no place to declare rustc/cargo. ToolBuild.ts:1069 names tevm's Rust build as its motivating escape hatch and it works, but the toolchain version is not key material anywhere, so a rust upgrade silently reuses stale entries. ToolBuild is also kinds:['build'] only (:1071) and requires every declared output to exist after the run (:1024-1026), so `cargo check` — which has no outputs — has no rule at all.",
+      "needs": "Toolchain.Rust declaration (measured requirement, like Runtime) + a Cargo rule with operation: build|test|check. Steal nx.json's namedInputs.rustBuildInputs verbatim for the input set."
+    },
+    {
+      "task": "Zig 0.14.0 build (build.zig / build.zig.zon)",
+      "gap": "No toolchain declaration and no rule. Currently dormant — wasm-size-check.yml:38 says the Zig implementation was removed — yet the setup action still installs Zig on every job and nx.json:139-140 still declares build.zig as a sharedGlobal for files that do not exist.",
+      "needs": "Toolchain.Zig + a ZigBuild rule, AND a general mechanism for 'a declaration whose implementation does not exist is an error rather than a silent pass'. tevm has four such: build:rust (zero implementers), test:rust (zero implementers, ci.yml:58 runs it with --if-present so it can never fail), e2e (no project), my_rust_node_lib (does not exist, still run as a CI step)."
+    },
+    {
+      "task": "Foundry/Solidity: forge build, mud build codegen, forge script --broadcast --verify, mud deploy across 3 profiles",
+      "gap": "No toolchain declaration, no solc-version key material, no on-chain-effect tier. foundry.toml:3 carries a COMMENT asking a human to keep the solc version in sync with package.json and tevm.config.ts — three-way drift with no gate. forge keeps its own cache the graph cannot see.",
+      "needs": "Toolchain.Foundry + ForgeBuild (solcVersion is key material) + ForgeDeploy at tier irreversible with verbGate ['run']. The deploys can be ORDERED but never replayed."
+    },
+    {
+      "task": "napi cross-platform native addons: 8 declared target triples incl. wasm32-wasip1-threads, 20 committed platform stub packages",
+      "gap": "The cache key must include the target triple and no single host can produce all of them, so this needs a platform DIMENSION on targets rather than a rule. Worse, `napi prepublish -t npm` rewrites those manifests as a prepublishOnly lifecycle hook inside `changeset publish` — outside any target boundary and colliding with PackageJson.ts:1131, which owns manifests in flows.",
+      "needs": "A `platform` dimension on Target so the same label keys two results, plus NapiBuild. The prepublish manifest rewrite must be hoisted out of the lifecycle hook into a declared PackageJson target."
+    },
+    {
+      "task": "External fixture corpora: $TEVM_GENERAL_STATE_TESTS_FIXTURES and $TEVM_EXECUTION_SPEC_TESTS_FIXTURES",
+      "gap": "Input.Declared is VERIFIED as Union([Glob, File, GitDiff]) at Input.ts:81 — there is no way to declare an out-of-tree corpus at all, let alone pin one by content. ethereum/tests is not vendored, not pinned and not hashed. Every conformance target is impure-but-keyable at best until this exists.",
+      "needs": "ExternalArtifact (url + version + sha256 + dest) so the corpus becomes a digested input. Until then ConformanceSuite must be cache:false and say why."
+    },
+    {
+      "task": "Sibling repo as a workspace member: pnpm-workspace.yaml:20-21 pulls ../zevm/npm/zevm and ../zevm/npm/platforms/*, materialized by `git clone --depth 1` at UNPINNED HEAD",
+      "gap": "The workspace root is not the repo root. The same tevm commit builds against a different zevm on different days, and run-fixture-suite.mjs:4-12 imports @evmts/zevm at module top level. No cache key over tevm is honest until this is pinned by revision. flows has no concept of an out-of-tree workspace member, pinned or otherwise.",
+      "needs": "ExternalArtifact with a git ref + commit sha, plus PnpmWorkspace support for a member sourced from one. The honest interim is to declare the whole install cache:false."
+    },
+    {
+      "task": "Live-chain and forked-mainnet tests (~10 spec files gated on TEVM_RUN_LIVE_FORK_TESTS; TEVM_RPC_URLS_MAINNET; TEVM_TEST_ALCHEMY_KEY)",
+      "gap": "Two blockers. (1) No test rule has an `env` attr — VERIFIED absent from Vitest, VitestCoverage, Typecheck and Dprint; only Exec/ToolBuild accept env. (2) SecretProxy.ts:14-21 documents that HTTPS is CONNECT-tunnelled and NOT rewritten, so flows' placeholder mechanism cannot deliver an RPC URL to a test process.",
+      "needs": "`env` on every test/check rule (it is key material, so it cannot be smuggled through the host environment), plus a secret-delivery path for HTTPS. The mitigation tevm already ships — __rpc_snapshots__, 53 committed content-addressed network recordings — is the model, and is the same mechanism as the agentic cassette."
+    },
+    {
+      "task": "Port-bound services: hive boots a node on fixed 127.0.0.1:8545, polls 60s, and silently reuses whatever is already listening (run-hive.sh:77-79)",
+      "gap": "No resource/port model anywhere in flows. Two invocations cannot run concurrently on one host and a stale server produces a false pass. The script also runs four `pnpm --filter ... build:dist` calls inline as preflight — build edges hidden inside a test script, invisible to any graph.",
+      "needs": "Service with `ports` and `exclusive`, so the scheduler holds a port lease; and hoisting the four inline builds into declared deps."
+    },
+    {
+      "task": "Metric baselines fetched from another branch: wasm-size-check.yml:59-62 pulls .wasm-sizes.json from main via the GitHub contents API at compare time",
+      "gap": "Input.gitDiff(base) yields a DIFF, not a file at a ref. There is no primitive for 'the content of path P at revision R'. The gate's threshold logic and config are live and fully written; the input simply does not exist in the tree.",
+      "needs": "Input.fileAtRef(ref, path) as a fourth Declared variant. Also a way to represent 'this gate is unreachable' rather than silently passing it — the build step is an echo and the measure step emits hard-coded zeros, and CI reports green."
+    },
+    {
+      "task": "Coverage ratchets: 22 tevm vitest configs set coverage.thresholds.autoUpdate:true",
+      "gap": "The action REWRITES a file it declares as an input, so run N+1 never has run N's key and there is no fixed point to cache. Modelling it requires either declaring the config as an output too (making the target self-invalidating) or forbidding ratchet mode.",
+      "needs": "A rule-level position: VitestCoverage must reject autoUpdate:true, or express it as a separate `run`-verb ratchet target that writes the config, with the gate reading the committed number. The gate/ratchet distinction is right; letting the ratchet rewrite its own declared input is not."
+    },
+    {
+      "task": "Fix-mode targets whose output set IS their input set: biome check --write --unsafe (61 packages), prettier --write '*.sol', solhint --fix, sort-package-json:check",
+      "gap": "sort-package-json:check is the worst: it rewrites EVERY manifest then runs `git diff --exit-code` on exactly ONE of them, so its result depends on git worktree state rather than file content. flows has the check/write split (SortPackageJson, GeneratedFile) but nothing forbids declaring a mutation as a check.",
+      "needs": "A catalog invariant enforced at Target.make: a target whose declared outputs intersect its declared inputs cannot be kinds:['lint'] or ['test']. Fix modes are kinds:['run']."
+    },
+    {
+      "task": "OS matrix (ubuntu x windows) and weighted test sharding with per-platform exclusion sets",
+      "gap": "No flows target carries a platform attr, so the same label cannot key two results. smithers ci.yml:259 excludes 8 packages on Windows — a per-platform exclusion set the graph must express. Sharding (scripts/run-workspace-tests.mjs:115-154, a hand-tuned weight table greedily bin-packing packages) is the strongest single argument in either repo for adopting flows: a real per-package target graph makes the balancer unnecessary.",
+      "needs": "A `platform` dimension on Target keys plus per-platform attr overrides. Sharding then needs nothing."
+    },
+    {
+      "task": "Runtime conformance lanes: browser, cloudflare workerd, vercel, node, node:cli, bun (6 smithers CI lanes)",
+      "gap": "Runtime has no NAME for a browser, a workerd Worker, or a Vercel function, yet six lanes target exactly those. The packed-consumer lane additionally tests the PUBLISHED artifact shape (pnpm pack output) rather than the source tree, which PackageLint also needs but does not expose as a reusable target.",
+      "needs": "Extend Runtime with browser|workerd|vercel-node, or a RuntimeConformance rule with a `runtime` dimension. Plus a PackTarget producing a named tarball as a first-class artifact — tevm's pnpm-publish-wrapper already proves a packed tarball has a content hash while a directory publish does not."
+    },
+    {
+      "task": "Cross-run accumulator state: .e2e-flakes/history.json (promotion requires 100 consecutive complete nightly passes), and the wasm .wasm-sizes.json baseline written on main",
+      "gap": "The input includes the target's OWN PRIOR OUTPUTS across an unbounded number of earlier runs, shuttled through the GitHub Actions cache. No digest of the workspace expresses 'has passed 100 times'. This is state, not a build step.",
+      "needs": "An append-only run-results store the build system OWNS, keyed by (case, run id), that a target may query — a database, not a content-addressed artifact cache. Until then, declare these outside the graph and let the graph only own their schedule."
+    },
+    {
+      "task": "Gates whose input is remote CI state: release-next.yml queries the Actions API for the conclusions of BOTH required workflows at a head sha",
+      "gap": "The input is another workflow's outcome, spanning two triggering events. In flows this is NATIVE ('publish depends on the transitive success of these check targets at this revision') and is the clearest replace-the-CI-file win available — but only once ReleaseTrain exists and CI is generated from the graph.",
+      "needs": "ReleaseTrain + GithubCiGen in contract mode asserting the gate set. Note tevm's CI cannot be regenerated without loss (11 hand-tuned steps with `if: always() && steps.setup.conclusion == 'success'` guards; smithers has an OS matrix, 4-way shards, a bubblewrap sysctl probe and per-lane exclusions), so contract mode is the only adoptable mode for existing repos."
+    },
+    {
+      "task": "Python (scripts/claude-triage/triage-loop.py) and the ava/xo/prettier stack in tevm cli",
+      "gap": "No Python runtime declaration; no ava, xo or prettier rule. The triage loop is additionally a FOLD — iteration N+1's input includes iteration N's output — so it is durable-workflow shaped, not target shaped.",
+      "needs": "ScriptCheck covers ava/xo/prettier without three rules. Python needs a Runtime name. The fold needs to stay outside the graph, with only its per-iteration report artifact declared."
+    },
+    {
+      "task": "Outputs embedding wall-clock timestamps: generate-target-groups.mjs:18, run-fixture-suite.mjs:67, evals/runner.mjs:135, rescore.mjs:41",
+      "gap": "The cache key can be pure, but 'did this regenerate identically?' can never be answered because byte-identical comparison always fails. Every drift gate over these artifacts is structurally broken.",
+      "needs": "Output NORMALIZATION before digesting — GeneratedArtifact.normalize: ['strip-timestamps'] and GoldenFile.normalize. This is a small mechanism that unblocks a large class of otherwise-unimplementable drift gates."
+    },
+    {
+      "task": "Two-lockfile invariant (bun.lock checked for drift, pnpm-lock.yaml used to install) and a patched dependency (patches/@arethetypeswrong__core@0.18.2.patch)",
+      "gap": "Lockfile.ts:91 checks one lockfile. The patch file is a real input to all 54 lint:package targets — editing it must re-key every attw run — and nothing declares that edge. Separately, tevm declares pnpm-lock.yaml as an nx sharedGlobal AND excludes it in .nxignore:110 with the comment 'these don't affect dependency graph', so a lockfile-only change invalidates nothing.",
+      "needs": "Lockfile support for multiple lockfiles with a drift-only mode, and PackageManager support for declaring patch files as inputs. The two-files-disagreeing-about-one-input bug class is exactly what a single BUILD.ts declaration makes impossible — worth naming as a selling point."
+    },
+    {
+      "task": "Nix flake, devcontainer, Dockerfile and the CI setup action as four independent environment definitions with nothing keeping them consistent",
+      "gap": "flake.nix:26 pins nodejs_22 while .nvmrc says 24.12.0 and run-hive.sh hard-fails unless the node major is exactly 24 — so the nix dev shell CANNOT run the hive suite, and nothing detects it.",
+      "needs": "Toolchain declarations as the single source, plus GeneratedArtifact rendering the Dockerfile/flake/devcontainer/setup-action from them. This is the same generation-from-one-declaration argument BUILD.ts already makes for pnpm-workspace.yaml and tsconfig."
+    },
+    {
+      "task": "Persistent credential-bearing state: ~/.smithers/accounts/<label>, macOS Keychain items, and /Users/williamcory/.multi-e2e-profile which its own skill says to 'never reset, delete, archive, or copy'",
+      "gap": "Hermetic execution requires exactly the copying that instruction forbids. The Playwright canary skill also forbids route interception, which is the one thing that would make it deterministic.",
+      "needs": "A PREREQUISITE concept distinct from an input: present/absent/expired, measured and refused on, never hashed. Same shape as Runtime's measure-and-refuse, applied to credentials. These can gate a target; they can never key one."
+    },
+    {
+      "task": "The 78 generated CLI skills under ~/.agents/skills, and the plugin marketplace registered as {\"source\":\"directory\",\"path\":\"/Users/williamcory/smithers\"}",
+      "gap": "Grepping smithers for `requires_bin` finds no generator, so 78 generated artifacts cannot be reproduced from any tree — a generated artifact whose producer cannot be found is unmodellable. And the SessionStart hook that injects context into EVERY agentic task on this machine comes from a LIVE working tree, not a pinned ref (installed_plugins.json records 0.2.2 at sha 1df8839 while plugin.json now says 0.2.5).",
+      "needs": "GeneratedArtifact once the generator is located or rewritten, plus pinning the plugin source to a ref. Until pinned, the SessionStart context is a non-reproducible input to every agent target and no key over it is honest."
+    }
+  ],
+  "buildOrder": [
+    "WAVE 0 — PRIMITIVES (nothing agentic works without these; all four are small and independent of each other except where noted).",
+    "0.1  Input.Produced. Widen Input.Declared (Input.ts:81) from Union([Glob, File, GitDiff]) to include TaggedStruct(\"Produced\", {target, path}), and teach the planner to fold BOTH the producer's target key and the contentDigest of the selected subtree from its ToolBuild.Outputs manifest. Reject at construction any target whose Target.declaredOutputs is undefined. THIS IS THE GATE ON EVERYTHING ELSE: an uncached producer plus a deps-keyed consumer is unsound, not merely slow. Verify against the D1-D15 cache-by-default work first — see open question 2.",
+    "0.2  Widen captureOutputs from <R>(produced: Node.Node<Exec.Result, Exec.ExecError, R>, ...) at ToolBuild.ts:1044 to <A, E, R>. The body uses neither A nor E; it is a one-line change and it lets Agent, EvalSample and Workflow reuse the whole outputs-capture path verbatim.",
+    "0.3  Reconcile KeyMaterial. packages/core/src/KeyMaterial.ts's interface has no `nondeterministic` field; packages/plan/src/KeyMaterial.ts:67 does. A core-planned node therefore cannot declare nondeterminism and takes the strict conflict path. Add the field to core and make the two agree. Do this BEFORE any agentic node is planned through core.",
+    "0.4  Add `env: Record(String,String)` to Vitest, VitestCoverage, Typecheck, Dprint, EsLint, BiomeCheck, DepsLint, PackageLint. It is key material, so it cannot be inherited from the host. Without it a large share of both repos' CI is unmappable (HIVE_SUITE, PARITY_ARTIFACT_DIR, SMITHERS_MIGRATE_CHUNK, SMITHERS_E2E_SOAK, NODE_OPTIONS, ZMUXD).",
+    "WAVE 1 — NON-AGENTIC SURFACE (largest task count, zero new semantics, proves the catalog scales before any agentic risk is taken).",
+    "1.1  BunTest, then BunTestCoverage, then NodeTest. ~150 targets between them and they are the single largest blocked surface in either repo. BunTest must accept an explicit ordered file list, not only globs — the file list is the contract that scripts/check-smithers-test-script.mjs currently enforces by hand.",
+    "1.2  ScriptCheck. ~25 targets, and structurally it is the ONLY way to declare a lint- or test-kind arbitrary command (ToolBuild.ts:1071 is kinds:['build'] and requires declared outputs to exist). Build it right after BunTest because several smithers gates are node --test suites over their own gate scripts.",
+    "1.3  GeneratedArtifact, including `normalize: ['strip-timestamps']` and `restoreOnFailure` (snapshot, regenerate, compare, restore in a finally — copied from scripts/check-dts.mjs:160-162). ~20 targets. The mode triad here is the template every agentic rule then copies, so ship it before anything agentic.",
+    "1.4  Class-0 pure agentic lints via ScriptCheck: risk-reviewer gate classification, fallbackAgents authority-carryover audit (this one catches silent authority WIDENING and is security-relevant), workflow/test/UI file pairing, schema-author's three AST invariants, commit.md's junk-file screen (git status in flows/flows currently shows ~20 apps/server/.wrangler/state/**/*.sqlite files staged — a pure predicate would have blocked that).",
+    "1.5  AgentContextParity. Small rule, highest value-per-line on the whole agentic surface: AGENTS.md:26-44 names commands and packages that do not exist, and the one skill-parity test that exists is dead where installed.",
+    "WAVE 2 — MODEL AS A DECLARATION (no agent runs yet; this is the reviewable-identity layer).",
+    "2.1  Model declaration (Model.Claude / Model.Codex / Model.Endpoint) with `build` as a measured requirement and \"*\" as an explicit opt-out. Add the resolved model snapshot and harness digest as frozen layer slots beside the existing five in HostServices.ts:99-105. Declared once in root BUILD.ts beside runtime and packageManager.",
+    "2.2  Refactor LlmLint into Review with mode: contract|check|refresh, a committed `findings` artifact, and cache: (attrs) => attrs.mode !== \"refresh\". Migrate the three existing lint/BUILD.ts targets. This is the ruling from the design made concrete, and it is where the catalog stops contradicting itself.",
+    "2.3  PublishFindings (run, irreversible) so the GitHub-comment sink leaves the cacheable half.",
+    "WAVE 3 — AGENTIC PRODUCTION (uncached and compensable; ships WITHOUT solving sandboxing).",
+    "3.1  Agent: sandbox + patch.diff + transcript.jsonl + result.json, tier compensable, cache:false. Under ActionPersistence.ts:527 a compensable target cannot be cache-admitted at all, so this is consistent by the existing mechanism with no new policy. `context` is the enforced read set the sandbox materializes; `tools` is granted, never inherited; `Stop` is in the success type.",
+    "3.2  AgentApply: tier irreversible, verbGate ['run'], bounded `allow` path list checked before the write, onConflict fail|skip with no force and no three-way merge.",
+    "3.3  Prove the shape end to end on the smallest real case: the tevm JSDoc codemod. One file in, same file out, verifier is tsc plus find-missing-jsdoc. Then the flows coverage-fix fleet: Agent -> VitestCoverage consuming Input.produced(agent, \"patch.diff\") UNMODIFIED -> AgentApply with deps:[verified]. That an EXISTING rule consumes agent output with no changes is the thesis working.",
+    "3.4  EvalSample (inline cases, subject.child() per case, cache:false) and EvalScore (Input.produced over retained workdirs, cache:true) wrapping the existing packages/evals and packages/scorers. Editing a scorer must re-key Score and NOT Sample.",
+    "WAVE 4 — SEALING (the experiment that decides whether shared caching of agents is possible at all).",
+    "4.1  RUN THE SANDBOX EXPERIMENT FIRST. Execute an Agent inside StepSandbox with a deliberately under-declared read set and a prompt that induces a read outside it. Confirm the read FAILS rather than succeeding unobserved. If the spawned CLI walks around the kernel, STOP: no agent target is sealed, sharing stays journal-replay-only, and the real work item is sandboxing the subprocess, not the cache key.",
+    "4.2  Only if 4.1 passes: promote Agent to tier sealed and add `cassette: NullOr(Input.File)` with cache: (attrs) => attrs.cassette !== null. Record/replay must be proven against Model.Endpoint first (packages/model owns the request bytes); CLI providers may never be cassette-cacheable and the catalog must say so.",
+    "4.3  Workflow (sealed smithers batch) with the plan-time closure scan. Run the scan over all 21 flows and 164 smithers workflows and count false negatives against a hand classification BEFORE relying on it — a single false negative that deadlocks a build is worse than refusing all workflows.",
+    "WAVE 5 — REMAINING CI SURFACE (independent of each other; order by whichever repo is being onboarded).",
+    "5.1  Service (ports, exclusive, readyProbe) — unblocks the Postgres, hive, microsandbox and browser lanes, none of which any flows rule can start today.",
+    "5.2  ExternalArtifact — pins jj binaries, chromium, zmux, the hive binary, and the two tevm fixture corpora; converts three skip-green hazards into hard failures; and is the precondition for ConformanceSuite being cacheable.",
+    "5.3  Toolchain (Rust, Zig, Foundry, Python) + Cargo + NapiBuild + ForgeBuild/ForgeDeploy. Also fixes cache CORRECTNESS for the existing ToolBuild rust escape hatch.",
+    "5.4  platform and shard dimensions on Target keys, plus per-platform attr overrides. Deletes scripts/run-workspace-tests.mjs entirely.",
+    "5.5  Deploy (dry-run cacheable, deploy/destroy irreversible) — 45 script entries across 13 smithers sites.",
+    "5.6  ConformanceSuite (with negativeFixtures) + GoldenFile + Input.fileAtRef — collapses 25 tevm scripts and deletes scripts/parity/run-suite.sh.",
+    "5.7  ReleaseTrain + Changesets.operation extension (publish|pre-enter|pre-exit|snapshot). Do this LAST of the release work, because its whole value is 'publish depends on the transitive greenness of these targets at this revision', which requires the target graph to already cover the gates.",
+    "5.8  Long tail: OxLint, OxFmt, AppBuild, PlaywrightTest, SizeBudget, Bench, DockerImage, VsceRelease. Each is small; none blocks anything else.",
+    "EXPLICITLY NOT ON THE LIST, and the reasoning should be recorded rather than rediscovered: no TTL mechanism (if sharing requires a committed artifact, expiry would be a lie); no `outputs: \"discovered\"` mode (Target.ts:59-63 forbids it and sandbox-plus-patch gets the same expressiveness); no reuse of Smithers' step cache (its default key omits computeFn and its policy branch DROPS the prompt — neither branch is a sound content key); no attempt to model human approvals, transcript-reading skills, prod canaries, or flake-history accumulators as targets."
+  ],
+  "openQuestions": [
+    {
+      "question": "Does the D1-D15 sandboxing work actually enforce a declared read set at the syscall boundary for a SPAWNED AGENT CLI, or only for in-process actions?",
+      "whyItMatters": "This is the single decision that determines whether shared caching of agent targets is achievable at all. flows' admission gate is verified at ActionPersistence.ts:527 as tier===\"sealed\" && boundaryMode===\"hard\" && readsKeyedExactly. If a spawned `claude` or `codex` process can read outside its declared set unobserved, no Agent target can honestly be sealed, cassettes are pointless, and Wave 4 collapses to journal-replay-only. Building the cassette machinery first and discovering this second would waste the largest single chunk of work in the plan. Smithers has already proven the negative case: its capture mode is cli-text with traceCompleteness \"capture-failed\" and its only substitute is one jj commit id over the whole tree.",
+      "options": [
+        "Sandbox covers spawned subprocesses -> Agent ships sealed in Wave 4, cassettes are worth building, the thesis holds fully.",
+        "Sandbox is in-process only -> Agent stays compensable forever, shared caching of agent runs is off the table, and the deliverable is the artifact split (Agent->verifier->Apply) with EvalScore and Review-check as the only cacheable agentic halves. The thesis survives in weakened form and should be stated that way in the docs.",
+        "Sandbox coverage is unknown -> run the Wave 4.1 experiment BEFORE committing to Wave 3's tier, because tier choice changes the rule's public shape."
+      ]
+    },
+    {
+      "question": "Is Input.Produced (output-keyed dependency edges) already in scope for D1-D15's cache-by-default and folder-level-units work, or is it net-new?",
+      "whyItMatters": "Everything in this plan is unsound without it, and it is the only substantial engine change proposed. If D1-D15 already delivers output-manifest keying under another name, Wave 0.1 is a rename and the agentic waves start immediately. If it is net-new and D1-D15 made a conflicting choice (e.g. keying consumers on producer plan keys), the two designs collide and the collision must be resolved before either ships. A wrong guess here means either duplicated planner work or an agentic graph that silently replays verdicts about artifacts that no longer exist.",
+      "options": [
+        "Already delivered by D1-D15 -> map names and proceed.",
+        "Net-new and compatible -> build as specified in Wave 0.1.",
+        "Net-new and conflicting -> escalate; the agentic design cannot be finished until the keying model is settled."
+      ]
+    },
+    {
+      "question": "Should a model-driven GATE be allowed to fail CI at all, given that the resolved design means `check` mode never calls a model?",
+      "whyItMatters": "The design's strongest move is PackageJson's rule: check and write never call a model, so a fresh checkout with a cold cache and no model CLI still checks green. Applied to Review, that means CI gates on a COMMITTED findings artifact, not on a live model verdict. That is a real semantic change to the three existing lint/BUILD.ts targets, one of which (durableIdentityGuard) currently fails the build. If the intent is that these remain live gates, Review needs a fourth mode and the 'CI never calls a model' property is given up. Guessing wrong means either building a mode nobody wants or silently downgrading a gate that was meant to be binding.",
+      "options": [
+        "Committed-findings gate (contract/check cacheable, refresh is a run verb) -> CI is offline, deterministic, cacheable; the cost is that a rubric violation is caught at refresh time, not at push time.",
+        "Live gate retained as a fourth mode (cache:false, kinds:['lint']) -> keeps push-time enforcement, gives up offline CI, and re-opens the flip-rate question: a gate that flips one run in ten is not a gate, so this option requires measuring verdict stability first.",
+        "Both, with durableIdentityGuard live and the two documentation lints on the committed-findings path."
+      ]
+    },
+    {
+      "question": "Should flows subsume Smithers workflow EXECUTION, or stop at the artifact boundary?",
+      "whyItMatters": "The plan proposes Workflow as a narrow sealed-batch rule and leaves everything interactive as an Exec target under `run`. The alternative — flows scheduling general Smithers runs — is a much larger project and the surveys give three independent reasons it cannot work (the graph is not known before it runs; a run is a supervised service that needed a caretaker restarting dead engines every three minutes across multi-day runs; approvals cannot be replayed). But the two engines are ALREADY colliding physically: smithers.db is 1.4GB in the flows repo root and .smithers/executions holds 114 entries. If the intent is eventual convergence, the Workflow rule should be designed as a migration path rather than a permanent narrow slice, and the sealed-closure scan becomes a much bigger investment.",
+      "options": [
+        "Artifact boundary only -> Workflow stays narrow, interactive runs stay outside the graph and expose artifacts via Input.produced. Smallest, safest, matches all three lenses.",
+        "Convergence -> design Workflow as the first step of absorbing the engine; budget for the closure scan, durable timers, approvals-as-barriers, and a run-results store. Several times the work.",
+        "Keep them separate permanently and document the seam, treating Smithers as an external tool the way foundry or cargo is."
+      ]
+    },
+    {
+      "question": "Extend Runtime with rust/zig/foundry/python, or add a parallel Toolchain declaration?",
+      "whyItMatters": "Runtime.Name is verified as Literals([\"node\",\"bun\",\"deno\"]) and its semantics are 'the interpreter every tool runs under'. Rust and Zig are not interpreters and Foundry is not a runtime, so widening Runtime may corrupt a clean concept — but a parallel Toolchain duplicates the measure-and-refuse machinery and forces every rule to accept two kinds of toolchain dep. This choice is baked into the attrs of Cargo, ForgeBuild, ZigBuild, NapiBuild and DockerImage simultaneously, so changing it later is a five-rule refactor. It also decides whether browser/workerd/vercel become Runtime names (needed by six smithers CI lanes) or something else again.",
+      "options": [
+        "Widen Runtime.Name to include rust|zig|foundry|python|go|browser|workerd|vercel and accept that 'runtime' now means 'declared, measured host capability'.",
+        "Separate Toolchain namespace with the same measure-and-refuse contract; Runtime stays interpreters-only.",
+        "Runtime for anything that executes the workspace's own code (node, bun, deno, browser, workerd, vercel), Toolchain for anything that compiles it (rust, zig, foundry, solc)."
+      ]
+    },
+    {
+      "question": "Do the D1-D15 visibility rules constrain what an Agent's `context` globs may reach, and is a cross-package agent context a visibility violation?",
+      "whyItMatters": "Agent's `context` is the enforced read set and it is what makes the key usable — declare it narrowly and you get hits, declare it as the repo and you get Smithers' permanent miss. But a realistic agent task (\"raise coverage in packages/engine\") legitimately needs to read its dependencies' sources, which under folder-level units plus visibility may be a boundary violation. If visibility forbids it, every Agent needs an explicit escape hatch, and the shape of that hatch (a visibility exemption attr, a Filegroup the dependency exports, or a special agent-context visibility class) has to be decided before Agent's attrs are frozen.",
+      "options": [
+        "Agent context is subject to normal visibility; dependencies must export a Filegroup for agents to read -> most principled, most declaration overhead.",
+        "Agent context gets a distinct visibility class ('readable-by-agents') declared on the producing package.",
+        "Agent context is exempt from visibility and only the sandbox constrains it -> simplest, but it makes the read set a per-agent decision rather than a package-owner decision."
+      ]
+    },
+    {
+      "question": "Is a coarsened cache key acceptable as catalog policy, and must every agentic rule document what it declines to look at?",
+      "whyItMatters": "Key coarsening is the technique that makes nonhermetic values economically viable — PackageJson.ts:766-772 keys a description on the file LISTING rather than source bytes, explicitly to avoid a model call per commit. Generalizing it is the difference between a cache that hits and one that does not. But a coarsened key is deliberately blind to changes it judges irrelevant, which is a real weakening of the cache-correctness guarantee that flows otherwise holds absolutely. If the answer is 'no coarsening', the agentic cache is probably not worth building and that should be reported as a finding rather than worked around. If yes, the docstring obligation should be a review rule, not a convention.",
+      "options": [
+        "Allowed, with a mandatory docstring section naming the ignored change class, enforced by a lint over the targets package.",
+        "Allowed only for values stored in the nonhermetic field cache, never for a target's own result store (this is what PackageJson does today).",
+        "Not allowed -> agentic keys are full-content and the hit rate should be measured before anything else is built, because a near-zero rate kills the economics."
+      ]
+    },
+    {
+      "question": "Do we need a distinct freshness marker for targets that must re-run on a schedule even though nothing changed, or is that purely a scheduler concern outside the graph?",
+      "whyItMatters": "cache:false and 'must be resampled even when the key is unchanged' read identically to an operator but mean different things. Soak suites, prod canaries and eval sampling all fall here, and both surveys flagged that a build system which only knows 'cached / not cached' cannot express them. Getting this wrong in either direction is cheap to fix in isolation but expensive to retrofit if EvalSample and Bench ship with the wrong metadata shape, since it changes how CI generation reads the graph.",
+      "options": [
+        "Add Target metadata freshness: 'cached' | 'uncached' | 'resampled' with an optional schedule, and let GithubCiGen emit a cron for resampled targets.",
+        "Keep it out of the graph: these are scheduled invocations of run-verb targets, declared in the CI generator's config rather than in the target.",
+        "Defer entirely until Wave 5 and ship EvalSample/Bench with cache:false, accepting a later metadata addition."
+      ]
+    }
+  ]
+}

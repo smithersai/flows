@@ -18,6 +18,7 @@ import { Install, PackageManager, Runtime } from "@smthrs/build"
 import { FlowEngine } from "@smthrs/engine"
 import { Action, Graph, Interpreter } from "@smthrs/flow"
 import * as Config from "@smthrs/targets/Config"
+import * as Toolchains from "@smthrs/targets/PackageManager"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import { createHash } from "node:crypto"
@@ -220,18 +221,57 @@ const managerNames = new Set(["npm", "pnpm", "bun", "yarn"])
 const runtimeNames = new Set(["node", "bun", "deno"])
 
 /**
- * Extracts the toolchain a target declared, falling back to
- * {@link defaultToolchain}.
- *
- * BUILD.ts is a trust boundary, so every field is read as an own data property
- * and validated. A malformed declaration yields the default rather than a
- * crash: the target's own attrs schema already rejected anything malformed, and
- * this reader runs on the far side of that check.
+ * Converts a registered toolchain into the shape the two layers take.
  *
  * @category constructors
  * @since 0.1.0
  */
-export const declaredToolchain = (attrs: unknown): Toolchain => {
+export const toolchainOf = (registered: Toolchains.Toolchain): Toolchain =>
+  Object.freeze({
+    manager: registered.packageManager.name,
+    managerVersion: registered.packageManager.version,
+    managerExecutable: registered.packageManager.executable === registered.packageManager.name
+      ? undefined
+      : registered.packageManager.executable,
+    runtime: registered.runtime.name,
+    runtimeVersion: registered.runtime.version,
+    runtimeExecutable: registered.runtime.executable === registered.runtime.name
+      ? undefined
+      : registered.runtime.executable
+  })
+
+/**
+ * The toolchain this process has registered, or undefined when none is.
+ *
+ * The registry is process state written by `registerToolchains` in a
+ * `WORKSPACE.ts` file. A module loader that evaluated `WORKSPACE.ts` against a
+ * second physical copy of `@smthrs/targets` writes to that copy's registry
+ * instead, which reads here as no registration; the target attr then answers,
+ * as it does for a workspace that registers nothing.
+ */
+const registeredToolchain = (): Toolchains.Toolchain | undefined =>
+  Toolchains.isRegistered() ? Toolchains.registeredToolchain() : undefined
+
+/**
+ * Reads the toolchain a target runs under.
+ *
+ * The registered workspace toolchain is the source. The target attr answers
+ * only a workspace that registered none, and {@link defaultToolchain} answers
+ * only a workspace that has neither.
+ *
+ * BUILD.ts is a trust boundary, so every attr field is read as an own data
+ * property and validated. A malformed declaration yields the default rather
+ * than a crash: the target's own attrs schema already rejected anything
+ * malformed, and this reader runs on the far side of that check.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const declaredToolchain = (
+  attrs: unknown,
+  registered: Toolchains.Toolchain | undefined = registeredToolchain()
+): Toolchain => {
+  if (registered !== undefined) return toolchainOf(registered)
   if (typeof attrs !== "object" || attrs === null || NodeUtil.isProxy(attrs)) return defaultToolchain
   const descriptor = Object.getOwnPropertyDescriptor(attrs, "packageManager")
   const declaration = descriptor !== undefined && "value" in descriptor ? descriptor.value : undefined
@@ -335,10 +375,18 @@ export const layerInstall = Layer.mergeAll(
   Interpreter.layer(Install.Install)
 )
 
+const isToolchain = (value: unknown): value is Toolchain => {
+  if (typeof value !== "object" || value === null || NodeUtil.isProxy(value)) return false
+  const candidate = value as Toolchain
+  return managerNames.has(candidate.manager) && typeof candidate.managerVersion === "string" &&
+    runtimeNames.has(candidate.runtime) && typeof candidate.runtimeVersion === "string"
+}
+
 const normalizeRunInstallOptions = (value: unknown): {
   readonly cacheDirectory: string
   readonly sensitiveEnvironment: ReadonlyArray<string>
   readonly signal: AbortSignal | undefined
+  readonly toolchain: Toolchain | undefined
 } => {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new TypeError("install options must be a plain object")
@@ -354,7 +402,7 @@ const normalizeRunInstallOptions = (value: unknown): {
   if (prototype !== Object.prototype && prototype !== null) {
     throw new TypeError("install options must be a plain object")
   }
-  const allowed = new Set(["cacheDirectory", "sensitiveEnvironment", "signal"])
+  const allowed = new Set(["cacheDirectory", "sensitiveEnvironment", "signal", "toolchain"])
   for (const key of keys) {
     if (typeof key !== "string" || !allowed.has(key)) {
       throw new TypeError(`install options contain an unknown property: ${String(key)}`)
@@ -381,11 +429,16 @@ const normalizeRunInstallOptions = (value: unknown): {
   if (configuredSignal !== undefined && !(configuredSignal instanceof AbortSignal)) {
     throw new TypeError("install signal must be an AbortSignal")
   }
+  const configuredToolchain = read("toolchain")
+  if (configuredToolchain !== undefined && !isToolchain(configuredToolchain)) {
+    throw new TypeError("install toolchain must declare a manager, a runtime, and a version for each")
+  }
   const sensitive = read("sensitiveEnvironment")
   return Object.freeze({
     cacheDirectory: Config.normalizeCacheDirectory(configuredCacheDirectory ?? Config.defaultCacheDirectory),
     sensitiveEnvironment: normalizeSensitiveEnvironment(sensitive ?? []),
-    signal: configuredSignal
+    signal: configuredSignal,
+    toolchain: configuredToolchain
   })
 }
 
@@ -407,8 +460,9 @@ export const runInstall = async (
     readonly signal?: AbortSignal | undefined
     /**
      * The toolchain the workspace declared. The `install` verb runs one target
-     * that BUILD.ts may not have declared at all, so the caller passes what it
-     * read; omitting it accepts whatever the host has.
+     * that no BUILD.ts file declares, so the caller passes the registration it
+     * resolved. A caller that omits it gets the toolchain this process
+     * registered, and {@link defaultToolchain} when nothing is registered.
      */
     readonly toolchain?: Toolchain | undefined
   } = {}
@@ -427,7 +481,9 @@ export const runInstall = async (
     )
   }
   const workspace = await Fs.realpath(NodePath.resolve(workspaceRoot))
-  const toolchain = options.toolchain ?? defaultToolchain
+  const registered = registeredToolchain()
+  const toolchain = normalized.toolchain ??
+    (registered === undefined ? defaultToolchain : toolchainOf(registered))
   const runtime = layerInstall.pipe(
     Layer.provideMerge(Action.layerImplementations),
     Layer.provideMerge(FlowEngine.layerMemory),

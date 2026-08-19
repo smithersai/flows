@@ -9,15 +9,16 @@
  *
  * ## BUILD.ts module format
  *
- * The resolve hook below reports `format: "module"` for every BUILD.ts, so a
- * workspace whose nearest `package.json` declares no `type` still evaluates
- * its BUILD.ts as an ES module — but that override reaches tsx only when
- * these hooks were registered before tsx's loader was created. An evaluation
- * path that misses that window (a bootstrap that touches tsx first, or a
- * nested require from an already-CommonJS module) falls back to tsx's own
- * classification and evaluates BUILD.ts through the CommonJS bridge. There,
- * an `import` of a `file:` URL compiles to `require("file://...")` — valid
- * ESM, but accepted by the CommonJS resolver only on newer Node versions.
+ * The resolve hook below reports `format: "module"` for every BUILD.ts and
+ * every WORKSPACE.ts, so a workspace whose nearest `package.json` declares no
+ * `type` still evaluates its declarations as ES modules; but that override
+ * reaches tsx only when these hooks were registered before tsx's loader was
+ * created. An evaluation path that misses that window (a bootstrap that
+ * touches tsx first, or a nested require from an already-CommonJS module)
+ * falls back to tsx's own classification and evaluates BUILD.ts through the
+ * CommonJS bridge. There, an `import` of a `file:` URL compiles to
+ * `require("file://...")` — valid ESM, but accepted by the CommonJS resolver
+ * only on newer Node versions.
  * The `_resolveFilename` patch below converts a `file:` URL request to its
  * path first, so a URL import (for example one produced by
  * `import.meta.resolve`) behaves identically in both formats on every
@@ -31,10 +32,14 @@ import { fileURLToPath } from "node:url"
 const installation = Symbol.for("smthrs/effect-resolution-installed")
 const buildModuleParameter = "smithers-build-module"
 
+/** The declaration files evaluated as ES modules. */
+const declarationFiles = ["/BUILD.ts", "/WORKSPACE.ts"]
+
 const isBuildModule = (url) => {
   if (!url.startsWith("file:")) return false
   const parsed = new URL(url)
-  return parsed.searchParams.get(buildModuleParameter) === "1" || parsed.pathname.endsWith("/BUILD.ts")
+  if (parsed.searchParams.get(buildModuleParameter) === "1") return true
+  return declarationFiles.some((file) => parsed.pathname.endsWith(file))
 }
 
 /** Installs the resolvers once per process. */

@@ -10,6 +10,7 @@ import {
   maximumGitignoreBytes,
   resolveConfig,
   resolveRemoteCache,
+  resolveToolchain,
   Workspace
 } from "../src/Workspace.ts"
 
@@ -60,6 +61,19 @@ const read = (relative: string): Promise<string> => Fs.readFile(NodePath.join(ro
 const buildFile = (options: string): string =>
   `import { Workspace } from "${NodePath.resolve(import.meta.dirname, "../../targets/src/Smithers.ts")}"\n` +
   `export const workspace = Workspace(${options})\n`
+
+const smithers = NodePath.resolve(import.meta.dirname, "../../targets/src/Smithers.ts")
+
+/**
+ * A root WORKSPACE.ts file registering a toolchain, plus any extra
+ * declarations the case needs.
+ */
+const workspaceFile = (extra = ""): string =>
+  `import { PackageManager, registerToolchains, Runtime } from "${smithers}"\n` +
+  `const runtime = Runtime.Node({ version: ">=22.19.0" })\n` +
+  `const packageManager = PackageManager.Pnpm({ version: "11.21.0", runtime })\n` +
+  `export const toolchain = registerToolchains({ runtime, packageManager })\n` +
+  extra
 
 const remoteCacheBuildFile = (options: string): string =>
   `import { RemoteCache, Secret } from "${NodePath.resolve(import.meta.dirname, "../../targets/src/Smithers.ts")}"\n` +
@@ -133,6 +147,24 @@ describe("resolveConfig", () => {
   it("refuses an invalid declaration while the BUILD.ts file evaluates", async () => {
     await write("BUILD.ts", buildFile(`{ cacheDirectory: "../escape" }`))
     await expect(resolveConfig(root)).rejects.toThrow(/must not leave the workspace/)
+  })
+
+  it("prefers the WORKSPACE.ts declaration over the root BUILD.ts one", async () => {
+    await write("BUILD.ts", buildFile(`{ cacheDirectory: "build/cache", gitignored: false }`))
+    await write(
+      "WORKSPACE.ts",
+      workspaceFile(
+        `import { Workspace } from "${smithers}"\n` +
+          `export const workspace = Workspace({ cacheDirectory: "workspace/cache", gitignored: true })\n`
+      )
+    )
+    expect(await resolveConfig(root)).toEqual({ cacheDirectory: "workspace/cache", gitignored: true })
+  })
+
+  it("falls back to the root BUILD.ts when WORKSPACE.ts declares no configuration", async () => {
+    await write("WORKSPACE.ts", workspaceFile())
+    await write("BUILD.ts", buildFile(`{ cacheDirectory: "build/cache", gitignored: true }`))
+    expect(await resolveConfig(root)).toEqual({ cacheDirectory: "build/cache", gitignored: true })
   })
 
   it("validates a structurally forged declaration", async () => {
@@ -242,6 +274,45 @@ describe("resolveRemoteCache", () => {
     })
   })
 
+  it("prefers the WORKSPACE.ts declaration over the root BUILD.ts one", async () => {
+    await write(
+      "BUILD.ts",
+      remoteCacheBuildFile(`{
+      endpoint: "https://build.example.test",
+      token: Secret("BUILD_CACHE_TOKEN")
+    }`)
+    )
+    await write(
+      "WORKSPACE.ts",
+      workspaceFile(
+        `import { RemoteCache, Secret } from "${smithers}"\n` +
+          "export const remoteCache = RemoteCache.make({\n" +
+          "  endpoint: \"https://workspace.example.test\",\n" +
+          "  token: Secret(\"WORKSPACE_CACHE_TOKEN\")\n" +
+          "})\n"
+      )
+    )
+    expect(await resolveRemoteCache(root)).toEqual({
+      endpoint: "https://workspace.example.test",
+      tokenEnv: "WORKSPACE_CACHE_TOKEN"
+    })
+  })
+
+  it("falls back to the root BUILD.ts when WORKSPACE.ts declares no remote cache", async () => {
+    await write("WORKSPACE.ts", workspaceFile())
+    await write(
+      "BUILD.ts",
+      remoteCacheBuildFile(`{
+      endpoint: "https://build.example.test",
+      token: Secret("BUILD_CACHE_TOKEN")
+    }`)
+    )
+    expect(await resolveRemoteCache(root)).toEqual({
+      endpoint: "https://build.example.test",
+      tokenEnv: "BUILD_CACHE_TOKEN"
+    })
+  })
+
   it("validates a structurally forged declaration", async () => {
     await write(
       "BUILD.ts",
@@ -298,6 +369,62 @@ describe("resolveRemoteCache", () => {
     } finally {
       delete process.env["PROJECT_CACHE_TOKEN"]
     }
+  })
+})
+
+describe("resolveToolchain", () => {
+  it("returns none when the workspace has no WORKSPACE.ts", async () => {
+    expect(await resolveToolchain(root)).toBeUndefined()
+  })
+
+  it("reads the registration WORKSPACE.ts exports", async () => {
+    await write("WORKSPACE.ts", workspaceFile())
+    const toolchain = await resolveToolchain(root)
+    expect(toolchain?.packageManager).toEqual({
+      _tag: "PackageManager",
+      name: "pnpm",
+      version: "11.21.0",
+      executable: "pnpm",
+      runtime: { _tag: "Runtime", name: "node", version: ">=22.19.0", executable: "node" }
+    })
+  })
+
+  /**
+   * The toolchain belongs to WORKSPACE.ts. Reading the root BUILD.ts here
+   * would import every root target declaration before a command has decided
+   * which targets it needs.
+   */
+  it("does not read a registration from the root BUILD.ts", async () => {
+    await write("BUILD.ts", workspaceFile())
+    expect(await resolveToolchain(root)).toBeUndefined()
+  })
+
+  /**
+   * A WORKSPACE.ts reached by a relative import from a BUILD.ts carries no
+   * evaluation marker in its URL, so the ES-module override applies by file
+   * name. Without it the file evaluates through tsx's CommonJS bridge, where
+   * top-level await is a syntax error.
+   */
+  it("evaluates a relatively imported WORKSPACE.ts as ESM in a CommonJS package", async () => {
+    await write("package.json", `${JSON.stringify({ type: "commonjs" })}\n`)
+    await write(
+      "WORKSPACE.ts",
+      `import { PackageManager, registerToolchains, Runtime } from "${smithers}"\n` +
+        "const version = await Promise.resolve(\"11.21.0\")\n" +
+        "const runtime = Runtime.Node({ version: \">=22.19.0\" })\n" +
+        "export const toolchain = registerToolchains({\n" +
+        "  runtime,\n" +
+        "  packageManager: PackageManager.Pnpm({ version, runtime })\n" +
+        "})\n"
+    )
+    await write(
+      "BUILD.ts",
+      `import { Workspace } from "${smithers}"\n` +
+        "import { toolchain } from \"./WORKSPACE.ts\"\n" +
+        "export const workspace = Workspace({ cacheDirectory: toolchain.packageManager.name })\n"
+    )
+    expect(await resolveConfig(root)).toEqual({ cacheDirectory: "pnpm", gitignored: false })
+    expect((await resolveToolchain(root))?.packageManager.version).toBe("11.21.0")
   })
 })
 

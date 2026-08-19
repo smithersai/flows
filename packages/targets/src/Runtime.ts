@@ -189,3 +189,25 @@ export const evaluate = (
   runtime.name === "deno"
     ? [runtime.executable, "eval", program, ...args]
     : [runtime.executable, "-e", program, ...args]
+
+/**
+ * The key-material spelling of one declared runtime.
+ *
+ * A cache key records which interpreter a result was produced under. The
+ * spelling is the declared name and version requirement, never a measurement:
+ * the requirement is what the workspace stated, and two workspaces that state
+ * different requirements must not share a key even when one host satisfies
+ * both.
+ *
+ * @example
+ * ```ts
+ * import * as Runtime from "@smthrs/targets/Runtime"
+ *
+ * // "node@>=22.19.0"
+ * const material = Runtime.identity(Runtime.Node({ version: ">=22.19.0" }))
+ * ```
+ *
+ * @category keys
+ * @since 0.1.0
+ */
+export const identity = (runtime: Runtime): string => `${runtime.name}@${runtime.version}`

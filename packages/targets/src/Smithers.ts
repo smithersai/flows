@@ -221,6 +221,28 @@ export const PackageManager = PackageManagerModule
 export type PackageManager = PackageManagerModule.PackageManager
 
 /**
+ * Registers the workspace toolchain, Bazel's `register_toolchains` move.
+ *
+ * A `WORKSPACE.ts` file calls this once with the declared runtime and package
+ * manager and exports the result. Discovery reads the registration from that
+ * export, so no target attr threads either half and no package `BUILD.ts`
+ * imports the root one.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const registerToolchains = PackageManagerModule.registerToolchains
+
+/**
+ * One registered toolchain: the runtime and the package manager a workspace
+ * declared.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type Toolchain = PackageManagerModule.Toolchain
+
+/**
  * Placeholder minting and outbound secret substitution.
  *
  * @category namespace exports

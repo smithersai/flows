@@ -4,6 +4,8 @@
  * @since 0.1.0
  */
 import * as Input from "@smthrs/targets/Input"
+import * as PackageManager from "@smthrs/targets/PackageManager"
+import * as Runtime from "@smthrs/targets/Runtime"
 import * as SafeFs from "@smthrs/targets/SafeFs"
 import * as Target from "@smthrs/targets/Target"
 import { createHash } from "node:crypto"
@@ -812,16 +814,26 @@ const attrsValue = (
 /** Targets whose execution resolves a package-manager and runtime layer. */
 const toolchainTargets: ReadonlySet<string> = new Set(["Install", "Lockfile"])
 
-const layers = (metadata: Target.Metadata): ReadonlyArray<string> => {
+const layers = (
+  metadata: Target.Metadata,
+  toolchain: PackageManager.Toolchain | undefined
+): ReadonlyArray<string> => {
   // The layer identity is the declaration, not a constant: two workspaces that
-  // declare different managers must not share a key for the same target.
-  if (toolchainTargets.has(metadata.target) && typeof metadata.attrs === "object" && metadata.attrs !== null) {
-    const declaration = "packageManager" in metadata.attrs ? metadata.attrs.packageManager : undefined
-    if (typeof declaration === "object" && declaration !== null) {
-      const name = "name" in declaration ? declaration.name : undefined
-      const version = "version" in declaration ? declaration.version : undefined
-      if (typeof name === "string" && typeof version === "string") {
-        return [`package-manager:${name}@${version}`]
+  // declare different managers must not share a key for the same target. The
+  // registered toolchain is the source; the attr answers a workspace that has
+  // not registered one.
+  if (toolchainTargets.has(metadata.target)) {
+    if (toolchain !== undefined) {
+      return [`package-manager:${PackageManager.identity(toolchain.packageManager)}`]
+    }
+    if (typeof metadata.attrs === "object" && metadata.attrs !== null) {
+      const declaration = "packageManager" in metadata.attrs ? metadata.attrs.packageManager : undefined
+      if (typeof declaration === "object" && declaration !== null) {
+        const name = "name" in declaration ? declaration.name : undefined
+        const version = "version" in declaration ? declaration.version : undefined
+        if (typeof name === "string" && typeof version === "string") {
+          return [`package-manager:${name}@${version}`]
+        }
       }
     }
   }
@@ -848,8 +860,8 @@ const capabilities = (target: string): ReadonlyArray<string> => {
  * declared output roots, the global execution format, its canonicalized attrs
  * with target references replaced by dependency keys and declared inputs
  * replaced by content digests, its expanded declared inputs, its dependency
- * labels and keys, and ambient Node, platform, architecture, lockfile, and
- * {@link implementationFingerprint} identity. The sha256 of that material is
+ * labels and keys, and ambient Node, platform, architecture, registered
+ * toolchain, lockfile, and {@link implementationFingerprint} identity. The sha256 of that material is
  * `keyPreview`. No cache store is connected during planning, so every selected
  * target is reported as `wouldRun: true` with `cacheLookup: not-wired`.
  *
@@ -894,10 +906,18 @@ export const make = async (
   }
 
   const roots = await Promise.all(compatible.map((target) => workspace.label(target)))
+  const toolchain = workspace.toolchain
   const ambient = {
     node: process.version,
     platform: process.platform,
     arch: process.arch,
+    // The toolchain a workspace registered is key material for every target,
+    // not only for the targets that take it as an attr. Both halves are the
+    // declared requirement rather than a measurement, so a workspace that bumps
+    // its package manager invalidates every key even on a host that satisfies
+    // both requirements.
+    packageManager: toolchain === undefined ? null : PackageManager.identity(toolchain.packageManager),
+    runtime: toolchain === undefined ? null : Runtime.identity(toolchain.runtime),
     lockfile: (await Input.digestFile(NodePath.join(workspace.root, "pnpm-lock.yaml"), {
       workspaceRoot: workspace.root,
       signal: workspace.signal
@@ -961,7 +981,7 @@ export const make = async (
         declared: declaredInputs,
         dependencies
       },
-      layers: layers(metadata),
+      layers: layers(metadata, toolchain),
       capabilities: capabilities(metadata.target)
     }
     const planned: PlannedTarget = {
