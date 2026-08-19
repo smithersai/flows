@@ -20,8 +20,10 @@ import * as Target from "./Target.ts"
  * Attributes for {@link NodeTest}.
  *
  * `tests` is the explicit, ordered list of test files passed to the runner.
- * `sources` is the read set beyond the test files: every module and fixture a
- * suite reads is declared here, because only a declared read is key material.
+ * It is non-empty: a bare `node --test` discovers test files by scanning the
+ * directory tree, and a discovered file is a read nobody declared. `sources`
+ * is the read set beyond the test files: every module and fixture a suite
+ * reads is declared here, because only a declared read is key material.
  * `deps` carries the targets whose outputs the suites read. `cwd` is the
  * workspace-relative directory the runner starts in and defaults to the
  * workspace root. `env` declares the environment variables the suites read
@@ -32,7 +34,7 @@ import * as Target from "./Target.ts"
  * @since 0.1.0
  */
 export const Attrs = Schema.Struct({
-  tests: Schema.Array(Input.File),
+  tests: Schema.NonEmptyArray(Input.File),
   sources: Schema.Array(Input.Declared),
   deps: Schema.Array(Target.Target),
   env: Schema.Record(Schema.String, Schema.String).pipe(

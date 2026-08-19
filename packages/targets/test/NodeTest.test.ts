@@ -95,6 +95,19 @@ describe("argv construction", () => {
   })
 })
 
+describe("declaration validation", () => {
+  it("refuses an empty test list, which would put the runner into discovery mode", () => {
+    expect(() =>
+      NodeTest({
+        // @ts-expect-error the schema refuses an empty test list
+        tests: [],
+        sources: [],
+        deps: []
+      })
+    ).toThrow(/NodeTest declaration.*is invalid/)
+  })
+})
+
 describe("the declared read set is key material", () => {
   it("re-keys when a declared source changes", async () => {
     const nodeTestModule = NodePath.resolve(import.meta.dirname, "../src/NodeTest.ts")
