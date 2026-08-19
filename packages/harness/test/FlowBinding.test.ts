@@ -99,9 +99,61 @@ describe("FlowBinding.descriptorOf", () => {
     expect(descriptor.placement).toEqual(Option.some("remote"))
     expect(descriptor.provenance.source).toBe("mcp")
   })
+
+  it("uses an explicit schema document instead of the module locator", () => {
+    const inputDocument = { type: "object", required: ["query"] } as const
+    const descriptor = FlowBinding.descriptorOf(echo, { inputDocument })
+
+    expect(descriptor.input).toStrictEqual(new Descriptor.SchemaRefInline({ document: inputDocument }))
+    expect(descriptor.output).toMatchObject({ _tag: "Module", field: "output" })
+  })
 })
 
 describe("FlowBinding.make", () => {
+  it("carries projectable input and output schemas by value", () => {
+    const binding = FlowBinding.make({
+      flow: echo,
+      handler: (input) => Effect.succeed({ text: input.text, length: input.text.length })
+    })
+
+    expect(binding.descriptor.input).toStrictEqual(
+      new Descriptor.SchemaRefInline({ document: Schema.toJsonSchemaDocument(Echo) })
+    )
+    expect(binding.descriptor.output).toStrictEqual(
+      new Descriptor.SchemaRefInline({ document: Schema.toJsonSchemaDocument(Echoed) })
+    )
+  })
+
+  it("keeps an explicit schema document instead of projecting the declaration", () => {
+    const inputDocument = { type: "object", properties: { raw: { type: "string" } } } as const
+    const binding = FlowBinding.make({
+      flow: echo,
+      inputDocument,
+      handler: (input) => Effect.succeed({ text: input.text, length: input.text.length })
+    })
+
+    expect(binding.descriptor.input).toStrictEqual(new Descriptor.SchemaRefInline({ document: inputDocument }))
+  })
+
+  it("falls back to the module locator when an input schema cannot be projected", () => {
+    const NonProjectable = Schema.String.pipe(
+      Schema.check(
+        Schema.makeFilter(() => true, {
+          toJsonSchema: () => {
+            throw new Error("no JSON Schema representation")
+          }
+        })
+      )
+    )
+    const binding = FlowBinding.make({
+      flow: Flow.make({ name: "opaque", input: NonProjectable, output: Schema.Struct({}) }),
+      handler: () => Effect.succeed({})
+    })
+
+    expect(binding.descriptor.input).toMatchObject({ _tag: "Module", field: "input" })
+    expect(binding.descriptor.output._tag).toBe("Inline")
+  })
+
   it("decodes input, runs the handler, and validates output through the declared schemas", async () => {
     const binding = FlowBinding.make({
       flow: echo,
@@ -131,6 +183,62 @@ describe("FlowBinding.make", () => {
     expect(ran).toBe(false)
     expect(Exit.isSuccess(exit) && exit.value.outcome).toBe("failure")
     expect(Exit.isSuccess(exit) && exit.value.message).toContain("rejected its input")
+  })
+
+  it("treats a null optional field as omitted", async () => {
+    const Input = Schema.Struct({ env: Schema.optional(Schema.String) })
+    let observed: unknown
+    const binding = FlowBinding.make({
+      flow: Flow.make({ name: "optional", input: Input, output: Schema.Struct({}) }),
+      handler: (input) =>
+        Effect.sync(() => {
+          observed = input
+          return {}
+        })
+    })
+
+    const exit = await run(binding.run(call("optional", { env: null })))
+
+    expect(exit).toMatchObject({ _tag: "Success", value: { outcome: "success" } })
+    expect(observed).toEqual({})
+  })
+
+  it("reports the original failure when input remains invalid without nulls", async () => {
+    const Input = Schema.Struct({ env: Schema.optional(Schema.String), count: Schema.Number })
+    const input = { env: null, count: "many" }
+    const original = Schema.decodeUnknownResult(Input)(input)
+    const retried = Schema.decodeUnknownResult(Input)({ count: "many" })
+    const binding = FlowBinding.make({
+      flow: Flow.make({ name: "count", input: Input, output: Schema.Struct({}) }),
+      handler: () => Effect.succeed({})
+    })
+
+    const exit = await run(binding.run(call("count", input)))
+    const originalMessage = Result.isFailure(original) ? original.failure.message : ""
+    const retriedMessage = Result.isFailure(retried) ? retried.failure.message : ""
+
+    expect(originalMessage).not.toBe(retriedMessage)
+    expect(Exit.isSuccess(exit) && exit.value.message).toBe(
+      `Flow count rejected its input: ${originalMessage}. Re-read ctx.flows and reissue the call.`
+    )
+  })
+
+  it("preserves null when the input schema accepts it", async () => {
+    const Input = Schema.Struct({ env: Schema.NullOr(Schema.String) })
+    let observed: unknown
+    const binding = FlowBinding.make({
+      flow: Flow.make({ name: "nullable", input: Input, output: Schema.Struct({}) }),
+      handler: (input) =>
+        Effect.sync(() => {
+          observed = input
+          return {}
+        })
+    })
+
+    const exit = await run(binding.run(call("nullable", { env: null })))
+
+    expect(exit).toMatchObject({ _tag: "Success", value: { outcome: "success" } })
+    expect(observed).toEqual({ env: null })
   })
 
   it("turns an ordinary handler failure into a catchable call failure", async () => {

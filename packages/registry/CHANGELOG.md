@@ -5,6 +5,7 @@
 ### Added
 
 - Added portable flow descriptors, progressive discovery, markdown skill compatibility, and the refreshable registry service.
+- Added inline JSON Schema references that round-trip with every tagged schema reference through flow descriptors.
 
 ### Fixed
 

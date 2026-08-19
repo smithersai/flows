@@ -86,6 +86,69 @@ describe("FlowDescriptor", () => {
     expect(Schema.decodeUnknownSync(Descriptor.SchemaRef)({ _tag: "None" })).toEqual(new Descriptor.SchemaRefNone({}))
   })
 
+  it("round-trips an inline input schema", () => {
+    const document = {
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      type: "object",
+      properties: {
+        command: { type: "string" },
+        reads: { type: "array", items: { type: "string" } }
+      },
+      required: ["command"],
+      additionalProperties: false
+    }
+    const input = new Descriptor.SchemaRefInline({ document })
+    const encodedInput = Schema.encodeSync(Descriptor.SchemaRef)(input)
+
+    expect(input.document).toEqual(document)
+    expect(encodedInput).toEqual({ _tag: "Inline", document })
+    expect(Schema.decodeUnknownSync(Descriptor.SchemaRef)(encodedInput)).toEqual(input)
+
+    const descriptor = new Descriptor.FlowDescriptor({
+      name: "shell",
+      description: "Runs a shell command",
+      body: new Descriptor.BodyRefModule({ path: "/project/flows/shell/flow.ts" }),
+      input,
+      output: new Descriptor.SchemaRefNone({}),
+      model: Option.none(),
+      flows: [],
+      capabilities: [],
+      effects: {
+        reads: [],
+        writes: [],
+        mode: "hermetic",
+        onConflict: "serialize",
+        tier: "sealed"
+      },
+      placement: Option.none(),
+      modelInvocable: true,
+      path: "/project/flows/shell/flow.ts",
+      frontmatter: {},
+      provenance: new Descriptor.Provenance({ source: "project", root: "/project/flows" })
+    })
+    const encodedDescriptor = Schema.encodeSync(Descriptor.FlowDescriptor)(descriptor)
+
+    expect(Schema.decodeUnknownSync(Descriptor.FlowDescriptor)(encodedDescriptor)).toEqual(descriptor)
+  })
+
+  it.each([
+    ["MarkdownArgs", new Descriptor.SchemaRefMarkdownArgs({}), Descriptor.SchemaRefMarkdownArgs],
+    ["MarkdownOutput", new Descriptor.SchemaRefMarkdownOutput({}), Descriptor.SchemaRefMarkdownOutput],
+    [
+      "Module",
+      new Descriptor.SchemaRefModule({ path: "/project/flows/review/flow.ts", field: "input" }),
+      Descriptor.SchemaRefModule
+    ],
+    ["None", new Descriptor.SchemaRefNone({}), Descriptor.SchemaRefNone],
+    ["Inline", new Descriptor.SchemaRefInline({ document: { type: "string" } }), Descriptor.SchemaRefInline]
+  ])("decodes the %s schema reference from its encoded form", (_tag, reference, Variant) => {
+    const encoded = Schema.encodeSync(Descriptor.SchemaRef)(reference)
+    const decoded = Schema.decodeUnknownSync(Descriptor.SchemaRef)(encoded)
+
+    expect(decoded).toBeInstanceOf(Variant)
+    expect(decoded).toEqual(reference)
+  })
+
   it("keeps warning codes stable", () => {
     const warning = Schema.decodeUnknownSync(Descriptor.DiscoveryWarning)({
       code: "unsupported_input_schema",

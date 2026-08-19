@@ -1,6 +1,8 @@
-import { Result } from "effect"
+import * as Descriptor from "@smthrs/registry/Descriptor"
+import { Option, Result } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Cell from "../src/Cell.ts"
+import * as FlowBinding from "../src/FlowBinding.ts"
 
 const fenced = (info: string, body: string): string => "```" + info + "\n" + body + "\n```"
 
@@ -58,6 +60,48 @@ describe("Cell.source", () => {
     expect(Cell.source("return 1").digest).toBe(Cell.source("return 1").digest)
     expect(Cell.source("return 1").digest).not.toBe(Cell.source("return 2").digest)
     expect(Cell.source("return 1", "javascript").digest).not.toBe(Cell.source("return 1", "typescript").digest)
+  })
+})
+
+describe("Cell.FlowProjection", () => {
+  const declaration: FlowBinding.Declared = {
+    name: "inspect",
+    description: "Inspect one value.",
+    capabilities: [],
+    effects: undefined
+  }
+
+  it("defaults a constructed projection to no input document", () => {
+    const projection = new Cell.FlowProjection({
+      name: "inspect",
+      description: "Inspect one value.",
+      capabilities: [],
+      tier: "sealed",
+      placement: Option.none()
+    })
+
+    expect(projection.input).toEqual(Option.none())
+  })
+
+  it("projects an inline input document", () => {
+    const document = { type: "object", properties: { value: { type: "string" } } } as const
+    const descriptor = FlowBinding.descriptorOf(declaration, { inputDocument: document })
+
+    expect(Cell.project(descriptor).input).toEqual(Option.some(document))
+  })
+
+  it("projects input locators and absent schemas to none", () => {
+    const descriptor = FlowBinding.descriptorOf(declaration)
+    const inputs: ReadonlyArray<Descriptor.SchemaRef> = [
+      descriptor.input,
+      new Descriptor.SchemaRefMarkdownArgs(),
+      new Descriptor.SchemaRefMarkdownOutput(),
+      new Descriptor.SchemaRefNone()
+    ]
+
+    for (const input of inputs) {
+      expect(Cell.project(new Descriptor.FlowDescriptor({ ...descriptor, input })).input).toEqual(Option.none())
+    }
   })
 })
 

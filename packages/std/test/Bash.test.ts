@@ -106,6 +106,95 @@ describe("Bash", () => {
     expect(result).toMatchObject({ exitCode: 0, stdout: "done" })
   })
 
+  it("checks command references when cwd is the explicit default", async () => {
+    const exit = await execute(Effect.provide(
+      Effect.exit(Bash.run({
+        mode: "hermetic",
+        command: "cat /outside/default.txt",
+        cwd: ".",
+        reads: [],
+        writes: []
+      })),
+      layer()
+    ))
+
+    expect(Exit.isFailure(exit)).toBe(true)
+    if (Exit.isFailure(exit)) {
+      const failure = Cause.findErrorOption(exit.cause)
+      expect(failure._tag).toBe("Some")
+      if (Option.isSome(failure)) {
+        expect(failure.value).toMatchObject({
+          code: "outside_declared_reads",
+          path: "/outside/default.txt"
+        })
+      }
+    }
+  })
+
+  it("checks command references when cwd is the absolute resolved base", async () => {
+    const exit = await execute(Effect.provide(
+      Effect.exit(Bash.run({
+        mode: "hermetic",
+        command: "cat /outside/absolute.txt",
+        cwd: process.cwd(),
+        reads: [],
+        writes: []
+      })),
+      layer()
+    ))
+
+    expect(Exit.isFailure(exit)).toBe(true)
+    if (Exit.isFailure(exit)) {
+      const failure = Cause.findErrorOption(exit.cause)
+      expect(failure._tag).toBe("Some")
+      if (Option.isSome(failure)) {
+        expect(failure.value).toMatchObject({
+          code: "outside_declared_reads",
+          path: "/outside/absolute.txt"
+        })
+      }
+    }
+  })
+
+  it("refuses an undeclared cwd outside the resolved base", async () => {
+    const exit = await execute(Effect.provide(
+      Effect.exit(Bash.run({
+        mode: "hermetic",
+        command: "true",
+        cwd: "/elsewhere",
+        reads: [],
+        writes: []
+      })),
+      layer()
+    ))
+
+    expect(Exit.isFailure(exit)).toBe(true)
+    if (Exit.isFailure(exit)) {
+      const failure = Cause.findErrorOption(exit.cause)
+      expect(failure._tag).toBe("Some")
+      if (Option.isSome(failure)) {
+        expect(failure.value).toMatchObject({
+          code: "outside_declared_reads",
+          path: "/elsewhere"
+        })
+      }
+    }
+  })
+
+  it("keeps omitted cwd unchanged", async () => {
+    const result = await execute(Effect.provide(
+      Bash.run({
+        mode: "hermetic",
+        command: "true",
+        reads: [],
+        writes: []
+      }),
+      layer({ commands: { true: { stdout: "done", exitCode: 0 } } })
+    ))
+
+    expect(result).toMatchObject({ exitCode: 0, stdout: "done" })
+  })
+
   it("fails before spawn when a hermetic command reads an undeclared path", async () => {
     const exit = await execute(Effect.provide(
       Effect.exit(Bash.run({
@@ -129,6 +218,34 @@ describe("Bash", () => {
         expect(failure.value).toMatchObject({
           code: "outside_declared_reads",
           path: "/outside/secret.txt"
+        })
+      }
+    }
+  })
+
+  it("fails before spawn when a hermetic command writes an undeclared path", async () => {
+    const exit = await execute(Effect.provide(
+      Effect.exit(Bash.run({
+        mode: "hermetic",
+        command: "touch /outside/result.txt",
+        reads: [],
+        writes: []
+      })),
+      layer({
+        commands: {
+          "touch /outside/result.txt": { stdout: "must not run", exitCode: 0 }
+        }
+      })
+    ))
+
+    expect(Exit.isFailure(exit)).toBe(true)
+    if (Exit.isFailure(exit)) {
+      const failure = Cause.findErrorOption(exit.cause)
+      expect(failure._tag).toBe("Some")
+      if (Option.isSome(failure)) {
+        expect(failure.value).toMatchObject({
+          code: "outside_declared_writes",
+          path: "/outside/result.txt"
         })
       }
     }

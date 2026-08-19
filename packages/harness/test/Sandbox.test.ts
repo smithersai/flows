@@ -12,13 +12,18 @@ import { HarnessError } from "../src/HarnessError.ts"
 import * as QuickJSSandbox from "../src/QuickJSSandbox.ts"
 import * as Sandbox from "../src/Sandbox.ts"
 
+const listInputDocument = JSON.parse(
+  JSON.stringify(Schema.toJsonSchemaDocument(Schema.Struct({ path: Schema.String })))
+) as Schema.Json
+
 const flows: Readonly<Record<string, Cell.FlowProjection>> = {
   "fs/list": new Cell.FlowProjection({
     name: "fs/list",
     description: "List a directory.",
     capabilities: ["fs:read:**"],
     tier: "sealed",
-    placement: Option.none()
+    placement: Option.none(),
+    input: Option.some(listInputDocument)
   })
 }
 
@@ -518,6 +523,18 @@ describe("Sandbox.layerRestricted", () => {
 })
 
 describe("QuickJSSandbox", () => {
+  it("exposes a flow's input schema document in the cell realm", async () => {
+    const outcome = await evaluate(
+      QuickJSSandbox.layer,
+      `return { intent: "complete", output: JSON.stringify(ctx.flows["fs/list"].input) }`
+    )
+
+    expect(outcome).toMatchObject({
+      _tag: "settled",
+      transition: { _tag: "complete", output: JSON.stringify(listInputDocument) }
+    })
+  })
+
   it("preserves a JSON __proto__ key as an own data property", async () => {
     const payload = JSON.parse("{\"__proto__\":{\"unexpected\":\"prototype\"}}") as Schema.Json
     const outcome = await evaluate(

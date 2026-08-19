@@ -5,10 +5,13 @@
 ### Fixed
 
 - Journaled the turn-boundary steering drain through the new `EngineLike.record` boundary in both `CellTurn` and the legacy `Turn` loop. The drain consumes host queue state, so it is a nondeterministic read: left unjournaled, a run resumed after a park or crash drained an already-drained queue, rebuilt a different context than the original attempt, re-keyed every later sealed step, and could re-execute irreversible effects. The drain is now recorded once per frame boundary and replayed verbatim on re-execution.
+- Accepted explicit JSON `null` values for optional top-level flow input fields by retrying rejected input without those fields, while preserving the original rejection when the remaining input is invalid and preserving `null` for schemas that accept it.
+- Restored `FlowProjection` construction without an explicit input document by defaulting the field to `Option.none()`.
 
 ### Added
 
 - Added `EngineLike.record` with `RecordBoundary` and `BoundaryIdentity`: the port's generic journaled-boundary operation for nondeterministic controller reads, and `Steering.DrainRecord`/`Steering.drainRecord`, the serializable projection of a turn-boundary drain that the controller journals.
+- Carried projectable flow input and output schemas as inline JSON Schema documents in binding descriptors, projected input documents into `ctx.flows`, and rendered them in the cell catalog.
 
 - Added the built-in agent harness for translating dynamic nodes into sealed model steps and child plans.
 - Added harness-owned, call-correlated child progress events streamed from the
