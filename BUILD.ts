@@ -227,6 +227,25 @@ const automation = { packageManager, nodeVersion: "22.19.0" }
 const githubToken = { GH_TOKEN: "${{ github.token }}" }
 
 /**
+ * The manual-dispatch input naming the subject issue, for the workflows whose
+ * webhook payload carries one. A dispatch has no payload, so the number rides
+ * in as an input and reaches the entry as `ISSUE_NUMBER`.
+ */
+const issueInput = { name: "issue", description: "The issue number this run is about" }
+
+/** The env entry that hands the dispatch input to an entry. Empty on webhook runs. */
+const issueEnv = { ISSUE_NUMBER: "${{ inputs.issue }}" }
+
+/**
+ * The condition that keeps a labeled-trigger workflow to its own label. The
+ * `issues: [labeled]` event fires for every label on every issue; without
+ * this, confirming a duplicate or filing an `infra` blocker would start a PoC
+ * run on that issue.
+ */
+const onLabel = (label: string): string =>
+  `github.event_name == 'workflow_dispatch' || github.event.label.name == '${label}'`
+
+/**
  * Intake: decode a new report, look for duplicates, comment with candidates.
  *
  * The job is trusted — it holds the model credential and writes to the issue —
@@ -238,8 +257,8 @@ export const issueIntake = Smithers.GithubAutomation({
   slug: "issue-intake",
   target: "issueIntake",
   workflowName: "Issue intake",
-  on: { issues: ["opened", "edited"] },
-  concurrency: "gen-issue-intake-${{ github.event.issue.number }}",
+  on: { issues: ["opened", "edited"], workflowDispatchInputs: [issueInput] },
+  concurrency: "gen-issue-intake-${{ github.event.issue.number || inputs.issue }}",
   jobs: [
     Smithers.Automation.agent({
       id: "intake",
@@ -247,9 +266,11 @@ export const issueIntake = Smithers.GithubAutomation({
       entry: "intake.ts",
       requireApproval: true,
       timeoutMinutes: 20,
-      permissions: { contents: "read", issues: "write" },
+      // `contents: write` because intake records its triage in the memory
+      // corpus and pushes the bookkeeping commit.
+      permissions: { contents: "write", issues: "write" },
       secrets: [anthropicKey],
-      env: githubToken
+      env: { ...githubToken, ...issueEnv }
     })
   ]
 })
@@ -268,18 +289,19 @@ export const pocLoop = Smithers.GithubAutomation({
   slug: "poc-loop",
   target: "pocLoop",
   workflowName: "Repro PoC loop",
-  on: { issues: ["labeled"], workflowDispatch: true },
-  concurrency: "gen-poc-loop-${{ github.event.issue.number }}",
+  on: { issues: ["labeled"], workflowDispatchInputs: [issueInput] },
+  concurrency: "gen-poc-loop-${{ github.event.issue.number || inputs.issue }}",
   jobs: [
     Smithers.Automation.agent({
       id: "author",
       name: "write the repro pair",
       entry: "poc.ts",
       requireApproval: true,
+      condition: onLabel("agent:approved"),
       timeoutMinutes: 30,
       permissions: { contents: "write", issues: "read" },
       secrets: [anthropicKey],
-      env: githubToken,
+      env: { ...githubToken, ...issueEnv },
       uploads: [{ name: "poc", path: "factory/repros" }]
     }),
     Smithers.Automation.agent({
@@ -289,20 +311,23 @@ export const pocLoop = Smithers.GithubAutomation({
       untrustedInput: true,
       needs: ["author"],
       timeoutMinutes: 30,
+      env: issueEnv,
       downloads: [{ name: "poc", path: "factory/repros" }],
-      uploads: [{ name: "poc-result", path: "factory/repros/result.json" }]
+      uploads: [{ name: "poc-result", path: "factory/repros" }]
     }),
     Smithers.Automation.agent({
       id: "publish",
       name: "post the PoC and ask the reporter",
       entry: "poc-publish.ts",
+      engine: false,
       requireApproval: true,
       needs: ["execute"],
       timeoutMinutes: 15,
-      permissions: { contents: "read", issues: "write" },
-      secrets: [anthropicKey],
-      env: githubToken,
-      downloads: [{ name: "poc-result", path: "factory/repros" }]
+      // `contents: write` because the outcome is recorded in the memory
+      // corpus and the sandbox's result file is pushed for later runs.
+      permissions: { contents: "write", issues: "write" },
+      env: { ...githubToken, ...issueEnv },
+      downloads: [{ name: "poc", path: "factory/repros" }, { name: "poc-result", path: "factory/repros" }]
     })
   ]
 })
@@ -328,7 +353,7 @@ export const issueReply = Smithers.GithubAutomation({
       entry: "advance.ts",
       requireApproval: true,
       timeoutMinutes: 15,
-      permissions: { contents: "write", issues: "write" },
+      permissions: { contents: "read", issues: "write" },
       secrets: [anthropicKey],
       env: githubToken
     })
@@ -356,8 +381,16 @@ export const reproProof = Smithers.GithubAutomation({
       id: "proof",
       name: "fail at the merge base, pass at the head",
       entry: "proof.ts",
+      engine: false,
       untrustedInput: true,
-      timeoutMinutes: 45
+      // The gate adds a worktree at the merge base, so the single-commit
+      // default checkout is not enough.
+      fullHistory: true,
+      timeoutMinutes: 45,
+      env: {
+        PR_BASE_SHA: "${{ github.event.pull_request.base.sha }}",
+        PR_BODY: "${{ github.event.pull_request.body }}"
+      }
     })
   ]
 })
@@ -366,14 +399,18 @@ export const reproProof = Smithers.GithubAutomation({
  * Rubric review over a pull request diff, posted as one review.
  *
  * The job reads the diff and calls the model; it does not run the diff, so it
- * keeps its credential and runs behind the gate.
+ * keeps its credential and runs behind the gate. The event is
+ * `pull_request_target`, not `pull_request`, because a fork's `pull_request`
+ * run gets no secrets and a read-only token: the gate would open and the job
+ * would fail with an empty key. `pull_request_target` checks out the BASE
+ * branch, so the reviewed code runs nothing and the reviewing code is main's.
  */
 export const prReview = Smithers.GithubAutomation({
   ...automation,
   slug: "pr-review",
   target: "prReview",
   workflowName: "Pull request review",
-  on: { pullRequest: ["opened", "synchronize", "reopened", "ready_for_review"] },
+  on: { pullRequestTarget: ["opened", "synchronize", "reopened", "ready_for_review"] },
   concurrency: "gen-pr-review-${{ github.event.pull_request.number }}",
   jobs: [
     Smithers.Automation.agent({
@@ -410,18 +447,30 @@ export const verifiedFix = Smithers.GithubAutomation({
   slug: "verified-fix",
   target: "verifiedFix",
   workflowName: "Verified repro to pull request",
-  on: { issues: ["labeled"], workflowDispatch: true },
-  concurrency: "gen-verified-fix-${{ github.event.issue.number }}",
+  on: { issues: ["labeled"], workflowDispatchInputs: [issueInput] },
+  concurrency: "gen-verified-fix-${{ github.event.issue.number || inputs.issue }}",
   jobs: [
     Smithers.Automation.agent({
       id: "fix",
       name: "queue the item, run the lane, open the pull request",
       entry: "fix.ts",
       requireApproval: true,
+      // Either label can be the one applied second; fix.ts re-reads the issue
+      // and stops unless both are present.
+      condition: "github.event_name == 'workflow_dispatch' || " +
+        "github.event.label.name == 'repro:verified' || github.event.label.name == 'agent:approved'",
       timeoutMinutes: 120,
       permissions: { contents: "write", issues: "write", "pull-requests": "write" },
       secrets: [anthropicKey],
-      env: githubToken
+      env: {
+        // A pull request opened with the workflow token triggers no workflows,
+        // so the proof gate and the review would never run on the fix's own
+        // pull request. `FACTORY_PR_TOKEN` (a PAT or App token, HUMAN-TASKS
+        // H9) fixes that; until it exists, the expression falls back to the
+        // workflow token and the checks are run manually.
+        GH_TOKEN: "${{ secrets.FACTORY_PR_TOKEN || github.token }}",
+        ...issueEnv
+      }
     })
   ]
 })
@@ -445,9 +494,9 @@ export const reproReverify = Smithers.GithubAutomation({
       id: "reverify",
       name: "re-run parked and verified repros against main",
       entry: "reverify.ts",
+      engine: false,
       timeoutMinutes: 120,
       permissions: { contents: "write", issues: "write" },
-      secrets: [anthropicKey],
       env: githubToken
     })
   ]

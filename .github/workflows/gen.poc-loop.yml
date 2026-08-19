@@ -4,16 +4,20 @@ on:
   issues:
     types: [labeled]
   workflow_dispatch:
+    inputs:
+      issue:
+        description: The issue number this run is about
+        required: true
 permissions:
   contents: read
 concurrency:
-  group: "gen-poc-loop-${{ github.event.issue.number }}"
+  group: "gen-poc-loop-${{ github.event.issue.number || inputs.issue }}"
   cancel-in-progress: false
 jobs:
   author:
     name: write the repro pair
     runs-on: ubuntu-latest
-    if: ${{ contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association) || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) || contains(github.event.issue.labels.*.name, 'agent:approved') || contains(github.event.pull_request.labels.*.name, 'agent:approved') }}
+    if: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association) || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) || contains(github.event.issue.labels.*.name, 'agent:approved') || contains(github.event.pull_request.labels.*.name, 'agent:approved')) && (github.event_name == 'workflow_dispatch' || github.event.label.name == 'agent:approved') }}
     timeout-minutes: 30
     permissions:
       contents: write
@@ -26,10 +30,13 @@ jobs:
           node-version: 22.19.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Install the agent CLI
+        run: npm install --global @anthropic-ai/claude-code
       - name: Run author
         run: node factory/automation/poc.ts
         env:
           GH_TOKEN: "${{ github.token }}"
+          ISSUE_NUMBER: "${{ inputs.issue }}"
           ANTHROPIC_API_KEY: "${{ secrets.ANTHROPIC_API_KEY }}"
       - name: Upload poc
         uses: actions/upload-artifact@v4
@@ -41,7 +48,7 @@ jobs:
     name: run the repro in a no-secrets sandbox
     runs-on: ubuntu-latest
     needs: [author]
-    if: ${{ contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association) || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) || contains(github.event.issue.labels.*.name, 'agent:approved') || contains(github.event.pull_request.labels.*.name, 'agent:approved') }}
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association) || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) || contains(github.event.issue.labels.*.name, 'agent:approved') || contains(github.event.pull_request.labels.*.name, 'agent:approved') }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -62,20 +69,22 @@ jobs:
           path: factory/repros
       - name: Run execute
         run: node factory/automation/poc-run.ts
+        env:
+          ISSUE_NUMBER: "${{ inputs.issue }}"
       - name: Upload poc-result
         uses: actions/upload-artifact@v4
         with:
           name: poc-result
-          path: factory/repros/result.json
+          path: factory/repros
           if-no-files-found: error
   publish:
     name: post the PoC and ask the reporter
     runs-on: ubuntu-latest
     needs: [execute]
-    if: ${{ contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association) || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) || contains(github.event.issue.labels.*.name, 'agent:approved') || contains(github.event.pull_request.labels.*.name, 'agent:approved') }}
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association) || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) || contains(github.event.issue.labels.*.name, 'agent:approved') || contains(github.event.pull_request.labels.*.name, 'agent:approved') }}
     timeout-minutes: 15
     permissions:
-      contents: read
+      contents: write
       issues: write
     steps:
       - uses: actions/checkout@v4
@@ -85,6 +94,11 @@ jobs:
           node-version: 22.19.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Download poc
+        uses: actions/download-artifact@v4
+        with:
+          name: poc
+          path: factory/repros
       - name: Download poc-result
         uses: actions/download-artifact@v4
         with:
@@ -94,4 +108,4 @@ jobs:
         run: node factory/automation/poc-publish.ts
         env:
           GH_TOKEN: "${{ github.token }}"
-          ANTHROPIC_API_KEY: "${{ secrets.ANTHROPIC_API_KEY }}"
+          ISSUE_NUMBER: "${{ inputs.issue }}"

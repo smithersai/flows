@@ -3,19 +3,24 @@ name: Issue intake
 on:
   issues:
     types: [opened, edited]
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: The issue number this run is about
+        required: true
 permissions:
   contents: read
 concurrency:
-  group: "gen-issue-intake-${{ github.event.issue.number }}"
+  group: "gen-issue-intake-${{ github.event.issue.number || inputs.issue }}"
   cancel-in-progress: false
 jobs:
   intake:
     name: "decode, dedupe, and comment"
     runs-on: ubuntu-latest
-    if: ${{ contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association) || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) || contains(github.event.issue.labels.*.name, 'agent:approved') || contains(github.event.pull_request.labels.*.name, 'agent:approved') }}
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association) || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) || contains(github.event.issue.labels.*.name, 'agent:approved') || contains(github.event.pull_request.labels.*.name, 'agent:approved') }}
     timeout-minutes: 20
     permissions:
-      contents: read
+      contents: write
       issues: write
     steps:
       - uses: actions/checkout@v4
@@ -25,8 +30,11 @@ jobs:
           node-version: 22.19.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Install the agent CLI
+        run: npm install --global @anthropic-ai/claude-code
       - name: Run intake
         run: node factory/automation/intake.ts
         env:
           GH_TOKEN: "${{ github.token }}"
+          ISSUE_NUMBER: "${{ inputs.issue }}"
           ANTHROPIC_API_KEY: "${{ secrets.ANTHROPIC_API_KEY }}"

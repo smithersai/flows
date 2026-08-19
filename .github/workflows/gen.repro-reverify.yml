@@ -29,4 +29,3 @@ jobs:
         run: node factory/automation/reverify.ts
         env:
           GH_TOKEN: "${{ github.token }}"
-          ANTHROPIC_API_KEY: "${{ secrets.ANTHROPIC_API_KEY }}"
