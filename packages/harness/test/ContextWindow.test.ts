@@ -7,6 +7,28 @@ import * as ContextWindow from "../src/ContextWindow.ts"
 
 const system = Request.SystemPart.make({ text: "Be concise." })
 const tool = Request.ToolDefinition.make({ name: "read", description: "Read", parameters: {} })
+const lazyTool = Request.ToolDefinition.make({
+  name: "write",
+  description: "Write",
+  parameters: {},
+  deferred: true
+})
+
+/** The window with a lazily loaded tool declared but not yet activated. */
+const lazy = () =>
+  ContextWindow.make({
+    modelId: "test-model",
+    segments: [
+      { kind: "system", zone: "prefix", content: [system] },
+      { kind: "tools", zone: "prefix", content: [tool, lazyTool] },
+      { kind: "transcript", zone: "tail", content: [Request.Message.user("load a tool")] }
+    ],
+    activeTools: []
+  })
+
+/** The identity a provider caches: the digests of the prefix-zone segments. */
+const sealedPrefix = (value: ContextWindow.ContextWindow) =>
+  value.segments.filter((segment) => segment.zone === "prefix").map((segment) => segment.digest)
 
 const base = () =>
   ContextWindow.make({
@@ -43,13 +65,57 @@ describe("ContextWindow", () => {
   })
 
   it("activates tools additively without changing the stable prefix", () => {
-    const value = base()
-    const activated = ContextWindow.activateTools(value, ["read", "read"])
-    expect(activated.activeTools).toEqual(["read"])
-    expect(activated.segments[0]).toEqual(value.segments[0])
-    expect(activated.segments[1]).toEqual(value.segments[1])
-    expect(ContextWindow.activateTools(activated, ["read"])).toBe(activated)
-    expect(ContextWindow.activateTools(activated, [" READ "])).toBe(activated)
+    const value = lazy()
+    const first = ContextWindow.activateTools(value, ["read", "read"])
+    const second = ContextWindow.activateTools(first, ["write"])
+
+    // Each activation adds, and adds only what the window did not already hold.
+    expect(value.activeTools).toEqual([])
+    expect(first.activeTools).toEqual(["read"])
+    expect(second.activeTools).toEqual(["read", "write"])
+    expect(first).not.toBe(value)
+    expect(first.digest).not.toBe(value.digest)
+
+    // Activation never rewrites a sealed segment, so the cached prefix survives.
+    expect(sealedPrefix(second)).toEqual(sealedPrefix(value))
+    expect(second.tokens.prefix).toEqual(value.tokens.prefix)
+
+    // A redundant activation keeps the object, and with it the window digest.
+    expect(ContextWindow.activateTools(second, ["read"])).toBe(second)
+    expect(ContextWindow.activateTools(second, [" WRITE "])).toBe(second)
+  })
+
+  it("renders the same prefix when a lazily loaded tool activates", () => {
+    const value = lazy()
+    const activated = ContextWindow.activateTools(value, ["write"])
+    const before = ContextWindow.render(value)
+    const after = ContextWindow.render(activated)
+
+    // A deferred declaration is advertised before and after activation, so the
+    // prefix the provider caches is unchanged by loading the tool.
+    expect(after.tools.map((definition) => definition.name)).toEqual(["write"])
+    expect(after.modelId).toBe(before.modelId)
+    expect(after.system).toEqual(before.system)
+    expect(after.messages).toEqual(before.messages)
+    expect(after.tools).toEqual(before.tools)
+  })
+
+  it("appends a tool message carrying the ordered results after the assistant turn", () => {
+    const assistant = Request.Message.assistant(
+      Request.ToolCallPart.make({ id: "call-1", name: "read", arguments: "{\"path\":\"a\"}" }),
+      { stopReason: "tool-calls" }
+    )
+    const result = Request.ToolResultPart.make({ toolCallId: "call-1", content: "file contents" })
+    const next = ContextWindow.appendTurn(base(), assistant, [result])
+
+    const appended = next.segments[next.segments.length - 1]
+    expect(appended?.kind).toBe("transcript")
+    expect(appended?.zone).toBe("tail")
+    expect(appended?.content).toEqual([assistant, Request.Message.tool([result])])
+
+    const request = ContextWindow.render(next)
+    expect(request.messages.slice(-2).map((message) => message.role)).toEqual(["assistant", "tool"])
+    expect(request.messages[request.messages.length - 1]?.content).toEqual([result])
   })
 
   it("keeps token accounting aligned with segments", () => {

@@ -4,7 +4,7 @@
  *
  * `EngineLike` is a PORT, and its durability contract is the implementation's
  * own ("the implementation owns durability"). The durable flow engine's version
- * (`@smthrs/engine-harness` FlowEngineLike) keys every sealed step and every
+ * (`@smthrs/agent` FlowEngineLike) keys every sealed step and every
  * call into a journal so a crashed run replays instead of re-executing. This
  * app has no cross-process replay to serve: a turn lives inside one browser
  * fiber, and the residency that survives a reload is the persisted TanStack

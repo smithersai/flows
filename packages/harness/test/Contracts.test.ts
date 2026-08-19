@@ -10,10 +10,6 @@ import { HarnessError } from "../src/HarnessError.ts"
 import * as Plan from "../src/Plan.ts"
 
 const assistantMessage = ModelRequest.Message.assistant("done", { stopReason: "stop" })
-const toolResult = ModelRequest.ToolResultPart.make({
-  toolCallId: "call-1",
-  content: "result"
-})
 const child = new Plan.Child({
   flowName: "read-pr",
   callId: "call-1",
@@ -29,11 +25,6 @@ const child = new Plan.Child({
   placement: Option.some("local")
 })
 const batch = new Plan.Batch({ children: [child] })
-const childResult = new Plan.ChildResult({
-  callId: "call-1",
-  outcome: "success",
-  result: toolResult
-})
 const permissionRequest = new Permission.PermissionRequired({
   requestId: "permission-1",
   capability: new Capability.Capability({
@@ -67,14 +58,6 @@ describe("AgentEvent", () => {
         message: assistantMessage,
         usage: ModelEvent.Usage.make({ inputTokens: 1, outputTokens: 2 })
       }),
-      new AgentEvent.Elaborated({
-        eventType: "flows.harness.elaborated.v1",
-        batch
-      }),
-      new AgentEvent.ChildResult({
-        eventType: "flows.harness.child-result.v1",
-        result: childResult
-      }),
       new AgentEvent.CompactionSettled({
         eventType: "flows.harness.compaction-settled.v1",
         replacedPrefixDigest: "prefix-digest",
@@ -92,12 +75,6 @@ describe("AgentEvent", () => {
       new AgentEvent.PermissionRequired({
         eventType: "flows.harness.permission-required.v1",
         request: permissionRequest
-      }),
-      new AgentEvent.ResumeToken({
-        eventType: "flows.harness.resume-token.v1",
-        agentEngine: "claude-code",
-        agentResume: "session-1",
-        discardResumeSession: false
       }),
       new AgentEvent.Aborted({
         eventType: "flows.harness.aborted.v1",

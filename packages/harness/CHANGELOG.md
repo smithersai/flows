@@ -2,11 +2,17 @@
 
 ## [Unreleased]
 
+### Removed
+
+- Removed `Steering.drainBoundary`. Its only caller was the deleted legacy
+  `Turn`; `drainAtClose` and `promoteAtIdle`, the two operations it composed,
+  remain.
+
 ### Fixed
 
 - Stopped charging a settled flow call's duration to the cell's compute clock; a new `totalMs` ceiling (default 15 minutes) backstops a call that never settles. 57 of the 62 rejected frames in the first SWE-bench benchmark were legitimate long test runs hitting the old 30-second wall clock.
 
-- Journaled the turn-boundary steering drain through the new `EngineLike.record` boundary in both `CellTurn` and the legacy `Turn` loop. The drain consumes host queue state, so it is a nondeterministic read: left unjournaled, a run resumed after a park or crash drained an already-drained queue, rebuilt a different context than the original attempt, re-keyed every later sealed step, and could re-execute irreversible effects. The drain is now recorded once per frame boundary and replayed verbatim on re-execution.
+- Journaled the turn-boundary steering drain through the new `EngineLike.record` boundary in `CellTurn`. The drain consumes host queue state, so it is a nondeterministic read: left unjournaled, a run resumed after a park or crash drained an already-drained queue, rebuilt a different context than the original attempt, re-keyed every later sealed step, and could re-execute irreversible effects. The drain is now recorded once per frame boundary and replayed verbatim on re-execution.
 - Accepted explicit JSON `null` values for optional top-level flow input fields by retrying rejected input without those fields, while preserving the original rejection when the remaining input is invalid and preserving `null` for schemas that accept it.
 - Restored `FlowProjection` construction without an explicit input document by defaulting the field to `Option.none()`.
 
@@ -65,12 +71,16 @@
 - Added `CellCalls.Options.catalog`, so a bound implementation answers a call
   only when its declaration digest matches the one disclosure published.
 
-### Changed
+### Removed
 
-- Moved the superseded provider-tool-call loop out of `Harness` and into
-  `LegacyHarness`. `Harness` now carries only the neutral adapter contract and
-  its stub, which is what foreign CLI adapters implement; the cell path is the
-  documented default. No provider request or tool event schema was removed.
+- Removed the superseded provider-tool-call loop and the modules that existed
+  only to serve it: `LegacyHarness`, `Harness`, `Turn`, `Tools`, `Assemble`,
+  `AgentStep`, `Elaborate`, `FlowTool`, and `Visibility`. The production agent
+  loop is the cell path — `Cell`, `CellTurn`, and `CellCalls` — which decides
+  continuation from the transition a cell returns rather than from provider
+  tool calls. Foreign CLI adapters, when they return, implement the `Agent`
+  service in `@smthrs/agent` instead of the neutral `Harness` contract this
+  package used to declare.
 
 ### Fixed
 

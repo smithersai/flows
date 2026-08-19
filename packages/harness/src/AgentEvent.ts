@@ -9,7 +9,6 @@ import * as ModelRequest from "@smthrs/model/ModelRequest"
 import { Schema } from "effect"
 import * as Cell from "./Cell.ts"
 import * as EngineLike from "./EngineLike.ts"
-import * as Plan from "./Plan.ts"
 
 /**
  * The serializable snapshot fixed when a turn opens.
@@ -55,48 +54,6 @@ export class ModelSettled extends Schema.TaggedClass<ModelSettled>(
   eventType: Schema.Literal("flows.harness.model-settled.v1"),
   message: ModelRequest.AssistantMessage,
   usage: ModelEvent.Usage
-}) {}
-
-/**
- * A model settlement elaborated into a local plan batch.
- *
- * @category events
- * @since 0.1.0
- * @slop
- */
-export class Elaborated extends Schema.TaggedClass<Elaborated>(
-  "flows/harness/AgentEvent/Elaborated"
-)("elaborated", {
-  eventType: Schema.Literal("flows.harness.elaborated.v1"),
-  batch: Plan.Batch
-}) {}
-
-/**
- * One settled child result returned by the engine.
- *
- * @category events
- * @since 0.1.0
- * @slop
- */
-export class ChildResult extends Schema.TaggedClass<ChildResult>(
-  "flows/harness/AgentEvent/ChildResult"
-)("child-result", {
-  eventType: Schema.Literal("flows.harness.child-result.v1"),
-  result: Plan.ChildResult
-}) {}
-
-/**
- * One transient progress update from an executing child call.
- *
- * @category events
- * @since 0.1.0
- * @slop
- */
-export class ChildProgress extends Schema.TaggedClass<ChildProgress>(
-  "flows/harness/AgentEvent/ChildProgress"
-)("child-progress", {
-  eventType: Schema.Literal("flows.harness.child-progress.v1"),
-  progress: Plan.ChildProgress
 }) {}
 
 /**
@@ -249,25 +206,6 @@ export class PermissionRequired extends Schema.TaggedClass<PermissionRequired>(
 }) {}
 
 /**
- * Opaque resume carry-over reported by a harness adapter.
- *
- * The token is not key material. `discardResumeSession` is a poison-pill
- * report for the engine to enforce; the harness event does not enforce it.
- *
- * @category events
- * @since 0.1.0
- * @slop
- */
-export class ResumeToken extends Schema.TaggedClass<ResumeToken>(
-  "flows/harness/AgentEvent/ResumeToken"
-)("resume-token", {
-  eventType: Schema.Literal("flows.harness.resume-token.v1"),
-  agentEngine: Schema.String,
-  agentResume: Schema.String,
-  discardResumeSession: Schema.Boolean
-}) {}
-
-/**
  * A normalized harness abort.
  *
  * @category events
@@ -306,9 +244,6 @@ export const AgentEvent = Schema.Union([
   TurnOpened,
   ModelDelta,
   ModelSettled,
-  Elaborated,
-  ChildProgress,
-  ChildResult,
   CellProduced,
   CellCallStarted,
   CellCallSettled,
@@ -319,7 +254,6 @@ export const AgentEvent = Schema.Union([
   SteeringDrained,
   TurnClosed,
   PermissionRequired,
-  ResumeToken,
   Aborted,
   Resolved
 ]).pipe(Schema.toTaggedUnion("_tag"))

@@ -21,12 +21,6 @@ export * as AgentEvent from "./AgentEvent.ts"
  * @category models
  * @since 0.1.0
  */
-export * as AgentStep from "./AgentStep.ts"
-
-/**
- * @category models
- * @since 0.1.0
- */
 export * as Plan from "./Plan.ts"
 
 /**
@@ -54,40 +48,10 @@ export * as ContextWindow from "./ContextWindow.ts"
 export * as Transcript from "./Transcript.ts"
 
 /**
- * @category constructors
- * @since 0.1.0
- */
-export * as Assemble from "./Assemble.ts"
-
-/**
- * @category visibility
- * @since 0.1.0
- */
-export * as Visibility from "./Visibility.ts"
-
-/**
  * @category compaction
  * @since 0.1.0
  */
 export * as Compaction from "./Compaction.ts"
-
-/**
- * @category tools
- * @since 0.1.0
- */
-export * as Tools from "./Tools.ts"
-
-/**
- * @category tools
- * @since 0.1.0
- */
-export * as FlowTool from "./FlowTool.ts"
-
-/**
- * @category elaboration
- * @since 0.1.0
- */
-export * as Elaborate from "./Elaborate.ts"
 
 /**
  * @category steering
@@ -100,12 +64,6 @@ export * as Steering from "./Steering.ts"
  * @since 0.1.0
  */
 export * as Notifications from "./Notifications.ts"
-
-/**
- * @category streams
- * @since 0.1.0
- */
-export * as Turn from "./Turn.ts"
 
 /**
  * @category models
@@ -136,18 +94,6 @@ export * as CellCalls from "./CellCalls.ts"
  * @since 0.1.0
  */
 export * as FlowBinding from "./FlowBinding.ts"
-
-/**
- * @category services
- * @since 0.1.0
- */
-export * as Harness from "./Harness.ts"
-
-/**
- * @category legacy
- * @since 0.1.0
- */
-export * as LegacyHarness from "./LegacyHarness.ts"
 
 /**
  * @category decoding

@@ -76,8 +76,7 @@
     "check": "tsc -b tsconfig.json && tsc -p tsconfig.test.json --noEmit",
     "circular": "node scripts/circular.mjs",
     "test": "vitest",
-    "coverage": "vitest --coverage",
-    "score-gate": "node scripts/ci-score-gate.ts"
+    "coverage": "vitest --coverage"
   },
   "dependencies": {
     "@smthrs/core": "0.1.0",

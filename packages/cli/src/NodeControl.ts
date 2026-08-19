@@ -4,6 +4,12 @@
  * @since 0.1.0
  */
 import { NodeCrypto, NodeHttpClient, NodeHttpServer, NodeServices, NodeSocket } from "@effect/platform-node"
+import * as Agent from "@smthrs/agent/Agent"
+import * as AgentSession from "@smthrs/agent/AgentSession"
+import * as FlowEngineLike from "@smthrs/agent/FlowEngineLike"
+import * as Seat from "@smthrs/agent/Seat"
+import * as SeatResolver from "@smthrs/agent/SeatResolver"
+import * as StandardFlows from "@smthrs/agent/StandardFlows"
 import {
   ControlExecutor,
   ControlRpcs,
@@ -14,9 +20,6 @@ import {
 } from "@smthrs/control"
 import * as DurableWriter from "@smthrs/database/DurableWriter"
 import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
-import * as FlowEngineLike from "@smthrs/engine-harness/FlowEngineLike"
-import * as HarnessExecutor from "@smthrs/engine-harness/HarnessExecutor"
-import * as StandardFlows from "@smthrs/engine-harness/StandardFlows"
 import * as StepBoundary from "@smthrs/engine-store/StepBoundary"
 import * as WorkspaceSandbox from "@smthrs/engine-store/WorkspaceSandbox"
 import * as NodeFlowsRuntime from "@smthrs/flows/NodeRuntime"
@@ -59,6 +62,7 @@ import * as Output from "./Output.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Environment {
   readonly FLOWS_REMOTE?: string | undefined
@@ -69,6 +73,7 @@ export interface Environment {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ServerOptions = ListenOptions & {
   readonly disablePreemptiveShutdown?: boolean | undefined
@@ -91,6 +96,7 @@ const valueFromArguments = (args: ReadonlyArray<string>, flag: string): string |
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeConfig = (
   args: ReadonlyArray<string>,
@@ -105,6 +111,7 @@ export const makeConfig = (
  *
  * @category configuration
  * @since 0.1.0
+ * @slop
  */
 export const config: Effect.Effect<Application.Config> = Effect.sync(() => makeConfig(process.argv.slice(2)))
 
@@ -140,6 +147,7 @@ const websocketLayer = (remote: string, credential: string | undefined) => {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const projectSources = (root: string): ReadonlyArray<Descriptor.Source> => [
   { source: "project", root: join(root, "flows"), naming: "path" }
@@ -157,6 +165,7 @@ export const projectSources = (root: string): ReadonlyArray<Descriptor.Source> =
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerRegistry = (root: string = process.cwd()): Layer.Layer<Registry.Registry> => {
   // `NodeServices` alone is not enough: the kernel's guarded `FileSystem`
@@ -185,6 +194,7 @@ export const layerRegistry = (root: string = process.cwd()): Layer.Layer<Registr
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const databasePath = (root: string): string => join(root, ".flows", "control.db")
 
@@ -196,6 +206,7 @@ export const databasePath = (root: string): string => join(root, ".flows", "cont
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const executionDatabasePath = (root: string): string => join(root, ".flows", "engine.db")
 
@@ -206,6 +217,7 @@ export const executionDatabasePath = (root: string): string => join(root, ".flow
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface EngineDurable extends Application.Engine {
   readonly stores: Layer.Layer<DurableWriter.DurableWriter | SqlClient>
@@ -247,6 +259,7 @@ const durableFlow = (descriptor: Descriptor.FlowDescriptor): ControlRuntime.Memo
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const engineDurable = (
   root: string = process.cwd(),
@@ -297,51 +310,61 @@ const apiKeyVariable: Readonly<Record<string, string>> = {
 }
 
 /**
- * Resolves a `provider:modelId` seat into a live model route, with the API
- * key read from the given environment — usually `process.env`, passed in as a
- * value so nothing below this composition touches the process directly.
+ * The Node seat resolver: it turns a `provider:modelId` seat into a live model
+ * route, with the API key read from the given environment — usually
+ * `process.env`, passed in as a value so nothing below this composition touches
+ * the process directly.
+ *
+ * A seat with no separator is a bare model id on the Anthropic route, which is
+ * the one provider convention this host assumes.
  *
  * @category constructors
  * @since 0.1.0
  */
-export const resolveSeat = (
+export const seatResolver = (
   environment: Readonly<Record<string, string | undefined>>,
   executor: RequestExecutor.RequestExecutor
-): HarnessExecutor.Options["resolveSeat"] =>
-(seat) =>
-  Effect.gen(function*() {
-    const separator = seat.indexOf(":")
-    const provider = separator < 0 ? "anthropic" : seat.slice(0, separator)
-    const modelId = separator < 0 ? seat : seat.slice(separator + 1)
-    const variable = apiKeyVariable[provider]
-    if (variable === undefined) {
-      return yield* new HarnessExecutor.SeatUnresolved({
-        seat,
-        message: `No route is configured for the ${provider} provider`
+): SeatResolver.Service =>
+  SeatResolver.make({
+    resolve: (seat) =>
+      Effect.gen(function*() {
+        const separator = seat.indexOf(":")
+        const provider = separator < 0 ? "anthropic" : seat.slice(0, separator)
+        const modelId = Seat.modelIdOf(seat)
+        const variable = apiKeyVariable[provider]
+        if (variable === undefined) {
+          return yield* new Seat.SeatUnresolved({
+            seat,
+            message: `No route is configured for the ${provider} provider`
+          })
+        }
+        const key = environment[variable]
+        if (key === undefined || key.length === 0) {
+          return yield* new Seat.SeatUnresolved({
+            seat,
+            message: `Set ${variable} to run the ${seat} seat`
+          })
+        }
+        // The provider routes have distinct body types, so each branch is
+        // erased into the seat shape on its own rather than through a union.
+        // OpenRouter is the OpenAI Responses surface at a different origin, so
+        // its seats spell the model as `openrouter:vendor/model` and route
+        // through the compatible constructor.
+        return yield* provider === "anthropic"
+          ? seatOf(Route.anthropic({ apiKey: Redacted.make(key) }), executor, seat, modelId)
+          : provider === "openrouter"
+          ? seatOf(
+            OpenAICompatible.make({
+              id: "openrouter",
+              baseUrl: "https://openrouter.ai/api",
+              apiKey: Redacted.make(key)
+            }),
+            executor,
+            seat,
+            modelId
+          )
+          : seatOf(Route.openai({ apiKey: Redacted.make(key) }), executor, seat, modelId)
       })
-    }
-    const key = environment[variable]
-    if (key === undefined || key.length === 0) {
-      return yield* new HarnessExecutor.SeatUnresolved({
-        seat,
-        message: `Set ${variable} to run the ${seat} seat`
-      })
-    }
-    // The provider routes have distinct body types, so each branch is erased
-    // into the seat shape on its own rather than through a union. OpenRouter
-    // is the OpenAI Responses surface at a different origin, so its seats
-    // spell the model as `openrouter:vendor/model` and route through the
-    // compatible constructor.
-    return yield* provider === "anthropic"
-      ? seatOf(Route.anthropic({ apiKey: Redacted.make(key) }), executor, seat, modelId)
-      : provider === "openrouter"
-      ? seatOf(
-        OpenAICompatible.make({ id: "openrouter", baseUrl: "https://openrouter.ai/api", apiKey: Redacted.make(key) }),
-        executor,
-        seat,
-        modelId
-      )
-      : seatOf(Route.openai({ apiKey: Redacted.make(key) }), executor, seat, modelId)
   })
 
 const seatOf = <Body, Frame, Event, State>(
@@ -349,20 +372,37 @@ const seatOf = <Body, Frame, Event, State>(
   executor: RequestExecutor.RequestExecutor,
   seat: string,
   modelId: string
-): Effect.Effect<HarnessExecutor.Seat, HarnessExecutor.SeatUnresolved> =>
+): Effect.Effect<Seat.Seat, Seat.SeatUnresolved> =>
   Effect.gen(function*() {
     const routeConfig = yield* Effect.fromResult(configured).pipe(
-      Effect.mapError((error) => new HarnessExecutor.SeatUnresolved({ seat, message: error.message }))
+      Effect.mapError((error) => new Seat.SeatUnresolved({ seat, message: error.message }))
     )
     const model = yield* Route.toModel(routeConfig).pipe(
       Effect.provideService(RequestExecutor.RequestExecutor, executor)
     )
-    return {
+    return Seat.make({
+      id: seat,
       model,
       route: FlowEngineLike.routeResolver(routeConfig),
-      contextWindowTokens: HarnessExecutor.contextWindowTokensFor(modelId)
-    }
+      contextWindowTokens: SeatResolver.contextWindowTokensFor(modelId)
+    })
   })
+
+/**
+ * Provides {@link seatResolver} over the composition's request dispatcher.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
+export const layerSeatResolver = (
+  environment: Readonly<Record<string, string | undefined>> = process.env
+): Layer.Layer<SeatResolver.SeatResolver, never, RequestExecutor.RequestExecutor> =>
+  Layer.effect(SeatResolver.SeatResolver)(
+    Effect.gen(function*() {
+      const executor = yield* RequestExecutor.RequestExecutor
+      return seatResolver(environment, executor)
+    })
+  )
 
 /**
  * The explicit sandbox budget every locally executed cell runs under. Never
@@ -374,14 +414,14 @@ const cellLimits: Sandbox.Limits = {
 }
 
 /**
- * Provides the production run executor: the engine-harness composition root
+ * Provides the production run executor: the `@smthrs/agent` composition root
  * over the durable control stores, the local flow registry, and the standard
  * host capabilities — filesystem and shell through the kernel's guarded
  * layers, durable memory over the control database, approval and steering
- * wired back into the control plane by the executor itself.
+ * wired back into the control plane by the session itself.
  *
  * The durable engine is built through `@smthrs/flows/NodeRuntime`, whose
- * final registration phase constructs `HarnessExecutor`. This is deliberate:
+ * final registration phase constructs `AgentSession`. This is deliberate:
  * the executor cannot accept a launch until the engine database is migrated,
  * its stores and sweepers are live, and the agent flow body has been
  * registered. The resulting engine state is durable, and no launch can race
@@ -389,6 +429,7 @@ const cellLimits: Sandbox.Limits = {
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerExecutor = (
   registry: Layer.Layer<Registry.Registry>,
@@ -414,16 +455,17 @@ export const layerExecutor = (
     Layer.provideMerge(platform)
   )
   const memory = MemoryStore.layer.pipe(Layer.provide(engine.stores), Layer.orDie)
+  // The dispatcher must live as long as the executor. A model captures this
+  // service and uses it after seat resolution has returned.
+  const dispatcher = RequestExecutor.layer.pipe(Layer.provide(NodeHttpClient.layerUndici))
   const registration = Layer.effect(ControlExecutor.ControlExecutor)(
     Effect.gen(function*() {
-      const modelExecutor = yield* RequestExecutor.RequestExecutor
       const filesystemServices = yield* Effect.context<FileSystem.FileSystem | Path.Path>()
       const shellServices = yield* Effect.context<
         KernelChildProcessSpawner.ChildProcessSpawner | Path.Path
       >()
       const memoryServices = yield* Effect.context<MemoryStore.MemoryStore | Recall.Recall>()
-      return yield* HarnessExecutor.make({
-        resolveSeat: resolveSeat(environment, modelExecutor),
+      return yield* AgentSession.make({
         flows: [
           StandardFlows.filesystem(filesystemServices),
           StandardFlows.shell(shellServices),
@@ -437,9 +479,8 @@ export const layerExecutor = (
       guarded,
       memory,
       Recall.layerNoop,
-      // The dispatcher must live as long as the executor. A model captures
-      // this service and uses it after seat resolution has returned.
-      RequestExecutor.layer.pipe(Layer.provide(NodeHttpClient.layerUndici))
+      Agent.layer,
+      layerSeatResolver(environment).pipe(Layer.provide(dispatcher))
     ])
   )
   return NodeFlowsRuntime.layer(
@@ -469,6 +510,7 @@ export const layerExecutor = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerControl = (applicationConfig: Application.Config) => {
   const remote = applicationConfig.remote ?? "http://127.0.0.1"
@@ -492,6 +534,7 @@ const output = Output.make()
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerOutput = Layer.succeed(
   Output.Output,
@@ -513,6 +556,7 @@ export const layerOutput = Layer.succeed(
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (applicationConfig: Application.Config) =>
   Layer.mergeAll(layerControl(applicationConfig), layerOutput, NodeServices.layer)
@@ -537,6 +581,7 @@ const listenOptions = (options: ServerOptions): ListenOptions => {
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerServer = (
   auth: Layer.Layer<ControlRpcs.ControlAuth>,
@@ -560,6 +605,7 @@ export const layerServer = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerServerBearerAuth = (
   auth: ControlRpcs.BearerAuthOptions,
@@ -573,6 +619,7 @@ export const layerServerBearerAuth = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerServerNoopAuth = (options: ServerOptions = defaultServerOptions) => {
   const host = options.host ?? "127.0.0.1"

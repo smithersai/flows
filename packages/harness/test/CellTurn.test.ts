@@ -181,8 +181,6 @@ describe("CellTurn", () => {
     // whole-cell activity.
     expect(of(events, "cell-call-started")).toHaveLength(2)
     expect(of(events, "cell-call-settled")).toHaveLength(2)
-    expect(of(events, "elaborated")).toHaveLength(0)
-    expect(of(events, "child-result")).toHaveLength(0)
     expect(engine.recorder.splice).toHaveLength(0)
   })
 

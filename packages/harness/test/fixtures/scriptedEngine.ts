@@ -153,7 +153,7 @@ export const make = (
     },
     // The fixture keeps no journal: single-pass tests execute the boundary,
     // and replay behaviour is proven against the real engine in
-    // `@smthrs/engine-harness`.
+    // `@smthrs/agent`.
     record: (boundary) => {
       recorder.records.push(boundary)
       return boundary.execute

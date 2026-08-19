@@ -13,7 +13,7 @@ references come from the audit's partial reads (`engine.js` resume/claim
 Companion pages: [implementation-status](implementation-status.md) for the
 authoritative per-area status table. Sections below that route engine policy
 to a "plugin" predate the bounded `@smthrs/plugin` cell-host kernel. That
-kernel dispatches configuration and the hooks owned by `@smthrs/engine-harness`;
+kernel dispatches configuration and the hooks owned by `@smthrs/agent`;
 it does not provide engine-wide lifecycle seams. Those remain injected services
 or constructor options — see [design decisions](design-decisions.md).
 
@@ -202,7 +202,7 @@ gap.
    engine call site dispatched its run, step, retry, cache, wait, checkpoint,
    or journal hooks, so those declarations were removed rather than advertised.
    The package now resolves the configuration lifecycle and only the additional
-   hooks a host owns and dispatches; `@smthrs/engine-harness` supplies
+   hooks a host owns and dispatches; `@smthrs/agent` supplies
    `cellRegistry`, `cellFlows`, and `cellModelRequest`. Pause attribution,
    hijack, quota, and checkpoints still need seams as injected services and
    constructor options at the sites that own them, not as a lifecycle registry.

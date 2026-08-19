@@ -299,31 +299,6 @@ export const promoteAtIdle = (state: PromotionState): QueueInsert | undefined =>
   return state.queue.items.find((item): item is QueueInsert => item._tag === "Insert" && item.delivery === "queue")
 }
 
-/** Drains steer-class items and, only at idle, one queued follow-up.
- * @category operations
- * @since 0.1.0
- * @slop
- */
-export const drainBoundary = (queue: Queue, input: BoundaryInput): Drain => {
-  const cutoff = queue.items.reduce(
-    (value, item) => item.delivery === "steer" ? Math.max(value, item.admittedAt) : value,
-    -1
-  )
-  const drained = drainAtClose(queue, cutoff)
-  const promoted = promoteAtIdle({
-    queue: drained.remaining,
-    wouldIdle: input.wouldIdle,
-    steerContinued: drained.inserts.length > 0
-  })
-  if (promoted === undefined) return drained
-  return {
-    ...drained,
-    inserts: [...drained.inserts, promoted.message],
-    remaining: immutable(drained.remaining.items.filter((item) => item !== promoted)),
-    queued: true
-  }
-}
-
 /**
  * Source of a serializable steering-queue snapshot. Storage and persistence
  * promotion are deliberately supplied by the host.
