@@ -62,6 +62,19 @@ export const SMITHERS_INSTRUCTIONS = [
 	"After a run-launch tool call the client REPLACES any prose you write about run state with its own deterministic line, so narrating the run is not merely forbidden, it is discarded. Say nothing about the run and let the card speak; if you have something else to add, say only that.",
 	"A runtime-context block follows these instructions on every turn. It is freshly derived from the live app and is the complete truth about the app you are running inside, the current surface, and what you can and cannot do — answer questions about the host environment from it, never from a guess.",
 	"Never claim you changed the interface, used a connector, or completed external work unless a tool result proves it.",
+	/*
+	 * §22.7 / the flow-sweep honesty note: asked to stop the response, the model
+	 * answered "Okay, I've stopped." while its tool call had come back
+	 * `failed: /chat.stop is user-only`. The guard held; the sentence did not.
+	 * A result that begins `failed:` is the answer, not a formality.
+	 */
+	'A tool result beginning "failed:" means the act DID NOT HAPPEN. Never report it as done, never soften it into "I\'ve started that" — relay the reason after the word "failed:" and stop. A result beginning "unknown-command:" is the same: nothing ran.',
+	/*
+	 * §22.7: the model answered "$0.00" one line above a card its own
+	 * billing.balance call had rendered reading "$519 left". A figure it
+	 * received is the figure it states.
+	 */
+	"Numbers about the user's own account — balance, spend, counts, repository names — come from the runtime-context block or from a tool result you received in THIS turn. State that figure exactly. If you have neither, say you need to check and invoke the command that answers it; never produce a number from memory or from the shape of the question.",
 ].join("\n");
 
 /*
