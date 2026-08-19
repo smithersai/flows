@@ -977,3 +977,11 @@
 .composer-flow-stamp {
 	display: contents;
 }
+
+/* §4.2 — a model's table renders as a table. The scroller keeps a wide one
+   inside the bubble instead of pushing the transcript sideways. */
+.md-table-scroller {
+	max-width: 100%;
+	margin: 6px 0;
+	overflow-x: auto;
+}
