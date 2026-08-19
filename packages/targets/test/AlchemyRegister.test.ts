@@ -77,13 +77,15 @@ describe("Alchemy-style BUILD.ts constructors", () => {
   })
 
   it("applies the pnpm workspace constructor defaults", () => {
-    const attrs = Target.metadata(
-      PnpmWorkspace({ packages: ["packages/*"] })
-    ).attrs as PnpmWorkspaceAttrs
+    const metadata = Target.metadata(PnpmWorkspace({ packages: ["packages/*"] }))
+    const attrs = metadata.attrs as PnpmWorkspaceAttrs
 
     expect(attrs.packages).toEqual(["packages/*"])
     expect(attrs.allowBuilds).toEqual({})
     expect(attrs.linkWorkspacePackages).toBe(true)
-    expect(attrs.mode).toBe("check")
+    // The declaration is the non-mutating half of the generated-file pair, so
+    // there is no `mode` attr to resolve: the halves are separate targets.
+    expect(metadata.target).toBe("PnpmWorkspaceCheck")
+    expect(metadata.kinds).toEqual(["lint"])
   })
 })

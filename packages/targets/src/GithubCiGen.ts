@@ -863,6 +863,23 @@ export const render = (attrs: Attrs): string => {
  *   job or step shape GitHub Actions rejects — so even the writing path cannot
  *   downgrade the pipeline.
  *
+ * **The contract has to be planned.** A `contract` target verifies nothing
+ * until some step selects its label. The `docs` verb selects only `docs`-kind
+ * targets and this rule declares `build` and `lint`, and a package pattern
+ * such as `//packages/...` excludes every `//:` root label, so a repository
+ * that runs only those two plans no contract at all. The step that runs it
+ * names the label: `<exec> smthrs lint '//:ci'`.
+ *
+ * **Why `write` stays unreachable for a real pipeline.** {@link Job} models
+ * id, name, `runs-on`, `timeout-minutes`, `continue-on-error`, and steps, and
+ * {@link Step} models name, `uses`, `run`, `with`, and `env`. There is no
+ * `needs`, `permissions`, job-level `env`, `strategy`, `environment`,
+ * `outputs`, `defaults`, step `if`, step `id`, step `shell`, or
+ * `working-directory`, and comments are dropped entirely. Generating a
+ * hand-written pipeline that carries any of those is a net loss of gate
+ * coverage, so the strong form of this rule is a full gate roster plus a
+ * `requiredJobs` list in `contract` mode, not a weaker generated file.
+ *
  * The `lint` verb maps `write` to `check` through `attrsForKind`, so no lint
  * or `ci` run mutates a workflow file. Only `contract` and `check` are
  * cacheable; the output file is a declared input in both, so editing the

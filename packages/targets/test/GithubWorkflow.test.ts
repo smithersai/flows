@@ -1717,3 +1717,101 @@ describe("GithubCiGen target wiring", () => {
     expect(metadata.forKind("lint").cacheable).toBe(true)
   })
 })
+
+/**
+ * The repository's own contract, exercised against the repository's own files.
+ *
+ * The roster is read from the root `BUILD.ts` rather than restated here, so a
+ * gate added to `//:ci` is a gate this suite starts proving on the next run and
+ * a gate deleted from `//:ci` cannot leave a passing copy behind. The workflow
+ * is read from disk. Nothing in this block writes: the negative cases mutate
+ * the source string in memory.
+ *
+ * This is the same check `pnpm exec smthrs lint '//:ci'` runs in the `test`
+ * job. Keeping it here means a dropped gate fails in this package's own suite
+ * as well as in a workspace-wide run.
+ */
+describe("the checked-in ci.yml satisfies the //:ci contract", () => {
+  interface Roster {
+    readonly gates: ReadonlyArray<{ readonly name: string; readonly command: string; readonly job?: string }>
+    readonly requiredJobs: ReadonlyArray<string>
+  }
+
+  const roster = async (): Promise<Roster> => {
+    const build = await import("../../../BUILD.ts") as { readonly ci: unknown }
+    return Target.metadata(build.ci as never).attrs as unknown as Roster
+  }
+
+  it("declares a roster that spans every required job", async () => {
+    const { gates, requiredJobs } = await roster()
+    expect(requiredJobs).toEqual(["test", "rust", "wasm-repro", "bun", "browser"])
+    // Every gate names the job it runs in, and every required job carries at
+    // least one. A roster entry with no job would pass against any job in the
+    // file, which is the weaker contract D7 replaced.
+    expect(gates.filter((gate) => gate.job === undefined)).toEqual([])
+    expect([...new Set(gates.map((gate) => gate.job))].sort())
+      .toEqual([...requiredJobs].sort())
+    // The gate surface, not one gate: the roster started at a single entry.
+    expect(gates.length).toBeGreaterThanOrEqual(29)
+  })
+
+  it("runs every gate the roster declares", async () => {
+    const source = await readReal()
+    if (source === undefined) return
+    const { gates } = await roster()
+    expect(missingGates(parseStrictWorkflow(source), gates)).toEqual([])
+  })
+
+  it("runs every job the roster requires, unconditionally", async () => {
+    const source = await readReal()
+    if (source === undefined) return
+    const { requiredJobs } = await roster()
+    expect(missingRequiredJobs(parseStrictWorkflow(source), requiredJobs)).toEqual([])
+  })
+
+  /**
+   * The proof that the block above is not vacuous. One gate step is deleted
+   * from the source IN MEMORY and the contract reports exactly that gate.
+   */
+  it("fails when a gate is deleted from ci.yml", async () => {
+    const source = await readReal()
+    if (source === undefined) return
+    const { gates } = await roster()
+    const deleted = source.replace("      - name: Circular-dependency guard\n        run: pnpm run circular\n", "")
+    expect(deleted).not.toBe(source)
+    expect(missingGates(parseStrictWorkflow(deleted), gates).map((gate) => gate.name))
+      .toEqual(["circular-dependency guard"])
+  })
+
+  /**
+   * The same proof one level up. A required job that GitHub may skip is a
+   * required job the pipeline does not run.
+   */
+  it("fails when a required job becomes conditional", async () => {
+    const source = await readReal()
+    if (source === undefined) return
+    const { requiredJobs } = await roster()
+    const skipped = source.replace(/^ {2}browser:$/m, "  browser:\n    if: ${{ github.event_name == 'push' }}")
+    expect(skipped).not.toBe(source)
+    expect(missingRequiredJobs(parseStrictWorkflow(skipped), requiredJobs)).toEqual(["browser (conditional)"])
+  })
+
+  /**
+   * `continue-on-error` is deliberately ignored, and this pins it. A gate
+   * asserts that a command still RUNS, not that its failure blocks a merge, so
+   * an advisory lane satisfies the gates it carries. The advisory macOS,
+   * Windows, and shadow lanes rely on this; so would `browser` on the day it
+   * is demoted.
+   */
+  it("keeps an advisory job satisfying the gates it carries", async () => {
+    const source = await readReal()
+    if (source === undefined) return
+    const { gates, requiredJobs } = await roster()
+    const advisory = source.replace(/^ {2}browser:$/m, "  browser:\n    continue-on-error: true")
+    expect(advisory).not.toBe(source)
+    const workflow = parseStrictWorkflow(advisory)
+    expect(workflow.jobs.find((job) => job.id === "browser")?.continueOnError).toBe("true")
+    expect(missingGates(workflow, gates)).toEqual([])
+    expect(missingRequiredJobs(workflow, requiredJobs)).toEqual([])
+  })
+})

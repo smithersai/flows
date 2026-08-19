@@ -11,8 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Keep this check in lockstep with release.yml: actionlint catches
-      # GitHub-only expression-context errors before either workflow runs.
+      # actionlint catches GitHub-only expression-context errors before either
+      # workflow runs. The two invocations are NOT in lockstep: this one lints
+      # three files and release.yml lints two, leaving apps-deploy.yml
+      # unvalidated on the release path. Recorded here rather than fixed;
+      # closing it is an edit to release.yml.
       - name: Validate GitHub Actions workflows
         uses: docker://rhysd/actionlint:1.7.11
         with:
@@ -48,6 +51,14 @@ jobs:
         run: pnpm run lint
       - name: Documentation parity
         run: pnpm exec smthrs docs '//...'
+      # The workflow contract, run against this file. `//:ci` declares the
+      # gate roster below and the jobs that must stay unconditional; the lint
+      # verb reads the checked-in workflow and fails when a declared gate or a
+      # required job is gone. Without this step the contract is inert: the
+      # docs verb above selects no root target, and the shadow lane's
+      # `//packages/...` pattern excludes every `//:` label.
+      - name: Workflow contract
+        run: pnpm exec smthrs lint '//:ci'
       - name: Circular-dependency guard
         run: pnpm run circular
       # Browser support is a hard requirement met through layers: the contract
@@ -266,7 +277,10 @@ jobs:
 
   # Shadow lane for the dogfooded build system: the same gate surface as the
   # `test` job's check/lint/test steps, planned and executed as smithers build
-  # targets (lib+check, lint+fmt, test — 130 targets over 26 packages).
+  # targets (lib+check, lint+fmt, test, docs). Measured on 2026-08-19, the
+  # pattern below plans 271 root targets over 45 packages. The pattern selects
+  # no `//:` label, so the root gates — `//:ci`, `//:browser`, `//:circular`,
+  # and the five script gates — are not in this lane.
   # Advisory until it holds a green streak with verdicts matching the pnpm
   # gates; then it becomes required and the recursive scripts retire.
   smthrs-shadow:

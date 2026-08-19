@@ -2,7 +2,7 @@
 
 Use Node.js 22.19 or later. Install dependencies with `pnpm install`.
 
-Before opening a pull request, run every gate:
+Before opening a pull request, run every contract gate:
 
 ```sh
 pnpm run check
@@ -10,9 +10,22 @@ pnpm test
 pnpm run lint
 pnpm run circular
 pnpm run browser
-pnpm run test:examples
-pnpm exec vocs build
+pnpm exec smthrs lint '//:ci'
+node --test scripts/pack-release.test.mjs
+node --test scripts/release-rehearsal.test.mjs
+node --test scripts/set-release-version.test.mjs
+node --test scripts/flows-backup.test.mjs
+node --test scripts/check-test-pins.test.mjs
 ```
+
+These are contract gates: [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs every one of them, and `//:ci` is the declaration that says so. `pnpm exec smthrs lint '//:ci'` reads the checked-in workflow and fails when a declared gate or a required job is gone, so deleting a gate step from `ci.yml` fails this list rather than silently shrinking it.
+
+Two commands that used to appear above are local-only, and no workflow runs either:
+
+- `pnpm run test:examples` filters `@smthrs/examples`, whose `test` script `pnpm test` already runs recursively. It is a shortcut for iterating on that one workspace, not a separate gate.
+- `pnpm exec vocs build` builds the documentation site. `ci.yml` gates documentation content through `pnpm exec smthrs docs '//...'`, and the site itself is deployed from [`apps-deploy.yml`](.github/workflows/apps-deploy.yml). Run it locally when you change `docs/pages/`.
+
+The gates above cover the `test` job. `ci.yml` also runs Rust, WebAssembly reproducibility, bun, and browser lanes, each of which needs a toolchain this list does not assume; `//:ci` names them in `requiredJobs`.
 
 Packages under `packages/` follow the structure and conventions in the Effect repository. Use `reference/effect` as the local reference when adding or changing package modules, public APIs, tests, build configuration, or package metadata.
 

@@ -21,7 +21,7 @@ import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import * as GeneratedFile from "./GeneratedFile.ts"
 import * as PackageManager from "./PackageManager.ts"
-import * as Target from "./Target.ts"
+import type * as Target from "./Target.ts"
 
 /**
  * Attributes for {@link PnpmWorkspace}.
@@ -56,10 +56,6 @@ export const Attrs = Schema.Struct({
    */
   settings: Schema.Record(Schema.String, Schema.Union([Schema.Boolean, Schema.String])).pipe(
     Schema.withConstructorDefault(Effect.succeed<Record<string, boolean | string>>({}))
-  ),
-  /** Whether to write the file or verify the checked-in copy. @default "check" */
-  mode: Schema.Literals(["write", "check"]).pipe(
-    Schema.withConstructorDefault(Effect.succeed("check" as const))
   ),
   /** Where the file is written, relative to `cwd`. @default "pnpm-workspace.yaml" */
   path: Schema.NonEmptyString.pipe(
@@ -132,27 +128,46 @@ export const render = (attrs: Attrs): string => {
   return `${lines.join("\n")}\n`
 }
 
-const definition = Target.make("PnpmWorkspace", {
+const pair = GeneratedFile.generateFilePair({
+  target: "PnpmWorkspace",
   attrs: Attrs,
-  kinds: ["build", "lint"],
-  error: Schema.Union([GeneratedFile.WriteFileError, GeneratedFile.DriftError]),
-  cache: false,
-  outputs: (attrs) => attrs.mode === "write" ? { cwd: attrs.cwd, paths: [attrs.path] } : { cwd: attrs.cwd, paths: [] },
-  // The lint form verifies the checked-in file; only the build form writes.
-  attrsForKind: (kind, attrs) => kind === "lint" ? { ...attrs, mode: "check" as const } : attrs,
-  implementation: (attrs) =>
-    GeneratedFile.generateFile(attrs.mode, {
-      path: attrs.cwd === "." ? attrs.path : `${attrs.cwd}/${attrs.path}`,
-      contents: render(attrs)
-    })
+  payload: (attrs) => ({
+    path: attrs.cwd === "." ? attrs.path : `${attrs.cwd}/${attrs.path}`,
+    contents: render(attrs)
+  }),
+  outputs: (attrs) => ({ cwd: attrs.cwd, paths: [attrs.path] })
 })
 
 /**
- * Generates and drift-checks `pnpm-workspace.yaml`.
+ * Refuses a declaration under any manager but pnpm.
  *
- * Only pnpm reads this file, so the declaration refuses any other manager:
- * rendering a file the declared manager never reads would be a target that
- * reports success while producing nothing the workspace uses.
+ * Only pnpm reads `pnpm-workspace.yaml`. npm, Bun, and Yarn read workspace
+ * membership from the root manifest's `workspaces` field, which the
+ * `PackageJson` declaration already generates. Rendering this file under one of
+ * those managers would be a target that reports success while producing
+ * nothing the workspace uses, so the declaration throws instead.
+ */
+const requirePnpm = <Definition extends (attrs: never) => Target.AnyTarget>(
+  definition: Definition
+): Definition =>
+  Object.assign(
+    ((attrs: never) => {
+      const manager = PackageManager.registeredToolchain().packageManager
+      if (manager.name !== "pnpm") {
+        throw new Error(`PnpmWorkspace requires the pnpm declaration; this workspace declares ${manager.name}`)
+      }
+      return definition(attrs)
+    }) as Definition,
+    definition
+  )
+
+/**
+ * Drift-checks a `pnpm-workspace.yaml` against its BUILD.ts declaration.
+ *
+ * This is the `lint` half of the pair. It is cacheable and it never touches
+ * the working tree. The checked-in file is a declared input, so editing that
+ * file re-keys the target. Exported from a BUILD.ts file as `workspace`, it
+ * keeps the label `//:workspace`.
  *
  * @example
  * ```ts
@@ -167,13 +182,16 @@ const definition = Target.make("PnpmWorkspace", {
  * @category targets
  * @since 0.1.0
  */
-export const PnpmWorkspace = Object.assign(
-  (attrs: Parameters<typeof definition>[0]) => {
-    const manager = PackageManager.registeredToolchain().packageManager
-    if (manager.name !== "pnpm") {
-      throw new Error(`PnpmWorkspace requires the pnpm declaration; this workspace declares ${manager.name}`)
-    }
-    return definition(attrs)
-  },
-  definition
-)
+export const PnpmWorkspace = requirePnpm(pair.check)
+
+/**
+ * Rewrites a `pnpm-workspace.yaml` from its BUILD.ts declaration.
+ *
+ * This is the `run` half of the pair. It mutates the source tree, so it
+ * participates in the `run` verb alone and is never cacheable. A declaration
+ * exported as `workspace` takes the label `//:workspaceWrite` for this half.
+ *
+ * @category targets
+ * @since 0.1.0
+ */
+export const PnpmWorkspaceWrite = requirePnpm(pair.write)

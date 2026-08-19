@@ -6,11 +6,7 @@ declared jobs. The default is a non-mutating structural contract.
 ```ts
 import { Smithers } from "@smthrs/targets"
 
-export const runtime = Smithers.Runtime.Node({ version: ">=22.19.0" })
-export const packageManager = Smithers.PackageManager.Pnpm({ version: "11.21.0", runtime })
-
 export const ci = Smithers.GithubCiGen({
-  packageManager,
   workflowName: "CI",
   pattern: "//...",
   kinds: ["build", "test", "lint"],
@@ -29,6 +25,10 @@ export const ci = Smithers.GithubCiGen({
   mode: "contract"
 })
 ```
+
+The toolchain is not an attr. `WORKSPACE.ts` registers the runtime and the
+package manager once, and this rule reads that registration for the install
+command and the workspace binary the generated step invokes.
 
 ## Modes
 
@@ -54,7 +54,6 @@ explicit `smthrs build` of a `mode: "write"` target generates a file.
 | `workflowDispatch` | `boolean`                          | `true`                                | Generated manual trigger.                                                                                                                                                                                                                                                       |
 | `cancelInProgress` | `boolean`                          | `true`                                | Generated concurrency policy.                                                                                                                                                                                                                                                   |
 | `install`          | `string`                           | The declared manager's frozen install | Lockfile-respecting install command. Unsupported commands, and flags that can omit a pinned dependency, are rejected; the job that runs smithers build must run an install line that passes the same policy. It also selects the workspace-binary runner of the generated step. |
-| `packageManager`   | `PackageManager.PackageManager`    | required                              | The declared package manager. The generated pipeline installs with it and runs the smthrs binary through it, so a workspace that switches managers gets a regenerated workflow.                                                                                                 |
 | `cacheUrlSecret`   | `Secret.Secret`                    | optional                              | The declared secret supplying the remote-cache endpoint override. The generated step reads the repository secret of the same name.                                                                                                                                              |
 | `cacheTokenSecret` | `Secret.Secret`                    | optional                              | The declared secret supplying the remote-cache bearer token. The generated step reads the repository secret of the same name.                                                                                                                                                   |
 | `jobs`             | `Array<Job>`                       | `[]`                                  | Jobs rendered by `write` and `check`; may be empty in contract mode. A job's optional `timeoutMinutes` must be a whole number from 1 to 360.                                                                                                                                    |
@@ -62,6 +61,31 @@ explicit `smthrs build` of a `mode: "write"` target generates a file.
 | `requiredJobs`     | `Array<string>`                    | `[]`                                  | Job ids the workflow must define **and run unconditionally**, in every mode.                                                                                                                                                                                                    |
 | `output`           | `string`                           | `".github/workflows/ci.yml"`          | Workspace-relative workflow path.                                                                                                                                                                                                                                               |
 | `mode`             | `"contract" \| "check" \| "write"` | `"contract"`                          | Output handling described above.                                                                                                                                                                                                                                                |
+
+## Running the contract
+
+A contract-mode target checks nothing until some step plans it. `smthrs lint`
+is the verb, and the pattern has to select the target:
+
+```yaml
+- name: Workflow contract
+  run: pnpm exec smthrs lint '//:ci'
+```
+
+Two patterns that look like they cover it do not. The `docs` verb selects only
+`docs`-kind targets, and this rule declares `build` and `lint`, so
+`smthrs docs '//...'` plans no contract. A package pattern such as
+`//packages/...` excludes every `//:` root label by construction, so a shadow
+lane running `smthrs ci '//packages/...'` plans no contract either. Name the
+label.
+
+The contract is only as strong as its roster. A declaration with one gate and
+an empty `requiredJobs` passes against a workflow that has lost every other
+gate, so a repository that means to hold its pipeline to its gate surface
+declares one `Gate` per hand-written gate command and names each required lane
+in `requiredJobs`. Gates the build system already owns as targets stay in the
+roster: the gate proves the STEP still runs, which is what keeps a target from
+being modelled and then quietly dropped from CI.
 
 ## Contract and generation guarantees
 
