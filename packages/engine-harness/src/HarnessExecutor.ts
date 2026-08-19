@@ -62,7 +62,7 @@ import * as Steering from "@smthrs/harness/Steering"
 import { Journal, JournalEvent } from "@smthrs/journal"
 import * as CanonicalJson from "@smthrs/model/CanonicalJson"
 import type * as Model from "@smthrs/model/Model"
-import type * as ModelRequest from "@smthrs/model/ModelRequest"
+import * as ModelRequest from "@smthrs/model/ModelRequest"
 import type { NotificationQueue } from "@smthrs/notifications"
 import { Node } from "@smthrs/plan"
 import * as Registry from "@smthrs/registry/Registry"
@@ -702,14 +702,19 @@ export const make = (
                   payload: { ...(projected.payload as Record<string, unknown>), at }
                 })
               }
-            })
-          )
+            }))
         const pump = yield* Effect.forkChild(
           Effect.forever(Effect.andThen(Effect.sleep(Duration.millis(250)), flush))
         )
         yield* CellHarness.run({
           session: payload.runId,
           seat: seatId,
+          // Medium effort by default. With no declared effort the provider
+          // grants near-zero thinking — the first SWE-bench runs recorded
+          // ~20 reasoning tokens per call while the same model under the
+          // Codex CLI ran at medium — so an unset effort is a silent
+          // capability downgrade, not a neutral default.
+          modelParams: ModelRequest.GenerationParams.make({ reasoningEffort: "medium" }),
           prompt: prompt(flowBody.text, plan.decodedInput),
           system: options.system,
           model: seat.model,

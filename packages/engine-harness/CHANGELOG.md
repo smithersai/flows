@@ -4,6 +4,8 @@
 
 ### Added
 
+- Defaulted every executor-launched run to medium reasoning effort; an unset effort left the model with near-zero thinking budget.
+
 - Added durable `control.agent.*` trail projections with occurrence timestamps
   and bounded failure causes for executor runs.
 - Added workspace-relative file boundary conversion for cell calls.
