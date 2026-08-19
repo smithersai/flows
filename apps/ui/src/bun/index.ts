@@ -7,6 +7,26 @@ import { inspectLocalRepository } from "./LocalRepository";
 const DEV_SERVER_PORT = 5173;
 const DEV_SERVER_URL = `http://localhost:${DEV_SERVER_PORT}`;
 
+/**
+ * The deployed origin each release channel talks to.
+ *
+ * §27.1: `build:canary` produced a launchable app with NO BACKEND. The window
+ * loaded `views://mainview/index.html`, so every relative `/api/*` fetch in
+ * the renderer resolved against the `views://` scheme and failed on startup —
+ * the app could not read a session, let alone sign in. A channel build is a
+ * build FOR a deployment, so it loads that deployment. The seams the native
+ * shell owns (the local repo picker, the native agent) bind to the window and
+ * not the URL, so they keep working against the deployed page — this is the
+ * same arrangement `start:canary` already used through SMITHERS_APP_URL.
+ *
+ * `stable` is deliberately absent: no production origin is declared anywhere
+ * in this repo yet, and guessing one would ship an app pointed at a host that
+ * may not be ours. A channel with no origin keeps the bundled view.
+ */
+const CHANNEL_ORIGINS: Readonly<Record<string, string>> = {
+	canary: "https://canary.smithers.sh",
+};
+
 // Check if Vite dev server is running for HMR
 async function getMainViewUrl(): Promise<string> {
 	/*
@@ -33,6 +53,12 @@ async function getMainViewUrl(): Promise<string> {
 				"Vite dev server not running. Run 'bun run dev:hmr' for HMR support.",
 			);
 		}
+		return "views://mainview/index.html";
+	}
+	const origin = CHANNEL_ORIGINS[channel];
+	if (origin !== undefined) {
+		console.log(`Loading the ${channel} channel from ${origin}`);
+		return origin;
 	}
 	return "views://mainview/index.html";
 }

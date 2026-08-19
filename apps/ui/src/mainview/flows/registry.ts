@@ -266,7 +266,18 @@ export const slashItems = <C extends CatalogItem>(
 	needle: string,
 	commands: ReadonlyArray<C>,
 ): Array<SlashItem<C>> => {
-	const shown = filtered(needle, visible(commands));
+	/*
+	 * §1.2: signed out, sign-in is the one step, so the listing offers only
+	 * what works signed out. The whole registry used to be listed —
+	 * `/auth.sign-out`, `/billing.upgrade`, `/keys.list`, `/issues.create`,
+	 * every one of which needs a session. Nothing is un-invokable: typing a
+	 * name still defers through sign-in (§6.2). What changes is what the app
+	 * PRESENTS as available.
+	 */
+	const offerable = state.signedOut
+		? commands.filter((command) => unmetRequirements(command, state).length === 0)
+		: commands;
+	const shown = filtered(needle, visible(offerable));
 	const query = needle.trim().toLowerCase();
 	const names = recommendedNames(state);
 	const recommendedSet = new Set(names);
@@ -316,6 +327,16 @@ export const slashItems = <C extends CatalogItem>(
 export type Submit =
 	| { readonly kind: "empty" }
 	| { readonly kind: "command"; readonly name: string; readonly args?: string }
+	/**
+	 * A leading token that IS flow syntax and names no registered flow.
+	 *
+	 * Handing it to the model as prose is the dishonest answer: typing `/reset`
+	 * on a non-admin session (where `reset` does not register) put the literal
+	 * string in front of the model, which reached for whatever flow it could
+	 * see and ran something else entirely (§23.5). A name the app does not have
+	 * is answered by the app, not improvised by the model.
+	 */
+	| { readonly kind: "unknown-command"; readonly name: string }
 	| { readonly kind: "prompt"; readonly text: string };
 
 // Flow names are deliberately narrower than arbitrary prompt text. Keeping
@@ -342,6 +363,8 @@ const commandHead = (text: string): { readonly name: string; readonly args?: str
  *  - an input that is ONLY a registered slash flow executes it directly
  *    (aliases parse as themselves; execution resolves the canonical target),
  *  - `/name <text>` executes directly when the flow declares an args hint,
+ *  - a leading token that is flow SYNTAX but names no registered flow is
+ *    refused by name — never handed to the model as prose,
  *  - anything else is a prompt for the agent.
  *
  * This is the syntactic half of the composer boundary: it decides flow-vs-
@@ -358,7 +381,7 @@ export const parseSubmit = <C extends CatalogItem>(
 	const invocation = commandHead(text);
 	if (invocation === undefined) return { kind: "prompt", text };
 	const command = commands.find((candidate) => candidate.name === invocation.name);
-	if (command === undefined) return { kind: "prompt", text };
+	if (command === undefined) return { kind: "unknown-command", name: invocation.name };
 	if (invocation.args === undefined) return { kind: "command", name: invocation.name };
 	if (command.args !== undefined) {
 		return { kind: "command", name: invocation.name, args: invocation.args };

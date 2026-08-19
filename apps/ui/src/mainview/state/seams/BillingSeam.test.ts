@@ -76,7 +76,9 @@ const freshController = async (services: AppServices) => {
 		state: "signed-in",
 		login: "will",
 		allowlisted: true,
-		admin: false,
+		// §17.4: the Stripe flows register in the admin plugin only — an MVP
+		// account is never offered a checkout it has no plan for.
+		admin: true,
 		scopesPlain: null,
 	});
 	await settled();
@@ -166,7 +168,7 @@ describe("billing seam — the honest failure paths", () => {
 			state: "signed-in",
 			login: "will",
 			allowlisted: true,
-			admin: false,
+			admin: true,
 			scopesPlain: null,
 		});
 		await settled();

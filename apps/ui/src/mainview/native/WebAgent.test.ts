@@ -174,6 +174,48 @@ describe("createWebAgent", () => {
 	});
 
 	/*
+	 * §24.3 — the app's honesty must not depend on every upstream writing
+	 * user-facing prose. A model provider answers a nested wire error and a
+	 * Worker crash answers an HTML page; both used to be pasted into the chat.
+	 */
+	test("a provider rate-limit body is classified, never pasted into the chat", async () => {
+		const agent = createWebAgent({
+			fetchImpl: async () =>
+				new Response(
+					JSON.stringify({
+						type: "error",
+						error: {
+							type: "rate_limit_error",
+							message: "Number of request tokens has exceeded your per-minute rate limit",
+						},
+					}),
+					{ status: 429, headers: { "content-type": "application/json" } },
+				),
+		});
+		const result = await agent.startTurn(request);
+		const message = result.status === "error" ? result.message : "";
+		expect(message).toContain("rate-limiting");
+		expect(message).toContain("429");
+		expect(message).not.toContain("rate_limit_error");
+		expect(message).not.toContain("{");
+	});
+
+	test("a Cloudflare HTML error page never reaches the transcript", async () => {
+		const agent = createWebAgent({
+			fetchImpl: async () =>
+				new Response("<!DOCTYPE html><html><body>Error 1101 Worker threw exception</body></html>", {
+					status: 500,
+					headers: { "content-type": "text/html" },
+				}),
+		});
+		const result = await agent.startTurn(request);
+		const message = result.status === "error" ? result.message : "";
+		expect(message).toContain("500");
+		expect(message).not.toContain("<");
+		expect(message).not.toContain("1101");
+	});
+
+	/*
 	 * The turn ceiling's refusal is written to be read by a person: it names a
 	 * loop and says nothing was charged, because someone who trips it hit a bug
 	 * and must never be sent to billing. That is only true if the sentence

@@ -26,6 +26,12 @@ const DRIVER = join(UI_DIR, "e2e", "native", "MainProcess.ts");
 
 /** The bundled view copied into Resources/app/views/mainview at build time. */
 const BUNDLED_VIEW = "views://mainview/index.html";
+/*
+ * §27.1: a channel build is a build FOR a deployment. Loading the bundled view
+ * gave the app no backend at all — every relative `/api/*` fetch resolved
+ * against the `views://` scheme and failed on startup.
+ */
+const CANARY_ORIGIN = "https://canary.smithers.sh";
 const DEV_SERVER_URL = "http://localhost:5173";
 
 interface ProbeOptions {
@@ -139,10 +145,10 @@ describe("the native main process resolves its main-view URL", () => {
 		);
 	});
 
-	test("a blank SMITHERS_APP_URL is not an override", async () => {
+	test("a blank SMITHERS_APP_URL is not an override — the channel decides", async () => {
 		for (const appUrl of ["", "   "]) {
 			const report = await probe({ appUrl, scenario: { channel: "canary" } });
-			expect(report.windows[0]?.url).toBe(BUNDLED_VIEW);
+			expect(report.windows[0]?.url).toBe(CANARY_ORIGIN);
 			expect(report.channelCalls).toBe(1);
 		}
 	});
@@ -172,10 +178,29 @@ describe("the native main process resolves its main-view URL", () => {
 	test("a non-dev channel never probes for a dev server", async () => {
 		for (const channel of ["canary", "stable"]) {
 			const report = await probe({ scenario: { channel, devServer: "up" } });
-			expect(report.windows[0]?.url).toBe(BUNDLED_VIEW);
 			expect(report.devProbeCalls).toBe(0);
-			expect(report.logs).toEqual(["Smithers app started!"]);
 		}
+	});
+
+	/*
+	 * §27.1: the canary build loads the canary deployment, because the bundled
+	 * view has no origin to resolve `/api/*` against and the app cannot even
+	 * read a session from it.
+	 */
+	test("the canary channel loads the canary deployment", async () => {
+		const report = await probe({ scenario: { channel: "canary", devServer: "up" } });
+		expect(report.windows[0]?.url).toBe(CANARY_ORIGIN);
+		expect(report.logs).toContain(`Loading the canary channel from ${CANARY_ORIGIN}`);
+	});
+
+	/*
+	 * No production origin is declared anywhere in this repo, and guessing one
+	 * would ship an app pointed at a host that may not be ours.
+	 */
+	test("a channel with no declared origin keeps the bundled view", async () => {
+		const report = await probe({ scenario: { channel: "stable", devServer: "up" } });
+		expect(report.windows[0]?.url).toBe(BUNDLED_VIEW);
+		expect(report.logs).toEqual(["Smithers app started!"]);
 	});
 
 	/*
