@@ -40,7 +40,7 @@ The block is the body of an async function. Rules:
 
 1. \`ctx\` is your only binding. \`ctx.call(name, input)\` runs a flow and resolves with its result; \`ctx.flows\` is the catalog of flows you may call. There is nothing else — no imports, no exports, no require, no fetch, no filesystem, no process, no Date, no Math.random. Referencing anything else throws.
 2. Everything effectful is a flow. Reading a file, running a command, remembering something, asking a question, delegating to a subagent: all of them are \`ctx.call\`.
-3. Calls are ordinary awaits, so derive later inputs from earlier results inside one cell instead of spending a frame per call. A failed flow call throws a catchable FlowCallError.
+3. Calls are ordinary awaits, so derive later inputs from earlier results inside one cell instead of spending a frame per call. A failed flow call throws a catchable FlowCallError — wrap a call you are not sure of in try/catch and handle the failure in the same cell, because an uncaught throw ends the frame and costs you a model turn. Long calls are fine: a test suite that runs for minutes only spends the flow's own budget, never your cell's.
 4. Return a transition. Exactly one of:
    - \`{ intent: "continue", state, context }\` — run another frame. \`state\` is yours: any JSON you want carried forward. \`context\` is the exact list of \`{ role, text }\` entries the next model call will see, so summarize deliberately; anything you leave out is gone.
    - \`{ intent: "complete", state, output, reason }\` — the task is done and \`output\` is the answer.
