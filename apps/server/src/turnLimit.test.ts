@@ -246,8 +246,10 @@ describe("the turn routes under the ceiling", () => {
 	});
 
 	test("an ordinary hour of chat never reaches the ceiling", async () => {
-		// The guard is worthless if it fires on a real person. Sixty turns is a
-		// heavy hour of conversation; the ceiling sits at twice that.
+		// The guard is worthless if it fires on a real person. Sixty messages is
+		// a heavy hour of conversation, and the browser chain authors several
+		// links for each, so the ceiling has to clear sixty times a handful — it
+		// sits at a thousand.
 		// A run id may be registered only once; the in-isolate cancel registry is
 		// module state, so each test gets its own namespace.
 		const lane = "ordinary-hour";
@@ -257,6 +259,11 @@ describe("the turn routes under the ceiling", () => {
 			for (let turn = 0; turn < 60; turn += 1) {
 				const response = await worker.fetch(signedIn("/api/agent/turn", `${lane}-${turn}`), env);
 				expect(response.status).toBe(200);
+				// The chain's links for that message spend from the same budget.
+				for (let link = 0; link < 8; link += 1) {
+					const authored = await worker.fetch(signedIn("/api/model/stream", `${lane}-${turn}-${link}`), env);
+					expect(authored.status).toBe(200);
+				}
 			}
 		});
 	});
