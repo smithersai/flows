@@ -34,7 +34,6 @@ import { BuildError, captureOutputs, Outputs } from "./ToolBuild.ts"
  * @since 0.1.0
  */
 export const Attrs = Schema.Struct({
-  packageManager: PackageManager.PackageManager,
   /** The manifests the manager resolves from. @default the workspace package glob */
   manifests: Schema.Array(Input.Declared).pipe(
     Schema.withConstructorDefault(
@@ -77,12 +76,7 @@ export type Attrs = typeof Attrs.Type
  * ```ts
  * import { Smithers } from "@smthrs/targets"
  *
- * const packageManager = Smithers.PackageManager.Pnpm({
- *   version: "11.21.0",
- *   runtime: Smithers.Runtime.Node({ version: ">=22.19.0" })
- * })
- *
- * export const lockfile = Smithers.Lockfile({ packageManager })
+ * export const lockfile = Smithers.Lockfile({})
  * ```
  *
  * @category targets
@@ -94,17 +88,22 @@ export const Lockfile = Target.make("Lockfile", {
   success: Outputs,
   error: BuildError,
   cache: false,
-  outputs: (attrs) => ({ cwd: attrs.cwd, paths: [PackageManager.lockfileName(attrs.packageManager)] }),
-  implementation: (attrs) =>
-    captureOutputs(
+  outputs: (attrs) => ({
+    cwd: attrs.cwd,
+    paths: [PackageManager.lockfileName(PackageManager.registeredToolchain().packageManager)]
+  }),
+  implementation: (attrs) => {
+    const manager = PackageManager.registeredToolchain().packageManager
+    return captureOutputs(
       Target.runTool({
         cwd: attrs.cwd,
-        argv: PackageManager.install(attrs.packageManager, {
+        argv: PackageManager.install(manager, {
           frozen: false,
           lockfileOnly: true
         })
       }),
       attrs.cwd,
-      [PackageManager.lockfileName(attrs.packageManager)]
+      [PackageManager.lockfileName(manager)]
     )
+  }
 })

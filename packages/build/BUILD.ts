@@ -13,9 +13,8 @@
  * - `newPackage` is the `run` target that creates such a directory.
  */
 import { Smithers } from "@smthrs/targets"
-import { packageManager } from "../../BUILD.ts"
 
-const standard = Smithers.StandardPackage({ packageManager, cwd: "packages/build" })
+const standard = Smithers.StandardPackage({ cwd: "packages/build" })
 
 export const lib = standard.lib
 export const check = standard.check
@@ -52,7 +51,7 @@ export const packageDefaults = Smithers.PackageDefaults({
   directories: "packages/*",
   marker: "package.json",
   macro: (attrs: { readonly cwd: string }) => {
-    const standard = Smithers.StandardPackage({ packageManager, deps: [], cwd: attrs.cwd })
+    const standard = Smithers.StandardPackage({ deps: [], cwd: attrs.cwd })
     return {
       ...standard,
       packageJson: Smithers.PackageJson({

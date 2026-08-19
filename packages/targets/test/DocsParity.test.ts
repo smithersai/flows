@@ -9,7 +9,7 @@ import { Workspace } from "../../build-cli/src/Workspace.ts"
 import * as DocsParity from "../src/DocsParity.ts"
 import { StandardPackage } from "../src/StandardPackage.ts"
 import * as Target from "../src/Target.ts"
-import { packageManager } from "./toolchain.ts"
+import "./toolchain.ts"
 
 const badges = [
   "# my-package",
@@ -170,7 +170,7 @@ describe("DocsParity", () => {
 })
 
 describe("StandardPackage", () => {
-  const targets = StandardPackage({ packageManager, deps: [], cwd: "packages/plan" })
+  const targets = StandardPackage({ deps: [], cwd: "packages/plan" })
 
   it("emits a docs target beside lib, test, and lint", () => {
     expect(Target.metadata(targets.docs).target).toBe("DocsParity")
@@ -224,10 +224,8 @@ describe("DocsParity execution", () => {
       for (const name of ["complete", "stub"]) {
         await write(
           `packages/${name}/BUILD.ts`,
-          `import { PackageManager, Runtime, StandardPackage } from "${rulesModule}"\n` +
-            `const runtime = Runtime.Node({ version: "24.9.0" })\n` +
-            `const packageManager = PackageManager.Pnpm({ version: "11.21.0", runtime })\n` +
-            `export const { docs } = StandardPackage({ packageManager, deps: [], cwd: "packages/${name}" })\n`
+          `import { StandardPackage } from "${rulesModule}"\n` +
+            `export const { docs } = StandardPackage({ deps: [], cwd: "packages/${name}" })\n`
         )
       }
       await write(

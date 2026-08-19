@@ -20,10 +20,16 @@ const run = async (args: ReadonlyArray<string>): Promise<number> => {
 beforeEach(async () => {
   root = await Fs.mkdtemp(NodePath.join(Os.tmpdir(), "smthrs-read-only-"))
   await Fs.writeFile(NodePath.join(root, "input.txt"), "input\n")
+  // The workspace configuration belongs to WORKSPACE.ts, the file that
+  // declares what the workspace is; BUILD.ts declares targets only.
+  await Fs.writeFile(
+    NodePath.join(root, "WORKSPACE.ts"),
+    `import { Workspace } from ${JSON.stringify(targets)}\n` +
+      `export const workspace = Workspace({ cacheDirectory: "state/cache", gitignored: true })\n`
+  )
   await Fs.writeFile(
     NodePath.join(root, "BUILD.ts"),
-    `import { file, ToolBuild, Workspace } from ${JSON.stringify(targets)}\n` +
-      `export const workspace = Workspace({ cacheDirectory: "state/cache", gitignored: true })\n` +
+    `import { file, ToolBuild } from ${JSON.stringify(targets)}\n` +
       `export const build = ToolBuild({\n` +
       `  tool: "node", command: "node", args: ["--version"],\n` +
       `  inputs: [file("//input.txt")], outputs: [], deps: [], env: {}, cache: false, cwd: "."\n` +
@@ -46,6 +52,6 @@ describe("read-only CLI commands", () => {
     expect(await run(args)).toBe(0)
     await expect(Fs.stat(NodePath.join(root, ".gitignore"))).rejects.toMatchObject({ code: "ENOENT" })
     await expect(Fs.stat(NodePath.join(root, "state"))).rejects.toMatchObject({ code: "ENOENT" })
-    expect((await Fs.readdir(root)).sort()).toEqual(["BUILD.ts", "input.txt"])
+    expect((await Fs.readdir(root)).sort()).toEqual(["BUILD.ts", "WORKSPACE.ts", "input.txt"])
   })
 })

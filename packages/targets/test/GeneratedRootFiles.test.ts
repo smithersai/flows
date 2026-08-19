@@ -5,10 +5,9 @@ import * as Install from "../src/Install.ts"
 import * as Lockfile from "../src/Lockfile.ts"
 import * as PackageManager from "../src/PackageManager.ts"
 import * as PnpmWorkspaceFile from "../src/PnpmWorkspaceFile.ts"
-import * as Runtime from "../src/Runtime.ts"
 import * as Target from "../src/Target.ts"
 import * as Tsconfig from "../src/Tsconfig.ts"
-import { packageManager, runtime } from "./toolchain.ts"
+import { runtime, withPackageManager } from "./toolchain.ts"
 
 const workspaceRoot = NodePath.resolve(import.meta.dirname, "../../..")
 
@@ -63,25 +62,24 @@ describe("Tsconfig", () => {
     ).toThrow()
   })
 
-  it("checks by default and writes only when asked", () => {
-    expect(Target.metadata(Tsconfig.Tsconfig({})).attrs).toMatchObject({ mode: "check", path: "tsconfig.json" })
-    expect(Target.metadata(Tsconfig.Tsconfig({ mode: "write" })).outputs)
+  it("checks by default and writes only through the write half", () => {
+    expect(Target.metadata(Tsconfig.Tsconfig({})).attrs).toMatchObject({ path: "tsconfig.json" })
+    expect(Target.metadata(Tsconfig.TsconfigWrite({})).outputs)
       .toEqual({ cwd: ".", paths: ["tsconfig.json"] })
-    expect(Target.metadata(Tsconfig.Tsconfig({})).outputs).toEqual({ cwd: ".", paths: [] })
-    expect(Target.metadata(Tsconfig.Tsconfig({})).cacheable).toBe(false)
+    expect(Target.metadata(Tsconfig.Tsconfig({})).outputs).toBeUndefined()
+    expect(Target.metadata(Tsconfig.Tsconfig({})).cacheable).toBe(true)
+    expect(Target.metadata(Tsconfig.TsconfigWrite({})).cacheable).toBe(false)
   })
 
-  it("forces the non-writing view under the lint verb", () => {
-    const metadata = Target.metadata(Tsconfig.Tsconfig({ mode: "write" }))
-    expect((metadata.forKind("lint").attrs as Tsconfig.Attrs).mode).toBe("check")
-    expect((metadata.forKind("build").attrs as Tsconfig.Attrs).mode).toBe("write")
+  it("splits the non-writing and writing halves across verbs", () => {
+    expect(Target.metadata(Tsconfig.Tsconfig({})).kinds).toEqual(["lint"])
+    expect(Target.metadata(Tsconfig.TsconfigWrite({})).kinds).toEqual(["run"])
   })
 })
 
 describe("PnpmWorkspace", () => {
   it("renders packages, sorted allowBuilds, and the link policy", () => {
     const rendered = PnpmWorkspaceFile.render(PnpmWorkspaceFile.Attrs.make({
-      packageManager,
       packages: ["packages/*", "apps/*"],
       allowBuilds: { sharp: false, esbuild: false },
       linkWorkspacePackages: true
@@ -100,12 +98,10 @@ linkWorkspacePackages: true
 
   it("sorts allowBuilds so reordering a literal is not drift", () => {
     const one = PnpmWorkspaceFile.render(PnpmWorkspaceFile.Attrs.make({
-      packageManager,
       packages: ["packages/*"],
       allowBuilds: { a: true, z: false }
     }))
     const other = PnpmWorkspaceFile.render(PnpmWorkspaceFile.Attrs.make({
-      packageManager,
       packages: ["packages/*"],
       allowBuilds: { z: false, a: true }
     }))
@@ -114,7 +110,6 @@ linkWorkspacePackages: true
 
   it("quotes a mapping key YAML would otherwise read as another type", () => {
     const rendered = PnpmWorkspaceFile.render(PnpmWorkspaceFile.Attrs.make({
-      packageManager,
       packages: ["plain"],
       allowBuilds: { "@scope/name": false, no: true, "1.0": true, "with space": false, "es5-ext": true }
     }))
@@ -129,65 +124,64 @@ linkWorkspacePackages: true
 
   it("omits allowBuilds entirely when nothing is declared", () => {
     const rendered = PnpmWorkspaceFile.render(PnpmWorkspaceFile.Attrs.make({
-      packageManager,
       packages: ["packages/*"]
     }))
     expect(rendered).not.toContain("allowBuilds")
   })
 
-  it("refuses a manager that does not write this file", () => {
+  it("refuses a workspace whose registered manager does not write this file", () => {
     const npm = PackageManager.Npm({ version: "10.9.0", runtime })
-    expect(() => PnpmWorkspaceFile.PnpmWorkspace({ packageManager: npm, packages: ["packages/*"] }))
+    expect(() => withPackageManager(npm, () => PnpmWorkspaceFile.PnpmWorkspace({ packages: ["packages/*"] })))
       .toThrow(/requires the pnpm declaration; this workspace declares npm/)
   })
 })
 
 describe("Lockfile", () => {
   it("resolves without linking and declares the manager's lockfile as its output", () => {
-    const metadata = Target.metadata(Lockfile.Lockfile({ packageManager }))
+    const metadata = Target.metadata(Lockfile.Lockfile({}))
     expect(metadata.outputs).toEqual({ cwd: ".", paths: ["pnpm-lock.yaml"] })
     expect(metadata.kinds).toEqual(["build"])
   })
 
   it("is never cacheable, because resolution reaches the network", () => {
-    expect(Target.metadata(Lockfile.Lockfile({ packageManager })).cacheable).toBe(false)
+    expect(Target.metadata(Lockfile.Lockfile({})).cacheable).toBe(false)
   })
 
   it("declares every package manifest it resolves from", () => {
-    const metadata = Target.metadata(Lockfile.Lockfile({ packageManager }))
+    const metadata = Target.metadata(Lockfile.Lockfile({}))
     expect(metadata.inputs).toEqual([
       { _tag: "Glob", pattern: "packages/*/package.json", exclude: [] }
     ])
   })
 
-  it("writes the lockfile the declared manager writes", () => {
+  it("writes the lockfile the registered manager writes", () => {
     const npm = PackageManager.Npm({ version: "10.9.0", runtime })
-    expect(Target.metadata(Lockfile.Lockfile({ packageManager: npm })).outputs)
+    expect(withPackageManager(npm, () => Target.metadata(Lockfile.Lockfile({})).outputs))
       .toEqual({ cwd: ".", paths: ["package-lock.json"] })
   })
 })
 
 describe("Install", () => {
   it("is a run target that never caches its own result", () => {
-    const metadata = Target.metadata(Install.Install({ packageManager }))
+    const metadata = Target.metadata(Install.Install({}))
     expect(metadata.kinds).toEqual(["run"])
     expect(metadata.cacheable).toBe(false)
   })
 
   it("takes the lockfile as a dependency edge and its content as key material", () => {
-    const lockfile = Lockfile.Lockfile({ packageManager })
-    const metadata = Target.metadata(Install.Install({ packageManager, lockfile }))
+    const lockfile = Lockfile.Lockfile({})
+    const metadata = Target.metadata(Install.Install({ lockfile }))
     expect(metadata.dependencies).toHaveLength(1)
     expect(metadata.inputs.map((input) => (input as { readonly path: string }).path))
       .toEqual(["pnpm-lock.yaml", ".npmrc", "package.json"])
   })
 
   it("defaults every generated-file dependency to absent", () => {
-    const attrs = Target.metadata(Install.Install({ packageManager })).attrs as Install.Attrs
+    const attrs = Target.metadata(Install.Install({})).attrs as Install.Attrs
     expect(attrs.lockfile).toBe(null)
     expect(attrs.manifest).toBe(null)
     expect(attrs.workspace).toBe(null)
-    expect(Target.metadata(Install.Install({ packageManager })).dependencies).toEqual([])
+    expect(Target.metadata(Install.Install({})).dependencies).toEqual([])
   })
 })
 
@@ -195,14 +189,8 @@ describe("the checked-in root files match what BUILD.ts declares", () => {
   // These are the drift checks `smthrs lint` runs. Keeping them here means a
   // change to a generator, or a hand edit to a generated file, fails in this
   // package's own suite rather than only in a workspace-wide run.
-  const rootManager = PackageManager.Pnpm({
-    version: "11.21.0",
-    runtime: Runtime.Node({ version: ">=22.19.0" })
-  })
-
   it("renders the checked-in pnpm-workspace.yaml", async () => {
     const declared = PnpmWorkspaceFile.render(PnpmWorkspaceFile.Attrs.make({
-      packageManager: rootManager,
       packages: ["packages/*", "packages/build/infra", "examples", "apps/*"],
       allowBuilds: {
         "@journeyapps/wa-sqlite": false,

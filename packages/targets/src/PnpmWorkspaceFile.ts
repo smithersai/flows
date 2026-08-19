@@ -30,7 +30,6 @@ import * as Target from "./Target.ts"
  * @since 0.1.0
  */
 export const Attrs = Schema.Struct({
-  packageManager: PackageManager.PackageManager,
   /** The workspace package globs, in pnpm-workspace.yaml's own syntax. */
   packages: Schema.Array(Schema.NonEmptyString).check(Schema.isMinLength(1)),
   /**
@@ -159,13 +158,7 @@ const definition = Target.make("PnpmWorkspace", {
  * ```ts
  * import { Smithers } from "@smthrs/targets"
  *
- * const packageManager = Smithers.PackageManager.Pnpm({
- *   version: "11.21.0",
- *   runtime: Smithers.Runtime.Node({ version: ">=22.19.0" })
- * })
- *
  * export const workspaceFile = Smithers.PnpmWorkspace({
- *   packageManager,
  *   packages: ["packages/*", "apps/*"],
  *   allowBuilds: { esbuild: false }
  * })
@@ -176,10 +169,9 @@ const definition = Target.make("PnpmWorkspace", {
  */
 export const PnpmWorkspace = Object.assign(
   (attrs: Parameters<typeof definition>[0]) => {
-    const manager = (attrs as { readonly packageManager?: unknown }).packageManager
-    if (!PackageManager.isPackageManager(manager) || manager.name !== "pnpm") {
-      const declared = PackageManager.isPackageManager(manager) ? manager.name : "an undeclared manager"
-      throw new Error(`PnpmWorkspace requires the pnpm declaration; this workspace declares ${declared}`)
+    const manager = PackageManager.registeredToolchain().packageManager
+    if (manager.name !== "pnpm") {
+      throw new Error(`PnpmWorkspace requires the pnpm declaration; this workspace declares ${manager.name}`)
     }
     return definition(attrs)
   },

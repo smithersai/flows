@@ -4,38 +4,33 @@
  * Every TypeScript-specific root file is declared here and generated from this
  * file: the workspace definition, the workspace tsconfig, and the lockfile.
  * `nodeModules` is a target produced by the `Install` target, keyed on the
- * declared toolchain and the generated lockfile.
+ * registered toolchain and the generated lockfile.
  *
- * The runtime and the package manager are declared once and passed to every
- * target that runs a tool. Nothing in the target catalog spells `pnpm` or `node`
- * into an argv any more, so switching either is an edit to this file.
+ * The toolchain lives in `WORKSPACE.ts`, which registers it once. No target
+ * here takes a runtime or a package manager as an attr; every rule reads the
+ * registration. Nothing in the target catalog spells `pnpm` or `node` into an
+ * argv, so switching either is an edit to `WORKSPACE.ts`.
+ *
+ * `workspace`, `lockfile`, and `nodeModules` stay in this file rather than
+ * moving to `WORKSPACE.ts`. They are targets, and only a `BUILD.ts` file
+ * contributes targets to a package, so moving them would delete the labels
+ * `//:workspace`, `//:lockfile`, and `//:nodeModules`, and with them the bare
+ * `//` default target that resolves to `nodeModules`.
  */
 import { Smithers } from "@smthrs/targets"
-
-// ---------------------------------------------------------------------------
-// Toolchain
-// ---------------------------------------------------------------------------
-
-/**
- * The interpreter every tool runs under. The declaration is a requirement: the
- * Runtime service measures the host and refuses to execute when it does not
- * satisfy this.
- */
-export const runtime = Smithers.Runtime.Node({ version: ">=22.19.0" })
-
-/**
- * The package manager. It takes the runtime as a dependency because pnpm is
- * itself a program the runtime executes.
- */
-export const packageManager = Smithers.PackageManager.Pnpm({ version: "11.21.0", runtime })
 
 // ---------------------------------------------------------------------------
 // Secrets
 // ---------------------------------------------------------------------------
 
 /**
- * The remote-cache bearer token. `Secret` names the environment variable the
- * value is read from at execution time. A target that declares this secret is
+ * The remote-cache bearer token, declared beside the one target that reads it.
+ * A `BUILD.ts` file cannot import `WORKSPACE.ts`: the two are loaded under
+ * different module URLs, so the import evaluates `WORKSPACE.ts` a second time
+ * and its `registerToolchains` call refuses the duplicate registration.
+ *
+ * `Secret` names the environment variable the value is read from at execution
+ * time. A target that declares this secret is
  * given an unguessable placeholder in its environment; the substituting proxy
  * swaps the placeholder for the real value on outbound requests. Key material
  * records the variable name, never the value.
@@ -51,7 +46,6 @@ export const cacheUrl = Smithers.Secret("SMITHERS_CACHE_URL")
 
 /** Generates and drift-checks `pnpm-workspace.yaml`. */
 export const workspace = Smithers.PnpmWorkspace({
-  packageManager,
   packages: ["packages/*", "packages/build/infra", "examples", "apps/*"],
   allowBuilds: {
     "@journeyapps/wa-sqlite": false,
@@ -104,20 +98,13 @@ export const tsconfig = Smithers.Tsconfig({
  * input, which is why the two are separate: a target cannot be keyed on a file it
  * produces.
  */
-export const lockfile = Smithers.Lockfile({
-  packageManager,
-  workspace
-})
+export const lockfile = Smithers.Lockfile({ workspace })
 
 // ---------------------------------------------------------------------------
 // node_modules
 // ---------------------------------------------------------------------------
 
-export const nodeModules = Smithers.Install({
-  packageManager,
-  lockfile,
-  workspace
-})
+export const nodeModules = Smithers.Install({ lockfile, workspace })
 
 // ---------------------------------------------------------------------------
 // Shared declarations and workspace policy
@@ -133,7 +120,6 @@ export const pnpmWorkspace = Smithers.file("//pnpm-workspace.yaml")
 // mode only verifies the checked-in workflow still runs the declared gates;
 // only an explicit `write` mode would regenerate the file.
 export const ci = Smithers.GithubCiGen({
-  packageManager,
   cacheUrlSecret: cacheUrl,
   cacheTokenSecret: cacheToken,
   kinds: ["build", "test", "lint", "docs"],
@@ -142,6 +128,5 @@ export const ci = Smithers.GithubCiGen({
 
 export const packageDefaults = Smithers.PackageDefaults({
   directories: "packages/*",
-  macro: Smithers.StandardPackage,
-  attrs: { packageManager }
+  macro: Smithers.StandardPackage
 })

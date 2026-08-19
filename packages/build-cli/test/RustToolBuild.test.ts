@@ -10,10 +10,11 @@
  */
 import * as Target from "@smthrs/targets/Target"
 import * as NodePath from "node:path"
-import { fileURLToPath } from "node:url"
+import { tsImport } from "tsx/esm/api"
+import { fileURLToPath, pathToFileURL } from "node:url"
 import { describe, expect, it } from "vitest"
-import * as Planner from "../src/Planner.ts"
-import { Workspace } from "../src/Workspace.ts"
+import * as PlannerModule from "../src/Planner.ts"
+import * as WorkspaceModule from "../src/Workspace.ts"
 
 /** The repository root, four levels above this file. */
 const repositoryRoot = NodePath.resolve(
@@ -22,6 +23,31 @@ const repositoryRoot = NodePath.resolve(
   "..",
   ".."
 )
+
+/**
+ * The loader and the planner, evaluated through tsx rather than through
+ * vitest's own module runner.
+ *
+ * The root BUILD.ts reads the registered toolchain while it declares
+ * `workspace`, `lockfile`, and `nodeModules`, and a read before registration
+ * is an error. The registration propagates from WORKSPACE.ts only when every
+ * declaration evaluates in one loader graph, which is what the CLI's own
+ * bootstrap produces. A vitest-native import of these modules evaluates each
+ * BUILD.ts in an isolated graph instead, so planning the real workspace —
+ * which loads the root BUILD.ts for its default-target declarations — would
+ * fail before the plan existed. Importing this package's modules through
+ * `tsImport` gives the test the same single graph the CLI runs in; the
+ * workspace files change never, so the memoized evaluation registers once.
+ */
+const parentURL = pathToFileURL(NodePath.join(repositoryRoot, "rust-toolbuild-probe.js")).href
+const Planner = (await tsImport(
+  pathToFileURL(NodePath.join(repositoryRoot, "packages/build-cli/src/Planner.ts")).href,
+  { parentURL, tsconfig: false }
+)) as typeof PlannerModule
+const { Workspace } = (await tsImport(
+  pathToFileURL(NodePath.join(repositoryRoot, "packages/build-cli/src/Workspace.ts")).href,
+  { parentURL, tsconfig: false }
+)) as typeof WorkspaceModule
 
 const buildFile = "crates/flows-jj/BUILD.ts"
 

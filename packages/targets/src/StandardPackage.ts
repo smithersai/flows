@@ -7,7 +7,6 @@ import { DocsParity } from "./DocsParity.ts"
 import { Dprint } from "./Dprint.ts"
 import { EsLint } from "./EsLint.ts"
 import * as Input from "./Input.ts"
-import type * as PackageManager from "./PackageManager.ts"
 import type * as Target from "./Target.ts"
 import { TsBuild } from "./TsBuild.ts"
 import { Typecheck } from "./Typecheck.ts"
@@ -24,12 +23,6 @@ import { Vitest } from "./Vitest.ts"
  * @since 0.1.0
  */
 export interface Options {
-  /**
-   * The package manager every emitted target runs its tool through. Required,
-   * because a macro that guessed one would reintroduce the hardcoded manager
-   * this attr exists to remove.
-   */
-  readonly packageManager: PackageManager.PackageManager
   /** @default [] */
   readonly deps?: ReadonlyArray<Target.AnyTarget> | undefined
   readonly cwd?: string | undefined
@@ -99,7 +92,6 @@ export const StandardPackage = (options: Options): StandardTargets => {
   ]
   const dprintConfig = options.dprintConfig ?? Input.file("dprint.json")
   const lib = TsBuild({
-    packageManager: options.packageManager,
     srcs: [sources],
     entries: [Input.file("src/index.ts")],
     deps,
@@ -111,7 +103,6 @@ export const StandardPackage = (options: Options): StandardTargets => {
     cwd
   })
   const check = Typecheck({
-    packageManager: options.packageManager,
     srcs: [sources, Input.glob("test/**/*.ts")],
     deps: [lib, ...deps],
     tsconfig: testTsconfig,
@@ -120,7 +111,6 @@ export const StandardPackage = (options: Options): StandardTargets => {
     cwd
   })
   const test = Vitest({
-    packageManager: options.packageManager,
     tests: [tests],
     sources: [sources],
     deps: [lib, ...deps],
@@ -130,7 +120,6 @@ export const StandardPackage = (options: Options): StandardTargets => {
     cwd
   })
   const lint = EsLint({
-    packageManager: options.packageManager,
     sources: [sources],
     deps: [],
     configs: eslintConfigs,
@@ -139,7 +128,6 @@ export const StandardPackage = (options: Options): StandardTargets => {
     cwd
   })
   const fmt = Dprint({
-    packageManager: options.packageManager,
     sources: [sources, Input.glob("test/**/*.ts")],
     deps: [],
     config: dprintConfig,

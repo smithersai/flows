@@ -23,8 +23,8 @@ import * as Target from "./Target.ts"
 /**
  * Attributes for {@link Install}.
  *
- * `packageManager` is the declaration every other tool-running target also takes,
- * so one workspace value drives the install and every tool that resolves out of
+ * The manager comes from the toolchain `WORKSPACE.ts` registered, so one
+ * workspace declaration drives the install and every tool that resolves out of
  * the tree it produces.
  *
  * `lockfile` is a target rather than a file declaration: the lockfile is
@@ -37,7 +37,6 @@ import * as Target from "./Target.ts"
  * @since 0.1.0
  */
 export const Attrs = Schema.Struct({
-  packageManager: PackageManager.PackageManager,
   /**
    * The target that generates the lockfile, or `null` to use a checked-in one.
    *
@@ -75,8 +74,8 @@ export type Attrs = typeof Attrs.Type
  * @category constructors
  * @since 0.1.0
  */
-export const inputsFor = (attrs: Attrs): ReadonlyArray<Input.Declared> => [
-  Input.file(PackageManager.lockfileName(attrs.packageManager)),
+export const inputsFor = (_attrs: Attrs): ReadonlyArray<Input.Declared> => [
+  Input.file(PackageManager.lockfileName(PackageManager.registeredToolchain().packageManager)),
   Input.file(".npmrc"),
   Input.file("package.json")
 ]
@@ -93,10 +92,7 @@ export const inputsFor = (attrs: Attrs): ReadonlyArray<Input.Declared> => [
  * ```ts
  * import { Smithers } from "@smthrs/targets"
  *
- * const runtime = Smithers.Runtime.Node({ version: ">=22.19.0" })
- * const packageManager = Smithers.PackageManager.Pnpm({ version: "11.21.0", runtime })
- *
- * export const nodeModules = Smithers.Install({ packageManager })
+ * export const nodeModules = Smithers.Install({})
  * ```
  *
  * @category targets
@@ -109,5 +105,6 @@ export const Install = Target.make("Install", {
   error: PackageManagerService.PackageManagerError,
   cache: false,
   inputs: inputsFor,
-  implementation: (attrs) => InstallFlow.Install.call({ manager: attrs.packageManager.name })
+  implementation: () =>
+    InstallFlow.Install.call({ manager: PackageManager.registeredToolchain().packageManager.name })
 })

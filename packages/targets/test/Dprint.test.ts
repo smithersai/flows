@@ -3,12 +3,11 @@ import { Dprint } from "../src/Dprint.ts"
 import * as Input from "../src/Input.ts"
 import { StandardPackage } from "../src/StandardPackage.ts"
 import * as Target from "../src/Target.ts"
-import { packageManager } from "./toolchain.ts"
+import "./toolchain.ts"
 
 describe("Dprint", () => {
   it("declares a lint-kind, non-cacheable formatting check", () => {
     const target = Dprint({
-      packageManager,
       sources: [Input.glob("src/**/*.ts")],
       deps: [],
       config: Input.file("dprint.json"),
@@ -23,7 +22,7 @@ describe("Dprint", () => {
   })
 
   it("joins StandardPackage as the fmt target alongside check", () => {
-    const targets = StandardPackage({ packageManager, cwd: "packages/example" })
+    const targets = StandardPackage({ cwd: "packages/example" })
     expect(Target.metadata(targets.fmt).target).toBe("Dprint")
     expect(Target.metadata(targets.fmt).kinds).toEqual(["lint"])
     expect(Target.metadata(targets.check).target).toBe("Typecheck")

@@ -1,8 +1,9 @@
 import * as Target from "@smthrs/targets/Target"
 import * as NodePath from "node:path"
-import { fileURLToPath } from "node:url"
+import { tsImport } from "tsx/esm/api"
+import { fileURLToPath, pathToFileURL } from "node:url"
 import { describe, expect, it } from "vitest"
-import { Workspace } from "../src/Workspace.ts"
+import * as WorkspaceModule from "../src/Workspace.ts"
 
 /**
  * The repository root this package sits in. The guard runs against the real
@@ -19,6 +20,25 @@ const repositoryRoot = NodePath.resolve(
   "..",
   ".."
 )
+
+/**
+ * The workspace loader, evaluated through tsx rather than through vitest's
+ * own module runner.
+ *
+ * The root BUILD.ts reads the registered toolchain while it declares
+ * `workspace`, `lockfile`, and `nodeModules`, and a read before registration
+ * is an error. The registration propagates from WORKSPACE.ts only when every
+ * declaration evaluates in one loader graph, which is what the CLI's own
+ * bootstrap produces. A vitest-native import of this module evaluates each
+ * BUILD.ts in an isolated graph instead, so loading the root BUILD.ts here
+ * would fail. Importing the module through `tsImport` gives the test the
+ * same single graph the CLI runs in; the file never changes during a run, so
+ * the memoized evaluation registers once.
+ */
+const { Workspace } = (await tsImport(
+  pathToFileURL(NodePath.join(repositoryRoot, "packages/build-cli/src/Workspace.ts")).href,
+  { parentURL: pathToFileURL(NodePath.join(repositoryRoot, "committed-build-files-probe.js")).href, tsconfig: false }
+)) as typeof WorkspaceModule
 
 describe("committed BUILD.ts files", () => {
   it("every committed BUILD.ts loads and all of its declarations construct", async () => {

@@ -35,14 +35,22 @@ const workspace = async (tokenEnv: string): Promise<string> => {
   roots.push(root)
   await write(root, "package.json", `${JSON.stringify({ name: "fixture", private: true }, undefined, 2)}\n`)
   await write(root, "src/input.txt", "source\n")
+  // The remote cache and its secret are workspace-level declarations, so they
+  // live in WORKSPACE.ts, the file discovery reads for them. BUILD.ts holds
+  // only the target.
   await write(
     root,
-    "BUILD.ts",
-    `import { file, RemoteCache, Secret, ToolBuild } from "${rulesModule}"\n` +
+    "WORKSPACE.ts",
+    `import { RemoteCache, Secret } from "${rulesModule}"\n` +
       `export const remoteCache = RemoteCache.make({\n` +
       `  endpoint: "https://cache.example.invalid",\n` +
       `  token: Secret(${JSON.stringify(tokenEnv)})\n` +
-      `})\n` +
+      `})\n`
+  )
+  await write(
+    root,
+    "BUILD.ts",
+    `import { file, ToolBuild } from "${rulesModule}"\n` +
       `export const build = ToolBuild({\n` +
       `  tool: "node",\n` +
       `  command: "node",\n` +

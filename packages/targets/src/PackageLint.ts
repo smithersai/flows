@@ -22,7 +22,6 @@ import * as Target from "./Target.ts"
  * @since 0.1.0
  */
 export const Attrs = Schema.Struct({
-  packageManager: PackageManager.PackageManager,
   packageJson: Input.File,
   artifacts: Schema.Array(Input.Declared),
   deps: Schema.Array(Target.Target),
@@ -83,9 +82,10 @@ export const PackageLint = Target.make("PackageLint", {
   success: PackageReport,
   error: Exec.ExecError,
   implementation: (attrs) => {
+    const manager = PackageManager.registeredToolchain().packageManager
     const publint = Target.runTool({
       cwd: attrs.cwd,
-      argv: PackageManager.exec(attrs.packageManager, [
+      argv: PackageManager.exec(manager, [
         "publint",
         ...(attrs.strict ? ["--strict"] : []),
         ...(attrs.pack ? [] : ["--pack", "false"])
@@ -98,7 +98,7 @@ export const PackageLint = Target.make("PackageLint", {
       Node.andThen((publint) =>
         Target.runTool({
           cwd: attrs.cwd,
-          argv: PackageManager.exec(attrs.packageManager, ["attw", "--pack", "."]),
+          argv: PackageManager.exec(manager, ["attw", "--pack", "."]),
           after: publint
         }).pipe(Node.map((attw) => ({ publint, attw })))
       )

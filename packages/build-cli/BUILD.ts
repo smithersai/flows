@@ -1,22 +1,20 @@
 /**
  * Standard package targets for a private, unbuilt package.
  *
- * This package ships no distribution: its tsconfig sets `noEmit`, so the
- * synthesized TsBuild `lib` target could never produce the `dist` tree it
- * declares. `lib` is therefore a Typecheck over the package tsconfig — the
- * same compiler run the build would perform, minus the emit — and keeps the
- * conventional label so dependents and the default-target convention are
- * unchanged.
+ * This package ships no distribution: its manifest is `"private": true` and
+ * declares no build script, so the synthesized TsBuild `lib` target would
+ * publish a `dist` tree nothing consumes. `lib` is therefore a Typecheck over
+ * the package tsconfig, the same compiler run the build would perform, and it
+ * keeps the conventional label so dependents and the default-target convention
+ * are unchanged.
  */
 import { Smithers } from "@smthrs/targets"
-import { packageManager, rootJSDocConfig } from "../../BUILD.ts"
 
 const cwd = "packages/build-cli"
 const sources = Smithers.glob("src/**/*.ts")
 const tests = Smithers.glob("test/**/*.test.ts")
 
 export const lib = Smithers.Typecheck({
-  packageManager,
   srcs: [sources],
   deps: [],
   tsconfig: Smithers.file("tsconfig.json"),
@@ -26,7 +24,6 @@ export const lib = Smithers.Typecheck({
 })
 
 export const check = Smithers.Typecheck({
-  packageManager,
   srcs: [sources, Smithers.glob("test/**/*.ts")],
   deps: [lib],
   tsconfig: Smithers.file("tsconfig.test.json"),
@@ -36,7 +33,6 @@ export const check = Smithers.Typecheck({
 })
 
 export const test = Smithers.Vitest({
-  packageManager,
   tests: [tests],
   sources: [sources],
   deps: [lib],
@@ -47,17 +43,15 @@ export const test = Smithers.Vitest({
 })
 
 export const lint = Smithers.EsLint({
-  packageManager,
   sources: [sources],
   deps: [],
-  configs: [Smithers.file("eslint.config.js"), rootJSDocConfig],
+  configs: [Smithers.file("eslint.config.js"), Smithers.file("//eslint.jsdoc.js")],
   maxWarnings: 0,
   fix: false,
   cwd
 })
 
 export const fmt = Smithers.Dprint({
-  packageManager,
   sources: [sources, Smithers.glob("test/**/*.ts")],
   deps: [],
   config: Smithers.file("dprint.json"),

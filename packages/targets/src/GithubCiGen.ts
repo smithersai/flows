@@ -344,12 +344,6 @@ export const Attrs = Schema.Struct({
    */
   install: Schema.optional(Schema.NonEmptyString),
   /**
-   * The declared package manager. The generated pipeline installs with it and
-   * runs the smthrs binary through it, so a workspace that switches managers
-   * gets a regenerated workflow rather than a pipeline still calling pnpm.
-   */
-  packageManager: PackageManager.PackageManager,
-  /**
    * The declared secret overriding the root RemoteCache endpoint.
    *
    * A {@link Secret} declaration rather than two strings. The old pair named a
@@ -697,7 +691,11 @@ const validateJobs = (attrs: Attrs): void => {
  * on when it ran.
  */
 const installCommand = (attrs: Attrs): string =>
-  attrs.install ?? PackageManager.install(attrs.packageManager, { frozen: true, ignoreScripts: false }).join(" ")
+  attrs.install ??
+    PackageManager.install(PackageManager.registeredToolchain().packageManager, {
+      frozen: true,
+      ignoreScripts: false
+    }).join(" ")
 
 /**
  * Renders cache host state for the generated smthrs execution step.

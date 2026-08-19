@@ -20,7 +20,6 @@ import * as Target from "./Target.ts"
  * @since 0.1.0
  */
 export const Attrs = Schema.Struct({
-  packageManager: PackageManager.PackageManager,
   packageJson: Input.File,
   artifacts: Schema.Array(Input.Declared),
   deps: Schema.Array(Target.Target),
@@ -74,7 +73,8 @@ export const NpmPublish = Target.make("NpmPublish", {
   cache: false,
   verbGate: ["run"],
   implementation: (attrs, context) => {
-    const argv: Array<string> = PackageManager.publish(attrs.packageManager, [
+    const manager = PackageManager.registeredToolchain().packageManager
+    const argv: Array<string> = PackageManager.publish(manager, [
       "--registry",
       attrs.registry,
       "--access",

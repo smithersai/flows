@@ -6,10 +6,9 @@
  * key. `dependencyPolicy` adds the package's explicit knip check.
  */
 import { Smithers } from "@smthrs/targets"
-import { packageManager } from "../../BUILD.ts"
 import { lib as flow } from "../flow/BUILD.ts"
 
-const standard = Smithers.StandardPackage({ packageManager, deps: [flow], cwd: "packages/engine" })
+const standard = Smithers.StandardPackage({ deps: [flow], cwd: "packages/engine" })
 
 export const lib = standard.lib
 export const check = standard.check
@@ -19,8 +18,6 @@ export const fmt = standard.fmt
 export const docs = standard.docs
 
 export const dependencyPolicy = Smithers.DepsLint({
-  packageManager,
-  runtime: packageManager.runtime,
   packageJson: Smithers.file("package.json"),
   sources: [Smithers.glob("src/**/*.ts"), Smithers.glob("test/**/*.ts")],
   deps: [lib],

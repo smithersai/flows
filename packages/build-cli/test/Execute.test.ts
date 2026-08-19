@@ -332,12 +332,22 @@ describe("the CI workflow contract", () => {
 
   const contractWorkspace = async (): Promise<void> => {
     await write("BUILD.ts", "export const root = 1\n")
+    // The toolchain registers in WORKSPACE.ts, and the target file imports it
+    // so the registration is in place when GithubCiGen reads it: in this
+    // process each BUILD.ts evaluates in its own loader graph, unlike the
+    // CLI's own bootstrap, where every declaration shares one.
+    await write(
+      "WORKSPACE.ts",
+      `import { PackageManager, registerToolchains, Runtime } from "${rulesModule}"\n` +
+        `const runtime = Runtime.Node({ version: ">=22.19.0" })\n` +
+        `const packageManager = PackageManager.Pnpm({ version: "11.21.0", runtime })\n` +
+        `export const toolchain = registerToolchains({ runtime, packageManager })\n`
+    )
     await write(
       "packages/pipeline/BUILD.ts",
-      `import { GithubCiGen, PackageManager, Runtime } from "${rulesModule}"\n` +
-        `const packageManager = PackageManager.Pnpm({ version: "11.21.0", runtime: Runtime.Node({ version: ">=22.19.0" }) })\n` +
+      `import { GithubCiGen } from "${rulesModule}"\n` +
+        `import "../../WORKSPACE.ts"\n` +
         `export const ci = GithubCiGen({\n` +
-        `  packageManager,\n` +
         `  workflowName: "CI",\n` +
         `  pushBranches: ["main"],\n` +
         `  pullRequest: true,\n` +
@@ -405,11 +415,17 @@ describe("the CI workflow generator", () => {
   const writingWorkspace = async (mode: string): Promise<void> => {
     await write("BUILD.ts", "export const root = 1\n")
     await write(
+      "WORKSPACE.ts",
+      `import { PackageManager, registerToolchains, Runtime } from "${rulesModule}"\n` +
+        `const runtime = Runtime.Node({ version: ">=22.19.0" })\n` +
+        `const packageManager = PackageManager.Pnpm({ version: "11.21.0", runtime })\n` +
+        `export const toolchain = registerToolchains({ runtime, packageManager })\n`
+    )
+    await write(
       "packages/pipeline/BUILD.ts",
-      `import { GithubCiGen, PackageManager, Runtime } from "${rulesModule}"\n` +
-        `const packageManager = PackageManager.Pnpm({ version: "11.21.0", runtime: Runtime.Node({ version: ">=22.19.0" }) })\n` +
+      `import { GithubCiGen } from "${rulesModule}"\n` +
+        `import "../../WORKSPACE.ts"\n` +
         `export const ci = GithubCiGen({\n` +
-        `  packageManager,\n` +
         `  workflowName: "CI",\n` +
         `  pushBranches: ["main"],\n` +
         `  pullRequest: true,\n` +
@@ -468,12 +484,21 @@ describe("the CI workflow generator", () => {
 
   it("fails the run, without writing, when the declaration is one write mode refuses", async () => {
     await write("BUILD.ts", "export const root = 1\n")
+    // The toolchain registers in WORKSPACE.ts. This case spawns the CLI, whose
+    // bootstrap evaluates every declaration in one loader graph, so the
+    // registration reaches the target file with no import — the same shape a
+    // real workspace takes.
+    await write(
+      "WORKSPACE.ts",
+      `import { PackageManager, registerToolchains, Runtime } from "${rulesModule}"\n` +
+        `const runtime = Runtime.Node({ version: ">=22.19.0" })\n` +
+        `const packageManager = PackageManager.Pnpm({ version: "11.21.0", runtime })\n` +
+        `export const toolchain = registerToolchains({ runtime, packageManager })\n`
+    )
     await write(
       "packages/pipeline/BUILD.ts",
-      `import { GithubCiGen, PackageManager, Runtime } from "${rulesModule}"\n` +
-        `const packageManager = PackageManager.Pnpm({ version: "11.21.0", runtime: Runtime.Node({ version: ">=22.19.0" }) })\n` +
+      `import { GithubCiGen } from "${rulesModule}"\n` +
         `export const ci = GithubCiGen({\n` +
-        `  packageManager,\n` +
         `  workflowName: "CI",\n` +
         `  pushBranches: ["main"],\n` +
         `  pullRequest: true,\n` +

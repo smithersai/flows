@@ -6,7 +6,7 @@ import { Clean } from "../src/Clean.ts"
 import * as Filegroup from "../src/Filegroup.ts"
 import * as Input from "../src/Input.ts"
 import * as Target from "../src/Target.ts"
-import { runtime } from "./toolchain.ts"
+import "./toolchain.ts"
 
 let root: string
 
@@ -91,7 +91,7 @@ describe("Filegroup.sources", () => {
   })
 
   it("keeps a target that is not a group as a dependency contributing no files", () => {
-    const other = Clean({ runtime, paths: ["dist"], deps: [], includeNodeModules: false })
+    const other = Clean({ paths: ["dist"], deps: [], includeNodeModules: false })
     const group = Filegroup.Filegroup({ srcs: [other, Input.file("only.ts")] })
     expect(Filegroup.sources(Target.metadata(group).attrs as Filegroup.Attrs)).toEqual([
       { _tag: "File", path: "only.ts" }

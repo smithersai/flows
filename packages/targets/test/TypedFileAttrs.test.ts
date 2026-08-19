@@ -9,11 +9,11 @@ import * as SortPackageJson from "../src/SortPackageJson.ts"
 import * as Target from "../src/Target.ts"
 import * as TsBuild from "../src/TsBuild.ts"
 import * as TypedocDocs from "../src/TypedocDocs.ts"
-import { packageManager, runtime } from "./toolchain.ts"
+import { runtime, withPackageManager } from "./toolchain.ts"
 
 describe("Install declared inputs", () => {
   it("declares the manager's lockfile, the npmrc, and the root manifest", () => {
-    const metadata = Target.metadata(Install.Install({ packageManager }))
+    const metadata = Target.metadata(Install.Install({}))
     expect(metadata.inputs).toEqual([
       { _tag: "File", path: "pnpm-lock.yaml" },
       { _tag: "File", path: ".npmrc" },
@@ -25,14 +25,17 @@ describe("Install declared inputs", () => {
     expect(metadata.cacheable).toBe(false)
   })
 
-  it("derives the lockfile name from the declared manager", () => {
+  it("derives the lockfile name from the registered manager", () => {
     const npm = PackageManager.Npm({ version: "10.9.0", runtime })
-    const metadata = Target.metadata(Install.Install({ packageManager: npm }))
+    const metadata = withPackageManager(npm, () => Target.metadata(Install.Install({})))
     expect(metadata.inputs[0]).toEqual({ _tag: "File", path: "package-lock.json" })
   })
 
-  it("rejects a bare string where the manager declaration belongs", () => {
-    expect(() => Install.Install({ packageManager: "pnpm@11.21.0" } as never)).toThrow()
+  it("keeps a manager out of its attrs even when a BUILD.ts passes one", () => {
+    // The attr is gone, so a stale declaration is dropped rather than becoming
+    // key material. `Install` reads the registered toolchain instead.
+    const attrs = Target.metadata(Install.Install({ packageManager: "pnpm@11.21.0" } as never)).attrs
+    expect(attrs).not.toHaveProperty("packageManager")
   })
 })
 
@@ -42,7 +45,6 @@ describe("entry-point file attrs", () => {
 
   it("accepts Input.File and rejects strings for TsBuild entries", () => {
     const attrs = {
-      packageManager,
       srcs: [],
       entries: [entry],
       deps: [],
@@ -58,7 +60,6 @@ describe("entry-point file attrs", () => {
 
   it("accepts Input.File and rejects strings for DtsBuild entries", () => {
     const attrs = {
-      packageManager,
       srcs: [],
       entries: [entry],
       deps: [],
@@ -73,7 +74,6 @@ describe("entry-point file attrs", () => {
 
   it("accepts Input.File and rejects strings for TypeDoc entry points", () => {
     const attrs = {
-      packageManager,
       sources: [],
       deps: [],
       tsconfig,
@@ -112,15 +112,15 @@ describe("LlmLint typed glob attrs", () => {
 describe("SortPackageJson declared manifests", () => {
   it("requires caller-declared files and collects each manifest once", () => {
     const manifest = Input.file("package.json")
-    const target = SortPackageJson.SortPackageJson({ packageManager, manifests: [manifest], deps: [], check: true })
+    const target = SortPackageJson.SortPackageJson({ manifests: [manifest], deps: [], check: true })
     const metadata = Target.metadata(target)
     expect(metadata.inputs).toEqual([manifest])
     expect(metadata.outputs).toEqual({ cwd: ".", paths: ["package.json"] })
     expect(() =>
-      SortPackageJson.SortPackageJson({ packageManager, manifests: ["package.json"], deps: [], check: true } as never)
+      SortPackageJson.SortPackageJson({ manifests: ["package.json"], deps: [], check: true } as never)
     )
       .toThrow()
-    expect(() => SortPackageJson.SortPackageJson({ packageManager, manifests: [], deps: [], check: true } as never))
+    expect(() => SortPackageJson.SortPackageJson({ manifests: [], deps: [], check: true } as never))
       .toThrow()
   })
 })

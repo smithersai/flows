@@ -6,8 +6,11 @@
  * instead of taking the runtime and the package manager as attrs.
  *
  * Discovery resolves this file before it opens the workspace index, so the
- * declarations here are available to every command, including the read-only
- * ones.
+ * registration is in place before any `BUILD.ts` evaluates and every rule can
+ * read it while it builds its declaration.
+ *
+ * Targets stay in `BUILD.ts`. Only a `BUILD.ts` file contributes targets to a
+ * package, so a target declared here would have no label.
  */
 import { Smithers } from "@smthrs/targets"
 

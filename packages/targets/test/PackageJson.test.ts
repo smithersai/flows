@@ -28,7 +28,7 @@ import * as PackageJsonTemplate from "../src/PackageJsonTemplate.ts"
 import * as Target from "../src/Target.ts"
 import { TsBuild } from "../src/TsBuild.ts"
 import { Vitest } from "../src/Vitest.ts"
-import { packageManager } from "./toolchain.ts"
+import "./toolchain.ts"
 
 let root: string
 
@@ -43,7 +43,6 @@ afterEach(async () => {
 /** A conventional dual-format build target for a package at `cwd`. */
 const build = (cwd: string, format: "esm" | "cjs" | "dual" = "dual") =>
   TsBuild({
-    packageManager,
     srcs: [Input.glob("src/**/*.ts")],
     entries: [Input.file("src/index.ts")],
     deps: [],
@@ -57,7 +56,6 @@ const build = (cwd: string, format: "esm" | "cjs" | "dual" = "dual") =>
 
 const tests = (cwd: string) =>
   Vitest({
-    packageManager,
     tests: [Input.glob("test/**/*.test.ts")],
     sources: [Input.glob("src/**/*.ts")],
     deps: [],

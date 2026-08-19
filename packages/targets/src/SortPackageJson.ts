@@ -22,7 +22,6 @@ import { BuildError, captureOutputs, Outputs } from "./ToolBuild.ts"
  * @since 0.1.0
  */
 export const Attrs = Schema.Struct({
-  packageManager: PackageManager.PackageManager,
   manifests: Schema.NonEmptyArray(Input.File),
   deps: Schema.Array(Target.Target),
   check: Schema.Boolean,
@@ -69,11 +68,12 @@ export const SortPackageJson = Target.make("SortPackageJson", {
   // run that was supposed to report it.
   attrsForKind: (kind, attrs) => kind === "lint" && !attrs.check ? { ...attrs, check: true } : attrs,
   implementation: (attrs) => {
+    const manager = PackageManager.registeredToolchain().packageManager
     const manifests = attrs.manifests.map((manifest) => manifest.path)
     return captureOutputs(
       Target.runTool({
         cwd: attrs.cwd,
-        argv: PackageManager.exec(attrs.packageManager, [
+        argv: PackageManager.exec(manager, [
           "sort-package-json",
           ...(attrs.check ? ["--check"] : []),
           ...manifests

@@ -5,7 +5,7 @@ import { expand, isPackageDefaults, PackageDefaults, TypeId as PackageDefaultsTy
 import { type Attrs as PnpmWorkspaceAttrs, PnpmWorkspace } from "../src/PnpmWorkspaceFile.ts"
 import { Secret } from "../src/Secret.ts"
 import * as Target from "../src/Target.ts"
-import { packageManager } from "./toolchain.ts"
+import "./toolchain.ts"
 
 describe("Alchemy-style BUILD.ts constructors", () => {
   it("validates declared inputs at construction", () => {
@@ -56,7 +56,7 @@ describe("Alchemy-style BUILD.ts constructors", () => {
 
   it("applies the GitHub CI constructor defaults", () => {
     const attrs = Target.metadata(
-      GithubCiGen({ packageManager, cacheUrlSecret: Secret("SMITHERS_CACHE_URL") })
+      GithubCiGen({ cacheUrlSecret: Secret("SMITHERS_CACHE_URL") })
     ).attrs as GithubCiGenAttrs
 
     expect(attrs).toMatchObject({
@@ -78,7 +78,7 @@ describe("Alchemy-style BUILD.ts constructors", () => {
 
   it("applies the pnpm workspace constructor defaults", () => {
     const attrs = Target.metadata(
-      PnpmWorkspace({ packageManager, packages: ["packages/*"] })
+      PnpmWorkspace({ packages: ["packages/*"] })
     ).attrs as PnpmWorkspaceAttrs
 
     expect(attrs.packages).toEqual(["packages/*"])

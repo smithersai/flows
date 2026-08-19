@@ -24,8 +24,6 @@ import * as Target from "./Target.ts"
  * @since 0.1.0
  */
 export const Attrs = Schema.Struct({
-  runtime: Runtime.Runtime,
-  packageManager: PackageManager.PackageManager,
   packageJson: Input.File,
   sources: Schema.Array(Input.Declared),
   deps: Schema.Array(Target.Target),
@@ -107,11 +105,13 @@ export const DepsLint = Target.make("DepsLint", {
   success: Exec.Result,
   error: Exec.ExecError,
   implementation: (attrs) => {
+    const toolchain = PackageManager.registeredToolchain()
+    const manager = toolchain.packageManager
     if (attrs.tool === "depcheck") {
       const ignores = [...new Set([...attrs.ignoreDependencies, ...attrs.ignoreBinaries])]
       return Target.runTool({
         cwd: attrs.cwd,
-        argv: PackageManager.exec(attrs.packageManager, [
+        argv: PackageManager.exec(manager, [
           "depcheck",
           ...(ignores.length === 0 ? [] : [`--ignores=${ignores.join(",")}`])
         ])
@@ -120,7 +120,7 @@ export const DepsLint = Target.make("DepsLint", {
     if (attrs.ignoreDependencies.length === 0 && attrs.ignoreBinaries.length === 0) {
       return Target.runTool({
         cwd: attrs.cwd,
-        argv: PackageManager.exec(attrs.packageManager, ["knip", "--dependencies"])
+        argv: PackageManager.exec(manager, ["knip", "--dependencies"])
       })
     }
     const config = knipConfig(attrs)
@@ -128,12 +128,12 @@ export const DepsLint = Target.make("DepsLint", {
     const fromCwd = NodePath.posix.relative(attrs.cwd, configPath)
     return Target.runTool({
       cwd: ".",
-      argv: Runtime.evaluate(attrs.runtime, writeProgram, [configPath, config])
+      argv: Runtime.evaluate(toolchain.runtime, writeProgram, [configPath, config])
     }).pipe(
       Node.andThen((written) =>
         Target.runTool({
           cwd: attrs.cwd,
-          argv: PackageManager.exec(attrs.packageManager, ["knip", "--dependencies", "--config", fromCwd]),
+          argv: PackageManager.exec(manager, ["knip", "--dependencies", "--config", fromCwd]),
           after: written
         })
       )

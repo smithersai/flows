@@ -20,7 +20,6 @@ import { BuildError, captureOutputs, Outputs } from "./ToolBuild.ts"
  * @since 0.1.0
  */
 export const Attrs = Schema.Struct({
-  packageManager: PackageManager.PackageManager,
   sources: Schema.Array(Input.Declared),
   deps: Schema.Array(Target.Target),
   tsconfig: Input.File,
@@ -66,7 +65,8 @@ export const TypedocDocs = Target.make("TypedocDocs", {
   error: BuildError,
   outputs: (attrs) => ({ cwd: ".", paths: [attrs.outDir] }),
   implementation: (attrs) => {
-    const argv: Array<string> = PackageManager.exec(attrs.packageManager, [
+    const manager = PackageManager.registeredToolchain().packageManager
+    const argv: Array<string> = PackageManager.exec(manager, [
       "typedoc",
       "--out",
       workspacePath(attrs.outDir),

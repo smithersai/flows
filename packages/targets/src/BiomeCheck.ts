@@ -22,7 +22,6 @@ import * as Target from "./Target.ts"
  * @since 0.1.0
  */
 export const Attrs = Schema.Struct({
-  packageManager: PackageManager.PackageManager,
   sources: Schema.Array(Input.Declared),
   deps: Schema.Array(Target.Target),
   config: Input.File,
@@ -86,41 +85,26 @@ const biomePaths = (sources: ReadonlyArray<Input.Declared>): ReadonlyArray<strin
   return unique.length === 0 ? ["."] : unique
 }
 
-/**
- * Plans Biome lint and format checks without writing files.
- *
- * The body records one `biome check` run when `lint` is enabled and one
- * `biome format` run in its default check mode when `format` is enabled,
- * both from `cwd` through the shared {@link Exec.Exec} action with the
- * declared configuration passed as `--config-path`. When `unsafe` is true
- * the check run forwards `--unsafe`. Tools resolve through `pnpm exec`,
- * matching the pnpm workspace install target. Key material contains source
- * and configuration digests, dependency keys, enabled check families, and
- * unsafe-target policy. This combines tevm's `lint:check` and `format:check`
- * targets using Biome prior art. Executing the plan requires
- * {@link Exec.ExecLive}.
- *
- * @category targets
- * @since 0.1.0
- */
-export const BiomeCheck = Target.make("BiomeCheck", {
+/** The declaration form. {@link BiomeCheck} adds the path form to it. */
+const definition = Target.make("BiomeCheck", {
   attrs: Attrs,
   kinds: ["lint"],
   success: BiomeReport,
   error: Exec.ExecError,
   implementation: (attrs) => {
+    const manager = PackageManager.registeredToolchain().packageManager
     const shared = [`--config-path=${attrs.config.path}`, ...biomePaths(attrs.sources)]
     if (!attrs.lint) {
       return attrs.format
         ? Target.runTool({
           cwd: attrs.cwd,
-          argv: PackageManager.exec(attrs.packageManager, ["biome", "format", ...shared])
+          argv: PackageManager.exec(manager, ["biome", "format", ...shared])
         }).pipe(Node.map((format) => ({ check: null, format })))
         : Node.succeed({ check: null, format: null })
     }
     const checked = Target.runTool({
       cwd: attrs.cwd,
-      argv: PackageManager.exec(attrs.packageManager, [
+      argv: PackageManager.exec(manager, [
         "biome",
         "check",
         ...(attrs.unsafe ? ["--unsafe"] : []),
@@ -134,10 +118,69 @@ export const BiomeCheck = Target.make("BiomeCheck", {
       Node.andThen((check) =>
         Target.runTool({
           cwd: attrs.cwd,
-          argv: PackageManager.exec(attrs.packageManager, ["biome", "format", ...shared]),
+          argv: PackageManager.exec(manager, ["biome", "format", ...shared]),
           after: check
         }).pipe(Node.map((format) => ({ check, format })))
       )
     )
   }
 })
+
+/**
+ * Splits a workspace-relative config path into the directory the tool runs in
+ * and the file name that resolves from it.
+ */
+const configSite = (path: string): { readonly cwd: string; readonly name: string } => {
+  const slash = path.lastIndexOf("/")
+  return slash === -1
+    ? { cwd: ".", name: path }
+    : { cwd: path.slice(0, slash), name: path.slice(slash + 1) }
+}
+
+/**
+ * Expands a config-file path into the conventional Biome declaration.
+ */
+const fromConfigPath = (path: string): Parameters<typeof definition>[0] => {
+  const site = configSite(path)
+  return {
+    sources: [Input.glob("src/**/*.ts"), Input.glob("test/**/*.ts")],
+    deps: [],
+    config: Input.file(site.name),
+    lint: true,
+    format: true,
+    unsafe: false,
+    cwd: site.cwd
+  }
+}
+
+/**
+ * Plans Biome lint and format checks without writing files.
+ *
+ * The body records one `biome check` run when `lint` is enabled and one
+ * `biome format` run in its default check mode when `format` is enabled,
+ * both from `cwd` through the shared {@link Exec.Exec} action with the
+ * declared configuration passed as `--config-path`. When `unsafe` is true
+ * the check run forwards `--unsafe`. Tools resolve through the manager the
+ * workspace registered in `WORKSPACE.ts`. Key material contains source
+ * and configuration digests, dependency keys, enabled check families, and
+ * unsafe-target policy. This combines tevm's `lint:check` and `format:check`
+ * targets using Biome prior art. Executing the plan requires
+ * {@link Exec.ExecLive}.
+ *
+ * `BiomeCheck("packages/plan/biome.json")` is the path form. It runs in the
+ * directory that holds the named file and expands to the source set
+ * `StandardPackage` declares for its format target, the conventional source
+ * and test globs, plus the named file as the config. Both check families run
+ * and neither applies unsafe fixes.
+ *
+ * The config file is not parsed. The source globs come from the repository
+ * convention, not from Biome's own `files.includes` patterns.
+ *
+ * @category targets
+ * @since 0.1.0
+ */
+export const BiomeCheck = Object.assign(
+  (attrs: Parameters<typeof definition>[0] | string) =>
+    definition(typeof attrs === "string" ? fromConfigPath(attrs) : attrs),
+  definition
+)

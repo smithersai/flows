@@ -23,7 +23,6 @@ import * as Target from "./Target.ts"
  * @since 0.1.0
  */
 export const Attrs = Schema.Struct({
-  packageManager: PackageManager.PackageManager,
   sources: Schema.Array(Input.Declared),
   deps: Schema.Array(Target.Target),
   config: Input.File,
@@ -39,6 +38,52 @@ export const Attrs = Schema.Struct({
  */
 export type Attrs = typeof Attrs.Type
 
+/** The declaration form. {@link Dprint} adds the path form to it. */
+const definition = Target.make("Dprint", {
+  attrs: Attrs,
+  kinds: ["lint"],
+  success: Exec.Result,
+  error: Exec.ExecError,
+  cache: false,
+  implementation: (attrs) => {
+    const manager = PackageManager.registeredToolchain().packageManager
+    return Target.runTool({
+      cwd: attrs.cwd,
+      argv: PackageManager.exec(manager, [
+        "dprint",
+        attrs.fix ? "fmt" : "check",
+        "--config",
+        attrs.config.path
+      ])
+    })
+  }
+})
+
+/**
+ * Splits a workspace-relative config path into the directory the tool runs in
+ * and the file name that resolves from it.
+ */
+const configSite = (path: string): { readonly cwd: string; readonly name: string } => {
+  const slash = path.lastIndexOf("/")
+  return slash === -1
+    ? { cwd: ".", name: path }
+    : { cwd: path.slice(0, slash), name: path.slice(slash + 1) }
+}
+
+/**
+ * Expands a config-file path into the conventional dprint declaration.
+ */
+const fromConfigPath = (path: string): Parameters<typeof definition>[0] => {
+  const site = configSite(path)
+  return {
+    sources: [Input.glob("src/**/*.ts"), Input.glob("test/**/*.ts")],
+    deps: [],
+    config: Input.file(site.name),
+    fix: false,
+    cwd: site.cwd
+  }
+}
+
 /**
  * Checks formatting with `dprint check`, or rewrites it with `dprint fmt`.
  *
@@ -50,23 +95,19 @@ export type Attrs = typeof Attrs.Type
  * complete key material, matching {@link EsLint}'s posture. Executing the
  * plan requires {@link Exec.ExecLive}.
  *
+ * `Dprint("packages/plan/dprint.json")` is the path form. It runs in the
+ * directory that holds the named file and expands to the same declared inputs
+ * `StandardPackage` supplies: the conventional source and test globs as
+ * sources, and the named file as the config.
+ *
+ * The config file is not parsed. The source globs come from the repository
+ * convention, not from dprint's own `includes` patterns.
+ *
  * @category targets
  * @since 0.1.0
  */
-export const Dprint = Target.make("Dprint", {
-  attrs: Attrs,
-  kinds: ["lint"],
-  success: Exec.Result,
-  error: Exec.ExecError,
-  cache: false,
-  implementation: (attrs) =>
-    Target.runTool({
-      cwd: attrs.cwd,
-      argv: PackageManager.exec(attrs.packageManager, [
-        "dprint",
-        attrs.fix ? "fmt" : "check",
-        "--config",
-        attrs.config.path
-      ])
-    })
-})
+export const Dprint = Object.assign(
+  (attrs: Parameters<typeof definition>[0] | string) =>
+    definition(typeof attrs === "string" ? fromConfigPath(attrs) : attrs),
+  definition
+)

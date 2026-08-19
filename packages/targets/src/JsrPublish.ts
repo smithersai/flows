@@ -20,7 +20,6 @@ import * as Target from "./Target.ts"
  * @since 0.1.0
  */
 export const Attrs = Schema.Struct({
-  packageManager: PackageManager.PackageManager,
   config: Input.File,
   sources: Schema.Array(Input.Declared),
   deps: Schema.Array(Target.Target),
@@ -69,7 +68,8 @@ export const JsrPublish = Target.make("JsrPublish", {
   cache: false,
   verbGate: ["run"],
   implementation: (attrs, context) => {
-    const argv: Array<string> = PackageManager.dlx(attrs.packageManager, ["jsr", "publish"])
+    const manager = PackageManager.registeredToolchain().packageManager
+    const argv: Array<string> = PackageManager.dlx(manager, ["jsr", "publish"])
     if (attrs.allowDirty) argv.push("--allow-dirty")
     if (attrs.dryRun) argv.push("--dry-run")
     return ExecIrreversible.call({

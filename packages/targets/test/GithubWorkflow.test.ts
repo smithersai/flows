@@ -28,7 +28,7 @@ import {
 } from "../src/GithubWorkflow.ts"
 import { Secret } from "../src/Secret.ts"
 import * as Target from "../src/Target.ts"
-import { packageManager } from "./toolchain.ts"
+import "./toolchain.ts"
 
 /**
  * The flows repository's own pipeline, read from disk. It is the workload
@@ -1063,7 +1063,6 @@ describe("stripShellComments", () => {
 
 /** The golden pipeline `write` mode renders. */
 const goldenAttrs = {
-  packageManager,
   workflowName: "CI",
   pushBranches: ["main"],
   pullRequest: true,
@@ -1697,8 +1696,7 @@ describe("GithubCiGen target wiring", () => {
     jobs: [],
     requiredJobs: ["test"],
     gates: [{ name: "typecheck", command: "pnpm run check", job: "test" }],
-    output: ".github/workflows/ci.yml",
-    packageManager
+    output: ".github/workflows/ci.yml"
   }
 
   it("defaults to the non-mutating contract mode", () => {

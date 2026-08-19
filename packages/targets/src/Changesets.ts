@@ -55,7 +55,6 @@ export const ExecIrreversibleLive = (options: {
  * @since 0.1.0
  */
 export const Attrs = Schema.Struct({
-  packageManager: PackageManager.PackageManager,
   operation: Schema.Literals(["status", "version"]),
   changesets: Schema.Array(Input.Declared),
   config: Input.File,
@@ -72,6 +71,33 @@ export const Attrs = Schema.Struct({
  * @since 0.1.0
  */
 export type Attrs = typeof Attrs.Type
+
+/**
+ * Plans one changesets operation against the registered manager.
+ *
+ * `version` rewrites manifests and consumes changeset files, so it runs
+ * through the irreversible action; `status` only reports and runs through the
+ * ordinary one.
+ */
+const manage = (
+  attrs: Attrs,
+  manager: PackageManager.PackageManager
+): Node.Node<
+  Exec.Result,
+  Exec.ExecError,
+  Action.Requirement<"smithers-build/exec"> | Action.Requirement<"smithers-build/exec-irreversible">
+> =>
+  attrs.operation === "version"
+    ? ExecIrreversible.call({
+      cwd: ".",
+      argv: PackageManager.exec(manager, ["changeset", "version"])
+    })
+    : Target.runTool({
+      cwd: ".",
+      argv: attrs.since === null
+        ? PackageManager.exec(manager, ["changeset", "status"])
+        : PackageManager.exec(manager, ["changeset", "status", "--since", attrs.since])
+    })
 
 /**
  * Plans Changesets status or versioning at the workspace root.
@@ -108,15 +134,5 @@ export const Changesets = Target.make("Changesets", {
     Exec.ExecError,
     Action.Requirement<"smithers-build/exec"> | Action.Requirement<"smithers-build/exec-irreversible">
   > =>
-    attrs.operation === "version"
-      ? ExecIrreversible.call({
-        cwd: ".",
-        argv: PackageManager.exec(attrs.packageManager, ["changeset", "version"])
-      })
-      : Target.runTool({
-        cwd: ".",
-        argv: attrs.since === null
-          ? PackageManager.exec(attrs.packageManager, ["changeset", "status"])
-          : PackageManager.exec(attrs.packageManager, ["changeset", "status", "--since", attrs.since])
-      })
+    manage(attrs, PackageManager.registeredToolchain().packageManager)
 })

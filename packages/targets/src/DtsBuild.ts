@@ -23,7 +23,6 @@ import { BuildError, captureOutputs, Outputs } from "./ToolBuild.ts"
  * @since 0.1.0
  */
 export const Attrs = Schema.Struct({
-  packageManager: PackageManager.PackageManager,
   srcs: Schema.Array(Input.Declared),
   entries: Schema.Array(Input.File),
   deps: Schema.Array(Target.Target),
@@ -51,9 +50,10 @@ export type Attrs = typeof Attrs.Type
  * the tsconfig owns the destination and `outDir` stays the declared capture
  * path. tsup emits no declaration maps, so `--dts-only` ignores the attr.
  */
-const declarationArgv = (attrs: Attrs): ReadonlyArray<string> =>
-  attrs.tool === "tsc"
-    ? PackageManager.exec(attrs.packageManager, [
+const declarationArgv = (attrs: Attrs): ReadonlyArray<string> => {
+  const manager = PackageManager.registeredToolchain().packageManager
+  return attrs.tool === "tsc"
+    ? PackageManager.exec(manager, [
       "tsc",
       "-p",
       attrs.tsconfig.path,
@@ -62,13 +62,14 @@ const declarationArgv = (attrs: Attrs): ReadonlyArray<string> =>
       "--declarationMap",
       attrs.declarationMap ? "true" : "false"
     ])
-    : PackageManager.exec(attrs.packageManager, [
+    : PackageManager.exec(manager, [
       "tsup",
       ...attrs.entries.map((entry) => entry.path),
       "--dts-only",
       "--out-dir",
       attrs.outDir
     ])
+}
 
 /**
  * Emits type declarations with `tsc --emitDeclarationOnly` or

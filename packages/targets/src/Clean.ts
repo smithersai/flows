@@ -7,6 +7,7 @@ import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import * as NodePath from "node:path"
 import * as Exec from "./Exec.ts"
+import * as PackageManager from "./PackageManager.ts"
 import * as Runtime from "./Runtime.ts"
 import * as Target from "./Target.ts"
 
@@ -21,7 +22,6 @@ import * as Target from "./Target.ts"
  * @since 0.1.0
  */
 export const Attrs = Schema.Struct({
-  runtime: Runtime.Runtime,
   paths: Schema.Array(Schema.NonEmptyString),
   deps: Schema.Array(Target.Target),
   includeNodeModules: Schema.Boolean,
@@ -79,13 +79,14 @@ export const Clean = Target.make("Clean", {
   error: Exec.ExecError,
   cache: false,
   implementation: (attrs) => {
+    const runtime = PackageManager.registeredToolchain().runtime
     const targets = [
       ...attrs.paths,
       ...(attrs.includeNodeModules ? ["node_modules"] : [])
     ].map(scoped)
     return Target.runTool({
       cwd: attrs.cwd === "." ? "." : scoped(attrs.cwd),
-      argv: Runtime.evaluate(attrs.runtime, removeScript, [...targets])
+      argv: Runtime.evaluate(runtime, removeScript, [...targets])
     })
   }
 })
