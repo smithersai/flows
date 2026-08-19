@@ -736,6 +736,28 @@
 	--shadow-rgb: 0 0 0;
 }
 
+/*
+ * Library aliases.
+ *
+ * `@smthrs/ui` resolves some values under shadcn's names rather than this
+ * app's. Every house token a consumed component reads must be defined here in
+ * both themes, or the component's own fallback paints and the brand leaks —
+ * the violet/zinc default this bridge exists to prevent (DESIGN.md §2).
+ *
+ * These two were consumed by `.composer-menu-list` and the card meta rows
+ * while defined nowhere, so their hardcoded fallbacks painted, including in
+ * dark where the value is simply the wrong colour. The a11y suite's E13.4 row
+ * caught it.
+ *
+ * They are aliases, not new values: pointing them at the semantic tokens every
+ * palette already defines means all nine palettes and both themes follow
+ * automatically, and a new palette cannot forget them.
+ */
+:root {
+	--muted-foreground: var(--text-muted);
+	--popover: var(--surface);
+}
+
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,

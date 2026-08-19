@@ -753,9 +753,14 @@ const WorldCardBody = ({
 				/>
 			</aside>
 			<div className="world-card-doc">
+				{/*
+				 * No confidence badge. A bare "80%" is a score, and no score,
+				 * grade or number is user-facing (DESIGN.md, launch-checklist
+				 * row B-5). The confidence still rides the entry for ranking;
+				 * it is not shown.
+				 */}
 				<div className="world-card-meta">
 					<span className="world-card-path">{selectedEntry.path}</span>
-					<Badge variant="outline">{Math.round(selectedEntry.confidence * 100)}%</Badge>
 				</div>
 				{selectedDocument !== undefined ? (
 					<MarkdownEditor
