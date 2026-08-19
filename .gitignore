@@ -77,3 +77,8 @@ packages/*/.smithers/
 
 # Wrangler local dev-server state (miniflare sqlite, DO storage, traces)
 .wrangler/
+
+# Launch-checklist dry runs prove the runner, not the product: they touch no
+# origin, so they are never evidence and never belong in the tracked report
+# trail under apps/reports/launch-checklist/.
+apps/reports/launch-checklist/*-dry-run/

@@ -23,12 +23,21 @@
 		"bindings": [
 			{ "name": "TURN_CANCELS", "class_name": "TurnCancelRegistry" },
 			// Wave 11: per-user gateway session records (relay tokens, server-side only), keyed by login.
-			{ "name": "GATEWAY_SESSIONS", "class_name": "GatewaySessionRegistry" }
+			{ "name": "GATEWAY_SESSIONS", "class_name": "GatewaySessionRegistry" },
+			// A per-login ceiling on turns: an abuse guard on a seam that is
+			// comped by design, so a runaway client or a lifted session cookie
+			// cannot spend the alpha budget unobserved (src/turnLimit.ts).
+			{ "name": "TURN_LIMITS", "class_name": "TurnRateLimiter" },
+			// The bounded client-error log, read back at GET /api/admin/errors.
+			// Without it a browser crash lives only in a wrangler tail nobody
+			// is watching (src/clientErrorLog.ts).
+			{ "name": "CLIENT_ERRORS", "class_name": "ClientErrorLog" }
 		]
 	},
 	"migrations": [
 		{ "tag": "v1", "new_sqlite_classes": ["TurnCancelRegistry"] },
-		{ "tag": "v2", "new_sqlite_classes": ["GatewaySessionRegistry"] }
+		{ "tag": "v2", "new_sqlite_classes": ["GatewaySessionRegistry"] },
+		{ "tag": "v3", "new_sqlite_classes": ["TurnRateLimiter", "ClientErrorLog"] }
 	],
 	"vars": {
 		// Wave 7 canary upstreams. identity/reco live on workers.dev until will

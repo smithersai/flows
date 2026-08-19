@@ -75,3 +75,5 @@ export const ADMIN_GRANT_PATH = "/api/admin/grant";
 export const ADMIN_REQUESTS_PATH = "/api/admin/requests";
 export const ADMIN_FEEDBACK_PATH = "/api/admin/feedback";
 export const ADMIN_HEALTH_PATH = "/api/admin/health";
+/** The bounded client-error log: what actually broke in an alpha user's browser. */
+export const ADMIN_ERRORS_PATH = "/api/admin/errors";

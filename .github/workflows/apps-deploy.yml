@@ -24,6 +24,32 @@ jobs:
         with:
           bun-version: 1.3.14
       - run: pnpm install --frozen-lockfile --ignore-scripts
+      # A deploy is the one moment this code reaches a user, so it does not
+      # ship what it has not checked. These are the apps gates only: the
+      # workspace gates (packages, rust, wasm, browser contract) are CI's job
+      # on the same commit, and duplicating them here would put 20 minutes
+      # between a green tag and a live fix.
+      #
+      # Every step below fails the job, so a red tag never reaches the
+      # deploy step — including the dry-run one, which is the whole proof
+      # this pipeline offers when no credential is configured.
+      - name: Typecheck apps
+        run: |
+          for app in smithers-ui smithers-server smithers-shared smithers-tui; do
+            pnpm --filter "$app" run typecheck
+          done
+      - name: Test apps
+        run: |
+          for app in smithers-ui smithers-server smithers-shared smithers-tui; do
+            pnpm --filter "$app" run test
+          done
+      # The launch checklist is what grades the deployed origin afterwards.
+      # Its dry run touches no network and proves the row catalog, the CLI
+      # contract, and the report writer still work before the deploy, not
+      # after — a broken runner would otherwise be discovered at the worst
+      # possible moment.
+      - name: Launch-checklist dry run
+        run: pnpm run checklist -- --dry-run
       # Real deploy runs only on a tag push AND only when the Cloudflare
       # credential is configured; every other trigger (workflow_dispatch, or
       # a tag push without the secret) proves the pipeline in --dry-run mode

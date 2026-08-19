@@ -1,5 +1,6 @@
 import {
 	ADMIN_ALLOWLIST_PATH,
+	ADMIN_ERRORS_PATH,
 	ADMIN_FEEDBACK_PATH,
 	ADMIN_GRANT_PATH,
 	ADMIN_HEALTH_PATH,
@@ -36,9 +37,15 @@ import {
 	NON_REPLAYABLE_GATEWAY_METHODS,
 } from "./gateway";
 import type { GatewaySessionNamespace } from "./gateway";
+import { appendClientError, ClientErrorLog, readClientErrors } from "./clientErrorLog";
+import type { ClientErrorNamespace } from "./clientErrorLog";
+import { spendTurn, TurnRateLimiter, turnLimitResponse } from "./turnLimit";
+import type { TurnLimitNamespace } from "./turnLimit";
 
 /* The per-user gateway session registry (Wave 11) — wrangler binds this DO. */
 export { GatewaySessionRegistry };
+/* The per-login turn ceiling and the client-error log — wrangler binds both. */
+export { TurnRateLimiter, ClientErrorLog };
 
 /*
  * The deployable Smithers MVP server: a Cloudflare Worker that serves the built
@@ -253,6 +260,18 @@ export interface WorkerEnv {
 	 * reach a browser. Unset only in unit tests (in-isolate fallback).
 	 */
 	readonly GATEWAY_SESSIONS?: GatewaySessionNamespace;
+	/**
+	 * The per-login turn ceiling (Durable Object keyed by the validated login).
+	 * An abuse guard on a comped seam, not a billing pause — see turnLimit.ts.
+	 * Unset in unit tests and the stub stack, where it fails open.
+	 */
+	readonly TURN_LIMITS?: TurnLimitNamespace;
+	/**
+	 * The bounded client-error log (one Durable Object for the deployment),
+	 * read back through GET /api/admin/errors. Unset in unit tests, where the
+	 * handler keeps its console.error and nothing is stored.
+	 */
+	readonly CLIENT_ERRORS?: ClientErrorNamespace;
 }
 
 const withIsolationHeaders = (response: Response): Response => {
@@ -1458,6 +1477,23 @@ const handleAdmin = async (request: Request, env: WorkerEnv, url: URL): Promise<
 		return handleAdminHealth(env, url.origin);
 	}
 
+	// The client-error log, newest first. No upstream and no admin token: the
+	// reports are this Worker's own state, so this is a local read, and it
+	// answers an empty log honestly rather than 404ing when nothing has broken.
+	if (url.pathname === ADMIN_ERRORS_PATH && request.method === "GET") {
+		const asked = Number(url.searchParams.get("limit") ?? "");
+		const limit = Number.isInteger(asked) && asked > 0 ? asked : undefined;
+		const log = await readClientErrors(env.CLIENT_ERRORS, limit);
+		return json(200, {
+			status: "ok",
+			total: log.total,
+			reports: log.reports,
+			...(env.CLIENT_ERRORS === undefined
+				? { note: "No CLIENT_ERRORS binding on this deployment: nothing is stored, so this log is always empty." }
+				: {}),
+		});
+	}
+
 	// An admin-only path this Worker does not implement is still just not found.
 	return notFound();
 };
@@ -1904,7 +1940,7 @@ const CLIENT_ERROR_WINDOW_MS = 60_000;
 const CLIENT_ERROR_WINDOW_MAX = 120;
 let clientErrorWindow = { start: 0, count: 0 };
 
-const handleClientError = async (request: Request): Promise<Response> => {
+const handleClientError = async (request: Request, env: WorkerEnv): Promise<Response> => {
 	const now = Date.now();
 	if (now - clientErrorWindow.start > CLIENT_ERROR_WINDOW_MS) {
 		clientErrorWindow = { start: now, count: 0 };
@@ -1917,7 +1953,25 @@ const handleClientError = async (request: Request): Promise<Response> => {
 	if (body.byteLength > CLIENT_ERROR_MAX_BODY) {
 		return json(413, { status: "error", message: "Error report too large." });
 	}
-	console.error("client-error:", new TextDecoder().decode(body));
+	const text = new TextDecoder().decode(body);
+	console.error("client-error:", text);
+	// console.error alone lives exactly as long as someone is tailing. The log
+	// is what makes an alpha user's crash readable afterwards, through
+	// GET /api/admin/errors; it is bounded and it never fails the report.
+	const referer = request.headers.get("referer");
+	const userAgent = request.headers.get("user-agent");
+	await appendClientError(env.CLIENT_ERRORS, {
+		at: new Date(now).toISOString(),
+		...(referer === null ? {} : { page: referer }),
+		...(userAgent === null ? {} : { userAgent }),
+		report: ((): unknown => {
+			try {
+				return JSON.parse(text);
+			} catch {
+				return text;
+			}
+		})(),
+	});
 	return json(202, { status: "accepted" });
 };
 
@@ -1998,12 +2052,21 @@ export default {
 			if (refusal instanceof Response) return refusal;
 			return handleCancel(request, env);
 		}
+		// The two routes that spend a model credential. Both gate on the
+		// session first and then on the login's turn ceiling, so a refusal
+		// costs one Durable Object read and never reaches an upstream. The
+		// cancel route above is deliberately unlimited: killing a turn must
+		// always work, and it spends nothing.
 		if (url.pathname === TURN_PATH) {
 			if (request.method !== "POST") {
 				return json(405, { status: "error", message: "Method not allowed." });
 			}
 			const gate = await requireTurnSession(request, env);
 			if (gate instanceof Response) return gate;
+			if (gate !== undefined) {
+				const budget = await spendTurn(env.TURN_LIMITS, gate.login);
+				if (!budget.allowed) return turnLimitResponse(budget, ISOLATION_HEADERS);
+			}
 			return handleTurn(request, env, gate);
 		}
 		if (url.pathname === MODEL_STREAM_PATH) {
@@ -2012,6 +2075,10 @@ export default {
 			}
 			const gate = await requireTurnSession(request, env);
 			if (gate instanceof Response) return gate;
+			if (gate !== undefined) {
+				const budget = await spendTurn(env.TURN_LIMITS, gate.login);
+				if (!budget.allowed) return turnLimitResponse(budget, ISOLATION_HEADERS);
+			}
 			return handleModelStream(request, env);
 		}
 		if (url.pathname === APPROVAL_DECISION_PATH) {
@@ -2065,7 +2132,7 @@ export default {
 			return proxyToIdentity(request, env);
 		}
 		if (url.pathname === CLIENT_ERRORS_PATH && request.method === "POST") {
-			return handleClientError(request);
+			return handleClientError(request, env);
 		}
 		if (platformProxyMatch(url.pathname, request.method)) {
 			return handlePlatformProxy(request, env, url);
