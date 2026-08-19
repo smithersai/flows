@@ -11,6 +11,7 @@ import * as FileSystem from "effect/FileSystem"
 import * as Schema from "effect/Schema"
 import { capability, envelope } from "./internal/Declaration.ts"
 import { MAX_GREP_MATCHES, notice, truncateBytes } from "./internal/Text.ts"
+import * as Walk from "./internal/Walk.ts"
 import * as StdError from "./StdError.ts"
 
 /**
@@ -138,6 +139,7 @@ const walkFiles = (
         Effect.mapError(() => fileSystemError(directory))
       )
       for (const child of [...children].sort().reverse()) {
+        if (Walk.skippedDirectories.has(child)) continue
         const candidate = path.join(directory, child)
         const info = yield* fileSystem.stat(candidate).pipe(Effect.mapError(() => fileSystemError(candidate)))
         if (info.type === "Directory") directories.push(candidate)

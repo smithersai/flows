@@ -13,4 +13,6 @@
 
 ### Fixed
 
+- Stopped `grep` and `glob` walks from descending into version-control, dependency, and cache directories; one `.git` descent held a frame for its whole evaluation ceiling.
+
 - Reported a directory entry whose metadata cannot be read as a plain entry instead of failing the whole `ls` listing.
