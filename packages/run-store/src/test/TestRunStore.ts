@@ -5,7 +5,9 @@
  *
  * @since 0.1.0
  */
+import * as DatabaseMigrations from "@smthrs/database/Migrations"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import * as JournalMigrations from "@smthrs/journal/Migrations"
 import * as Layer from "effect/Layer"
 import * as AttemptStore from "../AttemptStore.ts"
 import * as Migrations from "../Migrations.ts"
@@ -19,5 +21,10 @@ import * as RunStore from "../RunStore.ts"
  * @since 0.1.0
  */
 export const layer = Layer.mergeAll(RunStore.layer, AttemptStore.layer).pipe(
-  Layer.provide(Layer.provideMerge(Migrations.layer, TestDatabase.layer))
+  Layer.provide(
+    Layer.provideMerge(
+      Layer.effectDiscard(DatabaseMigrations.run([JournalMigrations.set, Migrations.set])),
+      TestDatabase.layer
+    )
+  )
 )

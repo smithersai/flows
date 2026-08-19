@@ -1,6 +1,8 @@
 import { describe, expect, it } from "@effect/vitest"
 import { DurableWriter } from "@smthrs/database/DurableWriter"
+import * as DatabaseMigrations from "@smthrs/database/Migrations"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import * as JournalMigrations from "@smthrs/journal/Migrations"
 import { Effect, Layer, Option } from "effect"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as AttemptStore from "../src/AttemptStore.ts"
@@ -8,11 +10,13 @@ import * as Migrations from "../src/Migrations.ts"
 import type { OwnerId } from "../src/Ownership.ts"
 import * as RunStore from "../src/RunStore.ts"
 
+const migrationsLayer = Layer.effectDiscard(DatabaseMigrations.run([JournalMigrations.set, Migrations.set]))
+
 const owner: OwnerId = { hostId: "host", pid: 1, nonce: "n" }
 
 const base = Layer.provideMerge(
   RunStore.layer,
-  Layer.provideMerge(Migrations.layer, TestDatabase.layer)
+  Layer.provideMerge(migrationsLayer, TestDatabase.layer)
 )
 
 const withStore = <A, E>(

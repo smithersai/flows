@@ -398,10 +398,11 @@ export type Compacted = typeof Compacted.Type
  *   overflow policies for telemetry, where `Dropped` receipts and
  *   `drop-oldest` evictions are acceptable.
  *
- * Passing an `owner` fences the write on the run's persisted ownership: the
- * durable insert only commits while `flows_runs` still records that owner, and
- * a reclaimed run fails the write with a `fence_lost` error. Ownerless writes
- * stay unfenced by design — external-trigger admissions such as deferred
+ * Passing an `owner` fences the write on the run's ownership as arbitrated by
+ * the injected `Consensus` strategy: the durable insert only commits while
+ * that strategy still records the owner as holding the run, and a reclaimed
+ * run fails the write with a `fence_lost` error. Ownerless writes stay
+ * unfenced by design — external-trigger admissions such as deferred
  * completions are first-writer-wins regardless of who owns the run.
  *
  * @category models

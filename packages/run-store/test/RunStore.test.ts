@@ -1,7 +1,9 @@
 import { describe, expect, it } from "@effect/vitest"
 import type { DurableWriter } from "@smthrs/database"
+import * as DatabaseMigrations from "@smthrs/database/Migrations"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
-import { Cause, Clock, Deferred, Duration, Effect, Exit, Fiber } from "effect"
+import * as JournalMigrations from "@smthrs/journal/Migrations"
+import { Cause, Clock, Deferred, Duration, Effect, Exit, Fiber, Layer } from "effect"
 import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as Migrations from "../src/Migrations.ts"
@@ -17,13 +19,15 @@ import {
 import { type RunRow, type RunSnapshot, type RunStatus, RunStore } from "../src/RunStore.ts"
 import * as RunStoreLive from "../src/RunStore.ts"
 
+const migrationsLayer = Layer.effectDiscard(DatabaseMigrations.run([JournalMigrations.set, Migrations.set]))
+
 const run = <A, E>(effect: Effect.Effect<A, E, never>) => effect
 
 const migrated = <A, E>(effect: Effect.Effect<A, E, DurableWriter.DurableWriter | SqlClient.SqlClient | RunStore>) =>
   run(
     effect.pipe(
       Effect.provide(RunStoreLive.layer),
-      Effect.provide(Migrations.layer),
+      Effect.provide(migrationsLayer),
       Effect.provide(TestDatabase.layer),
       Effect.provide(TestClock.layer())
     )

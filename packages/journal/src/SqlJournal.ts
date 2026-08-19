@@ -34,6 +34,7 @@ import * as Semaphore from "effect/Semaphore"
 import * as Stream from "effect/Stream"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import type * as SqlError from "effect/unstable/sql/SqlError"
+import { Consensus, type ConsensusError } from "./Consensus.ts"
 import {
   Checkpoint,
   type CheckpointOptions,
@@ -53,6 +54,7 @@ import * as JournalMetrics from "./JournalMetrics.ts"
 import type { OwnerId } from "./OwnerId.ts"
 import type { Projection } from "./Projection.ts"
 import * as Redaction from "./Redaction.ts"
+import * as SqlConsensus from "./SqlConsensus.ts"
 
 /** JSON text carrying an arbitrary decoded value. */
 const UnknownFromJsonString = Schema.fromJsonString(Schema.Unknown)
@@ -313,23 +315,26 @@ const validateOptions = (options: SqlJournalOptions): Effect.Effect<ValidatedOpt
 const isJournalError = Schema.is(JournalError)
 
 /**
- * Provides the SQLite-backed journal.
+ * Provides the SQLite-backed journal over an explicitly injected consensus
+ * strategy.
  *
- * `emitLossy` validates and admits telemetry to the non-blocking queue;
- * `emitDurable` allocates and commits inside the database transaction.
+ * Fenced admission — `emitDurable` with an owner, `checkpoint`, `compact` —
+ * goes through the injected `Consensus` service instead of a hard-wired join
+ * on a table another package owns.
  *
  * @category layers
  * @since 0.1.0
  */
-export const layer = (
+export const layerWith = (
   options: SqlJournalOptions
-): Layer.Layer<Journal, JournalError, DurableWriter | SqlClient.SqlClient> =>
+): Layer.Layer<Journal, JournalError, Consensus | DurableWriter | SqlClient.SqlClient> =>
   Layer.effect(
     Journal,
     Effect.gen(function*() {
       const { batchSize, redact, sourceEventCache } = yield* validateOptions(options)
       const sql = yield* Effect.service(SqlClient.SqlClient)
       const writer = yield* DurableWriter
+      const consensus = yield* Consensus
 
       const queue = yield* Queue.dropping<QueuedEntry>(options.capacity)
       const changes = yield* PubSub.sliding<Entry>(options.capacity)
@@ -815,32 +820,27 @@ export const layer = (
         )
 
       /**
-       * Owner fence for the fenced append's conflict classification, for
-       * checkpoint, and for compaction, evaluated inside the caller's write
-       * transaction. A guard SELECT is equivalent to the `WHERE EXISTS`
-       * predicate `insertOne` uses because `DurableWriter` serializes write
-       * transactions: no reclaim can commit between this read and the
-       * statements that run beside it in the same transaction.
+       * Owner fence for fenced appends, checkpoints, and compaction,
+       * arbitrated by the injected consensus strategy and evaluated inside
+       * the caller's write transaction (R3 — commit-time admission). For the
+       * default `SqlConsensus`, the guard read joins this transaction and is
+       * equivalent to a predicate on the statements beside it because
+       * `DurableWriter` serializes write transactions: no reclaim can commit
+       * between the guard and the commit. A strategy failure that is not a
+       * lost fence propagates for the caller to wrap as `sink_failed`, with
+       * its cause intact for the writer's retry classification.
        */
       const fenceGuard = (
         runId: RunId,
         owner: OwnerId
-      ): Effect.Effect<void, JournalError | SqlError.SqlError> =>
-        Effect.gen(function*() {
-          const held = yield* sql<{ readonly ok: number }>`
-            SELECT 1 AS ok FROM flows_runs
-            WHERE run_id = ${runId}
-              AND status = 'running'
-              AND owner_host_id = ${owner.hostId}
-              AND owner_pid = ${owner.pid}
-              AND owner_nonce = ${owner.nonce}
-          `
-          if (held.length === 0) {
-            return yield* Effect.fail(
-              error("fence_lost", `run ${runId} is no longer owned by ${owner.hostId}:${owner.pid}:${owner.nonce}`)
-            )
-          }
-        })
+      ): Effect.Effect<void, JournalError | ConsensusError> =>
+        consensus.guard(runId, owner).pipe(
+          Effect.mapError((cause) =>
+            cause.code === "fence_lost"
+              ? error("fence_lost", cause.message)
+              : cause
+          )
+        )
 
       /**
        * Reads the row a duplicate emit collides with.
@@ -896,97 +896,62 @@ export const layer = (
         })
 
       /**
-       * When `owner` is present the insert is fenced on the run's persisted
-       * ownership with the same `WHERE EXISTS` predicate
-       * `DurableEngineState.scheduleClock` uses, following Temporal's shard
-       * `rangeID` check (`service/history/shard/context_impl.go`,
-       * `renewRangeLocked`) reduced to one SQL predicate: a zombie owner whose
-       * run was reclaimed cannot append, and fails with `fence_lost`.
+       * When `owner` is present the append is fenced through the injected
+       * consensus strategy before anything else, following Temporal's rule of
+       * conditioning every request on the shard `rangeID`
+       * (`service/history/shard/context_impl.go`, `renewRangeLocked`): a
+       * zombie owner whose run was reclaimed cannot append, and fails with
+       * `fence_lost`. The guard runs inside the same serialized write
+       * transaction as the INSERT, so no reclaim can commit between them.
        *
-       * The fence outranks dedup. The duplicate lookup answers an ownerless
-       * insert up front, but a fenced insert consults it only after the
-       * INSERT produced no row AND `fenceGuard` has confirmed the owner in
-       * the same serialized transaction — Temporal conditions every request
-       * on the `rangeID` before anything else. Answering a zombie's
-       * resubmission from the dedup index would launder its lost fence into
-       * a `Duplicate` receipt for work the live owner committed; a confirmed
-       * owner's conflict, by contrast, is a genuine duplicate (its own
-       * earlier commit, or a forked run's copied row).
+       * The fence outranks dedup. The duplicate lookup runs only after the
+       * guard has confirmed the owner, so a zombie's resubmission is never
+       * answered from the dedup index — that would launder its lost fence
+       * into a `Duplicate` receipt for work the live owner committed. A
+       * confirmed owner's conflict, by contrast, is a genuine duplicate (its
+       * own earlier commit, or a forked run's copied row).
        */
       const insertOne = (
         queued: QueuedEntry,
         owner?: OwnerId
-      ): Effect.Effect<Commit, JournalError | SqlError.SqlError> =>
+      ): Effect.Effect<Commit, JournalError | ConsensusError | SqlError.SqlError> =>
         Effect.gen(function*() {
-          if (owner === undefined) {
-            const duplicate = yield* selectExisting(queued)
-            if (duplicate !== undefined) {
-              return duplicate
-            }
+          if (owner !== undefined) {
+            yield* fenceGuard(queued.runId, owner)
           }
-          const insert = owner === undefined
-            ? sql<JournalRow>`
-              INSERT INTO flows_journal_events (
-                run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
-                event_type, payload_json, meta_json
-              ) VALUES (
-                ${queued.runId},
-                ${queued.seq},
-                ${queued.eventId},
-                ${queued.sourceId},
-                ${queued.sourceSeq},
-                ${queued.emittedAtMs},
-                ${queued.eventType},
-                ${queued.payloadJson},
-                ${queued.metaJson}
-              )
-              ON CONFLICT DO NOTHING
-              RETURNING run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
-                event_type, payload_json, meta_json
-            `
-            : sql<JournalRow>`
-              INSERT INTO flows_journal_events (
-                run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
-                event_type, payload_json, meta_json
-              )
-              SELECT
-                ${queued.runId},
-                ${queued.seq},
-                ${queued.eventId},
-                ${queued.sourceId},
-                ${queued.sourceSeq},
-                ${queued.emittedAtMs},
-                ${queued.eventType},
-                ${queued.payloadJson},
-                ${queued.metaJson}
-              WHERE EXISTS (
-                SELECT 1
-                FROM flows_runs
-                WHERE run_id = ${queued.runId}
-                  AND status = 'running'
-                  AND owner_host_id = ${owner.hostId}
-                  AND owner_pid = ${owner.pid}
-                  AND owner_nonce = ${owner.nonce}
-              )
-              ON CONFLICT DO NOTHING
-              RETURNING run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
-                event_type, payload_json, meta_json
-            `
-          const inserted = yield* insert
+          const duplicate = yield* selectExisting(queued)
+          if (duplicate !== undefined) {
+            return duplicate
+          }
+          const inserted = yield* sql<JournalRow>`
+            INSERT INTO flows_journal_events (
+              run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
+              event_type, payload_json, meta_json
+            ) VALUES (
+              ${queued.runId},
+              ${queued.seq},
+              ${queued.eventId},
+              ${queued.sourceId},
+              ${queued.sourceSeq},
+              ${queued.emittedAtMs},
+              ${queued.eventType},
+              ${queued.payloadJson},
+              ${queued.metaJson}
+            )
+            ON CONFLICT DO NOTHING
+            RETURNING run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
+              event_type, payload_json, meta_json
+          `
           if (inserted.length > 0) {
             return {
               entry: yield* decodeRow(inserted[0]!),
               inserted: true
             }
           }
-          if (owner !== undefined) {
-            // The fenced INSERT produced no row either because the fence
-            // predicate failed or because a unique constraint fired. The
-            // fence is checked first, so a lost fence is reported as
-            // `fence_lost` even when the resubmitted identity already names
-            // a committed entry.
-            yield* fenceGuard(queued.runId, owner)
-          }
+          // The insert produced no row: either this identity was committed
+          // between the preflight read and the INSERT — a raced duplicate —
+          // or `PRIMARY KEY (run_id, seq)` fired because another writer
+          // committed this sequence under a different identity.
           const racedDuplicate = yield* selectExisting(queued)
           if (racedDuplicate !== undefined) {
             return racedDuplicate
@@ -1715,3 +1680,20 @@ export const layer = (
       })
     })
   )
+
+/**
+ * Provides the SQLite-backed journal over the default `SqlConsensus`
+ * strategy.
+ *
+ * `emitLossy` validates and admits telemetry to the non-blocking queue;
+ * `emitDurable` allocates and commits inside the database transaction. To
+ * choose a different consensus strategy, use {@link layerWith} and provide
+ * the strategy layer explicitly.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
+export const layer = (
+  options: SqlJournalOptions
+): Layer.Layer<Journal, JournalError, DurableWriter | SqlClient.SqlClient> =>
+  layerWith(options).pipe(Layer.provide(SqlConsensus.layer))

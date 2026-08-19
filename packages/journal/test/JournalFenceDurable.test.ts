@@ -2,36 +2,35 @@
  * The ownership fence under a real takeover, across two real connections to one
  * file-backed SQLite database.
  *
- * `JournalFence.test.ts` proves the `WHERE EXISTS` predicate against a
- * hand-made in-memory `flows_runs` fixture with a single connection, where
- * ownership never changes *while* an append is in flight. That is the case the
- * fence exists for: a zombie owner already inside its write path when a
- * successor takes the run. This suite opens that window deterministically —
+ * `JournalFence.test.ts` proves the strategy guard with a single connection,
+ * where ownership never changes *while* an append is in flight. That is the
+ * case the fence exists for: a zombie owner already inside its write path when
+ * a successor takes the run. This suite opens that window deterministically —
  * the stale writer parks on the threshold of its write transaction, the
- * successor commits the ownership change and its own entry on a second
- * connection, and the stale writer is then released into a database that has
- * moved on.
- *
- * `flows_runs` belongs to `@smthrs/run-store`, which depends on this
- * package, so the columns the fence reads are stood up here as a fixture — the
- * same contract `JournalFence.test.ts` asserts.
+ * successor steals the run through the `SqlConsensus` strategy and commits its
+ * own entry on a second connection, and the stale writer is then released into
+ * a database that has moved on — pinning rule R3: a fenced append admitted
+ * under a fence must not commit after that fence is lost.
  *
  * Prior art: Temporal's shard `rangeID` fencing
  * (`reference/temporal/service/history/shard/context_impl.go`,
- * `renewRangeLocked`), reduced to one SQL predicate.
+ * `renewRangeLocked`).
  */
 import { describe, expect, it } from "@effect/vitest"
 import { DurableWriter, layer as writerLayer } from "@smthrs/database/DurableWriter"
 import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
 import { Context, Deferred, Effect, Fiber, Layer } from "effect"
+import * as Duration from "effect/Duration"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { heartbeatStaleAfter, type LivenessEvidence } from "../src/Consensus.ts"
 import { Journal, JournalError, type Service } from "../src/Journal.ts"
 import { Input, type RunId, type SourceId, type SourceSeq } from "../src/JournalEvent.ts"
 import * as Migrations from "../src/Migrations.ts"
 import type { OwnerId } from "../src/OwnerId.ts"
+import * as SqlConsensus from "../src/SqlConsensus.ts"
 import * as SqlJournal from "../src/SqlJournal.ts"
 
 const runId = (value: string): RunId => value as RunId
@@ -60,25 +59,10 @@ const withTempFile = <A, E>(body: (filename: string) => Effect.Effect<A, E>): Ef
     (directory) => Effect.promise(() => rm(directory, { recursive: true, force: true }))
   )
 
-/** The `flows_runs` columns the fenced append's `WHERE EXISTS` reads. */
-const fenceTable = Layer.effectDiscard(Effect.gen(function*() {
-  const sql = yield* SqlClient.SqlClient
-  yield* sql`CREATE TABLE IF NOT EXISTS flows_runs (
-    run_id TEXT PRIMARY KEY,
-    status TEXT NOT NULL,
-    owner_host_id TEXT,
-    owner_pid INTEGER,
-    owner_nonce TEXT
-  )`
-}))
-
 const migrated = (filename: string) =>
   Layer.provideMerge(
-    fenceTable,
-    Layer.provideMerge(
-      Migrations.layer,
-      Layer.provideMerge(writerLayer(), NodeDatabase.layer({ filename }))
-    )
+    Migrations.layer,
+    Layer.provideMerge(writerLayer(), NodeDatabase.layer({ filename }))
   )
 
 /**
@@ -130,11 +114,40 @@ const connection = (
   )
 }
 
-/** Runs raw SQL on its own connection to the file. */
+/** Runs raw SQL or strategy operations on its own connection to the file. */
 const onOwnConnection = <A, E>(
   filename: string,
-  body: Effect.Effect<A, E, SqlClient.SqlClient>
+  body: Effect.Effect<A, E, DurableWriter | SqlClient.SqlClient>
 ) => Effect.scoped(Effect.provide(body, migrated(filename)))
+
+const stealNowMs = Duration.toMillis(heartbeatStaleAfter) + 1
+
+/** Claims and activates the run through the strategy at time zero. */
+const ownAs = (filename: string, holder: OwnerId) =>
+  onOwnConnection(
+    filename,
+    Effect.gen(function*() {
+      const consensus = yield* SqlConsensus.make
+      expect((yield* consensus.claim(run, holder, 0))._tag).toBe("Claimed")
+      expect((yield* consensus.activate(run, holder, 0, 0))._tag).toBe("Activated")
+    })
+  )
+
+/** Takes the run over from a stale owner through the strategy (R5). */
+const stealAs = (filename: string, from: OwnerId, to: OwnerId) =>
+  onOwnConnection(
+    filename,
+    Effect.gen(function*() {
+      const consensus = yield* SqlConsensus.make
+      const evidence: LivenessEvidence = {
+        expectedOwner: from,
+        checkedAtMs: stealNowMs,
+        kind: "cross-host-unreachable-stale"
+      }
+      expect((yield* consensus.steal(run, to, stealNowMs, evidence))._tag).toBe("Claimed")
+      expect((yield* consensus.activate(run, to, stealNowMs, stealNowMs))._tag).toBe("Activated")
+    })
+  )
 
 const rowsOf = (filename: string) =>
   onOwnConnection(
@@ -156,15 +169,7 @@ describe("SqlJournal durable fencing across connections", () => {
       withTempFile((filename) =>
         Effect.scoped(
           Effect.gen(function*() {
-            yield* onOwnConnection(
-              filename,
-              Effect.flatMap(
-                Effect.service(SqlClient.SqlClient),
-                (sql) =>
-                  sql`INSERT INTO flows_runs (run_id, status, owner_host_id, owner_pid, owner_nonce)
-                      VALUES (${run}, 'running', ${stale.hostId}, ${stale.pid}, ${stale.nonce})`
-              )
-            )
+            yield* ownAs(filename, stale)
 
             const reached = yield* Deferred.make<void>()
             const gate = yield* Deferred.make<void>()
@@ -180,20 +185,10 @@ describe("SqlJournal durable fencing across connections", () => {
             )
             yield* Deferred.await(reached)
 
-            // A successor takes the run on its own connection and appends. Both
-            // commit while the stale writer is parked mid-append.
-            yield* onOwnConnection(
-              filename,
-              Effect.flatMap(
-                Effect.service(SqlClient.SqlClient),
-                (sql) =>
-                  sql`UPDATE flows_runs
-                      SET owner_host_id = ${successor.hostId},
-                          owner_pid = ${successor.pid},
-                          owner_nonce = ${successor.nonce}
-                      WHERE run_id = ${run}`
-              )
-            )
+            // A successor steals the run through the strategy on its own
+            // connection and appends. Both commit while the stale writer is
+            // parked mid-append.
+            yield* stealAs(filename, stale, successor)
             const survivor = yield* winner.emitDurable(
               input(sourceId("successor"), 0, { decision: "took-over" }),
               successor
@@ -235,15 +230,7 @@ describe("SqlJournal durable fencing across connections", () => {
       withTempFile((filename) =>
         Effect.scoped(
           Effect.gen(function*() {
-            yield* onOwnConnection(
-              filename,
-              Effect.flatMap(
-                Effect.service(SqlClient.SqlClient),
-                (sql) =>
-                  sql`INSERT INTO flows_runs (run_id, status, owner_host_id, owner_pid, owner_nonce)
-                      VALUES (${run}, 'running', ${successor.hostId}, ${successor.pid}, ${successor.nonce})`
-              )
-            )
+            yield* ownAs(filename, successor)
             const zombie = yield* connection(filename)
 
             // The successor commits an entry, then the stale owner re-emits the

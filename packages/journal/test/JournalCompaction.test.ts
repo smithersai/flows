@@ -501,22 +501,14 @@ describe("followers across compaction", () => {
 describe("fencing across compaction", () => {
   const owner: OwnerId = { hostId: "host-a", pid: 42, nonce: "nonce-a" }
 
-  const fenceTable = Effect.gen(function*() {
-    const sql = yield* Effect.service(SqlClient.SqlClient)
-    yield* sql`CREATE TABLE flows_runs (
-      run_id TEXT PRIMARY KEY,
-      status TEXT NOT NULL,
-      owner_host_id TEXT,
-      owner_pid INTEGER,
-      owner_nonce TEXT
-    )`
-  })
-
+  // The fence reads the `SqlConsensus` lease — the strategy-owned table the
+  // journal's own migrations create — so a takeover is simulated by moving
+  // the lease's owner tuple.
   const claim = (holder: OwnerId) =>
     Effect.gen(function*() {
       const sql = yield* Effect.service(SqlClient.SqlClient)
-      yield* sql`INSERT INTO flows_runs (run_id, status, owner_host_id, owner_pid, owner_nonce)
-        VALUES (${run}, 'running', ${holder.hostId}, ${holder.pid}, ${holder.nonce})
+      yield* sql`INSERT INTO flows_consensus_leases (run_id, owner_host_id, owner_pid, owner_nonce, granted_at_ms, heartbeat_at_ms)
+        VALUES (${run}, ${holder.hostId}, ${holder.pid}, ${holder.nonce}, 0, 0)
         ON CONFLICT (run_id) DO UPDATE SET
           owner_host_id = excluded.owner_host_id,
           owner_pid = excluded.owner_pid,
@@ -525,7 +517,6 @@ describe("fencing across compaction", () => {
 
   effect("a fenced checkpoint and compaction commit while the owner holds the run", () =>
     Effect.gen(function*() {
-      yield* fenceTable
       yield* claim(owner)
       const service = yield* Journal
       yield* emitMany(service, 0, 4)
@@ -537,7 +528,6 @@ describe("fencing across compaction", () => {
 
   effect("a reclaimed owner can neither checkpoint nor compact, and deletes nothing", () =>
     Effect.gen(function*() {
-      yield* fenceTable
       yield* claim(owner)
       const service = yield* Journal
       yield* emitMany(service, 0, 4)

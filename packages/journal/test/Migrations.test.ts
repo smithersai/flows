@@ -1,7 +1,8 @@
 /**
- * The journal owns exactly one table family. The composed whole-schema
- * assertion — every table every storage package contributes — lives with the
- * composition, in `@smthrs/engine-store`.
+ * The journal owns the event table, the checkpoint table, and the
+ * `SqlConsensus` lease table. The composed whole-schema assertion — every
+ * table every storage package contributes — lives with the composition, in
+ * `@smthrs/engine-store`.
  */
 import { describe, expect, it } from "@effect/vitest"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
@@ -35,6 +36,7 @@ describe("journal migrations", () => {
       }))
 
       expect(master.filter((row) => row.type === "table").map((row) => row.name).sort()).toEqual([
+        "flows_consensus_leases",
         "flows_journal_checkpoints",
         "flows_journal_events",
         "flows_migrations"
@@ -48,11 +50,15 @@ describe("journal migrations", () => {
       const checkpointSql = master.find((row) => row.name === "flows_journal_checkpoints")?.sql ?? ""
       expect(checkpointSql).toContain("PRIMARY KEY (run_id, seq)")
       expect(checkpointSql).toContain("compacted_at_ms")
+      const leaseSql = master.find((row) => row.name === "flows_consensus_leases")?.sql ?? ""
+      expect(leaseSql).toContain("run_id TEXT PRIMARY KEY")
+      expect(leaseSql).toContain("granted_at_ms")
+      expect(leaseSql).toContain("claimed_at_ms")
     }))
 
   it.effect("namespaces its migration identity by package", () =>
     Effect.gen(function*() {
       const applied = yield* (Migrations.run.pipe(Effect.provide(TestDatabase.layer)))
-      expect(applied).toEqual([[1, "journal_initial"], [2, "journal_checkpoints"]])
+      expect(applied).toEqual([[1, "journal_initial"], [2, "journal_checkpoints"], [3, "journal_consensus"]])
     }))
 })

@@ -12,9 +12,18 @@ halves consistent — it runs a state projection here and the `emitDurable` call
 describing it in ONE write transaction, because both write through the same
 `DurableWriter` and so join it as savepoints.
 
-`Ownership` supplies the liveness evidence, probes, and heartbeat supervision
-that arbitrate a run's owner. `RunStore` only _validates_ supplied evidence; it
-never probes a process or a network itself.
+`Ownership` supplies the liveness evidence, probes, timing constants, and
+heartbeat supervision for a run's owner. Its public API and rules are
+unchanged, but arbitration is delegated to the `Consensus` strategy injected
+from `@smthrs/journal` — see
+[`docs/specs/Concepts/Journal Consensus.md`](../../../docs/specs/Concepts/Journal%20Consensus.md).
+Claims, activation, steals, and fence checks are strategy calls; the
+heartbeat supervision loop drives `Consensus.heartbeat` and interrupts the
+run owner on fence loss or persistence failure exactly as before. The
+CAS-on-`flows_runs` mechanics that used to arbitrate ownership are now the
+specification of the default `SqlConsensus` strategy, which keeps them in a
+lease table it owns. `RunStore` only _validates_ supplied evidence; it never
+probes a process or a network itself.
 
 ```sh
 pnpm add @smthrs/run-store
@@ -28,7 +37,7 @@ The root exports these namespaces, also available from matching
 | Namespace      | Public exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `RunStore`     | `RunStatus`, `RunStoreErrorCode`, `RunStoreError`, `RunSnapshot`, `RunRow`, `CreateOptions`, and `TransitionGuard`; outcome types `RequestCancelOutcome`, `ClaimOutcome`, `ClaimAndOwnOutcome`, `ActivateOutcome`, `AbandonClaimOutcome`, `RecoverClaimOutcome`, `HeartbeatOutcome`, and `TransitionOutcome`; `Service` / `RunStore` for create/get/cancel, claim/activate/recover/steal, heartbeat, and owned transitions; `make`, `makeNoop`, `layerNoop`, and SQL `layer`. |
-| `Ownership`    | `OwnerId` (re-exported from `@smthrs/journal`, which defines it as the fence on durable appends), `LivenessEvidence`, `LivenessProbe`, `heartbeatInterval`, `heartbeatStaleAfter`, `heartbeatSkewAllowance`, `heartbeatWriteTolerance`, and `heartbeatLoop`.                                                                                                                                                                                                                  |
+| `Ownership`    | `OwnerId` (re-exported from `@smthrs/journal`, which defines it as the fence on durable appends), `LivenessEvidence`, `LivenessProbe`, `heartbeatInterval`, `heartbeatStaleAfter`, `heartbeatSkewAllowance`, `heartbeatWriteTolerance`, and `heartbeatLoop`. Arbitration is delegated to `@smthrs/journal`'s injected `Consensus` strategy; the supervision loop drives `Consensus.heartbeat`.                                                                                |
 | `AttemptStore` | `AttemptStoreErrorCode`, `AttemptStoreError`, `AttemptId`, `Attempt`, `FinishAttempt`, `AttemptPatch`, `Options`, and result types `PutResult`, `PatchResult`, `HeartbeatResult`, `FinishResult`; `Service` / `AttemptStore` operations `put`, `get`, `heartbeat`, `finish`, and `patch`; `makeWith`, `make`, `makeNoop`, `layerNoop`, `layer`, and `layerWith`.                                                                                                              |
 | `Migrations`   | `set` (the namespaced migration set for `flows_runs` and `flows_attempts`), `run`, and prerequisite `layer`.                                                                                                                                                                                                                                                                                                                                                                  |
 
@@ -60,4 +69,6 @@ const program = Effect.gen(function*() {
 }).pipe(Effect.provide(runs))
 ```
 
-See the [run ownership concept](../../../docs/specs/Concepts/Run%20Ownership.md).
+See the
+[run ownership concept](../../../docs/specs/Concepts/Run%20Ownership.md) and
+[journal consensus concept](../../../docs/specs/Concepts/Journal%20Consensus.md).

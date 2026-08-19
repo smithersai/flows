@@ -12,8 +12,9 @@
  *
  * @since 0.1.0
  */
+import type { LivenessEvidence } from "@smthrs/journal/Consensus"
 import { OwnerId } from "@smthrs/journal/OwnerId"
-import { Clock, Duration, Effect, Schema } from "effect"
+import { Clock, Duration, Effect } from "effect"
 import { heartbeatInterval, heartbeatWriteTolerance } from "./Heartbeat.ts"
 import { RunStore } from "./RunStore.ts"
 
@@ -28,25 +29,18 @@ export {
   OwnerId
 }
 
-/**
- * Evidence that the owner in an exact run snapshot is no longer live.
- *
- * @since 0.1.0
- * @category models
- */
-export const LivenessEvidence = Schema.Struct({
-  expectedOwner: OwnerId,
-  checkedAtMs: Schema.Number,
-  kind: Schema.Literals(["same-host-pid-dead", "cross-host-unreachable-stale"])
-})
-
-/**
- * Evidence that the owner in an exact run snapshot is no longer live.
- *
- * @since 0.1.0
- * @category models
- */
-export type LivenessEvidence = typeof LivenessEvidence.Type
+export {
+  /**
+   * Evidence that the owner in an exact run snapshot is no longer live,
+   * defined by `@smthrs/journal`'s `Consensus` because R5 — steal requires
+   * staleness plus liveness evidence — is a consensus rule every strategy
+   * validates.
+   *
+   * @since 0.1.0
+   * @category models
+   */
+  LivenessEvidence
+} from "@smthrs/journal/Consensus"
 
 /**
  * Injected liveness probe used by ownership arbitration before calling
@@ -104,6 +98,12 @@ export {
  * Runs heartbeats until the persisted ownership fence is lost, then interrupts
  * itself. Race this effect with owned work so structured concurrency
  * interrupts the work when ownership disappears.
+ *
+ * Each pulse drives the injected `Consensus` strategy's `heartbeat` through
+ * `RunStore.heartbeat`, which renews the strategy's lease and mirrors the
+ * recorded stamp onto the run row in the same transaction
+ * (`docs/specs/Concepts/Journal Consensus.md`). Heartbeats are lease
+ * evidence, never journal events (rule R6).
  *
  * Pulses are delayed by `heartbeatInterval` and read the Effect `Clock`, so the
  * loop is fully driveable with `TestClock`.

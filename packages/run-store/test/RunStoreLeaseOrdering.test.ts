@@ -1,12 +1,16 @@
 import { describe, expect, it } from "@effect/vitest"
 import type { DurableWriter } from "@smthrs/database"
+import * as DatabaseMigrations from "@smthrs/database/Migrations"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
-import { Effect, Exit } from "effect"
+import * as JournalMigrations from "@smthrs/journal/Migrations"
+import { Effect, Exit, Layer } from "effect"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as Migrations from "../src/Migrations.ts"
 import type { OwnerId } from "../src/Ownership.ts"
 import { RunStore } from "../src/RunStore.ts"
 import * as RunStoreLive from "../src/RunStore.ts"
+
+const migrationsLayer = Layer.effectDiscard(DatabaseMigrations.run([JournalMigrations.set, Migrations.set]))
 
 const owner: OwnerId = { hostId: "lease-host", pid: 17, nonce: "lease-owner" }
 
@@ -15,7 +19,7 @@ const migrated = <A, E>(
 ) =>
   effect.pipe(
     Effect.provide(RunStoreLive.layer),
-    Effect.provide(Migrations.layer),
+    Effect.provide(migrationsLayer),
     Effect.provide(TestDatabase.layer)
   )
 
