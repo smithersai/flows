@@ -27,6 +27,7 @@ import type { Projection } from "./Projection.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const JournalErrorCode = Schema.Literals([
   "invalid_event",
@@ -49,6 +50,7 @@ export const JournalErrorCode = Schema.Literals([
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type JournalErrorCode = typeof JournalErrorCode.Type
 
@@ -62,6 +64,7 @@ export type JournalErrorCode = typeof JournalErrorCode.Type
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class JournalError extends Schema.TaggedError<JournalError>()("@smthrs/journal/JournalError", {
   code: JournalErrorCode,
@@ -75,6 +78,7 @@ export class JournalError extends Schema.TaggedError<JournalError>()("@smthrs/jo
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const OverflowPolicy = Schema.Literals(["reject", "drop-newest", "drop-oldest"])
 
@@ -83,6 +87,7 @@ export const OverflowPolicy = Schema.Literals(["reject", "drop-newest", "drop-ol
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type OverflowPolicy = typeof OverflowPolicy.Type
 
@@ -96,6 +101,7 @@ export type OverflowPolicy = typeof OverflowPolicy.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Accepted = Schema.TaggedStruct("Accepted", {
   seq: Seq,
@@ -111,6 +117,7 @@ export const Accepted = Schema.TaggedStruct("Accepted", {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Accepted = typeof Accepted.Type
 
@@ -123,6 +130,7 @@ export type Accepted = typeof Accepted.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Duplicate = Schema.TaggedStruct("Duplicate", {
   seq: Seq,
@@ -135,6 +143,7 @@ export const Duplicate = Schema.TaggedStruct("Duplicate", {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Duplicate = typeof Duplicate.Type
 
@@ -146,6 +155,7 @@ export type Duplicate = typeof Duplicate.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Dropped = Schema.TaggedStruct("Dropped", {
   seq: Seq,
@@ -158,6 +168,7 @@ export const Dropped = Schema.TaggedStruct("Dropped", {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Dropped = typeof Dropped.Type
 
@@ -166,6 +177,7 @@ export type Dropped = typeof Dropped.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const EmitReceipt = Schema.Union([Accepted, Duplicate, Dropped])
 
@@ -174,6 +186,7 @@ export const EmitReceipt = Schema.Union([Accepted, Duplicate, Dropped])
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type EmitReceipt = typeof EmitReceipt.Type
 
@@ -185,6 +198,7 @@ export type EmitReceipt = typeof EmitReceipt.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const DurableReceipt = Schema.Union([Accepted, Duplicate])
 
@@ -193,6 +207,7 @@ export const DurableReceipt = Schema.Union([Accepted, Duplicate])
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type DurableReceipt = typeof DurableReceipt.Type
 
@@ -201,6 +216,7 @@ export type DurableReceipt = typeof DurableReceipt.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const StreamOptions = Schema.Struct({
   runId: RunId,
@@ -212,6 +228,7 @@ export const StreamOptions = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type StreamOptions = typeof StreamOptions.Type
 
@@ -220,6 +237,7 @@ export type StreamOptions = typeof StreamOptions.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const EntriesOptions = Schema.Struct({
   runId: RunId,
@@ -232,6 +250,7 @@ export const EntriesOptions = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type EntriesOptions = typeof EntriesOptions.Type
 
@@ -240,6 +259,7 @@ export type EntriesOptions = typeof EntriesOptions.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const EntriesPage = Schema.Struct({
   entries: Schema.Array(Entry),
@@ -251,6 +271,7 @@ export const EntriesPage = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type EntriesPage = typeof EntriesPage.Type
 
@@ -275,6 +296,7 @@ export type EntriesPage = typeof EntriesPage.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class Checkpoint extends Schema.Class<Checkpoint>("@smthrs/journal/Journal/Checkpoint")({
   runId: RunId,
@@ -294,6 +316,7 @@ export class Checkpoint extends Schema.Class<Checkpoint>("@smthrs/journal/Journa
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const CheckpointOptions = Schema.Struct({
   runId: RunId,
@@ -306,6 +329,7 @@ export const CheckpointOptions = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type CheckpointOptions = typeof CheckpointOptions.Type
 
@@ -317,6 +341,7 @@ export type CheckpointOptions = typeof CheckpointOptions.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const CompactOptions = Schema.Struct({
   runId: RunId,
@@ -328,6 +353,7 @@ export const CompactOptions = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type CompactOptions = typeof CompactOptions.Type
 
@@ -339,6 +365,7 @@ export type CompactOptions = typeof CompactOptions.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Compacted = Schema.Struct({
   runId: RunId,
@@ -351,6 +378,7 @@ export const Compacted = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Compacted = typeof Compacted.Type
 
@@ -406,6 +434,7 @@ export type Compacted = typeof Compacted.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Service {
   readonly emitLossy: (input: Input) => Effect.Effect<EmitReceipt, JournalError>
@@ -491,6 +520,7 @@ export interface Service {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export class Journal extends Context.Service<Journal, Service>()("@smthrs/journal/Journal") {}
 
@@ -499,6 +529,7 @@ export class Journal extends Context.Service<Journal, Service>()("@smthrs/journa
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (implementation: Service): Service => Journal.of(implementation)
 
@@ -513,6 +544,7 @@ const unavailable = (method: string): JournalError =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (overrides: Partial<Service> = {}): Service => {
   const service: Service = {
@@ -556,6 +588,7 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service => {
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<Journal> =>
   Layer.succeed(Journal)(makeNoop(overrides))
