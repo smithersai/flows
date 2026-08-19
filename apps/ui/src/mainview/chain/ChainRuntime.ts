@@ -557,13 +557,18 @@ export const createChainRuntime = (options: ChainRuntimeOptions): NativeAgent =>
 };
 
 /*
- * The backend switch: one NativeAgent the controller holds, delegating per
- * turn to the proxy or the chain by the session flag. Cancellation routes to
- * the backend that started the run, whatever the flag says now.
+ * The agent seat: one NativeAgent the controller holds, delegating every turn
+ * to the browser chain.
+ *
+ * The indirection is a binding order, not a choice of backend — the chain's
+ * catalog IS the controller's command registry, so the chain cannot be built
+ * until the controller exists, and the controller needs an agent to be built
+ * at all. The native shell's own agent stays the fallback: it is a different
+ * HOST for the same loop, not a second backend. On the web there is no
+ * fallback, and a turn before the chain binds says so rather than pretending.
  */
-export const createAgentSwitch = (
-	store: AppStore,
-	proxy: NativeAgent,
+export const createAgentSeat = (
+	native?: NativeAgent,
 ): NativeAgent & { readonly bindChain: (chain: NativeAgent) => void } => {
 	const listeners = new Set<(frame: AgentTurnFrame) => void>();
 	const startedBy = new Map<string, NativeAgent>();
@@ -572,17 +577,22 @@ export const createAgentSwitch = (
 	const forward = (frame: AgentTurnFrame): void => {
 		for (const listener of listeners) listener(frame);
 	};
-	proxy.subscribe(forward);
+	if (native !== undefined) native.subscribe(forward);
 
-	const current = (): NativeAgent =>
-		store.session().agentBackend === "chain" && chain !== undefined ? chain : proxy;
+	const unbound: NativeAgent = {
+		available: false,
+		startTurn: async () => ({ status: "error", message: "Smithers is still starting up." }) as const,
+		cancelTurn: async () => {},
+		subscribe: () => () => {},
+	};
+
+	const current = (): NativeAgent => chain ?? native ?? unbound;
 
 	return {
 		available: true,
 		startTurn: async (request) => {
-			// A resume reuses its lineage's runId: route it to the backend that
-			// started the run, whatever the flag says now. Fresh runIds route by
-			// the flag.
+			// A resume reuses its lineage's runId: route it to the agent that
+			// started the run.
 			const backend = startedBy.get(request.runId) ?? current();
 			startedBy.set(request.runId, backend);
 			return backend.startTurn(request);
@@ -596,8 +606,8 @@ export const createAgentSwitch = (
 			return backend.steer === undefined ? false : backend.steer(runId, text);
 		},
 		resolveApproval: async (runId, decision, ask) => {
-			// Only the chain implements approvals; background lineages never
-			// pass through startTurn, so prefer the chain over the flag.
+			// Background lineages never pass through startTurn, so the chain is
+			// preferred over whatever last started a run.
 			const backend = startedBy.get(runId) ?? chain ?? current();
 			return backend.resolveApproval === undefined
 				? false

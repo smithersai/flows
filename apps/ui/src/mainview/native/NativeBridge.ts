@@ -9,7 +9,6 @@ import type {
 	PickLocalRepositoryResult,
 	RepositoryAccess,
 } from "smithers-shared/NativeRepository";
-import { createWebAgent } from "./WebAgent";
 
 const agentFrameListeners = new Set<(frame: AgentTurnFrame) => void>();
 
@@ -101,8 +100,8 @@ const electrobunAgent: NativeAgent | undefined =
 			};
 
 /**
- * Native app uses the Electrobun RPC bridge; pure web talks to the same-origin
- * `/api/agent` server boundary (Vite dev proxy) so chat.smithers.sh credentials
- * stay server-side. Both drive the identical AgentTurnFrame stream contract.
+ * The native shell's agent, over the Electrobun RPC bridge. Undefined in pure
+ * web, where the agent loop runs in the page itself (the Agent Chain) and the
+ * only thing the browser asks a server for is one metered model call.
  */
-export const nativeAgent: NativeAgent = electrobunAgent ?? createWebAgent();
+export const nativeAgent: NativeAgent | undefined = electrobunAgent;

@@ -2,7 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App";
-import { createAgentSwitch, createChainRuntime } from "./chain/ChainRuntime";
+import { createAgentSeat, createChainRuntime } from "./chain/ChainRuntime";
 import { nativeAgent, nativeOpenExternal, nativeRepositories } from "./native/NativeBridge";
 import { createAppController } from "./state/AppController";
 import { createAppStore } from "./state/AppStore";
@@ -108,11 +108,11 @@ const main = async (): Promise<void> => {
 	try {
 		const store = await createAppStore();
 		/*
-		 * DESIGN.md §14: one agent seam, two backends. The switch delegates each
-		 * turn by the session flag; the chain runtime binds after the controller
+		 * DESIGN.md §14: one agent seam, one backend. Every turn runs in the
+		 * browser as an Agent Chain; the chain runtime binds after the controller
 		 * exists because its catalog IS the controller's command registry.
 		 */
-		const agent = createAgentSwitch(store, nativeAgent);
+		const agent = createAgentSeat(nativeAgent);
 		const controller = createAppController(store, nativeRepositories, agent, {
 			// The native shell's system-browser door: sign-in runs the handoff
 			// (OAuth outside the webview, where passkeys work). Absent on web.

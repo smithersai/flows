@@ -46,7 +46,7 @@ const collect = (
 		Effect.gen(function* () {
 			const model = yield* Model.Model;
 			return Array.from(yield* Stream.runCollect(model.stream(input)));
-		}).pipe(Effect.provide(layerModel({ baseUrl: "https://app.test", fetchImpl }))) as Effect.Effect<
+		}).pipe(Effect.provide(layerModel({ baseUrl: "https://app.test", fetchImpl }))) as unknown as Effect.Effect<
 			ReadonlyArray<unknown>,
 			never,
 			never
@@ -59,7 +59,7 @@ const failure = (fetchImpl: FetchLike, input = request()): Promise<unknown> =>
 			Effect.gen(function* () {
 				const model = yield* Model.Model;
 				return yield* Stream.runCollect(model.stream(input));
-			}).pipe(Effect.provide(layerModel({ baseUrl: "https://app.test", fetchImpl }))) as Effect.Effect<
+			}).pipe(Effect.provide(layerModel({ baseUrl: "https://app.test", fetchImpl }))) as unknown as Effect.Effect<
 				unknown,
 				unknown,
 				never

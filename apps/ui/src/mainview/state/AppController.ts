@@ -21,7 +21,7 @@ import {
 	RECO_REPOS_PATH,
 	RECO_WATCHED_PATH,
 	TOOLS_BROWSER_FETCH_PATH,
-	TURN_PATH,
+	MODEL_STREAM_PATH,
 	WORKFLOW_EVENTS_PATH,
 	WORKFLOW_PROVISION_PATH,
 	WORKFLOW_RPC_PATH,
@@ -161,8 +161,8 @@ export interface AppController {
 	readonly minimizeCard: () => void;
 	/* The admin dev-tools panel + debug reads (§2b/§2d; admin registry only). */
 	readonly toggleDevtools: () => void;
-	/** Flip which backend drives a turn (admin /debug.backend; DESIGN.md §14). */
-	readonly setAgentBackend: (backend: string) => string | { readonly value: string };
+	/** Report what drives a turn (admin /debug.backend; DESIGN.md §14). */
+	readonly describeAgentBackend: (backend: string) => string | { readonly value: string };
 	/* The composer surfaces menu — the /surfaces command's open state. */
 	readonly toggleSurfacesMenu: () => void;
 	readonly debugSnapshot: () => { readonly value: string };
@@ -2650,20 +2650,23 @@ export const createAppController = (
 	};
 
 	/*
-	 * DESIGN.md §14: the human flips which backend drives a turn. user-only by
-	 * trigger axis — the agent must never switch its own engine — and honest
-	 * about the argument instead of guessing.
+	 * The one backend, named once. `/debug.backend` reports it and the manual
+	 * checklist quotes it, so drift between what runs and what is claimed shows
+	 * up as a failing row rather than as a confident wrong sentence.
 	 */
-	const setAgentBackend = (backend: string): string | { readonly value: string } => {
-		const target = backend.trim();
-		if (target !== "proxy" && target !== "chain") {
-			return `debug.backend needs "proxy" or "chain" (currently: ${store.session().agentBackend ?? "proxy"})`;
+	const AGENT_BACKEND = "chain (in-browser Agent Chain over /api/model/stream)";
+
+	/*
+	 * DESIGN.md §14: what drives a turn. A read, not a switch — Smithers has one
+	 * backend, so there is nothing here to flip and an argument is answered
+	 * honestly rather than silently ignored.
+	 */
+	const describeAgentBackend = (backend: string): string | { readonly value: string } => {
+		const asked = backend.trim();
+		if (asked !== "") {
+			return `there is one backend and it cannot be switched: ${AGENT_BACKEND}`;
 		}
-		if (store.session().phase !== "idle") {
-			return "the backend can only change between turns — stop the current turn first";
-		}
-		store.dispatch({ type: "agent.backend.changed", actor: "user", backend: target });
-		return { value: `agent backend: ${target}` };
+		return { value: `agent backend: ${AGENT_BACKEND}` };
 	};
 
 	/*
@@ -2797,11 +2800,10 @@ export const createAppController = (
 	const runSweep = async (transcript: ReadonlyArray<AgentChatMessage>): Promise<SweepNote[] | undefined> => {
 		let response: Response;
 		try {
-			response = await http(`${baseUrl}${TURN_PATH}`, {
+			response = await http(`${baseUrl}${MODEL_STREAM_PATH}`, {
 				method: "POST",
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({
-					runId: crypto.randomUUID(),
 					messages: transcript,
 					instructions: SWEEP_INSTRUCTIONS,
 				}),
@@ -4498,7 +4500,7 @@ export const createAppController = (
 		minimizeCard,
 		toggleDevtools,
 		toggleSurfacesMenu,
-		setAgentBackend,
+		describeAgentBackend,
 		debugSnapshot,
 		debugEvents,
 		debugChain,
@@ -4688,7 +4690,7 @@ export const createAppController = (
 		minimizeCard,
 		toggleDevtools,
 		toggleSurfacesMenu,
-		setAgentBackend,
+		describeAgentBackend,
 		debugSnapshot,
 		debugEvents,
 		debugChain,

@@ -106,7 +106,7 @@ export const SessionSchema = z.object({
 	/*
 	 * The color theme. Optional (missing = DEFAULT_PALETTE) so sessions
 	 * persisted before the field parse without a schema reset — the same
-	 * discipline agentBackend and pendingCommand follow below; a zod default
+	 * discipline pendingCommand follows below; a zod default
 	 * would fork the schema's input and output types and break collection
 	 * inference.
 	 */
@@ -129,21 +129,12 @@ export const SessionSchema = z.object({
 	 */
 	pendingWorldDeleteId: z.string().nullable().optional(),
 	/*
-	 * Which backend drives a turn (DESIGN.md §14): the chat.smithers.sh proxy
-	 * with the client tool loop, or the Agent Chain runtime. Optional (missing
-	 * = proxy) so persisted sessions from before the flag parse without a
-	 * schema reset — a zod default would fork the schema's input and output
-	 * types and break collection inference. Flipped only by the human (admin
-	 * /debug.backend) — never by the agent.
-	 */
-	agentBackend: z.enum(["proxy", "chain"]).optional(),
-	/*
 	 * The one deferred command (requirement axis): a user-invoked command whose
 	 * requirement (e.g. signed-in) was unmet parks HERE while the fulfilling
 	 * command runs, and resumes when the requirement's predicate flips true.
 	 * Persisted because sign-in is a full OAuth redirect — the intent must
 	 * survive the reload. Optional (missing = none) so persisted sessions from
-	 * before the field parse without a schema reset, like agentBackend above.
+	 * before the field parse without a schema reset, like palette above.
 	 * Latest wins: deferring a second command replaces the first.
 	 */
 	pendingCommand: z
@@ -440,12 +431,6 @@ export type AppTransition =
 			event: unknown;
 	  }
 	| {
-			/* The human flips which backend drives a turn (admin /debug.backend). */
-			type: "agent.backend.changed";
-			actor: "user" | "system";
-			backend: "proxy" | "chain";
-	  }
-	| {
 			/*
 			 * A parked chain lineage resumes after an approval decision: the
 			 * session re-enters responding for the same turn id (DESIGN.md §14).
@@ -684,7 +669,6 @@ export const initialSession = (theme: Session["theme"]): Session => ({
 	devtoolsOpen: false,
 	surfacesMenuOpen: false,
 	pendingWorldDeleteId: null,
-	agentBackend: "proxy",
 	revision: 0,
 });
 
