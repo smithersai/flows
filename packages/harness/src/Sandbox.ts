@@ -111,8 +111,24 @@ export interface Limits {
    * individual operations. The limit is a non-negative safe integer.
    */
   readonly steps?: number | undefined
-  /** Maximum wall-clock time in milliseconds; a non-negative safe integer. */
+  /**
+   * Maximum cell-compute time in milliseconds; a non-negative safe integer.
+   *
+   * This bounds the cell's own JavaScript execution. Time spent suspended in
+   * an outstanding `ctx.call` does not count: a host call's duration belongs
+   * to the flow that runs it, and charging it here rejected every cell that
+   * awaited a real test run — 57 of the 62 rejected frames in the first
+   * SWE-bench benchmark were legitimate long `bash` calls hitting this clock.
+   */
   readonly timeMs?: number | undefined
+  /**
+   * Maximum whole-evaluation time in milliseconds, host calls included; a
+   * non-negative safe integer.
+   *
+   * The backstop for a host call that never settles. Generous on purpose: a
+   * cell awaiting a ten-minute test suite is working, not stuck.
+   */
+  readonly totalMs?: number | undefined
 }
 
 /**
@@ -143,7 +159,8 @@ export interface Capabilities {
 export const defaultLimits = Object.freeze({
   memoryBytes: 128 * 1024 * 1024,
   steps: 1000,
-  timeMs: 30_000
+  timeMs: 30_000,
+  totalMs: 900_000
 })
 
 /**
@@ -209,7 +226,8 @@ export const withDefaults = (
     ? { memoryBytes: defaultLimits.memoryBytes }
     : {}),
   ...(capabilities.steps && limits?.steps === undefined ? { steps: defaultLimits.steps } : {}),
-  ...(capabilities.timeMs && limits?.timeMs === undefined ? { timeMs: defaultLimits.timeMs } : {})
+  ...(capabilities.timeMs && limits?.timeMs === undefined ? { timeMs: defaultLimits.timeMs } : {}),
+  ...(capabilities.timeMs && limits?.totalMs === undefined ? { totalMs: defaultLimits.totalMs } : {})
 })
 
 /**

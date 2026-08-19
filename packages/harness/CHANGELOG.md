@@ -4,11 +4,15 @@
 
 ### Fixed
 
+- Stopped charging a settled flow call's duration to the cell's compute clock; a new `totalMs` ceiling (default 15 minutes) backstops a call that never settles. 57 of the 62 rejected frames in the first SWE-bench benchmark were legitimate long test runs hitting the old 30-second wall clock.
+
 - Journaled the turn-boundary steering drain through the new `EngineLike.record` boundary in both `CellTurn` and the legacy `Turn` loop. The drain consumes host queue state, so it is a nondeterministic read: left unjournaled, a run resumed after a park or crash drained an already-drained queue, rebuilt a different context than the original attempt, re-keyed every later sealed step, and could re-execute irreversible effects. The drain is now recorded once per frame boundary and replayed verbatim on re-execution.
 - Accepted explicit JSON `null` values for optional top-level flow input fields by retrying rejected input without those fields, while preserving the original rejection when the remaining input is invalid and preserving `null` for schemas that accept it.
 - Restored `FlowProjection` construction without an explicit input document by defaulting the field to `Option.none()`.
 
 ### Added
+
+- Taught the cell contract that FlowCallError is worth catching in-cell and that long-running calls are safe to await.
 
 - Added `EngineLike.record` with `RecordBoundary` and `BoundaryIdentity`: the port's generic journaled-boundary operation for nondeterministic controller reads, and `Steering.DrainRecord`/`Steering.drainRecord`, the serializable projection of a turn-boundary drain that the controller journals.
 - Carried projectable flow input and output schemas as inline JSON Schema documents in binding descriptors, projected input documents into `ctx.flows`, and rendered them in the cell catalog.

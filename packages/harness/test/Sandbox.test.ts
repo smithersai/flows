@@ -419,12 +419,14 @@ describe("Sandbox projections", () => {
       {
         memoryBytes: Sandbox.defaultLimits.memoryBytes,
         steps: Sandbox.defaultLimits.steps + 1,
-        timeMs: Sandbox.defaultLimits.timeMs
+        timeMs: Sandbox.defaultLimits.timeMs,
+        totalMs: Sandbox.defaultLimits.totalMs
       },
       {
         memoryBytes: Sandbox.defaultLimits.memoryBytes + 1,
         steps: Sandbox.defaultLimits.steps + 1,
-        timeMs: Sandbox.defaultLimits.timeMs + 1
+        timeMs: Sandbox.defaultLimits.timeMs + 1,
+        totalMs: Sandbox.defaultLimits.totalMs
       }
     ])
   })
@@ -685,7 +687,7 @@ describe("QuickJSSandbox", () => {
     expect(outcome).toMatchObject({ _tag: "rejected", code: "limit_exceeded" })
   })
 
-  it("enforces a wall-clock limit while a flow call is stalled", async () => {
+  it("bounds a stalled flow call with the whole-evaluation ceiling, not the compute clock", async () => {
     let handlerEntered = false
     const outcome = await evaluate(
       QuickJSSandbox.layer,
@@ -696,7 +698,7 @@ describe("QuickJSSandbox", () => {
           Effect.sync(() => {
             handlerEntered = true
           }).pipe(Effect.andThen(Effect.never)),
-        limits: { timeMs: 250, steps: Number.MAX_SAFE_INTEGER }
+        limits: { timeMs: 60_000, totalMs: 250, steps: Number.MAX_SAFE_INTEGER }
       }
     )
 
@@ -706,5 +708,25 @@ describe("QuickJSSandbox", () => {
       code: "limit_exceeded",
       message: "This cell exceeded its wall-clock limit of 250 milliseconds"
     })
+  })
+
+  it("refunds a settled flow call's duration to the compute clock", async () => {
+    // The call takes longer than the whole compute budget. Charging its
+    // duration to the cell rejected every frame that awaited a real test run;
+    // the settled call must instead resume the cell with its budget intact.
+    const outcome = await evaluate(
+      QuickJSSandbox.layer,
+      `const listed = await ctx.call("fs/list", {})
+       return { intent: "complete", state: {}, output: String(listed.ok) }`,
+      {
+        call: () =>
+          Effect.sleep(400).pipe(
+            Effect.as({ outcome: "success", value: { ok: true } } as const)
+          ),
+        limits: { timeMs: 250, totalMs: 60_000, steps: Number.MAX_SAFE_INTEGER }
+      }
+    )
+
+    expect(outcome).toMatchObject({ _tag: "settled" })
   })
 })

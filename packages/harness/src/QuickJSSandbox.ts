@@ -195,7 +195,14 @@ const evaluate = (
 
     const limits = Sandbox.withDefaults(capabilities, evaluation.limits)
     const timeMs = limits.timeMs ?? Sandbox.defaultLimits.timeMs
-    const startedAt = Date.now()
+    // The compute clock's baseline. Host calls shift it forward by their own
+    // duration when they settle, so `timeMs` charges the cell for its
+    // JavaScript alone: a cell that awaits a ten-minute test run resumes with
+    // the budget it suspended with. Without the shift, the first interrupt
+    // check after a long `ctx.call` read the whole call as elapsed compute
+    // and rejected the frame — which taught agents that verifying their work
+    // was fatal.
+    let clockBase = Date.now()
     let exhausted: Cell.Rejected | undefined
 
     const acquired = yield* Effect.acquireRelease(
@@ -207,7 +214,7 @@ const evaluate = (
         const stepBudget = limits.steps
         let steps = 0
         runtime.setInterruptHandler(() => {
-          if (Date.now() - startedAt >= timeMs) {
+          if (Date.now() - clockBase >= timeMs) {
             exhausted = exhausted ?? timeLimitExceeded(timeMs)
             return true
           }
@@ -365,14 +372,28 @@ const evaluate = (
       abort: () => {
         for (const call of pending.splice(0)) call.abort("The cell was interrupted")
       },
-      handler: evaluation.call,
+      // Timed so the host call's duration is refunded to the compute clock.
+      handler: (call) =>
+        Effect.suspend(() => {
+          const pausedAt = Date.now()
+          return evaluation.call(call).pipe(
+            Effect.onExit(() =>
+              Effect.sync(() => {
+                clockBase += Date.now() - pausedAt
+              })
+            )
+          )
+        }),
       limits
     })
   }).pipe(
     Effect.scoped,
+    // The whole-evaluation backstop, host calls included. `timeMs` is
+    // enforced by the interrupt handler above; this ceiling only exists so a
+    // host call that never settles cannot hold the frame forever.
     Effect.timeoutOrElse({
-      duration: evaluation.limits?.timeMs ?? Sandbox.defaultLimits.timeMs,
-      orElse: () => Effect.succeed(timeLimitExceeded(evaluation.limits?.timeMs ?? Sandbox.defaultLimits.timeMs))
+      duration: evaluation.limits?.totalMs ?? Sandbox.defaultLimits.totalMs,
+      orElse: () => Effect.succeed(timeLimitExceeded(evaluation.limits?.totalMs ?? Sandbox.defaultLimits.totalMs))
     })
   )
 
