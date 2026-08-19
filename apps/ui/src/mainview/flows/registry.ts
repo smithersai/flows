@@ -288,7 +288,15 @@ export const slashItems = <C extends CatalogItem>(
 	// is never cut, and neither is a recommendation; recency decides who else
 	// gets in. Recency chooses the survivors, never their order — the listing
 	// above is the only ordering rule.
-	const kept = (item: SlashItem<C>): boolean => item.recommended || nameRank(item.flow, query) <= 1;
+	/*
+	 * "Named outright" means the user typed the flow's WHOLE name. An empty
+	 * query names nothing and a prefix names a set, so neither earns the
+	 * exemption — treating them as exact matches made every one of the 65
+	 * visible flows a survivor on a bare "/", leaving `room` at zero and the
+	 * cap a no-op in exactly the case its doc comment calls "a wall".
+	 */
+	const kept = (item: SlashItem<C>): boolean =>
+		item.recommended || (query !== "" && nameRank(item.flow, query) === 0);
 	const survivors = ordered.filter(kept);
 	const recency = new Map((state.recent ?? []).map((name, index) => [name, index]));
 	// Stable sort: recent commands by recency, everything else keeps its order behind them.

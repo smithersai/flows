@@ -328,6 +328,18 @@ export type AppTransition =
 			message: string;
 	  }
 	| {
+			/*
+			 * /retry re-RUNS the last turn: the answer that turn produced is
+			 * dropped and the same turn id launches again. Re-SENDING the prompt
+			 * instead appended a second user bubble per retry, so the transcript
+			 * grew a duplicate pair every time and every retry re-sent a longer
+			 * history than the one before it.
+			 */
+			type: "message.retried";
+			actor: "user";
+			turnId: string;
+	  }
+	| {
 			type: "message.response.cancelled";
 			// "user" pressed stop; "system" is a server-side kill ending the stream.
 			actor: "user" | "system";

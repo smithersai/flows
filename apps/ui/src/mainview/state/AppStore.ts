@@ -744,6 +744,23 @@ export const createAppStore = async (
 					break;
 				}
 
+				case "message.retried": {
+					// The turn's own answer (and its act rows) make way for the
+					// re-run; the user's message stays exactly where it was.
+					if (current.phase !== "idle") return;
+					const userMessage = collections.messages.get(`message-${transition.turnId}-user`);
+					if (userMessage === undefined) return;
+					const answerId = `message-${transition.turnId}-smithers`;
+					if (collections.messages.get(answerId) !== undefined) {
+						collections.messages.delete(answerId);
+					}
+					collections.sessions.update(SESSION_ID, (draft) => {
+						draft.phase = "responding";
+						draft.revision = revision;
+					});
+					break;
+				}
+
 				case "message.response.cancelled": {
 					const messageId = `message-${transition.turnId}-smithers`;
 					const detail = transition.detail ?? "Stopped the current response.";

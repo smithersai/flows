@@ -169,6 +169,14 @@ export interface AppController {
 	readonly debugChain: () => { readonly value: string };
 	/** The wire tap: the controller's fetch ring, newest first. */
 	readonly debugNet: () => { readonly value: string };
+	/**
+	 * The same ring, read WITHOUT surfacing it.
+	 *
+	 * `debugNet` is the flow: it renders the read for the human who typed it.
+	 * The dev-tools panel reads the ring while rendering, so it needs the pure
+	 * read — dispatching from a render is a re-render loop.
+	 */
+	readonly netTap: () => string;
 	/** Drop every chain grant and pending denial (admin /debug.grants.reset). */
 	readonly resetGrants: () => Promise<string | { readonly value: string }>;
 	/**
@@ -2308,13 +2316,39 @@ export const createAppController = (
 		settleTurnBilling();
 	});
 
+	/*
+	 * A failed flow has no channel of its own to answer into — dropping the
+	 * outcome reads as a silent no-op (the "did it even run?" bug). Every
+	 * invocation the human makes — a pointer press OR a name typed into the
+	 * composer — states its refusal as a toast; executes that render their own
+	 * error UI return void and never reach this. The zero-balance refusal is
+	 * the one exception: `zeroBalanceGuard` already dispatched it as an
+	 * embedded transcript message, so toasting it too would double-surface the
+	 * same refusal.
+	 */
+	const surfaceCommandFailure = (name: string, outcome: CommandOutcome): void => {
+		if (outcome.status !== "failed") return;
+		if (outcome.error === ZERO_BALANCE_EXHAUSTED_TEXT) return;
+		const key = `command.failed.${name}`;
+		store.dispatch({ type: "toast.shown", actor: "system", key, title: `/${name} didn't run` });
+		store.dispatch({ type: "toast.resolved", actor: "system", key, status: "failed", detail: outcome.error });
+	};
+
 	const send = (text: string): void => {
 		const parsed = parseSubmit(text, commands.all());
 		if (parsed.kind === "empty") return;
 		if (parsed.kind === "command") {
-			// A bare /name is a command invocation, never a prompt for the agent.
+			/*
+			 * A bare /name is a command invocation, never a prompt for the agent.
+			 * The outcome is surfaced exactly as the pointer path surfaces it:
+			 * a flow the human typed and that refused must SAY so — dropping the
+			 * outcome here is what made `/name <args>` silent while bare `/name`
+			 * (which the slash menu routes through the pointer path) was honest.
+			 */
 			store.dispatch({ type: "composer.changed", actor: "user", draft: "" });
-			void commands.run(parsed.name, parsed.args);
+			void commands
+				.run(parsed.name, parsed.args)
+				.then((outcome) => surfaceCommandFailure(parsed.name, outcome));
 			return;
 		}
 		const prompt = parsed.text;
@@ -2513,12 +2547,39 @@ export const createAppController = (
 	 * The debug reads (§2d): one typed surface the dev-tools panel renders and
 	 * the agent invokes to answer "what is happening" for admin sessions.
 	 */
+	/*
+	 * A debug read the HUMAN asked for renders in the transcript.
+	 *
+	 * `{ value }` is the agent boundary's channel and never renders on its own
+	 * (§2b), so a read whose only answer is a value is a silent no-op for the
+	 * person who typed it. `debug.seams` already showed the shape: surface
+	 * first, return the value second. These four now do the same. The agent's
+	 * own invocation still renders nothing — it reads the value in its tool
+	 * result, and pasting the payload into the chat as well would be noise.
+	 */
+	const DEBUG_READ_LIMIT = 4000;
+	const surfaceDebugRead = (title: string, payload: string): { readonly value: string } => {
+		if (commandActor !== "smithers") {
+			const shown =
+				payload.length <= DEBUG_READ_LIMIT
+					? payload
+					: `${payload.slice(0, DEBUG_READ_LIMIT)}\n\n… truncated at ${DEBUG_READ_LIMIT} of ${payload.length} characters. The dev-tools panel (/admin.devtools) holds the whole read.`;
+			store.dispatch({
+				type: "message.appended",
+				actor: "system",
+				text: `${title}\n\n\`\`\`json\n${shown}\n\`\`\``,
+			});
+		}
+		return { value: payload };
+	};
+
 	const debugSnapshot = (): { readonly value: string } => {
 		const identity = store.collections.identitySessions.get("identity");
 		const billing = store.collections.billingAccounts.get("billing");
 		const watched = store.collections.watchedRepos.get("watched");
-		return {
-			value: JSON.stringify({
+		return surfaceDebugRead(
+			"App state snapshot",
+			JSON.stringify({
 				surface: store.session().surface,
 				phase: store.session().phase,
 				revision: store.session().revision,
@@ -2537,7 +2598,7 @@ export const createAppController = (
 					hidden: entry.metadata.hidden === true,
 				})),
 			}),
-		};
+		);
 	};
 
 	const debugEvents = (): { readonly value: string } => {
@@ -2550,7 +2611,7 @@ export const createAppController = (
 				type: record.type,
 				at: new Date(record.createdAt).toISOString(),
 			}));
-		return { value: JSON.stringify(tail) };
+		return surfaceDebugRead("Transition journal tail", JSON.stringify(tail));
 	};
 
 	const debugChain = (): { readonly value: string } => {
@@ -2558,16 +2619,27 @@ export const createAppController = (
 		// link's script, calls, rejections, steering, outcome, and the author
 		// contexts — the two-histories view. Full payloads by design: the
 		// admin panel is the raw-payload surface the transcript never is.
-		return { value: JSON.stringify(foldLineages([...store.collections.chainEvents.values()])) };
+		return surfaceDebugRead(
+			"Chain journal x-ray",
+			JSON.stringify(foldLineages([...store.collections.chainEvents.values()])),
+		);
 	};
 
-	const debugNet = (): { readonly value: string } => ({
-		value: JSON.stringify([...netRing].reverse()),
-	});
+	const netTap = (): string => JSON.stringify([...netRing].reverse());
+
+	const debugNet = (): { readonly value: string } => surfaceDebugRead("Network tap", netTap());
 
 	const resetGrants = async (): Promise<string | { readonly value: string }> => {
 		if (agent.revokeGrants === undefined) return "this backend holds no grants";
 		await agent.revokeGrants();
+		// A revocation the human cannot see is a revocation they cannot trust.
+		if (commandActor !== "smithers") {
+			store.dispatch({
+				type: "message.appended",
+				actor: "system",
+				text: "The chain's session grants are revoked — the next tool call asks for permission again.",
+			});
+		}
 		return { value: "chain grants revoked" };
 	};
 
@@ -4024,11 +4096,35 @@ export const createAppController = (
 			});
 	};
 
+	/*
+	 * /retry re-RUNS the last turn — it does not re-SEND the prompt.
+	 *
+	 * `send` appends a user message, so retrying through it grew the transcript
+	 * a duplicate user/assistant pair per attempt and made every retry ship a
+	 * longer history than the one before it. The turn keeps its id: the answer
+	 * it produced is dropped and the same leg launches again over the context
+	 * that produced it.
+	 */
 	const retryLastTurn = (): void => {
-		const prompt = [...store.collections.messages.values()]
+		if (store.session().phase !== "idle" || activeTurn !== undefined) return;
+		const last = [...store.collections.messages.values()]
 			.filter((message) => message.role === "user")
-			.sort((left, right) => right.ordinal - left.ordinal)[0]?.text;
-		if (prompt !== undefined) send(prompt);
+			.sort((left, right) => right.ordinal - left.ordinal)[0];
+		const turnId = last?.id.match(/^message-(.+)-user$/)?.[1];
+		if (turnId === undefined) return;
+		store.dispatch({ type: "message.retried", actor: "user", turnId });
+		if (store.session().phase !== "responding") return;
+		activeTurn = {
+			id: turnId,
+			receivedText: false,
+			toolLegs: 0,
+			toolItems: [],
+			pendingCall: undefined,
+			runLaunch: undefined,
+			askClass: impossibleAskOf(last?.text ?? ""),
+			claimBuffer: "",
+		};
+		launchLeg(turnId, contextMessages());
 	};
 
 	const toggleTheme = (): void => {
@@ -4253,6 +4349,7 @@ export const createAppController = (
 		debugEvents,
 		debugChain,
 		debugNet,
+		netTap,
 		resetGrants,
 		debugSeams,
 		toggleTheme,
@@ -4341,23 +4438,6 @@ export const createAppController = (
 		},
 	});
 
-	/*
-	 * A failed command from a BUTTON has no composer to answer into — dropping
-	 * the outcome reads as a silent no-op (the "did it even run?" bug). Every
-	 * pointer-driven failure states itself as a toast; executes that render
-	 * their own error UI return void and never reach this. The zero-balance
-	 * refusal is the one exception: `zeroBalanceGuard` already dispatched it
-	 * as an embedded transcript message, so toasting it too would
-	 * double-surface the same refusal.
-	 */
-	const surfaceCommandFailure = (name: string, outcome: CommandOutcome): void => {
-		if (outcome.status !== "failed") return;
-		if (outcome.error === ZERO_BALANCE_EXHAUSTED_TEXT) return;
-		const key = `command.failed.${name}`;
-		store.dispatch({ type: "toast.shown", actor: "system", key, title: `/${name} didn't run` });
-		store.dispatch({ type: "toast.resolved", actor: "system", key, status: "failed", detail: outcome.error });
-	};
-
 	const runCommand = (name: string): boolean => {
 		if (commands.find(name) === undefined) return false;
 		void commands.run(name).then((outcome) => surfaceCommandFailure(name, outcome));
@@ -4418,6 +4498,7 @@ export const createAppController = (
 		debugEvents,
 		debugChain,
 		debugNet,
+		netTap,
 		resetGrants,
 		debugSeams,
 		toggleTheme,

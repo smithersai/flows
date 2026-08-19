@@ -4,7 +4,7 @@ import { createAppController } from "../state/AppController";
 import { PALETTES } from "../state/AppState";
 import { createAppStore } from "../state/AppStore";
 import type { NativeAgent, NativeRepositories } from "../native/NativeBridge";
-import { canonical, matches, parseSubmit, recommendedNames, slashItems } from "./registry";
+import { canonical, matches, parseSubmit, recommendedNames, SLASH_MENU_CAP, slashItems } from "./registry";
 import type { CommandState } from "./registry";
 import { executeAgentToolCall } from "./agentTools";
 
@@ -140,6 +140,44 @@ describe("command registry pure model", () => {
 		expect(items[0]?.flow.name).toBe("connect");
 		expect(items[0]?.recommended).toBe(true);
 		expect(items.filter((item) => item.recommended)).toHaveLength(2);
+	});
+
+	describe("the slash menu caps at SLASH_MENU_CAP", () => {
+		// 20 flows named a0..a19, all prefix-matching "a" and all containing "a".
+		const many = Array.from({ length: 20 }, (_, index) => ({
+			name: `a${index}`,
+			summary: `Flow number ${index}`,
+		}));
+
+		test("a bare / lists at most the cap, not every registered flow", () => {
+			expect(many.length).toBeGreaterThan(SLASH_MENU_CAP);
+			expect(slashItems(chatState, "", many).length).toBe(SLASH_MENU_CAP);
+		});
+
+		test("a prefix query is capped too — a prefix names a set, not a flow", () => {
+			expect(slashItems(chatState, "a", many).length).toBe(SLASH_MENU_CAP);
+		});
+
+		test("a flow named outright is never cut", () => {
+			const named = slashItems(chatState, "a19", many);
+			expect(named.length).toBeLessThanOrEqual(SLASH_MENU_CAP);
+			expect(named[0]?.flow.name).toBe("a19");
+		});
+
+		test("a recommendation survives the cap and still leads a bare /", () => {
+			const withRecommendation = [{ name: "connect", summary: "Connect work to Smithers" }, ...many];
+			const items = slashItems(chatState, "", withRecommendation);
+			expect(items.length).toBe(SLASH_MENU_CAP);
+			expect(items[0]?.flow.name).toBe("connect");
+			expect(items[0]?.recommended).toBe(true);
+		});
+
+		test("recency ranks the remainder that gets in", () => {
+			const recent = slashItems({ ...chatState, recent: ["a19", "a18"] }, "", many);
+			expect(recent.length).toBe(SLASH_MENU_CAP);
+			expect(recent.map((item) => item.flow.name)).toContain("a19");
+			expect(recent.map((item) => item.flow.name)).toContain("a18");
+		});
 	});
 
 	test("parseSubmit resolves empty, bare command, args command, and prompt", () => {

@@ -155,7 +155,7 @@ export function DevtoolsPanel({ controller }: { readonly controller: AppControll
 				<section className="devtools-section" aria-label="Network tap">
 					<h3>Network</h3>
 					{(() => {
-						const entries = JSON.parse(controller.debugNet().value) as ReadonlyArray<{
+						const entries = JSON.parse(controller.netTap()) as ReadonlyArray<{
 							readonly at: number;
 							readonly method: string;
 							readonly url: string;
