@@ -222,7 +222,7 @@ const ownString = (value: object, name: string): string | undefined => {
 }
 
 const managerNames = new Set(["npm", "pnpm", "bun", "yarn"])
-const runtimeNames = new Set(["node", "bun", "deno"])
+const runtimeNames = new Set(["node", "bun"])
 
 /**
  * Extracts the toolchain a target declared, falling back to
@@ -290,11 +290,7 @@ export const layerRuntime = (toolchain: Toolchain) => {
     },
     ...(toolchain.runtimeExecutable === undefined ? {} : { executable: toolchain.runtimeExecutable })
   }
-  return toolchain.runtime === "bun"
-    ? Runtime.layerBun(options)
-    : toolchain.runtime === "deno"
-    ? Runtime.layerDeno(options)
-    : Runtime.layerNode(options)
+  return toolchain.runtime === "bun" ? Runtime.layerBun(options) : Runtime.layerNode(options)
 }
 
 /**
