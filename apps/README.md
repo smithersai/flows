@@ -22,7 +22,9 @@ had no living source elsewhere and was promoted to `packages/chain`
 
 Product-level docs (`DESIGN.md`, `MIGRATION.md`, `WAVE*-RECEIPT.md`,
 `reports/`) live at this level because they cover UI and Worker waves
-alike.
+alike. `UPSTREAMS.md` names the sibling Cloudflare Workers this product
+proxies — identity, billing, chat, recommendations — which live in a
+different repository and are what a broken sign-in usually means.
 
 ## Running it locally
 

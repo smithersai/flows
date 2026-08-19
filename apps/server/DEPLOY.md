@@ -68,6 +68,14 @@ always for a manual `workflow_dispatch` run) it runs the dry-run path. Set the
 secret in the repo's Settings → Secrets and variables → Actions before
 cutting a tag that should actually publish.
 
+## The seams this Worker proxies
+
+Sign-in, balance, chat turns, and recommendations resolve in sibling
+Workers that live in a different repository (`~/flows/ui/workers/`).
+Deploying this Worker does not deploy them, and a broken sign-in is more
+often theirs than ours. `apps/UPSTREAMS.md` names each one, its source, its
+hostname, and how to deploy it with a receipt.
+
 ## Rollback
 
 Cloudflare Workers keep prior versions. To roll back to the version recorded
