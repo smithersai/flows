@@ -6,9 +6,9 @@
  * one source file, one test, and a README. The four tool configs are the same
  * files all 45 hand-written packages carry, because the synthesized `check`,
  * `test`, `lint`, and `fmt` targets declare them as inputs. It deliberately
- * writes NO `BUILD.ts`. A standard package needs none — the root
+ * writes NO `BUILD.ts`. A standard package needs none: the root
  * default target synthesizes its `lib`, `test`, `lint`, and manifest targets from
- * the directory alone — and scaffolding one would opt the new package out of
+ * the directory alone, and scaffolding one would opt the new package out of
  * exactly the defaults it was created to follow.
  *
  * @since 0.1.0

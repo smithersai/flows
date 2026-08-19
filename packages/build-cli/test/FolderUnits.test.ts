@@ -237,7 +237,7 @@ export const folderUnits = PackageDefaults({
     const attrs = Target.metadata(targets.get("packageJsonCheck")!).attrs as {
       readonly fields: { readonly scripts: Record<string, string> }
     }
-    // A synthesized manifest may name a target the index already registered —
+    // A synthesized manifest may name a target the index already registered,
     // here //:helper, loaded with the root BUILD.ts before synthesis ran.
     expect(attrs.fields.scripts).toEqual({
       build: "smthrs build //pkg/src/internal:lib",

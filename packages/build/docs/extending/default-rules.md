@@ -126,7 +126,7 @@ because synthesis is synchronous and cannot load another package to find one.
 
 The manifest itself still goes through `PackageJson`, which requires a
 publishable npm name and a literal version. A resolution stub for a folder
-unit — a `package.json` carrying `type` and `exports` and no publishable name —
+unit, a `package.json` carrying `type` and `exports` and no publishable name,
 is not expressible today. That shape is a cross-lane contract owed by the
 manifest generator; until it lands, a unit manifest carries an explicit name
 and version.
@@ -210,7 +210,7 @@ configs (`package.json`, `tsconfig.json`, `tsconfig.test.json`,
 One coverage gap is known and deliberate for now. `apps/server`, `apps/shared`,
 `apps/tui`, `apps/ui`, `examples`, and `packages/build/infra` each carry a
 `package.json` and are pnpm workspace members, but they match no
-`PackageDefaults` glob — the root declaration covers `packages/*` only — and
+`PackageDefaults` glob (the root declaration covers `packages/*` only) and
 hold no `BUILD.ts`. They have zero build-system targets, while the root
 `pnpm test` still runs their suites. Closing the gap means extending
 `directories` or adding declarations for those trees; nothing synthesizes for

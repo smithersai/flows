@@ -73,8 +73,8 @@ targets. The unit is additive in the label space, but it is a package boundary
 for globs, and that has teeth.
 
 - The parent's declared globs stop at the boundary. A `src/**/*.ts` glob in the
-  parent no longer measures the unit's files, while the parent's tools — `tsc`
-  over the parent, say — still read them.
+  parent no longer measures the unit's files, while the parent's tools (`tsc`
+  over the parent, say) still read them.
 - The index answers by deriving the dependency the guard requires: every parent
   target whose glob the boundary prunes gains an edge to the unit's default
   target, so the subtree re-enters the parent's key through the unit's own

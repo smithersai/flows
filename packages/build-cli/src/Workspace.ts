@@ -1179,8 +1179,8 @@ export class Workspace {
     const targets = new Map<string, Target.AnyTarget>()
     for (const [name, target] of expansion.targets) this.register(targets, directory, name, target)
     // A synthesized manifest may name the macro's own targets and any target
-    // the index has already registered — the parent package's, or a folder
-    // unit's loaded earlier — so a unit's manifest can point at targets
+    // the index has already registered, such as the parent package's or a
+    // folder unit's loaded earlier, so a unit's manifest can point at targets
     // outside its own macro application. Synthesis is synchronous, so a
     // target whose package nothing has loaded yet has no label and still
     // fails here, naming the load order as the fix.

@@ -16,7 +16,7 @@ A `BUILD.ts` at any depth defines a package, so a folder inside a package can
 carry its own targets: `//packages/engine/src/internal:lib` is a legal label
 when that folder holds a `BUILD.ts` exporting `lib`, or when a marker-less
 `PackageDefaults` declaration synthesizes one there. A nested `BUILD.ts` is
-additive — the parent package keeps its own targets — but it is a package
+additive, so the parent package keeps its own targets, but it is a package
 boundary, and the parent's globs stop at it. See
 [Workspace structure](../workspace/structure.md).
 
@@ -88,7 +88,7 @@ resolves to it in a workspace laid out like the flows repository.
 `//...` and `//pkg/...` select targets rather than one target. They load every
 `BUILD.ts` in the selected subtree and return every target those modules export,
 plus every target synthesized by a matching default target for a directory in the
-subtree without its own `BUILD.ts` — including marker-less folder units.
+subtree without its own `BUILD.ts`, including marker-less folder units.
 
 The prefix is a path prefix, not a glob. `//packages/...` selects
 `packages/flow`, `packages/flow/internal`, and every other package beneath
