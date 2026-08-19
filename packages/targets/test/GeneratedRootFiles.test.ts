@@ -204,12 +204,15 @@ describe("the checked-in root files match what BUILD.ts declares", () => {
     const declared = PnpmWorkspaceFile.render(PnpmWorkspaceFile.Attrs.make({
       packageManager: rootManager,
       packages: ["packages/*", "packages/build/infra", "examples", "apps/*"],
+      // Mirrors the root BUILD.ts declaration, which this package cannot import
+      // (BUILD.ts imports @smthrs/targets). The two move together or this fails.
       allowBuilds: {
         "@journeyapps/wa-sqlite": false,
         dprint: false,
         "es5-ext": false,
         esbuild: false,
         "msgpackr-extract": false,
+        playwright: false,
         sharp: false,
         "unrs-resolver": false,
         "vue-demi": false,
