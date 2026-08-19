@@ -75,7 +75,7 @@ const sessionOf = async () =>
 	});
 let session = await sessionOf();
 if (typeof (session.body as { login?: unknown })?.login !== "string") {
-	const signIn = page.locator('[data-command="auth.sign-in"]').first();
+	const signIn = page.locator('[data-flow="auth.sign-in"]').first();
 	await signIn.click();
 	await page.waitForURL(/canary\.smithers\.sh|github\.com/, { timeout: 30_000 });
 	const authorize = page.locator('button:has-text("Authorize")');
@@ -214,7 +214,7 @@ let repoQuestion = 0;
 for (let attempt = 0; attempt < 45; attempt += 1) {
 	repoQuestion = await page.locator('[data-kind="workflow-repo"]').count();
 	if (repoQuestion > 0) break;
-	if ((await page.locator('[data-kind="workflow-run"]').count()) > 0) break;
+	if ((await page.locator('[data-kind="flow-run"]').count()) > 0) break;
 	await page.waitForTimeout(1000);
 }
 /*
@@ -223,23 +223,28 @@ for (let attempt = 0; attempt < 45; attempt += 1) {
  * decide whether §2 gets verified: the slash form is the same command through
  * the same path, so drive it directly when the sentence did not.
  */
-if (repoQuestion === 0 && (await page.locator('[data-kind="workflow-run"]').count()) === 0) {
-	note("the model answered without invoking workflow.create — driving the slash form, the same command, same path");
+if (repoQuestion === 0 && (await page.locator('[data-kind="flow-run"]').count()) === 0) {
+	note("the model answered without invoking flow.create — driving the slash form, the same command, same path");
 	// The composer refuses a submit while a turn is still streaming, so let the
 	// model's turn finish before driving the command.
 	await page
-		.waitForFunction(() => document.querySelector('[data-command="chat.stop"]') === null, undefined, {
+		/*
+		 * The stop button is @smthrs/ui's ChatComposer control (App.tsx binds its
+		 * onStop to the chat.stop flow); it carries a class, never a data-flow
+		 * name, so its absence is what "the turn finished" looks like in the DOM.
+		 */
+		.waitForFunction(() => document.querySelector(".sui-chat-composer-stop") === null, undefined, {
 			timeout: 60_000,
 		})
 		.catch(() => {});
 	await page.waitForTimeout(2000);
 	await composer.click();
-	await composer.fill("/workflow.create a workflow that summarizes my open issues");
+	await composer.fill("/flow.create a workflow that summarizes my open issues");
 	await composer.press("Enter");
 	for (let attempt = 0; attempt < 30; attempt += 1) {
 		repoQuestion = await page.locator('[data-kind="workflow-repo"]').count();
 		if (repoQuestion > 0) break;
-		if ((await page.locator('[data-kind="workflow-run"]').count()) > 0) break;
+		if ((await page.locator('[data-kind="flow-run"]').count()) > 0) break;
 		await page.waitForTimeout(1000);
 	}
 }
@@ -250,7 +255,7 @@ if (repoQuestion > 0) {
 		await composer.isVisible(),
 		"workflow-repo card in the transcript, composer visible",
 	);
-	const choice = page.locator('[data-command="workflow.repo.choose"]').first();
+	const choice = page.locator('[data-flow="flow.repo.choose"]').first();
 	const chosenText = ((await choice.textContent()) ?? "").trim();
 	await choice.click();
 	note(`answered the which-repo question in one act: ${chosenText}`);
@@ -259,7 +264,7 @@ if (repoQuestion > 0) {
 // The turn, the tool call, the provision, and the launch all happen here.
 let runCards = 0;
 for (let attempt = 0; attempt < 90; attempt += 1) {
-	runCards = await page.locator('[data-kind="workflow-run"]').count();
+	runCards = await page.locator('[data-kind="flow-run"]').count();
 	if (runCards > 0) break;
 	await page.waitForTimeout(1000);
 }
@@ -267,7 +272,7 @@ await page.screenshot({ path: `${dir}/conversation.png`, fullPage: true });
 
 const transcript = (await page.locator(".smithers-transcript").textContent()) ?? "";
 if (runCards > 0) {
-	check("the conversation produced an EMBEDDED run card", true, "data-kind=workflow-run in the transcript");
+	check("the conversation produced an EMBEDDED run card", true, "data-kind=flow-run in the transcript");
 	// The embed law: it is a card in the chat, not a takeover.
 	check(
 		"the composer is still visible under the card (never a takeover)",
@@ -277,17 +282,21 @@ if (runCards > 0) {
 
 	// Watch it live: approve if it parks, then wait for it to settle.
 	for (let attempt = 0; attempt < 120; attempt += 1) {
-		const approve = page.locator('[data-command="approval.approve"]').first();
+		/*
+		 * Approve/deny are @smthrs/ui's Confirmation buttons, which name the
+		 * decision rather than the approval.approve flow App.tsx runs behind them.
+		 */
+		const approve = page.locator('[data-slot="confirmation-action"][data-decision="approve"]').first();
 		if (await approve.isVisible().catch(() => false)) {
 			await page.screenshot({ path: `${dir}/approval.png`, fullPage: true });
 			await approve.click();
 			note("the run parked on an approval and the human's approve was clicked");
 		}
-		const cardText = (await page.locator('[data-kind="workflow-run"]').first().textContent()) ?? "";
+		const cardText = (await page.locator('[data-kind="flow-run"]').first().textContent()) ?? "";
 		if (/Finished\.|Failed\.|Cancelled\./.test(cardText)) break;
 		await page.waitForTimeout(2000);
 	}
-	const cardText = (await page.locator('[data-kind="workflow-run"]').first().textContent()) ?? "";
+	const cardText = (await page.locator('[data-kind="flow-run"]').first().textContent()) ?? "";
 	note(`run card, settled: ${cardText.replace(/\s+/g, " ").slice(0, 400)}`);
 	await page.screenshot({ path: `${dir}/run-card.png`, fullPage: true });
 	check(

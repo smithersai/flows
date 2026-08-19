@@ -6,9 +6,7 @@ import { createAgentSwitch, createChainRuntime } from "./chain/ChainRuntime";
 import { nativeAgent, nativeOpenExternal, nativeRepositories } from "./native/NativeBridge";
 import { createAppController } from "./state/AppController";
 import { createAppStore } from "./state/AppStore";
-
-const errorMessage = (error: unknown): string =>
-	error instanceof Error ? (error.stack ?? error.message) : String(error);
+import { createClientErrorReporter, errorMessage } from "./state/ClientErrors";
 
 export const renderStartupError = (error: unknown): void => {
 	const root = document.getElementById("root");
@@ -83,33 +81,22 @@ const reportBlankRoot = (reason: Error): void => {
  * crashes and unhandled rejections POST to the Worker's /api/client-errors —
  * bounded, fire-and-forget, capped per page — so alpha client failures reach
  * the worker tail instead of dying in the user's console.
+ *
+ * The reporter itself, and the bounds it holds the body to, live in
+ * state/ClientErrors.ts: they are a contract with the Worker route and are
+ * tested against it. main.tsx only subscribes the two window events, so there
+ * is one reporter in the app and the tested one is the shipped one.
  */
-const CLIENT_ERROR_REPORT_LIMIT = 20;
-let reportedClientErrors = 0;
-const reportClientError = (kind: "error" | "unhandledrejection", error: unknown): void => {
-	if (reportedClientErrors >= CLIENT_ERROR_REPORT_LIMIT) return;
-	reportedClientErrors += 1;
-	void fetch("/api/client-errors", {
-		method: "POST",
-		headers: { "content-type": "application/json" },
-		body: JSON.stringify({
-			kind,
-			message: errorMessage(error).slice(0, 4_000),
-			url: window.location.pathname,
-			at: new Date().toISOString(),
-		}),
-		keepalive: true,
-	}).catch(() => undefined);
-};
+const clientErrors = createClientErrorReporter();
 
 const watchForSilentBootFailure = (): void => {
 	window.addEventListener("error", (event) => {
 		rememberBootError(event.error ?? event.message);
-		reportClientError("error", event.error ?? event.message);
+		clientErrors.report("error", event.error ?? event.message);
 	});
 	window.addEventListener("unhandledrejection", (event) => {
 		rememberBootError(event.reason);
-		reportClientError("unhandledrejection", event.reason);
+		clientErrors.report("unhandledrejection", event.reason);
 	});
 	setTimeout(() => {
 		reportBlankRoot(new Error(`Smithers did not finish starting within ${BOOT_WATCHDOG_MS}ms.`));

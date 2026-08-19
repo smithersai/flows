@@ -6,8 +6,19 @@
  * the engine gateway:
  *
  *   - identity: the wave2 identity-allowlist contract (/api/auth/*, /api/identity/*)
- *   - billing:  workers/billing's real response shapes (dollars, allowedToStartWork)
- *   - gateway:  the engine gateway's submitApproval RPC echo
+ *               including the native sign-in handoff (/api/auth/native/*), whose
+ *               server half lives in the out-of-repo identity Worker — this
+ *               double is the only executable statement of that contract
+ *   - billing:  workers/billing's real response shapes (dollars, allowedToStartWork),
+ *               with grants idempotent by grantId
+ *   - gateway:  the engine gateway's submitApproval RPC echo, the Smithers Cloud
+ *               relay (provision + per-gateway surface), and the platform-proxy
+ *               families the Worker's PLATFORM_PROXY_RULES forward upstream
+ *   - reco:     the recommendations worker, including the dismissal window
+ *
+ * Every double models the parts of its contract a client can get WRONG —
+ * expiry, single use, idempotency, cursors, ordering. A control that only
+ * echoes what the suite asked for proves nothing, so none of them do that.
  *
  * Every `/stub/*` route is a test control (drive state directly); control
  * routes live ONLY on the stub origin — the product Worker never proxies them.
@@ -109,6 +120,83 @@ export const createStubIdentity = (extraAllowedOrigins: ReadonlyArray<string> = 
 	let oauthDown = false;
 	// Wave 11: when armed, the Cloud token door answers the typed no-identity shape.
 	let cloudIdentityMissing = false;
+	/*
+	 * The native sign-in handoff (device-flow style). The webview has no
+	 * platform authenticator, so OAuth runs in the SYSTEM browser: start mints
+	 * a one-time handoff, the browser tab completes the callback bound to it,
+	 * and the app polls the claim same-origin until the session cookie lands in
+	 * its own jar. A claim is single-use and it expires; both spend the same
+	 * 404 the client reads as "that sign-in expired", so nothing about a
+	 * handoff is enumerable from the wire.
+	 */
+	const HANDOFF_TTL_MS = 600_000;
+	interface StubHandoff {
+		pollSecret: string;
+		expiresAt: number;
+		state: "pending" | "ready" | "failed";
+		token: string | null;
+		message: string | null;
+	}
+	const handoffs = new Map<string, StubHandoff>();
+	/*
+	 * Consumed and expired handoffs, kept for the CONTROL plane only. The wire
+	 * answer stays a bare 404; a suite reads this to prove the second claim was
+	 * refused because the handoff was spent, not because the double 404s
+	 * everything.
+	 */
+	const spentHandoffs = new Map<string, "consumed" | "expired" | "failed">();
+	/** Every claim the double answered, so a replay is provable, not inferred. */
+	const claimLog: Array<{ at: string; handoffId: string; outcome: string; status: number }> = [];
+	/** The last claim that handed a session over, for the /stub/replay-claim control. */
+	let lastReadyClaim: { handoffId: string; pollSecret: string } | null = null;
+	// When armed, the next handoff-bound callback records a FAILED OAuth.
+	let handoffFailure: string | null = null;
+
+	/*
+	 * The claim, factored out so /stub/replay-claim can drive it server-side
+	 * with the exact credentials the app used. Unknown, wrong-secret, consumed
+	 * and expired are ONE answer.
+	 */
+	const claimHandoff = (
+		handoffId: string,
+		pollSecret: unknown,
+	): { status: number; body: Record<string, unknown>; headers: Record<string, string>; outcome: string } => {
+		const handoff = handoffs.get(handoffId);
+		const gone = (outcome: string) => ({
+			status: 404,
+			body: { status: "error", message: "expired" },
+			headers: {},
+			outcome,
+		});
+		if (handoff === undefined) return gone(spentHandoffs.get(handoffId) ?? "unknown");
+		if (handoff.pollSecret !== pollSecret) return gone("wrong-secret");
+		if (handoff.expiresAt <= Date.now()) {
+			handoffs.delete(handoffId);
+			spentHandoffs.set(handoffId, "expired");
+			return gone("expired");
+		}
+		if (handoff.state === "pending") {
+			return { status: 200, body: { status: "pending" }, headers: {}, outcome: "pending" };
+		}
+		// Single use: handing the outcome over consumes the handoff.
+		handoffs.delete(handoffId);
+		if (handoff.state === "failed") {
+			spentHandoffs.set(handoffId, "failed");
+			return {
+				status: 200,
+				body: { status: "failed", message: handoff.message ?? "Sign-in didn't finish." },
+				headers: {},
+				outcome: "failed",
+			};
+		}
+		spentHandoffs.set(handoffId, "consumed");
+		return {
+			status: 200,
+			body: { status: "ready" },
+			headers: { "set-cookie": `stub_session=${handoff.token ?? ""}; HttpOnly; Path=/; SameSite=Lax` },
+			outcome: "ready",
+		};
+	};
 	const requests: Array<{ login: string; note: string | null; createdAt: string; updatedAt: string }> = [];
 	// The admin audit trail the real worker keeps: every allowlist write that
 	// passed validation, with its requester + timestamps.
@@ -173,6 +261,82 @@ export const createStubIdentity = (extraAllowedOrigins: ReadonlyArray<string> = 
 				oauthDown = false;
 				return json(200, { status: "ok", oauthDown });
 			}
+			// Age out every live handoff, as the identity worker's TTL would.
+			if (url.pathname === "/stub/expire-handoffs" && request.method === "POST") {
+				const aged = handoffs.size;
+				for (const handoff of handoffs.values()) handoff.expiresAt = 0;
+				return json(200, { status: "ok", handoffs: aged });
+			}
+			// Arm the next handoff-bound callback to record a failed OAuth.
+			if (url.pathname === "/stub/handoff-fail" && request.method === "POST") {
+				handoffFailure = "GitHub said no.";
+				return json(200, { status: "ok" });
+			}
+			/*
+			 * Re-issue the last claim that handed a session over, with the SAME
+			 * credentials. A single-use handoff must refuse it; a double that
+			 * merely stored the answer would hand the session out twice.
+			 */
+			if (url.pathname === "/stub/replay-claim" && request.method === "POST") {
+				if (lastReadyClaim === null) {
+					return json(409, { status: "error", message: "no claim has handed a session over yet" });
+				}
+				const replay = claimHandoff(lastReadyClaim.handoffId, lastReadyClaim.pollSecret);
+				claimLog.push({
+					at: new Date().toISOString(),
+					handoffId: lastReadyClaim.handoffId,
+					outcome: `replay:${replay.outcome}`,
+					status: replay.status,
+				});
+				return json(200, {
+					status: "ok",
+					replayStatus: replay.status,
+					replayOutcome: replay.outcome,
+					// The header is reported, never re-issued: a refused replay
+					// must not put a session cookie back on the wire.
+					replaySetCookie: replay.headers["set-cookie"] ?? null,
+				});
+			}
+			if (url.pathname === "/stub/handoffs" && request.method === "GET") {
+				return json(200, {
+					live: [...handoffs.entries()].map(([id, handoff]) => ({
+						id,
+						state: handoff.state,
+						expiresInMs: handoff.expiresAt - Date.now(),
+					})),
+					spent: [...spentHandoffs.entries()].map(([id, reason]) => ({ id, reason })),
+					claims: claimLog,
+				});
+			}
+			/*
+			 * Drop every session, as a server-side expiry would: the browser
+			 * still holds its cookie, the authority stops honouring it, so the
+			 * next /api/identity/validate 401s.
+			 */
+			if (
+				(url.pathname === "/stub/expire-sessions" || url.pathname === "/stub/expire-session") &&
+				request.method === "POST"
+			) {
+				const dropped = sessions.size;
+				sessions.clear();
+				return json(200, { status: "ok", dropped, sessions: sessions.size });
+			}
+			// Return the double to its boot state so the next suite starts clean.
+			if (url.pathname === "/stub/reset" && request.method === "POST") {
+				sessions.clear();
+				handoffs.clear();
+				spentHandoffs.clear();
+				claimLog.length = 0;
+				requests.length = 0;
+				allowlistWrites.length = 0;
+				lastReadyClaim = null;
+				handoffFailure = null;
+				allowlisted = false;
+				adminFlag = false;
+				oauthDown = false;
+				cloudIdentityMissing = false;
+				return json(200, { status: "ok" });
+			}
 			if (url.pathname === "/stub/requests" && request.method === "GET") {
 				return json(200, { requests });
 			}
@@ -234,10 +398,19 @@ export const createStubIdentity = (extraAllowedOrigins: ReadonlyArray<string> = 
 						code: "oauth_not_configured",
 					});
 				}
-				// A double for the GitHub OAuth screen: bounces straight to the callback.
+				/*
+				 * A double for the GitHub OAuth screen: bounces straight to the
+				 * callback, carrying the native handoff binding when there is one.
+				 * The real worker carries it through GitHub's `state`.
+				 */
+				const boundHandoff = url.searchParams.get("handoff");
 				return new Response(null, {
 					status: 302,
-					headers: { location: `/api/auth/github/callback?code=stub-code&state=stub-state` },
+					headers: {
+						location: `/api/auth/github/callback?code=stub-code&state=stub-state${
+							boundHandoff === null ? "" : `&handoff=${encodeURIComponent(boundHandoff)}`
+						}`,
+					},
 				});
 			}
 			if (url.pathname === "/api/auth/github/callback" && request.method === "GET") {
@@ -248,17 +421,77 @@ export const createStubIdentity = (extraAllowedOrigins: ReadonlyArray<string> = 
 					});
 				}
 				const token = crypto.randomUUID();
+				/*
+				 * A handoff-bound callback does NOT cookie THIS tab: the session
+				 * travels to the app through the claim. The tab gets the 200 HTML
+				 * success page the product Worker passes through unchanged.
+				 * Replacing it with the wave-8 error surface was a live bug.
+				 */
+				const callbackHandoffId = url.searchParams.get("handoff");
+				if (callbackHandoffId !== null) {
+					const handoff = handoffs.get(callbackHandoffId);
+					if (handoff === undefined || handoff.expiresAt <= Date.now()) {
+						return json(404, { status: "error", message: "expired" });
+					}
+					if (handoffFailure !== null) {
+						handoff.state = "failed";
+						handoff.message = handoffFailure;
+						handoffFailure = null;
+					} else {
+						sessions.set(token, { login: "will", admin: false });
+						handoff.state = "ready";
+						handoff.token = token;
+					}
+					return new Response(
+						"<!doctype html><title>Signed in</title>You're signed in — return to the Smithers app.",
+						{ status: 200, headers: { "content-type": "text/html; charset=utf-8" } },
+					);
+				}
 				sessions.set(token, { login: "will", admin: false });
 				return new Response(null, {
 					status: 302,
 					headers: { location: "/", "set-cookie": `stub_session=${token}; HttpOnly; Path=/; SameSite=Lax` },
 				});
 			}
+			/*
+			 * The native handoff, start. The client reads exactly `handoffId`
+			 * and `pollSecret` and requires both to be strings; `expiresAt` is
+			 * stated but read by nothing, so no client behaviour may rest on it.
+			 */
+			if (url.pathname === "/api/auth/native/start" && request.method === "POST") {
+				const handoffId = crypto.randomUUID();
+				const pollSecret = crypto.randomUUID();
+				const expiresAt = Date.now() + HANDOFF_TTL_MS;
+				handoffs.set(handoffId, { pollSecret, expiresAt, state: "pending", token: null, message: null });
+				return json(200, { handoffId, pollSecret, expiresAt });
+			}
+			if (url.pathname === "/api/auth/native/claim" && request.method === "POST") {
+				const body = (await request.json().catch(() => null)) as
+					| { handoffId?: unknown; pollSecret?: unknown }
+					| null;
+				const handoffId = typeof body?.handoffId === "string" ? body.handoffId : "";
+				const answer = claimHandoff(handoffId, body?.pollSecret);
+				claimLog.push({
+					at: new Date().toISOString(),
+					handoffId,
+					outcome: answer.outcome,
+					status: answer.status,
+				});
+				if (answer.outcome === "ready" && typeof body?.pollSecret === "string") {
+					lastReadyClaim = { handoffId, pollSecret: body.pollSecret };
+				}
+				return json(answer.status, answer.body, answer.headers);
+			}
 			if (url.pathname === "/api/auth/session" && request.method === "GET") {
 				const session = sessionOf(request);
 				if (session === undefined) return json(401, { status: "error", message: "signed out" });
 				return json(200, { login: session.login, allowlisted, admin: adminFlag });
 			}
+			/*
+			 * Sign-out answers JSON, never a redirect. The client only inspects
+			 * `response.ok`; `fetch` would follow a 3xx transparently and
+			 * whatever it landed on would decide the outcome.
+			 */
 			if (url.pathname === "/api/auth/logout" && request.method === "POST") {
 				const session = sessionOf(request);
 				if (session !== undefined) sessions.delete(session.token);
@@ -342,6 +575,15 @@ export const createStubBilling = (extraAllowedOrigins: ReadonlyArray<string> = [
 	let lastChargeUsd = "0.05375";
 	let lastBalanceAuth: { mode: "trusted" | "bearer"; account: string } | null = null;
 	const grants: Array<Record<string, unknown>> = [];
+	/*
+	 * The real worker is idempotent by grantId: a replayed grant is answered
+	 * from the record it already wrote, marked duplicate, and credits nothing.
+	 * grantId is the idempotency key, which is why the route refuses one that
+	 * is not a stable `admin:`-prefixed id.
+	 */
+	const grantedIds = new Map<string, Record<string, unknown>>();
+	/** Dollars the way the worker states them: a plain decimal string. */
+	const usd = (value: number): string => String(Number(value.toFixed(5)));
 
 	const server: Server<undefined> = Bun.serve({
 		port: 0,
@@ -365,6 +607,29 @@ export const createStubBilling = (extraAllowedOrigins: ReadonlyArray<string> = [
 			if (url.pathname === "/stub/drain" && request.method === "POST") {
 				for (const account of accounts.values()) account.totalUsd = "0";
 				return json(200, { status: "ok", totalUsd: "0" });
+			}
+			/*
+			 * The inverse of /stub/drain. Like drain it only reaches accounts
+			 * that already exist, so it answers the count it touched — a suite
+			 * that refilled nothing sees zero rather than a false green.
+			 */
+			if (url.pathname === "/stub/refill" && request.method === "POST") {
+				const body = (await request.json().catch(() => null)) as { totalUsd?: unknown } | null;
+				const totalUsd = typeof body?.totalUsd === "string" ? body.totalUsd : "500";
+				let refilled = 0;
+				for (const account of accounts.values()) {
+					account.totalUsd = totalUsd;
+					refilled += 1;
+				}
+				return json(200, { status: "ok", refilled, totalUsd });
+			}
+			// Return the double to its boot state so the next suite starts clean.
+			if (url.pathname === "/stub/reset" && request.method === "POST") {
+				accounts.clear();
+				grants.length = 0;
+				grantedIds.clear();
+				lastBalanceAuth = null;
+				return json(200, { status: "ok" });
 			}
 			if (url.pathname === "/stub/charge" && request.method === "POST") {
 				for (const account of accounts.values()) {
@@ -412,6 +677,13 @@ export const createStubBilling = (extraAllowedOrigins: ReadonlyArray<string> = [
 				if (typeof body?.timestamp !== "string" || !Number.isFinite(Date.parse(body.timestamp))) {
 					return json(400, { error: "timestamp is required", code: "timestamp_required" });
 				}
+				/*
+				 * The replay answer: the stored record, marked duplicate, 200 not
+				 * 201. Nothing is credited and nothing new is written, so a
+				 * client that retries a grant cannot double-credit an account.
+				 */
+				const replay = grantedIds.get(grantId);
+				if (replay !== undefined) return json(200, { ...replay, duplicate: true });
 				const grant = {
 					granted: true,
 					grantId,
@@ -424,6 +696,10 @@ export const createStubBilling = (extraAllowedOrigins: ReadonlyArray<string> = [
 					expiresAt: null,
 				};
 				grants.push(grant);
+				grantedIds.set(grantId, grant);
+				// A grant is only real once it moves the balance the product reads.
+				const credited = accountFor(userId.toLowerCase());
+				credited.totalUsd = usd(Number(credited.totalUsd) + amountUsd);
 				return json(201, grant);
 			}
 			/*
@@ -550,6 +826,29 @@ export const createStubGateway = (): StubHandle => {
 	let stalled = false;
 	/* How many times the client has read a run's event stream (§3 proof). */
 	let eventReads = 0;
+	/*
+	 * The relay tunnel and the SSE seam, failable on demand. A reconnect is
+	 * only provable if the connection can actually be dropped mid-flight, so
+	 * these are the controls E7.10 and E7.11 drive.
+	 */
+	let streamDown = false;
+	let tunnelDown = false;
+	let tunnelDownOnce = false;
+	let streamOpens = 0;
+	/*
+	 * Every Last-Event-ID the client presented, in arrival order. A Worker that
+	 * drops the header leaves nulls here, so "the stream resumed" is falsifiable
+	 * rather than assumed.
+	 */
+	const streamResumes: Array<string | null> = [];
+	const rpcCalls: Array<{ method: string; gatewayId: string }> = [];
+	/*
+	 * What each event poll asked for and what it got back. A client that forgets
+	 * its cursor repeats seqs across reads; one that advances past an event it
+	 * never read leaves a gap. Both are visible here and in neither case does
+	 * the double hide it.
+	 */
+	const eventCursorReads: Array<{ runId: string; afterSeq: number; returned: number[] }> = [];
 	const gateways = new Map<string, { repo: string; token: string }>();
 	// One scripted run per launch: events accrue with monotonic seq, exactly
 	// like the engine's run_events, and the run parks on its approval gate
@@ -568,6 +867,196 @@ export const createStubGateway = (): StubHandle => {
 		{ key: "create-workflow", description: "Build a new Smithers workflow from a plain-English ask." },
 		{ key: "wave4-relay-proof", description: "Three nodes with an approval gate." },
 	];
+
+	/* ---------------------------------------------------------------- */
+	/* The platform proxy's upstream. The product Worker validates the    */
+	/* browser session, mints the USER's Smithers Cloud token, and        */
+	/* forwards these families here with that bearer                      */
+	/* (server/src/index.ts PLATFORM_PROXY_RULES). Nothing else opens the */
+	/* surface, and every call is recorded with the credential it arrived */
+	/* under, so "the browser never saw the bearer" is checkable.         */
+	/* ---------------------------------------------------------------- */
+	const PLATFORM_PREFIXES = [
+		"/api/repos/",
+		"/api/github/import",
+		"/api/user/github-repos/",
+		"/api/user/byok-keys",
+		"/api/notifications/",
+	];
+	const platformCalls: Array<{ method: string; path: string; authorization: string }> = [];
+
+	/*
+	 * Which repositories exist in the IMPORTED namespace. Everything under
+	 * /api/repos/{o}/{r}/ 404s for a repo that is not there, which is exactly
+	 * what drives the seams' import-readiness degradation; will/mvp is
+	 * deliberately absent so that path is reachable without a control call.
+	 */
+	const importedRepos = new Set(["will/flows", "will/smithers"]);
+
+	interface StubNotification {
+		id: string;
+		subject: { title: string };
+		repository: { full_name: string };
+		reason: string;
+		updated_at: string;
+		unread: boolean;
+	}
+	const freshNotifications = (): StubNotification[] => [
+		{
+			id: "1",
+			subject: { title: "Wire the sync adapter" },
+			repository: { full_name: "will/flows" },
+			reason: "review_requested",
+			updated_at: "2026-08-17T10:00:00.000Z",
+			unread: true,
+		},
+		{
+			id: "2",
+			subject: { title: "Flaky heartbeat suite" },
+			repository: { full_name: "will/smithers" },
+			reason: "assign",
+			updated_at: "2026-08-16T10:00:00.000Z",
+			unread: true,
+		},
+		{
+			id: "3",
+			subject: { title: "Docs pass" },
+			repository: { full_name: "will/flows" },
+			reason: "mention",
+			updated_at: "2026-08-15T10:00:00.000Z",
+			unread: false,
+		},
+	];
+	let notifications = freshNotifications();
+
+	/* A BYOK row never carries key material: only the mask leaves the store. */
+	const freshKeys = (): Array<Record<string, string>> => [
+		{ provider: "anthropic", last4: "4242" },
+		{ provider: "openai", masked: "sk-…9f21" },
+	];
+	let byokKeys = freshKeys();
+
+	interface StubImportJob {
+		importJobId: string;
+		status: "cloning" | "ready" | "failed";
+		stage: string | null;
+		error: string | null;
+	}
+	const importJobs = new Map<string, StubImportJob>();
+	let importSerial = 1;
+	let importConflictOnce = false;
+	/* The terminal state the next poll of a running job moves to, if any. */
+	let importOutcome: "cloning" | "ready" | "failed" = "cloning";
+
+	let githubAppInstalled = true;
+
+	interface StubIssue {
+		number: number;
+		title: string;
+		state: "open" | "closed";
+		author: { login: string };
+		comment_count: number;
+		updated_at: string;
+		body: string;
+		labels: Array<{ name: string }>;
+	}
+	const issuesByRepo = new Map<string, StubIssue[]>();
+	const commentsByIssue = new Map<string, Array<{ commenter: string; body: string; created_at: string }>>();
+	const issuesFor = (repo: string): StubIssue[] => {
+		const existing = issuesByRepo.get(repo);
+		if (existing !== undefined) return existing;
+		const seeded: StubIssue[] = [
+			{
+				number: 12,
+				title: "Wire the sync adapter",
+				state: "open",
+				author: { login: "will" },
+				comment_count: 1,
+				updated_at: "2026-07-28T10:00:00.000Z",
+				body: "The adapter never reconnects after a dropped socket.",
+				labels: [{ name: "bug" }],
+			},
+			{
+				number: 9,
+				title: "Document the harness",
+				state: "closed",
+				author: { login: "octocat" },
+				comment_count: 0,
+				updated_at: "2026-07-20T10:00:00.000Z",
+				body: "",
+				labels: [],
+			},
+		];
+		issuesByRepo.set(repo, seeded);
+		commentsByIssue.set(`${repo}#12`, [
+			{ commenter: "octocat", body: "Reproduced on main.", created_at: "2026-07-29T10:00:00.000Z" },
+		]);
+		return seeded;
+	};
+
+	interface StubEnvironment {
+		setup_script: string;
+		env: Array<{ name: string; value: string }>;
+		secrets: Array<{ name: string; updated_at: string }>;
+	}
+	const environments = new Map<string, StubEnvironment>();
+	const environmentFor = (repo: string): StubEnvironment => {
+		const existing = environments.get(repo);
+		if (existing !== undefined) return existing;
+		const created: StubEnvironment = {
+			setup_script: "bun install\n",
+			env: [
+				{ name: "LOG_LEVEL", value: "debug" },
+				{ name: "NODE_ENV", value: "test" },
+			],
+			secrets: [{ name: "ANTHROPIC_API_KEY", updated_at: "2026-08-01T10:00:00.000Z" }],
+		};
+		environments.set(repo, created);
+		return created;
+	};
+
+	/*
+	 * Two pages with a real cursor. `main` sits on the SECOND page, so a client
+	 * that reads one page and stops loses the base bookmark a landing needs —
+	 * the exact failure fetchAllBookmarks paginates to avoid.
+	 */
+	const BOOKMARK_PAGES: Record<string, { items: Array<Record<string, unknown>>; next_cursor: string }> = {
+		"": {
+			items: [
+				{
+					name: "landing/sync-adapter",
+					target_change_id: "kxpzntslqrmw",
+					target_commit_id: "a1b2c3d4e5f6",
+					is_tracking_remote: false,
+				},
+			],
+			next_cursor: "page-2",
+		},
+		"page-2": {
+			items: [
+				{
+					name: "main",
+					target_change_id: "qqrsuvwzyxtn",
+					target_commit_id: "b2c3d4e5f6a7",
+					is_tracking_remote: true,
+				},
+			],
+			next_cursor: "",
+		},
+	};
+
+	/* One tiny tree, base64 exactly like the platform answers file contents. */
+	const REPO_FILES: Record<string, string> = {
+		"README.md": "# flows\n\nThe harness.\n",
+		"src/index.ts": "export const start = () => undefined;\n",
+	};
+	const REPO_DIRS: Record<string, Array<{ name: string; path: string; type: "file" | "dir" }>> = {
+		"": [
+			{ name: "README.md", path: "README.md", type: "file" },
+			{ name: "src", path: "src", type: "dir" },
+		],
+		src: [{ name: "index.ts", path: "src/index.ts", type: "file" }],
+	};
 
 	const emit = (run: StubRun, event: string, payload: unknown = {}): void => {
 		run.events.push({
@@ -686,6 +1175,273 @@ export const createStubGateway = (): StubHandle => {
 		}
 	};
 
+	/*
+	 * The platform families the Worker proxies. Ordering matters: this runs
+	 * AFTER the provision route, because /api/repos/ is a proxy PREFIX and a
+	 * naive prefix branch placed first would swallow
+	 * POST /api/repos/{o}/{r}/gateway.
+	 */
+	const handlePlatform = async (request: Request, url: URL): Promise<Response | undefined> => {
+		if (!PLATFORM_PREFIXES.some((prefix) => url.pathname.startsWith(prefix))) return undefined;
+		platformCalls.push({
+			method: request.method,
+			path: url.pathname + url.search,
+			authorization: request.headers.get("authorization") ?? "",
+		});
+		// The user's own Cloud token or nothing: a deployment credential, a
+		// browser cookie, and an empty header all fail the same way.
+		if (request.headers.get("authorization") !== `Bearer ${STUB_CLOUD_TOKEN}`) {
+			return json(401, { error: "unauthorized", message: "the platform needs the user's Smithers Cloud token" });
+		}
+
+		/* ---- notifications ---- */
+		if (url.pathname === "/api/notifications/list" && request.method === "GET") {
+			// A BARE array, the shape parseNotificationListBody reads.
+			return json(200, notifications);
+		}
+		if (url.pathname === "/api/notifications/mark-read" && request.method === "PUT") {
+			for (const row of notifications) row.unread = false;
+			// 205 with no body, exactly like the platform. A client that only
+			// accepts 2xx-with-body treats success as a failure.
+			return new Response(null, { status: 205 });
+		}
+
+		/* ---- BYOK keys ---- */
+		if (url.pathname === "/api/user/byok-keys" && request.method === "GET") {
+			return json(200, { keys: byokKeys });
+		}
+		if (url.pathname === "/api/user/byok-keys" && request.method === "POST") {
+			const body = (await request.json().catch(() => null)) as { provider?: unknown; key?: unknown } | null;
+			const provider = typeof body?.provider === "string" ? body.provider.trim() : "";
+			const key = typeof body?.key === "string" ? body.key : "";
+			if (provider === "" || key === "") {
+				return json(400, { error: "provider and key are required" });
+			}
+			// The stored row carries a mask, never the key: the secret law holds
+			// on the write path too.
+			byokKeys = [...byokKeys.filter((row) => row.provider !== provider), { provider, last4: key.slice(-4) }];
+			return json(201, { provider, masked: `sk-…${key.slice(-4)}` });
+		}
+		const keyDelete = /^\/api\/user\/byok-keys\/([^/]+)$/.exec(url.pathname);
+		if (keyDelete !== null && request.method === "DELETE") {
+			const provider = decodeURIComponent(keyDelete[1] ?? "");
+			const before = byokKeys.length;
+			byokKeys = byokKeys.filter((row) => row.provider !== provider);
+			// Deleting a provider that is not configured is a 404, so a second
+			// removal cannot be reported to the user as a success.
+			if (byokKeys.length === before) return json(404, { error: "not_found", message: `no ${provider} key` });
+			return new Response(null, { status: 204 });
+		}
+
+		/* ---- GitHub import ---- */
+		if (url.pathname === "/api/github/import" && request.method === "POST") {
+			if (importConflictOnce) {
+				importConflictOnce = false;
+				return json(409, { error: "conflict", message: "repository already exists" });
+			}
+			const body = (await request.json().catch(() => null)) as { owner?: unknown; repo?: unknown } | null;
+			// The client sends {owner, repo}; anything else is a 400, so a
+			// change to that body shape cannot pass unnoticed.
+			if (typeof body?.owner !== "string" || body.owner === "" || typeof body.repo !== "string" || body.repo === "") {
+				return json(400, { error: "owner and repo are required" });
+			}
+			const importJobId = `job-${importSerial++}`;
+			importJobs.set(importJobId, { importJobId, status: "cloning", stage: "cloning_github", error: null });
+			return json(200, importJobs.get(importJobId));
+		}
+		const importPoll = /^\/api\/github\/import\/([^/]+)$/.exec(url.pathname);
+		if (importPoll !== null && request.method === "GET") {
+			const job = importJobs.get(decodeURIComponent(importPoll[1] ?? ""));
+			// An unknown job id is a 404: a client that fabricates or mangles the
+			// id it was handed cannot appear to be tracking a real import.
+			if (job === undefined) return json(404, { error: "not_found", message: "no such import job" });
+			if (job.status === "cloning" && importOutcome !== "cloning") {
+				job.status = importOutcome;
+				job.stage = importOutcome === "ready" ? null : job.stage;
+				job.error = importOutcome === "failed" ? "the mirror push was rejected" : null;
+			}
+			return json(200, job);
+		}
+
+		/* ---- source-only issues (the import-readiness fallback) ---- */
+		const sourceIssues = /^\/api\/user\/github-repos\/([^/]+)\/([^/]+)\/issues$/.exec(url.pathname);
+		if (sourceIssues !== null && request.method === "GET") {
+			const state = url.searchParams.get("state") ?? "all";
+			const repo = `${sourceIssues[1]}/${sourceIssues[2]}`;
+			const rows = issuesFor(repo)
+				.filter((issue) => state === "all" || issue.state === state)
+				.map((issue) => ({
+					number: issue.number,
+					title: issue.title,
+					state: issue.state,
+					user: { login: issue.author.login },
+					comments: issue.comment_count,
+					updated_at: issue.updated_at,
+				}));
+			// GitHub's issues endpoint includes pull requests. The row stays in
+			// the answer so a client that fails to drop it counts one too many.
+			return json(200, [
+				...rows,
+				{
+					number: 40,
+					title: "Wire the sync adapter",
+					state: "open",
+					user: { login: "will" },
+					comments: 0,
+					updated_at: "2026-07-28T10:00:00.000Z",
+					pull_request: { url: `https://api.github.com/repos/${repo}/pulls/40` },
+				},
+			]);
+		}
+
+		/* ---- the imported namespace ---- */
+		const scoped = /^\/api\/repos\/([^/]+)\/([^/]+)(\/.*)$/.exec(url.pathname);
+		if (scoped === null) return json(404, { error: "not_found", message: `platform stub: no route ${url.pathname}` });
+		const repo = `${scoped[1]}/${scoped[2]}`;
+		const rest = scoped[3] ?? "";
+		if (!importedRepos.has(repo)) {
+			// The whole namespace 404s for a repo Smithers Cloud never imported.
+			return json(404, { error: "not_found", message: "repository not found" });
+		}
+
+		if (rest === "/bookmarks" && request.method === "GET") {
+			const cursor = url.searchParams.get("cursor") ?? "";
+			const page = BOOKMARK_PAGES[cursor];
+			if (page === undefined) return json(400, { error: "bad_cursor", message: `unknown cursor ${cursor}` });
+			return json(200, page);
+		}
+
+		if (rest === "/github-app-status" && request.method === "GET") {
+			return json(200, {
+				github_app_installed: githubAppInstalled,
+				github_app_configured: true,
+				install_url: "https://github.com/apps/smithers/installations/new",
+			});
+		}
+
+		if (rest === "/agent-environment" && request.method === "GET") {
+			return json(200, environmentFor(repo));
+		}
+		if (rest === "/agent-environment" && request.method === "PUT") {
+			const body = (await request.json().catch(() => null)) as
+				| { setup_script?: unknown; env?: unknown; secrets?: unknown }
+				| null;
+			if (body !== null && "secrets" in body) {
+				// Secrets are write-only upstream; a document that carries them
+				// back is a client that read a value it must never have.
+				return json(400, { error: "secrets are write-only and cannot be sent back" });
+			}
+			if (typeof body?.setup_script !== "string" || !Array.isArray(body.env)) {
+				return json(400, { error: "setup_script and env are required" });
+			}
+			const env: Array<{ name: string; value: string }> = [];
+			for (const entry of body.env) {
+				const pair = entry as { name?: unknown; value?: unknown } | null;
+				if (pair === null || typeof pair !== "object") return json(400, { error: "env rows must be objects" });
+				if (typeof pair.name !== "string" || pair.name === "" || typeof pair.value !== "string") {
+					return json(400, { error: "env rows need a name and a value" });
+				}
+				env.push({ name: pair.name, value: pair.value });
+			}
+			/*
+			 * The whole document replaces the stored one. A client that PUTs
+			 * only the pair it changed drops every other variable, and the next
+			 * GET states the loss instead of hiding it.
+			 */
+			const stored = environmentFor(repo);
+			environments.set(repo, { setup_script: body.setup_script, env, secrets: stored.secrets });
+			return json(200, { status: "ok" });
+		}
+
+		const contents = /^\/contents(?:\/(.*))?$/.exec(rest);
+		if (contents !== null && request.method === "GET") {
+			const path = decodeURIComponent(contents[1] ?? "")
+				.split("/")
+				.filter(Boolean)
+				.join("/");
+			const dir = REPO_DIRS[path];
+			if (dir !== undefined) return json(200, dir);
+			const file = REPO_FILES[path];
+			if (file !== undefined) {
+				return json(200, { path, content: btoa(file), encoding: "base64", size: file.length });
+			}
+			// A missing PATH inside an imported repo names the path; a missing
+			// REPO 404s the namespace above. FilesSeam splits on exactly that.
+			return json(404, { error: "not_found", message: `Path not found: ${path}` });
+		}
+
+		const issueComments = /^\/issues\/(\d+)\/comments$/.exec(rest);
+		if (issueComments !== null) {
+			const number = Number(issueComments[1]);
+			if (!issuesFor(repo).some((issue) => issue.number === number)) {
+				return json(404, { error: "not_found", message: `no issue #${number}` });
+			}
+			const key = `${repo}#${number}`;
+			if (request.method === "GET") return json(200, commentsByIssue.get(key) ?? []);
+			if (request.method === "POST") {
+				const body = (await request.json().catch(() => null)) as { body?: unknown } | null;
+				if (typeof body?.body !== "string" || body.body === "") return json(400, { error: "body is required" });
+				const comment = { commenter: "will", body: body.body, created_at: new Date().toISOString() };
+				commentsByIssue.set(key, [...(commentsByIssue.get(key) ?? []), comment]);
+				const issue = issuesFor(repo).find((row) => row.number === number);
+				if (issue !== undefined) issue.comment_count += 1;
+				return json(201, comment);
+			}
+		}
+
+		const issueDetail = /^\/issues\/(\d+)$/.exec(rest);
+		if (issueDetail !== null) {
+			const number = Number(issueDetail[1]);
+			const issue = issuesFor(repo).find((row) => row.number === number);
+			if (issue === undefined) return json(404, { error: "not_found", message: `no issue #${number}` });
+			if (request.method === "GET") return json(200, issue);
+			if (request.method === "PATCH") {
+				const body = (await request.json().catch(() => null)) as { state?: unknown } | null;
+				if (body?.state !== "open" && body?.state !== "closed") {
+					return json(400, { error: "state must be open or closed" });
+				}
+				issue.state = body.state;
+				issue.updated_at = new Date().toISOString();
+				return json(200, issue);
+			}
+		}
+
+		if (rest === "/issues" && request.method === "GET") {
+			const state = url.searchParams.get("state");
+			// Plue 422s an unknown state, "all" included. The client is supposed
+			// to OMIT the parameter to list every state; forwarding state=all is
+			// a real defect and this is where it surfaces.
+			if (state !== null && state !== "open" && state !== "closed") {
+				return json(422, { error: "unprocessable", message: `unsupported state ${state}` });
+			}
+			return json(
+				200,
+				issuesFor(repo).filter((issue) => state === null || issue.state === state),
+			);
+		}
+		if (rest === "/issues" && request.method === "POST") {
+			const body = (await request.json().catch(() => null)) as { title?: unknown } | null;
+			if (typeof body?.title !== "string" || body.title.trim() === "") {
+				return json(400, { error: "title is required" });
+			}
+			const rows = issuesFor(repo);
+			const created: StubIssue = {
+				number: Math.max(0, ...rows.map((issue) => issue.number)) + 1,
+				title: body.title,
+				state: "open",
+				author: { login: "will" },
+				comment_count: 0,
+				updated_at: new Date().toISOString(),
+				body: "",
+				labels: [],
+			};
+			rows.push(created);
+			return json(201, created);
+		}
+
+		return json(404, { error: "not_found", message: `platform stub: no route ${request.method} ${url.pathname}` });
+	};
+
 	const server: Server<undefined> = Bun.serve({
 		port: 0,
 		async fetch(request) {
@@ -727,10 +1483,123 @@ export const createStubGateway = (): StubHandle => {
 				cloudRepo = true;
 				return json(200, { status: "ok" });
 			}
+			/* E7.10 / E7.11: the SSE seam and the relay tunnel, failable on demand. */
+			if (url.pathname === "/stub/stream-down" && request.method === "POST") {
+				streamDown = true;
+				return json(200, { status: "ok" });
+			}
+			if (url.pathname === "/stub/stream-up" && request.method === "POST") {
+				streamDown = false;
+				return json(200, { status: "ok" });
+			}
+			if (url.pathname === "/stub/tunnel-down" && request.method === "POST") {
+				tunnelDown = true;
+				return json(200, { status: "ok" });
+			}
+			if (url.pathname === "/stub/tunnel-down-once" && request.method === "POST") {
+				tunnelDownOnce = true;
+				return json(200, { status: "ok" });
+			}
+			if (url.pathname === "/stub/tunnel-up" && request.method === "POST") {
+				tunnelDown = false;
+				tunnelDownOnce = false;
+				streamDown = false;
+				return json(200, { status: "ok" });
+			}
+			/*
+			 * Append one event to a live run. A suite drops the stream, emits
+			 * here, and restores: the client's next poll must return exactly this
+			 * seq, exactly once. A reconnect that lost the cursor shows up as a
+			 * gap or a repeat in eventCursorReads instead of passing silently.
+			 */
+			if (url.pathname === "/stub/emit-event" && request.method === "POST") {
+				const body = (await request.json().catch(() => null)) as
+					| { runId?: unknown; event?: unknown; payload?: unknown }
+					| null;
+				const run = runs.get(typeof body?.runId === "string" ? body.runId : "");
+				if (run === undefined) return json(404, { status: "error", message: "no such run" });
+				const event = typeof body?.event === "string" && body.event !== "" ? body.event : "NodeFinished";
+				emit(run, event, body?.payload ?? {});
+				return json(200, { status: "ok", seq: run.events.length });
+			}
+			/* Platform-proxy controls. */
+			if (url.pathname === "/stub/import-ready" && request.method === "POST") {
+				importOutcome = "ready";
+				return json(200, { status: "ok" });
+			}
+			if (url.pathname === "/stub/import-failed" && request.method === "POST") {
+				importOutcome = "failed";
+				return json(200, { status: "ok" });
+			}
+			if (url.pathname === "/stub/import-conflict" && request.method === "POST") {
+				importConflictOnce = true;
+				return json(200, { status: "ok" });
+			}
+			if (url.pathname === "/stub/app-uninstalled" && request.method === "POST") {
+				githubAppInstalled = false;
+				return json(200, { status: "ok" });
+			}
+			if (url.pathname === "/stub/app-installed" && request.method === "POST") {
+				githubAppInstalled = true;
+				return json(200, { status: "ok" });
+			}
+			if (url.pathname === "/stub/unimport-repo" && request.method === "POST") {
+				const body = (await request.json().catch(() => null)) as { repo?: unknown } | null;
+				if (typeof body?.repo !== "string") return json(400, { error: "repo is required" });
+				importedRepos.delete(body.repo);
+				return json(200, { status: "ok", imported: [...importedRepos] });
+			}
+			if (url.pathname === "/stub/import-repo" && request.method === "POST") {
+				const body = (await request.json().catch(() => null)) as { repo?: unknown } | null;
+				if (typeof body?.repo !== "string") return json(400, { error: "repo is required" });
+				importedRepos.add(body.repo);
+				return json(200, { status: "ok", imported: [...importedRepos] });
+			}
+			if (url.pathname === "/stub/platform-calls" && request.method === "GET") {
+				return json(200, { calls: platformCalls });
+			}
+			// Return the double to its boot state so the next suite starts clean.
+			if (url.pathname === "/stub/reset" && request.method === "POST") {
+				failNext = false;
+				provisions = 0;
+				capacity = true;
+				provisioningOnce = false;
+				cloudRepo = true;
+				stalled = false;
+				eventReads = 0;
+				streamDown = false;
+				tunnelDown = false;
+				tunnelDownOnce = false;
+				streamOpens = 0;
+				streamResumes.length = 0;
+				rpcCalls.length = 0;
+				eventCursorReads.length = 0;
+				platformCalls.length = 0;
+				lastApproval = undefined;
+				runs.clear();
+				gateways.clear();
+				notifications = freshNotifications();
+				byokKeys = freshKeys();
+				importJobs.clear();
+				importConflictOnce = false;
+				importOutcome = "cloning";
+				githubAppInstalled = true;
+				issuesByRepo.clear();
+				commentsByIssue.clear();
+				environments.clear();
+				importedRepos.clear();
+				for (const repo of ["will/flows", "will/smithers"]) importedRepos.add(repo);
+				return json(200, { status: "ok" });
+			}
 			if (url.pathname === "/stub/relay-state" && request.method === "GET") {
 				return json(200, {
 					provisions,
 					eventReads,
+					streamOpens,
+					streamResumes: [...streamResumes],
+					rpcCalls: [...rpcCalls],
+					eventCursorReads: eventCursorReads.map((read) => ({ ...read, returned: [...read.returned] })),
+					platformCalls: [...platformCalls],
 					gateways: [...gateways.keys()],
 					runs: [...runs.values()].map((run) => ({
 						runId: run.runId,
@@ -783,6 +1652,15 @@ export const createStubGateway = (): StubHandle => {
 			/* The per-gateway relay surface. Auth is closed: bearer or 401. */
 			const relay = /^\/api\/gateways\/([^/]+)(\/.*)$/.exec(url.pathname);
 			if (relay !== null) {
+				/*
+				 * A Cloudflare tunnel failure sits in FRONT of the gateway, so it
+				 * lands before auth. Provisioning stays healthy while it is down,
+				 * which is the shape the gateway seam re-provisions out of.
+				 */
+				if (tunnelDown || tunnelDownOnce) {
+					tunnelDownOnce = false;
+					return new Response("error code: 502\n", { status: 502, headers: { "content-type": "text/plain" } });
+				}
 				const entry = gateways.get(relay[1] ?? "");
 				if (entry === undefined || request.headers.get("authorization") !== `Bearer ${entry.token}`) {
 					return json(401, { message: "invalid gateway credentials" });
@@ -791,6 +1669,7 @@ export const createStubGateway = (): StubHandle => {
 				const rpcMethod = /^\/v1\/rpc\/(.+)$/.exec(path)?.[1];
 				if (rpcMethod !== undefined && request.method === "POST") {
 					const params = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+					rpcCalls.push({ method: rpcMethod, gatewayId: relay[1] ?? "" });
 					if (rpcMethod === "submitApproval" && failNext) {
 						failNext = false;
 						return json(500, { error: "Internal", message: "stub gateway forced failure" });
@@ -801,22 +1680,41 @@ export const createStubGateway = (): StubHandle => {
 				// of streamRunEvents, envelope {ok:true, data:[…]}.
 				const events = /^\/v1\/api\/runs\/([^/]+)\/events$/.exec(path);
 				if (events !== null && request.method === "GET") {
-					const run = runs.get(decodeURIComponent(events[1] ?? ""));
+					const runId = decodeURIComponent(events[1] ?? "");
+					const run = runs.get(runId);
 					// Wave 12 §3: the count a caller reads back to prove the client's
 					// pump actually STOPPED, rather than merely repainting the card.
 					eventReads += 1;
 					const afterSeq = Number(url.searchParams.get("afterSeq") ?? "0");
-					return json(200, { ok: true, data: (run?.events ?? []).filter((row) => row.seq > afterSeq) });
+					const rows = (run?.events ?? []).filter((row) => row.seq > afterSeq);
+					eventCursorReads.push({ runId, afterSeq, returned: rows.map((row) => row.seq) });
+					return json(200, { ok: true, data: rows });
 				}
 				if (path === "/v1/api/stream" && request.method === "GET") {
-					// The change stream, with the monotonic ids Last-Event-ID resumes from.
-					return new Response(`id: 1\nevent: change\ndata: {"seq":1,"collections":["run_events"]}\n\n`, {
-						status: 200,
-						headers: {
-							"content-type": "text/event-stream; charset=utf-8",
-							"x-accel-buffering": "no",
+					if (streamDown) {
+						return new Response("error code: 502\n", { status: 502, headers: { "content-type": "text/plain" } });
+					}
+					/*
+					 * The change stream, with the monotonic ids Last-Event-ID
+					 * resumes from: each reconnect continues from the id the
+					 * previous frame carried. `retry: 500` makes a browser
+					 * reconnect twice a second instead of every three.
+					 */
+					const resume = request.headers.get("last-event-id");
+					streamResumes.push(resume);
+					streamOpens += 1;
+					const parsed = Number(resume ?? "0");
+					const next = Number.isFinite(parsed) ? parsed + 1 : 1;
+					return new Response(
+						`retry: 500\nid: ${next}\nevent: change\ndata: {"seq":${next},"collections":["run_events"]}\n\n`,
+						{
+							status: 200,
+							headers: {
+								"content-type": "text/event-stream; charset=utf-8",
+								"x-accel-buffering": "no",
+							},
 						},
-					});
+					);
 				}
 				return json(404, { status: "error", message: `gateway stub: no relay route ${path}` });
 			}
@@ -845,6 +1743,8 @@ export const createStubGateway = (): StubHandle => {
 					approved: body.decision.approved,
 				});
 			}
+			const platform = await handlePlatform(request, url);
+			if (platform !== undefined) return platform;
 			return json(404, { status: "error", message: `gateway stub: no route ${url.pathname}` });
 		},
 	});
@@ -860,11 +1760,29 @@ export const createStubGateway = (): StubHandle => {
  * ranked recommendation), the feedback log every accept/edit/dismiss lands in,
  * the admin feedback read (404-never-403 without the admin token), and a
  * /stub/degrade control that switches first-run to a degraded honest answer.
+ *
+ * It also models the 7-day dismissal window, DEFAULT OFF: worker-e2e dismisses
+ * a recommendation mid-run and then reads first-run again for the watched-set
+ * mirror, so arming it unconditionally would change what that suite sees.
  */
 export const createStubReco = (extraAllowedOrigins: ReadonlyArray<string> = []): StubHandle => {
 	let degraded = false;
 	const feedbackLog: Array<{ at: string; action: string; recommendationId: string; evidenceKey: string | null }> =
 		[];
+	/*
+	 * The dismissal window the real reco worker enforces. A dismissed
+	 * recommendation is withheld until the window passes; past it, it returns
+	 * carrying what changed, so "it came back" and "it never left" are
+	 * different observable answers. Checklist CN-17 tracks the real
+	 * DELETE /api/reco/admin/dismissals door, which does not exist yet.
+	 */
+	const SUPPRESSION_MS = 7 * 24 * 60 * 60 * 1000;
+	const dismissedAt = new Map<string, number>();
+	const watchedWrites: Array<{ at: string; selected: string[]; via: string }> = [];
+	let suppressDismissed = false;
+	/* Test clock skew, so a suite can cross the window without waiting a week. */
+	let clockSkewMs = 0;
+	const stubNow = (): number => Date.now() + clockSkewMs;
 
 	/*
 	 * Wave 10 — the watched-repos contract: the stub honors the landed
@@ -881,6 +1799,13 @@ export const createStubReco = (extraAllowedOrigins: ReadonlyArray<string> = []):
 
 	const grounded = (repos: ReadonlyArray<string>) => {
 		const considered = repos.length;
+		const primary = repos[0] ?? "will/flows";
+		const id = `review-pr:${primary}#12`;
+		const dismissed = suppressDismissed ? dismissedAt.get(id) : undefined;
+		const suppressed = dismissed !== undefined && stubNow() - dismissed < SUPPRESSION_MS;
+		// Past the window it returns, and it says what changed while it was set
+		// aside. A card that comes back unchanged is the defect this catches.
+		const returning = dismissed !== undefined && !suppressed;
 		return {
 			degraded: false,
 			cached: false,
@@ -892,13 +1817,13 @@ export const createStubReco = (extraAllowedOrigins: ReadonlyArray<string> = []):
 				openIssues: considered * 2,
 				openPullRequests: considered > 1 ? 2 : 0,
 				staleCount: considered,
-				mostActiveRepo: { name: repos[0] ?? "will/flows", pushedAt: "2026-08-07T12:00:00.000Z" },
+				mostActiveRepo: { name: primary, pushedAt: "2026-08-07T12:00:00.000Z" },
 				oldestWaiting: {
 					kind: "pr",
-					repo: repos[0] ?? "will/flows",
+					repo: primary,
 					number: 12,
 					title: "Wire the sync adapter",
-					url: `https://github.com/${repos[0] ?? "will/flows"}/pull/12`,
+					url: `https://github.com/${primary}/pull/12`,
 					updatedAt: "2026-07-28T10:00:00.000Z",
 					waitingDays: 11,
 				},
@@ -907,38 +1832,43 @@ export const createStubReco = (extraAllowedOrigins: ReadonlyArray<string> = []):
 					considered === 1 ? "" : "s"
 				}; the oldest has waited 11 days.`,
 			},
-			recommendation: {
-				id: `review-pr:${repos[0] ?? "will/flows"}#12`,
-				type: "review-pr",
-				rank: 1,
-				title: `Review "Wire the sync adapter" in ${repos[0] ?? "will/flows"}`,
-				proposes: `Open pull request #12 ("Wire the sync adapter") in ${repos[0] ?? "will/flows"} for review.`,
-				whyNow: "It is the oldest pull request waiting on you — untouched for 11 days.",
-				whatHappens:
-					"Smithers opens the diff for this pull request and walks it with you; nothing is merged or closed until you say so.",
-				subject: {
-					kind: "pr",
-					repo: repos[0] ?? "will/flows",
-					number: 12,
-					title: "Wire the sync adapter",
-					url: `https://github.com/${repos[0] ?? "will/flows"}/pull/12`,
-					updatedAt: "2026-07-28T10:00:00.000Z",
-				},
-				evidence: {
-					subjectUpdatedAt: "2026-07-28T10:00:00.000Z",
-					openIssues: considered * 2,
-					openPullRequests: considered > 1 ? 2 : 0,
-					staleCount: considered,
-					untriagedInMostActive: considered,
-					watchedCount: considered,
-				},
-				evidenceKey: "0123456789abcdef",
-				affordances: {
-					accept: { label: "Do it", command: "reco.feedback accept" },
-					edit: { label: "Edit first", command: "reco.feedback edit" },
-					dismiss: { label: "Not now", command: "reco.feedback dismiss" },
-				},
-			},
+			recommendation: suppressed
+				? null
+				: {
+					id,
+					...(returning
+						? { whatChanged: "the pull request picked up 2 new commits since you set it aside" }
+						: {}),
+					type: "review-pr",
+					rank: 1,
+					title: `Review "Wire the sync adapter" in ${primary}`,
+					proposes: `Open pull request #12 ("Wire the sync adapter") in ${primary} for review.`,
+					whyNow: "It is the oldest pull request waiting on you — untouched for 11 days.",
+					whatHappens:
+						"Smithers opens the diff for this pull request and walks it with you; nothing is merged or closed until you say so.",
+					subject: {
+						kind: "pr",
+						repo: primary,
+						number: 12,
+						title: "Wire the sync adapter",
+						url: `https://github.com/${primary}/pull/12`,
+						updatedAt: "2026-07-28T10:00:00.000Z",
+					},
+					evidence: {
+						subjectUpdatedAt: "2026-07-28T10:00:00.000Z",
+						openIssues: considered * 2,
+						openPullRequests: considered > 1 ? 2 : 0,
+						staleCount: considered,
+						untriagedInMostActive: considered,
+						watchedCount: considered,
+					},
+					evidenceKey: "0123456789abcdef",
+					affordances: {
+						accept: { label: "Do it", command: "reco.feedback accept" },
+						edit: { label: "Edit first", command: "reco.feedback edit" },
+						dismiss: { label: "Not now", command: "reco.feedback dismiss" },
+					},
+				}
 		};
 	};
 
@@ -975,6 +1905,40 @@ export const createStubReco = (extraAllowedOrigins: ReadonlyArray<string> = []):
 				return json(200, { watched });
 			}
 			if (url.pathname === "/stub/clear-selection" && request.method === "POST") {
+				watched = null;
+				return json(200, { status: "ok" });
+			}
+			if (url.pathname === "/stub/dismissal-suppression" && request.method === "POST") {
+				const body = (await request.json().catch(() => null)) as { enabled?: unknown } | null;
+				suppressDismissed = body?.enabled === true;
+				return json(200, { status: "ok", suppressDismissed });
+			}
+			// Move the double's clock forward, so a suite can cross the 7-day
+			// window without waiting for it.
+			if (url.pathname === "/stub/advance-days" && request.method === "POST") {
+				const body = (await request.json().catch(() => null)) as { days?: unknown } | null;
+				const days = typeof body?.days === "number" && Number.isFinite(body.days) ? body.days : 0;
+				clockSkewMs += days * 86_400_000;
+				return json(200, { status: "ok", clockSkewMs });
+			}
+			if (url.pathname === "/stub/clear-dismissals" && request.method === "POST") {
+				dismissedAt.clear();
+				return json(200, { status: "ok" });
+			}
+			if (url.pathname === "/stub/dismissals" && request.method === "GET") {
+				return json(200, { dismissed: [...dismissedAt].map(([id, at]) => ({ id, at })) });
+			}
+			if (url.pathname === "/stub/watched-writes" && request.method === "GET") {
+				return json(200, { writes: watchedWrites });
+			}
+			// Return the double to its boot state so the next suite starts clean.
+			if (url.pathname === "/stub/reset" && request.method === "POST") {
+				degraded = false;
+				feedbackLog.length = 0;
+				dismissedAt.clear();
+				watchedWrites.length = 0;
+				suppressDismissed = false;
+				clockSkewMs = 0;
 				watched = null;
 				return json(200, { status: "ok" });
 			}
@@ -1019,6 +1983,9 @@ export const createStubReco = (extraAllowedOrigins: ReadonlyArray<string> = []):
 						? body.via
 						: "onboarding";
 				watched = { selected: [...body.selected], selectedAt: new Date().toISOString(), via };
+				// Every accepted write, so a suite can prove a trigger wrote once
+				// and only once rather than inferring it from the final state.
+				watchedWrites.push({ at: watched.selectedAt, selected: [...watched.selected], via });
 				return json(200, { selected: watched.selected, selectedAt: watched.selectedAt, via: watched.via });
 			}
 			if (url.pathname === "/api/reco/first-run" && request.method === "GET") {
@@ -1069,6 +2036,7 @@ export const createStubReco = (extraAllowedOrigins: ReadonlyArray<string> = []):
 					recommendationId: body.recommendationId,
 					evidenceKey: typeof body.evidenceKey === "string" ? body.evidenceKey : null,
 				});
+				if (body.action === "dismiss") dismissedAt.set(body.recommendationId, stubNow());
 				return json(201, { recorded: true, action: body.action, recommendationId: body.recommendationId });
 			}
 			return json(404, { status: "error", message: `reco stub: no route ${url.pathname}` });
@@ -1088,6 +2056,8 @@ if (import.meta.main) {
 	console.log(`  --var BILLING_UPSTREAM_URL:http://127.0.0.1:${billing.port}`);
 	console.log(`  --var BILLING_AUTH_TOKEN:${STUB_BILLING_BEARER}`);
 	console.log(`  --var GATEWAY_UPSTREAM_URL:http://127.0.0.1:${gateway.port}`);
+	// The platform proxy forwards its allowlisted families here too.
+	console.log(`  --var SMITHERS_CLOUD_API_BASE_URL:http://127.0.0.1:${gateway.port}`);
 	console.log(`  --var IDENTITY_SERVICE_TOKEN:stub-service-token`);
 	console.log(`  --var GATEWAY_SESSION_USER_ID:will`);
 	console.log(`  --var RECO_UPSTREAM_URL:http://127.0.0.1:${reco.port}`);

@@ -6,6 +6,7 @@
 	"description": "Terminal chat client for the Smithers MVP app: an opentui (React) clone of apps/ui that speaks the same agent turn contract",
 	"scripts": {
 		"dev": "bun run src/index.tsx",
+		"check": "tsc --noEmit",
 		"typecheck": "tsc --noEmit",
 		"test": "bun test src",
 		"smoke": "bun run scripts/smoke.ts"

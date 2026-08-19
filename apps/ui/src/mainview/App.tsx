@@ -519,6 +519,13 @@ function App({ controller }: { readonly controller: AppController }) {
 					: undefined;
 
 	/*
+	 * The one step the auth state offers, named once because it renders twice:
+	 * inside the message that explains it, and again as the keyboard shortcut
+	 * below.
+	 */
+	const authAction = authMessage?.action;
+
+	/*
 	 * The suggestion row is DERIVED (§2a/§2f — never stored, never
 	 * fabricated): the one grounded recommendation's gold binding when a reco
 	 * card waits, else the genuinely-next state-derived step when one exists
@@ -663,51 +670,29 @@ function App({ controller }: { readonly controller: AppController }) {
 			<div className="chat-frame" data-pane={session.surface === "chat" ? undefined : session.surface}>
 				<div className="chat-column">
 					{/*
-					 * The corner chrome is chat chrome (balance, reset the conversation,
-					 * theme), so it lives with the conversation rather than floating over
-					 * the whole window. Anchored to the viewport it sat on top of an open
-					 * pane's own header and made the pane's back-to-conversation button
-					 * unclickable; anchored to the chat column it stays exactly where it
-					 * was whenever the chat is alone, and clears the pane when one is open.
+					 * The one available step, first in the focus ring.
+					 *
+					 * While auth is the conversation state this is the only thing a
+					 * visitor can do, but the message's own CTA cannot be the document's
+					 * first tab stop: it renders inside the transcript, and @smthrs/ui
+					 * wraps the transcript in a scroller viewport that carries
+					 * tabindex="0". That tabindex is the dependency's keyboard access to
+					 * a scrollable region and is not ours to delete, and moving the CTA
+					 * out of the message would take the action away from the state that
+					 * explains it. So the step renders a second time here, ahead of the
+					 * scroller, as the control one Tab reaches from the document. It is
+					 * out of flow and clipped until focused, so the page looks the same
+					 * and the shortcut appears exactly when it is the thing you are on.
 					 */}
-					<div className="corner-chrome">
-						{billing !== undefined && billing.state !== "unknown" ? (
-							<Button
-								variant="outline"
-								size="sm"
-								className="corner-balance-chip"
-								data-empty={billing.state === "empty"}
-								aria-label="Show your balance"
-								title="Show your balance"
-								onClick={() => controller.runCommand("billing.balance")}
-							>
-								{billing.state === "unavailable" ? "Balance unavailable" : `$${billing.totalUsd ?? "0"}`}
-							</Button>
-						) : null}
-						{/* The bare reset is admin-only dev tooling (§2); users get /clear. */}
-						{isAdmin ? (
-							<Button
-								variant="outline"
-								size="icon"
-								className="corner-reset-btn"
-								aria-label="Reset conversation"
-								title="Reset conversation"
-								onClick={() => controller.runCommand("reset")}
-							>
-								<RotateCcw size={14} />
-							</Button>
-						) : null}
+					{authAction !== undefined ? (
 						<Button
-							variant="outline"
-							size="icon"
-							className="corner-theme-btn"
-							aria-label="Toggle light and dark mode"
-							title="Toggle light and dark mode"
-							onClick={() => controller.runCommand("dark-mode")}
+							className="auth-shortcut"
+							data-flow={authAction.flow}
+							onClick={() => controller.runCommand(authAction.flow)}
 						>
-							{dark ? <Sun size={14} /> : <Moon size={14} />}
+							{authAction.label}
 						</Button>
-					</div>
+					) : null}
 
 					<ChatTranscript
 						className="smithers-transcript"
@@ -913,6 +898,60 @@ function App({ controller }: { readonly controller: AppController }) {
 								</div>
 							}
 						/>
+					</div>
+
+					{/*
+					 * The corner chrome is chat chrome (balance, reset the conversation,
+					 * theme), so it lives with the conversation rather than floating over
+					 * the whole window. Anchored to the viewport it sat on top of an open
+					 * pane's own header and made the pane's back-to-conversation button
+					 * unclickable; anchored to the chat column it stays exactly where it
+					 * was whenever the chat is alone, and clears the pane when one is open.
+					 *
+					 * It renders LAST because DOM order is focus order and these three
+					 * controls are chrome, not the conversation. Rendered first they put
+					 * the theme toggle ahead of the only action a signed-out visitor has.
+					 * `.corner-chrome` is absolutely positioned, so where it sits in the
+					 * column changes the tab ring and nothing else.
+					 */}
+					<div className="corner-chrome">
+						{billing !== undefined && billing.state !== "unknown" ? (
+							<Button
+								variant="outline"
+								size="sm"
+								className="corner-balance-chip"
+								data-empty={billing.state === "empty"}
+								aria-label="Show your balance"
+								title="Show your balance"
+								onClick={() => controller.runCommand("billing.balance")}
+							>
+								{billing.state === "unavailable" ? "Balance unavailable" : `$${billing.totalUsd ?? "0"}`}
+							</Button>
+						) : null}
+						{/* The bare reset is admin-only dev tooling (§2); users get /clear. */}
+						{isAdmin ? (
+							<Button
+								variant="outline"
+								size="icon"
+								className="corner-reset-btn"
+								aria-label="Reset conversation"
+								title="Reset conversation"
+								onClick={() => controller.runCommand("reset")}
+							>
+								<RotateCcw size={14} />
+							</Button>
+						) : null}
+						<Button
+							variant="outline"
+							size="icon"
+							className="corner-theme-btn"
+							data-flow="dark-mode"
+							aria-label="Toggle light and dark mode"
+							title="Toggle light and dark mode"
+							onClick={() => controller.runCommand("dark-mode")}
+						>
+							{dark ? <Sun size={14} /> : <Moon size={14} />}
+						</Button>
 					</div>
 				</div>
 

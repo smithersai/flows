@@ -1,10 +1,11 @@
 /**
- * Real-browser end-to-end proof for the runtime-context fix: drives headless Chrome
- * over the DevTools protocol against the running dev server, asks the exact prompt
- * "hey smithers what app am I in", and asserts the live streamed reply identifies
- * Smithers from the supplied runtime context (not a canned match). Then it changes
- * app state (the theme) and proves — from the sniffed /api/agent/turn request body —
- * that the NEXT turn carries a freshly derived context seeing the update.
+ * Real-browser end-to-end proof for the runtime-context seam: drives headless
+ * Chrome over the DevTools protocol against a hermetic app (built SPA +
+ * `wrangler dev` + a scripted chat double), asks the exact prompt "hey
+ * smithers what app am I in", and asserts the streamed reply identifies
+ * Smithers from the supplied runtime context. Then it changes app state (the
+ * theme) and proves — from the sniffed /api/agent/turn request body — that the
+ * NEXT turn carries a freshly derived context seeing the update.
  *
  * The state lever is the theme: it is the smallest always-available change that
  * both turns can observe, and the toggle lives in the corner chrome that is
@@ -13,139 +14,86 @@
  * scripts/web-chat-shell-e2e.ts, which proves exactly that — but the theme keeps
  * this script's assertion about freshly derived context to one variable.)
  *
+ * The model at the far end is scripted, so this costs nothing and its reply is
+ * deterministic. The double echoes the context it received back into the reply,
+ * which is what makes "the reply identified Smithers from the context" a real
+ * assertion rather than a canned match.
+ *
  * Usage: bun scripts/web-chat-context-e2e.ts [url]
  */
-export {};
+import {
+	CLEARABLE_STORAGE,
+	HERMETIC_REPLY_PREFIX,
+	connectCdp,
+	openCdpTarget,
+	startHermeticApp,
+	wait,
+} from "./e2e-harness";
 
-const APP_URL = process.argv[2] ?? "http://localhost:5173";
 const PROMPT_ONE = "hey smithers what app am I in";
 const PROMPT_TWO = "and what theme is the app using right now";
-const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const PORT = 9334;
+const WORKER_PORT = 8792;
 
-const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const app = await startHermeticApp({ workerPort: WORKER_PORT });
+const APP_URL = process.argv[2] ?? app.origin;
+
 const trace = (step: string) => console.error(`[e2e] ${step}`);
 
-const chrome = Bun.spawn(
-	[
-		CHROME,
-		"--headless=new",
-		`--remote-debugging-port=${PORT}`,
-		`--user-data-dir=${process.env.TMPDIR ?? "/tmp"}/smithers-context-e2e-profile`,
-		"--no-first-run",
-		"--no-default-browser-check",
-		"--disable-gpu",
-		"about:blank",
-	],
-	{ stdout: "ignore", stderr: "ignore" },
-);
-
-const targetWebSocket = async (): Promise<string> => {
-	for (let attempt = 0; attempt < 60; attempt += 1) {
-		try {
-			const response = await fetch(`http://127.0.0.1:${PORT}/json/new?${encodeURIComponent(APP_URL)}`, {
-				method: "PUT",
-			});
-			const target = (await response.json()) as { webSocketDebuggerUrl?: string };
-			if (target.webSocketDebuggerUrl !== undefined) return target.webSocketDebuggerUrl;
-		} catch {
-			// Chrome is still starting up.
-		}
-		await wait(250);
-	}
-	throw new Error("Chrome DevTools endpoint never became available.");
-};
-
-const socketUrl = await targetWebSocket();
-const socket = new WebSocket(socketUrl);
-await new Promise<void>((resolve, reject) => {
-	socket.addEventListener("open", () => resolve());
-	socket.addEventListener("error", () => reject(new Error("Could not open a CDP socket.")));
+const chrome = await openCdpTarget({
+	port: PORT,
+	userDataDir: `${process.env.TMPDIR ?? "/tmp"}/smithers-context-e2e-profile`,
+	url: APP_URL,
+}).catch((error: unknown) => {
+	app.stop();
+	console.error(`FAIL: ${error instanceof Error ? error.message : String(error)}`);
+	process.exit(1);
 });
+const cdp = await connectCdp(chrome.socketUrl);
 
-let nextId = 0;
-const pending = new Map<number, (result: unknown) => void>();
 /** Sniffed POST bodies to the turn boundary, in order, straight off the wire. */
 const turnBodies: string[] = [];
-socket.addEventListener("message", (event) => {
-	const message = JSON.parse(String(event.data)) as {
-		id?: number;
-		method?: string;
-		params?: { request?: { url?: string; method?: string; postData?: string } };
-		result?: unknown;
-		error?: { message: string };
-	};
-	if (message.id === undefined) {
-		if (
-			message.method === "Network.requestWillBeSent" &&
-			message.params?.request?.method === "POST" &&
-			message.params.request.url?.includes("/api/agent/turn") === true &&
-			typeof message.params.request.postData === "string"
-		) {
-			turnBodies.push(message.params.request.postData);
-		}
-		return;
+cdp.onEvent((message) => {
+	if (
+		message.method === "Network.requestWillBeSent" &&
+		message.params?.request?.method === "POST" &&
+		message.params.request.url?.includes("/api/agent/turn") === true &&
+		typeof message.params.request.postData === "string"
+	) {
+		turnBodies.push(message.params.request.postData);
 	}
-	pending.get(message.id)?.(message.error ? { cdpError: message.error.message } : message.result);
-	pending.delete(message.id);
 });
 
-const send = (method: string, params: Record<string, unknown> = {}): Promise<any> => {
-	const id = (nextId += 1);
-	return new Promise((resolve) => {
-		pending.set(id, resolve);
-		socket.send(JSON.stringify({ id, method, params }));
-	});
-};
-
-const evaluate = async (expression: string): Promise<any> => {
-	const result = await send("Runtime.evaluate", {
-		expression,
-		awaitPromise: true,
-		returnByValue: true,
-	});
-	if (result?.exceptionDetails !== undefined) {
-		throw new Error(`Page evaluation failed: ${JSON.stringify(result.exceptionDetails)}`);
-	}
-	return result?.result?.value;
-};
-
-const typeKey = async (key: string, code: string, keyCode: number, text?: string) => {
-	for (const type of ["keyDown", "keyUp"]) {
-		await send("Input.dispatchKeyEvent", {
-			type,
-			key,
-			code,
-			windowsVirtualKeyCode: keyCode,
-			nativeVirtualKeyCode: keyCode,
-			...(type === "keyDown" && text !== undefined ? { text } : {}),
-		});
-	}
+const done = (code: number): never => {
+	cdp.close();
+	chrome.kill();
+	app.stop();
+	process.exit(code);
 };
 
 const fail = async (reason: string): Promise<never> => {
-	const html = await evaluate("document.body.innerText").catch(() => "<unavailable>");
+	const html = await cdp.evaluate("document.body.innerText").catch(() => "<unavailable>");
 	console.error(`FAIL: ${reason}\n---- page text ----\n${html}`);
-	socket.close();
-	chrome.kill();
-	process.exit(1);
+	return done(1);
 };
 
 const typePrompt = async (prompt: string) => {
 	// Boot-time async loads (session, reco) can remount the composer; wait it out.
 	for (let attempt = 0; attempt < 40; attempt += 1) {
-		const mounted = await evaluate(
-			"(() => { const t = document.querySelector('textarea'); if (t === null) return false; t.focus(); t.select(); return true; })()",
-		).catch(() => false);
+		const mounted = await cdp
+			.evaluate(
+				"(() => { const t = document.querySelector('textarea'); if (t === null) return false; t.focus(); t.select(); return true; })()",
+			)
+			.catch(() => false);
 		if (mounted === true) break;
 		await wait(250);
 	}
 	for (const character of prompt) {
-		await typeKey(character, `Key${character.toUpperCase()}`, character.charCodeAt(0), character);
+		await cdp.typeKey(character, `Key${character.toUpperCase()}`, character.charCodeAt(0), character);
 	}
-	const typed = await evaluate("document.querySelector('textarea')?.value ?? ''");
+	const typed = await cdp.evaluate("document.querySelector('textarea')?.value ?? ''");
 	if (typed !== prompt) await fail(`The composer did not receive the prompt (saw ${JSON.stringify(typed)}).`);
-	await typeKey("Enter", "Enter", 13);
+	await cdp.typeKey("Enter", "Enter", 13);
 };
 
 /*
@@ -155,10 +103,14 @@ const typePrompt = async (prompt: string) => {
  * the chrome alone while the model was still mid-stream — a false green. A bubble
  * is still streaming while it carries its status marker, so this also waits for a
  * genuinely finished answer instead of guessing from a label's wording.
+ *
+ * The bubbles are selected by `data-role`, which is what @smthrs/ui's ChatMessage
+ * actually emits. This used to filter on a `.message-author` child; nothing has
+ * rendered that class since the bubble moved into @smthrs/ui, so `count` was
+ * always 0 and every wait here timed out.
  */
 const ASSISTANT_STATE = `(() => {
-	const bubbles = [...document.querySelectorAll('.smithers-chat-message')]
-		.filter((node) => node.querySelector('.message-author') !== null);
+	const bubbles = [...document.querySelectorAll('.smithers-chat-message[data-role="assistant"]')];
 	const last = bubbles[bubbles.length - 1];
 	const markdown = last === undefined ? null : last.querySelector('.message-markdown');
 	return JSON.stringify({
@@ -177,7 +129,26 @@ interface AssistantState {
 }
 
 const assistantState = async (): Promise<AssistantState> =>
-	JSON.parse(String(await evaluate(ASSISTANT_STATE))) as AssistantState;
+	JSON.parse(String(await cdp.evaluate(ASSISTANT_STATE))) as AssistantState;
+
+/*
+ * The boot-time reco digest lands as an assistant bubble a second or two after
+ * the composer mounts, so a baseline taken at mount time is a baseline taken
+ * before the app finished talking: turn 1 then "completed" on the digest and
+ * the run failed on prose it never asked for. Wait for the count to stop
+ * moving before baselining.
+ */
+const settleAssistantBubbles = async (): Promise<number> => {
+	let previous = -1;
+	let stable = 0;
+	for (let attempt = 0; attempt < 40 && stable < 3; attempt += 1) {
+		const { count } = await assistantState();
+		stable = count === previous ? stable + 1 : 0;
+		previous = count;
+		await wait(800);
+	}
+	return previous;
+};
 
 /** Waits for a NEW completed assistant bubble past `baseline` and returns only its text. */
 const awaitReply = async (baseline: number): Promise<AssistantState> => {
@@ -190,24 +161,29 @@ const awaitReply = async (baseline: number): Promise<AssistantState> => {
 	return state;
 };
 
-await send("Page.enable");
-await send("Runtime.enable");
-await send("Network.enable");
+await cdp.send("Page.enable");
+await cdp.send("Runtime.enable");
+await cdp.send("Network.enable");
+await cdp.send("Network.setExtraHTTPHeaders", { headers: { cookie: app.cookie } });
 trace("cdp ready");
-await send("Storage.clearDataForOrigin", { origin: new URL(APP_URL).origin, storageTypes: "all" });
-await send("Page.navigate", { url: APP_URL });
+await cdp.send("Storage.clearDataForOrigin", {
+	origin: new URL(APP_URL).origin,
+	storageTypes: CLEARABLE_STORAGE,
+});
+await cdp.send("Page.navigate", { url: APP_URL });
 trace("navigated");
 
 let ready = false;
 for (let attempt = 0; attempt < 80 && !ready; attempt += 1) {
-	ready = (await evaluate("document.querySelector('textarea') !== null").catch(() => false)) === true;
+	ready = (await cdp.evaluate("document.querySelector('textarea') !== null").catch(() => false)) === true;
 	if (!ready) await wait(250);
 }
 if (!ready) await fail("The composer textarea never mounted.");
 trace("composer mounted");
 
 // ---- Turn 1: the exact prompt; the reply must identify Smithers. ----
-const baselineOne = (await assistantState()).count;
+const baselineOne = await settleAssistantBubbles();
+trace(`assistant bubbles settled at ${baselineOne} before turn 1`);
 await typePrompt(PROMPT_ONE);
 trace("prompt 1 sent");
 const stateOne = await awaitReply(baselineOne);
@@ -217,7 +193,7 @@ if (stateOne.count <= baselineOne || stateOne.streaming) {
 	await fail(`Turn 1 never produced a completed assistant reply (status: ${stateOne.note || "none"}).`);
 }
 
-const pageText: string = await evaluate("document.body.innerText");
+const pageText: string = await cdp.evaluate("document.body.innerText");
 const errorMarkers = [
 	"Could not reach the Smithers web agent",
 	"Smithers web agent failed",
@@ -230,6 +206,9 @@ if (marker !== undefined) await fail(`The page rendered an error state: ${marker
 if (replyOne.trim().length < 20) await fail("No streamed Smithers reply appeared after the prompt.");
 if (!/smithers/i.test(replyOne)) {
 	await fail(`The reply did not identify Smithers from the runtime context: ${replyOne.trim().slice(0, 300)}`);
+}
+if (!replyOne.includes(HERMETIC_REPLY_PREFIX)) {
+	await fail(`Turn 1's reply did not come from the scripted double: ${replyOne.trim().slice(0, 300)}`);
 }
 if (/cannot see the host environment|can't see the host environment|don't have access to (the|your) host/i.test(replyOne)) {
 	await fail(`The reply pleaded ignorance of the host environment: ${replyOne.trim().slice(0, 300)}`);
@@ -251,13 +230,18 @@ const firstTheme = (firstBody.context as { theme?: string }).theme;
 if (firstTheme !== "light" && firstTheme !== "dark") {
 	await fail(`Turn 1's context carried no theme (saw ${JSON.stringify(firstTheme)}).`);
 }
-const clicked = await evaluate(
-	"(() => { const b = document.querySelector('button[aria-label=\"Toggle theme\"]'); if (b === null) return false; b.click(); return true; })()",
+/*
+ * The corner theme control. Its accessible name is "Toggle light and dark
+ * mode" (App.tsx); it was "Toggle theme" when this script was written, and a
+ * stale aria-label here read as "the toggle is gone" rather than as a rename.
+ */
+const clicked = await cdp.evaluate(
+	"(() => { const b = document.querySelector('button[aria-label=\"Toggle light and dark mode\"]'); if (b === null) return false; b.click(); return true; })()",
 );
 if (clicked !== true) await fail("The theme toggle button was not found.");
 trace("theme toggled");
 await wait(500);
-const domTheme = await evaluate("document.documentElement.dataset.theme ?? ''");
+const domTheme = await cdp.evaluate("document.documentElement.dataset.theme ?? ''");
 if (domTheme === firstTheme) await fail(`The theme did not actually change (still ${domTheme}).`);
 
 const baselineTwo = stateOne.count;
@@ -282,8 +266,17 @@ if (secondBody.context?.theme !== domTheme) {
 if ((secondBody.context?.revision ?? 0) <= (firstBody.context as { revision?: number }).revision!) {
 	await fail("Turn 2's context was not freshly derived (revision did not advance).");
 }
+/*
+ * The double reads the theme back off the COMPOSED instructions the Worker
+ * built, so a matching echo proves the change survived the whole path — client
+ * context → Worker composition → upstream — not just the client half the
+ * sniffed body shows.
+ */
+if (!replyTwo.includes(`in ${domTheme} mode`)) {
+	await fail(`Turn 2's composed instructions did not carry the new theme: ${replyTwo.trim().slice(0, 300)}`);
+}
 
-const screenshot = await send("Page.captureScreenshot", { format: "png" });
+const screenshot = await cdp.send("Page.captureScreenshot", { format: "png" });
 if (typeof screenshot?.data === "string") {
 	await Bun.write("/tmp/smithers-context-e2e.png", Buffer.from(screenshot.data, "base64"));
 }
@@ -296,6 +289,4 @@ console.log(replyOne.trim().slice(0, 500));
 console.log("---- reply 2 ----");
 console.log(replyTwo.trim().slice(0, 500));
 
-socket.close();
-chrome.kill();
-process.exit(0);
+done(0);

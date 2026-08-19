@@ -3,11 +3,12 @@
  * Connectors are embedded panes inside the persistent chat, not full-screen
  * takeovers that replace it.
  *
- * Drives headless Chrome over the DevTools protocol against the running dev
- * server and, using real clicks on the real affordances:
+ * Drives headless Chrome over the DevTools protocol against a hermetic app
+ * (built SPA + `wrangler dev` + a scripted chat double, so no model spend) and,
+ * using real clicks on the real affordances:
  *
  *  1. sends a message, so there is conversation state with something to lose,
- *  2. clicks Connect — the composer and transcript must still be visible, and
+ *  2. opens Connectors — the composer and transcript must still be visible, and
  *     the transcript and composer DOM nodes must be the SAME nodes (a takeover
  *     that re-rendered an identical transcript would look fine in a screenshot
  *     and still have thrown away scroll, focus, and in-flight editor state),
@@ -21,134 +22,66 @@
  *
  * Usage: bun scripts/web-chat-shell-e2e.ts [url]
  */
-export {};
+import { CLEARABLE_STORAGE, connectCdp, openCdpTarget, startHermeticApp, wait } from "./e2e-harness";
 
-const APP_URL = process.argv[2] ?? "http://localhost:5173";
 const MESSAGE = "remember this message across every pane";
 const DRAFT = "a half-written thought";
-const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const PORT = 9335;
+const WORKER_PORT = 8794;
 const SHOTS = new URL("../reports/chat-shell/", import.meta.url).pathname;
 
-const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const app = await startHermeticApp({ workerPort: WORKER_PORT });
+const APP_URL = process.argv[2] ?? app.origin;
+
 const trace = (step: string) => console.error(`[shell-e2e] ${step}`);
 
-const chrome = Bun.spawn(
-	[
-		CHROME,
-		"--headless=new",
-		`--remote-debugging-port=${PORT}`,
-		`--user-data-dir=${process.env.TMPDIR ?? "/tmp"}/smithers-shell-e2e-profile`,
-		"--no-first-run",
-		"--no-default-browser-check",
-		"--disable-gpu",
-		"--window-size=1400,900",
-		"about:blank",
-	],
-	{ stdout: "ignore", stderr: "ignore" },
-);
-
-const targetWebSocket = async (): Promise<string> => {
-	for (let attempt = 0; attempt < 60; attempt += 1) {
-		try {
-			const response = await fetch(`http://127.0.0.1:${PORT}/json/new?${encodeURIComponent(APP_URL)}`, {
-				method: "PUT",
-			});
-			const target = (await response.json()) as { webSocketDebuggerUrl?: string };
-			if (target.webSocketDebuggerUrl !== undefined) return target.webSocketDebuggerUrl;
-		} catch {
-			// Chrome is still starting up.
-		}
-		await wait(250);
-	}
-	throw new Error("Chrome DevTools endpoint never became available.");
-};
-
-const socketUrl = await targetWebSocket();
-const socket = new WebSocket(socketUrl);
-await new Promise<void>((resolve, reject) => {
-	socket.addEventListener("open", () => resolve());
-	socket.addEventListener("error", () => reject(new Error("Could not open a CDP socket.")));
+const chrome = await openCdpTarget({
+	port: PORT,
+	userDataDir: `${process.env.TMPDIR ?? "/tmp"}/smithers-shell-e2e-profile`,
+	url: APP_URL,
+	extraArgs: ["--window-size=1400,900"],
+}).catch((error: unknown) => {
+	app.stop();
+	console.error(`FAIL: ${error instanceof Error ? error.message : String(error)}`);
+	process.exit(1);
 });
-
-let nextId = 0;
-const pending = new Map<number, (result: unknown) => void>();
-socket.addEventListener("message", (event) => {
-	const message = JSON.parse(String(event.data)) as {
-		id?: number;
-		result?: unknown;
-		error?: { message: string };
-	};
-	if (message.id === undefined) return;
-	pending.get(message.id)?.(message.error ? { cdpError: message.error.message } : message.result);
-	pending.delete(message.id);
-});
-
-const send = (method: string, params: Record<string, unknown> = {}): Promise<any> => {
-	const id = (nextId += 1);
-	return new Promise((resolve) => {
-		pending.set(id, resolve);
-		socket.send(JSON.stringify({ id, method, params }));
-	});
-};
-
-const evaluate = async (expression: string): Promise<any> => {
-	const result = await send("Runtime.evaluate", {
-		expression,
-		awaitPromise: true,
-		returnByValue: true,
-	});
-	if (result?.exceptionDetails !== undefined) {
-		throw new Error(`Page evaluation failed: ${JSON.stringify(result.exceptionDetails)}`);
-	}
-	return result?.result?.value;
-};
-
-const typeKey = async (key: string, code: string, keyCode: number, text?: string) => {
-	for (const type of ["keyDown", "keyUp"]) {
-		await send("Input.dispatchKeyEvent", {
-			type,
-			key,
-			code,
-			windowsVirtualKeyCode: keyCode,
-			nativeVirtualKeyCode: keyCode,
-			...(type === "keyDown" && text !== undefined ? { text } : {}),
-		});
-	}
-};
-
-const typeText = async (text: string) => {
-	for (const character of text) {
-		await typeKey(character, `Key${character.toUpperCase()}`, character.toUpperCase().charCodeAt(0), character);
-		await wait(6);
-	}
-};
+const cdp = await connectCdp(chrome.socketUrl);
 
 const shot = async (name: string): Promise<void> => {
-	const result = await send("Page.captureScreenshot", { format: "png" });
+	const result = await cdp.send("Page.captureScreenshot", { format: "png" });
 	const data = result?.data;
 	if (typeof data !== "string") return;
 	await Bun.write(`${SHOTS}${name}.png`, Buffer.from(data, "base64"));
 };
 
-const fail = async (reason: string): Promise<never> => {
-	await shot("FAIL").catch(() => {});
-	const text = await evaluate("document.body.innerText").catch(() => "<unavailable>");
-	console.error(`FAIL: ${reason}\n---- page text ----\n${text}`);
-	socket.close();
+const done = (code: number): never => {
+	cdp.close();
 	chrome.kill();
-	process.exit(1);
+	app.stop();
+	process.exit(code);
 };
 
-await send("Page.enable");
-await send("Runtime.enable");
-await send("Storage.clearDataForOrigin", { origin: new URL(APP_URL).origin, storageTypes: "all" });
-await send("Page.navigate", { url: APP_URL });
+const fail = async (reason: string): Promise<never> => {
+	await shot("FAIL").catch(() => {});
+	const text = await cdp.evaluate("document.body.innerText").catch(() => "<unavailable>");
+	console.error(`FAIL: ${reason}\n---- page text ----\n${text}`);
+	return done(1);
+};
+
+await cdp.send("Page.enable");
+await cdp.send("Runtime.enable");
+await cdp.send("Network.enable");
+await cdp.send("Network.setExtraHTTPHeaders", { headers: { cookie: app.cookie } });
+await cdp.send("Storage.clearDataForOrigin", {
+	origin: new URL(APP_URL).origin,
+	storageTypes: CLEARABLE_STORAGE,
+});
+await cdp.send("Page.navigate", { url: APP_URL });
 
 trace("waiting for the composer to mount");
 let ready = false;
 for (let attempt = 0; attempt < 80 && !ready; attempt += 1) {
-	ready = (await evaluate("document.querySelector('textarea') !== null").catch(() => false)) === true;
+	ready = (await cdp.evaluate("document.querySelector('textarea') !== null").catch(() => false)) === true;
 	if (!ready) await wait(250);
 }
 if (!ready) await fail("The composer never mounted.");
@@ -205,7 +138,7 @@ const PROBE = `
     pane: frame ? (frame.dataset.pane ?? 'none') : 'no-frame',
     paneClass: pane ? pane.className : null,
     paneVisible: visible(pane),
-    closeCommand: pane ? (pane.querySelector('[data-command]')?.dataset.command ?? null) : null,
+    closeFlow: pane ? (pane.querySelector('[data-flow]')?.dataset.flow ?? null) : null,
     // "Clear close affordance" is a hit-test question, not a markup question:
     // a button covered by the fixed corner chrome is in the DOM, passes every
     // node assertion, and still cannot be clicked by a person.
@@ -226,14 +159,14 @@ const PROBE = `
     transcriptOverflowsX: transcript ? transcript.scrollWidth > transcript.clientWidth + 1 : false,
     draft: textarea ? textarea.value : null,
     transcriptText: transcript ? transcript.innerText : '',
-    registry: (document.querySelector('.app-shell')?.dataset.commands ?? '').split(' '),
+    registry: (document.querySelector('.app-shell')?.dataset.flows ?? '').split(' '),
   };
 })()`;
 
-const probe = async (): Promise<any> => await evaluate(PROBE);
+const probe = async (): Promise<any> => await cdp.evaluate(PROBE);
 
-const clickCommand = async (selector: string): Promise<void> => {
-	const clicked = await evaluate(`
+const clickFlow = async (selector: string): Promise<void> => {
+	const clicked = await cdp.evaluate(`
     (() => {
       const node = document.querySelector(${JSON.stringify(selector)});
       if (!node) return false;
@@ -244,13 +177,26 @@ const clickCommand = async (selector: string): Promise<void> => {
 	await wait(350);
 };
 
+/*
+ * §2c′: the surface buttons collapsed into ONE dropdown beside the composer.
+ * `.composer-actions [data-flow="connect"]` still resolves — but to the
+ * repository-connections trigger, which opens a different menu and never opens
+ * the Connectors pane. Open the surfaces menu and invoke its entry, exactly as
+ * src/mainview/state/ChatShell.test.tsx does.
+ */
+const SURFACES_LIST = '.composer-menu-list[aria-label="Surfaces"]';
+const openSurface = async (flow: "connect" | "world"): Promise<void> => {
+	await clickFlow(".composer-menu-trigger");
+	await clickFlow(`${SURFACES_LIST} .composer-menu-item[data-flow="${flow}"]`);
+};
+
 // ---------------------------------------------------------------------------
 // 1. Send a message, and leave a draft in the composer behind it.
 // ---------------------------------------------------------------------------
 trace("sending a message");
-await evaluate("document.querySelector('textarea').focus()");
-await typeText(MESSAGE);
-await typeKey("Enter", "Enter", 13);
+await cdp.evaluate("document.querySelector('textarea').focus()");
+await cdp.typeText(MESSAGE);
+await cdp.typeKey("Enter", "Enter", 13);
 await wait(1200);
 
 let state = await probe();
@@ -260,13 +206,13 @@ if (!state.transcriptText.includes(MESSAGE)) {
 console.log(`ok: the message is in the transcript.`);
 
 trace("leaving a draft in the composer");
-await evaluate("document.querySelector('textarea').focus()");
-await typeText(DRAFT);
+await cdp.evaluate("document.querySelector('textarea').focus()");
+await cdp.typeText(DRAFT);
 await wait(250);
 state = await probe();
 if (state.draft !== DRAFT) await fail(`The draft did not land in the composer: ${JSON.stringify(state.draft)}`);
 
-await evaluate(STAMP);
+await cdp.evaluate(STAMP);
 await shot("1-chat");
 
 const requireShell = async (label: string, expectedPane: string): Promise<any> => {
@@ -288,13 +234,13 @@ const requireShell = async (label: string, expectedPane: string): Promise<any> =
 		if (current.paneVisible) problems.push("a pane is still on screen after closing it");
 	} else {
 		if (!current.paneVisible) problems.push("the pane did not open");
-		if (current.closeCommand !== "chat") {
-			problems.push(`the pane's close affordance names ${current.closeCommand}, not the chat command`);
+		if (current.closeFlow !== "chat") {
+			problems.push(`the pane's close affordance names ${current.closeFlow}, not the chat flow`);
 		}
 		if ((current.headerButtonsCovered ?? []).length > 0) {
 			problems.push(`pane chrome is covered and unclickable: ${current.headerButtonsCovered.join(", ")}`);
 		}
-		if (!current.registry.includes("chat")) problems.push("`chat` is not in the live command registry");
+		if (!current.registry.includes("chat")) problems.push("`chat` is not in the live flow registry");
 	}
 	if (problems.length > 0) await fail(`${label}: ${problems.join("; ")}`);
 	console.log(
@@ -307,10 +253,10 @@ const requireShell = async (label: string, expectedPane: string): Promise<any> =
 await requireShell("chat only", "none");
 
 // ---------------------------------------------------------------------------
-// 2-3. Connectors: open from its real button, close from the pane's affordance.
+// 2-3. Connectors: open from its real menu entry, close from the pane's affordance.
 // ---------------------------------------------------------------------------
 trace("opening Connectors");
-await clickCommand('.composer-actions [data-command="connect"]');
+await openSurface("connect");
 const connectors = await requireShell("Connectors open", "connectors");
 if (!String(connectors.paneClass).includes("connectors-surface")) {
 	await fail(`The Connectors pane is not the connectors surface: ${connectors.paneClass}`);
@@ -318,7 +264,7 @@ if (!String(connectors.paneClass).includes("connectors-surface")) {
 await shot("2-connectors-open");
 
 trace("closing Connectors from the pane's back-to-conversation affordance");
-await clickCommand('.embedded-pane [data-command="chat"]');
+await clickFlow('.embedded-pane [data-flow="chat"]');
 await requireShell("Connectors closed", "none");
 await shot("3-connectors-closed");
 
@@ -326,7 +272,7 @@ await shot("3-connectors-closed");
 // 4. World: same round trip.
 // ---------------------------------------------------------------------------
 trace("opening World");
-await clickCommand('.composer-actions [data-command="world"]');
+await openSurface("world");
 const world = await requireShell("World open", "world");
 if (!String(world.paneClass).includes("world-surface")) {
 	await fail(`The World pane is not the world surface: ${world.paneClass}`);
@@ -334,7 +280,7 @@ if (!String(world.paneClass).includes("world-surface")) {
 await shot("4-world-open");
 
 trace("closing World");
-await clickCommand('.embedded-pane [data-command="chat"]');
+await clickFlow('.embedded-pane [data-flow="chat"]');
 const final = await requireShell("World closed", "none");
 await shot("5-world-closed");
 
@@ -345,8 +291,8 @@ if (!final.transcriptText.includes(MESSAGE)) {
 	await fail("The conversation did not survive the pane round trip.");
 }
 trace("proving the composer still sends after the round trip");
-await evaluate("document.querySelector('textarea').focus()");
-await typeKey("Enter", "Enter", 13);
+await cdp.evaluate("document.querySelector('textarea').focus()");
+await cdp.typeKey("Enter", "Enter", 13);
 await wait(1200);
 const sent = await probe();
 if (!sent.transcriptText.includes(DRAFT)) {
@@ -364,24 +310,24 @@ console.log("ok: the draft left before the panes sent as a real turn afterwards.
 //    a takeover, because 58% of a 700px window leaves no readable chat.
 // ---------------------------------------------------------------------------
 trace("re-checking the contract on a narrow window");
-await evaluate(`document.querySelector('textarea').value; true`);
-await send("Emulation.setDeviceMetricsOverride", {
+await cdp.evaluate(`document.querySelector('textarea').value; true`);
+await cdp.send("Emulation.setDeviceMetricsOverride", {
 	width: 700,
 	height: 900,
 	deviceScaleFactor: 1,
 	mobile: false,
 });
 await wait(400);
-await evaluate("document.querySelector('textarea').focus()");
-await typeText(DRAFT);
+await cdp.evaluate("document.querySelector('textarea').focus()");
+await cdp.typeText(DRAFT);
 await wait(250);
-await evaluate(STAMP);
+await cdp.evaluate(STAMP);
 
-for (const [command, label] of [
+for (const [flow, label] of [
 	["connect", "Connectors"],
 	["world", "World"],
 ] as const) {
-	await clickCommand(`.composer-actions [data-command="${command}"]`);
+	await openSurface(flow);
 	const narrow = await probe();
 	const problems: Array<string> = [];
 	if (!narrow.transcriptVisible) problems.push("the transcript is not visible");
@@ -396,14 +342,12 @@ for (const [command, label] of [
 	console.log(
 		`ok: ${label} on a 700px window — pane ${narrow.paneBox?.w}x${narrow.paneBox?.h} stacks under a live ${narrow.transcriptBox?.w}x${narrow.transcriptBox?.h} conversation.`,
 	);
-	await shot(`7-narrow-${command}`);
-	await clickCommand('.embedded-pane [data-command="chat"]');
+	await shot(`7-narrow-${flow}`);
+	await clickFlow('.embedded-pane [data-flow="chat"]');
 }
-await send("Emulation.clearDeviceMetricsOverride");
+await cdp.send("Emulation.clearDeviceMetricsOverride");
 
 console.log(`ok: screenshots written to ${SHOTS}`);
 console.log("PASS: World and Connectors open as embedded panes; the chat is never replaced.");
 
-socket.close();
-chrome.kill();
-process.exit(0);
+done(0);

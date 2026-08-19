@@ -12,6 +12,7 @@
 		}
 	},
 	"scripts": {
+		"check": "tsc --noEmit",
 		"typecheck": "tsc --noEmit",
 		"test": "bun test src"
 	},

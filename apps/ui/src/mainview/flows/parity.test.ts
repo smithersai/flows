@@ -131,7 +131,8 @@ describe("launch-law parity: every affordance is a command", () => {
 				.filter(([, count]) => count > 0),
 		);
 		expect(counts).toEqual({
-			"../App.tsx": 25,
+			/* 26 = 25 + the auth shortcut, the signed-out step's first-tab-stop copy. */
+			"../App.tsx": 26,
 			"../ConnectorsSurface.tsx": 5,
 			"../ChatCards.tsx": 23,
 			"../DevtoolsPanel.tsx": 1,

@@ -9,6 +9,12 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { createCollection, createTransaction } from "@tanstack/react-db";
 import type { Transaction } from "@tanstack/react-db";
 import {
+	APP_SCHEMA_VERSION,
+	enforceSchemaVersion,
+	readRecordedBackend,
+	recordBackend,
+} from "../chain/SchemaVersion";
+import {
 	BillingAccountSchema,
 	CardSchema,
 	ChainEventRecordSchema,
@@ -50,7 +56,6 @@ import type {
 } from "./AppState";
 
 const SESSION_ID = "main";
-const APP_SCHEMA_VERSION = 9;
 
 /** The stable ids the reco seam's first-run surfaces reuse, so a boot refresh upserts instead of duplicating. */
 export const RECO_DIGEST_MESSAGE_ID = "message-reco-digest";
@@ -84,7 +89,44 @@ const transitionPayload = (transition: AppTransition): string => {
 	return JSON.stringify(payload);
 };
 
-export type PersistenceMode = "opfs" | "localStorage";
+type ApprovalCard = Extract<Card, { kind: "approval" }>;
+
+/**
+ * The gate an approval card asks about — the thing a decision decides.
+ *
+ * A workflow gate is the run's node at an iteration; the ask's wording is not
+ * part of it, so restating the same gate in different words is still the same
+ * decision. A chain park has no node: the runtime reuses one card id per
+ * lineage, and what changes between parks is the capability being asked for, so
+ * that is the gate's identity there.
+ */
+const approvalGateKey = (card: ApprovalCard): string => {
+	const { runId = "", nodeId, iteration = 0, chain, flow = "", capability } = card.payload;
+	return nodeId === undefined
+		? `ask:${runId}:${chain === true}:${flow}:${capability}`
+		: `gate:${runId}:${nodeId}:${iteration}`;
+};
+
+/**
+ * The card, when it carries a decision a human already made.
+ *
+ * A recorded decision — not the "acted" status — is what freezes an approval.
+ * The status is a generic terminal marker any card kind uses and a streamed
+ * frame can set; the decision is the human's authorisation, and it is the thing
+ * that must never be given twice. `AppController.runAwaitsApproval` reads the
+ * same field to decide whether a run is still parked on a human.
+ */
+const decidedApproval = (card: Card | undefined): ApprovalCard | undefined =>
+	card !== undefined && card.kind === "approval" && card.payload.decision !== undefined
+		? card
+		: undefined;
+
+/**
+ * Which store the running app is reading. "memory" is the degraded launch: the
+ * store that holds the user's data could not be opened, so nothing is read and
+ * nothing is written over it.
+ */
+export type PersistenceMode = "opfs" | "localStorage" | "memory";
 
 export type PersistenceBackend =
 	| {
@@ -96,26 +138,181 @@ export type PersistenceBackend =
 			readonly storage?: StorageApi;
 	  };
 
-const resolvePersistenceBackend = async (): Promise<PersistenceBackend> => {
+interface ResolvedPersistence {
+	readonly backend: PersistenceBackend;
+	readonly mode: PersistenceMode;
+	/** True when the store holding the user's data could not be opened. */
+	readonly degraded: boolean;
+}
+
+const OPFS_DATABASE_NAME = "smithers-mvp.sqlite";
+/** Attempts spent waiting out a locked access-handle pool. See `openOpfsDatabase`. */
+const OPFS_OPEN_ATTEMPTS = 5;
+/** The whole OPFS open, retries included. A store that never answers must not hang boot. */
+const OPFS_OPEN_BUDGET_MS = 4_000;
+
+const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** A localStorage-shaped store that lives only as long as this document. */
+const memoryStorage = (): StorageApi => {
+	const data = new Map<string, string>();
+	return {
+		getItem: (key) => data.get(key) ?? null,
+		setItem: (key, value) => void data.set(key, value),
+		removeItem: (key) => void data.delete(key),
+	};
+};
+
+/*
+ * Where the boot stamps live. Always window.localStorage, whichever backend
+ * holds the data: it is the one store that is synchronous and readable before
+ * anything else is open. A browser with storage disabled throws on the property
+ * itself, so the read is guarded.
+ */
+const bootRecordStorage = (): StorageApi | undefined => {
 	try {
-		const database = await openBrowserWASQLiteOPFSDatabase({
-			databaseName: "smithers-mvp.sqlite",
-		});
-		return {
-			kind: "opfs",
-			persistence: createBrowserWASQLitePersistence({
-				database,
-				schemaMismatchPolicy: "reset",
+		return typeof window === "undefined" ? undefined : window.localStorage;
+	} catch {
+		return undefined;
+	}
+};
+
+/*
+ * Stamping the backend is bookkeeping, not the boot. A storage that refuses the
+ * write (a full or blocked localStorage) costs the next launch its shortcut; it
+ * must never cost this one its start.
+ */
+const stampBackend = (storage: StorageApi, backend: "opfs" | "localStorage"): void => {
+	try {
+		recordBackend(storage, backend);
+	} catch (error) {
+		console.warn("Smithers: could not record which store holds this app's data.", error);
+	}
+};
+
+/*
+ * Open the OPFS database, retrying while the access-handle pool is still held.
+ *
+ * A reload overlaps two documents: the outgoing one still owns wa-sqlite's
+ * access handles when the incoming one asks for them, so the first open throws
+ * for a database that is present and healthy. Retrying turns that race into a
+ * short wait. Callers pass one attempt when nothing is known to live in OPFS,
+ * so a browser without OPFS at all still boots without paying the backoff.
+ */
+const openOpfsDatabase = async (attempts: number) => {
+	let failure: unknown = new Error("OPFS was never attempted");
+	for (let attempt = 0; attempt < attempts; attempt += 1) {
+		if (attempt > 0) await wait(100 * 2 ** (attempt - 1));
+		try {
+			return await openBrowserWASQLiteOPFSDatabase({ databaseName: OPFS_DATABASE_NAME });
+		} catch (error) {
+			failure = error;
+		}
+	}
+	throw failure;
+};
+
+/*
+ * The same open under a wall-clock budget. A worker that neither answers nor
+ * fails would otherwise leave the app on a splash screen forever. A database
+ * that arrives after the budget is closed rather than abandoned, so it does not
+ * sit on the access handles the next launch needs.
+ */
+const openOpfsDatabaseWithinBudget = async (attempts: number) => {
+	const open = openOpfsDatabase(attempts);
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	let won = false;
+	try {
+		const database = await Promise.race([
+			open,
+			new Promise<never>((_resolve, reject) => {
+				timer = setTimeout(
+					() => reject(new Error(`OPFS did not open within ${OPFS_OPEN_BUDGET_MS}ms`)),
+					OPFS_OPEN_BUDGET_MS,
+				);
 			}),
+		]);
+		won = true;
+		return database;
+	} finally {
+		if (timer !== undefined) clearTimeout(timer);
+		if (!won) void open.then((database) => database.close?.()).catch(() => {});
+	}
+};
+
+/*
+ * Choose the store this launch reads, and honour the choice the last launch
+ * made (E3.6).
+ *
+ * The two backends cannot be merged, so "try OPFS, fall back on any error" is
+ * not a fallback at all: the launch after a fallback opens the other store,
+ * finds it empty, and the user's whole transcript is gone with no message. The
+ * recorded backend is therefore authoritative.
+ *
+ * A recorded OPFS store that will not open is the one case with no good answer.
+ * Reading localStorage instead would present a stale store as the current
+ * conversation, and writing into it would fork the history; refusing to boot
+ * would strand the user completely. This launch runs on a memory store instead:
+ * the app starts, the real store is untouched and returns on the next launch,
+ * and `persistenceDegraded` plus a console error say so rather than passing the
+ * empty surface off as a fresh start.
+ */
+const resolvePersistence = async (): Promise<ResolvedPersistence> => {
+	const record = bootRecordStorage();
+	const recorded = record === undefined ? null : readRecordedBackend(record);
+	if (recorded === "localStorage") {
+		return {
+			backend: { kind: "localStorage", storage: record },
+			mode: "localStorage",
+			degraded: false,
+		};
+	}
+	try {
+		const database = await openOpfsDatabaseWithinBudget(recorded === "opfs" ? OPFS_OPEN_ATTEMPTS : 1);
+		if (record !== undefined) stampBackend(record, "opfs");
+		return {
+			backend: {
+				kind: "opfs",
+				persistence: createBrowserWASQLitePersistence({
+					database,
+					schemaMismatchPolicy: "reset",
+				}),
+			},
+			mode: "opfs",
+			degraded: false,
 		};
 	} catch (error) {
+		if (recorded === "opfs") {
+			console.error(
+				"Smithers: this app's data lives in OPFS SQLite and that store could not be opened, so this session starts empty and saves nothing. The conversation is still on disk and comes back once the store opens again.",
+				error,
+			);
+			return { backend: { kind: "localStorage", storage: memoryStorage() }, mode: "memory", degraded: true };
+		}
+		if (record === undefined) {
+			console.error(
+				"Smithers: neither OPFS SQLite nor localStorage is available in this browser context, so this session saves nothing.",
+				error,
+			);
+			return { backend: { kind: "localStorage", storage: memoryStorage() }, mode: "memory", degraded: true };
+		}
 		console.warn(
 			"Smithers: OPFS SQLite persistence is unavailable in this browser context; falling back to localStorage persistence.",
 			error,
 		);
-		return { kind: "localStorage" };
+		stampBackend(record, "localStorage");
+		return { backend: { kind: "localStorage", storage: record }, mode: "localStorage", degraded: false };
 	}
 };
+
+/*
+ * The storage object a localStorage-backed store actually reads, so the schema
+ * gate runs over the same bytes the collections do. TanStack resolves an
+ * omitted `storage` to window.localStorage, then to its own in-memory store;
+ * the last case has nothing persisted to gate.
+ */
+const localStorageOf = (backend: PersistenceBackend): StorageApi | undefined =>
+	backend.kind !== "localStorage" ? undefined : (backend.storage ?? bootRecordStorage());
 
 interface CollectionSpec<TSchema extends StandardSchemaV1> {
 	readonly id: string;
@@ -182,6 +379,12 @@ export interface AppStore {
 	readonly collections: AppCollections;
 	readonly dispatch: (transition: AppTransition) => Transaction;
 	readonly persistenceMode: PersistenceMode;
+	/**
+	 * True when the store holding this user's data could not be opened, so the
+	 * session runs on memory and saves nothing. A surface that shows a
+	 * conversation must say this rather than render the empty one as current.
+	 */
+	readonly persistenceDegraded: boolean;
 	readonly session: () => Session;
 	readonly worldStateSnapshot: () => WorldStateSnapshot;
 	readonly agentContextSnapshot: () => AgentContextSnapshot;
@@ -354,7 +557,19 @@ const nextOrdinal = (messages: AppCollections["messages"]): number => {
 export const createAppStore = async (
 	backend?: PersistenceBackend,
 ): Promise<AppStore> => {
-	const resolvedBackend = backend ?? (await resolvePersistenceBackend());
+	const resolved: ResolvedPersistence =
+		backend === undefined
+			? await resolvePersistence()
+			: { backend, mode: backend.kind, degraded: false };
+	const resolvedBackend = resolved.backend;
+	/*
+	 * E14.2: the localStorage backend gets the version gate the OPFS backend
+	 * gets from `schemaMismatchPolicy`. It runs here, before the first
+	 * collection exists, because a collection reads its rows out of storage as
+	 * soon as it is preloaded and TanStack never validates them.
+	 */
+	const persistedLocally = localStorageOf(resolvedBackend);
+	if (persistedLocally !== undefined) enforceSchemaVersion(persistedLocally);
 	const collections: AppCollections = {
 		sessions: createSessionCollection(resolvedBackend),
 		messages: createMessageCollection(resolvedBackend),
@@ -999,6 +1214,25 @@ export const createAppStore = async (
 
 				case "card.upsert": {
 					const existing = collections.cards.get(transition.card.id);
+					/*
+					 * A decided approval owns its id. An approval is a human
+					 * authorising an action, so a frame from the model's own
+					 * stream must never be able to un-decide one — and a frame
+					 * that replaced the card with some other kind would launder
+					 * the freeze away, so nothing but a new gate displaces it.
+					 *
+					 * The freeze is per-decision, not per-card: the chain runtime
+					 * reuses `chain-approval-<lineage>` for every park on a
+					 * lineage, so freezing the id would swallow the NEXT ask and
+					 * strand the run with no gate on screen. A frame naming a
+					 * different gate is a different question, and it replaces the
+					 * answered one.
+					 */
+					const decided = decidedApproval(existing);
+					if (decided !== undefined) {
+						const incoming = transition.card.kind === "approval" ? transition.card : undefined;
+						if (incoming === undefined || approvalGateKey(incoming) === approvalGateKey(decided)) return;
+					}
 					if (existing === undefined) {
 						collections.cards.insert(transition.card);
 					} else {
@@ -1014,6 +1248,9 @@ export const createAppStore = async (
 
 				case "card.updated":
 					if (collections.cards.get(transition.id) === undefined) return;
+					// A patch carries no gate of its own, so the only thing it can
+					// do to a decided approval is reopen the one already answered.
+					if (decidedApproval(collections.cards.get(transition.id)) !== undefined) return;
 					collections.cards.update(transition.id, (draft) => {
 						Object.assign(draft, transition.patch);
 					});
@@ -1456,5 +1693,42 @@ export const createAppStore = async (
 		await dispatch({ type: "toast.dismissed", actor: "system", id: key }).isPersisted.promise;
 	}
 
-	return { collections, dispatch, persistenceMode: resolvedBackend.kind, session, worldStateSnapshot, agentContextSnapshot };
+	/*
+	 * A degraded launch runs on a memory store: the transcript is empty and
+	 * nothing typed in this session will survive it. Refusing to read or
+	 * overwrite the recorded store is the right call, but the person looking at
+	 * the empty surface has to be told why, or an honest recovery reads as
+	 * silent data loss. The failure toast is the one notice that stays until
+	 * dismissed, which is what this state needs — it is true for the whole
+	 * session, not for 300ms.
+	 *
+	 * Raised after the stale-toast sweep above so it is not swept with them.
+	 */
+	if (resolved.degraded) {
+		await dispatch({
+			type: "toast.shown",
+			actor: "system",
+			key: "store.degraded",
+			title: "This session will not be saved",
+		}).isPersisted.promise;
+		await dispatch({
+			type: "toast.resolved",
+			actor: "system",
+			key: "store.degraded",
+			status: "failed",
+			title: "This session will not be saved",
+			detail:
+				"The saved conversation could not be opened, so this session is running in memory. Nothing typed now will be kept. The saved conversation is untouched and returns on the next launch.",
+		}).isPersisted.promise;
+	}
+
+	return {
+		collections,
+		dispatch,
+		persistenceMode: resolved.mode,
+		persistenceDegraded: resolved.degraded,
+		session,
+		worldStateSnapshot,
+		agentContextSnapshot,
+	};
 };

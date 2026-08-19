@@ -110,12 +110,40 @@ shape (`generatedAt`, `target`, `totals`, `rows[]`). Exit code is `1` if any
 row's status is `fail`, `0` otherwise (a dry run, or a run made entirely of
 `not-testable-yet`/`pass` rows, never fails the command).
 
+## The browser e2e scripts
+
+Four scripts drive a real headless Chrome over the DevTools protocol. Three of
+them are **hermetic**: `e2e-harness.ts` builds the SPA, boots `wrangler dev`
+with every seam pointed at a test double in `stub-backends.ts`, mints a
+signed-in allowlisted session, and answers the repo chooser, so the run needs no
+credential, no deployment, and no model spend. Each costs one vite build plus
+one wrangler boot, roughly a minute before the first assertion.
+
+| Script | Cost | What it proves |
+| --- | --- | --- |
+| `web-chat-hermetic-e2e.ts` | free | One prompt streams a scripted NDJSON reply through the Worker, and the hidden runtime context reaches the model without leaking into the transcript. |
+| `web-chat-context-e2e.ts` | free | The reply is derived from the runtime context, and a state change (the theme) reaches the NEXT turn on the wire and in the composed instructions. |
+| `web-chat-shell-e2e.ts` | free | World and Connectors open as embedded panes; the transcript and composer DOM nodes survive every transition, on a 1400px and a 700px window. |
+| `web-chat-e2e.ts` | **real model spend** | The same first-prompt journey against a real model. Boots the vite dev server if nothing answers the target. Never in CI — run it by hand or as a canary. |
+
+`web-chat-hermetic-e2e.ts` and `web-chat-e2e.ts` are the two halves of one
+split (I-7). The live half asserts "some genuine streamed prose arrived", which
+needs a credential and metered dollars, so it can never gate a pull request.
+The hermetic half asserts the same path with a scripted model at the far end,
+plus the two things a live reply cannot check: that the Worker composed the
+context into `instructions`, and that the reply echoes it back.
+
+None of them hardcodes a browser path any more. The binary resolves through
+`findBrowser` (`--browser`-equivalent `$CHECKLIST_BROWSER`, else the seven usual
+install locations, including `/usr/bin/google-chrome` for a CI runner), the same
+discovery the launch checklist uses.
+
 ## Other scripts
 
-- `stub-backends.ts` — test doubles for identity/billing/gateway, used by `test:e2e:worker`.
-- `web-chat-e2e.ts`, `web-chat-context-e2e.ts`, `web-chat-shell-e2e.ts` — `bun test:e2e:web*`.
+- `e2e-harness.ts` — shared boot for the browser e2e scripts: the scripted chat double, the hermetic app, the CDP target, and the pinned wrangler specifier.
+- `stub-backends.ts` — test doubles for identity/billing/gateway/reco, used by `test:e2e:worker` and by `e2e-harness.ts`.
 - `worker-e2e.ts` — `bun test:e2e:worker`, drives the product Worker against the stub backends.
-- `live-check.ts`, `live-signed-in-check.ts`, `live-workflow-check.ts`, `canary-seam-probe.ts`, `launch-seam-probe.ts` — browser-driven and HTTP live checks against a real deployment (see each file's header comment for invocation and required env/profile).
+- `live-check.ts`, `live-signed-in-check.ts`, `live-workflow-check.ts`, `canary-seam-probe.ts`, `launch-seam-probe.ts` — browser-driven and HTTP live checks against a real deployment (see each file's header comment for invocation and required env/profile). `live-check.ts local` is the exception: it boots its own stub identity and `wrangler dev` and needs no deployment.
 - `live-store-reset.ts` — shared helper: clears a page's persisted store (OPFS/localStorage) over CDP, keeping cookies.
 - `launch-mint-session.ts` — mints a Playwright storage-state file for the live checks.
 
@@ -134,6 +162,15 @@ The reset is admin-gated. A checklist session that is not an admin gets a
 did before — so read A-8 and A-9's evidence before believing either one.
 The reco worker keeps its append-only feedback log through a reset: what was
 lifted is the suppression, not the record that it happened.
+
+### A leftover `wrangler dev` outlives an interrupted run
+
+`Bun.spawn(["bun", "x", "wrangler", ...]).kill()` signals the `bun x` wrapper,
+not the `workerd` it started, so a script killed by a timeout can leave the port
+bound. The next run then boots "successfully" against the dead stack and every
+row fails for a reason that has nothing to do with the product. `live-check.ts
+local` and `e2e-harness.ts` both refuse to start when their port already
+answers; if that is what you get, `pkill -f "wrangler dev --ip 127.0.0.1"`.
 
 ### Two browser drivers, on purpose
 
@@ -154,3 +191,37 @@ Everything under `scripts/` is covered by `pnpm --filter smithers-ui run
 typecheck`. It was not until 2026-08-18, which is how the foreign-path
 `require` and nine assertions against a card kind that no longer exists
 (`workflow-run`, renamed to `flow-run`) both survived in here.
+
+### What the typecheck still cannot see
+
+A selector is a string inside a CDP expression or a Playwright locator, so
+`tsc` has nothing to check it against. The 2026-08-15 `command` → `flow` rename
+therefore left 17 selectors across four scripts still naming the pre-rename
+attribute, matching nothing at all, for three days, while the suites reported
+the same numbers they always had. (The dead attribute name is deliberately not
+spelled here: a `grep -rc` over this directory is the cheapest gate against the
+next one, and it should read zero.) The same rename also moved the run card's
+kind from `workflow-run` to `flow-run` and the slash form from
+`/workflow.create` to `/flow.create`.
+
+Four more selectors here were dead for the same silent reason and are worth
+knowing about, because they are the shapes to look for next time:
+
+- The Approve/Deny buttons and the composer's Stop button come from
+  `@smthrs/ui`, which names them `[data-decision]` and `.sui-chat-composer-stop`.
+  They carry no `data-flow`, so no rename of the flow behind them can ever be
+  visible in the DOM.
+- `.message-author` stopped rendering when the chat bubble moved into
+  `@smthrs/ui`; it survives only in two CSS rules. A filter on it matched zero
+  bubbles, so `web-chat-context-e2e.ts` waited 90 seconds and then failed on a
+  count of 0.
+- The theme toggle's accessible name is "Toggle light and dark mode", not
+  "Toggle theme".
+- World and Connectors moved behind the composer's surfaces dropdown (§2c′).
+  `.composer-actions [data-flow="connect"]` still resolves — to the repository-
+  connections trigger, which opens a different menu — so a blind rename of that
+  selector would have looked right and measured the wrong button.
+
+When a script's selector goes stale, grep `apps/ui/src` for the affordance the
+script MEANS before renaming the string. A wrong `data-flow` name is the same
+defect in a new coat.

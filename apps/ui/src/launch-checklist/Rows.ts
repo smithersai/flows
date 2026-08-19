@@ -18,6 +18,7 @@ import {
 	FAKE_SUCCESS_COPY,
 	FIRST_MESSAGE_BUDGET_MS,
 	fetchInPage,
+	hasSmithersMessage,
 	HONEST_REFUSAL_COPY,
 	INTRO_GRANT_LINE,
 	RATING_COPY,
@@ -93,9 +94,6 @@ const liftDismissals = async (ctx: ProbeContext): Promise<string> => {
 	return `dismissals reset for ${login} (${typeof cleared === "number" ? cleared : "unknown"} lifted)`;
 };
 const zeroBalancePage = (ctx: ProbeContext): Promise<ProbePage> => ctx.page(ctx.env[ZERO_BALANCE_COOKIE]);
-
-/** A Smithers message has arrived when the transcript grew past the composer-only shell. */
-const hasSmithersMessage = (text: string): boolean => text.trim().length > 80;
 
 const seam = (page: ProbePage, path: string): Promise<SeamAnswer> => page.evaluate<SeamAnswer>(fetchInPage(path));
 

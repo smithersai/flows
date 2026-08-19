@@ -89,7 +89,7 @@ function fail(reason: string): never {
 // ~8s so a server-side kill can land mid-flight; /stub/arm-default resets.
 let chatMode: "default" | "tool-loop" | "tool-loop-repos" | "tool-loop-workflow-lie" | "slow" = "default";
 /*
- * Wave 12 §1: the EXACT turn canary produced — a workflow.create tool call
+ * Wave 12 §1: the EXACT turn canary produced — a flow.create tool call
  * followed by prose claiming the workflow "has been created and is now
  * running", with an invented name. Replaying it through the real client is the
  * truth test: the rendered turn must not carry the lie.
@@ -167,7 +167,7 @@ const chatUpstream = Bun.serve({
 								name: "commands",
 								arguments: JSON.stringify({
 									action: "execute",
-									name: "workflow.create",
+									name: "flow.create",
 									args: "a workflow that summarizes my open issues will/flows",
 								}),
 							},
@@ -1082,11 +1082,20 @@ console.log(
 const degrade = await fetch(`http://127.0.0.1:${reco.port}/stub/degrade`, { method: "POST" });
 if (degrade.status !== 200) fail("the stub degrade control failed.");
 const degradedRun = await fetch(`${WORKER_ORIGIN}/api/reco/first-run`, { headers: { cookie } });
-const degradedBody = (await degradedRun.json()) as { degraded?: boolean; honestMessage?: string };
+const degradedBody = (await degradedRun.json()) as {
+	degraded?: boolean;
+	honestMessage?: string;
+	digest?: unknown;
+	recommendation?: unknown;
+};
 if (degradedBody.degraded !== true || typeof degradedBody.honestMessage !== "string") {
 	fail(`the degraded first-run answer did not pass through honestly: ${JSON.stringify(degradedBody)}.`);
 }
-console.log("ok: degraded reco answers render the honestMessage, never a fake digest.");
+// "Never a fake digest" is half the claim: assert the absence, not just the message.
+if (degradedBody.digest !== undefined || degradedBody.recommendation !== undefined) {
+	fail(`the degraded answer carried a digest anyway: ${JSON.stringify(degradedBody)}.`);
+}
+console.log("ok: degraded reco answers carry the honestMessage and no digest, never a fake one.");
 
 /* ---- Wave 6c (B-3): the kill surfaces in the real client store ---- */
 
@@ -1272,6 +1281,18 @@ try {
 		createWebAgent({ baseUrl: WORKER_ORIGIN }),
 		{ baseUrl: WORKER_ORIGIN },
 	);
+	/*
+	 * The browser boots the session before the user can type; so does every
+	 * other client-driven block here. The chooser lists the USER'S
+	 * repositories, so openRepoChooser refuses without a signed-in identity in
+	 * the store (AppController.openRepoChooserImpl) — an unloaded session made
+	 * the agent's invocation answer "sign in first" and open nothing.
+	 */
+	await agentController.loadSession();
+	// The chooser must be the AGENT's doing: onboarding may not have opened it.
+	if (agentStore.collections.cards.get("repo-chooser") !== undefined) {
+		fail("the chooser card was already open before the agent invoked repos.watch.");
+	}
 	agentController.send("watch my smithers repo too");
 	let opened = false;
 	for (let attempt = 0; attempt < 100; attempt += 1) {
@@ -1338,6 +1359,22 @@ console.log(
 // what mirrors the watched set into the client, so restore the healthy answer.
 const undegrade = await fetch(`http://127.0.0.1:${reco.port}/stub/undegrade`, { method: "POST" });
 if (undegrade.status !== 200) fail("the stub undegrade control failed.");
+/*
+ * The balance section above drained the account to $0, and D-4 pauses run
+ * launches at $0 — the honest refusal, not a defect. Every launch below is a
+ * proof about the workflow seam, not about billing, so the account is refilled
+ * first. The double answers how many accounts it touched: a refill that
+ * reached nothing would leave the section proving billing again.
+ */
+const refill = await fetch(`http://127.0.0.1:${billing.port}/stub/refill`, {
+	method: "POST",
+	headers: { "content-type": "application/json" },
+	body: JSON.stringify({ totalUsd: "500" }),
+});
+const refillBody = (await refill.json()) as { refilled?: number };
+if (refill.status !== 200 || (refillBody.refilled ?? 0) < 1) {
+	fail(`the stub refill control reached no account: HTTP ${refill.status} ${JSON.stringify(refillBody)}.`);
+}
 globalThis.fetch = (async (input: unknown, init?: RequestInit) => {
 	const base = typeof input === "string" || input instanceof URL ? new Request(input, init) : (input as Request);
 	return originalFetchForTools(withSessionCookie(base));
@@ -1359,12 +1396,12 @@ try {
 	 * choice — the chooser-among-watched renders embedded and nothing is
 	 * provisioned on a guess. One act answers it and the create resumes.
 	 */
-	const asked = await wfController.commands.run("workflow.create", "a workflow that summarizes my open issues");
+	const asked = await wfController.commands.run("flow.create", "a workflow that summarizes my open issues");
 	// A question is an honest answer, not a launch: the command says what it
 	// needs (the wave-10 chooser convention) and the card carries the choice.
 	const askedLine = outcomeLine(asked);
 	if (!askedLine.includes("choose the one this workflow belongs to")) {
-		fail(`workflow.create did not ask which watched repo: ${JSON.stringify(asked)}.`);
+		fail(`flow.create did not ask which watched repo: ${JSON.stringify(asked)}.`);
 	}
 	const askCard = wfStore.collections.cards.get("workflow-repo");
 	if (askCard?.kind !== "workflow-repo" || askCard.payload.repos.length < 2) {
@@ -1377,9 +1414,9 @@ try {
 	if (beforeAsk !== 0) fail("the which-repo question launched something on a guess.");
 	const chosenRepo = askCard.kind === "workflow-repo" ? (askCard.payload.repos[0] ?? "") : "";
 
-	const created = await wfController.commands.run("workflow.repo.choose", chosenRepo);
+	const created = await wfController.commands.run("flow.repo.choose", chosenRepo);
 	if (created.status !== "executed") {
-		fail(`workflow.repo.choose did not execute: ${JSON.stringify(created)}.`);
+		fail(`flow.repo.choose did not execute: ${JSON.stringify(created)}.`);
 	}
 	// §1: the tool result is a MINIMAL machine acknowledgment, not a paragraph
 	// of warnings the model can round up from.
@@ -1403,7 +1440,7 @@ try {
 		fail(`create-workflow's input was not the user's description: ${JSON.stringify(relayBody.runs[0]?.input)}.`);
 	}
 	const runId = relayBody.runs[0]?.runId ?? "";
-	const runCardId = `workflow-run-${runId}`;
+	const runCardId = `flow-run-${runId}`;
 
 	// THE EMBED LAW: a card in the transcript, and the surface never moved.
 	const launched = wfStore.collections.cards.get(runCardId);
@@ -1464,14 +1501,14 @@ try {
 		fail(`the approval did not reach the gateway for this run: ${JSON.stringify(lastApprovalBody)}.`);
 	}
 
-	// workflow.list presents the workspace's workflows as an embedded card.
-	const listed = await wfController.commands.run("workflow.list");
-	if (listed.status !== "executed") fail(`workflow.list did not execute: ${JSON.stringify(listed)}.`);
+	// flow.list presents the workspace's workflows as an embedded card.
+	const listed = await wfController.commands.run("flow.list");
+	if (listed.status !== "executed") fail(`flow.list did not execute: ${JSON.stringify(listed)}.`);
 	const listCard = [...wfStore.collections.cards.values()].find((card) => card.kind === "workflow-list");
 	if (listCard?.kind !== "workflow-list" || !listCard.payload.workflows.some((entry) => entry.key === "create-workflow")) {
-		fail("workflow.list did not render the workspace's workflows as an embedded card.");
+		fail("flow.list did not render the workspace's workflows as an embedded card.");
 	}
-	if (wfStore.session().surface !== "chat") fail("workflow.list moved the surface.");
+	if (wfStore.session().surface !== "chat") fail("flow.list moved the surface.");
 
 	// A gateway token must never have reached this browser client. The client
 	// only ever talks to /api/workflow/*; the Worker holds the credential.
@@ -1481,6 +1518,14 @@ try {
 		body: JSON.stringify({ repo: "will/flows" }),
 	});
 	const provisionText = await provisionProbe.text();
+	/*
+	 * A refused probe carries no credential either, so the leak check below
+	 * only means something once the route has actually answered a provision.
+	 */
+	const provisionProbeBody = JSON.parse(provisionText) as { status?: string };
+	if (provisionProbe.status !== 200 || provisionProbeBody.status !== "ready") {
+		fail(`the provision probe never answered a provision: HTTP ${provisionProbe.status} ${provisionText}.`);
+	}
 	if (provisionText.includes("smithers_gateway") || provisionText.includes("smithers_pat")) {
 		fail("the provision answer leaked a credential to the browser.");
 	}
@@ -1531,7 +1576,7 @@ try {
 	if (noCloudRepo.status !== 200 || noCloudRepoBody.status !== "no-cloud-repo") {
 		fail(`a repo with no Cloud counterpart was not its own state: ${JSON.stringify(noCloudRepoBody)}.`);
 	}
-	const noCloudSaid = await wfController.commands.run("workflow.create", "summarize my issues will/smithers");
+	const noCloudSaid = await wfController.commands.run("flow.create", "summarize my issues will/smithers");
 	const noCloudLine = outcomeLine(noCloudSaid);
 	if (!noCloudLine.includes("isn't on Smithers Cloud yet")) {
 		fail(`the client did not state the no-Cloud-repo case honestly: ${JSON.stringify(noCloudLine)}.`);
@@ -1554,12 +1599,12 @@ try {
 	});
 	await quietController.loadSession();
 	await quietController.loadFirstRunReco();
-	const stalledLaunch = await quietController.commands.run("workflow.run", `wave4-relay-proof ${chosenRepo}`);
+	const stalledLaunch = await quietController.commands.run("flow.run", `wave4-relay-proof ${chosenRepo}`);
 	if (stalledLaunch.status !== "executed") {
 		fail(`the stalled run did not launch: ${JSON.stringify(stalledLaunch)}.`);
 	}
 	const stalledRunId = /run=(\S+)/.exec(stalledLaunch.status === "executed" ? (stalledLaunch.value ?? "") : "")?.[1] ?? "";
-	const quietCardId = `workflow-run-${stalledRunId}`;
+	const quietCardId = `flow-run-${stalledRunId}`;
 	let wentQuiet = false;
 	for (let attempt = 0; attempt < 120; attempt += 1) {
 		const card = quietStore.collections.cards.get(quietCardId);
@@ -1593,15 +1638,15 @@ try {
 		);
 	}
 	// The two acts are registered commands: check again, or stop watching.
-	const retried = await quietController.commands.run("workflow.run.retry", quietCardId);
-	if (retried.status !== "executed") fail(`workflow.run.retry did not execute: ${JSON.stringify(retried)}.`);
+	const retried = await quietController.commands.run("flow.run.retry", quietCardId);
+	if (retried.status !== "executed") fail(`flow.run.retry did not execute: ${JSON.stringify(retried)}.`);
 	// "Check again" really re-reads the workspace — otherwise it is a label.
 	await wait(500);
 	if ((await relayReads()) <= readsAfterQuiet) {
-		fail("workflow.run.retry did not actually check the run again.");
+		fail("flow.run.retry did not actually check the run again.");
 	}
-	const stopped = await quietController.commands.run("workflow.run.stop", quietCardId);
-	if (stopped.status !== "executed") fail(`workflow.run.stop did not execute: ${JSON.stringify(stopped)}.`);
+	const stopped = await quietController.commands.run("flow.run.stop", quietCardId);
+	if (stopped.status !== "executed") fail(`flow.run.stop did not execute: ${JSON.stringify(stopped)}.`);
 	await wait(300);
 	const stoppedCard = quietStore.collections.cards.get(quietCardId);
 	if (stoppedCard?.kind !== "flow-run" || stoppedCard.payload.phase !== "stopped") {
@@ -1630,7 +1675,7 @@ try {
 	/*
 	 * Wave 12 §1, the truth test: the EXACT wave-11 canary turn replayed
 	 * through the real client against the real Worker. The model calls
-	 * workflow.create and then claims the workflow "has been created and is now
+	 * flow.create and then claims the workflow "has been created and is now
 	 * running". The RENDERED turn must not carry that, whatever the model said.
 	 */
 	const armLie = await fetch(`http://127.0.0.1:${chatUpstream.port}/stub/arm-tool-loop-workflow-lie`, {
@@ -1681,7 +1726,7 @@ console.log(
 	"ok: wave-12 truth — the replayed wave-11 canary turn renders the deterministic line, never 'has been created'; the which-repo question is asked among watched repos and answered in one act; a run the workspace never finishes goes honestly quiet with stop/retry; and a watched repo with no Cloud counterpart states that in its own words.",
 );
 console.log(
-	"ok: wave-11 workflows in the conversation — provision-or-resume (idempotent, token server-side only), create-workflow launched with the user's words, the EMBEDDED run card tracked the run live in words, the approval round-tripped through the per-user gateway, auto-resume completed it and the card led with the result, workflow.list embedded, and the no_capacity / no-cloud-identity taxonomy surfaced honestly without a retry loop.",
+	"ok: wave-11 workflows in the conversation — provision-or-resume (idempotent, token server-side only), create-workflow launched with the user's words, the EMBEDDED run card tracked the run live in words, the approval round-tripped through the per-user gateway, auto-resume completed it and the card led with the result, flow.list embedded, and the no_capacity / no-cloud-identity taxonomy surfaced honestly without a retry loop.",
 );
 
 await stopWorker();

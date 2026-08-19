@@ -11,12 +11,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Keep this check in lockstep with release.yml: actionlint catches
-      # GitHub-only expression-context errors before either workflow runs.
+      # actionlint catches GitHub-only expression-context errors before any
+      # workflow runs. Every file in .github/workflows/ is named here, and
+      # apps/server/scripts/canary/workflow-wiring.test.ts fails when one is
+      # missing: an unlinted workflow is a workflow whose expression errors
+      # surface at 03:00 on a schedule instead of in review.
       - name: Validate GitHub Actions workflows
         uses: docker://rhysd/actionlint:1.7.11
         with:
-          args: .github/workflows/ci.yml .github/workflows/release.yml .github/workflows/apps-deploy.yml
+          args: .github/workflows/ci.yml .github/workflows/release.yml .github/workflows/apps-deploy.yml .github/workflows/canary.yml
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v4
         with:
@@ -92,6 +95,79 @@ jobs:
         run: |
           node scripts/pack-release.mjs "$PACK_DIR"
           node scripts/smoke-release.mjs "$PACK_DIR"
+
+  # Issue I-1: the apps' end-to-end suites. Before this job the tree's only
+  # e2e coverage ran on one laptop by hand — `pnpm test` resolves to
+  # `bun test src` per workspace, which is unit only.
+  #
+  # This is a separate job, not a step of `test`, on purpose. It boots
+  # wrangler dev and a real Chrome, so folding it into the unit gate would put
+  # minutes of browser work in front of every push for no added signal.
+  apps-e2e:
+    name: apps e2e (worker + browser)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.19.0
+          cache: pnpm
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      # No jj here. The `test` job installs jj and colocates the checkout for
+      # packages/jj and packages/time-travel; nothing under apps/ imports
+      # @smthrs/jj or spawns the binary, so both steps would only cost time.
+      #
+      # No Chrome install step either: the ubuntu-latest image ships Google
+      # Chrome stable at /usr/bin/google-chrome, which BROWSER_CANDIDATES in
+      # apps/ui/src/launch-checklist/BrowserLaunch.ts already probes. Assert
+      # it rather than assume it, so an image change fails here with a
+      # readable message instead of inside a CDP connect timeout.
+      - name: Assert the runner ships a browser findBrowser can discover
+        run: |
+          if [ ! -x /usr/bin/google-chrome ]; then
+            echo "/usr/bin/google-chrome is missing from this runner image." >&2
+            echo "findBrowser only probes BROWSER_CANDIDATES" >&2
+            echo "(apps/ui/src/launch-checklist/BrowserLaunch.ts). Install Chrome" >&2
+            echo "at one of those paths, or set CHECKLIST_BROWSER on this job." >&2
+            exit 1
+          fi
+          /usr/bin/google-chrome --version
+      # Hermetic: builds the SPA, boots `wrangler dev` against
+      # scripts/stub-backends.ts twice, and asserts 26 named outcomes. workerd
+      # runs locally, so no Cloudflare credential is involved and no model
+      # spend happens.
+      - name: Worker e2e
+        run: pnpm --filter smithers-ui run test:e2e:worker
+      - name: Browser e2e
+        run: pnpm --filter smithers-ui run test:e2e
+      # Screenshots land in /tmp and launch-checklist reports under
+      # apps/reports; collect both into one directory so the upload has a
+      # single root.
+      #
+      # Both steps run unconditionally, and deliberately carry no `if:`.
+      # packages/flows/test/vitestCoverageIsolation.test.ts (issue #176) pins
+      # `expect(ci).not.toMatch(/^\s*if:/m)` — no step condition anywhere in
+      # this file — so that nobody has to adjudicate in review which
+      # conditions are load-bearing. `|| true` on each copy and
+      # `if-no-files-found: ignore` on the upload give the same result on a
+      # green run: an empty collection and no artifact. Do not "fix" this by
+      # adding `if: failure()`; it will fail that pin.
+      - name: Collect e2e artifacts
+        run: |
+          mkdir -p "$RUNNER_TEMP/e2e-artifacts"
+          cp /tmp/smithers-*.png "$RUNNER_TEMP/e2e-artifacts/" 2>/dev/null || true
+          cp -R apps/reports "$RUNNER_TEMP/e2e-artifacts/reports" 2>/dev/null || true
+      - name: Upload e2e artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: apps-e2e-artifacts
+          path: ${{ runner.temp }}/e2e-artifacts
+          if-no-files-found: ignore
 
   # rust-toolchain.toml pins the toolchain for the two Rust jobs; a bare
   # `rustup toolchain install` reads it, so the pin cannot drift from what CI

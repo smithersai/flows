@@ -343,6 +343,32 @@
 }
 
 /*
+ * The signed-out (or not-yet-allowlisted) shortcut: the first tab stop in the
+ * document, and invisible until it is focused.
+ *
+ * Out of flow, so the chat column lays out exactly as it did before this
+ * element existed. `clip-path: inset(50%)` paints nothing while it is not
+ * focused, which keeps the default render identical, and unlike `display:none`
+ * or `visibility:hidden` it leaves the button in the tab ring and in the
+ * accessibility tree, which is the point. Pointer events are off in that state,
+ * so no invisible target sits over the transcript.
+ */
+.app-shell .auth-shortcut {
+	position: absolute;
+	z-index: 60;
+	top: 12px;
+	left: 14px;
+	clip-path: inset(50%);
+	pointer-events: none;
+}
+
+.app-shell .auth-shortcut:focus,
+.app-shell .auth-shortcut:focus-visible {
+	clip-path: none;
+	pointer-events: auto;
+}
+
+/*
  * Anchored to the chat column, not the viewport: with the chat alone the column
  * is the window, so this is the same top-right corner it has always been, and
  * with a pane open it stops overlapping the pane's own header (which owns the

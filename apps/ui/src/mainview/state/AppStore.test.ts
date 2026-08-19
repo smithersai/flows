@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import type { StorageApi } from "@tanstack/db";
+import type { Card } from "./AppState";
 import { createAppStore } from "./AppStore";
+import type { AppStore } from "./AppStore";
 
 /** Each test gets its own storage so cases never observe another case's writes. */
 const memoryStorage = (): StorageApi => {
@@ -118,5 +120,149 @@ describe("createAppStore with the localStorage fallback backend", () => {
 		const orphaned = second.collections.messages.get("message-turn-silent-smithers");
 		expect(orphaned?.status).toBe("interrupted");
 		expect(orphaned?.text).toBe("That turn was interrupted when the app closed.");
+	});
+});
+
+/*
+ * An approval is a human authorising an action. Once they have answered, no
+ * later frame may put the question back — a reopened card can be decided a
+ * second time, and the second decision is one the human never gave.
+ */
+describe("a decided approval card", () => {
+	const GATE: Card = {
+		id: "approval-run-1-approve-0",
+		kind: "approval",
+		title: "Approve the production deploy",
+		status: "active",
+		createdAt: 1_700_000_000_000,
+		ordinal: 1,
+		payload: {
+			capability: "deploy:production",
+			detail: "Deploy the canary Worker.",
+			runId: "run-1",
+			nodeId: "approve",
+			iteration: 0,
+		},
+	};
+
+	const approvalOf = (store: AppStore, id: string): Extract<Card, { kind: "approval" }> => {
+		const card = store.collections.cards.get(id);
+		if (card === undefined || card.kind !== "approval") {
+			throw new Error(`no approval card at ${id} (saw ${card?.kind ?? "nothing"})`);
+		}
+		return card;
+	};
+
+	const decided = async (card: Card = GATE): Promise<AppStore> => {
+		const store = await createAppStore({ kind: "localStorage", storage: memoryStorage() });
+		await store.dispatch({ type: "card.upsert", actor: "smithers", card }).isPersisted.promise;
+		await store.dispatch({
+			type: "card.approval.decided",
+			actor: "user",
+			id: card.id,
+			decision: "approved",
+			decidedAt: 1_700_000_060_000,
+		}).isPersisted.promise;
+		return store;
+	};
+
+	test("is not reopened by a card.updated patch", async () => {
+		const store = await decided();
+		await store.dispatch({
+			type: "card.updated",
+			actor: "smithers",
+			id: GATE.id,
+			patch: { status: "active" },
+		}).isPersisted.promise;
+		const card = approvalOf(store, GATE.id);
+		expect(card.status).toBe("acted");
+		expect(card.payload.decision).toBe("approved");
+		expect(card.payload.decidedAt).toBe(1_700_000_060_000);
+	});
+
+	test("is not reopened by re-upserting the same gate", async () => {
+		const store = await decided();
+		await store.dispatch({
+			type: "card.upsert",
+			actor: "smithers",
+			card: { ...GATE, status: "active" },
+		}).isPersisted.promise;
+		const card = approvalOf(store, GATE.id);
+		expect(card.status).toBe("acted");
+		expect(card.payload.decision).toBe("approved");
+	});
+
+	/*
+	 * The freeze cannot be laundered by first replacing the card with something
+	 * that is not an approval and then upserting the gate again.
+	 */
+	test("is not displaced by a card of another kind at the same id", async () => {
+		const store = await decided();
+		await store.dispatch({
+			type: "card.upsert",
+			actor: "smithers",
+			card: {
+				id: GATE.id,
+				kind: "status",
+				title: "Working",
+				status: "active",
+				createdAt: 1_700_000_000_000,
+				ordinal: 1,
+				payload: { note: "still going" },
+			},
+		}).isPersisted.promise;
+		const card = approvalOf(store, GATE.id);
+		expect(card.status).toBe("acted");
+		expect(card.payload.decision).toBe("approved");
+	});
+
+	/*
+	 * The freeze is per-decision, not per-card. A chain lineage reuses one card
+	 * id for every park, so freezing the id would swallow the next, genuinely
+	 * different ask and strand the run with no gate on screen.
+	 */
+	test("is replaced by an approval naming a different gate", async () => {
+		const chainGate: Card = {
+			id: "chain-approval-lineage-1",
+			kind: "approval",
+			title: "Approval needed",
+			status: "active",
+			createdAt: 1_700_000_000_000,
+			ordinal: 1,
+			payload: { capability: "read the repository", runId: "lineage-1", chain: true },
+		};
+		const store = await decided(chainGate);
+		await store.dispatch({
+			type: "card.upsert",
+			actor: "smithers",
+			card: { ...chainGate, payload: { ...chainGate.payload, capability: "write to the repository" } },
+		}).isPersisted.promise;
+		const card = approvalOf(store, chainGate.id);
+		expect(card.status).toBe("active");
+		expect(card.payload.capability).toBe("write to the repository");
+		expect(card.payload.decision).toBeUndefined();
+	});
+
+	test("still records exactly one decision when a later frame tries to re-decide", async () => {
+		const store = await decided();
+		await store.dispatch({
+			type: "card.updated",
+			actor: "smithers",
+			id: GATE.id,
+			patch: { status: "active" },
+		}).isPersisted.promise;
+		await store.dispatch({
+			type: "card.approval.decided",
+			actor: "user",
+			id: GATE.id,
+			decision: "denied",
+			decidedAt: 1_700_000_120_000,
+		}).isPersisted.promise;
+		const card = approvalOf(store, GATE.id);
+		expect(card.payload.decision).toBe("approved");
+		const decisions = [...store.collections.transitions.values()].filter(
+			(entry) => entry.type === "card.approval.decided",
+		);
+		expect(decisions.length).toBe(1);
 	});
 });

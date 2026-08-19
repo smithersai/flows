@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import type { Plugin } from "vite";
@@ -45,8 +46,58 @@ const smithersAgentApi = (): Plugin => {
  */
 const here = fileURLToPath(new URL(".", import.meta.url));
 
+/*
+ * CN-1: the build stamp. The deployed SPA is the artifact that goes stale, so
+ * it must be able to state which commit it was built from. The stamp is
+ * written by the build and travels inside the bundle: a meta tag on the served
+ * HTML and a `__build.json` asset next to the hashed chunks. Nothing computes
+ * it at request time, so a stale bundle cannot claim to be fresh — serving a
+ * fresh stamp means serving a fresh bundle.
+ *
+ * SMITHERS_BUILD_SHA wins so apps/server/scripts/deploy.ts stamps the same sha
+ * it writes into the deploy receipt; GITHUB_SHA covers a CI build; otherwise
+ * the local checkout is asked. A tree with no git answers "unknown", which the
+ * canary probe reports as a failure rather than passing on a fabricated value.
+ *
+ * The reader is apps/server/scripts/canary/BuildStamp.ts. The two constants
+ * below are duplicated there on purpose — apps/ui does not depend on
+ * apps/server — and BuildStamp.test.ts reads this file to hold them equal.
+ */
+const BUILD_STAMP_ASSET = "__build.json";
+const BUILD_STAMP_META = "smithers-build-sha";
+
+const resolveBuildSha = (): string => {
+	const fromEnv = process.env.SMITHERS_BUILD_SHA ?? process.env.GITHUB_SHA;
+	if (fromEnv !== undefined && fromEnv.trim() !== "") return fromEnv.trim();
+	try {
+		return execFileSync("git", ["rev-parse", "HEAD"], { cwd: here, encoding: "utf8" }).trim();
+	} catch {
+		return "unknown";
+	}
+};
+
+const buildStamp = (): Plugin => {
+	const gitSha = resolveBuildSha();
+	const builtAt = new Date().toISOString();
+	return {
+		name: "smithers-build-stamp",
+		apply: "build",
+		transformIndexHtml: () => [
+			{ tag: "meta", attrs: { name: BUILD_STAMP_META, content: gitSha }, injectTo: "head" as const },
+			{ tag: "meta", attrs: { name: "smithers-build-at", content: builtAt }, injectTo: "head" as const },
+		],
+		generateBundle() {
+			this.emitFile({
+				type: "asset",
+				fileName: BUILD_STAMP_ASSET,
+				source: `${JSON.stringify({ worker: "smithers-mvp-web", gitSha, builtAt }, null, "\t")}\n`,
+			});
+		},
+	};
+};
+
 export default defineConfig({
-	plugins: [react(), smithersAgentApi()],
+	plugins: [react(), smithersAgentApi(), buildStamp()],
 	root: `${here}src/mainview`,
 	build: {
 		outDir: `${here}dist`,

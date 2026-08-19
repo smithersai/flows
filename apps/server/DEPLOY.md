@@ -92,3 +92,76 @@ targets the immediately-prior version; for a specific historical version, use
 Object state — `TURN_CANCELS` and `GATEWAY_SESSIONS` storage is unaffected
 either way, since it is keyed to the (unchanged) Worker identity, not to a
 version.
+
+### What the receipt records, and why every receipt on disk says `null`
+
+`scripts/deploy.ts` captures wrangler's stdout (`capture: true`) and pulls the
+version id out of it with `/Current Version ID:\s*([0-9a-f-]{36})/i`. Wrangler
+4.123.0 prints `Current Version ID: <uuid>` through `logger.log`, which is
+`console.log`, which is stdout — so a **real** deploy does record the id. A
+`--dry-run` returns at `--dry-run: exiting now.` before printing any id, which
+is why every receipt in `deploy-receipts/dry-run/` carries
+`"wranglerVersionId": null`. The mechanism is sound; it has simply never been
+exercised by a credentialed run.
+
+Two residual risks remain, and `scripts/deploy.ts` does not guard either one
+today: wrangler could move the id to stderr (only stdout is captured), or
+rename the label between versions. Either turns a real deploy into a receipt
+that says `null`, and rollback then has nothing to target. The rollback probe
+below is what catches it — a real deploy whose receipt names no version fails
+the probe.
+
+### Probe it: `scripts/canary/rollback-probe.ts`
+
+```sh
+CLOUDFLARE_API_TOKEN=<token> bun scripts/canary/rollback-probe.ts
+```
+
+It asserts three things about `smithers-mvp-web`:
+
+1. the newest receipt (`deploy-receipts/latest.json`, or `--receipt <path>`)
+   names a wrangler version id,
+2. that version is the one Cloudflare is actually serving
+   (`GET /accounts/<account>/workers/scripts/smithers-mvp-web/deployments`),
+3. a prior version is still in Cloudflare's version list
+   (`GET .../versions`), so `wrangler rollback <id>` has a target. The probe
+   prints the exact rollback command for that version.
+
+Both response shapes were read back from the live account on 2026-08-18:
+`/versions` answers `{ success, result: { items: [{ id, number, metadata: {
+created_on }, annotations }] } }` newest first, and `/deployments` answers
+`{ success, result: { deployments: [{ versions: [{ version_id, percentage }] }] } }`
+newest first. Cloudflare lists 10 versions for `smithers-mvp-web`, and the
+version serving 100% of traffic is `dffd4070-e5c6-4fd0-86b6-73ebedff5600`
+(created 2026-08-13T06:21:59Z) — so a rollback target exists today even though
+no receipt on disk names the deployed version.
+
+**"Reachable" means rollback-eligible, not fetchable.** A prior Worker version
+has no public URL; nothing can HTTP it. The probe never claims otherwise.
+
+It skips (exit 0, `skip:` lines) when `CLOUDFLARE_API_TOKEN` is unset or no
+receipt is on disk, and reports `INCONCLUSIVE` rather than `PASS` when it
+verified nothing. It fails when a receipt exists but cannot support a
+rollback. Receipts are gitignored and exist only on the machine that deployed,
+so this belongs in the deploy workflow after a real deploy, not in a scheduled
+canary that has no receipt to read.
+
+### The drill — do this once, by hand, and keep the receipt
+
+A rollback plan nobody has ever exercised is not a rollback plan. Rolling back
+and forward swaps the live deployment, so it is a human drill and is
+deliberately not automated.
+
+1. Deploy for real, so a receipt names a version:
+   `CLOUDFLARE_API_TOKEN=… CLOUDFLARE_ACCOUNT_ID=dd3525a4132493566aeb38de533c8827 pnpm --filter smithers-server run deploy`.
+   Record `deploy-receipts/latest.json` — call this version **N**.
+2. Run `bun scripts/canary/rollback-probe.ts`. It must pass and must name the
+   prior version, **N-1**.
+3. `bun x wrangler@4.123.0 rollback <N-1 id> --message "CN-24 drill"` from
+   `apps/server`.
+4. Confirm `https://canary.smithers.sh` serves the older build, and that
+   `bun x wrangler@4.123.0 deployments list` shows N-1 at 100%.
+5. Roll forward: `bun x wrangler@4.123.0 rollback <N id> --message "CN-24 drill, forward"`.
+6. Confirm the canary serves N again and re-run the probe.
+7. Write the drill up in an `apps/WAVE*-RECEIPT.md` note with both version ids
+   and the timestamps, so the next person can see it was really done.

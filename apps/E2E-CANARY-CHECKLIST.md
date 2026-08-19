@@ -1,13 +1,14 @@
 # apps — E2E and canary test checklist
 
 The complete set of end-to-end and canary tests the alpha needs, and what the
-tree covers today. Audited at `ceb784b6` on 2026-08-18.
+tree covers. Audited at `ceb784b6` on 2026-08-18; **remediated and re-audited at
+`a6cab068`+ on 2026-08-19.**
 
 Two kinds of test are catalogued, and they are not interchangeable:
 
 - **E2E (`E*`)** — hermetic. Builds the SPA, boots `wrangler dev` against test
   doubles, drives a real browser. No live deployment, no credential, no model
-  spend. Must run in CI on every push.
+  spend. Runs in CI on every push.
 - **Canary (`CN*`)** — against a real deployment (`canary.smithers.sh`) and the
   nine backing Workers. Runs after every deploy and on a schedule. Needs
   credentials; may cost money.
@@ -15,6 +16,11 @@ Two kinds of test are catalogued, and they are not interchangeable:
 Status legend: **PASS** an automated test asserts it end to end · **PART**
 asserted only at unit level, only against a live target, or only in a script
 that cannot run unattended · **GAP** nothing asserts it.
+
+> **The row statuses below are the ORIGINAL 2026-08-18 audit and are now
+> stale.** They are kept verbatim as the baseline this work was measured
+> against. What was actually built, what it found, and what remains open is in
+> `REMEDIATION.md` next to this file. Read that first.
 
 ## Summary
 

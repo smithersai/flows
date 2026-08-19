@@ -30,6 +30,13 @@ export const FIRST_MESSAGE_BUDGET_MS = 90_000;
 /** How long "Escape stops foreground work" is allowed to take (row B-2's own bar). */
 export const STOP_BUDGET_MS = 1_000;
 
+/**
+ * A Smithers message has arrived when the transcript grew past the
+ * composer-only shell. Shared with the hermetic e2e suites so a browser
+ * assertion and its checklist row read the transcript by the same rule.
+ */
+export const hasSmithersMessage = (text: string): boolean => text.trim().length > 80;
+
 export const countOccurrences = (haystack: string, needle: string): number => {
 	if (needle === "") return 0;
 	let count = 0;

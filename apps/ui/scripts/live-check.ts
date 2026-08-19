@@ -28,6 +28,7 @@ import { mkdirSync } from "node:fs";
 import { chromium } from "playwright";
 import type { Page } from "playwright";
 import { fileURLToPath } from "node:url";
+import { WRANGLER_SPECIFIER } from "./e2e-harness";
 import { createStubIdentity } from "./stub-backends";
 
 const mode = process.argv[2] ?? "local";
@@ -72,9 +73,34 @@ const present = (page: Page, selector: string): Promise<boolean> =>
 /** Assert the one-page signed-out chat: transcript + composer, the opening sign-in message, no landing view. */
 const checkSignedOutChat = async (page: Page, consoleErrors: ReadonlyArray<string>): Promise<void> => {
 	try {
-		await page.waitForSelector('[data-command="auth.sign-in"]', { timeout: 30_000 });
+		await page.waitForSelector('[data-flow="auth.sign-in"]', { timeout: 30_000 });
 	} catch {
-		check("the signed-out chat renders", false, "the sign-in action never appeared in the transcript");
+		/*
+		 * Say WHAT the page showed instead. "The action never appeared" is true
+		 * of a signed-in session, an identity seam answering `unavailable`, and
+		 * a renamed selector alike, and a failure you cannot tell apart is a
+		 * failure that gets waived.
+		 */
+		const session = await page
+			.evaluate(async () => {
+				const response = await fetch("/api/auth/session");
+				return { status: response.status, body: await response.text() };
+			})
+			.catch(() => ({ status: 0, body: "(unreachable)" }));
+		// innerText, not textContent: the app injects its CSS as <style> nodes and
+		// textContent hands back the stylesheet source as if it were page copy.
+		const rendered = await page
+			.evaluate(() => ({
+				shell: document.querySelector(".app-shell") !== null,
+				flows: document.querySelector(".app-shell")?.getAttribute("data-flows")?.slice(0, 120) ?? null,
+				text: (document.body as HTMLElement).innerText,
+			}))
+			.catch(() => ({ shell: false, flows: null, text: "(unreadable)" }));
+		check(
+			"the signed-out chat renders",
+			false,
+			`the sign-in action never appeared. /api/auth/session → HTTP ${session.status} ${session.body.trim().slice(0, 200)}; app-shell mounted: ${rendered.shell}; flows: ${rendered.flows ?? "(none)"}; page: ${rendered.text.replace(/\s+/g, " ").slice(0, 300)}`,
+		);
 		return;
 	}
 	// Let the boot probes (session, scopes) finish before reading the console.
@@ -118,6 +144,21 @@ const checkSignedOutChat = async (page: Page, consoleErrors: ReadonlyArray<strin
 };
 
 const local = async (): Promise<void> => {
+	/*
+	 * A `wrangler dev` left behind by an interrupted run keeps the port and
+	 * answers every probe, so the boot below "succeeds" against a stack whose
+	 * doubles are already dead and every row fails for the wrong reason.
+	 */
+	const occupied = await fetch(WORKER_ORIGIN)
+		.then(() => true)
+		.catch(() => false);
+	if (occupied) {
+		console.error(
+			`FAIL: something is already listening on ${WORKER_ORIGIN}. Stop it (a previous run's wrangler dev outlives an interrupted script) and try again.`,
+		);
+		process.exit(1);
+	}
+
 	console.log("building the SPA (vite build)...");
 	const build = Bun.spawn(["bun", "run", "build"], { stdout: "inherit", stderr: "inherit" });
 	if ((await build.exited) !== 0) process.exit(1);
@@ -153,7 +194,9 @@ const local = async (): Promise<void> => {
 		[
 			"bun",
 			"x",
-			"wrangler",
+			// Pinned: `bun x wrangler` resolves the newest release on every run,
+			// so an upstream release could turn this check red with no commit.
+			WRANGLER_SPECIFIER,
 			"dev",
 			"--ip",
 			"127.0.0.1",
@@ -226,7 +269,7 @@ const live = async (): Promise<void> => {
 	// mid-run, so the happy path is what the click exercises now.)
 	const [navigation] = await Promise.all([
 		page.waitForNavigation({ waitUntil: "load" }),
-		page.click('[data-command="auth.sign-in"]'),
+		page.click('[data-flow="auth.sign-in"]'),
 	]);
 	const landedUrl = page.url();
 	const onGithub = new URL(landedUrl).hostname === "github.com";
@@ -259,7 +302,7 @@ const live = async (): Promise<void> => {
 	// The way home actually works: back into the chat, still zero console errors.
 	const errorsBeforeReturn = consoleErrors.length;
 	await Promise.all([page.waitForNavigation({ waitUntil: "load" }), page.click("a.home")]);
-	await page.waitForSelector('[data-command="auth.sign-in"]', { timeout: 30_000 });
+	await page.waitForSelector('[data-flow="auth.sign-in"]', { timeout: 30_000 });
 	check(
 		"(b) the way back home lands in the chat (which exists for signed-out users)",
 		((await page.textContent(".smithers-transcript")) ?? "").includes(LANDING_SENTENCE),
