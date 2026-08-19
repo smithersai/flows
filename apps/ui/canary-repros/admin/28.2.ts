@@ -27,6 +27,19 @@ if (card === null) {
 }
 console.log("notifications card text:", JSON.stringify(card.text));
 
+/*
+ * The row grades an EMPTY state. A card with rows in it has nothing empty to
+ * name a next step for, so measuring one against this rule reports a defect
+ * that is not there. (Empty the inbox — or point the account at one with no
+ * notifications — to grade this row.)
+ */
+const rows = await page.locator('[data-kind="notifications"] .world-card-row').count();
+if (rows > 0) {
+	console.log(`SKIP: the inbox holds ${rows} notification(s), so its empty state is not on screen.`);
+	await context.close();
+	process.exit(0);
+}
+
 // For contrast, the chat empty state, which does name a next step.
 const reset = page.locator('button[aria-label="Reset conversation"]').first();
 if (await reset.isVisible().catch(() => false)) {

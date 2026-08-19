@@ -107,6 +107,18 @@ const buildStamp = (): Plugin => {
 
 export default defineConfig({
 	plugins: [react(), smithersAgentApi(), buildStamp()],
+	/*
+	 * The world editor's Milkdown adapter pulls in Vue's esm-bundler build,
+	 * which warns on every load that these compile-time flags were never
+	 * injected — a console warning in an ordinary session (§28.11), and worse
+	 * tree-shaking in the bundle. These are the values Vue's own docs name for
+	 * a bundled app.
+	 */
+	define: {
+		__VUE_OPTIONS_API__: "true",
+		__VUE_PROD_DEVTOOLS__: "false",
+		__VUE_PROD_HYDRATION_MISMATCH_DETAILS__: "false",
+	},
 	root: `${here}src/mainview`,
 	build: {
 		outDir: `${here}dist`,
