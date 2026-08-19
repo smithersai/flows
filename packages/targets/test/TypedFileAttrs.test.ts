@@ -116,9 +116,7 @@ describe("SortPackageJson declared manifests", () => {
     const metadata = Target.metadata(target)
     expect(metadata.inputs).toEqual([manifest])
     expect(metadata.outputs).toEqual({ cwd: ".", paths: ["package.json"] })
-    expect(() =>
-      SortPackageJson.SortPackageJson({ manifests: ["package.json"], deps: [], check: true } as never)
-    )
+    expect(() => SortPackageJson.SortPackageJson({ manifests: ["package.json"], deps: [], check: true } as never))
       .toThrow()
     expect(() => SortPackageJson.SortPackageJson({ manifests: [], deps: [], check: true } as never))
       .toThrow()

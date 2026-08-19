@@ -133,6 +133,5 @@ export const Changesets = Target.make("Changesets", {
     Exec.Result,
     Exec.ExecError,
     Action.Requirement<"smithers-build/exec"> | Action.Requirement<"smithers-build/exec-irreversible">
-  > =>
-    manage(attrs, PackageManager.registeredToolchain().packageManager)
+  > => manage(attrs, PackageManager.registeredToolchain().packageManager)
 })

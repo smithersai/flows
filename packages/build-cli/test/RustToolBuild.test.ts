@@ -10,8 +10,8 @@
  */
 import * as Target from "@smthrs/targets/Target"
 import * as NodePath from "node:path"
-import { tsImport } from "tsx/esm/api"
 import { fileURLToPath, pathToFileURL } from "node:url"
+import { tsImport } from "tsx/esm/api"
 import { describe, expect, it } from "vitest"
 import * as PlannerModule from "../src/Planner.ts"
 import * as WorkspaceModule from "../src/Workspace.ts"

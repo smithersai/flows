@@ -9,7 +9,7 @@
  * configured itself: it hardcoded pnpm, took the lockfile and workspace
  * manifest as attrs it did not use, and left the Install flow to discover the
  * manager through its own layer. One target now covers every manager, and the
- * manager arrives as a declaration the caller passes in.
+ * manager arrives as the toolchain registration the workspace declares.
  *
  * @since 0.1.0
  */
@@ -105,6 +105,5 @@ export const Install = Target.make("Install", {
   error: PackageManagerService.PackageManagerError,
   cache: false,
   inputs: inputsFor,
-  implementation: () =>
-    InstallFlow.Install.call({ manager: PackageManager.registeredToolchain().packageManager.name })
+  implementation: () => InstallFlow.Install.call({ manager: PackageManager.registeredToolchain().packageManager.name })
 })
