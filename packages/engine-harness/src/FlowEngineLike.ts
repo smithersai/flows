@@ -65,7 +65,7 @@ import * as ModelRequest from "@smthrs/model/ModelRequest"
 import * as Route from "@smthrs/model/Route"
 import * as PersistedPlan from "@smthrs/plan/Plan"
 import * as StepKey from "@smthrs/plan/StepKey"
-import { Context, Crypto, Effect, Layer, Option, Schema, Stream } from "effect"
+import { Context, Crypto, Effect, Layer, Option, Schedule, Schema, Stream } from "effect"
 import type * as WorkspaceSandbox from "./WorkspaceSandbox.ts"
 
 /**
@@ -438,6 +438,49 @@ const RecordedEvents = Schema.Array(ModelEvent.ModelEvent)
  * stores an activity's failure as well as its success, so the port's error
  * channel has to be expressible as a schema rather than an opaque value.
  */
+/**
+ * The model error codes worth trying again.
+ *
+ * A provider call is the one step in the loop that fails for reasons that have
+ * nothing to do with the task: a dropped HTTP/2 session, a 5xx, a rate limit.
+ * Without a retry the first of those ends the run — an agent working a real
+ * repository lost twenty minutes of context to
+ * `ERR_HTTP2_INVALID_SESSION: The session has been destroyed`, with the frame,
+ * the run, and the workspace state all discarded.
+ *
+ * Everything absent from this set is terminal for the request as written — a
+ * bad key, a malformed request, a context overflow, a refusal — and retrying
+ * one is pure latency. `context_overflow` in particular must reach the caller
+ * unchanged: it is the typed signal compaction reads.
+ */
+const retryableModelCodes: ReadonlySet<string> = new Set([
+  "rate_limited",
+  "provider_internal",
+  "transport",
+  "invalid_provider_output"
+])
+
+/**
+ * Retries transient provider failures inside the sealed step.
+ *
+ * The retry is deliberately here rather than on the action's `retryPolicy`.
+ * The engine's policy classifies by error *tag*, and every provider failure
+ * shares the one `flows/model/ModelError` tag, so a tag-level policy either
+ * retries a bad API key four times or retries nothing. It also replaces an
+ * exhausted failure with `RetryAttemptsExhausted`, which would hide the very
+ * `code` the caller branches on. Retrying in place keeps the classification
+ * precise and lets the original typed error surface unchanged when the
+ * backoff gives up.
+ */
+const withTransientRetry = <A, E, R>(
+  effect: Effect.Effect<A, E, R>
+): Effect.Effect<A, E, R> =>
+  Effect.retry(effect, {
+    while: (error: E) => error instanceof ModelError.ModelError && retryableModelCodes.has(error.code),
+    schedule: Schedule.jittered(Schedule.exponential(500, 2)),
+    times: 3
+  })
+
 const ModelFailure = Schema.Union([
   ModelError.ModelError,
   Permission.PermissionRequired,
@@ -743,7 +786,7 @@ export const make = (
             error: ModelFailure,
             tier: "sealed",
             idempotencyKey: key,
-            execute: Stream.runCollect(options.model.stream(step.request))
+            execute: withTransientRetry(Stream.runCollect(options.model.stream(step.request)))
           })
           return Stream.fromIterable(recorded)
         }).pipe(Effect.provide(context))
