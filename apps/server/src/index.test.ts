@@ -40,9 +40,9 @@ describe("smithers mvp worker", () => {
 		expect(await response.text()).toContain("smithers");
 	});
 
-	test("rejects a turn body over the 64 KB cap with 413", async () => {
+	test("rejects a turn body over the 1 MB cap with 413", async () => {
 		const response = await worker.fetch(
-			post("/api/agent/turn", { ...turnBody, instructions: "x".repeat(70 * 1024) }),
+			post("/api/agent/turn", { ...turnBody, instructions: "x".repeat(1100 * 1024) }),
 			assetsEnv(),
 		);
 		expect(response.status).toBe(413);
@@ -50,18 +50,164 @@ describe("smithers mvp worker", () => {
 
 	/**
 	 * The cap is a byte cap: a body of multi-byte characters encodes to up to 4x its
-	 * string length, so a UTF-16 `.length` check would wave a 96 KB body through.
+	 * string length, so a UTF-16 `.length` check would wave a 2 MB body through.
 	 */
-	test("measures the 64 KB cap in bytes, not UTF-16 code units", async () => {
-		// 48k x U+00E9 = 48k code units but 96 KB of UTF-8.
-		const instructions = "é".repeat(48 * 1024);
-		expect(instructions.length).toBeLessThan(64 * 1024);
-		expect(new TextEncoder().encode(instructions).byteLength).toBeGreaterThan(64 * 1024);
+	test("measures the 1 MB cap in bytes, not UTF-16 code units", async () => {
+		// 768k x U+00E9 = 768k code units but 1.5 MB of UTF-8.
+		const instructions = "é".repeat(768 * 1024);
+		expect(instructions.length).toBeLessThan(1024 * 1024);
+		expect(new TextEncoder().encode(instructions).byteLength).toBeGreaterThan(1024 * 1024);
 		const response = await worker.fetch(
 			post("/api/agent/turn", { ...turnBody, instructions }),
 			assetsEnv(),
 		);
 		expect(response.status).toBe(413);
+	});
+
+	/*
+	 * Repro apps/ui/canary-repros/chat/4.13: every turn replays the whole
+	 * transcript, so at the old 64 KB cap seven long answers wedged the seam
+	 * permanently — and `/clear`, which runs a model turn of its own to decide
+	 * what to keep, hit the same refusal, so the conversation had no in-app
+	 * escape. The measured wedge was ~64 KB of rendered transcript.
+	 */
+	test("accepts a transcript the size that wedged the seam at the old cap", async () => {
+		const upstream: Array<string> = [];
+		const env: WorkerEnv = { ...assetsEnv(), SMITHERS_CHAT_URL: "https://upstream.test/chat" };
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = (async (input: unknown) => {
+			upstream.push(String(input));
+			return new Response('{"type":"done"}\n', { headers: { "content-type": "application/x-ndjson" } });
+		}) as typeof fetch;
+		try {
+			const messages = Array.from({ length: 14 }, (_, index) => ({
+				role: index % 2 === 0 ? "user" : "assistant",
+				content: "x".repeat(6 * 1024),
+			}));
+			const response = await worker.fetch(
+				post("/api/agent/turn", { ...turnBody, runId: "run-4-13-wedge", messages }),
+				env,
+			);
+			expect(response.status).toBe(200);
+			// Drain so the per-isolate active-turn entry settles for later tests.
+			await response.text();
+			expect(upstream).toEqual(["https://upstream.test/chat"]);
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
+	/* A refusal a reader can act on: which thing is too long, and the way out. */
+	test("the oversize refusal names the conversation and the way out", async () => {
+		const response = await worker.fetch(
+			post("/api/agent/turn", { ...turnBody, instructions: "x".repeat(1100 * 1024) }),
+			assetsEnv(),
+		);
+		const body = (await response.json()) as { message: string };
+		expect(body.message).toContain("conversation");
+		expect(body.message).toContain("Start a new conversation");
+		expect(body.message).not.toBe("Request body is too large.");
+	});
+
+	/*
+	 * Repro apps/ui/canary-repros/honesty/24.3: the seam pasted the upstream's
+	 * body onto a fixed prefix, so a provider's rate-limit envelope arrived in
+	 * the transcript as raw JSON. The status is classified here rather than
+	 * trusting every upstream to write prose for a human.
+	 */
+	test("a rate-limited upstream becomes a rate-limit sentence, not raw provider JSON", async () => {
+		const env: WorkerEnv = { ...assetsEnv(), SMITHERS_CHAT_URL: "https://upstream.test/chat" };
+		const original = globalThis.fetch;
+		globalThis.fetch = (async () =>
+			new Response(
+				JSON.stringify({
+					type: "error",
+					error: { type: "rate_limit_error", message: "Number of request tokens has exceeded your per-minute rate limit" },
+				}),
+				{ status: 429, headers: { "content-type": "application/json", "retry-after": "45" } },
+			)) as unknown as typeof fetch;
+		try {
+			const response = await worker.fetch(post("/api/agent/turn", { ...turnBody, runId: "run-429" }), env);
+			expect(response.status).toBe(429);
+			const body = (await response.json()) as { message: string };
+			expect(body.message).toContain("rate-limiting");
+			expect(body.message).toContain("Nothing was charged");
+			expect(body.message).toContain("45 seconds");
+			expect(body.message).not.toContain("rate_limit_error");
+			expect(body.message).not.toContain("{");
+		} finally {
+			globalThis.fetch = original;
+		}
+	});
+
+	/*
+	 * The §24.4 shape from the same repro: a Worker 500 whose body is a
+	 * Cloudflare HTML page rendered as markup in the transcript.
+	 */
+	test("an upstream HTML error page never reaches the message", async () => {
+		const env: WorkerEnv = { ...assetsEnv(), SMITHERS_CHAT_URL: "https://upstream.test/chat" };
+		const original = globalThis.fetch;
+		globalThis.fetch = (async () =>
+			new Response("<!DOCTYPE html><html><body>Error 1101 Worker threw exception</body></html>", {
+				status: 500,
+				headers: { "content-type": "text/html" },
+			})) as unknown as typeof fetch;
+		try {
+			const response = await worker.fetch(post("/api/agent/turn", { ...turnBody, runId: "run-500" }), env);
+			expect(response.status).toBe(500);
+			const body = (await response.json()) as { message: string };
+			expect(body.message).not.toContain("<");
+			expect(body.message).toContain("having trouble");
+		} finally {
+			globalThis.fetch = original;
+		}
+	});
+
+	/* An upstream that DOES write prose keeps it — our own limiter is the case. */
+	test("an upstream message written for a reader survives", async () => {
+		const env: WorkerEnv = { ...assetsEnv(), SMITHERS_CHAT_URL: "https://upstream.test/chat" };
+		const original = globalThis.fetch;
+		globalThis.fetch = (async () =>
+			new Response(JSON.stringify({ status: "error", message: "The canary chat queue is draining; try again shortly." }), {
+				status: 503,
+				headers: { "content-type": "application/json" },
+			})) as unknown as typeof fetch;
+		try {
+			const response = await worker.fetch(post("/api/agent/turn", { ...turnBody, runId: "run-503" }), env);
+			const body = (await response.json()) as { message: string };
+			expect(body.message).toContain("The canary chat queue is draining");
+		} finally {
+			globalThis.fetch = original;
+		}
+	});
+
+	/*
+	 * An unreachable sibling used to end the fetch handler with an uncaught
+	 * rejection, and workerd answers that with its own HTML error page — which
+	 * the product then renders to the user.
+	 */
+	test("an unreachable proxy upstream answers honest JSON, never a thrown exception", async () => {
+		const env: WorkerEnv = {
+			...assetsEnv(),
+			IDENTITY_UPSTREAM_URL: "https://identity.test",
+			BILLING_UPSTREAM_URL: "https://billing.test",
+			RECO_UPSTREAM_URL: "https://reco.test",
+		};
+		const original = globalThis.fetch;
+		globalThis.fetch = (async () => {
+			throw new TypeError("Network connection lost.");
+		}) as unknown as typeof fetch;
+		try {
+			for (const path of ["/api/identity/whoami", "/api/reco/first-run"]) {
+				const response = await worker.fetch(new Request(`https://mvp.test${path}`), env);
+				expect(`${path} → ${response.status}`).toBe(`${path} → 502`);
+				const body = (await response.json()) as { status: string; message: string };
+				expect(body.status).toBe("error");
+				expect(body.message).toContain("unreachable");
+			}
+		} finally {
+			globalThis.fetch = original;
+		}
 	});
 
 	test("streams one upstream turn through /api/agent/turn as NDJSON", async () => {
@@ -1659,6 +1805,100 @@ describe("the browser tool route (§2d)", () => {
 		for (const [method, path] of cases) {
 			const response = await worker.fetch(new Request(`https://mvp.test${path}`, { method }), assetsEnv());
 			expect(`${method} ${path} → ${response.status}`).toBe(`${method} ${path} → 404`);
+		}
+	});
+
+	/*
+	 * Repro apps/ui/canary-repros/admin/28.5 and cards/8.21: the proxy forwarded
+	 * every allowlisted path, and the jjhub Go router's plain-text
+	 * `404 page not found` came back through it and was rendered verbatim into
+	 * the user's toast. A body written for a router is never a message for a
+	 * reader.
+	 */
+	test("a platform failure is restated in the seam's envelope, never forwarded raw", async () => {
+		const env: WorkerEnv = {
+			...assetsEnv(),
+			IDENTITY_UPSTREAM_URL: "https://identity.test",
+			IDENTITY_SERVICE_TOKEN: "svc",
+			SMITHERS_CLOUD_API_BASE_URL: "https://cloud.test",
+		};
+		const original = globalThis.fetch;
+		globalThis.fetch = (async (input: RequestInfo | URL) => {
+			const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+			if (url.includes("/api/identity/validate")) {
+				return new Response(JSON.stringify({ login: "will", allowlisted: true, admin: false, scopes: [] }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			}
+			if (url.includes("/api/identity/cloud-token")) {
+				return new Response(JSON.stringify({ found: true, token: "cloud-token-1" }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			}
+			return new Response("404 page not found\n", {
+				status: 404,
+				headers: { "content-type": "text/plain; charset=utf-8" },
+			});
+		}) as unknown as typeof fetch;
+		try {
+			const response = await worker.fetch(
+				new Request("https://mvp.test/api/repos/will/flows/issues?state=open"),
+				env,
+			);
+			expect(response.status).toBe(404);
+			expect(response.headers.get("content-type")).toContain("application/json");
+			const body = (await response.json()) as { status: string; message: string };
+			expect(body.status).toBe("error");
+			expect(body.message).not.toContain("404 page not found");
+			expect(body.message).toContain("Smithers Cloud");
+		} finally {
+			globalThis.fetch = original;
+		}
+	});
+
+	/*
+	 * Repro apps/ui/canary-repros/money/18.1 and flow-sweep/A.59: the platform
+	 * ships no BYOK key store, so the forward could only ever come back a 404.
+	 * The honest answer is the seam's own 501 naming the state, and NO forward
+	 * at all — a doomed request is also a 4xx on every ordinary session
+	 * (repro admin/28.12).
+	 */
+	test("a platform family the upstream does not implement answers an honest 501 and never forwards", async () => {
+		const env: WorkerEnv = {
+			...assetsEnv(),
+			IDENTITY_UPSTREAM_URL: "https://identity.test",
+			IDENTITY_SERVICE_TOKEN: "svc",
+			SMITHERS_CLOUD_API_BASE_URL: "https://cloud.test",
+		};
+		const seen: Array<string> = [];
+		const original = globalThis.fetch;
+		globalThis.fetch = (async (input: RequestInfo | URL) => {
+			const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+			seen.push(url);
+			if (url.includes("/api/identity/validate")) {
+				return new Response(JSON.stringify({ login: "will", allowlisted: true, admin: false, scopes: [] }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			}
+			return new Response("404 page not found\n", { status: 404 });
+		}) as unknown as typeof fetch;
+		try {
+			for (const request of [
+				new Request("https://mvp.test/api/user/byok-keys"),
+				new Request("https://mvp.test/api/user/byok-keys/anthropic", { method: "DELETE" }),
+			]) {
+				const response = await worker.fetch(request, env);
+				expect(response.status).toBe(501);
+				const body = (await response.json()) as { message: string };
+				expect(body.message).toContain("provider keys");
+				expect(body.message).not.toContain("404");
+			}
+			expect(seen.every((url) => url.includes("identity.test"))).toBe(true);
+		} finally {
+			globalThis.fetch = original;
 		}
 	});
 

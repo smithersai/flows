@@ -36,6 +36,7 @@ import {
 	GatewaySessionRegistry,
 	isRelayRepoName,
 	NON_REPLAYABLE_GATEWAY_METHODS,
+	upstreamTimeoutMs,
 } from "./gateway";
 import type { GatewaySessionNamespace } from "./gateway";
 import { appendClientError, ClientErrorLog, readClientErrors } from "./clientErrorLog";
@@ -60,11 +61,110 @@ const DEFAULT_CHAT_URL = "https://chat.smithers.sh/chat";
 const DEFAULT_APP_ORIGIN = "https://smithers.sh";
 
 /**
- * Cap for a single turn request body. The Vite dev boundary
- * (`src/server/AgentApi.ts`) allows 1 MB, so a conversation long enough to exceed
- * 64 KB — every turn replays the whole transcript — passes in dev and 413s here.
+ * Cap for a single turn request body. Every turn replays the whole transcript,
+ * so this is a conversation-length ceiling, not a per-message one. At 64 KB
+ * seven long answers wedged the seam permanently on canary and `/clear` could
+ * not recover it, because `/clear` runs a model turn of its own and hit the
+ * same refusal (repro apps/ui/canary-repros/chat/4.13). The Vite dev boundary
+ * (`src/server/AgentApi.ts`) allows 1 MB, so the two boundaries now agree and a
+ * conversation that passes in dev passes here.
  */
-const MAX_BODY_BYTES = 64 * 1024;
+const MAX_BODY_BYTES = 1024 * 1024;
+
+/**
+ * Every upstream this Worker calls is bounded. Without a deadline a sibling
+ * that accepts the connection and never answers hangs the browser request for
+ * as long as the tab is open: `POST /api/workflow/provision` stood past 70s on
+ * canary with no answer, no timeout and no error (repro
+ * apps/ui/canary-repros/honesty/22.6), which is a spinner that never ends —
+ * the silent-failure family in its worst shape. The deadline bounds the wait
+ * for the upstream's HEADERS; a response that has begun streaming is not cut
+ * off by it.
+ */
+const UPSTREAM_TIMEOUT_MS = 20_000;
+
+/** A deadline expiring, distinguishable from the client hanging up. */
+class UpstreamTimeoutError extends Error {
+	constructor(readonly seam: string) {
+		super(`${seam} did not answer within ${Math.round(UPSTREAM_TIMEOUT_MS / 1000)}s.`);
+	}
+}
+
+/**
+ * Run one upstream call under a deadline. The timer is disarmed as soon as the
+ * headers land, so a streaming body (billing, reco, identity, the gateway)
+ * keeps flowing for as long as it needs.
+ */
+const withDeadline = async (
+	seam: string,
+	run: (signal: AbortSignal) => Promise<Response>,
+	timeoutMs: number = UPSTREAM_TIMEOUT_MS,
+): Promise<Response> => {
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(new UpstreamTimeoutError(seam)), timeoutMs);
+	try {
+		return await run(controller.signal);
+	} finally {
+		clearTimeout(timer);
+	}
+};
+
+/**
+ * The prose inside an upstream error body, or undefined when the body was
+ * written for a machine. This is the rule the seam keeps: a Cloudflare HTML
+ * page, a Go router's `404 page not found`, and a provider's error envelope
+ * are never handed to a reader. Only a `message`/`error` string — a field an
+ * upstream fills with a sentence — survives.
+ */
+const upstreamProse = (body: string): string | undefined => {
+	const text = body.trim();
+	if (text === "" || text.startsWith("<")) return undefined;
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(text);
+	} catch {
+		return undefined;
+	}
+	if (typeof parsed !== "object" || parsed === null) return undefined;
+	const record = parsed as { message?: unknown; error?: unknown };
+	const nested =
+		typeof record.error === "object" && record.error !== null
+			? (record.error as { message?: unknown }).message
+			: record.error;
+	const prose = [record.message, nested].find((value): value is string => typeof value === "string" && value.trim() !== "");
+	return prose === undefined ? undefined : prose.trim().slice(0, 200);
+};
+
+/**
+ * One sentence a reader can act on for an upstream that refused. The status is
+ * classified here rather than trusting every upstream to write user-facing
+ * prose: a provider's raw rate-limit JSON was pasted straight into the
+ * transcript on canary (repro apps/ui/canary-repros/honesty/24.3), and a
+ * Worker 500 arrived as a Cloudflare HTML page.
+ */
+const upstreamFailureMessage = (status: number, body: string, retryAfter: string | null): string => {
+	if (status === 429) {
+		const seconds = Number(retryAfter ?? "");
+		const when =
+			Number.isFinite(seconds) && seconds > 0
+				? `Try again in about ${seconds < 90 ? `${Math.ceil(seconds)} seconds` : `${Math.ceil(seconds / 60)} minutes`}.`
+				: "Try again in a minute.";
+		return `The model service is rate-limiting this deployment right now, so the turn did not run. Nothing was charged. ${when}`;
+	}
+	if (status === 401 || status === 403) {
+		return "The model service refused this deployment's credentials, so the turn did not run. Nothing was charged, and this is a deployment configuration problem rather than anything to fix from here.";
+	}
+	if (status === 413) {
+		return "This conversation has grown too long for the model service to accept. Start a new conversation to keep going — nothing was charged.";
+	}
+	const prose = upstreamProse(body);
+	if (status >= 500) {
+		return `The model service is having trouble right now (HTTP ${status}), so the turn did not run. Nothing was charged.${prose === undefined ? "" : ` It said: ${prose}`}`;
+	}
+	return prose === undefined
+		? `The model service refused this turn (HTTP ${status}).`
+		: `The model service refused this turn: ${prose}`;
+};
 
 /** The OPFS SQLite persistence in the SPA needs cross-origin isolation. */
 const ISOLATION_HEADERS = {
@@ -205,6 +305,12 @@ export interface WorkerEnv {
 	readonly GATEWAY_SESSION_USER_ID?: string;
 	readonly GATEWAY_SESSION_USER_ROLE?: string;
 	readonly GATEWAY_SESSION_USER_SCOPES?: string;
+	/**
+	 * How long any one upstream gets to answer, in milliseconds. Unset uses
+	 * UPSTREAM_TIMEOUT_MS; a deployment behind a slow sibling can raise it
+	 * without a code change, and the tests shorten it to stay fast.
+	 */
+	readonly UPSTREAM_TIMEOUT_MS?: string;
 	/** Identity worker (GitHub OAuth + allowlist) upstream. Unset = 501. */
 	readonly IDENTITY_UPSTREAM_URL?: string;
 	/** Service token for the product-Worker → identity /api/identity/validate call. */
@@ -487,7 +593,16 @@ const handleTurn = async (
 	try {
 		body = await readTurnBody(request);
 	} catch (error) {
-		return json(error instanceof BodyTooLargeError ? 413 : 400, {
+		// The transcript rides every turn, so "too large" is a fact about the
+		// conversation, not about this one message. Say which, and say the way out.
+		if (error instanceof BodyTooLargeError) {
+			return json(413, {
+				status: "error",
+				message:
+					"This conversation has grown too long to send in one turn. Start a new conversation to keep going — nothing was charged, and the transcript above stays where it is.",
+			});
+		}
+		return json(400, {
 			status: "error",
 			message: error instanceof Error ? error.message : "Invalid request.",
 		});
@@ -580,10 +695,12 @@ const handleTurn = async (
 	}
 	if (!response.ok || response.body === null) {
 		await settle();
-		const detail = (await response.text().catch(() => "")).trim().slice(0, 320);
+		const detail = await response.text().catch(() => "");
 		return json(response.ok ? 502 : response.status, {
 			status: "error",
-			message: `Smithers Cloud chat failed (HTTP ${response.status})${detail === "" ? "." : `: ${detail}`}`,
+			message: response.ok
+				? "The model service accepted the turn and then sent no answer at all. Nothing was charged."
+				: upstreamFailureMessage(response.status, detail, response.headers.get("retry-after")),
 		});
 	}
 
@@ -687,10 +804,12 @@ const handleModelStream = async (request: Request, env: WorkerEnv): Promise<Resp
 		});
 	}
 	if (!response.ok || response.body === null) {
-		const detail = (await response.text().catch(() => "")).trim().slice(0, 320);
+		const detail = await response.text().catch(() => "");
 		return json(response.ok ? 502 : response.status, {
 			status: "error",
-			message: `The model provider failed (HTTP ${response.status})${detail === "" ? "." : `: ${detail}`}`,
+			message: response.ok
+				? "The model provider accepted the request and then sent no answer at all."
+				: upstreamFailureMessage(response.status, detail, response.headers.get("retry-after")),
 		});
 	}
 	return withIsolationHeaders(
@@ -790,11 +909,37 @@ const proxyToGateway = (request: Request, env: WorkerEnv): Promise<Response> => 
 	const headers = new Headers(request.headers);
 	for (const name of STRIPPED_IDENTITY_HEADERS) headers.delete(name);
 	for (const [name, value] of Object.entries(identity)) headers.set(name, value);
-	return fetch(new Request(target.toString(), new Request(request, { headers })));
+	return forwardUnderDeadline(
+		"The engine gateway",
+		new Request(target.toString(), new Request(request, { headers })),
+		upstreamTimeoutMs(env),
+	);
 };
 
 const isGatewayRoute = (pathname: string): boolean =>
 	GATEWAY_ROUTE_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+
+/**
+ * A proxy whose upstream never answered. Returning the raw rejection would end
+ * the fetch handler with an uncaught exception, and workerd answers that with
+ * its own `Error 1101 Worker threw exception` HTML page — which the transcript
+ * then renders verbatim to the user (repro apps/ui/canary-repros/honesty/24.3,
+ * the §24.4 note). A named JSON refusal is the honest answer instead.
+ */
+const upstreamUnreachable = (seam: string, error: unknown): Response =>
+	json(error instanceof UpstreamTimeoutError ? 504 : 502, {
+		status: "error",
+		message:
+			error instanceof UpstreamTimeoutError
+				? `${seam} did not answer in time, so nothing was read. Try again in a moment.`
+				: `${seam} is unreachable right now: ${error instanceof Error ? error.message : "unknown error"}`,
+	});
+
+/** Forward one already-built request under the seam's deadline, never throwing. */
+const forwardUnderDeadline = (seam: string, target: Request, timeoutMs: number): Promise<Response> =>
+	withDeadline(seam, (signal) => fetch(target, { signal }), timeoutMs).catch((error: unknown) =>
+		upstreamUnreachable(seam, error),
+	);
 
 /**
  * The identity worker is the identity authority: it sets and reads its own
@@ -822,7 +967,11 @@ const proxyToIdentity = (request: Request, env: WorkerEnv): Promise<Response> =>
 	const headers = new Headers(request.headers);
 	for (const name of STRIPPED_IDENTITY_HEADERS) headers.delete(name);
 	withProxyOrigin(headers, url);
-	return fetch(new Request(target.toString(), new Request(request, { headers })));
+	return forwardUnderDeadline(
+		"The identity service",
+		new Request(target.toString(), new Request(request, { headers })),
+		upstreamTimeoutMs(env),
+	);
 };
 
 /*
@@ -1185,7 +1334,11 @@ const proxyToBilling = async (request: Request, env: WorkerEnv): Promise<Respons
 		headers.set("authorization", `Bearer ${bearer}`);
 	}
 	withProxyOrigin(headers, url);
-	return fetch(new Request(target.toString(), new Request(request, { headers })));
+	return forwardUnderDeadline(
+		"The billing service",
+		new Request(target.toString(), new Request(request, { headers })),
+		upstreamTimeoutMs(env),
+	);
 };
 
 /**
@@ -1208,7 +1361,11 @@ const proxyToReco = (request: Request, env: WorkerEnv): Promise<Response> => {
 	const headers = new Headers(request.headers);
 	for (const name of STRIPPED_IDENTITY_HEADERS) headers.delete(name);
 	withProxyOrigin(headers, url);
-	return fetch(new Request(target.toString(), new Request(request, { headers })));
+	return forwardUnderDeadline(
+		"The recommendations service",
+		new Request(target.toString(), new Request(request, { headers })),
+		upstreamTimeoutMs(env),
+	);
 };
 
 /*
@@ -1230,16 +1387,16 @@ const forwardAdminCall = async (
 	if (init.body !== undefined) headers["content-type"] = "application/json";
 	let response: Response;
 	try {
-		response = await fetch(new URL(path, upstream).toString(), {
-			method: init.method,
-			headers,
-			...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
-		});
+		response = await withDeadline("The admin upstream", (signal) =>
+			fetch(new URL(path, upstream).toString(), {
+				method: init.method,
+				headers,
+				signal,
+				...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+			}),
+		);
 	} catch (error) {
-		return json(502, {
-			status: "error",
-			message: `The admin upstream is unreachable: ${error instanceof Error ? error.message : "unknown error"}`,
-		});
+		return upstreamUnreachable("The admin upstream", error);
 	}
 	const text = await response.text();
 	return new Response(text, {
@@ -1270,12 +1427,15 @@ const readServiceHealth = async (
 	}
 	let response: Response;
 	try {
-		response = await fetch(new URL("/healthz", base).toString());
+		response = await withDeadline(name, (signal) => fetch(new URL("/healthz", base).toString(), { signal }));
 	} catch (error) {
 		return {
 			name,
 			status: "failed",
-			detail: `unreachable: ${error instanceof Error ? error.message : "unknown error"}`,
+			detail:
+				error instanceof UpstreamTimeoutError
+					? `healthz did not answer within ${Math.round(UPSTREAM_TIMEOUT_MS / 1000)}s.`
+					: `unreachable: ${error instanceof Error ? error.message : "unknown error"}`,
 		};
 	}
 	if (!response.ok) {
@@ -1309,17 +1469,34 @@ const handleAdminHealth = async (env: WorkerEnv, proxyOrigin: string): Promise<R
 		readServiceHealth("reco", env.RECO_UPSTREAM_URL, "RECO_UPSTREAM_URL", summarize("identity", "prewarm", "admin", "testMode")),
 	]);
 
-	// Recent charges: the billing ledger's own totals, read with the account bearer.
-	let charges: { chargeCount: number; lifetimeChargedUsd: string } | null = null;
+	/*
+	 * Recent charges: the billing ledger's own totals, read with the account
+	 * bearer — which authenticates the DEPLOYMENT's billing account, not the
+	 * fleet. Since wave 13 a signed-in user's turn is metered onto that user's
+	 * own account, so this figure stopped moving and is smaller than a single
+	 * active user's (repro apps/ui/canary-repros/admin/25.7). Billing keeps one
+	 * Durable Object per login with no enumeration, so no fleet total can be
+	 * read from here at all; the answer therefore STATES its scope instead of
+	 * presenting a deployment figure as a fleet one.
+	 */
+	let charges: {
+		chargeCount: number;
+		lifetimeChargedUsd: string;
+		scope: string;
+		scopeDetail: string;
+	} | null = null;
 	const billingBase = env.BILLING_UPSTREAM_URL?.trim();
 	const bearer = env.BILLING_AUTH_TOKEN?.trim();
 	if (billingBase !== undefined && billingBase !== "" && bearer !== undefined && bearer !== "") {
 		try {
 			// Billing refuses a request that carries no Origin, so the read states
 			// this Worker's own — the same seam discipline as the billing proxy.
-			const balance = await fetch(new URL("/api/billing/balance", billingBase).toString(), {
-				headers: { authorization: `Bearer ${bearer}`, origin: proxyOrigin },
-			});
+			const balance = await withDeadline("billing", (signal) =>
+				fetch(new URL("/api/billing/balance", billingBase).toString(), {
+					headers: { authorization: `Bearer ${bearer}`, origin: proxyOrigin },
+					signal,
+				}),
+			);
 			if (balance.ok) {
 				const body = (await balance.json()) as {
 					balance?: { chargeCount?: unknown; lifetimeChargedUsd?: unknown };
@@ -1331,6 +1508,9 @@ const handleAdminHealth = async (env: WorkerEnv, proxyOrigin: string): Promise<R
 					charges = {
 						chargeCount: body.balance.chargeCount,
 						lifetimeChargedUsd: body.balance.lifetimeChargedUsd,
+						scope: "deployment-account",
+						scopeDetail:
+							"charge rows on the deployment's own billing account. Signed-in users' turns meter onto their own accounts, so this is not a fleet total and it is not a turn count.",
 					};
 				}
 			} else {
@@ -1959,6 +2139,44 @@ const PLATFORM_PROXY_RULES: ReadonlyArray<{
 const PLATFORM_PROXY_MAX_BODY = 256 * 1024;
 
 /*
+ * Families the Smithers Cloud platform does not implement. The proxy used to
+ * forward them anyway and hand the browser the Go router's own plain-text
+ * `404 page not found`, which the product rendered verbatim into a user's
+ * toast (repro apps/ui/canary-repros/admin/28.5) and to the console as a 404
+ * on every ordinary session (repro admin/28.12). Neither told the user
+ * anything. An honest 501 that names the state is the contract the rest of
+ * this Worker already keeps for a seam it cannot serve.
+ *
+ * A row here is a statement about the PLATFORM, not about this Worker: delete
+ * the row the day the upstream route ships and the forward resumes unchanged.
+ */
+const PLATFORM_UNIMPLEMENTED: ReadonlyArray<{ readonly prefix: string; readonly message: string }> = [
+	{
+		prefix: "/api/user/byok-keys",
+		message:
+			"Bring-your-own provider keys aren't part of this preview. Smithers Cloud has no key store yet, so there is nothing to list, add, or remove — turns run on the included allowance instead.",
+	},
+];
+
+const platformUnimplemented = (pathname: string): string | undefined =>
+	PLATFORM_UNIMPLEMENTED.find((rule) => pathname.startsWith(rule.prefix))?.message;
+
+/**
+ * What to tell a reader when Smithers Cloud refuses. The upstream's own body is
+ * used only when it carries prose; a router's plain-text 404 or an HTML error
+ * page is replaced by a sentence, never forwarded.
+ */
+const platformFailureMessage = (status: number, body: string): string => {
+	const prose = upstreamProse(body);
+	if (prose !== undefined) return prose;
+	if (status === 404) return "Smithers Cloud doesn't serve that request on this deployment.";
+	if (status === 401 || status === 403) return "Smithers Cloud refused that request for your account.";
+	if (status === 429) return "Smithers Cloud is rate-limiting this account right now. Try again in a minute.";
+	if (status >= 500) return `Smithers Cloud is having trouble right now (HTTP ${status}).`;
+	return `Smithers Cloud refused that request (HTTP ${status}).`;
+};
+
+/*
  * Frontend error ingest (multi's /api/client-errors, minimal form): bounded
  * body, per-isolate rate limit, logged to the worker tail — enough to stop
  * flying blind on client crashes in the alpha without storing anything.
@@ -2022,6 +2240,10 @@ const handlePlatformProxy = async (request: Request, env: WorkerEnv, url: URL): 
 			message: "Repository actions need the identity seam, which this deployment does not have.",
 		});
 	}
+	// A doomed forward is not more honest than a refusal, and it costs the user
+	// a raw upstream body they cannot read. Refuse before spending the token.
+	const unimplemented = platformUnimplemented(url.pathname);
+	if (unimplemented !== undefined) return json(501, { status: "error", message: unimplemented });
 	const token = await fetchCloudToken(env, gate.login);
 	if (token.status !== "ok") {
 		return json(503, {
@@ -2044,16 +2266,29 @@ const handlePlatformProxy = async (request: Request, env: WorkerEnv, url: URL): 
 	if (accept !== null) headers.set("accept", accept);
 	let upstream: Response;
 	try {
-		upstream = await fetch(new URL(url.pathname + url.search, base).toString(), {
-			method: request.method,
-			headers,
-			...(body === undefined ? {} : { body }),
-		});
+		upstream = await withDeadline(
+			"Smithers Cloud",
+			(signal) =>
+				fetch(new URL(url.pathname + url.search, base).toString(), {
+					method: request.method,
+					headers,
+					signal,
+					...(body === undefined ? {} : { body }),
+				}),
+			upstreamTimeoutMs(env),
+		);
 	} catch (error) {
-		return json(502, {
-			status: "error",
-			message: `Smithers Cloud is unreachable: ${error instanceof Error ? error.message : "unknown error"}`,
-		});
+		return upstreamUnreachable("Smithers Cloud", error);
+	}
+	/*
+	 * A failure never passes through: the upstream's body is written for its
+	 * own callers, and the product renders whatever comes back straight to the
+	 * user. Restate it in the seam's own envelope so a reader always gets a
+	 * sentence, and the shape matches every other refusal this Worker makes.
+	 */
+	if (upstream.status >= 400) {
+		const detail = await upstream.text().catch(() => "");
+		return json(upstream.status, { status: "error", message: platformFailureMessage(upstream.status, detail) });
 	}
 	// Status and body pass through; upstream headers do not (no set-cookie, no
 	// upstream CORS) — only the content type survives.

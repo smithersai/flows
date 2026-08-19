@@ -219,6 +219,75 @@ describe("wave 11 — provision-or-resume (§5)", () => {
 		);
 	});
 
+	/*
+	 * Repro apps/ui/canary-repros/honesty/22.6: Smithers Cloud accepted the
+	 * provision POST and never answered, so the route hung past 70s and the
+	 * product left "Preparing your <repo> workspace…" standing with no run
+	 * card, no timeout and no error. A deadline turns silence into one of the
+	 * seam's own honest states — the request always ANSWERS.
+	 */
+	test("a provision upstream that never answers becomes an honest state, not a hang", async () => {
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = (async (input: unknown, init?: RequestInit) => {
+			const url = new URL(typeof input === "string" ? input : (input as Request).url);
+			if (url.pathname === "/api/identity/cloud-token") {
+				return json(200, { found: true, token: CLOUD_TOKEN });
+			}
+			// The exact canary shape: the connection is accepted and nothing
+			// ever comes back. Only the seam's own deadline ends this.
+			return await new Promise<Response>((_resolve, reject) => {
+				init?.signal?.addEventListener("abort", () => reject(init.signal?.reason ?? new Error("aborted")));
+			});
+		}) as typeof fetch;
+		try {
+			const started = Date.now();
+			const outcome = await ensureGateway(
+				env({ UPSTREAM_TIMEOUT_MS: "150" }),
+				"codeplanesmithers",
+				"codeplanesmithers/canary-sandbox",
+			);
+			expect(Date.now() - started).toBeLessThan(5_000);
+			expect(outcome.status).toBe("provisioning");
+			if (outcome.status === "provisioning") {
+				expect(outcome.detail).toContain("codeplanesmithers/canary-sandbox");
+				expect(outcome.detail).toContain("longer than");
+			}
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
+	test("the provision ROUTE answers a state a client can act on when Cloud stays silent", async () => {
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = (async (input: unknown, init?: RequestInit) => {
+			const url = new URL(typeof input === "string" ? input : (input as Request).url);
+			if (url.pathname === "/api/identity/validate") {
+				return json(200, { login: "codeplanesmithers", allowlisted: true, admin: false });
+			}
+			if (url.pathname === "/api/identity/cloud-token") {
+				return json(200, { found: true, token: CLOUD_TOKEN });
+			}
+			return await new Promise<Response>((_resolve, reject) => {
+				init?.signal?.addEventListener("abort", () => reject(init.signal?.reason ?? new Error("aborted")));
+			});
+		}) as typeof fetch;
+		try {
+			const response = await worker.fetch(
+				signedIn("/api/workflow/provision", {
+					method: "POST",
+					body: JSON.stringify({ repo: "codeplanesmithers/canary-sandbox" }),
+				}),
+				env({ UPSTREAM_TIMEOUT_MS: "150" }),
+			);
+			expect(response.status).toBe(200);
+			const body = (await response.json()) as { status: string; message: string };
+			expect(body.status).toBe("provisioning");
+			expect(body.message).toContain("codeplanesmithers/canary-sandbox");
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
 	test("500 no_capacity is surfaced honestly and never retried", async () => {
 		await withRelay(
 			{ provision: () => json(500, { error: "no_capacity", message: "no worker has capacity" }) },
