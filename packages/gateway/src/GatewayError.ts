@@ -10,6 +10,7 @@ import { Schema } from "effect"
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export const GatewayErrorCode = Schema.Literals([
   "already_running",
@@ -28,6 +29,7 @@ export const GatewayErrorCode = Schema.Literals([
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export type GatewayErrorCode = typeof GatewayErrorCode.Type
 
@@ -36,6 +38,7 @@ export type GatewayErrorCode = typeof GatewayErrorCode.Type
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export class GatewayError extends Schema.TaggedError<GatewayError>()("flows/gateway/GatewayError", {
   code: GatewayErrorCode,

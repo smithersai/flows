@@ -12,6 +12,7 @@ import { Context, Effect, Layer, Schema } from "effect"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface StaleRunningCandidate {
   readonly _tag: "stale-running"
@@ -24,6 +25,7 @@ export interface StaleRunningCandidate {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface QuotaDueCandidate {
   readonly _tag: "quota-due"
@@ -36,6 +38,7 @@ export interface QuotaDueCandidate {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface StaleClaimCandidate {
   readonly _tag: "stale-claim"
@@ -48,6 +51,7 @@ export interface StaleClaimCandidate {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type Candidate = StaleRunningCandidate | QuotaDueCandidate | StaleClaimCandidate
 
@@ -56,6 +60,7 @@ export type Candidate = StaleRunningCandidate | QuotaDueCandidate | StaleClaimCa
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface ResumeLease {
   readonly runId: string
@@ -68,6 +73,7 @@ export interface ResumeLease {
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export const ResumeErrorCode = Schema.Literals(["claim_lost", "resume_failed"])
 
@@ -76,6 +82,7 @@ export const ResumeErrorCode = Schema.Literals(["claim_lost", "resume_failed"])
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export type ResumeErrorCode = typeof ResumeErrorCode.Type
 
@@ -84,6 +91,7 @@ export type ResumeErrorCode = typeof ResumeErrorCode.Type
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export class ResumeError extends Schema.TaggedError<ResumeError>()("flows/gateway/ResumeError", {
   code: ResumeErrorCode,
@@ -98,6 +106,7 @@ export class ResumeError extends Schema.TaggedError<ResumeError>()("flows/gatewa
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Service {
   readonly scan: (now: number) => Effect.Effect<ReadonlyArray<Candidate>>
@@ -109,6 +118,7 @@ export interface Service {
  *
  * @since 0.1.0
  * @category services
+ * @slop
  */
 export class SuperviseRuntime extends Context.Service<SuperviseRuntime, Service>()("flows/gateway/SuperviseRuntime") {}
 
@@ -117,6 +127,7 @@ export class SuperviseRuntime extends Context.Service<SuperviseRuntime, Service>
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const make = (service: Service): Service => SuperviseRuntime.of(service)
 
@@ -125,6 +136,7 @@ export const make = (service: Service): Service => SuperviseRuntime.of(service)
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const makeNoop = (overrides: Partial<Service> = {}): Service =>
   make({
@@ -138,6 +150,7 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service =>
  *
  * @since 0.1.0
  * @category layers
+ * @slop
  */
 export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<SuperviseRuntime> =>
   Layer.succeed(SuperviseRuntime, makeNoop(overrides))
