@@ -157,15 +157,31 @@ const noteFlow = CoreFlow.make({
   effects: { reads: [], writes: [], mode: "expected", onConflict: "serialize", tier: "irreversible" }
 })
 
+const checkFlow = CoreFlow.make({
+  name: "project/check",
+  description: "Run the project's own check and report its exit code.",
+  input: Schema.Struct({ command: Schema.String }),
+  output: Schema.Struct({ exitCode: Schema.Number }),
+  effects: { reads: [], writes: [], mode: "expected", onConflict: "serialize", tier: "irreversible" }
+})
+
 const frameZero = `const saved = await ctx.call("note/save", { text: "frame zero note" })
+await ctx.call("project/check", { command: "npm test" })
 return { intent: "continue", state: { saved: saved.saved }, context: [{ role: "user", text: "note saved" }] }`
 
 const frameOne = `const decision = await ctx.call("ask", { question: "publish the log?", options: ["yes", "no"] })
 return { intent: "complete", state: null, output: "approved=" + decision.approved }`
 
-/** The executor arms the completion audit, so the accepted completion is the re-affirmation. */
-const frameTwo =
-  `return { intent: "complete", state: null, output: "approved=true (evidence: the recorded ask settled approved)" }`
+/**
+ * The executor arms the completion audit, so the accepted completion is the
+ * second one, and it has to cite a check the harness can run itself.
+ */
+const frameTwo = `return {
+  intent: "complete",
+  state: null,
+  output: "approved=true",
+  verify: { flow: "project/check", input: { command: "npm test" } }
+}`
 
 const cellEvents = (source: string, id: string): ReadonlyArray<ModelEvent.ModelEvent> => [
   ModelEvent.ModelEvent.TextStart({ type: "text-start", id }),
@@ -199,6 +215,8 @@ interface StackOptions {
   /** The scripted resolver installed as the composition's `SeatResolver`. */
   readonly resolve: SeatResolver.Service["resolve"]
   readonly notes: Array<string>
+  /** Commands the audited check flow was actually asked to run. */
+  readonly checks?: Array<string> | undefined
   readonly gate: Deferred.Deferred<void>
   /** Completes when the test tool enters its gate, before its side effect. */
   readonly toolStarted?: Deferred.Deferred<void> | undefined
@@ -234,8 +252,18 @@ const stack = (options: StackOptions) => {
         )
     })
   ])
+  const checkSource = FlowBinding.source("test/check", [
+    FlowBinding.make({
+      flow: checkFlow,
+      handler: (input) =>
+        Effect.sync(() => {
+          options.checks?.push(input.command)
+          return { exitCode: 0 }
+        })
+    })
+  ])
   const registration = AgentSession.layer({
-    flows: options.bare === true ? undefined : [noteSource],
+    flows: options.bare === true ? undefined : [noteSource, checkSource],
     limits: { memoryBytes: 64 * 1024 * 1024, steps: 5_000_000 },
     maxFrames: 4,
     reasoningEffort: options.reasoningEffort
@@ -428,11 +456,12 @@ describe("AgentSession", () => {
     // Pass one: a scripted model records the exact request of every frame.
     const captured: Array<Captured> = []
     const notes: Array<string> = []
+    const checks: Array<string> = []
     const outcome = await Effect.runPromise(
       Effect.gen(function*() {
         const gate = yield* Deferred.make<void>()
         return yield* drive(gate).pipe(
-          Effect.provide(stack({ resolve: seat(capturing(captured)), notes, gate }))
+          Effect.provide(stack({ resolve: seat(capturing(captured)), notes, checks, gate }))
         )
       }).pipe(Effect.scoped) as Effect.Effect<Outcome>
     )
@@ -441,6 +470,24 @@ describe("AgentSession", () => {
     // re-affirmation — and the resumed attempt replayed all of them as
     // sealed steps instead of asking the provider again.
     expect(captured).toHaveLength(3)
+    // The audit is machine-checked end to end: the cell ran the check once,
+    // and the controller ran the cited check itself before accepting the
+    // completion. The verdict and the real output are on the journal.
+    expect(checks).toEqual(["npm test", "npm test"])
+    const auditTrail = outcome.agentTrail.filter((entry) => entry.eventType === "control.agent.completion-audited")
+    expect(auditTrail).toHaveLength(1)
+    expect(auditTrail[0]?.payload).toMatchObject({ accepted: true, flowName: "project/check" })
+    // Per-call latency is journaled next to usage, so a benchmark can measure
+    // seconds per call and not only per run.
+    // At least one per frame; the park and its resumed attempt re-emit the
+    // frames they replay.
+    const settled = outcome.agentTrail.filter((entry) => entry.eventType === "control.agent.model-settled")
+    expect(settled.length).toBeGreaterThanOrEqual(3)
+    expect(
+      settled.every((entry) =>
+        typeof (entry.payload as { readonly durationMillis?: unknown }).durationMillis === "number"
+      )
+    ).toBe(true)
     // The steer admitted through Control.steer reached frame one's context at
     // the frame boundary, alongside the cell's own continuation insert.
     const frameOneText = textOf(captured[1]!.request)

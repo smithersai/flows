@@ -78,11 +78,16 @@ describe("trace", () => {
         new AgentEvent.ModelSettled({
           eventType: "flows.harness.model-settled.v1",
           message: assistant,
-          usage: ModelEvent.Usage.make({ inputTokens: 12, outputTokens: 3 })
+          usage: ModelEvent.Usage.make({ inputTokens: 12, outputTokens: 3 }),
+          durationMillis: 1_250
         }),
         {
           eventType: "control.agent.model-settled",
-          payload: { text: "First line.\nSecond line.", usage: { inputTokens: 12, outputTokens: 3 } }
+          payload: {
+            text: "First line.\nSecond line.",
+            usage: { inputTokens: 12, outputTokens: 3 },
+            durationMillis: 1_250
+          }
         }
       ],
       [
@@ -131,6 +136,41 @@ describe("trace", () => {
           transition
         }),
         { eventType: "control.agent.transition-applied", payload: { transition } }
+      ],
+      [
+        "completion-audited",
+        new AgentEvent.CompletionAudited({
+          eventType: "flows.harness.completion-audited.v1",
+          verification: new Cell.Verification({ flow: "bash", input: { command: "pytest -q" } }),
+          accepted: false,
+          detail: "Re-running bash exited 1: {\"exitCode\":1}"
+        }),
+        {
+          // The declared check and what it really printed both land in the
+          // journal, so a grader reads the evidence instead of the claim.
+          eventType: "control.agent.completion-audited",
+          payload: {
+            accepted: false,
+            detail: "Re-running bash exited 1: {\"exitCode\":1}",
+            flowName: "bash",
+            input: { command: "pytest -q" }
+          }
+        }
+      ],
+      [
+        "completion-audited (nothing declared)",
+        new AgentEvent.CompletionAudited({
+          eventType: "flows.harness.completion-audited.v1",
+          accepted: false,
+          detail: "The completion declared no verify block, so nothing could be checked."
+        }),
+        {
+          eventType: "control.agent.completion-audited",
+          payload: {
+            accepted: false,
+            detail: "The completion declared no verify block, so nothing could be checked."
+          }
+        }
       ],
       [
         "suspended",

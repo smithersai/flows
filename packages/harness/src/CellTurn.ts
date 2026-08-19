@@ -15,11 +15,11 @@
  *
  * @since 0.1.0
  */
-import { Effects, type KeyMaterial, Placement } from "@smthrs/core"
+import { Digest, Effects, type KeyMaterial, Placement } from "@smthrs/core"
 import { Capability, CapabilitySet, Permission } from "@smthrs/kernel"
 import { CanonicalJson, type Model, ModelEvent, ModelRequest } from "@smthrs/model"
 import { Descriptor } from "@smthrs/registry"
-import { Effect, Option, Queue, Result, Schema, Stream } from "effect"
+import { Clock, Effect, Option, Queue, Result, Schema, Stream } from "effect"
 import * as AgentEvent from "./AgentEvent.ts"
 import * as Cell from "./Cell.ts"
 import * as Compaction from "./Compaction.ts"
@@ -44,6 +44,22 @@ const NonNegativeSafeInt = Schema.Int.check(
  */
 export const defaultMaxFrames = 100
 
+/**
+ * Default number of consecutive read-only frames a task run may spend.
+ *
+ * Read-only means the frame made no call that declares a write: searching,
+ * reading, and running commands under a read-only envelope all leave the
+ * world as they found it. The number comes from the first head-to-head
+ * benchmark — every instance the loop resolved had edited a file well before
+ * frame 15, and the instance it lost outright read for all 100 frames, made
+ * 132 calls, attempted zero edits, and then claimed the fix was implemented.
+ *
+ * @category constants
+ * @since 0.1.0
+ * @slop
+ */
+export const defaultReadOnlyFrames = 12
+
 const MaxFrames = NonNegativeSafeInt.pipe(
   Schema.withConstructorDefault(Effect.succeed(defaultMaxFrames)),
   Schema.withDecodingDefaultKey(Effect.succeed(defaultMaxFrames))
@@ -65,6 +81,7 @@ const eventType = {
   cellProduced: "flows.harness.cell-produced.v1",
   cellSettled: "flows.harness.cell-settled.v1",
   compactionSettled: "flows.harness.compaction-settled.v1",
+  completionAudited: "flows.harness.completion-audited.v1",
   modelDelta: "flows.harness.model-delta.v1",
   modelSettled: "flows.harness.model-settled.v1",
   permissionRequired: "flows.harness.permission-required.v1",
@@ -113,8 +130,70 @@ export class State extends Schema.Class<State>("flows/harness/CellTurn/State")({
   completionChallenged: Schema.Boolean.pipe(
     Schema.withConstructorDefault(Effect.succeed(false)),
     Schema.withDecodingDefaultKey(Effect.succeed(false))
+  ),
+  /**
+   * Whether this run's completions are machine-checked.
+   *
+   * Armed, a completion must declare the check that proves it — a flow and
+   * the exact input to call it with — and the controller runs that check
+   * itself before it accepts anything. Prose evidence is not evidence: a
+   * benchmark run shipped a patch that called a symbol it never imported and
+   * closed by quoting a test run it had not repeated.
+   */
+  auditCompletion: Schema.Boolean.pipe(
+    Schema.withConstructorDefault(Effect.succeed(false)),
+    Schema.withDecodingDefaultKey(Effect.succeed(false))
+  ),
+  /**
+   * Consecutive read-only frames this run may spend before the controller
+   * intervenes. Zero disarms the cap, which is what a conversational run gets.
+   */
+  readOnlyCap: NonNegativeSafeInt.pipe(
+    Schema.withConstructorDefault(Effect.succeed(0)),
+    Schema.withDecodingDefaultKey(Effect.succeed(0))
+  ),
+  /** Frames settled since the last call that declared a write. */
+  readOnlyFrames: NonNegativeSafeInt.pipe(
+    Schema.withConstructorDefault(Effect.succeed(0)),
+    Schema.withDecodingDefaultKey(Effect.succeed(0))
+  ),
+  /**
+   * Frames the demand stays silent for, bought by an accepted justification.
+   *
+   * A justification is an escape hatch with a price: it buys `readOnlyCap`
+   * quiet frames and never resets {@link State.readOnlyFrames}, so a run that
+   * keeps justifying still reaches the hard stop at twice the cap.
+   */
+  readOnlyGrace: NonNegativeSafeInt.pipe(
+    Schema.withConstructorDefault(Effect.succeed(0)),
+    Schema.withDecodingDefaultKey(Effect.succeed(0))
+  ),
+  /**
+   * Signatures of the calls this run actually made, most recent last.
+   *
+   * The completion audit will only re-run a check the run already ran, which
+   * is what stops a completion from citing a command that was never issued.
+   * Bounded, because it is carried frame to frame.
+   */
+  executedCalls: Schema.Array(Schema.String).pipe(
+    Schema.withConstructorDefault(Effect.succeed([])),
+    Schema.withDecodingDefaultKey(Effect.succeed([]))
   )
 }) {}
+
+/** How many call signatures one run remembers for the completion audit. */
+const executedCallsRemembered = 64
+
+/**
+ * Rebuilds controller state with only the fields one step changes.
+ *
+ * Every frame produces a whole new `State`, so a field added to the class had
+ * to be threaded through five constructions by hand — and the one that was
+ * forgotten silently reset a budget. Changes are stated; everything else is
+ * carried.
+ */
+const advance = (state: State, changes: Partial<ConstructorParameters<typeof State>[0]>): State =>
+  new State({ ...state, ...changes })
 
 /**
  * Runtime declarations used to interpret serializable controller state.
@@ -157,6 +236,13 @@ export const make = (options: {
    * world and should.
    */
   readonly auditCompletion?: boolean | undefined
+  /**
+   * Caps consecutive read-only frames: at the cap the controller demands an
+   * edit or a typed justification, and at twice the cap the run stops as a
+   * typed failure. Omitted or zero disarms it, which is what a run that is
+   * only meant to read — a question, a review — should get.
+   */
+  readonly readOnlyCap?: number | undefined
 }): State =>
   new State({
     session: options.session,
@@ -170,7 +256,12 @@ export const make = (options: {
     contextWindow: options.contextWindow,
     contextWindowTokens: options.contextWindowTokens ?? 0,
     agentState: options.agentState ?? null,
-    completionChallenged: !(options.auditCompletion ?? false)
+    completionChallenged: !(options.auditCompletion ?? false),
+    auditCompletion: options.auditCompletion ?? false,
+    readOnlyCap: options.readOnlyCap ?? 0,
+    readOnlyFrames: 0,
+    readOnlyGrace: 0,
+    executedCalls: []
   })
 
 /**
@@ -370,10 +461,74 @@ const projected = (
   })
 }
 
+const clip = (text: string, width: number): string => text.length > width ? `${text.slice(0, width - 1)}…` : text
+
+/**
+ * The shape a completion has to declare so the controller can check it.
+ *
+ * Stated in one place because the model is told it twice: once when the first
+ * completion is bounced, and again whenever a declared check does not hold up.
+ */
+const verifyContract =
+  `Declare the check as data, not prose: { intent: "complete", state, output, verify: { flow: "<the flow you called>", input: <the identical input> } }. The harness calls that flow with that input itself and accepts the completion only if it passes. A missing verify block, a flow this run never called with that exact input, a failed call, or a non-zero exit code is a refusal.`
+
 const completionAudit = (claimed: string): string =>
-  `Completion review — this run does not accept a completion on its first attempt. Audit your claim against host-observable evidence from THIS run: quote the exact command you ran and its passing output that proves the task is done (for a code change, the project check run AFTER your edit). If you cannot quote such evidence, the work is not finished — finish it now, verify it, and then return complete again. If your evidence is real, return complete again unchanged. Your claimed output was: ${
-    claimed.length > 400 ? `${claimed.slice(0, 399)}…` : claimed
+  `Completion review — this run does not accept a completion on its first attempt, and it does not accept quoted output as evidence. Re-run the check that proves the task is done (for a code change, the project's own test or build command, run AFTER your edit), then return complete again. ${verifyContract} Your claimed output was: ${
+    clip(claimed, 400)
   }`
+
+const verificationRefused = (detail: string): string =>
+  `Completion refused — the check you declared was not accepted. ${detail} ${verifyContract} Fix the work, run the check yourself so the harness has a call to re-run, and complete again citing it.`
+
+const readOnlyDemand = (cap: number, frames: number): string =>
+  `Read-only discipline — ${frames} consecutive frames have made no call that declares a write, and this run's read-only budget is ${cap}. The next cell must do one of two things: call a flow that writes (an edit, a write, a patch — reading, searching, and running read-only commands do not count), or return { intent: "continue", state, context, justification: "<why an edit is still impossible, and the exact call that will make one possible>" }. A justification is recorded and buys ${cap} quiet frames; it does not reset this counter. At ${
+    cap * 2
+  } consecutive read-only frames the run stops as a failure, so ${
+    cap * 2 - frames
+  } frames remain in which to commit to a change.`
+
+const readOnlyCapFailure = (cap: number, frames: number): HarnessError =>
+  new HarnessError({
+    code: "read_only_cap",
+    message:
+      `The run spent ${frames} consecutive frames without one call that declares a write, twice its read-only budget of ${cap}. It is stopped here rather than allowed to report work it never did.`
+  })
+
+/**
+ * Whether one resolved call changes anything outside the run.
+ *
+ * Classification happens at the call boundary and reads declarations, not
+ * flow names: a call mutates when its resolved descriptor declares writes, or
+ * when the invocation itself declares them — which is how a shell flow whose
+ * registry-time envelope is the conservative empty set still counts when the
+ * cell declares what the command writes. `Forensics` classifies the same
+ * events after the fact by name; the loop cannot, because a host catalog is
+ * whatever the host bound.
+ */
+const mutating = (descriptor: Descriptor.FlowDescriptor, input: Schema.Json): boolean => {
+  if (descriptor.effects.writes.length > 0) return true
+  const declared = input !== null && typeof input === "object" && !Array.isArray(input)
+    ? (input as Record<string, unknown>).writes
+    : undefined
+  return Array.isArray(declared) && declared.length > 0
+}
+
+/** The stable identity of one call, used to cite it in a completion. */
+const callSignature = (flow: string, input: Schema.Json): string =>
+  Digest.digest(CanonicalJson.stringify({ flow, input }))
+
+/** The exit code a settled call reported, when its output carries one. */
+const exitCodeOf = (value: Schema.Json): number | undefined => {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined
+  const code = (value as Record<string, unknown>).exitCode
+  return typeof code === "number" ? code : undefined
+}
+
+/** What the controller concluded about one completion claim. */
+interface Verdict {
+  readonly accepted: boolean
+  readonly detail: string
+}
 
 const budgetMessage = (state: State): string =>
   `The frame budget of ${state.maxFrames} is exhausted. The run stops here; the last transition was a request to continue.`
@@ -444,6 +599,64 @@ const callHandler = (
       })
     )
     return result
+  })
+
+/**
+ * Runs the check a completing cell declared and reports what happened.
+ *
+ * The re-run goes through the same boundary a cell call goes through, so it
+ * is keyed, journaled, and visible as an ordinary call — the harness is not
+ * given a private way to run commands. The declared call must be one this run
+ * already made: a completion cites a check it performed, and the controller
+ * repeats it. That is what a quoted transcript could never prove.
+ */
+const verifyCompletion = (options: {
+  readonly state: State
+  readonly cell: Cell.Source
+  readonly descriptors: ReadonlyMap<string, Descriptor.FlowDescriptor>
+  readonly executed: ReadonlySet<string>
+  readonly ordinal: number
+  readonly verification: Cell.Verification | undefined
+  readonly engine: EngineLike.EngineLike
+  readonly emit: (event: AgentEvent.AgentEvent) => Effect.Effect<void>
+}): Effect.Effect<Verdict, HarnessError> =>
+  Effect.gen(function*() {
+    const verification = options.verification
+    if (verification === undefined) {
+      return { accepted: false, detail: "The completion declared no verify block, so nothing could be checked." }
+    }
+    if (!options.descriptors.has(verification.flow)) {
+      return {
+        accepted: false,
+        detail: `No flow named ${verification.flow} is callable in this run, so the declared check cannot be run.`
+      }
+    }
+    if (!options.executed.has(callSignature(verification.flow, verification.input))) {
+      return {
+        accepted: false,
+        detail:
+          `This run never called ${verification.flow} with that exact input, so the declared check cites work that was never done.`
+      }
+    }
+    const result = yield* callHandler(
+      options.state,
+      options.cell,
+      options.descriptors,
+      options.engine,
+      options.emit
+    )({ ordinal: options.ordinal, flow: verification.flow, input: verification.input })
+    if (result.outcome === "failure") {
+      return {
+        accepted: false,
+        detail: `Re-running ${verification.flow} failed: ${clip(result.message ?? "no message", 600)}`
+      }
+    }
+    const rendered = clip(JSON.stringify(result.value) ?? "null", 600)
+    const exitCode = exitCodeOf(result.value)
+    if (exitCode !== undefined && exitCode !== 0) {
+      return { accepted: false, detail: `Re-running ${verification.flow} exited ${exitCode}: ${rendered}` }
+    }
+    return { accepted: true, detail: `Re-ran ${verification.flow}: ${rendered}` }
   })
 
 const invalidStep = (error: Compaction.InvalidStep): HarnessError =>
@@ -524,20 +737,7 @@ const compacted = (
         summary
       })
     )
-    return new State({
-      session: state.session,
-      frame: state.frame,
-      maxFrames: state.maxFrames,
-      seat: state.seat,
-      modelParams: state.modelParams,
-      layers: state.layers,
-      capabilityEnvelope: state.capabilityEnvelope,
-      placement: state.placement,
-      contextWindow,
-      contextWindowTokens: state.contextWindowTokens,
-      agentState: state.agentState,
-      completionChallenged: state.completionChallenged
-    })
+    return advance(state, { contextWindow })
   })
 
 /**
@@ -574,9 +774,13 @@ const frame = (
     )
 
     const request = yield* Effect.fromResult(requestFrom(state))
+    // Timed on the injected clock, never on ambient wall time, so a test that
+    // supplies a clock sees the duration it declared.
+    const startedAt = yield* Clock.currentTimeMillis
     const events = yield* Stream.runCollect(
       engine.sealStep({ request, keyMaterial: keyMaterialFrom(state, request) })
     ).pipe(Effect.map((collected) => Array.from(collected)))
+    const settledAt = yield* Clock.currentTimeMillis
     for (const event of events) {
       if (event.type === "settle") continue
       yield* emit(new AgentEvent.ModelDelta({ eventType: eventType.modelDelta, delta: event }))
@@ -592,28 +796,23 @@ const frame = (
       new AgentEvent.ModelSettled({
         eventType: eventType.modelSettled,
         message: settled.message,
-        usage: settled.usage
+        usage: settled.usage,
+        durationMillis: settledAt - startedAt
       })
     )
 
     /** Records an unusable frame and asks for another, budget permitting. */
-    const observe = (note: string): Step => {
+    const observe = (
+      note: string,
+      changes: Partial<ConstructorParameters<typeof State>[0]> = {}
+    ): Step => {
       if (state.frame + 1 >= state.maxFrames) return { _tag: "Done" }
       return {
         _tag: "Continue",
-        state: new State({
-          session: state.session,
+        state: advance(state, {
           frame: state.frame + 1,
-          maxFrames: state.maxFrames,
-          seat: state.seat,
-          modelParams: state.modelParams,
-          layers: state.layers,
-          capabilityEnvelope: state.capabilityEnvelope,
-          placement: state.placement,
           contextWindow: observed(state, settled.message, note),
-          contextWindowTokens: state.contextWindowTokens,
-          agentState: state.agentState,
-          completionChallenged: state.completionChallenged
+          ...changes
         })
       }
     }
@@ -663,7 +862,15 @@ const frame = (
     // frame's reads and the next cell re-did them — often raising the same
     // way again. Prime Agent's tool errors return stdout-so-far plus the
     // traceback for exactly this reason.
-    const observedCalls: Array<{ readonly flow: string; readonly ok: boolean; readonly summary: string }> = []
+    const observedCalls: Array<{
+      readonly flow: string
+      readonly ok: boolean
+      readonly summary: string
+      /** Whether the call declared a write, which is what breaks a read-only run. */
+      readonly mutates: boolean
+      /** The signature a later completion may cite this call by. */
+      readonly signature: string
+    }> = []
     const observing: Sandbox.Handler = (invocation) =>
       callHandler(state, cell, descriptors, engine, emit)(invocation).pipe(
         Effect.tap((result) =>
@@ -671,10 +878,13 @@ const frame = (
             const rendered = result.outcome === "success"
               ? JSON.stringify(result.value) ?? "null"
               : result.message ?? "failed"
+            const descriptor = descriptors.get(invocation.flow)
             observedCalls.push({
               flow: invocation.flow,
               ok: result.outcome === "success",
-              summary: rendered.length > 400 ? `${rendered.slice(0, 399)}…` : rendered
+              summary: clip(rendered, 400),
+              mutates: descriptor !== undefined && mutating(descriptor, invocation.input),
+              signature: callSignature(invocation.flow, invocation.input)
             })
           })
         )
@@ -690,6 +900,14 @@ const frame = (
       new AgentEvent.CellSettled({ eventType: eventType.cellSettled, cell: cell.digest, outcome })
     )
 
+    // The frame's own record of what it did to the world, computed once and
+    // carried out through every exit: what it changed, and what it ran.
+    const mutatingCalls = observedCalls.filter((call) => call.mutates).length
+    const executedCalls = [
+      ...state.executedCalls,
+      ...observedCalls.filter((call) => call.ok).map((call) => call.signature)
+    ].slice(-executedCallsRemembered)
+
     if (outcome._tag !== "settled") {
       const salvage = observedCalls.length === 0
         ? ""
@@ -699,7 +917,13 @@ const frame = (
       const note = outcome._tag === "raised"
         ? `The cell threw ${outcome.name}: ${outcome.message}. Emit a corrected cell.${salvage}`
         : `${outcome.message}${salvage}`
-      const step = observe(note)
+      // A frame that never settled a transition does not advance the
+      // read-only counter — it produced no decision to judge — but an edit it
+      // did land before throwing still clears it.
+      const step = observe(note, {
+        executedCalls,
+        ...(mutatingCalls > 0 ? { readOnlyFrames: 0, readOnlyGrace: 0 } : {})
+      })
       yield* emit(
         new AgentEvent.TurnClosed({
           eventType: eventType.turnClosed,
@@ -743,6 +967,16 @@ const frame = (
       }
     }
 
+    // Read-only discipline, applied to every frame that settled a decision.
+    // A park is exempt: waiting is not evasion, and a parked run is not
+    // reporting anything as done.
+    const cap = state.readOnlyCap
+    const readOnly = mutatingCalls === 0
+    const readOnlyFrames = readOnly ? state.readOnlyFrames + 1 : 0
+    if (cap > 0 && readOnlyFrames >= cap * 2) {
+      return yield* readOnlyCapFailure(cap, readOnlyFrames)
+    }
+
     if (transition._tag === "complete") {
       // The audit bounce. A completion inside the frame budget is accepted
       // only on its second attempt: the first is answered with a demand for
@@ -750,7 +984,8 @@ const frame = (
       // produce without doing anything. A completion on the final frame is
       // accepted as-is — bouncing it into the budget wall would discard a
       // possibly true answer for a certainly empty one.
-      if (!state.completionChallenged && state.frame + 1 < state.maxFrames) {
+      const finalFrame = state.frame + 1 >= state.maxFrames
+      if (!state.completionChallenged && !finalFrame) {
         yield* emit(
           new AgentEvent.TurnClosed({
             eventType: eventType.turnClosed,
@@ -760,20 +995,59 @@ const frame = (
         )
         return {
           _tag: "Continue",
-          state: new State({
-            session: state.session,
+          state: advance(state, {
             frame: state.frame + 1,
-            maxFrames: state.maxFrames,
-            seat: state.seat,
-            modelParams: state.modelParams,
-            layers: state.layers,
-            capabilityEnvelope: state.capabilityEnvelope,
-            placement: state.placement,
             contextWindow: observed(state, settled.message, completionAudit(transition.output)),
-            contextWindowTokens: state.contextWindowTokens,
             agentState: transition.state,
-            completionChallenged: true
+            completionChallenged: true,
+            readOnlyFrames,
+            executedCalls
           })
+        }
+      }
+      // The machine check. The controller runs the declared check itself,
+      // through the ordinary call boundary, and records the real output next
+      // to the claim: a grader reads what was checked, not what was said.
+      if (state.auditCompletion) {
+        const verdict = yield* verifyCompletion({
+          state,
+          cell,
+          descriptors,
+          executed: new Set(executedCalls),
+          ordinal: observedCalls.length,
+          verification: transition.verify,
+          engine,
+          emit
+        })
+        yield* emit(
+          new AgentEvent.CompletionAudited({
+            eventType: eventType.completionAudited,
+            ...(transition.verify === undefined ? {} : { verification: transition.verify }),
+            // A completion at the budget wall is still reported on its
+            // evidence, but it is not thrown away for lacking any: the run
+            // has no frame left in which to produce better.
+            accepted: verdict.accepted || finalFrame,
+            detail: verdict.detail
+          })
+        )
+        if (!verdict.accepted && !finalFrame) {
+          yield* emit(
+            new AgentEvent.TurnClosed({
+              eventType: eventType.turnClosed,
+              stopReason: settled.message.stopReason,
+              outcome: "continue"
+            })
+          )
+          return {
+            _tag: "Continue",
+            state: advance(state, {
+              frame: state.frame + 1,
+              contextWindow: observed(state, settled.message, verificationRefused(verdict.detail)),
+              agentState: transition.state,
+              readOnlyFrames,
+              executedCalls
+            })
+          }
         }
       }
       yield* emit(
@@ -850,27 +1124,34 @@ const frame = (
         })
       }
     }
-    const context = projected(state, transition.context, drained.inserts)
+    // The intervention. At the cap the next frame is told, structurally, that
+    // it must write something or say why it cannot; a justification is typed
+    // data on the transition, is recorded, and buys a bounded quiet spell
+    // without resetting the counter that ends the run at twice the cap.
+    const graceLeft = readOnly ? state.readOnlyGrace : 0
+    const demanded = cap > 0 && readOnly && readOnlyFrames >= cap && graceLeft === 0
+    const justified = demanded && (transition.justification ?? "").trim().length > 0
+    const readOnlyGrace = justified ? cap : Math.max(0, graceLeft - 1)
+    const demand = demanded && !justified
+      ? [ModelRequest.Message.user(readOnlyDemand(cap, readOnlyFrames))]
+      : []
+    const context = projected(state, transition.context, [...drained.inserts, ...demand])
     return {
       _tag: "Continue",
-      state: new State({
-        session: state.session,
+      state: advance(state, {
         frame: state.frame + 1,
-        maxFrames: state.maxFrames,
         seat,
         modelParams,
-        layers: state.layers,
-        capabilityEnvelope: state.capabilityEnvelope,
-        placement: state.placement,
         contextWindow: seat === state.seat ? context : ContextWindow.make({
           modelId: modelIdFromSeat(seat),
           segments: context.segments,
           activeTools: context.activeTools,
           replaced: context.replaced
         }),
-        contextWindowTokens: state.contextWindowTokens,
         agentState: transition.state,
-        completionChallenged: state.completionChallenged
+        readOnlyFrames,
+        readOnlyGrace,
+        executedCalls
       })
     }
   })

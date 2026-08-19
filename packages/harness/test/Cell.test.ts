@@ -116,7 +116,8 @@ describe("Cell.transition", () => {
       new Cell.Settled({
         transition: new Cell.Continue({
           state: { seen: 2 },
-          context: [new Cell.ContextEntry({ role: "user", text: "two files" })]
+          context: [new Cell.ContextEntry({ role: "user", text: "two files" })],
+          justification: undefined
         })
       })
     )
@@ -124,7 +125,7 @@ describe("Cell.transition", () => {
     const done = Cell.transition({ intent: "complete", output: "answer" })
     expect(done._tag).toBe("settled")
     expect((done as Cell.Settled).transition).toStrictEqual(
-      new Cell.Complete({ state: null, output: "answer", reason: undefined })
+      new Cell.Complete({ state: null, output: "answer", reason: undefined, verify: undefined })
     )
 
     const parked = Cell.transition({ intent: "park", reason: "waiting-input", message: "need a choice" })

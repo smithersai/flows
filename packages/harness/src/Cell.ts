@@ -124,7 +124,39 @@ export const renderEntry = (entry: ContextEntry): ModelRequest.Message =>
  */
 export class Continue extends Schema.TaggedClass<Continue>("flows/harness/Cell/Continue")("continue", {
   state: Schema.Json,
-  context: Schema.Array(ContextEntry)
+  context: Schema.Array(ContextEntry),
+  /**
+   * Why this frame changed nothing, when the controller demanded that it
+   * either mutate or say why not.
+   *
+   * The field exists because prose in the prompt did not stop a run from
+   * reading for its whole budget: a benchmark instance spent 100 frames and
+   * 132 calls without one edit attempt and then claimed the fix was
+   * implemented. A justification is the typed way out of the read-only cap —
+   * it is recorded, it buys a bounded grace, and it does not reset the
+   * counter that eventually stops the run.
+   */
+  justification: Schema.optional(Schema.String)
+}) {}
+
+/**
+ * The check a completing cell declares, for the harness to run itself.
+ *
+ * The audit is machine-checked: the controller invokes exactly this flow with
+ * exactly this input through the same durable call boundary a cell uses, and
+ * accepts the completion only if the call passes. Quoting a command in prose
+ * proves nothing — one benchmark run shipped a patch that never imported the
+ * symbol it called and closed with quoted evidence it had not re-run.
+ *
+ * @category models
+ * @since 0.1.0
+ * @slop
+ */
+export class Verification extends Schema.Class<Verification>("flows/harness/Cell/Verification")({
+  /** The flow to call, which must be in this frame's catalog. */
+  flow: Schema.String,
+  /** The input to call it with, byte-identical to the call being cited. */
+  input: Schema.Json
 }) {}
 
 /**
@@ -137,7 +169,9 @@ export class Continue extends Schema.TaggedClass<Continue>("flows/harness/Cell/C
 export class Complete extends Schema.TaggedClass<Complete>("flows/harness/Cell/Complete")("complete", {
   state: Schema.Json,
   output: Schema.String,
-  reason: Schema.optional(Schema.String)
+  reason: Schema.optional(Schema.String),
+  /** The check the controller re-runs before it accepts this completion. */
+  verify: Schema.optional(Verification)
 }) {}
 
 /**
@@ -183,13 +217,15 @@ const Returned = Schema.Union([
   Schema.Struct({
     intent: Schema.Literal("continue"),
     state: Schema.optional(Schema.Json),
-    context: Schema.Array(ContextEntry)
+    context: Schema.Array(ContextEntry),
+    justification: Schema.optional(Schema.String)
   }),
   Schema.Struct({
     intent: Schema.Literal("complete"),
     state: Schema.optional(Schema.Json),
     output: Schema.String,
-    reason: Schema.optional(Schema.String)
+    reason: Schema.optional(Schema.String),
+    verify: Schema.optional(Verification)
   }),
   Schema.Struct({
     intent: Schema.Literal("park"),
@@ -302,14 +338,19 @@ export const transition = (value: unknown): Outcome => {
   switch (returned.intent) {
     case "continue":
       return new Settled({
-        transition: new Continue({ state: returned.state ?? null, context: returned.context })
+        transition: new Continue({
+          state: returned.state ?? null,
+          context: returned.context,
+          justification: returned.justification
+        })
       })
     case "complete":
       return new Settled({
         transition: new Complete({
           state: returned.state ?? null,
           output: returned.output,
-          reason: returned.reason
+          reason: returned.reason,
+          verify: returned.verify
         })
       })
     case "park":

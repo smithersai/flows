@@ -59,6 +59,7 @@ import * as Digest from "@smthrs/core/Digest"
 import { Flow, FlowRuntime } from "@smthrs/flow"
 import type * as AgentEvent from "@smthrs/harness/AgentEvent"
 import type * as Cell from "@smthrs/harness/Cell"
+import * as CellTurn from "@smthrs/harness/CellTurn"
 import type * as FlowBinding from "@smthrs/harness/FlowBinding"
 import * as HarnessError from "@smthrs/harness/HarnessError"
 import * as Notifications from "@smthrs/harness/Notifications"
@@ -98,6 +99,12 @@ export interface Options {
   /** Stable system teaching placed ahead of the cell contract. */
   readonly system?: ReadonlyArray<string> | undefined
   readonly maxFrames?: number | undefined
+  /**
+   * Consecutive read-only frames a task run may spend before the controller
+   * demands an edit or a justification, and twice that before it stops the
+   * run. Defaults to `CellTurn.defaultReadOnlyFrames`.
+   */
+  readonly readOnlyCap?: number | undefined
   /**
    * The reasoning effort agent seats run at when their flow declares none.
    *
@@ -145,7 +152,14 @@ export const trace = (
     case "model-settled":
       return {
         eventType: "control.agent.model-settled",
-        payload: { text: assistantText(event.message), usage: event.usage }
+        payload: {
+          text: assistantText(event.message),
+          usage: event.usage,
+          // Wall-clock for this one sealed call. A run's total time was
+          // already derivable from event stamps; per-call latency was not,
+          // and it is the number a speed comparison actually needs.
+          durationMillis: event.durationMillis
+        }
       }
     case "cell-produced":
       return {
@@ -171,6 +185,17 @@ export const trace = (
       return { eventType: "control.agent.cell-settled", payload: { outcome: event.outcome } }
     case "transition-applied":
       return { eventType: "control.agent.transition-applied", payload: { transition: event.transition } }
+    case "completion-audited":
+      return {
+        eventType: "control.agent.completion-audited",
+        payload: {
+          accepted: event.accepted,
+          detail: event.detail,
+          ...(event.verification === undefined
+            ? {}
+            : { flowName: event.verification.flow, input: event.verification.input })
+        }
+      }
     case "suspended":
       return { eventType: "control.agent.suspended", payload: { reason: event.reason } }
     case "compaction-settled":
@@ -709,8 +734,10 @@ export const make = (
           capabilityEnvelope: patterns(card.envelope.capabilities),
           limits: options.limits,
           maxFrames: options.maxFrames,
-          // A task run's "done" is a claim about the world; audit it once.
-          auditCompletion: true
+          // A task run's "done" is a claim about the world; audit it once,
+          // and hold it to a rhythm of acting rather than only reading.
+          auditCompletion: true,
+          readOnlyCap: options.readOnlyCap ?? CellTurn.defaultReadOnlyFrames
         }).pipe(
           Stream.runForEach(record),
           Effect.provide(QuickJSSandbox.layer),
