@@ -235,9 +235,9 @@ export type PackageManager = PackageManagerModule.PackageManager
  * The CLI verbs a generated pipeline may run across a target graph.
  *
  * The name is both the namespace the verb values live under and the type they
- * have, so a BUILD.ts file writes `pipelineVerbs: [Verb.Build, Verb.Test]` and
- * annotates the result `Verb`. The module's remaining types are reachable at
- * `@smthrs/targets/Verb`.
+ * have, so a BUILD.ts file writes `{ verb: Verb.Ci, pattern: "//packages/..." }`
+ * and annotates the result `Verb`. The module's remaining types are reachable
+ * at `@smthrs/targets/Verb`.
  *
  * @category namespace exports
  * @since 0.1.0
