@@ -651,3 +651,55 @@
 	text-decoration: underline;
 	cursor: pointer;
 }
+
+/* The card header at narrow widths (§7.3). The status pill is the most
+   glanceable claim a card makes, so it renders in full at every width; the
+   title is the element that can give way, because truncating it loses nothing
+   the pill carries. Before this the header was one non-shrinking row and the
+   pill absorbed the whole shortfall — a 64px "Done" rendered in a 20px box. */
+.smithers-card-title {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.smithers-card-header > .sui-badge,
+.smithers-card-header > .card-maximize-btn {
+	flex: 0 0 auto;
+}
+/* The kind/time meta is the next to give way, and disappears before the pill. */
+.smithers-card-meta {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+}
+
+/* A maximized card fits the viewport (§7.2). `.smithers-card` sets
+   `width: 100%`, which on a fixed-position element resolves against the
+   viewport and overrode the right inset — the card was laid out full viewport
+   width starting 24px in, so its own minimize button and any right-aligned
+   action hung off the edge with no way to scroll to them. */
+.smithers-card[data-maximized="true"] {
+	width: auto;
+	height: auto;
+}
+
+/* Long card content scrolls INSIDE the card (§7.8). A file body laid out one
+   base64 line 42626px wide inside a 686px box: everything past the card's own
+   border painted across the page background and was clipped, unreachable, at
+   the viewport edge. */
+.smithers-card-body {
+	max-width: 100%;
+	min-width: 0;
+}
+.smithers-card-body pre {
+	max-width: 100%;
+	max-height: 24rem;
+	overflow: auto;
+	margin: 0;
+}
+/* Maximized, the body is already the scroller — the content takes the room. */
+.smithers-card[data-maximized="true"] .smithers-card-body pre {
+	max-height: none;
+}
