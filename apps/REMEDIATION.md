@@ -196,6 +196,17 @@ does — surfaced four more, three of them real:
   300ms. On a loaded machine the round trip crosses it, the product correctly
   toasts, and the suite called that a violation. It now reads the page's own
   settle stamp and asserts the law in both directions, so it cannot flake.
+- **A roaming mount flake, and the only one that was systemic.**
+  `browser.open()` returned at `document.readyState === "complete"`, which says
+  the document loaded, not that React rendered. Each suite then hand-rolled its
+  own mount wait with its own budget, and under load whichever suite happened to
+  be running failed on "the composer never mounted". Three different suites were
+  blamed across four runs; each passed in isolation, which is the signature of an
+  environmental wait rather than a defect. `open()` now waits for the shell's
+  `[data-flows]` manifest — proof React rendered and the registry is live — and
+  retries the whole navigation, because a page that lands mid-reload never mounts
+  however long it is given. It still throws after the last attempt: an app that
+  truly never mounts is a product failure and must stay one.
 
 Two of these — the score and the token leak — were latent product defects that
 only a whole-set run reached, because an earlier failure in the same suite was
