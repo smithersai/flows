@@ -27,7 +27,6 @@ describe("the Smithers namespace", () => {
     const runtime: Smithers.Runtime = Smithers.Runtime.Node({ version: ">=22.19.0" })
 
     expect(runtime).toEqual({
-      _tag: "Runtime",
       name: "node",
       version: ">=22.19.0",
       executable: "node"

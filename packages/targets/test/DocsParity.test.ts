@@ -225,7 +225,7 @@ describe("DocsParity execution", () => {
         await write(
           `packages/${name}/BUILD.ts`,
           `import { PackageManager, Runtime, StandardPackage } from "${rulesModule}"\n` +
-            `const runtime = Runtime.Node({ version: "24.9.0" })\n` +
+            `const runtime = Runtime.Node({ version: ">=22.19.0" })\n` +
             `const packageManager = PackageManager.Pnpm({ version: "11.21.0", runtime })\n` +
             `export const { docs } = StandardPackage({ packageManager, deps: [], cwd: "packages/${name}" })\n`
         )

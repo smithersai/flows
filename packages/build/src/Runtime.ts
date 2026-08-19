@@ -35,7 +35,7 @@ import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner
  * @category models
  * @since 0.1.0
  */
-export const Name = Schema.Literals(["node", "bun", "deno"])
+export const Name = Schema.Literals(["node", "bun"])
 
 /**
  * The supported JavaScript runtimes.
@@ -319,9 +319,9 @@ const measureVersion = (
           })
         )
       }
-      // Node prints `v24.9.0`, Bun prints `1.3.0`, and Deno prints three lines
-      // beginning `deno 2.1.4`. Taking the first version-shaped token on the
-      // first line covers all three without a per-runtime parser.
+      // Node prints `v24.9.0` and Bun prints `1.3.0`. Taking the first
+      // version-shaped token on the first line covers both without a
+      // per-runtime parser.
       const first = output.split("\n", 1)[0] ?? ""
       const token = first.trim().split(/\s+/).find((word) => /^v?\d+(\.\d+)*$/.test(word))
       return token === undefined
@@ -401,16 +401,6 @@ export const layerNode = (
 export const layerBun = (
   options: Options
 ): Layer.Layer<Runtime, never, ChildProcessSpawner> => Layer.effect(Runtime)(make("bun", options))
-
-/**
- * Provides Deno as the workspace runtime.
- *
- * @category layers
- * @since 0.1.0
- */
-export const layerDeno = (
-  options: Options
-): Layer.Layer<Runtime, never, ChildProcessSpawner> => Layer.effect(Runtime)(make("deno", options))
 
 /**
  * Builds a runtime that reports a fixed version and never spawns anything.

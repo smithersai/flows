@@ -97,14 +97,14 @@ describe("Runtime.makeNoop", () => {
   })
 
   it("provides itself as a layer", async () => {
-    const layer = Runtime.layerNoop("deno", { requirement: "2.1.4", version: "2.1.4", platform })
+    const layer = Runtime.layerNoop("bun", { requirement: "1.3.0", version: "1.3.0", platform })
     const name = await Effect.runPromise(
       Effect.gen(function*() {
         const runtime = yield* Runtime.Runtime
         return runtime.name
       }).pipe(Effect.provide(layer))
     )
-    expect(name).toBe("deno")
+    expect(name).toBe("bun")
   })
 })
 
@@ -125,17 +125,17 @@ describe("Runtime measurement", () => {
 
   it("reads the first version-shaped token on the first line", async () => {
     await withFixture(async (root) => {
-      const executable = NodePath.join(root, "fake-deno.mjs")
+      const executable = NodePath.join(root, "chatty-bun.mjs")
       await writeExecutable(
         executable,
-        "process.stdout.write(\"deno 2.1.4 (stable)\\nv8 13.0\\ntypescript 5.6\\n\")"
+        "process.stdout.write(\"bun 1.3.0 (stable)\\nwebkit 1.2\\ntypescript 5.6\\n\")"
       )
       const service = await Effect.runPromise(
-        Runtime.make("deno", { requirement: "2.1.4", platform, executable }).pipe(
+        Runtime.make("bun", { requirement: "1.3.0", platform, executable }).pipe(
           Effect.provide(NodeServices.layer)
         )
       )
-      expect(await Effect.runPromise(service.version)).toBe("2.1.4")
+      expect(await Effect.runPromise(service.version)).toBe("1.3.0")
     })
   })
 
@@ -215,8 +215,7 @@ describe("Runtime measurement", () => {
       for (
         const [name, layer] of [
           ["node", Runtime.layerNode({ requirement: "1.3.0", platform, executable })],
-          ["bun", Runtime.layerBun({ requirement: "1.3.0", platform, executable })],
-          ["deno", Runtime.layerDeno({ requirement: "1.3.0", platform, executable })]
+          ["bun", Runtime.layerBun({ requirement: "1.3.0", platform, executable })]
         ] as const
       ) {
         const measured = await Effect.runPromise(

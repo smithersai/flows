@@ -106,7 +106,7 @@ const usable = (value: unknown, what: string): string => {
  */
 export const make = (name: Name, options: Options): PackageManager => {
   if (!Runtime.isRuntime(options.runtime)) {
-    throw new TypeError(`${name} requires a declared runtime, for example Runtime.Node({ version: "24.9.0" })`)
+    throw new TypeError(`${name} requires a declared runtime, for example Runtime.Node({ version: ">=22.19.0" })`)
   }
   return PackageManager.make({
     name,
@@ -163,7 +163,7 @@ export const Yarn = (options: Options): PackageManager => make("yarn", options)
  */
 export const BunPackages = (options: { readonly runtime: Runtime.Runtime }): PackageManager => {
   if (!Runtime.isRuntime(options.runtime) || options.runtime.name !== "bun") {
-    throw new TypeError("BunPackages requires the Bun runtime, for example Runtime.Bun({ version: \"1.3.0\" })")
+    throw new TypeError("BunPackages requires the Bun runtime, for example Runtime.Bun({ version: \">=1.3.0\" })")
   }
   return make("bun", { version: options.runtime.version, runtime: options.runtime })
 }
@@ -215,7 +215,7 @@ export const lockfileName = (manager: PackageManager): string => {
  *
  * const packageManager = Smithers.PackageManager.Pnpm({
  *   version: "11.21.0",
- *   runtime: Smithers.Runtime.Node({ version: "24.9.0" })
+ *   runtime: Smithers.Runtime.Node({ version: ">=22.19.0" })
  * })
  *
  * // ["pnpm", "exec", "vitest", "run"]
