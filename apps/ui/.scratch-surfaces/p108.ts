@@ -1,0 +1,27 @@
+import { open, run, text } from "./drv.ts";
+const { context, page, errors } = await open();
+await page.waitForTimeout(5000);
+const isWorld = async () => (await page.getByText("What Smithers currently understands").count()) > 0;
+if (!(await isWorld())) await run(page, "/world", 4000);
+const code = "zarquon-" + Math.random().toString(36).slice(2, 8);
+// new note
+await page.getByRole("button", { name: /New note/i }).first().click();
+await page.waitForTimeout(2000);
+const pm = page.locator(".ProseMirror").first();
+await pm.click();
+await page.keyboard.press("Meta+a"); await page.keyboard.press("Backspace");
+await page.keyboard.type(`Canary codeword note`, { delay: 10 });
+await page.keyboard.press("Enter");
+await page.keyboard.type(`The canary codeword for this workspace is ${code}. Nothing else records it.`, { delay: 8 });
+await page.waitForTimeout(3000);
+console.log("CODEWORD:", code);
+console.log("note text:", JSON.stringify((await pm.innerText()).slice(0,200)));
+console.log("tree:", JSON.stringify(await page.locator('[data-flow="world.select"]').allInnerTexts()));
+await run(page, "/chat", 3000);
+await run(page, `What is the canary codeword for this workspace? Answer with the codeword only.`, 40000);
+const t = await text(page);
+console.log("CONTAINS CODEWORD:", t.includes(code));
+console.log("TAIL>>>", t.slice(-2200));
+await page.screenshot({ path: "/tmp/surfaces/10.8.png", fullPage: true });
+console.log("ERRORS", JSON.stringify(errors.slice(0,5)));
+await context.close();

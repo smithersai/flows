@@ -1,0 +1,33 @@
+import { chromium } from "playwright";
+const BASE = "https://canary.smithers.sh";
+const ctx = await chromium.launchPersistentContext("/tmp/canary-access-profile", { headless: true, viewport: { width: 1280, height: 900 } });
+const page = ctx.pages()[0] ?? await ctx.newPage();
+await page.goto("about:blank");
+const client = await ctx.newCDPSession(page);
+await client.send("Storage.clearDataForOrigin", { origin: BASE, storageTypes: "file_systems,local_storage,indexeddb,cache_storage,websql,service_workers" });
+await client.detach().catch(()=>{});
+const jar = await ctx.cookies();
+await ctx.clearCookies();
+await ctx.addCookies(jar.filter(c => !c.domain.includes("smithers.sh")));
+await page.goto(BASE, { waitUntil: "domcontentloaded" });
+await page.waitForTimeout(3000);
+const start = await page.evaluate(async () => (await fetch("/api/auth/native/start", { method: "POST" })).json()) as any;
+console.log("START:", JSON.stringify({ ...start, handoffId: start.handoffId?.slice(0,6)+"…", pollSecret: "<redacted>" }));
+const claim = (h: string, p: string) => page.evaluate(async ([hh, pp]) => {
+  const r = await fetch("/api/auth/native/claim", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ handoffId: hh, pollSecret: pp }) });
+  return { status: r.status, body: await r.json().catch(() => null) };
+}, [h, p]);
+console.log("CLAIM pending:", JSON.stringify(await claim(start.handoffId, start.pollSecret)));
+await page.goto(`${BASE}/api/auth/github/start?handoff=${start.handoffId}`, { waitUntil: "domcontentloaded" });
+await page.waitForTimeout(6000);
+const auth = page.locator('button:has-text("Authorize")').first();
+if (await auth.isVisible().catch(()=>false)) { await auth.click(); await page.waitForTimeout(6000); }
+console.log("LANDED URL:", page.url());
+console.log("LANDED BODY:", (await page.locator("body").innerText()).replace(/\n+/g," | "));
+await page.goto(BASE, { waitUntil: "domcontentloaded" });
+await page.waitForTimeout(2000);
+console.log("SESSION BEFORE CLAIM (expect signed-out):", JSON.stringify(await page.evaluate(async () => (await fetch("/api/auth/session")).json())));
+console.log("CLAIM ready:", JSON.stringify(await claim(start.handoffId, start.pollSecret)));
+console.log("SESSION AFTER CLAIM:", JSON.stringify(await page.evaluate(async () => (await fetch("/api/auth/session")).json())));
+console.log("CLAIM replay:", JSON.stringify(await claim(start.handoffId, start.pollSecret)));
+await ctx.close();

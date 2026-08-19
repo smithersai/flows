@@ -1,0 +1,31 @@
+import { chromium } from "playwright";
+const BASE = "https://canary.smithers.sh";
+const ctx = await chromium.launchPersistentContext("/tmp/canary-access-profile", { headless: true, viewport: { width: 1280, height: 950 } });
+const page = ctx.pages()[0] ?? await ctx.newPage();
+await page.goto("about:blank");
+const client = await ctx.newCDPSession(page);
+await client.send("Storage.clearDataForOrigin", { origin: BASE, storageTypes: "file_systems,local_storage,indexeddb,cache_storage,websql,service_workers" });
+await client.detach().catch(()=>{});
+const jar = await ctx.cookies();
+await ctx.clearCookies();
+await ctx.addCookies(jar.filter(c => !c.domain.includes("smithers.sh")));
+await page.goto(BASE, { waitUntil: "domcontentloaded" });
+await page.waitForTimeout(5000);
+// surfaces menu
+await page.locator('[data-flow="surfaces"]').first().click();
+await page.waitForTimeout(1200);
+console.log("SURFACES MENU:", (await page.locator("body").innerText()).split("Sign in with GitHub").pop());
+await page.keyboard.press("Escape");
+await page.waitForTimeout(500);
+// 1.3 submit a prompt signed out
+const composer = page.locator("textarea.sui-chat-composer-input");
+await composer.click();
+await page.keyboard.type("what is in my repos?", { delay: 10 });
+const t0 = Date.now();
+await page.keyboard.press("Enter");
+await page.waitForTimeout(8000);
+const body = await page.locator("body").innerText();
+console.log("---AFTER PROMPT (", Date.now()-t0, "ms) ---\n" + body.slice(0,4000));
+console.log("FLOWS", JSON.stringify(await page.evaluate(() => Array.from(document.querySelectorAll("[data-flow]")).map(n => n.getAttribute("data-flow")))));
+await page.screenshot({ path: "/tmp/canary-access/1.3-prompt.png", fullPage: true });
+await ctx.close();

@@ -1,0 +1,16 @@
+import { launch, resetStore, send } from "./lib.ts";
+const { ctx, page } = await launch();
+await resetStore(ctx, page);
+const counts = () => page.evaluate(() => ({ u: document.querySelectorAll('[data-role="user"]').length, a: document.querySelectorAll('[data-role="assistant"]').length }));
+await send(page, "Say the word ALPHA."); await page.waitForTimeout(18000);
+await send(page, "Say the word BETA."); await page.waitForTimeout(18000);
+console.log("before /clear:", JSON.stringify(await counts()));
+const t0 = Date.now();
+await send(page, "/clear");
+await page.waitForTimeout(30000);
+console.log("after /clear:", JSON.stringify(await counts()), "ms", Date.now()-t0);
+const body = await page.locator("body").innerText();
+console.log("BODY:", body.replace(/\s+/g," ").slice(0, 1400));
+console.log("ALPHA still present:", body.includes("ALPHA"), "| BETA:", body.includes("BETA"));
+await page.screenshot({ path: "/tmp/chatlane/4.7.png", fullPage: true });
+await ctx.close();

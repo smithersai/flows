@@ -1,0 +1,27 @@
+import { chromium } from "playwright";
+const BASE = "https://canary.smithers.sh";
+const ctx = await chromium.launchPersistentContext("/tmp/canary-access-profile", { headless: true, viewport: { width: 1280, height: 950 } });
+const page = ctx.pages()[0] ?? await ctx.newPage();
+await page.goto("about:blank");
+const client = await ctx.newCDPSession(page);
+await client.send("Storage.clearDataForOrigin", { origin: BASE, storageTypes: "file_systems,local_storage,indexeddb,cache_storage,websql,service_workers" });
+await client.detach().catch(()=>{});
+const jar = await ctx.cookies();
+await ctx.clearCookies();
+await ctx.addCookies(jar.filter(c => !c.domain.includes("smithers.sh")));
+await page.goto(BASE, { waitUntil: "domcontentloaded" });
+await page.waitForTimeout(4000);
+const t0 = Date.now();
+await page.locator('[data-flow="auth.sign-in"]').last().click();
+await page.waitForTimeout(6000);
+console.log("URL after click:", page.url());
+const authorize = page.locator('button:has-text("Authorize")').first();
+if (await authorize.isVisible().catch(()=>false)) { console.log("clicking Authorize"); await authorize.click(); }
+await page.waitForURL(/canary\.smithers\.sh/, { timeout: 60000 }).catch(e => console.log("waitURL:", String(e).slice(0,120)));
+await page.waitForTimeout(6000);
+console.log("URL now:", page.url());
+console.log("SESSION", JSON.stringify(await page.evaluate(async () => (await fetch("/api/auth/session")).json())));
+console.log("elapsed ms", Date.now()-t0);
+console.log("---BODY---\n" + (await page.locator("body").innerText()).slice(0,4000));
+await page.screenshot({ path: "/tmp/canary-access/2.1-signedin.png", fullPage: true });
+await ctx.close();

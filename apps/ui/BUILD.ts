@@ -1,22 +1,57 @@
 /**
- * End-to-end targets for the UI application.
+ * Targets for the UI application: the typecheck, the unit suite, and the two
+ * end-to-end suites.
  *
- * These suites boot `wrangler dev` and a real Chrome, so they are declared here
- * rather than folded into the package's unit test target: a pipeline that ran
- * them on every push would put minutes of browser work in front of every change
- * for no added signal. The CI job that runs them addresses them by exact label
- * for that reason.
+ * The e2e suites boot `wrangler dev` and a real Chrome, so they are separate
+ * targets rather than folded into the unit suite: a pipeline that ran them on
+ * every push would put minutes of browser work in front of every change for no
+ * added signal. The CI jobs address the two lanes by exact label for that
+ * reason — a bare `//apps/ui` under the test verb would pull both into one job.
  *
- * Both run under Bun, which is what the app's own scripts use, so the runtime is
- * the root Bun declaration and nothing here spells `bun` into an argv.
+ * Everything runs under Bun, which is what the app's own scripts use, so the
+ * runtime is the root Bun declaration and nothing here spells `bun` into an
+ * argv.
  */
 import { Smithers } from "@smthrs/targets"
-import { bunRuntime } from "../../BUILD.ts"
+import { bunRuntime, packageManager } from "../../BUILD.ts"
 
 const cwd = "apps/ui"
 
-/** The application sources both suites drive. */
+/** The application sources every suite drives. */
 const sources = Smithers.glob("//apps/ui/src/**/*.ts")
+
+/** The React components, part of the typecheck's and unit suite's key material. */
+const componentSources = Smithers.glob("//apps/ui/src/**/*.tsx")
+
+/**
+ * Checks the application against its own tsconfig.
+ *
+ * @since 0.1.0
+ * @category build
+ */
+export const check = Smithers.Typecheck({
+  packageManager,
+  srcs: [sources, componentSources],
+  deps: [],
+  tsconfig: Smithers.file("tsconfig.json"),
+  buildMode: false,
+  incremental: false,
+  cwd
+})
+
+/**
+ * The unit suite: everything under `src/`, hermetic, no server and no browser.
+ *
+ * @since 0.1.0
+ * @category test
+ */
+export const unitTests = Smithers.NodeTest({
+  runtime: bunRuntime,
+  runner: Smithers.testSuite(["src"]),
+  srcs: [sources, componentSources],
+  deps: [],
+  cwd
+})
 
 /**
  * Boots `wrangler dev` against the stub backends twice and asserts the named
