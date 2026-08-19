@@ -13,6 +13,7 @@ import * as References from "effect/References"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Options {
   readonly minimumLogLevel?: LogLevel.LogLevel | undefined
@@ -32,6 +33,7 @@ const optionsWithDefaults = (options?: Options): Required<Pick<Options, "minimum
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerPrettyDev = (options?: Options): Layer.Layer<never> => {
   const resolved = optionsWithDefaults(options)
@@ -48,6 +50,7 @@ export const layerPrettyDev = (options?: Options): Layer.Layer<never> => {
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerStructuredJson = (options?: Options): Layer.Layer<never> => {
   const resolved = optionsWithDefaults(options)
@@ -62,6 +65,7 @@ export const layerStructuredJson = (options?: Options): Layer.Layer<never> => {
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop = (options?: Pick<Options, "minimumLogLevel">): Layer.Layer<never> =>
   withMinimumLogLevel(
@@ -74,6 +78,7 @@ export const layerNoop = (options?: Pick<Options, "minimumLogLevel">): Layer.Lay
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (logger: Logger.Logger<unknown, unknown>, options?: Options): Layer.Layer<never> => {
   const resolved = optionsWithDefaults(options)

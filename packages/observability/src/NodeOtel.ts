@@ -19,6 +19,7 @@ import type { Configuration as ResourceConfiguration } from "./Resource.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Options {
   readonly endpoint: string
@@ -36,6 +37,7 @@ const endpointFor = (endpoint: string, signal: "traces" | "metrics" | "logs"): s
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerOtel = (options: Options): Layer.Layer<never> => {
   return NodeSdk.layer(() => {

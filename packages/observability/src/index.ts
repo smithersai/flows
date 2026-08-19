@@ -29,35 +29,41 @@
 /**
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export * as Otlp from "./Otlp.ts"
 
 /**
  * @category observability
  * @since 0.1.0
+ * @slop
  */
 export * as JournalLogger from "./JournalLogger.ts"
 
 /**
  * @category observability
  * @since 0.1.0
+ * @slop
  */
 export * as Logger from "./Logger.ts"
 
 /**
  * @category observability
  * @since 0.1.0
+ * @slop
  */
 export * as Metric from "./Metric.ts"
 
 /**
  * @category observability
  * @since 0.1.0
+ * @slop
  */
 export * as Otel from "./Otel.ts"
 
 /**
  * @category observability
  * @since 0.1.0
+ * @slop
  */
 export * as Resource from "./Resource.ts"

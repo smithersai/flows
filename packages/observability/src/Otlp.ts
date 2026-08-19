@@ -31,6 +31,7 @@ import * as Otlp from "effect/unstable/observability/Otlp"
  *
  * @category resource
  * @since 0.1.0
+ * @slop
  */
 export const defaultServiceName = "flows"
 
@@ -40,6 +41,7 @@ export const defaultServiceName = "flows"
  *
  * @category resource
  * @since 0.1.0
+ * @slop
  */
 export const defaultServiceVersion = "0.1.0"
 
@@ -48,6 +50,7 @@ export const defaultServiceVersion = "0.1.0"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Options {
   /**
@@ -83,6 +86,7 @@ export interface Options {
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (options: Options): Layer.Layer<never, never, HttpClient.HttpClient> =>
   Otlp.layerJson({
@@ -114,6 +118,7 @@ export const layer = (options: Options): Layer.Layer<never, never, HttpClient.Ht
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerFetch = (options: Options): Layer.Layer<never> =>
   layer(options).pipe(Layer.provide(FetchHttpClient.layer))
@@ -125,5 +130,6 @@ export const layerFetch = (options: Options): Layer.Layer<never> =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop: Layer.Layer<never> = Layer.empty
