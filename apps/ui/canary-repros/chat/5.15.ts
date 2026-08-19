@@ -50,7 +50,13 @@ for (const [x, y] of [
 	await page.waitForTimeout(500);
 	const after = await focus();
 	const dismissed = (await page.locator(".composer-menu-list").count()) === 0;
-	const kept = after.tag === before.tag && after.cls === before.cls;
+	/*
+	 * The item that HELD focus is unmounted with the menu, so "focus unchanged"
+	 * is not a state the browser can reach. The row's clause is that dismissing
+	 * never strands the user: the menu has ONE exit, the trigger, however it is
+	 * closed — which is exactly what the Escape control above measures.
+	 */
+	const kept = after.label === "Surfaces";
 	console.log(`click (${x},${y}) on ${target.tag} -> dismissed ${dismissed}; focus ${before.tag} "${before.cls}" -> ${after.tag} "${after.cls}"`);
 	if (!kept) losses.push({ x, y, before, after });
 }
@@ -58,9 +64,9 @@ for (const [x, y] of [
 await page.screenshot({ path: "/tmp/canary-chat-5.15.png", fullPage: true });
 console.log("screenshot: /tmp/canary-chat-5.15.png");
 console.log("\nEscape closes and restores focus to the trigger:", escapeKeepsFocus);
-console.log("pointer dismissals that moved focus:", losses.length, "of 3");
+console.log("pointer dismissals that did not return focus to the trigger:", losses.length, "of 3");
 
 const bug = losses.length > 0;
-console.log(bug ? "\nFAIL: a pointer press outside moves focus" : "\nOK");
+console.log(bug ? "\nFAIL: a pointer press outside strands focus away from the trigger" : "\nOK");
 await ctx.close();
 process.exit(bug ? 1 : 0);

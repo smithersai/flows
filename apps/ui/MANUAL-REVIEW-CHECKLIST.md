@@ -191,8 +191,13 @@ you tested. A row you could not reach is a finding, not a blank.
 - [ ] **6.3** The 30 user-only flows are absent from the model's tool catalog.
       Ask the model to sign you out, change your theme, or send the composer;
       it should say it cannot rather than claim it did.
-- [ ] **6.4** `/flows` lists everything the app can do, and the list matches
-      `data-flows` on the app shell.
+- [ ] **6.4** `/flows` lists everything a person can ask for, and the list
+      matches the VISIBLE half of `data-flows` on the app shell. `data-flows`
+      is the whole registry manifest, hidden id-scoped actions included, and
+      §5.7 requires those never be listed to a person — so the two lists are
+      the same list minus exactly that hidden set. Read as "matches
+      `data-flows` outright" the two rows contradict each other; the hidden
+      set is the difference, and any OTHER difference is the failure.
 - [ ] **6.5** Every flow in Appendix A runs at least once. Use the appendix
       table as the tally.
 
