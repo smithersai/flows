@@ -22,12 +22,15 @@ record, not a design.
   130 targets over 26 packages. `lib` + `check` cover what the package
   `check` scripts cover; `lint` + `fmt` cover the package `lint` scripts;
   `test` runs the same vitest configs, including their coverage gates.
-- **A shadow CI lane.** `.github/workflows/ci.yml` runs
-  `smthrs ci "//packages/..."` as the advisory `smthrs-shadow` job on
-  every push. Its first flight found two real defects (the pnpm
+- **The graph IS the CI lane (2026-08-19).** The advisory `smthrs-shadow`
+  job is gone: it existed to shadow the recursive pnpm scripts, and those
+  are no longer in the pipeline. The required `test` job runs
+  `smthrs ci "//packages/..."` directly, alongside `smthrs test
+  "//scripts/..."` and the labelled gates of the other jobs. The shadow
+  lane's first flights found two real defects (the pnpm
   `verify-deps-before-run` mid-gate reinstall, now off via the repo
   `.npmrc`, and the withheld `CI` variable, now inherited by `ExecLive`),
-  which is the lane's purpose.
+  which was the lane's purpose.
 - **Verb-aware package labels.** `smthrs lint //packages/plan` selects the
   package's lint-participating targets instead of refusing on the
   build-only default target.
@@ -35,34 +38,42 @@ record, not a design.
   generated root file. The root `BUILD.ts` declares it through `GithubCiGen`
   with `mode: "check"`, `smthrs build //:ci` regenerates it, and every other
   verb drift-checks it — the same terms as `pnpm-workspace.yaml` and
-  `tsconfig.json`. The pipeline verbs are typed `Verb` values.
+  `tsconfig.json`. Nothing in the declaration is a command: a job states what
+  the runner must provide and which targets it runs, and the generator derives
+  every step. The `test` job also runs `smthrs lint "//:ci"`, so the workflow
+  describing the pipeline is drift-checked by the pipeline.
+
+- **Root-level gates (2026-08-19).** Every gate that used to be a workflow
+  string is a target now, in the package that owns it: `scripts/BUILD.ts`
+  (the operator and release scripts, the browser bundle guard, the release
+  pack-and-smoke chain), `crates/flows-jj/BUILD.ts` (the cargo gates and the
+  wasm reproducibility rebuild), `apps/ui/BUILD.ts` (the end-to-end suites),
+  `evals/agent/BUILD.ts` (the offline eval suite), and `ci/BUILD.ts` (the Bun
+  compatibility matrix, which belongs to no single package). The
+  circular-dependency guard is emitted per package by `StandardPackage`.
+  `NodeTest`, `NodeBinary`, `CargoLint`, and `CargoTest` are the catalog
+  target types that made it possible.
 
 ## Not yet adopted
-
-- **Root-level gates.** The circular-dependency guard, the browser bundle
-  guard, `scripts/pack-release.test.mjs`, and `scripts/flows-backup.test.mjs`
-  run only as workflow steps. Expressing them as targets needs a catalog
-  target for root-anchored script runs; hand-rolled `Target.make` calls in the
-  root `BUILD.ts` are against the configuration style.
 - **Caching.** TsBuild, Typecheck, Vitest, EsLint, and Dprint are
   `cache: false`: their input contracts are not yet complete key material
   (the external toolchain versions are not folded in). Until they opt in,
   the shadow lane re-runs everything. The remote cache service is
   implemented but not deployed, and no `RemoteCache` declaration exists in
   the root `BUILD.ts`.
-- **Green `docs` verdicts.** DocsParity is in the `ci` verb set — the root
-  declaration's `pipelineVerbs: Verb.all` includes `Verb.Docs` — but its
-  verdicts stay red until the README backfill (factory queue item 0007)
-  lands.
+- **Green `docs` verdicts.** DocsParity is in the `ci` verb set — the `test`
+  job's step declares `Verb.Ci`, which plans the docs verb with the rest —
+  but its verdicts stay red until the README backfill (factory queue item
+  0007) lands.
+- **A clean-slate build.** The workflow used to wipe every `dist` tree
+  before building, which the target graph does not reproduce: it rebuilds
+  from declared inputs instead. A stale-artifact failure would now surface as
+  a `TsBuild` key that did not change when it should have.
 
-## Promotion criteria for the shadow lane
+## Remaining migration
 
-1. The lane holds a green streak whose verdicts match the enforced pnpm
-   gates on the same commits.
-2. Root-level gates exist as targets, so the lane's surface is a superset
-   of the `test` job's script steps, not just its package-level portion.
-3. The workhorse targets opt into caching with complete input contracts, so
+1. The workhorse targets opt into caching with complete input contracts, so
    the lane's wall-clock earns the migration.
-
-When all three hold, the lane becomes required and the recursive pnpm
-scripts retire from the `test` job.
+2. The recursive pnpm scripts stay for local use (`pnpm run check`,
+   `pnpm test`), but nothing in CI calls them; they retire when the local
+   entry points move to `smthrs` too.
