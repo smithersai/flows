@@ -19,6 +19,7 @@ import { Schema } from "effect"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class Child extends Schema.Class<Child>("flows/harness/Plan/Child")({
   flowName: Schema.String,
@@ -37,6 +38,7 @@ export class Child extends Schema.Class<Child>("flows/harness/Plan/Child")({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class Batch extends Schema.Class<Batch>("flows/harness/Plan/Batch")({
   children: Schema.Array(Child)
@@ -47,6 +49,7 @@ export class Batch extends Schema.Class<Batch>("flows/harness/Plan/Batch")({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class ChildResult extends Schema.Class<ChildResult>("flows/harness/Plan/ChildResult")({
   callId: Schema.String,
@@ -63,6 +66,7 @@ export class ChildResult extends Schema.Class<ChildResult>("flows/harness/Plan/C
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class ChildProgress extends Schema.TaggedClass<ChildProgress>(
   "flows/harness/Plan/ChildProgress"
@@ -76,6 +80,7 @@ export class ChildProgress extends Schema.TaggedClass<ChildProgress>(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class ChildSettled extends Schema.TaggedClass<ChildSettled>(
   "flows/harness/Plan/ChildSettled"
@@ -92,6 +97,7 @@ export class ChildSettled extends Schema.TaggedClass<ChildSettled>(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const SpliceEvent = Schema.Union([ChildProgress, ChildSettled]).pipe(
   Schema.toTaggedUnion("_tag")
@@ -102,5 +108,6 @@ export const SpliceEvent = Schema.Union([ChildProgress, ChildSettled]).pipe(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type SpliceEvent = typeof SpliceEvent.Type

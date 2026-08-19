@@ -50,6 +50,7 @@ import * as Schema from "effect/Schema"
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class StructuredOutputFailure extends Schema.TaggedError<StructuredOutputFailure>()(
   "/harness/StructuredOutputFailure",
@@ -77,6 +78,7 @@ export class StructuredOutputFailure extends Schema.TaggedError<StructuredOutput
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const maxIssues = 5
 
@@ -85,6 +87,7 @@ export const maxIssues = 5
  *
  * @category conversions
  * @since 0.1.0
+ * @slop
  */
 export const jsonSchema = (schema: Schema.Top): unknown => {
   const document = Schema.toJsonSchemaDocument(schema)
@@ -101,6 +104,7 @@ export const jsonSchema = (schema: Schema.Top): unknown => {
  *
  * @category identity
  * @since 0.1.0
+ * @slop
  */
 export const digest = (schema: Schema.Top): string => Digest.digest(Digest.canonical(jsonSchema(schema)))
 
@@ -113,6 +117,7 @@ export const digest = (schema: Schema.Top): string => Digest.digest(Digest.canon
  *
  * @category prompts
  * @since 0.1.0
+ * @slop
  */
 export const instructions = (schema: Schema.Top): string =>
   `## Required output shape
@@ -134,6 +139,7 @@ ${JSON.stringify(jsonSchema(schema), null, 2)}
  *
  * @category prompts
  * @since 0.1.0
+ * @slop
  */
 export const correction = (failure: StructuredOutputFailure): string =>
   `## Your previous answer did not validate
@@ -160,6 +166,7 @@ const stripBom = (text: string): string => text.charCodeAt(0) === 0xfeff ? text.
  *
  * @category extraction
  * @since 0.1.0
+ * @slop
  */
 export const lastBalanced = (text: string): string | undefined => {
   const stack: Array<string> = []
@@ -205,6 +212,7 @@ export const lastBalanced = (text: string): string | undefined => {
  *
  * @category extraction
  * @since 0.1.0
+ * @slop
  */
 export const candidates = (text: string): ReadonlyArray<string> => {
   const stripped = stripBom(text).trim()
@@ -227,6 +235,7 @@ const issuesOf = (error: unknown): ReadonlyArray<string> => {
  *
  * @category decoding
  * @since 0.1.0
+ * @slop
  */
 export const decode = <S extends Schema.Top>(
   schema: S,

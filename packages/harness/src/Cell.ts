@@ -37,6 +37,7 @@ const NonNegativeSafeInt = Schema.Int.check(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Language = Schema.Literals(["javascript", "typescript"])
 
@@ -45,6 +46,7 @@ export const Language = Schema.Literals(["javascript", "typescript"])
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Language = typeof Language.Type
 
@@ -56,6 +58,7 @@ export type Language = typeof Language.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class Source extends Schema.Class<Source>("flows/harness/Cell/Source")({
   language: Language,
@@ -68,6 +71,7 @@ export class Source extends Schema.Class<Source>("flows/harness/Cell/Source")({
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const digestOf = (language: Language, text: string): string =>
   Digest.digest(CanonicalJson.stringify({ kind: "flows/harness/Cell/Source", language, text }))
@@ -77,6 +81,7 @@ export const digestOf = (language: Language, text: string): string =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const source = (text: string, language: Language = "javascript"): Source =>
   new Source({ language, text, digest: digestOf(language, text) })
@@ -90,6 +95,7 @@ export const source = (text: string, language: Language = "javascript"): Source 
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class ContextEntry extends Schema.Class<ContextEntry>("flows/harness/Cell/ContextEntry")({
   role: Schema.Literals(["user", "assistant"]),
@@ -101,6 +107,7 @@ export class ContextEntry extends Schema.Class<ContextEntry>("flows/harness/Cell
  *
  * @category conversions
  * @since 0.1.0
+ * @slop
  */
 export const renderEntry = (entry: ContextEntry): ModelRequest.Message =>
   entry.role === "user"
@@ -113,6 +120,7 @@ export const renderEntry = (entry: ContextEntry): ModelRequest.Message =>
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class Continue extends Schema.TaggedClass<Continue>("flows/harness/Cell/Continue")("continue", {
   state: Schema.Json,
@@ -124,6 +132,7 @@ export class Continue extends Schema.TaggedClass<Continue>("flows/harness/Cell/C
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class Complete extends Schema.TaggedClass<Complete>("flows/harness/Cell/Complete")("complete", {
   state: Schema.Json,
@@ -136,6 +145,7 @@ export class Complete extends Schema.TaggedClass<Complete>("flows/harness/Cell/C
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class Park extends Schema.TaggedClass<Park>("flows/harness/Cell/Park")("park", {
   state: Schema.Json,
@@ -148,6 +158,7 @@ export class Park extends Schema.TaggedClass<Park>("flows/harness/Cell/Park")("p
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Transition = Schema.Union([Continue, Complete, Park]).pipe(Schema.toTaggedUnion("_tag"))
 
@@ -156,6 +167,7 @@ export const Transition = Schema.Union([Continue, Complete, Park]).pipe(Schema.t
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Transition = typeof Transition.Type
 
@@ -195,6 +207,7 @@ const Returned = Schema.Union([
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const RejectionCode = Schema.Literals([
   "no_cell",
@@ -211,6 +224,7 @@ export const RejectionCode = Schema.Literals([
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type RejectionCode = typeof RejectionCode.Type
 
@@ -219,6 +233,7 @@ export type RejectionCode = typeof RejectionCode.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class Settled extends Schema.TaggedClass<Settled>("flows/harness/Cell/Settled")("settled", {
   transition: Transition
@@ -230,6 +245,7 @@ export class Settled extends Schema.TaggedClass<Settled>("flows/harness/Cell/Set
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class Raised extends Schema.TaggedClass<Raised>("flows/harness/Cell/Raised")("raised", {
   name: Schema.String,
@@ -241,6 +257,7 @@ export class Raised extends Schema.TaggedClass<Raised>("flows/harness/Cell/Raise
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class Rejected extends Schema.TaggedClass<Rejected>("flows/harness/Cell/Rejected")("rejected", {
   code: RejectionCode,
@@ -252,6 +269,7 @@ export class Rejected extends Schema.TaggedClass<Rejected>("flows/harness/Cell/R
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Outcome = Schema.Union([Settled, Raised, Rejected]).pipe(Schema.toTaggedUnion("_tag"))
 
@@ -260,6 +278,7 @@ export const Outcome = Schema.Union([Settled, Raised, Rejected]).pipe(Schema.toT
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Outcome = typeof Outcome.Type
 
@@ -268,6 +287,7 @@ export type Outcome = typeof Outcome.Type
  *
  * @category conversions
  * @since 0.1.0
+ * @slop
  */
 export const transition = (value: unknown): Outcome => {
   const decoded = Schema.decodeUnknownResult(Returned)(value)
@@ -311,6 +331,7 @@ export const transition = (value: unknown): Outcome => {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class FlowProjection extends Schema.Class<FlowProjection>("flows/harness/Cell/FlowProjection")({
   name: Schema.String,
@@ -338,6 +359,7 @@ export class FlowProjection extends Schema.Class<FlowProjection>("flows/harness/
  *
  * @category conversions
  * @since 0.1.0
+ * @slop
  */
 export const project = (descriptor: Descriptor.FlowDescriptor): FlowProjection =>
   new FlowProjection({
@@ -360,6 +382,7 @@ export const project = (descriptor: Descriptor.FlowDescriptor): FlowProjection =
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class CallIdentity extends Schema.Class<CallIdentity>("flows/harness/Cell/CallIdentity")({
   /** The durable session/lineage the frame belongs to. */
@@ -381,6 +404,7 @@ export class CallIdentity extends Schema.Class<CallIdentity>("flows/harness/Cell
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const declarationDigest = (descriptor: Descriptor.FlowDescriptor): string =>
   Digest.digest(
@@ -399,6 +423,7 @@ export const declarationDigest = (descriptor: Descriptor.FlowDescriptor): string
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class Call extends Schema.Class<Call>("flows/harness/Cell/Call")({
   flowName: Schema.String,
@@ -418,6 +443,7 @@ export class Call extends Schema.Class<Call>("flows/harness/Cell/Call")({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class CallResult extends Schema.Class<CallResult>("flows/harness/Cell/CallResult")({
   outcome: Schema.Literals(["success", "failure"]),
@@ -458,6 +484,7 @@ const importsSource = (text: string): boolean =>
  *
  * @category conversions
  * @since 0.1.0
+ * @slop
  */
 export const extract = (text: string): Result.Result<Source, Rejected> => {
   let language: Language | undefined

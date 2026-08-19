@@ -14,6 +14,7 @@ import * as CanonicalJson from "@smthrs/model/CanonicalJson"
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export type SectionId =
   | "identity"
@@ -30,6 +31,7 @@ export type SectionId =
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export interface DeclaredText {
   readonly text: string
@@ -41,6 +43,7 @@ export interface DeclaredText {
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export interface Input {
   readonly envelope: DeclaredText
@@ -60,6 +63,7 @@ export interface Input {
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export interface Section {
   readonly id: SectionId
@@ -79,6 +83,7 @@ const section = (id: SectionId, text: string, declaration: unknown): Section => 
 /** Builds the seven ordered teaching sections for one recorded assembly.
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (input: Input): ReadonlyArray<Section> => {
   const instructions = input.instructions.map((item) => item.text).join("\n")

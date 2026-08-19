@@ -16,6 +16,7 @@ import type * as Cell from "../Cell.ts"
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export interface Section {
   readonly id: "cell-contract" | "cell-catalog"
@@ -80,6 +81,7 @@ const catalogText = (flows: Readonly<Record<string, Cell.FlowProjection>>): stri
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (
   flows: Readonly<Record<string, Cell.FlowProjection>>

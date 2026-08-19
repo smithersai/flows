@@ -12,6 +12,7 @@ import { Schema } from "effect"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class Count extends Schema.Class<Count>("flows/harness/Tokens/Count")({
   value: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
@@ -24,6 +25,7 @@ export class Count extends Schema.Class<Count>("flows/harness/Tokens/Count")({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class Segment extends Schema.Class<Segment>("flows/harness/Tokens/Segment")({
   digest: Schema.String,
@@ -37,6 +39,7 @@ export class Segment extends Schema.Class<Segment>("flows/harness/Tokens/Segment
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class Accounting extends Schema.Class<Accounting>("flows/harness/Tokens/Accounting")({
   prefix: Count,
@@ -48,6 +51,7 @@ export class Accounting extends Schema.Class<Accounting>("flows/harness/Tokens/A
 /** A deterministic local approximation, not provider billing data.
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Estimator = (text: string) => number
 
@@ -57,6 +61,7 @@ export type Estimator = (text: string) => number
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const estimate: Estimator = (text) => {
   if (text.length === 0) return 0
@@ -71,6 +76,7 @@ export const estimate: Estimator = (text) => {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const count = (text: string, estimator: Estimator = estimate): Count =>
   new Count({ value: Math.max(0, Math.ceil(estimator(text))), estimated: true })
@@ -80,6 +86,7 @@ export const count = (text: string, estimator: Estimator = estimate): Count =>
  *
  * @category combinators
  * @since 0.1.0
+ * @slop
  */
 export const combine = (segments: ReadonlyArray<Segment>): Accounting => {
   const prefix = segments.filter((segment) => segment.zone === "prefix").reduce(

@@ -56,6 +56,7 @@ import { HarnessError } from "./HarnessError.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Declared {
   readonly name?: string | undefined
@@ -73,6 +74,7 @@ export interface Declared {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface DescriptorOptions {
   /** Overrides the declaration's own name. */
@@ -143,6 +145,7 @@ const document = (schema: SchemaTypes.Top): Schema.Json | undefined => {
  *
  * @category conversions
  * @since 0.1.0
+ * @slop
  */
 export const descriptorOf = (
   declaration: Declared,
@@ -181,6 +184,7 @@ export const descriptorOf = (
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Binding<R = never> {
   readonly descriptor: Descriptor.FlowDescriptor
@@ -226,6 +230,7 @@ const escalated = (error: unknown): HarnessError | undefined => {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Options<
   I extends SchemaTypes.Top & SchemaTypes.ConstraintDecoder<unknown, never>,
@@ -255,6 +260,7 @@ export interface Options<
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = <
   I extends SchemaTypes.Top & SchemaTypes.ConstraintDecoder<unknown, never>,
@@ -317,6 +323,7 @@ export const make = <
  *
  * @category combinators
  * @since 0.1.0
+ * @slop
  */
 export const provide = <R, R2>(
   self: Binding<R>,
@@ -336,6 +343,7 @@ export const provide = <R, R2>(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Source {
   readonly name: string
@@ -347,6 +355,7 @@ export interface Source {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const source = (name: string, bindings: ReadonlyArray<Binding>): Source => ({
   name,
@@ -358,6 +367,7 @@ export const source = (name: string, bindings: ReadonlyArray<Binding>): Source =
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Catalog {
   /** Bindings in composition order. */
@@ -376,6 +386,7 @@ const emptyCatalog: Catalog = { entries: [], bindings: new Map(), descriptors: [
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const empty = (): Catalog => emptyCatalog
 
@@ -397,6 +408,7 @@ const unnamed = (): HarnessError =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const catalogResult = (
   bindings: ReadonlyArray<Binding>
@@ -422,6 +434,7 @@ export const catalogResult = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const catalog = (
   sources: ReadonlyArray<Source>
@@ -445,6 +458,7 @@ export const catalog = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const registry = (base: Registry.Registry, self: Catalog): Registry.Registry => {
   const added = (entries: ReadonlyArray<Descriptor.FlowDescriptor>): ReadonlyArray<Descriptor.FlowDescriptor> => {

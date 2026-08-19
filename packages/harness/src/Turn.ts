@@ -29,6 +29,7 @@ const NonNegativeSafeInt = Schema.Int.check(
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const defaultMaxFrames = 100
 
@@ -62,6 +63,7 @@ State that the maximum frame budget has been reached. This instruction overrides
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class TurnState extends Schema.Class<TurnState>("flows/harness/Turn/TurnState")({
   frame: NonNegativeSafeInt,
@@ -80,6 +82,7 @@ export class TurnState extends Schema.Class<TurnState>("flows/harness/Turn/TurnS
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Input {
   readonly state: TurnState
@@ -91,6 +94,7 @@ export interface Input {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (options: {
   readonly seat: string
@@ -1125,6 +1129,7 @@ const runFrame = (
  *
  * @category streams
  * @since 0.1.0
+ * @slop
  */
 export const run = (
   input: Input

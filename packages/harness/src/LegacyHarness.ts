@@ -42,6 +42,7 @@ import * as Visibility from "./Visibility.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class ResumeState extends Schema.Class<ResumeState>("flows/harness/Harness/ResumeState")({
   agentEngine: Schema.String,
@@ -54,6 +55,7 @@ export class ResumeState extends Schema.Class<ResumeState>("flows/harness/Harnes
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface MakeOptions {
   readonly resume?: ResumeState | undefined
@@ -96,6 +98,7 @@ const normalizeCause = (cause: Cause.Cause<HarnessError>): HarnessError => {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (
   options: MakeOptions = {}
@@ -215,6 +218,7 @@ export const make = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (
   options: MakeOptions = {}

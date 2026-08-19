@@ -15,6 +15,7 @@ import type * as EngineLike from "./EngineLike.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const TranscriptErrorCode = Schema.Literals(["projection_failed"])
 
@@ -23,6 +24,7 @@ export const TranscriptErrorCode = Schema.Literals(["projection_failed"])
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type TranscriptErrorCode = typeof TranscriptErrorCode.Type
 
@@ -31,6 +33,7 @@ export type TranscriptErrorCode = typeof TranscriptErrorCode.Type
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class TranscriptError extends Schema.TaggedError<TranscriptError>()("flows/harness/TranscriptError", {
   code: TranscriptErrorCode,
@@ -43,6 +46,7 @@ export class TranscriptError extends Schema.TaggedError<TranscriptError>()("flow
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface ProjectedMessage {
   readonly kind: "transcript" | "summary" | "steering"
@@ -54,6 +58,7 @@ export interface ProjectedMessage {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface ProjectedState {
   readonly messages: ReadonlyArray<ProjectedMessage>
@@ -67,6 +72,7 @@ export interface ProjectedState {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface CellEvidence {
   readonly produced: ReadonlyArray<Cell.Source>
@@ -141,6 +147,7 @@ const transcriptMessage = (
  *
  * @category projections
  * @since 0.1.0
+ * @slop
  */
 export const projectStateResult = (
   entries: ReadonlyArray<JournalEvent.Entry>
@@ -308,6 +315,7 @@ export const projectStateResult = (
  *
  * @category projections
  * @since 0.1.0
+ * @slop
  */
 export const projectState = (entries: ReadonlyArray<JournalEvent.Entry>): ProjectedState =>
   Result.getOrElse(projectStateResult(entries), () => ({
@@ -328,6 +336,7 @@ export const projectState = (entries: ReadonlyArray<JournalEvent.Entry>): Projec
  *
  * @category projections
  * @since 0.1.0
+ * @slop
  */
 export const projectResult = (
   entries: ReadonlyArray<JournalEvent.Entry>

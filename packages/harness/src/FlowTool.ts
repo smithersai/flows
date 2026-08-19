@@ -11,6 +11,7 @@ import { ModelRequest } from "@smthrs/model"
  *
  * @category tools
  * @since 0.1.0
+ * @slop
  */
 export const definition = ModelRequest.ToolDefinition.make({
   name: "flow",

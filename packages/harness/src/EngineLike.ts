@@ -23,6 +23,7 @@ import type * as Plan from "./Plan.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const SuspendReasonCode = Schema.Literals([
   "permission-required",
@@ -37,6 +38,7 @@ export const SuspendReasonCode = Schema.Literals([
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type SuspendReasonCode = typeof SuspendReasonCode.Type
 
@@ -45,6 +47,7 @@ export type SuspendReasonCode = typeof SuspendReasonCode.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class SuspendReason extends Schema.Class<SuspendReason>("flows/harness/EngineLike/SuspendReason")({
   code: SuspendReasonCode,
@@ -58,6 +61,7 @@ export class SuspendReason extends Schema.Class<SuspendReason>("flows/harness/En
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface SealedModelStep {
   readonly request: ModelRequest.ModelRequest
@@ -74,6 +78,7 @@ export interface SealedModelStep {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface BoundaryIdentity {
   /** The durable session or lineage the boundary belongs to, when the loop has one. */
@@ -88,6 +93,7 @@ export interface BoundaryIdentity {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type DurableSchema<A> = Schema.Schema<A> & { readonly "DecodingServices": never }
 
@@ -104,6 +110,7 @@ export type DurableSchema<A> = Schema.Schema<A> & { readonly "DecodingServices":
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface RecordBoundary<A> {
   readonly name: string
@@ -117,6 +124,7 @@ export interface RecordBoundary<A> {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export interface EngineLike {
   /**
@@ -175,6 +183,7 @@ export interface EngineLike {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export const EngineLike: Context.Service<EngineLike, EngineLike> = Context.Service(
   "/harness/EngineLike"
@@ -185,6 +194,7 @@ export const EngineLike: Context.Service<EngineLike, EngineLike> = Context.Servi
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (implementation: EngineLike): EngineLike => EngineLike.of(implementation)
 
@@ -193,6 +203,7 @@ export const make = (implementation: EngineLike): EngineLike => EngineLike.of(im
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (implementation: EngineLike): Layer.Layer<EngineLike> =>
   Layer.succeed(EngineLike)(make(implementation))
@@ -208,6 +219,7 @@ const unavailable = (operation: string, code: "engine_failed" | "suspended" = "e
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (overrides: Partial<EngineLike> = {}): EngineLike =>
   EngineLike.of({
@@ -225,6 +237,7 @@ export const makeNoop = (overrides: Partial<EngineLike> = {}): EngineLike =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop = (overrides: Partial<EngineLike> = {}): Layer.Layer<EngineLike> =>
   Layer.succeed(EngineLike)(makeNoop(overrides))

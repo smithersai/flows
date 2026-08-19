@@ -11,6 +11,7 @@ import { Result, Schema } from "effect"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const ToolErrorCode = Schema.Literals(["lazy_tool_prompt_metadata"])
 
@@ -19,6 +20,7 @@ export const ToolErrorCode = Schema.Literals(["lazy_tool_prompt_metadata"])
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ToolErrorCode = typeof ToolErrorCode.Type
 
@@ -27,6 +29,7 @@ export type ToolErrorCode = typeof ToolErrorCode.Type
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class ToolError extends Schema.TaggedError<ToolError>()("flows/harness/ToolError", {
   code: ToolErrorCode,
@@ -40,6 +43,7 @@ export class ToolError extends Schema.TaggedError<ToolError>()("flows/harness/To
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface LazyDefinition {
   readonly name: string
@@ -54,6 +58,7 @@ export interface LazyDefinition {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Catalog {
   readonly definitions: ReadonlyArray<ModelRequest.ToolDefinition>
@@ -87,6 +92,7 @@ const uncheckedCatalog = (definitions: ReadonlyArray<ModelRequest.ToolDefinition
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const Catalog = {
   /**
@@ -104,6 +110,7 @@ export const Catalog = {
  *
  * @category operations
  * @since 0.1.0
+ * @slop
  */
 export const lazy = (definition: ModelRequest.ToolDefinition): LazyDefinition => {
   return {
@@ -121,6 +128,7 @@ export const lazy = (definition: ModelRequest.ToolDefinition): LazyDefinition =>
  *
  * @category operations
  * @since 0.1.0
+ * @slop
  */
 export const lazyResult = (
   definition: ModelRequest.ToolDefinition
@@ -135,6 +143,7 @@ export const lazyResult = (
  *
  * @category operations
  * @since 0.1.0
+ * @slop
  */
 export const initial = (catalog: Catalog): ReadonlyArray<ModelRequest.ToolDefinition> =>
   catalog.definitions.filter((definition) => definition.loader === true)
@@ -146,6 +155,7 @@ export const initial = (catalog: Catalog): ReadonlyArray<ModelRequest.ToolDefini
  *
  * @category operations
  * @since 0.1.0
+ * @slop
  */
 export const activate = (
   catalog: Catalog,

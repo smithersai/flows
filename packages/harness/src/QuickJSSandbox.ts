@@ -407,6 +407,7 @@ const evaluate = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make: Effect.Effect<Sandbox.Sandbox> = Effect.map(
   Effect.promise(() => wasmModule()),
@@ -422,5 +423,6 @@ export const make: Effect.Effect<Sandbox.Sandbox> = Effect.map(
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer: Layer.Layer<Sandbox.Sandbox> = Layer.effect(Sandbox.Sandbox)(make)
