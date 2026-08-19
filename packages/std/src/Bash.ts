@@ -217,14 +217,20 @@ const segmentReferences = (path: Path.Path, tokens: ReadonlyArray<string>): Read
     ? candidates[candidates.length - 1]?.index
     : undefined
 
-  return candidates.map(({ index, value }) => {
-    const previous = tokens[index - 1]
-    const access: Access = previous === ">" || previous === ">>" ||
-        writeCommands.has(command) || destinationIndex === index
-      ? "write"
-      : "read"
-    return { access, value }
-  })
+  return candidates
+    // /dev/* is the process plumbing every shell one-liner leans on —
+    // `2>/dev/null`, `cat /dev/stdin` — not a workspace effect. Requiring it
+    // in the declared write set taught agents to redeclare boilerplate one
+    // refused frame at a time.
+    .filter(({ value }) => !value.startsWith("/dev/"))
+    .map(({ index, value }) => {
+      const previous = tokens[index - 1]
+      const access: Access = previous === ">" || previous === ">>" ||
+          writeCommands.has(command) || destinationIndex === index
+        ? "write"
+        : "read"
+      return { access, value }
+    })
 }
 
 const commandReferences = (path: Path.Path, command: string): ReadonlyArray<PathReference> => {

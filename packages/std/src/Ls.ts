@@ -135,19 +135,19 @@ export const run = Effect.fn("Ls.run")(function*(
       })
     )
   )
+  // A per-entry stat can fail on a name the directory legitimately
+  // contains — a dangling symlink, or a file the guarded filesystem refuses
+  // to describe. The name is still real (readDirectory returned it), so the
+  // listing reports it as a plain entry instead of dying: one broken link in
+  // a repository root used to fail the whole `ls` and cost the agent a frame
+  // per attempt.
   const entries = yield* Effect.forEach(names, (entry) =>
     fileSystem.stat(path.join(input.path, entry)).pipe(
       Effect.map((entryInfo) => ({
         name: entryInfo.type === "Directory" ? `${entry}/` : entry,
         kind: entryInfo.type === "Directory" ? "directory" as const : "file" as const
       })),
-      Effect.mapError(() =>
-        new StdError.StdError({
-          code: "not_found",
-          message: `Directory entry not found: ${entry}`,
-          path: path.join(input.path, entry)
-        })
-      )
+      Effect.catch(() => Effect.succeed({ name: entry, kind: "file" as const }))
     ))
   const sorted = entries.sort((left, right) =>
     left.kind === right.kind ? left.name.localeCompare(right.name) : left.kind === "directory" ? -1 : 1
