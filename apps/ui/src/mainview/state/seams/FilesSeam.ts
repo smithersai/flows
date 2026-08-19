@@ -64,6 +64,9 @@ const sortEntries = (entries: ReadonlyArray<FileListEntry>): FileListEntry[] =>
 		return a.name.localeCompare(b.name);
 	});
 
+/** A body that is nothing but base64 alphabet, long enough not to be a word. */
+const LOOKS_BASE64 = /^[A-Za-z0-9+/=\s]{256,}$/;
+
 /**
  * Base64 → UTF-8, honest about binary: NUL bytes or an undecodable byte
  * sequence answer `binary` instead of mojibake (multi decodeBase64 :101, made
@@ -185,17 +188,36 @@ export const createFilesSeam = (ctx: SeamContext): FilesSeam => {
 				return `The backend answered ${normalized} in ${repo} with an unreadable payload`;
 			}
 			const rawContent = typeof body.content === "string" ? body.content : "";
+			/*
+			 * §8.27: a binary file is STATED, not printed. The card says so rather
+			 * than laying out 42 000 pixels of base64 the reader can neither use
+			 * nor reach — and it is a card, because the read succeeded and the
+			 * answer is about the file.
+			 *
+			 * The declared encoding is not trusted on its own: the platform
+			 * answers `encoding: "utf-8"` for a file whose content is plainly
+			 * base64-encoded bytes, so a body that is nothing but base64 alphabet
+			 * is decoded and checked. A real text file never matches — the
+			 * alphabet excludes every punctuation mark prose and code use.
+			 */
+			const binaryCard = (): void =>
+				upsert({
+					id: `file-${repo}-${normalized}`,
+					kind: "file",
+					title: `File · ${repo} · ${normalized}`,
+					status: "active",
+					createdAt: Date.now(),
+					ordinal: ctx.nextOrdinal(),
+					payload: { repo, path: normalized, content: "", truncated: false, binary: true },
+				});
 			let content: string;
 			if (body.encoding === "base64") {
 				const decoded = decodeBase64(rawContent);
-				if (decoded.binary) {
-					return `${normalized} in ${repo} is binary — not renderable in chat`;
-				}
+				if (decoded.binary) return binaryCard();
 				content = decoded.text;
 			} else {
-				if (rawContent.includes("\u0000")) {
-					return `${normalized} in ${repo} is binary — not renderable in chat`;
-				}
+				if (rawContent.includes("\u0000")) return binaryCard();
+				if (LOOKS_BASE64.test(rawContent) && decodeBase64(rawContent).binary) return binaryCard();
 				content = rawContent;
 			}
 			const truncated = content.length > CARD_CONTENT_CAP;
