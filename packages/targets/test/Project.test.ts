@@ -13,8 +13,8 @@ import {
   maximumProjectedPathBytes,
   maximumProjectedPathDepth,
   project,
-  ProjectionError,
   projectInputs,
+  ProjectionError,
   resolveProjectedPath
 } from "../src/Project.ts"
 import * as SafeFs from "../src/SafeFs.ts"
@@ -705,7 +705,7 @@ describe("the checks a confined copy makes on its own descriptors", () => {
         const current = await stats(path)
         if (!path.endsWith(`src${NodePath.sep}index.ts`)) return current
         resolvedLstats += 1
-        return resolvedLstats > 1 ? overriding(current, { ino: current.ino + 1n }) : current
+        return resolvedLstats > 1 ? overriding(current, { ino: BigInt(current.ino) + 1n }) : current
       }
     }
 
@@ -750,7 +750,7 @@ describe("the checks a confined copy makes on its own descriptors", () => {
         const current = await stats(path)
         if (path !== NodePath.join(scratchReal, "src")) return current
         parentLstats += 1
-        return parentLstats > 1 ? overriding(current, { ino: current.ino + 1n }) : current
+        return parentLstats > 1 ? overriding(current, { ino: BigInt(current.ino) + 1n }) : current
       }
     }
 
