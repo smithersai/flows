@@ -48,10 +48,9 @@ const build = (cwd: string, format: "esm" | "cjs" | "dual" = "dual") =>
     entries: [Input.file("src/index.ts")],
     deps: [],
     tsconfig: Input.file("tsconfig.json"),
-    tool: "tsc",
+    tool: { name: "tsc" },
     format,
     outDir: "dist",
-    external: [],
     cwd
   })
 

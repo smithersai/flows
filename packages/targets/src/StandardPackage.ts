@@ -104,10 +104,9 @@ export const StandardPackage = (options: Options): StandardTargets => {
     entries: [Input.file("src/index.ts")],
     deps,
     tsconfig,
-    tool: "tsc",
+    tool: { name: "tsc" },
     format: "dual",
     outDir: "dist",
-    external: [],
     cwd
   })
   const check = Typecheck({
