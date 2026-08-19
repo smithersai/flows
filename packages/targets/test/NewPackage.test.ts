@@ -108,8 +108,7 @@ describe("scaffold", () => {
   })
 
   it("always generates a valid non-reserved JavaScript binding", () => {
-    const source = (name: string) =>
-      boilerplate(name, payload).find(([file]) => file === "src/index.ts")?.[1] ?? ""
+    const source = (name: string) => boilerplate(name, payload).find(([file]) => file === "src/index.ts")?.[1] ?? ""
     expect(source("123")).toContain("export const package123")
     expect(source("default")).toContain("export const packageDefault")
     expect(source("eval")).toContain("export const packageEval")
