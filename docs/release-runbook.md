@@ -151,8 +151,8 @@ runbook drives.
 name, version, and publish entry in `BUILD.ts`, and
 `packages/targets/src/PackageJson.ts` derives the rest. `exports` is stated once
 and `publishConfig.exports` is generated as its compiled mirror, so the subpath
-map is never written twice. Fields the generator does not model — `smthrs`,
-`homepage`, `repository`, `bugs`, `tags`, `private`, `bin` — are carried through
+map is never written twice. Fields the generator does not model (`smthrs`,
+`homepage`, `repository`, `bugs`, `tags`, `private`, `bin`) are carried through
 from the checked-in manifest verbatim; see `preservedFields` in
 `packages/targets/src/PackageJsonTemplate.ts`. `packages/targets/test/PackageJson.test.ts`
 regenerates all 45 checked-in manifests and fails on any dropped or changed

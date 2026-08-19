@@ -451,9 +451,9 @@ const sourceExtension = /\.(?:m|c)?tsx?$/
  * A value under the entry's own source directory becomes the condition object
  * npm resolves from the tarball. Everything else passes through: `null` stays
  * `null` so a subpath stays sealed, `./package.json` stays itself, and an
- * asset outside the source tree — a `.wasm` file, say — is published where it
- * already sits. Key order is preserved, because `exports` condition order is
- * semantic in Node's resolver.
+ * asset outside the source tree is published where it already sits. Key order
+ * is preserved, because `exports` condition order is semantic in Node's
+ * resolver.
  *
  * @category rendering
  * @since 0.1.0
@@ -496,8 +496,8 @@ export const distributedExports = (
  * that declares no entry.
  *
  * Under {@link defaultPublishStyle} the derivation is source first. The
- * `exports` map a declaration states — or the conventional one derived from
- * the entry when it states none — is the single source of truth, and
+ * `exports` map a declaration states, or the conventional one derived from
+ * the entry when it states none, is the single source of truth, and
  * `publishConfig.exports` is generated from it by {@link distributedExports}.
  * That removes the duplication every manifest in this workspace carries today,
  * where the same subpath map is written twice.
