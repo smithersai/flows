@@ -1,5 +1,18 @@
+import { Runtime as BuildRuntime } from "@smthrs/build"
+import * as PackageManagerDeclaration from "@smthrs/targets/PackageManager"
+import * as RuntimeDeclaration from "@smthrs/targets/Runtime"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"
-import { packageManagerEnvironment, runInstall } from "../src/engine.ts"
+import {
+  defaultToolchain,
+  layerNonInteractiveNodeServices,
+  layerRuntime,
+  packageManagerEnvironment,
+  runInstall,
+  type Toolchain,
+  toolchainOf
+} from "../src/engine.ts"
 
 describe("install engine boundary", () => {
   it("withholds default and workspace-declared cache credentials from package managers", () => {
@@ -84,5 +97,67 @@ describe("install engine boundary", () => {
     await expect(runInstall("/path/need/not/exist", { signal: {} as AbortSignal })).rejects.toThrow(
       /must be an AbortSignal/
     )
+  })
+})
+
+describe("the declared toolchain", () => {
+  const declaredRuntime = RuntimeDeclaration.Node({ version: ">=22.19.0" })
+  const declared = PackageManagerDeclaration.Toolchain.make({
+    runtime: declaredRuntime,
+    packageManager: PackageManagerDeclaration.Pnpm({ version: "11.21.0", runtime: declaredRuntime })
+  })
+
+  /** Verifies the host against the runtime layer `runInstall` composes. */
+  const verifyRuntime = (toolchain: Toolchain): Promise<string> =>
+    Effect.runPromise(
+      Effect.gen(function*() {
+        const runtime = yield* BuildRuntime.Runtime
+        return yield* runtime.verify
+      }).pipe(
+        Effect.provide(layerRuntime(toolchain).pipe(Layer.provideMerge(layerNonInteractiveNodeServices)))
+      )
+    )
+
+  it("carries the registered declaration into the layer shape", () => {
+    expect(toolchainOf(declared)).toEqual({
+      manager: "pnpm",
+      managerVersion: "11.21.0",
+      managerExecutable: undefined,
+      runtime: "node",
+      runtimeVersion: ">=22.19.0",
+      runtimeExecutable: undefined
+    })
+  })
+
+  /**
+   * The install verb runs a target no BUILD.ts file declares. Before the
+   * registration reached it, it composed {@link defaultToolchain} and accepted
+   * whatever interpreter the host had.
+   */
+  it("enforces the declared version requirement instead of >=0.0.0", async () => {
+    expect(defaultToolchain.runtimeVersion).toBe(">=0.0.0")
+    await expect(verifyRuntime(defaultToolchain)).resolves.toMatch(/^\d+\./)
+
+    const unsatisfiable = toolchainOf(
+      PackageManagerDeclaration.Toolchain.make({
+        runtime: RuntimeDeclaration.Node({ version: ">=999.0.0" }),
+        packageManager: PackageManagerDeclaration.Pnpm({
+          version: "11.21.0",
+          runtime: RuntimeDeclaration.Node({ version: ">=999.0.0" })
+        })
+      })
+    )
+    await expect(verifyRuntime(unsatisfiable)).rejects.toThrow(/the workspace declares >=999\.0\.0/)
+  })
+
+  it("refuses an install toolchain that is not a manager and a runtime", async () => {
+    await expect(
+      runInstall("/path/need/not/exist", { toolchain: { manager: "gradle" } as never })
+    ).rejects.toThrow(/must declare a manager, a runtime, and a version for each/)
+    await expect(
+      runInstall("/path/need/not/exist", {
+        toolchain: { ...toolchainOf(declared), runtimeVersion: 22 } as never
+      })
+    ).rejects.toThrow(/must declare a manager, a runtime, and a version for each/)
   })
 })

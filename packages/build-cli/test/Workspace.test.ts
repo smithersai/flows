@@ -68,10 +68,10 @@ const smithers = NodePath.resolve(import.meta.dirname, "../../targets/src/Smithe
  * A root WORKSPACE.ts file registering a toolchain, plus any extra
  * declarations the case needs.
  */
-const workspaceFile = (extra = ""): string =>
+const workspaceFile = (extra = "", version = "11.21.0"): string =>
   `import { PackageManager, registerToolchains, Runtime } from "${smithers}"\n` +
   `const runtime = Runtime.Node({ version: ">=22.19.0" })\n` +
-  `const packageManager = PackageManager.Pnpm({ version: "11.21.0", runtime })\n` +
+  `const packageManager = PackageManager.Pnpm({ version: ${JSON.stringify(version)}, runtime })\n` +
   `export const toolchain = registerToolchains({ runtime, packageManager })\n` +
   extra
 
@@ -429,6 +429,57 @@ describe("resolveToolchain", () => {
 })
 
 describe("planner ambient inputs", () => {
+  /**
+   * The registration is key material for every target, not only for the
+   * targets that take the declaration as an attr. This is the regression guard
+   * for the attr removal: once `packageManager` leaves a target's attrs, the
+   * ambient entry is the only thing that keeps two workspaces on different
+   * manager versions from sharing one key.
+   */
+  it("keys every target on the registered package-manager version", async () => {
+    await write("package.json", "{}\n")
+    await write("src/index.ts", "export const value = 1\n")
+    await write(
+      "BUILD.ts",
+      `import { DepsLint, file, glob, PackageManager, Runtime } from "${smithers}"\n` +
+        toolchain +
+        "export const lint = DepsLint({\n" +
+        "  runtime,\n" +
+        "  packageManager,\n" +
+        "  packageJson: file(\"package.json\"),\n" +
+        "  sources: [glob(\"src/**/*.ts\")],\n" +
+        "  deps: [],\n" +
+        "  tool: \"knip\",\n" +
+        "  ignoreDependencies: [],\n" +
+        "  ignoreBinaries: [],\n" +
+        "  cwd: \".\"\n" +
+        "})\n"
+    )
+
+    const keyFor = async (version: string): Promise<string> => {
+      await write("WORKSPACE.ts", workspaceFile("", version))
+      const workspace = await Workspace.make(root, root)
+      const plan = await Planner.make(workspace, "lint", "//:lint")
+      const target = plan.targets.find((candidate) => candidate.label === "//:lint")
+      if (target === undefined) throw new Error("the fixture declared no //:lint target")
+      return target.keyPreview
+    }
+
+    const first = await keyFor("11.21.0")
+    const second = await keyFor("11.22.0")
+    expect(first).not.toBe(second)
+  })
+
+  /**
+   * A workspace that registers no toolchain still plans. The ambient entry
+   * reads as absent rather than as a default version no author wrote.
+   */
+  it("records no toolchain when the workspace registers none", async () => {
+    await write("package.json", "{}\n")
+    const workspace = await Workspace.make(root, root)
+    expect(workspace.toolchain).toBeUndefined()
+  })
+
   it.skipIf(process.platform === "win32")("refuses a lockfile link that leaves the workspace", async () => {
     const outside = `${root}-outside-lockfile`
     await Fs.writeFile(outside, "lockfileVersion: '9.0'\n", "utf8")
