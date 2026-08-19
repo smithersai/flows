@@ -252,8 +252,17 @@ const outsideEnvelope = (
   input: Extract<Input, { readonly mode: "hermetic" }>,
   path: Path.Path
 ): StdError.StdError | undefined => {
+  const base = path.resolve(".")
   const cwd = path.resolve(input.cwd ?? ".")
-  if (input.cwd !== undefined && !isDeclared(input.reads, input.cwd, cwd)) {
+  // Passing the default explicitly is not a declaration the caller owes. A
+  // working directory is where the command runs, not a file it reads, and
+  // `cwd: "."` names exactly what omitting `cwd` names — so refusing it asked
+  // the caller to list the workspace root among its reads to say nothing at
+  // all. Agents hit this constantly: one SWE-bench run spent ten of its
+  // forty-eight tool calls re-issuing the same command after
+  // "Working directory is outside declared reads: <the workspace root>". A
+  // cwd that points somewhere else is still declared or refused.
+  if (input.cwd !== undefined && cwd !== base && !isDeclared(input.reads, input.cwd, cwd)) {
     return new StdError.StdError({
       code: "outside_declared_reads",
       message: `Working directory is outside declared reads: ${cwd}`,
