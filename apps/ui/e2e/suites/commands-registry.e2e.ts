@@ -833,9 +833,8 @@ const SMOKE_TABLE: Readonly<Record<string, SmokeEntry>> = {
 	"debug.backend": {
 		klass: "admin-only",
 		effect: ["answer"],
-		args: "proxy",
 		fixture: "an admin session",
-		reason: "Switches which backend drives a turn, so it is invoked last of the admin reads.",
+		reason: "Reports which backend drives a turn. Invoked with no argument: an argument is a request to switch, and the one backend answers that with a refusal rather than a reading.",
 	},
 };
 
@@ -912,7 +911,7 @@ const SAFE_ORDER: ReadonlyArray<string> = [
 	"auth.prompt",
 ];
 
-/** The order the admin-only invocations run in; debug.backend last, because it switches the backend. */
+/** The order the admin-only invocations run in. Order is load-bearing; see each entry's reason. */
 const ADMIN_ORDER: ReadonlyArray<string> = [
 	"admin.devtools",
 	"debug.snapshot",
