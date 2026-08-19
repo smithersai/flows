@@ -106,7 +106,7 @@ export const SessionSchema = z.object({
 	/*
 	 * The color theme. Optional (missing = DEFAULT_PALETTE) so sessions
 	 * persisted before the field parse without a schema reset — the same
-	 * discipline agentBackend and pendingCommand follow below; a zod default
+	 * discipline pendingCommand follows below; a zod default
 	 * would fork the schema's input and output types and break collection
 	 * inference.
 	 */
@@ -121,21 +121,37 @@ export const SessionSchema = z.object({
 	/** The composer surfaces menu (the /surfaces command's open state). */
 	surfacesMenuOpen: z.boolean(),
 	/*
-	 * Which backend drives a turn (DESIGN.md §14): the chat.smithers.sh proxy
-	 * with the client tool loop, or the Agent Chain runtime. Optional (missing
-	 * = proxy) so persisted sessions from before the flag parse without a
-	 * schema reset — a zod default would fork the schema's input and output
-	 * types and break collection inference. Flipped only by the human (admin
-	 * /debug.backend) — never by the agent.
+	 * The composer connect menu's open state. A component is a projection and
+	 * never an authority, so the menu that used to live in a `useState` lives
+	 * here — opened and closed through the transition dispatcher with the actor
+	 * recorded, exactly like surfacesMenuOpen above. Optional (missing = closed)
+	 * so sessions persisted before the field parse without a schema reset.
+	 *
+	 * The requirement reads "boolean default false", and the default lives in
+	 * `initialSession` below, not in a `z.boolean().default(false)`. A zod
+	 * default would never run on the rows this actually has to survive: a
+	 * collection reads its rows straight out of storage on preload and TanStack
+	 * never validates them (see the version gate in AppStore). The default would
+	 * only widen the inferred type to a non-optional `boolean` while a session
+	 * persisted before the field still handed back `undefined`. Every read is
+	 * `=== true` / `!== true` for that reason.
 	 */
-	agentBackend: z.enum(["proxy", "chain"]).optional(),
+	connectMenuOpen: z.boolean().optional(),
+	/*
+	 * The note `/world.delete` is asking about (§10.6, §28.4). Deleting is not
+	 * undoable, so the flow ASKS and the answer is an act of its own — and the
+	 * question lives in the store rather than in a component's local state,
+	 * because a component is a projection and never an authority. Optional so
+	 * sessions persisted before the field parse without a schema reset.
+	 */
+	pendingWorldDeleteId: z.string().nullable().optional(),
 	/*
 	 * The one deferred command (requirement axis): a user-invoked command whose
 	 * requirement (e.g. signed-in) was unmet parks HERE while the fulfilling
 	 * command runs, and resumes when the requirement's predicate flips true.
 	 * Persisted because sign-in is a full OAuth redirect — the intent must
 	 * survive the reload. Optional (missing = none) so persisted sessions from
-	 * before the field parse without a schema reset, like agentBackend above.
+	 * before the field parse without a schema reset, like palette above.
 	 * Latest wins: deferring a second command replaces the first.
 	 */
 	pendingCommand: z
@@ -328,6 +344,18 @@ export type AppTransition =
 			message: string;
 	  }
 	| {
+			/*
+			 * /retry re-RUNS the last turn: the answer that turn produced is
+			 * dropped and the same turn id launches again. Re-SENDING the prompt
+			 * instead appended a second user bubble per retry, so the transcript
+			 * grew a duplicate pair every time and every retry re-sent a longer
+			 * history than the one before it.
+			 */
+			type: "message.retried";
+			actor: "user";
+			turnId: string;
+	  }
+	| {
 			type: "message.response.cancelled";
 			// "user" pressed stop; "system" is a server-side kill ending the stream.
 			actor: "user" | "system";
@@ -380,6 +408,12 @@ export type AppTransition =
 			open: boolean;
 	  }
 	| {
+			/* The composer connect menu opens/closes (trigger, Escape, outside press). */
+			type: "connect-menu.toggled";
+			actor: "user";
+			open: boolean;
+	  }
+	| {
 			/*
 			 * A user-invoked command parked on an unmet requirement (requirement
 			 * axis): the fulfilling command runs now; this record resumes the
@@ -418,12 +452,6 @@ export type AppTransition =
 			lineageId: string;
 			seq: number;
 			event: unknown;
-	  }
-	| {
-			/* The human flips which backend drives a turn (admin /debug.backend). */
-			type: "agent.backend.changed";
-			actor: "user" | "system";
-			backend: "proxy" | "chain";
 	  }
 	| {
 			/*
@@ -465,6 +493,15 @@ export type AppTransition =
 			type: "world.document.removed";
 			actor: Actor;
 			id: string;
+	  }
+	| {
+			/*
+			 * The delete question, asked and answered (§10.6). `id: null` is the
+			 * answer "no" — the dialog closes and the note stays.
+			 */
+			type: "world.delete.asked";
+			actor: Actor;
+			id: string | null;
 	  }
 	| {
 			type: "connector.local.requested";
@@ -654,7 +691,8 @@ export const initialSession = (theme: Session["theme"]): Session => ({
 	maximizedCardId: null,
 	devtoolsOpen: false,
 	surfacesMenuOpen: false,
-	agentBackend: "proxy",
+	connectMenuOpen: false,
+	pendingWorldDeleteId: null,
 	revision: 0,
 });
 

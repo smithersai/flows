@@ -21,7 +21,7 @@ import {
 	RECO_REPOS_PATH,
 	RECO_WATCHED_PATH,
 	TOOLS_BROWSER_FETCH_PATH,
-	TURN_PATH,
+	MODEL_STREAM_PATH,
 	WORKFLOW_EVENTS_PATH,
 	WORKFLOW_PROVISION_PATH,
 	WORKFLOW_RPC_PATH,
@@ -117,10 +117,13 @@ export interface AppController {
 	readonly connectLocalRepository: (access: RepositoryAccess) => Promise<void>;
 	readonly makeConnectorReadOnly: (id: string) => void;
 	readonly removeConnector: (id: string) => void;
-	readonly selectWorldDocument: (id: string) => void;
+	readonly selectWorldDocument: (id: string) => string | void;
 	readonly changeWorldDocument: (id: string, body: string) => void;
 	readonly createWorldDocument: () => void;
-	readonly removeWorldDocument: (id: string) => void;
+	/** Ask whether to delete a note; the answer is `world.delete.confirm|cancel`. */
+	readonly removeWorldDocument: (id: string) => string | void;
+	readonly confirmWorldDelete: () => string | void;
+	readonly cancelWorldDelete: () => void;
 	readonly decideApproval: (id: string, decision: "approved" | "denied") => void;
 	readonly retryLastTurn: () => void;
 	readonly toggleTheme: () => void;
@@ -128,7 +131,7 @@ export interface AppController {
 	readonly setPalette: (args: string) => string | void;
 	/* Wave 10 — the onboarding chooser (repos.watch) and the watched set. */
 	readonly openRepoChooser: (preselect?: string) => Promise<string | void>;
-	readonly toggleWatchedRepo: (fullName: string) => void;
+	readonly toggleWatchedRepo: (fullName: string) => string | void;
 	readonly selectAllWatchedRepos: () => void;
 	readonly selectNoWatchedRepos: () => void;
 	readonly confirmWatchedRepos: () => Promise<string | void>;
@@ -154,14 +157,21 @@ export interface AppController {
 	/** Boot reconciliation: resume the event pump for any run card still live. */
 	readonly resumeWorkflowRuns: () => void;
 	/* Card maximize/minimize — the user's presentation transition (§2d′). */
-	readonly maximizeCard: (id: string) => void;
+	readonly maximizeCard: (id: string) => string | void;
 	readonly minimizeCard: () => void;
 	/* The admin dev-tools panel + debug reads (§2b/§2d; admin registry only). */
 	readonly toggleDevtools: () => void;
-	/** Flip which backend drives a turn (admin /debug.backend; DESIGN.md §14). */
-	readonly setAgentBackend: (backend: string) => string | { readonly value: string };
+	/** Report what drives a turn (admin /debug.backend; DESIGN.md §14). */
+	readonly describeAgentBackend: (backend: string) => string | { readonly value: string };
 	/* The composer surfaces menu — the /surfaces command's open state. */
 	readonly toggleSurfacesMenu: () => void;
+	/*
+	 * The composer connect menu's open state. Not a command — the chip is a
+	 * pointer affordance, not a registry entry — but the state is still the
+	 * store's, reached through the dispatcher with the actor recorded.
+	 */
+	readonly toggleConnectMenu: () => void;
+	readonly closeConnectMenu: () => void;
 	readonly debugSnapshot: () => { readonly value: string };
 	readonly debugEvents: () => { readonly value: string };
 	readonly debugSeams: () => Promise<string | void | { readonly value: string }>;
@@ -169,6 +179,14 @@ export interface AppController {
 	readonly debugChain: () => { readonly value: string };
 	/** The wire tap: the controller's fetch ring, newest first. */
 	readonly debugNet: () => { readonly value: string };
+	/**
+	 * The same ring, read WITHOUT surfacing it.
+	 *
+	 * `debugNet` is the flow: it renders the read for the human who typed it.
+	 * The dev-tools panel reads the ring while rendering, so it needs the pure
+	 * read — dispatching from a render is a re-render loop.
+	 */
+	readonly netTap: () => string;
 	/** Drop every chain grant and pending denial (admin /debug.grants.reset). */
 	readonly resetGrants: () => Promise<string | { readonly value: string }>;
 	/**
@@ -180,8 +198,8 @@ export interface AppController {
 	readonly loadSession: () => Promise<void>;
 	/** Redirect to the identity seam's GitHub OAuth start. */
 	readonly signIn: () => void;
-	readonly signOut: () => Promise<void>;
-	readonly requestAccess: () => Promise<void>;
+	readonly signOut: () => Promise<string | void>;
+	readonly requestAccess: () => Promise<string | void>;
 	/**
 	 * Consume a `?auth=failed` return from a failed OAuth redirect: the failure
 	 * renders as a Smithers message in the chat (honest error + retry action),
@@ -239,7 +257,7 @@ export interface AppController {
 	/** Refresh the billing record from the billing seam (actor: system). */
 	readonly refreshBalance: () => Promise<void>;
 	/** Refresh the balance and surface it as a card in the transcript. */
-	readonly showBalance: () => Promise<void>;
+	readonly showBalance: () => Promise<string | { readonly value: string }>;
 	/** Beat 5: fetch the reco seam's first-run answer and render it (digest message + card, or the honest degraded line). */
 	readonly loadFirstRunReco: (bump?: boolean) => Promise<void>;
 	readonly acceptRecommendation: (cardId?: string) => Promise<string | void>;
@@ -287,6 +305,11 @@ export interface AppServices {
 	 * that it has gone quiet and the pump stops (10 minutes in production).
 	 */
 	readonly workflowQuietMs?: number;
+	/**
+	 * How long a request/response seam may take before it is an honest failure
+	 * (§22.6). Streaming paths carry no deadline; tests shorten this one.
+	 */
+	readonly seamTimeoutMs?: number;
 }
 
 const documentPath = (store: AppStore): string => {
@@ -358,6 +381,8 @@ export const createAppController = (
 	 * so the journal records who actually drove the change.
 	 */
 	let commandActor: "user" | "smithers" = "user";
+	/** Announce an identity change to the other tabs; wired by watchIdentityAcrossTabs. */
+	let identityChanged: () => void = () => {};
 	const baseUrl = services.baseUrl ?? "";
 	/*
 	 * The wire tap (DESIGN.md §14 debug mode): a bounded in-memory ring around
@@ -410,6 +435,37 @@ export const createAppController = (
 		} catch (error) {
 			recordNet({ at: started, method, url, status: "error", ms: Date.now() - started });
 			throw error;
+		}
+	};
+
+	/*
+	 * A request that never answers has to become an answer.
+	 *
+	 * §22.6 / A.18: `POST /api/workflow/provision` never replied, so
+	 * "Preparing your … workspace…" stood past 120s with no run card, no
+	 * timeout and no error — the silent-failure family with a spinner on top.
+	 * A bounded wait turns it into an honest refusal. It rides only on the
+	 * request/response seams; the streaming paths (the turn, the model relay)
+	 * carry no deadline, because a long stream is not a hang.
+	 */
+	const SEAM_TIMEOUT_MS = services.seamTimeoutMs ?? 30_000;
+	/**
+	 * One request, with a deadline on it.
+	 *
+	 * Built from an AbortController rather than `AbortSignal.timeout` so the
+	 * timer is CLEARED the moment the request settles: a dangling timer per
+	 * request holds the process open outside a browser, and the deadline is
+	 * about the request, not about the page.
+	 */
+	const boundedFetch = async (url: string, init: RequestInit): Promise<Response> => {
+		if (typeof AbortController !== "function") return http(url, init);
+		const aborter = new AbortController();
+		const timer = setTimeout(() => aborter.abort(new Error("seam timeout")), SEAM_TIMEOUT_MS);
+		unref(timer);
+		try {
+			return await http(url, { ...init, signal: aborter.signal });
+		} finally {
+			clearTimeout(timer);
 		}
 	};
 
@@ -580,6 +636,7 @@ export const createAppController = (
 	};
 
 	const loadSession = async (): Promise<void> => {
+		const previous = store.collections.identitySessions.get("identity");
 		let response: Response;
 		try {
 			response = await http(`${baseUrl}${AUTH_SESSION_PATH}`);
@@ -621,6 +678,7 @@ export const createAppController = (
 			admin: body.admin === true,
 			scopesPlain: null,
 		});
+		if (previous?.state !== "signed-in" || previous.login !== body.login) identityChanged();
 		// The balance read is driven by the session answer, not fired blind at
 		// boot: signed out it could only come back 401 — the expected state,
 		// logged by the browser as a console error anyway.
@@ -773,22 +831,40 @@ export const createAppController = (
 		if (typeof window !== "undefined") window.location.assign(`${baseUrl}${AUTH_SIGN_IN_PATH}`);
 	};
 
-	const signOut = async (): Promise<void> => {
+	/*
+	 * Sign-out that does not sign out must SAY so. Returning void on a failed
+	 * logout left the user looking at their own signed-in session with no hint
+	 * that the act had failed — the silent-failure shape, on the one act whose
+	 * whole point is that it took effect.
+	 */
+	const signOut = async (): Promise<string | void> => {
 		try {
 			const response = await http(`${baseUrl}${AUTH_LOGOUT_PATH}`, { method: "POST" });
 			if (!response.ok) {
-				await response.body?.cancel();
-				return;
+				return await errorMessageOf(response, "Signing out didn't go through — you are still signed in.");
 			}
 		} catch {
-			return;
+			return "Signing out didn't go through — the identity service didn't answer. You are still signed in.";
 		}
 		store.dispatch({ type: "identity.session.cleared", actor: "user" });
+		identityChanged();
 	};
 
-	const requestAccess = async (): Promise<void> => {
+	/*
+	 * A.38: this used to answer nothing at all when there was nothing to do.
+	 * For a non-allowlisted account the auth message carries both the filed
+	 * request and any failure, so the outcome is visible where it belongs; for
+	 * everyone else the flow now says why it did nothing instead of POSTing
+	 * quietly and returning.
+	 */
+	const requestAccess = async (): Promise<string | void> => {
 		const identity = store.collections.identitySessions.get("identity");
-		if (identity === undefined || identity.state !== "signed-in" || identity.login === null) return;
+		if (identity === undefined || identity.state !== "signed-in" || identity.login === null) {
+			return "Sign in with GitHub first — an access request needs an account to attach to.";
+		}
+		if (identity.allowlisted) {
+			return `You already have access as ${identity.login} — there is no request to file.`;
+		}
 		try {
 			const response = await http(`${baseUrl}${IDENTITY_REQUEST_ACCESS_PATH}`, {
 				method: "POST",
@@ -892,10 +968,19 @@ export const createAppController = (
 	const filesSeam = createFilesSeam(seamCtx);
 	const appStatusSeam = createAppStatusSeam(seamCtx);
 
-	const showBalance = async (): Promise<void> => {
+	/*
+	 * §22.7: this returned void, so the model's own `billing.balance` call
+	 * handed it NOTHING back and it answered from a guess — "$0.00" one line
+	 * above the card the same call had just rendered reading "$519 left". A
+	 * tool that can be invoked and cannot be read confabulates on every data
+	 * question, not just this one.
+	 */
+	const showBalance = async (): Promise<string | { readonly value: string }> => {
 		await refreshBalance();
 		const account = store.collections.billingAccounts.get("billing");
-		if (account === undefined || account.state === "unknown" || account.state === "unavailable") return;
+		if (account === undefined || account.state === "unknown" || account.state === "unavailable") {
+			return "The billing service didn't answer, so there is no balance to state right now.";
+		}
 		// One balance card, re-surfaced at the end of the transcript each time it
 		// is asked for: leaving it at its old ordinal would answer the command
 		// with a silent no-op once the conversation has moved past it.
@@ -918,6 +1003,9 @@ export const createAppController = (
 			},
 		};
 		store.dispatch({ type: "card.upsert", actor: "system", card });
+		return {
+			value: `balance: $${account.totalUsd ?? "0"} left; $${account.lifetimeChargedUsd ?? "0"} spent across ${account.chargeCount} turn(s)`,
+		};
 	};
 
 	/*
@@ -1112,9 +1200,21 @@ export const createAppController = (
 			() => openRepoChooserImpl(preselect),
 		).then((outcome) => (outcome === true ? undefined : outcome));
 
-	const toggleWatchedRepo = (fullName: string): void => {
+	/*
+	 * A.12: the toggle used to add ANY name to the selection, so
+	 * `/repos.watch.toggle no-such/repo` silently put a repository the account
+	 * does not have into the set the confirm would persist. The chooser's own
+	 * rows are the universe — the sibling `/repos.watch <repo>` already refuses
+	 * by name, and this now answers the same way.
+	 */
+	const toggleWatchedRepo = (fullName: string): string | void => {
 		const card = chooserCard();
-		if (card === undefined || card.payload.phase === "saving") return;
+		if (card === undefined) return "The repository chooser isn't open — run /repos.watch first.";
+		if (card.payload.phase === "saving") return;
+		const known = card.payload.candidates.some((repo) => repo.fullName === fullName);
+		if (!known) {
+			return `I couldn't find ${fullName} among your repositories — the chooser is open with the ones I can see.`;
+		}
 		const selected = card.payload.selected.includes(fullName)
 			? card.payload.selected.filter((name) => name !== fullName)
 			: [...card.payload.selected, fullName];
@@ -1865,6 +1965,7 @@ export const createAppController = (
 		const current = store.session();
 		const identity = store.collections.identitySessions.get("identity");
 		const watched = store.collections.watchedRepos.get("watched");
+		const billingAccount = store.collections.billingAccounts.get("billing");
 		const selected =
 			current.selectedWorldDocumentId === null
 				? undefined
@@ -1899,7 +2000,29 @@ export const createAppController = (
 						: watched === undefined || watched.selected === null
 							? "unselected"
 							: watched.selected.length,
+				/*
+				 * §22.7: a COUNT left the model declining to answer "what repos do
+				 * you watch?" while the names were served plainly by the seam it
+				 * was already reading.
+				 */
+				...(identity?.state === "signed-in" && watched?.selected != null
+					? { watchedRepoNames: [...watched.selected] }
+					: {}),
 			},
+			/*
+			 * §22.7: the client holds the balance; the model did not, so asked
+			 * for it, it answered "$0.00" one line above a card its own tool call
+			 * had just rendered reading "$519 left".
+			 */
+			billing:
+				billingAccount === undefined
+					? null
+					: {
+							state: billingAccount.state,
+							totalUsd: billingAccount.totalUsd,
+							lifetimeChargedUsd: billingAccount.lifetimeChargedUsd,
+							chargeCount: billingAccount.chargeCount,
+						},
 			worldState: {
 				documentCount: snapshot.worldState.documents.length,
 				documents: snapshot.worldState.documents.map((document) => ({
@@ -2308,13 +2431,53 @@ export const createAppController = (
 		settleTurnBilling();
 	});
 
+	/*
+	 * A failed flow has no channel of its own to answer into — dropping the
+	 * outcome reads as a silent no-op (the "did it even run?" bug). Every
+	 * invocation the human makes — a pointer press OR a name typed into the
+	 * composer — states its refusal as a toast; executes that render their own
+	 * error UI return void and never reach this. The zero-balance refusal is
+	 * the one exception: `zeroBalanceGuard` already dispatched it as an
+	 * embedded transcript message, so toasting it too would double-surface the
+	 * same refusal.
+	 */
+	const surfaceCommandFailure = (name: string, outcome: CommandOutcome): void => {
+		if (outcome.status !== "failed") return;
+		if (outcome.error === ZERO_BALANCE_EXHAUSTED_TEXT) return;
+		const key = `command.failed.${name}`;
+		store.dispatch({ type: "toast.shown", actor: "system", key, title: `/${name} didn't run` });
+		store.dispatch({ type: "toast.resolved", actor: "system", key, status: "failed", detail: outcome.error });
+	};
+
 	const send = (text: string): void => {
 		const parsed = parseSubmit(text, commands.all());
 		if (parsed.kind === "empty") return;
-		if (parsed.kind === "command") {
-			// A bare /name is a command invocation, never a prompt for the agent.
+		if (parsed.kind === "unknown-command") {
+			/*
+			 * §23.5: a name the app does not have used to go to the model as
+			 * prose, and the model reached for whatever flow it COULD see — so
+			 * `/reset` on a non-admin session ran `retry`. The app answers for
+			 * its own registry.
+			 */
 			store.dispatch({ type: "composer.changed", actor: "user", draft: "" });
-			void commands.run(parsed.name, parsed.args);
+			surfaceCommandFailure(parsed.name, {
+				status: "failed",
+				error: `There is no /${parsed.name} flow. Type / to see everything Smithers can do.`,
+			});
+			return;
+		}
+		if (parsed.kind === "command") {
+			/*
+			 * A bare /name is a command invocation, never a prompt for the agent.
+			 * The outcome is surfaced exactly as the pointer path surfaces it:
+			 * a flow the human typed and that refused must SAY so — dropping the
+			 * outcome here is what made `/name <args>` silent while bare `/name`
+			 * (which the slash menu routes through the pointer path) was honest.
+			 */
+			store.dispatch({ type: "composer.changed", actor: "user", draft: "" });
+			void commands
+				.run(parsed.name, parsed.args)
+				.then((outcome) => surfaceCommandFailure(parsed.name, outcome));
 			return;
 		}
 		const prompt = parsed.text;
@@ -2468,7 +2631,8 @@ export const createAppController = (
 		});
 	};
 
-	const maximizeCard = (id: string): void => {
+	const maximizeCard = (id: string): string | void => {
+		if (store.collections.cards.get(id) === undefined) return `There is no card with id ${id}.`;
 		store.dispatch({ type: "card.maximized", actor: "user", id });
 	};
 
@@ -2492,33 +2656,86 @@ export const createAppController = (
 		});
 	};
 
+	const toggleConnectMenu = (): void => {
+		store.dispatch({
+			type: "connect-menu.toggled",
+			actor: "user",
+			open: store.session().connectMenuOpen !== true,
+		});
+	};
+
 	/*
-	 * DESIGN.md §14: the human flips which backend drives a turn. user-only by
-	 * trigger axis — the agent must never switch its own engine — and honest
-	 * about the argument instead of guessing.
+	 * Escape, an outside press, and picking an entry all CLOSE — they are not
+	 * toggles, and dispatching one against an already-closed menu would write a
+	 * transition that changed nothing into the journal.
 	 */
-	const setAgentBackend = (backend: string): string | { readonly value: string } => {
-		const target = backend.trim();
-		if (target !== "proxy" && target !== "chain") {
-			return `debug.backend needs "proxy" or "chain" (currently: ${store.session().agentBackend ?? "proxy"})`;
+	const closeConnectMenu = (): void => {
+		if (store.session().connectMenuOpen !== true) return;
+		store.dispatch({ type: "connect-menu.toggled", actor: "user", open: false });
+	};
+
+	/*
+	 * The one backend, named once. `/debug.backend` reports it and the manual
+	 * checklist quotes it, so drift between what runs and what is claimed shows
+	 * up as a failing row rather than as a confident wrong sentence.
+	 */
+	const AGENT_BACKEND = "chain (in-browser Agent Chain over /api/model/stream)";
+
+	/*
+	 * DESIGN.md §14: what drives a turn. A read, not a switch — Smithers has one
+	 * backend, so there is nothing here to flip and an argument is answered
+	 * honestly rather than silently ignored.
+	 */
+	const describeAgentBackend = (backend: string): string | { readonly value: string } => {
+		const asked = backend.trim();
+		if (asked !== "") {
+			return `there is one backend and it cannot be switched: ${AGENT_BACKEND}`;
 		}
-		if (store.session().phase !== "idle") {
-			return "the backend can only change between turns — stop the current turn first";
+		const value = `agent backend: ${AGENT_BACKEND}`;
+		// A backend answer the human cannot see is a backend they cannot trust.
+		if (commandActor !== "smithers") {
+			store.dispatch({ type: "message.appended", actor: "system", text: value });
 		}
-		store.dispatch({ type: "agent.backend.changed", actor: "user", backend: target });
-		return { value: `agent backend: ${target}` };
+		return { value };
 	};
 
 	/*
 	 * The debug reads (§2d): one typed surface the dev-tools panel renders and
 	 * the agent invokes to answer "what is happening" for admin sessions.
 	 */
+	/*
+	 * A debug read the HUMAN asked for renders in the transcript.
+	 *
+	 * `{ value }` is the agent boundary's channel and never renders on its own
+	 * (§2b), so a read whose only answer is a value is a silent no-op for the
+	 * person who typed it. `debug.seams` already showed the shape: surface
+	 * first, return the value second. These four now do the same. The agent's
+	 * own invocation still renders nothing — it reads the value in its tool
+	 * result, and pasting the payload into the chat as well would be noise.
+	 */
+	const DEBUG_READ_LIMIT = 4000;
+	const surfaceDebugRead = (title: string, payload: string): { readonly value: string } => {
+		if (commandActor !== "smithers") {
+			const shown =
+				payload.length <= DEBUG_READ_LIMIT
+					? payload
+					: `${payload.slice(0, DEBUG_READ_LIMIT)}\n\n… truncated at ${DEBUG_READ_LIMIT} of ${payload.length} characters. The dev-tools panel (/admin.devtools) holds the whole read.`;
+			store.dispatch({
+				type: "message.appended",
+				actor: "system",
+				text: `${title}\n\n\`\`\`json\n${shown}\n\`\`\``,
+			});
+		}
+		return { value: payload };
+	};
+
 	const debugSnapshot = (): { readonly value: string } => {
 		const identity = store.collections.identitySessions.get("identity");
 		const billing = store.collections.billingAccounts.get("billing");
 		const watched = store.collections.watchedRepos.get("watched");
-		return {
-			value: JSON.stringify({
+		return surfaceDebugRead(
+			"App state snapshot",
+			JSON.stringify({
 				surface: store.session().surface,
 				phase: store.session().phase,
 				revision: store.session().revision,
@@ -2537,7 +2754,7 @@ export const createAppController = (
 					hidden: entry.metadata.hidden === true,
 				})),
 			}),
-		};
+		);
 	};
 
 	const debugEvents = (): { readonly value: string } => {
@@ -2550,7 +2767,7 @@ export const createAppController = (
 				type: record.type,
 				at: new Date(record.createdAt).toISOString(),
 			}));
-		return { value: JSON.stringify(tail) };
+		return surfaceDebugRead("Transition journal tail", JSON.stringify(tail));
 	};
 
 	const debugChain = (): { readonly value: string } => {
@@ -2558,16 +2775,27 @@ export const createAppController = (
 		// link's script, calls, rejections, steering, outcome, and the author
 		// contexts — the two-histories view. Full payloads by design: the
 		// admin panel is the raw-payload surface the transcript never is.
-		return { value: JSON.stringify(foldLineages([...store.collections.chainEvents.values()])) };
+		return surfaceDebugRead(
+			"Chain journal x-ray",
+			JSON.stringify(foldLineages([...store.collections.chainEvents.values()])),
+		);
 	};
 
-	const debugNet = (): { readonly value: string } => ({
-		value: JSON.stringify([...netRing].reverse()),
-	});
+	const netTap = (): string => JSON.stringify([...netRing].reverse());
+
+	const debugNet = (): { readonly value: string } => surfaceDebugRead("Network tap", netTap());
 
 	const resetGrants = async (): Promise<string | { readonly value: string }> => {
 		if (agent.revokeGrants === undefined) return "this backend holds no grants";
 		await agent.revokeGrants();
+		// A revocation the human cannot see is a revocation they cannot trust.
+		if (commandActor !== "smithers") {
+			store.dispatch({
+				type: "message.appended",
+				actor: "system",
+				text: "The chain's session grants are revoked — the next tool call asks for permission again.",
+			});
+		}
 		return { value: "chain grants revoked" };
 	};
 
@@ -2602,11 +2830,10 @@ export const createAppController = (
 	const runSweep = async (transcript: ReadonlyArray<AgentChatMessage>): Promise<SweepNote[] | undefined> => {
 		let response: Response;
 		try {
-			response = await http(`${baseUrl}${TURN_PATH}`, {
+			response = await http(`${baseUrl}${MODEL_STREAM_PATH}`, {
 				method: "POST",
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({
-					runId: crypto.randomUUID(),
 					messages: transcript,
 					instructions: SWEEP_INSTRUCTIONS,
 				}),
@@ -2948,7 +3175,7 @@ export const createAppController = (
 		for (;;) {
 			let body: { status?: unknown; message?: unknown } | undefined;
 			try {
-				const response = await http(`${baseUrl}${WORKFLOW_PROVISION_PATH}`, {
+				const response = await boundedFetch(`${baseUrl}${WORKFLOW_PROVISION_PATH}`, {
 					method: "POST",
 					headers: { "content-type": "application/json" },
 					body: JSON.stringify({ repo }),
@@ -2958,7 +3185,7 @@ export const createAppController = (
 				}
 				body = (await response.json().catch(() => undefined)) as typeof body;
 			} catch {
-				return "The workspace couldn't be prepared — the workflow service didn't answer.";
+				return "The workspace couldn't be prepared — the workflow service didn't answer in time.";
 			}
 			if (body?.status === "ready") return true;
 			/*
@@ -3869,7 +4096,15 @@ export const createAppController = (
 		store.dispatch({ type: "connector.removed", actor: "user", id });
 	};
 
-	const selectWorldDocument = (id: string): void => {
+	/*
+	 * A.34: an id-scoped act used to dispatch blindly, so a note id that does
+	 * not exist was a silent no-op — the reducer dropped it and the human was
+	 * told nothing. An act names what it could not find.
+	 */
+	const selectWorldDocument = (id: string): string | void => {
+		if (store.collections.worldDocuments.get(id) === undefined) {
+			return `There is no ${WORLD_DISPLAY_NAME} note with id ${id}.`;
+		}
 		store.dispatch({ type: "world.document.selected", actor: "user", id });
 	};
 
@@ -3902,8 +4137,29 @@ export const createAppController = (
 		});
 	};
 
-	const removeWorldDocument = (id: string): void => {
+	/*
+	 * §10.6 / §28.4 / A.34: deleting a note is not undoable, so `/world.delete`
+	 * ASKS — from the trash button and from the composer alike. It used to
+	 * delete outright whenever it was typed, because the only confirm lived in
+	 * a component's local state and the flow bypassed it.
+	 */
+	const removeWorldDocument = (id: string): string | void => {
+		if (store.collections.worldDocuments.get(id) === undefined) {
+			return `There is no ${WORLD_DISPLAY_NAME} note with id ${id} to delete.`;
+		}
+		store.dispatch({ type: "world.delete.asked", actor: commandActor, id });
+	};
+
+	/** The human's answer to that question: yes. */
+	const confirmWorldDelete = (): string | void => {
+		const id = store.session().pendingWorldDeleteId ?? null;
+		if (id === null) return "No note is waiting to be deleted.";
 		store.dispatch({ type: "world.document.removed", actor: "user", id });
+	};
+
+	/** The human's answer to that question: no. */
+	const cancelWorldDelete = (): void => {
+		store.dispatch({ type: "world.delete.asked", actor: "user", id: null });
 	};
 
 	const decideApproval = (id: string, decision: "approved" | "denied"): void => {
@@ -4024,11 +4280,35 @@ export const createAppController = (
 			});
 	};
 
+	/*
+	 * /retry re-RUNS the last turn — it does not re-SEND the prompt.
+	 *
+	 * `send` appends a user message, so retrying through it grew the transcript
+	 * a duplicate user/assistant pair per attempt and made every retry ship a
+	 * longer history than the one before it. The turn keeps its id: the answer
+	 * it produced is dropped and the same leg launches again over the context
+	 * that produced it.
+	 */
 	const retryLastTurn = (): void => {
-		const prompt = [...store.collections.messages.values()]
+		if (store.session().phase !== "idle" || activeTurn !== undefined) return;
+		const last = [...store.collections.messages.values()]
 			.filter((message) => message.role === "user")
-			.sort((left, right) => right.ordinal - left.ordinal)[0]?.text;
-		if (prompt !== undefined) send(prompt);
+			.sort((left, right) => right.ordinal - left.ordinal)[0];
+		const turnId = last?.id.match(/^message-(.+)-user$/)?.[1];
+		if (turnId === undefined) return;
+		store.dispatch({ type: "message.retried", actor: "user", turnId });
+		if (store.session().phase !== "responding") return;
+		activeTurn = {
+			id: turnId,
+			receivedText: false,
+			toolLegs: 0,
+			toolItems: [],
+			pendingCall: undefined,
+			runLaunch: undefined,
+			askClass: impossibleAskOf(last?.text ?? ""),
+			claimBuffer: "",
+		};
+		launchLeg(turnId, contextMessages());
 	};
 
 	const toggleTheme = (): void => {
@@ -4228,6 +4508,8 @@ export const createAppController = (
 		changeWorldDocument,
 		createWorldDocument,
 		removeWorldDocument,
+		confirmWorldDelete,
+		cancelWorldDelete,
 		decideApproval,
 		retryLastTurn,
 		openRepoChooser,
@@ -4248,11 +4530,14 @@ export const createAppController = (
 		minimizeCard,
 		toggleDevtools,
 		toggleSurfacesMenu,
-		setAgentBackend,
+		toggleConnectMenu,
+		closeConnectMenu,
+		describeAgentBackend,
 		debugSnapshot,
 		debugEvents,
 		debugChain,
 		debugNet,
+		netTap,
 		resetGrants,
 		debugSeams,
 		toggleTheme,
@@ -4342,21 +4627,43 @@ export const createAppController = (
 	});
 
 	/*
-	 * A failed command from a BUTTON has no composer to answer into — dropping
-	 * the outcome reads as a silent no-op (the "did it even run?" bug). Every
-	 * pointer-driven failure states itself as a toast; executes that render
-	 * their own error UI return void and never reach this. The zero-balance
-	 * refusal is the one exception: `zeroBalanceGuard` already dispatched it
-	 * as an embedded transcript message, so toasting it too would
-	 * double-surface the same refusal.
+	 * §2.5 / §23.4 — identity is shared between tabs; the app's copy of it was
+	 * not. The session cookie is per-origin, so signing in on one tab signs in
+	 * every tab, yet a tab that had already read `/api/auth/session` kept
+	 * rendering the signed-out card until someone reloaded it by hand — and the
+	 * same asymmetry ran the other way after a sign-out.
+	 *
+	 * A tab re-reads the session whenever it comes back to the foreground, and
+	 * a tab that changes identity itself tells its siblings at once. This is a
+	 * host subscription, not React lifecycle, so it lives with the state it
+	 * corrects.
 	 */
-	const surfaceCommandFailure = (name: string, outcome: CommandOutcome): void => {
-		if (outcome.status !== "failed") return;
-		if (outcome.error === ZERO_BALANCE_EXHAUSTED_TEXT) return;
-		const key = `command.failed.${name}`;
-		store.dispatch({ type: "toast.shown", actor: "system", key, title: `/${name} didn't run` });
-		store.dispatch({ type: "toast.resolved", actor: "system", key, status: "failed", detail: outcome.error });
+	const IDENTITY_CHANNEL = "smithers.identity";
+	const watchIdentityAcrossTabs = (): void => {
+		if (typeof document === "undefined" || typeof window === "undefined") return;
+		let reading = false;
+		const reread = (): void => {
+			if (reading || document.visibilityState === "hidden") return;
+			reading = true;
+			void loadSession().finally(() => {
+				reading = false;
+			});
+		};
+		document.addEventListener("visibilitychange", reread);
+		window.addEventListener("focus", reread);
+		if (typeof BroadcastChannel === "undefined") return;
+		const channel = new BroadcastChannel(IDENTITY_CHANNEL);
+		channel.onmessage = () => {
+			// A sibling's identity changed: re-read the seam rather than trust
+			// the message — the cookie is the authority, not the announcement.
+			void loadSession();
+		};
+		identityChanged = () => {
+			channel.postMessage("changed");
+		};
 	};
+
+	watchIdentityAcrossTabs();
 
 	const runCommand = (name: string): boolean => {
 		if (commands.find(name) === undefined) return false;
@@ -4393,6 +4700,8 @@ export const createAppController = (
 		changeWorldDocument,
 		createWorldDocument,
 		removeWorldDocument,
+		confirmWorldDelete,
+		cancelWorldDelete,
 		decideApproval,
 		retryLastTurn,
 		openRepoChooser,
@@ -4413,11 +4722,14 @@ export const createAppController = (
 		minimizeCard,
 		toggleDevtools,
 		toggleSurfacesMenu,
-		setAgentBackend,
+		toggleConnectMenu,
+		closeConnectMenu,
+		describeAgentBackend,
 		debugSnapshot,
 		debugEvents,
 		debugChain,
 		debugNet,
+		netTap,
 		resetGrants,
 		debugSeams,
 		toggleTheme,
