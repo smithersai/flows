@@ -18,6 +18,7 @@ import * as NodeUtil from "node:util/types"
 import * as Config from "./Config.ts"
 import * as Exec from "./Exec.ts"
 import * as Input from "./Input.ts"
+import * as Visibility from "./Visibility.ts"
 
 /**
  * CLI verbs a target can participate in.
@@ -172,8 +173,13 @@ export const declaredOutputs = (target: string, value: DeclaredOutputs): Declare
 }
 
 /**
- * The attrs, declared inputs, declared outputs, and cacheability one verb sees
- * for a target.
+ * The attrs, declared inputs, declared outputs, cacheability, visibility, and
+ * sandbox mode one verb sees for a target.
+ *
+ * `visibility` and `sandbox` are optional because a caller that only needs the
+ * attrs of a verb-independent view, such as the planner's `graph` and `query`
+ * view, constructs this shape directly. Every view {@link make} builds carries
+ * both.
  *
  * @category models
  * @since 0.1.0
@@ -184,6 +190,8 @@ export interface KindView {
   readonly inputs: ReadonlyArray<Input.Declared>
   readonly cacheable: boolean
   readonly outputs: DeclaredOutputs | undefined
+  readonly visibility?: Visibility.Visibility | undefined
+  readonly sandbox?: boolean | undefined
 }
 
 /**
@@ -199,6 +207,12 @@ export interface KindView {
  * none. Dependencies are re-derived from verb-effective attrs and may vary by
  * verb. `verbGate`, when present, is the complete set of verbs
  * whose graph may include this target, including through a dependency edge.
+ * `visibility` names who may depend on this target and defaults to
+ * {@link Visibility.private}. `sandbox` is whether this target's execution is
+ * projected onto its declared inputs and defaults to false. Both are derived
+ * per verb, like cacheability, and neither is key material: they are plan-time
+ * policy, and changing policy must not invalidate a cached result. Nothing
+ * reads either field yet.
  *
  * @category models
  * @since 0.1.0
@@ -218,6 +232,8 @@ export interface Metadata {
   readonly cacheable: boolean
   readonly outputs: DeclaredOutputs | undefined
   readonly verbGate: ReadonlyArray<Kind> | undefined
+  readonly visibility: Visibility.Visibility
+  readonly sandbox: boolean
   readonly sourceFile: string | undefined
   readonly forKind: (kind: Kind) => KindView
 }
@@ -390,6 +406,8 @@ const isMetadata = (value: unknown): value is Metadata => {
   const cacheable = ownData(value, "cacheable")
   const outputs = ownData(value, "outputs")
   const verbGate = ownData(value, "verbGate")
+  const visibility = ownData(value, "visibility")
+  const sandbox = ownData(value, "sandbox")
   const source = ownData(value, "sourceFile")
   const attrsSchema = ownData(value, "attrsSchema")
   const decodeSuccess = ownData(value, "decodeSuccess")
@@ -401,6 +419,8 @@ const isMetadata = (value: unknown): value is Metadata => {
     !isArrayOf(dependencies, (_entry): _entry is AnyTarget => true) ||
     !isArrayOf(inputs, (_entry): _entry is Input.Declared => true) ||
     typeof cacheable !== "boolean" ||
+    !Visibility.isVisibility(visibility) ||
+    typeof sandbox !== "boolean" ||
     (source !== undefined && typeof source !== "string") ||
     attrsSchema === missingProperty ||
     typeof decodeSuccess !== "function" ||
@@ -499,6 +519,28 @@ export interface MakeOptions<
    * its implementation has a complete deterministic input contract.
    */
   readonly cache?: boolean | ((attrs: Attrs["Type"]) => boolean) | undefined
+  /**
+   * Who may depend on this target. The default is
+   * {@link Visibility.private}: the declaring directory only.
+   *
+   * This is a `MakeOptions` field feeding {@link Metadata}, not an attrs
+   * member, for the reason `verbGate` is one. Attrs are key material, so a
+   * visibility declared in attrs would make changing who may depend on a
+   * target invalidate that target's cache.
+   */
+  readonly visibility?:
+    | Visibility.Visibility
+    | ((attrs: Attrs["Type"]) => Visibility.Visibility | undefined)
+    | undefined
+  /**
+   * Whether this target's execution is projected onto its declared inputs.
+   * The default is false, which is the behaviour every target has today.
+   *
+   * Kept out of attrs for the reason `visibility` is. The run-level flag and
+   * the sandbox mode the executor actually applies are separate, and the mode
+   * is key material; this field is not.
+   */
+  readonly sandbox?: boolean | ((attrs: Attrs["Type"]) => boolean) | undefined
   readonly attrsForKind?: ((kind: Kind, attrs: Attrs["Type"]) => Attrs["Type"]) | undefined
   readonly verbGate?:
     | ReadonlyArray<Kind>
@@ -679,6 +721,10 @@ export const make = <
   }
   const functionIdentity = (operation: unknown): Node.FunctionIdentity | null =>
     operation === undefined ? null : Node.functionIdentity(operation)
+  // `visibility` and `sandbox` are deliberately absent. The digest is key
+  // material through `Metadata.implementationDigest`, and both fields are
+  // plan-time policy: declaring who may depend on a target, or that a target
+  // opts out of projection, must not invalidate that target's cached result.
   const implementationDigest = createHash("sha256").update(JSON.stringify({
     implementation: functionIdentity(options.implementation),
     attrsForKind: functionIdentity(options.attrsForKind),
@@ -717,12 +763,27 @@ export const make = <
     const verbGate = resolvedVerbGate === undefined ? undefined : [...new Set(resolvedVerbGate)]
     const outputsFor = (value: Attrs["Type"]): DeclaredOutputs | undefined =>
       options.outputs === undefined ? undefined : declaredOutputs(id, options.outputs(value))
+    // Visibility and sandbox mode vary by verb the way cacheability does: a
+    // generator whose `build` writes and whose `lint` checks drift can answer
+    // differently for each. Neither reaches key material.
+    const visibilityFor = (value: Attrs["Type"]): Visibility.Visibility => {
+      const resolved = typeof options.visibility === "function" ? options.visibility(value) : options.visibility
+      if (resolved === undefined) return Visibility.private
+      if (!Visibility.isVisibility(resolved)) {
+        throw new Error(`${id} declared a visibility that is not a visibility declaration`)
+      }
+      return resolved
+    }
+    const sandboxFor = (value: Attrs["Type"]): boolean =>
+      typeof options.sandbox === "function" ? options.sandbox(value) : options.sandbox ?? false
     const baseView: KindView = {
       attrs,
       dependencies: [...new Set(dependencies)],
       inputs: [...new Set(inputs)],
       cacheable: cacheableFor(attrs),
-      outputs: outputsFor(attrs)
+      outputs: outputsFor(attrs),
+      visibility: visibilityFor(attrs),
+      sandbox: sandboxFor(attrs)
     }
     const kindViews = new Map<Kind, KindView>()
     const forKind = (kind: Kind): KindView => {
@@ -750,7 +811,9 @@ export const make = <
         dependencies: dependenciesForKind,
         inputs: [...new Set(mappedInputs)],
         cacheable: cacheableFor(mapped),
-        outputs: outputsFor(mapped)
+        outputs: outputsFor(mapped),
+        visibility: visibilityFor(mapped),
+        sandbox: sandboxFor(mapped)
       }
       kindViews.set(kind, view)
       return view
@@ -774,6 +837,8 @@ export const make = <
       cacheable: baseView.cacheable,
       outputs: baseView.outputs,
       verbGate,
+      visibility: baseView.visibility ?? Visibility.private,
+      sandbox: baseView.sandbox ?? false,
       sourceFile: declarationSourceFile,
       forKind
     }

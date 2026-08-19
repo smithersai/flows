@@ -45,6 +45,14 @@ export * as Input from "./Input.ts"
 export * as Target from "./Target.ts"
 
 /**
+ * Visibility declarations: who may depend on a target.
+ *
+ * @category namespace exports
+ * @since 0.1.0
+ */
+export * as Visibility from "./Visibility.ts"
+
+/**
  * Confined filesystem reads shared by discovery.
  *
  * @category namespace exports

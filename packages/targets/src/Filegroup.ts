@@ -20,10 +20,6 @@
  * These are deliberate, and the general target when the two disagree is to
  * follow Bazel:
  *
- * - **No visibility.** Bazel gates every target behind `visibility`, and a
- *   `filegroup` is the usual way to publish files across package boundaries.
- *   smithers build has no visibility system yet, so every group is effectively
- *   public. When visibility lands, groups get it with every other target.
  * - **No `exports_files`, and `//`-anchored `file()` references stay legal.**
  *   In Bazel a package must export a file before another package may name it,
  *   and naming a file in another package without that export is an error.
@@ -48,6 +44,7 @@ import * as Schema from "effect/Schema"
 import { failureMessage } from "./GeneratedFile.ts"
 import * as Input from "./Input.ts"
 import * as Target from "./Target.ts"
+import * as Visibility from "./Visibility.ts"
 
 /**
  * One declared file source a group can expand on its own.
@@ -325,6 +322,13 @@ export const ExpandFilegroupLive = (options: {
  * call, which reads the named files and succeeds with the expanded, digested
  * file list. Executing the plan requires {@link ExpandFilegroupLive}.
  *
+ * A group declares {@link Visibility.public}, matching Bazel's usual role for
+ * `filegroup` as the way a package publishes files across its boundary and
+ * matching the reach every group already has. The declaration is carried on
+ * {@link Target.Metadata}, not in {@link Attrs}, so it is not key material:
+ * nothing about who may name a group changes the group's key. Nothing enforces
+ * it yet.
+ *
  * @category targets
  * @since 0.1.0
  */
@@ -334,5 +338,6 @@ export const Filegroup = Target.make(ruleId, {
   success: Files,
   error: FilegroupError,
   cache: true,
+  visibility: Visibility.public,
   implementation: (attrs) => ExpandFilegroup.call({ sources: sources(attrs) })
 })
