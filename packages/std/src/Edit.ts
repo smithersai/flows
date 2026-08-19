@@ -8,6 +8,7 @@ import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Schema from "effect/Schema"
 import { capability, envelope } from "./internal/Declaration.ts"
+import * as Match from "./internal/Match.ts"
 import * as StdError from "./StdError.ts"
 
 /**
@@ -84,8 +85,6 @@ export const capabilities = [capability("fs:read", "/**"), capability("fs:write"
  */
 export const flow = Flow.make({ name, description, input: Input, output: Output, capabilities, effects })
 
-const occurrences = (haystack: string, needle: string): number => needle === "" ? 0 : haystack.split(needle).length - 1
-
 /**
  * Applies an exact-string edit through the permission-aware kernel filesystem.
  *
@@ -113,16 +112,23 @@ export const run = Effect.fn("Edit.run")(function*(
       new StdError.StdError({ code: "not_found", message: `File not found: ${input.path}`, path: input.path })
     )
   )
-  const count = occurrences(content, input.oldString)
-  if (count === 0) {
+  // Tolerant location: exact first, then whitespace-forgiving line matches.
+  // The replacement text is always the caller's newString; the cascade only
+  // finds where the caller's quoted block actually sits.
+  const located = Match.locate(content, input.oldString)
+  if (located.length === 0) {
+    const nearest = Match.nearestRegion(content, input.oldString)
     return yield* Effect.fail(
       new StdError.StdError({
         code: "no_match",
-        message: `oldString does not occur in ${input.path}`,
+        message: nearest === undefined
+          ? `oldString does not occur in ${input.path}, and no line of it matches either — is this the right file?`
+          : `oldString does not occur in ${input.path}. The nearest actual region is:\n${nearest}\nQuote it exactly and reissue the edit.`,
         path: input.path
       })
     )
   }
+  const count = located.length
   if (count > 1 && input.replaceAll !== true) {
     return yield* Effect.fail(
       new StdError.StdError({
@@ -132,9 +138,14 @@ export const run = Effect.fn("Edit.run")(function*(
       })
     )
   }
-  const replaced = input.replaceAll === true
-    ? content.split(input.oldString).join(input.newString)
-    : content.replace(input.oldString, input.newString)
+  const targets = input.replaceAll === true ? located : [located[0]!]
+  let replaced = ""
+  let cursor = 0
+  for (const span of targets) {
+    replaced += content.slice(cursor, span.start) + input.newString
+    cursor = span.end
+  }
+  replaced += content.slice(cursor)
   yield* fileSystem.writeFileString(input.path, replaced).pipe(
     Effect.mapError(() =>
       new StdError.StdError({
