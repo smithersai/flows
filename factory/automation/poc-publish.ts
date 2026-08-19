@@ -11,7 +11,7 @@ import * as Github from "./github.ts"
 import { infrastructureLabel, pocMarker, transition } from "./labels.ts"
 import * as Memory from "./memory.ts"
 import * as Repro from "./repro.ts"
-import { commitPaths, isEntryPoint } from "./shell.ts"
+import { commitPaths, isEntryPoint, pushMain } from "./shell.ts"
 
 /** Finds the open blocker issue for one classification, if there is one. */
 export const findBlocker = (summary: string): number | undefined => {
@@ -101,10 +101,11 @@ const recordMemory = (
     related: [...new Set([...(existing?.related ?? []), ...related])],
     summary: existing === undefined ? summary : `${existing.summary}\n\n${summary}`
   })
-  commitPaths(
-    [Memory.memoryDirectory],
+  const committed = commitPaths(
+    [Memory.memoryDirectory, Repro.reprosDirectory],
     `📝 docs(factory): record the PoC outcome for #${String(issue)}`
   )
+  if (committed) pushMain()
 }
 
 if (isEntryPoint(import.meta.url)) main()

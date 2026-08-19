@@ -108,6 +108,22 @@ export const commitPaths = (
   return true
 }
 
+/**
+ * Pushes the bookkeeping commits to `main`, surviving one concurrent push.
+ *
+ * Bookkeeping state — the memory corpus, the repro pairs, the recorded
+ * results — only exists for later runs if it reaches the remote. Two
+ * automation runs can finish at once, so a rejected push gets one
+ * fetch-and-rebase retry; a second rejection is a real failure and throws.
+ */
+export const pushMain = (cwd?: string): void => {
+  const first = run("git", ["push", "origin", "HEAD:main"], { cwd })
+  if (first.ok) return
+  git(["fetch", "origin", "main"], cwd)
+  git(["rebase", "origin/main"], cwd)
+  git(["push", "origin", "HEAD:main"], cwd)
+}
+
 /** The merge base of one ref against another. */
 export const mergeBase = (left: string, right: string, cwd?: string): string =>
   git(["merge-base", left, right], cwd).trim()

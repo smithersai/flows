@@ -14,7 +14,7 @@ import { askJson } from "./agent.ts"
 import * as Github from "./github.ts"
 import { duplicateLabel, transition } from "./labels.ts"
 import * as Memory from "./memory.ts"
-import { commitPaths, isEntryPoint } from "./shell.ts"
+import { commitPaths, isEntryPoint, pushMain } from "./shell.ts"
 import type { Report } from "./schema.ts"
 
 /** The agent's verdict on the candidate list. */
@@ -134,10 +134,11 @@ const main = (): void => {
     related: duplicate === undefined ? related : [duplicate, ...related],
     summary: verdict.summary ?? ""
   })
-  commitPaths(
+  const committed = commitPaths(
     [Memory.memoryDirectory],
     `📝 docs(factory): record the triage of #${String(number)} in the issue memory`
   )
+  if (committed) pushMain()
   console.log(edit.reason)
 }
 

@@ -14,7 +14,7 @@ import * as Github from "./github.ts"
 import { transition } from "./labels.ts"
 import * as Memory from "./memory.ts"
 import * as Repro from "./repro.ts"
-import { commitPaths, isEntryPoint, run } from "./shell.ts"
+import { commitPaths, isEntryPoint, pushMain, run } from "./shell.ts"
 
 /** How long one repro may run during a sweep. */
 export const timeoutMs = 10 * 60 * 1000
@@ -126,10 +126,11 @@ const main = (): void => {
   for (const report of Github.searchIssues("label:repro:blocked state:open", 50)) unpark(report.number)
   for (const report of Github.searchIssues("label:repro:verified state:open", 50)) recheck(report.number)
   for (const report of Github.searchIssues("label:repro:needs-info state:open", 50)) stale(report.number, now)
-  commitPaths(
+  const committed = commitPaths(
     [Memory.memoryDirectory, Repro.reprosDirectory],
     "📝 docs(factory): record the scheduled repro sweep"
   )
+  if (committed) pushMain()
 }
 
 if (isEntryPoint(import.meta.url)) main()

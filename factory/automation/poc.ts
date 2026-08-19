@@ -11,7 +11,7 @@ import { askJson } from "./agent.ts"
 import * as Github from "./github.ts"
 import { maximumPocAttempts, pocMarker } from "./labels.ts"
 import * as Repro from "./repro.ts"
-import { commitPaths, isEntryPoint } from "./shell.ts"
+import { commitPaths, isEntryPoint, pushMain } from "./shell.ts"
 import type { Comment, Report } from "./schema.ts"
 
 /** What the agent is asked to produce. */
@@ -42,7 +42,10 @@ const prompt = (report: Report, attempt: number, priorNotes: string, priorFeedba
     "",
     "`program` runs under `node <file>` on Node 22 with type stripping, so it may use TypeScript",
     "annotations but no enums, no namespaces, and no decorators. It must:",
-    "- import only from `node:*` builtins and from this repository's packages,",
+    "- import only from `node:*` builtins and from this repository's packages, and import a",
+    `  repository package by RELATIVE path from its own directory (the program lives at`,
+    "  `factory/repros/<issue>/attempt-N.ts`, so `packages/core/src/index.ts` is",
+    "  `../../../packages/core/src/index.ts`), never by bare package name,",
     "- exit non-zero, with a clear message, when the reported bug is present,",
     "- exit zero when it is absent,",
     "- do nothing to the machine it runs on beyond writing under the system temporary directory,",
@@ -84,7 +87,12 @@ const main = (): void => {
     .map((note) => `- attempt ${String(note.attempt)}: ${note.claim}`)
     .join("\n")
 
-  const draft = askJson<Draft>({ prompt: prompt(report, attempt, priorNotes, feedback(comments)) })
+  const draft = askJson<Draft>({
+    prompt: prompt(report, attempt, priorNotes, feedback(comments)),
+    // The checkout is the prompt's ground truth: writing correct relative
+    // imports needs the read tools, and nothing here needs more.
+    tools: "read"
+  })
   const repro: Repro.Repro = {
     issue: number,
     attempt,
@@ -96,10 +104,13 @@ const main = (): void => {
   }
   if (repro.program.trim() === "") throw new Error("the agent produced no program")
   Repro.write(repro)
-  commitPaths(
+  const committed = commitPaths(
     [Repro.directory(number)],
     `🧪 test(factory): add repro attempt ${String(attempt)} for #${String(number)}`
   )
+  // The pair must reach main: the reply handler, the fix lane, and the
+  // scheduled sweep all read it from a fresh checkout, not from this runner.
+  if (committed) pushMain()
   console.log(`${pocMarker} wrote ${Repro.programPath(number, attempt)}`)
 }
 
