@@ -31,6 +31,7 @@ import * as Workspace from "@smthrs/kernel/Workspace"
 import * as MemoryStore from "@smthrs/memory/MemoryStore"
 import * as Recall from "@smthrs/memory/Recall"
 import type * as ModelError from "@smthrs/model/ModelError"
+import * as OpenAICompatible from "@smthrs/model/OpenAICompatible"
 import * as RequestExecutor from "@smthrs/model/RequestExecutor"
 import * as Route from "@smthrs/model/Route"
 import type { NotificationQueue } from "@smthrs/notifications"
@@ -291,7 +292,8 @@ export const engineDurable = (
 
 const apiKeyVariable: Readonly<Record<string, string>> = {
   anthropic: "ANTHROPIC_API_KEY",
-  openai: "OPENAI_API_KEY"
+  openai: "OPENAI_API_KEY",
+  openrouter: "OPENROUTER_API_KEY"
 }
 
 /**
@@ -325,10 +327,20 @@ export const resolveSeat = (
         message: `Set ${variable} to run the ${seat} seat`
       })
     }
-    // The two provider routes have distinct body types, so each branch is
-    // erased into the seat shape on its own rather than through a union.
+    // The provider routes have distinct body types, so each branch is erased
+    // into the seat shape on its own rather than through a union. OpenRouter
+    // is the OpenAI Responses surface at a different origin, so its seats
+    // spell the model as `openrouter:vendor/model` and route through the
+    // compatible constructor.
     return yield* provider === "anthropic"
       ? seatOf(Route.anthropic({ apiKey: Redacted.make(key) }), executor, seat, modelId)
+      : provider === "openrouter"
+      ? seatOf(
+        OpenAICompatible.make({ id: "openrouter", baseUrl: "https://openrouter.ai/api", apiKey: Redacted.make(key) }),
+        executor,
+        seat,
+        modelId
+      )
       : seatOf(Route.openai({ apiKey: Redacted.make(key) }), executor, seat, modelId)
   })
 

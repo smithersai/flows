@@ -40,6 +40,23 @@ describe("NodeControl.resolveSeat", () => {
       Effect.flip(NodeControl.resolveSeat({}, unusedExecutor)("openai:gpt-5"))
     )
     expect(openai.message).toContain("OPENAI_API_KEY")
+
+    const openrouter = await Effect.runPromise(
+      Effect.flip(NodeControl.resolveSeat({}, unusedExecutor)("openrouter:openai/gpt-5.6-sol"))
+    )
+    expect(openrouter.message).toContain("OPENROUTER_API_KEY")
+  })
+
+  it("resolves an openrouter seat through the compatible route with the slashed model id intact", async () => {
+    const seat = await Effect.runPromise(
+      Effect.scoped(
+        NodeControl.resolveSeat({ OPENROUTER_API_KEY: "test-key" }, unusedExecutor)(
+          "openrouter:openai/gpt-5.6-sol"
+        )
+      )
+    )
+    // gpt-5-class ids resolve the 400k window regardless of the vendor prefix.
+    expect(seat.contextWindowTokens).toBe(400_000)
   })
 
   it("boots the full local composition with the production executor provided", async () => {
