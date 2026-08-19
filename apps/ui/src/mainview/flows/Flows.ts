@@ -268,9 +268,7 @@ export const baseFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> => 
 		userOnly: true,
 		args: "<fullName>",
 		input: Schema.Struct({ fullName: Schema.String }),
-		handler: ({ fullName }) => {
-			actions.toggleWatchedRepo(fullName);
-		},
+		handler: ({ fullName }) => actions.toggleWatchedRepo(fullName),
 	}),
 	flow({
 		name: "repos.watch.all",
@@ -406,9 +404,7 @@ export const baseFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> => 
 		userOnly: true,
 		args: "<cardId>",
 		input: CardTarget,
-		handler: ({ cardId }) => {
-			actions.maximizeCard(cardId);
-		},
+		handler: ({ cardId }) => actions.maximizeCard(cardId),
 	}),
 	flow({
 		name: "card.minimize",
@@ -425,8 +421,24 @@ export const baseFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> => 
 		userOnly: true,
 		args: "<text>",
 		input: Schema.Struct({ text: Schema.String }),
-		handler: ({ text }) => {
-			void navigator.clipboard?.writeText(text);
+		/*
+		 * A.26: `void navigator.clipboard.writeText(...)` let the browser's
+		 * NotAllowedError escape as an unhandled rejection — the only trace was
+		 * a POST to /api/client-errors, and the human who pressed Copy was told
+		 * nothing at all. The refusal is awaited and answered.
+		 */
+		handler: async ({ text }) => {
+			const clipboard = navigator.clipboard;
+			if (clipboard === undefined) {
+				return "This browser won't give Smithers the clipboard — select the text and copy it yourself.";
+			}
+			try {
+				await clipboard.writeText(text);
+			} catch (cause) {
+				return cause instanceof Error && cause.name === "NotAllowedError"
+					? "The browser refused the clipboard — it only allows a copy while the page has focus."
+					: "The copy didn't go through — select the text and copy it yourself.";
+			}
 		},
 	}),
 	flow({
@@ -494,9 +506,7 @@ export const baseFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> => 
 		hidden: true,
 		args: "<documentId>",
 		input: Schema.Struct({ documentId: Schema.String }),
-		handler: ({ documentId }) => {
-			actions.selectWorldDocument(documentId);
-		},
+		handler: ({ documentId }) => actions.selectWorldDocument(documentId),
 	}),
 	flow({
 		name: "world.delete",
@@ -504,9 +514,28 @@ export const baseFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> => 
 		hidden: true,
 		args: "<documentId>",
 		input: Schema.Struct({ documentId: Schema.String }),
-		handler: ({ documentId }) => {
-			actions.removeWorldDocument(documentId);
-		},
+		handler: ({ documentId }) => actions.removeWorldDocument(documentId),
+	}),
+	flow({
+		/*
+		 * §10.6 / §28.4: deleting a note asks first, and the answer is an act of
+		 * its own — the same shape `admin.grant` uses. The agent may ASK (it can
+		 * offer to tidy a note) and may never answer for the human.
+		 */
+		name: "world.delete.confirm",
+		summary: "Delete the note Smithers asked about",
+		hidden: true,
+		userOnly: true,
+		input: NoPayload,
+		handler: () => actions.confirmWorldDelete(),
+	}),
+	flow({
+		name: "world.delete.cancel",
+		summary: "Keep the note Smithers asked about",
+		hidden: true,
+		userOnly: true,
+		input: NoPayload,
+		handler: () => actions.cancelWorldDelete(),
 	}),
 	flow({
 		name: "auth.sign-in",
@@ -718,24 +747,6 @@ export const baseFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> => 
 		handler: ({ number, verdict, text, repo }) => actions.reviewLanding(number, verdict, text, repo),
 	}),
 	flow({
-		/* Payment flows are the human's act alone: user-only, like sign-in. */
-		name: "billing.upgrade",
-		summary: "Upgrade your plan (opens Stripe checkout)",
-		userOnly: true,
-		args: "[plan]",
-		requires: ["signed-in"],
-		input: Schema.Struct({ plan: Schema.optional(Schema.String) }),
-		handler: ({ plan }) => actions.startCheckout(plan),
-	}),
-	flow({
-		name: "billing.portal",
-		summary: "Manage billing (opens the Stripe portal)",
-		userOnly: true,
-		requires: ["signed-in"],
-		input: NoPayload,
-		handler: () => actions.openBillingPortal(),
-	}),
-	flow({
 		name: "keys.list",
 		summary: "List your provider API keys (masked)",
 		requires: ["signed-in"],
@@ -849,6 +860,31 @@ export const baseFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> => 
  * like any typo.
  */
 export const adminFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> => [
+	flow({
+		/*
+		 * §17.4: no top-up or checkout flow is exposed to an MVP account. Every
+		 * alpha account IS an MVP account, so these two register in the admin
+		 * plugin only — absent from the registry for everyone else, not hidden,
+		 * so the slash menu never advertises "opens Stripe checkout" to a user
+		 * who has no checkout. Payment is the human's act alone: user-only, like
+		 * sign-in.
+		 */
+		name: "billing.upgrade",
+		summary: "Upgrade your plan (opens Stripe checkout)",
+		userOnly: true,
+		args: "[plan]",
+		requires: ["signed-in"],
+		input: Schema.Struct({ plan: Schema.optional(Schema.String) }),
+		handler: ({ plan }) => actions.startCheckout(plan),
+	}),
+	flow({
+		name: "billing.portal",
+		summary: "Manage billing (opens the Stripe portal)",
+		userOnly: true,
+		requires: ["signed-in"],
+		input: NoPayload,
+		handler: () => actions.openBillingPortal(),
+	}),
 	flow({
 		/*
 		 * The bare reset is admin-only dev tooling (§2): no sweep, nothing kept.

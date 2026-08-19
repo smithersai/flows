@@ -300,6 +300,44 @@ describe("command registry pure model", () => {
 	});
 });
 
+describe("§17.4 — no checkout is exposed to an MVP account", () => {
+	test("an MVP session has no billing.upgrade or billing.portal at all", async () => {
+		const { store, controller } = await freshController();
+		store.dispatch({
+			type: "identity.session.loaded",
+			actor: "system",
+			state: "signed-in",
+			login: "codeplanesmithers",
+			allowlisted: true,
+			admin: false,
+			scopesPlain: null,
+		});
+		const names = controller.commands.all().map((command) => command.name);
+		expect(names).not.toContain("billing.upgrade");
+		expect(names).not.toContain("billing.portal");
+		// Absent, not hidden: invoking by name resolves exactly like a typo.
+		expect((await controller.commands.run("billing.upgrade", "pro")).status).toBe("unknown-command");
+		// The balance READ stays — knowing what you have is not a checkout.
+		expect(names).toContain("billing.balance");
+	});
+
+	test("an admin session still has them, so the seam stays testable", async () => {
+		const { store, controller } = await freshController();
+		store.dispatch({
+			type: "identity.session.loaded",
+			actor: "system",
+			state: "signed-in",
+			login: "will",
+			allowlisted: true,
+			admin: true,
+			scopesPlain: null,
+		});
+		const names = controller.commands.all().map((command) => command.name);
+		expect(names).toContain("billing.upgrade");
+		expect(names).toContain("billing.portal");
+	});
+});
+
 describe("command registry bindings", () => {
 	test("every registered action executes through the one run path", async () => {
 		const { store, controller } = await freshController();
@@ -339,6 +377,8 @@ describe("command registry bindings", () => {
 			"world.new-note",
 			"world.select",
 			"world.delete",
+			"world.delete.confirm",
+			"world.delete.cancel",
 			"auth.sign-in",
 			"auth.prompt",
 			"auth.sign-out",
@@ -361,8 +401,8 @@ describe("command registry bindings", () => {
 			"prs.create",
 			"prs.land",
 			"prs.review",
-			"billing.upgrade",
-			"billing.portal",
+			// §17.4: billing.upgrade / billing.portal register in the ADMIN plugin
+			// only — no checkout is exposed to an MVP account.
 			"keys.list",
 			"keys.remove",
 			"notifications.list",
@@ -400,8 +440,20 @@ describe("command registry bindings", () => {
 			document.path.startsWith("Untitled"),
 		);
 		expect(note).toBeDefined();
+		// §10.6: deleting ASKS. The question is the flow's whole effect; the
+		// answer is an act of its own, from the composer as from the trash button.
 		expect((await controller.commands.run("world.delete", note?.id ?? "")).status).toBe("executed");
+		expect(store.session().pendingWorldDeleteId).toBe(note?.id ?? "");
+		expect(store.collections.worldDocuments.get(note?.id ?? "")).toBeDefined();
+		expect((await controller.commands.run("world.delete.cancel")).status).toBe("executed");
+		expect(store.session().pendingWorldDeleteId).toBeNull();
+		expect(store.collections.worldDocuments.get(note?.id ?? "")).toBeDefined();
+		expect((await controller.commands.run("world.delete", note?.id ?? "")).status).toBe("executed");
+		expect((await controller.commands.run("world.delete.confirm")).status).toBe("executed");
 		expect(store.collections.worldDocuments.get(note?.id ?? "")).toBeUndefined();
+		expect(store.session().pendingWorldDeleteId).toBeNull();
+		// Nothing waiting: answering is refused rather than guessing a target.
+		expect((await controller.commands.run("world.delete.confirm")).status).toBe("failed");
 
 		expect((await controller.commands.run("does-not-exist")).status).toBe("unknown-command");
 		const failed = await controller.commands.run("connector.remove");
