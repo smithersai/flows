@@ -14,6 +14,7 @@ const NonEmptyString = Schema.String.check(Schema.isMinLength(1))
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Configuration {
   readonly serviceName: string
@@ -36,6 +37,7 @@ const validate = (configuration: Configuration): Configuration =>
  *
  * @category configuration
  * @since 0.1.0
+ * @slop
  */
 export const configToAttributes = (configuration: Configuration): Record<string, string> =>
   OtelResource.configToAttributes(validate(configuration))
@@ -45,6 +47,7 @@ export const configToAttributes = (configuration: Configuration): Record<string,
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (configuration: Configuration) => OtelResource.layer(validate(configuration))
 
@@ -53,5 +56,6 @@ export const layer = (configuration: Configuration) => OtelResource.layer(valida
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export const Resource = OtelResource.Resource

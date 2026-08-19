@@ -12,6 +12,7 @@ const prefix = "flows/"
  *
  * @category metrics
  * @since 0.1.0
+ * @slop
  */
 export const runThroughput = Metric.counter(`${prefix}run/throughput`, {
   description: "Completed flow runs"
@@ -22,6 +23,7 @@ export const runThroughput = Metric.counter(`${prefix}run/throughput`, {
  *
  * @category metrics
  * @since 0.1.0
+ * @slop
  */
 export const activeSeats = Metric.gauge(`${prefix}seat/active`, {
   description: "Currently active execution seats"
@@ -32,6 +34,7 @@ export const activeSeats = Metric.gauge(`${prefix}seat/active`, {
  *
  * @category metrics
  * @since 0.1.0
+ * @slop
  */
 export const quotaParks = Metric.counter(`${prefix}quota/park`, {
   description: "Runs parked by quota enforcement"
@@ -42,6 +45,7 @@ export const quotaParks = Metric.counter(`${prefix}quota/park`, {
  *
  * @category metrics
  * @since 0.1.0
+ * @slop
  */
 export const cacheHits = Metric.counter(`${prefix}cache/hit`, {
   description: "Cache lookup hits"
@@ -52,6 +56,7 @@ export const cacheHits = Metric.counter(`${prefix}cache/hit`, {
  *
  * @category metrics
  * @since 0.1.0
+ * @slop
  */
 export const cacheMisses = Metric.counter(`${prefix}cache/miss`, {
   description: "Cache lookup misses"
@@ -62,6 +67,7 @@ export const cacheMisses = Metric.counter(`${prefix}cache/miss`, {
  *
  * @category metrics
  * @since 0.1.0
+ * @slop
  */
 export const cacheHitRate = Metric.gauge(`${prefix}cache/hit-rate`, {
   description: "Cache hit rate as a value between zero and one"
@@ -72,6 +78,7 @@ export const cacheHitRate = Metric.gauge(`${prefix}cache/hit-rate`, {
  *
  * @category registry
  * @since 0.1.0
+ * @slop
  */
 export const registry = {
   runThroughput,

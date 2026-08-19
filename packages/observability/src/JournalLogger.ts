@@ -17,6 +17,7 @@ import * as References from "effect/References"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Options {
   readonly runId: string
@@ -30,6 +31,7 @@ export interface Options {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface TelemetryLog {
   readonly version: 1
@@ -76,6 +78,7 @@ const makeLog = (options: Logger.Options<unknown>, sequence: number, runId: Jour
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerJournalForwarding = (options: Options): Layer.Layer<never, never, Journal.Journal> =>
   Layer.merge(
