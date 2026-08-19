@@ -79,7 +79,6 @@ export interface Options {
   readonly sandbox?: SandboxOptions | undefined
 }
 
-
 /**
  * Maximum number of environment names one workspace may declare.
  *
@@ -147,8 +146,8 @@ export interface SandboxOptions {
  * @since 0.1.0
  */
 export const defaultSandbox: Sandbox = Object.freeze({
-  projection: "declared" as const,
-  environment: Object.freeze([]) as ReadonlyArray<string>
+  projection: "declared",
+  environment: Object.freeze([])
 })
 
 const portableEnvironmentName = /^[A-Za-z_][A-Za-z0-9_]*$/
@@ -187,7 +186,7 @@ export const normalizeSandbox = (value: unknown): Sandbox => {
   if (
     projection !== undefined && projection !== "off" && projection !== "declared" && projection !== "forced"
   ) {
-    throw new TypeError('Workspace option sandbox.projection must be "off", "declared", or "forced"')
+    throw new TypeError("Workspace option sandbox.projection must be \"off\", \"declared\", or \"forced\"")
   }
   const declared = read("environment")
   if (declared !== undefined && (!Array.isArray(declared) || NodeUtil.isProxy(declared))) {
@@ -212,8 +211,8 @@ export const normalizeSandbox = (value: unknown): Sandbox => {
   }
   names.sort()
   return Object.freeze({
-    projection: (projection ?? "declared") as Projection,
-    environment: Object.freeze(names) as ReadonlyArray<string>
+    projection: projection ?? "declared",
+    environment: Object.freeze(names)
   })
 }
 

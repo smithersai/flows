@@ -271,11 +271,11 @@ describe("payload and environment boundary", () => {
   })
 
   /**
-   * A deliberate widening. The package manager and this boundary used to carry
+   * A deliberate widening. This boundary and the package manager used to carry
    * two different allowlists, and the manager's carried the proxy and
-   * certificate variables a registry fetch needs. They are now one list, so a
-   * tool run inherits those names too. Everything outside the list is still
-   * absent.
+   * certificate variables a registry fetch needs. The tool boundary now starts
+   * from the shared list defined once in the package manager, so a tool run
+   * inherits those names too. Everything outside the list is still absent.
    */
   it("inherits the shared allowlist, proxy and certificate variables included", async () => {
     const previous = {
@@ -335,14 +335,17 @@ describe("payload and environment boundary", () => {
     const previous = process.env["SMITHERS_EXEC_WITHHELD"]
     process.env["SMITHERS_EXEC_WITHHELD"] = "from-the-host"
     try {
-      const exit = await Effect.runPromiseExit(Exec.run({
-        workspaceRoot: root,
-        sensitiveEnv: ["SMITHERS_EXEC_WITHHELD"],
-        sandbox: { projection: "declared", environment: ["SMITHERS_EXEC_WITHHELD"] }
-      }, payload(
-        "process.stdout.write(String(process.env.SMITHERS_EXEC_WITHHELD))",
-        { env: { SMITHERS_EXEC_WITHHELD: "declared-by-the-rule" } }
-      )))
+      const exit = await Effect.runPromiseExit(Exec.run(
+        {
+          workspaceRoot: root,
+          sensitiveEnv: ["SMITHERS_EXEC_WITHHELD"],
+          sandbox: { projection: "declared", environment: ["SMITHERS_EXEC_WITHHELD"] }
+        },
+        payload(
+          "process.stdout.write(String(process.env.SMITHERS_EXEC_WITHHELD))",
+          { env: { SMITHERS_EXEC_WITHHELD: "declared-by-the-rule" } }
+        )
+      ))
 
       if (!Exit.isSuccess(exit)) throw new Error("expected success")
       expect(exit.value.stdout).toBe("undefined")

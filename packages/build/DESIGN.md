@@ -30,9 +30,12 @@ Being explicit about that difference is part of the design: a weak observation
 is not relabelled as a hard boundary.
 
 The child environment is closed in both directions. The tool-execution
-boundary, the package manager, and the model-review boundary all start from one
-shared allowlist, defined once in `PackageManager.spawnEnvironmentNames`, and
-add nothing else. A workspace that needs another host variable declares it in
+boundary and the model-review boundary start from one shared allowlist,
+defined once in `PackageManager.spawnEnvironmentNames`, and add nothing else.
+The package manager's own children start from a deliberately narrower list,
+`PackageManager.managerEnvironmentNames`, which drops the user and cache
+directory variables so pnpm cannot discover global configuration through an
+inherited `HOME`. A workspace that needs another host variable declares it in
 its sandbox policy, and the declared value becomes key material, so a target
 that reads it is keyed on what it read. One path is not yet reconciled: the
 CLI's `Workspace.runGit` still spreads `process.env` into its child, so the

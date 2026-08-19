@@ -14,7 +14,7 @@ import * as Effect from "effect/Effect"
 import type * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import * as NodeChildProcess from "node:child_process"
-import { createHash, randomUUID } from "node:crypto"
+import { randomUUID } from "node:crypto"
 import * as NodeFs from "node:fs"
 import * as Fs from "node:fs/promises"
 import * as NodePath from "node:path"
@@ -106,6 +106,31 @@ const maximumExpectedExitCodes = 256
 const maximumSecrets = 64
 
 /**
+ * The projection a rule asks for.
+ *
+ * `mode` selects whether the run sees the whole workspace or a scratch root
+ * holding exactly its inputs. `inputs` lists the extra workspace-relative
+ * paths this run needs beyond its target's declared inputs.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const Projection = Schema.Struct({
+  mode: Schema.Literals(["workspace", "projected"]),
+  inputs: Schema.Array(Schema.String.check(Schema.isMaxLength(maximumTextBytes))).check(
+    Schema.isMaxLength(maximumProjectedInputs)
+  )
+})
+
+/**
+ * How one tool run sees the workspace.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type Projection = typeof Projection.Type
+
+/**
  * Payload for one declared tool run.
  *
  * `cwd` is resolved against the workspace root at execution time. `argv[0]`
@@ -126,27 +151,6 @@ const maximumSecrets = 64
  * @category schemas
  * @since 0.1.0
  */
-/**
- * The projection a rule asks for.
- *
- * @category schemas
- * @since 0.1.0
- */
-export const Projection = Schema.Struct({
-  mode: Schema.Literals(["workspace", "projected"]),
-  inputs: Schema.Array(Schema.String.check(Schema.isMaxLength(maximumTextBytes))).check(
-    Schema.isMaxLength(maximumProjectedInputs)
-  )
-})
-
-/**
- * How one tool run sees the workspace.
- *
- * @category models
- * @since 0.1.0
- */
-export type Projection = typeof Projection.Type
-
 export const Payload = Schema.Struct({
   cwd: Schema.NonEmptyString.check(Schema.isMaxLength(maximumTextBytes)),
   argv: Schema.NonEmptyArray(Schema.String.check(Schema.isMaxLength(maximumTextBytes))).check(
@@ -386,12 +390,14 @@ const tail = (text: string): string => keepTail(text, stderrTailLimit)
  * Host variables needed to find executables, reach a registry, and satisfy
  * operating-system process startup.
  *
- * This is the one allowlist every spawn path in the build system shares. It is
- * defined once, in `@smthrs/build/PackageManager`, because the package manager
- * and this boundary previously carried two different lists and an allowlist
- * that holds on only one of two spawn paths is not a closed environment.
- * Anything else a target needs is declared in the workspace sandbox policy,
- * which folds the value into key material.
+ * This is the one allowlist every tool spawn path in the build system shares.
+ * It is defined once, in `@smthrs/build/PackageManager`, because the tool
+ * boundaries previously carried two different lists and an allowlist that
+ * holds on only one of two spawn paths is not a closed environment. The
+ * package manager's own children start from a deliberately narrower list, so
+ * pnpm cannot discover global configuration through an inherited user
+ * directory. Anything else a target needs is declared in the workspace
+ * sandbox policy, which folds the value into key material.
  *
  * @category constants
  * @since 0.1.0

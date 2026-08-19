@@ -373,15 +373,19 @@ const failureMessage = (cause: unknown): string => {
 }
 
 /**
- * The one environment allowlist every spawn path in the build system starts
- * from.
+ * The one environment allowlist every tool spawn path in the build system
+ * starts from.
  *
- * A child gets these host values and nothing else. The list is the union of
- * what the package manager needs to reach a registry — proxy and certificate
- * variables — and what a tool needs to find an executable, write a temporary
- * file, and start at all. `CI` is the cross-tool convention that switches a
- * tool into non-interactive mode; withholding it made pnpm treat a hosted
- * runner as an interactive terminal and abort on its first would-be prompt.
+ * A tool child gets these host values and nothing else. The list is the union
+ * of what a registry fetch needs — proxy and certificate variables — and what
+ * a tool needs to find an executable, write a temporary file, and start at
+ * all. `CI` is the cross-tool convention that switches a tool into
+ * non-interactive mode; withholding it made pnpm treat a hosted runner as an
+ * interactive terminal and abort on its first would-be prompt.
+ *
+ * The package manager's own children start from the deliberately narrower
+ * {@link managerEnvironmentNames}, so pnpm cannot discover global
+ * configuration through an inherited user directory.
  *
  * Every other host variable is an unkeyed input. A workspace that needs one
  * declares it in its sandbox policy, which folds the value into key material.
@@ -409,6 +413,38 @@ export const spawnEnvironmentNames: ReadonlyArray<string> = Object.freeze([
   "USERPROFILE",
   "WINDIR",
   "XDG_CACHE_HOME",
+  "http_proxy",
+  "https_proxy",
+  "no_proxy"
+])
+
+/**
+ * The allowlist a package-manager child starts from.
+ *
+ * This is deliberately narrower than {@link spawnEnvironmentNames}: it drops
+ * the user and cache directory variables (`HOME`, `APPDATA`, `USERPROFILE`,
+ * `XDG_CACHE_HOME`, and the rest) so pnpm cannot discover global
+ * configuration, and keeps exactly the proxy, certificate, path, and
+ * temporary-directory names a registry fetch needs. The install boundary
+ * forces `NPM_CONFIG_USERCONFIG` to `/dev/null`; inheriting `HOME` would give
+ * pnpm a second place to read configuration from and defeat that.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const managerEnvironmentNames: ReadonlyArray<string> = Object.freeze([
+  "HTTP_PROXY",
+  "HTTPS_PROXY",
+  "NO_PROXY",
+  "PATH",
+  "PATHEXT",
+  "SSL_CERT_DIR",
+  "SSL_CERT_FILE",
+  "SYSTEMROOT",
+  "TEMP",
+  "TMP",
+  "TMPDIR",
+  "WINDIR",
   "http_proxy",
   "https_proxy",
   "no_proxy"
@@ -814,7 +850,7 @@ const managerEnvironment = (
         )
       }
     }
-    for (const name of [...spawnEnvironmentNames, ...referenced]) {
+    for (const name of [...managerEnvironmentNames, ...referenced]) {
       const value = sourceValue(source, name, windows)
       if (value !== undefined && env[name] === undefined) env[name] = value
     }

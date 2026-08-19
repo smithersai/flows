@@ -218,7 +218,7 @@ describe("projected run", () => {
         process.execPath,
         "-e",
         "const fs = require('node:fs');fs.mkdirSync('out/nested', {recursive: true});" +
-          "fs.writeFileSync('out/one.txt', 'one');fs.writeFileSync('out/nested/two.txt', 'two')"
+        "fs.writeFileSync('out/one.txt', 'one');fs.writeFileSync('out/nested/two.txt', 'two')"
       ]))
     )
 
@@ -283,11 +283,11 @@ describe("projected run", () => {
           process.execPath,
           "-e",
           "const url = new URL(process.env.HTTP_PROXY);" +
-            "const socket = require('node:net').connect(Number(url.port), url.hostname, () => {" +
-            "process.stdout.write(`${url.hostname} ${process.env.SMITHERS_PROJECTED_SECRET.slice(0, 8)}`);" +
-            "socket.destroy();});" +
-            "socket.on('error', (error) => {process.stdout.write(`unreachable ${error.message}`);" +
-            "process.exitCode = 1})"
+          "const socket = require('node:net').connect(Number(url.port), url.hostname, () => {" +
+          "process.stdout.write(`${url.hostname} ${process.env.SMITHERS_PROJECTED_SECRET.slice(0, 8)}`);" +
+          "socket.destroy();});" +
+          "socket.on('error', (error) => {process.stdout.write(`unreachable ${error.message}`);" +
+          "process.exitCode = 1})"
         ])),
         secrets: [{ _tag: "Secret", env: "SMITHERS_PROJECTED_SECRET" }]
       }
