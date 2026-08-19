@@ -60,10 +60,17 @@ never repairs it, and `smthrs run //:<target>` is the only writer.
 ## The safety property
 
 A job that reads untrusted text declares `untrustedInput: true`, and the
-renderer forces a maintainer gate, strips every credential, and pins the job to
-read-only permissions with a credential-free checkout. A declaration that
-passes a secret into such a job does not render a weaker workflow; it does not
-render at all.
+renderer forces a maintainer gate, strips every credential, skips the agent
+CLI install, and pins the job to read-only permissions with a credential-free
+checkout. The gate also admits `schedule` and `workflow_dispatch` runs, which
+carry no untrusted actor. A declaration that passes a secret into such a job
+does not render a weaker workflow; it does not render at all.
+
+A trusted job that only reads a fork pull request's diff subscribes to
+`pullRequestTarget`, not `pullRequest`: the fork run of `pull_request` gets no
+secrets and a read-only token, while `pull_request_target` keeps them and
+checks out the base branch, so the job cannot execute the fork's code by
+construction.
 
 That refusal is what lets an automation layer execute a stranger's code safely.
 The pattern it produces is a three-job split:

@@ -121,7 +121,21 @@ both reversible:
 Record whichever way you decide in
 `docs/specs/Concepts/Github Automation.md` under Open.
 
-## H8. Confirm the `agent:approved` policy with the team
+## H8. Set FACTORY_PR_TOKEN so the fix lane's pull requests get checks
+
+A pull request opened with the workflow token triggers no workflows, so the
+proof gate and the rubric review would never run on the automation's own fix
+pull requests. Create a fine-grained PAT (contents: write, pull-requests:
+write) or a GitHub App token and store it:
+
+```sh
+gh secret set FACTORY_PR_TOKEN --repo smithersai/flows
+```
+
+`gen.verified-fix.yml` falls back to the workflow token until the secret
+exists; until then, run the checks on those pull requests manually.
+
+## H9. Confirm the `agent:approved` policy with the team
 
 The gate admits `OWNER`, `MEMBER`, and `COLLABORATOR` without a label. Anyone
 else needs a maintainer to apply `agent:approved`. If the organization grants

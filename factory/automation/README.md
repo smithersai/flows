@@ -18,9 +18,12 @@ GITHUB_REPOSITORY=smithersai/flows ISSUE_NUMBER=42 node factory/automation/intak
 GITHUB_REPOSITORY=smithersai/flows PR_NUMBER=87  node factory/automation/review.ts
 ```
 
-From Actions the subject comes from `GITHUB_EVENT_PATH` instead, so nothing has
-to be threaded through the workflow. Entries that call the model also need
-`ANTHROPIC_API_KEY`.
+From Actions the subject comes from `GITHUB_EVENT_PATH` instead, or from the
+`issue` input on a `workflow_dispatch` run, which the generated workflow hands
+the entry as `ISSUE_NUMBER`. Entries that call the model also need
+`ANTHROPIC_API_KEY` and the agent CLI; the generated workflows install it
+(`npm install --global @anthropic-ai/claude-code`) on every agent job whose
+declaration says `engine: true`.
 
 There is no build step. The entries are plain `.ts` run by Node 22's type
 stripping, and they import only `node:*` builtins, so a runner needs nothing
@@ -74,6 +77,12 @@ helpers does not run it.
 
 **Labels are the state.** There is no side database. A run that dies halfway
 leaves the state where a person can see it.
+
+**Bookkeeping reaches `main`.** A commit that stays on the runner is state the
+next run cannot see, so every entry that commits — the memory corpus, the
+repro pairs, the recorded results — pushes with `pushMain()`, which survives
+one concurrent push by rebasing once. The fix lane is the exception: it pushes
+its own lane branch, never `main`.
 
 ## Tests
 

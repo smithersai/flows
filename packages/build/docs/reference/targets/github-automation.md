@@ -21,8 +21,8 @@ export const pocLoop = Smithers.GithubAutomation({
   target: "pocLoop",
   workflowName: "Repro PoC loop",
   packageManager,
-  on: { issues: ["labeled"], workflowDispatch: true },
-  concurrency: "gen-poc-loop-${{ github.event.issue.number }}",
+  on: { issues: ["labeled"], workflowDispatchInputs: [{ name: "issue", description: "The issue number" }] },
+  concurrency: "gen-poc-loop-${{ github.event.issue.number || inputs.issue }}",
   jobs: [
     Smithers.Automation.agent({
       id: "author",
@@ -38,7 +38,7 @@ export const pocLoop = Smithers.GithubAutomation({
       untrustedInput: true,
       needs: ["author"],
       downloads: [{ name: "poc", path: "factory/repros" }],
-      uploads: [{ name: "poc-result", path: "factory/repros/result.json" }]
+      uploads: [{ name: "poc-result", path: "factory/repros" }]
     })
   ]
 })
@@ -53,18 +53,21 @@ declares `untrustedInput: true`. The renderer then forces three things and
 
 1. **A gate condition.** The job renders
    `if: ${{ <gate> }}`, where the gate admits an actor whose author
-   association is `OWNER`, `MEMBER`, or `COLLABORATOR`, or an issue or pull
-   request carrying the `agent:approved` label. A declared `condition` is ANDed
-   with the gate; it can narrow what runs, never widen it.
+   association is `OWNER`, `MEMBER`, or `COLLABORATOR`, an issue or pull
+   request carrying the `agent:approved` label, or a `schedule` or
+   `workflow_dispatch` run, which carries no untrusted actor to check. A
+   declared `condition` is ANDed with the gate; it can narrow what runs, never
+   widen it.
 2. **No credential.** The job carries no declared secret, no `secrets.`
    expression, no `github.token`, and no `GITHUB_TOKEN` — in its declared
    secrets, its environment keys, its environment values, or its script. Each
    is a typed `UntrustedJobError` at plan time.
 3. **Minimal read-only permissions.** The job renders `permissions: contents:
-   read` regardless of what it declared, and its checkout renders
+   read` regardless of what it declared, its checkout renders
    `persist-credentials: "false"` so a script it runs cannot find a token in
-   `.git/config`. A declared write permission is refused rather than silently
-   downgraded.
+   `.git/config`, and it never installs the agent CLI: with no model
+   credential there is nothing for one to run with. A declared write
+   permission is refused rather than silently downgraded.
 
 The refusal is what makes the property structural. A renderer that quietly
 stripped the secret would emit a workflow that reads like the declaration and
@@ -127,18 +130,19 @@ target and the gate runs again.
 
 ## Attributes
 
-| Name             | Type                              | Default                | Description                                                                                                                              |
-| ---------------- | --------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `slug`           | `string`                          | required               | Lowercase, `[a-z][a-z0-9-]*`. The output is `.github/workflows/gen.<slug>.yml`; it is not separately declarable.                         |
-| `target`         | `string`                          | required               | The BUILD.ts export name, which the marker header tells an editor to run.                                                                |
-| `workflowName`   | `string`                          | required               | The operator-facing workflow name.                                                                                                       |
-| `on`             | `Triggers`                        | required               | `issues`, `issueComment`, `pullRequest`, `schedule`, `workflowDispatch`. At least one is required.                                       |
-| `jobs`           | `Array<Job>`                      | required               | One or more jobs, in render order.                                                                                                       |
-| `permissions`    | `Record<string, PermissionLevel>` | `{ contents: "read" }` | Workflow-level `GITHUB_TOKEN` permissions. Scopes are checked against the known set.                                                     |
-| `concurrency`    | `string`                          | optional               | The `concurrency.group` expression. `cancel-in-progress` is always false: cancelling a bookkeeping job mid-commit is worse than queuing. |
-| `packageManager` | `PackageManager.PackageManager`   | required               | The declared manager. Its frozen install is what every job runs.                                                                         |
-| `nodeVersion`    | `string`                          | `"22.19.0"`            | The version the generated `setup-node` step pins.                                                                                        |
-| `mode`           | `"check" \| "write"`              | `"check"`              | Overridden per verb by `attrsForKind`.                                                                                                   |
+| Name             | Type                              | Default                       | Description                                                                                                                                       |
+| ---------------- | --------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `slug`           | `string`                          | required                      | Lowercase, `[a-z][a-z0-9-]*`. The output is `.github/workflows/gen.<slug>.yml`; it is not separately declarable.                                  |
+| `target`         | `string`                          | required                      | The BUILD.ts export name, which the marker header tells an editor to run.                                                                         |
+| `workflowName`   | `string`                          | required                      | The operator-facing workflow name.                                                                                                                |
+| `on`             | `Triggers`                        | required                      | `issues`, `issueComment`, `pullRequest`, `pullRequestTarget`, `schedule`, `workflowDispatch`, `workflowDispatchInputs`. At least one is required. |
+| `jobs`           | `Array<Job>`                      | required                      | One or more jobs, in render order.                                                                                                                |
+| `permissions`    | `Record<string, PermissionLevel>` | `{ contents: "read" }`        | Workflow-level `GITHUB_TOKEN` permissions. Scopes are checked against the known set.                                                              |
+| `concurrency`    | `string`                          | optional                      | The `concurrency.group` expression. `cancel-in-progress` is always false: cancelling a bookkeeping job mid-commit is worse than queuing.          |
+| `packageManager` | `PackageManager.PackageManager`   | required                      | The declared manager. Its frozen install is what every job runs.                                                                                  |
+| `nodeVersion`    | `string`                          | `"22.19.0"`                   | The version the generated `setup-node` step pins.                                                                                                 |
+| `agentCli`       | `string`                          | `"@anthropic-ai/claude-code"` | The npm package an `agent` job with `engine: true` installs globally before its entry runs.                                                       |
+| `mode`           | `"check" \| "write"`              | `"check"`                     | Overridden per verb by `attrsForKind`.                                                                                                            |
 
 ### Job attributes
 
@@ -158,15 +162,26 @@ Shared by all three constructors:
 | `permissions`     | `Record<string, PermissionLevel>` | `{}`              | Forced to `contents: read` on an untrusted-input job.                       |
 | `timeoutMinutes`  | `number`                          | optional          | A whole number from 1 to 360.                                               |
 | `checkout`        | `boolean`                         | `true`            | Whether the job checks the repository out.                                  |
+| `fullHistory`     | `boolean`                         | `false`           | Renders `fetch-depth: "0"`, for a job that compares revisions.              |
 | `install`         | `boolean`                         | `true`            | Whether the job installs the workspace.                                     |
 | `downloads`       | `Array<Artifact>`                 | `[]`              | Downloaded before the work step.                                            |
 | `uploads`         | `Array<Artifact>`                 | `[]`              | Uploaded after it, with `if-no-files-found: error`.                         |
 | `caches`          | `Array<Cache>`                    | `[]`              | `actions/cache@v4` steps. Refused on an untrusted-input job.                |
 
 `agent` adds `entry` (a lowercase `.ts` file directly under
-`factory/automation`) and `args` (plain words). `verb` adds `verb` and
-`pattern`, validated against the CLI's label grammar and rendered as one
-single-quoted shell word. `script` adds `run`.
+`factory/automation`), `args` (plain words), and `engine` (default `true`):
+whether the entry calls the model, so the job installs `agentCli` before the
+entry runs. `verb` adds `verb` and `pattern`, validated against the CLI's
+label grammar and rendered as one single-quoted shell word. `script` adds
+`run`.
+
+`pullRequestTarget` renders `pull_request_target`: the run has the base
+repository's secrets even for a fork pull request, and its checkout is the
+BASE branch, never the head, so a job on this event cannot execute pull
+request code by construction. A job that must run it subscribes to
+`pullRequest` instead. `workflowDispatchInputs` declares typed inputs on the
+manual trigger; an entry reads one through a literal
+`env: { ISSUE_NUMBER: "${{ inputs.issue }}" }` entry.
 
 ## Errors
 
