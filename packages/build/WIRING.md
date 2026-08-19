@@ -54,9 +54,8 @@ Embedding the install flow requires:
 - Node `FileSystem`, `ChildProcessSpawner`, and `Crypto` services;
 - one `PackageManager` layer.
 
-Only `PackageManager.layerPnpm` performs work today. `layerNpm`, `layerBun`, and
-`layerNoop("yarn", ...)` resolve the service but fail every operation with a
-typed `unsupported` error.
+Only `PackageManager.layerPnpm` performs work today. `layerBun` resolves the
+service but fails every operation with a typed `unsupported` error.
 
 The pnpm layer is constructed with an absolute project root and explicit host
 facts:

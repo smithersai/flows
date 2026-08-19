@@ -174,8 +174,8 @@ pnpm install --offline --frozen-lockfile --ignore-scripts \
   --reporter=append-only --store-dir <projectRoot>/.flows/store/pnpm
 ```
 
-`layerNpm`, `layerBun`, and `layerNoop("yarn", options, platform)` still provide
-the service shape. Version, fetch, link, and manifest operations fail with
+`layerBun` and `layerNoop("bun", options, platform)` still provide the service
+shape. Version, fetch, link, and manifest operations fail with
 `PackageManagerError { code: "unsupported" }`, making unsupported selection
 deterministic rather than a missing-layer defect.
 

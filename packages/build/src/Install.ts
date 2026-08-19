@@ -190,14 +190,6 @@ const makeFetch = <Tag extends string>(
     })
 
 /**
- * Fetches npm packages from `package-lock.json`.
- *
- * @category actions
- * @since 0.1.0
- */
-export const FetchNpm = makeFetch("smithers-build/install/fetch/npm", "package-lock.json", "npm")
-
-/**
  * Fetches pnpm packages from `pnpm-lock.yaml`.
  *
  * @category actions
@@ -212,16 +204,6 @@ export const FetchPnpm = makeFetch("smithers-build/install/fetch/pnpm", "pnpm-lo
  * @since 0.1.0
  */
 export const FetchBun = makeFetch("smithers-build/install/fetch/bun", "bun.lock", "bun")
-
-/**
- * Declares the future Yarn fetch boundary.
- *
- * The current Yarn layer fails with `unsupported` before it writes.
- *
- * @category actions
- * @since 0.1.0
- */
-export const FetchYarn = makeFetch("smithers-build/install/fetch/yarn", "yarn.lock", "yarn")
 
 /**
  * Materializes `node_modules` from the already-populated store.
@@ -281,10 +263,8 @@ export const payloadFields = {
  */
 export type Requires =
   | Action.Requirement<"smithers-build/install/measure">
-  | Action.Requirement<"smithers-build/install/fetch/npm">
   | Action.Requirement<"smithers-build/install/fetch/pnpm">
   | Action.Requirement<"smithers-build/install/fetch/bun">
-  | Action.Requirement<"smithers-build/install/fetch/yarn">
   | Action.Requirement<"smithers-build/install/link">
 
 /**
@@ -356,32 +336,21 @@ export const Install: InstallFlow = Flow.make("smithers-build/install", {
     PackageManager.PackageManagerError,
     Requires
   > =>
-    manager === "npm"
-      ? measureFetchLink((content) => FetchNpm.call({ content }))
-      : manager === "pnpm"
+    manager === "pnpm"
       ? measureFetchLink((content) => FetchPnpm.call({ content }))
-      : manager === "bun"
-      ? measureFetchLink((content) => FetchBun.call({ content }))
-      : measureFetchLink((content) => FetchYarn.call({ content }))
+      : measureFetchLink((content) => FetchBun.call({ content }))
 }).annotate(Flow.Capabilities, ["fs:read", "fs:write", "net:get", "net:post", "proc:spawn"])
 
 /** @private */
 const environmentMismatch = (message: string): PackageManager.PackageManagerError =>
   new PackageManager.PackageManagerError({ code: "environment_mismatch", message })
 
-const lockfileFor = (manager: PackageManager.Name): string =>
-  manager === "npm"
-    ? "package-lock.json"
-    : manager === "pnpm"
-    ? "pnpm-lock.yaml"
-    : manager === "bun"
-    ? "bun.lock"
-    : "yarn.lock"
+const lockfileFor = (manager: PackageManager.Name): string => manager === "pnpm" ? "pnpm-lock.yaml" : "bun.lock"
 
 const verifyManagerContract = (
   manager: PackageManager.Service
 ): Effect.Effect<void, PackageManager.PackageManagerError> => {
-  if (!["npm", "pnpm", "bun", "yarn"].includes(manager.name)) {
+  if (!["pnpm", "bun"].includes(manager.name)) {
     return Effect.fail(environmentMismatch("the package-manager layer declares an unknown manager"))
   }
   const expectedLockfile = lockfileFor(manager.name)
@@ -499,14 +468,6 @@ export const executeFetch = ({ content }: { readonly content: Content }) =>
   })
 
 /**
- * Implements {@link FetchNpm}.
- *
- * @category layers
- * @since 0.1.0
- */
-export const FetchNpmLive = FetchNpm.toLayer(executeFetch)
-
-/**
  * Implements {@link FetchPnpm}.
  *
  * @category layers
@@ -521,14 +482,6 @@ export const FetchPnpmLive = FetchPnpm.toLayer(executeFetch)
  * @since 0.1.0
  */
 export const FetchBunLive = FetchBun.toLayer(executeFetch)
-
-/**
- * Implements {@link FetchYarn} through the selected manager layer.
- *
- * @category layers
- * @since 0.1.0
- */
-export const FetchYarnLive = FetchYarn.toLayer(executeFetch)
 
 /**
  * The implementation of {@link Link}.
@@ -588,10 +541,8 @@ export const LinkLive = Link.toLayer(executeLink)
  */
 export const layer = Layer.mergeAll(
   MeasureLive,
-  FetchNpmLive,
   FetchPnpmLive,
   FetchBunLive,
-  FetchYarnLive,
   LinkLive
 )
 
