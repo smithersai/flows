@@ -1,7 +1,7 @@
 /*
  * The hermetic e2e harness — the real client, in process.
  *
- * A suite drives the product's own AppStore, AppController and WebAgent, wired
+ * A suite drives the product's own AppStore, AppController and agent, wired
  * with an injected fetch that attaches the session cookie and records every
  * call. Nothing here assigns globalThis.fetch: AppController and createWebAgent
  * both accept a fetchImpl, and no other module under src/mainview touches the
@@ -17,6 +17,7 @@ import type { Message, WorldDocument } from "../src/mainview/state/AppState.ts";
 // Type-only: NativeBridge.ts reads window.__electrobun at module scope and throws under bun.
 import type { NativeRepositories } from "../src/mainview/native/NativeBridge.ts";
 import { createWebAgent } from "../src/mainview/native/WebAgent.ts";
+import { createAgentSeat, createChainRuntime } from "../src/mainview/chain/ChainRuntime.ts";
 
 export interface ClientOptions {
 	readonly origin: string;
@@ -30,6 +31,17 @@ export interface ClientOptions {
 	readonly openExternal?: (url: string) => Promise<boolean>;
 	/** Defaults to NO_NATIVE_REPOSITORIES. */
 	readonly repositories?: NativeRepositories;
+	/*
+	 * Which agent the client drives.
+	 *
+	 * "chain" is the product's own wiring: the browser Agent Chain, authoring
+	 * over /api/model/stream, exactly as main.tsx composes it. "proxy" (the
+	 * default here) drives the `/api/agent/turn` seam the Worker still serves
+	 * for the terminal client and the native shell — the seam most suites in
+	 * this corpus were written against, and which still has to hold its
+	 * contract.
+	 */
+	readonly backend?: "proxy" | "chain";
 }
 
 export interface ClientCall {
@@ -106,11 +118,13 @@ export const openClient = async (options: ClientOptions): Promise<Client> => {
 	};
 
 	const store = await createAppStore({ kind: "localStorage", storage: memoryStorage() });
-	// createWebAgent binds its fetch at construction, so clientFetch exists first.
+	// Both agents bind their fetch at construction, so clientFetch exists first.
+	// The chain binds after the controller: its catalog IS the command registry.
+	const chainSeat = options.backend === "chain" ? createAgentSeat() : undefined;
 	const controller = createAppController(
 		store,
 		options.repositories ?? NO_NATIVE_REPOSITORIES,
-		createWebAgent({ baseUrl: origin, fetchImpl: clientFetch }),
+		chainSeat ?? createWebAgent({ baseUrl: origin, fetchImpl: clientFetch }),
 		{
 			baseUrl: origin,
 			fetchImpl: clientFetch,
@@ -121,6 +135,10 @@ export const openClient = async (options: ClientOptions): Promise<Client> => {
 			...(options.handoffPollMs === undefined ? {} : { handoffPollMs: options.handoffPollMs }),
 			...(options.openExternal === undefined ? {} : { openExternal: options.openExternal }),
 		},
+	);
+
+	chainSeat?.bindChain(
+		createChainRuntime({ store, commands: controller.commands, baseUrl: origin, fetchImpl: clientFetch }),
 	);
 
 	const messages = (): ReadonlyArray<Message> =>

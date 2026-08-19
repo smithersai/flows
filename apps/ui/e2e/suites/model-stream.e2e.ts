@@ -1,5 +1,6 @@
 /*
- * E3.13 — /api/model/stream is session-gated and actually streams.
+ * E3.13 — /api/model/stream is session-gated, streams, and carries a whole
+ *         browser chain turn onto the metered upstream.
  * E3.14 — /api/tools/browser-fetch refuses unsafe targets.
  *
  * Both routes already have server unit tests (apps/server/src/ModelStream.test.ts,
@@ -11,24 +12,24 @@
  *    IDENTITY_UPSTREAM_URL unset or patch fetch to answer 401 unconditionally,
  *    so neither ever mints a session and neither ever proves the signed-in path
  *    through the gate.
- * 2. The gate runs BEFORE the upstream call. The relay double records every
- *    request it receives, so an anonymous refusal that still forwarded would be
- *    visible here as a recorded call. That is the assertion that a re-ordering
+ * 2. The gate runs BEFORE the upstream call. The managed-inference double
+ *    records every request it receives, so an anonymous refusal that still
+ *    forwarded would be visible here as a recorded call. That is the assertion that a re-ordering
  *    of the router turns red — spend, not just status.
- * 3. The provider's SSE crossing a real socket inside workerd. The unit test
+ * 3. The upstream's NDJSON crossing a real socket inside workerd. The unit test
  *    answers from a patched fetch in the same process, so it never exercises
  *    workerd's body plumbing, the no-store directive, or byte-for-byte
  *    passthrough over the wire.
  * 4. The client halves: the product's own relay author seat (layerAuthor, the
- *    @smthrs/model Anthropic wire) decodes a provider stream that travelled
- *    through the deployed Worker, and AppController.openBrowser surfaces the
- *    SSRF guard's own sentence on a browser card instead of a fabricated read.
+ *    @smthrs/model machinery over the relay protocol) decodes a stream that
+ *    travelled through the deployed Worker, a whole browser chain turn runs on
+ *    it, and AppController.openBrowser surfaces the SSRF guard's own sentence
+ *    on a browser card instead of a fabricated read.
  *
  * Not covered here, and worth naming: the ABSENCE of buffering on the relay.
- * The provider double answers with a complete body, so a Worker that read the
- * upstream to the end and re-wrapped it would be indistinguishable from here —
- * content-length and all. Proving that needs a double that can pause mid-body;
- * the note against e2e/ModelRelay.ts asks for one.
+ * The upstream double answers with a complete body, so a Worker that read it to
+ * the end and re-wrapped it would be indistinguishable from here — content
+ * length and all. Proving that needs a double that can pause mid-body.
  *
  * Not covered here, deliberately: the "answers safe ones" half of E3.14. A safe
  * read requires https to a public host with a valid certificate, resolved
@@ -43,74 +44,38 @@ import { Author } from "@smthrs/chain";
 import type { Card } from "smithers-shared/Cards";
 import { MODEL_STREAM_PATH, TOOLS_BROWSER_FETCH_PATH } from "smithers-shared/AgentApiRoutes";
 import type { FetchLike } from "smithers-shared/NativeAgent";
-import { DEFAULT_MODEL_ID, layerAuthor } from "../../src/mainview/chain/StreamModel.ts";
+import { layerAuthor } from "../../src/mainview/chain/StreamModel.ts";
+import { STUB_PRODUCT_TOKEN } from "../../scripts/stub-backends.ts";
 import { openClient } from "../Client.ts";
-import { MODEL_RELAY_KEY } from "../ModelRelay.ts";
 import { defineSuite } from "../Suite.ts";
-
-/** What the browser's model seat sends as its x-api-key (src/mainview/chain/StreamModel.ts). */
-const PLACEHOLDER_KEY = "browser-relay-placeholder";
 
 /*
  * The scripted answer arrives as two text deltas. Splitting the proof string
- * across two SSE events means a Worker that re-serialized or re-chunked the
- * provider stream would hand the author seat something other than the whole
+ * across two frames means a Worker that re-serialized or re-chunked the
+ * upstream stream would hand the author seat something other than the whole
  * string back.
  */
 const PROOF_HEAD = "relay-stream-";
 const PROOF_TAIL = "proof-8805";
 const PROOF_TEXT = `${PROOF_HEAD}${PROOF_TAIL}`;
 
-const relayScript = (): ReadonlyArray<string> => [
-	"event: message_start",
-	`data: ${JSON.stringify({
-		type: "message_start",
-		message: {
-			id: "msg_e2e_relay",
-			type: "message",
-			role: "assistant",
-			model: DEFAULT_MODEL_ID,
-			content: [],
-			stop_reason: null,
-			stop_sequence: null,
-			usage: { input_tokens: 7, output_tokens: 0 },
-		},
-	})}`,
-	"",
-	"event: content_block_start",
-	`data: ${JSON.stringify({ type: "content_block_start", index: 0, content_block: { type: "text", text: "" } })}`,
-	"",
-	...[PROOF_HEAD, PROOF_TAIL].flatMap((chunk) => [
-		"event: content_block_delta",
-		`data: ${JSON.stringify({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text: chunk } })}`,
-		"",
-	]),
-	"event: content_block_stop",
-	`data: ${JSON.stringify({ type: "content_block_stop", index: 0 })}`,
-	"",
-	"event: message_delta",
-	`data: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: "end_turn", stop_sequence: null }, usage: { output_tokens: 4 } })}`,
-	"",
-	"event: message_stop",
-	`data: ${JSON.stringify({ type: "message_stop" })}`,
-	"",
-];
+const textScript = (chunks: ReadonlyArray<string>) => ({
+	frames: [
+		...chunks.map((text) => ({ type: "delta", kind: "text", text })),
+		{ type: "done", reason: "stop" },
+	],
+});
 
-/** The sealed author call the browser makes, minus the credential the Worker replaces. */
+/** The sealed author call the browser makes — the upstream's own body shape. */
 const authorBody = (extra: Record<string, unknown> = {}): string =>
 	JSON.stringify({
-		model: DEFAULT_MODEL_ID,
-		stream: true,
-		max_tokens: 64,
+		instructions: "You are Smithers.",
 		messages: [{ role: "user", content: "hello" }],
 		...extra,
 	});
 
 const relayHeaders = (cookie?: string): Record<string, string> => ({
 	"content-type": "application/json",
-	"anthropic-version": "2023-06-01",
-	// The browser really does send this placeholder; it must die at the boundary.
-	"x-api-key": PLACEHOLDER_KEY,
 	...(cookie === undefined ? {} : { cookie }),
 });
 
@@ -193,27 +158,28 @@ const JSON_HEADERS = { "content-type": "application/json" } as const;
 
 export default defineSuite({
 	id: "E3.13+E3.14",
-	title: "the model relay is session-gated, streams, and hides the deployment key; the browser tool refuses unsafe targets",
+	title: "the model relay is session-gated, streams, and meters a browser chain turn; the browser tool refuses unsafe targets",
 	run: async ({ origin, stack, report }) => {
 		const cookie = await stack.signedInCookie();
-		stack.modelRelay.script(relayScript());
+		stack.chat.script(textScript([PROOF_HEAD, PROOF_TAIL]));
 
 		/*
-		 * E3.13, gate. The body is deliberately invalid for the relay (no model,
-		 * and tools present). A router that gated after validation would answer
-		 * 400; a router that forwarded first would leave a recorded relay call.
+		 * E3.13, gate. The body is deliberately invalid for the relay (no
+		 * messages, and tools present). A router that gated after validation
+		 * would answer 400; a router that forwarded first would leave a recorded
+		 * upstream call.
 		 */
 		const anonymous = await postJson(`${origin}${MODEL_STREAM_PATH}`, relayHeaders(), {
-			tools: [{ name: "bash" }],
+			tools: [{ type: "function", name: "bash" }],
 		});
 		report.equals(anonymous.status, 401, `the anonymous relay call answered ${anonymous.message ?? "nothing"}`);
 		report.equals(anonymous.message, "Sign in to run a Smithers turn.", "the anonymous relay refusal");
 		report.equals(
-			stack.modelRelay.requests().length,
+			stack.chat.requests().length,
 			0,
-			"the anonymous relay call reached the provider anyway — the session gate runs after the forward",
+			"the anonymous relay call reached the upstream anyway — the session gate runs after the forward",
 		);
-		report.ok("an anonymous /api/model/stream call is refused before the provider is called at all.");
+		report.ok("an anonymous /api/model/stream call is refused before the upstream is called at all.");
 
 		/* E3.13, the signed-in stream. */
 		const relay = await fetch(`${origin}${MODEL_STREAM_PATH}`, {
@@ -224,24 +190,22 @@ export default defineSuite({
 		report.equals(relay.status, 200, "the signed-in relay call");
 		report.includes(
 			relay.headers.get("content-type") ?? "",
-			"text/event-stream",
+			"application/x-ndjson",
 			"the relay answered the wrong content type",
 		);
 		report.equals(relay.headers.get("cache-control"), "no-store", "the relay response cache directive");
 		report.equals(
 			relay.headers.get("content-encoding"),
 			null,
-			"the relay re-encoded the provider stream instead of passing the bytes through",
+			"the relay re-encoded the upstream stream instead of passing the bytes through",
 		);
 
 		/*
 		 * What the read below proves: the Worker hands back a readable body and
-		 * every provider byte survives the crossing, in order. What it does NOT
-		 * prove is the absence of buffering — the provider double answers with a
-		 * complete body, so a Worker that awaited response.text() and re-wrapped
-		 * it would look identical from here, content-length included. Proving
-		 * that needs a relay double that can pause mid-body; see the note filed
-		 * against e2e/ModelRelay.ts.
+		 * every upstream byte survives the crossing, in order. What it does NOT
+		 * prove is the absence of buffering — the double answers with a complete
+		 * body, so a Worker that awaited response.text() and re-wrapped it would
+		 * look identical from here.
 		 */
 		const stream = relay.body;
 		report.check(stream !== null, "the relay answered 200 with no body to read.");
@@ -254,44 +218,47 @@ export default defineSuite({
 			if (next.value !== undefined) chunks.push(decoder.decode(next.value, { stream: true }));
 		}
 		const streamed = chunks.join("");
-		report.includes(streamed, "message_start", "the relay stream lost the provider's opening event");
 		report.includes(streamed, PROOF_HEAD, "the relay stream lost the first scripted delta");
 		report.includes(streamed, PROOF_TAIL, "the relay stream lost the second scripted delta");
 		report.check(
 			streamed.indexOf(PROOF_HEAD) < streamed.indexOf(PROOF_TAIL),
 			"the relay stream delivered the scripted deltas out of order",
 		);
-		report.includes(streamed, "message_stop", "the relay stream never terminated the provider message");
+		report.includes(streamed, '"type":"done"', "the relay stream never terminated the upstream answer");
 		report.ok(
-			`the signed-in relay hands back the provider's SSE verbatim and in order, no-store, in ${chunks.length} chunk(s).`,
+			`the signed-in relay hands back the upstream's NDJSON verbatim and in order, no-store, in ${chunks.length} chunk(s).`,
 		);
 
-		/* E3.13, the credential boundary. */
-		const forwarded = stack.modelRelay.requests();
-		report.equals(forwarded.length, 1, "the relay double recorded the wrong number of provider calls");
+		/*
+		 * E3.13, the credential boundary. The relay holds no provider key at all:
+		 * it authenticates to the managed-inference upstream exactly as the turn
+		 * path does, and vouches the validated login so the charge lands on that
+		 * user's account. The caller's own cookie never travels with it.
+		 */
+		const forwarded = stack.chat.requests();
+		report.equals(forwarded.length, 1, "the upstream double recorded the wrong number of calls");
 		const sent = forwarded[0];
-		report.equals(sent?.headers["x-api-key"], MODEL_RELAY_KEY, "the Worker did not inject the deployment key");
-		report.check(
-			sent?.headers["x-api-key"] !== PLACEHOLDER_KEY,
-			"the browser's placeholder credential survived the relay boundary",
-		);
-		report.equals(sent?.headers["cookie"], undefined, "the caller's session cookie was forwarded to the provider");
+		report.equals(sent?.headers["x-user-login"], "will", "the relay did not vouch the validated login upstream");
 		report.equals(
-			sent?.headers["anthropic-version"],
-			"2023-06-01",
-			"the relay dropped the caller's anthropic-version",
+			sent?.headers["x-smithers-service-token"],
+			STUB_PRODUCT_TOKEN,
+			"the relay did not present the trusted-caller token that attributes the charge",
 		);
-		report.ok("the Worker forwards the deployment key and forwards neither the placeholder key nor the session cookie.");
+		report.equals(sent?.headers["cookie"], undefined, "the caller's session cookie was forwarded upstream");
+		report.check(
+			(sent?.headers["x-smithers-run-id"] ?? "").length > 0,
+			"the relay forwarded no run id, so the charge has no idempotency root",
+		);
+		report.ok("the relay vouches the signed-in login upstream and forwards neither the session cookie nor a client run id.");
 
 		/*
 		 * E3.13, the sealed-step law through the real router. A signed-in caller
-		 * gets the 400, and no provider call is spent on it.
+		 * gets the 400, and no upstream call is spent on it.
 		 */
 		const withTools = await postJson(`${origin}${MODEL_STREAM_PATH}`, relayHeaders(cookie), {
-			model: DEFAULT_MODEL_ID,
-			stream: true,
+			instructions: "You are Smithers.",
 			messages: [{ role: "user", content: "hello" }],
-			tools: [{ name: "bash" }],
+			tools: [{ type: "function", name: "bash" }],
 		});
 		report.equals(withTools.status, 400, `the tool-bearing relay call answered ${withTools.message ?? "nothing"}`);
 		report.equals(
@@ -300,17 +267,17 @@ export default defineSuite({
 			"the tool-bearing relay refusal",
 		);
 		report.equals(
-			stack.modelRelay.requests().length,
+			stack.chat.requests().length,
 			1,
-			"the tool-bearing call was forwarded to the provider despite the sealed-step refusal",
+			"the tool-bearing call was forwarded upstream despite the sealed-step refusal",
 		);
-		report.ok("a signed-in tool-bearing relay call is refused without spending a provider call.");
+		report.ok("a signed-in tool-bearing relay call is refused without spending an upstream call.");
 
 		/*
 		 * E3.13, the client half: the product's own relay author seat decodes a
-		 * provider stream that travelled through the deployed Worker. The unit
-		 * test drives this seat against an injected Response; here the bytes
-		 * cross a socket, the router, and the relay double.
+		 * stream that travelled through the deployed Worker. The unit test drives
+		 * this seat against an injected Response; here the bytes cross a socket,
+		 * the router, and the upstream double.
 		 */
 		const seatFetch: FetchLike = async (input, init) => {
 			const base = typeof input === "string" || input instanceof URL ? new Request(input, init) : input;
@@ -326,18 +293,51 @@ export default defineSuite({
 				never
 			>,
 		);
-		report.equals(authored, PROOF_TEXT, "the relay author seat did not decode the streamed provider text");
-		const seatCalls = stack.modelRelay.requests();
-		report.equals(seatCalls.length, 2, "the author seat did not reach the provider exactly once");
-		const seatBody = seatCalls[1]?.body as { model?: unknown; stream?: unknown; tools?: unknown } | undefined;
-		report.equals(seatBody?.model, DEFAULT_MODEL_ID, "the Worker rewrote the model the client asked for");
-		report.equals(seatBody?.stream, true, "the author seat's request did not ask the provider to stream");
-		report.check(
-			!Array.isArray(seatBody?.tools) || (seatBody?.tools as ReadonlyArray<unknown>).length === 0,
-			"the author seat sent tools on a sealed author call",
+		report.equals(authored, PROOF_TEXT, "the relay author seat did not decode the streamed text");
+		const seatCalls = stack.chat.requests();
+		report.equals(seatCalls.length, 2, "the author seat did not reach the upstream exactly once");
+		// The body is canonical JSON, so its keys are sorted: compare fields.
+		const seatBody = seatCalls[1];
+		report.equals(seatBody?.messages.length, 1, "the author seat sent the wrong number of messages");
+		report.equals(seatBody?.messages[0]?.role, "user", "the author seat's message role");
+		report.equals(seatBody?.messages[0]?.content, "e2e relay probe", "the author seat's message content");
+		report.check(seatBody?.tools.length === 0, "the author seat sent tools on a sealed author call");
+		report.ok("the product's relay author seat streams through the Worker and decodes the text end to end.");
+
+		/*
+		 * E3.13, the whole point of the route: a BROWSER CHAIN TURN. The product's
+		 * own client sends a message, the chain authors a flow script over this
+		 * relay, runs it in the page, and the answer lands in the transcript. This
+		 * is the single-backend contract end to end — nothing touches
+		 * /api/agent/turn.
+		 */
+		const CHAIN_ANSWER = "Two: smithersai/flows and smithersai/chain.";
+		stack.chat.script(
+			textScript([
+				"```flow\n",
+				`await ctx.call("say", { text: ${JSON.stringify(CHAIN_ANSWER)} })\n`,
+				"return done({ ok: true })\n```",
+			]),
 		);
-		report.equals(seatCalls[1]?.headers["x-api-key"], MODEL_RELAY_KEY, "the author seat's call lost the key injection");
-		report.ok("the product's relay author seat streams through the Worker and decodes the provider text end to end.");
+		const chainClient = await openClient({ origin, cookie, backend: "chain" });
+		const turnsBefore = stack.chat.requests().length;
+		chainClient.controller.send("how many repositories am I watching?");
+		await chainClient.idle(20_000);
+		report.includes(chainClient.transcript(), CHAIN_ANSWER, "the browser chain turn never rendered its answer");
+		report.equals(
+			chainClient.countCalls("POST", "/api/agent/turn"),
+			0,
+			"a chain turn reached the turn seam — there is supposed to be one backend",
+		);
+		report.check(
+			chainClient.countCalls("POST", MODEL_STREAM_PATH) > 0,
+			"the chain turn did not spend its model through /api/model/stream",
+		);
+		report.check(
+			stack.chat.requests().length > turnsBefore,
+			"the chain turn never reached the managed-inference upstream, so nothing was metered",
+		);
+		report.ok("a browser chain turn authors over /api/model/stream, runs in the page, and renders its answer.");
 
 		/*
 		 * E3.14, gate. An anonymous caller aiming at a private host must meet the

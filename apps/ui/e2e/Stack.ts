@@ -22,7 +22,6 @@ import {
 } from "../scripts/stub-backends.ts";
 import { createChatUpstream, type ChatUpstream } from "./ChatUpstream.ts";
 import { createFront, type Front } from "./Front.ts";
-import { createModelRelay, MODEL_RELAY_KEY, type ModelRelay } from "./ModelRelay.ts";
 import type { Phase } from "./Suite.ts";
 
 /** wrangler.jsonc's `main` and `assets.directory` are relative to apps/server. */
@@ -62,7 +61,6 @@ export interface Stack {
 		readonly reco: StubHandle;
 	};
 	readonly chat: ChatUpstream;
-	readonly modelRelay: ModelRelay;
 	/** POST/GET a /stub/* control on a double, THROUGH the front. Throws on a non-2xx. */
 	readonly control: (target: StubName, path: string, init?: RequestInit) => Promise<Response>;
 	/** Mint a fresh session cookie ("stub_session=<uuid>"). Not allowlisted yet. */
@@ -75,9 +73,9 @@ export interface Stack {
 	readonly signedInCookie: () => Promise<string>;
 	/**
 	 * Per-suite isolation. Recreates the identity, billing and reco doubles and
-	 * repoints their fronts; clears every front override; resets the chat and
-	 * model doubles; puts the gateway back to capacity/lively/cloud-repo; forgets
-	 * the memoized cookie.
+	 * repoints their fronts; clears every front override; resets the chat
+	 * double; puts the gateway back to capacity/lively/cloud-repo; forgets the
+	 * memoized cookie.
 	 *
 	 * The gateway double is NOT recreated: the Worker's GATEWAY_SESSIONS Durable
 	 * Object caches each provisioned gateway's base_url per (login, repo), so a
@@ -132,8 +130,6 @@ const SEALED_VARS: ReadonlyArray<string> = [
 	"GATEWAY_SESSION_USER_SCOPES",
 	"SMITHERS_CHAT_AUTH_TOKEN",
 	"SMITHERS_CLOUD_API_BASE_URL",
-	"MODEL_RELAY_API_KEY",
-	"MODEL_RELAY_URL",
 ];
 
 export const startStack = async (options: StackOptions): Promise<Stack> => {
@@ -157,7 +153,6 @@ export const startStack = async (options: StackOptions): Promise<Stack> => {
 		reco: createFront("reco", stubs.reco.port),
 	};
 	const chat = createChatUpstream();
-	const modelRelay = createModelRelay();
 
 	const vars: Record<string, string> = {};
 	for (const name of SEALED_VARS) vars[name] = "";
@@ -172,6 +167,7 @@ export const startStack = async (options: StackOptions): Promise<Stack> => {
 					BILLING_UPSTREAM_URL: fronts.billing.url,
 					BILLING_AUTH_TOKEN: STUB_BILLING_BEARER,
 					BILLING_PRODUCT_SERVICE_TOKEN: STUB_PRODUCT_TOKEN,
+					CHAT_PRODUCT_SERVICE_TOKEN: STUB_PRODUCT_TOKEN,
 					GATEWAY_UPSTREAM_URL: fronts.gateway.url,
 					GATEWAY_SESSION_USER_ID: "will",
 					// Wave 11: the same double serves the Cloud provision route and the
@@ -181,8 +177,6 @@ export const startStack = async (options: StackOptions): Promise<Stack> => {
 					IDENTITY_ADMIN_TOKEN: STUB_ADMIN_TOKEN,
 					BILLING_ADMIN_TOKEN: STUB_ADMIN_TOKEN,
 					RECO_ADMIN_TOKEN: STUB_ADMIN_TOKEN,
-					MODEL_RELAY_API_KEY: MODEL_RELAY_KEY,
-					MODEL_RELAY_URL: modelRelay.url,
 				},
 		options.extraVars ?? {},
 	);
@@ -212,7 +206,6 @@ export const startStack = async (options: StackOptions): Promise<Stack> => {
 		for (const front of Object.values(fronts)) front.stop();
 		for (const stub of Object.values(stubs)) stub.stop();
 		chat.stop();
-		modelRelay.stop();
 		// The Durable Object state was this run's alone; leaving it behind litters
 		// a developer's temp directory one boot at a time.
 		try {
@@ -284,7 +277,6 @@ export const startStack = async (options: StackOptions): Promise<Stack> => {
 			},
 		},
 		chat,
-		modelRelay,
 		control,
 		signIn,
 		allowlist: async () => void (await control("identity", "/stub/allowlist", { method: "POST" })),
@@ -320,7 +312,6 @@ export const startStack = async (options: StackOptions): Promise<Stack> => {
 				await control(name, "/stub/reset", { method: "POST" });
 			}
 			chat.reset();
-			modelRelay.reset();
 			memoizedCookie = undefined;
 		},
 		stop: stopEverything,

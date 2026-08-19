@@ -9,7 +9,6 @@
  */
 import { defineSuite } from "../Suite.ts";
 import { openClient } from "../Client.ts";
-import { MODEL_RELAY_KEY } from "../ModelRelay.ts";
 
 export default defineSuite({
 	id: "H-0",
@@ -87,18 +86,15 @@ export default defineSuite({
 		const relay = await fetch(`${origin}/api/model/stream`, {
 			method: "POST",
 			headers: { "content-type": "application/json", cookie },
-			body: JSON.stringify({ model: "stub-model", max_tokens: 16, messages: [{ role: "user", content: "hi" }] }),
+			body: JSON.stringify({ instructions: "be brief", messages: [{ role: "user", content: "hi" }] }),
 		});
 		report.equals(relay.status, 200, "the model relay call");
-		report.includes(await relay.text(), "message_stop", "the relay stream did not carry the scripted lines");
-		const relayRequests = stack.modelRelay.requests();
-		report.equals(relayRequests.length, 1, "the model relay recorded the wrong number of calls");
-		report.equals(
-			relayRequests[0]?.headers["x-api-key"],
-			MODEL_RELAY_KEY,
-			"the Worker did not inject MODEL_RELAY_API_KEY into the relay call",
-		);
-		report.ok("the model relay double answers /api/model/stream and proves the key injection.");
+		report.includes(await relay.text(), '"type":"done"', "the relay stream did not carry the scripted frames");
+		// The relay reaches the SAME managed-inference upstream the turn path
+		// does — that is what makes a chain turn metered — so the chat double
+		// counts both calls.
+		report.equals(stack.chat.requests().length, 2, "the relay did not reach the managed-inference upstream");
+		report.ok("the model relay answers /api/model/stream from the managed-inference upstream.");
 
 		const relayState = await report.json<{ provisions?: number }>(
 			await stack.control("gateway", "/stub/relay-state"),
