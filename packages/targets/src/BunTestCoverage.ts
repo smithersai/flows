@@ -153,7 +153,11 @@ const thresholdProgram = [
   "}",
   "const failed = Object.keys(want).filter((name) => got[name] < want[name])",
   "if (failed.length > 0) {",
-  "  console.error(\"coverage below threshold: \" + failed.map((name) => name + \" \" + got[name].toFixed(2) + \"% < \" + want[name] + \"%\").join(\", \"))",
+  // process.stderr.write, not console.error: the repository's console guard
+  // (packages/observability/test/NoConsole.test.ts) matches the call text
+  // anywhere in a package source, including inside the string literals that
+  // make up this generated script, and cannot tell one from a real call.
+  "  process.stderr.write(\"coverage below threshold: \" + failed.map((name) => name + \" \" + got[name].toFixed(2) + \"% < \" + want[name] + \"%\").join(\", \") + \"\\n\")",
   "  process.exit(1)",
   "}"
 ].join("\n")
