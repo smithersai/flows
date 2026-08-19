@@ -230,20 +230,14 @@ export const Bun = (options: Options<BunVersion>): BunRuntime =>
 /**
  * Checks whether a value is a declared runtime.
  *
+ * The guard is the schema itself, so it admits exactly the values a
+ * constructor can produce: a supported `name`, a `version` from that variant's
+ * enumeration, and a non-empty `executable`.
+ *
  * @category guards
  * @since 0.1.0
  */
-export const isRuntime = (value: unknown): value is Runtime => {
-  if (typeof value !== "object" || value === null) return false
-  const candidate = value as {
-    readonly name?: unknown
-    readonly version?: unknown
-    readonly executable?: unknown
-  }
-  return (candidate.name === "node" || candidate.name === "bun") &&
-    typeof candidate.version === "string" &&
-    typeof candidate.executable === "string"
-}
+export const isRuntime: (value: unknown) => value is Runtime = Schema.is(Runtime)
 
 /**
  * Builds the argv that runs one script under the declared runtime.
