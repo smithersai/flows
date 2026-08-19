@@ -10,10 +10,13 @@ const split = (input: Uint8Array, size: number): ReadonlyArray<Uint8Array> => {
   return chunks
 }
 
-const decode = (input: string, size: number) =>
+const decodeWith = (framing: Framing.Framing<string>) => (input: string, size: number) =>
   Effect.runPromise(
-    Stream.runCollect(Framing.sse.frame(Stream.fromIterable(split(encoder.encode(input), size))))
+    Stream.runCollect(framing.frame(Stream.fromIterable(split(encoder.encode(input), size))))
   ).then(Array.from)
+
+const decode = decodeWith(Framing.sse)
+const decodeNdjson = decodeWith(Framing.ndjson)
 
 describe("Framing.sse", () => {
   const fixture =
@@ -34,5 +37,31 @@ describe("Framing.sse", () => {
 
   it("deliberately ignores retry directives", async () => {
     await expect(decode("data: before\n\nretry: 100\n\ndata: after\n\n", 2)).resolves.toEqual(["before", "after"])
+  })
+})
+
+describe("Framing.ndjson", () => {
+  const fixture = "{\"type\":\"delta\",\"text\":\"one\"}\n{\"type\":\"delta\",\"text\":\"café\"}\n{\"type\":\"done\"}\n"
+  const expected = [
+    "{\"type\":\"delta\",\"text\":\"one\"}",
+    "{\"type\":\"delta\",\"text\":\"café\"}",
+    "{\"type\":\"done\"}"
+  ]
+
+  it.each([1, 3, 7, 4096])("decodes byte-split NDJSON at chunk size %s", async (size) => {
+    await expect(decodeNdjson(fixture, size)).resolves.toEqual(expected)
+  })
+
+  it("frames a producer that omits the trailing newline identically", async () => {
+    await expect(decodeNdjson("{\"a\":1}\n{\"b\":2}", 4)).resolves.toEqual(["{\"a\":1}", "{\"b\":2}"])
+  })
+
+  it("discards blank lines rather than emitting empty frames", async () => {
+    await expect(decodeNdjson("\n{\"a\":1}\n\n\n{\"b\":2}\n\n", 5)).resolves.toEqual(["{\"a\":1}", "{\"b\":2}"])
+  })
+
+  it("emits a truncated final record so protocol decoding can reject it", async () => {
+    // A cut record is a failure to report, not a record to drop silently.
+    await expect(decodeNdjson("{\"a\":1}\n{\"b\":", 3)).resolves.toEqual(["{\"a\":1}", "{\"b\":"])
   })
 })
