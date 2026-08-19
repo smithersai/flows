@@ -4,9 +4,10 @@
  * A `tsconfig.json` decides what the compiler reads and what it emits, which
  * makes it part of the build definition. Leaving it hand-maintained next to a
  * BUILD.ts file that declares the same sources means two descriptions of one
- * thing, free to disagree. This target makes BUILD.ts the only description: the
- * file is rendered from attrs, and `check` mode fails when the checked-in copy
- * has drifted.
+ * thing, free to disagree. This target makes BUILD.ts the only description:
+ * the file is rendered from attrs, and one declaration expands into the
+ * gazelle-style pair — a `lint` target that fails when the checked-in copy
+ * has drifted and a `run` target that rewrites it.
  *
  * Include and exclude patterns are plain strings rather than {@link Input.Glob}
  * declarations. A generator's output depends on the pattern text, not on which
@@ -21,7 +22,6 @@ import * as Schema from "effect/Schema"
 import * as GeneratedFile from "./GeneratedFile.ts"
 import * as Input from "./Input.ts"
 import * as ManifestJson from "./ManifestJson.ts"
-import * as Target from "./Target.ts"
 
 /**
  * Attributes for {@link Tsconfig}.
@@ -53,10 +53,6 @@ export const Attrs = Schema.Struct({
   /** Project references. @default [] */
   references: Schema.Array(Schema.NonEmptyString).pipe(
     Schema.withConstructorDefault(Effect.succeed<ReadonlyArray<string>>([]))
-  ),
-  /** Whether to write the file or verify the checked-in copy. @default "check" */
-  mode: Schema.Literals(["write", "check"]).pipe(
-    Schema.withConstructorDefault(Effect.succeed("check" as const))
   ),
   /** The directory the path resolves against. @default "." */
   cwd: Schema.NonEmptyString.pipe(Schema.withConstructorDefault(Effect.succeed(".")))
@@ -107,8 +103,23 @@ const relative = (path: string): string => {
   return stripped.startsWith("./") || stripped.startsWith("../") ? stripped : `./${stripped}`
 }
 
+const pair = GeneratedFile.generateFilePair({
+  target: "Tsconfig",
+  attrs: Attrs,
+  payload: (attrs) => ({
+    path: attrs.cwd === "." ? attrs.path : `${attrs.cwd}/${attrs.path}`,
+    contents: render(attrs)
+  }),
+  outputs: (attrs) => ({ cwd: attrs.cwd, paths: [attrs.path] })
+})
+
 /**
- * Generates and drift-checks a `tsconfig.json`.
+ * Drift-checks a `tsconfig.json` against its BUILD.ts declaration.
+ *
+ * This is the `lint` half of the pair. It is cacheable and it never touches
+ * the working tree. The checked-in file is a declared input, so editing it
+ * re-keys the target. Exported from a BUILD.ts file as `tsconfig`, it keeps
+ * the label `//:tsconfig`.
  *
  * @example
  * ```ts
@@ -124,18 +135,16 @@ const relative = (path: string): string => {
  * @category targets
  * @since 0.1.0
  */
-export const Tsconfig = Target.make("Tsconfig", {
-  attrs: Attrs,
-  kinds: ["build", "lint"],
-  error: Schema.Union([GeneratedFile.WriteFileError, GeneratedFile.DriftError]),
-  cache: false,
-  outputs: (attrs) => attrs.mode === "write" ? { cwd: attrs.cwd, paths: [attrs.path] } : { cwd: attrs.cwd, paths: [] },
-  // The check verb reads the checked-in file and writes nothing, so it is safe
-  // in a lint graph; the write verb is what a build graph runs.
-  attrsForKind: (kind, attrs) => kind === "lint" ? { ...attrs, mode: "check" as const } : attrs,
-  implementation: (attrs) =>
-    GeneratedFile.generateFile(attrs.mode, {
-      path: attrs.cwd === "." ? attrs.path : `${attrs.cwd}/${attrs.path}`,
-      contents: render(attrs)
-    })
-})
+export const Tsconfig = pair.check
+
+/**
+ * Rewrites a `tsconfig.json` from its BUILD.ts declaration.
+ *
+ * This is the `run` half of the pair. It mutates the source tree, so it
+ * participates in the `run` verb alone and is never cacheable. A declaration
+ * exported as `tsconfig` takes the label `//:tsconfigWrite` for this half.
+ *
+ * @category targets
+ * @since 0.1.0
+ */
+export const TsconfigWrite = pair.write

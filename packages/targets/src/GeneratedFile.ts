@@ -10,7 +10,7 @@
  *
  * @since 0.1.0
  */
-import { Action, type FlowRuntime } from "@smthrs/flow"
+import { Action, type Flow, type FlowRuntime } from "@smthrs/flow"
 import type * as Node from "@smthrs/plan/Node"
 import * as Effect from "effect/Effect"
 import type * as Layer from "effect/Layer"
@@ -22,17 +22,20 @@ import * as NodePath from "node:path"
 import * as NodeUtil from "node:util/types"
 import * as Input from "./Input.ts"
 import * as SafeFs from "./SafeFs.ts"
+import * as Target from "./Target.ts"
 
 /**
  * Output handling for a generated file. `write` emits the file. `check`
  * compares the checked-in file and fails on drift. The constructor default
- * is `write`.
+ * is `check`: the non-mutating form is the safe resolution for a declaration
+ * that does not say otherwise, and it is what every live caller already
+ * chose when this vocabulary replaced the per-rule copies.
  *
  * @category schemas
  * @since 0.1.0
  */
 export const Mode = Schema.Literals(["write", "check"]).pipe(
-  Schema.withConstructorDefault(Effect.succeed("write" as const))
+  Schema.withConstructorDefault(Effect.succeed("check" as const))
 )
 
 /**
@@ -516,3 +519,95 @@ export const generateFile = (
   payload: FilePayload
 ): Node.Node<void, WriteFileError | DriftError, FileRequirement> =>
   mode === "check" ? CheckFile.call(payload) : WriteFile.call(payload)
+
+/**
+ * The two targets one generated-file declaration expands into.
+ *
+ * The shape is the one `PackageJson.targets` established: one declaration in a
+ * BUILD.ts file produces a check target and a write target, the way
+ * `bazel run //:gazelle` pairs with `//:gazelle.check`.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface Targets {
+  readonly check: Target.AnyTarget
+  readonly write: Target.AnyTarget
+}
+
+/**
+ * The name suffix each synthesized target carries.
+ *
+ * The check half keeps the declaration's bare export name, so a label that
+ * already names the non-mutating form, such as `//:tsconfig`, survives the
+ * conversion to a pair. The write half takes `Write`: a declaration exported
+ * as `tsconfig` becomes `tsconfig` and `tsconfigWrite`.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const targetSuffixes: ReadonlyArray<readonly [keyof Targets, string]> = [
+  ["check", ""],
+  ["write", "Write"]
+]
+
+/**
+ * Declares the check and write definitions of one generated-file rule.
+ *
+ * One call produces both halves of the gazelle-style pair from the pieces they
+ * share: the attrs schema, the payload derivation, and the output tree. The
+ * check half is a cacheable `lint` target that never touches the working tree;
+ * it declares the checked-in file as an input, so editing that file re-keys
+ * it. The write half is a `run` target that rewrites the checked-in file. It
+ * is never cacheable: a hit for a target whose whole purpose is to leave a
+ * file behind would report success for a file that was never written.
+ *
+ * `target` is the rule's base name. The halves are named `${target}Check` and
+ * `${target}Write`.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const generateFilePair = <Attrs extends Flow.AnyStructSchema>(options: {
+  readonly target: string
+  readonly attrs: Attrs
+  readonly payload: (attrs: Attrs["Type"]) => FilePayload
+  readonly outputs: (attrs: Attrs["Type"]) => Target.DeclaredOutputs
+}): {
+  readonly check: Target.Definition<
+    string,
+    Attrs,
+    typeof Schema.Void,
+    typeof DriftError,
+    FileRequirement
+  >
+  readonly write: Target.Definition<
+    string,
+    Attrs,
+    typeof Schema.Void,
+    typeof WriteFileError,
+    FileRequirement
+  >
+} => {
+  const inputs = (attrs: Attrs["Type"]): ReadonlyArray<Input.Declared> => [
+    Input.file(`//${resolveOutputPath(options.payload(attrs).path)}`)
+  ]
+  const check = Target.make(`${options.target}Check`, {
+    attrs: options.attrs,
+    kinds: ["lint"],
+    error: DriftError,
+    cache: true,
+    inputs,
+    implementation: (attrs) => generateFile("check", options.payload(attrs))
+  })
+  const write = Target.make(`${options.target}Write`, {
+    attrs: options.attrs,
+    kinds: ["run"],
+    error: WriteFileError,
+    cache: false,
+    inputs,
+    outputs: options.outputs,
+    implementation: (attrs) => generateFile("write", options.payload(attrs))
+  })
+  return { check, write }
+}
