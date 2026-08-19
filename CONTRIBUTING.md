@@ -30,17 +30,48 @@ all changes someone should have to justify in review rather than slip in.
 
 The cost is that one edit lands in several places. If you change:
 
-| What | Also update |
-| --- | --- |
+| What                                                             | Also update                                                                                                                                                                                  |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `BUILD.ts` workspace attrs (`packages`, `allowBuilds`, settings) | the generated `pnpm-workspace.yaml` (`pnpm exec smthrs build '//:workspace'`), `packages/targets/test/GeneratedRootFiles.test.ts`, and `packages/flows/test/vitestCoverageIsolation.test.ts` |
-| root `package.json` scripts | `packages/flows/test/vitestCoverageIsolation.test.ts` (the aggregator roster) |
-| `.github/workflows/ci.yml` gate steps or triggers | `packages/flows/test/vitestCoverageIsolation.test.ts` (source-text pins) |
-| `.github/workflows/release.yml` | the same suite, plus `scripts/release-rehearsal.test.mjs` |
+| root `package.json` scripts                                      | `packages/flows/test/vitestCoverageIsolation.test.ts` (the aggregator roster)                                                                                                                |
+| root `BUILD.ts` CI jobs, steps, or triggers                      | the generated `.github/workflows/ci.yml` (`pnpm exec smthrs build '//:ci'` with `mode: "write"`), and `packages/flows/test/vitestCoverageIsolation.test.ts` (source-text pins)               |
+| `.github/workflows/release.yml`                                  | the same suite, plus `scripts/release-rehearsal.test.mjs`                                                                                                                                    |
 
 Miss one and CI reports a generated file as a hand edit, which is exactly
 what it should do — it cannot tell your deliberate change from a stray one.
 
 Packages under `packages/` follow the structure and conventions in the Effect repository. Use `reference/effect` as the local reference when adding or changing package modules, public APIs, tests, build configuration, or package metadata.
+
+## A BUILD.ts file declares targets, never commands
+
+`BUILD.ts` says what the workspace has. It never says how to run it. A raw argv
+in a BUILD file — a `run:` string, a bare executable name, a shell fragment — is
+a gate the build system does not know about: unplanned, unkeyed, uncached, not
+addressable by label, and not runnable locally by the name CI uses. It also pins
+the interpreter and the package manager at the call site, so the workspace can no
+longer switch either by editing one declaration.
+
+Argv rendering belongs in target implementations. `PackageManager.install()`
+renders `pnpm install --frozen-lockfile --ignore-scripts`; `Runtime.test()`
+renders `node --test`; `RustToolchain.install()` renders
+`rustup toolchain install`. A declaration passes the toolchain in and the
+implementation asks it for the argv.
+
+Every CI gate is therefore a target, in the package that owns it:
+`scripts/BUILD.ts` for the operator and release scripts, `crates/*/BUILD.ts` for
+the cargo gates, `apps/*/BUILD.ts` for an app's end-to-end suites, `ci/BUILD.ts`
+for the targets that belong to no single package. `.github/workflows/ci.yml` is
+generated from those declarations: a job names what it requires and which targets
+it runs, and `GithubCiGen` derives every step. Its attrs schema has no field that
+would hold a command, so reintroducing one is a compile error rather than a
+review conversation.
+
+Bazel is the prior art: a `BUILD` file has no way to write a command at all,
+every check is a test target, and CI is one verb over the graph. If a gate does
+not fit an existing target type, add a target type; `ToolBuild` is the
+deliberate escape hatch and using it is something to justify in review. The full
+rule, with examples, is in
+[`packages/build/docs/workspace/writing-build-files.md`](packages/build/docs/workspace/writing-build-files.md).
 
 ## Working with the vendored jj submodule
 

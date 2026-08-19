@@ -28,6 +28,7 @@ export const test = Smithers.Vitest({
 | `deps`            | `Array<Target.Target>`          | required | Dependency targets, usually the package's `lib`.                                           |
 | `config`          | `Input.File \| null`            | required | The Vitest config, or `null` to pass no `--config`.                                        |
 | `environment`     | `string`                        | required | The Vitest environment, for example `node` or `jsdom`.                                     |
+| `coverage`        | `boolean`                       | `true`   | Whether the run may compute coverage. `false` renders `--coverage.enabled=false`, which a config with coverage enabled needs on an engine with no V8 inspector. |
 | `passWithNoTests` | `boolean`                       | required | Succeed when the suite matches no files.                                                   |
 | `cwd`             | `string`                        | `"."`    | Workspace-relative directory the runner starts in.                                         |
 
@@ -37,7 +38,7 @@ The argv is `PackageManager.exec` of the declared package manager. With the
 pnpm declaration:
 
 ```
-pnpm exec vitest run [--config <config.path>] --environment <environment> [--passWithNoTests]
+pnpm exec vitest run [--config <config.path>] --environment <environment> [--coverage.enabled=false] [--passWithNoTests]
 ```
 
 The target passes no file arguments. Vitest discovers test files itself; the

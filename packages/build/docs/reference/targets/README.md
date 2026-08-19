@@ -34,6 +34,7 @@ exists for future additions and is unused. See
 | [Typecheck](typecheck.md)      | `build` | Never        | Executes | Checks a package with `tsc --noEmit` or TypeScript build mode.                 |
 | [ToolBuild](tool-build.md)     | `build` | `cache` attr | Executes | Runs an arbitrary command for a non-TypeScript toolchain.                      |
 | [TypedocDocs](typedoc-docs.md) | `build` | Never        | Executes | Generates API documentation with TypeDoc.                                      |
+| [NodeBinary](node-binary.md)   | `build` | Never        | Executes | Runs one JavaScript program under the declared runtime, for its files.         |
 
 ## Test
 
@@ -42,6 +43,8 @@ exists for future additions and is unused. See
 | [Vitest](vitest.md)                  | `test` | Never     | Executes | Runs `vitest run` over a declared test set.     |
 | [VitestCoverage](vitest-coverage.md) | `test` | Never     | Executes | Runs `vitest run` with coverage and thresholds. |
 | [VitestWatch](vitest-watch.md)       | `run`  | Never     | Executes | Runs an interactive `vitest watch` session.     |
+| [NodeTest](node-test.md)             | `test` | Never     | Executes | Runs one JavaScript program whose exit code is the verdict. |
+| [CargoTest](cargo.md)                | `test` | Never     | Executes | Runs `cargo test` under the declared Rust toolchain. |
 
 ## Lint
 
@@ -52,6 +55,7 @@ exists for future additions and is unused. See
 | [DepsLint](deps-lint.md)       | `lint` | Never     | Executes | Checks dependency declarations with knip or depcheck.                                 |
 | [PackageLint](package-lint.md) | `lint` | Never     | Executes | Checks the published package surface with publint and attw.                           |
 | [LlmLint](llm-lint.md)         | `lint` | Never     | Executes | Reviews changed files with a model against a rubric, through the claude or codex CLI. |
+| [CargoLint](cargo.md)          | `lint` | Never     | Executes | Runs `cargo fmt --check` or `cargo clippy` under the declared Rust toolchain.         |
 
 ## Generation
 
@@ -59,7 +63,7 @@ exists for future additions and is unused. See
 | --------------------------------------- | --------------- | ---------------------- | -------- | ---------------------------------------------------------------------------- |
 | [SortPackageJson](sort-package-json.md) | `build`, `lint` | Never                  | Executes | Validates or rewrites `package.json` key ordering.                           |
 | [PackageJson](package-json-gen.md)      | `lint` / `run`  | Check only             | Executes | Expands a typed manifest declaration into check, write, and refresh targets. |
-| [GithubCiGen](github-ci-gen.md)         | `build`, `lint` | Effective `check` mode | Executes | Generates the GitHub Actions CI workflow from attrs.                         |
+| [GithubCiGen](github-ci-gen.md)         | `build`, `lint` | Effective `check` mode | Executes | Generates the GitHub Actions CI workflow from declared jobs and targets.     |
 
 ## Documentation
 
