@@ -11,6 +11,7 @@ import * as SqlClient from "effect/unstable/sql/SqlClient"
  *
  * @category migrations
  * @since 0.1.0
+ * @slop
  */
 const selectionStore: Effect.Effect<void, unknown, SqlClient.SqlClient> = Effect.gen(function*() {
   const sql = yield* SqlClient.SqlClient

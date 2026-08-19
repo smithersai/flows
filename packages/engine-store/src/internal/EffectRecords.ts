@@ -41,6 +41,7 @@ import { JournalEvent } from "@smthrs/journal"
  *
  * @since 0.1.0
  * @category constants
+ * @slop
  */
 export const eventType = "flows.time-travel.effect-boundary"
 
@@ -49,6 +50,7 @@ export const eventType = "flows.time-travel.effect-boundary"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type Status = "intended" | "succeeded" | "unknown"
 
@@ -57,6 +59,7 @@ export type Status = "intended" | "succeeded" | "unknown"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Descriptor {
   readonly id: string
@@ -89,6 +92,7 @@ export interface Descriptor {
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const boundary = (
   descriptor: Descriptor,

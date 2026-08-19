@@ -32,6 +32,7 @@ import * as Semaphore from "effect/Semaphore"
  *
  * @since 0.1.0
  * @category services
+ * @slop
  */
 export interface Service {
   /**
@@ -53,6 +54,7 @@ export interface Service {
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const makeUnsafe = (): Service => {
   const gates = new Map<string, { readonly semaphore: Semaphore.Semaphore; waiters: number }>()
