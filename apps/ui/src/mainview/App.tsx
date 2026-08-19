@@ -415,32 +415,42 @@ function ComposerConnect({ controller }: { readonly controller: AppController })
 							Connect GitHub…
 						</button>
 					)}
-					<button
-						type="button"
-						role="menuitem"
-						className="composer-menu-item"
-						data-flow="repos.import"
-						onClick={() => {
-							setOpen(false);
-							controller.runCommand("repos.import");
-						}}
-					>
-						<Server size={14} aria-hidden="true" />
-						Import to Smithers Cloud…
-					</button>
-					<button
-						type="button"
-						role="menuitem"
-						className="composer-menu-item"
-						data-flow="connect"
-						onClick={() => {
-							setOpen(false);
-							controller.runCommand("connect");
-						}}
-					>
-						<Plug size={14} aria-hidden="true" />
-						Open connectors
-					</button>
+					{/*
+					 * §1.1: signed out, sign-in is the ONE offered next step. Both of
+					 * these need a session — clicking either only defers into the
+					 * sign-in above it — so presenting them as available work makes
+					 * the app look like it offers four ways in when it has one.
+					 */}
+					{signedIn ? (
+						<button
+							type="button"
+							role="menuitem"
+							className="composer-menu-item"
+							data-flow="repos.import"
+							onClick={() => {
+								setOpen(false);
+								controller.runCommand("repos.import");
+							}}
+						>
+							<Server size={14} aria-hidden="true" />
+							Import to Smithers Cloud…
+						</button>
+					) : null}
+					{signedIn ? (
+						<button
+							type="button"
+							role="menuitem"
+							className="composer-menu-item"
+							data-flow="connect"
+							onClick={() => {
+								setOpen(false);
+								controller.runCommand("connect");
+							}}
+						>
+							<Plug size={14} aria-hidden="true" />
+							Open connectors
+						</button>
+					) : null}
 				</div>
 			) : null}
 		</div>

@@ -86,12 +86,19 @@ export function ConnectorsSurface({ controller }: { readonly controller: AppCont
 			 * No longer "coming soon": repos.import mirrors a GitHub repository
 			 * into Smithers Cloud (the platform proxy's import job), tracked by
 			 * the repo-import card.
+			 *
+			 * §1.1: importing needs a session, and pressing it signed out only
+			 * defers into the GitHub row above. Offering it as available work
+			 * made the signed-out app look like it had several ways in when it
+			 * has one; signed out it states what it needs instead.
 			 */
 			key: "cloud",
 			icon: "cloud",
 			name: "Smithers Cloud repository",
 			description: "Import a GitHub repository into hosted workspace storage.",
-			action: { kind: "button", label: "Import", flow: "repos.import" },
+			action: signedIn
+				? { kind: "button", label: "Import", flow: "repos.import" }
+				: { kind: "badge", label: "Needs GitHub", variant: "outline" },
 		},
 	];
 
