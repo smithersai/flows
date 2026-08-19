@@ -38,6 +38,7 @@ import * as NodeUtil from "node:util/types"
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNonInteractiveNodeServices = Layer.provideMerge(
   NodeChildProcessSpawner.layer,
@@ -54,6 +55,7 @@ export const layerNonInteractiveNodeServices = Layer.provideMerge(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface InstallResult {
   readonly workspace: string
@@ -110,6 +112,7 @@ const normalizeSensitiveEnvironment = (value: unknown): ReadonlyArray<string> =>
  *
  * @category security
  * @since 0.1.0
+ * @slop
  */
 export const packageManagerEnvironment = (
   source: Readonly<Record<string, string | undefined>>,
@@ -179,6 +182,7 @@ export const packageManagerEnvironment = (
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Toolchain {
   readonly manager: PackageManager.Name
@@ -198,6 +202,7 @@ export interface Toolchain {
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const defaultToolchain: Toolchain = Object.freeze({
   manager: "pnpm",
@@ -230,6 +235,7 @@ const runtimeNames = new Set(["node", "bun", "deno"])
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const declaredToolchain = (attrs: unknown): Toolchain => {
   if (typeof attrs !== "object" || attrs === null || NodeUtil.isProxy(attrs)) return defaultToolchain
@@ -272,6 +278,7 @@ export const declaredToolchain = (attrs: unknown): Toolchain => {
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerRuntime = (toolchain: Toolchain) => {
   const options = {
@@ -295,6 +302,7 @@ export const layerRuntime = (toolchain: Toolchain) => {
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerPackageManager = (
   projectRoot: string,
@@ -329,6 +337,7 @@ export const layerPackageManager = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerInstall = Layer.mergeAll(
   Install.layer,
@@ -398,6 +407,7 @@ const normalizeRunInstallOptions = (value: unknown): {
  *
  * @category execution
  * @since 0.1.0
+ * @slop
  */
 export const runInstall = async (
   workspaceRoot: string,

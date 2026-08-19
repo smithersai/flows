@@ -37,6 +37,7 @@ const treeLines = (
  *
  * @category formatting
  * @since 0.1.0
+ * @slop
  */
 export const text = (plan: Planner.Plan): string => {
   const targets = targetMap(plan)
@@ -56,6 +57,7 @@ const mermaidLabel = (label: string): string => label.replaceAll("\"", "&quot;")
  *
  * @category formatting
  * @since 0.1.0
+ * @slop
  */
 export const mermaid = (plan: Planner.Plan): string => {
   const lines = ["flowchart LR"]

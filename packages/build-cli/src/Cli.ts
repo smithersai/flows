@@ -60,6 +60,7 @@ interface ExecutionFlags extends WorkspaceFlags {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface RuntimeConfig {
   readonly cacheUrl?: string | undefined
@@ -220,6 +221,7 @@ const failureMessage = (summary: Executor.Summary): string =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeCli = (config: RuntimeConfig = {}) =>
   Cli.create("smthrs", {
@@ -433,5 +435,6 @@ export const makeCli = (config: RuntimeConfig = {}) =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const cli = makeCli()

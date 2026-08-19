@@ -12,6 +12,7 @@ import type * as Workspace from "./Workspace.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Listing {
   readonly query: string
@@ -27,6 +28,7 @@ export interface Listing {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Dependencies {
   readonly query: string
@@ -40,6 +42,7 @@ export interface Dependencies {
  *
  * @category querying
  * @since 0.1.0
+ * @slop
  */
 export const run = async (
   workspace: Workspace.Workspace,
