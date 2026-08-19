@@ -715,6 +715,23 @@ export const declarationRejected = (id: string, site: SourceSite | undefined, ca
 }
 
 /**
+ * The identity of one plan-time function inside {@link Metadata.implementationDigest}.
+ *
+ * A captured function keeps the plan package's source-plus-captures identity.
+ * Any other function digests its exact source under an algorithm tag local to
+ * this package: the planner's ambient implementation fingerprint covers every
+ * module a catalog closure can capture from, so per-process entropy would only
+ * keep an unchanged workspace from ever hitting its own cache.
+ *
+ * @since 0.1.0
+ */
+type FunctionIdentity = Node.FunctionIdentity | {
+  readonly _tag: "FunctionIdentity"
+  readonly algorithm: "sha256-source/v5"
+  readonly digest: string
+}
+
+/**
  * Creates a target whose attrs are the Flow payload schema and whose
  * implementation is the Flow's required pure plan-time body.
  *
@@ -739,8 +756,27 @@ export const make = <
     success: Schema.toJsonSchemaDocument(successSchema),
     error: Schema.toJsonSchemaDocument(errorSchema)
   }
-  const functionIdentity = (operation: unknown): Node.FunctionIdentity | null =>
-    operation === undefined ? null : Node.functionIdentity(operation)
+  // `Node.functionIdentity` fails closed on an unannotated closure by folding
+  // in process-local entropy, which is the right default for an AST the plan
+  // serializes and hands to another process. It is the wrong identity here.
+  // The planner's ambient implementation fingerprint already digests every
+  // byte of the shipped implementation trees — the CLI, this catalog, and the
+  // runtime packages both load — so any behavioral change behind one of these
+  // closures re-keys every target through the ambient half of the key. Folding
+  // per-process entropy in on top would make this digest differ between two
+  // processes planning an unchanged workspace, and a cacheable rule would miss
+  // on every cold start. A captured function keeps its source-plus-captures
+  // identity; any other function digests its exact source.
+  const functionIdentity = (operation: unknown): FunctionIdentity | null => {
+    if (operation === undefined) return null
+    const identity = Node.functionIdentity(operation)
+    if (identity.algorithm === "sha256-source-captures/v3") return identity
+    return {
+      _tag: "FunctionIdentity",
+      algorithm: "sha256-source/v5",
+      digest: createHash("sha256").update(Function.prototype.toString.call(operation), "utf8").digest("hex")
+    }
+  }
   // `visibility` and `sandbox` are deliberately absent. The digest is key
   // material through `Metadata.implementationDigest`, and both fields are
   // plan-time policy: declaring who may depend on a target, or that a target
@@ -749,12 +785,12 @@ export const make = <
     implementation: functionIdentity(options.implementation),
     attrsForKind: functionIdentity(options.attrsForKind),
     cache: typeof options.cache === "function"
-      ? ["function", Node.functionIdentity(options.cache)]
+      ? ["function", functionIdentity(options.cache)]
       : ["constant", options.cache ?? true],
     inputs: functionIdentity(options.inputs),
     outputs: functionIdentity(options.outputs),
     verbGate: typeof options.verbGate === "function"
-      ? Node.functionIdentity(options.verbGate)
+      ? functionIdentity(options.verbGate)
       : options.verbGate ?? null,
     schemas: schemaIdentity
   })).digest("hex")

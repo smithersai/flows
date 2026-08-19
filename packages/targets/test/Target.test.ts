@@ -1,9 +1,11 @@
 import * as Node from "@smthrs/plan/Node"
 import * as Schema from "effect/Schema"
+import { execFile } from "node:child_process"
 import * as Fs from "node:fs/promises"
 import * as Os from "node:os"
 import * as NodePath from "node:path"
-import { fileURLToPath } from "node:url"
+import { fileURLToPath, pathToFileURL } from "node:url"
+import { promisify } from "node:util"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import * as Input from "../src/Input.ts"
 import { StandardPackage } from "../src/StandardPackage.ts"
@@ -376,4 +378,37 @@ describe("a cacheable test target declares its whole test directory", () => {
     await write("packages/demo/test/MemoryHarness.ts", "export const harness = 3\n")
     expect(await declaredDigest(narrow)).toBe(before)
   })
+})
+
+describe("implementation identity across processes", () => {
+  const execFileAsync = promisify(execFile)
+
+  it("digests the same declaration identically in two cold processes", async () => {
+    // A cacheable rule replays across runs, so its digest must be a function
+    // of the workspace, not of the process that planned it. The entropy
+    // `Node.functionIdentity` adds to an unannotated closure is per-process:
+    // folded into `implementationDigest` it re-keys every target on every cold
+    // start and no stored entry is ever hit. An in-process assertion cannot
+    // see that, so the declaration is planned in two fresh processes.
+    const targetModule = pathToFileURL(
+      NodePath.join(NodePath.dirname(fileURLToPath(import.meta.url)), "..", "src", "Target.ts")
+    ).href
+    const probe = `
+      import { createRequire } from "node:module"
+      const require = createRequire(${JSON.stringify(targetModule)})
+      const Schema = await import(require.resolve("effect/Schema"))
+      const Target = await import(${JSON.stringify(targetModule)})
+      const Leaf = Target.make("RuleTestCrossProcess", {
+        attrs: Schema.Struct({}),
+        kinds: ["build"],
+        implementation: () => Target.notImplemented("RuleTestCrossProcess")
+      })
+      process.stdout.write(Target.metadata(Leaf({})).implementationDigest)
+    `
+    const plan = () =>
+      execFileAsync(process.execPath, ["--input-type=module", "--eval", probe], { maxBuffer: 4 * 1024 * 1024 })
+    const [first, second] = await Promise.all([plan(), plan()])
+    expect(first.stdout).toMatch(/^[0-9a-f]{64}$/)
+    expect(second.stdout).toBe(first.stdout)
+  }, 60_000)
 })
