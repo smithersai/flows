@@ -85,7 +85,9 @@ Screenshot: `/tmp/canary-chain-live.png`. Re-runnable:
 - `apps/ui`: `tsc --noEmit` clean, 718 tests pass.
 - `packages/model`: `tsc -b` clean, 104 tests pass.
 - e2e `E3.13+E3.14` passes, including a whole browser chain turn driven through
-  the product's own wiring against the stub upstream.
+  the product's own wiring against the stub upstream. Four suites pass, eight
+  fail — see the gaps below for which failures this change caused and which it
+  inherited.
 
 ## Honest gaps
 
@@ -95,10 +97,29 @@ Screenshot: `/tmp/canary-chain-live.png`. Re-runnable:
   seam's client — nothing under `src/mainview` composes it — and the e2e corpus
   still drives it. Retiring the seam is a separate piece of work that has to
   move the TUI first.
-- **The e2e corpus still exercises the turn seam for most suites.** Porting all
-  seventeen to the chain means rewriting every scripted answer as a flow script
-  and re-deciding what the honesty substitutions mean on the chain's render
-  path. `openClient({ backend: "chain" })` exists and E3.13 uses it; the rest is
-  not done.
+- **Five browser-driven e2e suites are red, and this change is why.** They drive
+  the real SPA, which now runs the chain, while their fixtures still script the
+  proxy's vocabulary: prose deltas the chain reads as a failed authoring
+  attempt, and `card` frames pushed from the upstream, which the chain has no
+  notion of at all. On the chain a card comes from a catalog call inside the
+  flow script — the model cannot push one — so this is a real change in what the
+  product does, not only in what the fixtures say.
+
+  | suite | file | what it pins |
+  |---|---|---|
+  | E4.5-E4.9 | `cards-copy.e2e.ts` | settled/plan/blocked card copy |
+  | E4.1/E4.10/E4.11 | `cards-approvals.e2e.ts` | approval cards on a streamed turn |
+  | E13-E14 | `a11y-resilience.e2e.ts` | keyboard journey, dropped stream, retry |
+  | E2.4-E2.9 | `reco-actions.e2e.ts` | the agent's tool call opening the chooser |
+  | E3.9 | `turn-failure.e2e.ts` | retry re-POSTs a turn |
+
+  Porting them means re-deciding what each fixture means on the chain's render
+  path, which is a piece of work in its own right.
+  `openClient({ backend: "chain" })` exists and E3.13 uses it; that is the
+  starting point, not the finish.
+
+  Three other suites are red for reasons unrelated to this change (E9's World
+  close affordance, E11's `/keys.list`, E1's expired-session balance read) —
+  they were red on the concurrent lane's tree before this landed.
 - **`/clear`'s memory sweep** moved onto `/api/model/stream` but is still a
   plain model call rather than an authored flow (DESIGN.md §14).
