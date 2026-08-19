@@ -92,6 +92,9 @@ const messageItems = (
 	message: ModelRequest.Message,
 ): ReadonlyArray<ChatMessage> | ModelError.ModelError => {
 	if (message.role === "tool") {
+		if (message.content.length === 0) {
+			return invalidRequest("A tool message carried no results the relay can send");
+		}
 		return message.content.map((part) => ({
 			type: "function_call_output" as const,
 			call_id: part.toolCallId,
@@ -105,9 +108,9 @@ const messageItems = (
 		.flatMap((part) => (part.type === "text" ? [part.text] : []))
 		.join("\n");
 	const items: Array<ChatMessage> = [];
-	// An empty turn cannot ride the wire — the upstream rejects blank content —
-	// and a blank user message is the only shape that would produce one.
-	if (text !== "") items.push({ role: message.role, content: text });
+	// Blank content cannot ride the wire: the upstream rejects it, and catching
+	// it here makes the reason local instead of an opaque 400 from the boundary.
+	if (text.trim() !== "") items.push({ role: message.role, content: text });
 	if (message.role === "assistant") {
 		for (const part of parts) {
 			if (part.type !== "tool-call") continue;
