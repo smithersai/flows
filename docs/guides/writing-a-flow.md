@@ -94,4 +94,39 @@ const artifact = yield* Action.retry(Compile, { times: 2 })
 
 Use `tier: "irreversible"` for effects that cannot be rolled back, and give them an idempotency key before allowing retries. Use `tier: "compensable"` only when snapshot and restore are meaningful for the supplied `Jj` implementation.
 
+## Declare a model call
+
+A model call is an ordinary action, so it is declared like one — except that its implementation ships with it and an author never writes `toLayer` for it. `AgentAction.make` takes the seat, the system teaching, a prompt built from the step payload, and an `output` schema:
+
+```ts
+import * as AgentAction from "@smthrs/engine-harness/AgentAction"
+
+const Review = AgentAction.make("example/Review", {
+  payload: { diff: Schema.String },
+  output: Schema.Struct({
+    approved: Schema.Boolean,
+    issues: Schema.Array(Schema.String)
+  }),
+  seat: "anthropic:claude-sonnet-4-5",
+  system: ["You review diffs."],
+  prompt: ({ diff }) => `Review this diff:\n${diff}`
+})
+```
+
+`Review.call({ diff })` records the same plan node any other action records, and `Review.layer` is the implementation: it runs the cell loop through `CellHarness.run` inside the current execution.
+
+The `output` schema is enforced. It is rendered into the run's system teaching as JSON Schema, and the run's final answer is decoded by it — whole answer first, then the last balanced JSON container inside it. A decode miss spends one correction re-prompt carrying bounded diagnostics before the step fails `StructuredOutputFailure`. Set `corrections: 0` to make a first miss terminal.
+
+The host wiring is one value for the whole composition:
+
+```ts
+const HostLayer = AgentAction.layerHost({
+  resolveSeat: (seat) => resolveProviderSeat(seat),
+  registry,
+  limits: { calls: 32 }
+})
+```
+
+Provide `HostLayer` and `CellHarness.layer` alongside the engine layers. A test swaps `resolveSeat` for a scripted model and needs no API key; see [`11-agent-step.ts`](https://github.com/smithersai/flows/blob/main/examples/src/11-agent-step.ts).
+
 Continue with [Determinism and replay](../concepts/determinism-and-replay.md), [Step keys](../concepts/step-keys.md), and [Failure and retry](../concepts/failure-and-retry.md).

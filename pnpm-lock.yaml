@@ -264,6 +264,9 @@ importers:
       '@smthrs/engine':
         specifier: 0.1.0
         version: link:../packages/engine
+      '@smthrs/engine-harness':
+        specifier: 0.1.0
+        version: link:../packages/engine-harness
       '@smthrs/engine-store':
         specifier: 0.1.0
         version: link:../packages/engine-store
@@ -273,6 +276,9 @@ importers:
       '@smthrs/flows':
         specifier: 0.1.0
         version: link:../packages/flows
+      '@smthrs/harness':
+        specifier: 0.1.0
+        version: link:../packages/harness
       '@smthrs/jj':
         specifier: 0.1.0
         version: link:../packages/jj
@@ -285,15 +291,24 @@ importers:
       '@smthrs/keys':
         specifier: 0.1.0
         version: link:../packages/keys
+      '@smthrs/model':
+        specifier: 0.1.0
+        version: link:../packages/model
       '@smthrs/observability':
         specifier: 0.1.0
         version: link:../packages/observability
+      '@smthrs/plan':
+        specifier: 0.1.0
+        version: link:../packages/plan
       '@smthrs/platform-browser':
         specifier: 0.1.0
         version: link:../packages/platform-browser
       '@smthrs/platform-node':
         specifier: 0.1.0
         version: link:../packages/platform-node
+      '@smthrs/registry':
+        specifier: 0.1.0
+        version: link:../packages/registry
       '@smthrs/run-store':
         specifier: 0.1.0
         version: link:../packages/run-store
