@@ -280,6 +280,16 @@ The run writes `launch-checklist-report.json` and `.md` under
 is `fail`. A `not-testable-yet` row always carries a named reason; read them
 rather than treating them as passes.
 
+**A-8 and A-9 reset themselves now.** They used to poison the account: A-9
+dismisses a recommendation by design, reco suppresses a dismissed
+recommendation for seven days, so the next run had nothing to grade and
+reported a defect that was not one (`apps/WAVE14-RECEIPT.md`, "Honest gaps").
+Both rows now lift the account's dismissals first through the admin-gated
+`DELETE /api/admin/reco-dismissals?login=`. That means **the checklist session
+should be an admin account**; a non-admin session still runs, but the rows
+record "not an admin" in their evidence and the old self-poisoning applies.
+Set `CHECKLIST_LOGIN` if the session seam does not name the account.
+
 **Final go/no-go.** Ship when:
 
 - every checklist row is `pass`, or its `not-testable-yet` reason is one you

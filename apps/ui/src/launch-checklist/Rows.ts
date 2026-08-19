@@ -46,8 +46,52 @@ const SESSION_COOKIE = "CHECKLIST_SESSION_COOKIE";
 const ZERO_BALANCE_COOKIE = "CHECKLIST_ZERO_BALANCE_BEARER";
 const BILLING_UPSTREAM = "CHECKLIST_BILLING_UPSTREAM_URL";
 const BILLING_ADMIN_TOKEN = "CHECKLIST_BILLING_ADMIN_TOKEN";
+/** Names the checklist account when the session seam cannot be read for it. */
+const CHECKLIST_LOGIN = "CHECKLIST_LOGIN";
 
 const signedInPage = (ctx: ProbeContext): Promise<ProbePage> => ctx.page(ctx.env[SESSION_COOKIE]);
+
+/**
+ * Lift the checklist account's recommendation dismissals before a row that
+ * needs a recommendation to exist.
+ *
+ * A dismissal suppresses its recommendation for seven days (reco's D5 rule),
+ * and A-9 dismisses one by design. Without this the suite poisoned itself: run
+ * one consumed every candidate the heuristic could produce for the account, and
+ * for the next week A-8 graded a card honestly saying "nothing needs you right
+ * now" while A-9 had nothing to dismiss. Neither is a product defect and both
+ * looked like one.
+ *
+ * The reset is admin-only, so a non-admin checklist session says so and the rows
+ * behave exactly as they did before. `CHECKLIST_LOGIN` names the account when
+ * the session seam cannot be read.
+ */
+const liftDismissals = async (ctx: ProbeContext): Promise<string> => {
+	const named = ctx.env[CHECKLIST_LOGIN]?.trim();
+	let login = named === undefined || named === "" ? undefined : named;
+	if (login === undefined) {
+		const session = await ctx.fetch(`${ctx.target}/api/auth/session`, {
+			headers: { cookie: ctx.env[SESSION_COOKIE] ?? "" },
+		});
+		const body = asRecord(await session.json().catch(() => undefined));
+		login = typeof body?.login === "string" ? body.login : undefined;
+	}
+	if (login === undefined) {
+		return `dismissals not reset: the session seam named no login, and ${CHECKLIST_LOGIN} is unset`;
+	}
+	const response = await ctx.fetch(
+		`${ctx.target}/api/admin/reco-dismissals?login=${encodeURIComponent(login)}`,
+		{ method: "DELETE", headers: { cookie: ctx.env[SESSION_COOKIE] ?? "" } },
+	);
+	if (response.status === 404) {
+		return `dismissals not reset for ${login}: this session is not an admin, so a dismissal from an earlier run may still be suppressing its recommendation`;
+	}
+	if (!response.ok) {
+		return `dismissals not reset for ${login}: the reset answered HTTP ${response.status}`;
+	}
+	const cleared = asRecord(await response.json().catch(() => undefined))?.cleared;
+	return `dismissals reset for ${login} (${typeof cleared === "number" ? cleared : "unknown"} lifted)`;
+};
 const zeroBalancePage = (ctx: ProbeContext): Promise<ProbePage> => ctx.page(ctx.env[ZERO_BALANCE_COOKIE]);
 
 /** A Smithers message has arrived when the transcript grew past the composer-only shell. */
@@ -258,6 +302,7 @@ export const ROWS: ReadonlyArray<ChecklistRow> = [
 		title: "One recommendation card carrying proposes / why-now / what-happens / accept-edit-dismiss",
 		requiredEnv: [SESSION_COOKIE],
 		browser: true,
+		prepare: liftDismissals,
 		probe: async (ctx) => {
 			const page = await signedInPage(ctx);
 			await waitForText(page, hasSmithersMessage, FIRST_MESSAGE_BUDGET_MS, ctx.now, ctx.sleep);
@@ -284,6 +329,7 @@ export const ROWS: ReadonlyArray<ChecklistRow> = [
 		title: "Dismiss is one key and the same recommendation does not return unchanged",
 		requiredEnv: [SESSION_COOKIE],
 		browser: true,
+		prepare: liftDismissals,
 		probe: async (ctx) => {
 			const page = await signedInPage(ctx);
 			const before = await seam(page, "/api/reco/first-run");

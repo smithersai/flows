@@ -114,3 +114,105 @@ describe("report shaping", () => {
 		expect(markdown).toContain("Evidence:");
 	});
 });
+
+/*
+ * Preparation. A row whose account carries state from the last run has to undo
+ * it first — but a run that lacks the rights to undo it must still grade, so
+ * preparation informs the report and never decides it.
+ */
+describe("runChecklist preparation", () => {
+	test("prepare runs before the probe and its line is the first evidence", async () => {
+		const order: Array<string> = [];
+		const results = await runChecklist({
+			rows: [
+				row({
+					prepare: async () => {
+						order.push("prepare");
+						return "dismissals reset for will (2 lifted)";
+					},
+					probe: async () => {
+						order.push("probe");
+						return { status: "pass", detail: "graded" };
+					},
+				}),
+			],
+			mode: "run",
+			context: context(),
+		});
+		expect(order).toEqual(["prepare", "probe"]);
+		expect(results[0]?.status).toBe("pass");
+		expect(results[0]?.evidence).toEqual(["dismissals reset for will (2 lifted)", "graded"]);
+	});
+
+	test("a prepare that throws is recorded, and the row still grades", async () => {
+		const results = await runChecklist({
+			rows: [
+				row({
+					prepare: async () => {
+						throw new Error("not an admin");
+					},
+					probe: async () => ({ status: "fail", detail: "no recommendation to dismiss" }),
+				}),
+			],
+			mode: "run",
+			context: context(),
+		});
+		expect(results[0]?.status).toBe("fail");
+		expect(results[0]?.evidence[0]).toContain("prepare did not run: not an admin");
+		expect(results[0]?.evidence).toContain("no recommendation to dismiss");
+	});
+
+	test("a probe that throws keeps the prepare line, so the report says what was reset", async () => {
+		const results = await runChecklist({
+			rows: [
+				row({
+					prepare: async () => "dismissals reset for will (1 lifted)",
+					probe: async () => {
+						throw new Error("the page never rendered");
+					},
+				}),
+			],
+			mode: "run",
+			context: context(),
+		});
+		expect(results[0]?.status).toBe("fail");
+		expect(results[0]?.evidence).toEqual(["dismissals reset for will (1 lifted)"]);
+	});
+
+	test("a dry run prepares nothing", async () => {
+		let prepared = false;
+		await runChecklist({
+			rows: [
+				row({
+					prepare: async () => {
+						prepared = true;
+						return "";
+					},
+					probe: async () => ({ status: "pass", detail: "" }),
+				}),
+			],
+			mode: "dry-run",
+			context: context(),
+		});
+		expect(prepared).toBe(false);
+	});
+
+	test("a row missing its env prepares nothing either", async () => {
+		let prepared = false;
+		await runChecklist({
+			rows: [
+				row({
+					requiredEnv: ["CHECKLIST_SESSION_COOKIE"],
+					prepare: async () => {
+						prepared = true;
+						return "";
+					},
+					probe: async () => ({ status: "pass", detail: "" }),
+				}),
+			],
+			mode: "run",
+			context: context({}),
+		});
+		expect(prepared).toBe(false);
+	});
+});

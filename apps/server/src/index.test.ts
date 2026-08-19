@@ -1708,3 +1708,127 @@ describe("the browser tool route (§2d)", () => {
 		}
 	});
 });
+
+/*
+ * The reco dismissal reset. A dismissal suppresses its recommendation for
+ * seven days, and the launch checklist dismisses a card by design (row A-9),
+ * so one run left A-8 and A-9 ungradeable for a week. This door is what makes
+ * the suite repeatable; it is admin-gated like every other one, and the reco
+ * admin token never leaves the server.
+ */
+describe("the reco dismissal reset", () => {
+	const recoEnv: WorkerEnv = {
+		ASSETS: { fetch: async () => new Response("<html></html>", { status: 200 }) },
+		IDENTITY_UPSTREAM_URL: "https://identity.test",
+		RECO_UPSTREAM_URL: "https://reco.test",
+		RECO_ADMIN_TOKEN: "reco-admin-token-0123456789",
+	};
+
+	const reset = (query: string, env: WorkerEnv = recoEnv): Promise<Response> =>
+		worker.fetch(
+			new Request(`https://mvp.test/api/admin/reco-dismissals${query}`, {
+				method: "DELETE",
+				headers: { cookie: "smithers_session=abc" },
+			}),
+			env,
+		);
+
+	const asAdmin = (admin: boolean) => (request: Request): Response | undefined => {
+		const host = new URL(request.url).hostname;
+		if (host === "identity.test") {
+			return new Response(JSON.stringify({ login: "will", allowlisted: true, admin }), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
+		}
+		return undefined;
+	};
+
+	test("an admin reset reaches reco with the admin token and the login", async () => {
+		const seen: Array<{ url: string; method: string; token: string | null }> = [];
+		await withMockedFetch(
+			(request) => {
+				const stubbed = asAdmin(true)(request);
+				if (stubbed !== undefined) return stubbed;
+				seen.push({
+					url: request.url,
+					method: request.method,
+					token: request.headers.get("x-smithers-admin-token"),
+				});
+				return new Response(JSON.stringify({ login: "will", cleared: 2 }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			},
+			async () => {
+				const response = await reset("?login=will");
+				expect(response.status).toBe(200);
+				expect(await response.json()).toEqual({ login: "will", cleared: 2 });
+			},
+		);
+		expect(seen).toHaveLength(1);
+		expect(seen[0]?.url).toBe("https://reco.test/api/reco/admin/dismissals?login=will");
+		expect(seen[0]?.method).toBe("DELETE");
+		expect(seen[0]?.token).toBe("reco-admin-token-0123456789");
+	});
+
+	test("a login with a slash or space is encoded, never smuggled into the path", async () => {
+		let called = "";
+		await withMockedFetch(
+			(request) => {
+				const stubbed = asAdmin(true)(request);
+				if (stubbed !== undefined) return stubbed;
+				called = request.url;
+				return new Response(JSON.stringify({ cleared: 0 }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			},
+			async () => {
+				await reset("?login=" + encodeURIComponent("a b/../admin"));
+			},
+		);
+		expect(called).toBe("https://reco.test/api/reco/admin/dismissals?login=a%20b%2F..%2Fadmin");
+	});
+
+	test("a missing login is a 400, not a reset of everyone", async () => {
+		let upstreamCalls = 0;
+		await withMockedFetch(
+			(request) => {
+				const stubbed = asAdmin(true)(request);
+				if (stubbed !== undefined) return stubbed;
+				upstreamCalls += 1;
+				return new Response("{}", { status: 200 });
+			},
+			async () => {
+				expect((await reset("")).status).toBe(400);
+				expect((await reset("?login=%20%20")).status).toBe(400);
+			},
+		);
+		expect(upstreamCalls).toBe(0);
+	});
+
+	test("a non-admin gets the canonical 404 and reco is never called", async () => {
+		let upstreamCalls = 0;
+		await withMockedFetch(
+			(request) => {
+				const stubbed = asAdmin(false)(request);
+				if (stubbed !== undefined) return stubbed;
+				upstreamCalls += 1;
+				return new Response("{}", { status: 200 });
+			},
+			async () => {
+				expect((await reset("?login=will")).status).toBe(404);
+			},
+		);
+		expect(upstreamCalls).toBe(0);
+	});
+
+	test("an unconfigured admin token says so rather than forwarding without one", async () => {
+		await withMockedFetch(asAdmin(true), async () => {
+			const response = await reset("?login=will", { ...recoEnv, RECO_ADMIN_TOKEN: undefined });
+			expect(response.status).toBe(501);
+			expect(JSON.stringify(await response.json())).toContain("RECO_ADMIN_TOKEN");
+		});
+	});
+});

@@ -4,6 +4,7 @@ import {
 	ADMIN_FEEDBACK_PATH,
 	ADMIN_GRANT_PATH,
 	ADMIN_HEALTH_PATH,
+	ADMIN_RECO_DISMISSALS_PATH,
 	ADMIN_REQUESTS_PATH,
 	ADMIN_ROUTE_PREFIX,
 	APPROVAL_DECISION_PATH,
@@ -1471,6 +1472,34 @@ const handleAdmin = async (request: Request, env: WorkerEnv, url: URL): Promise<
 			return adminTokenNotConfigured("The recommendations admin surface", "RECO_ADMIN_TOKEN");
 		}
 		return forwardAdminCall(upstream, "/api/reco/admin/feedback", token, { method: "GET" });
+	}
+
+	/*
+	 * Lift a login's recommendation dismissals (reco D5 suppresses a dismissed
+	 * recommendation for seven days). The launch checklist dismisses a card by
+	 * design in row A-9, so without this door one run leaves A-8 and A-9
+	 * ungradeable for a week — the suite poisons itself. Admin-gated like every
+	 * other door here, and the reco admin token never leaves the server.
+	 */
+	if (url.pathname === ADMIN_RECO_DISMISSALS_PATH && request.method === "DELETE") {
+		const upstream = env.RECO_UPSTREAM_URL?.trim();
+		if (upstream === undefined || upstream === "") {
+			return notConfigured("The recommendations seam", "RECO_UPSTREAM_URL is unset. Dismissals cannot be reset");
+		}
+		const token = env.RECO_ADMIN_TOKEN?.trim();
+		if (token === undefined || token === "") {
+			return adminTokenNotConfigured("The recommendations admin surface", "RECO_ADMIN_TOKEN");
+		}
+		const login = (url.searchParams.get("login") ?? "").trim();
+		if (login === "") {
+			return json(400, { status: "error", message: "Query must carry ?login=<github login>." });
+		}
+		return forwardAdminCall(
+			upstream,
+			`/api/reco/admin/dismissals?login=${encodeURIComponent(login)}`,
+			token,
+			{ method: "DELETE" },
+		);
 	}
 
 	if (url.pathname === ADMIN_HEALTH_PATH && request.method === "GET") {

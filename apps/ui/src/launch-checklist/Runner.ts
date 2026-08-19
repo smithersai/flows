@@ -64,6 +64,22 @@ export const runChecklist = async ({ rows, mode, context }: RunOptions): Promise
 			continue;
 		}
 
+		/*
+		 * Preparation is best-effort and never decides a row: it undoes state a
+		 * previous run left on the account, and a run without the rights to undo
+		 * it must still grade honestly rather than fail. What happened either way
+		 * goes in the evidence, so a reader can tell a prepared row from an
+		 * unprepared one.
+		 */
+		let prepared: ReadonlyArray<string> = [];
+		if (row.prepare !== undefined) {
+			try {
+				prepared = [await row.prepare(context)];
+			} catch (error) {
+				prepared = [`prepare did not run: ${String(error instanceof Error ? error.message : error)}`];
+			}
+		}
+
 		try {
 			const probeResult = await row.probe(context);
 			results.push(
@@ -71,7 +87,7 @@ export const runChecklist = async ({ rows, mode, context }: RunOptions): Promise
 					row,
 					probeResult.status,
 					probeResult.status === "pass" ? [] : [probeResult.detail],
-					[probeResult.detail],
+					[...prepared, probeResult.detail],
 					context.now() - start,
 				),
 			);
@@ -82,7 +98,9 @@ export const runChecklist = async ({ rows, mode, context }: RunOptions): Promise
 			 * Anything else the probe threw is a real failure of the check.
 			 */
 			const status: Status = error instanceof BrowserUnavailableError ? "not-testable-yet" : "fail";
-			results.push(result(row, status, [String(error instanceof Error ? error.message : error)], [], context.now() - start));
+			results.push(
+				result(row, status, [String(error instanceof Error ? error.message : error)], prepared, context.now() - start),
+			);
 		}
 	}
 	return results;

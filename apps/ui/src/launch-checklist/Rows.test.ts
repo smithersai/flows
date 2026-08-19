@@ -268,3 +268,72 @@ describe("E-1 (the billing admin surface rejects an unauthenticated grant)", () 
 		expect(allowed.status).toBe("fail");
 	});
 });
+
+/*
+ * A-8 and A-9 used to poison themselves. A-9 dismisses a recommendation by
+ * design, reco suppresses a dismissed recommendation for seven days, so the
+ * next run found nothing to grade and reported a product defect that was not
+ * one. Both rows now lift the account's dismissals first.
+ */
+describe("the recommendation rows reset what the last run dismissed", () => {
+	const calls = (recorded: Array<{ url: string; method: string }>): ProbeContext["fetch"] =>
+		async (url, init) => {
+			recorded.push({ url, method: init?.method ?? "GET" });
+			if (url.endsWith("/api/auth/session")) {
+				return jsonResponse({ login: "will", allowlisted: true, admin: true });
+			}
+			return jsonResponse({ login: "will", cleared: 2 });
+		};
+
+	test("both rows carry the reset", () => {
+		for (const id of ["A-8", "A-9"]) {
+			expect(typeof rowById(id).prepare).toBe("function");
+		}
+	});
+
+	test("the reset reads the login from the session seam and lifts that account's dismissals", async () => {
+		const recorded: Array<{ url: string; method: string }> = [];
+		const note = await rowById("A-8").prepare!(
+			contextFor({ env: { CHECKLIST_SESSION_COOKIE: "smithers_session=abc" }, fetch: calls(recorded) }),
+		);
+		expect(recorded.map((call) => `${call.method} ${call.url}`)).toEqual([
+			"GET https://example.test/api/auth/session",
+			"DELETE https://example.test/api/admin/reco-dismissals?login=will",
+		]);
+		expect(note).toBe("dismissals reset for will (2 lifted)");
+	});
+
+	test("CHECKLIST_LOGIN names the account without asking the seam", async () => {
+		const recorded: Array<{ url: string; method: string }> = [];
+		await rowById("A-9").prepare!(
+			contextFor({
+				env: { CHECKLIST_SESSION_COOKIE: "smithers_session=abc", CHECKLIST_LOGIN: "someone-else" },
+				fetch: calls(recorded),
+			}),
+		);
+		expect(recorded).toHaveLength(1);
+		expect(recorded[0]?.url).toBe("https://example.test/api/admin/reco-dismissals?login=someone-else");
+	});
+
+	test("a non-admin session says so instead of pretending the account is clean", async () => {
+		const note = await rowById("A-8").prepare!(
+			contextFor({
+				env: { CHECKLIST_SESSION_COOKIE: "smithers_session=abc", CHECKLIST_LOGIN: "will" },
+				fetch: async () => jsonResponse({ error: "Not found" }, 404),
+			}),
+		);
+		expect(note).toContain("not an admin");
+		expect(note).toContain("still be suppressing");
+	});
+
+	test("a login the seam does not name is reported, not guessed", async () => {
+		const note = await rowById("A-9").prepare!(
+			contextFor({
+				env: { CHECKLIST_SESSION_COOKIE: "smithers_session=abc" },
+				fetch: async () => jsonResponse({ status: "signed-out" }),
+			}),
+		);
+		expect(note).toContain("named no login");
+		expect(note).toContain("CHECKLIST_LOGIN");
+	});
+});

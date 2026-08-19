@@ -69,6 +69,7 @@ The `CHECKLIST_*` env vars are auth material; never commit them.
 | `CHECKLIST_ZERO_BALANCE_BEARER` | D-4 | Cookie header for a session already parked at $0 |
 | `CHECKLIST_BILLING_UPSTREAM_URL` | §E | Billing upstream origin |
 | `CHECKLIST_BILLING_ADMIN_TOKEN` | E-2, E-3 | Billing upstream admin token |
+| `CHECKLIST_LOGIN` | A-8, A-9 | The checklist account's GitHub login. Optional: the runner reads it from `/api/auth/session` when unset. |
 
 Get the cookie headers from a real browser session (e.g.
 `launch-mint-session.ts`'s storage-state output, formatted as
@@ -117,6 +118,22 @@ row's status is `fail`, `0` otherwise (a dry run, or a run made entirely of
 - `live-check.ts`, `live-signed-in-check.ts`, `live-workflow-check.ts`, `canary-seam-probe.ts`, `launch-seam-probe.ts` — browser-driven and HTTP live checks against a real deployment (see each file's header comment for invocation and required env/profile).
 - `live-store-reset.ts` — shared helper: clears a page's persisted store (OPFS/localStorage) over CDP, keeping cookies.
 - `launch-mint-session.ts` — mints a Playwright storage-state file for the live checks.
+
+### The suite resets what it dirties
+
+A-9 dismisses a recommendation, which is the row's whole point. Reco then
+suppresses that recommendation for seven days (its D5 rule), so before
+2026-08-18 a single run left A-8 grading a card that honestly said "nothing
+needs you right now" and A-9 with nothing to dismiss — for a week, and it
+read like a product defect. Both rows now lift the account's dismissals
+first, through `DELETE /api/admin/reco-dismissals?login=`, and every report
+carries what the reset did as the row's first line of evidence.
+
+The reset is admin-gated. A checklist session that is not an admin gets a
+404, the row records that in its evidence, and the run behaves exactly as it
+did before — so read A-8 and A-9's evidence before believing either one.
+The reco worker keeps its append-only feedback log through a reset: what was
+lifted is the suppression, not the record that it happened.
 
 ### Two browser drivers, on purpose
 

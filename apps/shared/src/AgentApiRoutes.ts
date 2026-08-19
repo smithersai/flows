@@ -77,3 +77,9 @@ export const ADMIN_FEEDBACK_PATH = "/api/admin/feedback";
 export const ADMIN_HEALTH_PATH = "/api/admin/health";
 /** The bounded client-error log: what actually broke in an alpha user's browser. */
 export const ADMIN_ERRORS_PATH = "/api/admin/errors";
+/**
+ * Lift one login's recommendation dismissals. A dismissal suppresses its
+ * recommendation for seven days, which makes the launch checklist poison
+ * itself: its A-9 row dismisses a card by design. This is the reset.
+ */
+export const ADMIN_RECO_DISMISSALS_PATH = "/api/admin/reco-dismissals";
