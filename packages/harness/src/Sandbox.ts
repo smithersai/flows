@@ -240,6 +240,17 @@ export interface Evaluation {
   readonly cell: Cell.Source
   readonly flows: Readonly<Record<string, Cell.FlowProjection>>
   readonly call: Handler
+  /**
+   * The agent-owned durable state, exposed to the cell as the frozen
+   * `ctx.state` binding.
+   *
+   * Prior art is Prime Agent's persistent kernel: the model's working data
+   * lives in a binding it can read, and the transcript carries a view. Here
+   * the binding is the replay-safe equivalent — the same journaled JSON the
+   * previous frame returned, injected as a value instead of prose the model
+   * had to re-parse out of its own context.
+   */
+  readonly state?: Schema.Json | undefined
   readonly limits?: Limits | undefined
 }
 
@@ -571,9 +582,20 @@ export const compile = (cell: Cell.Source): string | Cell.Rejected => {
  *
  * @private
  */
+const deepFreeze = (value: unknown): unknown => {
+  if (value !== null && typeof value === "object") {
+    for (const key of Object.keys(value)) {
+      deepFreeze((value as Record<string, unknown>)[key])
+    }
+    Object.freeze(value)
+  }
+  return value
+}
+
 const makeContext = (
   flows: Readonly<Record<string, Cell.FlowProjection>>,
-  enqueue: (flow: string, input: Schema.Json) => Promise<unknown>
+  enqueue: (flow: string, input: Schema.Json) => Promise<unknown>,
+  state: Schema.Json | undefined
 ): Readonly<Record<string, unknown>> => {
   const catalog: Record<string, unknown> = {}
   for (const [name, projection] of Object.entries(flows)) {
@@ -594,7 +616,10 @@ const makeContext = (
         ? Promise.reject(new TypeError("ctx.call input must be JSON-serializable"))
         : enqueue(flow, decoded.success)
     },
-    flows: Object.freeze(catalog)
+    flows: Object.freeze(catalog),
+    // The previous frame's returned state, cloned so a cell can never reach
+    // the harness's copy, frozen so the binding reads as memory, not a slot.
+    state: deepFreeze(state === undefined ? null : JSON.parse(JSON.stringify(state)))
   })
 }
 
@@ -676,7 +701,7 @@ export const makeRestricted = (): Sandbox =>
           })
         }
 
-        const context = makeContext(evaluation.flows, enqueue)
+        const context = makeContext(evaluation.flows, enqueue, evaluation.state)
         const scope = new Proxy({}, {
           has: () => true,
           get: (_target, property) => {

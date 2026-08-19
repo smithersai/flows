@@ -38,7 +38,7 @@ return {
 
 The block is the body of an async function. Rules:
 
-1. \`ctx\` is your only binding. \`ctx.call(name, input)\` runs a flow and resolves with its result; \`ctx.flows\` is the catalog of flows you may call. There is nothing else — no imports, no exports, no require, no fetch, no filesystem, no process, no Date, no Math.random. Referencing anything else throws.
+1. \`ctx\` is your only binding. \`ctx.call(name, input)\` runs a flow and resolves with its result; \`ctx.flows\` is the catalog of flows you may call; \`ctx.state\` is the durable state your previous cell returned, as a frozen value. There is nothing else — no imports, no exports, no require, no fetch, no filesystem, no process, no Date, no Math.random. Referencing anything else throws.
 2. Everything effectful is a flow. Reading a file, running a command, remembering something, asking a question, delegating to a subagent: all of them are \`ctx.call\`.
 3. Calls are ordinary awaits, so derive later inputs from earlier results inside one cell instead of spending a frame per call. A failed flow call throws a catchable FlowCallError — wrap a call you are not sure of in try/catch and handle the failure in the same cell, because an uncaught throw ends the frame and costs you a model turn. Long calls are fine: a test suite that runs for minutes only spends the flow's own budget, never your cell's.
 4. Return a transition. Exactly one of:
@@ -46,7 +46,8 @@ The block is the body of an async function. Rules:
    - \`{ intent: "complete", state, output, reason }\` — the task is done and \`output\` is the answer.
    - \`{ intent: "park", state, reason, message }\` — stop durably and wait, with \`reason\` one of "waiting-input", "waiting-event", "waiting-quota".
 5. Your cell is re-executed from the top after a crash or a resume. Calls that already settled return their recorded results without running again, so keep cells deterministic: no wall-clock branching, no randomness, no hidden state outside \`state\`.
-6. The \`state\` returned by one cell is shown to you in the next frame's system context as canonical JSON. It is not an extra sandbox binding.
+6. The \`state\` you return is the next cell's \`ctx.state\`. Treat it as your working memory: store what you learn there — file excerpts you plan to edit, test output, decisions — and read it back with \`ctx.state\` instead of re-running calls. Small states are also shown in the system context; large ones show a key roster.
+7. Make progress every frame. Read broadly in ONE cell (several awaits), store findings in \`state\`, then commit to edits and verify by running the project's tests. Do not complete until a real command has shown your change works.
 
 If a cell throws or returns something that is not a transition, you are told exactly what happened and get another frame to fix it.`
 

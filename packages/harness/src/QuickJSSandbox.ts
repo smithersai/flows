@@ -35,7 +35,7 @@ import * as Sandbox from "./Sandbox.ts"
  * closure and then deleted from the global object, so a cell cannot reach the
  * unwrapped boundary and hand it unencoded values.
  */
-const prelude = (catalog: string): string =>
+const prelude = (catalog: string, state: string): string =>
   `(function () {
   var bridge = globalThis.__call
   var freeze = function (value) {
@@ -76,7 +76,8 @@ const prelude = (catalog: string): string =>
         throw error
       })
     },
-    flows: freeze(${catalog})
+    flows: freeze(${catalog}),
+    state: freeze(JSON.parse(${state}))
   })
 })()`
 
@@ -294,7 +295,11 @@ const evaluate = (
     context.setProp(context.global, "__call", bridge)
     bridge.dispose()
 
-    const install = context.evalCode(prelude(catalogOf(evaluation.flows)))
+    const install = context.evalCode(
+      // The state rides as a doubly-encoded JSON string literal so hostile
+      // content can never escape into the prelude's source.
+      prelude(catalogOf(evaluation.flows), JSON.stringify(JSON.stringify(evaluation.state ?? null)))
+    )
     if (install.error !== undefined) {
       const failure = context.dump(install.error)
       install.error.dispose()

@@ -12,6 +12,11 @@
 
 ### Added
 
+- Exposed the previous frame's returned state to the cell as the frozen `ctx.state` binding in both sandbox bindings, and taught the contract to treat it as working memory.
+- Rendered large states in the system context as a key roster instead of full JSON; the full value lives in `ctx.state`.
+- Preserved a raised frame's completed call results in the correction feedback so the next cell reuses them instead of redoing the work.
+- Echoed the received arguments in a schema-refused call's message so one corrected cell fixes the input.
+
 - Taught the cell contract that FlowCallError is worth catching in-cell and that long-running calls are safe to await.
 
 - Added `EngineLike.record` with `RecordBoundary` and `BoundaryIdentity`: the port's generic journaled-boundary operation for nondeterministic controller reads, and `Steering.DrainRecord`/`Steering.drainRecord`, the serializable projection of a turn-boundary drain that the controller journals.

@@ -220,6 +220,29 @@ const keyMaterialFrom = (
   placement: placementFrom(state)
 })
 
+/**
+ * Renders the durable state for the system context.
+ *
+ * The full value is the cell's `ctx.state` binding, so the prompt only needs
+ * enough to plan with: the whole JSON while it is small, and a key roster with
+ * sizes once it is not. Re-printing a large state every frame both paid its
+ * bytes twice and taught the model to treat the prompt as the store — the
+ * roster is Prime Agent's `<ipython_state>` pattern, naming what survives
+ * outside the transcript instead of hauling it back in.
+ */
+const stateTeaching = (agentState: Schema.Json): string => {
+  const rendered = CanonicalJson.stringify(agentState)
+  if (rendered.length <= 2048) {
+    return `Agent-owned durable state for this frame (JSON), also available in the cell as ctx.state:\n${rendered}`
+  }
+  const roster = agentState !== null && typeof agentState === "object" && !Array.isArray(agentState)
+    ? Object.entries(agentState)
+      .map(([key, value]) => `- ${key} (${JSON.stringify(value)?.length ?? 4} bytes)`)
+      .join("\n")
+    : `(${rendered.length} bytes)`
+  return `Agent-owned durable state for this frame is ${rendered.length} bytes and is available in the cell as ctx.state. Its keys:\n${roster}\nRead what you need from ctx.state instead of reconstructing it.`
+}
+
 const requestFrom = (state: State): Result.Result<ModelRequest.ModelRequest, HarnessError> => {
   let rendered: ModelRequest.ModelRequest
   try {
@@ -238,9 +261,7 @@ const requestFrom = (state: State): Result.Result<ModelRequest.ModelRequest, Har
       modelId: modelIdFromSeat(state.seat),
       system: [
         ...rendered.system,
-        ModelRequest.SystemPart.make({
-          text: `Agent-owned durable state for this frame (JSON):\n${CanonicalJson.stringify(state.agentState)}`
-        })
+        ModelRequest.SystemPart.make({ text: stateTeaching(state.agentState) })
       ],
       messages: rendered.messages,
       // A cell-first frame never declares provider tools: the cell is the plan
@@ -601,10 +622,32 @@ const frame = (
     const cell = extracted.success
     yield* emit(new AgentEvent.CellProduced({ eventType: eventType.cellProduced, cell }))
 
+    // Every call the frame settles is remembered so a raise can hand the
+    // model its partial work. Without this, one uncaught throw discarded the
+    // frame's reads and the next cell re-did them — often raising the same
+    // way again. Prime Agent's tool errors return stdout-so-far plus the
+    // traceback for exactly this reason.
+    const observedCalls: Array<{ readonly flow: string; readonly ok: boolean; readonly summary: string }> = []
+    const observing: Sandbox.Handler = (invocation) =>
+      callHandler(state, cell, descriptors, engine, emit)(invocation).pipe(
+        Effect.tap((result) =>
+          Effect.sync(() => {
+            const rendered = result.outcome === "success"
+              ? JSON.stringify(result.value) ?? "null"
+              : result.message ?? "failed"
+            observedCalls.push({
+              flow: invocation.flow,
+              ok: result.outcome === "success",
+              summary: rendered.length > 400 ? `${rendered.slice(0, 399)}…` : rendered
+            })
+          })
+        )
+      )
     const outcome = yield* sandbox.evaluate({
       cell,
       flows: projections,
-      call: callHandler(state, cell, descriptors, engine, emit),
+      call: observing,
+      state: state.agentState,
       limits: input.limits
     })
     yield* emit(
@@ -612,9 +655,14 @@ const frame = (
     )
 
     if (outcome._tag !== "settled") {
+      const salvage = observedCalls.length === 0
+        ? ""
+        : `\nCalls this cell already completed (their results are durable; use them instead of redoing the work):\n${
+          observedCalls.map((call) => `- ${call.flow} -> ${call.ok ? "ok" : "FAILED"}: ${call.summary}`).join("\n")
+        }`
       const note = outcome._tag === "raised"
-        ? `The cell threw ${outcome.name}: ${outcome.message}. Emit a corrected cell.`
-        : outcome.message
+        ? `The cell threw ${outcome.name}: ${outcome.message}. Emit a corrected cell.${salvage}`
+        : `${outcome.message}${salvage}`
       const step = observe(note)
       yield* emit(
         new AgentEvent.TurnClosed({

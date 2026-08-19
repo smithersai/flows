@@ -52,6 +52,7 @@ const evaluate = (
   options: {
     readonly call?: Sandbox.Handler | undefined
     readonly limits?: Sandbox.Limits | undefined
+    readonly state?: Schema.Json | undefined
   } = {}
 ): Promise<Cell.Outcome> =>
   Effect.gen(function*() {
@@ -60,6 +61,7 @@ const evaluate = (
       cell: Cell.source(text),
       flows,
       call: options.call ?? handler({}, []),
+      state: options.state,
       limits: options.limits
     })
   }).pipe(Effect.provide(binding), Effect.runPromise)
@@ -294,14 +296,28 @@ for (const [name, binding] of bindings) {
       })
     })
 
-    it("exposes the catalog and nothing else on the frozen context", async () => {
+    it("exposes the catalog, the state, and nothing else on the frozen context", async () => {
       const outcome = await evaluate(
         binding,
         `return { intent: "complete", output: Object.keys(ctx).sort().join(",") + "|" + Object.keys(ctx.flows).join(",") }`
       )
       expect((outcome as Cell.Settled).transition).toMatchObject({
         _tag: "complete",
-        output: "call,flows|fs/list"
+        output: "call,flows,state|fs/list"
+      })
+    })
+
+    it("hands the previous frame's state to the cell as a frozen ctx.state", async () => {
+      const outcome = await evaluate(
+        binding,
+        `const before = ctx.state.plan[0]
+         try { ctx.state.plan.push("mutated") } catch (error) {}
+         return { intent: "complete", state: {}, output: before + ":" + ctx.state.plan.length }`,
+        { state: { plan: ["read calc.py"] } }
+      )
+      expect((outcome as Cell.Settled).transition).toMatchObject({
+        _tag: "complete",
+        output: "read calc.py:1"
       })
     })
 

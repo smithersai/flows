@@ -232,7 +232,7 @@ describe("CellTurn", () => {
       ModelRequest.Message.assistant("I chose to keep only this.", { stopReason: "stop" })
     ])
     expect(second?.system.at(-1)?.text).toBe(
-      "Agent-owned durable state for this frame (JSON):\n{\"plan\":[\"one\",\"two\"]}"
+      "Agent-owned durable state for this frame (JSON), also available in the cell as ctx.state:\n{\"plan\":[\"one\",\"two\"]}"
     )
     // The transition is on the record, so a replayed run rebuilds the same
     // state and the same context.
