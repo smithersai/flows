@@ -20,7 +20,7 @@
  * @since 0.1.0
  */
 import variant from "@jitl/quickjs-singlefile-browser-release-sync"
-import { Effect, Layer, Schema } from "effect"
+import { Effect, Layer, Option, Schema } from "effect"
 import type { QuickJSContext, QuickJSHandle, QuickJSRuntime, QuickJSWASMModule } from "quickjs-emscripten-core"
 import { newQuickJSWASMModuleFromVariant } from "quickjs-emscripten-core"
 import * as Cell from "./Cell.ts"
@@ -92,7 +92,11 @@ const catalogOf = (flows: Readonly<Record<string, Cell.FlowProjection>>): string
       name: projection.name,
       description: projection.description,
       capabilities: [...projection.capabilities],
-      tier: projection.tier
+      tier: projection.tier,
+      // The contract tells a cell to read `ctx.flows` before reissuing a
+      // rejected call, so the projection has to answer the question the
+      // rejection asked: what shape does this flow take?
+      ...(Option.isSome(projection.input) ? { input: projection.input.value } : {})
     }
   }
   return JSON.stringify(entries)

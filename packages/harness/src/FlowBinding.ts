@@ -82,6 +82,17 @@ export interface DescriptorOptions {
   readonly modelInvocable?: boolean | undefined
   readonly placement?: Option.Option<Descriptor.Placement> | undefined
   readonly provenance?: Descriptor.Provenance | undefined
+  /**
+   * The input schema as a JSON Schema document, carried by value.
+   *
+   * A binding holds the real schema, so recording a `binding://` locator
+   * throws away the one description of the call's shape anything downstream
+   * could read. {@link make} fills this in, which is what puts a parameter
+   * schema beside every flow in `ctx.flows`.
+   */
+  readonly inputDocument?: Schema.Json | undefined
+  /** The output schema as a JSON Schema document, carried by value. */
+  readonly outputDocument?: Schema.Json | undefined
 }
 
 /**
@@ -100,6 +111,22 @@ const declaredEffects = (effects: Effects.Declaration | undefined): Descriptor.E
 })
 
 /**
+ * Renders one schema as a JSON Schema document, or `undefined` when it has no
+ * JSON Schema form.
+ *
+ * A schema that cannot be projected is not an error: the descriptor falls
+ * back to the locator it always recorded, and only the catalog rendering is
+ * poorer for it.
+ */
+const document = (schema: SchemaTypes.Top): Schema.Json | undefined => {
+  try {
+    return JSON.parse(JSON.stringify(Schema.toJsonSchemaDocument(schema))) as Schema.Json
+  } catch {
+    return undefined
+  }
+}
+
+/**
  * Projects an ordinary flow declaration into a registry descriptor.
  *
  * @category conversions
@@ -115,8 +142,12 @@ export const descriptorOf = (
     name,
     description: declaration.description ?? "",
     body: new Descriptor.BodyRefModule({ path }),
-    input: new Descriptor.SchemaRefModule({ path, field: "input" }),
-    output: new Descriptor.SchemaRefModule({ path, field: "output" }),
+    input: options.inputDocument === undefined
+      ? new Descriptor.SchemaRefModule({ path, field: "input" })
+      : new Descriptor.SchemaRefInline({ document: options.inputDocument }),
+    output: options.outputDocument === undefined
+      ? new Descriptor.SchemaRefModule({ path, field: "output" })
+      : new Descriptor.SchemaRefInline({ document: options.outputDocument }),
     model: Option.none(),
     flows: [],
     capabilities: declaration.capabilities,
@@ -219,7 +250,11 @@ export const make = <
   E,
   R = never
 >(options: Options<I, O, E, R>): Binding<R> => {
-  const descriptor = descriptorOf(options.flow, options)
+  const descriptor = descriptorOf(options.flow, {
+    ...options,
+    ...(options.inputDocument === undefined ? { inputDocument: document(options.flow.input) } : {}),
+    ...(options.outputDocument === undefined ? { outputDocument: document(options.flow.output) } : {})
+  })
   const decodeInput = Schema.decodeUnknownResult(options.flow.input)
   const encodeOutput = Schema.encodeUnknownResult(options.flow.output)
   const asJson = Schema.decodeUnknownResult(Schema.Json)

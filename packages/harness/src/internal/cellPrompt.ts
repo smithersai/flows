@@ -7,6 +7,7 @@
  */
 import * as Digest from "@smthrs/core/Digest"
 import * as CanonicalJson from "@smthrs/model/CanonicalJson"
+import { Option } from "effect"
 import type * as Cell from "../Cell.ts"
 
 /**
@@ -61,7 +62,14 @@ const catalogText = (flows: Readonly<Record<string, Cell.FlowProjection>>): stri
     const capabilities = projection.capabilities.length === 0
       ? ""
       : ` capabilities=${[...projection.capabilities].sort().join(",")}`
-    return `- ${name} (${projection.tier})${capabilities}: ${projection.description}`
+    const heading = `- ${name} (${projection.tier})${capabilities}: ${projection.description}`
+    // The input schema is the difference between choosing a call and guessing
+    // one. A rejected input costs a whole frame, so a catalog that names a
+    // flow without saying what it takes spends the run's frame budget on
+    // trial and error.
+    return Option.isNone(projection.input)
+      ? heading
+      : `${heading}\n  input: ${JSON.stringify(projection.input.value)}`
   })
   return `Flows callable with ctx.call in this frame:\n${lines.join("\n")}`
 }

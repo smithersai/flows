@@ -19,7 +19,7 @@ import * as Digest from "@smthrs/core/Digest"
 import * as CanonicalJson from "@smthrs/model/CanonicalJson"
 import * as ModelRequest from "@smthrs/model/ModelRequest"
 import * as Descriptor from "@smthrs/registry/Descriptor"
-import { Option, Result, Schema } from "effect"
+import { Effect, Option, Result, Schema } from "effect"
 
 const NonNegativeSafeInt = Schema.Int.check(
   Schema.isGreaterThanOrEqualTo(0),
@@ -317,7 +317,20 @@ export class FlowProjection extends Schema.Class<FlowProjection>("flows/harness/
   description: Schema.String,
   capabilities: Schema.Array(Schema.String),
   tier: Descriptor.EffectTier,
-  placement: Schema.Option(Descriptor.Placement)
+  placement: Schema.Option(Descriptor.Placement),
+  /**
+   * The call's input schema, as a JSON Schema document, when the descriptor
+   * carries one by value.
+   *
+   * Without it a cell can only guess an input shape from prose, and every
+   * guess costs a whole frame: a rejected call is one model turn, so learning
+   * `bash` takes `{ command, mode, reads, writes }` cost four turns of pure
+   * trial and error before any work began.
+   */
+  input: Schema.Option(Schema.Json).pipe(
+    Schema.withConstructorDefault(Effect.succeed(Option.none())),
+    Schema.withDecodingDefaultKey(Effect.succeed(Option.none()))
+  )
 }) {}
 
 /**
@@ -332,7 +345,8 @@ export const project = (descriptor: Descriptor.FlowDescriptor): FlowProjection =
     description: descriptor.description,
     capabilities: descriptor.capabilities,
     tier: descriptor.effects.tier,
-    placement: descriptor.placement
+    placement: descriptor.placement,
+    input: descriptor.input._tag === "Inline" ? Option.some(descriptor.input.document) : Option.none()
   })
 
 /**

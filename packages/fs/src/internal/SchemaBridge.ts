@@ -100,6 +100,11 @@ export const toCommandSchema = (ref: Descriptor.SchemaRef): Effect.Effect<Comman
     case "None":
       return Effect.succeed(none)
     case "Module":
+    // An inline document describes the same struct a module locator points
+    // at, so the command line assembles the same way. The document is a JSON
+    // Schema rather than a decoder, and the invoker holds the real schema, so
+    // parsing still does not decode.
+    case "Inline":
       return Effect.succeed(structured)
     case "MarkdownOutput":
       return Effect.fail(

@@ -115,6 +115,29 @@ export class SchemaRefModule extends Schema.TaggedClass<SchemaRefModule>("flows/
 export class SchemaRefNone extends Schema.TaggedClass<SchemaRefNone>("flows/registry/SchemaRef/None")("None", {}) {}
 
 /**
+ * A schema carried by value, as a JSON Schema document.
+ *
+ * The other three variants are *locators*: they say where a schema lives so
+ * discovery can record it without evaluating the module that defines it. A
+ * host that binds a declaration it already holds — `@smthrs/harness`'s
+ * `FlowBinding` — has the schema itself and nothing to locate, and a locator
+ * pointing at a synthetic `binding://` path is unreadable by anything
+ * downstream. That is what left `ctx.flows` describing every standard flow by
+ * name, tier, and prose alone: a cell had to guess `command` versus `cmd`,
+ * then discover `reads` and `writes` one rejected frame at a time.
+ *
+ * The document is `Schema.toJsonSchemaDocument` output, kept as plain JSON so
+ * a descriptor stays serializable and comparable.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export class SchemaRefInline extends Schema.TaggedClass<SchemaRefInline>("flows/registry/SchemaRef/Inline")(
+  "Inline",
+  { document: Schema.Json }
+) {}
+
+/**
  * A serializable locator for a flow input or output schema.
  *
  * @category models
@@ -124,7 +147,8 @@ export const SchemaRef = Schema.Union([
   SchemaRefMarkdownArgs,
   SchemaRefMarkdownOutput,
   SchemaRefModule,
-  SchemaRefNone
+  SchemaRefNone,
+  SchemaRefInline
 ])
 
 /**
