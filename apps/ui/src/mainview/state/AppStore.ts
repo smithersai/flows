@@ -556,32 +556,6 @@ const repositoryCapabilities = (
  * posted after a card above that card — and because the ordinals persist, the
  * wrong order survived a reload (§7.5).
  */
-/*
- * Everything on screen that belonged to the account that just left.
- *
- * The transcript, its cards and the balance are persisted, so signing out and
- * reloading still rendered the previous account's digest, repository names,
- * balance and pending recommendation — on a shared machine, to whoever sits
- * down next (§2.4). Signing out empties them.
- *
- * World notes are deliberately NOT dropped: they are the product's memory of
- * the work on this machine, sign-out is not "delete my data", and losing them
- * is not undoable.
- */
-const forgetAccountState = (collections: AppCollections): void => {
-	for (const collection of [
-		collections.messages,
-		collections.cards,
-		collections.toasts,
-		collections.billingAccounts,
-		collections.watchedRepos,
-		collections.toolCalls,
-	]) {
-		const keys = [...(collection as { keys: () => Iterable<string> }).keys()];
-		if (keys.length > 0) (collection as { delete: (keys: string[]) => void }).delete(keys);
-	}
-};
-
 const nextOrdinal = (collections: Pick<AppCollections, "messages" | "cards">): number => {
 	let highest = -1;
 	for (const message of collections.messages.values()) highest = Math.max(highest, message.ordinal);
@@ -1364,16 +1338,6 @@ export const createAppStore = async (
 				case "identity.session.loaded": {
 					const existing = collections.identitySessions.get("identity");
 					if (existing === undefined) return;
-					/*
-					 * A session that was signed in and is not any more — an expired
-					 * cookie, a revocation, a sign-out in another tab — leaves the
-					 * previous account's transcript and balance persisted on screen.
-					 * "unavailable" is not that: it means the seam could not answer,
-					 * and the last known state stays honest-but-stale.
-					 */
-					if (transition.state === "signed-out" && existing.state === "signed-in") {
-						forgetAccountState(collections);
-					}
 					collections.identitySessions.update("identity", (draft) => {
 						draft.state = transition.state;
 						draft.login = transition.login;
@@ -1421,7 +1385,6 @@ export const createAppStore = async (
 
 				case "identity.session.cleared": {
 					if (collections.identitySessions.get("identity") === undefined) return;
-					forgetAccountState(collections);
 					collections.identitySessions.update("identity", (draft) => {
 						draft.state = "signed-out";
 						draft.login = null;

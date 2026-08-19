@@ -7,6 +7,7 @@ import type { NativeAgent, NativeRepositories } from "../native/NativeBridge";
 import { canonical, matches, parseSubmit, recommendedNames, SLASH_MENU_CAP, slashItems } from "./registry";
 import type { CommandState } from "./registry";
 import { executeAgentToolCall } from "./agentTools";
+import { visibleItems } from "./Commands";
 
 const memoryStorage = (): StorageApi => {
 	const data = new Map<string, string>();
@@ -142,6 +143,24 @@ describe("command registry pure model", () => {
 		expect(items.filter((item) => item.recommended)).toHaveLength(2);
 	});
 
+	/*
+	 * §1.2: signed out, the listing offers only what works signed out. The
+	 * flows that need a session stay INVOKABLE — typing one defers through
+	 * sign-in (§6.2) — they are just not presented as available.
+	 */
+	test("the signed-out listing offers nothing that needs a session", () => {
+		const commands = [
+			{ name: "auth.sign-in", summary: "Sign in with GitHub" },
+			{ name: "auth.sign-out", summary: "Sign out", requires: ["signed-in"] },
+			{ name: "issues.create", summary: "Create an issue", requires: ["signed-in"] },
+			{ name: "world", summary: "What Smithers understands" },
+		];
+		const signedOut = slashItems({ ...chatState, signedOut: true }, "", commands);
+		expect(signedOut.map((item) => item.flow.name)).toEqual(["auth.sign-in", "world"]);
+		const signedIn = slashItems(chatState, "", commands);
+		expect(signedIn.map((item) => item.flow.name)).toContain("issues.create");
+	});
+
 	describe("the slash menu caps at SLASH_MENU_CAP", () => {
 		// 20 flows named a0..a19, all prefix-matching "a" and all containing "a".
 		const many = Array.from({ length: 20 }, (_, index) => ({
@@ -178,6 +197,25 @@ describe("command registry pure model", () => {
 			expect(recent.map((item) => item.flow.name)).toContain("a19");
 			expect(recent.map((item) => item.flow.name)).toContain("a18");
 		});
+	});
+
+	/*
+	 * §6.4 vs §5.7: `data-flows` on the app shell is the whole registry
+	 * manifest — hidden id-scoped actions included, because the agent's tool
+	 * catalog is not a secret — while `/flows` is what a person can ask for.
+	 * The two lists differ by exactly the hidden set and by nothing else.
+	 */
+	test("/flows and the data-flows manifest differ by exactly the hidden set", async () => {
+		const { controller } = await freshController();
+		const manifest = controller.commands.all().map((command) => command.name);
+		const listed = visibleItems(controller.commands).map((command) => command.name);
+		const hidden = controller.commands
+			.all()
+			.filter((command) => command.hidden === true)
+			.map((command) => command.name);
+		expect(hidden.length).toBeGreaterThan(0);
+		expect(listed).toEqual(manifest.filter((name) => !hidden.includes(name)));
+		expect(listed.some((name) => hidden.includes(name))).toBe(false);
 	});
 
 	test("parseSubmit resolves empty, bare command, args command, and prompt", () => {
@@ -230,17 +268,28 @@ describe("command registry pure model", () => {
 			"goal",
 			"hello /goal",
 			"//goal",
-			"/unknown",
-			"/unknown words",
 			"/Goal",
 			"/GOAL",
 			"/goal!",
 			"/goal/child",
 			"/goal..show",
-			"/goal.show.more",
 			"/no-args surprise",
 		])("keeps %j as an agent prompt", (input) => {
 			expect(parseSubmit(input, commands)).toEqual({ kind: "prompt", text: input.trim() });
+		});
+
+		/*
+		 * §23.5: flow SYNTAX that names no registered flow is the app's to
+		 * answer. Handing it to the model as prose is what made `/reset` on a
+		 * non-admin session run `retry`.
+		 */
+		test.each([
+			["/unknown", "unknown"],
+			["/unknown words", "unknown"],
+			["/goal.show.more", "goal.show.more"],
+			["/reset", "reset"],
+		])("refuses %j by name instead of improvising", (input, name) => {
+			expect(parseSubmit(input, commands)).toEqual({ kind: "unknown-command", name });
 		});
 
 		test("does not mutate the registry or depend on command order", () => {
@@ -248,6 +297,44 @@ describe("command registry pure model", () => {
 			expect(parseSubmit("/goal.show", commands)).toEqual(parseSubmit("/goal.show", reversed));
 			expect(commands.map((command) => command.name)).toEqual(["goal", "goal.show", "no-args"]);
 		});
+	});
+});
+
+describe("§17.4 — no checkout is exposed to an MVP account", () => {
+	test("an MVP session has no billing.upgrade or billing.portal at all", async () => {
+		const { store, controller } = await freshController();
+		store.dispatch({
+			type: "identity.session.loaded",
+			actor: "system",
+			state: "signed-in",
+			login: "codeplanesmithers",
+			allowlisted: true,
+			admin: false,
+			scopesPlain: null,
+		});
+		const names = controller.commands.all().map((command) => command.name);
+		expect(names).not.toContain("billing.upgrade");
+		expect(names).not.toContain("billing.portal");
+		// Absent, not hidden: invoking by name resolves exactly like a typo.
+		expect((await controller.commands.run("billing.upgrade", "pro")).status).toBe("unknown-command");
+		// The balance READ stays — knowing what you have is not a checkout.
+		expect(names).toContain("billing.balance");
+	});
+
+	test("an admin session still has them, so the seam stays testable", async () => {
+		const { store, controller } = await freshController();
+		store.dispatch({
+			type: "identity.session.loaded",
+			actor: "system",
+			state: "signed-in",
+			login: "will",
+			allowlisted: true,
+			admin: true,
+			scopesPlain: null,
+		});
+		const names = controller.commands.all().map((command) => command.name);
+		expect(names).toContain("billing.upgrade");
+		expect(names).toContain("billing.portal");
 	});
 });
 
@@ -290,6 +377,8 @@ describe("command registry bindings", () => {
 			"world.new-note",
 			"world.select",
 			"world.delete",
+			"world.delete.confirm",
+			"world.delete.cancel",
 			"auth.sign-in",
 			"auth.prompt",
 			"auth.sign-out",
@@ -312,8 +401,8 @@ describe("command registry bindings", () => {
 			"prs.create",
 			"prs.land",
 			"prs.review",
-			"billing.upgrade",
-			"billing.portal",
+			// §17.4: billing.upgrade / billing.portal register in the ADMIN plugin
+			// only — no checkout is exposed to an MVP account.
 			"keys.list",
 			"keys.remove",
 			"notifications.list",
@@ -351,8 +440,20 @@ describe("command registry bindings", () => {
 			document.path.startsWith("Untitled"),
 		);
 		expect(note).toBeDefined();
+		// §10.6: deleting ASKS. The question is the flow's whole effect; the
+		// answer is an act of its own, from the composer as from the trash button.
 		expect((await controller.commands.run("world.delete", note?.id ?? "")).status).toBe("executed");
+		expect(store.session().pendingWorldDeleteId).toBe(note?.id ?? "");
+		expect(store.collections.worldDocuments.get(note?.id ?? "")).toBeDefined();
+		expect((await controller.commands.run("world.delete.cancel")).status).toBe("executed");
+		expect(store.session().pendingWorldDeleteId).toBeNull();
+		expect(store.collections.worldDocuments.get(note?.id ?? "")).toBeDefined();
+		expect((await controller.commands.run("world.delete", note?.id ?? "")).status).toBe("executed");
+		expect((await controller.commands.run("world.delete.confirm")).status).toBe("executed");
 		expect(store.collections.worldDocuments.get(note?.id ?? "")).toBeUndefined();
+		expect(store.session().pendingWorldDeleteId).toBeNull();
+		// Nothing waiting: answering is refused rather than guessing a target.
+		expect((await controller.commands.run("world.delete.confirm")).status).toBe("failed");
 
 		expect((await controller.commands.run("does-not-exist")).status).toBe("unknown-command");
 		const failed = await controller.commands.run("connector.remove");

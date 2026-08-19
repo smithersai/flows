@@ -45,6 +45,7 @@ import type { AppController } from "./state/AppController";
 import { scrubToolEcho } from "./state/MessageScrub";
 import { timeLabel } from "./Timestamps";
 import { tabOutOf } from "./FocusRing";
+import { stampFlows } from "./FlowStamp";
 import type { Card, Message, Suggestion as SuggestionBinding } from "./state/AppState";
 import { WORLD_DISPLAY_NAME } from "./state/AppState";
 
@@ -113,14 +114,26 @@ function ComposerMenu({
 	const [highlighted, setHighlighted] = useState(0);
 	const menuRef = useRef<HTMLDivElement>(null);
 
-	/* A pointer press outside the menu dismisses it without moving focus. */
+	/*
+	 * A pointer press outside the menu dismisses it.
+	 *
+	 * §5.15: dismissing by pointer used to leave focus wherever the press
+	 * landed, because the item that HAD focus was unmounted with the menu — so
+	 * a Tab after a pointer dismissal restarted from the transcript viewport.
+	 * Dismissing returns to the trigger, exactly as Escape does, so the menu
+	 * has one exit however it is closed.
+	 */
 	useEffect(() => {
 		if (!open) return;
 		const onPointerDown = (event: PointerEvent): void => {
 			const root = menuRef.current;
-			if (root !== null && event.target instanceof Node && !root.contains(event.target)) {
-				controller.runCommand("surfaces");
-			}
+			if (root === null || !(event.target instanceof Node) || root.contains(event.target)) return;
+			const heldFocus = root.contains(document.activeElement);
+			controller.runCommand("surfaces");
+			if (!heldFocus) return;
+			requestAnimationFrame(() => {
+				document.querySelector<HTMLButtonElement>(".composer-menu-trigger")?.focus();
+			});
 		};
 		document.addEventListener("pointerdown", onPointerDown);
 		return () => document.removeEventListener("pointerdown", onPointerDown);
@@ -449,7 +462,11 @@ function App({ controller }: { readonly controller: AppController }) {
 		index: 0,
 		dismissed: false,
 	});
-	const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+	/*
+	 * §10.6: the delete question lives in the store, not here — a component is
+	 * a projection, never an authority, and the local-state version was
+	 * bypassed entirely by `/world.delete <id>` typed into the composer.
+	 */
 	/* §28.4: the transcript is destroyed with no undo, so the act asks first. */
 	const [confirmReset, setConfirmReset] = useState(false);
 	const messages = [...messageRows].sort((left, right) => left.ordinal - right.ordinal);
@@ -457,6 +474,9 @@ function App({ controller }: { readonly controller: AppController }) {
 		left.path.localeCompare(right.path),
 	);
 	const session = sessionRows[0] ?? controller.store.session();
+	const pendingWorldDelete = worldDocuments.find(
+		(document) => document.id === (session.pendingWorldDeleteId ?? null),
+	);
 	const selectedWorldDocument =
 		worldDocuments.find((document) => document.id === session.selectedWorldDocumentId) ??
 		worldDocuments[0];
@@ -582,7 +602,14 @@ function App({ controller }: { readonly controller: AppController }) {
 		session.draft.startsWith("/") && !session.draft.slice(1).includes(" ")
 			? session.draft.slice(1).toLowerCase()
 			: undefined;
-	const slashMatches = slashQuery === undefined || typing ? [] : controller.slashItems(slashQuery);
+	/*
+	 * §5.2: the listing used to be suppressed for the whole duration of a turn,
+	 * which made `typing -> chat.stop` — the first clause of the recommendation
+	 * order — unreachable in the shipped UI, and left the composer with no way
+	 * to invoke any flow mid-turn (the component blocks submit while busy, so
+	 * Enter only reaches a flow through this menu).
+	 */
+	const slashMatches = slashQuery === undefined ? [] : controller.slashItems(slashQuery);
 	const slashMenuLive =
 		slashMenu.draft === session.draft
 			? slashMenu
@@ -901,8 +928,20 @@ function App({ controller }: { readonly controller: AppController }) {
 								))}
 							</div>
 						) : null}
-						<ChatComposer
-							className="smithers-composer"
+						{/*
+						 * §6.1: Send and Stop are rendered by the composer component,
+						 * which takes no pass-through attributes, so the law's own
+						 * marker is stamped here. See LIBRARY-CHANGE-REQUESTS.md.
+						 */}
+						<div
+							className="composer-flow-stamp"
+							ref={stampFlows([
+								[".sui-chat-composer-send", "send"],
+								[".sui-chat-composer-stop", "chat.stop"],
+							])}
+						>
+							<ChatComposer
+								className="smithers-composer"
 							value={session.draft}
 							onValueChange={controller.changeDraft}
 							onSubmit={(text) => {
@@ -928,7 +967,8 @@ function App({ controller }: { readonly controller: AppController }) {
 									/>
 								</div>
 							}
-						/>
+							/>
+						</div>
 					</div>
 
 					{/*
@@ -951,6 +991,7 @@ function App({ controller }: { readonly controller: AppController }) {
 								variant="outline"
 								size="sm"
 								className="corner-balance-chip"
+								data-flow="billing.balance"
 								data-empty={billing.state === "empty"}
 								aria-label="Show your balance"
 								title="Show your balance"
@@ -965,6 +1006,7 @@ function App({ controller }: { readonly controller: AppController }) {
 								variant="outline"
 								size="icon"
 								className="corner-reset-btn"
+								data-flow="reset"
 								aria-label="Reset conversation"
 								title="Reset conversation"
 								onClick={() => setConfirmReset(true)}
@@ -995,14 +1037,23 @@ function App({ controller }: { readonly controller: AppController }) {
 							closeCommand="chat"
 							onClose={() => controller.runCommand("chat")}
 						>
-							<Button variant="ghost" size="sm" onClick={() => controller.runCommand("world.new-note")}>
+							<Button
+								variant="ghost"
+								size="sm"
+								data-flow="world.new-note"
+								onClick={() => controller.runCommand("world.new-note")}
+							>
 								<Plus size={14} aria-hidden="true" />
 								New note
 							</Button>
 						</SurfaceHeader>
 
 						<div className="world-workspace">
-							<aside className="world-sidebar" aria-label={`${WORLD_DISPLAY_NAME} notes`}>
+							<aside
+								className="world-sidebar"
+								aria-label={`${WORLD_DISPLAY_NAME} notes`}
+								ref={stampFlows([["button", "world.select"]])}
+							>
 								<FileTree
 									nodes={worldDocuments.map((document) => ({
 										path: document.path,
@@ -1033,9 +1084,12 @@ function App({ controller }: { readonly controller: AppController }) {
 													variant="ghost"
 													size="icon"
 													className="world-delete-btn"
+													data-flow="world.delete"
 													aria-label={`Delete ${selectedWorldDocument.title}`}
 													title="Delete note"
-													onClick={() => setDeleteTarget(selectedWorldDocument.id)}
+													onClick={() =>
+												controller.runCommandArgs("world.delete", selectedWorldDocument.id)
+											}
 												>
 													<Trash2 size={13} />
 												</Button>
@@ -1077,16 +1131,13 @@ function App({ controller }: { readonly controller: AppController }) {
 							</main>
 						</div>
 						<ConfirmDialog
-							open={deleteTarget !== null}
-							title={`Delete ${worldDocuments.find((document) => document.id === deleteTarget)?.title ?? "note"}?`}
+							open={pendingWorldDelete !== undefined}
+							title={`Delete ${pendingWorldDelete?.title ?? "note"}?`}
 							body="This note leaves Smithers' world. You can write it again, but Smithers will treat it as new."
 							confirmLabel="Delete"
 							destructive
-							onConfirm={() => {
-								if (deleteTarget !== null) controller.runCommandArgs("world.delete", deleteTarget);
-								setDeleteTarget(null);
-							}}
-							onCancel={() => setDeleteTarget(null)}
+							onConfirm={() => controller.runCommand("world.delete.confirm")}
+							onCancel={() => controller.runCommand("world.delete.cancel")}
 						/>
 					</section>
 				) : session.surface === "connectors" ? (
