@@ -28,6 +28,7 @@ import * as NodeUtil from "node:util/types"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface CachedResult {
   readonly key: string
@@ -43,6 +44,7 @@ export interface CachedResult {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface CacheStore {
   get(key: string): Promise<CachedResult | null>
@@ -60,6 +62,7 @@ export interface CacheStore {
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const entryLimit = 16 * 1024 * 1024
 
@@ -71,6 +74,7 @@ export const entryLimit = 16 * 1024 * 1024
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const remoteEntryLimit = 1024 * 1024
 
@@ -79,6 +83,7 @@ export const remoteEntryLimit = 1024 * 1024
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const maximumRemoteBodyChunks = 16_384
 
@@ -87,6 +92,7 @@ export const maximumRemoteBodyChunks = 16_384
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const remoteTimeouts = { get: 3_000, put: 8_000 } as const
 
@@ -144,6 +150,7 @@ const maximumCacheKeyCodeUnits = 4_096
  *
  * @category utilities
  * @since 0.1.0
+ * @slop
  */
 export const sanitizeKey = (key: string): string => {
   if (typeof key !== "string" || key.length === 0 || key.length > maximumCacheKeyCodeUnits) {
@@ -468,6 +475,7 @@ const confineDirectory = async (
  *
  * @category validation
  * @since 0.1.0
+ * @slop
  */
 export const ensureCacheDirectory = async (
   workspaceRoot: string,
@@ -625,6 +633,7 @@ const readLocal = async (cacheRoot: string, key: string): Promise<CachedResult |
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface CacheIo {
   readonly rename?: (from: string, to: string) => Promise<void>
@@ -986,6 +995,7 @@ const validateTimeouts = (
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface OpenCacheOptions {
   readonly workspaceRoot: string
@@ -1291,6 +1301,7 @@ class RemoteStore {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const openCache = async (opts: OpenCacheOptions): Promise<CacheStore> => {
   const options = normalizeOpenCacheOptions(opts)

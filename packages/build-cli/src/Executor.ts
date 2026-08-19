@@ -47,6 +47,7 @@ import type { ExpandedInput, Workspace } from "./Workspace.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface TargetReport {
   readonly label: string
@@ -62,6 +63,7 @@ export interface TargetReport {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface StatusCounts {
   readonly hit: number
@@ -76,6 +78,7 @@ export interface StatusCounts {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Summary {
   readonly verb: string
@@ -99,6 +102,7 @@ export interface Summary {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface ExecuteOptions {
   readonly workspace: Workspace
@@ -122,6 +126,7 @@ export interface ExecuteOptions {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface MergedPlan {
   readonly roots: ReadonlyArray<string>
@@ -141,6 +146,7 @@ export interface MergedPlan {
  *
  * @category planning
  * @since 0.1.0
+ * @slop
  */
 export const mergePlans = (plans: ReadonlyArray<Planner.Plan>): MergedPlan => {
   const roots: Array<string> = []
@@ -301,6 +307,7 @@ const resolveFlows = async (
  *
  * @category execution
  * @since 0.1.0
+ * @slop
  */
 export const resolveJobs = (jobs?: number | undefined): number => {
   if (jobs === undefined) return Math.max(1, Os.availableParallelism())
@@ -407,6 +414,7 @@ const validateWorkList = (targets: ReadonlyArray<Planner.PlannedTarget>): string
  *
  * @category execution
  * @since 0.1.0
+ * @slop
  */
 export const schedule = (
   targets: ReadonlyArray<Planner.PlannedTarget>,
@@ -676,6 +684,7 @@ const cloneCacheJson = (
  *
  * @category caching
  * @since 0.1.0
+ * @slop
  */
 export const encodeCacheOutput = (
   value: unknown
@@ -698,6 +707,7 @@ export const encodeCacheOutput = (
  *
  * @category caching
  * @since 0.1.0
+ * @slop
  */
 export const decodeCacheOutput = (
   output: unknown
@@ -865,6 +875,7 @@ const filegroupAttrs = (target: Planner.PlannedTarget): unknown => ({
  *
  * @category execution
  * @since 0.1.0
+ * @slop
  */
 export const execute = async (options: ExecuteOptions): Promise<Summary> => {
   const jobs = resolveJobs(options.jobs)

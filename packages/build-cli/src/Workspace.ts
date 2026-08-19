@@ -35,6 +35,7 @@ installEffectResolution()
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type FileDigest = Input.FileDigest
 
@@ -43,6 +44,7 @@ export type FileDigest = Input.FileDigest
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface ExpandedInput {
   readonly declaration: Input.Declared
@@ -55,6 +57,7 @@ export interface ExpandedInput {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface BuildModule {
   readonly file: string
@@ -69,6 +72,7 @@ export interface BuildModule {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface PackageDefaultsEntry {
   readonly declaration: PackageDefaults.PackageDefaults
@@ -106,6 +110,7 @@ const gitPathBytes = 16 * 1024
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const maximumGitignoreBytes = 16 * 1024 * 1024
 
@@ -258,6 +263,7 @@ const fallbackApplies = (cause: unknown): boolean => {
  *
  * @category validation
  * @since 0.1.0
+ * @slop
  */
 export const isGitPath = (path: string): boolean => {
   if (path === "" || path.includes("\0") || path.includes("\\")) return false
@@ -319,6 +325,7 @@ const gitPaths = (
  *
  * @category discovery
  * @since 0.1.0
+ * @slop
  */
 export const discoverable = (
   files: ReadonlyArray<string>,
@@ -431,6 +438,7 @@ const importNamespace = async (entry: SafeFs.Entry): Promise<unknown> => {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface ResolvedConfig {
   readonly cacheDirectory: string
@@ -468,6 +476,7 @@ const declaredRemoteCache = (namespace: unknown): RemoteCache.RemoteCache | unde
  *
  * @category discovery
  * @since 0.1.0
+ * @slop
  */
 export const resolveConfig = async (
   root: string,
@@ -488,6 +497,7 @@ export const resolveConfig = async (
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface ResolvedRemoteCache {
   readonly endpoint: string
@@ -505,6 +515,7 @@ export interface ResolvedRemoteCache {
  *
  * @category discovery
  * @since 0.1.0
+ * @slop
  */
 export const resolveRemoteCache = async (
   root: string,
@@ -698,6 +709,7 @@ const readGitignore = async (path: string): Promise<string | undefined> => {
  *
  * @category discovery
  * @since 0.1.0
+ * @slop
  */
 export const ensureGitignored = async (
   root: string,
@@ -761,6 +773,7 @@ const packagePathForBuild = (buildFile: string): string => {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class Workspace {
   readonly root: string

@@ -3,6 +3,7 @@
  *
  * @category loading
  * @since 0.1.0
+ * @slop
  */
 export declare const installEffectResolution: () => void
 
@@ -11,5 +12,6 @@ export declare const installEffectResolution: () => void
  *
  * @category loading
  * @since 0.1.0
+ * @slop
  */
 export declare const buildModuleUrl: (url: string) => string

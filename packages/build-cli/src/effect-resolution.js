@@ -37,7 +37,10 @@ const isBuildModule = (url) => {
   return parsed.searchParams.get(buildModuleParameter) === "1" || parsed.pathname.endsWith("/BUILD.ts")
 }
 
-/** Installs the resolvers once per process. */
+/**
+ * Installs the resolvers once per process.
+ * @slop
+ */
 export const installEffectResolution = () => {
   if (globalThis[installation] === true) return
   registerHooks({
@@ -69,7 +72,10 @@ export const installEffectResolution = () => {
   })
 }
 
-/** Marks one admitted BUILD.ts URL for ES-module evaluation. */
+/**
+ * Marks one admitted BUILD.ts URL for ES-module evaluation.
+ * @slop
+ */
 export const buildModuleUrl = (url) => {
   const marked = new URL(url)
   marked.searchParams.set(buildModuleParameter, "1")

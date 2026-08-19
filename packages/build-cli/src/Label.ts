@@ -10,6 +10,7 @@ import * as NodePath from "node:path"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Pattern =
   | {
@@ -36,6 +37,7 @@ const normalizePackage = (value: string): string => {
  *
  * @category parsing
  * @since 0.1.0
+ * @slop
  */
 export const parse = (value: string, currentPackage: string): Pattern => {
   if (value.startsWith(":")) {
@@ -66,6 +68,7 @@ export const parse = (value: string, currentPackage: string): Pattern => {
  *
  * @category formatting
  * @since 0.1.0
+ * @slop
  */
 export const format = (packagePath: string, target: string): string => `//${normalizePackage(packagePath)}:${target}`
 
@@ -75,6 +78,7 @@ export const format = (packagePath: string, target: string): string => `//${norm
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const currentPackage = (workspaceRoot: string, cwd: string): string => {
   const relative = NodePath.relative(workspaceRoot, cwd)

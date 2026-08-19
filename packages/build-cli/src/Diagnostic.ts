@@ -16,6 +16,7 @@ import * as NodeUtil from "node:util/types"
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const maximumMessageCodeUnits = 64 * 1024
 
@@ -32,6 +33,7 @@ const bounded = (message: string, fallback: string): string => {
  *
  * @category rendering
  * @since 0.1.0
+ * @slop
  */
 export const message = (cause: unknown, fallback = "operation failed"): string => {
   if (typeof cause === "string") return bounded(cause, fallback)
@@ -60,6 +62,7 @@ export const message = (cause: unknown, fallback = "operation failed"): string =
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const error = (cause: unknown, fallback = "operation failed"): Error => {
   if (typeof cause === "object" && cause !== null && !NodeUtil.isProxy(cause)) {

@@ -18,6 +18,7 @@ import type * as Workspace from "./Workspace.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Edge {
   readonly from: string
@@ -29,6 +30,7 @@ export interface Edge {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface KeyMaterial {
   readonly body: unknown
@@ -47,6 +49,7 @@ export interface KeyMaterial {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface PlannedTarget {
   readonly label: string
@@ -73,6 +76,7 @@ export interface PlannedTarget {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Plan {
   readonly verb: Target.Kind | "graph" | "query"
@@ -95,6 +99,7 @@ export interface Plan {
  *
  * @category keys
  * @since 0.1.0
+ * @slop
  */
 export const EXECUTION_FORMAT = 5
 
@@ -115,6 +120,7 @@ const byCodeUnit = (left: string, right: string): number => left < right ? -1 : 
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class KeyMaterialError extends Error {
   override readonly name = "KeyMaterialError"
@@ -135,6 +141,7 @@ export class KeyMaterialError extends Error {
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class UnsupportedVerbError extends Error {
   override readonly name = "UnsupportedVerbError"
@@ -284,6 +291,7 @@ const encode = (value: unknown, out: Array<string>, seen: Set<object>, path: str
  *
  * @category keys
  * @since 0.1.0
+ * @slop
  */
 export const encodeKeyMaterial = (material: KeyMaterial): string => {
   const out: Array<string> = ["smithers-build-key/1\u0000"]
@@ -312,6 +320,7 @@ export const encodeKeyMaterial = (material: KeyMaterial): string => {
  *
  * @category keys
  * @since 0.1.0
+ * @slop
  */
 export const keyOf = (material: KeyMaterial): string =>
   createHash("sha256").update(encodeKeyMaterial(material), "utf8").digest("hex")
@@ -324,6 +333,7 @@ export const keyOf = (material: KeyMaterial): string =>
  *
  * @category keys
  * @since 0.1.0
+ * @slop
  */
 export interface SourceRoot {
   readonly name: string
@@ -344,6 +354,7 @@ const maximumSourceDepth = 128
  *
  * @category limits
  * @since 0.1.0
+ * @slop
  */
 export const maximumSourceFileBytes = 16 * 1024 * 1024
 const maximumSourceRootBytes = 512 * 1024 * 1024
@@ -637,6 +648,7 @@ const updateSourceField = (hash: ReturnType<typeof createHash>, value: string): 
  *
  * @category keys
  * @since 0.1.0
+ * @slop
  */
 export const fingerprintSources = async (
   roots: ReadonlyArray<SourceRoot>,
@@ -693,6 +705,7 @@ const loadedModuleRoot = (name: string, specifier: string): SourceRoot => ({
  *
  * @category keys
  * @since 0.1.0
+ * @slop
  */
 export const productionSourceRoots = (): ReadonlyArray<SourceRoot> => [
   { name: "cli", directory: cliSourceDirectory },
@@ -728,6 +741,7 @@ let fingerprint: string | undefined
  *
  * @category keys
  * @since 0.1.0
+ * @slop
  */
 export const implementationFingerprint = async (signal?: AbortSignal | undefined): Promise<string> => {
   if (fingerprint !== undefined) return fingerprint
@@ -855,6 +869,7 @@ const capabilities = (target: string): ReadonlyArray<string> => {
  *
  * @category planning
  * @since 0.1.0
+ * @slop
  */
 export const make = async (
   workspace: Workspace.Workspace,
