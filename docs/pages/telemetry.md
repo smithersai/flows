@@ -79,7 +79,7 @@ Durations are `Metric.timer` histograms recorded through Effect's `Effect.trackD
 | `flows_engine_sandbox_execution_duration` | one isolated workspace execution |
 | `flows_engine_sandbox_materialization_duration` | one copy-back |
 
-The handles are exported (`JournalMetrics`, `RunStoreMetrics`, `CacheStoreMetrics`, `ArtifactStoreMetrics`, `DatabaseMetrics`, `EngineStoreMetrics`), so a program can read them with `Metric.value` without an exporter at all.
+The handles are exported (`JournalMetrics`, `RunStoreMetrics`, `CacheStoreMetrics`, `ArtifactStoreMetrics`, `DatabaseMetrics`, `EngineStoreMetrics`), so a program can read them with `Metric.value` without an exporter at all. Read an outcome-dimensioned counter through its exported attribute view — `CacheStoreMetrics.hit`, `EngineStoreMetrics.dispatch.Success` — not through the bare counter handle: `Metric.value` reads the series for the exact attribute set on the handle, and the packages update only the tagged series, so the bare handle's attribute-less series stays at zero.
 
 ## Testing without a network
 
