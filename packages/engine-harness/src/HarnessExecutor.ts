@@ -51,6 +51,7 @@ import { ControlRuntime } from "@smthrs/control/ControlRuntime"
 import type { ApprovalPayload, Envelope, RunStatus } from "@smthrs/control/ControlSchema"
 import * as Digest from "@smthrs/core/Digest"
 import { Flow, FlowRuntime } from "@smthrs/flow"
+import type * as AgentEvent from "@smthrs/harness/AgentEvent"
 import type * as Cell from "@smthrs/harness/Cell"
 import type * as FlowBinding from "@smthrs/harness/FlowBinding"
 import * as HarnessError from "@smthrs/harness/HarnessError"
@@ -61,11 +62,12 @@ import * as Steering from "@smthrs/harness/Steering"
 import { Journal, JournalEvent } from "@smthrs/journal"
 import * as CanonicalJson from "@smthrs/model/CanonicalJson"
 import type * as Model from "@smthrs/model/Model"
+import type * as ModelRequest from "@smthrs/model/ModelRequest"
 import type { NotificationQueue } from "@smthrs/notifications"
 import { Node } from "@smthrs/plan"
 import * as Registry from "@smthrs/registry/Registry"
 import type { Crypto } from "effect"
-import { Cause, Duration, Effect, Exit, Layer, Option, Schema, Scope, Stream } from "effect"
+import { Cause, Duration, Effect, Exit, Fiber, Layer, Option, Schema, Scope, Stream } from "effect"
 import * as CellHarness from "./CellHarness.ts"
 import type * as FlowEngineLike from "./FlowEngineLike.ts"
 import * as StandardFlows from "./StandardFlows.ts"
@@ -147,6 +149,88 @@ export const contextWindowTokensFor = (modelId: string): number => {
 }
 
 const sourceId = JournalEvent.SourceId.make("/control/executor")
+
+const assistantText = (message: ModelRequest.AssistantMessage): string =>
+  message.content.flatMap((part) => part.type === "text" ? [part.text] : []).join("\n")
+
+/**
+ * The journal projection of one agent event.
+ *
+ * The executor consumes the harness stream itself, so without this the whole
+ * transcript — what the model said, the cell it produced, the flows that cell
+ * called, and why a frame was rejected — existed only for the duration of the
+ * run and a settled run could not be read back at all. Model deltas are the
+ * one omission: they are the token-by-token prefix of `model-settled`, and
+ * journaling them would multiply a run's event count by its token count for
+ * no information the settlement does not already carry.
+ *
+ * `undefined` means "not journaled".
+ *
+ * @category projections
+ * @since 0.1.0
+ */
+export const trace = (
+  event: AgentEvent.AgentEvent
+): { readonly eventType: string; readonly payload: unknown } | undefined => {
+  switch (event._tag) {
+    case "model-delta":
+      return undefined
+    case "turn-opened":
+      return {
+        eventType: "control.agent.turn-opened",
+        payload: { seat: event.seat, contextDigest: event.contextDigest }
+      }
+    case "model-settled":
+      return {
+        eventType: "control.agent.model-settled",
+        payload: { text: assistantText(event.message), usage: event.usage }
+      }
+    case "cell-produced":
+      return {
+        eventType: "control.agent.cell-produced",
+        payload: { language: event.cell.language, digest: event.cell.digest, text: event.cell.text }
+      }
+    case "cell-call-started":
+      return {
+        eventType: "control.agent.cell-call-started",
+        payload: { flowName: event.call.flowName, input: event.call.input }
+      }
+    case "cell-call-settled":
+      return {
+        eventType: "control.agent.cell-call-settled",
+        payload: {
+          flowName: event.flowName,
+          outcome: event.result.outcome,
+          message: event.result.message,
+          value: event.result.value
+        }
+      }
+    case "cell-settled":
+      return { eventType: "control.agent.cell-settled", payload: { outcome: event.outcome } }
+    case "transition-applied":
+      return { eventType: "control.agent.transition-applied", payload: { transition: event.transition } }
+    case "suspended":
+      return { eventType: "control.agent.suspended", payload: { reason: event.reason } }
+    case "compaction-settled":
+      return {
+        eventType: "control.agent.compaction-settled",
+        payload: { replacedPrefixDigest: event.replacedPrefixDigest }
+      }
+    case "turn-closed":
+      return {
+        eventType: "control.agent.turn-closed",
+        payload: { stopReason: event.stopReason, outcome: event.outcome }
+      }
+    case "permission-required":
+      return { eventType: "control.agent.permission-required", payload: { request: event.request } }
+    case "aborted":
+      return { eventType: "control.agent.aborted", payload: { reason: event.reason } }
+    case "resolved":
+      return { eventType: "control.agent.resolved", payload: { text: assistantText(event.message) } }
+    default:
+      return { eventType: `control.agent.${event._tag}`, payload: {} }
+  }
+}
 
 /** The envelope an in-run ask approval binds to: the ask flow, nothing else. */
 const askEnvelope: Envelope = { capabilities: [], flows: ["ask"], budget: {} }
@@ -374,6 +458,32 @@ export const make = (
       )
 
     /**
+     * Emits one agent-trace event on the journal's lossy channel.
+     *
+     * The channel matters more than it looks. A trace event is telemetry, not
+     * lifecycle state, and the executor emits it from inside the harness
+     * stream's own consumer — so a durable emit deadlocks: the write joins the
+     * single writer's transaction queue behind the engine transaction that the
+     * harness frame is still inside, while the frame cannot proceed until the
+     * consumer accepts the event. Runs stalled silently at 0% CPU a few frames
+     * in. `emitLossy` queues instead of joining the transaction, which is the
+     * documented channel for exactly this.
+     */
+    const trail = (
+      runId: string,
+      eventType: string,
+      payload: unknown
+    ): Effect.Effect<void, unknown> =>
+      journal.emitLossy(
+        new JournalEvent.Input({
+          runId: JournalEvent.RunId.make(runId),
+          sourceId,
+          eventType,
+          payload: JSON.parse(JSON.stringify(payload))
+        })
+      )
+
+    /**
      * Decides one ask before its durable boundary opens. An unresolved ask
      * registers its token, publishes the exact approval payload an operator
      * replays through `flows approve`, and parks the run with an encoded
@@ -542,6 +652,37 @@ export const make = (
         const steering = yield* Notifications.make({ runId: payload.runId, lineageId: payload.runId })
         const engineServices = yield* Effect.context<FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance>()
         const tags: Array<string> = []
+        // The trail is buffered in memory and written by a fiber of its own,
+        // never by the stream's consumer.
+        //
+        // The consumer runs inside the frame: the harness cannot emit its next
+        // event until this callback returns, and the frame it is inside holds
+        // the engine's write transaction. A journal write here therefore waits
+        // on a writer that is waiting on this callback, and the run stalls
+        // silently at 0% CPU a few frames in — which is exactly what happened
+        // when this was a plain `emitDurable`, and still happened on the lossy
+        // channel because its queue drains through the same writer. Pushing
+        // onto an array cannot block, so the frame always proceeds; the pump
+        // below writes whatever has accumulated once the writer is free again.
+        const pending: Array<{ readonly eventType: string; readonly payload: unknown }> = []
+        const flush = Effect.suspend(() =>
+          Effect.forEach(
+            pending.splice(0, pending.length),
+            (entry) => trail(payload.runId, entry.eventType, entry.payload),
+            { discard: true }
+          )
+        ).pipe(Effect.ignore)
+        // Journaling is best-effort on purpose: a full or rejecting journal
+        // must not fail an agent run that is otherwise making progress.
+        const record = (event: AgentEvent.AgentEvent): Effect.Effect<void> =>
+          Effect.sync(() => {
+            tags.push(event._tag)
+            const projected = trace(event)
+            if (projected !== undefined) pending.push(projected)
+          })
+        const pump = yield* Effect.forkChild(
+          Effect.forever(Effect.andThen(Effect.sleep(Duration.millis(250)), flush))
+        )
         yield* CellHarness.run({
           session: payload.runId,
           seat: seatId,
@@ -561,9 +702,14 @@ export const make = (
           limits: options.limits,
           maxFrames: options.maxFrames
         }).pipe(
-          Stream.runForEach((event) => Effect.sync(() => tags.push(event._tag))),
+          Stream.runForEach(record),
           Effect.provide(QuickJSSandbox.layer),
-          Effect.provideService(Steering.Source, steering)
+          Effect.provideService(Steering.Source, steering),
+          // The pump is interrupted before the final flush so the two never
+          // race for the same buffered entries, and the flush runs on the way
+          // out of every exit — settled, failed, or parked — because a parked
+          // run's trail is the one an operator most needs to read.
+          Effect.onExit(() => Effect.andThen(Fiber.interrupt(pump), flush))
         )
         return tags
       })
