@@ -216,13 +216,16 @@ aborting before them. The a11y suite went from 4 of 16 sections reached to 20 of
 ## Where the whole-suite run ended
 
 Seventeen suites in one process, on a quiet machine, after every fix above:
-**16 of 17 pass, 65 of 68 checklist ids proven**, no hang, nothing skipped. The
-seventeenth (E11) failed on a seed that named no backend, was diagnosed and
-fixed, and passes on its own at 5/5; the confirming whole-set run is the next
-thing to look at.
 
-For comparison, the same command at the start of this remediation: 13 of 17,
-56 of 68, and before that it did not terminate at all.
+```
+PASS: apps/ui e2e — 17 suites, 184 checks, 68/68 checklist ids proven, 0 skipped.
+```
+
+Exit 0. Nothing skipped, nothing deferred, no hang.
+
+For comparison, the same command at the start of this remediation: 13 of 17
+suites and 56 of 68 ids — and before the runner was fixed it did not terminate
+at all.
 
 Three of the four whole-set failures turned out to be defects in the tests
 rather than the product, and each was fixed at its cause rather than by
