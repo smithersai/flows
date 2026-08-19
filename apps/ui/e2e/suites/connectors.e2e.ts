@@ -371,6 +371,20 @@ const SEED_CONNECTORS = `(() => {
 		},
 	};
 	localStorage.setItem('smithers-mvp.app-connectors', JSON.stringify(rows));
+	/*
+	 * Name the store these rows are in. AppStore honours the recorded backend
+	 * first and otherwise prefers OPFS, so a seed that writes only the rows is
+	 * read whenever OPFS happens to be unavailable and silently ignored
+	 * whenever it is not. That is exactly what happened: this suite passed
+	 * alone, on a cold profile where OPFS did not open, and failed inside the
+	 * seventeen-suite run, where it did — the app was reading an empty OPFS
+	 * database while the seeded rows sat unread in localStorage.
+	 *
+	 * Stamping the backend makes the seed deterministic instead of dependent
+	 * on which store the browser happens to offer. The stamp is the product's
+	 * own contract (chain/SchemaVersion.ts), not a test-only door.
+	 */
+	localStorage.setItem('smithers-mvp.persistenceBackend', 'localStorage');
 })()`;
 
 /** Park a finished page so its live store cannot write over the next one's seed. */
