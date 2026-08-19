@@ -49,7 +49,25 @@ export const cacheUrl = Smithers.Secret("SMITHERS_CACHE_URL")
 // Generated root files
 // ---------------------------------------------------------------------------
 
-/** Generates and drift-checks `pnpm-workspace.yaml`. */
+/**
+ * Generates and drift-checks `pnpm-workspace.yaml`.
+ *
+ * Editing this is a FOUR-file change, because two conformance suites pin the
+ * result and neither can import this file (both live in packages this file
+ * imports):
+ *
+ *  1. here,
+ *  2. the generated `pnpm-workspace.yaml` (`smthrs build //:workspace`),
+ *  3. `packages/targets/test/GeneratedRootFiles.test.ts`, which re-declares
+ *     these attributes and re-renders them,
+ *  4. `packages/flows/test/vitestCoverageIsolation.test.ts`, which pins the
+ *     generated file's exact text.
+ *
+ * The duplication is deliberate: 3 and 4 exist so that widening the workspace,
+ * or letting a package run an install script, has to be justified in review
+ * rather than slipping in. Miss one and CI reports the generated file as a
+ * hand edit — accurately, from where it is standing.
+ */
 export const workspace = Smithers.PnpmWorkspace({
   packageManager,
   packages: ["packages/*", "packages/build/infra", "examples", "apps/*"],

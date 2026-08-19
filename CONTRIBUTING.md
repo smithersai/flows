@@ -14,6 +14,32 @@ pnpm run test:examples
 pnpm exec vocs build
 ```
 
+`pnpm test` is the one that catches the most, and it stops at the first
+failing package — so a green partial run proves less than it looks like it
+does. `pnpm --recursive --if-present --no-bail run test` reports every
+package instead of the first casualty.
+
+## Changing a root file
+
+The files at the repository root are generated from `BUILD.ts` and then
+pinned, by suites that deliberately re-declare rather than import them —
+importing `BUILD.ts` would be circular, since it imports the very packages
+doing the pinning. The duplication is the point: widening the workspace,
+letting a package run an install script, or narrowing how CI fans out are
+all changes someone should have to justify in review rather than slip in.
+
+The cost is that one edit lands in several places. If you change:
+
+| What | Also update |
+| --- | --- |
+| `BUILD.ts` workspace attrs (`packages`, `allowBuilds`, settings) | the generated `pnpm-workspace.yaml` (`pnpm exec smthrs build '//:workspace'`), `packages/targets/test/GeneratedRootFiles.test.ts`, and `packages/flows/test/vitestCoverageIsolation.test.ts` |
+| root `package.json` scripts | `packages/flows/test/vitestCoverageIsolation.test.ts` (the aggregator roster) |
+| `.github/workflows/ci.yml` gate steps or triggers | `packages/flows/test/vitestCoverageIsolation.test.ts` (source-text pins) |
+| `.github/workflows/release.yml` | the same suite, plus `scripts/release-rehearsal.test.mjs` |
+
+Miss one and CI reports a generated file as a hand edit, which is exactly
+what it should do — it cannot tell your deliberate change from a stray one.
+
 Packages under `packages/` follow the structure and conventions in the Effect repository. Use `reference/effect` as the local reference when adding or changing package modules, public APIs, tests, build configuration, or package metadata.
 
 ## Working with the vendored jj submodule
