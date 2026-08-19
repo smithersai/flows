@@ -541,8 +541,11 @@ Run the flow, read the card, resize the window, switch theme, and reload.
 
 These ship in the build. Confirm each works or is deliberately gated.
 
-- [ ] **26.1** `/debug.backend proxy` and `/debug.backend chain` both switch the
-      agent backend and a turn works on each.
+- [ ] **26.1** `/debug.backend` REPORTS the one backend — the in-browser Agent
+      Chain over `/api/model/stream` — and cannot switch to another: an
+      argument is answered with that sentence, never obeyed. Send a turn and
+      confirm it spends its model on `/api/model/stream` and never on
+      `/api/agent/turn`.
 - [ ] **26.2** `/debug.snapshot` reads the app-state snapshot.
 - [ ] **26.3** `/debug.events` reads the transition journal tail.
 - [ ] **26.4** `/debug.chain` reads the chain journal x-ray.
@@ -694,7 +697,7 @@ passes when the success path is right **and** the failure path is honest.
 - [ ] **A.70** `/flows` — List everything Smithers can do
 - [ ] **A.71** `/reset` — Start a fresh conversation (dev tooling — nothing is kept) _(user-only)_
 - [ ] **A.72** `/admin.devtools` — Toggle the dev-tools panel _(user-only)_
-- [ ] **A.73** `/debug.backend` `proxy | chain` — Switch the agent backend (proxy | chain) _(user-only)_
+- [ ] **A.73** `/debug.backend` — Report the agent backend _(user-only)_
 - [ ] **A.74** `/debug.snapshot` — Read the app state snapshot
 - [ ] **A.75** `/debug.events` — Read the transition journal tail
 - [ ] **A.76** `/debug.chain` — Read the chain journal x-ray
