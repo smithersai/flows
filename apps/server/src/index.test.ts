@@ -1902,6 +1902,84 @@ describe("the browser tool route (§2d)", () => {
 		}
 	});
 
+	/*
+	 * Repro apps/ui/canary-repros/money/17.4: `/billing.upgrade` on an MVP
+	 * account fired a live POST /api/billing/checkout and came back the
+	 * platform's `stripe billing is not configured`. The alpha comps every
+	 * balance, so the honest answer is that there is nothing to buy — and the
+	 * request never reaches Stripe.
+	 */
+	test("checkout and the billing portal are refused while the alpha comps every balance", async () => {
+		const env: WorkerEnv = {
+			...assetsEnv(),
+			IDENTITY_UPSTREAM_URL: "https://identity.test",
+			IDENTITY_SERVICE_TOKEN: "svc",
+			SMITHERS_CLOUD_API_BASE_URL: "https://cloud.test",
+		};
+		const seen: Array<string> = [];
+		const original = globalThis.fetch;
+		globalThis.fetch = (async (input: RequestInfo | URL) => {
+			const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+			seen.push(url);
+			if (url.includes("/api/identity/validate")) {
+				return new Response(JSON.stringify({ login: "will", allowlisted: true, admin: false, scopes: [] }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			}
+			return new Response(JSON.stringify({ message: "stripe billing is not configured" }), { status: 400 });
+		}) as unknown as typeof fetch;
+		try {
+			for (const path of ["/api/billing/checkout", "/api/billing/portal"]) {
+				const response = await worker.fetch(new Request(`https://mvp.test${path}`, { method: "POST" }), env);
+				expect(`${path} → ${response.status}`).toBe(`${path} → 501`);
+				const body = (await response.json()) as { message: string };
+				expect(body.message).toContain("nothing to buy");
+				expect(body.message).not.toContain("stripe");
+			}
+			expect(seen.some((url) => url.includes("cloud.test"))).toBe(false);
+		} finally {
+			globalThis.fetch = original;
+		}
+	});
+
+	test("a deployment that has shipped paid plans forwards checkout unchanged", async () => {
+		const env: WorkerEnv = {
+			...assetsEnv(),
+			IDENTITY_UPSTREAM_URL: "https://identity.test",
+			IDENTITY_SERVICE_TOKEN: "svc",
+			SMITHERS_CLOUD_API_BASE_URL: "https://cloud.test",
+			BILLING_CHECKOUT_ENABLED: "1",
+		};
+		const original = globalThis.fetch;
+		globalThis.fetch = (async (input: RequestInfo | URL) => {
+			const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+			if (url.includes("/api/identity/validate")) {
+				return new Response(JSON.stringify({ login: "will", allowlisted: true, admin: false, scopes: [] }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			}
+			if (url.includes("/api/identity/cloud-token")) {
+				return new Response(JSON.stringify({ found: true, token: "cloud-token-1" }), { status: 200 });
+			}
+			return new Response(JSON.stringify({ url: "https://checkout.stripe.test/session" }), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
+		}) as unknown as typeof fetch;
+		try {
+			const response = await worker.fetch(
+				new Request("https://mvp.test/api/billing/checkout", { method: "POST" }),
+				env,
+			);
+			expect(response.status).toBe(200);
+			expect(await response.json()).toEqual({ url: "https://checkout.stripe.test/session" });
+		} finally {
+			globalThis.fetch = original;
+		}
+	});
+
 	test("the platform proxy forwards with the user's cloud bearer and passes the platform answer through", async () => {
 		const env: WorkerEnv = {
 			...assetsEnv(),
