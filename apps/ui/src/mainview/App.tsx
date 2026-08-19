@@ -44,6 +44,7 @@ import { ToastStack } from "./ToastStack";
 import type { AppController } from "./state/AppController";
 import { scrubToolEcho } from "./state/MessageScrub";
 import { timeLabel } from "./Timestamps";
+import { tabOutOf } from "./FocusRing";
 import type { Card, Message, Suggestion as SuggestionBinding } from "./state/AppState";
 import { WORLD_DISPLAY_NAME } from "./state/AppState";
 
@@ -647,6 +648,22 @@ function App({ controller }: { readonly controller: AppController }) {
 					controller.runCommand("card.minimize");
 					return;
 				}
+				/*
+				 * §21.4 — an open menu closes before anything else the shell owns.
+				 * "Close menu" used to live ONLY in the menu's own keydown, so it
+				 * worked while focus was inside the menu and nowhere else: move
+				 * focus out and Escape fell through to the recommendation branch,
+				 * leaving the menu open and dismissing — for seven days — a
+				 * recommendation the user never meant to touch.
+				 */
+				if (event.key === "Escape" && session.surfacesMenuOpen) {
+					event.preventDefault();
+					controller.runCommand("surfaces");
+					requestAnimationFrame(() => {
+						document.querySelector<HTMLButtonElement>(".composer-menu-trigger")?.focus();
+					});
+					return;
+				}
 				// The recommendation card's own handler covers Escape while it's
 				// focused (and stops the event there). This is the fallback for
 				// when focus is elsewhere — the composer autofocuses on load, so
@@ -719,12 +736,26 @@ function App({ controller }: { readonly controller: AppController }) {
 											id,
 										)
 									}
-									onRecoAction={(id, action) =>
+									onRecoAction={(id, action) => {
 										controller.runCommandArgs(
 											action === "accept" ? "reco.accept" : action === "edit" ? "reco.edit" : "reco.dismiss",
 											id,
-										)
-									}
+										);
+										/*
+										 * §21.2: "Edit first" prefills the composer, and the
+										 * card's own buttons go with it — so the keyboard user
+										 * who pressed it was dropped on <body> and had to Tab
+										 * from the top of the page. Focus follows the act to
+										 * the control the act just filled.
+										 */
+										if (action === "edit") {
+											requestAnimationFrame(() => {
+												document
+													.querySelector<HTMLTextAreaElement>("textarea.sui-chat-composer-input")
+													?.focus();
+											});
+										}
+									}}
 									onGrantConfirm={(id) => controller.runCommandArgs("admin.grant.confirm", id)}
 									onGrantCancel={(id) => controller.runCommandArgs("admin.grant.cancel", id)}
 									onQueueApprove={(login) => controller.runCommandArgs("admin.queue.approve", login)}
@@ -1010,14 +1041,28 @@ function App({ controller }: { readonly controller: AppController }) {
 												</Button>
 											</div>
 										</div>
-										<MarkdownEditor
-											value={selectedWorldDocument.body}
-											resetKey={selectedWorldDocument.id}
-											aria-label={`Edit ${selectedWorldDocument.title}`}
-											onChange={(body) =>
-												controller.changeWorldDocument(selectedWorldDocument.id, body)
-											}
-										/>
+										{/*
+										 * §21.2: ProseMirror binds Tab to "insert indentation",
+										 * so the editor swallowed every forward Tab and a
+										 * keyboard user could not get past it. The document's
+										 * own Tab order is restored around the region here,
+										 * at the mount site — the editor is library code.
+										 */}
+										<div
+											className="world-editor-region"
+											onKeyDownCapture={(event) => {
+												tabOutOf(event, event.currentTarget);
+											}}
+										>
+											<MarkdownEditor
+												value={selectedWorldDocument.body}
+												resetKey={selectedWorldDocument.id}
+												aria-label={`Edit ${selectedWorldDocument.title}`}
+												onChange={(body) =>
+													controller.changeWorldDocument(selectedWorldDocument.id, body)
+												}
+											/>
+										</div>
 									</>
 								) : (
 									<EmptyState

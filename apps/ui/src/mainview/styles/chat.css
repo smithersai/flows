@@ -384,6 +384,25 @@
 	gap: 8px;
 }
 
+/*
+ * §21.7 — at 200% zoom (a 640px CSS viewport) the chat column is the full
+ * width, so the transcript runs under the pinned corner chrome and whatever
+ * happens to sit at y 12–42 is unreadable. The transcript's own top padding
+ * scrolls away with the content, so the room has to come from the column: the
+ * scroller starts below the chrome, and nothing can scroll beneath it.
+ * `.corner-chrome` is absolutely positioned against the column's padding box,
+ * so the padding moves the scroller and leaves the chrome where it was.
+ */
+@media (max-width: 860px) {
+	.chat-column {
+		padding-top: 48px;
+	}
+
+	.app-shell .smithers-transcript .sui-chat-messages {
+		padding-top: 8px;
+	}
+}
+
 .app-shell .corner-theme-btn,
 .app-shell .corner-reset-btn {
 	width: 30px;
@@ -730,6 +749,16 @@
 
 .world-document-meta > div {
 	gap: 6px;
+}
+
+/* The editor's tab-out region (§21.2) is layout-transparent: the editor still
+   takes the column's remaining height exactly as it did. */
+.world-editor-region {
+	display: flex;
+	min-width: 0;
+	min-height: 0;
+	flex: 1;
+	flex-direction: column;
 }
 
 .world-document .sui-markdown-editor {
