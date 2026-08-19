@@ -41,8 +41,6 @@ The manager's resolve-only install, with lifecycle scripts refused:
 
 ```text
 pnpm install --lockfile-only --ignore-scripts
-npm  install --package-lock-only --ignore-scripts
-yarn install --mode=update-lockfile --mode=skip-build
 bun  install --lockfile-only --ignore-scripts
 ```
 

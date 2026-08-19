@@ -51,9 +51,9 @@ pnpm install --offline --frozen-lockfile --ignore-scripts \
   --reporter=append-only --store-dir <workspace>/.flows/store/pnpm
 ```
 
-The npm, Bun, and Yarn layers are explicit typed refusals. They remain in the
-service schema so unsupported selection fails with `code: "unsupported"`
-instead of silently approximating a verified fetch.
+The Bun layer is an explicit typed refusal. It remains in the service schema
+so unsupported selection fails with `code: "unsupported"` instead of silently
+approximating a verified fetch.
 
 Run the supported flow with:
 

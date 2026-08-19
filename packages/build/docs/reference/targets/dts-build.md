@@ -13,31 +13,34 @@ export const types = Smithers.DtsBuild({
   entries: [Smithers.file("src/index.ts")],
   deps: [],
   tsconfig: Smithers.file("tsconfig.build.json"),
-  tool: "tsc",
+  tool: { name: "tsc", declarationMap: true },
   outDir: "dist",
-  declarationMap: true,
   cwd: "packages/flow"
 })
 ```
 
 ## Attributes
 
-| Name             | Type                    | Default  | Description                                                              |
-| ---------------- | ----------------------- | -------- | ------------------------------------------------------------------------ |
-| `srcs`           | `Array<Input.Declared>` | required | Source declarations. Digested as key material.                           |
-| `entries`        | `Array<Input.File>`     | required | Entry point declarations. Passed to `tsup`; key material only for `tsc`. |
-| `deps`           | `Array<Target.Target>`  | required | Dependency targets.                                                      |
-| `tsconfig`       | `Input.File`            | required | The tsconfig the emit uses.                                              |
-| `tool`           | `"tsup" \| "tsc"`       | required | Which emitter to run.                                                    |
-| `outDir`         | `string`                | required | Captured output directory, relative to `cwd`.                            |
-| `declarationMap` | `boolean`               | required | Emit `.d.ts.map` files. Forced explicitly for `tsc`; ignored by `tsup`.  |
-| `cwd`            | `string`                | `"."`    | Workspace-relative directory the tool runs in.                           |
+| Name       | Type                    | Default  | Description                                                                                                                                                               |
+| ---------- | ----------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `srcs`     | `Array<Input.Declared>` | required | Source declarations. Digested as key material.                                                                                                                            |
+| `entries`  | `Array<Input.File>`     | required | Entry point declarations. Passed to `tsup`; key material only for `tsc`.                                                                                                  |
+| `deps`     | `Array<Target.Target>`  | required | Dependency targets.                                                                                                                                                       |
+| `tsconfig` | `Input.File`            | required | The tsconfig the emit uses.                                                                                                                                               |
+| `tool`     | `DtsBuild.Tool`         | required | Which emitter to run: `{ name: "tsc", declarationMap }` or `{ name: "tsup" }`. A discriminated union, so a declaration cannot carry a flag the selected tool never reads. |
+| `outDir`   | `string`                | required | Captured output directory, relative to `cwd`.                                                                                                                             |
+| `cwd`      | `string`                | `"."`    | Workspace-relative directory the tool runs in.                                                                                                                            |
+
+The `tsc` variant's `declarationMap` declares whether the emit carries
+`.d.ts.map` files. The `tsup` variant carries no map policy, because tsup's
+`--dts-only` emits no declaration maps at all.
 
 ## Command
 
-For `tsc`, `declarationMap` is forced on the command line so the emitted tree
-matches the declared policy whatever the tsconfig says. The tsconfig still owns
-the destination, and `outDir` remains the declared capture path:
+For `tsc`, the variant's `declarationMap` is forced on the command line so the
+emitted tree matches the declared policy whatever the tsconfig says. The
+tsconfig still owns the destination, and `outDir` remains the declared capture
+path:
 
 ```
 pnpm exec tsc -p <tsconfig.path> --declaration --emitDeclarationOnly --declarationMap <true|false>
@@ -49,7 +52,8 @@ For `tsup`:
 pnpm exec tsup <entries...> --dts-only --out-dir <outDir>
 ```
 
-tsup emits no declaration maps, so `--dts-only` ignores `declarationMap`.
+tsup emits no declaration maps, which is why its variant has no
+`declarationMap` to ignore.
 
 ## Inputs
 

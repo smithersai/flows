@@ -46,10 +46,9 @@ export const StandardPackage = (options: Options): StandardTargets => {
     entries: ["src/index.ts"],
     deps: options.deps,
     tsconfig,
-    tool: "tsc",
+    tool: { name: "tsc" },
     format: "dual",
     outDir: "dist",
-    external: [],
     cwd
   })
 
@@ -181,10 +180,9 @@ export const BrowserPackage = (options: BrowserPackageOptions) => {
     entries: ["src/index.ts"],
     deps: options.deps,
     tsconfig: Smithers.file("tsconfig.json"),
-    tool: "tsup",
+    tool: { name: "tsup", external: ["react"] },
     format: "esm",
     outDir: "dist",
-    external: ["react"],
     cwd: options.cwd
   })
 
