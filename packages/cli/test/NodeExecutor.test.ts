@@ -4,8 +4,8 @@
  */
 import { NodeHttpClient } from "@effect/platform-node"
 import { MockAgent } from "@effect/platform-node/Undici"
+import { Seat } from "@smthrs/agent"
 import { Control } from "@smthrs/control"
-import { HarnessExecutor } from "@smthrs/engine-harness"
 import * as RequestExecutor from "@smthrs/model/RequestExecutor"
 import { Effect, Layer, Stream } from "effect"
 import * as HttpClient from "effect/unstable/http/HttpClient"
@@ -17,32 +17,32 @@ import { describe, expect, it } from "vitest"
 import * as Application from "../src/Application.ts"
 import * as NodeControl from "../src/NodeControl.ts"
 
-describe("NodeControl.resolveSeat", () => {
+describe("NodeControl.seatResolver", () => {
   const unusedExecutor = RequestExecutor.RequestExecutor.of({
     execute: () => Effect.die(new Error("model transport was not expected"))
   })
 
   it("refuses a seat whose provider has no route", async () => {
     const error = await Effect.runPromise(
-      Effect.flip(NodeControl.resolveSeat({}, unusedExecutor)("mystery:model-x"))
+      Effect.flip(NodeControl.seatResolver({}, unusedExecutor).resolve("mystery:model-x"))
     )
-    expect(error).toBeInstanceOf(HarnessExecutor.SeatUnresolved)
+    expect(error).toBeInstanceOf(Seat.SeatUnresolved)
     expect(error.message).toContain("mystery")
   })
 
   it("refuses a seat whose key variable is unset, naming the variable", async () => {
     const anthropic = await Effect.runPromise(
-      Effect.flip(NodeControl.resolveSeat({}, unusedExecutor)("anthropic:claude-sonnet-4-5"))
+      Effect.flip(NodeControl.seatResolver({}, unusedExecutor).resolve("anthropic:claude-sonnet-4-5"))
     )
     expect(anthropic.message).toContain("ANTHROPIC_API_KEY")
 
     const openai = await Effect.runPromise(
-      Effect.flip(NodeControl.resolveSeat({}, unusedExecutor)("openai:gpt-5"))
+      Effect.flip(NodeControl.seatResolver({}, unusedExecutor).resolve("openai:gpt-5"))
     )
     expect(openai.message).toContain("OPENAI_API_KEY")
 
     const openrouter = await Effect.runPromise(
-      Effect.flip(NodeControl.resolveSeat({}, unusedExecutor)("openrouter:openai/gpt-5.6-sol"))
+      Effect.flip(NodeControl.seatResolver({}, unusedExecutor).resolve("openrouter:openai/gpt-5.6-sol"))
     )
     expect(openrouter.message).toContain("OPENROUTER_API_KEY")
   })
@@ -50,7 +50,7 @@ describe("NodeControl.resolveSeat", () => {
   it("resolves an openrouter seat through the compatible route with the slashed model id intact", async () => {
     const seat = await Effect.runPromise(
       Effect.scoped(
-        NodeControl.resolveSeat({ OPENROUTER_API_KEY: "test-key" }, unusedExecutor)(
+        NodeControl.seatResolver({ OPENROUTER_API_KEY: "test-key" }, unusedExecutor).resolve(
           "openrouter:openai/gpt-5.6-sol"
         )
       )
@@ -91,11 +91,14 @@ describe("NodeControl.resolveSeat", () => {
 
   it("resolves a keyed anthropic seat into a route and a nonzero context window", async () => {
     const seat = await Effect.runPromise(
-      NodeControl.resolveSeat({ ANTHROPIC_API_KEY: "test-key" }, unusedExecutor)("anthropic:claude-sonnet-4-5")
+      NodeControl.seatResolver({ ANTHROPIC_API_KEY: "test-key" }, unusedExecutor).resolve("anthropic:claude-sonnet-4-5")
     )
     // The window comes from the model catalog, so compaction is armed rather
     // than silently disabled at zero.
     expect(seat.contextWindowTokens).toBe(200_000)
+    // The resolved record carries the seat it was declared as, which is what
+    // the agent stamps onto every turn.
+    expect(seat.id).toBe("anthropic:claude-sonnet-4-5")
     const preparedRequest = await Effect.runPromise(
       seat.route.prepare({
         modelId: "claude-sonnet-4-5",
@@ -138,7 +141,7 @@ describe("NodeControl.resolveSeat", () => {
     try {
       const events = await Effect.runPromise(
         Effect.scoped(
-          NodeControl.resolveSeat({ OPENAI_API_KEY: "test-key" }, executor)("openai:gpt-4o-mini").pipe(
+          NodeControl.seatResolver({ OPENAI_API_KEY: "test-key" }, executor).resolve("openai:gpt-4o-mini").pipe(
             Effect.flatMap((seat) =>
               seat.model.stream({
                 modelId: "gpt-4o-mini",

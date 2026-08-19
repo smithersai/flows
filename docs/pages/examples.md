@@ -23,7 +23,7 @@ The suite is a gate, so a snippet that stops compiling or stops producing the do
 | [`08-host-adapters.ts`](https://github.com/smithersai/flows/blob/main/examples/src/08-host-adapters.ts) | one adapter-neutral program run on `TestHost` and on `NodeHost` | the scripted shell and the real spawned process both answer |
 | [`09-browser-use.ts`](https://github.com/smithersai/flows/blob/main/examples/src/09-browser-use.ts) | importing only browser-safe entry points | the program runs, and esbuild bundles the file with `platform: "browser"` |
 | [`10-telemetry-export.ts`](https://github.com/smithersai/flows/blob/main/examples/src/10-telemetry-export.ts) | adding `Otlp.layerFetch` to the durable composition from `02`, then reading the run three ways: the OTLP export, the journal, and a tagged metric view | the collector receives spans from the flow lifecycle down to `sql.execute`, the journal holds the lifecycle events, and `EngineStoreMetrics.dispatch.Success` reads `1` |
-| [`11-agent-step.ts`](https://github.com/smithersai/flows/blob/main/examples/src/11-agent-step.ts) | `AgentAction.make`: a model-backed step with a declared output schema, chained into a second one, against a scripted model | the research step's answer decodes to `{ summary, keyPoints }` and the article step returns `wordCount` `12` |
+| [`11-agent-step.ts`](https://github.com/smithersai/flows/blob/main/examples/src/11-agent-step.ts) | `@smthrs/agent/AgentAction`'s `make`: a model-backed step with a declared output schema, chained into a second one, against a model supplied by a scripted `SeatResolver` | the research step's answer decodes to `{ summary, keyPoints }` and the article step returns `wordCount` `12` |
 
 ## Reading them in order
 
@@ -37,7 +37,7 @@ The first three build on each other. `01` shows what the two nouns are with noth
 
 `10` is `02` plus telemetry. The flow body and the engine layers do not change; providing `Otlp.layerFetch` is the entire wiring, and the example reads the same run through the export, through `Journal.entries`, and through a tagged metric view with `Metric.value`. [Telemetry](/telemetry) documents the layer; [Observability](/observability) tables the spans it exports.
 
-`11` is the agent seam. `AgentAction.make` declares a model call as an ordinary action — same tag, same `.call()`, same plan node — and ships the implementation with it, so the author writes a seat, a system prompt, a prompt built from the payload, and an `output` schema instead of a `toLayer`. The schema is rendered into the run's teaching and enforced on the way out, which is why the second step reads `research.summary` as a `string`. The example resolves every seat to a scripted model, so it runs in CI with no API key.
+`11` is the agent seam. `AgentAction.make` declares a model call as an ordinary action — same tag, same `.call()`, same plan node — and ships the implementation with it, so the author writes a seat, a system prompt, a prompt built from the payload, and an `output` schema instead of a `toLayer`. The implementation resolves the declared seat through the `SeatResolver` service and runs one loop of the `Agent` service inside the enclosing execution. The schema is rendered into the run's teaching and enforced on the way out, which is why the second step reads `research.summary` as a `string`. The example provides a `SeatResolver` that answers with a scripted model, so it runs in CI with no API key.
 
 ## The shared durable layer
 

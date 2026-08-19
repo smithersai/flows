@@ -90,7 +90,6 @@ const eventType = {
   cellCallStarted: "flows.harness.cell-call-started.v1",
   cellProduced: "flows.harness.cell-produced.v1",
   cellSettled: "flows.harness.cell-settled.v1",
-  childResult: "flows.harness.child-result.v1",
   compactionSettled: "flows.harness.compaction-settled.v1",
   modelSettled: "flows.harness.model-settled.v1",
   steeringDrained: "flows.harness.steering-drained.v1",
@@ -115,7 +114,6 @@ const ordered = (entries: ReadonlyArray<JournalEvent.Entry>): ReadonlyArray<Jour
   [...entries].sort((left, right) => left.seq - right.seq)
 
 const decodeModelSettled = Schema.decodeUnknownResult(AgentEvent.ModelSettled)
-const decodeChildResult = Schema.decodeUnknownResult(AgentEvent.ChildResult)
 const decodeSteeringDrained = Schema.decodeUnknownResult(AgentEvent.SteeringDrained)
 const decodeCompactionSettled = Schema.decodeUnknownResult(AgentEvent.CompactionSettled)
 const decodeCellProduced = Schema.decodeUnknownResult(AgentEvent.CellProduced)
@@ -241,15 +239,6 @@ export const projectStateResult = (
         if (Result.isFailure(decoded)) return Result.fail(decoded.failure)
         if (decoded.success.message.content.length === 0) break
         messages.push({ kind: "transcript", message: transcriptMessage(decoded.success.message) })
-        break
-      }
-      case eventType.childResult: {
-        const decoded = decode(decodeChildResult, entry)
-        if (Result.isFailure(decoded)) return Result.fail(decoded.failure)
-        messages.push({
-          kind: "transcript",
-          message: ModelRequest.Message.tool(decoded.success.result.result)
-        })
         break
       }
       case eventType.steeringDrained: {

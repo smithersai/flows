@@ -1,10 +1,11 @@
 # Agent package migration
 
 Nineteen `@smthrs/*` packages moved from the agent repository into this pnpm
-workspace: cli, control, core, engine-harness, evals, fs, gateway, harness,
-memory, model, notifications, observability, patterns, plugin, registry,
-scorers, std, testing, and triggers. The workspace globs, root TypeScript
-globs, and `StandardPackage` build rule already cover every migrated package.
+workspace: cli, control, core, engine-harness (since renamed to agent), evals,
+fs, gateway, harness, memory, model, notifications, observability, patterns,
+plugin, registry, scorers, std, testing, and triggers. The workspace globs,
+root TypeScript globs, and `StandardPackage` build rule already cover every
+migrated package.
 The lockfile resolves them as ordinary workspace siblings.
 
 The existing `@smthrs/observability` package remained the package

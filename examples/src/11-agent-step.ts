@@ -17,15 +17,20 @@
  * fails `StructuredOutputFailure`. A downstream step therefore reads
  * `research.summary` as a `string`, not as text somebody has to parse.
  *
- * The host half is one `AgentAction.Host`: the seat resolver, the registry a
- * cell may call into, and the sandbox budget. This example resolves every seat
- * to a scripted model, which is why it runs in CI with no API key. Point
- * `resolveSeat` at a real provider route and nothing above it changes.
+ * The host half is two services. `AgentAction.Host` carries the registry a cell
+ * may call into and the sandbox budget every model-backed action in the
+ * composition shares; `SeatResolver` turns the declared seat string into a live
+ * model, and it is the only place a credential would appear. This example
+ * resolves every seat to a scripted model, which is why it runs in CI with no
+ * API key. Point the resolver at a real provider route and nothing above it
+ * changes.
  */
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
+import * as Agent from "@smthrs/agent/Agent"
+import * as AgentAction from "@smthrs/agent/AgentAction"
+import * as Seat from "@smthrs/agent/Seat"
+import * as SeatResolver from "@smthrs/agent/SeatResolver"
 import { FlowEngine } from "@smthrs/engine"
-import * as AgentAction from "@smthrs/engine-harness/AgentAction"
-import * as CellHarness from "@smthrs/engine-harness/CellHarness"
 import { Action, Flow, Interpreter } from "@smthrs/flow"
 import * as Model from "@smthrs/model/Model"
 import * as ModelEvent from "@smthrs/model/ModelEvent"
@@ -104,9 +109,15 @@ const prepared: Route.PreparedRequest = {
 const scripted: Model.Model = Model.make({
   stream: (request) =>
     Stream.suspend(() => {
-      const asked = request.messages.flatMap((message) =>
-        message.content.flatMap((part) => (part.type === "text" ? [part.text] : []))
-      ).join("\n")
+      // The loop keeps the task in a stable system prefix and rebuilds the
+      // message tail every frame, so both halves of the request have to be read
+      // to see what was asked — which is what a real model does too.
+      const asked = [
+        ...request.system.map((part) => part.text),
+        ...request.messages.flatMap((message) =>
+          message.content.flatMap((part) => (part.type === "text" ? [part.text] : []))
+        )
+      ].join("\n")
       const answer = asked.includes("Write a short article")
         ? {
           article: "Durable workflows survive restarts because their steps are recorded, not remembered.",
@@ -127,12 +138,10 @@ const scripted: Model.Model = Model.make({
 })
 
 /**
- * The host: one seat resolver, one registry, one sandbox budget, shared by
- * every model-backed action in the composition. Swapping this value is the
- * whole difference between this deterministic run and a live one.
+ * The host: one registry and one sandbox budget, shared by every model-backed
+ * action in the composition.
  */
 const host = AgentAction.layerHost({
-  resolveSeat: () => Effect.succeed({ model: scripted, route: { prepare: () => Effect.succeed(prepared) }, contextWindowTokens: 200_000 }),
   registry: Registry.makeNoop({
     list: () => Effect.succeed([]),
     visible: () => Effect.succeed([]),
@@ -143,16 +152,35 @@ const host = AgentAction.layerHost({
   maxFrames: 4
 })
 
+/**
+ * The credentialed half, and the only seam between this deterministic run and a
+ * live one: every declared seat resolves to the scripted model above. A real
+ * host answers with a provider route and a real context window instead.
+ */
+const seats = SeatResolver.layer({
+  resolve: (id) =>
+    Effect.succeed(
+      Seat.make({
+        id,
+        model: scripted,
+        route: { prepare: () => Effect.succeed(prepared) },
+        contextWindowTokens: 200_000
+      })
+    )
+})
+
 const SimpleWorkflowLayer = Layer.mergeAll(
   Research.layer,
   Write.layer,
   Interpreter.layer(SimpleWorkflow)
 ).pipe(
-  Layer.provideMerge(host),
+  // The agent itself is the production loop; only the host services around it
+  // are scripted.
+  Layer.provideMerge(Layer.mergeAll(host, seats, Agent.layer)),
   // The sandbox a cell's code runs in and the steering source it drains. Both
   // are browser-safe defaults; a host that accepts mid-run messages provides
   // its own `Steering.layer` instead.
-  Layer.provideMerge(CellHarness.layer),
+  Layer.provideMerge(Agent.layerDefaults),
   Layer.provideMerge(Action.layerImplementations),
   Layer.provideMerge(FlowEngine.layerMemory),
   Layer.provideMerge(NodeCrypto.layer)

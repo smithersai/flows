@@ -83,9 +83,9 @@
   },
   "dependencies": {
     "@effect/platform-node": "4.0.0-rc.108",
+    "@smthrs/agent": "0.1.0",
     "@smthrs/control": "0.1.0",
     "@smthrs/database": "0.1.0",
-    "@smthrs/engine-harness": "0.1.0",
     "@smthrs/engine-store": "0.1.0",
     "@smthrs/flows": "0.1.0",
     "@smthrs/harness": "0.1.0",

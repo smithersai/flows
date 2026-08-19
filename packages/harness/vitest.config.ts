@@ -18,10 +18,10 @@ export default defineConfig({
       reportsDirectory: join(tmpdir(), `flows-harness-coverage-${process.pid}`),
       include: ["src/**"],
       thresholds: {
-        branches: 82,
+        branches: 84,
         functions: 92,
-        lines: 93,
-        statements: 92
+        lines: 94,
+        statements: 93
       }
     }
   }

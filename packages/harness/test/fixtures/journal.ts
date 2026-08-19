@@ -2,7 +2,6 @@
 import { JournalEvent } from "@smthrs/journal"
 import { ModelEvent, ModelRequest } from "@smthrs/model"
 import * as AgentEvent from "../../src/AgentEvent.ts"
-import * as Plan from "../../src/Plan.ts"
 
 const runId = "run-1" as JournalEvent.RunId
 const sourceId = "fixture" as JournalEvent.SourceId
@@ -33,21 +32,6 @@ export const journal = (): ReadonlyArray<JournalEvent.Entry> => [
     })
   ),
   entry(2, "grant", { capability: "fs:read" }),
-  entry(
-    3,
-    "flows.harness.child-result.v1",
-    new AgentEvent.ChildResult({
-      eventType: "flows.harness.child-result.v1",
-      result: new Plan.ChildResult({
-        callId: "call-1",
-        outcome: "success",
-        result: ModelRequest.ToolResultPart.make({
-          toolCallId: "call-1",
-          content: "first result"
-        })
-      })
-    })
-  ),
   entry(4, "telemetry", { latencyMs: 3 }),
   entry(
     5,
@@ -64,21 +48,6 @@ export const journal = (): ReadonlyArray<JournalEvent.Entry> => [
       eventType: "flows.harness.model-settled.v1",
       message: ModelRequest.Message.assistant("second", { stopReason: "tool-calls" }),
       usage: ModelEvent.Usage.make({ inputTokens: 1, outputTokens: 1 })
-    })
-  ),
-  entry(
-    7,
-    "flows.harness.child-result.v1",
-    new AgentEvent.ChildResult({
-      eventType: "flows.harness.child-result.v1",
-      result: new Plan.ChildResult({
-        callId: "call-2",
-        outcome: "aborted",
-        result: ModelRequest.ToolResultPart.make({
-          toolCallId: "call-2",
-          content: "Tool execution was aborted."
-        })
-      })
     })
   ),
   entry(

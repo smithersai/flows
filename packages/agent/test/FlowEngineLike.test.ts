@@ -1,0 +1,946 @@
+/**
+ * The production engine port, exercised against the real flow engine.
+ *
+ * Every case runs inside a registered `Flow` on `FlowEngine.layerMemory`, so
+ * the activity identity, replay, and suspension behaviour asserted here is the
+ * engine's own, not a stand-in.
+ */
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
+import { FlowEngine } from "@smthrs/engine"
+import { Flow, FlowRuntime } from "@smthrs/flow"
+import * as Cell from "@smthrs/harness/Cell"
+import * as ContextWindow from "@smthrs/harness/ContextWindow"
+import * as EngineLike from "@smthrs/harness/EngineLike"
+import { HarnessError } from "@smthrs/harness/HarnessError"
+import * as Plan from "@smthrs/harness/Plan"
+import * as Model from "@smthrs/model/Model"
+import { ModelError } from "@smthrs/model/ModelError"
+import * as ModelEvent from "@smthrs/model/ModelEvent"
+import * as ModelRequest from "@smthrs/model/ModelRequest"
+import * as Route from "@smthrs/model/Route"
+import { Node } from "@smthrs/plan"
+import * as PersistedPlan from "@smthrs/plan/Plan"
+import { Cause, Deferred, Effect, Exit, Layer, Option, Redacted, Result, Schema, Scope, Stream } from "effect"
+import type * as Crypto from "effect/Crypto"
+import { describe, expect, it } from "vitest"
+import * as FlowEngineLike from "../src/FlowEngineLike.ts"
+
+const preparedFor = (routeId: string, body: string): Route.PreparedRequest => ({
+  routeId,
+  protocolId: "test-protocol",
+  method: "POST",
+  url: "https://example.invalid/v1/messages",
+  publicHeaders: { "content-type": "application/json" },
+  body: new TextEncoder().encode(body),
+  bodyText: body
+})
+
+const staticRoute = (routeId = "route-a", body = "{}"): FlowEngineLike.RouteResolver => ({
+  prepare: () => Effect.succeed(preparedFor(routeId, body))
+})
+
+const failingRoute: FlowEngineLike.RouteResolver = {
+  prepare: () => Effect.fail(new ModelError({ code: "invalid_request", message: "no route" }))
+}
+
+const request = (text: string): ModelRequest.ModelRequest =>
+  ModelRequest.ModelRequest.make({
+    modelId: "test-model",
+    system: [],
+    messages: [ModelRequest.Message.user(text)],
+    tools: [],
+    params: ModelRequest.GenerationParams.make()
+  })
+
+const step = (
+  text: string,
+  overrides: Partial<EngineLike.SealedModelStep["keyMaterial"]> = {}
+): EngineLike.SealedModelStep => ({
+  request: request(text),
+  keyMaterial: {
+    version: "flows/key-material/v1",
+    kind: "sealed",
+    body: { _tag: "ModelCall", request: request(text) },
+    inputs: [{
+      _tag: "Literal",
+      value: { contextDigest: ContextWindow.make({ modelId: "m", segments: [] }).digest }
+    }],
+    layers: [],
+    capabilities: [],
+    effects: undefined,
+    placement: undefined,
+    ...overrides
+  }
+})
+
+/** A model that records every provider call and replies with one text delta. */
+const countingModel = (calls: Array<string>): Model.Model =>
+  Model.make({
+    stream: (input) =>
+      Stream.suspend(() => {
+        calls.push(input.modelId)
+        return Stream.fromIterable([
+          ModelEvent.ModelEvent.TextStart({ type: "text-start", id: "0" }),
+          ModelEvent.ModelEvent.TextDelta({ type: "text-delta", id: "0", text: "reply" }),
+          ModelEvent.ModelEvent.Settle({ type: "settle", stopReason: "stop" })
+        ])
+      })
+  })
+
+const child = (
+  overrides: {
+    readonly callId?: string
+    readonly flowName?: string
+    readonly args?: unknown
+    readonly tier?: "sealed" | "compensable" | "irreversible"
+    readonly placement?: Option.Option<"client" | "local" | "sandbox" | "remote">
+  } = {}
+): Plan.Child =>
+  new Plan.Child({
+    flowName: overrides.flowName ?? "alpha",
+    callId: overrides.callId ?? "call-1",
+    args: overrides.args ?? { value: "x" },
+    capabilities: [],
+    effects: {
+      reads: [],
+      writes: [],
+      mode: "hermetic",
+      onConflict: "serialize",
+      tier: overrides.tier ?? "sealed"
+    },
+    placement: overrides.placement ?? Option.none()
+  })
+
+const countingChildren = (calls: Array<string>): FlowEngineLike.ChildRunner => ({
+  run: (target) =>
+    Effect.sync(() => {
+      calls.push(target.callId)
+      return new Plan.ChildResult({
+        callId: target.callId,
+        outcome: "success",
+        result: ModelRequest.ToolResultPart.make({
+          toolCallId: target.callId,
+          content: `ran-${target.flowName}-${calls.length}`
+        })
+      })
+    })
+})
+
+type Outcome =
+  | { readonly _tag: "completed"; readonly value: unknown }
+  | { readonly _tag: "failed"; readonly error: unknown }
+  | { readonly _tag: "suspended" }
+
+const classify = (exit: Exit.Exit<unknown, unknown>): Outcome =>
+  Exit.isSuccess(exit)
+    ? { _tag: "completed", value: exit.value }
+    : Cause.hasInterruptsOnly(exit.cause)
+    ? { _tag: "suspended" }
+    : { _tag: "failed", error: Cause.squash(exit.cause) }
+
+/**
+ * The one flow every `drive` execution registers. Its body is inert: the
+ * behaviour under test is the `execute` handed to `register`.
+ */
+const driveFlow = Flow.make("agent/test/engine-like", {
+  payload: {},
+  success: Schema.Unknown,
+  error: Schema.Unknown,
+  body: () => Node.succeed(undefined)
+})
+
+/** Waits, boundedly, for the engine to publish a parked execution. */
+const awaitParked = (
+  engine: FlowRuntime.FlowRuntime["Service"],
+  flow: typeof driveFlow,
+  attempts = 100
+): Effect.Effect<void, FlowRuntime.FlowExecutionNotFound> =>
+  Effect.gen(function*() {
+    const polled = yield* engine.poll(flow, "exec-1")
+    if (Option.isSome(polled) && polled.value._tag === "Suspended") return
+    if (attempts <= 0) throw new Error("the engine never published the parked execution")
+    yield* Effect.yieldNow
+    return yield* awaitParked(engine, flow, attempts - 1)
+  })
+
+/**
+ * Registers `body` as a real flow, executes it, and settles on the attempt's
+ * own exit.
+ *
+ * `discard: true` is deliberate: a suspended execution never produces a value,
+ * so the completion latch — not the `execute` effect — is the signal. With
+ * `resume: true` the harness re-enters the parked execution once and reports
+ * the second attempt's outcome, which is how the replay assertions observe a
+ * recorded step surviving a park.
+ */
+const drive = <A, E>(
+  body: Effect.Effect<A, E, Crypto.Crypto | FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance>,
+  options: { readonly resume?: boolean } = {}
+): Promise<Outcome> =>
+  Effect.gen(function*() {
+    const engine = yield* FlowRuntime.FlowRuntime
+    const scope = yield* Effect.scope
+    const flow = driveFlow
+    let settled = Deferred.makeUnsafe<Outcome>()
+    yield* engine.register(flow, () =>
+      Effect.onExit(body, (exit) => Effect.asVoid(Deferred.succeed(settled, classify(exit))))).pipe(
+        Scope.provide(scope)
+      )
+    yield* engine.execute(flow, { executionId: "exec-1", payload: {}, discard: true })
+    const first = yield* Deferred.await(settled)
+    if (options.resume !== true || first._tag !== "suspended") {
+      return first
+    }
+    // The latch fires from the body's own exit, a few scheduler steps before
+    // the engine publishes the parked result. `resume` refuses to re-enter an
+    // execution whose previous fiber has not settled, so wait for publication.
+    yield* awaitParked(engine, flow)
+    settled = Deferred.makeUnsafe<Outcome>()
+    yield* engine.resume(flow, "exec-1")
+    return yield* Deferred.await(settled)
+  }).pipe(
+    Effect.provide(Layer.merge(FlowEngine.layerMemory, NodeCrypto.layer)),
+    Effect.scoped,
+    Effect.runPromise
+  )
+
+const completed = (outcome: Outcome): unknown => {
+  expect(outcome._tag).toBe("completed")
+  return (outcome as { readonly value: unknown }).value
+}
+
+const failure = (outcome: Outcome): unknown => {
+  expect(outcome._tag).toBe("failed")
+  return (outcome as { readonly error: unknown }).error
+}
+
+describe("FlowEngineLike conversions", () => {
+  it("normalizes absolute declarations to workspace-relative paths", () => {
+    expect(["/**", "/a/b", "a/b"].map(FlowEngineLike.workspaceRelative)).toEqual(["**", "a/b", "a/b"])
+  })
+
+  it("converts call effects to the engine file boundary", () => {
+    const boundary = (mode: "hermetic" | "expected") =>
+      FlowEngineLike.callBoundary(
+        new Cell.Call({
+          flowName: "notes/save",
+          input: {},
+          capabilities: [],
+          effects: {
+            reads: ["/**", "/a/b", "a/b"],
+            writes: ["/output/result.md", "output/index.md"],
+            mode,
+            onConflict: "serialize",
+            tier: "sealed"
+          },
+          placement: Option.none(),
+          identity: new Cell.CallIdentity({
+            session: "boundary-session",
+            frame: 0,
+            cell: "cell-digest",
+            ordinal: 0,
+            declaration: "declaration-digest",
+            layers: []
+          })
+        })
+      )
+
+    expect(boundary("hermetic")).toEqual({
+      readSet: [
+        { path: "**", digest: "declaration-digest" },
+        { path: "a/b", digest: "declaration-digest" },
+        { path: "a/b", digest: "declaration-digest" }
+      ],
+      writeSet: ["output/result.md", "output/index.md"],
+      boundaryMode: "hard"
+    })
+    expect(boundary("expected").boundaryMode).toBe("expected")
+  })
+})
+
+describe("FlowEngineLike.make", () => {
+  it("streams the model events of a sealed step and records them for replay", async () => {
+    const calls: Array<string> = []
+    const outcome = await drive(Effect.gen(function*() {
+      const engine = yield* FlowEngineLike.make({
+        model: countingModel(calls),
+        route: staticRoute(),
+        children: countingChildren([])
+      })
+      const first = yield* Stream.runCollect(engine.sealStep(step("hello")))
+      const second = yield* Stream.runCollect(engine.sealStep(step("hello")))
+      return { first, second }
+    }))
+
+    const { first, second } = completed(outcome) as {
+      readonly first: ReadonlyArray<ModelEvent.ModelEvent>
+      readonly second: ReadonlyArray<ModelEvent.ModelEvent>
+    }
+    expect(first.map((event) => event.type)).toEqual(["text-start", "text-delta", "settle"])
+    expect(second).toEqual(first)
+    // Same sealed step key, so the engine replayed the recorded events instead
+    // of calling the provider a second time.
+    expect(calls).toEqual(["test-model"])
+  })
+
+  it("derives a different sealed key when the prepared wire request changes", async () => {
+    const calls: Array<string> = []
+    const outcome = await drive(Effect.gen(function*() {
+      const first = yield* FlowEngineLike.make({
+        model: countingModel(calls),
+        route: staticRoute("route-a"),
+        children: countingChildren([])
+      })
+      const second = yield* FlowEngineLike.make({
+        model: countingModel(calls),
+        route: staticRoute("route-b"),
+        children: countingChildren([])
+      })
+      yield* Stream.runCollect(first.sealStep(step("hello")))
+      yield* Stream.runCollect(second.sealStep(step("hello")))
+      return calls.length
+    }))
+
+    expect(completed(outcome)).toBe(2)
+  })
+
+  it("retries one transient model failure inside the sealed step", async () => {
+    let attempts = 0
+    const transient = new ModelError({ code: "transport", message: "connection reset" })
+    const model = Model.make({
+      stream: () =>
+        Stream.suspend(() => {
+          attempts++
+          return attempts === 1
+            ? Stream.fail(transient)
+            : Stream.fromIterable([
+              ModelEvent.ModelEvent.TextStart({ type: "text-start", id: "0" }),
+              ModelEvent.ModelEvent.TextDelta({ type: "text-delta", id: "0", text: "reply" }),
+              ModelEvent.ModelEvent.Settle({ type: "settle", stopReason: "stop" })
+            ])
+        })
+    })
+    const outcome = await drive(Effect.gen(function*() {
+      const engine = yield* FlowEngineLike.make({
+        model,
+        route: staticRoute(),
+        children: countingChildren([])
+      })
+      return yield* Stream.runCollect(engine.sealStep(step("hello")))
+    }))
+
+    expect((completed(outcome) as ReadonlyArray<unknown>).length).toBe(3)
+    expect(attempts).toBe(2)
+  })
+
+  it("surfaces an authentication failure without retrying or replacing it", async () => {
+    let attempts = 0
+    const authentication = new ModelError({ code: "authentication", message: "invalid API key" })
+    const outcome = await drive(Effect.gen(function*() {
+      const engine = yield* FlowEngineLike.make({
+        model: Model.make({
+          stream: () =>
+            Stream.suspend(() => {
+              attempts++
+              return Stream.fail(authentication)
+            })
+        }),
+        route: staticRoute(),
+        children: countingChildren([])
+      })
+      return yield* Stream.runCollect(engine.sealStep(step("hello")))
+    }))
+
+    const error = failure(outcome)
+    expect(error).toBeInstanceOf(ModelError)
+    expect(error).toStrictEqual(authentication)
+    expect(attempts).toBe(1)
+  })
+
+  it("surfaces a route failure before the activity is dispatched", async () => {
+    const calls: Array<string> = []
+    const outcome = await drive(Effect.gen(function*() {
+      const engine = yield* FlowEngineLike.make({
+        model: countingModel(calls),
+        route: failingRoute,
+        children: countingChildren([])
+      })
+      return yield* Stream.runCollect(engine.sealStep(step("hello")))
+    }))
+
+    expect(failure(outcome)).toMatchObject({ code: "invalid_request" })
+    expect(calls).toEqual([])
+  })
+
+  it("reports unsealable key material as a typed harness failure", async () => {
+    const outcome = await drive(Effect.gen(function*() {
+      const engine = yield* FlowEngineLike.make({
+        model: countingModel([]),
+        route: staticRoute(),
+        children: countingChildren([])
+      })
+      return yield* Stream.runCollect(engine.sealStep(step("hello", { kind: "irreversible" })))
+    }))
+
+    expect(failure(outcome)).toMatchObject({
+      _tag: "/harness/HarnessError",
+      code: "engine_failed",
+      message: "The prepared model request could not be sealed"
+    })
+  })
+
+  it("seals a declaration that is not a model call", async () => {
+    const calls: Array<string> = []
+    const outcome = await drive(Effect.gen(function*() {
+      const engine = yield* FlowEngineLike.make({
+        model: countingModel(calls),
+        route: staticRoute(),
+        children: countingChildren([])
+      })
+      const events = yield* Stream.runCollect(
+        engine.sealStep(step("hello", { body: { _tag: "Opaque", note: "no request" } }))
+      )
+      return events.length
+    }))
+
+    expect(completed(outcome)).toBe(3)
+    expect(calls).toEqual(["test-model"])
+  })
+
+  it("seals a request whose optional parameters are explicitly undefined", async () => {
+    // Canonical serialization rejects `undefined` outright, so an optional
+    // parameter the harness left present-but-undefined has to be dropped
+    // before the declaration is hashed.
+    const sparse = ModelRequest.ModelRequest.make({
+      modelId: "test-model",
+      system: [],
+      messages: [ModelRequest.Message.user("hello")],
+      tools: [],
+      params: ModelRequest.GenerationParams.make({ maxTokens: undefined, temperature: 0.5 })
+    })
+    const calls: Array<string> = []
+    const outcome = await drive(Effect.gen(function*() {
+      const engine = yield* FlowEngineLike.make({
+        model: countingModel(calls),
+        route: staticRoute(),
+        children: countingChildren([])
+      })
+      const events = yield* Stream.runCollect(engine.sealStep({
+        request: sparse,
+        keyMaterial: { ...step("hello").keyMaterial, body: { _tag: "ModelCall", request: sparse } }
+      }))
+      return events.length
+    }))
+
+    expect(completed(outcome)).toBe(3)
+  })
+
+  it("settles a batch in model-call order and replays an identical sealed child", async () => {
+    const calls: Array<string> = []
+    const outcome = await drive(Effect.gen(function*() {
+      const engine = yield* FlowEngineLike.make({
+        model: countingModel([]),
+        route: staticRoute(),
+        children: countingChildren(calls)
+      })
+      const first = yield* Stream.runCollect(engine.splice(
+        new Plan.Batch({
+          children: [
+            child({ callId: "call-1", flowName: "alpha" }),
+            child({ callId: "call-2", flowName: "beta", placement: Option.some("local") })
+          ]
+        })
+      ))
+      // The same sealed declaration and arguments — a content-addressed replay,
+      // even though the model issued a fresh call id.
+      const second = yield* Stream.runCollect(engine.splice(
+        new Plan.Batch({ children: [child({ callId: "call-3", flowName: "alpha" })] })
+      ))
+      return {
+        settled: first.map((event) => (event as Plan.ChildSettled).result.callId),
+        replayed: (second[0] as Plan.ChildSettled).result.result.content
+      }
+    }))
+
+    expect(completed(outcome)).toEqual({ settled: ["call-1", "call-2"], replayed: "ran-alpha-1" })
+    expect(calls).toEqual(["call-1", "call-2"])
+  })
+
+  it("keeps two irreversible invocations of one declaration distinct", async () => {
+    const calls: Array<string> = []
+    const outcome = await drive(Effect.gen(function*() {
+      const engine = yield* FlowEngineLike.make({
+        model: countingModel([]),
+        route: staticRoute(),
+        children: countingChildren(calls)
+      })
+      yield* Stream.runCollect(engine.splice(
+        new Plan.Batch({ children: [child({ callId: "call-1", tier: "irreversible" })] })
+      ))
+      yield* Stream.runCollect(engine.splice(
+        new Plan.Batch({ children: [child({ callId: "call-2", tier: "irreversible" })] })
+      ))
+      return calls
+    }))
+
+    expect(completed(outcome)).toEqual(["call-1", "call-2"])
+  })
+
+  it("reports an unkeyable child as a typed harness failure", async () => {
+    const outcome = await drive(Effect.gen(function*() {
+      const engine = yield* FlowEngineLike.make({
+        model: countingModel([]),
+        route: staticRoute(),
+        children: countingChildren([])
+      })
+      // A lone surrogate has no canonical form, so the argument cannot be
+      // digested into a key. (An absent property is keyable: canonical JSON
+      // drops it the way `JSON.stringify` does.)
+      return yield* Stream.runCollect(engine.splice(
+        new Plan.Batch({ children: [child({ args: { value: "\uD800" } })] })
+      ))
+    }))
+
+    expect(failure(outcome)).toMatchObject({
+      _tag: "/harness/HarnessError",
+      code: "engine_failed",
+      message: "Child call call-1 could not be keyed"
+    })
+  })
+
+  it("grows the supplied plan by the elaborated batch before running it", async () => {
+    const appended: Array<PersistedPlan.Plan> = []
+    const outcome = await drive(Effect.gen(function*() {
+      const base = yield* PersistedPlan.compile({ planId: "spliced", flow: "review", nodes: [] })
+      const engine = yield* FlowEngineLike.make({
+        model: countingModel([]),
+        route: staticRoute(),
+        children: countingChildren([]),
+        // The port that persists elaboration. A host that supplies one cannot
+        // keep the elaborated subgraph in an unpersisted side channel.
+        plan: {
+          current: Effect.sync(() => appended.at(-1) ?? base),
+          append: (plan) =>
+            Effect.sync(() => {
+              appended.push(plan)
+            })
+        }
+      })
+      return yield* Stream.runCollect(engine.splice(new Plan.Batch({ children: [child()] })))
+    }))
+
+    completed(outcome)
+    expect(appended).toHaveLength(1)
+    expect(appended[0]!.generation).toBe(1)
+    expect(appended[0]!.nodes.map((node) => node.id)).toEqual(["call-1"])
+  })
+
+  it("reports a plan port that refuses the elaborated batch", async () => {
+    const outcome = await drive(Effect.gen(function*() {
+      const engine = yield* FlowEngineLike.make({
+        model: countingModel([]),
+        route: staticRoute(),
+        children: countingChildren([]),
+        plan: {
+          current: Effect.fail(new HarnessError({ code: "engine_failed", message: "the plan is unreadable" })),
+          append: () => Effect.void
+        }
+      })
+      return yield* Stream.runCollect(engine.splice(new Plan.Batch({ children: [child()] })))
+    }))
+
+    expect(failure(outcome)).toMatchObject({ code: "engine_failed", message: "the plan is unreadable" })
+  })
+
+  it("propagates a child runner failure", async () => {
+    const outcome = await drive(Effect.gen(function*() {
+      const engine = yield* FlowEngineLike.make({
+        model: countingModel([]),
+        route: staticRoute(),
+        children: {
+          run: () => Effect.fail(new HarnessError({ code: "elaboration_failed", message: "unknown flow" }))
+        }
+      })
+      return yield* Stream.runCollect(engine.splice(new Plan.Batch({ children: [child()] })))
+    }))
+
+    expect(failure(outcome)).toMatchObject({ code: "elaboration_failed", message: "unknown flow" })
+  })
+
+  it("suspends the execution durably instead of failing", async () => {
+    const outcome = await drive(Effect.gen(function*() {
+      const engine = yield* FlowEngineLike.make({
+        model: countingModel([]),
+        route: staticRoute(),
+        children: countingChildren([])
+      })
+      return yield* engine.suspend(
+        new EngineLike.SuspendReason({ code: "waiting-input", message: "needs an answer" })
+      )
+    }))
+
+    expect(outcome._tag).toBe("suspended")
+  })
+
+  it("resumes a suspended execution and replays the sealed step it already recorded", async () => {
+    const calls: Array<string> = []
+    let park = true
+    const outcome = await drive(
+      Effect.gen(function*() {
+        const engine = yield* FlowEngineLike.make({
+          model: countingModel(calls),
+          route: staticRoute(),
+          children: countingChildren([])
+        })
+        const events = yield* Stream.runCollect(engine.sealStep(step("hello")))
+        if (park) {
+          park = false
+          yield* engine.suspend(new EngineLike.SuspendReason({ code: "engine", message: "park" }))
+        }
+        return events.length
+      }),
+      { resume: true }
+    )
+
+    expect(completed(outcome)).toBe(3)
+    // The provider was called once; the resumed attempt replayed the record.
+    expect(calls).toEqual(["test-model"])
+  })
+})
+
+describe("FlowEngineLike.layer", () => {
+  it("provides the harness engine port", async () => {
+    const outcome = await drive(
+      Effect.gen(function*() {
+        const engine = yield* EngineLike.EngineLike
+        return typeof engine.sealStep
+      }).pipe(
+        Effect.provide(
+          FlowEngineLike.layer({
+            model: countingModel([]),
+            route: staticRoute(),
+            children: countingChildren([])
+          })
+        )
+      )
+    )
+
+    expect(completed(outcome)).toBe("function")
+  })
+})
+
+/**
+ * Runs two bodies as two distinct executions of one flow, on one engine.
+ *
+ * Sharing the engine is the whole point: two executions with separate journals
+ * could never alias, so the aliasing question only has meaning when both write
+ * to the same store.
+ */
+const driveBoth = <A, E>(
+  first: Effect.Effect<A, E, Crypto.Crypto | FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance>,
+  second: Effect.Effect<A, E, Crypto.Crypto | FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance>
+): Promise<ReadonlyArray<Outcome>> =>
+  Effect.gen(function*() {
+    const engine = yield* FlowRuntime.FlowRuntime
+    const scope = yield* Effect.scope
+    const bodies = [first, second]
+    let index = 0
+    const settled = [Deferred.makeUnsafe<Outcome>(), Deferred.makeUnsafe<Outcome>()]
+    const flow = Flow.make("agent/test/two-runs", {
+      payload: {},
+      success: Schema.Unknown,
+      error: Schema.Unknown,
+      body: () => Node.succeed(undefined)
+    })
+    yield* engine.register(flow, () => {
+      const slot = index++
+      return Effect.onExit(
+        bodies[slot]!,
+        (exit) => Effect.asVoid(Deferred.succeed(settled[slot]!, classify(exit)))
+      )
+    }).pipe(Scope.provide(scope))
+    yield* engine.execute(flow, { executionId: "run-a", payload: {}, discard: true })
+    const a = yield* Deferred.await(settled[0]!)
+    yield* engine.execute(flow, { executionId: "run-b", payload: {}, discard: true })
+    const b = yield* Deferred.await(settled[1]!)
+    return [a, b]
+  }).pipe(Effect.provide(Layer.merge(FlowEngine.layerMemory, NodeCrypto.layer)), Effect.scoped, Effect.runPromise)
+
+const spliceOnce = (
+  calls: Array<string>,
+  options: { readonly layers?: ReadonlyArray<string> | undefined } = {}
+) =>
+  Effect.gen(function*() {
+    const engine = yield* FlowEngineLike.make({
+      model: countingModel([]),
+      route: staticRoute(),
+      children: countingChildren(calls),
+      layers: options.layers
+    })
+    // Byte-for-byte the same child in both runs: same declaration, same
+    // arguments, and the same provider-assigned call id, which restarts from
+    // `call-1` in every run and is therefore no identity at all on its own.
+    return yield* Stream.runCollect(
+      engine.splice(new Plan.Batch({ children: [child({ callId: "call-1", tier: "irreversible" })] }))
+    )
+  })
+
+describe("child call identity", () => {
+  it("refuses to alias one irreversible child across two runs that both called it call-1", async () => {
+    const calls: Array<string> = []
+    const outcomes = await driveBoth(spliceOnce(calls), spliceOnce(calls))
+
+    expect(outcomes.map((outcome) => outcome._tag)).toEqual(["completed", "completed"])
+    // Two runs, two executions of the irreversible effect. Before the run scope
+    // entered the key, the second run replayed the first run's recorded result
+    // and the effect never happened.
+    expect(calls).toEqual(["call-1", "call-1"])
+  })
+
+  it("still shares one sealed child across runs, because that is what sealed means", async () => {
+    const calls: Array<string> = []
+    const sealed = (
+      collected: Array<string>
+    ): Effect.Effect<unknown, unknown, Crypto.Crypto | FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance> =>
+      Effect.gen(function*() {
+        const engine = yield* FlowEngineLike.make({
+          model: countingModel([]),
+          route: staticRoute(),
+          children: countingChildren(collected),
+          // Cross-run sharing is what sealed means, but only for a
+          // composition that has stated its complete authority. The empty
+          // record is that statement — "this composition grants nothing" —
+          // not the absence of one.
+          capabilities: {}
+        })
+        return yield* Stream.runCollect(
+          engine.splice(new Plan.Batch({ children: [child({ callId: "call-1" })] }))
+        )
+      })
+    const outcomes = await driveBoth(sealed(calls), sealed(calls))
+
+    expect(outcomes.map((outcome) => outcome._tag)).toEqual(["completed", "completed"])
+    expect(calls).toEqual(["call-1"])
+  })
+
+  it("treats a sealed child resolved under a different composition as a different child", async () => {
+    const calls: Array<string> = []
+    const withLayers = (
+      collected: Array<string>,
+      layers: ReadonlyArray<string>
+    ): Effect.Effect<unknown, unknown, Crypto.Crypto | FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance> =>
+      Effect.gen(function*() {
+        const engine = yield* FlowEngineLike.make({
+          model: countingModel([]),
+          route: staticRoute(),
+          children: countingChildren(collected),
+          layers
+        })
+        return yield* Stream.runCollect(
+          engine.splice(new Plan.Batch({ children: [child({ callId: "call-1" })] }))
+        )
+      })
+    const outcomes = await driveBoth(
+      withLayers(calls, ["flows-plugin-a"]),
+      withLayers(calls, ["flows-plugin-a", "flows-plugin-b"])
+    )
+
+    expect(outcomes.map((outcome) => outcome._tag)).toEqual(["completed", "completed"])
+    // A sealed child is shareable on content, but the composition is part of
+    // that content: adding a plugin changes what the call means.
+    expect(calls).toEqual(["call-1", "call-1"])
+  })
+
+  it("replays a sealed child when the resolved composition is identical", async () => {
+    const calls: Array<string> = []
+    const withLayers = (
+      collected: Array<string>
+    ): Effect.Effect<unknown, unknown, Crypto.Crypto | FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance> =>
+      Effect.gen(function*() {
+        const engine = yield* FlowEngineLike.make({
+          model: countingModel([]),
+          route: staticRoute(),
+          children: countingChildren(collected),
+          layers: ["flows-plugin-b", "flows-plugin-a", "flows-plugin-b"],
+          capabilities: {}
+        })
+        return yield* Stream.runCollect(
+          engine.splice(new Plan.Batch({ children: [child({ callId: "call-1" })] }))
+        )
+      })
+    const first = await driveBoth(withLayers(calls), withLayers(calls))
+
+    expect(first.map((outcome) => outcome._tag)).toEqual(["completed", "completed"])
+    expect(calls).toEqual(["call-1"])
+  })
+
+  it("does not alias a sealed child when resolved layer order changes", async () => {
+    const calls: Array<string> = []
+    const withLayers = (
+      layers: ReadonlyArray<string>
+    ): Effect.Effect<unknown, unknown, Crypto.Crypto | FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance> =>
+      Effect.gen(function*() {
+        const engine = yield* FlowEngineLike.make({
+          model: countingModel([]),
+          route: staticRoute(),
+          children: countingChildren(calls),
+          layers
+        })
+        return yield* Stream.runCollect(
+          engine.splice(new Plan.Batch({ children: [child({ callId: "call-1" })] }))
+        )
+      })
+    const outcomes = await driveBoth(
+      withLayers(["flows-plugin-a", "flows-plugin-b"]),
+      withLayers(["flows-plugin-b", "flows-plugin-a"])
+    )
+
+    expect(outcomes.map((outcome) => outcome._tag)).toEqual(["completed", "completed"])
+    expect(calls).toEqual(["call-1", "call-1"])
+  })
+})
+
+describe("FlowEngineLike.record", () => {
+  it("journals a controller boundary once and replays the recorded value after a park", async () => {
+    const drains: Array<string> = []
+    const outcome = await drive(
+      Effect.gen(function*() {
+        const port = yield* FlowEngineLike.make({ model: countingModel([]), route: staticRoute() })
+        // Sessionless identity, the legacy loop's shape: the boundary label
+        // and frame are the whole controller-supplied identity.
+        yield* port.record({
+          name: "steering-drain",
+          identity: { frame: 0, boundary: "context-digest" },
+          success: Schema.Struct({ inserts: Schema.Array(Schema.String) }),
+          execute: Effect.sync(() => {
+            drains.push("drain")
+            return { inserts: ["steer: keep it short"] }
+          })
+        })
+        return yield* port.suspend(new EngineLike.SuspendReason({ code: "waiting-input", message: "park" }))
+      }),
+      { resume: true }
+    )
+
+    // The body parks every attempt; what matters is that the resumed attempt
+    // re-executed it and the drain did not run a second time.
+    expect(outcome._tag).toBe("suspended")
+    expect(drains).toEqual(["drain"])
+  })
+})
+
+describe("cell call identity across runs", () => {
+  /** Byte-for-byte the same irreversible call in both runs: one shared session, one cell, one ordinal. */
+  const sharedCellCall = (tier: "sealed" | "irreversible"): Cell.Call =>
+    new Cell.Call({
+      flowName: "fs/write",
+      input: { path: "out.txt", text: "done" },
+      capabilities: [],
+      effects: { reads: [], writes: [], mode: "hermetic", onConflict: "serialize", tier },
+      placement: Option.none(),
+      identity: new Cell.CallIdentity({
+        session: "shared-session",
+        frame: 0,
+        cell: "cell-digest",
+        ordinal: 0,
+        declaration: "declaration-digest",
+        layers: []
+      })
+    })
+
+  const countingCalls = (executed: Array<string>): FlowEngineLike.CallRunner => ({
+    run: (call) =>
+      Effect.sync(() => {
+        executed.push(`${call.flowName}#${call.identity.ordinal}`)
+        return new Cell.CallResult({ outcome: "success", value: executed.length })
+      })
+  })
+
+  /**
+   * `capabilities` is a required argument, never a defaulted one: an omitted
+   * capability identity is the behaviour under test, and a default parameter
+   * would silently rewrite an explicit `undefined` back into `{}`.
+   */
+  const callOnce = (
+    executed: Array<string>,
+    tier: "sealed" | "irreversible",
+    capabilities: Readonly<Record<string, ReadonlyArray<string>>> | undefined
+  ): Effect.Effect<unknown, unknown, Crypto.Crypto | FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance> =>
+    Effect.gen(function*() {
+      const port = yield* FlowEngineLike.make({
+        model: countingModel([]),
+        route: staticRoute(),
+        calls: countingCalls(executed),
+        ...(capabilities === undefined ? {} : { capabilities })
+      })
+      return (yield* port.call(sharedCellCall(tier))).value
+    })
+
+  it("never aliases one irreversible cell call across two runs sharing a session", async () => {
+    const executed: Array<string> = []
+    const outcomes = await driveBoth(callOnce(executed, "irreversible", {}), callOnce(executed, "irreversible", {}))
+
+    expect(outcomes.map((outcome) => outcome._tag)).toEqual(["completed", "completed"])
+    // Two runs, two executions of the irreversible effect: the engine keys
+    // every non-sealed activity by ordinal under the execution id, and this
+    // pins the port's contract to that property — one session, one frame, one
+    // cell, one ordinal is still two boundaries in two runs.
+    expect(executed).toEqual(["fs/write#0", "fs/write#0"])
+    expect(outcomes[0]).toMatchObject({ value: 1 })
+    expect(outcomes[1]).toMatchObject({ value: 2 })
+  })
+
+  it("still shares one sealed cell call across runs, because that is what sealed means", async () => {
+    const executed: Array<string> = []
+    const outcomes = await driveBoth(callOnce(executed, "sealed", {}), callOnce(executed, "sealed", {}))
+
+    expect(outcomes.map((outcome) => outcome._tag)).toEqual(["completed", "completed"])
+    expect(executed).toEqual(["fs/write#0"])
+    expect(outcomes[0]).toMatchObject({ value: 1 })
+    expect(outcomes[1]).toMatchObject({ value: 1 })
+  })
+
+  it("never shares a sealed cell call across runs when the composition's authority is unknown", async () => {
+    const executed: Array<string> = []
+    const outcomes = await driveBoth(
+      callOnce(executed, "sealed", undefined),
+      callOnce(executed, "sealed", undefined)
+    )
+
+    // Issue #75: a port that declared `capabilities: {}` on its own behalf
+    // asserted "this composition grants nothing" for every host, including
+    // hosts holding a capability envelope. A sealed result computed under a
+    // broad envelope was then cross-run reusable by a run with an attenuated
+    // one. Undeclared authority now pins the key to its execution.
+    expect(outcomes.map((outcome) => outcome._tag)).toEqual(["completed", "completed"])
+    expect(executed).toEqual(["fs/write#0", "fs/write#0"])
+  })
+
+  it("never shares a sealed cell call between two differently-authorized compositions", async () => {
+    const executed: Array<string> = []
+    const outcomes = await driveBoth(
+      callOnce(executed, "sealed", { envelope: ["fs:read:/workspace/**"] }),
+      callOnce(executed, "sealed", { envelope: ["fs:read:/workspace/a/**"] })
+    )
+
+    // Same declaration, same declared call capabilities, different envelope:
+    // the envelope is what attenuates the call, so it is part of what the
+    // boundary means.
+    expect(outcomes.map((outcome) => outcome._tag)).toEqual(["completed", "completed"])
+    expect(executed).toEqual(["fs/write#0", "fs/write#0"])
+  })
+})
+
+describe("FlowEngineLike.routeResolver", () => {
+  it("prepares a request through a configured route without leaking the credential", async () => {
+    const route = Route.anthropic({ apiKey: Redacted.make("test-key") })
+    expect(Result.isSuccess(route)).toBe(true)
+    if (!Result.isSuccess(route)) return
+    const prepared = await Effect.runPromise(
+      FlowEngineLike.routeResolver(route.success).prepare(request("hello"))
+    )
+    expect(prepared.routeId).toBe("anthropic")
+    // The api key is signed on by the route after the digest, never here.
+    expect(Object.keys(prepared.publicHeaders)).not.toContain("x-api-key")
+  })
+})

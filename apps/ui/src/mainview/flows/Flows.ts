@@ -29,9 +29,10 @@ import type { CommandState, FlowEntry, FlowMetadata } from "./registry";
 
 /**
  * What a flow handler resolves: nothing, an honest error string, or a success
- * VALUE (`{ value }`) — the payload a tool act hands back to the model (e.g.
- * the browser flow's extracted text). Values never render raw in the
- * transcript (§2b); only the agent boundary reads them.
+ * VALUE (`{ value }`) — the payload an invocation hands back to its caller
+ * (e.g. the browser flow's extracted text). Agent tool payloads never render
+ * raw in the transcript (DESIGN.md §3, trigger axis); the controller may
+ * surface a HUMAN caller's value as that command's embedded answer.
  */
 export type CommandResult = void | string | { readonly value: string };
 

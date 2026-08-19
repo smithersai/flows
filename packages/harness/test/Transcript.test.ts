@@ -21,15 +21,13 @@ describe("Transcript", () => {
     const entries = [
       ...journal().filter((item) => item.seq < 8),
       entry(10, "denial", {}),
-      entry(11, "flows.harness.elaborated.v1", {}),
+      entry(11, "flows.harness.turn-opened.v1", {}),
       entry(12, "unknown-event", {})
     ].reverse()
     expect(project(entries).map((message) => message.role)).toEqual([
       "assistant",
-      "tool",
       "user",
-      "assistant",
-      "tool"
+      "assistant"
     ])
   })
 
@@ -112,13 +110,6 @@ describe("Transcript", () => {
         responseId: "settled-response"
       })
     ])
-  })
-
-  it("preserves tool pairing and represents aborted results as tool messages", () => {
-    const messages = project(journal().filter((item) => item.seq < 8))
-    const tool = [...messages].reverse().find((message) => message.role === "tool")
-    expect(tool?.role).toBe("tool")
-    expect(tool?.content[0]).toMatchObject({ toolCallId: "call-2", content: "Tool execution was aborted." })
   })
 
   it("renders a compaction summary plus suffix without changing journal entries", () => {
