@@ -10,6 +10,8 @@
  * only `fstat` can identify — use real files and swap only what capture is
  * told to look at, so the guard being tested is the real one.
  */
+import type { Action } from "@smthrs/flow"
+import type * as Node from "@smthrs/plan/Node"
 import { execFile } from "node:child_process"
 import { createHash } from "node:crypto"
 import type * as NodeFs from "node:fs"
@@ -17,9 +19,18 @@ import * as Fs from "node:fs/promises"
 import * as Os from "node:os"
 import * as NodePath from "node:path"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import * as Exec from "../src/Exec.ts"
+import * as GeneratedFile from "../src/GeneratedFile.ts"
 import * as Target from "../src/Target.ts"
-import type { CaptureFile, CaptureIo, CaptureLimits } from "../src/ToolBuild.ts"
-import { defaultCaptureIo, defaultCaptureLimits, measureOutput, measureOutputs, OutputError } from "../src/ToolBuild.ts"
+import type { CaptureFile, CaptureIo, CaptureLimits, Outputs } from "../src/ToolBuild.ts"
+import {
+  captureOutputs,
+  defaultCaptureIo,
+  defaultCaptureLimits,
+  measureOutput,
+  measureOutputs,
+  OutputError
+} from "../src/ToolBuild.ts"
 
 let root: string
 let outside: string
@@ -590,5 +601,55 @@ describe("manifest shapes", () => {
       ["file", "nested/index.js", false, sha("export {}")]
     ])))
     expect(file?.contentDigest).toBe(sha(JSON.stringify([["file", "artifact.tar", false, sha("tar")]])))
+  })
+})
+
+describe("captureOutputs", () => {
+  /**
+   * Capture reads neither the value the producer returns nor the way it
+   * fails, so the plan step is available to a rule that produces files
+   * without running a tool through `Exec`. The producer here is a `WriteFile`
+   * action: a different success type, a different error type, and a different
+   * requirement from the exec node every shipped caller passes today.
+   */
+  it("sequences capture after a producer that is not an exec", () => {
+    const produced = GeneratedFile.WriteFile.call({
+      path: "packages/alpha/dist/index.js",
+      contents: "export {}\n"
+    })
+
+    const node: Node.Node<
+      Outputs,
+      GeneratedFile.WriteFileError | OutputError,
+      | Action.Requirement<"smithers-build/write-file">
+      | Action.Requirement<"smithers-build/capture-outputs">
+    > = captureOutputs(produced, "packages/alpha", ["dist"])
+
+    // The ordering edge is recorded against the producer itself, and the
+    // capture call is the node the edge points at.
+    expect(node.ast).toMatchObject({
+      _tag: "AndThen",
+      first: { _tag: "ActionCall", action: "smithers-build/write-file" },
+      next: {
+        _tag: "ActionCall",
+        action: "smithers-build/capture-outputs",
+        payload: { cwd: "packages/alpha", paths: ["dist"] }
+      }
+    })
+  })
+
+  it("keeps an exec producer typed as it was", () => {
+    const node: Node.Node<
+      Outputs,
+      Exec.ExecError | OutputError,
+      | Action.Requirement<"smithers-build/exec">
+      | Action.Requirement<"smithers-build/capture-outputs">
+    > = captureOutputs(Target.runTool({ cwd: ".", argv: ["tsc"], env: {} }), ".", ["dist"])
+
+    expect(node.ast).toMatchObject({
+      _tag: "AndThen",
+      first: { _tag: "ActionCall", action: "smithers-build/exec" },
+      next: { _tag: "ActionCall", action: "smithers-build/capture-outputs" }
+    })
   })
 })

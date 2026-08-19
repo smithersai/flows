@@ -1029,7 +1029,12 @@ export const CaptureOutputsLive = (options: {
  * declared output fails its target rather than reporting an empty output.
  *
  * `produced` is the producing step, and capture is sequenced after it with the
- * node form of `Node.andThen`. Two properties of the surrounding machinery
+ * node form of `Node.andThen`. It is any node: capture reads neither the value
+ * the producer returns nor the way it fails, so a rule that produces files
+ * without running a tool through {@link Exec.Exec} declares its outputs the
+ * same way. The failure channel is the producer's own errors plus
+ * {@link OutputError}; a producer that fails with {@link Exec.ExecError} gives
+ * a node whose errors are {@link BuildError}. Two properties of the surrounding machinery
  * decide that shape, and both were learned by watching every execution of this
  * target fail before its tool ran:
  *
@@ -1046,11 +1051,11 @@ export const CaptureOutputsLive = (options: {
  * @category constructors
  * @since 0.1.0
  */
-export const captureOutputs = <R>(
-  produced: Node.Node<Exec.Result, Exec.ExecError, R>,
+export const captureOutputs = <A, E, R>(
+  produced: Node.Node<A, E, R>,
   cwd: string,
   paths: ReadonlyArray<string>
-): Node.Node<Outputs, BuildError, R | Action.Requirement<"smithers-build/capture-outputs">> =>
+): Node.Node<Outputs, E | OutputError, R | Action.Requirement<"smithers-build/capture-outputs">> =>
   produced.pipe(Node.andThen(CaptureOutputs.call({ cwd, paths })))
 
 /**
