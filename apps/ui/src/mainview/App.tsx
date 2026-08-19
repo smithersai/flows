@@ -6,7 +6,6 @@ import {
 	ChatTranscript,
 	EmptyState,
 	FileTree,
-	Markdown,
 	Marker,
 	Reasoning,
 	SmithersUiStyles,
@@ -34,7 +33,7 @@ import {
 	Trash2,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { KeyboardEvent } from "react";
+import type { KeyboardEvent, ReactNode, RefObject } from "react";
 import { useLiveQuery } from "@tanstack/react-db";
 import { CardView } from "./ChatCards";
 import { ConnectorsSurface } from "./ConnectorsSurface";
@@ -43,11 +42,12 @@ import { ConfirmDialog, SurfaceHeader } from "./SurfaceChrome";
 import { ToastStack } from "./ToastStack";
 import type { AppController } from "./state/AppController";
 import { scrubToolEcho } from "./state/MessageScrub";
+import { timeLabel } from "./Timestamps";
+import { tabOutOf } from "./FocusRing";
+import { stampFlows } from "./FlowStamp";
+import { RichMarkdown } from "./RichMarkdown";
 import type { Card, Message, Suggestion as SuggestionBinding } from "./state/AppState";
 import { WORLD_DISPLAY_NAME } from "./state/AppState";
-
-const timeLabel = (createdAt: number) =>
-	new Date(createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 const systemNoteLabel = (message: Message): string => {
 	if (message.statusDetail !== undefined) return `Turn interrupted — ${message.statusDetail}`;
@@ -106,26 +106,48 @@ function ComposerMenu({
 	controller,
 	surface,
 	open,
+	triggerRef,
 }: {
 	readonly controller: AppController;
 	readonly surface: "chat" | "world" | "connectors";
 	readonly open: boolean;
+	/*
+	 * The trigger is owned here but refocused from two places — this menu's own
+	 * exits, and the shell's Escape handler — so the shell holds the ref and
+	 * hands it down. Reaching back through `document` for a node this package
+	 * renders is a query against our own DOM; a ref IS the handle.
+	 */
+	readonly triggerRef: RefObject<HTMLButtonElement | null>;
 }) {
 	const [highlighted, setHighlighted] = useState(0);
 	const menuRef = useRef<HTMLDivElement>(null);
+	/* The entries are a fixed list, so index-assigned refs stay aligned with the DOM. */
+	const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
-	/* A pointer press outside the menu dismisses it without moving focus. */
+	/*
+	 * A pointer press outside the menu dismisses it.
+	 *
+	 * §5.15: dismissing by pointer used to leave focus wherever the press
+	 * landed, because the item that HAD focus was unmounted with the menu — so
+	 * a Tab after a pointer dismissal restarted from the transcript viewport.
+	 * Dismissing returns to the trigger, exactly as Escape does, so the menu
+	 * has one exit however it is closed.
+	 */
 	useEffect(() => {
 		if (!open) return;
 		const onPointerDown = (event: PointerEvent): void => {
 			const root = menuRef.current;
-			if (root !== null && event.target instanceof Node && !root.contains(event.target)) {
-				controller.runCommand("surfaces");
-			}
+			if (root === null || !(event.target instanceof Node) || root.contains(event.target)) return;
+			const heldFocus = root.contains(document.activeElement);
+			controller.runCommand("surfaces");
+			if (!heldFocus) return;
+			requestAnimationFrame(() => {
+				triggerRef.current?.focus();
+			});
 		};
 		document.addEventListener("pointerdown", onPointerDown);
 		return () => document.removeEventListener("pointerdown", onPointerDown);
-	}, [open, controller]);
+	}, [open, controller, triggerRef]);
 
 	const entries = [
 		{
@@ -146,14 +168,14 @@ function ComposerMenu({
 		setHighlighted(0);
 		controller.runCommand("surfaces");
 		requestAnimationFrame(() => {
-			document.querySelector<HTMLButtonElement>(".composer-menu-item")?.focus();
+			itemRefs.current[0]?.focus();
 		});
 	};
 
 	const closeMenu = (): void => {
 		controller.runCommand("surfaces");
 		requestAnimationFrame(() => {
-			document.querySelector<HTMLButtonElement>(".composer-menu-trigger")?.focus();
+			triggerRef.current?.focus();
 		});
 	};
 
@@ -181,16 +203,14 @@ function ComposerMenu({
 					? (highlighted + 1) % entries.length
 					: (highlighted + entries.length - 1) % entries.length;
 			setHighlighted(next);
-			document
-				.querySelectorAll<HTMLButtonElement>(".composer-menu-item")
-				.item(next)
-				?.focus();
+			itemRefs.current[next]?.focus();
 		}
 	};
 
 	return (
 		<div className="composer-menu" ref={menuRef}>
 			<Button
+				ref={triggerRef}
 				variant="ghost"
 				size="sm"
 				className="composer-action composer-menu-trigger"
@@ -211,6 +231,9 @@ function ComposerMenu({
 						<button
 							type="button"
 							key={entry.flow}
+							ref={(node) => {
+								itemRefs.current[index] = node;
+							}}
 							role="menuitem"
 							className="composer-menu-item"
 							data-flow={entry.flow}
@@ -242,13 +265,29 @@ function ComposerMenu({
  * stays an honest "coming soon", and full management is one entry away
  * through /connect.
  */
-function ComposerConnect({ controller }: { readonly controller: AppController }) {
+function ComposerConnect({
+	controller,
+	open,
+	triggerRef,
+}: {
+	readonly controller: AppController;
+	/* C-1 mirror: the open state is the session's, not this component's. */
+	readonly open: boolean;
+	/* The shell closes this session menu too, so it owns the focus handle. */
+	readonly triggerRef: RefObject<HTMLButtonElement | null>;
+}) {
 	const { collections } = controller.store;
 	const { data: connectorRows } = useLiveQuery(collections.connectors);
 	const { data: operationRows } = useLiveQuery(collections.connectorOperations);
 	const { data: identityRows } = useLiveQuery(collections.identitySessions);
-	const [open, setOpen] = useState(false);
 	const menuRef = useRef<HTMLDivElement>(null);
+	/*
+	 * The entries are built as DATA below so index-assigned refs stay aligned
+	 * with the DOM through every conditional entry. Arrow keys, Escape, and
+	 * open-and-focus-the-first-entry read these refs — never `document`, whose
+	 * only job here would be to find nodes this package itself rendered.
+	 */
+	const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
 	/* A pointer press outside the menu dismisses it without moving focus. */
 	useEffect(() => {
@@ -256,12 +295,12 @@ function ComposerConnect({ controller }: { readonly controller: AppController })
 		const onPointerDown = (event: PointerEvent): void => {
 			const root = menuRef.current;
 			if (root !== null && event.target instanceof Node && !root.contains(event.target)) {
-				setOpen(false);
+				controller.closeConnectMenu();
 			}
 		};
 		document.addEventListener("pointerdown", onPointerDown);
 		return () => document.removeEventListener("pointerdown", onPointerDown);
-	}, [open]);
+	}, [open, controller]);
 
 	const connectors = [...connectorRows].sort((left, right) => left.name.localeCompare(right.name));
 	const operation =
@@ -278,13 +317,104 @@ function ComposerConnect({ controller }: { readonly controller: AppController })
 				? `GitHub · ${identity?.login ?? "connected"}`
 				: "Connect";
 
+	const entries: ReadonlyArray<{
+		readonly key: string;
+		readonly flow: string;
+		readonly active?: boolean;
+		readonly disabled?: boolean;
+		readonly content: ReactNode;
+		/* The command the entry invokes, and its argument when it takes one. */
+		readonly args?: string;
+	}> = [
+		...connectors.map((connector) => ({
+			key: connector.id,
+			flow: "connect",
+			active: true,
+			content: (
+				<>
+					<FolderGit2 size={14} aria-hidden="true" />
+					<span className="composer-connect-name">{connector.name}</span>
+					<span className="composer-connect-branch">{connector.branch ?? "detached"}</span>
+				</>
+			),
+		})),
+		...(controller.nativeRepositoriesAvailable
+			? [
+					{
+						key: "connector.add",
+						flow: "connector.add",
+						disabled: selecting,
+						content: (
+							<>
+								<HardDrive size={14} aria-hidden="true" />
+								{selecting ? "Choosing a repository…" : "Add local repository…"}
+							</>
+						),
+						args: "read",
+					},
+				]
+			: []),
+		signedIn
+			? {
+					key: "repos.watch",
+					flow: "repos.watch",
+					content: (
+						<>
+							<GitPullRequest size={14} aria-hidden="true" />
+							Choose GitHub repositories…
+						</>
+					),
+				}
+			: {
+					key: "auth.sign-in",
+					flow: "auth.sign-in",
+					content: (
+						<>
+							<GitPullRequest size={14} aria-hidden="true" />
+							Connect GitHub…
+						</>
+					),
+				},
+		/*
+		 * §1.1: signed out, sign-in is the ONE offered next step. Both of
+		 * these need a session — clicking either only defers into the
+		 * sign-in above it — so presenting them as available work makes
+		 * the app look like it offers four ways in when it has one.
+		 */
+		...(signedIn
+			? [
+					{
+						key: "repos.import",
+						flow: "repos.import",
+						content: (
+							<>
+								<Server size={14} aria-hidden="true" />
+								Import to Smithers Cloud…
+							</>
+						),
+					},
+					{
+						key: "connect",
+						flow: "connect",
+						content: (
+							<>
+								<Plug size={14} aria-hidden="true" />
+								Open connectors
+							</>
+						),
+					},
+				]
+			: []),
+	];
+
+	/* The entry indices a keyboard can land on; a disabled entry is skipped. */
+	const enabledEntries = entries.flatMap((entry, index) => (entry.disabled === true ? [] : [index]));
+
 	const toggleConnectMenu = (): void => {
-		setOpen(!open);
+		controller.toggleConnectMenu();
 		if (!open) {
 			requestAnimationFrame(() => {
-				document
-					.querySelector<HTMLButtonElement>(".composer-connect-list .composer-menu-item:enabled")
-					?.focus();
+				itemRefs.current[enabledEntries[0] ?? -1]?.focus();
 			});
 		}
 	};
@@ -292,28 +422,28 @@ function ComposerConnect({ controller }: { readonly controller: AppController })
 	const onMenuKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
 		if (event.key === "Escape") {
 			event.preventDefault();
-			setOpen(false);
-			document.querySelector<HTMLButtonElement>(".composer-connect-trigger")?.focus();
+			controller.closeConnectMenu();
+			triggerRef.current?.focus();
 			return;
 		}
 		if (event.key === "ArrowDown" || event.key === "ArrowUp") {
 			event.preventDefault();
-			const items = Array.from(
-				event.currentTarget.querySelectorAll<HTMLButtonElement>(".composer-menu-item:enabled"),
+			if (enabledEntries.length === 0) return;
+			const current = enabledEntries.findIndex(
+				(index) => itemRefs.current[index] === document.activeElement,
 			);
-			if (items.length === 0) return;
-			const current = items.indexOf(document.activeElement as HTMLButtonElement);
 			const next =
 				event.key === "ArrowDown"
-					? (current + 1) % items.length
-					: (current - 1 + items.length) % items.length;
-			items[next]?.focus();
+					? (current + 1) % enabledEntries.length
+					: (current - 1 + enabledEntries.length) % enabledEntries.length;
+			itemRefs.current[enabledEntries[next] ?? -1]?.focus();
 		}
 	};
 
 	return (
 		<div className="composer-menu composer-connect" ref={menuRef}>
 			<Button
+				ref={triggerRef}
 				variant="ghost"
 				size="sm"
 				className="composer-action composer-connect-trigger"
@@ -340,122 +470,266 @@ function ComposerConnect({ controller }: { readonly controller: AppController })
 					aria-label="Repository connections"
 					onKeyDown={onMenuKeyDown}
 				>
-					{connectors.map((connector) => (
+					{entries.map((entry, index) => (
 						<button
 							type="button"
-							key={connector.id}
+							key={entry.key}
+							ref={(node) => {
+								itemRefs.current[index] = node;
+							}}
 							role="menuitem"
 							className="composer-menu-item"
-							data-flow="connect"
-							data-active="true"
+							data-flow={entry.flow}
+							data-active={entry.active === true ? "true" : undefined}
+							disabled={entry.disabled}
 							onClick={() => {
-								setOpen(false);
-								controller.runCommand("connect");
+								controller.closeConnectMenu();
+								if (entry.args === undefined) controller.runCommand(entry.flow);
+								else controller.runCommandArgs(entry.flow, entry.args);
 							}}
 						>
-							<FolderGit2 size={14} aria-hidden="true" />
-							<span className="composer-connect-name">{connector.name}</span>
-							<span className="composer-connect-branch">{connector.branch ?? "detached"}</span>
+							{entry.content}
 						</button>
 					))}
-					{controller.nativeRepositoriesAvailable ? (
-						<button
-							type="button"
-							role="menuitem"
-							className="composer-menu-item"
-							data-flow="connector.add"
-							disabled={selecting}
-							onClick={() => {
-								setOpen(false);
-								controller.runCommandArgs("connector.add", "read");
-							}}
-						>
-							<HardDrive size={14} aria-hidden="true" />
-							{selecting ? "Choosing a repository…" : "Add local repository…"}
-						</button>
-					) : null}
-					{signedIn ? (
-						<button
-							type="button"
-							role="menuitem"
-							className="composer-menu-item"
-							data-flow="repos.watch"
-							onClick={() => {
-								setOpen(false);
-								controller.runCommand("repos.watch");
-							}}
-						>
-							<GitPullRequest size={14} aria-hidden="true" />
-							Choose GitHub repositories…
-						</button>
-					) : (
-						<button
-							type="button"
-							role="menuitem"
-							className="composer-menu-item"
-							data-flow="auth.sign-in"
-							onClick={() => {
-								setOpen(false);
-								controller.runCommand("auth.sign-in");
-							}}
-						>
-							<GitPullRequest size={14} aria-hidden="true" />
-							Connect GitHub…
-						</button>
-					)}
-					<button
-						type="button"
-						role="menuitem"
-						className="composer-menu-item"
-						data-flow="repos.import"
-						onClick={() => {
-							setOpen(false);
-							controller.runCommand("repos.import");
-						}}
-					>
-						<Server size={14} aria-hidden="true" />
-						Import to Smithers Cloud…
-					</button>
-					<button
-						type="button"
-						role="menuitem"
-						className="composer-menu-item"
-						data-flow="connect"
-						onClick={() => {
-							setOpen(false);
-							controller.runCommand("connect");
-						}}
-					>
-						<Plug size={14} aria-hidden="true" />
-						Open connectors
-					</button>
 				</div>
 			) : null}
 		</div>
 	);
 }
 
-function App({ controller }: { readonly controller: AppController }) {
+/*
+ * The composer, and everything a keystroke touches.
+ *
+ * §hot path: the draft is the ONE piece of session state that changes per
+ * character, and it used to be read by the shell — so every keystroke
+ * re-rendered App, and App renders the entire transcript. The draft
+ * subscription lives HERE instead, behind the shell's draft-less projection,
+ * so typing re-renders this subtree and nothing above it. The slash menu is
+ * part of the same hot path (it is a function of the draft) and moved with it.
+ */
+function Composer({
+	controller,
+	typing,
+	surface,
+	surfacesMenuOpen,
+	connectMenuOpen,
+	surfacesTriggerRef,
+	connectTriggerRef,
+	autoFocus,
+	placeholder,
+}: {
+	readonly controller: AppController;
+	readonly typing: boolean;
+	readonly surface: "chat" | "world" | "connectors";
+	readonly surfacesMenuOpen: boolean;
+	readonly connectMenuOpen: boolean;
+	readonly surfacesTriggerRef: RefObject<HTMLButtonElement | null>;
+	readonly connectTriggerRef: RefObject<HTMLButtonElement | null>;
+	readonly autoFocus: boolean;
+	readonly placeholder: string;
+}) {
 	const { collections } = controller.store;
-	const { data: messageRows } = useLiveQuery(collections.messages);
-	const { data: sessionRows } = useLiveQuery(collections.sessions);
-	const { data: worldDocumentRows } = useLiveQuery(collections.worldDocuments);
-	const { data: cardRows } = useLiveQuery(collections.cards);
-	const { data: identityRows } = useLiveQuery(collections.identitySessions);
-	const { data: billingRows } = useLiveQuery(collections.billingAccounts);
-	const { data: toastRows } = useLiveQuery(collections.toasts);
-	const { data: watchedRows } = useLiveQuery(collections.watchedRepos);
+	const { data: draftRows } = useLiveQuery((q) =>
+		q
+			.from({ session: collections.sessions })
+			.select(({ session }) => ({ id: session.id, draft: session.draft })),
+	);
 	const [slashMenu, setSlashMenu] = useState<{ draft: string; index: number; dismissed: boolean }>({
 		draft: "",
 		index: 0,
 		dismissed: false,
 	});
-	const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-	const messages = [...messageRows].sort((left, right) => left.ordinal - right.ordinal);
+	const draft = draftRows[0]?.draft ?? controller.store.session().draft;
+
+	const slashQuery =
+		draft.startsWith("/") && !draft.slice(1).includes(" ")
+			? draft.slice(1).toLowerCase()
+			: undefined;
+	/*
+	 * §5.2: the listing used to be suppressed for the whole duration of a turn,
+	 * which made `typing -> chat.stop` — the first clause of the recommendation
+	 * order — unreachable in the shipped UI, and left the composer with no way
+	 * to invoke any flow mid-turn (the component blocks submit while busy, so
+	 * Enter only reaches a flow through this menu).
+	 */
+	const slashMatches = slashQuery === undefined ? [] : controller.slashItems(slashQuery);
+	const slashMenuLive =
+		slashMenu.draft === draft ? slashMenu : { draft, index: 0, dismissed: false };
+	const slashOpen = slashMatches.length > 0 && !slashMenuLive.dismissed;
+	const slashHighlighted = Math.min(slashMenuLive.index, slashMatches.length - 1);
+
+	const runSlashCommand = (name: string): void => {
+		setSlashMenu({ draft: "", index: 0, dismissed: false });
+		controller.changeDraft("");
+		controller.runCommand(name);
+	};
+
+	const onComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
+		if (event.key === "Escape" && typing) {
+			event.preventDefault();
+			controller.runCommand("chat.stop");
+			return;
+		}
+		if (!slashOpen) return;
+		if (event.key === "ArrowDown") {
+			event.preventDefault();
+			setSlashMenu({
+				draft,
+				index: (slashHighlighted + 1) % slashMatches.length,
+				dismissed: false,
+			});
+			return;
+		}
+		if (event.key === "ArrowUp") {
+			event.preventDefault();
+			setSlashMenu({
+				draft,
+				index: (slashHighlighted + slashMatches.length - 1) % slashMatches.length,
+				dismissed: false,
+			});
+			return;
+		}
+		if (event.key === "Enter" && !event.shiftKey) {
+			event.preventDefault();
+			const command =
+				slashMatches.length === 1 ? slashMatches[0] : slashMatches[slashHighlighted];
+			if (command !== undefined) runSlashCommand(command.flow.name);
+			return;
+		}
+		if (event.key === "Escape") {
+			event.preventDefault();
+			setSlashMenu({ draft, index: slashHighlighted, dismissed: true });
+		}
+	};
+
+	return (
+		<>
+			{slashOpen ? (
+				<div className="slash-menu" role="listbox" aria-label="Slash commands">
+					{slashMatches.map((item, index) => (
+						<button
+							type="button"
+							key={item.flow.name}
+							role="option"
+							aria-selected={index === slashHighlighted}
+							data-highlighted={index === slashHighlighted ? "true" : "false"}
+							data-gold={item.recommended}
+							className="slash-menu-item"
+							onMouseEnter={() => setSlashMenu({ draft, index, dismissed: false })}
+							onClick={() => runSlashCommand(item.flow.name)}
+						>
+							<span className="slash-menu-name">/{item.flow.name}</span>
+							<span className="slash-menu-description">{item.flow.summary}</span>
+						</button>
+					))}
+				</div>
+			) : null}
+			{/*
+			 * §6.1: Send and Stop are rendered by the composer component,
+			 * which takes no pass-through attributes, so the law's own
+			 * marker is stamped here. See LIBRARY-CHANGE-REQUESTS.md.
+			 */}
+			<div
+				className="composer-flow-stamp"
+				ref={stampFlows([
+					[".sui-chat-composer-send", "send"],
+					[".sui-chat-composer-stop", "chat.stop"],
+				])}
+			>
+				<ChatComposer
+					className="smithers-composer"
+					value={draft}
+					onValueChange={controller.changeDraft}
+					onSubmit={(text) => {
+						controller.runCommandArgs("send", text);
+					}}
+					onStop={() => controller.runCommand("chat.stop")}
+					placeholder={placeholder}
+					lifecycleStatus={typing ? "submitted" : "ready"}
+					textareaProps={{ autoFocus, onKeyDown: onComposerKeyDown }}
+					actions={
+						<div className="composer-actions">
+							<ComposerConnect
+								controller={controller}
+								open={connectMenuOpen}
+								triggerRef={connectTriggerRef}
+							/>
+							<ComposerMenu
+								controller={controller}
+								surface={surface}
+								open={surfacesMenuOpen}
+								triggerRef={surfacesTriggerRef}
+							/>
+						</div>
+					}
+				/>
+			</div>
+		</>
+	);
+}
+
+function App({ controller }: { readonly controller: AppController }) {
+	const { collections } = controller.store;
+	/*
+	 * The transcript's order is the QUERY's order (§hot path): sorting a copy of
+	 * every row on every render made each keystroke O(messages log messages) on
+	 * top of the render it should not have caused at all. The collection sorts
+	 * incrementally and hands back rows already in order.
+	 */
+	const { data: messageRows } = useLiveQuery((q) =>
+		q.from({ message: collections.messages }).orderBy(({ message }) => message.ordinal),
+	);
+	/*
+	 * The shell reads the session WITHOUT the draft.
+	 *
+	 * The draft changes on every keystroke, and this subscription carried it —
+	 * so typing one character re-rendered App, and App renders the whole
+	 * transcript. The projection is consolidated by the query, so a draft-only
+	 * write produces no change here at all and the transcript stays still;
+	 * `Composer` below subscribes to the draft, one component deep, and is the
+	 * only thing a keystroke re-renders.
+	 */
+	const { data: sessionRows } = useLiveQuery((q) =>
+		q.from({ session: collections.sessions }).select(({ session }) => ({
+			id: session.id,
+			phase: session.phase,
+			theme: session.theme,
+			surface: session.surface,
+			selectedWorldDocumentId: session.selectedWorldDocumentId,
+			maximizedCardId: session.maximizedCardId,
+			devtoolsOpen: session.devtoolsOpen,
+			surfacesMenuOpen: session.surfacesMenuOpen,
+			connectMenuOpen: session.connectMenuOpen,
+			pendingWorldDeleteId: session.pendingWorldDeleteId,
+		})),
+	);
+	const { data: worldDocumentRows } = useLiveQuery(collections.worldDocuments);
+	const { data: cardRows } = useLiveQuery(collections.cards);
+	const { data: identityRows } = useLiveQuery(collections.identitySessions);
+	const { data: billingRows } = useLiveQuery(collections.billingAccounts);
+	const { data: toastRows } = useLiveQuery((q) =>
+		q.from({ toast: collections.toasts }).orderBy(({ toast }) => toast.createdAt),
+	);
+	const { data: watchedRows } = useLiveQuery(collections.watchedRepos);
+	/*
+	 * §10.6: the delete question lives in the store, not here — a component is
+	 * a projection, never an authority, and the local-state version was
+	 * bypassed entirely by `/world.delete <id>` typed into the composer.
+	 */
+	/* §28.4: the transcript is destroyed with no undo, so the act asks first. */
+	const [confirmReset, setConfirmReset] = useState(false);
+	/* The surfaces trigger, refocused by this shell's Escape and by the menu itself. */
+	const surfacesTriggerRef = useRef<HTMLButtonElement>(null);
+	/* The connect trigger has the same shell-level Escape exit as surfaces. */
+	const connectTriggerRef = useRef<HTMLButtonElement>(null);
+	const messages = messageRows;
 	const worldDocuments = [...worldDocumentRows].sort((left, right) =>
 		left.path.localeCompare(right.path),
 	);
 	const session = sessionRows[0] ?? controller.store.session();
+	const pendingWorldDelete = worldDocuments.find(
+		(document) => document.id === (session.pendingWorldDeleteId ?? null),
+	);
 	const selectedWorldDocument =
 		worldDocuments.find((document) => document.id === session.selectedWorldDocumentId) ??
 		worldDocuments[0];
@@ -464,7 +738,7 @@ function App({ controller }: { readonly controller: AppController }) {
 	const streamingMessageId = typing ? messages[messages.length - 1]?.id : undefined;
 	const identity = identityRows[0];
 	const billing = billingRows[0];
-	const toasts = [...toastRows].sort((left, right) => left.createdAt - right.createdAt);
+	const toasts = toastRows;
 	/*
 	 * One page: the chat. Auth is a conversation state, never a view — a
 	 * definitive signed-out or non-allowlisted answer opens the transcript
@@ -577,62 +851,6 @@ function App({ controller }: { readonly controller: AppController }) {
 		return entryCreatedAt(left) - entryCreatedAt(right);
 	});
 
-	const slashQuery =
-		session.draft.startsWith("/") && !session.draft.slice(1).includes(" ")
-			? session.draft.slice(1).toLowerCase()
-			: undefined;
-	const slashMatches = slashQuery === undefined || typing ? [] : controller.slashItems(slashQuery);
-	const slashMenuLive =
-		slashMenu.draft === session.draft
-			? slashMenu
-			: { draft: session.draft, index: 0, dismissed: false };
-	const slashOpen = slashMatches.length > 0 && !slashMenuLive.dismissed;
-	const slashHighlighted = Math.min(slashMenuLive.index, slashMatches.length - 1);
-
-	const runSlashCommand = (name: string): void => {
-		setSlashMenu({ draft: "", index: 0, dismissed: false });
-		controller.changeDraft("");
-		controller.runCommand(name);
-	};
-
-	const onComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
-		if (event.key === "Escape" && typing) {
-			event.preventDefault();
-			controller.runCommand("chat.stop");
-			return;
-		}
-		if (!slashOpen) return;
-		if (event.key === "ArrowDown") {
-			event.preventDefault();
-			setSlashMenu({
-				draft: session.draft,
-				index: (slashHighlighted + 1) % slashMatches.length,
-				dismissed: false,
-			});
-			return;
-		}
-		if (event.key === "ArrowUp") {
-			event.preventDefault();
-			setSlashMenu({
-				draft: session.draft,
-				index: (slashHighlighted + slashMatches.length - 1) % slashMatches.length,
-				dismissed: false,
-			});
-			return;
-		}
-		if (event.key === "Enter" && !event.shiftKey) {
-			event.preventDefault();
-			const command =
-				slashMatches.length === 1 ? slashMatches[0] : slashMatches[slashHighlighted];
-			if (command !== undefined) runSlashCommand(command.flow.name);
-			return;
-		}
-		if (event.key === "Escape") {
-			event.preventDefault();
-			setSlashMenu({ draft: session.draft, index: slashHighlighted, dismissed: true });
-		}
-	};
-
 	return (
 		// data-flows is the live registry manifest (visible AND hidden names):
 		// under commands-are-the-app the registry is not secret — the agent tool
@@ -645,6 +863,31 @@ function App({ controller }: { readonly controller: AppController }) {
 				if (event.defaultPrevented) return;
 				if (event.key === "Escape" && session.maximizedCardId !== null) {
 					controller.runCommand("card.minimize");
+					return;
+				}
+				/*
+				 * §21.4 — an open menu closes before anything else the shell owns.
+				 * "Close menu" used to live ONLY in the menu's own keydown, so it
+				 * worked while focus was inside the menu and nowhere else: move
+				 * focus out and Escape fell through to the recommendation branch,
+				 * leaving the menu open and dismissing — for seven days — a
+				 * recommendation the user never meant to touch.
+				 */
+				if (event.key === "Escape" && session.surfacesMenuOpen) {
+					event.preventDefault();
+					controller.runCommand("surfaces");
+					requestAnimationFrame(() => {
+						surfacesTriggerRef.current?.focus();
+					});
+					return;
+				}
+				// §21.4: both menus are session state now, so the shell closes whichever is open.
+				if (event.key === "Escape" && session.connectMenuOpen === true) {
+					event.preventDefault();
+					controller.closeConnectMenu();
+					requestAnimationFrame(() => {
+						connectTriggerRef.current?.focus();
+					});
 					return;
 				}
 				// The recommendation card's own handler covers Escape while it's
@@ -719,12 +962,26 @@ function App({ controller }: { readonly controller: AppController }) {
 											id,
 										)
 									}
-									onRecoAction={(id, action) =>
+									onRecoAction={(id, action) => {
 										controller.runCommandArgs(
 											action === "accept" ? "reco.accept" : action === "edit" ? "reco.edit" : "reco.dismiss",
 											id,
-										)
-									}
+										);
+										/*
+										 * §21.2: "Edit first" prefills the composer, and the
+										 * card's own buttons go with it — so the keyboard user
+										 * who pressed it was dropped on <body> and had to Tab
+										 * from the top of the page. Focus follows the act to
+										 * the control the act just filled.
+										 */
+										if (action === "edit") {
+											requestAnimationFrame(() => {
+												document
+													.querySelector<HTMLTextAreaElement>("textarea.sui-chat-composer-input")
+													?.focus();
+											});
+										}
+									}}
 									onGrantConfirm={(id) => controller.runCommandArgs("admin.grant.confirm", id)}
 									onGrantCancel={(id) => controller.runCommandArgs("admin.grant.cancel", id)}
 									onQueueApprove={(login) => controller.runCommandArgs("admin.queue.approve", login)}
@@ -783,7 +1040,10 @@ function App({ controller }: { readonly controller: AppController }) {
 										// scrubToolEcho: a weak model's tool call written into prose
 										// is wire debris, never content — stripped at render only;
 										// the store and dev-tools keep the raw truth.
-										<Markdown className="message-markdown" content={scrubToolEcho(entry.message.text)} />
+										<RichMarkdown
+											className="message-markdown"
+											content={scrubToolEcho(entry.message.text)}
+										/>
 									) : null}
 									{/* The synthetic auth message has no clock time to tell. */}
 									{entry.message.createdAt > 0 ? (
@@ -848,54 +1108,21 @@ function App({ controller }: { readonly controller: AppController }) {
 								</Suggestion>
 							))}
 						</SuggestionGroup>
-						{slashOpen ? (
-							<div className="slash-menu" role="listbox" aria-label="Slash commands">
-								{slashMatches.map((item, index) => (
-									<button
-										type="button"
-										key={item.flow.name}
-										role="option"
-										aria-selected={index === slashHighlighted}
-										data-highlighted={index === slashHighlighted ? "true" : "false"}
-										data-gold={item.recommended}
-										className="slash-menu-item"
-										onMouseEnter={() =>
-											setSlashMenu({ draft: session.draft, index, dismissed: false })
-										}
-										onClick={() => runSlashCommand(item.flow.name)}
-									>
-										<span className="slash-menu-name">/{item.flow.name}</span>
-										<span className="slash-menu-description">{item.flow.summary}</span>
-									</button>
-								))}
-							</div>
-						) : null}
-						<ChatComposer
-							className="smithers-composer"
-							value={session.draft}
-							onValueChange={controller.changeDraft}
-							onSubmit={(text) => {
-								controller.runCommandArgs("send", text);
-							}}
-							onStop={() => controller.runCommand("chat.stop")}
+						<Composer
+							controller={controller}
+							typing={typing}
+							surface={session.surface}
+							surfacesMenuOpen={session.surfacesMenuOpen}
+							connectMenuOpen={session.connectMenuOpen === true}
+							surfacesTriggerRef={surfacesTriggerRef}
+							connectTriggerRef={connectTriggerRef}
+							autoFocus={authMessage === undefined}
 							placeholder={
 								identity?.state === "signed-out"
 									? "Sign in with GitHub first — it's the one step needed…"
 									: identity?.state === "signed-in" && !identity.allowlisted
 										? "Request access to open the chat…"
 										: "Ask Smithers to work on something…"
-							}
-							lifecycleStatus={typing ? "submitted" : "ready"}
-							textareaProps={{ autoFocus: authMessage === undefined, onKeyDown: onComposerKeyDown }}
-							actions={
-								<div className="composer-actions">
-									<ComposerConnect controller={controller} />
-									<ComposerMenu
-										controller={controller}
-										surface={session.surface}
-										open={session.surfacesMenuOpen}
-									/>
-								</div>
 							}
 						/>
 					</div>
@@ -920,6 +1147,7 @@ function App({ controller }: { readonly controller: AppController }) {
 								variant="outline"
 								size="sm"
 								className="corner-balance-chip"
+								data-flow="billing.balance"
 								data-empty={billing.state === "empty"}
 								aria-label="Show your balance"
 								title="Show your balance"
@@ -934,9 +1162,10 @@ function App({ controller }: { readonly controller: AppController }) {
 								variant="outline"
 								size="icon"
 								className="corner-reset-btn"
+								data-flow="reset"
 								aria-label="Reset conversation"
 								title="Reset conversation"
-								onClick={() => controller.runCommand("reset")}
+								onClick={() => setConfirmReset(true)}
 							>
 								<RotateCcw size={14} />
 							</Button>
@@ -964,14 +1193,23 @@ function App({ controller }: { readonly controller: AppController }) {
 							closeCommand="chat"
 							onClose={() => controller.runCommand("chat")}
 						>
-							<Button variant="ghost" size="sm" onClick={() => controller.runCommand("world.new-note")}>
+							<Button
+								variant="ghost"
+								size="sm"
+								data-flow="world.new-note"
+								onClick={() => controller.runCommand("world.new-note")}
+							>
 								<Plus size={14} aria-hidden="true" />
 								New note
 							</Button>
 						</SurfaceHeader>
 
 						<div className="world-workspace">
-							<aside className="world-sidebar" aria-label={`${WORLD_DISPLAY_NAME} notes`}>
+							<aside
+								className="world-sidebar"
+								aria-label={`${WORLD_DISPLAY_NAME} notes`}
+								ref={stampFlows([["button", "world.select"]])}
+							>
 								<FileTree
 									nodes={worldDocuments.map((document) => ({
 										path: document.path,
@@ -1002,22 +1240,39 @@ function App({ controller }: { readonly controller: AppController }) {
 													variant="ghost"
 													size="icon"
 													className="world-delete-btn"
+													data-flow="world.delete"
 													aria-label={`Delete ${selectedWorldDocument.title}`}
 													title="Delete note"
-													onClick={() => setDeleteTarget(selectedWorldDocument.id)}
+													onClick={() =>
+												controller.runCommandArgs("world.delete", selectedWorldDocument.id)
+											}
 												>
 													<Trash2 size={13} />
 												</Button>
 											</div>
 										</div>
-										<MarkdownEditor
-											value={selectedWorldDocument.body}
-											resetKey={selectedWorldDocument.id}
-											aria-label={`Edit ${selectedWorldDocument.title}`}
-											onChange={(body) =>
-												controller.changeWorldDocument(selectedWorldDocument.id, body)
-											}
-										/>
+										{/*
+										 * §21.2: ProseMirror binds Tab to "insert indentation",
+										 * so the editor swallowed every forward Tab and a
+										 * keyboard user could not get past it. The document's
+										 * own Tab order is restored around the region here,
+										 * at the mount site — the editor is library code.
+										 */}
+										<div
+											className="world-editor-region"
+											onKeyDownCapture={(event) => {
+												tabOutOf(event, event.currentTarget);
+											}}
+										>
+											<MarkdownEditor
+												value={selectedWorldDocument.body}
+												resetKey={selectedWorldDocument.id}
+												aria-label={`Edit ${selectedWorldDocument.title}`}
+												onChange={(body) =>
+													controller.changeWorldDocument(selectedWorldDocument.id, body)
+												}
+											/>
+										</div>
 									</>
 								) : (
 									<EmptyState
@@ -1032,16 +1287,13 @@ function App({ controller }: { readonly controller: AppController }) {
 							</main>
 						</div>
 						<ConfirmDialog
-							open={deleteTarget !== null}
-							title={`Delete ${worldDocuments.find((document) => document.id === deleteTarget)?.title ?? "note"}?`}
+							open={pendingWorldDelete !== undefined}
+							title={`Delete ${pendingWorldDelete?.title ?? "note"}?`}
 							body="This note leaves Smithers' world. You can write it again, but Smithers will treat it as new."
 							confirmLabel="Delete"
 							destructive
-							onConfirm={() => {
-								if (deleteTarget !== null) controller.runCommandArgs("world.delete", deleteTarget);
-								setDeleteTarget(null);
-							}}
-							onCancel={() => setDeleteTarget(null)}
+							onConfirm={() => controller.runCommand("world.delete.confirm")}
+							onCancel={() => controller.runCommand("world.delete.cancel")}
 						/>
 					</section>
 				) : session.surface === "connectors" ? (
@@ -1051,6 +1303,24 @@ function App({ controller }: { readonly controller: AppController }) {
 				{/* Admin-only: the panel is absent — not hidden — for everyone else. */}
 				{isAdmin && session.devtoolsOpen ? <DevtoolsPanel controller={controller} /> : null}
 			</div>
+
+			{/*
+			 * §28.4: reset destroys the transcript with no undo, so it names what
+			 * goes before it goes. The count is the transcript's own, so the
+			 * confirm cannot claim more or less than is actually there.
+			 */}
+			<ConfirmDialog
+				open={confirmReset}
+				title="Start a fresh conversation?"
+				body={`${messages.length === 1 ? "1 message" : `${messages.length} messages`} and everything on screen will be discarded. Nothing is kept.`}
+				confirmLabel="Discard and start fresh"
+				destructive
+				onConfirm={() => {
+					setConfirmReset(false);
+					controller.runCommand("reset");
+				}}
+				onCancel={() => setConfirmReset(false)}
+			/>
 
 			{/* The one shared toast stack: every background flow past 300ms reports here. */}
 			<ToastStack
