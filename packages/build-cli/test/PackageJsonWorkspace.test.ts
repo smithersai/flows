@@ -39,8 +39,8 @@ const packageBuild = (name: string, scripts: string): string =>
   `export const lib = TsBuild({\n` +
   `  packageManager,\n` +
   `  srcs: [glob("src/**/*.ts")], entries: [file("src/index.ts")], deps: [],\n` +
-  `  tsconfig: file("tsconfig.json"), tool: "tsc", format: "dual", outDir: "dist",\n` +
-  `  external: [], cwd: "packages/widget"\n` +
+  `  tsconfig: file("tsconfig.json"), tool: { name: "tsc" }, format: "dual",\n` +
+  `  outDir: "dist", cwd: "packages/widget"\n` +
   `})\n` +
   `export const packageJson = PackageJson({\n` +
   `  name: ${JSON.stringify(name)}, version: "0.1.0",\n` +

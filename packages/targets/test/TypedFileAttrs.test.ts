@@ -48,10 +48,9 @@ describe("entry-point file attrs", () => {
       entries: [entry],
       deps: [],
       tsconfig,
-      tool: "tsup" as const,
+      tool: { name: "tsup" as const, external: [] },
       format: "esm" as const,
-      outDir: "dist",
-      external: []
+      outDir: "dist"
     }
     expect(Target.metadata(TsBuild.TsBuild(attrs)).inputs).toEqual([entry, tsconfig])
     expect(() => TsBuild.TsBuild({ ...attrs, entries: ["src/index.ts"] } as never)).toThrow()
@@ -64,9 +63,8 @@ describe("entry-point file attrs", () => {
       entries: [entry],
       deps: [],
       tsconfig,
-      tool: "tsup" as const,
-      outDir: "dist",
-      declarationMap: false
+      tool: { name: "tsup" as const },
+      outDir: "dist"
     }
     expect(Target.metadata(DtsBuild.DtsBuild(attrs)).inputs).toEqual([entry, tsconfig])
     expect(() => DtsBuild.DtsBuild({ ...attrs, entries: ["src/index.ts"] } as never)).toThrow()

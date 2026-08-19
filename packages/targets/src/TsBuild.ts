@@ -11,6 +11,68 @@ import * as Target from "./Target.ts"
 import { BuildError, captureOutputs, Outputs } from "./ToolBuild.ts"
 
 /**
+ * Schema for a distribution built by the TypeScript compiler.
+ *
+ * The tsconfig owns every emit option, so this variant carries no flags of its
+ * own. It carries no `external` in particular: `tsc` resolves imports through
+ * the tsconfig and has no bundle to exclude a package from, so an external list
+ * declared beside it would be text that changes the key and nothing else.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const TscTool = Schema.Struct({
+  name: Schema.Literal("tsc")
+})
+
+/**
+ * A distribution built by the TypeScript compiler.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type TscTool = typeof TscTool.Type
+
+/**
+ * Schema for a distribution built by tsup.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const TsupTool = Schema.Struct({
+  name: Schema.Literal("tsup"),
+  /** Packages the bundle must not inline, forwarded as `--external`. */
+  external: Schema.Array(Schema.NonEmptyString)
+})
+
+/**
+ * A distribution built by tsup.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type TsupTool = typeof TsupTool.Type
+
+/**
+ * Schema for the tool one distribution build runs.
+ *
+ * A discriminated union rather than one name and a flat bag of flags, so a
+ * declaration cannot carry a flag the selected tool never reads.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const Tool = Schema.Union([TscTool, TsupTool])
+
+/**
+ * The tool one distribution build runs.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type Tool = typeof Tool.Type
+
+/**
  * Attributes for {@link TsBuild}.
  *
  * `cwd` is the workspace-relative package directory the tool runs in and
@@ -18,6 +80,10 @@ import { BuildError, captureOutputs, Outputs } from "./ToolBuild.ts"
  * stay package-relative. `tsconfig` and `entries` are declared input files;
  * `outDir` stays a string because it declares an output path rather than
  * referencing a file the target reads.
+ *
+ * `entries` and `format` sit beside `tool` rather than inside its `tsup`
+ * variant because `PackageJson` derives a published package's `exports` from
+ * them whichever tool built the distribution.
  *
  * @category schemas
  * @since 0.1.0
@@ -28,10 +94,9 @@ export const Attrs = Schema.Struct({
   entries: Schema.Array(Input.File),
   deps: Schema.Array(Target.Target),
   tsconfig: Input.File,
-  tool: Schema.Literals(["tsup", "tsc"]),
+  tool: Tool,
   format: Schema.Literals(["esm", "cjs", "dual"]),
   outDir: Schema.NonEmptyString,
-  external: Schema.Array(Schema.NonEmptyString),
   cwd: Schema.NonEmptyString.pipe(Schema.withConstructorDefault(Effect.succeed(".")))
 })
 
@@ -47,12 +112,12 @@ export type Attrs = typeof Attrs.Type
  * Builds the distribution argv from decoded attrs at plan time.
  *
  * Tools resolve through `pnpm exec`, matching the pnpm workspace install
- * target. For `tsc` the tsconfig owns every
- * emit option, so `format`, `entries`, `external`, and `outDir` stay declared
- * key material. For `tsup` those attrs map to their CLI flags.
+ * target. For `tsc` the tsconfig owns every emit option, so `format`,
+ * `entries`, and `outDir` stay declared key material. For `tsup` those attrs
+ * map to their CLI flags.
  */
 const buildArgv = (attrs: Attrs): ReadonlyArray<string> =>
-  attrs.tool === "tsc"
+  attrs.tool.name === "tsc"
     ? PackageManager.exec(attrs.packageManager, ["tsc", "-p", attrs.tsconfig.path])
     : PackageManager.exec(attrs.packageManager, [
       "tsup",
@@ -61,7 +126,7 @@ const buildArgv = (attrs: Attrs): ReadonlyArray<string> =>
       attrs.format === "dual" ? "esm,cjs" : attrs.format,
       "--out-dir",
       attrs.outDir,
-      ...attrs.external.flatMap((name) => ["--external", name])
+      ...attrs.tool.external.flatMap((name) => ["--external", name])
     ])
 
 /**

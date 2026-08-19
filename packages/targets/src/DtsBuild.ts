@@ -11,6 +11,71 @@ import * as Target from "./Target.ts"
 import { BuildError, captureOutputs, Outputs } from "./ToolBuild.ts"
 
 /**
+ * Schema for declarations emitted by the TypeScript compiler.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const TscTool = Schema.Struct({
+  name: Schema.Literal("tsc"),
+  /**
+   * Whether the emit carries `.d.ts.map` files. Forced onto the compiler
+   * explicitly, so the emitted tree matches the declared policy whatever the
+   * tsconfig says.
+   */
+  declarationMap: Schema.Boolean
+})
+
+/**
+ * Declarations emitted by the TypeScript compiler.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type TscTool = typeof TscTool.Type
+
+/**
+ * Schema for declarations emitted by tsup.
+ *
+ * tsup emits no declaration maps, so this variant carries no map policy: a
+ * `declarationMap` declared beside `--dts-only` would be a policy nothing
+ * enforces.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const TsupTool = Schema.Struct({
+  name: Schema.Literal("tsup")
+})
+
+/**
+ * Declarations emitted by tsup.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type TsupTool = typeof TsupTool.Type
+
+/**
+ * Schema for the tool one declaration build runs.
+ *
+ * A discriminated union rather than one name and a flat bag of flags, so a
+ * declaration cannot carry a flag the selected tool never reads.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const Tool = Schema.Union([TscTool, TsupTool])
+
+/**
+ * The tool one declaration build runs.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type Tool = typeof Tool.Type
+
+/**
  * Attributes for {@link DtsBuild}.
  *
  * `cwd` is the workspace-relative package directory the tool runs in and
@@ -28,9 +93,8 @@ export const Attrs = Schema.Struct({
   entries: Schema.Array(Input.File),
   deps: Schema.Array(Target.Target),
   tsconfig: Input.File,
-  tool: Schema.Literals(["tsup", "tsc"]),
+  tool: Tool,
   outDir: Schema.NonEmptyString,
-  declarationMap: Schema.Boolean,
   cwd: Schema.NonEmptyString.pipe(Schema.withConstructorDefault(Effect.succeed(".")))
 })
 
@@ -46,13 +110,11 @@ export type Attrs = typeof Attrs.Type
  * Builds the declaration-emit argv from decoded attrs at plan time.
  *
  * Tools resolve through `pnpm exec`, matching the pnpm workspace install
- * target. For `tsc` the `declarationMap` attr is forced explicitly so the
- * emitted tree matches the declared policy whatever the tsconfig says, while
- * the tsconfig owns the destination and `outDir` stays the declared capture
- * path. tsup emits no declaration maps, so `--dts-only` ignores the attr.
+ * target. For `tsc` the tsconfig owns the destination and `outDir` stays the
+ * declared capture path.
  */
 const declarationArgv = (attrs: Attrs): ReadonlyArray<string> =>
-  attrs.tool === "tsc"
+  attrs.tool.name === "tsc"
     ? PackageManager.exec(attrs.packageManager, [
       "tsc",
       "-p",
@@ -60,7 +122,7 @@ const declarationArgv = (attrs: Attrs): ReadonlyArray<string> =>
       "--declaration",
       "--emitDeclarationOnly",
       "--declarationMap",
-      attrs.declarationMap ? "true" : "false"
+      attrs.tool.declarationMap ? "true" : "false"
     ])
     : PackageManager.exec(attrs.packageManager, [
       "tsup",
