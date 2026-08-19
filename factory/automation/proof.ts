@@ -81,7 +81,10 @@ const main = (): void => {
   const changed = git(["diff", "--name-only", `${base}...HEAD`]).split("\n").map((line) => line.trim()).filter((
     line
   ) => line !== "")
-  const programs = touchedPrograms(changed, issues)
+  // A touched path that no longer exists at the head is a move: the repro
+  // went into a package suite. The permanent test proves the fix there;
+  // the gate has nothing left to run for that path.
+  const programs = touchedPrograms(changed, issues).filter((program) => existsSync(program))
   if (programs.length === 0) {
     console.error(
       `this pull request claims ${issues.map((issue) => `#${String(issue)}`).join(", ")} but touches no repro under ${

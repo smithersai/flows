@@ -12,6 +12,17 @@
  */
 import { spawnSync } from "node:child_process"
 
+/**
+ * What the engine may touch while answering.
+ *
+ * `none` is the default and the common case: the answer is a pure function of
+ * the prompt. `read` admits the read-only tools, for an entry whose prompt
+ * points at the checkout. `workspace` is for the fix lane alone: the engine
+ * edits files and runs the verification scripts, inside a gated job whose
+ * commits are path-scoped afterwards.
+ */
+export type AgentTools = "none" | "read" | "workspace"
+
 /** One request to the agent engine. */
 export interface AgentRequest {
   /** The prompt. It travels over stdin, never argv. */
@@ -20,6 +31,8 @@ export interface AgentRequest {
   readonly model?: string
   /** Wall-clock ceiling in milliseconds. Defaults to {@link defaultTimeoutMs}. */
   readonly timeoutMs?: number
+  /** What the engine may touch. @default "none" */
+  readonly tools?: AgentTools
 }
 
 /** One answer from the agent engine. */
@@ -72,6 +85,7 @@ export const claudeText = (stdout: string): string => {
 export const claudeEngine: AgentEngine = {
   name: "claude",
   run: (request) => {
+    const tools = request.tools ?? "none"
     const result = spawnSync(
       "claude",
       [
@@ -80,6 +94,15 @@ export const claudeEngine: AgentEngine = {
         "json",
         "--model",
         request.model ?? defaultModel,
+        // `none` runs tool-free, like LlmLint's reviews. `read` admits the
+        // read-only tools, which need no permission grants in print mode.
+        // `workspace` skips the permission prompts print mode cannot answer;
+        // it runs only inside a maintainer-gated job.
+        ...(tools === "none"
+          ? ["--tools", ""]
+          : tools === "read"
+          ? ["--tools", "Read", "Grep", "Glob"]
+          : ["--dangerously-skip-permissions"]),
         "--no-session-persistence",
         "--disable-slash-commands",
         "--strict-mcp-config",

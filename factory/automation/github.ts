@@ -214,18 +214,43 @@ export const pullRequestBody = (number: number): string =>
     "body"
   ]).body ?? ""
 
-/** Posts one pull-request review with a body and a verdict. */
-export const review = (number: number, body: string, approve: boolean): void => {
-  gh([
-    "pr",
-    "review",
-    String(number),
-    "--repo",
-    repository(),
-    approve ? "--approve" : "--comment",
-    "--body-file",
-    "-"
-  ], body)
+/** One inline review comment, anchored to a new-side line of the diff. */
+export interface ReviewComment {
+  readonly path: string
+  readonly line: number
+  readonly body: string
+}
+
+/**
+ * Posts one pull-request review: a body plus inline comments.
+ *
+ * One review, not one comment per finding, so the author gets one
+ * notification. The event is always `COMMENT`: an automation neither approves
+ * nor blocks, it reports. Inline anchors must be new-side lines the diff
+ * actually shows, or the API refuses the whole review; the caller filters
+ * against the diff before calling.
+ */
+export const review = (number: number, body: string, comments: ReadonlyArray<ReviewComment>): void => {
+  gh(
+    [
+      "api",
+      "--method",
+      "POST",
+      `repos/${repository()}/pulls/${String(number)}/reviews`,
+      "--input",
+      "-"
+    ],
+    JSON.stringify({
+      body,
+      event: "COMMENT",
+      comments: comments.map((comment) => ({
+        path: comment.path,
+        line: comment.line,
+        side: "RIGHT",
+        body: comment.body
+      }))
+    })
+  )
 }
 
 /** Opens one pull request and returns its URL. */

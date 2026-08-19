@@ -114,6 +114,43 @@ const framing = [
   "A finding without a usable scenario is dropped, so do not emit one."
 ].join("\n")
 
+/**
+ * The new-side lines a unified diff shows, per file.
+ *
+ * The review API refuses an inline comment anchored to a line the diff does
+ * not show, and it refuses the whole review with it, so every finding is
+ * checked against this map first. Context and added lines count; deleted
+ * lines belong to the old side and do not.
+ */
+export const commentableLines = (diff: string): ReadonlyMap<string, ReadonlySet<number>> => {
+  const lines = new Map<string, Set<number>>()
+  let file: string | undefined
+  let line = 0
+  for (const raw of diff.split("\n")) {
+    const target = /^\+\+\+ b\/(.+)$/.exec(raw)
+    if (target !== null) {
+      file = target[1]
+      lines.set(file!, lines.get(file!) ?? new Set())
+      continue
+    }
+    const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(raw)
+    if (hunk !== null) {
+      line = Number(hunk[1])
+      continue
+    }
+    if (file === undefined || raw.startsWith("---")) continue
+    if (raw.startsWith("+") || (!raw.startsWith("-") && !raw.startsWith("\\"))) {
+      lines.get(file)!.add(line)
+      line += 1
+    }
+  }
+  return lines
+}
+
+/** Whether a finding can anchor an inline comment on this diff. */
+export const isInline = (finding: Finding, diff: ReadonlyMap<string, ReadonlySet<number>>): boolean =>
+  diff.get(finding.file)?.has(finding.line) === true
+
 /** Whether a finding states a scenario concrete enough to post. */
 export const hasScenario = (finding: Finding): boolean =>
   typeof finding.scenario === "string" &&
@@ -136,8 +173,30 @@ export const writeCache = (key: string, findings: ReadonlyArray<Finding>, root =
   writeFileSync(join(root, cacheDirectory, `${key}.json`), `${JSON.stringify(findings, undefined, 2)}\n`, "utf8")
 }
 
-/** Renders the review body. */
-export const renderReview = (findings: ReadonlyArray<Finding>): string => {
+/** Orders findings for a review: severity, then file, then line. */
+const bySeverity = (findings: ReadonlyArray<Finding>): ReadonlyArray<Finding> => {
+  const order = { error: 0, warning: 1, info: 2 }
+  return [...findings].sort((left, right) =>
+    order[left.severity] - order[right.severity] || left.file.localeCompare(right.file) || left.line - right.line
+  )
+}
+
+/** Renders one finding, for an inline comment or a body section. */
+export const renderFinding = (finding: Finding): string =>
+  [
+    `**${finding.severity}**: ${finding.message.trim()}`,
+    "",
+    `**Fails when:** ${finding.scenario.trim()}`
+  ].join("\n")
+
+/**
+ * Renders the review body.
+ *
+ * Inline-anchored findings are counted but not repeated; the ones the diff
+ * cannot anchor — a stale docs page, a line outside the hunks — are spelled
+ * out here in full, because the body is the only place they appear.
+ */
+export const renderReview = (findings: ReadonlyArray<Finding>, bodyOnly: ReadonlyArray<Finding>): string => {
   if (findings.length === 0) {
     return [
       "## Rubric review",
@@ -150,28 +209,20 @@ export const renderReview = (findings: ReadonlyArray<Finding>): string => {
       "not that none was looked for."
     ].join("\n")
   }
-  const order = { error: 0, warning: 1, info: 2 }
-  const sorted = [...findings].sort((left, right) =>
-    order[left.severity] - order[right.severity] || left.file.localeCompare(right.file) || left.line - right.line
-  )
-  return [
+  const lines = [
     "## Rubric review",
     "",
-    `${String(sorted.length)} finding${sorted.length === 1 ? "" : "s"} across ${
+    `${String(findings.length)} finding${findings.length === 1 ? "" : "s"} across ${
       String(rubrics.length)
-    } rubrics. Each states the scenario it fails in.`,
-    "",
-    ...sorted.map((finding) =>
-      [
-        `### \`${finding.file}:${String(finding.line)}\` — ${finding.severity}`,
-        "",
-        finding.message.trim(),
-        "",
-        `**Fails when:** ${finding.scenario.trim()}`,
-        ""
-      ].join("\n")
-    )
-  ].join("\n")
+    } rubrics. Each states the scenario it fails in.${
+      findings.length === bodyOnly.length ? "" : " Findings on changed lines are inline."
+    }`,
+    ""
+  ]
+  for (const finding of bySeverity(bodyOnly)) {
+    lines.push(`### \`${finding.file}:${String(finding.line)}\``, "", renderFinding(finding), "")
+  }
+  return lines.join("\n")
 }
 
 const main = (): void => {
@@ -197,9 +248,18 @@ const main = (): void => {
     }
   }
 
-  Github.review(number, renderReview(findings), findings.every((finding) => finding.severity !== "error"))
+  const anchors = commentableLines(raw)
+  const inline = bySeverity(findings.filter((finding) => isInline(finding, anchors)))
+  const bodyOnly = findings.filter((finding) => !isInline(finding, anchors))
+  Github.review(
+    number,
+    renderReview(findings, bodyOnly),
+    inline.map((finding) => ({ path: finding.file, line: finding.line, body: renderFinding(finding) }))
+  )
   writeCache(key, findings)
-  console.log(`posted ${String(findings.length)} findings for #${String(number)}.`)
+  console.log(
+    `posted ${String(findings.length)} findings for #${String(number)}, ${String(inline.length)} inline.`
+  )
 }
 
 if (isEntryPoint(import.meta.url)) main()

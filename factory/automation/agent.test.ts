@@ -7,7 +7,7 @@ import { afterEach, describe, it } from "node:test"
 import { read } from "./advance.ts"
 import { ask, askJson, claudeText, currentEngine, setEngine, stubEngine } from "./agent.ts"
 import { itemPath, render, routing, slug } from "./queue.ts"
-import { hasScenario, renderReview } from "./review.ts"
+import { commentableLines, hasScenario, isInline, renderReview } from "./review.ts"
 
 const original = currentEngine()
 
@@ -122,17 +122,40 @@ describe("the review body", () => {
   })
 
   it("says an empty review found nothing rather than looked at nothing", () => {
-    const body = renderReview([])
+    const body = renderReview([], [])
     assert.ok(body.includes("No findings"))
     assert.ok(body.includes("not that none was looked for"))
   })
 
-  it("orders findings by severity, then file, then line", () => {
-    const body = renderReview([
+  it("orders body-only findings by severity, then file, then line", () => {
+    const findings = [
       { file: "b.ts", line: 2, severity: "info", message: "i", scenario: "with a null argument the branch is skipped" },
       { file: "a.ts", line: 9, severity: "error", message: "e", scenario: "with a null argument the call throws" }
-    ])
+    ] as const
+    const body = renderReview(findings as never, findings as never)
     assert.ok(body.indexOf("a.ts:9") < body.indexOf("b.ts:2"))
     assert.ok(body.includes("**Fails when:**"))
+  })
+
+  it("anchors inline comments only to new-side lines the diff shows", () => {
+    const diff = [
+      "diff --git a/a.ts b/a.ts",
+      "--- a/a.ts",
+      "+++ b/a.ts",
+      "@@ -1,3 +1,4 @@",
+      " const one = 1",
+      "-const two = 3",
+      "+const two = 2",
+      "+const three = 3",
+      " export const four = 4"
+    ].join("\n")
+    const anchors = commentableLines(diff)
+    const finding = (file: string, line: number) =>
+      ({ file, line, severity: "error", message: "m", scenario: "with any input this is wrong" }) as const
+    assert.ok(isInline(finding("a.ts", 2) as never, anchors))
+    assert.ok(isInline(finding("a.ts", 3) as never, anchors))
+    assert.ok(isInline(finding("a.ts", 4) as never, anchors))
+    assert.equal(isInline(finding("a.ts", 9) as never, anchors), false)
+    assert.equal(isInline(finding("b.ts", 2) as never, anchors), false)
   })
 })

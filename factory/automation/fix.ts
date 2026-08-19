@@ -108,7 +108,11 @@ const main = (): void => {
       "",
       readFileSync(item, "utf8")
     ].join("\n"),
-    timeoutMs: 90 * 60 * 1000
+    timeoutMs: 90 * 60 * 1000,
+    // The lane's whole job is editing the tree and running the verification
+    // scripts, which print mode cannot ask permission for. The job is behind
+    // the maintainer gate and the commit below is path-scoped.
+    tools: "workspace"
   })
 
   const dirty = run("git", ["status", "--porcelain"])
