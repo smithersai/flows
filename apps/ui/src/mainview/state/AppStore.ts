@@ -14,6 +14,7 @@ import {
 	readRecordedBackend,
 	recordBackend,
 } from "../chain/SchemaVersion";
+import { PALETTE_MIRROR_KEY, rememberAppearance, THEME_MIRROR_KEY } from "./Appearance";
 import {
 	BillingAccountSchema,
 	CardSchema,
@@ -72,6 +73,8 @@ const preferredTheme = (): Session["theme"] =>
 
 const applyTheme = (theme: Session["theme"]): void => {
 	if (typeof document !== "undefined") document.documentElement.dataset.theme = theme;
+	// §20.4: the next boot paints this before the store is even open.
+	rememberAppearance(THEME_MIRROR_KEY, theme);
 };
 
 /*
@@ -82,6 +85,7 @@ const applyTheme = (theme: Session["theme"]): void => {
  */
 const applyPalette = (palette: Palette): void => {
 	if (typeof document !== "undefined") document.documentElement.dataset.palette = palette;
+	rememberAppearance(PALETTE_MIRROR_KEY, palette);
 };
 
 const transitionPayload = (transition: AppTransition): string => {

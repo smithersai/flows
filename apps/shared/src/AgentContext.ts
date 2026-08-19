@@ -27,6 +27,17 @@ export const AgentRuntimeWorldDocumentSchema = z.object({
 	path: z.string(),
 	title: z.string(),
 	confidence: z.number(),
+	/*
+	 * §10.8: the note's own words. Metadata alone made the World decorative —
+	 * a note recording a fact nowhere else was invisible to the model, which
+	 * answered "I can't retrieve that" about content the pane calls "what
+	 * Smithers currently understands". Optional, because the client budgets
+	 * how much body text rides a turn and a boundary built before this field
+	 * must still validate the payload.
+	 */
+	body: z.string().optional(),
+	/** True when `body` is the head of a longer note the budget cut. */
+	bodyTruncated: z.boolean().optional(),
 });
 export type AgentRuntimeWorldDocument = z.infer<typeof AgentRuntimeWorldDocumentSchema>;
 
@@ -157,9 +168,27 @@ export const renderAgentRuntimeContext = (context: AgentRuntimeContext): string 
 	if (context.worldState.documentCount === 0) {
 		lines.push("- World state: no documents yet.");
 	} else {
-		lines.push(`- World state: ${context.worldState.documentCount} document(s):`);
+		lines.push(
+			`- World state: ${context.worldState.documentCount} document(s). These notes ARE what Smithers understands about this workspace — when the user asks about something a note records, answer from the note below, never from a repository read and never with "I can't retrieve that":`,
+		);
 		for (const document of context.worldState.documents) {
 			lines.push(`  - ${document.path} — "${document.title}" (confidence ${document.confidence})`);
+			if (document.body === undefined) continue;
+			const body = document.body.trim();
+			if (body === "") {
+				lines.push(
+					document.bodyTruncated === true
+						? "    | (this note's text did not fit this turn's context budget — read it in the World pane)"
+						: "    (empty note)",
+				);
+				continue;
+			}
+			// Indented under its own heading so a note's words cannot be read as
+			// an instruction line of this block.
+			for (const line of body.split("\n")) lines.push(`    | ${line}`);
+			if (document.bodyTruncated === true) {
+				lines.push("    | … (note truncated here — read the rest in the World pane)");
+			}
 		}
 	}
 	lines.push("- Capabilities (what you can honestly do in this client):");
