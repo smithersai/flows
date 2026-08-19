@@ -20,6 +20,7 @@ import type * as Plan from "./Plan.ts"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Rekeyed {
   readonly id: string
@@ -40,6 +41,7 @@ export interface Rekeyed {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface PlanDiff {
   readonly added: ReadonlyArray<string>
@@ -92,6 +94,7 @@ const changedFields = (
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const diff = (previous: Plan.Plan, next: Plan.Plan): PlanDiff => {
   const before = new Map(previous.nodes.map((node) => [node.id, node]))

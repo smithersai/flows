@@ -14,6 +14,7 @@ import type { Observation, RunResult } from "./Runner.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Tolerances {
   readonly absolute?: number | undefined
@@ -25,6 +26,7 @@ export interface Tolerances {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Regression {
   readonly case: string
@@ -39,6 +41,7 @@ export interface Regression {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Nondeterminism {
   readonly case: string
@@ -53,6 +56,7 @@ export interface Nondeterminism {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface MissingObservation {
   readonly side: "baseline" | "run"
@@ -66,6 +70,7 @@ export interface MissingObservation {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Report {
   readonly suite: string
@@ -86,6 +91,7 @@ const validTolerance = (value: number): boolean => Number.isFinite(value) && val
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const compare = (
   baseline: Baseline,
@@ -190,5 +196,6 @@ export const compare = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const check = compare

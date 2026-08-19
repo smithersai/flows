@@ -83,6 +83,7 @@ const ThinkingConfig = Schema.Struct({
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const Body = Schema.Struct({
   model: Schema.String,
@@ -103,6 +104,7 @@ export const Body = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Body = typeof Body.Type
 
@@ -792,6 +794,7 @@ const classifyError = (status: number, body: string): ModelError => {
  *
  * @category protocols
  * @since 0.1.0
+ * @slop
  */
 export const protocol: Protocol<Body, string, AnthropicEvent, State> = makeProtocol({
   id: ID,

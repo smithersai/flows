@@ -13,6 +13,7 @@ import * as Digest from "@smthrs/core/Digest"
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const authorName = "author"
 
@@ -21,6 +22,7 @@ export const authorName = "author"
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const authorDescription = "Author the successor flow script from the context the caller built"
 
@@ -29,6 +31,7 @@ export const authorDescription = "Author the successor flow script from the cont
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const authorDigest: string = Digest.digest(
   Digest.canonical({ description: authorDescription, name: authorName })
@@ -40,5 +43,6 @@ export const authorDigest: string = Digest.digest(
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const authorCapability = "model:call:author"

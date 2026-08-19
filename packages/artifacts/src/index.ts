@@ -30,29 +30,34 @@
 /**
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export * as ArtifactStore from "./ArtifactStore.ts"
 
 /**
  * @category metrics
  * @since 0.1.0
+ * @slop
  */
 export * as ArtifactStoreMetrics from "./ArtifactStoreMetrics.ts"
 
 /**
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export * as ArtifactSweep from "./ArtifactSweep.ts"
 
 /**
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export * as CombinedArtifacts from "./CombinedArtifacts.ts"
 
 /**
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export * as RemoteArtifacts from "./RemoteArtifacts.ts"

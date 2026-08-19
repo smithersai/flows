@@ -29,6 +29,7 @@ import * as ArtifactStore from "./ArtifactStore.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Options {
   /** The fast, machine-local tier. Every read tries this one first. */
@@ -57,6 +58,7 @@ const defaultUploadTimeout = Duration.seconds(60)
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (options: Options): ArtifactStore.Service => {
   const { local, remote } = options
@@ -197,6 +199,7 @@ export const make = (options: Options): ArtifactStore.Service => {
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = <EL, RL, ER, RR>(options: {
   readonly local: Effect.Effect<ArtifactStore.Service, EL, RL>

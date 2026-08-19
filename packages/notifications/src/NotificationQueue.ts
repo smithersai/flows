@@ -17,6 +17,7 @@ import { defaultCapacity } from "./Projection.ts"
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class NotificationError extends Schema.TaggedError<NotificationError>()(
   "/notifications/NotificationError",
@@ -34,6 +35,7 @@ export class NotificationError extends Schema.TaggedError<NotificationError>()(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface AdmissionReceipt {
   readonly notificationId: string
@@ -48,6 +50,7 @@ export interface AdmissionReceipt {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface DrainInput {
   readonly runId: string
@@ -62,6 +65,7 @@ export interface DrainInput {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface DrainReceipt {
   readonly notifications: ReadonlyArray<NotificationModel.Notification>
@@ -75,6 +79,7 @@ export interface DrainReceipt {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export interface Service {
   readonly admit: (
@@ -91,6 +96,7 @@ export interface Service {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export class NotificationQueue extends Context.Service<NotificationQueue, Service>()(
   "/notifications/NotificationQueue"
@@ -101,6 +107,7 @@ export class NotificationQueue extends Context.Service<NotificationQueue, Servic
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (implementation: Service): Service => NotificationQueue.of(implementation)
 
@@ -113,6 +120,7 @@ const unavailable = (operation: string): NotificationError =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (overrides: Partial<Service> = {}): Service =>
   make({
@@ -126,6 +134,7 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<NotificationQueue> =>
   Layer.succeed(NotificationQueue)(makeNoop(overrides))
@@ -196,6 +205,7 @@ const drainSource = (boundary: string): JournalEvent.SourceId =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer: Layer.Layer<NotificationQueue, never, Journal.Journal> = Layer.effect(
   NotificationQueue,

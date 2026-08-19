@@ -16,6 +16,7 @@ import type * as Route from "./Route.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface CommandTree {
   readonly route: Option.Option<Route.Route>
@@ -27,6 +28,7 @@ export interface CommandTree {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Resolved {
   readonly route: Route.Route
@@ -53,6 +55,7 @@ const freeze = (node: MutableTree): CommandTree => ({
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (routes: ReadonlyArray<Route.Route>): Effect.Effect<CommandTree, FsError> =>
   Effect.suspend(() => {
@@ -86,6 +89,7 @@ export const make = (routes: ReadonlyArray<Route.Route>): Effect.Effect<CommandT
  *
  * @category resolution
  * @since 0.1.0
+ * @slop
  */
 export const resolve = (tree: CommandTree, argv: ReadonlyArray<string>): Effect.Effect<Resolved, FsError> =>
   Effect.suspend(() => {
@@ -114,6 +118,7 @@ export const resolve = (tree: CommandTree, argv: ReadonlyArray<string>): Effect.
  *
  * @category getters
  * @since 0.1.0
+ * @slop
  */
 export const traverse = (tree: CommandTree): ReadonlyArray<Route.Route> => {
   const routes: Array<Route.Route> = []

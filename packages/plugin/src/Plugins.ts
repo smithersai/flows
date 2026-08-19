@@ -5,7 +5,7 @@
  * Governing contract: D11 in `docs/architecture/design-decisions.md`. Each
  * host holds an instance over its augmented `FlowsHooks` and may dispatch only
  * the runtime catalog it supplied. The shipped cell host owns the three
- * waterfalls declared in `packages/engine-harness/src/CellPlugin.ts`; there is
+ * waterfalls declared in `packages/agent/src/CellPlugin.ts`; there is
  * no engine-wide lifecycle dispatcher.
  *
  * Cancellation is fiber interruption via scope closure; nothing here threads an

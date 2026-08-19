@@ -10,6 +10,7 @@ import { Context, Effect, Layer, Redacted } from "effect"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Format = "human" | "json"
 
@@ -18,6 +19,7 @@ export type Format = "human" | "json"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Rendered {
   readonly text: string
@@ -29,6 +31,7 @@ export interface Rendered {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export interface Service {
   readonly render: (value: unknown, format: Format) => Effect.Effect<Rendered>
@@ -39,6 +42,7 @@ export interface Service {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export class Output extends Context.Service<Output, Service>()("/cli/Output") {}
 
@@ -68,6 +72,7 @@ const human = (value: unknown): string => {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (): Service => ({
   render: Effect.fn("Output.render")((value, format) =>
@@ -80,6 +85,7 @@ export const make = (): Service => ({
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = Layer.succeed(Output, make())
 
@@ -88,6 +94,7 @@ export const layer = Layer.succeed(Output, make())
  *
  * @category getters
  * @since 0.1.0
+ * @slop
  */
 export const exitCode = (value: unknown): number => {
   if (value !== null && typeof value === "object") {

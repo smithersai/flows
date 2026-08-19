@@ -16,6 +16,7 @@ import { PatternError } from "./PatternError.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface MakeOptions {
   readonly panelists: Readonly<Record<string, Flow.Any>>
@@ -33,6 +34,7 @@ const call = (flow: Flow.Any, input: unknown): Node.Node<unknown, unknown> =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (options: MakeOptions): Flow.Flow<typeof Schema.Unknown, typeof Schema.Unknown, unknown> => {
   const panelists = Object.entries(options.panelists)

@@ -32,6 +32,7 @@
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface SyncStatsLike {
   readonly size: number
@@ -52,6 +53,7 @@ export interface SyncStatsLike {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface SyncDirentLike {
   readonly name: string
@@ -85,6 +87,7 @@ export interface SyncDirentLike {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface SyncFsLike {
   readonly openSync: (path: string, flags: string, mode?: number) => number

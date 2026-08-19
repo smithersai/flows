@@ -19,6 +19,7 @@ import type { CacheEnvironment } from "./CacheEnvironment.ts"
  *
  * @category idempotency
  * @since 0.1.0
+ * @slop
  */
 export const CurrentCacheEnvironment = Context.Reference<CacheEnvironment | undefined>(
   "@smthrs/flow/Action/CurrentCacheEnvironment",
@@ -35,6 +36,7 @@ export const CurrentCacheEnvironment = Context.Reference<CacheEnvironment | unde
  *
  * @category idempotency
  * @since 0.1.0
+ * @slop
  */
 export const layerCacheEnvironment = (
   environment: CacheEnvironment
@@ -65,6 +67,7 @@ export const layerCacheEnvironment = (
  *
  * @category attempts
  * @since 0.1.0
+ * @slop
  */
 export interface OrdinalSlot {
   readonly values: Map<string, Array<number>>
@@ -77,6 +80,7 @@ export interface OrdinalSlot {
  *
  * @category attempts
  * @since 0.1.0
+ * @slop
  */
 export const CurrentOrdinal = Context.Reference<OrdinalSlot | undefined>(
   "@smthrs/flow/Action/CurrentOrdinal",
@@ -89,6 +93,7 @@ export const CurrentOrdinal = Context.Reference<OrdinalSlot | undefined>(
  *
  * @category attempts
  * @since 4.0.0
+ * @slop
  */
 export const CurrentAttempt = Context.Reference<number>(
   "@smthrs/flow/Action/CurrentAttempt",
@@ -119,6 +124,7 @@ export const CurrentAttempt = Context.Reference<number>(
  *
  * @category idempotency
  * @since 0.1.0
+ * @slop
  */
 export const CurrentInvocationKey = Context.Reference<string | undefined>(
   "@smthrs/flow/Action/CurrentInvocationKey",

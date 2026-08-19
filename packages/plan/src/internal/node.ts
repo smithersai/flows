@@ -35,6 +35,7 @@ import { sha256 } from "./sha256.ts"
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const TypeId = "~@smthrs/plan/Node" as const
 
@@ -43,6 +44,7 @@ export const TypeId = "~@smthrs/plan/Node" as const
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export type TypeId = typeof TypeId
 
@@ -51,6 +53,7 @@ export type TypeId = typeof TypeId
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export interface Succeed {
   readonly _tag: "Succeed"
@@ -63,6 +66,7 @@ export interface Succeed {
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export interface All {
   readonly _tag: "All"
@@ -75,6 +79,7 @@ export interface All {
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export interface Map {
   readonly _tag: "Map"
@@ -89,6 +94,7 @@ export interface Map {
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export interface AndThen {
   readonly _tag: "AndThen"
@@ -105,6 +111,7 @@ export interface AndThen {
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export interface Branch {
   readonly _tag: "Branch"
@@ -132,6 +139,7 @@ export interface Branch {
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export interface Catch {
   readonly _tag: "Catch"
@@ -156,6 +164,7 @@ export interface Catch {
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export type CallMode = "inline" | "boundary" | "handoff"
 
@@ -166,6 +175,7 @@ export type CallMode = "inline" | "boundary" | "handoff"
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export interface FlowCall {
   readonly _tag: "FlowCall"
@@ -180,6 +190,7 @@ export interface FlowCall {
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export interface ActionCall {
   readonly _tag: "ActionCall"
@@ -198,6 +209,7 @@ export interface ActionCall {
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export interface FunctionIdentity {
   readonly _tag: "FunctionIdentity"
@@ -300,6 +312,7 @@ const freezeCapture = (input: unknown, seen: WeakSet<object>): void => {
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const capture = <Args extends ReadonlyArray<unknown>, A>(
   captures: Readonly<Record<string, unknown>>,
@@ -327,6 +340,7 @@ export const capture = <Args extends ReadonlyArray<unknown>, A>(
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export interface PlannedReference {
   readonly _tag: "PlannedReference"
@@ -339,6 +353,7 @@ export interface PlannedReference {
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export type NodeAst = Succeed | All | Map | AndThen | Branch | Catch | FlowCall | ActionCall
 
@@ -380,6 +395,7 @@ interface CloneFrame {
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const value = (input: unknown, seen: WeakMap<object, unknown> = new WeakMap()): unknown => {
   let result: unknown
@@ -454,6 +470,7 @@ export const value = (input: unknown, seen: WeakMap<object, unknown> = new WeakM
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const functionIdentity = (operation: unknown): FunctionIdentity => {
   if (typeof operation !== "function") throw new TypeError("function identity requires a function")
@@ -480,6 +497,7 @@ export const functionIdentity = (operation: unknown): FunctionIdentity => {
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export interface Node<out A, out E = never, out R = never> extends Pipeable.Pipeable {
   readonly [TypeId]: {
@@ -496,6 +514,7 @@ export interface Node<out A, out E = never, out R = never> extends Pipeable.Pipe
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const NodeProto = {
   [TypeId]: {
@@ -514,6 +533,7 @@ export const NodeProto = {
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const makeNode = <A = unknown, E = never, R = never>(ast: NodeAst): Node<A, E, R> =>
   Object.assign(Object.create(NodeProto), { ast })
@@ -523,6 +543,7 @@ export const makeNode = <A = unknown, E = never, R = never>(ast: NodeAst): Node<
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const succeed = (input: unknown): Succeed => ({ _tag: "Succeed", value: value(input) })
 
@@ -531,6 +552,7 @@ export const succeed = (input: unknown): Succeed => ({ _tag: "Succeed", value: v
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const all = (nodes: Readonly<Record<string, NodeAst>>): All => ({ _tag: "All", nodes })
 
@@ -539,6 +561,7 @@ export const all = (nodes: Readonly<Record<string, NodeAst>>): All => ({ _tag: "
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const map = (first: NodeAst, operation: Operation, source: unknown): Map => {
   const ast: Map = { _tag: "Map", first, mapper: functionIdentity(source) }
@@ -552,6 +575,7 @@ export const map = (first: NodeAst, operation: Operation, source: unknown): Map 
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const andThen = (first: NodeAst, operation: Operation, source: unknown): AndThen => {
   const ast: AndThen = { _tag: "AndThen", first, continuation: functionIdentity(source) }
@@ -565,6 +589,7 @@ export const andThen = (first: NodeAst, operation: Operation, source: unknown): 
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const andThenNode = (first: NodeAst, next: NodeAst): AndThen => ({
   _tag: "AndThen",
@@ -579,6 +604,7 @@ export const andThenNode = (first: NodeAst, next: NodeAst): AndThen => ({
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const branch = (
   subject: string,
@@ -605,6 +631,7 @@ export const branch = (
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const catch_ = (subject: string, protectedAst: NodeAst, failure: NodeAst, filter?: Schema.Top): Catch => {
   const ast: Catch = {
@@ -623,6 +650,7 @@ export const catch_ = (subject: string, protectedAst: NodeAst, failure: NodeAst,
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const flowCall = (declaration: unknown, flow: string, mode: CallMode, payload: unknown): FlowCall => {
   const ast: FlowCall = { _tag: "FlowCall", flow, mode, payload: value(payload) }
@@ -636,6 +664,7 @@ export const flowCall = (declaration: unknown, flow: string, mode: CallMode, pay
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const actionCall = (declaration: unknown, action: string, payload: unknown): ActionCall => {
   const ast: ActionCall = { _tag: "ActionCall", action, payload: value(payload) }
@@ -648,6 +677,7 @@ export const actionCall = (declaration: unknown, action: string, payload: unknow
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const operation = (ast: AndThen | Map): Operation | undefined => operations.get(ast)
 
@@ -656,6 +686,7 @@ export const operation = (ast: AndThen | Map): Operation | undefined => operatio
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const predicate = (ast: Branch): Predicate | undefined => predicates.get(ast)
 
@@ -664,6 +695,7 @@ export const predicate = (ast: Branch): Predicate | undefined => predicates.get(
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const filter = (ast: Catch): Schema.Top | undefined => filters.get(ast)
 
@@ -672,5 +704,6 @@ export const filter = (ast: Catch): Schema.Top | undefined => filters.get(ast)
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const declaration = (ast: ActionCall | FlowCall): unknown => declarations.get(ast)

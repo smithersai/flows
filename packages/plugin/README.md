@@ -2,7 +2,7 @@
 
 Typed, Effect-native plugin kernel for the assembled cell loop. It owns
 Vite-style plugin resolution and ordering, config resolution, the generic
-dispatch service, and the startup kernel used by `@smthrs/engine-harness`.
+dispatch service, and the startup kernel used by `@smthrs/agent`.
 Durable-engine policies remain Effect services and constructor options rather
 than plugin hooks.
 
@@ -47,4 +47,4 @@ const program = Effect.gen(function*() {
 
 The production cell hooks and convenience constructor for contributing
 executable flows are documented by
-[`@smthrs/engine-harness`](../engine-harness/README.md).
+[`@smthrs/agent`](../agent/README.md).

@@ -24,6 +24,7 @@ import type * as Round from "./Round.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface ActionExecuteOptions {
   readonly action: Action.Any
@@ -41,6 +42,7 @@ export interface ActionExecuteOptions {
  *
  * @category models
  * @since 4.0.0
+ * @slop
  */
 export interface Encoded {
   readonly register: (

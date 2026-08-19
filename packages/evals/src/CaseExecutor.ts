@@ -16,6 +16,7 @@ import type { Case } from "./Suite.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Execution {
   readonly output: unknown
@@ -29,6 +30,7 @@ export interface Execution {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type CaseInput = Case
 
@@ -37,6 +39,7 @@ export type CaseInput = Case
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export interface Service {
   readonly run: (suiteCase: CaseInput) => Effect.Effect<Execution, EvalError>
@@ -48,6 +51,7 @@ export interface Service {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Implementation {
   readonly run?: ((suiteCase: CaseInput) => Effect.Effect<Execution, EvalError>) | undefined
@@ -59,6 +63,7 @@ export interface Implementation {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export class CaseExecutor extends Context.Service<CaseExecutor, Service>()("flows/evals/CaseExecutor") {}
 
@@ -67,6 +72,7 @@ export class CaseExecutor extends Context.Service<CaseExecutor, Service>()("flow
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (
   implementation: Implementation | ((suiteCase: CaseInput) => Effect.Effect<Execution, EvalError>)
@@ -87,6 +93,7 @@ const unavailable = (suiteCase: CaseInput): Effect.Effect<Execution, EvalError> 
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (overrides: Partial<Service> = {}): Service => {
   const run = unavailable
@@ -98,5 +105,6 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service => {
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop: Layer.Layer<CaseExecutor> = Layer.succeed(CaseExecutor)(makeNoop())

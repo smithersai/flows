@@ -58,6 +58,7 @@ const randomNonce = (): Effect.Effect<Uint8Array, Unavailable> =>
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Options {
   readonly key: Redacted.Redacted<string>
@@ -68,6 +69,7 @@ export interface Options {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (options: Options): Effect.Effect<CredentialCipher.Service, Unavailable> =>
   Effect.gen(function*() {
@@ -116,6 +118,7 @@ export const make = (options: Options): Effect.Effect<CredentialCipher.Service, 
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (
   options: Options

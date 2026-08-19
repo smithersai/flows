@@ -12,6 +12,7 @@ import { MemoryStore, type Message } from "./MemoryStore.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface TtlGcResult {
   readonly deletedFacts: number
@@ -22,6 +23,7 @@ export interface TtlGcResult {
  *
  * @category effects
  * @since 0.1.0
+ * @slop
  */
 export const ttlGc: Effect.Effect<TtlGcResult, MemoryError, MemoryStore> = Effect.service(MemoryStore).pipe(
   Effect.flatMap((store) => store.deleteExpiredFacts),
@@ -33,6 +35,7 @@ export const ttlGc: Effect.Effect<TtlGcResult, MemoryError, MemoryStore> = Effec
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface TokenLimiterOptions {
   readonly maxTokens: number
@@ -44,6 +47,7 @@ export interface TokenLimiterOptions {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface TokenLimiterResult {
   readonly deletedMessages: number
@@ -55,6 +59,7 @@ export interface TokenLimiterResult {
  *
  * @category effects
  * @since 0.1.0
+ * @slop
  */
 export const limitHistory = (
   options: TokenLimiterOptions
@@ -100,6 +105,7 @@ export const limitHistory = (
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface SummarizerInput {
   readonly threadId: string
@@ -113,6 +119,7 @@ export interface SummarizerInput {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Summarizer<E = never, R = never> {
   readonly summarize: (input: SummarizerInput) => Effect.Effect<string, E, R>
@@ -123,6 +130,7 @@ export interface Summarizer<E = never, R = never> {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface CompactionOptions<E = never, R = never> {
   readonly summarizer: Summarizer<E, R>
@@ -136,6 +144,7 @@ export interface CompactionOptions<E = never, R = never> {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface CompactionResult {
   readonly compactedThreads: number
@@ -155,6 +164,7 @@ const render = (messages: ReadonlyArray<Message>): string =>
  *
  * @category effects
  * @since 0.1.0
+ * @slop
  */
 export const compact = <E, R>(
   options: CompactionOptions<E, R>

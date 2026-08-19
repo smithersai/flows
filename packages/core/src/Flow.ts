@@ -27,6 +27,7 @@ import type * as Placement from "./Placement.ts"
  *
  * @category type ids
  * @since 0.0.0
+ * @slop
  */
 export const TypeId: TypeId = "~flows/core/Flow"
 
@@ -35,6 +36,7 @@ export const TypeId: TypeId = "~flows/core/Flow"
  *
  * @category type ids
  * @since 0.0.0
+ * @slop
  */
 export type TypeId = "~flows/core/Flow"
 
@@ -46,6 +48,7 @@ export type TypeId = "~flows/core/Flow"
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export interface Flow<
   in out I extends Schema.Top,
@@ -74,6 +77,7 @@ export interface Flow<
  *
  * @category utility types
  * @since 0.0.0
+ * @slop
  */
 export interface Any {
   readonly [TypeId]: object
@@ -89,6 +93,7 @@ export interface Any {
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export type Reference = Any | string
 
@@ -106,6 +111,7 @@ export type Reference = Any | string
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export type Seat = string & {}
 
@@ -119,6 +125,7 @@ export type Seat = string & {}
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export type Implementation =
   | {
@@ -138,6 +145,7 @@ export type Implementation =
  *
  * @category utility types
  * @since 0.0.0
+ * @slop
  */
 export type Input<F> = F extends { readonly input: infer I extends Schema.Top } ? I["Type"] : never
 
@@ -146,6 +154,7 @@ export type Input<F> = F extends { readonly input: infer I extends Schema.Top } 
  *
  * @category utility types
  * @since 0.0.0
+ * @slop
  */
 export type Output<F> = F extends { readonly output: infer O extends Schema.Top } ? O["Type"] : never
 
@@ -154,6 +163,7 @@ export type Output<F> = F extends { readonly output: infer O extends Schema.Top 
  *
  * @category utility types
  * @since 0.0.0
+ * @slop
  */
 export type Error<F> = F extends Flow<infer _I, infer _O, infer E> ? E : never
 
@@ -162,6 +172,7 @@ export type Error<F> = F extends Flow<infer _I, infer _O, infer E> ? E : never
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export const FlowErrorCode = Schema.Literals(["missing_body"])
 
@@ -170,6 +181,7 @@ export const FlowErrorCode = Schema.Literals(["missing_body"])
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export type FlowErrorCode = typeof FlowErrorCode.Type
 
@@ -178,6 +190,7 @@ export type FlowErrorCode = typeof FlowErrorCode.Type
  *
  * @category errors
  * @since 0.0.0
+ * @slop
  */
 export class FlowError extends Schema.TaggedError<FlowError>()("flows/core/FlowError", {
   code: FlowErrorCode,
@@ -283,6 +296,7 @@ const optionsFromFlow = <
  *
  * @category guards
  * @since 0.0.0
+ * @slop
  */
 export const isFlow = (value: unknown): value is Any => Predicate.hasProperty(value, TypeId)
 
@@ -295,6 +309,7 @@ export const isFlow = (value: unknown): value is Any => Predicate.hasProperty(va
  *
  * @category constructors
  * @since 0.0.0
+ * @slop
  */
 export const make = <
   Input extends Schema.Top = typeof Schema.Void,
@@ -346,6 +361,7 @@ export const make = <
  *
  * @category constructors
  * @since 0.0.0
+ * @slop
  */
 export const agent: typeof make = make
 
@@ -355,6 +371,7 @@ export const agent: typeof make = make
  *
  * @category combinators
  * @since 0.0.0
+ * @slop
  */
 export const withCapabilities: {
   (
@@ -380,6 +397,7 @@ export const withCapabilities: {
  *
  * @category combinators
  * @since 0.0.0
+ * @slop
  */
 export const within: {
   (
@@ -405,6 +423,7 @@ export const within: {
  *
  * @category combinators
  * @since 0.0.0
+ * @slop
  */
 export const withEffects: {
   (
@@ -430,6 +449,7 @@ export const withEffects: {
  *
  * @category combinators
  * @since 0.0.0
+ * @slop
  */
 export const sealed: {
   (): <Input extends Schema.Top, Output extends Schema.Top, E>(

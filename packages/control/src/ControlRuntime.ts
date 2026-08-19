@@ -53,6 +53,7 @@ import { catalog } from "./SystemFlows.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface StoredPlan {
   readonly card: PlanCard
@@ -65,6 +66,7 @@ export interface StoredPlan {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface ApprovalToken {
   readonly tokenId: string
@@ -78,6 +80,7 @@ export interface ApprovalToken {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface BulkGrant {
   readonly tokenId: string
@@ -91,6 +94,7 @@ export interface BulkGrant {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type LaunchResult =
   | {
@@ -109,6 +113,7 @@ export type LaunchResult =
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface MutationRecord {
   readonly fingerprint: string
@@ -120,6 +125,7 @@ export interface MutationRecord {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface MemoryFlow {
   readonly flowId: FlowId
@@ -151,6 +157,7 @@ export interface MemoryFlow {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface MemoryOptions {
   readonly flows?: ReadonlyArray<MemoryFlow> | undefined
@@ -169,6 +176,7 @@ export interface MemoryOptions {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Service {
   readonly plan: (input: PlanInput) => Effect.Effect<PlanCard, FlowNotFound | InvalidInput | PersistenceError>
@@ -262,6 +270,7 @@ export interface Service {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export class ControlRuntime extends Context.Service<ControlRuntime, Service>()(
   "/control/ControlRuntime"
@@ -272,6 +281,7 @@ export class ControlRuntime extends Context.Service<ControlRuntime, Service>()(
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (implementation: Service): Service => ControlRuntime.of(implementation)
 
@@ -309,6 +319,7 @@ const asStored = (plan: MutablePlan): StoredPlan => ({
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerMemory = (options: MemoryOptions = {}): Layer.Layer<ControlRuntime, never, Crypto.Crypto> =>
   Layer.effect(

@@ -15,6 +15,7 @@ import type * as Event from "./Event.ts"
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class JournalError extends Schema.TaggedError<JournalError>()("/chain/JournalError", {
   code: Schema.Literal("journal_unavailable").pipe(
@@ -28,6 +29,7 @@ export class JournalError extends Schema.TaggedError<JournalError>()("/chain/Jou
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export interface Service {
   readonly append: (event: Event.Event) => Effect.Effect<void, JournalError>
@@ -39,6 +41,7 @@ export interface Service {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export class Journal extends Context.Service<Journal, Service>()("/chain/Journal") {}
 
@@ -47,6 +50,7 @@ export class Journal extends Context.Service<Journal, Service>()("/chain/Journal
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (implementation: Service): Service => Journal.of(implementation)
 
@@ -58,6 +62,7 @@ const unavailable = (operation: string): JournalError => new JournalError({ mess
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (overrides: Partial<Service> = {}): Service =>
   make({
@@ -71,6 +76,7 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<Journal> =>
   Layer.succeed(Journal)(makeNoop(overrides))
@@ -81,6 +87,7 @@ export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<Journal
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerMemory = (initial: ReadonlyArray<Event.Event> = []): Layer.Layer<Journal> =>
   Layer.effect(Journal)(

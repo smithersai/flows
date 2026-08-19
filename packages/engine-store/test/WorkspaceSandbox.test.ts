@@ -38,7 +38,7 @@ const injected = (path: string) =>
   })
 
 /**
- * The eight behaviors the `engine-harness` proof of concept documented, ported
+ * The eight behaviors the `agent` proof of concept documented, ported
  * onto this side's declaration vocabulary (`FileBoundary` rather than
  * `Effects.Declaration`) and its identity surfaces (`@smthrs/crypto` rather
  * than the deleted `@smthrs/keys` digest module).

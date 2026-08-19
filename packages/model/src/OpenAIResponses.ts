@@ -77,6 +77,7 @@ const InputItem = Schema.Union([
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const Body = Schema.Struct({
   model: Schema.String,
@@ -95,6 +96,7 @@ export const Body = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Body = typeof Body.Type
 
@@ -126,6 +128,7 @@ const decodeErrorBody = Schema.decodeUnknownOption(Schema.fromJsonString(JsonObj
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface State {
   readonly tools: ToolStream.State
@@ -599,6 +602,7 @@ const classifyError = (status: number, body: string): ModelError => {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const protocol: Protocol.Protocol<
   Body,

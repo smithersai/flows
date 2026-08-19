@@ -3,7 +3,7 @@
  * and the config pipeline.
  *
  * Governing contract: D11 in `docs/architecture/design-decisions.md`, with the
- * shipped host catalog in `packages/engine-harness/src/CellPlugin.ts`. Durable
+ * shipped host catalog in `packages/agent/src/CellPlugin.ts`. Durable
  * engine extension remains dependency injection; this package does not expose
  * an engine-wide lifecycle registry.
  *

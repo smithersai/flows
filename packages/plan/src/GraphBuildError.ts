@@ -38,6 +38,7 @@ import * as Schema from "effect/Schema"
  *
  * @since 0.1.0
  * @category schemas
+ * @slop
  */
 export const GraphBuildErrorCode = Schema.Literals([
   "planned_value_computed",
@@ -55,6 +56,7 @@ export const GraphBuildErrorCode = Schema.Literals([
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type GraphBuildErrorCode = typeof GraphBuildErrorCode.Type
 
@@ -68,6 +70,7 @@ export type GraphBuildErrorCode = typeof GraphBuildErrorCode.Type
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export class GraphBuildError extends Schema.TaggedError<GraphBuildError>()("@smthrs/plan/GraphBuildError", {
   code: GraphBuildErrorCode,

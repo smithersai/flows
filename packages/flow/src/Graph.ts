@@ -76,6 +76,7 @@ import { TypeId as FlowTypeId } from "./Flow/TypeId.ts"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type EdgeReason = "value" | "continuation" | "failure"
 
@@ -85,6 +86,7 @@ export type EdgeReason = "value" | "continuation" | "failure"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Edge {
   readonly from: string
@@ -101,6 +103,7 @@ export interface Edge {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface GraphNode {
   readonly id: string
@@ -138,6 +141,7 @@ export interface GraphNode {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface LayerRequest {
   readonly nodeId: string
@@ -154,6 +158,7 @@ export interface LayerRequest {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface BuildOptions {
   readonly resolveLayers?: ((request: LayerRequest) => Iterable<string>) | undefined
@@ -180,6 +185,7 @@ export interface BuildOptions {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Graph {
   readonly nodes: ReadonlyArray<GraphNode>
@@ -582,6 +588,7 @@ interface Visit {
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const build = (
   flowOrNode: Flow.Any | Node.Any,
@@ -1102,6 +1109,7 @@ export const build = (
  *
  * @since 0.1.0
  * @category accessors
+ * @slop
  */
 export const nodes = (graph: Graph): ReadonlyArray<GraphNode> => graph.nodes
 
@@ -1110,6 +1118,7 @@ export const nodes = (graph: Graph): ReadonlyArray<GraphNode> => graph.nodes
  *
  * @since 0.1.0
  * @category accessors
+ * @slop
  */
 export const edges = (graph: Graph): ReadonlyArray<Edge> => graph.edges
 
@@ -1125,6 +1134,7 @@ export const edges = (graph: Graph): ReadonlyArray<Edge> => graph.edges
  *
  * @since 0.1.0
  * @category accessors
+ * @slop
  */
 export const drafts = (graph: Graph): ReadonlyArray<Plan.NodeDraft> => {
   const refusal = graph.diagnostics[0]
@@ -1140,5 +1150,6 @@ export const drafts = (graph: Graph): ReadonlyArray<Plan.NodeDraft> => {
  *
  * @since 0.1.0
  * @category accessors
+ * @slop
  */
 export const diagnostics = (graph: Graph): ReadonlyArray<GraphBuildError> => graph.diagnostics

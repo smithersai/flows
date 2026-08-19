@@ -21,6 +21,7 @@ import * as ExecutorOwnership from "./ExecutorOwnership.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Config {
   readonly remote?: string | undefined
@@ -36,6 +37,7 @@ export interface Config {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Engine {
   readonly runtime: Layer.Layer<ControlRuntime.ControlRuntime>
@@ -56,6 +58,7 @@ export interface Engine {
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const engineMemory: Engine = {
   // The runtime mints identifiers through `Crypto`, which is a host service
@@ -118,6 +121,7 @@ const rpcUrl = (remote: string): string => {
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (
   config: Config,

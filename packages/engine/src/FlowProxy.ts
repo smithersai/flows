@@ -68,6 +68,7 @@ const executePayload = <Payload extends Flow.AnyStructSchema>(
  *
  * @category constructors
  * @since 4.0.0
+ * @slop
  */
 export const toRpcGroup = <
   const Flows extends NonEmptyReadonlyArray<Flow.Any>,
@@ -104,6 +105,7 @@ export const toRpcGroup = <
  *
  * @category converting
  * @since 4.0.0
+ * @slop
  */
 export type ConvertRpcs<Flows extends Flow.Any, Prefix extends string> = Flows extends Flow.Flow<
   infer _Name,
@@ -155,6 +157,7 @@ export type ConvertRpcs<Flows extends Flow.Any, Prefix extends string> = Flows e
  *
  * @category constructors
  * @since 4.0.0
+ * @slop
  */
 export const toHttpApiGroup = <const Name extends string, const Flows extends NonEmptyReadonlyArray<Flow.Any>>(
   name: Name,
@@ -193,6 +196,7 @@ const tagToPath = (tag: string): string =>
  *
  * @category converting
  * @since 4.0.0
+ * @slop
  */
 export type ConvertHttpApi<Flows extends Flow.Any> = Flows extends Flow.Flow<
   infer _Name,

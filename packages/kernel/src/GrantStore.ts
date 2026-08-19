@@ -35,6 +35,7 @@ import { Workspace } from "./Workspace.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface PendingRequest {
   readonly requestId: string
@@ -48,6 +49,7 @@ export interface PendingRequest {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Resolution = "once" | "run" | "remembered" | "deny"
 
@@ -56,6 +58,7 @@ export type Resolution = "once" | "run" | "remembered" | "deny"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface EnvelopeGrantOptions {
   readonly planDigest: string
@@ -68,6 +71,7 @@ export interface EnvelopeGrantOptions {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Service {
   readonly check: (
@@ -88,6 +92,7 @@ export interface Service {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export class GrantStore extends Context.Service<GrantStore, Service>()("@smthrs/kernel/GrantStore") {}
 
@@ -96,6 +101,7 @@ export class GrantStore extends Context.Service<GrantStore, Service>()("@smthrs/
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Persist = (event: GrantEvent) => Effect.Effect<void, GrantStoreError>
 
@@ -108,6 +114,7 @@ export type Persist = (event: GrantEvent) => Effect.Effect<void, GrantStoreError
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface MakeOptions {
   readonly attended?: boolean | undefined
@@ -161,6 +168,7 @@ const isEnvelopeScope = (value: string): value is "run" | "remembered" => value 
  *
  * @category validation
  * @since 0.1.0
+ * @slop
  */
 export const canonicalEnvelopePatterns = (
   patterns: ReadonlyArray<CapabilityPattern>
@@ -185,6 +193,7 @@ export const canonicalEnvelopePatterns = (
  *
  * @category validation
  * @since 0.1.0
+ * @slop
  */
 export const envelopeSignature = (
   planDigest: string,
@@ -203,6 +212,7 @@ export const envelopeSignature = (
  *
  * @category validation
  * @since 0.1.0
+ * @slop
  */
 export const isValidGrantPattern = (
   pattern: CapabilityPattern,
@@ -235,6 +245,7 @@ export const isValidGrantPattern = (
  *
  * @category validation
  * @since 0.1.0
+ * @slop
  */
 export const isValidEnvelopePattern = (
   pattern: CapabilityPattern,
@@ -285,6 +296,7 @@ const normalizeRules = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (
   options: MakeOptions = {}
@@ -674,6 +686,7 @@ export const make = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (
   options: MakeOptions = {}
@@ -684,6 +697,7 @@ export const layer = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop: Service = GrantStore.of({
   check: Effect.fn("GrantStore.check")(() => Effect.void),
@@ -697,5 +711,6 @@ export const makeNoop: Service = GrantStore.of({
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop: Layer.Layer<GrantStore> = Layer.succeed(GrantStore)(makeNoop)

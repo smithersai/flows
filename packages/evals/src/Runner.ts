@@ -21,6 +21,7 @@ import type { Binding, Case, Suite } from "./Suite.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Observation =
   & {
@@ -44,6 +45,7 @@ export type Observation =
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface ScoreRequest {
   readonly case: string
@@ -63,6 +65,7 @@ export interface ScoreRequest {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ScoreJob = ScorerRunner.Job
 
@@ -71,6 +74,7 @@ export type ScoreJob = ScorerRunner.Job
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export interface ScoreBatchRunner {
   readonly runBatch: (
@@ -84,6 +88,7 @@ export interface ScoreBatchRunner {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ScoreObservation = ScoreStore.Observation
 
@@ -92,6 +97,7 @@ export type ScoreObservation = ScoreStore.Observation
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface CaseResult {
   readonly case: string
@@ -105,6 +111,7 @@ export interface CaseResult {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface RunResult {
   readonly runId: string
@@ -118,6 +125,7 @@ export interface RunResult {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface RunOptions {
   readonly scorer?: ScoreBatchRunner | undefined
@@ -131,6 +139,7 @@ export interface RunOptions {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export class Runner extends Context.Service<Runner, ScoreBatchRunner>()("flows/evals/Runner") {}
 
@@ -301,6 +310,7 @@ const score = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const run = (
   suite: Suite,
@@ -332,6 +342,7 @@ export const run = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop: Layer.Layer<Runner> = Layer.succeed(Runner)({
   runBatch: () => Effect.fail(new EvalError({ code: "executor", message: "No scorer batch runner is available" }))

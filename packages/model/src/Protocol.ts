@@ -20,6 +20,7 @@ import type { ModelRequest } from "./ModelRequest.ts"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Protocol<Body, Frame, Event, State> {
   readonly id: string
@@ -34,6 +35,7 @@ export interface Protocol<Body, Frame, Event, State> {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface ProtocolBody<Body> {
   readonly schema: Schema.Codec<Body, unknown>
@@ -48,6 +50,7 @@ export interface ProtocolBody<Body> {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface ProtocolStream<Frame, Event, State> {
   readonly event: Schema.Codec<Event, Frame>
@@ -66,6 +69,7 @@ export interface ProtocolStream<Frame, Event, State> {
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const make = <Body, Frame, Event, State>(
   protocol: Protocol<Body, Frame, Event, State>
@@ -76,5 +80,6 @@ export const make = <Body, Frame, Event, State>(
  *
  * @since 0.1.0
  * @category schemas
+ * @slop
  */
 export const jsonEvent = <S extends Schema.Top>(schema: S) => Schema.fromJsonString(schema)

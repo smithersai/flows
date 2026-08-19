@@ -11,6 +11,7 @@ import { Context, Layer } from "effect"
  *
  * @category references
  * @since 0.1.0
+ * @slop
  */
 export const ExecutorOwnership: Context.Reference<boolean> = Context.Reference<boolean>(
   "/cli/ExecutorOwnership",
@@ -22,5 +23,6 @@ export const ExecutorOwnership: Context.Reference<boolean> = Context.Reference<b
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (ownsExecutor: boolean): Layer.Layer<never> => Layer.succeed(ExecutorOwnership, ownsExecutor)

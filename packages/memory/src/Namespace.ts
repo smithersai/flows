@@ -10,6 +10,7 @@ import * as Schema from "effect/Schema"
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const Kind = Schema.Literals(["flow", "agent", "user", "global"])
 
@@ -18,6 +19,7 @@ export const Kind = Schema.Literals(["flow", "agent", "user", "global"])
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Kind = typeof Kind.Type
 
@@ -26,6 +28,7 @@ export type Kind = typeof Kind.Type
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const Namespace = Schema.Struct({
   kind: Kind,
@@ -37,6 +40,7 @@ export const Namespace = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Namespace = typeof Namespace.Type
 
@@ -45,6 +49,7 @@ export type Namespace = typeof Namespace.Type
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const MAX_TAGS = 16
 
@@ -53,6 +58,7 @@ export const MAX_TAGS = 16
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const TagPrefix = Schema.Literals(["branch:", "stream:", "source:", "scope:"])
 
@@ -61,6 +67,7 @@ export const TagPrefix = Schema.Literals(["branch:", "stream:", "source:", "scop
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type TagPrefix = typeof TagPrefix.Type
 
@@ -69,6 +76,7 @@ export type TagPrefix = typeof TagPrefix.Type
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const Tag = Schema.TemplateLiteral([TagPrefix, Schema.NonEmptyString])
 
@@ -77,6 +85,7 @@ export const Tag = Schema.TemplateLiteral([TagPrefix, Schema.NonEmptyString])
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Tag = typeof Tag.Type
 
@@ -85,6 +94,7 @@ export type Tag = typeof Tag.Type
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const Tags = Schema.Array(Tag).pipe(Schema.check(Schema.isMaxLength(MAX_TAGS)))
 
@@ -93,6 +103,7 @@ export const Tags = Schema.Array(Tag).pipe(Schema.check(Schema.isMaxLength(MAX_T
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Tags = typeof Tags.Type
 
@@ -101,6 +112,7 @@ export type Tags = typeof Tags.Type
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const MatchMode = Schema.Literals(["any", "all", "any_strict", "all_strict", "exact"])
 
@@ -109,6 +121,7 @@ export const MatchMode = Schema.Literals(["any", "all", "any_strict", "all_stric
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type MatchMode = typeof MatchMode.Type
 
@@ -117,6 +130,7 @@ export type MatchMode = typeof MatchMode.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type TagGroup =
   | {
@@ -157,6 +171,7 @@ const TagGroupSchema: Schema.Codec<TagGroup> = Schema.suspend(
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const TagGroup = TagGroupSchema
 
@@ -168,6 +183,7 @@ export const TagGroup = TagGroupSchema
  *
  * @category predicates
  * @since 0.1.0
+ * @slop
  */
 export const matches = (tagGroup: TagGroup, tags: ReadonlyArray<string>): boolean => {
   if ("and" in tagGroup) {

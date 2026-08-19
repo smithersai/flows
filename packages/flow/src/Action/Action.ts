@@ -23,6 +23,7 @@ import type { TypeId } from "./TypeId.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Tier = Schema.Literals(["sealed", "compensable", "irreversible"])
 
@@ -31,6 +32,7 @@ export const Tier = Schema.Literals(["sealed", "compensable", "irreversible"])
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Tier = typeof Tier.Type
 
@@ -39,6 +41,7 @@ export type Tier = typeof Tier.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const IdempotencyKey = Schema.Union([
   Schema.String,
@@ -54,6 +57,7 @@ export const IdempotencyKey = Schema.Union([
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type IdempotencyKey = typeof IdempotencyKey.Type
 
@@ -63,6 +67,7 @@ export type IdempotencyKey = typeof IdempotencyKey.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type PlannedPayload<T> =
   | Planned.Planned<T>
@@ -84,6 +89,7 @@ export type PlannedPayload<T> =
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Requirement<Tag extends string> {
   readonly _: unique symbol
@@ -101,6 +107,7 @@ export interface Requirement<Tag extends string> {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Declared<
   Tag extends string,
@@ -157,6 +164,7 @@ export interface Declared<
  *
  * @category models
  * @since 4.0.0
+ * @slop
  */
 export interface Action<
   Success extends Schema.Constraint = Schema.Void,
@@ -225,6 +233,7 @@ export interface Action<
  *
  * @category models
  * @since 4.0.0
+ * @slop
  */
 export interface Any {
   readonly [TypeId]: typeof TypeId
@@ -244,6 +253,7 @@ export interface Any {
  *
  * @category models
  * @since 4.0.0
+ * @slop
  */
 export interface AnyWithProps {
   readonly [TypeId]: typeof TypeId

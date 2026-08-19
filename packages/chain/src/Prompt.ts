@@ -29,6 +29,7 @@ import * as sections from "./internal/prompts.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Role = "concierge" | "sub"
 
@@ -37,6 +38,7 @@ export type Role = "concierge" | "sub"
  *
  * @category sections
  * @since 0.1.0
+ * @slop
  */
 export const base = sections.base
 
@@ -45,6 +47,7 @@ export const base = sections.base
  *
  * @category sections
  * @since 0.1.0
+ * @slop
  */
 export const concierge = sections.concierge
 
@@ -53,6 +56,7 @@ export const concierge = sections.concierge
  *
  * @category sections
  * @since 0.1.0
+ * @slop
  */
 export const rules = sections.rules
 
@@ -61,6 +65,7 @@ export const rules = sections.rules
  *
  * @category sections
  * @since 0.1.0
+ * @slop
  */
 export const contract = sections.contract
 
@@ -74,6 +79,7 @@ const inline = (text: string): string => text.replaceAll(/\s+/g, " ").trim()
  *
  * @category assembly
  * @since 0.1.0
+ * @slop
  */
 export const catalogBlock = (entries: ReadonlyArray<Catalog.Entry>): string => {
   const dispatchable = new Map<string, Catalog.Entry>()
@@ -101,6 +107,7 @@ export const catalogBlock = (entries: ReadonlyArray<Catalog.Entry>): string => {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface AssembleOptions {
   readonly role: Role
@@ -113,6 +120,7 @@ export interface AssembleOptions {
  *
  * @category assembly
  * @since 0.1.0
+ * @slop
  */
 export const assemble = (options: AssembleOptions): string =>
   [
@@ -129,5 +137,6 @@ export const assemble = (options: AssembleOptions): string =>
  *
  * @category assembly
  * @since 0.1.0
+ * @slop
  */
 export const forCatalog = (catalog: Catalog.Service, role: Role): string => assemble({ entries: catalog.entries, role })

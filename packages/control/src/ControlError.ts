@@ -14,6 +14,7 @@ const constantCode = <const Code extends string>(code: Code) =>
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class RunNotFound extends Schema.TaggedError<RunNotFound>()("/control/RunNotFound", {
   code: constantCode("run_not_found"),
@@ -25,6 +26,7 @@ export class RunNotFound extends Schema.TaggedError<RunNotFound>()("/control/Run
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class FlowNotFound extends Schema.TaggedError<FlowNotFound>()("/control/FlowNotFound", {
   code: constantCode("flow_not_found"),
@@ -37,6 +39,7 @@ export class FlowNotFound extends Schema.TaggedError<FlowNotFound>()("/control/F
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class PlanDigestMismatch extends Schema.TaggedError<PlanDigestMismatch>()("/control/PlanDigestMismatch", {
   code: constantCode("plan_digest_mismatch"),
@@ -50,6 +53,7 @@ export class PlanDigestMismatch extends Schema.TaggedError<PlanDigestMismatch>()
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class EnvelopeMismatch extends Schema.TaggedError<EnvelopeMismatch>()("/control/EnvelopeMismatch", {
   code: constantCode("envelope_mismatch"),
@@ -63,6 +67,7 @@ export class EnvelopeMismatch extends Schema.TaggedError<EnvelopeMismatch>()("/c
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class ClaimLost extends Schema.TaggedError<ClaimLost>()("/control/ClaimLost", {
   code: constantCode("claim_lost"),
@@ -75,6 +80,7 @@ export class ClaimLost extends Schema.TaggedError<ClaimLost>()("/control/ClaimLo
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class AlreadyResolved extends Schema.TaggedError<AlreadyResolved>()("/control/AlreadyResolved", {
   code: constantCode("already_resolved"),
@@ -86,6 +92,7 @@ export class AlreadyResolved extends Schema.TaggedError<AlreadyResolved>()("/con
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class InvalidInput extends Schema.TaggedError<InvalidInput>()("/control/InvalidInput", {
   code: constantCode("invalid_input"),
@@ -97,6 +104,7 @@ export class InvalidInput extends Schema.TaggedError<InvalidInput>()("/control/I
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class Unauthorized extends Schema.TaggedError<Unauthorized>()("/control/Unauthorized", {
   code: constantCode("unauthorized"),
@@ -109,6 +117,7 @@ export class Unauthorized extends Schema.TaggedError<Unauthorized>()("/control/U
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class Unavailable extends Schema.TaggedError<Unavailable>()("/control/Unavailable", {
   code: constantCode("unavailable"),
@@ -122,6 +131,7 @@ export class Unavailable extends Schema.TaggedError<Unavailable>()("/control/Una
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class TransportError extends Schema.TaggedError<TransportError>()("/control/TransportError", {
   code: constantCode("transport_error"),
@@ -134,6 +144,7 @@ export class TransportError extends Schema.TaggedError<TransportError>()("/contr
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class PersistenceError extends Schema.TaggedError<PersistenceError>()("/control/PersistenceError", {
   code: constantCode("persistence_failed"),
@@ -147,6 +158,7 @@ export class PersistenceError extends Schema.TaggedError<PersistenceError>()("/c
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class LaunchFailed extends Schema.TaggedError<LaunchFailed>()("/control/LaunchFailed", {
   code: constantCode("launch_failed"),
@@ -162,6 +174,7 @@ export class LaunchFailed extends Schema.TaggedError<LaunchFailed>()("/control/L
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export class CredentialConflict extends Schema.TaggedError<CredentialConflict>()("/control/CredentialConflict", {
   code: constantCode("credential_conflict"),
@@ -175,6 +188,7 @@ export class CredentialConflict extends Schema.TaggedError<CredentialConflict>()
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export type ControlError =
   | RunNotFound

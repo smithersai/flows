@@ -15,6 +15,7 @@ import type { RunSummary } from "./ControlSchema.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Launch {
   readonly plan: StoredPlan
@@ -26,6 +27,7 @@ export interface Launch {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Acceptance = "accepted" | "pending"
 
@@ -35,6 +37,7 @@ export type Acceptance = "accepted" | "pending"
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export interface Service {
   readonly launch: (input: Launch) => Effect.Effect<Acceptance, LaunchFailed>
@@ -45,6 +48,7 @@ export interface Service {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export class ControlExecutor extends Context.Service<ControlExecutor, Service>()(
   "/control/ControlExecutor"
@@ -55,6 +59,7 @@ export class ControlExecutor extends Context.Service<ControlExecutor, Service>()
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (implementation: Service): Service => ControlExecutor.of(implementation)
 
@@ -64,6 +69,7 @@ export const make = (implementation: Service): Service => ControlExecutor.of(imp
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (overrides: Partial<Service> = {}): Service =>
   make({
@@ -76,6 +82,7 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (implementation: Service): Layer.Layer<ControlExecutor> =>
   Layer.succeed(ControlExecutor)(make(implementation))
@@ -85,6 +92,7 @@ export const layer = (implementation: Service): Layer.Layer<ControlExecutor> =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<ControlExecutor> =>
   Layer.succeed(ControlExecutor)(makeNoop(overrides))

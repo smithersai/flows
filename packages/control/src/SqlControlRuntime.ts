@@ -87,6 +87,7 @@ import { catalog } from "./SystemFlows.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type DurableFlow = MemoryFlow
 
@@ -99,6 +100,7 @@ export type DurableFlow = MemoryFlow
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Options {
   readonly flows?: ReadonlyArray<DurableFlow> | undefined
@@ -206,6 +208,7 @@ const migrations = [
  *
  * @category migrations
  * @since 0.1.0
+ * @slop
  */
 export const migrate: Effect.Effect<void, PersistenceError, SqlClient.SqlClient> = Effect.gen(function*() {
   const sql = yield* Effect.service(SqlClient.SqlClient)
@@ -219,6 +222,7 @@ export const migrate: Effect.Effect<void, PersistenceError, SqlClient.SqlClient>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make_ = (
   options: Options = {}
@@ -781,6 +785,7 @@ export const make_ = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (
   options: Options = {}
@@ -796,6 +801,7 @@ export const layer = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerWithStore = (
   options: Options = {}
@@ -805,7 +811,13 @@ export const layerWithStore = (
   Crypto.Crypto | DurableWriter | SqlClient.SqlClient
 > => layer(options).pipe(Layer.provideMerge(RunStore.layer))
 
+/**
+ * @slop
+ */
 export { make_ as make }
 
-/** Re-exported so a composition can name a flow without two imports. */
+/**
+ * Re-exported so a composition can name a flow without two imports.
+ * @slop
+ */
 export type { FlowId }

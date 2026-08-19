@@ -44,6 +44,7 @@ import * as WriteRetry from "./internal/WriteRetry.ts"
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const table = "flows_migrations"
 
@@ -57,6 +58,7 @@ export const table = "flows_migrations"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface MigrationSet {
   readonly namespace: string
@@ -72,6 +74,7 @@ export interface MigrationSet {
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const idBlock = 1000
 
@@ -267,6 +270,7 @@ const loaderWith = (
  *
  * @category loaders
  * @since 0.1.0
+ * @slop
  */
 export const loader = (sets: ReadonlyArray<MigrationSet>): Migrator.Loader<SqlClient.SqlClient> =>
   loaderWith(sets, () => Effect.void)
@@ -283,6 +287,7 @@ export const loader = (sets: ReadonlyArray<MigrationSet>): Migrator.Loader<SqlCl
  *
  * @category migrations
  * @since 0.1.0
+ * @slop
  */
 export const run = (
   sets: ReadonlyArray<MigrationSet>
@@ -319,6 +324,7 @@ export const run = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (
   sets: ReadonlyArray<MigrationSet>

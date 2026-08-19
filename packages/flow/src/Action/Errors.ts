@@ -20,6 +20,7 @@ import * as Schema from "effect/Schema"
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class InfraInterrupt extends Schema.TaggedError<InfraInterrupt>()(
   "@smthrs/flow/InfraInterrupt",
@@ -37,6 +38,7 @@ export class InfraInterrupt extends Schema.TaggedError<InfraInterrupt>()(
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class IrreversibleRetryRequiresIdempotencyKey
   extends Schema.TaggedError<IrreversibleRetryRequiresIdempotencyKey>()(
@@ -66,6 +68,7 @@ export class IrreversibleRetryRequiresIdempotencyKey
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class ConcurrentKeylessDispatch extends Schema.TaggedError<ConcurrentKeylessDispatch>()(
   "@smthrs/flow/ConcurrentKeylessDispatch",
@@ -85,6 +88,7 @@ export class ConcurrentKeylessDispatch extends Schema.TaggedError<ConcurrentKeyl
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class UncanonicalIdempotencyKey extends Schema.TaggedError<UncanonicalIdempotencyKey>()(
   "@smthrs/flow/UncanonicalIdempotencyKey",

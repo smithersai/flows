@@ -20,6 +20,7 @@ import { PatternError } from "./PatternError.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Slot<I extends Schema.Top, O extends Schema.Top> {
   readonly input: I
@@ -35,6 +36,7 @@ export interface Slot<I extends Schema.Top, O extends Schema.Top> {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const slot = <I extends Schema.Top, O extends Schema.Top>(
   options: Slot<I, O>
@@ -57,6 +59,7 @@ export const slot = <I extends Schema.Top, O extends Schema.Top>(
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const bind = <I extends Schema.Top, O extends Schema.Top>(
   declaration: Slot<I, O>,
@@ -83,6 +86,7 @@ export const bind = <I extends Schema.Top, O extends Schema.Top>(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Decorator = (inner: Flow.Any) => Flow.Any
 
@@ -92,6 +96,7 @@ export type Decorator = (inner: Flow.Any) => Flow.Any
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Clipped {
   readonly capabilities: ReadonlyArray<string>
@@ -106,6 +111,7 @@ export interface Clipped {
  *
  * @category introspection
  * @since 0.1.0
+ * @slop
  */
 export const clipped = (template: Flow.Any, supplied: Flow.Any): Clipped => {
   const expected = Compose.details(template)
@@ -134,6 +140,7 @@ export const clipped = (template: Flow.Any, supplied: Flow.Any): Clipped => {
  *
  * @category combinators
  * @since 0.1.0
+ * @slop
  */
 export const decorate: {
   (decorator: Decorator): (self: Flow.Any) => Flow.Any
@@ -166,6 +173,7 @@ export const decorate: {
  *
  * @category combinators
  * @since 0.1.0
+ * @slop
  */
 export const decorateAll = (
   flow: Flow.Any,

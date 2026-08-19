@@ -15,6 +15,7 @@ import { PatternError } from "./PatternError.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Envelope {
   readonly fuel: number
@@ -30,6 +31,7 @@ export interface Envelope {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface RecurseOptions extends Envelope {
   readonly child: Flow.Any
@@ -41,6 +43,7 @@ export interface RecurseOptions extends Envelope {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Branch {
   readonly input: unknown
@@ -62,6 +65,7 @@ const boundError = (message: string): never => {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const recurse = (options: RecurseOptions): Flow.Flow<typeof Schema.Unknown, typeof Schema.Unknown, unknown> => {
   if (!valid(options.fuel) || !valid(options.depth) || !valid(options.fanout)) {

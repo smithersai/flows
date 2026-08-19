@@ -19,6 +19,7 @@ import { PatternError } from "./PatternError.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface MakeOptions {
   readonly produce: Flow.Any
@@ -32,6 +33,7 @@ export interface MakeOptions {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface RuntimeOptions<I, A, Review, E, R, E2, R2, E3, R3> {
   readonly produce: (input: I) => Effect.Effect<A, E, R>
@@ -49,6 +51,7 @@ export interface RuntimeOptions<I, A, Review, E, R, E2, R2, E3, R3> {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Exhausted<A, Review> {
   readonly output: A
@@ -75,6 +78,7 @@ const approved = (value: unknown): boolean =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (options: MakeOptions): Flow.Flow<typeof Schema.Unknown, typeof Schema.Unknown, unknown> => {
   if (!Number.isSafeInteger(options.maxRounds) || options.maxRounds < 1) {
@@ -114,6 +118,7 @@ export const make = (options: MakeOptions): Flow.Flow<typeof Schema.Unknown, typ
  *
  * @category combinators
  * @since 0.1.0
+ * @slop
  */
 export const run = <I, A, Review, E, R, E2, R2, E3, R3>(
   input: I,

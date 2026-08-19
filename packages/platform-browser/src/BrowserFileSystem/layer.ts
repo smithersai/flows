@@ -14,6 +14,7 @@ import type { ZenFsPromisesLike } from "./ZenFsPromisesLike.ts"
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (fs: ZenFsPromisesLike): Layer.Layer<FileSystem.FileSystem> =>
   Layer.succeed(FileSystem.FileSystem)(withIsolatedFileSystem(make(fs)))

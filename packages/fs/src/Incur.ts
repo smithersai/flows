@@ -202,6 +202,7 @@ const hydrate = (
  *
  * @category constructors
  * @since 0.0.0
+ * @slop
  */
 export const createCli = (
   name: string,

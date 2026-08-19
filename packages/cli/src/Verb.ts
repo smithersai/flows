@@ -10,6 +10,7 @@ import { SystemFlows } from "@smthrs/control"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Verb {
   readonly name: string
@@ -38,6 +39,7 @@ const entryToVerb = (entry: (typeof SystemFlows.catalog)[number]): Verb => {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const verbs: ReadonlyArray<Verb> = SystemFlows.catalog.map(entryToVerb)
 
@@ -46,5 +48,6 @@ export const verbs: ReadonlyArray<Verb> = SystemFlows.catalog.map(entryToVerb)
  *
  * @category getters
  * @since 0.1.0
+ * @slop
  */
 export const find = (name: string): Verb | undefined => verbs.find((verb) => verb.name === name)

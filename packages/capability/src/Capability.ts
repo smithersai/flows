@@ -15,6 +15,7 @@ import { Option, Schema } from "effect"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type Action =
   | "fs:read"
@@ -67,6 +68,7 @@ const actions: ReadonlySet<string> = new Set([
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export class Capability extends Schema.Class<Capability>("@smthrs/capability/Capability")({
   action: Action,
@@ -78,6 +80,7 @@ export class Capability extends Schema.Class<Capability>("@smthrs/capability/Cap
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const make = (action: Action, resource: string): Capability => new Capability({ action, resource })
 
@@ -96,6 +99,7 @@ export const make = (action: Action, resource: string): Capability => new Capabi
  *
  * @since 0.1.0
  * @category formatting
+ * @slop
  */
 export const format = (capability: {
   readonly action: string
@@ -108,6 +112,7 @@ export const format = (capability: {
  *
  * @since 0.1.0
  * @category parsing
+ * @slop
  */
 export const parse = (input: string): Option.Option<Capability> => {
   const components = input.split(":")
@@ -127,6 +132,7 @@ export const parse = (input: string): Option.Option<Capability> => {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type PatternAction = Action | "fs:*" | "net:*" | "model:*" | "proc:*" | "jj:*" | "*"
 
@@ -165,6 +171,7 @@ const PatternAction = Schema.Literals(
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export class CapabilityPattern extends Schema.Class<CapabilityPattern>("@smthrs/capability/CapabilityPattern")({
   action: PatternAction,
@@ -253,6 +260,7 @@ const matchesResource = (pattern: string, resource: string): boolean => {
  *
  * @since 0.1.0
  * @category predicates
+ * @slop
  */
 export const matches = (pattern: CapabilityPattern, capability: Capability): boolean =>
   matchesAction(pattern.action, capability.action) && matchesResource(pattern.resource, capability.resource)
@@ -284,6 +292,7 @@ const resourceSubsumes = (left: string, right: string): boolean => {
  *
  * @since 0.1.0
  * @category predicates
+ * @slop
  */
 export const subsumes = (left: CapabilityPattern, right: CapabilityPattern): boolean =>
   actionSubsumes(left.action, right.action) && resourceSubsumes(left.resource, right.resource)
@@ -293,6 +302,7 @@ export const subsumes = (left: CapabilityPattern, right: CapabilityPattern): boo
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type EffectTier = "sealed" | "compensable" | "irreversible"
 
@@ -348,6 +358,7 @@ const isInsideWorkspace = (resource: string, workspaceRoot: string): boolean => 
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface TierOptions {
   readonly workspaceRoot: string
@@ -358,6 +369,7 @@ export interface TierOptions {
  *
  * @since 0.1.0
  * @category predicates
+ * @slop
  */
 export const tierOf = (capability: Capability, options: TierOptions): EffectTier => {
   switch (capability.action) {
@@ -385,5 +397,6 @@ export const tierOf = (capability: Capability, options: TierOptions): EffectTier
  *
  * @since 0.1.0
  * @category predicates
+ * @slop
  */
 export const requiresIdempotencyKey = (tier: EffectTier): boolean => tier === "irreversible"

@@ -4,7 +4,7 @@
  *
  * Governing contract: D11 in `docs/architecture/design-decisions.md`. The
  * shared catalog is limited to `config` and `configResolved`;
- * `@smthrs/engine-harness` adds only `cellRegistry`, `cellFlows`, and
+ * `@smthrs/agent` adds only `cellRegistry`, `cellFlows`, and
  * `cellModelRequest`. Durable-core lifecycle policy is not a hook catalog.
  *
  * `FlowsHooks` is **open for augmentation, closed for dispatch**: a host

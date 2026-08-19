@@ -90,6 +90,27 @@ export const DocsVerb = Schema.Struct({ name: Schema.Literal("docs") })
 export type DocsVerb = typeof DocsVerb.Type
 
 /**
+ * Schema for the aggregate `ci` verb.
+ *
+ * `ci` is not a {@link Target.Kind}: it is the CLI's own name for planning every
+ * kind over one pattern in a single invocation. It has a value here so a
+ * pipeline declaration can ask for the aggregate without restating the four
+ * verbs it stands for.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const CiVerb = Schema.Struct({ name: Schema.Literal("ci") })
+
+/**
+ * The aggregate `ci` verb.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type CiVerb = typeof CiVerb.Type
+
+/**
  * Schema for one verb a generated pipeline may run.
  *
  * @category schemas
@@ -158,12 +179,60 @@ export const Docs: DocsVerb = DocsVerb.make({ name: "docs" })
 export const all: ReadonlyArray<Verb> = [Build, Test, Lint, Docs]
 
 /**
+ * Plans and runs every verb over one pattern in a single invocation.
+ *
+ * @example
+ * ```ts
+ * import { Smithers } from "@smthrs/targets"
+ *
+ * // Runs `smthrs ci '//packages/...'`
+ * export const verb = Smithers.Verb.Ci
+ * ```
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const Ci: CiVerb = CiVerb.make({ name: "ci" })
+
+/**
+ * Schema for one verb a generated pipeline step may run, aggregate included.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const PipelineVerb = Schema.Union([BuildVerb, TestVerb, LintVerb, DocsVerb, CiVerb])
+
+/**
+ * One verb a generated pipeline step may run, aggregate included.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type PipelineVerb = typeof PipelineVerb.Type
+
+/**
  * Checks whether a value is a pipeline verb.
  *
  * @category guards
  * @since 0.1.0
  */
 export const isVerb: (value: unknown) => value is Verb = Schema.is(Verb)
+
+/**
+ * Checks whether a value is a verb a generated pipeline step may run.
+ *
+ * @category guards
+ * @since 0.1.0
+ */
+export const isPipelineVerb: (value: unknown) => value is PipelineVerb = Schema.is(PipelineVerb)
+
+/**
+ * The CLI subcommand one pipeline verb names.
+ *
+ * @category accessors
+ * @since 0.1.0
+ */
+export const command = (verb: PipelineVerb): string => verb.name
 
 /**
  * The target kind one verb selects.

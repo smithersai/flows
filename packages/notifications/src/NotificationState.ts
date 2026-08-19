@@ -11,6 +11,7 @@ import { admissionClass, coalesceKey } from "./Notification.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Pending {
   readonly notification: Notification
@@ -22,6 +23,7 @@ export interface Pending {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type AdmissionDecision = "admitted" | "coalesced" | "rejected-full"
 
@@ -30,6 +32,7 @@ export type AdmissionDecision = "admitted" | "coalesced" | "rejected-full"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface State {
   readonly capacity: number
@@ -41,6 +44,7 @@ export interface State {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Admission {
   readonly state: State
@@ -52,6 +56,7 @@ export interface Admission {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Promotion {
   readonly state: State
@@ -78,6 +83,7 @@ const immutablePromotion = (state: State, promoted: ReadonlyArray<Pending>): Pro
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const empty = (capacity: number): State => immutable(normalizedCapacity(capacity), [])
 
@@ -87,6 +93,7 @@ export const empty = (capacity: number): State => immutable(normalizedCapacity(c
  *
  * @category operations
  * @since 0.1.0
+ * @slop
  */
 export const admit = (state: State, notification: Notification, seq: number): Admission => {
   const key = notification._tag === "system-event" ? coalesceKey(notification) : null
@@ -117,6 +124,7 @@ export const admit = (state: State, notification: Notification, seq: number): Ad
  *
  * @category getters
  * @since 0.1.0
+ * @slop
  */
 export const pending = (
   state: State,
@@ -136,6 +144,7 @@ export const pending = (
  *
  * @category operations
  * @since 0.1.0
+ * @slop
  */
 export const promoteSteers = (state: State, cutoffSeq: number, targetLineageId?: string): Promotion => {
   const promoted: Array<Pending> = []
@@ -159,6 +168,7 @@ export const promoteSteers = (state: State, cutoffSeq: number, targetLineageId?:
  *
  * @category operations
  * @since 0.1.0
+ * @slop
  */
 export const promoteQueued = (state: State, targetLineageId?: string): Promotion => {
   const index = state.items.findIndex((item) =>
@@ -178,6 +188,7 @@ export const promoteQueued = (state: State, targetLineageId?: string): Promotion
  *
  * @category operations
  * @since 0.1.0
+ * @slop
  */
 export const applyPromoted = (state: State, ids: ReadonlyArray<string>): State => {
   if (ids.length === 0) return state

@@ -35,6 +35,7 @@ import { Workspace } from "./Workspace.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface JournalGrantStoreOptions {
   readonly runId: string
@@ -232,6 +233,7 @@ const replayRunRules = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (options: JournalGrantStoreOptions) =>
   Effect.gen(function*() {
@@ -344,5 +346,6 @@ export const make = (options: JournalGrantStoreOptions) =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (options: JournalGrantStoreOptions) => Layer.effect(GrantStore.GrantStore)(make(options))

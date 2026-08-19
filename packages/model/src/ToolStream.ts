@@ -12,6 +12,7 @@ import { JsonObject } from "./ModelRequest.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface OpenToolCall {
   readonly callId: string
@@ -24,6 +25,7 @@ export interface OpenToolCall {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface State {
   readonly open: ReadonlyArray<OpenToolCall>
@@ -34,6 +36,7 @@ export interface State {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Completed {
   readonly callId: string
@@ -46,6 +49,7 @@ export interface Completed {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type EndResult = { readonly state: State; readonly completed: Completed } | ModelError
 
@@ -54,6 +58,7 @@ export type EndResult = { readonly state: State; readonly completed: Completed }
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface FlushResult {
   readonly state: State
@@ -73,6 +78,7 @@ const find = (state: State, callId: string): OpenToolCall | undefined =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const initial = (): State => ({ open: [] })
 
@@ -81,6 +87,7 @@ export const initial = (): State => ({ open: [] })
  *
  * @category operations
  * @since 0.1.0
+ * @slop
  */
 export const start = (state: State, call: { readonly callId: string; readonly name: string }): State => ({
   open: [...state.open.filter((entry) => entry.callId !== call.callId), { ...call, fragments: [] }]
@@ -91,6 +98,7 @@ export const start = (state: State, call: { readonly callId: string; readonly na
  *
  * @category operations
  * @since 0.1.0
+ * @slop
  */
 export const delta = (state: State, callId: string, fragment: string): State => ({
   open: state.open.map((entry) =>
@@ -103,6 +111,7 @@ export const delta = (state: State, callId: string, fragment: string): State => 
  *
  * @category operations
  * @since 0.1.0
+ * @slop
  */
 export const end = (state: State, callId: string): EndResult => {
   const call = find(state, callId)
@@ -125,6 +134,7 @@ export const end = (state: State, callId: string): EndResult => {
  *
  * @category operations
  * @since 0.1.0
+ * @slop
  */
 export const flushAborted = (state: State): FlushResult => ({
   state: initial(),

@@ -37,6 +37,7 @@ import * as ArtifactStoreMetrics from "./ArtifactStoreMetrics.ts"
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const Digest = Sha256.Digest
 
@@ -51,6 +52,7 @@ export const Digest = Sha256.Digest
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Digest = typeof Sha256.Digest.Type
 
@@ -59,6 +61,7 @@ export type Digest = typeof Sha256.Digest.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const ArtifactStoreErrorCode = Schema.Literals([
   "invalid_digest",
@@ -71,6 +74,7 @@ export const ArtifactStoreErrorCode = Schema.Literals([
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ArtifactStoreErrorCode = typeof ArtifactStoreErrorCode.Type
 
@@ -86,6 +90,7 @@ export type ArtifactStoreErrorCode = typeof ArtifactStoreErrorCode.Type
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class ArtifactStoreError extends Schema.TaggedError<ArtifactStoreError>()(
   "@smthrs/artifacts/ArtifactStoreError",
@@ -105,6 +110,7 @@ export class ArtifactStoreError extends Schema.TaggedError<ArtifactStoreError>()
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class ArtifactMissing extends Schema.TaggedError<ArtifactMissing>()(
   "@smthrs/artifacts/ArtifactMissing",
@@ -123,6 +129,7 @@ export class ArtifactMissing extends Schema.TaggedError<ArtifactMissing>()(
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class ArtifactCorruption extends Schema.TaggedError<ArtifactCorruption>()(
   "@smthrs/artifacts/ArtifactCorruption",
@@ -146,6 +153,7 @@ export class ArtifactCorruption extends Schema.TaggedError<ArtifactCorruption>()
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Service {
   /**
@@ -178,6 +186,7 @@ export interface Service {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export class ArtifactStore extends Context.Service<ArtifactStore, Service>()("@smthrs/artifacts/ArtifactStore") {}
 
@@ -204,6 +213,7 @@ const hostFailure = (cause: unknown): ArtifactStoreError =>
  *
  * @category predicates
  * @since 0.1.0
+ * @slop
  */
 export const validateDigest = (digest: string): Effect.Effect<void, ArtifactStoreError> =>
   digest.length > 0 && !digest.includes("/") && !digest.includes("\\") && digest !== "." && digest !== ".."
@@ -221,6 +231,7 @@ const distinct = (digests: Iterable<string>): Array<string> => [...new Set(diges
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface FileSystemOptions {
   /**
@@ -266,6 +277,7 @@ const fanout = (directory: string, digest: string): { readonly parent: string; r
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOptions = {}): Service => {
   const directory = options.directory ?? defaultDirectory
@@ -472,6 +484,7 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerFileSystem = (
   options: FileSystemOptions = {}
@@ -492,6 +505,7 @@ export const layerFileSystem = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeMemory = (): Service => {
   const blobs = new Map<string, Uint8Array>()
@@ -550,6 +564,7 @@ export const makeMemory = (): Service => {
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerMemory: Layer.Layer<ArtifactStore> = Layer.effect(ArtifactStore)(Effect.sync(makeMemory))
 
@@ -559,6 +574,7 @@ export const layerMemory: Layer.Layer<ArtifactStore> = Layer.effect(ArtifactStor
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (overrides: Partial<Service> = {}): Service => {
   const unavailable = (method: string) => Effect.fail(error("unavailable", `${method} is unavailable`))
@@ -576,6 +592,7 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service => {
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<ArtifactStore> =>
   Layer.succeed(ArtifactStore)(makeNoop(overrides))

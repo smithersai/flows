@@ -17,6 +17,7 @@ import { PatternError } from "./PatternError.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Options<Attempts extends number = number> {
   readonly attempts: Attempts
@@ -54,6 +55,7 @@ const declaration = <const Attempts extends number>(
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = <const Attempts extends number>(options: Options<Attempts>): Pattern.Decorator => (inner) =>
   declaration(inner, options)
@@ -63,6 +65,7 @@ export const make = <const Attempts extends number>(options: Options<Attempts>):
  *
  * @category combinators
  * @since 0.1.0
+ * @slop
  */
 export const withRetry = <const Attempts extends number>(
   inner: Flow.Any,
@@ -77,6 +80,7 @@ export const withRetry = <const Attempts extends number>(
  *
  * @category combinators
  * @since 0.1.0
+ * @slop
  */
 export const retryEffect = <A, E, R>(
   effect: Effect.Effect<A, E, R>,

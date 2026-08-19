@@ -26,6 +26,7 @@ import * as DatabaseMetrics from "../DatabaseMetrics.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface WriteRetryOptions {
   /** Total attempts, including the initial write. */
@@ -88,6 +89,7 @@ const isRetryableMessage = (message: string): boolean =>
  *
  * @category guards
  * @since 0.1.0
+ * @slop
  */
 export const isRetryableWriteError = (error: unknown): boolean => {
   const seen = new Set<unknown>()
@@ -123,6 +125,7 @@ const retryableFromCause = <E>(cause: Cause.Cause<E>): E | undefined => {
  *
  * @category combinators
  * @since 0.1.0
+ * @slop
  */
 export const withWriteRetry = <A, E, R>(
   effect: Effect.Effect<A, E, R>,

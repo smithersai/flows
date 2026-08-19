@@ -45,6 +45,7 @@ const encoder = new TextEncoder()
  *
  * @category transformations
  * @since 0.1.0
+ * @slop
  */
 export const Sha256 = Object.assign(
   Schema.Union([Schema.String, Schema.Uint8Array]).pipe(
@@ -68,6 +69,7 @@ export const Sha256 = Object.assign(
      *
      * @category models
      * @since 0.1.0
+     * @slop
      */
     Digest
   }

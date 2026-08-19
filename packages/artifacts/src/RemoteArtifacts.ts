@@ -41,6 +41,7 @@ import * as ArtifactStore from "./ArtifactStore.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Options {
   /**
@@ -122,6 +123,7 @@ const isOk = (response: HttpClientResponse.HttpClientResponse): boolean =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (
   options: Options
@@ -308,6 +310,7 @@ export const make = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (
   options: Options

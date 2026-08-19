@@ -44,6 +44,7 @@ import * as BrowserFileSystem from "./BrowserFileSystem/index.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type BrowserHost =
   | FileSystem.FileSystem
@@ -72,6 +73,7 @@ const layerHttpClient: Layer.Layer<HttpClient> = Layer.provide(
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (options: {
   readonly bash: BrowserChildProcessSpawner.JustBashLike

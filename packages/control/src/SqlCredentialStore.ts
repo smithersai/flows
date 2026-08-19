@@ -49,6 +49,7 @@ const unavailable = (operation: string) => (): Unavailable =>
  *
  * @category migrations
  * @since 0.1.0
+ * @slop
  */
 export const migrate: Effect.Effect<void, Unavailable, SqlClient.SqlClient> = Effect.gen(function*() {
   const sql = yield* Effect.service(SqlClient.SqlClient)
@@ -69,6 +70,7 @@ export const migrate: Effect.Effect<void, Unavailable, SqlClient.SqlClient> = Ef
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make: Effect.Effect<
   CredentialStore.Service,
@@ -148,6 +150,7 @@ export const make: Effect.Effect<
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer: Layer.Layer<
   CredentialStore.CredentialStore,

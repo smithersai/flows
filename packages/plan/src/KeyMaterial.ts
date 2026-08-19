@@ -26,6 +26,7 @@ import * as Schema from "effect/Schema"
  *
  * @since 0.1.0
  * @category schemas
+ * @slop
  */
 export const InputRef = Schema.Union([
   Schema.TaggedStruct("Literal", { value: Schema.Unknown }),
@@ -38,6 +39,7 @@ export const InputRef = Schema.Union([
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type InputRef = typeof InputRef.Type
 
@@ -47,6 +49,7 @@ export type InputRef = typeof InputRef.Type
  *
  * @since 0.1.0
  * @category constants
+ * @slop
  */
 export const version = "flows/key-material/v1"
 
@@ -59,6 +62,7 @@ export const version = "flows/key-material/v1"
  *
  * @since 0.1.0
  * @category schemas
+ * @slop
  */
 export const KeyMaterial = Schema.Struct({
   version: Schema.Literal(version),
@@ -78,6 +82,7 @@ export const KeyMaterial = Schema.Struct({
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type KeyMaterial = typeof KeyMaterial.Type
 
@@ -89,6 +94,7 @@ export type KeyMaterial = typeof KeyMaterial.Type
  *
  * @since 0.1.0
  * @category accessors
+ * @slop
  */
 export const dependencies = (material: KeyMaterial): ReadonlyArray<string> => {
   const seen = new Set<string>()

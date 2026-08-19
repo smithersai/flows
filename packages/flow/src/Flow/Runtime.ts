@@ -25,6 +25,7 @@ import { Complete, isResult, type Result, Suspended } from "./Result.ts"
  *
  * @category results
  * @since 4.0.0
+ * @slop
  */
 export const intoResult = <A, E, R>(
   effect: Effect.Effect<A, E, R>
@@ -100,6 +101,7 @@ export const intoResult = <A, E, R>(
  *
  * @category results
  * @since 4.0.0
+ * @slop
  */
 export const wrapActionResult = <A, E, R>(
   effect: Effect.Effect<A, E, R>,
@@ -150,6 +152,7 @@ const waitForZero = Effect.fnUntraced(function*(instance: FlowInstance["Service"
  *
  * @category resource management
  * @since 4.0.0
+ * @slop
  */
 export const scope: Effect.Effect<
   Scope.Scope,
@@ -165,6 +168,7 @@ export const scope: Effect.Effect<
  *
  * @category resource management
  * @since 4.0.0
+ * @slop
  */
 export const provideScope = <A, E, R>(
   effect: Effect.Effect<A, E, R>
@@ -177,6 +181,7 @@ export const provideScope = <A, E, R>(
  *
  * @category resource management
  * @since 4.0.0
+ * @slop
  */
 export const addFinalizer: <R>(
   f: (exit: Exit.Exit<unknown, unknown>) => Effect.Effect<void, never, R>
@@ -218,6 +223,7 @@ export const addFinalizer: <R>(
  *
  * @category resource management
  * @since 4.0.0
+ * @slop
  */
 export const withRollback: {
   <A, R2>(
@@ -246,6 +252,7 @@ export const withRollback: {
  *
  * @category results
  * @since 4.0.0
+ * @slop
  */
 export const suspend = (instance: FlowInstance["Service"]): Effect.Effect<never> =>
   Effect.interruptible(Effect.callback<never>(() => {

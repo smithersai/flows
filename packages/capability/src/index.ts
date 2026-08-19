@@ -13,6 +13,7 @@
  *
  * @category namespace exports
  * @since 0.1.0
+ * @slop
  */
 export * as Capability from "./Capability.ts"
 
@@ -21,5 +22,6 @@ export * as Capability from "./Capability.ts"
  *
  * @category namespace exports
  * @since 0.1.0
+ * @slop
  */
 export * as Permission from "./Permission.ts"

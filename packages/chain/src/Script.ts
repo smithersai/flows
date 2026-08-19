@@ -17,6 +17,7 @@ import { Schema } from "effect"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Script = Schema.Struct({
   text: Schema.String,
@@ -28,6 +29,7 @@ export const Script = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Script = typeof Script.Type
 
@@ -36,6 +38,7 @@ export type Script = typeof Script.Type
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (text: string): Script => ({ text, digest: Digest.digest(text) })
 
@@ -45,6 +48,7 @@ export const make = (text: string): Script => ({ text, digest: Digest.digest(tex
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Extraction =
   | { readonly _tag: "Extracted"; readonly script: Script }
@@ -58,6 +62,7 @@ const fence = /```flow\n([\s\S]*?)\n```/g
  *
  * @category gates
  * @since 0.1.0
+ * @slop
  */
 export const extract = (raw: string): Extraction => {
   const blocks = [...raw.matchAll(fence)]

@@ -33,6 +33,7 @@ import * as ScriptRunner from "./ScriptRunner.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Limits {
   readonly memoryBytes?: number | undefined
@@ -45,6 +46,7 @@ export interface Limits {
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const memoryFloor = 256 * 1024
 
@@ -126,6 +128,7 @@ interface Pending {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const cachedLoad = <A>(load: () => Promise<A>): () => Promise<A> => {
   let cached: Promise<A> | undefined
@@ -300,6 +303,7 @@ const evaluate = <E>(
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (
   limits: Limits = {},
@@ -327,6 +331,7 @@ export const make = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (limits: Limits = {}): Layer.Layer<ScriptRunner.ScriptRunner, ScriptRunner.ScriptFailure> =>
   Layer.effect(ScriptRunner.ScriptRunner)(make(limits))

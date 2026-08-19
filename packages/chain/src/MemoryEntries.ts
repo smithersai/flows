@@ -68,6 +68,7 @@ const shapeOf = (schema: AnySchema): unknown =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const contractDigest = (contract: Contract): string =>
   Digest.digest(Digest.canonical({
@@ -129,6 +130,7 @@ const entryOf = <A>(
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make: Effect.Effect<
   ReadonlyArray<Catalog.Entry>,
@@ -172,6 +174,7 @@ export const make: Effect.Effect<
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer: Layer.Layer<
   Catalog.Catalog,

@@ -34,6 +34,7 @@ import * as CredentialStore from "./CredentialStore.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface CredentialRef {
   readonly id: string
@@ -45,6 +46,7 @@ export interface CredentialRef {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Operation = "list" | "get" | "create" | "resolve" | "rotate" | "revoke"
 
@@ -54,6 +56,7 @@ export type Operation = "list" | "get" | "create" | "resolve" | "rotate" | "revo
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export interface Credential {
   readonly list: () => Effect.Effect<ReadonlyArray<CredentialRef>, Unavailable | Unauthorized>
@@ -76,6 +79,7 @@ export interface Credential {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export const Credential: Context.Service<Credential, Credential> = Context.Service("/control/Credential")
 
@@ -90,6 +94,7 @@ const unavailable = (): Unavailable =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (): Credential =>
   Credential.of({
@@ -106,6 +111,7 @@ export const makeNoop = (): Credential =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop = Layer.succeed(Credential, makeNoop())
 
@@ -118,6 +124,7 @@ export const layerNoop = Layer.succeed(Credential, makeNoop())
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Options {
   readonly store: CredentialStore.Service
@@ -142,6 +149,7 @@ const missing = (id: string): Unauthorized =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (options: Options): Credential => {
   const authorize = options.authorize ?? (() => Effect.void)
@@ -211,6 +219,7 @@ export const make = (options: Options): Credential => {
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (
   options: { readonly authorize?: Options["authorize"] } = {}

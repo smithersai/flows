@@ -16,6 +16,7 @@ import { FsError } from "../FsError.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Positional = ReadonlyArray<string> | Readonly<Record<string, unknown>>
 
@@ -32,6 +33,7 @@ export type Positional = ReadonlyArray<string> | Readonly<Record<string, unknown
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface CommandSchema {
   readonly args: undefined
@@ -92,6 +94,7 @@ const structured: CommandSchema = {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const toCommandSchema = (ref: Descriptor.SchemaRef): Effect.Effect<CommandSchema, FsError> => {
   switch (ref._tag) {
@@ -122,6 +125,7 @@ export const toCommandSchema = (ref: Descriptor.SchemaRef): Effect.Effect<Comman
  *
  * @category encoding
  * @since 0.1.0
+ * @slop
  */
 export const encodeOutput = (
   schema: Schema.Top,

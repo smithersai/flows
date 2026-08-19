@@ -10,6 +10,7 @@ import { Schema } from "effect"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Provenance = Schema.Struct({
   sourceRunId: Schema.String,
@@ -23,6 +24,7 @@ export const Provenance = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Provenance = typeof Provenance.Type
 
@@ -38,6 +40,7 @@ const common = {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const HumanSteer = Schema.TaggedStruct("human-steer", {
   ...common,
@@ -49,6 +52,7 @@ export const HumanSteer = Schema.TaggedStruct("human-steer", {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const HumanFollowup = Schema.TaggedStruct("human-followup", {
   ...common,
@@ -61,6 +65,7 @@ export const HumanFollowup = Schema.TaggedStruct("human-followup", {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const SystemEvent = Schema.TaggedStruct("system-event", {
   ...common,
@@ -73,6 +78,7 @@ export const SystemEvent = Schema.TaggedStruct("system-event", {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Notification = Schema.Union([HumanSteer, HumanFollowup, SystemEvent])
 
@@ -81,6 +87,7 @@ export const Notification = Schema.Union([HumanSteer, HumanFollowup, SystemEvent
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Notification = typeof Notification.Type
 
@@ -92,6 +99,7 @@ export type Notification = typeof Notification.Type
  *
  * @category getters
  * @since 0.1.0
+ * @slop
  */
 export const admissionClass = (notification: Notification): "steer" | "queue" => notification.delivery
 
@@ -101,6 +109,7 @@ export const admissionClass = (notification: Notification): "steer" | "queue" =>
  *
  * @category getters
  * @since 0.1.0
+ * @slop
  */
 export const coalesceKey = (notification: Notification): string | null =>
   notification._tag === "system-event" ? notification.coalescingKey ?? null : null

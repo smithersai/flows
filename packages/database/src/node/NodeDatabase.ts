@@ -21,6 +21,7 @@ import type * as SqlClient from "effect/unstable/sql/SqlClient"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface NodeDatabaseOptions {
   /** SQLite database filename. */
@@ -103,6 +104,7 @@ const retryLockedOpen = <A>(self: Layer.Layer<A>): Layer.Layer<A> =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (options: NodeDatabaseOptions): Layer.Layer<SqlClient.SqlClient> =>
   retryLockedOpen(SqliteClient.layer({

@@ -19,6 +19,7 @@ import type * as Script from "./Script.ts"
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class ScriptFailure extends Schema.TaggedError<ScriptFailure>()("/chain/ScriptFailure", {
   code: Schema.Literals(["compile", "runtime", "invalid_outcome", "runner_unavailable"]),
@@ -31,6 +32,7 @@ export class ScriptFailure extends Schema.TaggedError<ScriptFailure>()("/chain/S
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Request {
   readonly name: string
@@ -43,6 +45,7 @@ export interface Request {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export interface Service {
   readonly run: <E>(
@@ -56,6 +59,7 @@ export interface Service {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export class ScriptRunner extends Context.Service<ScriptRunner, Service>()("/chain/ScriptRunner") {}
 
@@ -64,6 +68,7 @@ export class ScriptRunner extends Context.Service<ScriptRunner, Service>()("/cha
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (implementation: Service): Service => ScriptRunner.of(implementation)
 
@@ -73,6 +78,7 @@ export const make = (implementation: Service): Service => ScriptRunner.of(implem
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (overrides: Partial<Service> = {}): Service =>
   make({
@@ -87,6 +93,7 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<ScriptRunner> =>
   Layer.succeed(ScriptRunner)(makeNoop(overrides))
@@ -109,6 +116,7 @@ type Settled = { readonly _tag: "value"; readonly value: unknown } | {
  *
  * @category gates
  * @since 0.1.0
+ * @slop
  */
 export const decodeOutcome = Schema.decodeUnknownOption(Outcome.Outcome)
 
@@ -121,6 +129,7 @@ export const decodeOutcome = Schema.decodeUnknownOption(Outcome.Outcome)
  *
  * @category gates
  * @since 0.1.0
+ * @slop
  */
 export const jsonBoundary = (
   value: unknown
@@ -151,6 +160,7 @@ export const jsonBoundary = (
  *
  * @category gates
  * @since 0.1.0
+ * @slop
  */
 export const failureMessage = (error: unknown): string =>
   typeof error === "object" && error !== null && "message" in error
@@ -286,6 +296,7 @@ const runInProcess = <E>(
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerInProcess: Layer.Layer<ScriptRunner> = Layer.succeed(ScriptRunner)(
   make({ run: runInProcess })

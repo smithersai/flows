@@ -7,6 +7,7 @@ import { DocsParity } from "./DocsParity.ts"
 import { Dprint } from "./Dprint.ts"
 import { EsLint } from "./EsLint.ts"
 import * as Input from "./Input.ts"
+import { entrypoint, NodeTest } from "./NodeTest.ts"
 import type * as PackageManager from "./PackageManager.ts"
 import type * as Target from "./Target.ts"
 import { TsBuild } from "./TsBuild.ts"
@@ -41,6 +42,12 @@ export interface Options {
   readonly eslintConfigs?: ReadonlyArray<Input.File> | undefined
   readonly dprintConfig?: Input.File | undefined
   readonly readme?: Input.File | undefined
+  /**
+   * The circular-dependency guard this package runs. It defaults to the
+   * conventional `scripts/circular.mjs`, which is what the repository's
+   * per-package `circular` script runs.
+   */
+  readonly circularScript?: Input.File | undefined
 }
 
 /**
@@ -56,6 +63,7 @@ export interface StandardTargets {
   readonly lint: ReturnType<typeof EsLint>
   readonly fmt: ReturnType<typeof Dprint>
   readonly docs: ReturnType<typeof DocsParity>
+  readonly circular: ReturnType<typeof NodeTest>
 }
 
 /**
@@ -69,8 +77,8 @@ export interface StandardTargets {
  * `eslint.config.js` plus the root `eslint.jsdoc.js`, and dprint with the
  * package `dprint.json`. Together `lib` + `check` cover what the repository's
  * package `check` scripts cover, and `lint` + `fmt` cover what its `lint`
- * scripts cover, so the `ci` verb over these targets is gate-equivalent to
- * the pnpm scripts. Lint covers the source glob only, matching the
+ * scripts cover, and `circular` is the per-package `circular` script, so the
+ * `ci` verb over these targets is gate-equivalent to the pnpm scripts. Lint covers the source glob only, matching the
  * repository's package lint scripts; the flat config declares no coverage
  * for test files, and ESLint 9 fails on a pattern whose matches are all
  * unconfigured. `check` depends on `lib` because the test tsconfig resolves
@@ -150,5 +158,12 @@ export const StandardPackage = (options: Options): StandardTargets => {
     deps: [],
     cwd
   })
-  return { lib, check, test, lint, fmt, docs }
+  const circular = NodeTest({
+    runtime: options.packageManager.runtime,
+    runner: entrypoint(options.circularScript ?? Input.file("scripts/circular.mjs")),
+    srcs: [sources],
+    deps: [],
+    cwd
+  })
+  return { lib, check, test, lint, fmt, docs, circular }
 }

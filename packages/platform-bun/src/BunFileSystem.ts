@@ -19,5 +19,6 @@ const compatibleLayer: typeof PlatformBunFileSystem.layer = NodeFileSystem.layer
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer: Layer.Layer<FileSystem> = compatibleLayer

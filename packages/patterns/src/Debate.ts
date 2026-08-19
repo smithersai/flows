@@ -12,6 +12,7 @@ import { PatternError } from "./PatternError.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Turn {
   readonly proponent: unknown
@@ -27,6 +28,7 @@ export interface Turn {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface MakeOptions {
   readonly proponent: Flow.Any
@@ -51,6 +53,7 @@ const invalidRounds = (rounds: number): never => {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (options: MakeOptions): Flow.Flow<typeof Schema.Unknown, typeof Schema.Unknown, unknown> => {
   if (!Number.isSafeInteger(options.rounds) || options.rounds < 1) invalidRounds(options.rounds)

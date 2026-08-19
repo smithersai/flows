@@ -16,6 +16,7 @@ import type { WaitingAnnotation } from "../FlowRuntime/WaitingAnnotation.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Done<A> {
   readonly _tag: "Done"
@@ -32,6 +33,7 @@ export interface Done<A> {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface To<Payload> {
   readonly _tag: "To"
@@ -49,6 +51,7 @@ export interface To<Payload> {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Park {
   readonly _tag: "Park"
@@ -60,6 +63,7 @@ export interface Park {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Outcome<A = unknown, Payload = unknown> = Done<A> | To<Payload> | Park
 
@@ -68,6 +72,7 @@ export type Outcome<A = unknown, Payload = unknown> = Done<A> | To<Payload> | Pa
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const Done = Schema.Struct({
   _tag: Schema.tag("Done"),
@@ -79,6 +84,7 @@ export const Done = Schema.Struct({
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const To = Schema.Struct({
   _tag: Schema.tag("To"),
@@ -91,6 +97,7 @@ export const To = Schema.Struct({
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const Park = Schema.Struct({
   _tag: Schema.tag("Park"),
@@ -106,6 +113,7 @@ export const Park = Schema.Struct({
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const Outcome = Schema.Union([Done, To, Park])
 
@@ -114,6 +122,7 @@ export const Outcome = Schema.Union([Done, To, Park])
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const done = <A>(value: A): Node.Node<Done<A>> => Node.succeed({ _tag: "Done", value })
 
@@ -129,6 +138,7 @@ export const done = <A>(value: A): Node.Node<Done<A>> => Node.succeed({ _tag: "D
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const park: {
   (reason: WaitingAnnotation): Node.Node<Park>
@@ -154,5 +164,6 @@ export const park: {
  *
  * @category refinements
  * @since 0.1.0
+ * @slop
  */
 export const isOutcome: (value: unknown) => value is Outcome = Schema.is(Outcome)

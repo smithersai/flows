@@ -57,6 +57,7 @@ const ActionOrdinalScope = Context.Service<never, string>(
  *
  * @category constructors
  * @since 4.0.0
+ * @slop
  */
 export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"] => {
   /**

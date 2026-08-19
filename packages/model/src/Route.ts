@@ -30,6 +30,7 @@ import * as RequestExecutor from "./RequestExecutor.ts"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface PreparedRequest {
   readonly routeId: string
@@ -46,6 +47,7 @@ export interface PreparedRequest {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Config<Body, Frame, Event, State> {
   readonly id: string
@@ -61,6 +63,7 @@ export interface Config<Body, Frame, Event, State> {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type Route<Body, Frame, Event, State> = Config<Body, Frame, Event, State>
 
@@ -97,6 +100,7 @@ const preparationError = (): ModelError =>
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const prepare = <Body, Frame, Event, State>(
   route: Route<Body, Frame, Event, State>,
@@ -199,6 +203,7 @@ const stream = <Body, Frame, Event, State>(
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const make = <Body, Frame, Event, State>(
   config: Config<Body, Frame, Event, State>
@@ -209,6 +214,7 @@ export const make = <Body, Frame, Event, State>(
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const toModel = <Body, Frame, Event, State>(
   config: Config<Body, Frame, Event, State>
@@ -223,6 +229,7 @@ export const toModel = <Body, Frame, Event, State>(
  *
  * @since 0.1.0
  * @category layers
+ * @slop
  */
 export const layer = <Body, Frame, Event, State>(
   config: Config<Body, Frame, Event, State>
@@ -233,6 +240,7 @@ export const layer = <Body, Frame, Event, State>(
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const anthropic = (
   input: { readonly apiKey: Auth.Redacted<string> }
@@ -260,6 +268,7 @@ export const anthropic = (
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const openai = (
   input: { readonly apiKey: Auth.Redacted<string> }

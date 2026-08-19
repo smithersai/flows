@@ -14,6 +14,7 @@ import { ModelError } from "./ModelError.ts"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Endpoint {
   readonly method: "POST"
@@ -26,6 +27,7 @@ export interface Endpoint {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface MakeOptions {
   readonly url: string
@@ -62,6 +64,7 @@ const joinPath = (url: URL, path: string | undefined): Result.Result<void, Model
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const make = (input: MakeOptions): Result.Result<Endpoint, ModelError> =>
   Result.gen(function*() {
@@ -101,6 +104,7 @@ export const make = (input: MakeOptions): Result.Result<Endpoint, ModelError> =>
  *
  * @since 0.1.0
  * @category formatting
+ * @slop
  */
 export const render = (endpoint: Endpoint): string => {
   const url = new URL(endpoint.url)

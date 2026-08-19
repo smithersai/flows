@@ -41,6 +41,7 @@ import { dirname, join } from "node:path"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Options {
   /** SQLite database filename. Its parent directory is created recursively. */
@@ -85,6 +86,7 @@ const databaseLayer = (filename: string) =>
  *
  * @since 0.1.0
  * @category layers
+ * @slop
  */
 export const storage = (filename: string) => {
   const validatedFilename = Schema.decodeUnknownSync(Schema.NonEmptyString)(filename)
@@ -140,6 +142,7 @@ const composition = <
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const make = <
   BoundaryError,
@@ -167,6 +170,7 @@ export const make = <
  *
  * @since 0.1.0
  * @category layers
+ * @slop
  */
 export const layer = <
   BoundaryError,

@@ -22,6 +22,7 @@ import * as WriteRetry from "./internal/WriteRetry.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const DatabaseErrorCode = Schema.Literals(["busy", "constraint", "io", "unsupported", "unknown"])
 
@@ -30,6 +31,7 @@ export const DatabaseErrorCode = Schema.Literals(["busy", "constraint", "io", "u
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type DatabaseErrorCode = typeof DatabaseErrorCode.Type
 
@@ -38,6 +40,7 @@ export type DatabaseErrorCode = typeof DatabaseErrorCode.Type
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class DatabaseError extends Schema.TaggedError<DatabaseError>()("@smthrs/database/DatabaseError", {
   code: DatabaseErrorCode,
@@ -49,6 +52,7 @@ export class DatabaseError extends Schema.TaggedError<DatabaseError>()("@smthrs/
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Service {
   readonly write: <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E | DatabaseError, R>
@@ -83,6 +87,7 @@ export interface Service {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export class DurableWriter extends Context.Service<DurableWriter, Service>()("@smthrs/database/DurableWriter") {}
 
@@ -131,6 +136,7 @@ const hasBusyCause = (cause: unknown): boolean =>
  *
  * @category converting
  * @since 0.1.0
+ * @slop
  */
 export const fromSqlError = (error: SqlError.SqlError): DatabaseError =>
   new DatabaseError({
@@ -171,6 +177,7 @@ const rowCountOf = (raw: unknown, field: string): number | undefined => {
  *
  * @category accessors
  * @since 0.1.0
+ * @slop
  */
 export const affectedRows = (raw: unknown): Effect.Effect<number, DatabaseError> => {
   const count = rowCountOf(raw, "changes") ?? rowCountOf(raw, "rowCount")
@@ -184,6 +191,7 @@ export const affectedRows = (raw: unknown): Effect.Effect<number, DatabaseError>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (sql: SqlClient.SqlClient, options?: WriteRetry.WriteRetryOptions | undefined): Service =>
   DurableWriter.of({
@@ -215,6 +223,7 @@ export const make = (sql: SqlClient.SqlClient, options?: WriteRetry.WriteRetryOp
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (
   options?: WriteRetry.WriteRetryOptions | undefined
@@ -229,6 +238,7 @@ export const layer = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (): Service =>
   DurableWriter.of({
@@ -240,5 +250,6 @@ export const makeNoop = (): Service =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop: Layer.Layer<DurableWriter> = Layer.succeed(DurableWriter)(makeNoop())

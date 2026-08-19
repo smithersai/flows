@@ -34,6 +34,7 @@ import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Name = Schema.Literals(["node", "bun"])
 
@@ -42,6 +43,7 @@ export const Name = Schema.Literals(["node", "bun"])
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Name = typeof Name.Type
 
@@ -54,6 +56,7 @@ export type Name = typeof Name.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Platform = Schema.Struct({
   /** The operating system, spelled as Node spells it: `darwin`, `linux`. */
@@ -69,6 +72,7 @@ export const Platform = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Platform = typeof Platform.Type
 
@@ -77,6 +81,7 @@ export type Platform = typeof Platform.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const ErrorCode = Schema.Literals([
   "probe_failed",
@@ -89,6 +94,7 @@ export const ErrorCode = Schema.Literals([
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ErrorCode = typeof ErrorCode.Type
 
@@ -100,6 +106,7 @@ export type ErrorCode = typeof ErrorCode.Type
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class RuntimeError extends Schema.TaggedError<RuntimeError>()(
   "smithers-build/RuntimeError",
@@ -115,6 +122,7 @@ export class RuntimeError extends Schema.TaggedError<RuntimeError>()(
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const maximumVersionOutputBytes = 64 * 1024
 
@@ -123,6 +131,7 @@ export const maximumVersionOutputBytes = 64 * 1024
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const probeTimeoutMs = 30_000
 
@@ -131,6 +140,7 @@ export const probeTimeoutMs = 30_000
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Service {
   /** Which runtime this is. */
@@ -158,6 +168,7 @@ export interface Service {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export class Runtime extends Context.Service<Runtime, Service>()(
   "smithers-build/Runtime"
@@ -168,6 +179,7 @@ export class Runtime extends Context.Service<Runtime, Service>()(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Options {
   /** The version the workspace declared. */
@@ -228,6 +240,7 @@ const compare = (left: ReadonlyArray<number>, right: ReadonlyArray<number>): num
  *
  * @category validation
  * @since 0.1.0
+ * @slop
  */
 export const satisfies = (
   requirement: string,
@@ -341,6 +354,7 @@ const measureVersion = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (
   name: Name,
@@ -387,6 +401,7 @@ export const make = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNode = (
   options: Options
@@ -397,6 +412,7 @@ export const layerNode = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerBun = (
   options: Options
@@ -411,6 +427,7 @@ export const layerBun = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (
   name: Name,
@@ -439,6 +456,7 @@ export const makeNoop = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop = (
   name: Name,

@@ -46,6 +46,7 @@ import * as Runtime from "./Runtime.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Name = Schema.Literals(["pnpm", "bun"])
 
@@ -54,6 +55,7 @@ export const Name = Schema.Literals(["pnpm", "bun"])
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Name = typeof Name.Type
 
@@ -66,6 +68,7 @@ export type Name = typeof Name.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Platform = Runtime.Platform
 
@@ -74,6 +77,7 @@ export const Platform = Runtime.Platform
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Platform = Runtime.Platform
 
@@ -82,6 +86,7 @@ export type Platform = Runtime.Platform
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Digest = Sha256.Digest
 
@@ -90,6 +95,7 @@ export const Digest = Sha256.Digest
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Digest = typeof Sha256.Digest.Type
 
@@ -98,6 +104,7 @@ export type Digest = typeof Sha256.Digest.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const ErrorCode = Schema.Literals([
   "command_failed",
@@ -113,6 +120,7 @@ export const ErrorCode = Schema.Literals([
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ErrorCode = typeof ErrorCode.Type
 
@@ -124,6 +132,7 @@ export type ErrorCode = typeof ErrorCode.Type
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class PackageManagerError extends Schema.TaggedError<PackageManagerError>()(
   "smithers-build/PackageManagerError",
@@ -145,6 +154,7 @@ export class PackageManagerError extends Schema.TaggedError<PackageManagerError>
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const StoreManifest = Schema.Struct({
   /** The manager whose store was populated. */
@@ -162,6 +172,7 @@ export const StoreManifest = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type StoreManifest = typeof StoreManifest.Type
 
@@ -174,6 +185,7 @@ export type StoreManifest = typeof StoreManifest.Type
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const storeRoot = ".flows/store"
 
@@ -182,6 +194,7 @@ export const storeRoot = ".flows/store"
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const maximumNpmrcBytes = 256 * 1024
 /**
@@ -189,6 +202,7 @@ export const maximumNpmrcBytes = 256 * 1024
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const maximumPackageJsonBytes = 4 * 1024 * 1024
 /**
@@ -196,6 +210,7 @@ export const maximumPackageJsonBytes = 4 * 1024 * 1024
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const maximumLockfileBytes = 64 * 1024 * 1024
 /**
@@ -203,6 +218,7 @@ export const maximumLockfileBytes = 64 * 1024 * 1024
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const maximumVersionOutputBytes = 64 * 1024
 /**
@@ -210,6 +226,7 @@ export const maximumVersionOutputBytes = 64 * 1024
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const defaultCommandTimeoutMs = 30 * 60 * 1000
 /**
@@ -217,6 +234,7 @@ export const defaultCommandTimeoutMs = 30 * 60 * 1000
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const maximumCommandTimeoutMs = 24 * 60 * 60 * 1000
 
@@ -228,6 +246,7 @@ const maximumEnvironmentBytes = 256 * 1024
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Service {
   /** Which manager this is. */
@@ -282,6 +301,7 @@ export interface Service {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export class PackageManager extends Context.Service<PackageManager, Service>()(
   "smithers-build/PackageManager"
@@ -292,6 +312,7 @@ export class PackageManager extends Context.Service<PackageManager, Service>()(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Options {
   /**
@@ -978,6 +999,7 @@ const verified = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makePnpm = (options: Options): Effect.Effect<
   Service,
@@ -1049,6 +1071,7 @@ export const makePnpm = (options: Options): Effect.Effect<
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerPnpm = (
   options: Options
@@ -1069,6 +1092,7 @@ export const layerPnpm = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeBun = (options: Options): Effect.Effect<
   Service,
@@ -1085,6 +1109,7 @@ export const makeBun = (options: Options): Effect.Effect<
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerBun = (
   options: Options
@@ -1110,6 +1135,7 @@ const lockfileNames: Readonly<Record<Name, string>> = {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (name: Name, options: Options, hostPlatform: Platform): Service => {
   if (name !== "pnpm" && name !== "bun") {
@@ -1143,6 +1169,7 @@ export const makeNoop = (name: Name, options: Options, hostPlatform: Platform): 
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop = (
   name: Name,
@@ -1248,6 +1275,7 @@ const renderStoreManifestText = (input: NormalizedStoreManifestInput): string =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const storeManifestText = (input: {
   readonly manager: Name
@@ -1262,6 +1290,7 @@ export const storeManifestText = (input: {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const storeManifest = (input: {
   readonly manager: Name
@@ -1291,6 +1320,7 @@ export const storeManifest = (input: {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const linkedTreeManifest = (input: {
   readonly storeDigest: Digest
@@ -1348,6 +1378,7 @@ const hasEmbeddedNpmCredential = (text: string): boolean => {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const npmrcDigest = (
   projectRoot: string
@@ -1376,6 +1407,7 @@ export const npmrcDigest = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const lockfileDigest = (
   projectRoot: string,
@@ -1397,6 +1429,7 @@ export const lockfileDigest = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const packageJsonDigest = (
   projectRoot: string

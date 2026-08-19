@@ -17,6 +17,7 @@ import { Context, Effect, Layer, Ref, Schema } from "effect"
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class AuthorError extends Schema.TaggedError<AuthorError>()("/chain/AuthorError", {
   code: Schema.Literals(["author_unavailable", "exhausted"]),
@@ -36,6 +37,7 @@ export class AuthorError extends Schema.TaggedError<AuthorError>()("/chain/Autho
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Input {
   readonly prefix: string
@@ -50,6 +52,7 @@ export interface Input {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const contextOf = (payload: unknown): ReadonlyArray<string> => {
   if (typeof payload === "object" && payload !== null && "context" in payload) {
@@ -65,6 +68,7 @@ export const contextOf = (payload: unknown): ReadonlyArray<string> => {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export interface Service {
   readonly author: (input: Input) => Effect.Effect<string, AuthorError>
@@ -75,6 +79,7 @@ export interface Service {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export class Author extends Context.Service<Author, Service>()("/chain/Author") {}
 
@@ -83,6 +88,7 @@ export class Author extends Context.Service<Author, Service>()("/chain/Author") 
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (implementation: Service): Service => Author.of(implementation)
 
@@ -92,6 +98,7 @@ export const make = (implementation: Service): Service => Author.of(implementati
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (overrides: Partial<Service> = {}): Service =>
   make({
@@ -106,6 +113,7 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<Author> =>
   Layer.succeed(Author)(makeNoop(overrides))
@@ -116,6 +124,7 @@ export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<Author>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerFn = (f: (input: Input) => string): Layer.Layer<Author> =>
   Layer.succeed(Author)(
@@ -130,6 +139,7 @@ export const layerFn = (f: (input: Input) => string): Layer.Layer<Author> =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerMock = (outputs: ReadonlyArray<string>): Layer.Layer<Author> =>
   Layer.effect(Author)(

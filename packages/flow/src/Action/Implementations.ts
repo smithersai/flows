@@ -52,6 +52,7 @@ import type { FlowRuntime } from "../FlowRuntime/FlowRuntime.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Implementation {
   readonly name: string
@@ -73,6 +74,7 @@ export interface Implementation {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export class Implementations extends Context.Service<
   Implementations,
@@ -110,6 +112,7 @@ export class Implementations extends Context.Service<
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerImplementations: Layer.Layer<Implementations> = Layer.effect(Implementations)(
   Effect.sync(() => {

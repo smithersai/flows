@@ -34,6 +34,7 @@ const visibleText = (message: ModelRequest.AssistantMessage): string =>
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Config {
   readonly modelId: string
@@ -52,6 +53,7 @@ export interface Config {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const requestFor = (config: Config) => (input: Author.Input): ModelRequest.ModelRequest =>
   ModelRequest.ModelRequest.make({
@@ -96,6 +98,7 @@ const describeFailure = (error: unknown): string => {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (config: Config): Effect.Effect<Author.Service, never, Model.Model> =>
   Effect.gen(function*() {
@@ -139,6 +142,7 @@ export const make = (config: Config): Effect.Effect<Author.Service, never, Model
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (config: Config): Layer.Layer<Author.Author, never, Model.Model> =>
   Layer.effect(Author.Author)(make(config))

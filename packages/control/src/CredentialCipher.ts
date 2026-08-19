@@ -18,6 +18,7 @@ import { Unavailable } from "./ControlError.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Sealed {
   readonly ciphertext: string
@@ -29,6 +30,7 @@ export interface Sealed {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export interface Service {
   readonly seal: (plaintext: Redacted.Redacted<string>) => Effect.Effect<Sealed, Unavailable>
@@ -40,6 +42,7 @@ export interface Service {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export class CredentialCipher extends Context.Service<CredentialCipher, Service>()(
   "/control/CredentialCipher"
@@ -50,6 +53,7 @@ export class CredentialCipher extends Context.Service<CredentialCipher, Service>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (implementation: Service): Service => CredentialCipher.of(implementation)
 
@@ -58,6 +62,7 @@ export const make = (implementation: Service): Service => CredentialCipher.of(im
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const unavailable = (): Unavailable =>
   new Unavailable({
@@ -70,6 +75,7 @@ export const unavailable = (): Unavailable =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (overrides: Partial<Service> = {}): Service =>
   make({
@@ -83,6 +89,7 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<CredentialCipher> =>
   Layer.succeed(CredentialCipher)(makeNoop(overrides))

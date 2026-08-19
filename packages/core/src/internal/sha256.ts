@@ -105,6 +105,7 @@ const encoder = new TextEncoder()
  *
  * @since 0.1.0
  * @category hashing
+ * @slop
  */
 export const sha256 = (input: Uint8Array | string): Uint8Array => {
   const message = typeof input === "string" ? encoder.encode(input) : input

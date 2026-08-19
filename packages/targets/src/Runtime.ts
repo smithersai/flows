@@ -266,3 +266,25 @@ export const evaluate = (
   program: string,
   args: ReadonlyArray<string> = []
 ): Array<string> => [runtime.executable, "-e", program, ...args]
+
+/**
+ * Builds the argv that runs declared test files under the runtime's own test
+ * runner.
+ *
+ * Both supported runtimes ship one, and each spells it differently: Node takes
+ * `--test` before the files, Bun takes a `test` subcommand. A target that runs
+ * a test file calls this rather than spelling an interpreter flag into its own
+ * argv, which is what lets the workspace switch interpreters by editing one
+ * declaration.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const test = (runtime: Runtime, files: ReadonlyArray<string>): Array<string> => {
+  switch (runtime.name) {
+    case "node":
+      return [runtime.executable, "--test", ...files]
+    case "bun":
+      return [runtime.executable, "test", ...files]
+  }
+}

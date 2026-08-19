@@ -83,6 +83,7 @@ export { TimeTravel } from "@smthrs/time-travel"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const namespaces = [
   "Action",

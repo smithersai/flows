@@ -34,6 +34,7 @@
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const root = (runId: string): string => `${runId}/root`
 
@@ -42,6 +43,7 @@ export const root = (runId: string): string => `${runId}/root`
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const make = (runId: string, path: ReadonlyArray<string> = []): string =>
   path.length === 0 ? root(runId) : `${root(runId)}/${path.join("/")}`

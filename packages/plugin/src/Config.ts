@@ -3,7 +3,7 @@
  *
  * Governing contract: D11 in `docs/architecture/design-decisions.md`. These
  * schemas are the bounded configuration lifecycle owned by the shared plugin
- * kernel and consumed by the assembled cell host in `@smthrs/engine-harness`.
+ * kernel and consumed by the assembled cell host in `@smthrs/agent`.
  * They are not placeholders for later durable-engine wiring: engine policy
  * remains on its Effect service and constructor-option seams.
  *

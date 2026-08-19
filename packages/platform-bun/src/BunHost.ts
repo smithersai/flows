@@ -39,6 +39,7 @@ import * as BunFileSystem from "./BunFileSystem.ts"
  *
  * @category re-exports
  * @since 0.1.0
+ * @slop
  */
 export { BunChildProcessSpawner, BunFileSystem, BunHttpClient }
 
@@ -47,6 +48,7 @@ export { BunChildProcessSpawner, BunFileSystem, BunHttpClient }
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type BunHost = FileSystem | Path.Path | ChildProcessSpawner | Jj | HttpClient
 
@@ -62,6 +64,7 @@ export type BunHost = FileSystem | Path.Path | ChildProcessSpawner | Jj | HttpCl
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const implementationIds: Readonly<Record<(typeof HostServiceIds)[number], string>> = {
   [HostServiceIds[0]]: "@smthrs/platform-bun/BunFileSystem",
@@ -86,6 +89,7 @@ const layerHttpClient: Layer.Layer<HttpClient> = Layer.provide(
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer: Layer.Layer<BunHost> = Layer.mergeAll(
   platform,

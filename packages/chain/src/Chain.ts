@@ -30,6 +30,7 @@ import * as Steering from "./Steering.ts"
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class ChainError extends Schema.TaggedError<ChainError>()("/chain/ChainError", {
   code: Schema.Literals(["replay_divergence", "invalid_journal"]),
@@ -55,6 +56,7 @@ class ApprovalPark extends Schema.TaggedError<ApprovalPark>()("/chain/internal/A
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Options {
   readonly goal: string
@@ -74,6 +76,7 @@ export interface Options {
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const authorName = AuthorDeclaration.authorName
 
@@ -83,6 +86,7 @@ export const authorName = AuthorDeclaration.authorName
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const authorDescription = AuthorDeclaration.authorDescription
 
@@ -91,6 +95,7 @@ export const authorDescription = AuthorDeclaration.authorDescription
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const authorDigest: string = AuthorDeclaration.authorDigest
 
@@ -115,6 +120,7 @@ type Services = Journal.Journal | Catalog.Catalog | Author.Author | ScriptRunner
  *
  * @category execution
  * @since 0.1.0
+ * @slop
  */
 export const run = (options: Options): Effect.Effect<Outcome.Terminal, RunError, Services> =>
   Effect.gen(function*() {

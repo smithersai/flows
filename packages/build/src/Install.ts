@@ -78,6 +78,7 @@ import * as Runtime from "./Runtime.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Content = Schema.Struct({
   /** The lockfile path and its measured digest. */
@@ -91,6 +92,7 @@ export const Content = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Content = typeof Content.Type
 
@@ -102,6 +104,7 @@ export type Content = typeof Content.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const LinkManifest = Schema.Struct({
   /** The store manifest digest this tree was linked from. */
@@ -117,6 +120,7 @@ export const LinkManifest = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type LinkManifest = typeof LinkManifest.Type
 
@@ -138,6 +142,7 @@ const measureInputPatterns: ReadonlyArray<string> = [
  *
  * @category actions
  * @since 0.1.0
+ * @slop
  */
 export const Measure = Action.make("smithers-build/install/measure", {
   payload: {},
@@ -194,6 +199,7 @@ const makeFetch = <Tag extends string>(
  *
  * @category actions
  * @since 0.1.0
+ * @slop
  */
 export const FetchPnpm = makeFetch("smithers-build/install/fetch/pnpm", "pnpm-lock.yaml", "pnpm")
 
@@ -202,6 +208,7 @@ export const FetchPnpm = makeFetch("smithers-build/install/fetch/pnpm", "pnpm-lo
  *
  * @category actions
  * @since 0.1.0
+ * @slop
  */
 export const FetchBun = makeFetch("smithers-build/install/fetch/bun", "bun.lock", "bun")
 
@@ -220,6 +227,7 @@ export const FetchBun = makeFetch("smithers-build/install/fetch/bun", "bun.lock"
  *
  * @category actions
  * @since 0.1.0
+ * @slop
  */
 export const Link = Action.make("smithers-build/install/link", {
   payload: {
@@ -250,6 +258,7 @@ export const Link = Action.make("smithers-build/install/link", {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const payloadFields = {
   manager: PackageManager.Name
@@ -260,6 +269,7 @@ export const payloadFields = {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Requires =
   | Action.Requirement<"smithers-build/install/measure">
@@ -272,6 +282,7 @@ export type Requires =
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type InstallFlow = Flow.Flow<
   "smithers-build/install",
@@ -325,6 +336,7 @@ const measureFetchLink = <R>(
  *
  * @category flows
  * @since 0.1.0
+ * @slop
  */
 export const Install: InstallFlow = Flow.make("smithers-build/install", {
   payload: payloadFields,
@@ -432,6 +444,7 @@ const verifyStoreManager = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const MeasureLive = Measure.toLayer(() =>
   Effect.gen(function*() {
@@ -451,6 +464,7 @@ export const MeasureLive = Measure.toLayer(() =>
  *
  * @private
  * @since 0.1.0
+ * @slop
  */
 export const executeFetch = ({ content }: { readonly content: Content }) =>
   Effect.gen(function*() {
@@ -472,6 +486,7 @@ export const executeFetch = ({ content }: { readonly content: Content }) =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const FetchPnpmLive = FetchPnpm.toLayer(executeFetch)
 
@@ -480,6 +495,7 @@ export const FetchPnpmLive = FetchPnpm.toLayer(executeFetch)
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const FetchBunLive = FetchBun.toLayer(executeFetch)
 
@@ -495,6 +511,7 @@ export const FetchBunLive = FetchBun.toLayer(executeFetch)
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const executeLink = ({ store }: {
   readonly content: Content
@@ -526,6 +543,7 @@ export const executeLink = ({ store }: {
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const LinkLive = Link.toLayer(executeLink)
 
@@ -538,6 +556,7 @@ export const LinkLive = Link.toLayer(executeLink)
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = Layer.mergeAll(
   MeasureLive,
@@ -554,6 +573,7 @@ export const layer = Layer.mergeAll(
  *
  * @category validation
  * @since 0.1.0
+ * @slop
  */
 export const checkDeclaredManager = (
   declared: PackageManager.Name

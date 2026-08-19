@@ -45,6 +45,7 @@ import type { FlowInstance } from "./FlowInstance.ts"
  *
  * @category services
  * @since 4.0.0
+ * @slop
  */
 export class FlowRuntime extends Context.Service<
   FlowRuntime,

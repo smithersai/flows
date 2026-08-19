@@ -18,59 +18,69 @@
 /**
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export * as GraphBuildError from "./GraphBuildError.ts"
 
 /**
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export * as KeyMaterial from "./KeyMaterial.ts"
 
 /**
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export * as FileSet from "./FileSet.ts"
 
 /**
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export * as Node from "./Node.ts"
 
 /**
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export * as Plan from "./Plan.ts"
 
 /**
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export * as PlanDiff from "./PlanDiff.ts"
 
 /**
  * @since 0.1.0
  * @category services
+ * @slop
  */
 export * as PlanStore from "./PlanStore.ts"
 
 /**
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export * as Planned from "./Planned.ts"
 
 /**
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export * as StepKey from "./StepKey.ts"
 
 /**
  * @since 0.1.0
  * @category migrations
+ * @slop
  */
 export * as Migrations from "./Migrations.ts"

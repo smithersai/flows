@@ -31,6 +31,7 @@ import { makeUnsafe } from "./make.ts"
  *
  * @category layers
  * @since 4.0.0
+ * @slop
  */
 export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(FlowRuntime.FlowRuntime)(
   Effect.gen(function*() {

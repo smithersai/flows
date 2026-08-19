@@ -324,6 +324,7 @@ const systemCommand = (verb: string) => {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const cli = rootCommand.pipe(
   Command.withDescription("Plan, approve, and run durable flows"),

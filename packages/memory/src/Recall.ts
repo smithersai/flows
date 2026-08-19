@@ -21,6 +21,7 @@ import * as Namespace from "./Namespace.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type TagGroup = Namespace.TagGroup
 
@@ -29,6 +30,7 @@ export type TagGroup = Namespace.TagGroup
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Input = Schema.Struct({
   banks: Schema.Array(Schema.String),
@@ -43,6 +45,7 @@ export const Input = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Input = typeof Input.Type
 
@@ -51,6 +54,7 @@ export type Input = typeof Input.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Result = Schema.Struct({
   bank: Schema.String,
@@ -65,6 +69,7 @@ export const Result = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Result = typeof Result.Type
 
@@ -73,6 +78,7 @@ export type Result = typeof Result.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Output = Schema.Array(Result)
 
@@ -81,6 +87,7 @@ export const Output = Schema.Array(Result)
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Output = typeof Output.Type
 
@@ -89,6 +96,7 @@ export type Output = typeof Output.Type
  *
  * @category slots
  * @since 0.1.0
+ * @slop
  */
 export const slot = Pattern.slot({ input: Input, output: Output })
 
@@ -97,6 +105,7 @@ export const slot = Pattern.slot({ input: Input, output: Output })
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export interface Service {
   readonly recall: (input: Input) => Effect.Effect<Output, MemoryError.MemoryError>
@@ -107,6 +116,7 @@ export interface Service {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export class Recall extends Context.Service<Recall, Service>()("flows/memory/Recall") {}
 
@@ -123,6 +133,7 @@ const serializedByteLength = (results: ReadonlyArray<Result>): number =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const capRecallResults = (results: ReadonlyArray<Result>, maxTokens = 2048): Array<Result> => {
   const normalized = results.filter((result) => result.text.length > 0)
@@ -158,6 +169,7 @@ export const capRecallResults = (results: ReadonlyArray<Result>, maxTokens = 204
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (implementation: Service): Service => Recall.of(implementation)
 
@@ -166,6 +178,7 @@ export const make = (implementation: Service): Service => Recall.of(implementati
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (implementation: Service): Layer.Layer<Recall> => Layer.succeed(Recall)(make(implementation))
 
@@ -174,6 +187,7 @@ export const layer = (implementation: Service): Layer.Layer<Recall> => Layer.suc
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (): Service => Recall.of({ recall: () => Effect.succeed([]) })
 
@@ -182,6 +196,7 @@ export const makeNoop = (): Service => Recall.of({ recall: () => Effect.succeed(
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop: Layer.Layer<Recall> = Layer.succeed(Recall)(makeNoop())
 
@@ -191,6 +206,7 @@ export const layerNoop: Layer.Layer<Recall> = Layer.succeed(Recall)(makeNoop())
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type NamespaceValue = Namespace.Namespace
 
@@ -200,6 +216,7 @@ export type NamespaceValue = Namespace.Namespace
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const namespaceForBank = (bank: string): Namespace.Namespace => {
   for (const kind of ["flow", "agent", "user", "global"] as const) {

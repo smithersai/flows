@@ -121,6 +121,14 @@ export const SessionSchema = z.object({
 	/** The composer surfaces menu (the /surfaces command's open state). */
 	surfacesMenuOpen: z.boolean(),
 	/*
+	 * The composer connect menu's open state. A component is a projection and
+	 * never an authority, so the menu that used to live in a `useState` lives
+	 * here — opened and closed through the transition dispatcher with the actor
+	 * recorded, exactly like surfacesMenuOpen above. Optional (missing = closed)
+	 * so sessions persisted before the field parse without a schema reset.
+	 */
+	connectMenuOpen: z.boolean().optional(),
+	/*
 	 * The note `/world.delete` is asking about (§10.6, §28.4). Deleting is not
 	 * undoable, so the flow ASKS and the answer is an act of its own — and the
 	 * question lives in the store rather than in a component's local state,
@@ -387,6 +395,12 @@ export type AppTransition =
 	| {
 			/* The composer surfaces menu opens/closes (the surfaces command). */
 			type: "surfaces-menu.toggled";
+			actor: "user";
+			open: boolean;
+	  }
+	| {
+			/* The composer connect menu opens/closes (trigger, Escape, outside press). */
+			type: "connect-menu.toggled";
 			actor: "user";
 			open: boolean;
 	  }
@@ -668,6 +682,7 @@ export const initialSession = (theme: Session["theme"]): Session => ({
 	maximizedCardId: null,
 	devtoolsOpen: false,
 	surfacesMenuOpen: false,
+	connectMenuOpen: false,
 	pendingWorldDeleteId: null,
 	revision: 0,
 });

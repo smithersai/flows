@@ -17,8 +17,11 @@
  *
  * @since 0.1.0
  */
+import * as CargoModule from "./Cargo.ts"
+import * as CiToolchainModule from "./CiToolchain.ts"
 import * as PackageManagerModule from "./PackageManager.ts"
 import * as RuntimeModule from "./Runtime.ts"
+import * as RustToolchainModule from "./RustToolchain.ts"
 import * as VerbModule from "./Verb.ts"
 
 /**
@@ -167,6 +170,14 @@ export { Clean } from "./Clean.ts"
 export { Dev } from "./Dev.ts"
 /** @category targets @since 0.1.0 */
 export { ToolBuild } from "./ToolBuild.ts"
+/** @category targets @since 0.1.0 */
+export { CargoLint, CargoTest } from "./Cargo.ts"
+/** @category targets @since 0.1.0 */
+export { NodeTest } from "./NodeTest.ts"
+/** @category constructors @since 0.1.0 */
+export { entrypoint, testRunner } from "./NodeTest.ts"
+/** @category targets @since 0.1.0 */
+export { NodeBinary } from "./NodeBinary.ts"
 /** @category actions @since 0.1.0 */
 export {
   CaptureOutputs,
@@ -240,6 +251,58 @@ export const Verb = VerbModule
  * @since 0.1.0
  */
 export type Verb = VerbModule.Verb
+
+/**
+ * Declared Rust toolchains and the argv they install and run cargo with.
+ *
+ * The name is both the namespace the constructors live under and the type they
+ * return, so a BUILD.ts file writes `RustToolchain.Pinned({})` and annotates the
+ * result `RustToolchain`.
+ *
+ * @category namespace exports
+ * @since 0.1.0
+ */
+export const RustToolchain = RustToolchainModule
+
+/**
+ * One declared Rust toolchain.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type RustToolchain = RustToolchainModule.RustToolchain
+
+/**
+ * Declared cargo gates and the argv each one renders to.
+ *
+ * The targets themselves are `Smithers.CargoLint` and `Smithers.CargoTest`; this
+ * namespace holds the check constructors a BUILD.ts file passes them,
+ * `Cargo.Fmt()`, `Cargo.Clippy()`, and `Cargo.Test()`.
+ *
+ * @category namespace exports
+ * @since 0.1.0
+ */
+export const Cargo = CargoModule
+
+/**
+ * What one generated CI job requires before its targets run.
+ *
+ * The name is both the namespace the constructors live under and the type
+ * `Needs` returns, so a BUILD.ts file writes `CiToolchain.Needs({ … })` and
+ * annotates the result `CiToolchain`.
+ *
+ * @category namespace exports
+ * @since 0.1.0
+ */
+export const CiToolchain = CiToolchainModule
+
+/**
+ * Everything one generated CI job requires before its targets run.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type CiToolchain = CiToolchainModule.Toolchain
 
 /**
  * Placeholder minting and outbound secret substitution.

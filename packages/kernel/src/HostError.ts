@@ -32,5 +32,6 @@ import type { JjError } from "@smthrs/jj"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type HostError = JjError

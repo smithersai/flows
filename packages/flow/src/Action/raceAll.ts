@@ -18,6 +18,7 @@ import type { Action, Any } from "./Action.ts"
  *
  * @category racing
  * @since 4.0.0
+ * @slop
  */
 export const raceAll = <const Actions extends NonEmptyReadonlyArray<Any>>(
   name: string,

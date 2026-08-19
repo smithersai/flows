@@ -33,6 +33,7 @@ import type { PlatformError } from "effect/PlatformError"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const JjErrorCode = Schema.Literals(["not_installed", "conflict", "invalid_ref", "unknown"])
 
@@ -41,6 +42,7 @@ export const JjErrorCode = Schema.Literals(["not_installed", "conflict", "invali
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type JjErrorCode = typeof JjErrorCode.Type
 
@@ -53,6 +55,7 @@ export type JjErrorCode = typeof JjErrorCode.Type
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class JjError extends Schema.TaggedError<JjError>()("@smthrs/jj/JjError", {
   code: JjErrorCode,
@@ -72,6 +75,7 @@ export class JjError extends Schema.TaggedError<JjError>()("@smthrs/jj/JjError",
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const jjError = (options: {
   readonly code: JjErrorCode
@@ -96,6 +100,7 @@ export const jjError = (options: {
  *
  * @category refinements
  * @since 0.1.0
+ * @slop
  */
 export const isJjError = (error: unknown): error is JjError =>
   typeof error === "object" && error !== null && "_tag" in error && error._tag === "@smthrs/jj/JjError"
@@ -109,6 +114,7 @@ export const isJjError = (error: unknown): error is JjError =>
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ChangeId = string
 
@@ -127,6 +133,7 @@ export type ChangeId = string
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type JjFailure = JjError | Permission.PermissionError
 
@@ -141,6 +148,7 @@ export type JjFailure = JjError | Permission.PermissionError
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export interface Jj {
   /** Commits the working copy and returns the change id to restore to later. */
@@ -171,6 +179,7 @@ export interface Jj {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export const Jj: Context.Service<Jj, Jj> = Context.Service("@smthrs/jj/Jj")
 
@@ -180,6 +189,7 @@ export const Jj: Context.Service<Jj, Jj> = Context.Service("@smthrs/jj/Jj")
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (impl: Jj): Jj => Jj.of(impl)
 
@@ -193,6 +203,7 @@ export const make = (impl: Jj): Jj => Jj.of(impl)
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (overrides: Partial<Jj>): Jj => {
   const missing = (method: string) =>
@@ -215,5 +226,6 @@ export const makeNoop = (overrides: Partial<Jj>): Jj => {
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop = (overrides: Partial<Jj>): Layer.Layer<Jj> => Layer.succeed(Jj)(makeNoop(overrides))

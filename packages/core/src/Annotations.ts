@@ -17,6 +17,7 @@ import type * as PlacementModel from "./Placement.ts"
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export interface LaneOptions {
   readonly id: string
@@ -28,6 +29,7 @@ export interface LaneOptions {
  *
  * @category constructors
  * @since 0.0.0
+ * @slop
  */
 export const empty: Context.Context<never> = Context.empty()
 
@@ -36,6 +38,7 @@ export const empty: Context.Context<never> = Context.empty()
  *
  * @category adders
  * @since 0.0.0
+ * @slop
  */
 export const add = Context.add
 
@@ -45,6 +48,7 @@ export const add = Context.add
  *
  * @category combining
  * @since 0.0.0
+ * @slop
  */
 export const merge = (parent: Context.Context<never>, child: Context.Context<never>): Context.Context<never> =>
   Context.merge(parent, child)
@@ -54,6 +58,7 @@ export const merge = (parent: Context.Context<never>, child: Context.Context<nev
  *
  * @category getters
  * @since 0.0.0
+ * @slop
  */
 export const getOption = <I, S>(context: Context.Context<never>, key: Context.Key<I, S>): Option.Option<S> =>
   Context.getOption(context, key)
@@ -63,6 +68,7 @@ export const getOption = <I, S>(context: Context.Context<never>, key: Context.Ke
  *
  * @category annotations
  * @since 0.0.0
+ * @slop
  */
 export const Placement = Context.Service<PlacementModel.Placement>("flows/core/Annotations/Placement")
 
@@ -71,6 +77,7 @@ export const Placement = Context.Service<PlacementModel.Placement>("flows/core/A
  *
  * @category annotations
  * @since 0.0.0
+ * @slop
  */
 export const Effects = Context.Service<EffectsModel.Declaration>("flows/core/Annotations/Effects")
 
@@ -79,5 +86,6 @@ export const Effects = Context.Service<EffectsModel.Declaration>("flows/core/Ann
  *
  * @category annotations
  * @since 0.0.0
+ * @slop
  */
 export const Lane = Context.Service<LaneOptions>("flows/core/Annotations/Lane")

@@ -23,6 +23,7 @@ export const test = standard.test
 export const lint = standard.lint
 export const fmt = standard.fmt
 export const docs = standard.docs
+export const circular = standard.circular
 
 /**
  * The manifest fields every package in this workspace shares.

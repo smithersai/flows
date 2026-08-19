@@ -54,6 +54,7 @@ const fileBoundary = (
  *
  * @private
  * @since 0.1.0
+ * @slop
  */
 export const ordinalScope = (
   action: Action.Any,
@@ -77,6 +78,7 @@ export const ordinalScope = (
  *
  * @private
  * @since 0.1.0
+ * @slop
  */
 export const uncanonicalKey = (
   actionName: string,
@@ -111,6 +113,7 @@ const declarationDigest = (action: Action.AnyWithProps): Schema.JsonObject => ({
  *
  * @private
  * @since 0.1.0
+ * @slop
  */
 export const actionKey = Effect.fn("FlowEngine.actionKey")(function*(
   action: Action.AnyWithProps,

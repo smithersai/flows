@@ -21,6 +21,7 @@ import * as Route from "./Route.ts"
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const make = (input: {
   readonly id: string

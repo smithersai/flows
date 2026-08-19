@@ -40,6 +40,7 @@ import * as Schema from "effect/Schema"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const RetryPolicy = Schema.Struct({
   initialMs: Schema.Number,
@@ -56,6 +57,7 @@ export const RetryPolicy = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type RetryPolicy = typeof RetryPolicy.Type
 
@@ -64,6 +66,7 @@ export type RetryPolicy = typeof RetryPolicy.Type
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (options: {
   readonly initialMs: number
@@ -93,6 +96,7 @@ export const make = (options: {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const defaultRetryPolicy: RetryPolicy = make({
   initialMs: 200,
@@ -105,6 +109,7 @@ export const defaultRetryPolicy: RetryPolicy = make({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface RetryAfter {
   readonly _tag: "RetryAfter"
@@ -116,6 +121,7 @@ export interface RetryAfter {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface GiveUp {
   readonly _tag: "GiveUp"
@@ -127,6 +133,7 @@ export interface GiveUp {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type RetryDecision = RetryAfter | GiveUp
 
@@ -135,6 +142,7 @@ export type RetryDecision = RetryAfter | GiveUp
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const retryAfter = (delayMs: number): RetryDecision => ({
   _tag: "RetryAfter",
@@ -146,6 +154,7 @@ export const retryAfter = (delayMs: number): RetryDecision => ({
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const giveUp = (reason: GiveUp["reason"]): RetryDecision => ({
   _tag: "GiveUp",
@@ -157,6 +166,7 @@ export const giveUp = (reason: GiveUp["reason"]): RetryDecision => ({
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class RetryPolicyExpired extends Schema.TaggedError<RetryPolicyExpired>()(
   "@smthrs/flow/RetryPolicyExpired",
@@ -176,6 +186,7 @@ export class RetryPolicyExpired extends Schema.TaggedError<RetryPolicyExpired>()
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class RetryAttemptsExhausted extends Schema.TaggedError<RetryAttemptsExhausted>()(
   "@smthrs/flow/RetryAttemptsExhausted",
@@ -210,6 +221,7 @@ export class RetryAttemptsExhausted extends Schema.TaggedError<RetryAttemptsExha
  *
  * @category attempts
  * @since 0.1.0
+ * @slop
  */
 export const nextDelay = (
   policy: RetryPolicy,
@@ -258,6 +270,7 @@ export const nextDelay = (
  *
  * @category attempts
  * @since 0.1.0
+ * @slop
  */
 export const nextDelayEffect = (
   policy: RetryPolicy,
@@ -274,6 +287,7 @@ export const nextDelayEffect = (
  *
  * @category attempts
  * @since 0.1.0
+ * @slop
  */
 export const errorTag = (error: unknown): string | undefined => {
   if (typeof error === "object" && error !== null && "_tag" in error && typeof error._tag === "string") {
@@ -303,6 +317,7 @@ export const errorTag = (error: unknown): string | undefined => {
  *
  * @category attempts
  * @since 0.1.0
+ * @slop
  */
 export const defaultNonRetryable: ReadonlyArray<string> = [
   "@smthrs/engine-store/CacheCorruptionDetected",
@@ -315,6 +330,7 @@ export const defaultNonRetryable: ReadonlyArray<string> = [
  *
  * @category attempts
  * @since 0.1.0
+ * @slop
  */
 export const isNonRetryable = (policy: RetryPolicy, error: unknown): boolean => {
   const tag = errorTag(error)
@@ -336,6 +352,7 @@ export const isNonRetryable = (policy: RetryPolicy, error: unknown): boolean => 
  *
  * @category attempts
  * @since 0.1.0
+ * @slop
  */
 export const decide = (
   policy: RetryPolicy,
@@ -373,6 +390,7 @@ export const decide = (
  *
  * @category attempts
  * @since 0.1.0
+ * @slop
  */
 export const decideEffect = (
   policy: RetryPolicy,

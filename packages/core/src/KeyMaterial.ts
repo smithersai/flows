@@ -20,6 +20,7 @@ import type * as Placement from "./Placement.ts"
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export type InputRef =
   | { readonly _tag: "Literal"; readonly value: unknown }
@@ -31,6 +32,7 @@ export type InputRef =
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export interface KeyMaterial {
   readonly version: "flows/key-material/v1"
@@ -54,6 +56,7 @@ export interface KeyMaterial {
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export interface Entry {
   readonly nodeId: string

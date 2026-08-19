@@ -17,6 +17,7 @@ import * as Route from "./Route.ts"
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export interface ListedCommand {
   readonly name: string
@@ -28,6 +29,7 @@ export interface ListedCommand {
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export interface ParsedCommand<A = unknown> {
   readonly route: Route.Route
@@ -40,6 +42,7 @@ export interface ParsedCommand<A = unknown> {
  *
  * @category models
  * @since 0.0.0
+ * @slop
  */
 export interface CommandSurface {
   /** Lists routes without loading their modules. */
@@ -63,6 +66,7 @@ const descriptionOf = (route: Route.Route): string | undefined => Option.getOrUn
  *
  * @category constructors
  * @since 0.0.0
+ * @slop
  */
 export const make = (
   routes: ReadonlyArray<Route.Route>

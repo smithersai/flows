@@ -17,6 +17,7 @@ import * as Script from "./Script.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const ParkCode = Schema.Literals(["approval", "event", "timer", "quota", "plugin"])
 
@@ -25,6 +26,7 @@ export const ParkCode = Schema.Literals(["approval", "event", "timer", "quota", 
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ParkCode = typeof ParkCode.Type
 
@@ -33,6 +35,7 @@ export type ParkCode = typeof ParkCode.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const ParkReason = Schema.Struct({
   code: ParkCode,
@@ -44,6 +47,7 @@ export const ParkReason = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ParkReason = typeof ParkReason.Type
 
@@ -52,6 +56,7 @@ export type ParkReason = typeof ParkReason.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Done = Schema.TaggedStruct("Done", { value: Schema.Json })
 
@@ -60,6 +65,7 @@ export const Done = Schema.TaggedStruct("Done", { value: Schema.Json })
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Done = typeof Done.Type
 
@@ -68,6 +74,7 @@ export type Done = typeof Done.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const To = Schema.TaggedStruct("To", { script: Script.Script })
 
@@ -76,6 +83,7 @@ export const To = Schema.TaggedStruct("To", { script: Script.Script })
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type To = typeof To.Type
 
@@ -84,6 +92,7 @@ export type To = typeof To.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Park = Schema.TaggedStruct("Park", { reason: ParkReason })
 
@@ -92,6 +101,7 @@ export const Park = Schema.TaggedStruct("Park", { reason: ParkReason })
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Park = typeof Park.Type
 
@@ -100,6 +110,7 @@ export type Park = typeof Park.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Outcome = Schema.Union([Done, To, Park])
 
@@ -108,6 +119,7 @@ export const Outcome = Schema.Union([Done, To, Park])
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Outcome = typeof Outcome.Type
 
@@ -117,6 +129,7 @@ export type Outcome = typeof Outcome.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Terminal = Done | Park
 
@@ -126,6 +139,7 @@ export type Terminal = Done | Park
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const done = (value: typeof Schema.Json.Type): Done => ({ _tag: "Done", value: value ?? null })
 
@@ -134,6 +148,7 @@ export const done = (value: typeof Schema.Json.Type): Done => ({ _tag: "Done", v
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const to = (script: Script.Script): To => ({ _tag: "To", script })
 
@@ -142,5 +157,6 @@ export const to = (script: Script.Script): To => ({ _tag: "To", script })
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const park = (code: ParkCode, message = ""): Park => ({ _tag: "Park", reason: { code, message } })

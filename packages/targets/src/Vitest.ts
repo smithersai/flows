@@ -28,6 +28,15 @@ export const Attrs = Schema.Struct({
   config: Schema.NullOr(Input.File),
   environment: Schema.NonEmptyString,
   passWithNoTests: Schema.Boolean,
+  /**
+   * Whether the run may compute coverage. `false` renders
+   * `--coverage.enabled=false`, which a config with coverage enabled needs on a
+   * host whose engine has no V8 inspector — Bun runs JavaScriptCore, and
+   * `@vitest/coverage-v8` cannot attach there.
+   *
+   * @default true
+   */
+  coverage: Schema.Boolean.pipe(Schema.withConstructorDefault(Effect.succeed(true))),
   cwd: Schema.NonEmptyString.pipe(
     Schema.withConstructorDefault(Effect.succeed("."))
   )
@@ -68,6 +77,7 @@ export const Vitest = Target.make("Vitest", {
         ...(attrs.config === null ? [] : ["--config", attrs.config.path]),
         "--environment",
         attrs.environment,
+        ...(attrs.coverage ? [] : ["--coverage.enabled=false"]),
         ...(attrs.passWithNoTests ? ["--passWithNoTests"] : [])
       ])
     })
