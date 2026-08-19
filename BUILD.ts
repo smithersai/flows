@@ -163,3 +163,277 @@ export const packageDefaults = Smithers.PackageDefaults({
   macro: Smithers.StandardPackage,
   attrs: { packageManager }
 })
+
+// ---------------------------------------------------------------------------
+// GitHub automation
+// ---------------------------------------------------------------------------
+
+/**
+ * The model credential the factory's agent jobs run on.
+ *
+ * It reaches a job only through a `GithubAutomation` job that declares it, and
+ * the renderer refuses to place it in a job marked `untrustedInput`. The
+ * PoC-execution job is exactly such a job, which is why the loop is split into
+ * an authoring job that holds the key, a sandbox that holds none, and a
+ * publishing job that holds the key again.
+ */
+export const anthropicKey = Smithers.Secret("ANTHROPIC_API_KEY")
+
+/**
+ * The release pipeline's gate surface, verified in place.
+ *
+ * `.github/workflows/release.yml` is hand-written for the same reason `ci.yml`
+ * is: it carries a rehearsal path, an environment binding, and a publish loop
+ * no declaration reproduces. Contract mode reads it and fails when a gate stops
+ * running. The roster is release.yml's own stated invariant — it must stay a
+ * superset of ci.yml's — written down where a check can enforce it.
+ */
+export const release = Smithers.GithubCiGen({
+  packageManager,
+  output: ".github/workflows/release.yml",
+  requiredJobs: ["publish"],
+  gates: [
+    { name: "workflow lint", command: "docker://rhysd/actionlint:1.7.11", job: "publish" },
+    { name: "typecheck", command: "pnpm run check", job: "publish" },
+    { name: "tests", command: "pnpm test", job: "publish" },
+    { name: "lint", command: "pnpm run lint", job: "publish" },
+    { name: "circular-dependency guard", command: "pnpm run circular", job: "publish" },
+    { name: "browser bundle guard", command: "pnpm run browser", job: "publish" },
+    { name: "release manifest unit test", command: "node --test scripts/pack-release.test.mjs", job: "publish" },
+    { name: "release rehearsal unit test", command: "node --test scripts/release-rehearsal.test.mjs", job: "publish" },
+    { name: "test-pin register guard", command: "node --test scripts/check-test-pins.test.mjs", job: "publish" },
+    { name: "release pack", command: "node scripts/pack-release.mjs", job: "publish" },
+    { name: "release smoke test", command: "node scripts/smoke-release.mjs", job: "publish" }
+  ]
+})
+
+/** Attributes every generated automation workflow shares. */
+const automation = { packageManager, nodeVersion: "22.19.0" }
+
+/**
+ * The workflow token, for the `gh` CLI the automation entries shell out to.
+ *
+ * It is `env`, not a declared secret, because it is minted per run by GitHub
+ * rather than stored in the repository. The renderer treats it as a credential
+ * all the same and refuses it on any `untrustedInput` job, which is why the
+ * sandbox job below does not carry it.
+ */
+const githubToken = { GH_TOKEN: "${{ github.token }}" }
+
+/**
+ * Intake: decode a new report, look for duplicates, comment with candidates.
+ *
+ * The job is trusted — it holds the model credential and writes to the issue —
+ * so it runs behind the maintainer gate. It never executes anything the
+ * reporter wrote; it reads the issue and searches the memory corpus.
+ */
+export const issueIntake = Smithers.GithubAutomation({
+  ...automation,
+  slug: "issue-intake",
+  target: "issueIntake",
+  workflowName: "Issue intake",
+  on: { issues: ["opened", "edited"] },
+  concurrency: "gen-issue-intake-${{ github.event.issue.number }}",
+  jobs: [
+    Smithers.Automation.agent({
+      id: "intake",
+      name: "decode, dedupe, and comment",
+      entry: "intake.ts",
+      requireApproval: true,
+      timeoutMinutes: 20,
+      permissions: { contents: "read", issues: "write" },
+      secrets: [anthropicKey],
+      env: githubToken
+    })
+  ]
+})
+
+/**
+ * The PoC loop: author a repro, run it in a sandbox, post it to the reporter.
+ *
+ * The three jobs exist because of one rule. `execute` runs steps derived from
+ * the reporter's own description, so it is declared `untrustedInput` and the
+ * renderer strips it of every credential and every write permission. It can
+ * therefore only publish an artifact; `publish` reads that artifact and does
+ * the talking.
+ */
+export const pocLoop = Smithers.GithubAutomation({
+  ...automation,
+  slug: "poc-loop",
+  target: "pocLoop",
+  workflowName: "Repro PoC loop",
+  on: { issues: ["labeled"], workflowDispatch: true },
+  concurrency: "gen-poc-loop-${{ github.event.issue.number }}",
+  jobs: [
+    Smithers.Automation.agent({
+      id: "author",
+      name: "write the repro pair",
+      entry: "poc.ts",
+      requireApproval: true,
+      timeoutMinutes: 30,
+      permissions: { contents: "write", issues: "read" },
+      secrets: [anthropicKey],
+      env: githubToken,
+      uploads: [{ name: "poc", path: "factory/repros" }]
+    }),
+    Smithers.Automation.agent({
+      id: "execute",
+      name: "run the repro in a no-secrets sandbox",
+      entry: "poc-run.ts",
+      untrustedInput: true,
+      needs: ["author"],
+      timeoutMinutes: 30,
+      downloads: [{ name: "poc", path: "factory/repros" }],
+      uploads: [{ name: "poc-result", path: "factory/repros/result.json" }]
+    }),
+    Smithers.Automation.agent({
+      id: "publish",
+      name: "post the PoC and ask the reporter",
+      entry: "poc-publish.ts",
+      requireApproval: true,
+      needs: ["execute"],
+      timeoutMinutes: 15,
+      permissions: { contents: "read", issues: "write" },
+      secrets: [anthropicKey],
+      env: githubToken,
+      downloads: [{ name: "poc-result", path: "factory/repros" }]
+    })
+  ]
+})
+
+/**
+ * Reporter replies advance the state labels.
+ *
+ * A comment is untrusted text, but this job only classifies it and moves a
+ * label, so it holds the credential and runs behind the gate rather than in the
+ * sandbox. Nothing it reads is executed.
+ */
+export const issueReply = Smithers.GithubAutomation({
+  ...automation,
+  slug: "issue-reply",
+  target: "issueReply",
+  workflowName: "Repro state machine",
+  on: { issueComment: ["created"] },
+  concurrency: "gen-issue-reply-${{ github.event.issue.number }}",
+  jobs: [
+    Smithers.Automation.agent({
+      id: "advance",
+      name: "advance the repro state",
+      entry: "advance.ts",
+      requireApproval: true,
+      timeoutMinutes: 15,
+      permissions: { contents: "write", issues: "write" },
+      secrets: [anthropicKey],
+      env: githubToken
+    })
+  ]
+})
+
+/**
+ * The proof gate: a fix PR's repro must fail at the merge base and pass at the
+ * head.
+ *
+ * It builds and runs the pull request's own code, so it is `untrustedInput`
+ * and holds nothing. A fork PR from outside the organization runs it only once
+ * a maintainer applies the approval label, which is the intended fail-closed
+ * behaviour for a job that executes a stranger's test.
+ */
+export const reproProof = Smithers.GithubAutomation({
+  ...automation,
+  slug: "repro-proof",
+  target: "reproProof",
+  workflowName: "Repro proof gate",
+  on: { pullRequest: ["opened", "synchronize", "reopened", "labeled"] },
+  concurrency: "gen-repro-proof-${{ github.event.pull_request.number }}",
+  jobs: [
+    Smithers.Automation.agent({
+      id: "proof",
+      name: "fail at the merge base, pass at the head",
+      entry: "proof.ts",
+      untrustedInput: true,
+      timeoutMinutes: 45
+    })
+  ]
+})
+
+/**
+ * Rubric review over a pull request diff, posted as one review.
+ *
+ * The job reads the diff and calls the model; it does not run the diff, so it
+ * keeps its credential and runs behind the gate.
+ */
+export const prReview = Smithers.GithubAutomation({
+  ...automation,
+  slug: "pr-review",
+  target: "prReview",
+  workflowName: "Pull request review",
+  on: { pullRequest: ["opened", "synchronize", "reopened", "ready_for_review"] },
+  concurrency: "gen-pr-review-${{ github.event.pull_request.number }}",
+  jobs: [
+    Smithers.Automation.agent({
+      id: "review",
+      name: "rubric review over the diff",
+      entry: "review.ts",
+      requireApproval: true,
+      timeoutMinutes: 45,
+      permissions: { contents: "read", "pull-requests": "write" },
+      secrets: [anthropicKey],
+      env: githubToken
+    })
+  ]
+})
+
+/**
+ * A verified repro becomes a queue item, a lane, and a pull request.
+ *
+ * This is the one job that opens a pull request on its own, so it is the one
+ * that most needs the maintainer gate. It runs on a label event and re-reads
+ * the issue's labels itself rather than trusting the event payload.
+ */
+export const verifiedFix = Smithers.GithubAutomation({
+  ...automation,
+  slug: "verified-fix",
+  target: "verifiedFix",
+  workflowName: "Verified repro to pull request",
+  on: { issues: ["labeled"], workflowDispatch: true },
+  concurrency: "gen-verified-fix-${{ github.event.issue.number }}",
+  jobs: [
+    Smithers.Automation.agent({
+      id: "fix",
+      name: "queue the item, run the lane, open the pull request",
+      entry: "fix.ts",
+      requireApproval: true,
+      timeoutMinutes: 120,
+      permissions: { contents: "write", issues: "write", "pull-requests": "write" },
+      secrets: [anthropicKey],
+      env: githubToken
+    })
+  ]
+})
+
+/**
+ * The scheduled sweep: unpark blocked repros, re-run verified ones, close the
+ * ones that no longer reproduce.
+ *
+ * A schedule has no untrusted actor, so this job needs no gate. It is the only
+ * automation that runs without one.
+ */
+export const reproReverify = Smithers.GithubAutomation({
+  ...automation,
+  slug: "repro-reverify",
+  target: "reproReverify",
+  workflowName: "Repro re-verification sweep",
+  on: { schedule: ["17 4 * * *"], workflowDispatch: true },
+  concurrency: "gen-repro-reverify",
+  jobs: [
+    Smithers.Automation.agent({
+      id: "reverify",
+      name: "re-run parked and verified repros against main",
+      entry: "reverify.ts",
+      timeoutMinutes: 120,
+      permissions: { contents: "write", issues: "write" },
+      secrets: [anthropicKey],
+      env: githubToken
+    })
+  ]
+})

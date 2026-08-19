@@ -19,7 +19,7 @@ jobs:
       - name: Validate GitHub Actions workflows
         uses: docker://rhysd/actionlint:1.7.11
         with:
-          args: .github/workflows/ci.yml .github/workflows/release.yml .github/workflows/apps-deploy.yml .github/workflows/canary.yml
+          args: .github/workflows/ci.yml .github/workflows/release.yml .github/workflows/apps-deploy.yml .github/workflows/canary.yml .github/workflows/gen.issue-intake.yml .github/workflows/gen.issue-reply.yml .github/workflows/gen.poc-loop.yml .github/workflows/gen.pr-review.yml .github/workflows/gen.repro-proof.yml .github/workflows/gen.repro-reverify.yml .github/workflows/gen.verified-fix.yml
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v4
         with:
