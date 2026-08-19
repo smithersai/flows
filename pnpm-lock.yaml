@@ -285,6 +285,9 @@ importers:
       '@smthrs/keys':
         specifier: 0.1.0
         version: link:../packages/keys
+      '@smthrs/observability':
+        specifier: 0.1.0
+        version: link:../packages/observability
       '@smthrs/platform-browser':
         specifier: 0.1.0
         version: link:../packages/platform-browser

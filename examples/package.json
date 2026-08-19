@@ -19,6 +19,7 @@
     "@smthrs/journal": "0.1.0",
     "@smthrs/kernel": "0.1.0",
     "@smthrs/keys": "0.1.0",
+    "@smthrs/observability": "0.1.0",
     "@smthrs/platform-browser": "0.1.0",
     "@smthrs/platform-node": "0.1.0",
     "@smthrs/run-store": "0.1.0",

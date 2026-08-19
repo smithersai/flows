@@ -1,6 +1,6 @@
 # Examples
 
-Nine programs under `examples/src`, each one paired with a test under `examples/test` that runs it against the real packages. Nothing in this directory is mocked: the durable examples open a real SQLite file, the host example spawns a real process, and the browser example is bundled by a real bundler.
+Ten programs under `examples/src`, each one paired with a test under `examples/test` that runs it against the real packages. Nothing in this directory is mocked: the durable examples open a real SQLite file, the host example spawns a real process, and the browser example is bundled by a real bundler.
 
 ```sh
 pnpm install
@@ -22,6 +22,7 @@ The suite is a gate, so a snippet that stops compiling or stops producing the do
 | [`07-sync-follower.ts`](https://github.com/smithersai/flows/blob/main/examples/src/07-sync-follower.ts) | a follower catching up on durable history and then following live commits | the first two entries are history and the third arrived after the subscription opened |
 | [`08-host-adapters.ts`](https://github.com/smithersai/flows/blob/main/examples/src/08-host-adapters.ts) | one adapter-neutral program run on `TestHost` and on `NodeHost` | the scripted shell and the real spawned process both answer |
 | [`09-browser-use.ts`](https://github.com/smithersai/flows/blob/main/examples/src/09-browser-use.ts) | importing only browser-safe entry points | the program runs, and esbuild bundles the file with `platform: "browser"` |
+| [`10-telemetry-export.ts`](https://github.com/smithersai/flows/blob/main/examples/src/10-telemetry-export.ts) | adding `Otlp.layerFetch` to the durable composition from `02`, then reading the run three ways: the OTLP export, the journal, and a tagged metric view | the collector receives spans from the flow lifecycle down to `sql.execute`, the journal holds the lifecycle events, and `EngineStoreMetrics.dispatch.Success` reads `1` |
 
 ## Reading them in order
 
@@ -32,6 +33,8 @@ The first three build on each other. `01` shows what the two nouns are with noth
 `05` and `06` are the two halves of time travel, and both reach them through the one injectable `TimeTravel` service. Fork copies a prefix forward; rewind truncates a suffix away. `06` also shows the read-only side, `inspect`, which folds committed entries through a reducer and never runs a flow body.
 
 `07`, `08`, and `09` cover the seams around the engine rather than the engine itself: replicating history to a second process, running one program on two host adapters, and staying inside the browser-safe entry points.
+
+`10` is `02` plus telemetry. The flow body and the engine layers do not change; providing `Otlp.layerFetch` is the entire wiring, and the example reads the same run through the export, through `Journal.entries`, and through a tagged metric view with `Metric.value`. [Telemetry](/telemetry) documents the layer; [Observability](/observability) tables the spans it exports.
 
 ## The shared durable layer
 
