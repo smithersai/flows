@@ -83,7 +83,13 @@ const window = ContextWindow.make({
   ]
 })
 
-const state = (overrides: { readonly maxFrames?: number; readonly envelope?: ReadonlyArray<string> } = {}) =>
+const state = (
+  overrides: {
+    readonly maxFrames?: number
+    readonly envelope?: ReadonlyArray<string>
+    readonly auditCompletion?: boolean
+  } = {}
+) =>
   CellTurn.make({
     session: "session-1",
     seat: "anthropic:test-model",
@@ -98,7 +104,8 @@ const state = (overrides: { readonly maxFrames?: number; readonly envelope?: Rea
     }),
     placement: Option.none(),
     contextWindow: window,
-    maxFrames: overrides.maxFrames ?? 4
+    maxFrames: overrides.maxFrames ?? 4,
+    auditCompletion: overrides.auditCompletion ?? false
   })
 
 interface Run {
@@ -605,6 +612,46 @@ const crowded = ContextWindow.make({
     bulk("five", 6_000),
     bulk("six", 6_000)
   ]
+})
+
+describe("CellTurn completion audit", () => {
+  it("bounces the first completion for evidence and accepts the second", async () => {
+    const { events, model } = await run({
+      state: state({ auditCompletion: true }),
+      script: [
+        emits(`return { intent: "complete", state: { done: 1 }, output: "implemented the fix" }`),
+        emits(`return { intent: "complete", state: { done: 1 }, output: "verified: tests pass" }`)
+      ]
+    })
+
+    // Two model turns: the first completion was answered with the audit, the
+    // second resolved. The audit frame's request carries the challenge and
+    // the claimed output, and the completing cell's state survived the bounce.
+    expect(model.recorder.requests).toHaveLength(2)
+    const audited = model.recorder.requests[1]
+    expect(JSON.stringify(audited?.messages)).toContain("Completion review")
+    expect(JSON.stringify(audited?.messages)).toContain("implemented the fix")
+    expect(audited?.system.map((part) => part.text).join("\n")).toContain(`{"done":1}`)
+    expect(of(events, "resolved")).toHaveLength(1)
+    expect(of(events, "resolved")[0]?.message.content[0]).toMatchObject({ text: "verified: tests pass" })
+  })
+
+  it("accepts an unaudited completion on the first attempt", async () => {
+    const { events, model } = await run({
+      script: [emits(`return { intent: "complete", state: {}, output: "done" }`)]
+    })
+    expect(model.recorder.requests).toHaveLength(1)
+    expect(of(events, "resolved")).toHaveLength(1)
+  })
+
+  it("accepts a final-frame completion without bouncing into the budget wall", async () => {
+    const { events, model } = await run({
+      state: state({ auditCompletion: true, maxFrames: 1 }),
+      script: [emits(`return { intent: "complete", state: {}, output: "done at the wall" }`)]
+    })
+    expect(model.recorder.requests).toHaveLength(1)
+    expect(of(events, "resolved")[0]?.message.content[0]).toMatchObject({ text: "done at the wall" })
+  })
 })
 
 describe("CellTurn compaction", () => {

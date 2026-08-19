@@ -96,7 +96,22 @@ export class State extends Schema.Class<State>("flows/harness/CellTurn/State")({
   placement: Schema.Option(Descriptor.Placement),
   contextWindow: ContextWindow.ContextWindow,
   contextWindowTokens: ContextWindowTokens,
-  agentState: Schema.Json
+  agentState: Schema.Json,
+  /**
+   * Whether this run's first `complete` has already been challenged.
+   *
+   * The controller accepts a completion only after one audit bounce: the
+   * first `complete` is answered with a demand for host-observable evidence
+   * and another frame, the second is accepted unconditionally. A model will
+   * claim "implemented the fix" without ever editing a file — one benchmark
+   * run closed with exactly that claim after 16 read-only calls — and prose
+   * rules alone did not stop it. Sticky once set, so the gate costs one frame
+   * per run, never one per completion attempt.
+   */
+  completionChallenged: Schema.Boolean.pipe(
+    Schema.withConstructorDefault(Effect.succeed(false)),
+    Schema.withDecodingDefaultKey(Effect.succeed(false))
+  )
 }) {}
 
 /**
@@ -130,6 +145,14 @@ export const make = (options: {
   readonly agentState?: Schema.Json | undefined
   readonly frame?: number | undefined
   readonly maxFrames?: number | undefined
+  /**
+   * Arms the completion audit: the run's first `complete` is answered with a
+   * demand for host-observable evidence, and only the second is accepted.
+   * Off by default — a conversational cell's completion is the reply itself
+   * and must not pay a bounce; a task run's completion is a claim about the
+   * world and should.
+   */
+  readonly auditCompletion?: boolean | undefined
 }): State =>
   new State({
     session: options.session,
@@ -142,7 +165,8 @@ export const make = (options: {
     placement: options.placement,
     contextWindow: options.contextWindow,
     contextWindowTokens: options.contextWindowTokens ?? 0,
-    agentState: options.agentState ?? null
+    agentState: options.agentState ?? null,
+    completionChallenged: !(options.auditCompletion ?? false)
   })
 
 /**
@@ -341,6 +365,11 @@ const projected = (
   })
 }
 
+const completionAudit = (claimed: string): string =>
+  `Completion review — this run does not accept a completion on its first attempt. Audit your claim against host-observable evidence from THIS run: quote the exact command you ran and its passing output that proves the task is done (for a code change, the project check run AFTER your edit). If you cannot quote such evidence, the work is not finished — finish it now, verify it, and then return complete again. If your evidence is real, return complete again unchanged. Your claimed output was: ${
+    claimed.length > 400 ? `${claimed.slice(0, 399)}…` : claimed
+  }`
+
 const budgetMessage = (state: State): string =>
   `The frame budget of ${state.maxFrames} is exhausted. The run stops here; the last transition was a request to continue.`
 
@@ -501,7 +530,8 @@ const compacted = (
       placement: state.placement,
       contextWindow,
       contextWindowTokens: state.contextWindowTokens,
-      agentState: state.agentState
+      agentState: state.agentState,
+      completionChallenged: state.completionChallenged
     })
   })
 
@@ -577,7 +607,8 @@ const frame = (
           placement: state.placement,
           contextWindow: observed(state, settled.message, note),
           contextWindowTokens: state.contextWindowTokens,
-          agentState: state.agentState
+          agentState: state.agentState,
+          completionChallenged: state.completionChallenged
         })
       }
     }
@@ -708,6 +739,38 @@ const frame = (
     }
 
     if (transition._tag === "complete") {
+      // The audit bounce. A completion inside the frame budget is accepted
+      // only on its second attempt: the first is answered with a demand for
+      // evidence, because the claim "done" is the one output the model can
+      // produce without doing anything. A completion on the final frame is
+      // accepted as-is — bouncing it into the budget wall would discard a
+      // possibly true answer for a certainly empty one.
+      if (!state.completionChallenged && state.frame + 1 < state.maxFrames) {
+        yield* emit(
+          new AgentEvent.TurnClosed({
+            eventType: eventType.turnClosed,
+            stopReason: settled.message.stopReason,
+            outcome: "continue"
+          })
+        )
+        return {
+          _tag: "Continue",
+          state: new State({
+            session: state.session,
+            frame: state.frame + 1,
+            maxFrames: state.maxFrames,
+            seat: state.seat,
+            modelParams: state.modelParams,
+            layers: state.layers,
+            capabilityEnvelope: state.capabilityEnvelope,
+            placement: state.placement,
+            contextWindow: observed(state, settled.message, completionAudit(transition.output)),
+            contextWindowTokens: state.contextWindowTokens,
+            agentState: transition.state,
+            completionChallenged: true
+          })
+        }
+      }
       yield* emit(
         new AgentEvent.TurnClosed({
           eventType: eventType.turnClosed,
@@ -801,7 +864,8 @@ const frame = (
           replaced: context.replaced
         }),
         contextWindowTokens: state.contextWindowTokens,
-        agentState: transition.state
+        agentState: transition.state,
+        completionChallenged: state.completionChallenged
       })
     }
   })

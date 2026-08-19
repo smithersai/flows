@@ -12,6 +12,8 @@
 
 ### Added
 
+- Added the opt-in completion audit: a task run's first `complete` is answered with a demand for host-observable evidence, and only the second is accepted.
+
 - Exposed the previous frame's returned state to the cell as the frozen `ctx.state` binding in both sandbox bindings, and taught the contract to treat it as working memory.
 - Rendered large states in the system context as a key roster instead of full JSON; the full value lives in `ctx.state`.
 - Preserved a raised frame's completed call results in the correction feedback so the next cell reuses them instead of redoing the work.

@@ -118,6 +118,8 @@ export interface Options {
   readonly capabilityEnvelope?: ReadonlyArray<Capability.CapabilityPattern> | undefined
   readonly placement?: Option.Option<Descriptor.Placement> | undefined
   readonly maxFrames?: number | undefined
+  /** Arms CellTurn's completion audit; see `CellTurn.make`. */
+  readonly auditCompletion?: boolean | undefined
   /** The resolved model's context window in tokens. Zero disables compaction. */
   readonly contextWindowTokens?: number | undefined
   readonly limits?: Sandbox.Limits | undefined
@@ -282,7 +284,8 @@ export const run = (
             placement: options.placement ?? Option.none(),
             contextWindow: opening(options, flows),
             contextWindowTokens: options.contextWindowTokens,
-            maxFrames: options.maxFrames
+            maxFrames: options.maxFrames,
+            auditCompletion: options.auditCompletion
           })
           return CellTurn.run({ state, flows, limits: options.limits }).pipe(
             Stream.provideService(EngineLike.EngineLike, withRequestPlugins(port, kernel.plugins))

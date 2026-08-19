@@ -145,6 +145,10 @@ return { intent: "continue", state: { saved: saved.saved }, context: [{ role: "u
 const frameOne = `const decision = await ctx.call("ask", { question: "publish the log?", options: ["yes", "no"] })
 return { intent: "complete", state: null, output: "approved=" + decision.approved }`
 
+/** The executor arms the completion audit, so the accepted completion is the re-affirmation. */
+const frameTwo =
+  `return { intent: "complete", state: null, output: "approved=true (evidence: the recorded ask settled approved)" }`
+
 const cellEvents = (source: string, id: string): ReadonlyArray<ModelEvent.ModelEvent> => [
   ModelEvent.ModelEvent.TextStart({ type: "text-start", id }),
   ModelEvent.ModelEvent.TextDelta({ type: "text-delta", id, text: "```cell\n" + source + "\n```" }),
@@ -162,7 +166,7 @@ const capturing = (captured: Array<Captured>): Model.Model =>
   Model.make({
     stream: (request) =>
       Stream.suspend(() => {
-        const source = captured.length === 0 ? frameZero : frameOne
+        const source = captured.length === 0 ? frameZero : captured.length === 1 ? frameOne : frameTwo
         const events = cellEvents(source, `cell-${captured.length}`)
         captured.push({ request, events })
         return Stream.fromIterable(events)
@@ -405,9 +409,10 @@ describe("HarnessExecutor", () => {
       }).pipe(Effect.scoped) as Effect.Effect<Outcome>
     )
 
-    // Two frames, one provider call each: the resumed attempt replayed both
+    // Three provider calls — two frames plus the completion audit's
+    // re-affirmation — and the resumed attempt replayed all of them as
     // sealed steps instead of asking the provider again.
-    expect(captured).toHaveLength(2)
+    expect(captured).toHaveLength(3)
     // The steer admitted through Control.steer reached frame one's context at
     // the frame boundary, alongside the cell's own continuation insert.
     const frameOneText = textOf(captured[1]!.request)

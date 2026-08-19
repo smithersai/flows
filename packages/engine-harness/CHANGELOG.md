@@ -4,6 +4,8 @@
 
 ### Added
 
+- Armed the completion audit on every executor-launched agent run; one benchmark run closed claiming an implemented fix after 16 read-only calls.
+
 - Made agent reasoning effort configurable: the flow's `effort:` frontmatter wins, then the host's `Options.reasoningEffort`, then the `high` default.
 
 - Defaulted every executor-launched run to medium reasoning effort; an unset effort left the model with near-zero thinking budget.

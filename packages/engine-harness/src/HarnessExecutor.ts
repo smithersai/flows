@@ -755,7 +755,9 @@ export const make = (
           capabilityEnvelope: patterns(card.envelope.capabilities),
           contextWindowTokens: seat.contextWindowTokens,
           limits: options.limits,
-          maxFrames: options.maxFrames
+          maxFrames: options.maxFrames,
+          // A task run's "done" is a claim about the world; audit it once.
+          auditCompletion: true
         }).pipe(
           Stream.runForEach(record),
           Effect.provide(QuickJSSandbox.layer),
