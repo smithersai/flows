@@ -26,20 +26,32 @@ const memoryStorage = (seed?: Record<string, unknown>): TurnLimitStorage => {
 	};
 };
 
-const memoryLimits = (): TurnLimitNamespace & { readonly logins: () => Array<string> } => {
+/**
+ * A namespace of in-memory buckets. `spent` names logins whose budget is
+ * already exhausted — seeding the window is how a route test reaches the
+ * refusal without driving `TURN_WINDOW_MAX` real turns through the seam,
+ * which would make the suite slower every time the ceiling rises.
+ */
+const memoryLimits = (
+	spent: ReadonlyArray<string> = [],
+): TurnLimitNamespace & { readonly logins: () => Array<string> } => {
 	const buckets = new Map<string, TurnRateLimiter>();
+	const bucketFor = (name: string): TurnRateLimiter => {
+		let bucket = buckets.get(name);
+		if (bucket === undefined) {
+			bucket = new TurnRateLimiter({
+				storage: spent.includes(name)
+					? memoryStorage({ window: { start: Date.now(), count: TURN_WINDOW_MAX } })
+					: memoryStorage(),
+			});
+			buckets.set(name, bucket);
+		}
+		return bucket;
+	};
 	return {
 		logins: () => [...buckets.keys()],
 		idFromName: (name) => name,
-		get: (id) => {
-			const name = String(id);
-			let bucket = buckets.get(name);
-			if (bucket === undefined) {
-				bucket = new TurnRateLimiter({ storage: memoryStorage() });
-				buckets.set(name, bucket);
-			}
-			return { fetch: (request) => bucket.fetch(request) };
-		},
+		get: (id) => ({ fetch: (request) => bucketFor(String(id)).fetch(request) }),
 	};
 };
 
@@ -178,18 +190,22 @@ describe("the turn routes under the ceiling", () => {
 		// A run id may be registered only once; the in-isolate cancel registry is
 		// module state, so each test gets its own namespace.
 		const lane = "spent-budget";
-		const limits = memoryLimits();
-		const env = identityEnv(limits);
+		const env = identityEnv(memoryLimits(["will"]));
 		await withStubbedSeams(async (upstreamCalls) => {
-			for (let turn = 0; turn < TURN_WINDOW_MAX; turn += 1) {
-				const ok = await worker.fetch(signedIn("/api/agent/turn", `${lane}-${turn}`), env);
-				expect(ok.status).toBe(200);
-			}
-			const spentBefore = upstreamCalls();
 			const refused = await worker.fetch(signedIn("/api/agent/turn", `${lane}-over`), env);
 			expect(refused.status).toBe(429);
-			expect(upstreamCalls()).toBe(spentBefore);
+			// The whole point: nothing reached the upstream, so nothing was spent.
+			expect(upstreamCalls()).toBe(0);
 			expect(refused.headers.get("retry-after")).not.toBeNull();
+		});
+	});
+
+	test("a budget with room admits the turn", async () => {
+		const env = identityEnv(memoryLimits());
+		await withStubbedSeams(async (upstreamCalls) => {
+			const ok = await worker.fetch(signedIn("/api/agent/turn", "with-room-1"), env);
+			expect(ok.status).toBe(200);
+			expect(upstreamCalls()).toBe(1);
 		});
 	});
 
@@ -197,12 +213,8 @@ describe("the turn routes under the ceiling", () => {
 		// A run id may be registered only once; the in-isolate cancel registry is
 		// module state, so each test gets its own namespace.
 		const lane = "model-stream";
-		const limits = memoryLimits();
-		const env = identityEnv(limits);
+		const env = identityEnv(memoryLimits(["will"]));
 		await withStubbedSeams(async () => {
-			for (let turn = 0; turn < TURN_WINDOW_MAX; turn += 1) {
-				await worker.fetch(signedIn("/api/agent/turn", `${lane}-${turn}`), env);
-			}
 			const refused = await worker.fetch(signedIn("/api/model/stream", `${lane}-stream`), env);
 			expect(refused.status).toBe(429);
 		});
@@ -224,12 +236,10 @@ describe("the turn routes under the ceiling", () => {
 		// A run id may be registered only once; the in-isolate cancel registry is
 		// module state, so each test gets its own namespace.
 		const lane = "cancel-unlimited";
-		const limits = memoryLimits();
-		const env = identityEnv(limits);
+		const env = identityEnv(memoryLimits(["will"]));
 		await withStubbedSeams(async () => {
-			for (let turn = 0; turn < TURN_WINDOW_MAX; turn += 1) {
-				await worker.fetch(signedIn("/api/agent/turn", `${lane}-${turn}`), env);
-			}
+			// The budget is already spent, so a turn here would be refused.
+			expect((await worker.fetch(signedIn("/api/agent/turn", `${lane}-turn`), env)).status).toBe(429);
 			const cancel = await worker.fetch(signedIn("/api/agent/turn/cancel", `${lane}-1`), env);
 			expect(cancel.status).not.toBe(429);
 		});
