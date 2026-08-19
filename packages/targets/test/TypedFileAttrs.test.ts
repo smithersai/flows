@@ -5,6 +5,7 @@ import * as Input from "../src/Input.ts"
 import * as Install from "../src/Install.ts"
 import * as LlmLint from "../src/LlmLint.ts"
 import * as PackageManager from "../src/PackageManager.ts"
+import * as Runtime from "../src/Runtime.ts"
 import * as SortPackageJson from "../src/SortPackageJson.ts"
 import * as Target from "../src/Target.ts"
 import * as TsBuild from "../src/TsBuild.ts"
@@ -26,9 +27,9 @@ describe("Install declared inputs", () => {
   })
 
   it("derives the lockfile name from the declared manager", () => {
-    const npm = PackageManager.Npm({ version: "10.9.0", runtime })
-    const metadata = Target.metadata(Install.Install({ packageManager: npm }))
-    expect(metadata.inputs[0]).toEqual({ _tag: "File", path: "package-lock.json" })
+    const bun = PackageManager.BunPackages({ runtime: Runtime.Bun({ version: ">=1.3.0" }) })
+    const metadata = Target.metadata(Install.Install({ packageManager: bun }))
+    expect(metadata.inputs[0]).toEqual({ _tag: "File", path: "bun.lock" })
   })
 
   it("rejects a bare string where the manager declaration belongs", () => {

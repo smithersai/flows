@@ -136,9 +136,9 @@ linkWorkspacePackages: true
   })
 
   it("refuses a manager that does not write this file", () => {
-    const npm = PackageManager.Npm({ version: "10.9.0", runtime })
-    expect(() => PnpmWorkspaceFile.PnpmWorkspace({ packageManager: npm, packages: ["packages/*"] }))
-      .toThrow(/requires the pnpm declaration; this workspace declares npm/)
+    const bun = PackageManager.BunPackages({ runtime: Runtime.Bun({ version: ">=1.3.0" }) })
+    expect(() => PnpmWorkspaceFile.PnpmWorkspace({ packageManager: bun, packages: ["packages/*"] }))
+      .toThrow(/requires the pnpm declaration; this workspace declares bun/)
   })
 })
 
@@ -161,9 +161,9 @@ describe("Lockfile", () => {
   })
 
   it("writes the lockfile the declared manager writes", () => {
-    const npm = PackageManager.Npm({ version: "10.9.0", runtime })
-    expect(Target.metadata(Lockfile.Lockfile({ packageManager: npm })).outputs)
-      .toEqual({ cwd: ".", paths: ["package-lock.json"] })
+    const bun = PackageManager.BunPackages({ runtime: Runtime.Bun({ version: ">=1.3.0" }) })
+    expect(Target.metadata(Lockfile.Lockfile({ packageManager: bun })).outputs)
+      .toEqual({ cwd: ".", paths: ["bun.lock"] })
   })
 })
 

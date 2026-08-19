@@ -55,7 +55,7 @@ describe("PackageManager.storeRoot", () => {
   })
 
   it("gives every manager a fixed store directory below it", () => {
-    for (const name of ["npm", "pnpm", "bun", "yarn"] as const) {
+    for (const name of ["pnpm", "bun"] as const) {
       expect(
         PackageManager.makeNoop(name, { requirement: "11.21.0", projectRoot: "/workspace" }, platform).storeDirectory
       ).toBe(
@@ -65,11 +65,6 @@ describe("PackageManager.storeRoot", () => {
   })
 
   it("keeps unsupported manager metadata truthful", async () => {
-    const npm = await Effect.runPromise(
-      PackageManager.makeNpm({ requirement: "11.21.0", projectRoot: "/workspace" }).pipe(Effect.provide(runtimeLayer))
-    )
-    expect(npm.lockfileName).toBe("package-lock.json")
-    await expect(Effect.runPromise(npm.fetch)).rejects.toThrow(/no npm implementation/)
     const bun = await Effect.runPromise(
       PackageManager.makeBun({ requirement: "11.21.0", projectRoot: "/workspace" }).pipe(Effect.provide(runtimeLayer))
     )
@@ -83,17 +78,17 @@ describe("PackageManager.storeRoot", () => {
   })
 
   it("validates manager construction options before exposing a service", () => {
-    expect(() => PackageManager.makeNoop("yarn", { requirement: "11.21.0", projectRoot: "relative" }, platform))
+    expect(() => PackageManager.makeNoop("bun", { requirement: "11.21.0", projectRoot: "relative" }, platform))
       .toThrow(/absolute path/)
     expect(() =>
-      PackageManager.makeNoop("yarn", {
+      PackageManager.makeNoop("bun", {
         requirement: "11.21.0",
         projectRoot: "/workspace",
         timeoutMs: 0
       }, platform)
     ).toThrow(/timeout must be an integer/)
     expect(() =>
-      PackageManager.makeNoop("yarn", {
+      PackageManager.makeNoop("bun", {
         requirement: "11.21.0",
         projectRoot: "/workspace",
         environment: { Path: "one", PATH: "two" }
@@ -110,7 +105,7 @@ describe("PackageManager.storeRoot", () => {
       }
     }
     expect(() =>
-      PackageManager.makeNoop("yarn", {
+      PackageManager.makeNoop("bun", {
         requirement: "11.21.0",
         projectRoot: "/workspace",
         timeoutMs: timeout as never
@@ -128,11 +123,11 @@ describe("PackageManager.storeRoot", () => {
         return "/workspace"
       }
     })
-    expect(() => PackageManager.makeNoop("yarn", accessor as never, platform)).toThrow(/data property/)
+    expect(() => PackageManager.makeNoop("bun", accessor as never, platform)).toThrow(/data property/)
     expect(reads).toBe(0)
     expect(() =>
       PackageManager.makeNoop(
-        "yarn",
+        "bun",
         new Proxy({ requirement: "11.21.0", projectRoot: "/workspace" }, {
           ownKeys: () => {
             throw new Error("trap")
@@ -142,14 +137,14 @@ describe("PackageManager.storeRoot", () => {
       )
     ).toThrow(/inspected safely/)
     expect(() =>
-      PackageManager.makeNoop("yarn", {
+      PackageManager.makeNoop("bun", {
         requirement: "11.21.0",
         projectRoot: "/workspace",
         typo: true
       } as never, platform)
     ).toThrow(/unknown property "typo"/)
     expect(() =>
-      PackageManager.makeNoop("yarn", {
+      PackageManager.makeNoop("bun", {
         requirement: "11.21.0",
         projectRoot: "/workspace",
         environment: { TOKEN: 42 } as never

@@ -93,7 +93,7 @@ const packageJsonDigest = (root: string) =>
 
 describe("Install", () => {
   it("keeps every absolute-root package-manager action out of the shared cache", () => {
-    for (const action of [Install.FetchNpm, Install.FetchPnpm, Install.FetchBun, Install.FetchYarn]) {
+    for (const action of [Install.FetchPnpm, Install.FetchBun]) {
       expect(Context.getUnsafe(action.annotations, Flow.EffectsDeclaration).boundaryMode).toBe("expected")
     }
   })
@@ -282,10 +282,10 @@ describe("Install", () => {
       const evidence = await packageJsonDigest(root)
       const service = managerService({ root, evidence })
       await expect(Effect.runPromise(
-        Install.checkDeclaredManager("npm").pipe(
+        Install.checkDeclaredManager("bun").pipe(
           Effect.provideService(PackageManager.PackageManager, service)
         )
-      )).rejects.toThrow(/BUILD\.ts declares npm and the composition provided the pnpm layer/)
+      )).rejects.toThrow(/BUILD\.ts declares bun and the composition provided the pnpm layer/)
       await Effect.runPromise(
         Install.checkDeclaredManager("pnpm").pipe(
           Effect.provideService(PackageManager.PackageManager, service)

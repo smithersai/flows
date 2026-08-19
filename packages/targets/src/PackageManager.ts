@@ -8,10 +8,20 @@
  *
  * Before this module every target spelled `["pnpm", "exec", ...]` into its own
  * argv. That made the manager an undeclared constant of the target catalog: a
- * workspace on npm could not use these targets at all, and no key recorded which
- * manager produced a result. A target now takes the declaration as an attr and
- * asks this module for the argv, so the manager is both swappable and covered
- * by key material.
+ * workspace on another manager could not use these targets at all, and no key
+ * recorded which manager produced a result. A target now takes the declaration
+ * as an attr and asks this module for the argv, so the manager is both
+ * swappable and covered by key material.
+ *
+ * The declaration is a discriminated union, one variant per supported manager,
+ * discriminated by `name`. Each variant hardcodes its own name and enumerates
+ * the versions the workspace supports, so a declaration that names one manager
+ * and requires a version the workspace does not support does not typecheck.
+ * The Bun variant additionally types its `runtime` as the Bun runtime, so a Bun
+ * manager declared against a Node runtime is not a value a BUILD.ts file can
+ * write. The variant list is deliberately short — pnpm and Bun are what this
+ * workspace pins and exercises — and it grows the same way the version lists
+ * do: by review.
  *
  * The declaration carries tool identity only. It deliberately does not carry
  * the lockfile: the lockfile is produced by the `Lockfile` target and consumed
@@ -30,7 +40,7 @@ import * as Runtime from "./Runtime.ts"
  * @category schemas
  * @since 0.1.0
  */
-export const Name = Schema.Literals(["npm", "pnpm", "bun", "yarn"])
+export const Name = Schema.Literals(["pnpm", "bun"])
 
 /**
  * The supported package managers.
@@ -41,12 +51,81 @@ export const Name = Schema.Literals(["npm", "pnpm", "bun", "yarn"])
 export type Name = typeof Name.Type
 
 /**
- * Maximum length of a declared version requirement.
+ * Maximum length of a declared executable name.
  *
  * @category constants
  * @since 0.1.0
  */
-export const maximumVersionLength = 256
+export const maximumExecutableLength = 256
+
+/**
+ * Schema for the pnpm versions this workspace supports.
+ *
+ * The single entry is the version the root BUILD.ts pins. A workspace that
+ * wants another pin adds it here, which is the point: the set of versions a
+ * BUILD.ts file may write is reviewed, not free text.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const PnpmVersion = Schema.Literals(["11.21.0"])
+
+/**
+ * The pnpm versions this workspace supports.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type PnpmVersion = typeof PnpmVersion.Type
+
+/**
+ * Schema for a declared pnpm.
+ *
+ * `executable` is what gets spawned; it defaults to the manager name and is
+ * overridable for hosts that install a manager under another name.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const PnpmPackageManager = Schema.Struct({
+  name: Schema.Literal("pnpm"),
+  version: PnpmVersion,
+  executable: Schema.NonEmptyString,
+  runtime: Runtime.Runtime
+})
+
+/**
+ * One declared pnpm.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type PnpmPackageManager = typeof PnpmPackageManager.Type
+
+/**
+ * Schema for a declared Bun package manager.
+ *
+ * `runtime` is the Bun runtime specifically, not the runtime union: Bun the
+ * package manager is the same program as Bun the runtime, so a declaration
+ * pairing it with Node is not a thing that exists.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const BunPackageManager = Schema.Struct({
+  name: Schema.Literal("bun"),
+  version: Runtime.BunVersion,
+  executable: Schema.NonEmptyString,
+  runtime: Runtime.BunRuntime
+})
+
+/**
+ * One declared Bun package manager.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type BunPackageManager = typeof BunPackageManager.Type
 
 /**
  * Schema for one declared package manager.
@@ -54,12 +133,7 @@ export const maximumVersionLength = 256
  * @category schemas
  * @since 0.1.0
  */
-export const PackageManager = Schema.TaggedStruct("PackageManager", {
-  name: Name,
-  version: Schema.NonEmptyString,
-  executable: Schema.NonEmptyString,
-  runtime: Runtime.Runtime
-})
+export const PackageManager = Schema.Union([PnpmPackageManager, BunPackageManager])
 
 /**
  * One declared package manager.
@@ -70,14 +144,17 @@ export const PackageManager = Schema.TaggedStruct("PackageManager", {
 export type PackageManager = typeof PackageManager.Type
 
 /**
- * Options accepted by the npm, pnpm, and Yarn constructors.
+ * Options accepted by a package-manager constructor.
+ *
+ * `Version` is the variant's own enumeration, so an unsupported pin is a type
+ * error at the call site rather than a throw at evaluation.
  *
  * @category models
  * @since 0.1.0
  */
-export interface Options {
-  /** The exact version, or version range, the workspace requires. */
-  readonly version: string
+export interface Options<Version extends string> {
+  /** The version the workspace requires. */
+  readonly version: Version
   /** The runtime the manager itself runs under. */
   readonly runtime: Runtime.Runtime
   /** @default the manager name */
@@ -86,10 +163,16 @@ export interface Options {
 
 const controlCharacter = /[\u0000-\u001f\u007f]/
 
+/**
+ * Validates one declared text field.
+ *
+ * A control character in an executable name would reach a child-process argv.
+ * `version` needs no such check: its schema enumerates every value it can hold.
+ */
 const usable = (value: unknown, what: string): string => {
   if (typeof value !== "string") throw new TypeError(`${what} must be a string`)
   if (
-    value.length > maximumVersionLength ||
+    value.length > maximumExecutableLength ||
     !value.isWellFormed() ||
     controlCharacter.test(value)
   ) throw new Error(`${what} must be bounded well-formed text without control characters`)
@@ -98,33 +181,9 @@ const usable = (value: unknown, what: string): string => {
   return trimmed
 }
 
-/**
- * Creates a declared package manager.
- *
- * @category constructors
- * @since 0.1.0
- */
-export const make = (name: Name, options: Options): PackageManager => {
-  if (!Runtime.isRuntime(options.runtime)) {
-    throw new TypeError(`${name} requires a declared runtime, for example Runtime.Node({ version: ">=22.19.0" })`)
-  }
-  return PackageManager.make({
-    name,
-    version: usable(options.version, `${name} version`),
-    executable: options.executable === undefined
-      ? name
-      : usable(options.executable, `${name} executable`),
-    runtime: options.runtime
-  })
-}
-
-/**
- * Declares npm as the workspace package manager.
- *
- * @category constructors
- * @since 0.1.0
- */
-export const Npm = (options: Options): PackageManager => make("npm", options)
+/** The executable a declaration spawns, defaulting to the manager name. */
+const executableFor = (name: Name, executable: string | undefined): string =>
+  executable === undefined ? name : usable(executable, `${name} executable`)
 
 /**
  * Declares pnpm as the workspace package manager.
@@ -141,15 +200,17 @@ export const Npm = (options: Options): PackageManager => make("npm", options)
  * @category constructors
  * @since 0.1.0
  */
-export const Pnpm = (options: Options): PackageManager => make("pnpm", options)
-
-/**
- * Declares Yarn as the workspace package manager.
- *
- * @category constructors
- * @since 0.1.0
- */
-export const Yarn = (options: Options): PackageManager => make("yarn", options)
+export const Pnpm = (options: Options<PnpmVersion>): PnpmPackageManager => {
+  if (!Runtime.isRuntime(options.runtime)) {
+    throw new TypeError(`pnpm requires a declared runtime, for example Runtime.Node({ version: ">=22.19.0" })`)
+  }
+  return PnpmPackageManager.make({
+    name: "pnpm",
+    version: options.version,
+    executable: executableFor("pnpm", options.executable),
+    runtime: options.runtime
+  })
+}
 
 /**
  * Declares Bun as the workspace package manager.
@@ -158,27 +219,41 @@ export const Yarn = (options: Options): PackageManager => make("yarn", options)
  * manager version is the runtime version, and declaring them apart would let a
  * BUILD.ts file state two versions of one program.
  *
+ * @example
+ * ```ts
+ * import { Smithers } from "@smthrs/targets"
+ *
+ * const runtime = Smithers.Runtime.Bun({ version: ">=1.3.0" })
+ *
+ * export const packageManager = Smithers.PackageManager.BunPackages({ runtime })
+ * ```
+ *
  * @category constructors
  * @since 0.1.0
  */
-export const BunPackages = (options: { readonly runtime: Runtime.Runtime }): PackageManager => {
-  if (!Runtime.isRuntime(options.runtime) || options.runtime.name !== "bun") {
-    throw new TypeError("BunPackages requires the Bun runtime, for example Runtime.Bun({ version: \">=1.3.0\" })")
-  }
-  return make("bun", { version: options.runtime.version, runtime: options.runtime })
-}
+export const BunPackages = (options: {
+  readonly runtime: Runtime.BunRuntime
+  /** @default "bun" */
+  readonly executable?: string | undefined
+}): BunPackageManager =>
+  BunPackageManager.make({
+    name: "bun",
+    version: options.runtime.version,
+    executable: executableFor("bun", options.executable),
+    runtime: options.runtime
+  })
 
 /**
  * Checks whether a value is a declared package manager.
  *
+ * The guard is the schema itself, so it admits exactly the values a
+ * constructor can produce: a supported `name`, a `version` from that variant's
+ * enumeration, a non-empty `executable`, and a runtime the variant allows.
+ *
  * @category guards
  * @since 0.1.0
  */
-export const isPackageManager = (value: unknown): value is PackageManager => {
-  if (typeof value !== "object" || value === null) return false
-  const candidate = value as { readonly _tag?: unknown; readonly name?: unknown }
-  return candidate._tag === "PackageManager" && typeof candidate.name === "string"
-}
+export const isPackageManager: (value: unknown) => value is PackageManager = Schema.is(PackageManager)
 
 /**
  * The lockfile each manager writes.
@@ -191,14 +266,10 @@ export const isPackageManager = (value: unknown): value is PackageManager => {
  */
 export const lockfileName = (manager: PackageManager): string => {
   switch (manager.name) {
-    case "npm":
-      return "package-lock.json"
     case "pnpm":
       return "pnpm-lock.yaml"
     case "bun":
       return "bun.lock"
-    case "yarn":
-      return "yarn.lock"
   }
 }
 
@@ -206,8 +277,7 @@ export const lockfileName = (manager: PackageManager): string => {
  * Builds the argv that runs a workspace-installed tool.
  *
  * Every manager resolves a locally installed binary, and each spells it
- * differently. npm and Yarn need the `--` separator so a tool's own flags are
- * not eaten by the manager.
+ * differently.
  *
  * @example
  * ```ts
@@ -227,14 +297,10 @@ export const lockfileName = (manager: PackageManager): string => {
  */
 export const exec = (manager: PackageManager, argv: ReadonlyArray<string>): Array<string> => {
   switch (manager.name) {
-    case "npm":
-      return [manager.executable, "exec", "--", ...argv]
     case "pnpm":
       return [manager.executable, "exec", ...argv]
     case "bun":
       return [manager.executable, "x", ...argv]
-    case "yarn":
-      return [manager.executable, "exec", ...argv]
   }
 }
 
@@ -246,14 +312,10 @@ export const exec = (manager: PackageManager, argv: ReadonlyArray<string>): Arra
  */
 export const dlx = (manager: PackageManager, argv: ReadonlyArray<string>): Array<string> => {
   switch (manager.name) {
-    case "npm":
-      return [manager.executable, "exec", "--yes", "--", ...argv]
     case "pnpm":
       return [manager.executable, "dlx", ...argv]
     case "bun":
       return ["bunx", ...argv]
-    case "yarn":
-      return [manager.executable, "dlx", ...argv]
   }
 }
 
@@ -263,10 +325,11 @@ export const dlx = (manager: PackageManager, argv: ReadonlyArray<string>): Array
  * @category constructors
  * @since 0.1.0
  */
-export const publish = (manager: PackageManager, args: ReadonlyArray<string> = []): Array<string> =>
-  manager.name === "yarn"
-    ? [manager.executable, "npm", "publish", ...args]
-    : [manager.executable, "publish", ...args]
+export const publish = (manager: PackageManager, args: ReadonlyArray<string> = []): Array<string> => [
+  manager.executable,
+  "publish",
+  ...args
+]
 
 /**
  * Options accepted by {@link install}.
@@ -298,30 +361,8 @@ export const install = (manager: PackageManager, options: InstallOptions = {}): 
   const lockfileOnly = options.lockfileOnly ?? false
   const ignoreScripts = options.ignoreScripts ?? true
   const argv: Array<string> = [manager.executable, "install"]
-  switch (manager.name) {
-    case "npm": {
-      if (lockfileOnly) argv.push("--package-lock-only")
-      else if (frozen) argv[1] = "ci"
-      if (ignoreScripts) argv.push("--ignore-scripts")
-      return argv
-    }
-    case "pnpm": {
-      if (frozen) argv.push("--frozen-lockfile")
-      if (lockfileOnly) argv.push("--lockfile-only")
-      if (ignoreScripts) argv.push("--ignore-scripts")
-      return argv
-    }
-    case "bun": {
-      if (frozen) argv.push("--frozen-lockfile")
-      if (lockfileOnly) argv.push("--lockfile-only")
-      if (ignoreScripts) argv.push("--ignore-scripts")
-      return argv
-    }
-    case "yarn": {
-      if (frozen) argv.push("--immutable")
-      if (lockfileOnly) argv.push("--mode=update-lockfile")
-      if (ignoreScripts) argv.push("--mode=skip-build")
-      return argv
-    }
-  }
+  if (frozen) argv.push("--frozen-lockfile")
+  if (lockfileOnly) argv.push("--lockfile-only")
+  if (ignoreScripts) argv.push("--ignore-scripts")
+  return argv
 }

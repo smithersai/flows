@@ -221,7 +221,7 @@ const ownString = (value: object, name: string): string | undefined => {
     : undefined
 }
 
-const managerNames = new Set(["npm", "pnpm", "bun", "yarn"])
+const managerNames = new Set(["pnpm", "bun"])
 const runtimeNames = new Set(["node", "bun"])
 
 /**
@@ -315,9 +315,7 @@ export const layerPackageManager = (
     requirement: toolchain.managerVersion,
     ...(toolchain.managerExecutable === undefined ? {} : { executable: toolchain.managerExecutable })
   }
-  const manager = toolchain.manager === "npm"
-    ? PackageManager.layerNpm(options)
-    : toolchain.manager === "bun"
+  const manager = toolchain.manager === "bun"
     ? PackageManager.layerBun(options)
     : PackageManager.layerPnpm(options)
   return manager.pipe(Layer.provideMerge(layerRuntime(toolchain)))

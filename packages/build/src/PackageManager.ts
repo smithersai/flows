@@ -13,7 +13,7 @@
  * This module is the `Layer` that decides which manager performs those two
  * jobs. It holds no flow vocabulary: `Install.ts` declares the actions and the
  * flow, and provides them over whichever implementation a composition picks.
- * Selecting npm rather than pnpm is a layer swap, exactly as
+ * Selecting Bun rather than pnpm is a layer swap, exactly as
  * `docs/specs/Specs/Object Model.md` requires of every host-facing service.
  *
  * Host access is Effect's own: `effect/unstable/process/ChildProcessSpawner`
@@ -41,15 +41,13 @@ import * as Runtime from "./Runtime.ts"
 /**
  * Schema for the supported package managers.
  *
- * Yarn is named here and has no implementation in this module yet. The seam
- * carries it because the fetch/link split holds for Yarn too: classic Yarn
- * fetches into a mirror and links a tree, and Yarn PnP fetches into a zip
- * cache and links nothing at all. See DESIGN.md, "Yarn".
+ * The set matches the declared `PackageManager` union in `@smthrs/targets`:
+ * a manager this service can measure is a manager a BUILD.ts file can declare.
  *
  * @category models
  * @since 0.1.0
  */
-export const Name = Schema.Literals(["npm", "pnpm", "bun", "yarn"])
+export const Name = Schema.Literals(["pnpm", "bun"])
 
 /**
  * The supported package managers.
@@ -971,42 +969,6 @@ const verified = (
   })
 
 /**
- * Builds the explicit unsupported npm implementation.
- *
- * npm has no command that populates cacache from `package-lock.json` while
- * verifying each downloaded tarball against the lockfile's integrity field.
- * `npm cache add <resolved-url>` can warm the cache, but it does not make the
- * fetch action a Bazel-style verified repository fetch. Publishing that store
- * as a successful hard-boundary result would be a false hermeticity claim.
- *
- * @category constructors
- * @since 0.1.0
- */
-export const makeNpm = (options: Options): Effect.Effect<
-  Service,
-  never,
-  Runtime.Runtime
-> =>
-  Effect.gen(function*() {
-    const runtime = yield* Runtime.Runtime
-    return makeNoop("npm", options, runtime.platform)
-  })
-
-/**
- * Provides the npm implementation.
- *
- * @category layers
- * @since 0.1.0
- */
-export const layerNpm = (
-  options: Options
-): Layer.Layer<
-  PackageManager,
-  never,
-  ChildProcessSpawner | FileSystem.FileSystem | Runtime.Runtime
-> => Layer.effect(PackageManager)(makeNpm(options))
-
-/**
  * Builds the pnpm implementation.
  *
  * pnpm is the manager the split was designed around: `pnpm fetch` reads the
@@ -1132,19 +1094,25 @@ export const layerBun = (
   ChildProcessSpawner | FileSystem.FileSystem | Runtime.Runtime
 > => Layer.effect(PackageManager)(makeBun(options))
 
+/** The lockfile each supported manager writes. */
+const lockfileNames: Readonly<Record<Name, string>> = {
+  pnpm: "pnpm-lock.yaml",
+  bun: "bun.lock"
+}
+
 /**
  * Builds a manager that refuses every operation.
  *
  * This is what an unconfigured composition gets, and what a browser bundle
  * gets: the seam still resolves, and each call answers with a typed
  * `unsupported` failure naming the manager instead of vanishing. It is also
- * the explicit stand-in for Yarn until the Yarn implementation lands.
+ * the explicit stand-in for Bun until a Bun implementation lands.
  *
  * @category constructors
  * @since 0.1.0
  */
 export const makeNoop = (name: Name, options: Options, hostPlatform: Platform): Service => {
-  if (name !== "npm" && name !== "pnpm" && name !== "bun" && name !== "yarn") {
+  if (name !== "pnpm" && name !== "bun") {
     throw new TypeError("package-manager name is unsupported")
   }
   const normalized = normalizeOptions(options, hostPlatform)
@@ -1159,13 +1127,7 @@ export const makeNoop = (name: Name, options: Options, hostPlatform: Platform): 
     name,
     projectRoot: normalized.projectRoot,
     storeDirectory: `${storeRoot}/${name}`,
-    lockfileName: name === "yarn"
-      ? "yarn.lock"
-      : name === "bun"
-      ? "bun.lock"
-      : name === "pnpm"
-      ? "pnpm-lock.yaml"
-      : "package-lock.json",
+    lockfileName: lockfileNames[name],
     platformSensitive: true,
     requirement: normalized.requirement,
     version: refuse<string>("version"),
@@ -1233,7 +1195,7 @@ const normalizeStoreManifestInput = (value: {
     "store manifest input"
   )
   const manager = ownData(record, "manager", "store manifest input")
-  if (manager !== "npm" && manager !== "pnpm" && manager !== "bun" && manager !== "yarn") {
+  if (manager !== "pnpm" && manager !== "bun") {
     throw new TypeError("store manifest manager is unsupported")
   }
   const managerVersion = ownData(record, "managerVersion", "store manifest input")

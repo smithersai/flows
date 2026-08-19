@@ -15,8 +15,8 @@ for future catalog additions.
 
 A workspace declares its toolchain once and passes it to everything that runs a
 tool. `Smithers.Runtime.Node` and `.Bun` declare a runtime;
-`Smithers.PackageManager.Pnpm`, `.Npm`, `.Yarn`, and `.BunPackages` declare a
-package manager over one. `Runtime` and `PackageManager` are each both the
+`Smithers.PackageManager.Pnpm` and `.BunPackages` declare a package manager
+over one. `Runtime` and `PackageManager` are each both the
 namespace their constructors live under and the type those constructors return.
 Every tool-running target takes the manager as a required attr and asks
 `Smithers.PackageManager.exec` for its argv, so nothing in the catalog spells
