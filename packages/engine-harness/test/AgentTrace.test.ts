@@ -1,57 +1,194 @@
 /**
- * The journal shape of one agent event.
+ * The journal shape of agent events projected by the executor.
  *
- * `HarnessExecutor.test.ts` covers the events a live run produces. The cases
- * here are the ones a run does not reach on its own: a compaction, an abort,
- * and a settlement whose message carries more than text.
+ * `HarnessExecutor.test.ts` covers the events a live run produces. These
+ * cases pin every payload field independently of the run that produced it.
  */
+import * as Capability from "@smthrs/capability/Capability"
+import * as Permission from "@smthrs/capability/Permission"
 import * as AgentEvent from "@smthrs/harness/AgentEvent"
+import * as Cell from "@smthrs/harness/Cell"
+import * as EngineLike from "@smthrs/harness/EngineLike"
 import * as ModelEvent from "@smthrs/model/ModelEvent"
 import * as ModelRequest from "@smthrs/model/ModelRequest"
+import { Option } from "effect"
 import { describe, expect, it } from "vitest"
 import * as HarnessExecutor from "../src/HarnessExecutor.ts"
 
+const identity = new Cell.CallIdentity({
+  session: "session-1",
+  frame: 2,
+  cell: "sha256:cell",
+  ordinal: 1,
+  declaration: "sha256:declaration",
+  layers: ["layer-a"]
+})
+
+const call = new Cell.Call({
+  flowName: "notes/save",
+  input: { text: "Remember this." },
+  capabilities: ["fs:write:notes/**"],
+  effects: {
+    reads: ["/notes/**"],
+    writes: ["/notes/log.md"],
+    mode: "expected",
+    onConflict: "serialize",
+    tier: "irreversible"
+  },
+  placement: Option.none(),
+  identity
+})
+
+const cell = Cell.source("return { intent: 'complete', output: 'done' }")
+const transition = new Cell.Complete({ state: null, output: "done", reason: "finished" })
+const outcome = new Cell.Settled({ transition })
+const reason = new EngineLike.SuspendReason({ code: "waiting-input", message: "Needs an answer" })
+const request = new Permission.PermissionRequired({
+  requestId: "permission-1",
+  runId: "run-1",
+  capability: Capability.make("fs:write", "notes/log.md"),
+  tier: "irreversible",
+  meta: { flowName: "notes/save" }
+})
+const assistant = ModelRequest.Message.assistant([
+  ModelRequest.TextPart.make({ text: "First line." }),
+  ModelRequest.ToolCallPart.make({ id: "call-0", name: "cell", arguments: "{}" }),
+  ModelRequest.TextPart.make({ text: "Second line." })
+])
+
 describe("trace", () => {
-  it("names the replaced prefix when a compaction settles", () => {
-    const projected = HarnessExecutor.trace(
-      new AgentEvent.CompactionSettled({
-        eventType: "flows.harness.compaction-settled.v1",
-        replacedPrefixDigest: "sha256:prefix",
-        summary: ModelRequest.Message.assistant("Six frames of edits, summarised.")
-      })
-    )
-    expect(projected).toEqual({
-      eventType: "control.agent.compaction-settled",
-      payload: { replacedPrefixDigest: "sha256:prefix" }
-    })
-  })
-
-  it("carries the reason when a run aborts", () => {
-    const projected = HarnessExecutor.trace(
-      new AgentEvent.Aborted({ eventType: "flows.harness.aborted.v1", reason: "frame ceiling reached" })
-    )
-    expect(projected).toEqual({
-      eventType: "control.agent.aborted",
-      payload: { reason: "frame ceiling reached" }
-    })
-  })
-
-  it("keeps the text of a settlement and drops the tool call beside it", () => {
-    const projected = HarnessExecutor.trace(
-      new AgentEvent.ModelSettled({
-        eventType: "flows.harness.model-settled.v1",
-        message: ModelRequest.Message.assistant([
-          ModelRequest.TextPart.make({ text: "Applying the patch." }),
-          ModelRequest.ToolCallPart.make({ id: "call-0", name: "cell", arguments: "{}" })
-        ]),
-        usage: ModelEvent.Usage.make({ inputTokens: 12, outputTokens: 3 })
-      })
-    )
-    expect(projected).toEqual({
-      eventType: "control.agent.model-settled",
-      payload: { text: "Applying the patch.", usage: { inputTokens: 12, outputTokens: 3 } }
-    })
-  })
+  it.each(
+    [
+      [
+        "turn-opened",
+        new AgentEvent.TurnOpened({
+          eventType: "flows.harness.turn-opened.v1",
+          seat: "anthropic:test-model",
+          modelParams: ModelRequest.GenerationParams.make({ temperature: 0 }),
+          activeToolNames: ["cell"],
+          contextDigest: "sha256:context"
+        }),
+        {
+          eventType: "control.agent.turn-opened",
+          payload: { seat: "anthropic:test-model", contextDigest: "sha256:context" }
+        }
+      ],
+      [
+        "model-settled",
+        new AgentEvent.ModelSettled({
+          eventType: "flows.harness.model-settled.v1",
+          message: assistant,
+          usage: ModelEvent.Usage.make({ inputTokens: 12, outputTokens: 3 })
+        }),
+        {
+          eventType: "control.agent.model-settled",
+          payload: { text: "First line.\nSecond line.", usage: { inputTokens: 12, outputTokens: 3 } }
+        }
+      ],
+      [
+        "cell-produced",
+        new AgentEvent.CellProduced({ eventType: "flows.harness.cell-produced.v1", cell }),
+        {
+          eventType: "control.agent.cell-produced",
+          payload: { language: cell.language, digest: cell.digest, text: cell.text }
+        }
+      ],
+      [
+        "cell-call-started",
+        new AgentEvent.CellCallStarted({ eventType: "flows.harness.cell-call-started.v1", call }),
+        {
+          eventType: "control.agent.cell-call-started",
+          payload: { flowName: "notes/save", input: { text: "Remember this." } }
+        }
+      ],
+      [
+        "cell-call-settled",
+        new AgentEvent.CellCallSettled({
+          eventType: "flows.harness.cell-call-settled.v1",
+          flowName: "notes/save",
+          identity,
+          result: new Cell.CallResult({ outcome: "failure", value: null, message: "The note was locked" })
+        }),
+        {
+          eventType: "control.agent.cell-call-settled",
+          payload: {
+            flowName: "notes/save",
+            outcome: "failure",
+            message: "The note was locked",
+            value: null
+          }
+        }
+      ],
+      [
+        "cell-settled",
+        new AgentEvent.CellSettled({ eventType: "flows.harness.cell-settled.v1", cell: cell.digest, outcome }),
+        { eventType: "control.agent.cell-settled", payload: { outcome } }
+      ],
+      [
+        "transition-applied",
+        new AgentEvent.TransitionApplied({
+          eventType: "flows.harness.transition-applied.v1",
+          transition
+        }),
+        { eventType: "control.agent.transition-applied", payload: { transition } }
+      ],
+      [
+        "suspended",
+        new AgentEvent.Suspended({ eventType: "flows.harness.suspended.v1", reason }),
+        { eventType: "control.agent.suspended", payload: { reason } }
+      ],
+      [
+        "compaction-settled",
+        new AgentEvent.CompactionSettled({
+          eventType: "flows.harness.compaction-settled.v1",
+          replacedPrefixDigest: "sha256:prefix",
+          summary: ModelRequest.Message.assistant("Six frames of edits, summarised.")
+        }),
+        {
+          eventType: "control.agent.compaction-settled",
+          payload: { replacedPrefixDigest: "sha256:prefix" }
+        }
+      ],
+      [
+        "turn-closed",
+        new AgentEvent.TurnClosed({
+          eventType: "flows.harness.turn-closed.v1",
+          stopReason: "tool-calls",
+          outcome: "continue"
+        }),
+        {
+          eventType: "control.agent.turn-closed",
+          payload: { stopReason: "tool-calls", outcome: "continue" }
+        }
+      ],
+      [
+        "permission-required",
+        new AgentEvent.PermissionRequired({ eventType: "flows.harness.permission-required.v1", request }),
+        { eventType: "control.agent.permission-required", payload: { request } }
+      ],
+      [
+        "aborted",
+        new AgentEvent.Aborted({
+          eventType: "flows.harness.aborted.v1",
+          reason: "frame ceiling reached"
+        }),
+        {
+          eventType: "control.agent.aborted",
+          payload: { reason: "frame ceiling reached" }
+        }
+      ],
+      [
+        "resolved",
+        new AgentEvent.Resolved({ eventType: "flows.harness.resolved.v1", message: assistant }),
+        { eventType: "control.agent.resolved", payload: { text: "First line.\nSecond line." } }
+      ]
+    ] satisfies ReadonlyArray<readonly [string, AgentEvent.AgentEvent, unknown]>
+  )(
+    "projects %s with its durable payload",
+    (_name, event, expected) => {
+      expect(HarnessExecutor.trace(event)).toEqual(expected)
+    }
+  )
 
   it("journals no model delta", () => {
     expect(

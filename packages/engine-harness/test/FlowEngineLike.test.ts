@@ -87,10 +87,6 @@ const countingModel = (calls: Array<string>): Model.Model =>
       })
   })
 
-const failingModel = Model.make({
-  stream: () => Stream.fail(new ModelError({ code: "provider_internal", message: "boom" }))
-})
-
 const child = (
   overrides: {
     readonly callId?: string
@@ -218,6 +214,50 @@ const failure = (outcome: Outcome): unknown => {
   return (outcome as { readonly error: unknown }).error
 }
 
+describe("FlowEngineLike conversions", () => {
+  it("normalizes absolute declarations to workspace-relative paths", () => {
+    expect(["/**", "/a/b", "a/b"].map(FlowEngineLike.workspaceRelative)).toEqual(["**", "a/b", "a/b"])
+  })
+
+  it("converts call effects to the engine file boundary", () => {
+    const boundary = (mode: "hermetic" | "expected") =>
+      FlowEngineLike.callBoundary(
+        new Cell.Call({
+          flowName: "notes/save",
+          input: {},
+          capabilities: [],
+          effects: {
+            reads: ["/**", "/a/b", "a/b"],
+            writes: ["/output/result.md", "output/index.md"],
+            mode,
+            onConflict: "serialize",
+            tier: "sealed"
+          },
+          placement: Option.none(),
+          identity: new Cell.CallIdentity({
+            session: "boundary-session",
+            frame: 0,
+            cell: "cell-digest",
+            ordinal: 0,
+            declaration: "declaration-digest",
+            layers: []
+          })
+        })
+      )
+
+    expect(boundary("hermetic")).toEqual({
+      readSet: [
+        { path: "**", digest: "declaration-digest" },
+        { path: "a/b", digest: "declaration-digest" },
+        { path: "a/b", digest: "declaration-digest" }
+      ],
+      writeSet: ["output/result.md", "output/index.md"],
+      boundaryMode: "hard"
+    })
+    expect(boundary("expected").boundaryMode).toBe("expected")
+  })
+})
+
 describe("FlowEngineLike.make", () => {
   it("streams the model events of a sealed step and records them for replay", async () => {
     const calls: Array<string> = []
@@ -264,17 +304,57 @@ describe("FlowEngineLike.make", () => {
     expect(completed(outcome)).toBe(2)
   })
 
-  it("surfaces a model failure through the sealed step", async () => {
+  it("retries one transient model failure inside the sealed step", async () => {
+    let attempts = 0
+    const transient = new ModelError({ code: "transport", message: "connection reset" })
+    const model = Model.make({
+      stream: () =>
+        Stream.suspend(() => {
+          attempts++
+          return attempts === 1
+            ? Stream.fail(transient)
+            : Stream.fromIterable([
+              ModelEvent.ModelEvent.TextStart({ type: "text-start", id: "0" }),
+              ModelEvent.ModelEvent.TextDelta({ type: "text-delta", id: "0", text: "reply" }),
+              ModelEvent.ModelEvent.Settle({ type: "settle", stopReason: "stop" })
+            ])
+        })
+    })
     const outcome = await drive(Effect.gen(function*() {
       const engine = yield* FlowEngineLike.make({
-        model: failingModel,
+        model,
         route: staticRoute(),
         children: countingChildren([])
       })
       return yield* Stream.runCollect(engine.sealStep(step("hello")))
     }))
 
-    expect(failure(outcome)).toMatchObject({ _tag: "flows/model/ModelError", code: "provider_internal" })
+    expect((completed(outcome) as ReadonlyArray<unknown>).length).toBe(3)
+    expect(attempts).toBe(2)
+  })
+
+  it("surfaces an authentication failure without retrying or replacing it", async () => {
+    let attempts = 0
+    const authentication = new ModelError({ code: "authentication", message: "invalid API key" })
+    const outcome = await drive(Effect.gen(function*() {
+      const engine = yield* FlowEngineLike.make({
+        model: Model.make({
+          stream: () =>
+            Stream.suspend(() => {
+              attempts++
+              return Stream.fail(authentication)
+            })
+        }),
+        route: staticRoute(),
+        children: countingChildren([])
+      })
+      return yield* Stream.runCollect(engine.sealStep(step("hello")))
+    }))
+
+    const error = failure(outcome)
+    expect(error).toBeInstanceOf(ModelError)
+    expect(error).toStrictEqual(authentication)
+    expect(attempts).toBe(1)
   })
 
   it("surfaces a route failure before the activity is dispatched", async () => {

@@ -271,6 +271,7 @@ interface Outcome {
   readonly runId: string
   readonly requestedQuestion: string
   readonly grantTokens: ReadonlyArray<string>
+  readonly agentTrail: ReadonlyArray<JournalEvent.Entry>
 }
 
 /**
@@ -283,10 +284,11 @@ interface Outcome {
 const drive = (
   gate: Deferred.Deferred<void>,
   decision: "approve" | "deny" = "approve"
-): Effect.Effect<Outcome, unknown, Control.Control | ControlRuntime.ControlRuntime> =>
+): Effect.Effect<Outcome, unknown, Control.Control | ControlRuntime.ControlRuntime | Journal.Journal> =>
   Effect.gen(function*() {
     const control = yield* Control.Control
     const runtime = yield* ControlRuntime.ControlRuntime
+    const journal = yield* Journal.Journal
 
     const card = yield* control.plan({ flowId: "agents/notes", input: { topic: "standups" } })
     yield* control.approve(card.approval)
@@ -328,10 +330,13 @@ const drive = (
     yield* awaitStatus(runtime, runId, "completed")
 
     const grants = yield* runtime.grants
+    yield* journal.flush
+    const page = yield* journal.entries({ runId: JournalEvent.RunId.make(runId), limit: 1_000 })
     return {
       runId,
       requestedQuestion: requestedPayload.question,
-      grantTokens: grants.map((grant) => grant.tokenId)
+      grantTokens: grants.map((grant) => grant.tokenId),
+      agentTrail: page.entries.filter((entry) => entry.eventType.startsWith("control.agent."))
     }
   })
 
@@ -415,6 +420,9 @@ describe("HarnessExecutor", () => {
     // approving it installed the grant the resumed ask read.
     expect(outcome.requestedQuestion).toBe("publish the log?")
     expect(outcome.grantTokens.some((token) => token.startsWith(`ask/${outcome.runId}/`))).toBe(true)
+    expect(outcome.agentTrail.length).toBeGreaterThan(0)
+    expect(outcome.agentTrail.every((entry) => typeof (entry.payload as { readonly at?: unknown }).at === "number"))
+      .toBe(true)
 
     // Pass two: the same scenario, driven entirely from the recording.
     const fixture: Fixture.Fixture = {
@@ -443,6 +451,10 @@ describe("HarnessExecutor", () => {
 
     expect(replayNotes).toEqual(["frame zero note"])
     expect(replayed.driven.requestedQuestion).toBe("publish the log?")
+    expect(replayed.driven.agentTrail.length).toBeGreaterThan(0)
+    expect(
+      replayed.driven.agentTrail.every((entry) => typeof (entry.payload as { readonly at?: unknown }).at === "number")
+    ).toBe(true)
     // Every recorded call was matched and consumed: the recording drove the
     // whole loop, nothing was unscripted and nothing was left over.
     expect(replayed.unconsumed).toEqual([])
@@ -598,18 +610,22 @@ describe("HarnessExecutor", () => {
     expect(result).toBe("accepted")
   })
 
-  it("writes a failed status when the model errors, for an empty and an absent input", async () => {
-    const statuses = await Effect.runPromise(
+  it("journals a bounded cause when the model fails, for an empty and an absent input", async () => {
+    const results = await Effect.runPromise(
       Effect.gen(function*() {
         const gate = yield* Deferred.make<void>()
         const notes: Array<string> = []
         const failing = Model.make({
-          stream: () => Stream.fail(new ModelError.ModelError({ code: "provider_internal", message: "boom" }))
+          stream: () =>
+            Stream.fail(
+              new ModelError.ModelError({ code: "authentication", message: "invalid credential ".repeat(400) })
+            )
         })
         return yield* Effect.gen(function*() {
           const control = yield* Control.Control
           const runtime = yield* ControlRuntime.ControlRuntime
-          const results: Array<string> = []
+          const journal = yield* Journal.Journal
+          const results: Array<{ readonly status: string; readonly failed: JournalEvent.Entry }> = []
           // One empty-object input and one null input: both render the bare
           // prompt, and both runs settle as failed when the provider errors.
           for (const input of [{}, null]) {
@@ -626,14 +642,28 @@ describe("HarnessExecutor", () => {
               return yield* Effect.die("expected an accepted run")
             }
             yield* awaitStatus(runtime, receipt.runId, "failed")
-            results.push((yield* runtime.getRun(receipt.runId)).status)
+            const page = yield* journal.entries({
+              runId: JournalEvent.RunId.make(receipt.runId),
+              limit: 100
+            })
+            const failed = page.entries.find((entry) => entry.eventType === "control.run.failed")
+            if (failed === undefined) return yield* Effect.die("the failed run was not journaled")
+            results.push({ status: (yield* runtime.getRun(receipt.runId)).status, failed })
           }
           return results
         }).pipe(Effect.provide(stack({ resolveSeat: seat(failing), notes, gate, bare: true })))
-      }).pipe(Effect.scoped) as Effect.Effect<ReadonlyArray<string>, unknown>
+      }).pipe(Effect.scoped) as Effect.Effect<
+        ReadonlyArray<{ readonly status: string; readonly failed: JournalEvent.Entry }>,
+        unknown
+      >
     )
 
-    expect(statuses).toEqual(["failed", "failed"])
+    expect(results.map((result) => result.status)).toEqual(["failed", "failed"])
+    for (const result of results) {
+      const payload = result.failed.payload as { readonly cause?: unknown }
+      expect(typeof payload.cause).toBe("string")
+      expect((payload.cause as string).length).toBe(4_096)
+    }
   })
 
   it("resolves a context window for every catalogued model and a floor for the rest", () => {

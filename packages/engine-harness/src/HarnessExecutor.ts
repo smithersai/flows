@@ -67,7 +67,7 @@ import type { NotificationQueue } from "@smthrs/notifications"
 import { Node } from "@smthrs/plan"
 import * as Registry from "@smthrs/registry/Registry"
 import type { Crypto } from "effect"
-import { Cause, Duration, Effect, Exit, Fiber, Layer, Option, Schema, Scope, Stream } from "effect"
+import { Cause, Clock, Duration, Effect, Exit, Fiber, Layer, Option, Schema, Scope, Stream } from "effect"
 import * as CellHarness from "./CellHarness.ts"
 import type * as FlowEngineLike from "./FlowEngineLike.ts"
 import * as StandardFlows from "./StandardFlows.ts"
@@ -581,12 +581,25 @@ export const make = (
         })
     })
 
-    /** Writes one fenced status transition and its journal record. */
-    const writeStatus = (runId: string, status: RunStatus): Effect.Effect<void> =>
+    /**
+     * Writes one fenced status transition and its journal record.
+     *
+     * A terminal `failed` carries the rendered cause. Before it did, the
+     * cause went only to `Effect.logWarning`, so a failed run was
+     * undiagnosable from its own journal: three of the five first SWE-bench
+     * benchmark runs ended `control.run.failed {runId, status}` and nothing
+     * else, and the log line was long gone. The journal is the record a
+     * `flows status` diagnosis reads, so the reason a run died belongs in it.
+     */
+    const writeStatus = (runId: string, status: RunStatus, detail?: string): Effect.Effect<void> =>
       Effect.gen(function*() {
         const fence = yield* runtime.claimFence(runId)
         yield* runtime.writeStatus(runId, fence, status)
-        yield* emit(runId, `control.run.${status}`, { runId, status })
+        yield* emit(
+          runId,
+          `control.run.${status}`,
+          detail === undefined ? { runId, status } : { runId, status, cause: detail.slice(0, 4096) }
+        )
       }).pipe(
         Effect.catchCause(
           /* v8 ignore next 6 -- reached only when a cancel raced the fence away. */
@@ -622,7 +635,7 @@ export const make = (
             runId,
             cause: Cause.pretty(exit.cause)
           }),
-          writeStatus(runId, "failed")
+          writeStatus(runId, "failed", Cause.pretty(exit.cause))
         )
 
     /** One agent run, executed as the whole of one durable flow execution. */
@@ -674,12 +687,23 @@ export const make = (
         ).pipe(Effect.ignore)
         // Journaling is best-effort on purpose: a full or rejecting journal
         // must not fail an agent run that is otherwise making progress.
+        // Occurrence time is stamped into the payload because the pump
+        // flushes in batches: `emitted_at_ms` is admission time, so every
+        // event in one flush shares a millisecond and per-call timing is
+        // unrecoverable from the row alone.
         const record = (event: AgentEvent.AgentEvent): Effect.Effect<void> =>
-          Effect.sync(() => {
-            tags.push(event._tag)
-            const projected = trace(event)
-            if (projected !== undefined) pending.push(projected)
-          })
+          Effect.flatMap(Clock.currentTimeMillis, (at) =>
+            Effect.sync(() => {
+              tags.push(event._tag)
+              const projected = trace(event)
+              if (projected !== undefined) {
+                pending.push({
+                  eventType: projected.eventType,
+                  payload: { ...(projected.payload as Record<string, unknown>), at }
+                })
+              }
+            })
+          )
         const pump = yield* Effect.forkChild(
           Effect.forever(Effect.andThen(Effect.sleep(Duration.millis(250)), flush))
         )
