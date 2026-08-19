@@ -63,7 +63,7 @@ const onlyPayload = (target: Target.AnyTarget): Exec.Payload => {
 }
 
 const declareTarget = (
-  tests: ReadonlyArray<Input.Declared>,
+  tests: Parameters<typeof BunTest>[0]["tests"],
   extra: Partial<Parameters<typeof BunTest>[0]> = {}
 ) =>
   BunTest({
@@ -137,6 +137,11 @@ describe("BunTest plans a bun test run", () => {
 
   it("rejects a junit reporter without the file it writes to", () => {
     expect(() => declareTarget([Input.glob("tests/**/*")], { reporter: "junit" })).toThrow(/reporterOutfile/)
+  })
+
+  it("refuses an empty test list, which would put the runner into discovery mode", () => {
+    const empty = [] as unknown as Parameters<typeof BunTest>[0]["tests"]
+    expect(() => declareTarget(empty)).toThrow()
   })
 
   it("threads the declared environment into the run", () => {

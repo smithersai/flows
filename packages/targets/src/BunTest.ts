@@ -34,7 +34,9 @@ export const reporterRequiresOutfile = Schema.makeFilter(
  * list is passed to bun positionally in its declared order, and that order is
  * load-bearing: with `--max-concurrency=1` bun runs the named files in the
  * order given, so a runner that shares process state across files depends on
- * it. A glob entry narrows discovery to its static directory prefix.
+ * it. A glob entry narrows discovery to its static directory prefix. The list
+ * is non-empty: a bare `bun test` discovers test files by scanning the
+ * directory tree, and a discovered file is a read nobody declared.
  *
  * `cwd` is the workspace-relative directory the runner starts in and defaults
  * to the workspace root. The `preload` path resolves from `cwd` when the tool
@@ -53,7 +55,7 @@ export const reporterRequiresOutfile = Schema.makeFilter(
  * @since 0.1.0
  */
 export const Attrs = Schema.Struct({
-  tests: Schema.Array(Input.Declared),
+  tests: Schema.NonEmptyArray(Input.Declared),
   sources: Schema.Array(Input.Declared),
   deps: Schema.Array(Target.Target),
   preload: Schema.NullOr(Input.File),
