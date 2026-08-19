@@ -8,6 +8,7 @@ import { Console, Effect, Option, Schema, Stream } from "effect"
 import { Argument, Command, Flag } from "effect/unstable/cli"
 import * as CliError from "./CliError.ts"
 import * as ExecutorOwnership from "./ExecutorOwnership.ts"
+import * as Forensics from "./Forensics.ts"
 import { Output } from "./Output.ts"
 import { find } from "./Verb.ts"
 
@@ -250,7 +251,21 @@ const status = Command.make("status", {
   Effect.gen(function*() {
     const control = yield* ControlService.Control
     const filters = Option.isSome(config.runId) ? { runId: config.runId.value } : undefined
-    yield* render(yield* control.list({ _tag: "runs", filters }))
+    const listed = yield* control.list({ _tag: "runs", filters })
+    const root = yield* rootCommand
+    // The vault's Forensics note makes `status` the run-summary projection,
+    // gating cause included. With a run id and a human reader, the summary is
+    // the diagnosis card computed from the run's own events; `--json` keeps
+    // the stable listing shape untouched.
+    if (root.json || Option.isNone(config.runId)) {
+      return yield* render(listed)
+    }
+    const runId = config.runId.value
+    const events = yield* Stream.runCollect(control.watch({ runId, follow: false }))
+    const run = listed._tag === "runs"
+      ? listed.items.find((item) => item.runId === runId)
+      : undefined
+    yield* render(Forensics.renderDiagnosis(run, Forensics.digest(globalThis.Array.from(events))))
   })).pipe(Command.withDescription("Show control status"))
 
 const logs = Command.make("logs", {
@@ -259,13 +274,23 @@ const logs = Command.make("logs", {
 }, (config) =>
   Effect.gen(function*() {
     const control = yield* ControlService.Control
+    const root = yield* rootCommand
     const events = control.watch({
       runId: Option.getOrUndefined(config.runId),
       follow: config.follow
     })
-    if (config.follow) return yield* Stream.runForEach(events, (event) => render(event))
+    // Human output is the transcript projection; `--json` remains the raw
+    // event stream, byte-stable for scripts. Follow mode renders one line per
+    // event as it lands, because a transcript needs the whole run.
+    if (config.follow) {
+      return yield* Stream.runForEach(
+        events,
+        (event) => root.json ? render(event) : render(Forensics.eventLine(event))
+      )
+    }
     const collected = yield* Stream.runCollect(events)
-    yield* render(collected)
+    if (root.json) return yield* render(collected)
+    yield* render(Forensics.renderTranscript(globalThis.Array.from(collected)))
   })).pipe(Command.withDescription("Read run events; --follow streams future events"))
 
 const up = Command.make("up", {
