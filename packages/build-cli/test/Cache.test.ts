@@ -7,11 +7,17 @@ import * as Os from "node:os"
 import * as NodePath from "node:path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
+  type ArtifactBlobs,
   type CachedResult,
   entryLimit,
   maximumRemoteBodyChunks,
+  missingArtifacts,
+  openArtifacts,
   openCache,
+  publishOutput,
+  readRestorableOutput,
   remoteEntryLimit,
+  restoreOutput,
   sanitizeKey
 } from "../src/Cache.ts"
 
@@ -1028,5 +1034,234 @@ describe("openCache", () => {
     ])
     expect(await cache.get(result.key)).toEqual(result)
     await cache.close()
+  })
+})
+
+/**
+ * The blob tier behind the envelope.
+ *
+ * The action cache records that a target succeeded; this is where the bytes it
+ * produced live. The two are addressed by the same digest: the tree manifest a
+ * publication stores hashes to exactly the `contentDigest`
+ * `ToolBuild.measureOutput` records, so a restore looks its outputs up by the
+ * digest capture already computed.
+ */
+describe("openArtifacts", () => {
+  const digestOf = (bytes: Uint8Array | string): string => createHash("sha256").update(bytes).digest("hex")
+
+  /** Digests one declared output exactly as `ToolBuild.measureOutput` does. */
+  const measure = async (declared: string): Promise<string> => {
+    const ToolBuild = await import("@smthrs/targets/ToolBuild")
+    return (await ToolBuild.measureOutput(root, ".", declared)).contentDigest
+  }
+
+  const open = (options: { readonly endpoint?: string } = {}): Promise<ArtifactBlobs> =>
+    openArtifacts({ workspaceRoot: root, cacheDirectory: ".flows", ...options })
+
+  it("stores bytes under their own content address and reads them back", async () => {
+    const blobs = await open()
+    const payload = Buffer.from("artifact bytes")
+
+    const digest = await blobs.put(payload)
+
+    expect(digest).toBe(digestOf(payload))
+    expect(Buffer.from((await blobs.get(digest))!)).toEqual(payload)
+    expect(await blobs.missing([digest])).toEqual([])
+    await blobs.close()
+  })
+
+  it("answers a miss rather than failing when the address is not held", async () => {
+    const blobs = await open()
+    const absent = digestOf("never stored")
+
+    expect(await blobs.get(absent)).toBeNull()
+    expect(await blobs.missing([absent])).toEqual([absent])
+    await blobs.close()
+  })
+
+  it("keeps its objects directory beside the action cache, inside the workspace", async () => {
+    const blobs = await open()
+    await blobs.put(Buffer.from("located"))
+
+    expect((await Fs.stat(NodePath.join(root, ".flows/objects"))).isDirectory()).toBe(true)
+    await blobs.close()
+  })
+
+  it("refuses a cache directory that resolves outside the workspace", async () => {
+    const outside = await Fs.mkdtemp(NodePath.join(Os.tmpdir(), "smithers-build-outside-"))
+    await Fs.symlink(outside, NodePath.join(root, ".flows"), "dir")
+
+    await expect(open()).rejects.toThrow(/leaves the workspace/)
+    await Fs.rm(outside, { recursive: true, force: true })
+  })
+
+  it("publishes a file output under the digest capture computed, and restores it", async () => {
+    await Fs.writeFile(NodePath.join(root, "out"), "produced\n")
+    const contentDigest = await measure("out")
+    const blobs = await open()
+
+    expect(await publishOutput({ workspaceRoot: root, cwd: ".", declared: "out", contentDigest, blobs }))
+      .toBeUndefined()
+    // The manifest is filed under the digest the success envelope records.
+    expect(await blobs.missing([contentDigest])).toEqual([])
+
+    await Fs.rm(NodePath.join(root, "out"))
+    const tree = await readRestorableOutput({ workspaceRoot: root, cwd: ".", declared: "out", contentDigest, blobs })
+    expect(tree).not.toBeNull()
+    expect(await missingArtifacts([tree!], blobs)).toEqual([])
+    await restoreOutput(tree!, blobs)
+
+    expect(await Fs.readFile(NodePath.join(root, "out"), "utf8")).toBe("produced\n")
+    expect(await measure("out")).toBe(contentDigest)
+    await blobs.close()
+  })
+
+  it("publishes and restores a directory output, empty directories included", async () => {
+    await Fs.mkdir(NodePath.join(root, "out/nested"), { recursive: true })
+    await Fs.mkdir(NodePath.join(root, "out/empty"), { recursive: true })
+    await Fs.writeFile(NodePath.join(root, "out/a.txt"), "a")
+    await Fs.writeFile(NodePath.join(root, "out/nested/b.txt"), "b")
+    await Fs.chmod(NodePath.join(root, "out/a.txt"), 0o755)
+    const contentDigest = await measure("out")
+    const blobs = await open()
+
+    expect(await publishOutput({ workspaceRoot: root, cwd: ".", declared: "out", contentDigest, blobs }))
+      .toBeUndefined()
+    await Fs.rm(NodePath.join(root, "out"), { recursive: true })
+    const tree = await readRestorableOutput({ workspaceRoot: root, cwd: ".", declared: "out", contentDigest, blobs })
+    await restoreOutput(tree!, blobs)
+
+    expect(await measure("out")).toBe(contentDigest)
+    expect((await Fs.stat(NodePath.join(root, "out/empty"))).isDirectory()).toBe(true)
+    await blobs.close()
+  })
+
+  it("refuses to publish a tree that does not hash to the digest it was given", async () => {
+    await Fs.writeFile(NodePath.join(root, "out"), "produced\n")
+    const blobs = await open()
+    const wrong = digestOf("a digest this tree does not have")
+
+    const skipped = await publishOutput({
+      workspaceRoot: root,
+      cwd: ".",
+      declared: "out",
+      contentDigest: wrong,
+      blobs
+    })
+
+    expect(skipped).toContain(`not ${wrong}`)
+    expect(await blobs.missing([wrong])).toEqual([wrong])
+    await blobs.close()
+  })
+
+  it("reports a miss when the manifest is not in the store", async () => {
+    const blobs = await open()
+
+    expect(
+      await readRestorableOutput({
+        workspaceRoot: root,
+        cwd: ".",
+        declared: "out",
+        contentDigest: digestOf("absent tree"),
+        blobs
+      })
+    ).toBeNull()
+    await blobs.close()
+  })
+
+  it("reports a miss when the manifest is present and a file blob is gone", async () => {
+    await Fs.writeFile(NodePath.join(root, "out"), "produced\n")
+    const contentDigest = await measure("out")
+    const blobs = await open()
+    await publishOutput({ workspaceRoot: root, cwd: ".", declared: "out", contentDigest, blobs })
+    const content = digestOf("produced\n")
+    await Fs.rm(NodePath.join(root, `.flows/objects/${content.slice(0, 2)}/${content}`))
+
+    const tree = await readRestorableOutput({ workspaceRoot: root, cwd: ".", declared: "out", contentDigest, blobs })
+
+    // The manifest still reads; the probe is what refuses the restore, before
+    // the declared path is touched.
+    expect(tree).not.toBeNull()
+    expect(await missingArtifacts([tree!], blobs)).toEqual([content])
+    await blobs.close()
+  })
+
+  it("refuses a declared output that leaves the workspace", async () => {
+    const blobs = await open()
+
+    expect(
+      await publishOutput({
+        workspaceRoot: root,
+        cwd: ".",
+        declared: "../escaped",
+        contentDigest: digestOf("nothing"),
+        blobs
+      })
+    ).toContain("leaves the workspace")
+    expect(
+      await readRestorableOutput({
+        workspaceRoot: root,
+        cwd: ".",
+        declared: "../escaped",
+        contentDigest: digestOf("nothing"),
+        blobs
+      })
+    ).toBeNull()
+    await blobs.close()
+  })
+
+  it("refuses a tree blob whose paths are not usable manifest paths", async () => {
+    const blobs = await open()
+    const forged = Buffer.from(JSON.stringify([["file", "../escaped", false, digestOf("x")]]), "utf8")
+    const contentDigest = await blobs.put(forged)
+
+    expect(await readRestorableOutput({ workspaceRoot: root, cwd: ".", declared: "out", contentDigest, blobs }))
+      .toBeNull()
+    await blobs.close()
+  })
+
+  it("refuses a tree blob that is not a manifest at all", async () => {
+    const blobs = await open()
+    const contentDigest = await blobs.put(Buffer.from("not json", "utf8"))
+
+    expect(await readRestorableOutput({ workspaceRoot: root, cwd: ".", declared: "out", contentDigest, blobs }))
+      .toBeNull()
+    await blobs.close()
+  })
+
+  it("reads a local hit without touching the configured remote", async () => {
+    await Fs.writeFile(NodePath.join(root, "out"), "produced\n")
+    const contentDigest = await measure("out")
+    const blobs = await open({ endpoint })
+    await publishOutput({ workspaceRoot: root, cwd: ".", declared: "out", contentDigest, blobs })
+    const uploads = requests.length
+    expect(uploads).toBeGreaterThan(0)
+    expect(requests.every((entry) => entry.path?.startsWith("/cas/"))).toBe(true)
+
+    await Fs.rm(NodePath.join(root, "out"))
+    const tree = await readRestorableOutput({ workspaceRoot: root, cwd: ".", declared: "out", contentDigest, blobs })
+    await restoreOutput(tree!, blobs)
+
+    expect(await measure("out")).toBe(contentDigest)
+    // Local-first: every read was answered on disk, so the remote saw only the
+    // opportunistic uploads.
+    expect(requests.length).toBe(uploads)
+    await blobs.close()
+  })
+
+  it("falls back to the remote tier when the local store has nothing", async () => {
+    const payload = Buffer.from("only remote holds this")
+    const digest = digestOf(payload)
+    respond = (request, response) => {
+      if (request.method === "GET" && request.url === `/cas/${digest}`) {
+        response.writeHead(200, { "content-type": "application/octet-stream" }).end(payload)
+        return
+      }
+      response.writeHead(request.method === "PUT" ? 201 : 404).end()
+    }
+    const blobs = await open({ endpoint })
+
+    expect(Buffer.from((await blobs.get(digest))!)).toEqual(payload)
+    await blobs.close()
   })
 })

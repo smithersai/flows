@@ -9,7 +9,10 @@
  * `WriteFileLive` and `CheckFileLive`, the documentation-parity action
  * implemented by `CheckDocsLive`, the file-group expansion implemented by
  * `ExpandFilegroupLive`, and cacheable green results stored in the
- * workspace cache. The irreversible exec action is implemented by
+ * workspace cache. A green run also publishes every declared output to the
+ * workspace artifact store, and a hit restores them before it is reported, so
+ * a cached target reproduces its files rather than only recording that they
+ * once existed. The irreversible exec action is implemented by
  * `ExecIrreversibleLive` under the `run` verb only; every other verb gets an
  * explicit refusal, so a publish or version mutation can plan anywhere and
  * execute only where a person asked for it.
@@ -29,7 +32,7 @@ import { LlmReviewLive } from "@smthrs/targets/LlmLint"
 import { ScaffoldPackageLive } from "@smthrs/targets/NewPackage"
 import { SyncPackageJsonLive } from "@smthrs/targets/PackageJson"
 import * as Target from "@smthrs/targets/Target"
-import { CaptureOutputsLive, verifyOutputs } from "@smthrs/targets/ToolBuild"
+import { CaptureOutputsLive, readOutputManifest, verifyOutputs } from "@smthrs/targets/ToolBuild"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -39,7 +42,17 @@ import { createHash } from "node:crypto"
 import * as Os from "node:os"
 import { performance } from "node:perf_hooks"
 import * as NodeUtil from "node:util/types"
-import { entryLimit, openCache } from "./Cache.ts"
+import {
+  type ArtifactBlobs,
+  entryLimit,
+  missingArtifacts,
+  openArtifacts,
+  openCache,
+  publishOutput,
+  readRestorableOutput,
+  type RestorableOutput,
+  restoreOutput
+} from "./Cache.ts"
 import * as Diagnostic from "./Diagnostic.ts"
 import { declaredToolchain, layerInstall, layerNonInteractiveNodeServices, layerPackageManager } from "./engine.ts"
 import type * as Planner from "./Planner.ts"
@@ -904,6 +917,98 @@ const checkDeclaredOutputs = async (
     : verifyOutputs(workspaceRoot, target.declaredOutputs, value, { cacheDirectory, signal })
 
 /**
+ * The declared outputs a target needs blobs for, or undefined.
+ *
+ * A target that declares no output path is a pure check — Typecheck, EsLint,
+ * Dprint, Vitest, and every other rule whose whole result is an exit status.
+ * Its success envelope already carries everything a hit needs, so it never
+ * reads or writes the artifact store. Only a target that declares a path has
+ * bytes to lose, and only that target opens the store.
+ */
+const outputsNeedingBlobs = (target: Planner.PlannedTarget): Target.DeclaredOutputs | undefined =>
+  target.declaredOutputs !== undefined && target.declaredOutputs.paths.length > 0
+    ? target.declaredOutputs
+    : undefined
+
+/**
+ * Puts one cache entry's declared outputs back on disk, or returns the reason
+ * the store cannot.
+ *
+ * The reason is a miss, not a failure: the caller executes the target instead.
+ * Every tree manifest is read and every file address is probed before one byte
+ * is written, because a restore replaces the declared path rather than merging
+ * into it, and a half-materialized tree is worse than an absent one.
+ *
+ * The digests come from the manifest the entry carries, which
+ * `readOutputManifest` has already forced to match the target's own
+ * declaration one path for one path, so an untrusted entry cannot name a
+ * different tree to be written.
+ */
+const restoreDeclaredOutputs = async (
+  workspaceRoot: string,
+  declared: Target.DeclaredOutputs,
+  value: unknown,
+  blobs: ArtifactBlobs
+): Promise<string | undefined> => {
+  const manifest = readOutputManifest(declared, value)
+  if (typeof manifest === "string") return manifest
+  const trees: Array<RestorableOutput> = []
+  for (const recorded of manifest.outputs) {
+    const tree = await readRestorableOutput({
+      workspaceRoot,
+      cwd: declared.cwd,
+      declared: recorded.path,
+      contentDigest: recorded.contentDigest,
+      blobs
+    })
+    if (tree === null) return `output ${recorded.path} is not in the artifact store`
+    trees.push(tree)
+  }
+  const missing = await missingArtifacts(trees, blobs)
+  if (missing.length > 0) return `output artifact ${missing[0]} is not in the artifact store`
+  for (const tree of trees) {
+    try {
+      await restoreOutput(tree, blobs)
+    } catch (cause) {
+      return `output ${tree.declared} could not be restored: ${describeFailure(cause)}`
+    }
+  }
+  return undefined
+}
+
+/**
+ * Publishes one green run's declared outputs, or returns the reason it could
+ * not.
+ *
+ * Each output is stored under the content digest capture already computed, so
+ * a later hit looks it up by the digest the envelope records. A failure here
+ * never fails the target: the run produced its outputs, and the only loss is
+ * that the next run of it misses and executes again. The caller withholds the
+ * action-cache entry so an envelope is never published without the bytes it
+ * promises.
+ */
+const publishDeclaredOutputs = async (
+  workspaceRoot: string,
+  declared: Target.DeclaredOutputs,
+  value: unknown,
+  blobs: ArtifactBlobs
+): Promise<string | undefined> => {
+  const manifest = readOutputManifest(declared, value)
+  if (typeof manifest === "string") return manifest
+  for (const recorded of manifest.outputs) {
+    const skipped = await publishOutput({
+      workspaceRoot,
+      cwd: declared.cwd,
+      declared: recorded.path,
+      contentDigest: recorded.contentDigest,
+      blobs
+    })
+    if (skipped !== undefined) return skipped
+  }
+  return undefined
+}
+
+/**
  * Re-expands every declared input and compares it to the planned snapshot.
  *
  * Returns undefined when the snapshot still holds, and a diagnostic otherwise.
@@ -972,7 +1077,11 @@ const filegroupAttrs = (target: Planner.PlannedTarget): unknown => ({
  *
  * Before a cacheable target runs, its planner content key consults the
  * workspace cache; a stored green result reports `hit` and skips the run, and
- * a green run stores its result. A failed target reports `failed` and its
+ * a green run stores its result. A target that declares outputs also has to
+ * account for their bytes: the run publishes them to the artifact store before
+ * its envelope is stored, and a hit restores every one of them and re-measures
+ * the tree before it is reported. A store that cannot produce a blob is a
+ * miss, so the target executes. A failed target reports `failed` and its
  * transitive dependents report `skipped`; everything else still executes. The
  * returned summary lists every target in plan order and `ok` is false when
  * any target failed.
@@ -994,6 +1103,25 @@ export const execute = async (options: ExecuteOptions): Promise<Summary> => {
     token: options.remoteCache?.token,
     warn: log
   })
+  // The blob tier is opened on first use, and only by a target that declares
+  // an output. A run of pure checks — the six rules D5's flip actually speeds
+  // up — never creates the objects directory, never hashes a blob, and never
+  // reaches the network. The promise is memoized rather than the store, so
+  // sixteen concurrent targets share one open instead of racing to build
+  // sixteen runtimes.
+  let opening: Promise<ArtifactBlobs | undefined> | undefined
+  const artifacts = (): Promise<ArtifactBlobs | undefined> => {
+    opening ??= openArtifacts({
+      workspaceRoot: workspace.root,
+      cacheDirectory: workspace.cacheDirectory,
+      endpoint: options.remoteCache?.endpoint,
+      token: options.remoteCache?.token
+    }).catch((cause: unknown) => {
+      log(`smthrs: the artifact store is unavailable: ${describeFailure(cause)}`)
+      return undefined
+    })
+    return opening
+  }
   // A declared environment name is an input, so its value has to reach the key
   // a result is filed under. The planner's key material carries node version,
   // platform, arch, the lockfile digest, and an implementation fingerprint, and
@@ -1086,13 +1214,32 @@ export const execute = async (options: ExecuteOptions): Promise<Summary> => {
       ) {
         const decoded = decodeSuccess(flow, cached.output)
         if ("value" in decoded) {
-          const outputs = await checkDeclaredOutputs(
+          let outputs = await checkDeclaredOutputs(
             workspace.root,
             workspace.cacheDirectory,
             target,
             decoded.value,
             options.signal
           )
+          // The entry says the target succeeded and what its outputs digested
+          // to. On a clean tree that is not yet an answer: `dist` does not
+          // exist, so the measurement disagrees and the hit has to be earned
+          // by putting the bytes back. A store that cannot produce them is a
+          // miss and the target executes.
+          const declaredBlobs = outputs === undefined ? undefined : outputsNeedingBlobs(target)
+          if (declaredBlobs !== undefined) {
+            const blobs = await artifacts()
+            const restored = blobs === undefined
+              ? "the artifact store is unavailable"
+              : await restoreDeclaredOutputs(workspace.root, declaredBlobs, decoded.value, blobs)
+            outputs = restored !== undefined ? restored : await checkDeclaredOutputs(
+              workspace.root,
+              workspace.cacheDirectory,
+              target,
+              decoded.value,
+              options.signal
+            )
+          }
           if (outputs === undefined) {
             // The tree was read to validate the outputs. Re-check the inputs
             // against the plan afterwards so a change that landed during that
@@ -1150,6 +1297,20 @@ export const execute = async (options: ExecuteOptions): Promise<Summary> => {
       key: target.keyPreview
     })
     if (!target.cacheable) return
+    // Bytes before the envelope. A cache entry whose blobs are absent answers
+    // a hit its restore cannot honour, so the entry is withheld until the
+    // store holds every declared output.
+    const declaredBlobs = outputsNeedingBlobs(target)
+    if (declaredBlobs !== undefined) {
+      const blobs = await artifacts()
+      const withheld = blobs === undefined
+        ? "the artifact store is unavailable"
+        : await publishDeclaredOutputs(workspace.root, declaredBlobs, exit.value, blobs)
+      if (withheld !== undefined) {
+        log(`smthrs: skipped the cache store for ${label} because ${withheld}`)
+        return
+      }
+    }
     const encoded = encodeSuccess(flow, exit.value)
     if (!("output" in encoded)) {
       log(`smthrs: skipped the cache store for ${label} because its result does not round trip: ${encoded.reason}`)
@@ -1171,6 +1332,7 @@ export const execute = async (options: ExecuteOptions): Promise<Summary> => {
     await schedule(options.targets, jobs, runOne, options.signal)
   } finally {
     await store.close().catch(() => undefined)
+    await (await (opening ?? Promise.resolve(undefined)))?.close().catch(() => undefined)
   }
 
   const results = options.targets

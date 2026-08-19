@@ -459,6 +459,9 @@ importers:
       '@effect/platform-node-shared':
         specifier: 4.0.0-rc.108
         version: 4.0.0-rc.108(effect@4.0.0-rc.108)
+      '@smthrs/artifacts':
+        specifier: 0.1.0
+        version: link:../artifacts
       '@smthrs/build':
         specifier: 0.1.0
         version: link:../build

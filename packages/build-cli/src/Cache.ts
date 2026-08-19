@@ -14,9 +14,18 @@
  *
  * @since 0.1.0
  */
+import { NodeCrypto, NodeFileSystem } from "@effect/platform-node"
+import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
+import * as CombinedArtifacts from "@smthrs/artifacts/CombinedArtifacts"
+import * as RemoteArtifacts from "@smthrs/artifacts/RemoteArtifacts"
 import * as Config from "@smthrs/targets/Config"
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as Layer from "effect/Layer"
+import * as ManagedRuntime from "effect/ManagedRuntime"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
+import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient"
 import { createHash, randomUUID } from "node:crypto"
 import * as NodeFs from "node:fs"
 import * as Fs from "node:fs/promises"
@@ -472,12 +481,26 @@ const confineDirectory = async (
 export const ensureCacheDirectory = async (
   workspaceRoot: string,
   cacheDirectory: string
+): Promise<string> => ensureStoreDirectory(workspaceRoot, cacheDirectory, "cache")
+
+/**
+ * Creates one store directory under the workspace cache directory and refuses
+ * one that escapes the workspace.
+ *
+ * The action cache and the content-addressed store are siblings under the same
+ * configured directory, so both are created through this one confinement
+ * check rather than two.
+ */
+const ensureStoreDirectory = async (
+  workspaceRoot: string,
+  cacheDirectory: string,
+  leaf: string
 ): Promise<string> => {
   const root = await Fs.realpath(workspaceRoot)
-  const segments = [...Config.normalizeCacheDirectory(cacheDirectory).split("/"), "cache"]
+  const segments = [...Config.normalizeCacheDirectory(cacheDirectory).split("/"), leaf]
   // Every ancestor is checked, and checked before anything is created: a
   // `.flows` that already points outside must fail the command rather than
-  // have a `cache` directory created out there first.
+  // have a store directory created out there first.
   let directory = root
   for (const segment of segments) {
     directory = NodePath.join(directory, segment)
@@ -1326,6 +1349,447 @@ export const openCache = async (opts: OpenCacheOptions): Promise<CacheStore> => 
     },
     async close(): Promise<void> {
       if (remote !== null) await remote.close()
+    }
+  }
+}
+
+/**
+ * The content-addressed blob tier behind the action cache.
+ *
+ * The action cache records that a target succeeded and what its declared
+ * outputs digested to. That envelope alone cannot put one byte back on disk,
+ * so a hit on a clean tree would report success over a `dist` that does not
+ * exist. This is the tier that holds the bytes: `@smthrs/artifacts`, local
+ * first and remote second, reached through the same `/cas` route
+ * `packages/build/infra` already serves.
+ *
+ * Reads never fail the run. A miss, a corrupt blob, and an unreachable remote
+ * are all `null`, which the executor treats as a cache miss and re-executes.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface ArtifactBlobs {
+  put(bytes: Uint8Array): Promise<string>
+  get(digest: string): Promise<Uint8Array | null>
+  missing(digests: ReadonlyArray<string>): Promise<ReadonlyArray<string>>
+  close(): Promise<void>
+}
+
+/**
+ * Options for {@link openArtifacts}.
+ *
+ * `endpoint` and `token` are the same resolved host state {@link openCache}
+ * takes: the artifact tier is the `/cas` route beneath the cache root whose
+ * `/ac` route stores the envelopes.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface OpenArtifactsOptions {
+  readonly workspaceRoot: string
+  readonly cacheDirectory?: string | undefined
+  readonly endpoint?: string | undefined
+  readonly token?: string | undefined
+}
+
+/**
+ * One entry in a stored output tree, in the exact shape
+ * `ToolBuild.measureOutput` digests.
+ *
+ * A directory contributes its posix-relative path. A file contributes its
+ * path, its executable bit, and the SHA-256 of its contents, which is also the
+ * content address its bytes are stored under.
+ */
+type TreeEntry = readonly ["directory", string] | readonly ["file", string, boolean, string]
+
+/**
+ * The largest single output file this tier stores or restores.
+ *
+ * A blob is materialized in memory to be hashed and published, so the file
+ * size, not only the tree shape, needs a bound. An output file past this size
+ * skips the store: the target still reports green, and the next run of it
+ * misses and re-executes rather than exhausting the heap.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const artifactFileLimit = 64 * 1024 * 1024
+
+/**
+ * The largest total size one declared output may contribute to the store.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const artifactTreeLimit = 512 * 1024 * 1024
+
+/** The largest number of files and directories one stored output may hold. */
+const artifactEntryLimit = 400_000
+
+/**
+ * Digests output bytes the way `ToolBuild` does, so a file published here is
+ * addressed by the digest the manifest already records for it.
+ */
+const contentAddress = (bytes: Uint8Array): string => createHash("sha256").update(bytes).digest("hex")
+
+const executableMode = (mode: number): boolean => (mode & 0o111) !== 0
+
+/** `ToolBuild`'s manifest ordering: UTF-16 code unit order, not locale order. */
+const byCodeUnit = (left: string, right: string): number => left < right ? -1 : left > right ? 1 : 0
+
+/**
+ * Refuses a manifest path that cannot address a file inside the output root.
+ *
+ * A tree blob is untrusted input: it may have come from a shared store, a
+ * remote tier, or a hand edit. A path that is absolute, escapes the root,
+ * carries a null byte, or is not well-formed text would write outside the
+ * output the target declared, so it fails the restore rather than being
+ * sanitized into something else.
+ */
+const usableTreePath = (value: string): boolean =>
+  value.length > 0 &&
+  value.length <= 4096 &&
+  isWellFormedText(value) &&
+  !value.includes("\0") &&
+  !value.includes("\\") &&
+  !value.startsWith("/") &&
+  !/^[A-Za-z]:/.test(value) &&
+  value.split("/").every((segment) => segment !== "" && segment !== "." && segment !== "..")
+
+/**
+ * Reads an untrusted tree blob as an output manifest, or returns null.
+ *
+ * The bytes are exactly the JSON `ToolBuild.measureOutput` digests, so a blob
+ * that parses here and whose address the store verified is the manifest that
+ * produced the recorded `contentDigest`.
+ */
+const readTree = (bytes: Uint8Array): ReadonlyArray<TreeEntry> | null => {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as unknown
+  } catch {
+    return null
+  }
+  if (!Array.isArray(parsed) || parsed.length > artifactEntryLimit) return null
+  const entries: Array<TreeEntry> = []
+  const seen = new Set<string>()
+  for (const candidate of parsed) {
+    if (!Array.isArray(candidate)) return null
+    const [kind, path] = candidate as ReadonlyArray<unknown>
+    if (typeof path !== "string" || !usableTreePath(path) || seen.has(path.normalize("NFC"))) return null
+    seen.add(path.normalize("NFC"))
+    if (kind === "directory" && candidate.length === 2) {
+      entries.push(["directory", path])
+      continue
+    }
+    if (kind !== "file" || candidate.length !== 4) return null
+    const [, , executable, digest] = candidate as ReadonlyArray<unknown>
+    if (typeof executable !== "boolean" || typeof digest !== "string" || !/^[0-9a-f]{64}$/.test(digest)) return null
+    entries.push(["file", path, executable, digest])
+  }
+  return entries
+}
+
+/**
+ * Resolves one declared output to an absolute path that stays in the
+ * workspace, or throws.
+ */
+const outputRoot = async (workspaceRoot: string, cwd: string, declared: string): Promise<string> => {
+  const root = await Fs.realpath(NodePath.resolve(workspaceRoot))
+  const absolute = NodePath.resolve(root, cwd, declared)
+  if (!inside(root, absolute) || absolute === root) {
+    throw new Error(`declared output leaves the workspace: ${declared}`)
+  }
+  return absolute
+}
+
+/**
+ * Walks one declared output and publishes every file it contains, returning
+ * the tree manifest bytes.
+ *
+ * The manifest is assembled in `ToolBuild.measureOutput`'s shape and order, so
+ * its own SHA-256 is the `contentDigest` the success payload already records.
+ * The caller checks that equality before it trusts the address; a mismatch is
+ * a skipped store, never a blob published under the wrong name.
+ */
+const packTree = async (
+  absolute: string,
+  blobs: ArtifactBlobs
+): Promise<Uint8Array> => {
+  const stats = await Fs.lstat(absolute)
+  if (stats.isSymbolicLink()) throw new Error(`declared output is a symbolic link: ${absolute}`)
+  const base = stats.isDirectory() ? absolute : NodePath.dirname(absolute)
+  const found: Array<TreeEntry> = []
+  const budget = { bytes: 0, entries: 0 }
+  const publish = async (path: string, mode: number): Promise<void> => {
+    const size = (await Fs.stat(path)).size
+    if (size > artifactFileLimit) {
+      throw new Error(`declared output file exceeds the ${artifactFileLimit}-byte artifact limit: ${path}`)
+    }
+    budget.bytes += size
+    if (budget.bytes > artifactTreeLimit) {
+      throw new Error(`declared output exceeds the ${artifactTreeLimit}-byte artifact limit: ${absolute}`)
+    }
+    const bytes = await Fs.readFile(path)
+    const relative = NodePath.relative(base, path).split(NodePath.sep).join("/")
+    found.push(["file", relative, executableMode(mode), contentAddress(bytes)])
+    await blobs.put(bytes)
+  }
+  const collect = async (directory: string, depth: number): Promise<void> => {
+    if (depth > 64) throw new Error(`declared output nests too deeply: ${directory}`)
+    const entries = await Fs.readdir(directory, { withFileTypes: true })
+    entries.sort((left, right) => byCodeUnit(left.name, right.name))
+    for (const entry of entries) {
+      budget.entries += 1
+      if (budget.entries > artifactEntryLimit) {
+        throw new Error(`declared output holds more than ${artifactEntryLimit} entries: ${absolute}`)
+      }
+      const child = NodePath.join(directory, entry.name)
+      const childStats = await Fs.lstat(child)
+      if (childStats.isSymbolicLink()) throw new Error(`declared output contains a symbolic link: ${child}`)
+      const relative = NodePath.relative(base, child).split(NodePath.sep).join("/")
+      if (childStats.isDirectory()) {
+        found.push(["directory", relative])
+        await collect(child, depth + 1)
+      } else if (childStats.isFile()) {
+        await publish(child, childStats.mode)
+      } else {
+        throw new Error(`declared output contains an entry that is not a file or a directory: ${child}`)
+      }
+    }
+  }
+  if (stats.isDirectory()) await collect(absolute, 0)
+  else if (stats.isFile()) await publish(absolute, stats.mode)
+  else throw new Error(`declared output is not a file or a directory: ${absolute}`)
+  found.sort((left, right) => byCodeUnit(left[1], right[1]))
+  return new TextEncoder().encode(JSON.stringify(found))
+}
+
+/**
+ * Publishes one declared output's bytes and returns the address of its tree
+ * manifest, or the reason it was not published.
+ *
+ * The address is the `contentDigest` the success payload already recorded, so
+ * a later run looks the tree up by the digest capture computed and never needs
+ * a second index. When the assembled manifest hashes to something else the
+ * store is skipped and the reason is returned: a blob filed under a digest the
+ * manifest does not name could never be found, and one filed under a digest it
+ * does not match would be a lie about the tree.
+ *
+ * @category execution
+ * @since 0.1.0
+ */
+export const publishOutput = async (options: {
+  readonly workspaceRoot: string
+  readonly cwd: string
+  readonly declared: string
+  readonly contentDigest: string
+  readonly blobs: ArtifactBlobs
+}): Promise<string | undefined> => {
+  let tree: Uint8Array
+  try {
+    tree = await packTree(await outputRoot(options.workspaceRoot, options.cwd, options.declared), options.blobs)
+  } catch (cause) {
+    return `output ${options.declared} could not be published: ${failureMessage(cause)}`
+  }
+  const measured = contentAddress(tree)
+  if (measured !== options.contentDigest) {
+    return `output ${options.declared} assembled a tree addressed ${measured}, not ${options.contentDigest}`
+  }
+  try {
+    await options.blobs.put(tree)
+  } catch (cause) {
+    return `output ${options.declared} could not be published: ${failureMessage(cause)}`
+  }
+  return undefined
+}
+
+/**
+ * One declared output's tree, read back out of the store.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface RestorableOutput {
+  readonly declared: string
+  readonly absolute: string
+  readonly entries: ReadonlyArray<TreeEntry>
+}
+
+/**
+ * Reads one declared output's tree manifest, or returns null when the store
+ * cannot produce it.
+ *
+ * Null is a cache miss, never a failure: a swept blob, an unreachable remote,
+ * and a manifest that no longer parses all mean the same thing, which is that
+ * the run has to execute the target.
+ *
+ * @category execution
+ * @since 0.1.0
+ */
+export const readRestorableOutput = async (options: {
+  readonly workspaceRoot: string
+  readonly cwd: string
+  readonly declared: string
+  readonly contentDigest: string
+  readonly blobs: ArtifactBlobs
+}): Promise<RestorableOutput | null> => {
+  let absolute: string
+  try {
+    absolute = await outputRoot(options.workspaceRoot, options.cwd, options.declared)
+  } catch {
+    return null
+  }
+  const bytes = await options.blobs.get(options.contentDigest)
+  if (bytes === null) return null
+  const entries = readTree(bytes)
+  if (entries === null) return null
+  return { declared: options.declared, absolute, entries }
+}
+
+/**
+ * Writes one previously read tree back to its declared path.
+ *
+ * The declared path is removed first, so a restore replaces the output rather
+ * than merging into whatever a failed run left behind. Every file is fetched
+ * by its own content address and written with the executable bit the manifest
+ * records, so the restored tree measures to the same digest the manifest was
+ * assembled from. The caller re-measures it afterwards; this function only
+ * fails, and the executor turns a failure into a miss.
+ *
+ * ## Boundary
+ *
+ * A manifest holding exactly one file whose relative path is the declared
+ * basename is the shape a file output produces, and also the shape a directory
+ * output holding one identically named file produces. `ToolBuild` digests both
+ * identically, so the manifest cannot distinguish them. The restore takes the
+ * file reading; the executor re-measures the result, so the directory case
+ * fails verification and re-executes rather than reporting a wrong tree green.
+ *
+ * @category execution
+ * @since 0.1.0
+ */
+export const restoreOutput = async (
+  output: RestorableOutput,
+  blobs: ArtifactBlobs
+): Promise<void> => {
+  const only = output.entries.length === 1 ? output.entries[0] : undefined
+  const asFile = only !== undefined && only[0] === "file" && only[1] === NodePath.basename(output.absolute)
+    ? only
+    : undefined
+  const writeFile = async (path: string, digest: string, executable: boolean): Promise<void> => {
+    const bytes = await blobs.get(digest)
+    if (bytes === null) throw new Error(`artifact ${digest} is no longer in the store`)
+    if (contentAddress(bytes) !== digest) throw new Error(`artifact ${digest} does not match its address`)
+    await Fs.mkdir(NodePath.dirname(path), { recursive: true })
+    await Fs.writeFile(path, bytes, { mode: executable ? 0o755 : 0o644 })
+    await Fs.chmod(path, executable ? 0o755 : 0o644)
+  }
+  await Fs.rm(output.absolute, { recursive: true, force: true })
+  if (asFile !== undefined) {
+    await writeFile(output.absolute, asFile[3], asFile[2])
+    return
+  }
+  await Fs.mkdir(output.absolute, { recursive: true })
+  for (const entry of output.entries) {
+    const path = NodePath.join(output.absolute, ...entry[1].split("/"))
+    if (!inside(output.absolute, path)) throw new Error(`restored path leaves its output: ${entry[1]}`)
+    if (entry[0] === "directory") await Fs.mkdir(path, { recursive: true })
+    else await writeFile(path, entry[3], entry[2])
+  }
+}
+
+/**
+ * Lists the file addresses one set of trees needs that the store does not
+ * hold.
+ *
+ * Every address is probed before a single byte is written, because a restore
+ * removes the declared output first: discovering a swept blob halfway through
+ * would leave a half-materialized tree where a whole one used to be.
+ *
+ * @category execution
+ * @since 0.1.0
+ */
+export const missingArtifacts = (
+  outputs: ReadonlyArray<RestorableOutput>,
+  blobs: ArtifactBlobs
+): Promise<ReadonlyArray<string>> =>
+  blobs.missing([
+    ...new Set(
+      outputs.flatMap((output) => output.entries.flatMap((entry) => entry[0] === "file" ? [entry[3]] : []))
+    )
+  ])
+
+/**
+ * Opens the workspace artifact store.
+ *
+ * Blobs live under `<workspaceRoot>/<cacheDirectory>/objects`, the sibling of
+ * the action cache's own directory, published atomically and digest-verified
+ * on every read by `@smthrs/artifacts`. When `endpoint` names an HTTP cache
+ * the tiers compose local-first through `CombinedArtifacts`, so a local hit
+ * never touches the network and a put writes both sides. Host access is a
+ * layer: the filesystem, the hash, and the HTTP client all arrive through
+ * Effect tags, and the promise surface here is the adapter the executor's
+ * promise-shaped scheduler needs.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const openArtifacts = async (opts: OpenArtifactsOptions): Promise<ArtifactBlobs> => {
+  const workspaceRoot = await Fs.realpath(NodePath.resolve(opts.workspaceRoot))
+  const directory = await ensureStoreDirectory(
+    workspaceRoot,
+    Config.normalizeCacheDirectory(opts.cacheDirectory ?? Config.defaultCacheDirectory),
+    "objects"
+  )
+  const endpoint = normalizeEndpoint(opts.endpoint)
+  const token = opts.token
+  const local = Effect.map(FileSystem.FileSystem, (fs) => ArtifactStore.makeFileSystem(fs, { directory }))
+  const tier = endpoint === undefined
+    ? Layer.effect(ArtifactStore.ArtifactStore)(local)
+    : CombinedArtifacts.layer({
+      local,
+      remote: RemoteArtifacts.make({
+        endpoint,
+        ...(token === undefined || token === ""
+          ? {}
+          : { headers: { authorization: `Bearer ${token}` } })
+      })
+    })
+  const runtime = ManagedRuntime.make(
+    Layer.provideMerge(
+      tier,
+      Layer.mergeAll(NodeFileSystem.layer, NodeCrypto.layer, FetchHttpClient.layer)
+    )
+  )
+  return {
+    put(bytes: Uint8Array): Promise<string> {
+      return runtime.runPromise(
+        Effect.gen(function*() {
+          const store = yield* ArtifactStore.ArtifactStore
+          return yield* store.put(bytes)
+        })
+      )
+    },
+    get(digest: string): Promise<Uint8Array | null> {
+      return runtime.runPromise(
+        Effect.gen(function*() {
+          const store = yield* ArtifactStore.ArtifactStore
+          return yield* store.get(digest)
+        }).pipe(Effect.catchCause(() => Effect.succeed<Uint8Array | null>(null)))
+      )
+    },
+    missing(digests: ReadonlyArray<string>): Promise<ReadonlyArray<string>> {
+      return runtime.runPromise(
+        Effect.gen(function*() {
+          const store = yield* ArtifactStore.ArtifactStore
+          return yield* store.findMissing(digests)
+        }).pipe(Effect.catchCause(() => Effect.succeed<ReadonlyArray<string>>(digests)))
+      )
+    },
+    async close(): Promise<void> {
+      await runtime.dispose()
     }
   }
 }
