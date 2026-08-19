@@ -66,6 +66,7 @@ import * as FlowEngineLike from "./FlowEngineLike.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Options {
   /** The durable session or lineage every call identity is scoped to. */
@@ -241,6 +242,7 @@ const withRequestPlugins = (
  *
  * @category streams
  * @since 0.1.0
+ * @slop
  */
 export const run = (
   options: Options
@@ -322,6 +324,7 @@ export const run = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer: Layer.Layer<Sandbox.Sandbox | Steering.Source> = Layer.merge(
   QuickJSSandbox.layer,

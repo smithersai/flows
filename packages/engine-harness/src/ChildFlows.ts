@@ -37,6 +37,7 @@ import { Context, Effect, Schema } from "effect"
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const SpawnInput = Schema.Struct({
   flow: Schema.String.annotate({ description: "The registered flow the child runs" }),
@@ -49,6 +50,7 @@ export const SpawnInput = Schema.Struct({
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const SpawnOutput = Schema.Struct({ child: Schema.String })
 
@@ -57,6 +59,7 @@ export const SpawnOutput = Schema.Struct({ child: Schema.String })
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const SendInput = Schema.Struct({
   child: Schema.String,
@@ -68,6 +71,7 @@ export const SendInput = Schema.Struct({
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const SendOutput = Schema.Struct({ delivered: Schema.Boolean })
 
@@ -76,6 +80,7 @@ export const SendOutput = Schema.Struct({ delivered: Schema.Boolean })
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const AwaitInput = Schema.Struct({ child: Schema.String })
 
@@ -84,6 +89,7 @@ export const AwaitInput = Schema.Struct({ child: Schema.String })
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const AwaitOutput = Schema.Struct({
   child: Schema.String,
@@ -97,6 +103,7 @@ const lifecycle = { reads: [], writes: [], mode: "expected", onConflict: "serial
  *
  * @category flows
  * @since 0.1.0
+ * @slop
  */
 export const spawnFlow = Flow.make({
   name: "agent/spawn",
@@ -111,6 +118,7 @@ export const spawnFlow = Flow.make({
  *
  * @category flows
  * @since 0.1.0
+ * @slop
  */
 export const sendFlow = Flow.make({
   name: "agent/send",
@@ -125,6 +133,7 @@ export const sendFlow = Flow.make({
  *
  * @category flows
  * @since 0.1.0
+ * @slop
  */
 export const awaitFlow = Flow.make({
   name: "agent/await",
@@ -144,6 +153,7 @@ export const awaitFlow = Flow.make({
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class ChildError extends Schema.TaggedError<ChildError>()(
   "flows/engine-harness/ChildError",
@@ -158,6 +168,7 @@ export class ChildError extends Schema.TaggedError<ChildError>()(
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export interface Children {
   readonly spawn: (
@@ -176,6 +187,7 @@ export interface Children {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export const Children: Context.Service<Children, Children> = Context.Service(
   "@smthrs/engine-harness/ChildFlows/Children"
@@ -192,6 +204,7 @@ const unavailable = (operation: string): ChildError =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (overrides: Partial<Children> = {}): Children =>
   Children.of({
@@ -206,6 +219,7 @@ export const makeNoop = (overrides: Partial<Children> = {}): Children =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const source = (children: Children): FlowBinding.Source =>
   FlowBinding.source("agent/children", [

@@ -76,6 +76,7 @@ import type * as WorkspaceSandbox from "./WorkspaceSandbox.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface RouteResolver {
   readonly prepare: (
@@ -88,6 +89,7 @@ export interface RouteResolver {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const routeResolver = <Body, Frame, Event, State>(
   route: Route.Route<Body, Frame, Event, State>
@@ -104,6 +106,7 @@ export const routeResolver = <Body, Frame, Event, State>(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface ChildRunner {
   readonly run: (
@@ -119,6 +122,7 @@ export interface ChildRunner {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface CallRunner {
   /**
@@ -148,6 +152,7 @@ export interface CallRunner {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface WorkspaceCallRunner {
   readonly authorize?: (
@@ -179,6 +184,7 @@ export interface WorkspaceCallRunner {
  *
  * @category conversions
  * @since 0.1.0
+ * @slop
  */
 export const workspaceRelative = (path: string): string => path.startsWith("/") ? path.slice(1) : path
 
@@ -193,6 +199,7 @@ export const workspaceRelative = (path: string): string => path.startsWith("/") 
  *
  * @category conversions
  * @since 0.1.0
+ * @slop
  */
 export const callBoundary = (call: Cell.Call): FileBoundary => ({
   readSet: call.effects.reads.map((path) => ({ path: workspaceRelative(path), digest: call.identity.declaration })),
@@ -211,6 +218,7 @@ export const callBoundary = (call: Cell.Call): FileBoundary => ({
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const callMaterial = (
   call: Cell.Call,
@@ -274,6 +282,7 @@ const childMaterial = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const appendBatch = (
   plan: PersistedPlan.Plan,
@@ -323,6 +332,7 @@ export const appendBatch = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const sandboxed = (
   sandbox: WorkspaceSandbox.Service,
@@ -379,6 +389,7 @@ export const sandboxed = (
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Options {
   readonly model: Model.Model
@@ -729,6 +740,7 @@ const boundaryKey = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (
   options: Options
@@ -898,6 +910,7 @@ export const make = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (
   options: Options

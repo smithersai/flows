@@ -76,6 +76,7 @@ import type * as FlowEngineLike from "./FlowEngineLike.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Seat {
   readonly model: Model.Model
@@ -94,6 +95,7 @@ export interface Seat {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Host {
   /** Turns a `provider:modelId` seat into a model, a route, and a window. */
@@ -119,6 +121,7 @@ export interface Host {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export const Host: Context.Service<Host, Host> = Context.Service(
   "@smthrs/engine-harness/AgentAction/Host"
@@ -129,6 +132,7 @@ export const Host: Context.Service<Host, Host> = Context.Service(
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeHost = (host: Host): Host => Host.of(host)
 
@@ -137,6 +141,7 @@ export const makeHost = (host: Host): Host => Host.of(host)
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerHost = (host: Host): Layer.Layer<Host> => Layer.succeed(Host)(makeHost(host))
 
@@ -149,6 +154,7 @@ export const layerHost = (host: Host): Layer.Layer<Host> => Layer.succeed(Host)(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const AgentFailure = Schema.Union([
   StructuredOutput.StructuredOutputFailure,
@@ -161,6 +167,7 @@ export const AgentFailure = Schema.Union([
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type AgentFailure = typeof AgentFailure.Type
 
@@ -171,6 +178,7 @@ export type AgentFailure = typeof AgentFailure.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type PayloadSchemaOf<Payload extends Schema.Struct.Fields | Flow.AnyStructSchema> = Payload extends
   Schema.Struct.Fields ? Schema.Struct<Payload> : Payload
@@ -180,6 +188,7 @@ export type PayloadSchemaOf<Payload extends Schema.Struct.Fields | Flow.AnyStruc
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Options<
   Payload extends Schema.Struct.Fields | Flow.AnyStructSchema,
@@ -216,6 +225,7 @@ export interface Options<
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface AgentAction<
   Tag extends string,
@@ -276,6 +286,7 @@ const completedOutput = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = <
   const Tag extends string,
