@@ -1002,13 +1002,6 @@ export const createAppStore = async (
 					});
 					break;
 
-				case "agent.backend.changed":
-					collections.sessions.update(SESSION_ID, (draft) => {
-						draft.agentBackend = transition.backend;
-						draft.revision = revision;
-					});
-					break;
-
 				case "chain.turn.resumed":
 					if (current.phase !== "idle") return;
 					collections.sessions.update(SESSION_ID, (draft) => {

@@ -126,6 +126,14 @@ const streamFrames = async (
  * chat.smithers.sh credentials and origin server-side, then renders the streamed
  * NDJSON AgentTurnFrames exactly like the native bridge does.
  */
+/*
+ * NOT a chat backend. The browser chat runs the Agent Chain in the page and
+ * spends a model only through /api/model/stream (DESIGN.md §14); nothing in
+ * src/mainview composes this client. It remains the client for the
+ * `/api/agent/turn` seam the Worker still serves for the terminal client
+ * (apps/tui) and the native shell, and it is what the e2e harness drives to
+ * hold that seam to its contract.
+ */
 export const createWebAgent = (options: WebAgentOptions = {}): NativeAgent => {
 	const baseUrl = options.baseUrl ?? "";
 	const fetchImpl = options.fetchImpl ?? fetch.bind(globalThis);

@@ -100,16 +100,16 @@ const messageItems = (
 	}
 	// Thinking is never replayed: the upstream owns its own reasoning and
 	// accepts no signature to echo back.
-	const text = message.content
-		.filter((part): part is ModelRequest.TextPart => part.type === "text")
-		.map((part) => part.text)
+	const parts: ReadonlyArray<ModelRequest.AssistantContentPart> = message.content;
+	const text = parts
+		.flatMap((part) => (part.type === "text" ? [part.text] : []))
 		.join("\n");
 	const items: Array<ChatMessage> = [];
 	// An empty turn cannot ride the wire — the upstream rejects blank content —
 	// and a blank user message is the only shape that would produce one.
 	if (text !== "") items.push({ role: message.role, content: text });
 	if (message.role === "assistant") {
-		for (const part of message.content) {
+		for (const part of parts) {
 			if (part.type !== "tool-call") continue;
 			items.push({
 				type: "function_call",
