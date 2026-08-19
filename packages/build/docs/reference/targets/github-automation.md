@@ -96,6 +96,10 @@ install, any `downloads`, the work step, and any `uploads`. `checkout` and
 `install` can be turned off; a `verb` job may not turn off `install`, because
 the binary it runs would not exist.
 
+A `caches` entry renders an `actions/cache@v4` step, and is **refused** on an
+untrusted-input job for the same reason a secret is: a cache an
+attacker-influenced job can write is a channel into the next run.
+
 Artifacts are the only channel between an untrusted-input sandbox and the
 trusted job that acts on its result. The sandbox holds no credential, so it
 cannot post anything; it writes a file, and a gated job with the token reads
@@ -157,6 +161,7 @@ Shared by all three constructors:
 | `install`         | `boolean`                         | `true`             | Whether the job installs the workspace.                                          |
 | `downloads`       | `Array<Artifact>`                 | `[]`               | Downloaded before the work step.                                                 |
 | `uploads`         | `Array<Artifact>`                 | `[]`               | Uploaded after it, with `if-no-files-found: error`.                              |
+| `caches`          | `Array<Cache>`                    | `[]`               | `actions/cache@v4` steps. Refused on an untrusted-input job.                     |
 
 `agent` adds `entry` (a lowercase `.ts` file directly under
 `factory/automation`) and `args` (plain words). `verb` adds `verb` and

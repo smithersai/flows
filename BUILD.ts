@@ -384,7 +384,16 @@ export const prReview = Smithers.GithubAutomation({
       timeoutMinutes: 45,
       permissions: { contents: "read", "pull-requests": "write" },
       secrets: [anthropicKey],
-      env: githubToken
+      env: githubToken,
+      // The verdict is a function of the diff and the rubrics, so a push that
+      // changes nothing about the diff must not pay for a second review. The
+      // key rotates per commit and the restore key falls back to the previous
+      // one on the same pull request.
+      caches: [{
+        path: ".flows/pr-review",
+        key: "pr-review-${{ github.event.pull_request.number }}-${{ github.sha }}",
+        restoreKeys: ["pr-review-${{ github.event.pull_request.number }}-"]
+      }]
     })
   ]
 })

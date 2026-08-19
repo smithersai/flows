@@ -306,6 +306,34 @@ export const Permissions = Schema.Record(Schema.String, PermissionLevel)
 export type Permissions = typeof Permissions.Type
 
 /**
+ * One directory a job restores and saves across runs.
+ *
+ * A cache is the only state a generated automation workflow carries between
+ * runs, so it is refused on an `untrustedInput` job: a cache a job can write
+ * is a channel, and a channel between an attacker-influenced job and the next
+ * run is exactly the thing this rule exists to prevent.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const Cache = Schema.Struct({
+  path: Schema.NonEmptyString.check(Schema.isMaxLength(512)),
+  key: Schema.NonEmptyString.check(Schema.isMaxLength(512)),
+  /** Prefixes a partial restore may match. @default [] */
+  restoreKeys: Schema.Array(Schema.NonEmptyString.check(Schema.isMaxLength(512))).pipe(
+    Schema.withConstructorDefault(Effect.succeed<ReadonlyArray<string>>([]))
+  )
+})
+
+/**
+ * One directory a job restores and saves across runs.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type Cache = typeof Cache.Type
+
+/**
  * One workflow artifact a job publishes or consumes.
  *
  * Artifacts are the only channel between an untrusted-input sandbox job and
@@ -389,6 +417,10 @@ const jobFields = {
   /** Artifacts the job uploads after its work step. @default [] */
   uploads: Schema.Array(Artifact).pipe(
     Schema.withConstructorDefault(Effect.succeed<ReadonlyArray<Artifact>>([]))
+  ),
+  /** Directories restored and saved across runs. Refused on an untrusted-input job. @default [] */
+  caches: Schema.Array(Cache).pipe(
+    Schema.withConstructorDefault(Effect.succeed<ReadonlyArray<Cache>>([]))
   )
 }
 
@@ -609,6 +641,12 @@ export const checkUntrustedJob = (job: Job): void => {
   if (job._tag === "script" && reachesSecret(job.run)) {
     refuseJob(job.id, "declares untrustedInput and reaches a credential in its script")
   }
+  if (job.caches.length > 0) {
+    refuseJob(
+      job.id,
+      "declares untrustedInput and a cache; a cache an attacker-influenced job writes is a channel into the next run"
+    )
+  }
   const elevated = Object.entries(job.permissions).filter(([, level]) => level === "write")
   if (elevated.length > 0) {
     refuseJob(
@@ -789,6 +827,17 @@ const setupSteps = (job: Job, attrs: Attrs, install: string): ReadonlyArray<stri
       ),
       ...renderStep({ run: install }, "      ")
     )
+  }
+  for (const cache of job.caches) {
+    lines.push(...renderStep({
+      name: `Cache ${cache.path}`,
+      uses: "actions/cache@v4",
+      with: {
+        path: cache.path,
+        key: cache.key,
+        ...(cache.restoreKeys.length === 0 ? {} : { "restore-keys": cache.restoreKeys.join("\n") })
+      }
+    }, "      "))
   }
   for (const artifact of job.downloads) {
     lines.push(...renderStep({

@@ -81,6 +81,19 @@ describe("render", () => {
     expect(rendered).toContain("pnpm exec smthrs test '//packages/...'")
   })
 
+  it("renders a cache step for a trusted job", () => {
+    const rendered = render(attrs({
+      jobs: [agent({
+        id: "review",
+        entry: "review.ts",
+        caches: [{ path: ".flows/pr-review", key: "k-${{ github.sha }}", restoreKeys: ["k-"] }]
+      })]
+    }))
+    expect(rendered).toContain("uses: actions/cache@v4")
+    expect(rendered).toContain("path: \".flows/pr-review\"")
+    expect(rendered).toContain("restore-keys: k-")
+  })
+
   it("renders no trailing whitespace and one trailing newline", () => {
     const rendered = render(attrs({
       jobs: [script({ id: "post", run: "echo one\n\necho two" })]
@@ -131,6 +144,11 @@ describe("the untrusted-input boundary", () => {
       .toThrow(/reaches a credential through env.GH_TOKEN/)
     expect(() => render(sandbox({ env: { TOKEN: "${{ secrets.GITHUB_TOKEN }}" } })))
       .toThrow(/reaches a credential through env.TOKEN/)
+  })
+
+  it("refuses a cache on an untrusted-input job", () => {
+    expect(() => render(sandbox({ caches: [{ path: ".flows/x", key: "k" }] })))
+      .toThrow(/a channel into the next run/)
   })
 
   it("refuses write permission on an untrusted-input job", () => {

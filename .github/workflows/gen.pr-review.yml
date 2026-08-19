@@ -25,6 +25,12 @@ jobs:
           node-version: 22.19.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Cache .flows/pr-review
+        uses: actions/cache@v4
+        with:
+          path: ".flows/pr-review"
+          key: "pr-review-${{ github.event.pull_request.number }}-${{ github.sha }}"
+          restore-keys: "pr-review-${{ github.event.pull_request.number }}-"
       - name: Run review
         run: node factory/automation/review.ts
         env:
