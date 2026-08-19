@@ -113,6 +113,10 @@ export { Typecheck } from "./Typecheck.ts"
 /** @category targets @since 0.1.0 */
 export { Vitest } from "./Vitest.ts"
 /** @category targets @since 0.1.0 */
+export { BunTest } from "./BunTest.ts"
+/** @category targets @since 0.1.0 */
+export { BunTestCoverage } from "./BunTestCoverage.ts"
+/** @category targets @since 0.1.0 */
 export { VitestCoverage } from "./VitestCoverage.ts"
 /** @category targets @since 0.1.0 */
 export { VitestWatch } from "./VitestWatch.ts"

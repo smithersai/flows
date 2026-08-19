@@ -232,7 +232,7 @@ const optedOut = declarations.filter((entry) => entry.cache === "false").map((en
 
 describe("the catalog's cache decisions", () => {
   it("finds every rule declaration", () => {
-    expect(declarations.length).toBe(32)
+    expect(declarations.length).toBe(34)
   })
 
   it("leaves exactly nine build, test, and lint rules on the default", () => {
@@ -284,7 +284,16 @@ describe("the catalog's cache decisions", () => {
     // is generateFilePair's check half; both are read as written.
     expect(computed.map((entry) => entry.rule)).toEqual(["GithubCiGen", "ToolBuild"])
     expect(declarations.filter((entry) => entry.cache === "true").map((entry) => entry.rule))
-      .toEqual(["DocsParity", "ruleId", "`${options.target}Check`", "NodeTest", "PackageJsonCheck", "ScriptCheck"])
+      .toEqual([
+        "BunTest",
+        "BunTestCoverage",
+        "DocsParity",
+        "ruleId",
+        "`${options.target}Check`",
+        "NodeTest",
+        "PackageJsonCheck",
+        "ScriptCheck"
+      ])
   })
 })
 
