@@ -94,6 +94,8 @@ export { ExpandFilegroup, ExpandFilegroupLive, FilegroupError } from "./Filegrou
 export { isFilegroup } from "./Filegroup.ts"
 /** @category targets @since 0.1.0 */
 export { Install } from "./Install.ts"
+/** @category constructors @since 0.1.0 */
+export { NpmLock } from "./NpmLock.ts"
 /** @category targets @since 0.1.0 */
 export { Lockfile } from "./Lockfile.ts"
 /** @category targets @since 0.1.0 */

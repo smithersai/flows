@@ -8,6 +8,7 @@ import * as Config from "@smthrs/targets/Config"
 import { isFilegroup } from "@smthrs/targets/Filegroup"
 import { writeGeneratedFile } from "@smthrs/targets/GeneratedFile"
 import * as Input from "@smthrs/targets/Input"
+import * as NpmLock from "@smthrs/targets/NpmLock"
 import * as PackageDefaults from "@smthrs/targets/PackageDefaults"
 import * as PackageJson from "@smthrs/targets/PackageJson"
 import * as PackageManager from "@smthrs/targets/PackageManager"
@@ -1765,6 +1766,16 @@ export class Workspace {
         })
         const files = await Input.digestFiles(this.root, matches, { signal: this.signal })
         const input = { declaration, files, digest: Input.digestText(JSON.stringify(files)) }
+        this.inputPackages.set(input, packagePath)
+        expanded.push(input)
+        continue
+      }
+      if (declaration._tag === "NpmPackage") {
+        // The closure digest was resolved from the lockfile when the
+        // declaration was built, so expansion reads nothing: no file is
+        // opened here and `node_modules` is never walked.
+        const files: ReadonlyArray<FileDigest> = []
+        const input = { declaration, files, digest: NpmLock.npmPackageDigest(declaration) }
         this.inputPackages.set(input, packagePath)
         expanded.push(input)
         continue

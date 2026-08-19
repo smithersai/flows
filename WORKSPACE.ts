@@ -33,3 +33,13 @@ export const packageManager = Smithers.PackageManager.Pnpm({ version: "11.21.0",
  * version bump here invalidates every target.
  */
 export const toolchain = Smithers.registerToolchains({ runtime, packageManager })
+
+/**
+ * Per-package npm addressing. `npm("effect")` declares one lockfile package
+ * as a content-addressed input: the declaration digests the package's
+ * lockfile entries and their transitive closure, so a target re-keys when the
+ * package changes and stays stable when an unrelated entry changes. The
+ * installed `node_modules` tree is never read, so the input-expansion guard
+ * that refuses `node_modules` is untouched.
+ */
+export const npm = Smithers.NpmLock({ lockfile: Smithers.file("//pnpm-lock.yaml") })

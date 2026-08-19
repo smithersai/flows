@@ -73,12 +73,45 @@ export const GitDiff = Schema.TaggedStruct("GitDiff", {
 export type GitDiff = typeof GitDiff.Type
 
 /**
+ * Schema for one npm package the workspace lockfile resolves.
+ *
+ * The declaration is keyed on the lockfile entry — the package name, every
+ * version the lockfile resolves for that name, and `closure`, a digest of
+ * those entries and their transitive dependency closure — rather than on
+ * files under `node_modules`, which declared-input expansion refuses to walk.
+ * `NpmLock` resolves the fields; constructors in this module stay inert.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const NpmPackage = Schema.TaggedStruct("NpmPackage", {
+  /** The package name as the dependent imports it. */
+  name: Schema.NonEmptyString,
+  /** Every `name@version` key the lockfile resolves for the name, sorted. */
+  versions: Schema.Array(Schema.NonEmptyString),
+  /**
+   * A digest of the resolved entries — name, version, and resolution
+   * integrity — and of the transitive dependency closure the lockfile records
+   * for them.
+   */
+  closure: Schema.NonEmptyString
+})
+
+/**
+ * One npm package the workspace lockfile resolves.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type NpmPackage = typeof NpmPackage.Type
+
+/**
  * Schema for every declared input value the planner understands.
  *
  * @category schemas
  * @since 0.1.0
  */
-export const Declared = Schema.Union([Glob, File, GitDiff])
+export const Declared = Schema.Union([Glob, File, GitDiff, NpmPackage])
 
 /**
  * Every declared input value the planner understands.
