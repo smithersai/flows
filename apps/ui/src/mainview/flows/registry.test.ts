@@ -143,6 +143,24 @@ describe("command registry pure model", () => {
 		expect(items.filter((item) => item.recommended)).toHaveLength(2);
 	});
 
+	/*
+	 * §1.2: signed out, the listing offers only what works signed out. The
+	 * flows that need a session stay INVOKABLE — typing one defers through
+	 * sign-in (§6.2) — they are just not presented as available.
+	 */
+	test("the signed-out listing offers nothing that needs a session", () => {
+		const commands = [
+			{ name: "auth.sign-in", summary: "Sign in with GitHub" },
+			{ name: "auth.sign-out", summary: "Sign out", requires: ["signed-in"] },
+			{ name: "issues.create", summary: "Create an issue", requires: ["signed-in"] },
+			{ name: "world", summary: "What Smithers understands" },
+		];
+		const signedOut = slashItems({ ...chatState, signedOut: true }, "", commands);
+		expect(signedOut.map((item) => item.flow.name)).toEqual(["auth.sign-in", "world"]);
+		const signedIn = slashItems(chatState, "", commands);
+		expect(signedIn.map((item) => item.flow.name)).toContain("issues.create");
+	});
+
 	describe("the slash menu caps at SLASH_MENU_CAP", () => {
 		// 20 flows named a0..a19, all prefix-matching "a" and all containing "a".
 		const many = Array.from({ length: 20 }, (_, index) => ({
@@ -250,17 +268,28 @@ describe("command registry pure model", () => {
 			"goal",
 			"hello /goal",
 			"//goal",
-			"/unknown",
-			"/unknown words",
 			"/Goal",
 			"/GOAL",
 			"/goal!",
 			"/goal/child",
 			"/goal..show",
-			"/goal.show.more",
 			"/no-args surprise",
 		])("keeps %j as an agent prompt", (input) => {
 			expect(parseSubmit(input, commands)).toEqual({ kind: "prompt", text: input.trim() });
+		});
+
+		/*
+		 * §23.5: flow SYNTAX that names no registered flow is the app's to
+		 * answer. Handing it to the model as prose is what made `/reset` on a
+		 * non-admin session run `retry`.
+		 */
+		test.each([
+			["/unknown", "unknown"],
+			["/unknown words", "unknown"],
+			["/goal.show.more", "goal.show.more"],
+			["/reset", "reset"],
+		])("refuses %j by name instead of improvising", (input, name) => {
+			expect(parseSubmit(input, commands)).toEqual({ kind: "unknown-command", name });
 		});
 
 		test("does not mutate the registry or depend on command order", () => {

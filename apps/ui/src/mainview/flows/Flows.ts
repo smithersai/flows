@@ -527,9 +527,12 @@ export const baseFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> => 
 		handler: () => actions.promptSignIn(),
 	}),
 	flow({
+		/* Signing out needs a session: offering it signed out is the clearest
+		   case of a listing that names a step the user cannot take (§1.2). */
 		name: "auth.sign-out",
 		summary: "Sign out of Smithers",
 		userOnly: true,
+		requires: ["signed-in"],
 		input: NoPayload,
 		handler: () => actions.signOut(),
 	}),
