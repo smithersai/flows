@@ -24,12 +24,13 @@ you tested. A row you could not reach is a finding, not a blank.
 
 ## §0 Before you start
 
-- [ ] **0.1** Deploy first. `[gap]` The live canary bundle predates the
-      `command`→`flow` rename and is missing every `apps/` commit since
-      2026-08-15. Testing the deployed app measures the wrong build. Confirm
-      the origin you are about to test serves the current commit: open
-      devtools and check that the app shell carries `data-flows`, and that at
-      least one element carries `data-flow=` (not `data-command=`).
+- [x] **0.1** RESOLVED 2026-08-19. The canary served a pre-rename bundle
+      (`assets/index-Dwyun-Xv.js`, `data-flow` absent) until it was redeployed;
+      it now serves `assets/index-BHHXuMoZ.js` with 40 `data-flow` attributes,
+      zero `data-command`, and `data-flows` on the shell. Re-confirm before any
+      future run: fetch `/`, extract the `assets/index-*.js` name, and check the
+      bundle contains `data-flow`. A browser row run against a stale bundle
+      grades nothing, however many rows the runner claims to have checked.
 - [ ] **0.2** Decide the surface under test and note it: local web
       (`bun run web`, port 5173), local worker (`bun run serve:local`),
       deployed canary, or the Electrobun desktop build. The nine backing
@@ -287,6 +288,17 @@ Run the flow, read the card, resize the window, switch theme, and reload.
       something only a note says.
 
 ## §11 Connectors surface
+
+> **Surface note (found live 2026-08-19).** Connectors are a NATIVE-only
+> capability. The "Local repository" row renders only when
+> `controller.nativeRepositories` exists, so on the web origin
+> (`canary.smithers.sh`) no connector can be created — which makes 11.3, 11.4,
+> 11.5 and 11.7 ungradeable there, with 0 `.connected-repository-card` and 0
+> `button[aria-label^="Remove"]` in the DOM. Those rows are **not applicable to
+> the web surface**, not failures: grade them on the Electrobun build (§27) and
+> record them as N/A for web. 11.1, 11.2 and 11.6 DO apply to web — 11.6 is a
+> real failure there (the empty state names no next step).
+
 
 - [ ] **11.1** `/connect` opens the pane and lists connectors with the right
       state.
@@ -731,22 +743,50 @@ passes when the success path is right **and** the failure path is honest.
 
 ---
 
-## Appendix C — known gaps, so you do not rediscover them
+## Appendix C — known gaps
 
-1. The deployed canary predates the `command`→`flow` rename and is missing
-   every `apps/` commit since 2026-08-15. Deploy before measuring anything.
-2. Recommendation rows A-8 and A-9 self-poison: a dismissal suppresses the
-   recommendation for 7 days and there is no reset route. Use a fresh login per
-   run, or add `DELETE /api/reco/admin/dismissals`.
-3. The nine backing Cloudflare Workers are not in the release repo. They live
-   at `~/flows/ui/workers/` on `wave5-billing-bridge` with uncommitted
-   identity-worker edits. `apps-deploy.yml` deploys only `smithers-mvp-web`.
-4. U9: the vite root is a literal, there is no root `dev` script, and four
-   Playwright `live-*.ts` scripts under `scripts/` are unrunnable and
-   untypechecked.
-5. U10: slash dispatch has no exact-name precedence.
-6. There is no rate limit on the turn seam.
-7. Client errors are only `console.error`; there is no client error reporting.
-8. `apps-deploy.yml` runs no tests before deploying.
-9. Hard blockers on the plue side: gateway VMs have no AI-provider credential,
-   and wedged VMs do not resume.
+Status as of 2026-08-19. Six of the original nine closed the same day; do not
+report a closed one as a finding.
+
+**Closed**
+
+1. ~~The deployed canary predates the `command`→`flow` rename.~~ Redeployed;
+   live bundle is `assets/index-BHHXuMoZ.js` and carries `data-flow`.
+2. ~~Recommendation rows A-8/A-9 self-poison with no reset door.~~ Closed by
+   `1dd856f1` "stop A-8 and A-9 poisoning the account they grade". The door is
+   `DELETE /api/admin/reco-dismissals?login=<login>` (admin-gated) and the
+   surfaces lane used it successfully.
+3. ~~U9: untyped `scripts/`, vite root literal, no root `dev`.~~ Closed by
+   `12018780`.
+4. ~~U10: no exact-name precedence in slash dispatch.~~ Closed by `12018780`
+   ("name the flow you typed").
+5. ~~No rate limit on the turn seam.~~ Closed by `a80eeebb`.
+6. ~~Client errors only reach `console.error`.~~ Closed by `a80eeebb`
+   (`apps/server/src/clientErrorLog.ts`).
+7. ~~`apps-deploy.yml` runs no tests before deploying.~~ It now typechecks and
+   tests all four apps and dry-runs the launch checklist first.
+
+**Still open**
+
+8. **The `sync` worker is undeployed.** Its test suite cannot import:
+   `workers/sync/src/index.test.ts` reaches into the flows monorepo for
+   `Journal.ts`, which calls `Schema.TaggedError` — that symbol exists in
+   effect `4.0.0-rc.108` (flows) but is `Schema.TaggedErrorClass` in
+   `4.0.0-beta.102` (the ui repo), so it dies with `TypeError: TaggedError is
+   not a function` before a single test runs. Cross-repo dependency drift.
+   `sync.smithers.sh` is live on its 2026-08-04 build. The other eight workers
+   were redeployed 2026-08-19 (`62a828e`); `status` had never been deployed at
+   all before that.
+9. **Agents are dark in production.** `feature_flags.agents` is off because
+   `sandbox.agent_snapshot_id` is empty, and no agent VM snapshot had ever been
+   baked. `aaa7cf8da` adds the bake to the release; until it lands and the id is
+   promoted, every agent-dependent row is untestable rather than failing.
+10. **All CronJobs are absent cluster-wide**, including
+    `smithers-backend-canary-cheap`, so prod canary monitoring is silent.
+    Suspected interaction between the `agentsEnabled` guard added to
+    `canary-cronjob.yaml` and the agents flag being shipped off.
+
+**Not a gap, a possible spec bug in this document:** row 3.4 requires
+"$500 of usage on us" to appear exactly once. On canary it appears **zero**
+times, and the access lane judged the product probably right. Confirm the
+intended copy before treating 3.4 as a defect.
