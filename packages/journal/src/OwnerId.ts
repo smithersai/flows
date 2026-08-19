@@ -19,6 +19,7 @@ import * as Schema from "effect/Schema"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const OwnerId = Schema.Struct({
   hostId: Schema.String,
@@ -31,5 +32,6 @@ export const OwnerId = Schema.Struct({
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type OwnerId = typeof OwnerId.Type

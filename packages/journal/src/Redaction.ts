@@ -37,6 +37,7 @@ const UnknownFromJsonString = Schema.fromJsonString(Schema.Unknown)
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Rule {
   readonly id: string
@@ -49,6 +50,7 @@ export interface Rule {
  *
  * @since 0.1.0
  * @category constants
+ * @slop
  */
 export const placeholder = "[REDACTED]"
 
@@ -58,6 +60,7 @@ export const placeholder = "[REDACTED]"
  *
  * @since 0.1.0
  * @category constants
+ * @slop
  */
 export const defaultRules: ReadonlyArray<Rule> = [
   {
@@ -87,6 +90,7 @@ const sensitiveKeySuffixes = ["authorization", "cookie", "apikey", "token", "pas
  *
  * @since 0.1.0
  * @category predicates
+ * @slop
  */
 export const isSensitiveKey = (key: string): boolean => {
   const canonical = key.toLowerCase().replace(/[^a-z0-9]/g, "")
@@ -108,6 +112,7 @@ const redactString = (value: string, rules: ReadonlyArray<Rule>): string =>
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Options {
   readonly rules?: ReadonlyArray<Rule> | undefined
@@ -124,6 +129,7 @@ export interface Options {
  *
  * @since 0.1.0
  * @category redaction
+ * @slop
  */
 export const redact = (value: unknown, options?: Options): unknown => {
   const rules = options?.rules ?? defaultRules
@@ -158,6 +164,7 @@ export const redact = (value: unknown, options?: Options): unknown => {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type Redactor = (value: unknown) => unknown
 
@@ -166,6 +173,7 @@ export type Redactor = (value: unknown) => unknown
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const make = (options?: Options): Redactor => (value) => redact(value, options)
 
@@ -181,6 +189,7 @@ export const make = (options?: Options): Redactor => (value) => redact(value, op
  *
  * @since 0.1.0
  * @category redaction
+ * @slop
  */
 export const redactJsonString = (json: string, redactor: Redactor): string => {
   const decoded = Schema.decodeUnknownResult(UnknownFromJsonString)(json)
@@ -195,5 +204,6 @@ export const redactJsonString = (json: string, redactor: Redactor): string => {
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const makeNoop = (): Redactor => (value) => value

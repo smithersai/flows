@@ -77,6 +77,7 @@ const UnknownFromJsonString = Schema.fromJsonString(Schema.Unknown)
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface CompactionPolicy {
   readonly entryThreshold: number
@@ -88,6 +89,7 @@ export interface CompactionPolicy {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface SqlJournalOptions {
   readonly capacity: number
@@ -320,6 +322,7 @@ const isJournalError = Schema.is(JournalError)
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (
   options: SqlJournalOptions

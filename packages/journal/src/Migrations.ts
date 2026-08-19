@@ -23,6 +23,7 @@ import checkpoints from "./migrations/0002_checkpoints.ts"
  *
  * @category migrations
  * @since 0.1.0
+ * @slop
  */
 export const set: DatabaseMigrations.MigrationSet = {
   namespace: "journal",
@@ -38,6 +39,7 @@ export const set: DatabaseMigrations.MigrationSet = {
  *
  * @category migrations
  * @since 0.1.0
+ * @slop
  */
 export const run = DatabaseMigrations.run([set])
 
@@ -47,5 +49,6 @@ export const run = DatabaseMigrations.run([set])
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = Layer.effectDiscard(run)

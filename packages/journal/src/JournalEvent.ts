@@ -12,6 +12,7 @@ import * as Schema from "effect/Schema"
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const RunId = Schema.String.pipe(Schema.brand("@smthrs/journal/JournalEvent/RunId"))
 
@@ -20,6 +21,7 @@ export const RunId = Schema.String.pipe(Schema.brand("@smthrs/journal/JournalEve
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type RunId = typeof RunId.Type
 
@@ -28,6 +30,7 @@ export type RunId = typeof RunId.Type
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const Seq = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)).pipe(
   Schema.brand("@smthrs/journal/JournalEvent/Seq")
@@ -38,6 +41,7 @@ export const Seq = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)).pipe(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Seq = typeof Seq.Type
 
@@ -46,6 +50,7 @@ export type Seq = typeof Seq.Type
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const SourceId = Schema.String.pipe(Schema.brand("@smthrs/journal/JournalEvent/SourceId"))
 
@@ -54,6 +59,7 @@ export const SourceId = Schema.String.pipe(Schema.brand("@smthrs/journal/Journal
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type SourceId = typeof SourceId.Type
 
@@ -62,6 +68,7 @@ export type SourceId = typeof SourceId.Type
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const SourceSeq = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)).pipe(
   Schema.brand("@smthrs/journal/JournalEvent/SourceSeq")
@@ -72,6 +79,7 @@ export const SourceSeq = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)).pipe
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type SourceSeq = typeof SourceSeq.Type
 
@@ -83,6 +91,7 @@ export type SourceSeq = typeof SourceSeq.Type
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export class Input extends Schema.Class<Input>("@smthrs/journal/JournalEvent/Input")({
   runId: RunId,
@@ -102,6 +111,7 @@ export class Input extends Schema.Class<Input>("@smthrs/journal/JournalEvent/Inp
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export class Entry extends Schema.Class<Entry>("@smthrs/journal/JournalEvent/Entry")({
   runId: RunId,
@@ -125,6 +135,7 @@ export class Entry extends Schema.Class<Entry>("@smthrs/journal/JournalEvent/Ent
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeEventId = (runId: RunId, sourceId: SourceId, sourceSeq: SourceSeq): string =>
   `flows:event:${runId.length}:${runId}${sourceId.length}:${sourceId}${sourceSeq}`
