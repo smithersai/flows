@@ -14,9 +14,11 @@ import * as PackageManager from "@smthrs/targets/PackageManager"
 import * as RemoteCache from "@smthrs/targets/RemoteCache"
 import * as SafeFs from "@smthrs/targets/SafeFs"
 import * as Target from "@smthrs/targets/Target"
+import type * as Visibility from "@smthrs/targets/Visibility"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
+import { minimatch } from "minimatch"
 import { execFile } from "node:child_process"
 import * as NodeFs from "node:fs"
 import * as Fs from "node:fs/promises"
@@ -24,6 +26,7 @@ import * as NodePath from "node:path"
 import { pathToFileURL } from "node:url"
 import { tsImport } from "tsx/esm/api"
 import { buildModuleUrl, installEffectResolution } from "./effect-resolution.js"
+import * as Imports from "./Imports.ts"
 import * as Label from "./Label.ts"
 
 // Workspace is also imported as a library by tests and embedding hosts that do
@@ -74,6 +77,27 @@ export interface BuildModule {
 export interface PackageDefaultsEntry {
   readonly declaration: PackageDefaults.PackageDefaults
   readonly packagePath: string
+  /**
+   * The name the declaring module exported the declaration under. It orders
+   * two declarations from one BUILD.ts file, which import order cannot.
+   */
+  readonly name: string
+}
+
+/**
+ * A declared glob and the subpackage boundary that truncated its expansion.
+ *
+ * `pattern` is the glob as declared, `directory` is the workspace-relative
+ * subpackage directory the walk stopped at, and `examples` names files the
+ * glob matched before that directory became a package, in sorted order.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface PrunedGlob {
+  readonly pattern: string
+  readonly directory: string
+  readonly examples: ReadonlyArray<string>
 }
 
 const posix = (value: string): string => value.split(NodePath.sep).join("/")
@@ -848,6 +872,14 @@ export class Workspace {
   private readonly targetLabels = new Map<Target.AnyTarget, string>()
   private readonly synthesized = new Map<string, ReadonlyMap<string, Target.AnyTarget>>()
   private readonly inputPackages = new WeakMap<ExpandedInput, string>()
+  /** Parsed package manifests, by the directory that holds them. */
+  private readonly manifests = new Map<string, Visibility.PackageManifest | undefined>()
+  /** Scanned import lists, by workspace-relative source path. */
+  private readonly scanned = new Map<string, Promise<ReadonlyArray<Imports.Import>>>()
+  /** Which target of a build unit declares which file, by unit directory. */
+  private readonly declaringTargets = new Map<string, Promise<ReadonlyMap<string, ReadonlyArray<string>>>>()
+  /** Whether any BUILD.ts file in the workspace names a visibility at all. */
+  private visibilityProbe: Promise<boolean> | undefined
   /** BUILD.ts files whose import has started and not finished. */
   private readonly importing = new Set<string>()
   /** Cancels discovery, input expansion, planning, and execution as one operation. */
@@ -1020,9 +1052,7 @@ export class Workspace {
         this.register(targets, packagePath, name, value)
       } else if (PackageDefaults.isPackageDefaults(value)) {
         defaults.push(value)
-        if (!this.defaultRules.some((entry) => entry.declaration === value)) {
-          this.defaultRules.push({ declaration: value, packagePath })
-        }
+        this.addDefaultRule({ declaration: value, packagePath, name })
       } else if (PackageJson.isDeclaration(value)) {
         declarations.push([name, value])
       }
@@ -1096,6 +1126,27 @@ export class Workspace {
 
   private hasFile(path: string): boolean {
     return this.files.includes(path)
+  }
+
+  /**
+   * Records one default-target declaration in declaration order.
+   *
+   * "First eligible wins" only names one declaration when the list itself is
+   * ordered by something the workspace declares. Import order is not that:
+   * `//x` alone loads one BUILD.ts, `//...` loads every BUILD.ts, and the two
+   * would hand overlapping declarations to a directory in different orders.
+   * The order is the declaring package path, then the export name the
+   * declaring module used, both by UTF-16 code unit, so every invocation in
+   * every workspace sees one list.
+   */
+  private addDefaultRule(entry: PackageDefaultsEntry): void {
+    if (this.defaultRules.some((known) => known.declaration === entry.declaration)) return
+    const position = this.defaultRules.findIndex((known) =>
+      byCodeUnit(known.packagePath, entry.packagePath) > 0 ||
+      (known.packagePath === entry.packagePath && byCodeUnit(known.name, entry.name) > 0)
+    )
+    if (position < 0) this.defaultRules.push(entry)
+    else this.defaultRules.splice(position, 0, entry)
   }
 
   private eligible(entry: PackageDefaultsEntry, directory: string): boolean {
@@ -1291,6 +1342,320 @@ export class Workspace {
     ) return packagePath
     const resolved = Input.resolvePath("", attrs.cwd)
     return resolved === "." ? "" : resolved
+  }
+
+  /**
+   * Lists the subpackage directories directly below one package.
+   *
+   * Only the shallowest boundary on each path counts. A glob expanding out of
+   * `packagePath` stops at the first directory holding a BUILD.ts
+   * (`Input.ts`'s `walk`), so a package nested inside another subpackage was
+   * already out of reach and truncates nothing of its own.
+   *
+   * @category discovery
+   * @since 0.1.0
+   */
+  subpackages(packagePath: string): ReadonlyArray<string> {
+    const prefix = packagePath === "" ? "" : `${packagePath}/`
+    const below = this.buildFiles
+      .map((file) => packagePathForBuild(file))
+      .filter((directory) => directory !== packagePath && directory.startsWith(prefix))
+      .sort(byCodeUnit)
+    return below.filter((directory) => !below.some((other) => other !== directory && directory.startsWith(`${other}/`)))
+  }
+
+  /**
+   * Reports the declared globs of one target that a subpackage boundary
+   * truncated, and the files each one no longer sees.
+   *
+   * Glob expansion is package scoped: `Input.expandGlob` refuses a static
+   * prefix that reaches past a nested BUILD.ts, and `walk` refuses to descend
+   * into a directory holding one. Both are deliberate, and both are silent.
+   * Adding a BUILD.ts under a package therefore shrinks that package's
+   * declared inputs while its compiler still reads the whole subtree, so the
+   * key stops covering files the action consumes. This query names what a
+   * boundary removed; refusing the plan is the planner's decision.
+   *
+   * A BUILD.ts file is never counted as a lost match. A directory that holds
+   * nothing else contributes only the marker that created the boundary, and
+   * reporting that would fail a package for gaining a subpackage it takes
+   * nothing from.
+   *
+   * @category discovery
+   * @since 0.1.0
+   */
+  prunedGlobs(
+    target: Target.AnyTarget,
+    declarations?: ReadonlyArray<Input.Declared>
+  ): ReadonlyArray<PrunedGlob> {
+    const packagePath = this.inputPackagePathOf(target)
+    const boundaries = this.subpackages(packagePath)
+    if (boundaries.length === 0) return []
+    const pruned: Array<PrunedGlob> = []
+    for (const declaration of declarations ?? Target.metadata(target).inputs) {
+      if (declaration._tag !== "Glob") continue
+      const pattern = Input.resolvePath(packagePath, declaration.pattern)
+      const excludes = declaration.exclude.map((exclude) => Input.resolvePath(packagePath, exclude))
+      for (const directory of boundaries) {
+        const examples = this.files.filter((file) =>
+          file.startsWith(`${directory}/`) &&
+          !file.endsWith("/BUILD.ts") &&
+          minimatch(file, pattern, { dot: true }) &&
+          !excludes.some((exclude) => minimatch(file, exclude, { dot: true }))
+        ).sort(byCodeUnit)
+        if (examples.length > 0) {
+          pruned.push({ pattern: declaration.pattern, directory, examples })
+        }
+      }
+    }
+    return pruned
+  }
+
+  /**
+   * Reads and caches one directory's package manifest.
+   *
+   * The fields are the ones a {@link Visibility.Group} predicate may read.
+   * Nothing else in the build system reads a manifest today, and `smthrs.group`
+   * has no reader in `packages/targets`, `packages/build`, or
+   * `packages/build-cli` at all. A malformed or unreadable manifest answers
+   * undefined rather than failing the plan: a manifest is not a build file,
+   * and a group predicate refuses an absent manifest anyway.
+   *
+   * @category manifests
+   * @since 0.1.0
+   */
+  async manifest(directory: string): Promise<Visibility.PackageManifest | undefined> {
+    const cached = this.manifests.get(directory)
+    if (cached !== undefined || this.manifests.has(directory)) return cached
+    const relative = directory === "" ? "package.json" : `${directory}/package.json`
+    let parsed: Visibility.PackageManifest | undefined
+    if (this.hasFile(relative)) {
+      try {
+        const text = await Fs.readFile(NodePath.join(this.root, relative), "utf8")
+        const value: unknown = JSON.parse(text)
+        if (typeof value === "object" && value !== null) {
+          const record = value as Record<string, unknown>
+          const smthrs = typeof record["smthrs"] === "object" && record["smthrs"] !== null
+            ? record["smthrs"] as Record<string, unknown>
+            : {}
+          parsed = {
+            directory,
+            name: typeof record["name"] === "string" ? record["name"] : undefined,
+            version: typeof record["version"] === "string" ? record["version"] : undefined,
+            smthrs: { group: typeof smthrs["group"] === "string" ? smthrs["group"] : undefined }
+          }
+        }
+      } catch {
+        parsed = undefined
+      }
+    }
+    this.manifests.set(directory, parsed)
+    return parsed
+  }
+
+  /**
+   * Lists every package manifest in the workspace, in directory order.
+   *
+   * D10 derives its release set from the same query, and D13's package
+   * defaults pass the same name and version to a macro. One reader, one shape.
+   *
+   * @category manifests
+   * @since 0.1.0
+   */
+  async manifestDirectories(): Promise<ReadonlyArray<string>> {
+    return this.files
+      .filter((file) => file === "package.json" || file.endsWith("/package.json"))
+      .map((file) => file === "package.json" ? "" : file.slice(0, -"/package.json".length))
+      .sort(byCodeUnit)
+  }
+
+  /** The nearest directory at or above `directory` that holds a manifest. */
+  private manifestDirectoryOf(directory: string): string {
+    let current = directory
+    for (;;) {
+      if (this.hasFile(current === "" ? "package.json" : `${current}/package.json`)) return current
+      if (current === "") return ""
+      current = current.includes("/") ? current.slice(0, current.lastIndexOf("/")) : ""
+    }
+  }
+
+  /**
+   * The build unit one workspace file belongs to.
+   *
+   * A unit is the nearest directory at or above the file that holds a BUILD.ts
+   * or that a default-target declaration synthesizes. Package identity comes
+   * from the path, never from `Target.Metadata.sourceFile`: a synthesized
+   * target is created inside a macro, so `sourceSite` finds no BUILD.ts frame
+   * and `sourceFile` is undefined for all 39 packages that have no BUILD.ts.
+   */
+  private unitOf(file: string): string {
+    let current = file.includes("/") ? file.slice(0, file.lastIndexOf("/")) : ""
+    for (;;) {
+      if (this.hasFile(current === "" ? "BUILD.ts" : `${current}/BUILD.ts`)) return current
+      if (this.defaultRules.some((entry) => this.eligible(entry, current))) return current
+      if (current === "") return ""
+      current = current.includes("/") ? current.slice(0, current.lastIndexOf("/")) : ""
+    }
+  }
+
+  /**
+   * Whether any BUILD.ts file in the workspace names a visibility.
+   *
+   * Enforcement is package scoped, so deciding it needs every producer
+   * package's targets, and loading every package on every plan would undo the
+   * lazy discovery the index exists for. This probe reads the BUILD.ts text
+   * instead: a workspace whose build files never name a visibility declares
+   * none, and no source file is scanned. A macro that declared a visibility
+   * without its BUILD.ts naming one would not be seen by this probe, and no
+   * macro in the catalog declares one.
+   */
+  private declaresVisibility(): Promise<boolean> {
+    this.visibilityProbe ??= (async () => {
+      for (const file of this.buildFiles) {
+        const text = await Fs.readFile(NodePath.join(this.root, file), "utf8").catch(() => "")
+        if (text.includes("isibility")) return true
+      }
+      return false
+    })()
+    return this.visibilityProbe
+  }
+
+  /** Every file each target of one build unit declares, mapped to labels. */
+  private declaredFiles(unit: string): Promise<ReadonlyMap<string, ReadonlyArray<string>>> {
+    const cached = this.declaringTargets.get(unit)
+    if (cached !== undefined) return cached
+    const pending = (async () => {
+      const index = new Map<string, Array<string>>()
+      const targets = await this.packageTargets(unit)
+      for (const [name, target] of targets) {
+        const label = Label.format(unit, name)
+        for (const input of await this.expandInputs(target)) {
+          for (const file of input.files) {
+            const known = index.get(file.path)
+            if (known === undefined) index.set(file.path, [label])
+            else if (!known.includes(label)) known.push(label)
+          }
+        }
+      }
+      return index as ReadonlyMap<string, ReadonlyArray<string>>
+    })()
+    this.declaringTargets.set(unit, pending)
+    return pending
+  }
+
+  /** The imports one source file writes, read once per workspace instance. */
+  private importsOf(file: string): Promise<ReadonlyArray<Imports.Import>> {
+    const cached = this.scanned.get(file)
+    if (cached !== undefined) return cached
+    const pending = Fs.readFile(NodePath.join(this.root, file), "utf8")
+      .then((text) => Imports.scan(text))
+      .catch(() => [] as ReadonlyArray<Imports.Import>)
+    this.scanned.set(file, pending)
+    return pending
+  }
+
+  /** Resolves one import specifier to a workspace file, or to nothing. */
+  private async resolveSpecifier(importer: string, specifier: string): Promise<string | undefined> {
+    const exists = (path: string): boolean => this.hasFile(path)
+    if (specifier.startsWith(".")) return Imports.resolveRelative(importer, specifier, exists)
+    const bare = Imports.parseBare(specifier)
+    if (bare === undefined) return undefined
+    let directory: string | undefined
+    for (const candidate of await this.manifestDirectories()) {
+      const manifest = await this.manifest(candidate)
+      if (manifest?.name === bare.name) {
+        directory = candidate
+        break
+      }
+    }
+    if (directory === undefined) return undefined
+    const relative = directory === "" ? "package.json" : `${directory}/package.json`
+    const value: unknown = await Fs.readFile(NodePath.join(this.root, relative), "utf8")
+      .then((text) => JSON.parse(text) as unknown)
+      .catch(() => undefined)
+    const exported = typeof value === "object" && value !== null
+      ? Imports.exportTargets((value as Record<string, unknown>)["exports"], bare.subpath)
+      : []
+    for (const path of exported) {
+      const joined = directory === "" ? path : `${directory}/${path}`
+      const resolved = Imports.candidates(joined).find((candidate) => exists(candidate))
+      if (resolved !== undefined) return resolved
+    }
+    return undefined
+  }
+
+  /**
+   * Refuses every import in one target's declared inputs that reaches a target
+   * whose visibility does not admit it.
+   *
+   * Enforcement is package scoped, and a package opts in by declaring. A
+   * target's metadata carries `Visibility.private` both when the author wrote
+   * it and when the author wrote nothing, so an unmigrated workspace would
+   * fail on its first plan if the default were enforced. A build unit
+   * therefore enforces its declarations only once one of its targets declares
+   * a visibility other than `Visibility.private`, and from then on every
+   * target of that unit is enforced, private ones included.
+   *
+   * An import that lands on a file no target declares is admitted: there is no
+   * target to have declared a visibility. An import inside one unit is
+   * admitted without a check, because visibility is about who may depend on a
+   * unit from outside it.
+   *
+   * @category enforcement
+   * @since 0.1.0
+   */
+  async assertVisibility(label: string, inputs: ReadonlyArray<ExpandedInput>): Promise<void> {
+    if (!await this.declaresVisibility()) return
+    const directory = Label.parse(label, this.currentPackage).packagePath
+    const consumer: Imports.Consumer = {
+      label,
+      directory,
+      packageDirectory: this.manifestDirectoryOf(directory),
+      manifest: await this.manifest(this.manifestDirectoryOf(directory))
+    }
+    const seen = new Set<string>()
+    for (const input of inputs) {
+      for (const { path } of input.files) {
+        if (seen.has(path) || !Imports.isSource(path)) continue
+        seen.add(path)
+        for (const found of await this.importsOf(path)) {
+          await this.assertImport(consumer, path, found)
+        }
+      }
+    }
+  }
+
+  private async assertImport(consumer: Imports.Consumer, file: string, found: Imports.Import): Promise<void> {
+    const resolved = await this.resolveSpecifier(file, found.specifier)
+    if (resolved === undefined) return
+    const unit = this.unitOf(resolved)
+    if (unit === consumer.directory) return
+    const declaring = await this.declaredFiles(unit).catch(() => undefined)
+    const owners = declaring?.get(resolved)
+    if (owners === undefined || owners.length === 0) return
+    const targets = await this.packageTargets(unit)
+    const declarations = [...targets].map(([name, target]) => ({
+      label: Label.format(unit, name),
+      visibility: Target.metadata(target).visibility
+    }))
+    if (!declarations.some((entry) => entry.visibility._tag !== "Private")) return
+    const producer: Imports.Producer = {
+      label: owners[0]!,
+      directory: unit,
+      packageDirectory: this.manifestDirectoryOf(unit)
+    }
+    const refused = declarations.filter((entry) => owners.includes(entry.label))
+    if (refused.some((entry) => Imports.admits(entry.visibility, producer, consumer))) return
+    const first = refused[0]
+    if (first === undefined) return
+    throw new Imports.VisibilityError({
+      file,
+      line: found.line,
+      specifier: found.specifier,
+      imported: first.label,
+      importer: consumer.label,
+      visibility: first.visibility
+    })
   }
 
   /**

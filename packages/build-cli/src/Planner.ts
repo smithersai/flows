@@ -150,6 +150,46 @@ export class UnsupportedVerbError extends Error {
   }
 }
 
+/**
+ * A nested BUILD.ts truncated a declared glob, and nothing covers the files it
+ * removed.
+ *
+ * Glob expansion stops at a subpackage boundary. The tool the target runs does
+ * not: a `tsc -b` over a package still compiles the subtree a nested BUILD.ts
+ * carved out of it. The declared inputs would then omit files the action
+ * reads, so the key stops covering them and an edit under the new subpackage
+ * replays the parent's previous result. Depending on a target inside the
+ * subpackage restores the coverage, because that target's key folds into this
+ * one and its own declared inputs measure the subtree.
+ *
+ * The plan refuses rather than warning. A warning here is a stale build the
+ * cache reports as fresh.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
+export class SubpackagePruningError extends Error {
+  override readonly name = "SubpackagePruningError"
+  readonly label: string
+  readonly directory: string
+  readonly pattern: string
+
+  constructor(label: string, pruned: Workspace.PrunedGlob) {
+    const shown = pruned.examples.slice(0, 3).join(", ")
+    const rest = pruned.examples.length > 3 ? `, and ${pruned.examples.length - 3} more` : ""
+    super(
+      `${label} declares the glob ${JSON.stringify(pruned.pattern)}, and the BUILD.ts file in ` +
+        `//${pruned.directory} stops its expansion at that directory: ${shown}${rest} ` +
+        `${pruned.examples.length === 1 ? "is" : "are"} no longer a declared input of ${label} while its ` +
+        `action still reads the subtree. Depend on a target in //${pruned.directory}, or name the files ` +
+        `directly with a rooted Smithers.file declaration.`
+    )
+    this.label = label
+    this.directory = pruned.directory
+    this.pattern = pruned.pattern
+  }
+}
+
 /** Renders a traversal step for a {@link KeyMaterialError} path. */
 const step = (path: string, key: string): string => path === "" ? key : `${path}.${key}`
 
@@ -933,6 +973,11 @@ export const make = async (
   // twice and let one duplicate bypass dependent blocking.
   const finished = new Map<string, PlannedTarget>()
   const visiting = new Set<string>()
+  // Package paths each label reaches through its dependencies, excluding its
+  // own. It answers the subpackage-pruning guard: a truncated glob is covered
+  // when some target in the subpackage is already in this target's dependency
+  // closure, because the closure is exactly what folds into the key.
+  const reachedPackages = new Map<string, ReadonlySet<string>>()
 
   const visit = async (target: Target.AnyTarget): Promise<PlannedTarget> => {
     const label = await workspace.label(target)
@@ -963,7 +1008,34 @@ export const make = async (
         edges.push({ from: planned.label, to: label })
       }
     }
+    const reached = new Set<string>()
+    for (const dependency of dependencies) {
+      reached.add(Label.parse(dependency.label, workspace.currentPackage).packagePath)
+      for (const path of reachedPackages.get(dependency.label) ?? []) reached.add(path)
+    }
+    reachedPackages.set(label, reached)
     const declaredInputs = await workspace.expandInputs(target, view.inputs, view.dependencies)
+    // `graph` and `query` are informational and answer about a workspace as it
+    // is, including a workspace this guard would refuse to build. Refusing
+    // them would hide the labels a reader needs to declare the missing edge.
+    if (verb !== "graph" && verb !== "query") {
+      const measured = new Set<string>()
+      for (const input of declaredInputs) for (const file of input.files) measured.add(file.path)
+      for (const pruned of workspace.prunedGlobs(target, view.inputs)) {
+        if (reached.has(pruned.directory)) continue
+        // A rooted `Smithers.file` declaration crosses a package boundary the
+        // way a glob cannot, so a target can also cover the truncation by
+        // naming the files. That coverage is measured rather than assumed: the
+        // files are in this target's key either way.
+        const missing = pruned.examples.filter((example) => !measured.has(example))
+        if (missing.length > 0) throw new SubpackagePruningError(label, { ...pruned, examples: missing })
+      }
+      // Visibility is enforced beside the dependency edges it constrains, and
+      // on the same declared inputs the key measures. It is deliberately not
+      // key material: `verbGate` sets the precedent, and changing who may
+      // depend on a target must not invalidate that target's cache.
+      await workspace.assertVisibility(label, declaredInputs)
+    }
     const inputDigests = new Map<Input.Declared, string>()
     for (const expanded of declaredInputs) inputDigests.set(expanded.declaration, expanded.digest)
     const keyMaterial: KeyMaterial = {
