@@ -11,6 +11,7 @@ import { Schema } from "effect"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const Workspace = Schema.Struct({
   workspaceHash: Schema.String,
@@ -22,6 +23,7 @@ export const Workspace = Schema.Struct({
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type Workspace = typeof Workspace.Type
 
@@ -30,6 +32,7 @@ export type Workspace = typeof Workspace.Type
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const GatewayConfig = Schema.Struct({
   workspace: Workspace,
@@ -43,6 +46,7 @@ export const GatewayConfig = Schema.Struct({
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type GatewayConfig = typeof GatewayConfig.Type
 
@@ -51,6 +55,7 @@ export type GatewayConfig = typeof GatewayConfig.Type
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const GatewayStatus = Schema.Struct({
   running: Schema.Boolean,
@@ -64,6 +69,7 @@ export const GatewayStatus = Schema.Struct({
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type GatewayStatus = typeof GatewayStatus.Type
 
@@ -72,6 +78,7 @@ export type GatewayStatus = typeof GatewayStatus.Type
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const GatewayHealth = Schema.Struct({
   workspaceHash: Schema.String,
@@ -84,6 +91,7 @@ export const GatewayHealth = Schema.Struct({
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type GatewayHealth = typeof GatewayHealth.Type
 
@@ -92,6 +100,7 @@ export type GatewayHealth = typeof GatewayHealth.Type
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const ProjectionName = Schema.Literals([
   "workspace-runs",
@@ -109,6 +118,7 @@ export const ProjectionName = Schema.Literals([
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type ProjectionName = typeof ProjectionName.Type
 
@@ -117,6 +127,7 @@ export type ProjectionName = typeof ProjectionName.Type
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const WorkspaceRunsSelector = Schema.TaggedStruct("workspace-runs", {})
 
@@ -125,6 +136,7 @@ export const WorkspaceRunsSelector = Schema.TaggedStruct("workspace-runs", {})
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const RunSummarySelector = Schema.TaggedStruct("run-summary", { runId: Schema.String })
 
@@ -133,6 +145,7 @@ export const RunSummarySelector = Schema.TaggedStruct("run-summary", { runId: Sc
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const RunEventsSelector = Schema.TaggedStruct("run-events", { runId: Schema.String })
 
@@ -141,6 +154,7 @@ export const RunEventsSelector = Schema.TaggedStruct("run-events", { runId: Sche
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const TranscriptSelector = Schema.TaggedStruct("transcript", { runId: Schema.String })
 
@@ -149,6 +163,7 @@ export const TranscriptSelector = Schema.TaggedStruct("transcript", { runId: Sch
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const RunTreeSelector = Schema.TaggedStruct("run-tree", { runId: Schema.String })
 
@@ -157,6 +172,7 @@ export const RunTreeSelector = Schema.TaggedStruct("run-tree", { runId: Schema.S
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const PlanCardsSelector = Schema.TaggedStruct("plan-cards", {})
 
@@ -165,6 +181,7 @@ export const PlanCardsSelector = Schema.TaggedStruct("plan-cards", {})
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const ApprovalsSelector = Schema.TaggedStruct("approvals", {})
 
@@ -173,6 +190,7 @@ export const ApprovalsSelector = Schema.TaggedStruct("approvals", {})
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const NodeOutputSelector = Schema.TaggedStruct("node-output", {
   runId: Schema.String,
@@ -184,6 +202,7 @@ export const NodeOutputSelector = Schema.TaggedStruct("node-output", {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const ProjectionSelector = Schema.Union([
   WorkspaceRunsSelector,
@@ -201,6 +220,7 @@ export const ProjectionSelector = Schema.Union([
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type ProjectionSelector = typeof ProjectionSelector.Type
 
@@ -212,6 +232,7 @@ export type ProjectionSelector = typeof ProjectionSelector.Type
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const ProjectionCursor = Schema.Struct({
   projection: ProjectionName,
@@ -224,6 +245,7 @@ export const ProjectionCursor = Schema.Struct({
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type ProjectionCursor = typeof ProjectionCursor.Type
 
@@ -232,6 +254,7 @@ export type ProjectionCursor = typeof ProjectionCursor.Type
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const SubscriptionTick = Schema.Struct({
   sessionId: Schema.String,
@@ -245,6 +268,7 @@ export const SubscriptionTick = Schema.Struct({
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type SubscriptionTick = typeof SubscriptionTick.Type
 
@@ -253,6 +277,7 @@ export type SubscriptionTick = typeof SubscriptionTick.Type
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const SubscriptionWatch = SubscriptionTick
 
@@ -261,6 +286,7 @@ export const SubscriptionWatch = SubscriptionTick
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type SubscriptionWatch = typeof SubscriptionWatch.Type
 
@@ -269,6 +295,7 @@ export type SubscriptionWatch = typeof SubscriptionWatch.Type
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const SnapshotStartFrame = Schema.TaggedStruct("snapshot-start", {
   selector: ProjectionSelector,
@@ -280,6 +307,7 @@ export const SnapshotStartFrame = Schema.TaggedStruct("snapshot-start", {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const RowFrame = Schema.TaggedStruct("row", {
   selector: ProjectionSelector,
@@ -292,6 +320,7 @@ export const RowFrame = Schema.TaggedStruct("row", {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const SnapshotEndFrame = Schema.TaggedStruct("snapshot-end", {
   selector: ProjectionSelector,
@@ -303,6 +332,7 @@ export const SnapshotEndFrame = Schema.TaggedStruct("snapshot-end", {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const DeltaFrame = Schema.TaggedStruct("delta", {
   selector: ProjectionSelector,
@@ -315,6 +345,7 @@ export const DeltaFrame = Schema.TaggedStruct("delta", {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const HeartbeatFrame = Schema.TaggedStruct("heartbeat", { atMs: Schema.Number })
 
@@ -323,6 +354,7 @@ export const HeartbeatFrame = Schema.TaggedStruct("heartbeat", { atMs: Schema.Nu
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const OverflowFrame = Schema.TaggedStruct("overflow", { message: Schema.String })
 
@@ -331,6 +363,7 @@ export const OverflowFrame = Schema.TaggedStruct("overflow", { message: Schema.S
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const ExpiredFrame = Schema.TaggedStruct("expired", { subscriptionId: Schema.String })
 
@@ -339,6 +372,7 @@ export const ExpiredFrame = Schema.TaggedStruct("expired", { subscriptionId: Sch
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const TerminalFrame = Schema.TaggedStruct("terminal", { message: Schema.String })
 
@@ -347,6 +381,7 @@ export const TerminalFrame = Schema.TaggedStruct("terminal", { message: Schema.S
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const UnauthorizedFrame = Schema.TaggedStruct("unauthorized", { message: Schema.String })
 
@@ -355,6 +390,7 @@ export const UnauthorizedFrame = Schema.TaggedStruct("unauthorized", { message: 
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const GatewayFrame = Schema.Union([
   SnapshotStartFrame,
@@ -373,6 +409,7 @@ export const GatewayFrame = Schema.Union([
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type GatewayFrame = typeof GatewayFrame.Type
 
@@ -384,6 +421,7 @@ export type GatewayFrame = typeof GatewayFrame.Type
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const SingletonRecord = Schema.Struct({
   gatewayId: Schema.String,
@@ -401,6 +439,7 @@ export const SingletonRecord = Schema.Struct({
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type SingletonRecord = typeof SingletonRecord.Type
 
@@ -409,6 +448,7 @@ export type SingletonRecord = typeof SingletonRecord.Type
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const TokenScope = Schema.Literals(["sync", "control", "tokens", "admin"])
 
@@ -417,6 +457,7 @@ export const TokenScope = Schema.Literals(["sync", "control", "tokens", "admin"]
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type TokenScope = typeof TokenScope.Type
 
@@ -428,6 +469,7 @@ export type TokenScope = typeof TokenScope.Type
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const TokenRecord = Schema.Struct({
   id: Schema.String,
@@ -445,5 +487,6 @@ export const TokenRecord = Schema.Struct({
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type TokenRecord = typeof TokenRecord.Type

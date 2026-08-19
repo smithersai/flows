@@ -6,13 +6,22 @@
  * @since 0.1.0
  */
 
-/** @since 0.1.0 @category errors */
+/**
+ * @since 0.1.0 @category errors
+ * @slop
+ */
 export * as GatewayError from "./GatewayError.ts"
 
-/** @since 0.1.0 @category models */
+/**
+ * @since 0.1.0 @category models
+ * @slop
+ */
 export * as GatewaySchema from "./GatewaySchema.ts"
 
-/** @since 0.1.0 @category services */
+/**
+ * @since 0.1.0 @category services
+ * @slop
+ */
 export * as SuperviseRuntime from "./SuperviseRuntime.ts"
 
 /**
@@ -20,5 +29,6 @@ export * as SuperviseRuntime from "./SuperviseRuntime.ts"
  *
  * @since 0.1.0
  * @category services
+ * @slop
  */
 export * as Sync from "@smthrs/sync"
