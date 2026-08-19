@@ -165,3 +165,24 @@ changes personally.
   true) that binds Tab/Shift+Tab to the browser's own behaviour, and offer
   indentation on an explicit chord instead — which is what every editor that
   ships inside a form does.
+
+## 5. `Markdown` has no table rule
+
+- **File**: `@smthrs/ui` `src/primitives/markdown.tsx`.
+- **What**: the renderer handles fences, headings, lists and inline spans. A
+  GitHub-flavored table reaches the bubble as one paragraph with `<br>` between
+  the rows, so every `|` and every `---|---` is on screen as literal text
+  (checklist §4.2).
+- **Why it matters here**: a table is one of the shapes a model reaches for
+  most — "which repos, how many issues" is a table — and the transcript is the
+  product's main surface.
+- **Workaround taken**: `apps/ui/src/mainview/RichMarkdown.tsx` splits table
+  blocks out of the source and renders them with the library's own `Table`
+  primitives, handing everything else to `Markdown` unchanged. Fenced code is
+  copied through untouched so a pipe inside a fence stays data. It duplicates
+  block-level parsing the library already does, which is exactly the drift a
+  rule inside the renderer would prevent.
+- **Proposed diff sketch**: add a table branch to `renderBlocks` beside the
+  fence branch — a header row, a `:?-+:?` delimiter row with a matching column
+  count, then rows until a non-pipe line — emitting the same `Table`/`TableRow`
+  primitives, with the delimiter's colons as per-column alignment.

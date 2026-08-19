@@ -22,8 +22,16 @@ await send(page, MARKDOWN);
 await settle(page, 45_000);
 
 const rendered = await page.evaluate(() => {
-	const blocks = Array.from(document.querySelectorAll(".sui-md")).filter((element) =>
-		(element as HTMLElement).innerText.includes("Col A"),
+	/*
+	 * The markdown BLOCK, not `.sui-md` specifically: a table renders through
+	 * the host's table primitives and so is a sibling of the `.sui-md`
+	 * segments, not inside one. Selecting `.sui-md` alone made a correctly
+	 * rendered table read as "the message never rendered".
+	 */
+	const blocks = Array.from(document.querySelectorAll(".message-markdown, .sui-md")).filter((element) =>
+		// Case-insensitive: a table header is uppercased by the table's own
+		// styling, and `innerText` reports what is painted.
+		(element as HTMLElement).innerText.toLowerCase().includes("col a"),
 	);
 	return {
 		bubbles: blocks.length,
