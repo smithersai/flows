@@ -971,3 +971,9 @@
 	color: var(--muted-foreground, #6b6457);
 	font-size: 0.8125rem;
 }
+
+/* §6.1: a layout-transparent wrapper whose only job is stamping `data-flow`
+   on the composer's own Send and Stop buttons. */
+.composer-flow-stamp {
+	display: contents;
+}

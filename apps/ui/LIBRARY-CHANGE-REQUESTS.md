@@ -114,3 +114,54 @@ changes personally.
   does. A larger alternative — extending `Capability.Action` with an
   application-defined namespace — would also work but changes a security-
   relevant closed set, so the host-callback version is proposed first.
+
+## 3. `ChatComposer` and `FileTree` accept no pass-through attributes
+
+- **Files**: `@smthrs/ui` `src/chat/ChatComposer.tsx` (the Send and Stop
+  buttons) and `src/file-tree.tsx` (the row buttons).
+- **What**: both components render their own `<Button>`s from fixed props.
+  `ChatComposerProps` carries `submitLabel` / `stopLabel` but no
+  `submitProps` / `stopProps`; `FileTree` takes `nodes` and `onSelect` and
+  offers no per-node attribute hook.
+- **Why it matters here**: the launch law is that every visible affordance
+  names the flow behind it, and `data-flow` is how it says so — the launch
+  checklist (§6.1), the slash listing and the agent's own manifest all read
+  that attribute. Send, Stop and the world file-tree rows ARE registered flows
+  (`send`, `chat.stop`, `world.select`), so they were affordances that ran a
+  flow while denying they had one.
+- **Workaround taken**: `apps/ui/src/mainview/FlowStamp.ts` stamps `data-flow`
+  from the host through a React ref callback at the mount point. It is
+  idempotent and never overrides an attribute the element already carries, but
+  it reaches into a component's rendered DOM from outside — the exact coupling
+  a pass-through prop exists to prevent.
+- **Proposed diff sketch**:
+
+  ```diff
+   export type ChatComposerProps = Omit<ComponentProps<"form">, "onSubmit"> & {
+     submitLabel?: string
+     stopLabel?: string
+  +  /** Extra attributes for the Send button (e.g. a host's `data-*` binding). */
+  +  submitProps?: ComponentProps<"button">
+  +  /** Extra attributes for the Stop button. */
+  +  stopProps?: ComponentProps<"button">
+   }
+  ```
+
+  and the same shape on `FileTree` as `nodeProps?: (node: FileTreeNode) =>
+  ComponentProps<"button">`.
+
+## 4. `MarkdownEditor` traps forward Tab
+
+- **File**: `@smthrs/ui` `src/adapters/markdown-editor/MarkdownEditor.tsx`.
+- **What**: the editor is a ProseMirror body and ProseMirror binds Tab to
+  "insert indentation", so forward Tab never leaves the editor. A keyboard user
+  reaching the world editor could not get past it (checklist §21.2).
+- **Why it matters here**: "no focus trap, no unreachable control" is a launch
+  bar, and the editor is on a shipped surface.
+- **Workaround taken**: `apps/ui/src/mainview/FocusRing.ts` restores the
+  document's own Tab order around the region from the mount site, in a capture
+  handler above the editor.
+- **Proposed diff sketch**: give the editor an `escapeTabOrder` prop (default
+  true) that binds Tab/Shift+Tab to the browser's own behaviour, and offer
+  indentation on an explicit chord instead — which is what every editor that
+  ships inside a form does.

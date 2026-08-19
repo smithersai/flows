@@ -7,6 +7,7 @@ import type { NativeAgent, NativeRepositories } from "../native/NativeBridge";
 import { canonical, matches, parseSubmit, recommendedNames, SLASH_MENU_CAP, slashItems } from "./registry";
 import type { CommandState } from "./registry";
 import { executeAgentToolCall } from "./agentTools";
+import { visibleItems } from "./Commands";
 
 const memoryStorage = (): StorageApi => {
 	const data = new Map<string, string>();
@@ -178,6 +179,25 @@ describe("command registry pure model", () => {
 			expect(recent.map((item) => item.flow.name)).toContain("a19");
 			expect(recent.map((item) => item.flow.name)).toContain("a18");
 		});
+	});
+
+	/*
+	 * §6.4 vs §5.7: `data-flows` on the app shell is the whole registry
+	 * manifest — hidden id-scoped actions included, because the agent's tool
+	 * catalog is not a secret — while `/flows` is what a person can ask for.
+	 * The two lists differ by exactly the hidden set and by nothing else.
+	 */
+	test("/flows and the data-flows manifest differ by exactly the hidden set", async () => {
+		const { controller } = await freshController();
+		const manifest = controller.commands.all().map((command) => command.name);
+		const listed = visibleItems(controller.commands).map((command) => command.name);
+		const hidden = controller.commands
+			.all()
+			.filter((command) => command.hidden === true)
+			.map((command) => command.name);
+		expect(hidden.length).toBeGreaterThan(0);
+		expect(listed).toEqual(manifest.filter((name) => !hidden.includes(name)));
+		expect(listed.some((name) => hidden.includes(name))).toBe(false);
 	});
 
 	test("parseSubmit resolves empty, bare command, args command, and prompt", () => {
