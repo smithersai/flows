@@ -302,6 +302,102 @@ describe("a BUILD.ts with no dependency section", () => {
   })
 })
 
+describe("the dependency section is the library target's", () => {
+  it("skips a deps array that belongs to a PackageDefaults macro, not to lib", () => {
+    // The shape of packages/build/BUILD.ts: `lib` comes from a StandardPackage
+    // call with no deps key, and the first `deps: [` in the file is a template
+    // for other packages. Editing it would add the edge to every synthesized
+    // package, so the edge is reported and refused instead.
+    const contents = [
+      "import { Smithers } from \"@smthrs/targets\"",
+      "",
+      "const standard = Smithers.StandardPackage({ cwd: \"packages/engine\" })",
+      "",
+      "export const lib = standard.lib",
+      "",
+      "export const packageDefaults = Smithers.PackageDefaults({",
+      "  directories: \"packages/*\",",
+      "  marker: \"package.json\",",
+      "  macro: (attrs: { readonly cwd: string }) => {",
+      "    const inner = Smithers.StandardPackage({ deps: [], cwd: attrs.cwd })",
+      "    return { ...inner }",
+      "  }",
+      "})",
+      ""
+    ].join("\n")
+    const result = DepSync.plan(request({ contents, sources: source("@smthrs/flow") }))
+    expect(result.missing).toHaveLength(1)
+    expect(result.blocked).toContain("`lib` target declares no deps array")
+    expect(result.contents).toBe(contents)
+  })
+
+  it("follows `export const lib = standard.lib` to the statement that builds it", () => {
+    const contents = [
+      "import { Smithers } from \"@smthrs/targets\"",
+      "",
+      "export const other = Smithers.Typecheck({ srcs: [], deps: [], cwd: \"packages/engine\" })",
+      "",
+      "const standard = Smithers.StandardPackage({ deps: [], cwd: \"packages/engine\" })",
+      "",
+      "export const lib = standard.lib",
+      ""
+    ].join("\n")
+    const result = DepSync.plan(request({ contents, sources: source("@smthrs/flow") }))
+    expect(result.blocked).toBeUndefined()
+    expect(result.contents).toContain("Smithers.Typecheck({ srcs: [], deps: [], cwd")
+    expect(result.contents).toContain("Smithers.StandardPackage({ deps: [flow], cwd")
+  })
+
+  it("edits the deps array of a multi-line lib declaration, not a later target's", () => {
+    const contents = [
+      "import { Smithers } from \"@smthrs/targets\"",
+      "",
+      "export const lint = Smithers.EsLint({",
+      "  sources: [],",
+      "  deps: [],",
+      "  cwd: \"packages/engine\"",
+      "})",
+      "",
+      "export const lib = Smithers.TsBuild({",
+      "  srcs: [],",
+      "  deps: [],",
+      "  cwd: \"packages/engine\"",
+      "})",
+      ""
+    ].join("\n")
+    const result = DepSync.plan(request({ contents, sources: source("@smthrs/flow") }))
+    expect(result.blocked).toBeUndefined()
+    expect(result.contents).toBe(
+      contents
+        .replace(
+          "import { Smithers } from \"@smthrs/targets\"",
+          "import { Smithers } from \"@smthrs/targets\"\nimport { lib as flow } from \"../flow/BUILD.ts\""
+        )
+        .replace("srcs: [],\n  deps: [],", "srcs: [],\n  deps: [flow],")
+    )
+  })
+
+  it("reports a file that declares no lib target", () => {
+    const contents = "import { Smithers } from \"@smthrs/targets\"\nexport const lint = Smithers.EsLint({ deps: [] })\n"
+    const result = DepSync.plan(request({ contents, sources: source("@smthrs/flow") }))
+    expect(result.blocked).toContain("no `lib` target")
+    expect(result.contents).toBe(contents)
+  })
+
+  it("keeps the file's semicolon style on the inserted import", () => {
+    const contents = [
+      "import { Smithers } from \"@smthrs/targets\";",
+      "",
+      "export const lib = Smithers.TsBuild({ srcs: [], deps: [], cwd: \"packages/engine\" });",
+      ""
+    ].join("\n")
+    const result = DepSync.plan(request({ contents, sources: source("@smthrs/flow") }))
+    expect(result.contents).toContain(
+      "import { Smithers } from \"@smthrs/targets\";\nimport { lib as flow } from \"../flow/BUILD.ts\";\n"
+    )
+  })
+})
+
 describe("masking", () => {
   it("ignores a deps array written inside a string literal, escapes included", () => {
     const contents = engineBuild.replace(

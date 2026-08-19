@@ -344,6 +344,59 @@ const depsArrays = (masked: string): ReadonlyArray<{ readonly open: number; read
   return found
 }
 
+/** Every top-level statement, as a half-open range over the masked text. */
+const statements = (masked: string): ReadonlyArray<{ readonly start: number; readonly end: number }> => {
+  const starts: Array<number> = []
+  let depth = 0
+  for (let index = 0; index < masked.length; index += 1) {
+    const character = masked[index]!
+    const lineStart = index === 0 || masked[index - 1] === "\n"
+    if (depth === 0 && lineStart && !/\s/.test(character)) starts.push(index)
+    if (character === "[" || character === "(" || character === "{") depth += 1
+    else if (character === "]" || character === ")" || character === "}") depth = Math.max(0, depth - 1)
+  }
+  return starts.map((start, index) => ({ start, end: starts[index + 1] ?? masked.length }))
+}
+
+const identifier = "[A-Za-z_$][\\w$]*"
+
+/**
+ * The top-level statement that constructs the named target.
+ *
+ * `export const lib = Smithers.TsBuild({ ... })` is the statement itself.
+ * `export const lib = standard.lib` names a binding, and the statement that
+ * defines that binding is the one constructing the target, so the search
+ * follows it. A destructuring export, `export const { lib, test } = ...`,
+ * counts as the declaration of every name it binds.
+ */
+const targetStatement = (
+  masked: string,
+  target: string
+): { readonly start: number; readonly end: number } | undefined => {
+  const ranges = statements(masked)
+  const texts = ranges.map((range) => masked.slice(range.start, range.end))
+  const boundary = `(?![\\w$])`
+  const declares = (name: string): number =>
+    texts.findIndex((text) =>
+      new RegExp(`^(?:export\\s+)?(?:const|let|var)\\s+${name}${boundary}`).test(text) ||
+      new RegExp(`^(?:export\\s+)?(?:const|let|var)\\s+\\{(?:[^}]*[\\s,])?${name}${boundary}[^}]*\\}`).test(text)
+    )
+  const visited = new Set<string>()
+  let name = target.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&")
+  while (!visited.has(name)) {
+    visited.add(name)
+    const index = declares(name)
+    if (index < 0) return undefined
+    const text = texts[index]!
+    const alias = new RegExp(
+      `^(?:export\\s+)?(?:const|let|var)\\s+${name}\\s*=\\s*(${identifier})(?:\\s*\\.\\s*${identifier})*\\s*;?\\s*$`
+    ).exec(text)
+    if (alias === null) return ranges[index]
+    name = alias[1]!
+  }
+  return undefined
+}
+
 /** The camelCase identifier a package directory suggests. */
 const bindingBase = (directory: string): string => {
   const base = directory.slice(directory.lastIndexOf("/") + 1)
@@ -373,11 +426,14 @@ const relativeSpecifier = (from: string, to: string): string => {
  * the resulting binding in some `deps` array. A sibling counts as required
  * when a source file imports its package name. The difference is the drift.
  *
- * The edit goes into the first `deps` array in the file, which is the library
- * target's by workspace convention: every `BUILD.ts` here declares `lib` first,
- * and every other target of the package depends on `lib`. A file with no
- * `deps` array has no dependency section, so a missing edge is reported and
- * nothing is edited.
+ * The edit goes into the `deps` array of the statement that constructs the
+ * library target, found by name: `export const lib = Smithers.TsBuild({ ... })`
+ * directly, or `export const lib = standard.lib` through the statement that
+ * defines `standard`. The first `deps` array in the file is not a safe anchor:
+ * `packages/build/BUILD.ts` writes its first one inside a `PackageDefaults`
+ * macro, and an edit there would add the edge to every synthesized package. A
+ * file whose library target has no `deps` array has no dependency section, so
+ * a missing edge is reported and nothing is edited.
  *
  * @category planning
  * @since 0.1.0
@@ -431,15 +487,27 @@ export const plan = (request: Request): Plan => {
     return { path: request.path, declared, missing, contents: request.contents, blocked: undefined }
   }
 
-  const array = arrays[0]
+  const statement = targetStatement(masked, target)
+  const array = statement === undefined
+    ? undefined
+    : arrays.find((entry) => entry.open >= statement.start && entry.open < statement.end)
   const anchor = importStatements(masked).at(-1)
+  if (statement === undefined) {
+    return {
+      path: request.path,
+      declared,
+      missing,
+      contents: request.contents,
+      blocked: `the file declares no \`${target}\` target, so there is no dependency section to edit`
+    }
+  }
   if (array === undefined) {
     return {
       path: request.path,
       declared,
       missing,
       contents: request.contents,
-      blocked: "the file declares no deps array, so there is no dependency section to edit"
+      blocked: `the \`${target}\` target declares no deps array, so there is no dependency section to edit`
     }
   }
   if (anchor === undefined && additions.length > 0) {
@@ -462,10 +530,11 @@ export const plan = (request: Request): Plan => {
       text: trimmed.endsWith(",") ? ` ${joined}` : `, ${joined}`
     }]
   if (anchor !== undefined && additions.length > 0) {
+    const terminator = request.contents[anchor.end] === ";" ? ";" : ""
     edits.push({
-      index: anchor.end,
+      index: anchor.end + terminator.length,
       text: additions.map((addition) =>
-        `\nimport { ${target} as ${addition.binding} } from ${JSON.stringify(addition.specifier)}`
+        `\nimport { ${target} as ${addition.binding} } from ${JSON.stringify(addition.specifier)}${terminator}`
       ).join("")
     })
   }
