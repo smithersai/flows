@@ -47,7 +47,13 @@ import {
 import * as Input from "./Input.ts"
 import { Engine, promptEngine } from "./LlmLint.ts"
 import * as ManifestJson from "./ManifestJson.ts"
-import { assertNotManagerOwned, isTemplate, managerOwnedFields, type Template } from "./PackageJsonTemplate.ts"
+import {
+  assertNotManagerOwned,
+  isTemplate,
+  managerOwnedFields,
+  preservedFields,
+  type Template
+} from "./PackageJsonTemplate.ts"
 import * as SafeFs from "./SafeFs.ts"
 import * as Target from "./Target.ts"
 
@@ -386,9 +392,101 @@ const entryBase = (attrs: unknown, label: string): string => {
   return NodePath.basename(path).replace(/\.(?:m|c)?tsx?$/, "")
 }
 
+/** The declared entry directory of a build target, relative to the package. */
+const entryDirectory = (attrs: unknown, label: string): string => {
+  const entries = typeof attrs === "object" && attrs !== null && "entries" in attrs
+    ? (attrs as { readonly entries: unknown }).entries
+    : undefined
+  const first: unknown = Array.isArray(entries) ? entries[0] : undefined
+  const path = typeof first === "string"
+    ? first
+    : typeof first === "object" && first !== null && "path" in first
+    ? (first as { readonly path: unknown }).path
+    : undefined
+  if (typeof path !== "string" || path === "") {
+    throw new Error(`PackageJson: publish entry ${label} declares an entry without a path`)
+  }
+  const directory = NodePath.dirname(resolveOutputPath(path))
+  return directory === "." ? "" : directory
+}
+
 /**
- * Derives `main`, `module`, `types`, `exports`, `files`, and `publishConfig`
- * from a build target's own declared output attrs.
+ * How a published manifest points at its code.
+ *
+ * - `source` is what this repository publishes and what
+ *   `CONTRIBUTING.md` mandates: the `exports` map resolves to TypeScript
+ *   sources, and `publishConfig.exports` carries the compiled mirror npm
+ *   installs. A consumer building from source and a consumer installing the
+ *   tarball both resolve, from one declaration.
+ * - `dist` is the single-map form: `exports`, `main`, `module`, and `types`
+ *   all name compiled output and there is no `publishConfig.exports`.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const PublishStyle = Schema.Literals(["source", "dist"])
+
+/**
+ * How a published manifest points at its code.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type PublishStyle = typeof PublishStyle.Type
+
+/**
+ * The style a declaration publishes under when it names none.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const defaultPublishStyle: PublishStyle = "source"
+
+/** The extension a source-first exports value must carry to be compiled. */
+const sourceExtension = /\.(?:m|c)?tsx?$/
+
+/**
+ * Mirrors one source-first `exports` map onto compiled output.
+ *
+ * A value under the entry's own source directory becomes the condition object
+ * npm resolves from the tarball. Everything else passes through: `null` stays
+ * `null` so a subpath stays sealed, `./package.json` stays itself, and an
+ * asset outside the source tree — a `.wasm` file, say — is published where it
+ * already sits. Key order is preserved, because `exports` condition order is
+ * semantic in Node's resolver.
+ *
+ * @category rendering
+ * @since 0.1.0
+ */
+export const distributedExports = (
+  sourceExports: Readonly<Record<string, unknown>>,
+  options: {
+    readonly sourceDirectory: string
+    readonly outDir: string
+    readonly format: "esm" | "cjs" | "dual"
+  }
+): Record<string, unknown> => {
+  const prefix = options.sourceDirectory === "" ? "./" : `./${options.sourceDirectory}/`
+  const mapped = Object.create(null) as Record<string, unknown>
+  for (const [subpath, value] of Object.entries(sourceExports)) {
+    if (typeof value !== "string" || !value.startsWith(prefix) || !sourceExtension.test(value)) {
+      mapped[subpath] = value
+      continue
+    }
+    const relative = value.slice(prefix.length).replace(sourceExtension, "")
+    const at = (kind: "esm" | "cjs", extension: string): string =>
+      `./${options.outDir}/${formatDirectory[kind]}/${relative}${extension}`
+    const conditions: Record<string, unknown> = { types: at(options.format === "cjs" ? "cjs" : "esm", ".d.ts") }
+    if (options.format !== "cjs") conditions["import"] = at("esm", ".js")
+    if (options.format !== "esm") conditions["require"] = at("cjs", ".js")
+    mapped[subpath] = conditions
+  }
+  return mapped
+}
+
+/**
+ * Derives a package's entry points, file list, and publish configuration from
+ * a build target's own declared output attrs.
  *
  * Every failure names the target and what it is missing, because the
  * alternative — guessing a layout — publishes a manifest whose entry points do
@@ -397,13 +495,28 @@ const entryBase = (attrs: unknown, label: string): string => {
  * `format` attr is absent or is not one of `esm`, `cjs`, and `dual`, and one
  * that declares no entry.
  *
+ * Under {@link defaultPublishStyle} the derivation is source first. The
+ * `exports` map a declaration states — or the conventional one derived from
+ * the entry when it states none — is the single source of truth, and
+ * `publishConfig.exports` is generated from it by {@link distributedExports}.
+ * That removes the duplication every manifest in this workspace carries today,
+ * where the same subpath map is written twice.
+ *
  * @category rendering
  * @since 0.1.0
  */
 export const publishFields = (
   entry: Target.AnyTarget,
   label: string,
-  options: { readonly access: "public" | "restricted"; readonly provenance: boolean }
+  options: {
+    readonly access: "public" | "restricted"
+    readonly provenance: boolean
+    readonly style?: PublishStyle | undefined
+    /** The source-first `exports` map the declaration states, if it states one. */
+    readonly exports?: Readonly<Record<string, unknown>> | undefined
+    /** The `files` list the declaration states, if it states one. */
+    readonly files?: ReadonlyArray<unknown> | undefined
+  }
 ): Record<string, unknown> => {
   const metadata = Target.metadata(entry)
   const outDir = attrString(metadata.attrs, "outDir")
@@ -424,6 +537,36 @@ export const publishFields = (
   const root = resolveOutputPath(outDir)
   const at = (kind: "esm" | "cjs", extension: string): string =>
     `./${root}/${formatDirectory[kind]}/${base}${extension}`
+  if ((options.style ?? defaultPublishStyle) === "source") {
+    const sourceDirectory = entryDirectory(metadata.attrs, label)
+    const within = sourceDirectory === "" ? "." : sourceDirectory
+    const sourceExports = options.exports ?? {
+      "./package.json": "./package.json",
+      ".": `./${within}/${base}.ts`,
+      "./*": `./${within}/*.ts`,
+      "./internal/*": null,
+      "./*/index": null
+    }
+    return {
+      exports: sourceExports,
+      files: options.files ?? [
+        `${within}/**/*.ts`,
+        `${root}/**/*.js`,
+        `${root}/**/*.js.map`,
+        `${root}/**/*.d.ts`,
+        `${root}/**/*.d.ts.map`,
+        `${root}/**/package.json`,
+        "LICENSE",
+        "README.md",
+        "CHANGELOG.md"
+      ],
+      publishConfig: {
+        access: options.access,
+        provenance: options.provenance,
+        exports: distributedExports(sourceExports, { sourceDirectory, outDir: root, format })
+      }
+    }
+  }
   // Declarations sit beside the ESM output for `esm` and `dual`, and beside the
   // CommonJS output for a package that only emits CommonJS.
   const types = at(format === "cjs" ? "cjs" : "esm", ".d.ts")
@@ -431,11 +574,11 @@ export const publishFields = (
   if (format !== "cjs") conditions["import"] = at("esm", ".js")
   if (format !== "esm") conditions["require"] = at("cjs", ".js")
   return {
-    exports: { "./package.json": "./package.json", ".": conditions },
+    exports: options.exports ?? { "./package.json": "./package.json", ".": conditions },
     main: format === "esm" ? at("esm", ".js") : at("cjs", ".js"),
     ...(format === "cjs" ? {} : { module: at("esm", ".js") }),
     types,
-    files: [root, "README.md"],
+    files: options.files ?? [root, "README.md"],
     publishConfig: { access: options.access, provenance: options.provenance }
   }
 }
@@ -870,8 +1013,41 @@ export interface SyncOptions {
   readonly executable?: string | undefined
 }
 
-/** The keys carried through from the checked-in manifest, never generated. */
-const carried: ReadonlySet<string> = new Set(managerOwnedFields)
+/**
+ * Assembles the manifest a declaration renders to, over the checked-in one.
+ *
+ * Three layers, outermost last:
+ *
+ * 1. `declared` is everything the declaration and its derivations produced.
+ * 2. `generated` overrides the prose fields a model wrote.
+ * 3. {@link managerOwnedFields} is copied from `existing` unconditionally, and
+ *    {@link preservedFields} is copied only where the first two layers left a
+ *    gap. A field neither layer produced survives instead of being deleted;
+ *    see {@link preservedFields} for what would be lost without it.
+ *
+ * Exported so the whole assembly is testable without a filesystem: the
+ * workspace-wide manifest gate in `test/PackageJson.test.ts` runs this over all
+ * 45 checked-in manifests.
+ *
+ * @category rendering
+ * @since 0.1.0
+ */
+export const assemble = (
+  declared: Readonly<Record<string, unknown>>,
+  existing: Readonly<Record<string, unknown>>,
+  generated: { readonly description?: string | undefined; readonly keywords?: ReadonlyArray<string> | undefined } = {}
+): Record<string, unknown> => {
+  const fields: Record<string, unknown> = { ...declared }
+  if (generated.description !== undefined) fields["description"] = generated.description
+  if (generated.keywords !== undefined) fields["keywords"] = generated.keywords
+  for (const key of managerOwnedFields) {
+    if (Object.hasOwn(existing, key)) fields[key] = existing[key]
+  }
+  for (const key of preservedFields) {
+    if (!Object.hasOwn(fields, key) && Object.hasOwn(existing, key)) fields[key] = existing[key]
+  }
+  return fields
+}
 
 /**
  * Regenerates one manifest and either compares it or writes it.
@@ -1004,12 +1180,7 @@ export const sync = (
       }
     }
 
-    const fields: Record<string, unknown> = { ...declaredFields }
-    if (resolved.description !== undefined) fields["description"] = resolved.description
-    if (resolved.keywords !== undefined) fields["keywords"] = resolved.keywords
-    for (const key of carried) {
-      if (key in existing) fields[key] = existing[key]
-    }
+    const fields = assemble(declaredFields, existing, resolved)
     const contents = yield* Effect.try({
       try: () => render(fields),
       catch: (cause) => failure(`the generated manifest could not be rendered: ${failureMessage(cause)}`)
@@ -1156,7 +1327,12 @@ export interface Declaration {
   readonly output: string
   readonly scripts: Readonly<Record<string, Target.AnyTarget>>
   readonly publish:
-    | { readonly entry: Target.AnyTarget; readonly access: "public" | "restricted"; readonly provenance: boolean }
+    | {
+      readonly entry: Target.AnyTarget
+      readonly access: "public" | "restricted"
+      readonly provenance: boolean
+      readonly style: PublishStyle
+    }
     | undefined
   readonly generated: ReadonlyArray<GeneratedField>
   readonly readme: Input.File | null
@@ -1179,11 +1355,14 @@ export interface Options {
   /**
    * The published version, as a literal string.
    *
-   * It is required and literal on purpose: this repository has no release
-   * automation yet, so there is exactly one place a version lives and it is
-   * this line. Versioning becomes configurable later — a version source file, a
-   * Changesets-driven bump, or a workspace-wide lockstep value will replace the
-   * literal — and this field keeps its name when it does.
+   * It is literal on purpose. Versioning in this repository is native and
+   * workspace wide: `scripts/set-release-version.mjs` rewrites every manifest
+   * to one release version and retargets every internal range that named the
+   * old one, across `dependencies`, `devDependencies`, `peerDependencies`, and
+   * `optionalDependencies`, leaving `workspace:` and `catalog:` protocol
+   * ranges alone. A literal here is the value that script reads and rewrites.
+   * This field keeps its name if a version source file ever replaces the
+   * literal.
    */
   readonly version: string
   /** @default "MIT" */
@@ -1198,6 +1377,8 @@ export interface Options {
       readonly entry: Target.AnyTarget
       readonly access?: "public" | "restricted" | undefined
       readonly provenance?: boolean | undefined
+      /** @default "source" */
+      readonly style?: PublishStyle | undefined
     }
     | undefined
   readonly template?: Template | undefined
@@ -1309,7 +1490,7 @@ const copyPublish = (value: unknown): Declaration["publish"] => {
   if (prototype !== Object.prototype && prototype !== null || Object.getOwnPropertySymbols(value).length > 0) {
     throw new TypeError("PackageJson publish must be a plain object without symbol keys")
   }
-  const allowed = new Set(["entry", "access", "provenance"])
+  const allowed = new Set(["entry", "access", "provenance", "style"])
   const copied = Object.create(null) as Record<string, unknown>
   for (const key of Object.getOwnPropertyNames(value)) {
     if (!allowed.has(key)) throw new TypeError(`PackageJson publish received an unknown option ${JSON.stringify(key)}`)
@@ -1321,14 +1502,19 @@ const copyPublish = (value: unknown): Declaration["publish"] => {
   }
   const access = copied["access"] ?? "public"
   const provenance = copied["provenance"] ?? true
+  const style = copied["style"] ?? defaultPublishStyle
   if (access !== "public" && access !== "restricted") {
     throw new TypeError("PackageJson publish access must be \"public\" or \"restricted\"")
   }
   if (typeof provenance !== "boolean") throw new TypeError("PackageJson publish provenance must be a boolean")
+  if (style !== "source" && style !== "dist") {
+    throw new TypeError("PackageJson publish style must be \"source\" or \"dist\"")
+  }
   return Object.freeze({
     entry: assertTarget("PackageJson publish entry", copied["entry"]),
     access,
-    provenance
+    provenance,
+    style
   })
 }
 
@@ -1483,17 +1669,37 @@ export const targets = (
     const target = declaration.scripts[name]!
     scripts[name] = scriptCommand(name, target, targetLabel(target))
   }
+  // A declared `exports` map is an INPUT to the derivation, not an override of
+  // it: `publishConfig.exports` is the compiled mirror of whatever map the
+  // package publishes, so a package with its own subpaths still gets its
+  // tarball map generated instead of writing the same map a second time.
+  const declaredExports = isPlainObject(declaration.fields["exports"]) ? declaration.fields["exports"] : undefined
+  const declaredFiles = Array.isArray(declaration.fields["files"]) ? declaration.fields["files"] : undefined
   const derived = declaration.publish === undefined ? {} : publishFields(
     declaration.publish.entry,
     targetLabel(declaration.publish.entry),
-    { access: declaration.publish.access, provenance: declaration.publish.provenance }
+    {
+      access: declaration.publish.access,
+      provenance: declaration.publish.provenance,
+      style: declaration.publish.style,
+      exports: declaredExports,
+      files: declaredFiles
+    }
   )
   // The derivation sits UNDER the declaration: a package that states its own
   // `exports` means it, and the derived entry points are a default.
   const declared = merge(derived, declaration.fields)
-  const fields = Object.keys(scripts).length === 0 ? declared : merge(declared, {
+  const merged = Object.keys(scripts).length === 0 ? declared : merge(declared, {
     scripts: merge(isPlainObject(declared["scripts"]) ? declared["scripts"] : {}, scripts)
   })
+  // `repository.directory` is the one manifest field a shared template cannot
+  // express, because its value is the declaring package's own path. Fill it in
+  // here, where that path is known, rather than restating it per package.
+  const repository = merged["repository"]
+  const fields = packagePath !== "" && isPlainObject(repository) && typeof repository["url"] === "string" &&
+      !Object.hasOwn(repository, "directory")
+    ? { ...merged, repository: { ...repository, directory: packagePath } }
+    : merged
   const anchored = (value: string): string => `//${Input.resolvePath(packagePath, value)}`
   const shared = {
     output: anchored(declaration.output),

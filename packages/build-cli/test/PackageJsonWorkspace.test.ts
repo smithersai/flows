@@ -78,8 +78,18 @@ describe("manifest declarations in a BUILD.ts", () => {
     const attrs = metadata.attrs.fields
     expect(attrs["scripts"]).toEqual({ build: "smthrs build //packages/widget:lib" })
     // Entry points stay package relative: a manifest's paths resolve against
-    // the directory the manifest sits in, not against the workspace root.
-    expect(attrs["main"]).toBe("./dist/cjs/index.js")
+    // the directory the manifest sits in, not against the workspace root. The
+    // published form is source first, so `exports` names the TypeScript and
+    // `publishConfig.exports` carries the compiled mirror npm installs.
+    expect((attrs["exports"] as Record<string, unknown>)["."]).toBe("./src/index.ts")
+    expect(attrs["main"]).toBeUndefined()
+    expect(
+      (attrs["publishConfig"] as { readonly exports: Record<string, unknown> }).exports["."]
+    ).toEqual({
+      types: "./dist/esm/index.d.ts",
+      import: "./dist/esm/index.js",
+      require: "./dist/cjs/index.js"
+    })
   })
 
   it("plans the check target under lint and the write targets under run", async () => {

@@ -6,6 +6,7 @@ import * as NodePath from "node:path"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import * as Input from "../src/Input.ts"
 import {
+  assemble,
   assertPackageName,
   diffFields,
   fieldCacheDirectory,
@@ -241,10 +242,107 @@ describe("script resolution", () => {
 })
 
 describe("publish derivation", () => {
-  it("derives dual entry points from the build target's own attrs", () => {
+  it("derives a source-first manifest with a compiled publishConfig mirror", () => {
     const lib = build("packages/widget")
     const fields = manifest(
       PackageJson({ name: "widget", version: "0.1.0", publish: { entry: lib } }),
+      [[lib, "//packages/widget:lib"]]
+    )
+    // Source first: a consumer building from the repository resolves the
+    // TypeScript, and npm resolves the publishConfig mirror from the tarball.
+    // Neither `main` nor `types` appears, because neither can name both.
+    expect(fields["exports"]).toEqual({
+      "./package.json": "./package.json",
+      ".": "./src/index.ts",
+      "./*": "./src/*.ts",
+      "./internal/*": null,
+      "./*/index": null
+    })
+    expect(fields["main"]).toBeUndefined()
+    expect(fields["module"]).toBeUndefined()
+    expect(fields["types"]).toBeUndefined()
+    expect(fields["files"]).toEqual([
+      "src/**/*.ts",
+      "dist/**/*.js",
+      "dist/**/*.js.map",
+      "dist/**/*.d.ts",
+      "dist/**/*.d.ts.map",
+      "dist/**/package.json",
+      "LICENSE",
+      "README.md",
+      "CHANGELOG.md"
+    ])
+    expect(fields["publishConfig"]).toEqual({
+      access: "public",
+      provenance: true,
+      exports: {
+        "./package.json": "./package.json",
+        ".": {
+          types: "./dist/esm/index.d.ts",
+          import: "./dist/esm/index.js",
+          require: "./dist/cjs/index.js"
+        },
+        "./*": {
+          types: "./dist/esm/*.d.ts",
+          import: "./dist/esm/*.js",
+          require: "./dist/cjs/*.js"
+        },
+        "./internal/*": null,
+        "./*/index": null
+      }
+    })
+  })
+
+  it("mirrors a declared exports map instead of asking for it twice", () => {
+    const lib = build("packages/widget")
+    const fields = manifest(
+      PackageJson({
+        name: "widget",
+        version: "0.1.0",
+        publish: { entry: lib },
+        fields: {
+          exports: {
+            "./package.json": "./package.json",
+            ".": "./src/index.ts",
+            "./Action": "./src/Action/index.ts",
+            "./asset.wasm": "./asset.wasm",
+            "./internal/*": null
+          }
+        }
+      }),
+      [[lib, "//packages/widget:lib"]]
+    )
+    // A declared map is the whole map, and it is the input the tarball mirror
+    // is generated from. A value outside the source tree passes through; a
+    // sealed subpath stays sealed.
+    expect(fields["exports"]).toEqual({
+      "./package.json": "./package.json",
+      ".": "./src/index.ts",
+      "./Action": "./src/Action/index.ts",
+      "./asset.wasm": "./asset.wasm",
+      "./internal/*": null
+    })
+    expect((fields["publishConfig"] as { readonly exports: unknown }).exports).toEqual({
+      "./package.json": "./package.json",
+      ".": {
+        types: "./dist/esm/index.d.ts",
+        import: "./dist/esm/index.js",
+        require: "./dist/cjs/index.js"
+      },
+      "./Action": {
+        types: "./dist/esm/Action/index.d.ts",
+        import: "./dist/esm/Action/index.js",
+        require: "./dist/cjs/Action/index.js"
+      },
+      "./asset.wasm": "./asset.wasm",
+      "./internal/*": null
+    })
+  })
+
+  it("derives dist-first entry points when the declaration asks for them", () => {
+    const lib = build("packages/widget")
+    const fields = manifest(
+      PackageJson({ name: "widget", version: "0.1.0", publish: { entry: lib, style: "dist" } }),
       [[lib, "//packages/widget:lib"]]
     )
     expect(fields["main"]).toBe("./dist/cjs/index.js")
@@ -258,13 +356,14 @@ describe("publish derivation", () => {
         require: "./dist/cjs/index.js"
       }
     })
+    expect(fields["files"]).toEqual(["dist", "README.md"])
     expect(fields["publishConfig"]).toEqual({ access: "public", provenance: true })
   })
 
   it("drops the import condition for cjs and the require condition for esm", () => {
     const esm = build("packages/widget", "esm")
     const esmFields = manifest(
-      PackageJson({ name: "widget", version: "0.1.0", publish: { entry: esm } }),
+      PackageJson({ name: "widget", version: "0.1.0", publish: { entry: esm, style: "dist" } }),
       [[esm, "//packages/widget:lib"]]
     )
     expect(esmFields["main"]).toBe("./dist/esm/index.js")
@@ -274,25 +373,26 @@ describe("publish derivation", () => {
     })
     const cjs = build("packages/widget", "cjs")
     const cjsFields = manifest(
-      PackageJson({ name: "widget", version: "0.1.0", publish: { entry: cjs } }),
+      PackageJson({ name: "widget", version: "0.1.0", publish: { entry: cjs, style: "dist" } }),
       [[cjs, "//packages/widget:lib"]]
     )
     expect(cjsFields["module"]).toBeUndefined()
     expect(cjsFields["types"]).toBe("./dist/cjs/index.d.ts")
+    // The source-first mirror follows the same rule.
+    const sourceCjs = manifest(
+      PackageJson({ name: "widget", version: "0.1.0", publish: { entry: cjs } }),
+      [[cjs, "//packages/widget:lib"]]
+    )
+    expect((sourceCjs["publishConfig"] as { readonly exports: Record<string, unknown> }).exports["."]).toEqual({
+      types: "./dist/cjs/index.d.ts",
+      require: "./dist/cjs/index.js"
+    })
   })
 
-  it("lets a declared exports map win over the derivation", () => {
+  it("refuses a publish style outside the modelled pair", () => {
     const lib = build("packages/widget")
-    const fields = manifest(
-      PackageJson({
-        name: "widget",
-        version: "0.1.0",
-        publish: { entry: lib },
-        fields: { exports: { ".": "./src/index.ts" } }
-      }),
-      [[lib, "//packages/widget:lib"]]
-    )
-    expect(fields["exports"]).toEqual({ "./package.json": "./package.json", ".": "./src/index.ts" })
+    expect(() => PackageJson({ name: "widget", version: "0.1.0", publish: { entry: lib, style: "esm" as never } }))
+      .toThrow(/style must be "source" or "dist"/)
   })
 
   it("fails precisely when the entry declares no outDir, no format, or no entries", () => {
@@ -492,6 +592,47 @@ describe("check and write roundtrip", () => {
     }
     expect(written.dependencies).toEqual({ effect: "4.0.0" })
     expect(written.devDependencies).toEqual({ vitest: "4" })
+  })
+
+  it("carries a field it does not model instead of deleting it", async () => {
+    const handWritten = {
+      name: "widget",
+      version: "0.1.0",
+      license: "MIT",
+      smthrs: { group: "engine" },
+      homepage: "https://example.invalid",
+      repository: { type: "git", url: "https://example.invalid.git", directory: "packages/widget" },
+      bugs: { url: "https://example.invalid/issues" },
+      tags: ["typescript"],
+      keywords: ["typescript"],
+      private: true,
+      bin: { widget: "./bin.js" },
+      exports: { ".": "./src/index.ts" },
+      files: ["src/**/*.ts"],
+      publishConfig: { access: "public" }
+    }
+    await Fs.writeFile(NodePath.join(root, "package.json"), render(handWritten), "utf8")
+    // The declaration states name, version, and license alone. Every other
+    // field survives, so the check passes and the write is a no-op.
+    await run(payload())
+    await run(payload({ mode: "write" }))
+    const written = JSON.parse(await Fs.readFile(NodePath.join(root, "package.json"), "utf8")) as Record<
+      string,
+      unknown
+    >
+    for (const [key, value] of Object.entries(handWritten)) expect(written[key]).toEqual(value)
+  })
+
+  it("prefers the declared value over the checked-in one for a preserved field", () => {
+    const assembled = assemble(
+      { name: "widget", homepage: "https://declared.invalid" },
+      { homepage: "https://checked-in.invalid", smthrs: { group: "engine" }, dependencies: { effect: "4" } }
+    )
+    expect(assembled["homepage"]).toBe("https://declared.invalid")
+    expect(assembled["smthrs"]).toEqual({ group: "engine" })
+    // A manager-owned block is unconditional: the checked-in value always wins.
+    expect(assemble({ dependencies: { effect: "3" } }, { dependencies: { effect: "4" } })["dependencies"])
+      .toEqual({ effect: "4" })
   })
 
   it("refuses a checked-in manifest that is not valid JSON", async () => {
@@ -701,6 +842,38 @@ describe("target synthesis", () => {
     expect((Target.metadata(expanded.refresh).attrs as { mode: string }).mode).toBe("refresh")
   })
 
+  it("fills in repository.directory from the declaring package's own path", () => {
+    const template = PackageJsonTemplate.make({
+      fields: { repository: { type: "git", url: "https://example.invalid.git" } }
+    })
+    const fields = manifest(PackageJson({ name: "widget", version: "0.1.0", template }), [])
+    expect(fields["repository"]).toEqual({
+      type: "git",
+      url: "https://example.invalid.git",
+      directory: "packages/widget"
+    })
+    // A declared directory is never overwritten.
+    const stated = manifest(
+      PackageJson({
+        name: "widget",
+        version: "0.1.0",
+        fields: { repository: { type: "git", url: "https://example.invalid.git", directory: "elsewhere" } }
+      }),
+      []
+    )
+    expect((stated["repository"] as { readonly directory: string }).directory).toBe("elsewhere")
+    // A root declaration has no directory to name.
+    const rooted = targets(
+      PackageJson({ name: "widget", version: "0.1.0", template }),
+      ".",
+      labeller([])
+    )
+    const rootFields = (Target.metadata(rooted.check).attrs as {
+      readonly fields: Record<string, unknown>
+    }).fields
+    expect(rootFields["repository"]).toEqual({ type: "git", url: "https://example.invalid.git" })
+  })
+
   it("anchors the manifest, README, and source glob at the workspace root", () => {
     const expanded = targets(
       PackageJson({ name: "widget", version: "0.1.0", description: generated }),
@@ -715,5 +888,158 @@ describe("target synthesis", () => {
     expect(attrs.output).toBe("//packages/widget/package.json")
     expect(attrs.readme.path).toBe("//packages/widget/README.md")
     expect(attrs.sources.pattern).toBe("//packages/widget/src/**/*.ts")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// The workspace-wide manifest gate
+// ---------------------------------------------------------------------------
+
+/**
+ * The real repository root. This suite reads the 45 checked-in manifests
+ * rather than a fixture, because the property under test is that generating
+ * them drops nothing, and a fixture can only carry the fields someone
+ * remembered to put in it.
+ */
+const workspaceRoot = NodePath.resolve(import.meta.dirname, "../../..")
+
+/** The shared repository fields every published package in this workspace carries. */
+const flowsRepository = {
+  homepage: "https://github.com/smithersai/flows",
+  repository: { type: "git", url: "https://github.com/smithersai/flows.git" },
+  bugs: { url: "https://github.com/smithersai/flows/issues" }
+}
+
+/** The script block 39 of the 45 packages share verbatim. */
+const workspaceScripts: Readonly<Record<string, string>> = {
+  lint: "eslint src --max-warnings=0 && dprint check",
+  format: "dprint fmt",
+  build: "node scripts/build.mjs",
+  check: "tsc -b tsconfig.json && tsc -p tsconfig.test.json --noEmit",
+  circular: "node scripts/circular.mjs",
+  test: "vitest",
+  coverage: "vitest --coverage"
+}
+
+/**
+ * Packages whose script block is not the shared one.
+ *
+ * A literal per-package script has no home in a declaration today: `fields`
+ * refuses `scripts`, and a declared script must name a target. These six
+ * therefore take their scripts from the checked-in manifest, and the shared
+ * block covers the other 39.
+ */
+const ownScripts = new Set(["build", "build-cli", "chain", "evals", "jj", "targets"])
+
+/**
+ * Packages whose published subpath map is not the conventional one.
+ *
+ * The conventional map is `.`, `./*`, a sealed `./internal/*` and a sealed
+ * index subpath, and `./package.json`. These thirteen add named subpaths, seal
+ * a different set, or publish an asset, so they state the map. `publishConfig.exports` is
+ * still generated from whatever map they state.
+ */
+const ownExports = new Set([
+  "build",
+  "build-cli",
+  "canonical",
+  "engine",
+  "flow",
+  "fs",
+  "jj",
+  "kernel",
+  "observability",
+  "plan",
+  "platform-browser",
+  "sandbox",
+  "targets"
+])
+
+/** Packages whose published file list is not the conventional nine entries. */
+const ownFiles = new Set(["build", "build-cli", "canonical", "engine", "flow", "jj", "observability", "targets"])
+
+/**
+ * Packages that are private and whose `publishConfig` therefore carries no
+ * `access` and no `provenance`: npm never reads it, because npm never sees
+ * these packages.
+ */
+const privatePackages = new Set(["build-cli", "targets"])
+
+const readManifest = async (directory: string): Promise<Record<string, unknown>> =>
+  JSON.parse(
+    await Fs.readFile(NodePath.join(workspaceRoot, "packages", directory, "package.json"), "utf8")
+  ) as Record<string, unknown>
+
+/** Regenerates one checked-in manifest from the declaration a BUILD.ts would make. */
+const regenerate = (directory: string, checkedIn: Record<string, unknown>): Record<string, unknown> => {
+  const cwd = `packages/${directory}`
+  const lib = build(cwd)
+  const shared = privatePackages.has(directory) ? {} : flowsRepository
+  const template = PackageJsonTemplate.make({
+    type: "module",
+    license: "MIT",
+    sideEffects: [],
+    engines: { node: ">=22.19.0" },
+    scripts: (ownScripts.has(directory)
+      ? checkedIn["scripts"]
+      : workspaceScripts) as Readonly<Record<string, string>>,
+    fields: directory === "canonical"
+      // canonical states a homepage and a repository but no bugs URL.
+      ? { homepage: flowsRepository.homepage, repository: flowsRepository.repository }
+      : shared
+  })
+  const declaration = PackageJson({
+    name: checkedIn["name"] as string,
+    version: checkedIn["version"] as string,
+    license: "MIT",
+    template,
+    publish: { entry: lib, ...(privatePackages.has(directory) ? { access: "restricted" as const } : {}) },
+    fields: {
+      ...(ownExports.has(directory) ? { exports: checkedIn["exports"] } : {}),
+      ...(ownFiles.has(directory) ? { files: checkedIn["files"] } : {})
+    }
+  })
+  const expanded = targets(declaration, cwd, labeller([[lib, `//${cwd}:lib`]]))
+  const fields = (Target.metadata(expanded.check).attrs as { readonly fields: Record<string, unknown> }).fields
+  return assemble(fields, checkedIn)
+}
+
+/**
+ * The differences the generator is allowed to have from the checked-in file,
+ * named one by one. Anything not listed here is a regression.
+ */
+const allowedDifferences: Readonly<Record<string, ReadonlyArray<string>>> = {
+  // A private package's publishConfig carries only the exports mirror. The
+  // derivation always states access and provenance, which npm never reads for
+  // a package it never receives.
+  "build-cli": ["publishConfig"],
+  targets: ["publishConfig"]
+}
+
+describe("the checked-in workspace manifests", () => {
+  it("regenerates all 45 without dropping a field", async () => {
+    const entries = await Fs.readdir(NodePath.join(workspaceRoot, "packages"), { withFileTypes: true })
+    const directories = entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort()
+    const packages: Array<string> = []
+    for (const directory of directories) {
+      const path = NodePath.join(workspaceRoot, "packages", directory, "package.json")
+      if (await Fs.access(path).then(() => true, () => false)) packages.push(directory)
+    }
+    expect(packages).toHaveLength(45)
+
+    const unexpected: Array<string> = []
+    for (const directory of packages) {
+      const checkedIn = await readManifest(directory)
+      const differences = diffFields(regenerate(directory, checkedIn), checkedIn)
+      const allowed = new Set(allowedDifferences[directory] ?? [])
+      for (const difference of differences) {
+        const field = difference.slice(0, difference.indexOf(":"))
+        if (!allowed.has(field)) unexpected.push(`${directory}: ${difference}`)
+      }
+    }
+    expect(unexpected).toEqual([])
   })
 })

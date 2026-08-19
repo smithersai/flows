@@ -118,6 +118,46 @@ done
 `@smthrs/platform-bun` declares `@effect/platform-bun` as an optional peer.
 Install it in the verification project too, or that one import fails by design.
 
+## Where each piece of this lives
+
+Three mechanisms sit behind this runbook. They are separate on purpose.
+
+**Versioning is native.** `scripts/set-release-version.mjs` is the whole
+implementation. It rewrites every `packages/*/package.json` to the release
+version and retargets every internal range that named the old one, across
+`dependencies`, `devDependencies`, `peerDependencies`, and
+`optionalDependencies`. Ranges carrying the `workspace:` or `catalog:`
+protocol are left alone, because the package manager resolves those and a
+literal rewrite would break them. `--check` reports every stale range by name,
+and `.github/workflows/ci.yml` runs it. There is no changesets installation in
+this repository and nothing here waits on one.
+
+The asymmetry between the two scripts is deliberate. `set-release-version.mjs`
+retargets all four dependency groups across all 45 manifests, while
+`pack-release.mjs` publishes only the 23 packages in the `engine` group. The
+agent-group packages depend on engine packages by exact version, so a bump that
+skipped them would leave the workspace unresolvable after the release commit
+lands.
+
+**Ordering stays in `pack-release.mjs`.** The dependency graph over the release
+set is not acyclic: `kernel` and `platform-browser` depend on each other, and
+`scripts/pack-release.test.mjs` pins that cycle. The ordering therefore enters a
+cycle at its alphabetically first member rather than refusing it. Any
+replacement must reproduce that rule, along with `assertBuilt`, the
+`publicationManifest` export rewrite, and the `--list` and `--names` output this
+runbook drives.
+
+**Published manifests are generated, not hand-written.** A package declares its
+name, version, and publish entry in `BUILD.ts`, and
+`packages/targets/src/PackageJson.ts` derives the rest. `exports` is stated once
+and `publishConfig.exports` is generated as its compiled mirror, so the subpath
+map is never written twice. Fields the generator does not model — `smthrs`,
+`homepage`, `repository`, `bugs`, `tags`, `private`, `bin` — are carried through
+from the checked-in manifest verbatim; see `preservedFields` in
+`packages/targets/src/PackageJsonTemplate.ts`. `packages/targets/test/PackageJson.test.ts`
+regenerates all 45 checked-in manifests and fails on any dropped or changed
+field.
+
 ## 5. If it goes wrong
 
 npm versions are immutable. Do not try to republish a version.

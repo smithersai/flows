@@ -96,6 +96,45 @@ export const managerOwnedFields: ReadonlyArray<string> = [
   "pnpm"
 ]
 
+/**
+ * The fields carried verbatim from the checked-in manifest when the
+ * declaration produces none of its own.
+ *
+ * A generator that emits only what it models deletes everything it does not.
+ * Measured against this workspace's 45 manifests, adopting the generator
+ * without this list would drop `smthrs` from all 45, `homepage`, `repository`,
+ * and `bugs` from 43, `tags` and `keywords` from 42, `private` and `bin` from
+ * 2, and every `exports`, `files`, and `publishConfig` block from a package
+ * that declares no publish entry. Carrying is conditional: a declaration that
+ * states one of these fields wins, and the checked-in value is then compared
+ * rather than copied, so drift is still reported.
+ *
+ * This differs from {@link managerOwnedFields}, which is unconditional. A
+ * dependency block is refused at the declaration site, so the checked-in value
+ * is always the only value.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const preservedFields: ReadonlyArray<string> = [
+  "smthrs",
+  "description",
+  "keywords",
+  "tags",
+  "homepage",
+  "repository",
+  "bugs",
+  "funding",
+  "author",
+  "contributors",
+  "private",
+  "bin",
+  "exports",
+  "imports",
+  "files",
+  "publishConfig"
+]
+
 const managerOwned = new Set(managerOwnedFields)
 
 const optionNames = new Set(["license", "author", "engines", "scripts", "sideEffects", "type", "fields"])
