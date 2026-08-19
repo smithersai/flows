@@ -210,6 +210,7 @@ describe("the checked-in root files match what BUILD.ts declares", () => {
         "es5-ext": false,
         esbuild: false,
         "msgpackr-extract": false,
+        playwright: false,
         sharp: false,
         "unrs-resolver": false,
         "vue-demi": false,
