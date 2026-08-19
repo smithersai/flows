@@ -29,6 +29,14 @@
 
 ### Added
 
+- Added `Agent.Options.readOnlyCap`, armed by `AgentSession` for every task run
+  (`AgentSession.Options.readOnlyCap`, default `CellTurn.defaultReadOnlyFrames`).
+  It caps consecutive frames that write nothing; a run that is meant only to
+  answer leaves it unset.
+- Journaled `control.agent.completion-audited`: the check a completion declared,
+  whether the controller accepted it, and the real output the re-run produced.
+- Journaled `durationMillis` on `control.agent.model-settled`, the wall-clock
+  duration of that one sealed model call.
 - Added `Seat`: the resolved seat record, `Seat.modelIdOf`, and the typed
   `Seat.SeatUnresolved` failure. The declared half stays an unvalidated string,
   because the resolver owns the seat vocabulary.

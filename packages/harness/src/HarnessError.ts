@@ -20,6 +20,7 @@ export const HarnessErrorCode = Schema.Literals([
   "elaboration_failed",
   "engine_failed",
   "invalid_step",
+  "read_only_cap",
   "lazy_tool_prompt_metadata",
   "aborted",
   "suspended",

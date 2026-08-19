@@ -36,7 +36,7 @@ Two flags:
 
 ## What it measures
 
-Eight cases. Each one is a whole agent run: the real cell loop, the real QuickJS
+Ten cases. Each one is a whole agent run: the real cell loop, the real QuickJS
 sandbox, the real registry-backed call bridge, and the real structured-output
 boundary, executing over `FlowEngine.layerMemory` — the engine's in-process
 volatile runtime, not the durable SQLite one a deployed host uses. Three things
@@ -53,15 +53,17 @@ loop and its seams, not durability and not a real catalog.
 | `correction-reprompt-recovers`         | One malformed answer spends one correction slot; the re-prompted run decodes and the step succeeds.                    |
 | `correction-budget-exhausted`          | A model that never produces the declared shape fails `/harness/StructuredOutputFailure`, not silently.                 |
 | `cell-calls-a-flow`                    | A cell reaches a host capability through `ctx.call`, and the flow's typed result reaches the answer.                   |
-| `completion-audit-bounces-first-claim` | With the audit armed, the first completion is refused and answered with a demand for evidence; the second is accepted. |
+| `completion-audit-bounces-first-claim` | With the audit armed, the first completion is refused; the second is accepted only after the harness re-runs the check it declares. |
+| `completion-audit-refuses-an-unproven-claim` | A completion with no declared check is refused with what the harness observed; the run recovers by running one and citing it. |
+| `read-only-cap-stops-a-reading-run`    | A task run that only reads is told to write or justify at its cap, and stops as `/harness/HarnessError` at twice it.   |
 | `max-frames-stops-the-run`             | A run that never completes stops at its frame budget and reports `/harness/HarnessError`.                              |
 | `seat-unresolved-is-typed`             | A host with no model for the declared seat refuses before any model call, as `@smthrs/agent/Seat/SeatUnresolved`.      |
 
 Seven cases drive the agent through `AgentAction` — one typed step inside an
-ordinary flow, which is how a workflow author reaches it. The remaining case,
-`completion-audit-bounces-first-claim`, drives the `Agent` service directly
-inside a real flow execution, because `auditCompletion` is an `Agent.Options`
-field that `AgentAction` does not forward.
+ordinary flow, which is how a workflow author reaches it. The three loop-
+discipline cases drive the `Agent` service directly inside a real flow
+execution, because `auditCompletion` and `readOnlyCap` are `Agent.Options`
+fields that `AgentAction` does not forward.
 
 Each case reduces its run to one `Observation`:
 
@@ -78,20 +80,24 @@ invariants the schema cannot state, namely that `kind` decides which of `value`
 and `failure` is set and that `modelCalls` is a non-negative integer.
 
 Cases are self-evidencing rather than count-based wherever the prompt makes that
-possible. The completion-audit case scripts the model to answer `"audited"` only
+possible. The completion-audit cases script the model to answer `"audited"` only
 when the prompt it receives contains the audit demand, and the correction case
 answers with valid JSON only when the prompt carries the correction teaching, so
 a boundary that stopped bouncing or stopped re-prompting reports the wrong
-answer and not merely a different call count.
+answer and not merely a different call count. The audit cases also read their
+own machine check: the cited command appears twice in `flowCalls`, once from
+the cell and once from the controller re-running it, so an audit that went back
+to believing prose records it once. The read-only case records `probe:demanded`
+only if the structural demand actually reached the model.
 
 ## Files
 
 | File            | What it is                                                                                                           |
 | --------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `subject.ts`    | The composition under evaluation: the scripted provider, the seat seam, the host, and the two ways to run the agent. |
-| `suite.ts`      | The eight scenarios, their declared expectations, the two scorers, and the case executor.                            |
+| `suite.ts`      | The ten scenarios, their declared expectations, the two scorers, and the case executor.                              |
 | `run.ts`        | The entry point: runs the suite, compares it to the baseline, applies the gate, sets the exit code.                  |
-| `baseline.json` | The committed baseline, in `@smthrs/evals` `Baseline` v1 form. Sixteen records: eight cases times two scorers.       |
+| `baseline.json` | The committed baseline, in `@smthrs/evals` `Baseline` v1 form. Twenty records: ten cases times two scorers.          |
 | `tsconfig.json` | Typechecks the suite: `npx tsc -p evals/agent`. Nothing else references it.                                          |
 
 `baseline.json` is written by `Baseline.write`, which emits canonical

@@ -223,6 +223,62 @@ export const echoSource = (recorder: Recorder): FlowBinding.Source =>
     })
   ])
 
+const check = CoreFlow.make({
+  name: "check",
+  description: "Run the project's own check and report its exit code.",
+  input: Schema.Struct({ command: Schema.String }),
+  output: Schema.Struct({ exitCode: Schema.Number }),
+  effects: { reads: [], writes: [], mode: "expected", onConflict: "serialize", tier: "irreversible" }
+})
+
+const probe = CoreFlow.make({
+  name: "probe",
+  description: "Read something and report that it was read.",
+  input: Schema.Struct({ note: Schema.String }),
+  output: Schema.Struct({ read: Schema.Boolean }),
+  effects: { reads: ["/**"], writes: [], mode: "hermetic", onConflict: "serialize", tier: "sealed" }
+})
+
+/**
+ * The check a completing cell cites, recorded by the command it was given.
+ *
+ * The audit re-runs the cited call itself, so a scenario that completes with
+ * evidence records the command twice: once from the cell, once from the
+ * harness. A boundary that went back to accepting prose would record it once.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const checkSource = (recorder: Recorder): FlowBinding.Source =>
+  FlowBinding.source("evals/agent/check", [
+    FlowBinding.make({
+      flow: check,
+      handler: (input) =>
+        Effect.sync(() => {
+          recorder.flowCalls.push(`check:${input.command}`)
+          return { exitCode: 0 }
+        })
+    })
+  ])
+
+/**
+ * A read that declares no writes, so a frame spent on it is a read-only frame.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const probeSource = (recorder: Recorder): FlowBinding.Source =>
+  FlowBinding.source("evals/agent/probe", [
+    FlowBinding.make({
+      flow: probe,
+      handler: (input) =>
+        Effect.sync(() => {
+          recorder.flowCalls.push(`probe:${input.note}`)
+          return { read: true }
+        })
+    })
+  ])
+
 const Review = Schema.Struct({
   approved: Schema.Boolean,
   issues: Schema.Array(Schema.String)
@@ -342,6 +398,10 @@ export interface AgentOptions {
   readonly maxFrames: number
   /** Arms the completion audit, which `AgentAction` does not forward. */
   readonly auditCompletion?: boolean | undefined
+  /** Caps consecutive read-only frames, the other task-run discipline. */
+  readonly readOnlyCap?: number | undefined
+  /** Host executable flows the cell may call. */
+  readonly flows?: ReadonlyArray<FlowBinding.Source> | undefined
 }
 
 /**
@@ -371,7 +431,9 @@ export const runAgent = (options: AgentOptions): Effect.Effect<Observation> =>
         registry: emptyRegistry,
         capabilityEnvelope: [],
         maxFrames: options.maxFrames,
-        ...(options.auditCompletion === undefined ? {} : { auditCompletion: options.auditCompletion })
+        ...(options.flows === undefined ? {} : { flows: options.flows }),
+        ...(options.auditCompletion === undefined ? {} : { auditCompletion: options.auditCompletion }),
+        ...(options.readOnlyCap === undefined ? {} : { readOnlyCap: options.readOnlyCap })
       }).pipe(
         Stream.runForEach((event) => Effect.sync(() => collected.push(event))),
         Effect.provide(Agent.layerDefaults)

@@ -6,7 +6,7 @@
 import * as Permission from "@smthrs/capability/Permission"
 import * as ModelEvent from "@smthrs/model/ModelEvent"
 import * as ModelRequest from "@smthrs/model/ModelRequest"
-import { Schema } from "effect"
+import { Effect, Schema } from "effect"
 import * as Cell from "./Cell.ts"
 import * as EngineLike from "./EngineLike.ts"
 
@@ -53,7 +53,20 @@ export class ModelSettled extends Schema.TaggedClass<ModelSettled>(
 )("model-settled", {
   eventType: Schema.Literal("flows.harness.model-settled.v1"),
   message: ModelRequest.AssistantMessage,
-  usage: ModelEvent.Usage
+  usage: ModelEvent.Usage,
+  /**
+   * Wall-clock milliseconds the sealed step took, measured on the injected
+   * clock.
+   *
+   * Usage alone answers what a call cost, never how long it took, so a
+   * benchmark could compare tokens per run but not seconds per call — and
+   * speed was the larger half of the gap the first head-to-head measured.
+   * Zero is what an event carries when nothing timed it.
+   */
+  durationMillis: Schema.Number.pipe(
+    Schema.withConstructorDefault(Effect.succeed(0)),
+    Schema.withDecodingDefaultKey(Effect.succeed(0))
+  )
 }) {}
 
 /**
@@ -131,6 +144,29 @@ export class TransitionApplied extends Schema.TaggedClass<TransitionApplied>(
 )("transition-applied", {
   eventType: Schema.Literal("flows.harness.transition-applied.v1"),
   transition: Cell.Transition
+}) {}
+
+/**
+ * The machine-checked verdict on one completion claim.
+ *
+ * The controller re-ran the check the completing cell declared and recorded
+ * what actually happened. This is the grader's evidence: the flow, the input,
+ * and the real output the harness saw, not the model's account of them.
+ *
+ * @category events
+ * @since 0.1.0
+ * @slop
+ */
+export class CompletionAudited extends Schema.TaggedClass<CompletionAudited>(
+  "flows/harness/AgentEvent/CompletionAudited"
+)("completion-audited", {
+  eventType: Schema.Literal("flows.harness.completion-audited.v1"),
+  /** The declared verification, absent when the completion declared none. */
+  verification: Schema.optional(Cell.Verification),
+  /** Whether the completion was accepted on this evidence. */
+  accepted: Schema.Boolean,
+  /** What the harness observed: the real output, or why nothing was run. */
+  detail: Schema.String
 }) {}
 
 /**
@@ -249,6 +285,7 @@ export const AgentEvent = Schema.Union([
   CellCallSettled,
   CellSettled,
   TransitionApplied,
+  CompletionAudited,
   Suspended,
   CompactionSettled,
   SteeringDrained,
