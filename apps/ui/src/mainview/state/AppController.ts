@@ -442,9 +442,24 @@ export const createAppController = (
 	 * carry no deadline, because a long stream is not a hang.
 	 */
 	const SEAM_TIMEOUT_MS = services.seamTimeoutMs ?? 30_000;
-	const bounded = (init?: RequestInit): RequestInit => {
-		if (init?.signal != null || typeof AbortSignal?.timeout !== "function") return init ?? {};
-		return { ...init, signal: AbortSignal.timeout(SEAM_TIMEOUT_MS) };
+	/**
+	 * One request, with a deadline on it.
+	 *
+	 * Built from an AbortController rather than `AbortSignal.timeout` so the
+	 * timer is CLEARED the moment the request settles: a dangling timer per
+	 * request holds the process open outside a browser, and the deadline is
+	 * about the request, not about the page.
+	 */
+	const boundedFetch = async (url: string, init: RequestInit): Promise<Response> => {
+		if (typeof AbortController !== "function") return http(url, init);
+		const aborter = new AbortController();
+		const timer = setTimeout(() => aborter.abort(new Error("seam timeout")), SEAM_TIMEOUT_MS);
+		unref(timer);
+		try {
+			return await http(url, { ...init, signal: aborter.signal });
+		} finally {
+			clearTimeout(timer);
+		}
 	};
 
 	const errorMessageOf = async (response: Response, fallback: string): Promise<string> => {
@@ -3128,11 +3143,11 @@ export const createAppController = (
 		for (;;) {
 			let body: { status?: unknown; message?: unknown } | undefined;
 			try {
-				const response = await http(`${baseUrl}${WORKFLOW_PROVISION_PATH}`, bounded({
+				const response = await boundedFetch(`${baseUrl}${WORKFLOW_PROVISION_PATH}`, {
 					method: "POST",
 					headers: { "content-type": "application/json" },
 					body: JSON.stringify({ repo }),
-				}));
+				});
 				if (!response.ok) {
 					return await errorMessageOf(response, "The workspace couldn't be prepared.");
 				}
@@ -3181,11 +3196,11 @@ export const createAppController = (
 			  }
 			| undefined;
 		try {
-			const response = await http(`${baseUrl}${WORKFLOW_RPC_PATH}`, bounded({
+			const response = await http(`${baseUrl}${WORKFLOW_RPC_PATH}`, {
 				method: "POST",
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({ repo, method, params }),
-			}));
+			});
 			if (!response.ok) {
 				return { status: "error", message: await errorMessageOf(response, "The workspace didn't answer.") };
 			}
