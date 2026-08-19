@@ -15,9 +15,9 @@
  * policy is closed and `js-yaml` is only present transitively, so that module
  * hand-writes a targeted workflow scanner that refuses what it does not
  * understand. This module follows it. It handles exactly the constructs pnpm
- * writes — the four top-level sections, quoted and bare block-map keys, flow
+ * writes: the four top-level sections, quoted and bare block-map keys, flow
  * maps and flow sequences as leaf values, block sequences, and the empty flow
- * map `{}` — and it fails with a named error on anything else.
+ * map `{}`. It fails with a named error on anything else.
  *
  * Failing closed matters more here than in a gate scanner. A partial parse
  * produces a package graph with missing edges, and a caller that keys work on
@@ -43,8 +43,8 @@ import { maximumLockfileBytes } from "./PackageManager.ts"
  * The lockfile format versions this scanner accepts.
  *
  * A version outside this list is refused rather than attempted. pnpm changed
- * the meaning of the `packages` section between 6, 9, and later formats — in 9
- * it holds package metadata and `snapshots` holds the dependency edges — so a
+ * the meaning of the `packages` section between 6, 9, and later formats. In 9
+ * it holds package metadata and `snapshots` holds the dependency edges, so a
  * scanner that guessed would report edges that the lockfile does not state.
  *
  * @category constants
