@@ -133,24 +133,35 @@ const smithersRows: ReadonlyArray<ParityRow> = [
   }
 ]
 
+// The harness ran a provider-tool-call loop until the cell loop replaced it,
+// and the suites that pinned that loop went with it. A pi row whose behavior
+// still exists is retargeted at the suite that now proves it — deferred tool
+// loading, for instance, is a model-layer contract and never depended on the
+// loop. A row whose behavior was the loop is `skipped` with the deletion named
+// as its reason, because the cell loop declares no provider tools at all.
 const piRows: ReadonlyArray<ParityRow> = [
   {
     source: "pi §4 deferred tool loading",
     behavior: "A tool result activates deferred definitions additively for the next turn.",
-    flowsEquivalent: "agent/packages/harness/test/DeferredActivation.test.ts",
+    flowsEquivalent: "agent/packages/model/test/DeferredTools.test.ts",
     status: "pinned"
   },
   {
+    // The deleted DeferredToolCache.test.ts pinned both halves against the
+    // context window; ContextWindow.test.ts now carries them, so the row points
+    // at the module that owns activation rather than at the Anthropic wire.
     source: "pi §4 deferred tool loading",
     behavior: "Tool activation is additive and cache-safe.",
-    flowsEquivalent: "agent/packages/harness/test/DeferredToolCache.test.ts",
+    flowsEquivalent: "agent/packages/harness/test/ContextWindow.test.ts",
     status: "pinned"
   },
   {
     source: "pi §6 abort discipline",
     behavior: "Fiber interruption aborts a child batch without starting later work.",
-    flowsEquivalent: "agent/packages/harness/test/AbortDiscipline.test.ts",
-    status: "pinned"
+    flowsEquivalent: "agent/packages/harness/test/CellTurn.test.ts",
+    status: "partial",
+    reason:
+      "The cell loop reports one typed abort on interruption and starts no later frame; the provider tool-call batch this constrained went away with the legacy loop."
   },
   {
     source: "pi §6 abort discipline",
@@ -161,14 +172,18 @@ const piRows: ReadonlyArray<ParityRow> = [
   {
     source: "pi §7 streaming",
     behavior: "Model transport and child progress stream without producer pre-join.",
-    flowsEquivalent: "agent/packages/harness/test/StreamingLayers.test.ts",
-    status: "pinned"
+    flowsEquivalent: "—",
+    status: "skipped",
+    reason:
+      "The layered streaming harness went away with the legacy provider-tool-call loop; the cell loop emits model deltas and per-call progress, but no surviving suite pins the no-pre-join ordering."
   },
   {
     source: "pi §7 length stop",
     behavior: "A length-stopped tool batch fails instead of succeeding partially.",
-    flowsEquivalent: "agent/packages/harness/test/LengthStopBatch.test.ts",
-    status: "pinned"
+    flowsEquivalent: "—",
+    status: "skipped",
+    reason:
+      "The cell loop has no provider tool batch to reject; a truncated cell is a correctable observation, which is a different contract."
   }
 ]
 
@@ -461,27 +476,42 @@ const pinned = new Map<string, Pick<ParityRow, "flowsEquivalent" | "status" | "r
   ],
   [
     key("packages/core/test/session-runner.test.ts", "durably settles local tool failures before continuing"),
-    { flowsEquivalent: "agent/packages/harness/test/SessionRunnerParity.test.ts", status: "pinned" }
+    {
+      flowsEquivalent: "agent/packages/harness/test/Sandbox.test.ts",
+      status: "partial",
+      reason:
+        "A refused flow call settles as a catchable FlowCallError the cell recovers from, so a failed call never fails the run; the journaled failure settlement is pinned in agent/packages/agent/test/AgentTrace.test.ts and durable storage remains engine-owned."
+    }
   ],
   [
     key(
       "packages/core/test/session-runner.test.ts",
       "forces one compaction and retries after provider context overflow"
     ),
-    { flowsEquivalent: "agent/packages/harness/test/Turn.test.ts", status: "pinned" }
+    {
+      flowsEquivalent: "agent/packages/harness/test/CellTurn.test.ts",
+      status: "partial",
+      reason:
+        "The cell loop forces one sealed compaction and asks the model again on the compacted window; it compacts on a declared token budget, so provider-overflow retry went away with the legacy provider-tool-call loop."
+    }
   ],
   [
     key("packages/core/test/session-runner.test.ts", "persists a second context overflow after one recovery"),
     {
-      flowsEquivalent: "agent/packages/harness/test/Turn.test.ts",
-      status: "partial",
+      flowsEquivalent: "—",
+      status: "skipped",
       reason:
-        "The harness rejects a second normalized context overflow after one recovery; durable Session persistence remains engine-owned."
+        "Provider-overflow recovery went away with the legacy provider-tool-call loop, so there is no one-shot recovery for a second overflow to exhaust."
     }
   ],
   [
     key("packages/core/test/session-runner.test.ts", "recovers once from a raw context overflow failure"),
-    { flowsEquivalent: "agent/packages/harness/test/Turn.test.ts", status: "pinned" }
+    {
+      flowsEquivalent: "—",
+      status: "skipped",
+      reason:
+        "The cell loop compacts on a declared token budget and never recovers from a raw provider overflow; that recovery went away with the legacy provider-tool-call loop."
+    }
   ],
   [
     key(
@@ -489,15 +519,14 @@ const pinned = new Map<string, Pick<ParityRow, "flowsEquivalent" | "status" | "r
       "does not recover context overflow after durable assistant output"
     ),
     {
-      flowsEquivalent: "agent/packages/harness/test/Turn.test.ts",
-      status: "partial",
-      reason:
-        "The harness preserves partial assistant output and refuses overflow recovery after it; durable Session storage remains engine-owned."
+      flowsEquivalent: "—",
+      status: "skipped",
+      reason: "The overflow-recovery contract this constrains went away with the legacy provider-tool-call loop."
     }
   ],
   [
     key("packages/core/test/session-runner.test.ts", "forces a text response on an agent's configured final step"),
-    { flowsEquivalent: "agent/packages/harness/test/Turn.test.ts", status: "pinned" }
+    { flowsEquivalent: "agent/packages/harness/test/CellTurn.test.ts", status: "pinned" }
   ],
   [
     key(
@@ -505,15 +534,15 @@ const pinned = new Map<string, Pick<ParityRow, "flowsEquivalent" | "status" | "r
       "projects raw provider stream failures as terminal assistant step failures"
     ),
     {
-      flowsEquivalent: "agent/packages/harness/test/SessionRunnerParity.test.ts",
+      flowsEquivalent: "agent/packages/harness/test/Transcript.test.ts",
       status: "partial",
       reason:
-        "The harness emits a metadata-free failed settlement preserving partial content; durable Session projection remains engine-owned."
+        "The transcript projects a metadata-free failed settlement preserving partial content; durable Session projection remains engine-owned."
     }
   ],
   [
     key("packages/core/test/session-runner.test.ts", "keeps interleaved assistant text blocks separate"),
-    { flowsEquivalent: "agent/packages/harness/test/StreamingLayers.test.ts", status: "pinned" }
+    { flowsEquivalent: "agent/packages/model/test/ModelEvent.test.ts", status: "pinned" }
   ],
   [
     key(
@@ -521,19 +550,19 @@ const pinned = new Map<string, Pick<ParityRow, "flowsEquivalent" | "status" | "r
       "broadcasts provider ${kind} deltas without storing projection rewrites"
     ),
     {
-      flowsEquivalent: "agent/packages/harness/test/StreamingLayers.test.ts",
+      flowsEquivalent: "agent/packages/harness/test/Transcript.test.ts",
       status: "partial",
       reason:
-        "The harness broadcasts interleaved text, reasoning, and tool-input deltas while Transcript ignores deltas; durable storage is engine-owned."
+        "Transcript ignores deltas and projects only settled entries, so no broadcast is stored as a rewrite; durable storage is engine-owned."
     }
   ],
   [
     key("packages/core/test/session-runner.test.ts", "durably closes partial ${kind} when the provider stream fails"),
     {
-      flowsEquivalent: "agent/packages/harness/test/SessionRunnerParity.test.ts",
+      flowsEquivalent: "agent/packages/model/test/AnthropicMessages.test.ts",
       status: "partial",
       reason:
-        "Failed text fragments are preserved in a metadata-free settlement; durable reasoning and tool-input failure projection remain engine-owned."
+        "The model boundary flushes an open block without settling a failed stream and maps the failure to a typed ModelError; durable fragment storage remains engine-owned."
     }
   ],
   [
@@ -542,10 +571,10 @@ const pinned = new Map<string, Pick<ParityRow, "flowsEquivalent" | "status" | "r
       "durably closes partial ${kind} when the provider stream is interrupted"
     ),
     {
-      flowsEquivalent: "agent/packages/harness/test/AbortDiscipline.test.ts",
+      flowsEquivalent: "agent/packages/model/test/ModelEvent.test.ts",
       status: "partial",
       reason:
-        "Interrupted text fragments are preserved and partial tool input has model-level abort normalization; durable fragment storage remains engine-owned."
+        "Interrupted fragments settle as aborted with repaired tool JSON and preserved metadata; durable fragment storage remains engine-owned."
     }
   ],
   [
@@ -558,9 +587,9 @@ const pinned = new Map<string, Pick<ParityRow, "flowsEquivalent" | "status" | "r
       "projects durable progress and keeps final settlements durable"
     ),
     {
-      flowsEquivalent: "agent/packages/harness/test/StreamingLayers.test.ts",
+      flowsEquivalent: "agent/packages/harness/test/CellTurn.test.ts",
       status: "partial",
-      reason: "The harness emits live per-call progress and settlement; durable storage remains engine-owned."
+      reason: "The cell loop emits live per-call start and settlement; durable storage remains engine-owned."
     }
   ],
   [
@@ -568,7 +597,12 @@ const pinned = new Map<string, Pick<ParityRow, "flowsEquivalent" | "status" | "r
       "packages/core/test/session-runner-recorded.test.ts",
       "executes one recorded V2 prompt through the recorded HTTP transport"
     ),
-    { flowsEquivalent: "agent/packages/harness/test/SessionRunnerParity.test.ts", status: "pinned" }
+    {
+      flowsEquivalent: "agent/packages/model/test/RequestExecutor.test.ts",
+      status: "partial",
+      reason:
+        "Byte-identical replay of a recorded request through the HTTP transport is pinned at the model boundary; the whole-session recorded replay went away with the legacy provider-tool-call loop."
+    }
   ],
   [
     key(
@@ -576,10 +610,10 @@ const pinned = new Map<string, Pick<ParityRow, "flowsEquivalent" | "status" | "r
       "preserves an interrupted registration until its scope closes"
     ),
     {
-      flowsEquivalent: "agent/packages/harness/test/DeferredToolCache.test.ts",
+      flowsEquivalent: "agent/packages/model/test/DeferredTools.test.ts",
       status: "partial",
       reason:
-        "Flows pins retained deferred definitions and fiber interruption, but does not expose mutable scoped registrations."
+        "Flows pins retained deferred definitions at the model boundary, but does not expose mutable scoped registrations."
     }
   ],
   [
@@ -588,9 +622,10 @@ const pinned = new Map<string, Pick<ParityRow, "flowsEquivalent" | "status" | "r
       "returns model errors without swallowing interruption or defects"
     ),
     {
-      flowsEquivalent: "agent/packages/harness/test/AbortDiscipline.test.ts",
+      flowsEquivalent: "agent/packages/model/test/ModelEvent.test.ts",
       status: "partial",
-      reason: "Fiber interruption is pinned at the harness boundary; OpenCode registration defects are vendor-specific."
+      reason:
+        "Interruption normalization is pinned at the model boundary; OpenCode registration defects are vendor-specific."
     }
   ],
   [

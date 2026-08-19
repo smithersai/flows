@@ -30,7 +30,7 @@ describe("Source", () => {
     expect(result).toMatchObject({ text: "" })
   })
 
-  it("produces Assemble's declared text shape and freezes a retry snapshot", async () => {
+  it("produces the agent's declared memory text shape and freezes a retry snapshot", async () => {
     let reads = 0
     const store = MemoryStore.MemoryStore.of({
       listNotes: () =>

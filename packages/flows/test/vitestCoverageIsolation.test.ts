@@ -437,6 +437,15 @@ describe("vitest coverage isolation conformance", () => {
     // directives that the earlier literal-`v8 ignore` grep never saw.
     const directive = /(?:istanbul|[cv]8|node:coverage)\s+ignore\s+(if|else|next|file|start|stop)(?=\W|$)/g
     const allowlist: Record<string, number> = {
+      // Cell calls are schema-decoded before keying and controller boundary
+      // identities are JSON-shaped, so these two canonicalization error
+      // mappers are unreachable. Each ignore is scoped to its one mapper.
+      "agent/src/FlowEngineLike.ts": 2,
+      // The agent session's remaining hints are narrowly scoped to
+      // process-loss and corrupted-registry fallbacks. They translate
+      // engine/journal failures that the durable integration stack cannot
+      // synthesize without breaking the very invariants it is proving.
+      "agent/src/AgentSession.ts": 10,
       // Canonical capture rejects accessor properties before recursively
       // freezing the captured object graph, so the descriptor walk only sees
       // data properties in both identity implementations.
@@ -453,15 +462,6 @@ describe("vitest coverage isolation conformance", () => {
       // `observeReads` already failed the run for the same glob when no
       // FileSystem was composed.
       "engine-store/src/PlanScheduler.ts": 9,
-      // Cell calls are schema-decoded before keying and controller boundary
-      // identities are JSON-shaped, so these two canonicalization error
-      // mappers are unreachable. Each ignore is scoped to its one mapper.
-      "engine-harness/src/FlowEngineLike.ts": 2,
-      // The executor's remaining hints are narrowly scoped to process-loss and
-      // corrupted-registry fallbacks. They translate engine/journal failures
-      // that the durable integration stack cannot synthesize without breaking
-      // the very invariants it is proving.
-      "engine-harness/src/HarnessExecutor.ts": 10,
       // One `else` arm in recursive enumeration: special entries (symlinks,
       // sockets) are neither materializable leaves nor prunable scaffolding
       // and are intentionally discarded.

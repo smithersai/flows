@@ -1,8 +1,8 @@
 /**
- * Advisory memory context source for harness assembly.
+ * Advisory memory context source for an agent's opening context.
  *
- * Values returned by {@link declaredText} are accepted by
- * `Assemble.Input.sources`. The source fetches primers and recall once per
+ * Values returned by {@link declaredText} are accepted as
+ * `Agent.Options.memory`. The source fetches primers and recall once per
  * `(lineageId, iteration)`, freezes the
  * rendered snapshot for retries, fences it, caps it, and degrades to no text
  * after a two-second timeout or typed failure.
@@ -20,6 +20,7 @@ import * as Recall from "./Recall.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Input extends Recall.Input {
   readonly lineageId: string
@@ -29,20 +30,25 @@ export interface Input extends Recall.Input {
 }
 
 /**
- * A memory source value consumed by an Assemble caller.
+ * A memory source value consumed by the host that builds an agent's opening
+ * context.
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Source {
   readonly read: (input: Input) => Effect.Effect<string, never, MemoryStore.MemoryStore | Recall.Recall>
 }
 
 /**
- * Exact declared-text shape consumed by `/harness/Assemble`.
+ * Exact declared-text shape consumed by the memory segment an agent's opening
+ * context builds (`packages/agent/src/Agent.ts`, `opening()`), passed in as
+ * `Agent.Options.memory`.
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface DeclaredText {
   readonly text: string
@@ -124,6 +130,7 @@ const fetch = (input: Input): Effect.Effect<string, never, MemoryStore.MemorySto
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (): Source => {
   const snapshots = new Map<string, Effect.Effect<string, never, MemoryStore.MemoryStore | Recall.Recall>>()
@@ -144,14 +151,17 @@ export const make = (): Source => {
  *
  * @category instances
  * @since 0.1.0
+ * @slop
  */
 export const source = make()
 
 /**
- * Converts a source snapshot into the exact `Assemble.DeclaredText` shape.
+ * Converts a source snapshot into the exact {@link DeclaredText} shape
+ * `Agent.Options.memory` accepts.
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const declaredText = (
   memorySource: Source,
@@ -165,6 +175,7 @@ export const declaredText = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const byteLength = (text: string): number => encoder.encode(text).byteLength
 
@@ -173,5 +184,6 @@ export const byteLength = (text: string): number => encoder.encode(text).byteLen
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const truncate = truncateBytes
