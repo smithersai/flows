@@ -108,18 +108,23 @@ at once and the engine refuses with `ConcurrentKeylessDispatch`.
 
 ## The other actions
 
-| Action group                                    | Tier           | Provided by the CLI executor |
-| ----------------------------------------------- | -------------- | ---------------------------- |
-| `exec`, `capture-outputs`, `filegroup`          | `sealed`       | Yes                          |
-| `write-file`, `check-file`, `sync-package-json` | `sealed`       | Yes                          |
-| `check-workflow`, `check-docs`, `llm-review`    | `sealed`       | Yes                          |
-| `scaffold-package`, `not-implemented`           | `sealed`       | Yes                          |
-| `smithers-build/install/*`                      | `sealed`       | Yes, under pnpm              |
-| `smithers-build/exec-irreversible`              | `irreversible` | No                           |
+| Action group                                    | Tier           | Provided by the CLI executor    |
+| ----------------------------------------------- | -------------- | ------------------------------- |
+| `exec`, `capture-outputs`, `filegroup`          | `sealed`       | Yes                             |
+| `write-file`, `check-file`, `sync-package-json` | `sealed`       | Yes                             |
+| `check-workflow`, `check-docs`, `llm-review`    | `sealed`       | Yes                             |
+| `scaffold-package`, `not-implemented`           | `sealed`       | Yes                             |
+| `smithers-build/install/*`                      | `sealed`       | Yes, under pnpm                 |
+| `smithers-build/exec-irreversible`              | `irreversible` | Yes, under the `run` verb only  |
 
 The ordinary implementations are re-exported from the `@smthrs/targets` package
-root. `ExecIrreversibleLive` remains an explicit opt-in from the Changesets
-module and is intentionally absent from the normal executor.
+root. `ExecIrreversibleLive` comes from the Changesets module and the executor
+provides it only when the verb is `run`; under `build`, `test`, `lint`, and
+`docs` the action is implemented by a refusal that fails the target without
+executing anything. `ExecIrreversibleLive` takes only the workspace root — no
+cache directory, sensitive-env list, or sandbox policy — so an irreversible
+step currently runs under different confinement than every sealed action.
+Aligning the two is a tracked follow-up.
 
 An action call with no implementation in scope is a wiring error, not a runtime
 contingency. The interpreter refuses with `unresolved_action` before it runs
@@ -139,10 +144,28 @@ or a step key.
 
 ## Hermeticity today
 
-There is no sandbox. `ExecLive` spawns the tool in the workspace with
-`process.env` merged under the payload `env`, minus `SMITHERS_CACHE_URL` and the
-declared remote-cache token variable. Nothing prevents a tool from reading or
-writing outside its declared set.
+Projection is opt-in. A target declares `sandbox: true` and, under the default
+`declared` workspace policy, its tool runs in a scratch root seeded with
+exactly the declared inputs; a `forced` policy projects every target. An
+undeclared read fails there instead of succeeding invisibly. Projection is a
+determinism boundary, not a security boundary: a child that opens an absolute
+path still reaches the workspace.
+
+Two escape hatches exist and neither disables caching. A target leaves
+`sandbox` at its default of `false` to stay on the workspace under the
+`declared` policy, and a run passes `--dangerously-no-sandbox`, which overrides
+the declared policy for the whole invocation. The `forced` policy wins in both
+directions and projects every target regardless of the field. An un-sandboxed
+target still stores and consumes cache entries; the projection mode is key
+material, so a sandboxed and an un-sandboxed run of one target never share an
+entry. There is no quiet `--no-sandbox`: the option parser reads any leading
+`--no-` as boolean negation, so the key is deliberately named
+`dangerouslyNoSandbox` and a bare `--no-sandbox` is rejected.
+
+`ExecLive` spawns the tool with `process.env` narrowed to an allowlist, merged
+under the payload `env`, minus `SMITHERS_CACHE_URL` and the declared
+remote-cache token variable. Outside projection, nothing prevents a tool from
+reading or writing outside its declared set.
 
 A `BUILD.ts` file is not sandboxed either, and it is not meant to be. It is
 executable TypeScript evaluated in the CLI process: it can import any host

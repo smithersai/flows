@@ -9,13 +9,17 @@
  * `WriteFileLive` and `CheckFileLive`, the documentation-parity action
  * implemented by `CheckDocsLive`, the file-group expansion implemented by
  * `ExpandFilegroupLive`, and cacheable green results stored in the
- * workspace cache.
+ * workspace cache. The irreversible exec action is implemented by
+ * `ExecIrreversibleLive` under the `run` verb only; every other verb gets an
+ * explicit refusal, so a publish or version mutation can plan anywhere and
+ * execute only where a person asked for it.
  *
  * @since 0.1.0
  */
 import { FlowEngine } from "@smthrs/engine"
-import { Action, type Flow, Interpreter } from "@smthrs/flow"
-import type * as Config from "@smthrs/targets/Config"
+import { Action, type Flow, type FlowRuntime, Interpreter } from "@smthrs/flow"
+import { ExecIrreversible, ExecIrreversibleLive } from "@smthrs/targets/Changesets"
+import * as Config from "@smthrs/targets/Config"
 import { CheckDocsLive } from "@smthrs/targets/DocsParity"
 import { environmentKeyMaterial, ExecLive } from "@smthrs/targets/Exec"
 import { ExpandFilegroupLive, isFilegroup } from "@smthrs/targets/Filegroup"
@@ -118,9 +122,13 @@ export interface ExecuteOptions {
   readonly packageName?: string | undefined
   readonly log?: ((line: string) => void) | undefined
   /**
-   * The workspace sandbox policy. It decides whether a target runs projected
-   * and which host environment values a tool may read. Omitted, every target
-   * runs exactly as it ran before projection existed.
+   * The workspace sandbox policy the run executes under, already resolved by
+   * the caller: the `--dangerously-no-sandbox` flag, then the root `Config`
+   * declaration, then the default. It decides whether a target runs projected
+   * and which host environment values a tool may read. The projection mode a
+   * target settles into is cache-key material; the policy and the flag are
+   * not, following the `readCache` and `remoteCache` precedent. Omitted, every
+   * target runs exactly as it ran before projection existed.
    */
   readonly sandbox?: Config.Sandbox | undefined
 }
@@ -227,6 +235,69 @@ type Executable = Flow.Flow<
 >
 
 /**
+ * Refuses the irreversible exec action.
+ *
+ * `ExecIrreversibleLive` joins the layer stack only under the `run` verb.
+ * Every other verb gets this implementation instead, so a target that plans
+ * an irreversible step under build, test, lint, or docs fails with an
+ * explicit refusal naming the verb that may run it rather than with an
+ * unresolved-action wiring error.
+ */
+const ExecIrreversibleRefused = ExecIrreversible.toLayer((payload) =>
+  Effect.fail({
+    _tag: "smithers-build/ExecError" as const,
+    argv: payload.argv,
+    cwd: payload.cwd,
+    exitCode: 1,
+    stdout: "",
+    stderr: "refused: smithers-build/exec-irreversible is provided only under the run verb"
+  })
+)
+
+/**
+ * The sandbox opt-in one target's planned metadata declares.
+ *
+ * The field is read from planner metadata, never from attrs at execution
+ * time, for the same reason declared outputs are: attrs are values a run
+ * observes, metadata is what the plan was computed from. The verb-effective
+ * view answers for the five executing verbs; a merged `ci` execution has no
+ * single verb and falls back to the declared view.
+ */
+const plannedSandbox = (flow: Target.AnyTarget, verb: string): boolean => {
+  const metadata = Target.metadata(flow)
+  return metadata.kinds.includes(verb as Target.Kind)
+    ? metadata.forKind(verb as Target.Kind).sandbox ?? false
+    : metadata.sandbox
+}
+
+/**
+ * The sandbox policy and projection mode one target settles into.
+ *
+ * The workspace policy wins in both directions, matching
+ * `Exec.projectionMode`: `off` projects nothing, which is the posture
+ * `--dangerously-no-sandbox` resolves to, and `forced` projects every target,
+ * including one whose metadata opts out. Under the default `declared` policy
+ * a target whose metadata opts in (`sandbox: true`) is promoted to `forced`
+ * for its own run, so projection applies even though its exec payloads never
+ * ask for it.
+ */
+interface TargetSandbox {
+  readonly policy: Config.Sandbox | undefined
+  readonly projected: boolean
+}
+
+const targetSandbox = (
+  policy: Config.Sandbox | undefined,
+  optsIn: boolean
+): TargetSandbox => {
+  const projection = policy?.projection ?? Config.defaultSandbox.projection
+  if (projection === "off") return { policy, projected: false }
+  if (projection === "forced") return { policy, projected: true }
+  if (!optsIn) return { policy, projected: false }
+  return { policy: { projection: "forced", environment: policy?.environment ?? [] }, projected: true }
+}
+
+/**
  * Runs one target Flow to settlement in its own in-memory runtime.
  *
  * Each target gets a fresh runtime because two targets of the same target share
@@ -244,7 +315,8 @@ const runTarget = (
   planned?: Planner.PlannedTarget | undefined,
   sandbox?: Config.Sandbox | undefined,
   packageName?: string | undefined,
-  signal?: AbortSignal | undefined
+  signal?: AbortSignal | undefined,
+  allowIrreversible?: boolean | undefined
 ): Promise<Exit.Exit<unknown, unknown>> => {
   const flow = target as unknown as Executable
   // The planner already expanded this target's declared inputs and recorded a
@@ -253,6 +325,18 @@ const runTarget = (
   const declaredInputs = planned === undefined
     ? []
     : [...new Set(planned.declaredInputs.flatMap((input) => input.files.map((file) => file.path)))].sort()
+  // The irreversible layer is D15's loud gate: it exists only when the verb is
+  // `run`, and every other verb gets a refusal that names the verb that may
+  // execute the action. `ExecIrreversibleLive` takes only the workspace root —
+  // no cacheDirectory, no sensitiveEnv, no sandbox policy — so an irreversible
+  // step runs under different confinement than every sealed one. That
+  // divergence lives in Changesets.ts, which another lane owns; aligning the
+  // two is a follow-up, not something to fix here.
+  const irreversible: Layer.Layer<
+    Action.Requirement<"smithers-build/exec-irreversible">,
+    never,
+    FlowRuntime.FlowRuntime
+  > = allowIrreversible === true ? ExecIrreversibleLive({ workspaceRoot }) : ExecIrreversibleRefused
   const runtime = Layer.mergeAll(
     layerInstall,
     ExecLive({
@@ -263,6 +347,7 @@ const runTarget = (
       declaredInputs,
       declaredOutputs: planned?.declaredOutputs
     }),
+    irreversible,
     // Output capture always measures the workspace. A projected run copies its
     // declared outputs back before the exec action settles, so capture,
     // declared-output verification, and input revalidation all agree on which
@@ -914,10 +999,31 @@ export const execute = async (options: ExecuteOptions): Promise<Summary> => {
   // A policy that declares nothing contributes the empty string and leaves
   // every key exactly as the planner computed it.
   const environmentMaterial = environmentKeyMaterial(options.sandbox)
-  const cacheKey = (target: Planner.PlannedTarget): string =>
-    environmentMaterial === ""
+  // The projection mode a target settles into is decided per target from the
+  // resolved workspace policy and the target's planned metadata, and it salts
+  // the cache key: a result produced under projection and one produced
+  // against the full workspace never share an entry. The flag and the policy
+  // that decided the mode are executor options and, like `readCache` and
+  // `remoteCache`, never reach key material themselves. A workspace-mode run
+  // contributes nothing, so keys computed before this salting existed are
+  // unchanged. The planner-side half of this contract — the declared
+  // per-target field folded into `capabilities()` (Planner.ts) — belongs to
+  // the planner lane; only the declared field can be key material there,
+  // because executor options never reach the planner.
+  const sandboxByLabel = new Map<string, TargetSandbox>()
+  for (const target of options.targets) {
+    const flow = flows.get(target.label)
+    if (flow === undefined) continue
+    sandboxByLabel.set(target.label, targetSandbox(options.sandbox, plannedSandbox(flow, options.verb)))
+  }
+  const cacheKey = (target: Planner.PlannedTarget): string => {
+    const extras: Array<string> = []
+    if (environmentMaterial !== "") extras.push(environmentMaterial)
+    if (sandboxByLabel.get(target.label)?.projected === true) extras.push("sandbox:projected")
+    return extras.length === 0
       ? target.keyPreview
-      : createHash("sha256").update(`${target.keyPreview}\n${environmentMaterial}`).digest("hex")
+      : createHash("sha256").update(`${target.keyPreview}\n${extras.join("\n")}`).digest("hex")
+  }
   const byLabel = new Map(options.targets.map((target) => [target.label, target]))
   const reports = new Map<string, TargetReport>()
   const notGreen = new Set<string>()
@@ -1011,9 +1117,10 @@ export const execute = async (options: ExecuteOptions): Promise<Summary> => {
       `smithers-build-target-${target.keyPreview.slice(0, 24)}`,
       options.remoteCache === undefined ? [] : [options.remoteCache.tokenEnv],
       target,
-      options.sandbox,
+      sandboxByLabel.get(label)?.policy ?? options.sandbox,
       options.packageName,
-      options.signal
+      options.signal,
+      options.verb === "run"
     )
     if (!Exit.isSuccess(exit)) return fail(describeFailure(Cause.squash(exit.cause)))
     // A success is not a success until the target's declared outputs are on

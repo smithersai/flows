@@ -3,10 +3,15 @@
  *
  * @since 0.1.0
  */
+import * as Config from "@smthrs/targets/Config"
 import type * as Toolchains from "@smthrs/targets/PackageManager"
+import * as SafeFs from "@smthrs/targets/SafeFs"
 import { Cli, z } from "incur"
 import * as NodePath from "node:path"
+import { pathToFileURL } from "node:url"
+import { tsImport } from "tsx/esm/api"
 import * as Diagnostic from "./Diagnostic.ts"
+import { buildModuleUrl } from "./effect-resolution.js"
 import { runInstall, toolchainOf } from "./engine.ts"
 import * as Executor from "./Executor.ts"
 import * as GraphOutput from "./GraphOutput.ts"
@@ -18,6 +23,7 @@ import {
   type ResolvedRemoteCache,
   resolveRemoteCache,
   resolveToolchain,
+  rootDeclarationFiles,
   Workspace
 } from "./Workspace.ts"
 
@@ -31,7 +37,15 @@ const workspaceOption = z.object({
 const executionOptions = workspaceOption.extend({
   plan: z.boolean().default(false).describe("Print the inert plan instead of executing"),
   jobs: z.number().int().min(1).optional().describe("Maximum concurrent targets; defaults to host parallelism"),
-  cache: z.boolean().default(true).describe("Consult the result cache before running; --no-cache bypasses reads")
+  cache: z.boolean().default(true).describe("Consult the result cache before running; --no-cache bypasses reads"),
+  // The key is deliberately not `sandbox`: incur parses any leading `--no-`
+  // as boolean negation, so a `sandbox` key would ship a quiet `--no-sandbox`
+  // beside the loud flag. `dangerouslyNoSandbox` parses as an ordinary long
+  // option and a bare `--no-sandbox` is rejected as unknown.
+  dangerouslyNoSandbox: z.boolean().default(false).describe(
+    "DANGEROUS: run every target against the full workspace with no projection, overriding the declared " +
+      "sandbox policy and every per-target opt-in. Results stay cached; the mode is cache-key material."
+  )
 })
 
 const runOptions = executionOptions.extend({
@@ -55,6 +69,7 @@ interface ExecutionFlags extends WorkspaceFlags {
   readonly plan: boolean
   readonly jobs?: number | undefined
   readonly cache: boolean
+  readonly dangerouslyNoSandbox: boolean
 }
 
 /**
@@ -73,8 +88,64 @@ interface PreparedWorkspace {
   readonly root: string
   readonly cacheDirectory: string
   readonly remoteCache?: (ResolvedRemoteCache & { readonly token?: string | undefined }) | undefined
+  /** The sandbox policy the run executes under: the flag, then the declaration, then the default. */
+  readonly sandbox: Config.Sandbox
   /** The toolchain WORKSPACE.ts registered, or undefined when it registers none. */
   readonly toolchain?: Toolchains.Toolchain | undefined
+}
+
+/**
+ * The sandbox policy a root declaration module exports, when it exports one.
+ *
+ * Exports are visited in name order so a module that exports two Config
+ * declarations resolves the same way on every host.
+ */
+const sandboxDeclaration = (namespace: unknown): Config.Sandbox | undefined => {
+  if (typeof namespace !== "object" || namespace === null) return undefined
+  for (const name of Object.keys(namespace).sort()) {
+    const value = (namespace as Record<string, unknown>)[name]
+    if (Config.isWorkspace(value)) return value.sandbox
+  }
+  return undefined
+}
+
+/**
+ * Resolves the sandbox policy one command runs under.
+ *
+ * Precedence is the `--dangerously-no-sandbox` flag, then the `sandbox` field
+ * of the `Config` value exported from `WORKSPACE.ts`, then the one from the
+ * root `BUILD.ts`, then the default policy: the same declaration order
+ * `resolveConfig` applies to the cache directory. The declaration readers in
+ * Workspace.ts are module-private, so the scan is repeated here against the
+ * same admitted files; the module URLs are identical, so the evaluation is
+ * shared with discovery rather than repeated.
+ *
+ * The flag replaces only the projection mode. Declared environment names
+ * survive it because they are key-material grants, not confinement: dropping
+ * them would key a flagged run differently and quietly disable the cache reuse
+ * the flag is required to keep.
+ */
+const resolveSandbox = async (
+  root: string,
+  dangerouslyNoSandbox: boolean,
+  signal?: AbortSignal | undefined
+): Promise<Config.Sandbox> => {
+  const canonical = await SafeFs.canonicalRoot(root)
+  let declared: Config.Sandbox | undefined
+  for (const file of rootDeclarationFiles) {
+    signal?.throwIfAborted()
+    const entry = await SafeFs.resolveFile(NodePath.join(canonical, file), { root: canonical, what: file })
+    if (entry === undefined) continue
+    declared = sandboxDeclaration(
+      await tsImport(buildModuleUrl(pathToFileURL(entry.path).href), {
+        parentURL: import.meta.url,
+        tsconfig: false
+      })
+    )
+    if (declared !== undefined) break
+  }
+  const policy = declared ?? Config.defaultSandbox
+  return dangerouslyNoSandbox ? { projection: "off", environment: policy.environment } : policy
 }
 
 /**
@@ -93,7 +164,7 @@ interface PreparedWorkspace {
  * which is a choice only a process owner may make.
  */
 const prepare = async (
-  flags: WorkspaceFlags,
+  flags: WorkspaceFlags & { readonly dangerouslyNoSandbox?: boolean | undefined },
   runtime: RuntimeConfig = {},
   writeState = true
 ): Promise<PreparedWorkspace> => {
@@ -102,6 +173,8 @@ const prepare = async (
   const config = await resolveConfig(root, flags.cacheDir)
   runtime.signal?.throwIfAborted()
   const remoteCache = await resolveRemoteCache(root, runtime.cacheUrl)
+  runtime.signal?.throwIfAborted()
+  const sandbox = await resolveSandbox(root, flags.dangerouslyNoSandbox ?? false, runtime.signal)
   runtime.signal?.throwIfAborted()
   const toolchain = await resolveToolchain(root)
   let preparedRemote: PreparedWorkspace["remoteCache"]
@@ -114,16 +187,20 @@ const prepare = async (
   if (writeState && config.gitignored) await ensureGitignored(root, config.cacheDirectory)
   runtime.signal?.throwIfAborted()
   return preparedRemote === undefined
-    ? { root, cacheDirectory: config.cacheDirectory, toolchain }
-    : { root, cacheDirectory: config.cacheDirectory, remoteCache: preparedRemote, toolchain }
+    ? { root, cacheDirectory: config.cacheDirectory, sandbox, toolchain }
+    : { root, cacheDirectory: config.cacheDirectory, remoteCache: preparedRemote, sandbox, toolchain }
 }
 
 /** Opens the workspace index under the resolved cache directory. */
 const openWorkspace = async (
-  flags: WorkspaceFlags,
+  flags: WorkspaceFlags & { readonly dangerouslyNoSandbox?: boolean | undefined },
   runtime: RuntimeConfig = {},
   writeState = true
-): Promise<{ readonly workspace: Workspace; readonly remoteCache: PreparedWorkspace["remoteCache"] }> => {
+): Promise<{
+  readonly workspace: Workspace
+  readonly remoteCache: PreparedWorkspace["remoteCache"]
+  readonly sandbox: Config.Sandbox
+}> => {
   const prepared = await prepare(flags, runtime, writeState)
   return {
     workspace: await Workspace.make(prepared.root, process.cwd(), {
@@ -131,7 +208,8 @@ const openWorkspace = async (
       signal: runtime.signal,
       toolchain: prepared.toolchain
     }),
-    remoteCache: prepared.remoteCache
+    remoteCache: prepared.remoteCache,
+    sandbox: prepared.sandbox
   }
 }
 
@@ -148,7 +226,7 @@ const runVerb = async (
   flags: ExecutionFlags,
   config: RuntimeConfig
 ): Promise<Planner.Plan | Executor.Summary> => {
-  const { remoteCache, workspace } = await openWorkspace(flags, config, !flags.plan)
+  const { remoteCache, sandbox, workspace } = await openWorkspace(flags, config, !flags.plan)
   const plan = await Planner.make(workspace, verb, pattern)
   if (flags.plan) return plan
   return Executor.execute({
@@ -159,6 +237,7 @@ const runVerb = async (
     jobs: flags.jobs,
     readCache: flags.cache,
     remoteCache,
+    sandbox,
     signal: config.signal,
     packageName: "name" in flags && typeof flags.name === "string" ? flags.name : undefined
   })
@@ -184,7 +263,7 @@ const runCi = async (
   flags: ExecutionFlags,
   config: RuntimeConfig
 ): Promise<CiPlan | Executor.Summary> => {
-  const { remoteCache, workspace } = await openWorkspace(flags, config, !flags.plan)
+  const { remoteCache, sandbox, workspace } = await openWorkspace(flags, config, !flags.plan)
   const plans: Array<Planner.Plan> = []
   const refusals: Array<unknown> = []
   for (const kind of ciKinds) {
@@ -209,6 +288,7 @@ const runCi = async (
     jobs: flags.jobs,
     readCache: flags.cache,
     remoteCache,
+    sandbox,
     signal: config.signal
   })
 }

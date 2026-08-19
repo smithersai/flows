@@ -54,8 +54,9 @@ The executor gives each target its own in-memory runtime and provides:
 - GitHub workflow and documentation checks;
 - LLM review and package scaffolding.
 
-The irreversible-exec implementation is intentionally absent. A target that
-calls it fails at interpretation with `unresolved_action`.
+The irreversible-exec implementation is provided only under the `run` verb.
+Under `build`, `test`, `lint`, and `docs` the action is implemented by an
+explicit refusal, so a target that calls it fails without executing anything.
 
 | Target                                                         | Root verb       | Executes today                                            |
 | -------------------------------------------------------------- | --------------- | --------------------------------------------------------- |
@@ -70,11 +71,15 @@ calls it fails at interpretation with `unresolved_action`.
 | `NewPackage`                                                   | `run`           | Yes; requires `--name` and creates a package              |
 | `PnpmWorkspace`                                                | `run`           | Yes                                                       |
 | `Clean`, `Dev`, `VitestWatch`                                  | `run`           | Yes; the watch processes hold their execution slot        |
-| `Changesets`                                                   | `run`           | `status` yes; `version` lacks the irreversible-exec layer |
-| `NpmPublish`, `JsrPublish`                                     | `run`           | No; both require the absent irreversible-exec layer       |
+| `Changesets`                                                   | `run`           | Yes; `version` runs through the irreversible-exec layer   |
+| `NpmPublish`, `JsrPublish`                                     | `run`           | Yes; both run through the irreversible-exec layer         |
 
 An `LlmLint` target now runs through `LlmReviewLive`; it is no longer a
-plan-only declaration. Release mutations remain separately gated.
+plan-only declaration. Release mutations remain separately gated: they execute
+only under `run`, and the irreversible layer is constructed with the workspace
+root alone — no cache directory, sensitive-env list, or sandbox policy — so it
+runs under different confinement than every sealed action. Aligning the two is
+a tracked follow-up.
 
 ## Verb-effective attributes
 

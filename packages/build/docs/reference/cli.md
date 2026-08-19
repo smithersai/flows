@@ -24,11 +24,24 @@ Every command accepts these.
 
 `build`, `test`, `lint`, `docs`, `run`, and `ci` also accept:
 
-| Option                   | Alias | Type        | Default                    | Description                                                                            |
-| ------------------------ | ----- | ----------- | -------------------------- | -------------------------------------------------------------------------------------- |
-| `--plan`                 |       | boolean     | `false`                    | Print the inert plan instead of executing                                              |
-| `--jobs`                 | `-j`  | integer ≥ 1 | host available parallelism | Maximum concurrent targets                                                             |
-| `--cache` / `--no-cache` |       | boolean     | `true`                     | Consult the result cache before running. `--no-cache` bypasses reads and still writes. |
+| Option                     | Alias | Type        | Default                    | Description                                                                                                                              |
+| -------------------------- | ----- | ----------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `--plan`                   |       | boolean     | `false`                    | Print the inert plan instead of executing                                                                                                |
+| `--jobs`                   | `-j`  | integer ≥ 1 | host available parallelism | Maximum concurrent targets                                                                                                               |
+| `--cache` / `--no-cache`   |       | boolean     | `true`                     | Consult the result cache before running. `--no-cache` bypasses reads and still writes.                                                    |
+| `--dangerously-no-sandbox` |       | boolean     | `false`                    | Run every target against the full workspace with no projection, overriding the declared sandbox policy. Results stay cached.              |
+
+`--no-cache` gates reads only. The write side is unguarded, so a green
+`--no-cache` run still stores every result it produced. As more rules become
+cacheable this matters more: a run that declined to consult the cache still
+populates it.
+
+There is no `--no-sandbox`. incur parses any leading `--no-` as boolean
+negation, so a key named `sandbox` would have shipped a quiet opt-out beside
+the loud one. The key is deliberately `dangerouslyNoSandbox`, and a bare
+`--no-sandbox` is rejected as an unknown flag. The flag disables projection,
+never caching: an un-sandboxed run stores and consumes cache entries, keyed
+apart from sandboxed ones because the projection mode is key material.
 
 incur supplies its own globals on every command, including `--help`,
 `--version`, `--json`, `--format <toon\|json\|yaml\|md\|jsonl>`,
@@ -44,7 +57,10 @@ Every command does the same three things before its own work.
 2. Resolve the cache directory: `--cache-dir`, then the root `BUILD.ts` `Workspace`
    declaration, then `.flows`. Resolving the declaration evaluates the root
    `BUILD.ts` if one exists.
-3. If the declaration sets `gitignored: true`, ensure the root `.gitignore`
+3. Resolve the sandbox policy: `--dangerously-no-sandbox`, then the `sandbox`
+   field of the root `Workspace` declaration, then the default policy. The flag
+   replaces only the projection mode; declared environment names survive it.
+4. If the declaration sets `gitignored: true`, ensure the root `.gitignore`
    carries an entry for the resolved directory.
 
 `install` stops there. The others then open the workspace index, which lists
@@ -188,8 +204,9 @@ In addition to the common execution options, `run` accepts:
 | `--name` | `-n`  | string | unset   | Per-invocation package name consumed by `NewPackage` only |
 
 Failure codes: `run_failed` for planning errors, `targets_failed` for failed
-targets. Exit code 1 for both. A target requiring the intentionally absent
-irreversible-exec layer reports a target failure with `unresolved_action`.
+targets. Exit code 1 for both. The irreversible-exec layer is provided under
+this verb only; under `build`, `test`, `lint`, and `docs` a target requiring it
+fails with an explicit refusal.
 
 ---
 
