@@ -483,6 +483,13 @@ export const CardSchema = z.discriminatedUnion("kind", [
 			content: z.string(),
 			/** True when the read was cut at the card cap; the full file stays upstream. */
 			truncated: z.boolean(),
+			/*
+			 * The file's bytes are not text. The card states that instead of
+			 * printing them: base64 rendered as source is one 42626px line the
+			 * reader cannot use and cannot reach (§8.27). Optional so cards
+			 * persisted before the field parse without a schema reset.
+			 */
+			binary: z.boolean().optional(),
 		}),
 	}),
 	/*

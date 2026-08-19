@@ -71,7 +71,13 @@ export const FileCardBody = ({
 		<p className="world-card-path">
 			{card.payload.repo} · {card.payload.path}
 		</p>
-		<pre className="world-card-path">{card.payload.content}</pre>
+		{card.payload.binary === true ? (
+			<p className="world-card-empty">
+				This file is binary, so its bytes are not shown here — open it in the repository.
+			</p>
+		) : (
+			<pre className="world-card-path">{card.payload.content}</pre>
+		)}
 		{card.payload.truncated ? (
 			<p className="world-card-empty">Truncated — the full file stays in the repository.</p>
 		) : null}

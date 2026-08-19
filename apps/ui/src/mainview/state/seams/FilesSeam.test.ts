@@ -105,6 +105,26 @@ const filesBackend = () => {
 			}),
 		"/api/repos/will/flows/contents/raw.bin": () =>
 			json(200, { path: "raw.bin", content: "PK\u0000\u0003", encoding: "", size: 4 }),
+		/*
+		 * The shape the real platform answers for blob.bin: base64 bytes with
+		 * `encoding: "utf-8"` on them.
+		 */
+		"/api/repos/will/flows/contents/mislabelled.bin": () =>
+			json(200, {
+				path: "mislabelled.bin",
+				content: Buffer.from(
+					Array.from({ length: 512 }, (_byte, index) => (index * 7 + 3) % 256),
+				).toString("base64"),
+				encoding: "utf-8",
+				size: 512,
+			}),
+		"/api/repos/will/flows/contents/long.md": () =>
+			json(200, {
+				path: "long.md",
+				content: `# Smithers\n\n${"Smithers keeps what it learns in world notes. ".repeat(40)}`,
+				encoding: "utf-8",
+				size: 2000,
+			}),
 		"/api/repos/will/flows/contents/missing.txt": () =>
 			json(404, { message: "Path not found: missing.txt" }),
 		"/api/repos/will/flows/contents/boom.txt": () => json(500, { message: "the platform fell over" }),
@@ -277,25 +297,51 @@ describe("files seam — files.read", () => {
 		expect(card?.payload.truncated).toBe(true);
 	});
 
-	test("binary base64 content (NUL bytes) is refused honestly, no card", async () => {
+	/*
+	 * §8.27: the read SUCCEEDED — the file is simply not text. That is an
+	 * answer about the file, so it is a card, and the card states it instead of
+	 * printing 42 000 pixels of base64 the reader can neither use nor reach.
+	 */
+	test("binary base64 content (NUL bytes) renders a card that says so, never the bytes", async () => {
 		const { store, controller } = await freshController();
 		await ready(store);
 		const outcome = await controller.commands.run("files.read", "logo.png");
-		expect(outcome.status).toBe("failed");
-		if (outcome.status === "failed") {
-			expect(outcome.error).toBe("logo.png in will/flows is binary — not renderable in chat");
-		}
-		expect(fileCard(store, "file-will/flows-logo.png")).toBeUndefined();
+		expect(outcome.status).toBe("executed");
+		const card = fileCard(store, "file-will/flows-logo.png");
+		expect(card?.payload.binary).toBe(true);
+		expect(card?.payload.content).toBe("");
 	});
 
-	test("binary plain content (a NUL byte in the string) is refused the same way", async () => {
+	test("binary plain content (a NUL byte in the string) is stated the same way", async () => {
 		const { store, controller } = await freshController();
 		await ready(store);
 		const outcome = await controller.commands.run("files.read", "raw.bin");
-		expect(outcome.status).toBe("failed");
-		if (outcome.status === "failed") {
-			expect(outcome.error).toBe("raw.bin in will/flows is binary — not renderable in chat");
-		}
+		expect(outcome.status).toBe("executed");
+		expect(fileCard(store, "file-will/flows-raw.bin")?.payload.binary).toBe(true);
+	});
+
+	/*
+	 * The platform answers `encoding: "utf-8"` for a file whose content is
+	 * plainly base64-encoded bytes, so the declared encoding is not trusted on
+	 * its own. A real text file never matches: the base64 alphabet excludes
+	 * every punctuation mark prose and code use.
+	 */
+	test("base64 bytes mislabelled as utf-8 are still recognised as binary", async () => {
+		const { store, controller } = await freshController();
+		await ready(store);
+		const outcome = await controller.commands.run("files.read", "mislabelled.bin");
+		expect(outcome.status).toBe("executed");
+		expect(fileCard(store, "file-will/flows-mislabelled.bin")?.payload.binary).toBe(true);
+	});
+
+	test("a long plain-text file is not mistaken for base64", async () => {
+		const { store, controller } = await freshController();
+		await ready(store);
+		const outcome = await controller.commands.run("files.read", "long.md");
+		expect(outcome.status).toBe("executed");
+		const card = fileCard(store, "file-will/flows-long.md");
+		expect(card?.payload.binary ?? false).toBe(false);
+		expect(card?.payload.content).toContain("Smithers");
 	});
 
 	test("a missing path inside an imported repo answers the platform's path message, not the import hint", async () => {
