@@ -1,40 +1,26 @@
 /**
- * Generated and verified GitHub Actions CI workflow.
+ * Generated GitHub Actions CI workflow.
  *
  * @since 0.1.0
  */
-import { Action, type FlowRuntime } from "@smthrs/flow"
+import type { Action } from "@smthrs/flow"
 import type * as Node from "@smthrs/plan/Node"
 import * as Effect from "effect/Effect"
-import type * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
-import * as NodePath from "node:path"
-import {
-  DriftError,
-  driftError,
-  failureMessage,
-  generateFile,
-  resolveOutputPath,
-  WriteFileError
-} from "./GeneratedFile.ts"
+import { DriftError, generateFile, resolveOutputPath, WriteFileError } from "./GeneratedFile.ts"
 import * as GithubWorkflow from "./GithubWorkflow.ts"
 import * as Input from "./Input.ts"
 import * as PackageManager from "./PackageManager.ts"
 import * as RemoteCache from "./RemoteCache.ts"
-import * as SafeFs from "./SafeFs.ts"
 import * as Secret from "./Secret.ts"
 import * as Target from "./Target.ts"
+import * as Verb from "./Verb.ts"
 
 /**
  * How a CI workflow target treats its output file.
  *
- * - `contract` — read the checked-in workflow and fail unless it still runs
- *   every declared gate. Non-mutating, and the DEFAULT, because a repository's
- *   pipeline is usually hand-written: it carries comments, `continue-on-error`
- *   advisories, matrix jobs, and platform lanes that no generator declaration
- *   reproduces, and replacing it with generated output is a downgrade even
- *   when the generator is correct.
- * - `check` — byte-compare the checked-in file against the rendered form.
+ * - `check` — byte-compare the checked-in workflow against the rendered form,
+ *   and fail on drift. The DEFAULT, matching every other generated root file.
  * - `write` — render the declared jobs and write the file.
  *
  * Only `write` touches the working tree, and only a target that declares it
@@ -44,8 +30,8 @@ import * as Target from "./Target.ts"
  * @category schemas
  * @since 0.1.0
  */
-export const OutputMode = Schema.Literals(["contract", "check", "write"]).pipe(
-  Schema.withConstructorDefault(Effect.succeed("contract" as const))
+export const OutputMode = Schema.Literals(["write", "check"]).pipe(
+  Schema.withConstructorDefault(Effect.succeed("check" as const))
 )
 
 /**
@@ -125,6 +111,16 @@ export const minimumTimeoutMinutes = 1
 export const maximumTimeoutMinutes = 360
 
 /**
+ * The largest `--jobs` bound a generated pipeline step may declare. Higher is
+ * a number no GitHub-hosted runner has the cores to honour, so it would be a
+ * declaration that reads as a promise the pipeline cannot keep.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const maximumParallelism = 256
+
+/**
  * One rendered job.
  *
  * @category schemas
@@ -158,146 +154,6 @@ export const Job = Schema.Struct({
 export type Job = typeof Job.Type
 
 /**
- * Payload for one workflow contract check.
- *
- * @category schemas
- * @since 0.1.0
- */
-export const WorkflowContractPayload = Schema.Struct({
-  path: Schema.NonEmptyString,
-  gates: Schema.Array(Gate),
-  requiredJobs: Schema.Array(Schema.NonEmptyString)
-})
-
-/**
- * Payload for one workflow contract check.
- *
- * @category models
- * @since 0.1.0
- */
-export type WorkflowContractPayload = typeof WorkflowContractPayload.Type
-
-/**
- * The declared required jobs a workflow does not unconditionally run.
- *
- * A required job is required to RUN, on the same terms as a {@link Gate}: a job
- * carrying an `if:` is one GitHub may skip, so `if: false` on a required job is
- * a job the pipeline does not have. A job that exists but is conditional is
- * reported as `id (conditional)`, because "missing" would send an operator
- * looking for a job that is right there in the file.
- *
- * @category verification
- * @since 0.1.0
- */
-export const missingRequiredJobs = (
-  workflow: GithubWorkflow.Workflow,
-  requiredJobs: ReadonlyArray<string>
-): ReadonlyArray<string> => {
-  const declared = new Set(workflow.jobs.map((job) => job.id))
-  const unconditional = new Set(
-    workflow.jobs.filter((job) => GithubWorkflow.alwaysRuns(job.condition)).map((job) => job.id)
-  )
-  return requiredJobs
-    .filter((id) => !unconditional.has(id))
-    .map((id) => declared.has(id) ? `${id} (conditional)` : id)
-}
-
-/**
- * Reads a checked-in workflow and reports the declared gates it dropped.
- *
- * @category actions
- * @since 0.1.0
- */
-export const CheckWorkflow = Action.make("smithers-build/check-workflow", {
-  payload: WorkflowContractPayload,
-  error: DriftError,
-  tier: "sealed"
-})
-
-/**
- * Maximum encoded size of a workflow admitted to the structural scanner.
- *
- * @category constants
- * @since 0.1.0
- */
-export const workflowSourceByteLimit = GithubWorkflow.maximumWorkflowBytes
-
-/**
- * Reads one checked-in workflow through a bounded regular-file descriptor.
- *
- * The final path must be a regular file, not a symlink, FIFO, device, or
- * socket. `O_NONBLOCK` prevents a special-file swap from hanging at open;
- * `O_NOFOLLOW` and the lstat/fstat identity check reject a final-component
- * symlink race. Reading stops at one byte beyond the limit, so growth after
- * fstat cannot turn the check into an unbounded allocation. Invalid UTF-8 is
- * refused rather than normalized into replacement characters before parsing.
- *
- * @category filesystem
- * @since 0.1.0
- */
-export const readWorkflowSource = async (
-  workspaceRoot: string,
-  path: string,
-  signal?: AbortSignal | undefined
-): Promise<string> => {
-  const root = await SafeFs.canonicalRoot(workspaceRoot)
-  const relative = resolveOutputPath(path)
-  const result = await SafeFs.readText(NodePath.join(root, relative), {
-    root,
-    signal,
-    symlinks: "reject",
-    limit: workflowSourceByteLimit,
-    what: "workflow source"
-  })
-  if (result === undefined) throw new Error(`the workflow does not exist: ${path}`)
-  return result
-}
-
-/**
- * Implements {@link CheckWorkflow} with a read and a structural workflow scan.
- * It never writes: a drift is reported, never repaired.
- *
- * @category layers
- * @since 0.1.0
- */
-export const CheckWorkflowLive = (options: {
-  readonly workspaceRoot: string
-}): Layer.Layer<Action.Requirement<"smithers-build/check-workflow">, never, FlowRuntime.FlowRuntime> =>
-  CheckWorkflow.toLayer((payload) =>
-    Effect.tryPromise({
-      try: (signal) => readWorkflowSource(options.workspaceRoot, payload.path, signal),
-      catch: (cause) => driftError(payload.path, failureMessage(cause))
-    }).pipe(
-      Effect.flatMap((source) =>
-        Effect.try({
-          try: () => GithubWorkflow.parseWorkflow(source),
-          catch: (cause) =>
-            driftError(
-              payload.path,
-              `the workflow could not be parsed: ${failureMessage(cause)}`
-            )
-        })
-      ),
-      Effect.flatMap((workflow) => {
-        const missingJobs = missingRequiredJobs(workflow, payload.requiredJobs)
-        const missing = GithubWorkflow.missingGates(workflow, payload.gates)
-        if (missingJobs.length === 0 && missing.length === 0) return Effect.void
-        return Effect.fail(
-          driftError(
-            payload.path,
-            [
-              missingJobs.length === 0 ? undefined : `missing jobs: ${missingJobs.join(", ")}`,
-              missing.length === 0
-                ? undefined
-                : `missing gates: ${missing.map((gate) => `${gate.name} (${gate.command})`).join(", ")}`
-            ].filter((part) => part !== undefined).join("; ")
-          )
-        )
-      })
-    )
-  )
-
-/**
  * Attributes for {@link GithubCiGen}.
  *
  * @category schemas
@@ -310,14 +166,27 @@ export const Attrs = Schema.Struct({
   ),
   pattern: Schema.NonEmptyString.pipe(Schema.withConstructorDefault(Effect.succeed("//..."))),
   /**
-   * The pipeline-safe verbs the generated smithers build step runs. Restricted to
-   * {@link pipelineKinds}; `run` targets are deliberately manual because they
-   * may be long-lived or mutate the source tree.
+   * How many targets the generated pipeline step executes at once, rendered as
+   * `--jobs`. Omitted leaves the CLI's own default, which sizes itself to the
+   * host. A runner whose heavy suites carry finite per-test budgets needs a
+   * smaller bound than the host suggests, because host parallelism starves them.
    */
-  kinds: Schema.Array(Target.Kind).pipe(
-    Schema.withConstructorDefault(
-      Effect.succeed<ReadonlyArray<Target.Kind>>(["build", "test", "lint", "docs"])
-    )
+  parallelism: Schema.optional(
+    Schema.Int.check(Schema.isGreaterThanOrEqualTo(1), Schema.isLessThanOrEqualTo(maximumParallelism))
+  ),
+  /**
+   * The CLI verbs the generated pipeline step runs across {@link Attrs.pattern}.
+   *
+   * Typed {@link Verb.Verb} values, not strings: a BUILD.ts file writes
+   * `[Verb.Build, Verb.Test]`, so a verb the CLI does not have is an unresolved
+   * identifier rather than a word the renderer rejects at plan time. `run` has
+   * no value here at all, because run targets may be long-lived or mutate the
+   * source tree and an unattended pipeline must not start one.
+   *
+   * @default Verb.all
+   */
+  pipelineVerbs: Schema.Array(Verb.Verb).pipe(
+    Schema.withConstructorDefault(Effect.succeed(Verb.all))
   ),
   /** @default ["main"] */
   pushBranches: Schema.Array(Schema.NonEmptyString).pipe(
@@ -361,7 +230,7 @@ export const Attrs = Schema.Struct({
   cacheUrlSecret: Schema.optional(Secret.Declaration),
   /** The declared secret supplying the remote-cache bearer token. */
   cacheTokenSecret: Schema.optional(Secret.Declaration),
-  /** The jobs `write` mode renders. Empty is legal for `contract` mode. @default [] */
+  /** The jobs the workflow declares. A generated workflow needs at least one. @default [] */
   jobs: Schema.Array(Job).pipe(
     Schema.withConstructorDefault(Effect.succeed<ReadonlyArray<Job>>([]))
   ),
@@ -370,16 +239,17 @@ export const Attrs = Schema.Struct({
     Schema.withConstructorDefault(Effect.succeed<ReadonlyArray<Gate>>([]))
   ),
   /**
-   * Job ids the workflow must define, in every mode. `contract` requires them
-   * of the checked-in file; `check` and `write` require them of the render.
+   * Job ids the workflow must define. Checked against the render, so removing a
+   * job without removing it here is a throw at plan time rather than a pipeline
+   * that quietly stopped running a lane.
    */
   requiredJobs: Schema.Array(Schema.NonEmptyString).pipe(
     Schema.withConstructorDefault(Effect.succeed<ReadonlyArray<string>>([]))
   ),
   /**
    * Declared workflow output path. This stays a string because outputs are
-   * declared paths, not input references. `contract` and `check` derive a
-   * read declaration from the same output path for their non-writing view.
+   * declared paths, not input references. `check` derives a read declaration
+   * from the same output path for its non-writing view.
    */
   /** @default ".github/workflows/ci.yml" */
   output: Schema.NonEmptyString.pipe(
@@ -536,18 +406,7 @@ const renderStep = (step: Step, indent: string): ReadonlyArray<string> => {
   return lines
 }
 
-const ciKinds: ReadonlySet<Target.Kind> = new Set(["build", "test", "lint", "docs"])
-
-/**
- * The kinds safe for an unattended generated pipeline. The CLI also exposes
- * `run`, but run targets include development servers and source-tree
- * scaffolds; generated CI must not start or mutate one merely because it is
- * addressable.
- *
- * @category constants
- * @since 0.1.0
- */
-export const pipelineKinds: ReadonlyArray<Target.Kind> = ["build", "test", "lint", "docs"]
+const ciVerbNames: ReadonlySet<string> = new Set(Verb.all.map(Verb.kind))
 
 /**
  * One package-path or target-name component of a target pattern.
@@ -599,15 +458,19 @@ const targetPattern = (pattern: string): boolean => {
 const shellArgument = (pattern: string): string => `'${pattern}'`
 
 /**
- * Renders the compact CLI command set selected by the kinds attribute, bound
- * to the workspace binary the declared install put in the tree.
+ * Renders the compact CLI command set the declared verbs select, bound to the
+ * workspace binary the declared install put in the tree.
+ *
+ * Declaring every verb is the aggregate `ci` command, so it collapses to one
+ * step rather than four that would each re-plan the same graph.
  */
 const executionCommands = (attrs: Attrs, exec: string): ReadonlyArray<string> => {
-  const kinds = [...new Set(attrs.kinds)]
-  const pattern = shellArgument(attrs.pattern)
-  return kinds.length === ciKinds.size && kinds.every((kind) => ciKinds.has(kind))
-    ? [`${exec} smthrs ci ${pattern}`]
-    : kinds.map((kind) => `${exec} smthrs ${kind} ${pattern}`)
+  const verbs = [...new Set(attrs.pipelineVerbs.map(Verb.kind))]
+  const bound = attrs.parallelism === undefined ? "" : ` --jobs ${attrs.parallelism}`
+  const tail = `${shellArgument(attrs.pattern)}${bound}`
+  return verbs.length === ciVerbNames.size && verbs.every((verb) => ciVerbNames.has(verb))
+    ? [`${exec} smthrs ci ${tail}`]
+    : verbs.map((verb) => `${exec} smthrs ${verb} ${tail}`)
 }
 
 /** GitHub's own job-id shape: a letter or `_`, then letters, digits, `-`, `_`. */
@@ -755,17 +618,17 @@ export const render = (attrs: Attrs): string => {
       } is not a target pattern; use //..., //pkg/..., //pkg, or //pkg:target`
     )
   }
-  // No kinds means no generated smithers build step, which is a pipeline that runs
+  // No verbs means no generated pipeline step, which is a workflow that runs
   // none of the workspace's targets while claiming to be its CI.
-  if (attrs.kinds.length === 0) {
-    throw new Error("GithubCiGen: write mode needs at least one kind for the generated smithers build step")
+  if (attrs.pipelineVerbs.length === 0) {
+    throw new Error("GithubCiGen: a generated workflow needs at least one pipeline verb")
   }
-  const unsafeKinds = [...new Set(attrs.kinds)].filter((kind) => !pipelineKinds.includes(kind))
-  if (unsafeKinds.length > 0) {
+  if (
+    attrs.parallelism !== undefined &&
+    (!Number.isInteger(attrs.parallelism) || attrs.parallelism < 1 || attrs.parallelism > maximumParallelism)
+  ) {
     throw new Error(
-      `GithubCiGen: generated workflows do not admit the kind ${
-        unsafeKinds.map((kind) => JSON.stringify(kind)).join(", ")
-      }; ${pipelineKinds.join(", ")} are the pipeline-safe verbs`
+      `GithubCiGen: parallelism ${attrs.parallelism} is not a whole number from 1 to ${maximumParallelism}`
     )
   }
   validateJobs(attrs)
@@ -832,47 +695,30 @@ export const render = (attrs: Attrs): string => {
 }
 
 /**
- * Generates or verifies the GitHub Actions CI workflow from BUILD.ts attrs.
+ * Generates the GitHub Actions CI workflow from BUILD.ts attrs.
  *
- * **Why the default is `contract` and not `write`.** The previous shape of
- * this target rendered a fixed five-step job whose entire pipeline was
- * `pnpm dlx @smthrs/build-cli ci //...`, and pointed `output` at
- * `.github/workflows/ci.yml`. Building the root target therefore replaced a
- * seven-job pipeline — typecheck, lint, circular-dependency guard, browser
- * bundle gate, release pack smoke test, Rust fmt/clippy/test, WASM
- * reproducibility, Bun, macOS, Windows — with one job that ran none of them,
- * and nothing in the target could notice. A generator that can silently delete
- * a repository's required gates is not safe to run by default, so:
+ * The workflow is a generated root file, on the same terms as
+ * `pnpm-workspace.yaml`, `tsconfig.json`, and `pnpm-lock.yaml`: BUILD.ts is the
+ * only description of the pipeline, `write` renders it, and `check` — the
+ * default — fails on drift. A pipeline that lives in two places, a BUILD.ts
+ * declaration and a hand-maintained YAML file, is two descriptions of one
+ * thing, free to disagree.
  *
- * - `contract` (default) never writes. It reads the checked-in workflow,
- *   parses it, and fails with {@link DriftError} unless every
- *   declared {@link Gate} is still run by an unconditional step of an
- *   unconditional job and every declared job id still exists and still runs
- *   unconditionally ({@link missingRequiredJobs}). A repository
- *   keeps its hand-written pipeline — comments, advisory `continue-on-error`
- *   lanes, platform jobs — and gains a machine-checked guarantee that its gates
- *   cannot be quietly removed. `continue-on-error` stays advisory on purpose: a
- *   gate asserts that a command still runs, not that its failure blocks a
- *   merge, and the advisory platform lanes are exactly what a platform-pinned
- *   gate pins. An `if:` is treated the other way, because GitHub may skip the
- *   job or step entirely.
- * - `check` byte-compares the checked-in file against the rendered form, for
- *   a repository that does want its pipeline generated.
- * - `write` renders and writes. {@link render} refuses to emit a workflow that
- *   drops a declared gate or a declared required job, installs with anything
- *   other than a supported lockfile command, runs smithers build in a job that never
- *   performs that install, names a kind the CLI has no verb for, or declares a
- *   job or step shape GitHub Actions rejects — so even the writing path cannot
- *   downgrade the pipeline.
+ * What keeps the generator from silently deleting a repository's gates is
+ * {@link render}, not a non-writing mode. It refuses to emit a workflow that
+ * drops a declared {@link Gate} or a declared required job, installs with
+ * anything other than a supported lockfile command, runs the pipeline step in a
+ * job that never performs that install, or declares a job or step shape GitHub
+ * Actions rejects. Each refusal is a throw at plan time, before any file is
+ * written.
  *
  * The `lint` verb maps `write` to `check` through `attrsForKind`, so no lint
- * or `ci` run mutates a workflow file. Only `contract` and `check` are
- * cacheable; the output file is a declared input in both, so editing the
- * workflow re-keys the target. The first rendered job receives one
- * `<exec> smthrs ci <pattern>` step when `kinds` is exactly build, test,
- * lint, and docs. Every other set receives one
- * `<exec> smithers build <verb> <pattern>` step
- * per kind, for the kinds in {@link pipelineKinds}. `<exec>` is the
+ * or `ci` run mutates a workflow file. Only `check` is cacheable; the output
+ * file is a declared input there, so editing the workflow re-keys the target.
+ *
+ * The first rendered job receives one `<exec> smthrs ci <pattern>` step when
+ * {@link Attrs.pipelineVerbs} is exactly {@link Verb.all}. Every other set
+ * receives one `<exec> smthrs <verb> <pattern>` step per verb. `<exec>` is the
  * workspace-binary runner of the declared install
  * ({@link GithubWorkflow.workspaceExecCommands}), so the CLI that runs is the
  * one the lockfile pinned, never a fetched one.
@@ -905,13 +751,5 @@ export const GithubCiGen = Target.make("GithubCiGen", {
     WriteFileError | DriftError,
     | Action.Requirement<"smithers-build/write-file">
     | Action.Requirement<"smithers-build/check-file">
-    | Action.Requirement<"smithers-build/check-workflow">
-  > =>
-    attrs.mode === "contract"
-      ? CheckWorkflow.call({
-        path: resolveOutputPath(attrs.output),
-        gates: attrs.gates,
-        requiredJobs: attrs.requiredJobs
-      })
-      : generateFile(attrs.mode, { path: resolveOutputPath(attrs.output), contents: render(attrs) })
+  > => generateFile(attrs.mode, { path: resolveOutputPath(attrs.output), contents: render(attrs) })
 })

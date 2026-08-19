@@ -10,10 +10,10 @@
  * WASM reproducibility, Bun, macOS, Windows) with a single job that ran none
  * of them.
  *
- * This module supplies the two halves of the fix: a workflow reader, so the
- * checked-in pipeline can be verified to still carry every declared gate
- * without being rewritten, and a renderer that can express a real multi-job
- * pipeline rather than a fixed five-step one.
+ * This module supplies the two halves of the fix: a renderer that can express a
+ * real multi-job pipeline rather than a fixed five-step one, and a workflow
+ * reader, so the rendered pipeline can be checked against the gates the
+ * repository declared before a single byte is written.
  *
  * The reader is a targeted GitHub-workflow scanner, not a general YAML
  * implementation. It handles exactly the constructs a workflow uses — nested
@@ -1065,6 +1065,35 @@ const executableShells = new Set(["bash", "sh", "pwsh", "powershell", "cmd"])
  */
 export const executesRunScript = (shell: string | undefined): boolean =>
   shell === undefined || executableShells.has(shell.trim().toLowerCase())
+
+/**
+ * The declared required jobs a workflow does not unconditionally run.
+ *
+ * A required job is required to RUN, on the same terms as a gate: a job
+ * carrying an `if:` is one GitHub may skip, so `if: false` on a required job is
+ * a job the pipeline does not have. A job that exists but is conditional is
+ * reported as `id (conditional)`, because "missing" would send an operator
+ * looking for a job that is right there in the file.
+ *
+ * `continue-on-error` stays out of it, exactly as it does for a gate: a
+ * required job asserts that the job runs, not that its failure blocks a merge,
+ * and the advisory platform lanes are jobs that do run.
+ *
+ * @category verification
+ * @since 0.1.0
+ */
+export const missingRequiredJobs = (
+  workflow: Workflow,
+  requiredJobs: ReadonlyArray<string>
+): ReadonlyArray<string> => {
+  const declared = new Set(workflow.jobs.map((job) => job.id))
+  const unconditional = new Set(
+    workflow.jobs.filter((job) => alwaysRuns(job.condition)).map((job) => job.id)
+  )
+  return requiredJobs
+    .filter((id) => !unconditional.has(id))
+    .map((id) => declared.has(id) ? `${id} (conditional)` : id)
+}
 
 /**
  * Reports the declared gates a workflow no longer runs.

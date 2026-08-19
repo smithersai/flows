@@ -1,24 +1,18 @@
 /**
- * The CI-workflow reader and the gate contract that keeps a generated or
- * verified pipeline from quietly dropping a repository's required gates.
+ * The CI-workflow parser and the gate contract that keeps the generated
+ * pipeline from quietly dropping a repository's required gates.
  */
 import { spawnSync } from "node:child_process"
 import * as Fs from "node:fs/promises"
 import { tmpdir } from "node:os"
 import * as NodePath from "node:path"
 import { describe, expect, it } from "vitest"
-import {
-  GithubCiGen,
-  missingRequiredJobs,
-  pipelineKinds,
-  readWorkflowSource,
-  render,
-  workflowSourceByteLimit
-} from "../src/GithubCiGen.ts"
+import { GithubCiGen, render } from "../src/GithubCiGen.ts"
 import {
   isSupportedInstall,
   maximumWorkflowBytes,
   missingGates,
+  missingRequiredJobs,
   parseWorkflow as parseStrictWorkflow,
   performsInstall,
   stripShellComments,
@@ -28,6 +22,7 @@ import {
 } from "../src/GithubWorkflow.ts"
 import { Secret } from "../src/Secret.ts"
 import * as Target from "../src/Target.ts"
+import * as Verb from "../src/Verb.ts"
 import { packageManager } from "./toolchain.ts"
 
 /**
@@ -834,69 +829,6 @@ describe("missingGates", () => {
   })
 })
 
-/**
- * A required job is required to RUN. The contract used to ask only whether the
- * id existed, so `if: false` on a required job satisfied it while GitHub
- * skipped the job entirely — the same defect the gate check had, one level up.
- */
-describe("missingRequiredJobs", () => {
-  const workflow = parseWorkflow(
-    [
-      "jobs:",
-      "  test:",
-      "    runs-on: ubuntu-latest",
-      "    steps:",
-      "      - run: pnpm run check",
-      "  browser:",
-      "    runs-on: ubuntu-latest",
-      "    if: false",
-      "    steps:",
-      "      - run: pnpm run browser",
-      "  rust:",
-      "    runs-on: ubuntu-latest",
-      "    if: ${{ github.event_name == 'push' }}",
-      "    steps:",
-      "      - run: cargo test --locked",
-      "  wasm-repro:",
-      "    runs-on: ubuntu-latest",
-      "    if: true",
-      "    steps:",
-      "      - run: cmp a b",
-      ""
-    ].join("\n")
-  )
-
-  it("reports nothing for an unconditional required job", () => {
-    expect(missingRequiredJobs(workflow, ["test"])).toEqual([])
-    // The one narrowly provable literal counts here too.
-    expect(missingRequiredJobs(workflow, ["wasm-repro"])).toEqual([])
-  })
-
-  it("reports a required job that carries a condition, saying which it is", () => {
-    expect(missingRequiredJobs(workflow, ["browser", "rust"]))
-      .toEqual(["browser (conditional)", "rust (conditional)"])
-  })
-
-  it("still reports a required job the workflow never defines", () => {
-    expect(missingRequiredJobs(workflow, ["bun"])).toEqual(["bun"])
-  })
-
-  it("keeps `continue-on-error` out of it, as the gate contract does", () => {
-    const advisory = parseWorkflow(
-      [
-        "jobs:",
-        "  node-macos:",
-        "    runs-on: macos-latest",
-        "    continue-on-error: true",
-        "    steps:",
-        "      - run: pnpm test",
-        ""
-      ].join("\n")
-    )
-    expect(missingRequiredJobs(advisory, ["node-macos"])).toEqual([])
-  })
-})
-
 describe("supported lockfile installs", () => {
   it("accepts every documented lockfile install", () => {
     for (const command of supportedInstallCommands) expect(isSupportedInstall(command)).toBe(true)
@@ -1488,16 +1420,18 @@ describe("render", () => {
     }
   })
 
-  it("refuses a kind set that would emit no smithers build step at all", () => {
-    const attrs = GithubCiGen({ ...goldenAttrs, kinds: [] })[Target.TargetTypeId].attrs as never
-    expect(() => render(attrs)).toThrow(/at least one kind/)
+  it("refuses a verb set that would emit no pipeline step at all", () => {
+    const attrs = GithubCiGen({ ...goldenAttrs, pipelineVerbs: [] })[Target.TargetTypeId].attrs as never
+    expect(() => render(attrs)).toThrow(/at least one pipeline verb/)
   })
 
-  it("refuses the manual run kind in an unattended pipeline", () => {
+  it("has no value for the manual run verb at all", () => {
     // `run` targets include watchers, development servers, and source-tree
-    // scaffolds. The CLI exposes them for explicit use, not for generated CI.
-    const attrs = GithubCiGen({ ...goldenAttrs, kinds: ["build", "run"] })[Target.TargetTypeId].attrs as never
-    expect(() => render(attrs)).toThrow(/generated workflows do not admit the kind "run"/)
+    // scaffolds. The CLI exposes them for explicit use, not for generated CI,
+    // so the module exports no value a BUILD.ts file could name.
+    expect(Object.keys(Verb).filter((name) => name.toLowerCase() === "run")).toEqual([])
+    expect(Verb.all.map(Verb.kind)).toEqual(["build", "test", "lint", "docs"])
+    expect(Verb.isVerb({ name: "run" })).toBe(false)
   })
 
   /**
@@ -1509,14 +1443,14 @@ describe("render", () => {
     const cli = await Fs.readFile(NodePath.resolve(import.meta.dirname, "../../build-cli/src/Cli.ts"), "utf8")
     const commands = new Set([...cli.matchAll(/\.command\("([\w-]+)"/g)].map((match) => match[1]!))
     expect(commands.size).toBeGreaterThan(0)
-    expect(pipelineKinds.filter((kind) => !commands.has(kind))).toEqual([])
-    // The compact form of the default kind set.
+    expect(Verb.all.map(Verb.kind).filter((verb) => !commands.has(verb))).toEqual([])
+    // The compact form of the full verb set.
     expect(commands.has("ci")).toBe(true)
 
     const emitted = new Set<string>()
-    for (const kind of pipelineKinds) {
+    for (const verb of Verb.all) {
       const rendered = render(
-        GithubCiGen({ ...goldenAttrs, kinds: [kind], gates: [] })[Target.TargetTypeId].attrs as never
+        GithubCiGen({ ...goldenAttrs, pipelineVerbs: [verb], gates: [] })[Target.TargetTypeId].attrs as never
       )
       for (const [, verb] of rendered.matchAll(/pnpm exec smthrs ([\w-]+) /g)) emitted.add(verb!)
     }
@@ -1645,50 +1579,8 @@ describe("render", () => {
   })
 })
 
-describe("readWorkflowSource", () => {
-  const withWorkspace = async (run: (root: string) => Promise<void>): Promise<void> => {
-    const root = await Fs.mkdtemp(NodePath.join(tmpdir(), "smthrs-workflow-read-"))
-    try {
-      await run(root)
-    } finally {
-      await Fs.rm(root, { recursive: true, force: true })
-    }
-  }
-
-  it("reads a bounded regular UTF-8 workflow exactly", async () => {
-    await withWorkspace(async (root) => {
-      const source = "jobs:\n  test:\n    runs-on: ubuntu-latest\n    steps: []\n"
-      await Fs.writeFile(NodePath.join(root, "ci.yml"), source)
-      await expect(readWorkflowSource(root, "ci.yml")).resolves.toBe(source)
-    })
-  })
-
-  it("refuses symlinks, invalid UTF-8, oversized files, and path escapes", async () => {
-    await withWorkspace(async (root) => {
-      await Fs.writeFile(NodePath.join(root, "target.yml"), "jobs: {}\n")
-      await Fs.symlink("target.yml", NodePath.join(root, "link.yml"))
-      await Fs.writeFile(NodePath.join(root, "invalid.yml"), Buffer.from([0xc3, 0x28]))
-      await Fs.writeFile(NodePath.join(root, "large.yml"), Buffer.alloc(workflowSourceByteLimit + 1, 0x20))
-
-      await expect(readWorkflowSource(root, "link.yml")).rejects.toThrow(/symbolic link/)
-      await expect(readWorkflowSource(root, "invalid.yml")).rejects.toThrow()
-      await expect(readWorkflowSource(root, "large.yml")).rejects.toThrow(/larger than/)
-      await expect(readWorkflowSource(root, "../outside.yml")).rejects.toThrow(/escapes the workspace/)
-    })
-  })
-
-  it.skipIf(process.platform === "win32")("refuses a FIFO without waiting for a writer", async () => {
-    await withWorkspace(async (root) => {
-      const fifo = NodePath.join(root, "ci.yml")
-      const made = spawnSync("mkfifo", [fifo], { encoding: "utf8" })
-      expect(made.status, made.stderr).toBe(0)
-      await expect(readWorkflowSource(root, "ci.yml")).rejects.toThrow(/not a regular file/)
-    })
-  })
-})
-
 describe("GithubCiGen target wiring", () => {
-  const contractAttrs = {
+  const checkingAttrs = {
     workflowName: "CI",
     pushBranches: ["main"],
     pullRequest: true,
@@ -1701,9 +1593,9 @@ describe("GithubCiGen target wiring", () => {
     packageManager
   }
 
-  it("defaults to the non-mutating contract mode", () => {
-    const metadata = Target.metadata(GithubCiGen(contractAttrs) as never)
-    expect((metadata.attrs as { readonly mode: string }).mode).toBe("contract")
+  it("defaults to the non-mutating check mode", () => {
+    const metadata = Target.metadata(GithubCiGen(checkingAttrs) as never)
+    expect((metadata.attrs as { readonly mode: string }).mode).toBe("check")
     // The workflow file is a declared input, so editing it re-keys the target.
     expect(metadata.inputs.map((input) => (input as { readonly path: string }).path))
       .toContain("//.github/workflows/ci.yml")
