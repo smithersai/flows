@@ -60,6 +60,7 @@ exists for future additions and is unused. See
 | [SortPackageJson](sort-package-json.md) | `build`, `lint` | Never                              | Executes | Validates or rewrites `package.json` key ordering.                           |
 | [PackageJson](package-json-gen.md)      | `lint` / `run`  | Check only                         | Executes | Expands a typed manifest declaration into check, write, and refresh targets. |
 | [GithubCiGen](github-ci-gen.md)         | `build`, `lint` | Effective `contract`/`check` modes | Executes | Generates the GitHub Actions CI workflow from attrs.                         |
+| [GithubAutomation](github-automation.md) | `build`, `lint`, `run` | Effective `check` mode        | Executes | Generates one event-driven `gen.<slug>.yml` and enforces the untrusted-input gate. |
 
 ## Documentation
 
@@ -68,7 +69,9 @@ exists for future additions and is unused. See
 | [DocsParity](docs-parity.md) | `docs` | Always    | Executes | Requires a substantive README beside a package's code. |
 
 `PackageJson` uses separate targets for checking and source-tree writes.
-`GithubCiGen` maps its `lint` verb to the drift-check form. See [Verb-effective attrs](../../concepts/targets.md#verb-effective-attrs).
+`GithubCiGen` maps its `lint` verb to the drift-check form, and
+`GithubAutomation` maps `build` and `lint` to it while reserving writing for
+`run`. See [Verb-effective attrs](../../concepts/targets.md#verb-effective-attrs).
 
 ## Install, release, and processes
 
