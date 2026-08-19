@@ -45,6 +45,7 @@ import { HarnessError } from "./HarnessError.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Implementation = (
   call: Cell.Call
@@ -55,6 +56,7 @@ export type Implementation = (
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Prompt {
   readonly call: Cell.Call
@@ -70,6 +72,7 @@ export interface Prompt {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type PromptRunner = (
   prompt: Prompt
@@ -80,6 +83,7 @@ export type PromptRunner = (
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Options {
   readonly registry: Registry.Registry
@@ -102,6 +106,7 @@ export interface Options {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Resolver {
   readonly run: (call: Cell.Call) => Effect.Effect<Cell.CallResult, HarnessError>
@@ -117,6 +122,7 @@ const refused = (message: string): Cell.CallResult => new Cell.CallResult({ outc
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (options: Options): Resolver => ({
   run: (call) =>

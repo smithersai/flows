@@ -17,6 +17,7 @@ import * as Schema from "effect/Schema"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const RuleEffect = Schema.Literals(["allow", "deny"])
 
@@ -25,12 +26,14 @@ export const RuleEffect = Schema.Literals(["allow", "deny"])
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type RuleEffect = typeof RuleEffect.Type
 
 /** An ordered allow or deny pattern over flow names.
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class Rule extends Schema.Class<Rule>("flows/harness/Visibility/Rule")({
   effect: RuleEffect,
@@ -40,6 +43,7 @@ export class Rule extends Schema.Class<Rule>("flows/harness/Visibility/Rule")({
 /** An ordered visibility ruleset. The last matching rule wins.
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const Ruleset = Schema.Array(Rule)
 
@@ -48,12 +52,14 @@ export const Ruleset = Schema.Array(Rule)
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Ruleset = typeof Ruleset.Type
 
 /** The resolved visibility policy associated with one model seat.
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class Seat extends Schema.Class<Seat>("flows/harness/Visibility/Seat")({
   name: Schema.String,
@@ -66,6 +72,7 @@ export class Seat extends Schema.Class<Seat>("flows/harness/Visibility/Seat")({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface MakeOptions {
   readonly name: string
@@ -76,6 +83,7 @@ export interface MakeOptions {
 /** Constructs a resolved seat visibility policy.
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (options: MakeOptions): Seat =>
   new Seat({
@@ -122,6 +130,7 @@ const visible = (name: string, ruleset: Ruleset): boolean => {
  *
  * @category predicates
  * @since 0.1.0
+ * @slop
  */
 export const allows = (name: string, seat: Seat | string | Ruleset): boolean => visible(name, rulesOf(seat))
 
@@ -131,6 +140,7 @@ export const allows = (name: string, seat: Seat | string | Ruleset): boolean => 
  *
  * @category filtering
  * @since 0.1.0
+ * @slop
  */
 export const filter = (
   descriptors: ReadonlyArray<FlowDescriptor>,

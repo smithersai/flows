@@ -14,6 +14,7 @@ import * as Plan from "./Plan.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface FlowDeclaration {
   /** The name recorded on the child plan node. */
@@ -33,6 +34,7 @@ export interface FlowDeclaration {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface FlowCreatorDeclaration {
   /** The flow that receives a decoded flow-create action. */
@@ -44,6 +46,7 @@ export interface FlowCreatorDeclaration {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Catalog {
   /** Model tool names mapped to their flow declarations. */
@@ -59,6 +62,7 @@ export interface Catalog {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Elaboration {
   /** The children to splice, if any valid calls were elaborated. */
@@ -186,6 +190,7 @@ const elaborateCall = (
  *
  * @category operations
  * @since 0.1.0
+ * @slop
  */
 export const elaborate = (message: ModelRequest.AssistantMessage, catalog: Catalog): Elaboration => {
   const calls = toolCalls(message)

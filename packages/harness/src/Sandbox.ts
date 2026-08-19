@@ -30,6 +30,7 @@ import type { HarnessError } from "./HarnessError.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const SandboxErrorCode = Schema.Literals([
   "unavailable",
@@ -42,6 +43,7 @@ export const SandboxErrorCode = Schema.Literals([
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type SandboxErrorCode = typeof SandboxErrorCode.Type
 
@@ -50,6 +52,7 @@ export type SandboxErrorCode = typeof SandboxErrorCode.Type
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class SandboxError extends Schema.TaggedError<SandboxError>()("flows/harness/SandboxError", {
   code: SandboxErrorCode,
@@ -67,6 +70,7 @@ export class SandboxError extends Schema.TaggedError<SandboxError>()("flows/harn
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Invocation {
   readonly ordinal: number
@@ -83,6 +87,7 @@ export interface Invocation {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Handler = (
   invocation: Invocation
@@ -97,6 +102,7 @@ export type Handler = (
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Limits {
   /** Maximum number of flow calls one cell may make; a non-negative safe integer. */
@@ -136,6 +142,7 @@ export interface Limits {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Capabilities {
   readonly calls: boolean
@@ -155,6 +162,7 @@ export interface Capabilities {
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const defaultLimits = Object.freeze({
   memoryBytes: 128 * 1024 * 1024,
@@ -173,6 +181,7 @@ export const defaultLimits = Object.freeze({
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const minimumMemoryBytes = 1024 * 1024
 
@@ -216,6 +225,7 @@ const validateLimits = (limits: Limits | undefined): SandboxError | undefined =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const withDefaults = (
   capabilities: Capabilities,
@@ -235,6 +245,7 @@ export const withDefaults = (
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Evaluation {
   readonly cell: Cell.Source
@@ -259,6 +270,7 @@ export interface Evaluation {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export interface Sandbox {
   readonly capabilities: Capabilities
@@ -272,6 +284,7 @@ export interface Sandbox {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export const Sandbox: Context.Service<Sandbox, Sandbox> = Context.Service("/harness/Sandbox")
 
@@ -280,6 +293,7 @@ export const Sandbox: Context.Service<Sandbox, Sandbox> = Context.Service("/harn
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (implementation: Sandbox): Sandbox =>
   Sandbox.of({
@@ -299,6 +313,7 @@ export const make = (implementation: Sandbox): Sandbox =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (implementation: Sandbox): Layer.Layer<Sandbox> => Layer.succeed(Sandbox)(make(implementation))
 
@@ -307,6 +322,7 @@ export const layer = (implementation: Sandbox): Layer.Layer<Sandbox> => Layer.su
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (overrides: Partial<Sandbox> = {}): Sandbox =>
   Sandbox.of({
@@ -326,6 +342,7 @@ export const makeNoop = (overrides: Partial<Sandbox> = {}): Sandbox =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop = (overrides: Partial<Sandbox> = {}): Layer.Layer<Sandbox> =>
   Layer.succeed(Sandbox)(makeNoop(overrides))
@@ -335,6 +352,7 @@ export const layerNoop = (overrides: Partial<Sandbox> = {}): Layer.Layer<Sandbox
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const unsupportedLimit = (limit: string): SandboxError =>
   new SandboxError({
@@ -546,6 +564,7 @@ const nonErasableSyntax = (source: ts.SourceFile): string | undefined => {
  *
  * @category conversions
  * @since 0.1.0
+ * @slop
  */
 export const compile = (cell: Cell.Source): string | Cell.Rejected => {
   if (cell.language === "javascript") return cell.text
@@ -669,6 +688,7 @@ const callFailure = (result: Cell.CallResult): Error => {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeRestricted = (): Sandbox =>
   Sandbox.of({
@@ -772,6 +792,7 @@ export const makeRestricted = (): Sandbox =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerRestricted: Layer.Layer<Sandbox> = Layer.sync(Sandbox)(() => makeRestricted())
 
@@ -780,6 +801,7 @@ export const layerRestricted: Layer.Layer<Sandbox> = Layer.sync(Sandbox)(() => m
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type PendingCall = Pending
 
@@ -788,6 +810,7 @@ export type PendingCall = Pending
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Latch {
   readonly wake: () => void
@@ -799,6 +822,7 @@ export interface Latch {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const latch = (): Latch => makeLatch()
 
@@ -811,6 +835,7 @@ export const latch = (): Latch => makeLatch()
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const driveCell = (options: {
   readonly pending: Array<Pending>
@@ -838,6 +863,7 @@ export const driveCell = (options: {
  *
  * @category conversions
  * @since 0.1.0
+ * @slop
  */
 export const raisedOutcome = (error: unknown): Cell.Raised => raised(error)
 
@@ -846,5 +872,6 @@ export const raisedOutcome = (error: unknown): Cell.Raised => raised(error)
  *
  * @category conversions
  * @since 0.1.0
+ * @slop
  */
 export const failureError = (result: Cell.CallResult): Error => callFailure(result)

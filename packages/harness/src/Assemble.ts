@@ -21,6 +21,7 @@ import * as Visibility from "./Visibility.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface DeclaredText {
   readonly text: string
@@ -32,6 +33,7 @@ export interface DeclaredText {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Input {
   readonly journal: ReadonlyArray<JournalEvent.Entry>
@@ -136,6 +138,7 @@ const assembleWindow = (input: Input): ContextWindow.ContextWindow => {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const assemble = (input: Input): ContextWindow.ContextWindow => {
   return assembleWindow(input)

@@ -15,6 +15,7 @@ const DEFAULT_KEEP_RECENT = 20_000
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const summaryInstruction =
   "Summarize the supplied conversation for a continuation model. Preserve the original task, completed work, exact files and commands, decisions and rationale, failures, unresolved risks, and concrete next steps. Extend any existing summary instead of discarding it. Be concise, factual, and do not call tools."
@@ -24,6 +25,7 @@ export const summaryInstruction =
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class InvalidStep extends Schema.TaggedError<InvalidStep>("flows/harness/Compaction/InvalidStep")(
   "InvalidStep",
@@ -40,6 +42,7 @@ export class InvalidStep extends Schema.TaggedError<InvalidStep>("flows/harness/
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Summarizer {
   readonly identity: string
@@ -52,6 +55,7 @@ export interface Summarizer {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface CompactionStep {
   readonly kind: "compaction"
@@ -66,6 +70,7 @@ export interface CompactionStep {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface TokenAccounting {
   readonly total: { readonly value: number }
@@ -79,6 +84,7 @@ export interface TokenAccounting {
  *
  * @category predicates
  * @since 0.1.0
+ * @slop
  */
 export const shouldCompact = (
   cw: TokenAccounting,
@@ -128,6 +134,7 @@ const pairBoundaries = (segments: ReadonlyArray<ContextWindow.Segment>): Readonl
  *
  * @category operations
  * @since 0.1.0
+ * @slop
  */
 export const selectPrefix = (
   window: ContextWindow.ContextWindow,
@@ -171,6 +178,7 @@ const prefix = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const declare = Effect.fn("flows/harness/Compaction.declare")(function*(
   window: ContextWindow.ContextWindow,
@@ -198,6 +206,7 @@ export const declare = Effect.fn("flows/harness/Compaction.declare")(function*(
  *
  * @category operations
  * @since 0.1.0
+ * @slop
  */
 export const summaryRequest = Effect.fn("flows/harness/Compaction.summaryRequest")(function*(
   window: ContextWindow.ContextWindow,
@@ -242,6 +251,7 @@ export const summaryRequest = Effect.fn("flows/harness/Compaction.summaryRequest
  *
  * @category operations
  * @since 0.1.0
+ * @slop
  */
 export const apply = Effect.fn("flows/harness/Compaction.apply")(function*(
   window: ContextWindow.ContextWindow,

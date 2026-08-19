@@ -40,6 +40,7 @@ const NonNegativeSafeInt = Schema.Int.check(
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const defaultMaxFrames = 100
 
@@ -84,6 +85,7 @@ const eventType = {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class State extends Schema.Class<State>("flows/harness/CellTurn/State")({
   session: Schema.String,
@@ -119,6 +121,7 @@ export class State extends Schema.Class<State>("flows/harness/CellTurn/State")({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Input {
   readonly state: State
@@ -132,6 +135,7 @@ export interface Input {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (options: {
   readonly session: string
@@ -179,6 +183,7 @@ export const make = (options: {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const teach = (
   contextWindow: ContextWindow.ContextWindow,
@@ -879,6 +884,7 @@ const frame = (
  *
  * @category streams
  * @since 0.1.0
+ * @slop
  */
 export const run = (
   input: Input

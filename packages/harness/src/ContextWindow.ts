@@ -20,6 +20,7 @@ import * as Tokens from "./Tokens.ts"
  *
  * @category type ids
  * @since 0.1.0
+ * @slop
  */
 export const TypeId = "~flows/harness/ContextWindow" as const
 
@@ -28,6 +29,7 @@ export const TypeId = "~flows/harness/ContextWindow" as const
  *
  * @category type ids
  * @since 0.1.0
+ * @slop
  */
 export type TypeId = typeof TypeId
 
@@ -37,6 +39,7 @@ export type TypeId = typeof TypeId
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const SegmentKind = Schema.Literals([
   "system",
@@ -53,6 +56,7 @@ export const SegmentKind = Schema.Literals([
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type SegmentKind = typeof SegmentKind.Type
 
@@ -62,6 +66,7 @@ export type SegmentKind = typeof SegmentKind.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const SegmentZone = Schema.Literals(["prefix", "tail"])
 
@@ -70,6 +75,7 @@ export const SegmentZone = Schema.Literals(["prefix", "tail"])
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type SegmentZone = typeof SegmentZone.Type
 
@@ -79,6 +85,7 @@ export type SegmentZone = typeof SegmentZone.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Content = Schema.Array(
   Schema.Union([ModelRequest.SystemPart, ModelRequest.Message, ModelRequest.ToolDefinition])
@@ -89,6 +96,7 @@ export const Content = Schema.Array(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Content = typeof Content.Type
 
@@ -97,6 +105,7 @@ export type Content = typeof Content.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const ContextWindowErrorCode = Schema.Literal("invalid_compaction_prefix")
 
@@ -105,12 +114,14 @@ export const ContextWindowErrorCode = Schema.Literal("invalid_compaction_prefix"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ContextWindowErrorCode = typeof ContextWindowErrorCode.Type
 
 /** Stable failure returned for an invalid public compaction prefix.
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class ContextWindowError extends Schema.TaggedError<ContextWindowError>()(
   "flows/harness/ContextWindowError",
@@ -123,6 +134,7 @@ export class ContextWindowError extends Schema.TaggedError<ContextWindowError>()
 /** A stable, typed slice of the model-visible context.
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class Segment extends Schema.Class<Segment>("flows/harness/ContextWindow/Segment")({
   kind: SegmentKind,
@@ -139,6 +151,7 @@ export class Segment extends Schema.Class<Segment>("flows/harness/ContextWindow/
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class ContextWindow extends Schema.Class<ContextWindow>("flows/harness/ContextWindow")({
   modelId: Schema.String,
@@ -199,6 +212,7 @@ export class ContextWindow extends Schema.Class<ContextWindow>("flows/harness/Co
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface SegmentInput {
   readonly kind: SegmentKind
@@ -213,6 +227,7 @@ export interface SegmentInput {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface MakeOptions {
   readonly modelId: string
@@ -242,6 +257,7 @@ const digest = (value: unknown): string => Digest.digest(CanonicalJson.stringify
 /** Creates one segment, computing its identity and estimated token count.
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeSegment = (input: Segment | SegmentInput): Segment => {
   if (isSegment(input)) return input
@@ -303,18 +319,21 @@ const construct = (options: MakeOptions): ContextWindow => {
 /** Constructs a window from already-derived values.
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (options: MakeOptions): ContextWindow => construct(options)
 
 /** Constructs an empty context window for a model.
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const empty = (modelId: string): ContextWindow => make({ modelId })
 
 /** Appends one settled assistant message and its ordered tool results.
  * @category combinators
  * @since 0.1.0
+ * @slop
  */
 export const appendTurn: {
   (
@@ -349,6 +368,7 @@ export const appendTurn: {
  *
  * @category combinators
  * @since 0.1.0
+ * @slop
  */
 export const activateTools: {
   (names: ReadonlyArray<string>): (self: ContextWindow) => ContextWindow
@@ -398,6 +418,7 @@ const selectedPrefix = (
  *
  * @category conversions
  * @since 0.1.0
+ * @slop
  */
 export const prefixDigest = (
   self: ContextWindow,
@@ -410,6 +431,7 @@ export const prefixDigest = (
  *
  * @category combinators
  * @since 0.1.0
+ * @slop
  */
 export const compactPrefix = (
   self: ContextWindow,
@@ -437,6 +459,7 @@ export const compactPrefix = (
  *
  * @category combinators
  * @since 0.1.0
+ * @slop
  */
 export const compact: {
   (
@@ -455,6 +478,7 @@ export const compact: {
 /** Renders this provider-neutral value into a model request.
  * @category conversions
  * @since 0.1.0
+ * @slop
  */
 export const render = (self: ContextWindow): ModelRequest.ModelRequest => {
   const system: Array<ModelRequest.SystemPart> = []

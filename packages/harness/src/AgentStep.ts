@@ -22,6 +22,7 @@ import type { Layer } from "effect"
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const Seat = Schema.String.check(
   Schema.makeFilter(
@@ -38,6 +39,7 @@ export const Seat = Schema.String.check(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Seat = typeof Seat.Type
 
@@ -46,6 +48,7 @@ export type Seat = typeof Seat.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class TextDeclaration extends Schema.Class<TextDeclaration>(
   "flows/harness/AgentStep/TextDeclaration"
@@ -72,6 +75,7 @@ const ContextWindowTokens = NonNegativeSafeInt.pipe(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class AgentStep extends Schema.Class<AgentStep>("flows/harness/AgentStep")({
   seat: Seat,
@@ -97,5 +101,6 @@ export class AgentStep extends Schema.Class<AgentStep>("flows/harness/AgentStep"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type HostLike = Layer.Layer<HostServices.HostService>

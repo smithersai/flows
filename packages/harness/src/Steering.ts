@@ -15,6 +15,7 @@ import type { HarnessError } from "./HarnessError.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Delivery = "steer" | "queue"
 
@@ -23,6 +24,7 @@ export type Delivery = "steer" | "queue"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface SteerInsert {
   readonly _tag: "Insert"
@@ -36,6 +38,7 @@ export interface SteerInsert {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface QueueInsert {
   readonly _tag: "Insert"
@@ -49,6 +52,7 @@ export interface QueueInsert {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Insert = SteerInsert | QueueInsert
 
@@ -57,6 +61,7 @@ export type Insert = SteerInsert | QueueInsert
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface SeatChange {
   readonly _tag: "SeatChange"
@@ -70,6 +75,7 @@ export interface SeatChange {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface ThinkingChange {
   readonly _tag: "ThinkingChange"
@@ -83,6 +89,7 @@ export interface ThinkingChange {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface ActivateTools {
   readonly _tag: "ActivateTools"
@@ -96,6 +103,7 @@ export interface ActivateTools {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Item = Insert | SeatChange | ThinkingChange | ActivateTools
 
@@ -104,6 +112,7 @@ export type Item = Insert | SeatChange | ThinkingChange | ActivateTools
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Queue {
   readonly items: ReadonlyArray<Item>
@@ -114,6 +123,7 @@ export interface Queue {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Drain {
   readonly inserts: ReadonlyArray<ModelRequest.Message>
@@ -129,6 +139,7 @@ export interface Drain {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface BoundaryInput {
   readonly boundary: string
@@ -161,6 +172,7 @@ const ThinkingChangeRecord = Schema.Struct({
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const DrainRecord = Schema.Struct({
   inserts: Schema.Array(ModelRequest.Message),
@@ -174,6 +186,7 @@ export const DrainRecord = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type DrainRecord = typeof DrainRecord.Type
 
@@ -182,6 +195,7 @@ export type DrainRecord = typeof DrainRecord.Type
  *
  * @category conversions
  * @since 0.1.0
+ * @slop
  */
 export const drainRecord = (drain: Drain): DrainRecord => ({
   inserts: drain.inserts,
@@ -195,6 +209,7 @@ export const drainRecord = (drain: Drain): DrainRecord => ({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface PromotionState {
   /** The immutable post-cutoff queue snapshot. */
@@ -217,6 +232,7 @@ const immutableItem = (item: Item): Item =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const empty = (): Queue => immutable([])
 
@@ -225,6 +241,7 @@ export const empty = (): Queue => immutable([])
  *
  * @category operations
  * @since 0.1.0
+ * @slop
  */
 export const enqueue = (queue: Queue, item: Item): Queue => immutable([...queue.items, immutableItem(item)])
 
@@ -233,6 +250,7 @@ export const enqueue = (queue: Queue, item: Item): Queue => immutable([...queue.
  *
  * @category operations
  * @since 0.1.0
+ * @slop
  */
 export const drainAtClose = (queue: Queue, cutoff: number): Drain => {
   const inserts: Array<ModelRequest.Message> = []
@@ -274,6 +292,7 @@ export const drainAtClose = (queue: Queue, cutoff: number): Drain => {
  *
  * @category operations
  * @since 0.1.0
+ * @slop
  */
 export const promoteAtIdle = (state: PromotionState): QueueInsert | undefined => {
   if (!state.wouldIdle || state.steerContinued) return undefined
@@ -283,6 +302,7 @@ export const promoteAtIdle = (state: PromotionState): QueueInsert | undefined =>
 /** Drains steer-class items and, only at idle, one queued follow-up.
  * @category operations
  * @since 0.1.0
+ * @slop
  */
 export const drainBoundary = (queue: Queue, input: BoundaryInput): Drain => {
   const cutoff = queue.items.reduce(
@@ -310,6 +330,7 @@ export const drainBoundary = (queue: Queue, input: BoundaryInput): Drain => {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export interface Source {
   readonly read: () => Effect.Effect<Queue, HarnessError>
@@ -321,6 +342,7 @@ export interface Source {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface SourceInput {
   readonly read: () => Effect.Effect<Queue, HarnessError>
@@ -332,6 +354,7 @@ export interface SourceInput {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export const Source: Context.Service<Source, Source> = Context.Service("/harness/Steering/Source")
 
@@ -340,6 +363,7 @@ export const Source: Context.Service<Source, Source> = Context.Service("/harness
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (implementation: SourceInput): Source => Source.of(implementation)
 
@@ -348,6 +372,7 @@ export const make = (implementation: SourceInput): Source => Source.of(implement
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (overrides: Partial<Source> = {}): Source =>
   make({
@@ -369,6 +394,7 @@ export const makeNoop = (overrides: Partial<Source> = {}): Source =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (implementation: SourceInput): Layer.Layer<Source> => Layer.succeed(Source)(make(implementation))
 
@@ -377,6 +403,7 @@ export const layer = (implementation: SourceInput): Layer.Layer<Source> => Layer
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop = (overrides: Partial<Source> = {}): Layer.Layer<Source> =>
   Layer.succeed(Source)(makeNoop(overrides))

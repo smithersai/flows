@@ -22,6 +22,7 @@ import { HarnessError } from "./HarnessError.ts"
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export interface Harness {
   readonly run: (
@@ -35,6 +36,7 @@ export interface Harness {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export const Harness: Context.Service<Harness, Harness> = Context.Service("/harness/Harness")
 
@@ -49,6 +51,7 @@ const unavailable = (): HarnessError =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (overrides: Partial<Harness> = {}): Harness =>
   Harness.of({
@@ -61,6 +64,7 @@ export const makeNoop = (overrides: Partial<Harness> = {}): Harness =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop = (overrides: Partial<Harness> = {}): Layer.Layer<Harness> =>
   Layer.succeed(Harness)(makeNoop(overrides))

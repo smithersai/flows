@@ -16,6 +16,7 @@ import * as Plan from "./Plan.ts"
  *
  * @category events
  * @since 0.1.0
+ * @slop
  */
 export class TurnOpened extends Schema.TaggedClass<TurnOpened>(
   "flows/harness/AgentEvent/TurnOpened"
@@ -32,6 +33,7 @@ export class TurnOpened extends Schema.TaggedClass<TurnOpened>(
  *
  * @category events
  * @since 0.1.0
+ * @slop
  */
 export class ModelDelta extends Schema.TaggedClass<ModelDelta>(
   "flows/harness/AgentEvent/ModelDelta"
@@ -45,6 +47,7 @@ export class ModelDelta extends Schema.TaggedClass<ModelDelta>(
  *
  * @category events
  * @since 0.1.0
+ * @slop
  */
 export class ModelSettled extends Schema.TaggedClass<ModelSettled>(
   "flows/harness/AgentEvent/ModelSettled"
@@ -59,6 +62,7 @@ export class ModelSettled extends Schema.TaggedClass<ModelSettled>(
  *
  * @category events
  * @since 0.1.0
+ * @slop
  */
 export class Elaborated extends Schema.TaggedClass<Elaborated>(
   "flows/harness/AgentEvent/Elaborated"
@@ -72,6 +76,7 @@ export class Elaborated extends Schema.TaggedClass<Elaborated>(
  *
  * @category events
  * @since 0.1.0
+ * @slop
  */
 export class ChildResult extends Schema.TaggedClass<ChildResult>(
   "flows/harness/AgentEvent/ChildResult"
@@ -85,6 +90,7 @@ export class ChildResult extends Schema.TaggedClass<ChildResult>(
  *
  * @category events
  * @since 0.1.0
+ * @slop
  */
 export class ChildProgress extends Schema.TaggedClass<ChildProgress>(
   "flows/harness/AgentEvent/ChildProgress"
@@ -101,6 +107,7 @@ export class ChildProgress extends Schema.TaggedClass<ChildProgress>(
  *
  * @category events
  * @since 0.1.0
+ * @slop
  */
 export class CellProduced extends Schema.TaggedClass<CellProduced>(
   "flows/harness/AgentEvent/CellProduced"
@@ -114,6 +121,7 @@ export class CellProduced extends Schema.TaggedClass<CellProduced>(
  *
  * @category events
  * @since 0.1.0
+ * @slop
  */
 export class CellCallStarted extends Schema.TaggedClass<CellCallStarted>(
   "flows/harness/AgentEvent/CellCallStarted"
@@ -127,6 +135,7 @@ export class CellCallStarted extends Schema.TaggedClass<CellCallStarted>(
  *
  * @category events
  * @since 0.1.0
+ * @slop
  */
 export class CellCallSettled extends Schema.TaggedClass<CellCallSettled>(
   "flows/harness/AgentEvent/CellCallSettled"
@@ -143,6 +152,7 @@ export class CellCallSettled extends Schema.TaggedClass<CellCallSettled>(
  *
  * @category events
  * @since 0.1.0
+ * @slop
  */
 export class CellSettled extends Schema.TaggedClass<CellSettled>(
   "flows/harness/AgentEvent/CellSettled"
@@ -157,6 +167,7 @@ export class CellSettled extends Schema.TaggedClass<CellSettled>(
  *
  * @category events
  * @since 0.1.0
+ * @slop
  */
 export class TransitionApplied extends Schema.TaggedClass<TransitionApplied>(
   "flows/harness/AgentEvent/TransitionApplied"
@@ -170,6 +181,7 @@ export class TransitionApplied extends Schema.TaggedClass<TransitionApplied>(
  *
  * @category events
  * @since 0.1.0
+ * @slop
  */
 export class Suspended extends Schema.TaggedClass<Suspended>(
   "flows/harness/AgentEvent/Suspended"
@@ -183,6 +195,7 @@ export class Suspended extends Schema.TaggedClass<Suspended>(
  *
  * @category events
  * @since 0.1.0
+ * @slop
  */
 export class CompactionSettled extends Schema.TaggedClass<CompactionSettled>(
   "flows/harness/AgentEvent/CompactionSettled"
@@ -197,6 +210,7 @@ export class CompactionSettled extends Schema.TaggedClass<CompactionSettled>(
  *
  * @category events
  * @since 0.1.0
+ * @slop
  */
 export class SteeringDrained extends Schema.TaggedClass<SteeringDrained>(
   "flows/harness/AgentEvent/SteeringDrained"
@@ -210,6 +224,7 @@ export class SteeringDrained extends Schema.TaggedClass<SteeringDrained>(
  *
  * @category events
  * @since 0.1.0
+ * @slop
  */
 export class TurnClosed extends Schema.TaggedClass<TurnClosed>(
   "flows/harness/AgentEvent/TurnClosed"
@@ -224,6 +239,7 @@ export class TurnClosed extends Schema.TaggedClass<TurnClosed>(
  *
  * @category events
  * @since 0.1.0
+ * @slop
  */
 export class PermissionRequired extends Schema.TaggedClass<PermissionRequired>(
   "flows/harness/AgentEvent/PermissionRequired"
@@ -240,6 +256,7 @@ export class PermissionRequired extends Schema.TaggedClass<PermissionRequired>(
  *
  * @category events
  * @since 0.1.0
+ * @slop
  */
 export class ResumeToken extends Schema.TaggedClass<ResumeToken>(
   "flows/harness/AgentEvent/ResumeToken"
@@ -255,6 +272,7 @@ export class ResumeToken extends Schema.TaggedClass<ResumeToken>(
  *
  * @category events
  * @since 0.1.0
+ * @slop
  */
 export class Aborted extends Schema.TaggedClass<Aborted>(
   "flows/harness/AgentEvent/Aborted"
@@ -268,6 +286,7 @@ export class Aborted extends Schema.TaggedClass<Aborted>(
  *
  * @category events
  * @since 0.1.0
+ * @slop
  */
 export class Resolved extends Schema.TaggedClass<Resolved>(
   "flows/harness/AgentEvent/Resolved"
@@ -281,6 +300,7 @@ export class Resolved extends Schema.TaggedClass<Resolved>(
  *
  * @category events
  * @since 0.1.0
+ * @slop
  */
 export const AgentEvent = Schema.Union([
   TurnOpened,
@@ -309,5 +329,6 @@ export const AgentEvent = Schema.Union([
  *
  * @category events
  * @since 0.1.0
+ * @slop
  */
 export type AgentEvent = typeof AgentEvent.Type

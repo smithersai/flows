@@ -10,6 +10,7 @@ import { Schema } from "effect"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const HarnessErrorCode = Schema.Literals([
   "assembly_failed",
@@ -39,6 +40,7 @@ export const HarnessErrorCode = Schema.Literals([
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type HarnessErrorCode = typeof HarnessErrorCode.Type
 
@@ -47,6 +49,7 @@ export type HarnessErrorCode = typeof HarnessErrorCode.Type
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class HarnessError extends Schema.TaggedError<HarnessError>()("/harness/HarnessError", {
   code: HarnessErrorCode,

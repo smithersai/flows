@@ -17,6 +17,7 @@ import * as Steering from "./Steering.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Options {
   readonly runId: string
@@ -56,6 +57,7 @@ const mapFailure = (cause: unknown): HarnessError =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (
   options: Options
@@ -89,6 +91,7 @@ export const make = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (
   options: Options
