@@ -486,6 +486,7 @@ const knownFields = new Set([
   "allowed-tools",
   "flows",
   "model",
+  "effort",
   "capabilities",
   "effects",
   "placement",

@@ -122,6 +122,16 @@ export interface Options {
   /** Stable system teaching placed ahead of the cell contract. */
   readonly system?: ReadonlyArray<string> | undefined
   readonly maxFrames?: number | undefined
+  /**
+   * The reasoning effort agent seats run at when their flow declares none.
+   *
+   * The flow's own `effort:` frontmatter wins; this is the host's default
+   * beneath it, and the built-in default is `high` — an unset effort is not
+   * neutral, it is near-zero thinking (the first SWE-bench runs recorded ~20
+   * reasoning tokens per call while the same model under the Codex CLI ran
+   * at medium and resolved four times as many instances).
+   */
+  readonly reasoningEffort?: ModelRequest.ReasoningEffort | undefined
 }
 
 const contextWindows: ReadonlyArray<readonly [RegExp, number]> = [
@@ -230,6 +240,25 @@ export const trace = (
     default:
       return { eventType: `control.agent.${event._tag}`, payload: {} }
   }
+}
+
+/**
+ * Resolves the reasoning effort one run's model calls request.
+ *
+ * The flow's `effort:` frontmatter wins, then the host's configured default,
+ * then `high`. The frontmatter value is validated against the effort
+ * vocabulary and an unrecognised spelling falls through rather than failing
+ * the launch: effort is a tuning knob, not a contract.
+ */
+const effortFor = (
+  descriptor: { readonly frontmatter: Readonly<Record<string, unknown>> },
+  host: ModelRequest.ReasoningEffort | undefined
+): ModelRequest.ReasoningEffort => {
+  const declared = descriptor.frontmatter["effort"]
+  if (typeof declared === "string" && Schema.is(ModelRequest.ReasoningEffort)(declared)) {
+    return declared
+  }
+  return host ?? "high"
 }
 
 /** The envelope an in-run ask approval binds to: the ask flow, nothing else. */
@@ -709,12 +738,9 @@ export const make = (
         yield* CellHarness.run({
           session: payload.runId,
           seat: seatId,
-          // Medium effort by default. With no declared effort the provider
-          // grants near-zero thinking — the first SWE-bench runs recorded
-          // ~20 reasoning tokens per call while the same model under the
-          // Codex CLI ran at medium — so an unset effort is a silent
-          // capability downgrade, not a neutral default.
-          modelParams: ModelRequest.GenerationParams.make({ reasoningEffort: "medium" }),
+          modelParams: ModelRequest.GenerationParams.make({
+            reasoningEffort: effortFor(descriptor, options.reasoningEffort)
+          }),
           prompt: prompt(flowBody.text, plan.decodedInput),
           system: options.system,
           model: seat.model,
