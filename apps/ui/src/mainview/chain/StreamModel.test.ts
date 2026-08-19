@@ -7,49 +7,22 @@ import type { FetchLike } from "smithers-shared/NativeAgent";
 import { DEFAULT_MODEL_ID, layerAuthor } from "./StreamModel";
 
 /*
- * The relay seat, proven over a recorded provider stream: the real
- * @smthrs/model Anthropic wire (SSE framing, event decode, settle fold) runs
- * against a fixture response served by an injected fetch — no network, no
- * mocks below the fetch seam. The fixture shape is the model package's own
- * anthropic/text.sse, so a provider-wire drift breaks their suite before ours.
+ * The relay seat, proven over a recorded upstream stream: the real
+ * @smthrs/model machinery (NDJSON framing, frame decode, settle fold) runs
+ * against a fixture response served by an injected fetch — no network, no mocks
+ * below the fetch seam. The fixture frames are the chat Worker's own contract,
+ * which is what the relay forwards verbatim.
  */
 
-const sseOf = (text: ReadonlyArray<string>): string =>
-	[
-		`event: message_start`,
-		`data: ${JSON.stringify({
-			type: "message_start",
-			message: {
-				id: "msg_relay",
-				type: "message",
-				role: "assistant",
-				content: [],
-				model: DEFAULT_MODEL_ID,
-				stop_reason: null,
-				stop_sequence: null,
-				usage: { input_tokens: 12, output_tokens: 0 },
-			},
-		})}`,
-		"",
-		`event: content_block_start`,
-		`data: ${JSON.stringify({ type: "content_block_start", index: 0, content_block: { type: "text", text: "" } })}`,
-		"",
-		...text.flatMap((chunk) => [
-			`event: content_block_delta`,
-			`data: ${JSON.stringify({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text: chunk } })}`,
-			"",
-		]),
-		`event: content_block_stop`,
-		`data: ${JSON.stringify({ type: "content_block_stop", index: 0 })}`,
-		"",
-		`event: message_delta`,
-		`data: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: "end_turn", stop_sequence: null }, usage: { output_tokens: 3 } })}`,
-		"",
-		`event: message_stop`,
-		`data: ${JSON.stringify({ type: "message_stop" })}`,
-		"",
-		"",
-	].join("\n");
+const ndjsonOf = (frames: ReadonlyArray<Record<string, unknown>>): string =>
+	`${frames.map((frame) => JSON.stringify(frame)).join("\n")}\n`;
+
+const textTurn = (chunks: ReadonlyArray<string>): string =>
+	ndjsonOf([
+		{ type: "delta", kind: "reasoning", text: "thinking…" },
+		...chunks.map((text) => ({ type: "delta", kind: "text", text })),
+		{ type: "done", reason: "stop" },
+	]);
 
 const fixtureFetch = (
 	streams: ReadonlyArray<string>,
@@ -61,24 +34,26 @@ const fixtureFetch = (
 		const body = streams[requests.length - 1] ?? streams[streams.length - 1] ?? "";
 		return new Response(body, {
 			status: 200,
-			headers: { "content-type": "text/event-stream" },
+			headers: { "content-type": "application/x-ndjson" },
 		});
 	};
 	return { fetchImpl, requests };
 };
 
+const authorOnce = (fetchImpl: FetchLike): Promise<string> =>
+	Effect.runPromise(
+		Effect.gen(function* () {
+			const author = yield* Author.Author;
+			return yield* author.author({ prefix: "You are Smithers.", context: ["ctx line"] });
+		}).pipe(
+			Effect.provide(layerAuthor({ baseUrl: "https://app.test", fetchImpl })),
+		) as Effect.Effect<string, never, never>,
+	);
+
 describe("the relay author seat", () => {
-	test("authors from a recorded provider stream through the Worker relay path", async () => {
-		const { fetchImpl, requests } = fixtureFetch([sseOf(["Hello", ", world"])]);
-		const text = await Effect.runPromise(
-			Effect.gen(function* () {
-				const author = yield* Author.Author;
-				return yield* author.author({ prefix: "You are Smithers.", context: ["ctx line"] });
-			}).pipe(
-				Effect.provide(layerAuthor({ baseUrl: "https://app.test", fetchImpl })),
-			) as Effect.Effect<string, never, never>,
-		);
-		expect(text).toBe("Hello, world");
+	test("authors from a recorded upstream stream through the Worker relay path", async () => {
+		const { fetchImpl, requests } = fixtureFetch([textTurn(["Hello", ", world"])]);
+		expect(await authorOnce(fetchImpl)).toBe("Hello, world");
 
 		expect(requests).toHaveLength(1);
 		const sent = requests[0]!;
@@ -86,18 +61,47 @@ describe("the relay author seat", () => {
 		expect(new URL(sent.url).origin).toBe("https://app.test");
 		expect(new URL(sent.url).pathname).toBe(MODEL_STREAM_PATH);
 		const body = (await sent.json()) as {
-			readonly model: string;
-			readonly stream: boolean;
+			readonly instructions?: string;
+			readonly messages: ReadonlyArray<{ readonly role: string; readonly content: string }>;
 			readonly tools?: ReadonlyArray<unknown>;
 		};
+		expect(body.instructions).toBe("You are Smithers.");
+		expect(body.messages).toEqual([{ role: "user", content: "ctx line" }]);
 		// The sealed-step law rides the wire: the author call carries no tools.
-		expect(body.model).toBe(DEFAULT_MODEL_ID);
-		expect(body.tools ?? []).toEqual([]);
+		expect(body.tools).toBeUndefined();
+		// No credential exists on this side: the session cookie is the only one.
+		expect(sent.headers.get("authorization")).toBeNull();
+		expect(sent.headers.get("x-api-key")).toBeNull();
+	});
+
+	test("the seat names the model the relay actually serves", () => {
+		expect(DEFAULT_MODEL_ID).toBe("gpt-oss-120b");
+	});
+
+	test("an unfinished turn is not an authored answer", async () => {
+		// `tool_limit` means the upstream refused another leg: the answer is
+		// truncated, and a truncated answer must never pass as a complete one.
+		const { fetchImpl } = fixtureFetch([
+			ndjsonOf([{ type: "delta", kind: "text", text: "half" }, { type: "done", reason: "tool_limit" }]),
+		]);
+		const failure = await Effect.runPromise(
+			Effect.exit(
+				Effect.gen(function* () {
+					const author = yield* Author.Author;
+					return yield* author.author({ prefix: "p", context: ["c"] });
+				}).pipe(Effect.provide(layerAuthor({ baseUrl: "https://app.test", fetchImpl }))) as Effect.Effect<
+					string,
+					unknown,
+					never
+				>,
+			),
+		);
+		expect(failure._tag).toBe("Failure");
 	});
 
 	test("a chain runs a turn end-to-end over the relay seat", async () => {
 		const script = ["```flow", `const noted = await ctx.call("probe", {})`, `return done({ noted })`, "```"].join("\n");
-		const { fetchImpl } = fixtureFetch([sseOf([script.slice(0, 20), script.slice(20)])]);
+		const { fetchImpl } = fixtureFetch([textTurn([script.slice(0, 20), script.slice(20)])]);
 		let probed = 0;
 		const probe: Catalog.Entry = {
 			name: "probe",

@@ -350,14 +350,6 @@ export interface WorkerEnv {
 	readonly BILLING_ADMIN_TOKEN?: string;
 	readonly RECO_ADMIN_TOKEN?: string;
 	/**
-	 * The chain backend's model relay (DESIGN.md §14, D1): the provider key the
-	 * relay injects, and an optional upstream override (tests, alternate
-	 * deployments). Unset key = the relay answers 501 rather than forwarding a
-	 * request that can only come back 401.
-	 */
-	readonly MODEL_RELAY_API_KEY?: string;
-	readonly MODEL_RELAY_URL?: string;
-	/**
 	 * The per-runId cancellation registry (Durable Object). Present on every
 	 * real deployment — wrangler.jsonc binds it; only unit tests that exercise
 	 * the in-isolate fallback leave it unset.
@@ -591,6 +583,49 @@ const tagRunId = (
 	});
 };
 
+/**
+ * Where managed inference lives, and how this Worker authenticates to it.
+ *
+ * Both model-spending routes — the turn path and the browser chain's relay —
+ * call the SAME upstream with the SAME credentials, so there is one place that
+ * decides what a Smithers-authenticated inference request looks like. The
+ * upstream owns the provider key, prices the turn against the rate card, and
+ * meters it durably; nothing downstream of here has to reproduce any of that.
+ */
+const chatUpstreamUrl = (env: WorkerEnv): string => env.SMITHERS_CHAT_URL?.trim() || DEFAULT_CHAT_URL;
+
+/*
+ * Wave 13 (D-2): a session-validated call is metered onto the USER's own
+ * billing account — the chat worker attributes the charge to the vouched login
+ * (complimentary: cost recorded, $0 debited), so the user's receipt shows the
+ * usage and their balance never moves. The token pair is the chat worker's
+ * trusted-caller door; a client can never inject it, because this header set is
+ * BUILT here and the caller's own headers are never forwarded. Without the
+ * configured token the call still runs — metering then attributes to the
+ * deployment account, exactly as before that path existed.
+ */
+const chatUpstreamHeaders = (
+	env: WorkerEnv,
+	runId: string,
+	session: ValidatedIdentity | undefined,
+): Record<string, string> => {
+	const headers: Record<string, string> = {
+		"content-type": "application/json",
+		origin: env.SMITHERS_CHAT_ORIGIN?.trim() || DEFAULT_APP_ORIGIN,
+		"x-smithers-run-id": runId,
+	};
+	const chatToken = env.SMITHERS_CHAT_AUTH_TOKEN?.trim();
+	if (chatToken !== undefined && chatToken !== "") {
+		headers.authorization = `Bearer ${chatToken}`;
+	}
+	const chatProductToken = env.CHAT_PRODUCT_SERVICE_TOKEN?.trim();
+	if (session !== undefined && chatProductToken !== undefined && chatProductToken !== "") {
+		headers["x-smithers-service-token"] = chatProductToken;
+		headers["x-user-login"] = session.login;
+	}
+	return headers;
+};
+
 const handleTurn = async (
 	request: Request,
 	env: WorkerEnv,
@@ -651,34 +686,10 @@ const handleTurn = async (
 
 	let response: Response;
 	try {
-		const headers: Record<string, string> = {
-			"content-type": "application/json",
-			origin: env.SMITHERS_CHAT_ORIGIN?.trim() || DEFAULT_APP_ORIGIN,
-			"x-smithers-run-id": body.runId,
-		};
-		const chatToken = env.SMITHERS_CHAT_AUTH_TOKEN?.trim();
-		if (chatToken !== undefined && chatToken !== "") {
-			headers.authorization = `Bearer ${chatToken}`;
-		}
-		/*
-		 * Wave 13 (D-2): a session-validated turn is metered onto the USER's own
-		 * billing account — the chat worker attributes the charge to the vouched
-		 * login (complimentary: cost recorded, $0 debited), so the user's receipt
-		 * shows the turn and their balance never moves. The token pair is the
-		 * chat worker's trusted-caller door; a client can never inject it (these
-		 * headers are built here, never forwarded). Without the configured token
-		 * the turn still runs — metering attributes to the deployment account,
-		 * exactly as before this path existed.
-		 */
-		const chatProductToken = env.CHAT_PRODUCT_SERVICE_TOKEN?.trim();
-		if (turnSession !== undefined && chatProductToken !== undefined && chatProductToken !== "") {
-			headers["x-smithers-service-token"] = chatProductToken;
-			headers["x-user-login"] = turnSession.login;
-		}
-		response = await fetch(env.SMITHERS_CHAT_URL?.trim() || DEFAULT_CHAT_URL, {
+		response = await fetch(chatUpstreamUrl(env), {
 			method: "POST",
 			signal: upstream.signal,
-			headers,
+			headers: chatUpstreamHeaders(env, body.runId, turnSession),
 			body: JSON.stringify({
 				messages: body.messages,
 				// The hidden runtime context renders server-side into the
@@ -740,32 +751,39 @@ const handleTurn = async (
 };
 
 /*
- * The chain backend's model relay (DESIGN.md §14, D1). The browser runs the
- * real @smthrs/model provider wire against this path; the relay session-gates
- * the call (router), injects the provider key, and streams the provider's SSE
- * back verbatim — the Worker never speaks effect or ModelEvent. Client
- * credentials are never forwarded: the header set below is built here, so the
- * browser's placeholder x-api-key dies at this boundary.
+ * The chain backend's model relay (DESIGN.md §14, D1) — and, since the browser
+ * chain became the only backend, the one route a chat turn spends a model on.
  *
- * Known gap, recorded in §14: the relay spends the deployment key without
- * per-user metering. The Wave-13 attribution path must land here before the
- * chain backend becomes the default.
+ * The browser runs the real @smthrs/model request/stream machinery against this
+ * path and the relay forwards it, unchanged, to the SAME managed-inference
+ * upstream `/api/agent/turn` uses (`chatUpstreamHeaders` above). That upstream
+ * owns the Cerebras key, authorizes the balance BEFORE calling the provider,
+ * and enqueues the turn's authoritative usage onto the durable metering queue —
+ * so the relay inherits per-user metering rather than reproducing it, and no
+ * provider credential exists on this Worker at all.
+ *
+ * The router gates the route before any of this runs: anonymous callers get
+ * 401, non-allowlisted ones 403, and the per-login turn ceiling applies — all
+ * of it decided before a single upstream byte is spent.
  */
-const MODEL_RELAY_DEFAULT_URL = "https://api.anthropic.com/v1/messages";
 
-const isModelStreamBody = (value: unknown): value is { readonly model: string } =>
+const isModelStreamBody = (value: unknown): value is { readonly messages: ReadonlyArray<unknown> } =>
 	typeof value === "object" &&
 	value !== null &&
-	"model" in value &&
-	typeof (value as { readonly model?: unknown }).model === "string" &&
-	(value as { readonly model: string }).model !== "";
+	"messages" in value &&
+	Array.isArray((value as { readonly messages?: unknown }).messages) &&
+	(value as { readonly messages: ReadonlyArray<unknown> }).messages.length > 0;
 
 const hasTools = (value: object): boolean =>
 	"tools" in value &&
 	Array.isArray((value as { readonly tools?: unknown }).tools) &&
 	((value as { readonly tools: ReadonlyArray<unknown> }).tools.length > 0);
 
-const handleModelStream = async (request: Request, env: WorkerEnv): Promise<Response> => {
+const handleModelStream = async (
+	request: Request,
+	env: WorkerEnv,
+	session: ValidatedIdentity | undefined,
+): Promise<Response> => {
 	let body: unknown;
 	try {
 		body = await readTurnBody(request);
@@ -776,29 +794,27 @@ const handleModelStream = async (request: Request, env: WorkerEnv): Promise<Resp
 		});
 	}
 	if (!isModelStreamBody(body)) {
-		return json(400, { status: "error", message: "Body must be a provider request with a model." });
+		return json(400, { status: "error", message: "Body must carry a non-empty messages array." });
 	}
 	// The sealed-step law, enforced at the boundary: the author call carries no
 	// tools, so a tool-bearing request has no business on this relay.
 	if (hasTools(body)) {
 		return json(400, { status: "error", message: "The model relay serves sealed author calls only — no tools." });
 	}
-	const apiKey = env.MODEL_RELAY_API_KEY?.trim();
-	if (apiKey === undefined || apiKey === "") {
-		return json(501, { status: "error", message: "The model relay is not configured (MODEL_RELAY_API_KEY)." });
-	}
+	/*
+	 * The run id is minted HERE, never read from the caller. Upstream derives
+	 * the charge's idempotency key from it, so a client that could choose it
+	 * could replay one receipt and take every later call for free.
+	 */
+	const runId = crypto.randomUUID();
 	const upstream = new AbortController();
 	request.signal.addEventListener("abort", () => upstream.abort());
 	let response: Response;
 	try {
-		response = await fetch(env.MODEL_RELAY_URL?.trim() || MODEL_RELAY_DEFAULT_URL, {
+		response = await fetch(chatUpstreamUrl(env), {
 			method: "POST",
 			signal: upstream.signal,
-			headers: {
-				"content-type": "application/json",
-				"anthropic-version": request.headers.get("anthropic-version") ?? "2023-06-01",
-				"x-api-key": apiKey,
-			},
+			headers: chatUpstreamHeaders(env, runId, session),
 			body: JSON.stringify(body),
 		});
 	} catch (error) {
@@ -807,7 +823,7 @@ const handleModelStream = async (request: Request, env: WorkerEnv): Promise<Resp
 		}
 		return json(502, {
 			status: "error",
-			message: `The model provider is unreachable: ${error instanceof Error ? error.message : "unknown error"}`,
+			message: `The model service is unreachable: ${error instanceof Error ? error.message : "unknown error"}`,
 		});
 	}
 	if (!response.ok || response.body === null) {
@@ -815,7 +831,7 @@ const handleModelStream = async (request: Request, env: WorkerEnv): Promise<Resp
 		return json(response.ok ? 502 : response.status, {
 			status: "error",
 			message: response.ok
-				? "The model provider accepted the request and then sent no answer at all."
+				? "The model service accepted the request and then sent no answer at all."
 				: upstreamFailureMessage(response.status, detail, response.headers.get("retry-after")),
 		});
 	}
@@ -823,7 +839,7 @@ const handleModelStream = async (request: Request, env: WorkerEnv): Promise<Resp
 		new Response(response.body, {
 			status: 200,
 			headers: {
-				"content-type": response.headers.get("content-type") ?? "text/event-stream",
+				"content-type": response.headers.get("content-type") ?? "application/x-ndjson",
 				"cache-control": "no-store",
 			},
 		}),
@@ -2373,7 +2389,7 @@ export default {
 				const budget = await spendTurn(env.TURN_LIMITS, gate.login);
 				if (!budget.allowed) return turnLimitResponse(budget, ISOLATION_HEADERS);
 			}
-			return handleModelStream(request, env);
+			return handleModelStream(request, env, gate);
 		}
 		if (url.pathname === APPROVAL_DECISION_PATH) {
 			if (request.method !== "POST") {

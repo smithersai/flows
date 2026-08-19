@@ -1,24 +1,30 @@
-import { Effect, Layer, Redacted, Result } from "effect";
+import { Effect, Layer, Result } from "effect";
 import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
 import * as HttpClient from "effect/unstable/http/HttpClient";
 import * as KernelHttpClient from "@smthrs/kernel/HttpClient";
-import { Endpoint, Model, RequestExecutor, Route } from "@smthrs/model";
+import { Endpoint, Framing, Model, RequestExecutor, Route } from "@smthrs/model";
 import { ModelAuthor } from "@smthrs/chain";
 import type { Author } from "@smthrs/chain";
 import { MODEL_STREAM_PATH } from "smithers-shared/AgentApiRoutes";
 import type { FetchLike } from "smithers-shared/NativeAgent";
+import { protocol } from "./RelayProtocol";
 
 /*
  * The browser model seat (DESIGN.md §14, decision D1): the real @smthrs/model
- * Anthropic wire — protocol, SSE framing, ModelEvent fold — pointed at the
- * Worker's relay path instead of api.anthropic.com. The Worker session-gates
- * the call and injects the provider key; the placeholder key below therefore
- * never authenticates anything, it only satisfies the route's sealed-step
- * credential handling. ModelEvent decoding stays where effect lives.
+ * request/stream machinery — body lowering, framing, ModelEvent fold — pointed
+ * at the Worker's relay path. The Worker session-gates the call, forwards it to
+ * the managed-inference upstream that owns the provider key, and streams that
+ * upstream's frames back; no credential exists on this side of the wire, which
+ * is why the route carries no auth at all. The session cookie the browser
+ * already holds is what authenticates a same-origin request.
  */
 
-/** The concierge's default seat (overridable per turn). */
-export const DEFAULT_MODEL_ID = "claude-sonnet-5";
+/**
+ * The seat the relay actually serves. The upstream pins the model for the whole
+ * deployment, so this is a statement of which model answers, not a request the
+ * relay could honour for some other value.
+ */
+export const DEFAULT_MODEL_ID = "gpt-oss-120b";
 
 export interface StreamModelOptions {
 	/** Absolute origin of the product Worker; defaults to the page's own origin. */
@@ -33,13 +39,16 @@ const relayOrigin = (baseUrl?: string): string => {
 	return "http://localhost";
 };
 
-const relayRoute = (origin: string) => {
-	const anthropic = Result.getOrThrow(
-		Route.anthropic({ apiKey: Redacted.make("browser-relay-placeholder") }),
-	);
-	const endpoint = Result.getOrThrow(Endpoint.make({ url: origin, path: MODEL_STREAM_PATH }));
-	return Route.make({ ...anthropic, id: "relay-anthropic", endpoint });
-};
+const relayRoute = (origin: string) =>
+	Route.make({
+		id: "relay",
+		protocol,
+		endpoint: Result.getOrThrow(Endpoint.make({ url: origin, path: MODEL_STREAM_PATH })),
+		// Same-origin: the browser's own session cookie is the credential, and
+		// nothing this code holds may be sent as one.
+		auth: { sign: (headers) => Effect.succeed(headers) },
+		framing: Framing.ndjson,
+	});
 
 /** The Model service over the relay: Route ← RequestExecutor ← fetch HttpClient. */
 export const layerModel = (options: StreamModelOptions = {}): Layer.Layer<Model.Model> => {

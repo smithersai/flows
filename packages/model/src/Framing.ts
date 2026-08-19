@@ -13,6 +13,7 @@ import * as Sse from "effect/unstable/encoding/Sse"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Framing<Frame> {
   readonly id: string
@@ -26,6 +27,7 @@ export interface Framing<Frame> {
  *
  * @since 0.1.0
  * @category framing
+ * @slop
  */
 export const sse: Framing<string> = {
   id: "sse",
@@ -43,5 +45,28 @@ export const sse: Framing<string> = {
       Stream.catchTag("Retry", () => Stream.empty),
       Stream.filter((frame) => frame._tag === "Event" && frame.data !== "" && frame.data !== "[DONE]"),
       Stream.map((frame) => frame.data)
+    )
+}
+
+/**
+ * Newline-delimited JSON: one complete JSON document per line. Blank lines are
+ * discarded, so a producer that separates records with a trailing newline
+ * frames identically to one that does not.
+ *
+ * A stream cut mid-line yields that partial line as a frame, where protocol
+ * decoding rejects it as invalid provider output. That is deliberate: a
+ * truncated record is a failure to report, not a record to silently drop.
+ *
+ * @since 0.1.0
+ * @category framing
+ * @slop
+ */
+export const ndjson: Framing<string> = {
+  id: "ndjson",
+  frame: (stream) =>
+    stream.pipe(
+      Stream.decodeText,
+      Stream.splitLines,
+      Stream.filter((line) => line.trim() !== "")
     )
 }

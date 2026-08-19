@@ -5,29 +5,37 @@ import type { WorkerEnv } from "./index";
 
 /*
  * The relay boundary, driven through the Worker's real fetch handler with the
- * upstream fetch patched — no network. The contract under test: session-free
- * dev mode passes through, the provider key is injected and the client's
- * placeholder never forwarded, the sealed-step law rejects tool-bearing
- * bodies, and an unconfigured relay answers 501 instead of forwarding a
- * request that can only come back 401.
+ * upstream fetch patched — no network. The contract under test: the relay
+ * forwards to the SAME managed-inference upstream the turn path uses (which is
+ * what makes it metered), it mints the run id itself, it refuses anonymous and
+ * non-allowlisted callers BEFORE any upstream call, and the sealed-step law
+ * rejects tool-bearing bodies.
  */
 
 const env = (overrides: Partial<WorkerEnv> = {}): WorkerEnv =>
 	({
 		ASSETS: { fetch: async () => new Response("not-found", { status: 404 }) },
+		SMITHERS_CHAT_URL: "https://upstream.test/chat",
 		...overrides,
 	}) as WorkerEnv;
 
-const relayRequest = (body: unknown, headers: Record<string, string> = {}): Request =>
+/** The deployed shape: an identity seam is set, so the route is gated. */
+const gatedEnv = (overrides: Partial<WorkerEnv> = {}): WorkerEnv =>
+	env({ IDENTITY_UPSTREAM_URL: "https://identity.test", ...overrides });
+
+const relayBody = { instructions: "You are Smithers.", messages: [{ role: "user", content: "hi" }] };
+
+const relayRequest = (body: unknown = relayBody, headers: Record<string, string> = {}): Request =>
 	new Request(`https://app.test${MODEL_STREAM_PATH}`, {
 		method: "POST",
-		headers: {
-			"content-type": "application/json",
-			"anthropic-version": "2023-06-01",
-			"x-api-key": "browser-relay-placeholder",
-			...headers,
-		},
+		headers: { "content-type": "application/json", ...headers },
 		body: JSON.stringify(body),
+	});
+
+const ndjson = (frames: ReadonlyArray<Record<string, unknown>>): Response =>
+	new Response(`${frames.map((frame) => JSON.stringify(frame)).join("\n")}\n`, {
+		status: 200,
+		headers: { "content-type": "application/x-ndjson" },
 	});
 
 const realFetch = globalThis.fetch;
@@ -35,77 +43,122 @@ afterEach(() => {
 	globalThis.fetch = realFetch;
 });
 
-describe("the model relay route", () => {
-	test("injects the provider key and streams the provider body back verbatim", async () => {
-		const captured: Array<Request> = [];
-		globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-			captured.push(new Request(input as Request | string, init));
-			return new Response("event: message_stop\ndata: {}\n\n", {
-				status: 200,
-				headers: { "content-type": "text/event-stream" },
-			});
-		}) as typeof fetch;
+/** Patches fetch, routing identity validation separately from the model upstream. */
+const withFetch = (
+	handler: (request: Request) => Response | Promise<Response>,
+): Array<Request> => {
+	const captured: Array<Request> = [];
+	globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+		const request = new Request(input as Request | string, init);
+		captured.push(request);
+		return handler(request);
+	}) as typeof fetch;
+	return captured;
+};
 
-		const response = await worker.fetch(
-			relayRequest({ model: "claude-sonnet-5", stream: true, messages: [] }),
-			env({ MODEL_RELAY_API_KEY: "sk-real-provider-key" }),
-		);
+const identityAnswer = (login: string, allowlisted: boolean): Response =>
+	new Response(JSON.stringify({ login, allowlisted }), {
+		status: 200,
+		headers: { "content-type": "application/json" },
+	});
+
+describe("the model relay route", () => {
+	test("forwards the sealed call to the managed-inference upstream and streams its frames back", async () => {
+		const captured = withFetch(() => ndjson([{ type: "delta", kind: "text", text: "ok" }, { type: "done" }]));
+
+		const response = await worker.fetch(relayRequest(), env());
 		expect(response.status).toBe(200);
-		expect(response.headers.get("content-type")).toBe("text/event-stream");
-		expect(await response.text()).toContain("message_stop");
+		expect(response.headers.get("content-type")).toBe("application/x-ndjson");
+		expect(await response.text()).toContain('"type":"done"');
 
 		expect(captured).toHaveLength(1);
 		const sent = captured[0]!;
-		expect(sent.url).toBe("https://api.anthropic.com/v1/messages");
-		expect(sent.headers.get("x-api-key")).toBe("sk-real-provider-key");
-		expect(sent.headers.get("anthropic-version")).toBe("2023-06-01");
-		// The browser's placeholder credential dies at the boundary.
-		expect(sent.headers.get("x-api-key")).not.toBe("browser-relay-placeholder");
+		// The SAME upstream /api/agent/turn calls: the one that owns the provider
+		// key, authorizes the balance, and meters the usage durably.
+		expect(sent.url).toBe("https://upstream.test/chat");
+		expect(await sent.json()).toEqual(relayBody);
 	});
 
-	test("honors MODEL_RELAY_URL as the upstream override", async () => {
-		const urls: Array<string> = [];
-		globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-			urls.push(new Request(input as Request | string, init).url);
-			return new Response("ok", { status: 200, headers: { "content-type": "text/event-stream" } });
-		}) as typeof fetch;
-		await worker.fetch(
-			relayRequest({ model: "claude-sonnet-5" }),
-			env({ MODEL_RELAY_API_KEY: "k", MODEL_RELAY_URL: "https://relay.test/v1/messages" }),
+	test("mints its own run id — a caller can never choose the charge's idempotency key", async () => {
+		const captured = withFetch(() => ndjson([{ type: "done" }]));
+		await worker.fetch(relayRequest(relayBody, { "x-smithers-run-id": "attacker-chosen" }), env());
+		const runId = captured[0]!.headers.get("x-smithers-run-id");
+		expect(runId).not.toBe("attacker-chosen");
+		expect(runId).toMatch(/^[0-9a-f-]{36}$/);
+	});
+
+	test("vouches a validated login so the charge lands on the user's own account", async () => {
+		const captured = withFetch((request) =>
+			new URL(request.url).hostname === "identity.test"
+				? identityAnswer("will", true)
+				: ndjson([{ type: "done" }]),
 		);
-		expect(urls).toEqual(["https://relay.test/v1/messages"]);
+		const response = await worker.fetch(
+			relayRequest(relayBody, { cookie: "smithers_session=abc" }),
+			gatedEnv({ CHAT_PRODUCT_SERVICE_TOKEN: "product-token", SMITHERS_CHAT_AUTH_TOKEN: "bearer-token" }),
+		);
+		expect(response.status).toBe(200);
+		const upstream = captured.find((request) => new URL(request.url).hostname === "upstream.test")!;
+		expect(upstream.headers.get("x-smithers-service-token")).toBe("product-token");
+		expect(upstream.headers.get("x-user-login")).toBe("will");
+		expect(upstream.headers.get("authorization")).toBe("Bearer bearer-token");
+	});
+
+	test("refuses an anonymous call with 401 before any credential is spent", async () => {
+		let upstreamCalls = 0;
+		withFetch((request) => {
+			if (new URL(request.url).hostname === "identity.test") return new Response("{}", { status: 401 });
+			upstreamCalls += 1;
+			return ndjson([{ type: "done" }]);
+		});
+		const response = await worker.fetch(relayRequest(), gatedEnv());
+		expect(response.status).toBe(401);
+		expect(upstreamCalls).toBe(0);
+	});
+
+	test("refuses a signed-in but non-allowlisted account with 403 before any credential is spent", async () => {
+		let upstreamCalls = 0;
+		withFetch((request) => {
+			if (new URL(request.url).hostname === "identity.test") return identityAnswer("stranger", false);
+			upstreamCalls += 1;
+			return ndjson([{ type: "done" }]);
+		});
+		const response = await worker.fetch(relayRequest(relayBody, { cookie: "smithers_session=abc" }), gatedEnv());
+		expect(response.status).toBe(403);
+		expect(upstreamCalls).toBe(0);
 	});
 
 	test("rejects a tool-bearing body — the relay serves sealed author calls only", async () => {
+		let upstreamCalls = 0;
+		withFetch(() => {
+			upstreamCalls += 1;
+			return ndjson([{ type: "done" }]);
+		});
 		const response = await worker.fetch(
-			relayRequest({ model: "claude-sonnet-5", tools: [{ name: "bash" }] }),
-			env({ MODEL_RELAY_API_KEY: "k" }),
+			relayRequest({ ...relayBody, tools: [{ type: "function", name: "bash" }] }),
+			env(),
 		);
 		expect(response.status).toBe(400);
 		expect(await response.text()).toContain("sealed author calls only");
+		expect(upstreamCalls).toBe(0);
 	});
 
-	test("answers 501 when the relay key is not configured", async () => {
-		const response = await worker.fetch(relayRequest({ model: "claude-sonnet-5" }), env());
-		expect(response.status).toBe(501);
-		expect(await response.text()).toContain("MODEL_RELAY_API_KEY");
+	test("rejects a body with no messages", async () => {
+		const response = await worker.fetch(relayRequest({ messages: [] }), env());
+		expect(response.status).toBe(400);
+		expect(await response.text()).toContain("messages");
 	});
 
 	test("surfaces an upstream failure with its status and detail", async () => {
-		globalThis.fetch = (async (_input: RequestInfo | URL, _init?: RequestInit) =>
-			new Response(JSON.stringify({ error: { message: "overloaded" } }), { status: 529 })) as typeof fetch;
-		const response = await worker.fetch(
-			relayRequest({ model: "claude-sonnet-5" }),
-			env({ MODEL_RELAY_API_KEY: "k" }),
-		);
+		withFetch(() => new Response(JSON.stringify({ error: "overloaded" }), { status: 529 }));
+		const response = await worker.fetch(relayRequest(), env());
 		expect(response.status).toBe(529);
-		expect(await response.text()).toContain("overloaded");
 	});
 
 	test("only POST is allowed", async () => {
 		const response = await worker.fetch(
 			new Request(`https://app.test${MODEL_STREAM_PATH}`, { method: "GET" }),
-			env({ MODEL_RELAY_API_KEY: "k" }),
+			env(),
 		);
 		expect(response.status).toBe(405);
 	});
