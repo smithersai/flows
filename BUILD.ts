@@ -155,7 +155,11 @@ export const ci = Smithers.GithubCiGen({
   cacheUrlSecret: cacheUrl,
   cacheTokenSecret: cacheToken,
   kinds: ["build", "test", "lint", "docs"],
-  gates: [{ name: "documentation parity", command: "pnpm exec smthrs docs '//...'", job: "test" }]
+  gates: [
+    { name: "documentation parity", command: "pnpm exec smthrs docs '//...'", job: "test" },
+    { name: "factory automation typecheck", command: "pnpm exec tsc", job: "test" },
+    { name: "factory automation tests", command: "node --test", job: "test" }
+  ]
 })
 
 export const packageDefaults = Smithers.PackageDefaults({
@@ -202,6 +206,8 @@ export const release = Smithers.GithubCiGen({
     { name: "release manifest unit test", command: "node --test scripts/pack-release.test.mjs", job: "publish" },
     { name: "release rehearsal unit test", command: "node --test scripts/release-rehearsal.test.mjs", job: "publish" },
     { name: "test-pin register guard", command: "node --test scripts/check-test-pins.test.mjs", job: "publish" },
+    { name: "factory automation typecheck", command: "pnpm exec tsc", job: "publish" },
+    { name: "factory automation tests", command: "node --test", job: "publish" },
     { name: "release pack", command: "node scripts/pack-release.mjs", job: "publish" },
     { name: "release smoke test", command: "node scripts/smoke-release.mjs", job: "publish" }
   ]

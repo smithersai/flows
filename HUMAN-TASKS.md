@@ -58,3 +58,73 @@ publish. Follow the [release runbook](docs/release-runbook.md) exactly.
 Confirm that the engine group is alpha-shippable, using the
 [alpha notes](docs/alpha-notes.md), [release rehearsal](docs/release-rehearsal.md),
 and the production-readiness panel's passing verdicts recorded in this run.
+
+# Human tasks: GitHub automation
+
+The automation layer (`factory/automation/`, `.github/workflows/gen.*.yml`) is
+landed and inert until these are done. Every one is owner-only.
+
+## H5. Create the label set
+
+The state machine is the labels, so a missing label is a state the automation
+cannot enter. Create all seven:
+
+```sh
+gh label create 'agent:approved'  --repo smithersai/flows --color 0E8A16 \
+  --description 'Maintainer gate. Admits an automation job on this issue or PR.'
+gh label create 'repro:verified'  --repo smithersai/flows --color 5319E7 \
+  --description 'The PoC fails on main and the reporter confirmed it.'
+gh label create 'repro:needs-info' --repo smithersai/flows --color FBCA04 \
+  --description 'Targeted questions are posted; awaiting the reporter.'
+gh label create 'repro:blocked'   --repo smithersai/flows --color B60205 \
+  --description 'Parked on an infra blocker, for reasons unrelated to the report.'
+gh label create 'poc:proposed'    --repo smithersai/flows --color C5DEF5 \
+  --description 'A proof of concept is posted; awaiting the reporter.'
+gh label create 'poc:confirmed'   --repo smithersai/flows --color C5DEF5 \
+  --description 'The reporter confirmed the proof of concept captures their issue.'
+gh label create 'poc:rejected'    --repo smithersai/flows --color C5DEF5 \
+  --description 'The reporter rejected the proof of concept; a revision follows.'
+gh label create 'dupe:candidate'  --repo smithersai/flows --color D4C5F9 \
+  --description 'A strong duplicate candidate was found; awaiting confirmation.'
+gh label create 'infra'           --repo smithersai/flows --color BFD4F2 \
+  --description 'An infrastructure blocker. Closing it unparks the reports on it.'
+```
+
+## H6. Set the ANTHROPIC_API_KEY Actions secret
+
+Every agent job reads it. It is placed only in trusted, gated jobs; the
+renderer refuses to put it in a job marked `untrustedInput`, which is why the
+PoC sandbox cannot hold it.
+
+```sh
+gh secret set ANTHROPIC_API_KEY --repo smithersai/flows
+```
+
+## H7. Decide the environment protection rules
+
+The generated workflows carry no `environment:` binding today. Two decisions,
+both reversible:
+
+1. Whether `gen.verified-fix.yml` needs a protected environment. It is the one
+   automation that opens a pull request. The `agent:approved` gate already
+   requires a maintainer action, so an environment would be a second approval
+   on the same decision.
+2. Whether to require the `repro-proof` check on pull requests that claim to
+   close an issue. The check is advisory until it is added to the branch
+   protection rules:
+
+   ```sh
+   gh api -X PUT repos/smithersai/flows/branches/main/protection/required_status_checks \
+     -f 'checks[][context]=proof'
+   ```
+
+Record whichever way you decide in
+`docs/specs/Concepts/Github Automation.md` under Open.
+
+## H8. Confirm the `agent:approved` policy with the team
+
+The gate admits `OWNER`, `MEMBER`, and `COLLABORATOR` without a label. Anyone
+else needs a maintainer to apply `agent:approved`. If the organization grants
+`MEMBER` broadly, narrow the association list in
+`packages/targets/src/GithubAutomation.ts` (`trustedAssociations`) and
+regenerate every workflow with `smthrs run //:<target>`.
