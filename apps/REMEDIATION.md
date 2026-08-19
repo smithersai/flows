@@ -213,6 +213,30 @@ only a whole-set run reached, because an earlier failure in the same suite was
 aborting before them. The a11y suite went from 4 of 16 sections reached to 20 of
 20.
 
+## Where the whole-suite run ended
+
+Seventeen suites in one process, on a quiet machine, after every fix above:
+**16 of 17 pass, 65 of 68 checklist ids proven**, no hang, nothing skipped. The
+seventeenth (E11) failed on a seed that named no backend, was diagnosed and
+fixed, and passes on its own at 5/5; the confirming whole-set run is the next
+thing to look at.
+
+For comparison, the same command at the start of this remediation: 13 of 17,
+56 of 68, and before that it did not terminate at all.
+
+Three of the four whole-set failures turned out to be defects in the tests
+rather than the product, and each was fixed at its cause rather than by
+widening a budget:
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| roaming "never mounted" | `open()` returned at `readyState`, before React mounted | wait for the `[data-flows]` manifest, retry the navigation |
+| "surfaces menu never opened" | a synthetic click delivered before the handler attached is lost | click the trigger up to three times |
+| "connector rows did not load" | the seed named no backend, so the app read OPFS while the rows sat in localStorage | stamp `persistenceBackend` in the seed |
+
+The first two moved between suites run to run, which is the signature of a lost
+event rather than a slow one. None was fixed by raising a timeout.
+
 ## Still open
 
 - **E3.5** now runs for the first time and fails by ~18ms against a 1000ms
