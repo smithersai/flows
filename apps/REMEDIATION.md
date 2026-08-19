@@ -174,12 +174,36 @@ red to green. No test was weakened, skipped, or deleted to reach any of it —
 both auditors grep for `.skip(`, `.todo(`, `xit(` and `it.failing` and for new
 tolerances.
 
+## What the whole-suite gate found afterwards
+
+Running all seventeen suites in one process — which no per-lane verification
+does — surfaced four more, three of them real:
+
+- **A data-loss regression in the schema gate.** It cleared every persisted key
+  when the store carried no version stamp, and every store written before the
+  gate exists is unstamped, so the first boot after the upgrade wiped the
+  conversation of every existing user. An unstamped store is now adopted, not
+  cleared. Fixed in `9818bac2`.
+- **A user-facing confidence score** (`80%`) on the world card, which row B-5
+  forbids. Deleted.
+- **A real brand leak.** `--muted-foreground` and `--popover` were consumed but
+  defined nowhere, so hardcoded fallbacks painted — the wrong colour entirely in
+  dark. They are now aliases of `--text-muted` and `--surface`, so all nine
+  palettes and both themes follow automatically. This had been hidden behind a
+  named waiver, which is why the audit flagged the waiver as suspicious.
+- **A flaky-by-construction toast assertion.** E9.6 asserted that fast balance
+  work shows no toast, assuming the local double always answers well under
+  300ms. On a loaded machine the round trip crosses it, the product correctly
+  toasts, and the suite called that a violation. It now reads the page's own
+  settle stamp and asserts the law in both directions, so it cannot flake.
+
+Two of these — the score and the token leak — were latent product defects that
+only a whole-set run reached, because an earlier failure in the same suite was
+aborting before them. The a11y suite went from 4 of 16 sections reached to 20 of
+20.
+
 ## Still open
 
-- **E13.4 waivers.** `UNDEFINED_TOKEN_WAIVERS` exempts `--muted-foreground` and
-  `--popover` by name before a zero-undefined assertion. If those tokens are
-  genuinely undefined that is a real brand leak (the library falls back to
-  violet/zinc) and the waiver is hiding it.
 - **E3.5** now runs for the first time and fails by ~18ms against a 1000ms
   budget. The measurement charges DevTools round trips to the product's budget;
   the same Escape settles in 1-2ms at store altitude. Fix the measurement, not

@@ -166,7 +166,19 @@ const TOAST_RECORDER = `
 (() => {
 	window.__shellToasts = [];
 	window.__shellStart = performance.now();
+	/*
+	 * When the balance work settled, on the page's own clock. The fast half of
+	 * E9.6 needs to know whether the work actually beat the debounce on THIS
+	 * machine rather than assume it: a loaded machine can take the "fast" path
+	 * past 300ms, at which point a toast is the law being obeyed, not broken.
+	 * Stamped page-side because a CDP read costs a round trip and would inflate
+	 * the very number the assertion turns on.
+	 */
+	window.__balanceSettledAt = null;
 	const record = () => {
+		if (window.__balanceSettledAt === null && document.querySelector(".smithers-balance-total") !== null) {
+			window.__balanceSettledAt = performance.now() - window.__shellStart;
+		}
 		for (const node of document.querySelectorAll(".toast-stack .toast")) {
 			const title = node.querySelector(".toast-title");
 			const entry = {
@@ -570,9 +582,17 @@ export default defineSuite({
 			20_000,
 		);
 
-		// Fast work: the local billing double answers in single-digit milliseconds,
-		// so the debounce is never reached. Nothing is timing-sensitive here — the
-		// claim is that the observer never fires for this toast at all.
+		/*
+		 * Fast work: the local billing double answers in single-digit
+		 * milliseconds, so the debounce is normally never reached.
+		 *
+		 * "Normally" is why this reads the page's own settle stamp instead of
+		 * assuming it. Under load the click-to-render round trip can cross
+		 * 300ms, and then a toast is the 300ms law being OBEYED. Asserting a
+		 * bare "no toast" made this suite fail for a product that was correct —
+		 * observed at 308ms. The law is an if-and-only-if, so both directions
+		 * are asserted from the measured time and neither can flake.
+		 */
 		report.equals(await evaluate<boolean>(TOAST_RECORDER), true, "the toast recorder did not install");
 		await clickAt(session, report, ".corner-balance-chip", "asking for the balance (fast)");
 		await waitUntil(
@@ -584,12 +604,26 @@ export default defineSuite({
 		await wait(TOAST_DEBOUNCE_MS * 4);
 		const quiet = await evaluate<ReadonlyArray<ToastSighting>>("window.__shellToasts");
 		const flashed = quiet.filter((sighting) => sighting.title === RUNNING_TITLE);
-		report.equals(
-			flashed.length,
-			0,
-			`balance work that settled under ${TOAST_DEBOUNCE_MS}ms still flashed a toast: ${JSON.stringify(flashed)}`,
-		);
-		report.ok(`E9.6: balance work that settles under ${TOAST_DEBOUNCE_MS}ms completes without ever flashing a toast.`);
+		const settledAt = await evaluate<number | null>("window.__balanceSettledAt");
+		report.check(settledAt !== null, "the fast balance read never stamped a settle time, so neither direction is provable");
+		const settled = Math.round(settledAt as number);
+		if ((settledAt as number) < TOAST_DEBOUNCE_MS) {
+			report.equals(
+				flashed.length,
+				0,
+				`balance work that settled in ${settled}ms, under the ${TOAST_DEBOUNCE_MS}ms debounce, still flashed a toast: ${JSON.stringify(flashed)}`,
+			);
+			report.ok(`E9.6: balance work that settles under ${TOAST_DEBOUNCE_MS}ms (${settled}ms) completes without ever flashing a toast.`);
+		} else {
+			report.check(
+				flashed.length > 0,
+				`balance work took ${settled}ms, past the ${TOAST_DEBOUNCE_MS}ms debounce, and never stated what was running`,
+			);
+			report.ok(
+				`E9.6: this machine took ${settled}ms on the fast path, past the ${TOAST_DEBOUNCE_MS}ms debounce, ` +
+					`so the law requires the toast it showed. The under-budget direction is proved by the slow half below.`,
+			);
+		}
 
 		// Slow work: the same flow, delayed at the billing front, must state what
 		// is running — and must wait out the debounce before it does.
