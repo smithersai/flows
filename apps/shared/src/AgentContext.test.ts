@@ -73,9 +73,54 @@ describe("renderAgentRuntimeContext", () => {
 			}),
 		);
 		expect(populated).toContain('local-repository "smithers" (connected, read-write access) at /Users/will/smithers, branch main');
-		expect(populated).toContain("World state: 2 document(s):");
+		expect(populated).toContain("World state: 2 document(s)");
 		expect(populated).toContain('Roadmap.md — "Roadmap" (confidence 0.6)');
 		expect(populated).toContain('world document open: "Roadmap.md"');
+	});
+
+	/*
+	 * §10.8: a note holding a fact recorded nowhere else was invisible to the
+	 * model — the block carried paths, titles and confidences and never a word
+	 * the user wrote. The World pane calls itself "what Smithers currently
+	 * understands", so the notes' own text is the substance of that claim.
+	 */
+	test("a world note's own words are in the block, marked when the budget cut them", () => {
+		const rendered = renderAgentRuntimeContext(
+			contextFixture({
+				worldState: {
+					documentCount: 3,
+					documents: [
+						{
+							path: "Glossary.md",
+							title: "Glossary",
+							confidence: 1,
+							body: "The canary codeword for this workspace is zarquon-mimsy-7741.",
+						},
+						{ path: "Long.md", title: "Long", confidence: 1, body: "the head of it", bodyTruncated: true },
+						{ path: "Dropped.md", title: "Dropped", confidence: 1, body: "", bodyTruncated: true },
+					],
+				},
+			}),
+		);
+		expect(rendered).toContain("zarquon-mimsy-7741");
+		// A cut note says it was cut, so the model never reads silence as "empty".
+		expect(rendered).toContain("note truncated here");
+		expect(rendered).toContain("did not fit this turn's context budget");
+		// And the block says plainly that the notes are the answer.
+		expect(rendered).toContain("These notes ARE what Smithers understands");
+	});
+
+	test("a note-less document list still renders, so an older client is not broken by the new field", () => {
+		const rendered = renderAgentRuntimeContext(
+			contextFixture({
+				worldState: {
+					documentCount: 1,
+					documents: [{ path: "Notes.md", title: "Notes", confidence: 1 }],
+				},
+			}),
+		);
+		expect(rendered).toContain('Notes.md — "Notes" (confidence 1)');
+		expect(rendered).not.toContain("truncated");
 	});
 
 	test("carries the honest capabilities and limitations verbatim", () => {
