@@ -148,3 +148,9 @@ export * as Harness from "./Harness.ts"
  * @since 0.1.0
  */
 export * as LegacyHarness from "./LegacyHarness.ts"
+
+/**
+ * @category decoding
+ * @since 0.1.0
+ */
+export * as StructuredOutput from "./StructuredOutput.ts"
