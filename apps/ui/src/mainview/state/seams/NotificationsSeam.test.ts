@@ -173,6 +173,79 @@ describe("notifications.list", () => {
 		expect(listCalls[0]?.path).toContain("all=true");
 	});
 
+	/*
+	 * §19.1: the platform this app talks to is NOT GitHub. It sends `subject`
+	 * as a plain string, no repository object, and `status: "unread" | "read"`.
+	 * Reading only the GitHub shape dropped every real row, so "Nothing new."
+	 * was the only state the card could ever reach.
+	 */
+	test("the platform's own wire shape parses: string subject, status, created_at", async () => {
+		const { store, controller } = await freshController(
+			backend({
+				"/api/notifications/list": json(200, [
+					{
+						id: 1,
+						source_type: "issue",
+						source_id: 1179,
+						subject: "canary fixture: issue canary ui needs you",
+						body: "…",
+						status: "unread",
+						read_at: null,
+						created_at: "2026-08-19T07:13:10Z",
+					},
+					{
+						id: 2,
+						subject: "already seen",
+						status: "read",
+						created_at: "2026-08-18T07:13:10Z",
+					},
+				]),
+			}),
+		);
+		await signedIn(store);
+
+		const outcome = await controller.commands.run("notifications.list");
+		expect(outcome.status).toBe("executed");
+		await settled();
+
+		const card = notificationsCard(store);
+		expect(card?.payload.items).toEqual([
+			{
+				id: "1",
+				title: "canary fixture: issue canary ui needs you",
+				repo: null,
+				reason: null,
+				createdAt: "2026-08-19T07:13:10Z",
+				read: false,
+			},
+			{ id: "2", title: "already seen", repo: null, reason: null, createdAt: "2026-08-18T07:13:10Z", read: true },
+		]);
+		expect(card?.payload.unread).toBe(1);
+	});
+
+	test("rows that arrive unreadable are said so, never rendered as an empty inbox", async () => {
+		const { store, controller } = await freshController(
+			backend({ "/api/notifications/list": json(200, [{ nope: true }, { also: "nope" }]) }),
+		);
+		await signedIn(store);
+
+		const outcome = await controller.commands.run("notifications.list");
+		expect(outcome.status).toBe("failed");
+		if (outcome.status === "failed") expect(outcome.error).toContain("2 rows");
+		await settled();
+		expect(store.collections.cards.get("notifications")).toBeUndefined();
+	});
+
+	test("a genuinely empty inbox is still an empty card", async () => {
+		const { store, controller } = await freshController(
+			backend({ "/api/notifications/list": json(200, []) }),
+		);
+		await signedIn(store);
+		expect((await controller.commands.run("notifications.list")).status).toBe("executed");
+		await settled();
+		expect(notificationsCard(store)?.payload.items).toEqual([]);
+	});
+
 	test("a 500 answers the server's honest message and surfaces no card", async () => {
 		const { store, controller } = await freshController(
 			backend({ "/api/notifications/list": json(500, { message: "the notifications backfill is rebuilding" }) }),

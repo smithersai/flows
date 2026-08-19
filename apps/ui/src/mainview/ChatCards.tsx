@@ -31,9 +31,7 @@ import { LandingCardBody, LandingListCardBody } from "./cards/LandingCards";
 import { NotificationsCardBody } from "./cards/NotificationsCard";
 import { RepoImportCardBody } from "./cards/RepoImportCard";
 import { ThemePickerCardBody } from "./cards/ThemePickerCard";
-
-const clockLabel = (timestamp: number): string =>
-	new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+import { timeLabel as clockLabel } from "./Timestamps";
 
 const pillStatus = (card: Card): string => {
 	if (card.status === "error") return "failed";
@@ -59,8 +57,20 @@ const pillStatus = (card: Card): string => {
 		if (card.payload.phase === "sending") return "running";
 		return "waiting-approval";
 	}
-	if (card.kind === "request-queue" || card.kind === "reco-log" || card.kind === "admin-health") {
-		return card.status === "acted" ? "done" : "pending";
+	/*
+	 * These cards only exist once their read has settled — the seam upserts
+	 * them after the answer arrives. Badging them PENDING made "still loading"
+	 * and "finished, nothing more coming" the same badge, so a read that
+	 * genuinely hung looked exactly like one that had rendered everything
+	 * (§28.3).
+	 */
+	if (
+		card.kind === "request-queue" ||
+		card.kind === "reco-log" ||
+		card.kind === "admin-health" ||
+		card.kind === "theme-picker"
+	) {
+		return "done";
 	}
 	if (card.kind === "repo-chooser") {
 		if (card.payload.phase === "saving") return "running";

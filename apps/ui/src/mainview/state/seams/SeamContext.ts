@@ -20,7 +20,16 @@ export interface SeamContext {
 	readonly nextOrdinal: () => number;
 }
 
-/** The honest message out of a failed seam response, bounded and fallback-safe. */
+/**
+ * The honest message out of a failed seam response, bounded and fallback-safe.
+ *
+ * ONLY a message the upstream addressed to a person is surfaced: the `message`
+ * or `error` field of a JSON body. Anything else is transport plumbing with no
+ * contract with this product — a router's `404 page not found`, an HTML error
+ * page, a stack trace — and reads to the user as a debug string leaking through
+ * the UI (§28.5). The caller's fallback already names what failed in the
+ * product's own voice, so that is what a plumbing body gets.
+ */
 export const readErrorMessage = async (response: Response, fallback: string): Promise<string> => {
 	const text = (await response.text().catch(() => "")).trim();
 	if (text === "") return fallback;
@@ -29,7 +38,8 @@ export const readErrorMessage = async (response: Response, fallback: string): Pr
 		if (typeof body.message === "string" && body.message !== "") return body.message.slice(0, 240);
 		if (typeof body.error === "string" && body.error !== "") return body.error.slice(0, 240);
 	} catch {
-		// Not JSON — fall through to the raw text.
+		// Not JSON at all: plumbing, never copy.
+		return fallback;
 	}
-	return text.slice(0, 240);
+	return fallback;
 };

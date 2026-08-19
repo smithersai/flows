@@ -17,10 +17,18 @@ const LIST_LIMIT = 20;
 
 type NotificationItem = Extract<Card, { kind: "notifications" }>["payload"]["items"][number];
 
-/*
- * One wire notification, GitHub-shaped (reference parseNotification): id +
- * subject.title are required, everything else degrades to null. `unread`
- * defaults true when absent, so `read` is only ever the explicit `false`.
+const str = (value: unknown): string | null =>
+	typeof value === "string" && value.trim() !== "" ? value : null;
+
+/**
+ * One wire notification, in EITHER shape the product meets.
+ *
+ * The reference implementation read GitHub's shape — `subject.title`,
+ * `repository.full_name`, `unread: boolean`. The platform this app actually
+ * talks to sends `subject` as a plain string, no repository object, and
+ * `status: "unread" | "read"`. Reading only the GitHub shape made `title` null
+ * for every real row, so every real row dropped and the empty state was the
+ * only state this seam could ever render (§19.1).
  */
 const parseNotification = (value: unknown): NotificationItem | null => {
 	if (value === null || typeof value !== "object") return null;
@@ -29,36 +37,41 @@ const parseNotification = (value: unknown): NotificationItem | null => {
 	if (typeof id !== "string" && typeof id !== "number") return null;
 	const subject = wire.subject;
 	const title =
-		subject !== null && typeof subject === "object" && typeof (subject as { title?: unknown }).title === "string"
-			? (subject as { title: string }).title
-			: null;
+		subject !== null && typeof subject === "object"
+			? str((subject as { title?: unknown }).title)
+			: (str(subject) ?? str(wire.title));
 	if (title === null) return null;
 	const repository = wire.repository;
 	const repo =
-		repository !== null &&
-		typeof repository === "object" &&
-		typeof (repository as { full_name?: unknown }).full_name === "string" &&
-		(repository as { full_name: string }).full_name !== ""
-			? (repository as { full_name: string }).full_name
-			: null;
+		repository !== null && typeof repository === "object"
+			? str((repository as { full_name?: unknown }).full_name)
+			: (str(repository) ?? str(wire.repo));
 	return {
 		id: String(id),
 		title,
 		repo,
-		reason: typeof wire.reason === "string" ? wire.reason : null,
-		createdAt: typeof wire.updated_at === "string" ? wire.updated_at : null,
-		read: wire.unread === false,
+		reason: str(wire.reason),
+		createdAt: str(wire.updated_at) ?? str(wire.created_at),
+		// `unread` defaults true when absent, so `read` is only ever explicit.
+		read: wire.unread === false || wire.status === "read",
 	};
 };
 
-/** The list body is a bare array (reference parseNotificationListBody); off-shape rows drop. */
-const parseNotificationList = (body: unknown): NotificationItem[] => {
+/** The rows the platform sent, and how many of them were unreadable. */
+interface ParsedList {
+	readonly items: NotificationItem[];
+	readonly sent: number;
+}
+
+/** The list body is a bare array (reference parseNotificationListBody). */
+const parseNotificationList = (body: unknown): ParsedList => {
+	const rows = Array.isArray(body) ? body : [];
 	const items: NotificationItem[] = [];
-	for (const value of Array.isArray(body) ? body : []) {
+	for (const value of rows) {
 		const item = parseNotification(value);
 		if (item !== null) items.push(item);
 	}
-	return items;
+	return { items, sent: rows.length };
 };
 
 export const createNotificationsSeam = (ctx: SeamContext): NotificationsSeam => {
@@ -78,7 +91,15 @@ export const createNotificationsSeam = (ctx: SeamContext): NotificationsSeam => 
 			return readErrorMessage(response, "Your notifications couldn't be loaded right now.");
 		}
 		const body = (await response.json().catch(() => undefined)) as unknown;
-		const items = parseNotificationList(body);
+		const { items, sent } = parseNotificationList(body);
+		/*
+		 * Rows that arrive and cannot be read are not "nothing new". Claiming an
+		 * empty inbox over an answer we failed to parse is the silent-failure
+		 * shape: say the answer was unreadable instead.
+		 */
+		if (sent > 0 && items.length === 0) {
+			return `Your notifications came back in a shape Smithers couldn't read (${sent} ${sent === 1 ? "row" : "rows"}).`;
+		}
 		const card: Card = {
 			id: "notifications",
 			kind: "notifications",

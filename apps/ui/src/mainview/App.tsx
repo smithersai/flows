@@ -43,11 +43,9 @@ import { ConfirmDialog, SurfaceHeader } from "./SurfaceChrome";
 import { ToastStack } from "./ToastStack";
 import type { AppController } from "./state/AppController";
 import { scrubToolEcho } from "./state/MessageScrub";
+import { timeLabel } from "./Timestamps";
 import type { Card, Message, Suggestion as SuggestionBinding } from "./state/AppState";
 import { WORLD_DISPLAY_NAME } from "./state/AppState";
-
-const timeLabel = (createdAt: number) =>
-	new Date(createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 const systemNoteLabel = (message: Message): string => {
 	if (message.statusDetail !== undefined) return `Turn interrupted — ${message.statusDetail}`;
@@ -451,6 +449,8 @@ function App({ controller }: { readonly controller: AppController }) {
 		dismissed: false,
 	});
 	const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+	/* §28.4: the transcript is destroyed with no undo, so the act asks first. */
+	const [confirmReset, setConfirmReset] = useState(false);
 	const messages = [...messageRows].sort((left, right) => left.ordinal - right.ordinal);
 	const worldDocuments = [...worldDocumentRows].sort((left, right) =>
 		left.path.localeCompare(right.path),
@@ -936,7 +936,7 @@ function App({ controller }: { readonly controller: AppController }) {
 								className="corner-reset-btn"
 								aria-label="Reset conversation"
 								title="Reset conversation"
-								onClick={() => controller.runCommand("reset")}
+								onClick={() => setConfirmReset(true)}
 							>
 								<RotateCcw size={14} />
 							</Button>
@@ -1051,6 +1051,24 @@ function App({ controller }: { readonly controller: AppController }) {
 				{/* Admin-only: the panel is absent — not hidden — for everyone else. */}
 				{isAdmin && session.devtoolsOpen ? <DevtoolsPanel controller={controller} /> : null}
 			</div>
+
+			{/*
+			 * §28.4: reset destroys the transcript with no undo, so it names what
+			 * goes before it goes. The count is the transcript's own, so the
+			 * confirm cannot claim more or less than is actually there.
+			 */}
+			<ConfirmDialog
+				open={confirmReset}
+				title="Start a fresh conversation?"
+				body={`${messages.length === 1 ? "1 message" : `${messages.length} messages`} and everything on screen will be discarded. Nothing is kept.`}
+				confirmLabel="Discard and start fresh"
+				destructive
+				onConfirm={() => {
+					setConfirmReset(false);
+					controller.runCommand("reset");
+				}}
+				onCancel={() => setConfirmReset(false)}
+			/>
 
 			{/* The one shared toast stack: every background flow past 300ms reports here. */}
 			<ToastStack
