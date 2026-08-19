@@ -249,37 +249,53 @@ describe("declared outputs are required", () => {
     expect(summary.results[0]!.error).toContain("declared output is not a file or a directory")
   })
 
-  it("does not answer from a cached entry whose output has since been deleted", async () => {
+  it("restores a cached entry's output from the artifact store when it has since been deleted", async () => {
     await toolWorkspace("require('node:fs').writeFileSync('out', 'produced')")
     expect((await run(true)).ok).toBe(true)
     await Fs.rm(NodePath.join(root, "out"))
 
-    // The entry is still stored, but validation re-measures the declared
-    // output, so the run re-executes rather than reporting a hit for a tree
-    // that no longer holds the result.
+    // The entry is still stored and validation re-measures the declared
+    // output. The tree no longer holds the result, so the hit is earned by
+    // restoring the bytes from the artifact store and measuring them again,
+    // not by trusting the envelope.
+    const second = await run(true)
+    expect(second.counts.hit).toBe(1)
+    expect(second.counts.ran).toBe(0)
+    expect(await Fs.readFile(NodePath.join(root, "out"), "utf8")).toBe("produced")
+  })
+
+  it("re-executes when the output was deleted and the artifact store is swept", async () => {
+    await toolWorkspace("require('node:fs').writeFileSync('out', 'produced')")
+    expect((await run(true)).ok).toBe(true)
+    await Fs.rm(NodePath.join(root, "out"))
+    await Fs.rm(NodePath.join(root, ".flows/objects"), { recursive: true, force: true })
+
     const second = await run(true)
     expect(second.counts.hit).toBe(0)
     expect(second.counts.ran).toBe(1)
     expect(await Fs.readFile(NodePath.join(root, "out"), "utf8")).toBe("produced")
   })
 
-  it("does not answer from a cached entry whose output was replaced by a link", async () => {
+  it("replaces a link planted at the declared path without writing through it", async () => {
     const outside = await Fs.mkdtemp(NodePath.join(Os.tmpdir(), "smthrs-outside-"))
     try {
-      await Fs.writeFile(NodePath.join(outside, "produced"), "produced", "utf8")
+      await Fs.writeFile(NodePath.join(outside, "produced"), "planted", "utf8")
       await toolWorkspace("require('node:fs').writeFileSync('out', 'produced')")
       expect((await run(true)).ok).toBe(true)
 
-      // Same bytes, different provenance: a link planted after the run must
-      // not validate the stored entry, and re-measuring it must refuse rather
-      // than digest whatever it points at.
+      // A link planted after the run never validates the stored entry:
+      // re-measuring it refuses rather than digesting whatever it points at.
+      // The restore then unlinks the path and puts the recorded bytes there;
+      // the file outside the workspace is not written.
       await Fs.rm(NodePath.join(root, "out"))
       await Fs.symlink(NodePath.join(outside, "produced"), NodePath.join(root, "out"))
 
       const second = await run(true)
-      expect(second.counts.hit).toBe(0)
-      expect(second.ok).toBe(false)
-      expect(second.results[0]!.error).toContain("declared output is a symbolic link")
+      expect(second.counts.hit).toBe(1)
+      expect(second.counts.ran).toBe(0)
+      expect((await Fs.lstat(NodePath.join(root, "out"))).isSymbolicLink()).toBe(false)
+      expect(await Fs.readFile(NodePath.join(root, "out"), "utf8")).toBe("produced")
+      expect(await Fs.readFile(NodePath.join(outside, "produced"), "utf8")).toBe("planted")
     } finally {
       await Fs.rm(outside, { recursive: true, force: true })
     }

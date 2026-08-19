@@ -274,12 +274,26 @@ describe("a declared output tree is verified exactly", () => {
    * paths the entry itself listed. An entry could therefore claim a build
    * whose `dist` was never produced, or list one cheap path and omit the rest,
    * and be admitted. The declaration now comes from target metadata, so the
-   * entry has no say in what gets measured.
+   * entry has no say in what gets measured. A deleted output is not a hit on
+   * its own: the bytes come back from the artifact store, the declared path is
+   * measured again, and only then is the hit reported.
    */
-  it("re-executes when a declared output was deleted after the entry was stored", async () => {
+  it("restores a declared output deleted after the entry was stored, then reports the hit", async () => {
     await toolWorkspace(producing)
     await run()
     await Fs.rm(NodePath.join(root, "out"))
+
+    const second = await run()
+    expect(second.counts.hit).toBe(1)
+    expect(second.counts.ran).toBe(0)
+    expect(await Fs.readFile(NodePath.join(root, "out"), "utf8")).toBe("produced")
+  })
+
+  it("re-executes when a declared output was deleted and the artifact store cannot restore it", async () => {
+    await toolWorkspace(producing)
+    await run()
+    await Fs.rm(NodePath.join(root, "out"))
+    await Fs.rm(NodePath.join(root, ".flows/objects"), { recursive: true, force: true })
 
     const second = await run()
     expect(second.counts.hit).toBe(0)

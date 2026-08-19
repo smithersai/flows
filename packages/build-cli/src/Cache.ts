@@ -1613,6 +1613,8 @@ export const publishOutput = async (options: {
  */
 export interface RestorableOutput {
   readonly declared: string
+  /** The canonical workspace root every restored byte must stay beneath. */
+  readonly root: string
   readonly absolute: string
   readonly entries: ReadonlyArray<TreeEntry>
 }
@@ -1635,9 +1637,11 @@ export const readRestorableOutput = async (options: {
   readonly contentDigest: string
   readonly blobs: ArtifactBlobs
 }): Promise<RestorableOutput | null> => {
+  let root: string
   let absolute: string
   try {
-    absolute = await outputRoot(options.workspaceRoot, options.cwd, options.declared)
+    root = await Fs.realpath(NodePath.resolve(options.workspaceRoot))
+    absolute = await outputRoot(root, options.cwd, options.declared)
   } catch {
     return null
   }
@@ -1645,7 +1649,33 @@ export const readRestorableOutput = async (options: {
   if (bytes === null) return null
   const entries = readTree(bytes)
   if (entries === null) return null
-  return { declared: options.declared, absolute, entries }
+  return { declared: options.declared, root, absolute, entries }
+}
+
+/**
+ * Refuses to write a declared output whose nearest existing ancestor resolves
+ * outside the workspace, or throws.
+ *
+ * The declared path was checked lexically. A symbolic link planted at one of
+ * its ancestors would carry a write through that check, so the deepest
+ * ancestor that exists is resolved through its links and required to stay
+ * inside the canonical root before one directory is created beneath it.
+ */
+const confineRestore = async (root: string, absolute: string): Promise<void> => {
+  if (!inside(root, absolute) || absolute === root) {
+    throw new Error(`restored output leaves the workspace: ${absolute}`)
+  }
+  // `absolute` is below `root` lexically, so the walk ends at `root` at the
+  // latest. A dangling link counts as existing: `realpath` then fails, and the
+  // restore fails with it rather than creating directories through the link.
+  let ancestor = NodePath.dirname(absolute)
+  while (ancestor !== root && !(await Fs.lstat(ancestor).then(() => true, () => false))) {
+    ancestor = NodePath.dirname(ancestor)
+  }
+  const canonical = await Fs.realpath(ancestor)
+  if (!inside(root, canonical)) {
+    throw new Error(`restored output resolves outside the workspace: ${absolute}`)
+  }
 }
 
 /**
@@ -1657,6 +1687,12 @@ export const readRestorableOutput = async (options: {
  * records, so the restored tree measures to the same digest the manifest was
  * assembled from. The caller re-measures it afterwards; this function only
  * fails, and the executor turns a failure into a miss.
+ *
+ * Whatever sits at the declared path is removed as that path, never followed:
+ * a symbolic link planted there is unlinked, and the file or directory it
+ * pointed at is left alone. The nearest existing ancestor is then resolved
+ * through its links and must stay inside the workspace before anything is
+ * written beneath it.
  *
  * ## Boundary
  *
@@ -1687,6 +1723,7 @@ export const restoreOutput = async (
     await Fs.chmod(path, executable ? 0o755 : 0o644)
   }
   await Fs.rm(output.absolute, { recursive: true, force: true })
+  await confineRestore(output.root, output.absolute)
   if (asFile !== undefined) {
     await writeFile(output.absolute, asFile[3], asFile[2])
     return

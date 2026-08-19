@@ -1210,6 +1210,61 @@ describe("openArtifacts", () => {
     await blobs.close()
   })
 
+  it("unlinks a symbolic link planted at the declared path instead of writing through it", async () => {
+    const outside = await Fs.mkdtemp(NodePath.join(Os.tmpdir(), "smithers-build-outside-"))
+    try {
+      await Fs.writeFile(NodePath.join(outside, "planted"), "outside\n")
+      await Fs.writeFile(NodePath.join(root, "out"), "produced\n")
+      const contentDigest = await measure("out")
+      const blobs = await open()
+      await publishOutput({ workspaceRoot: root, cwd: ".", declared: "out", contentDigest, blobs })
+
+      // Same bytes would not matter: a link at the declared path is replaced
+      // as a path, and the file it pointed at is never written.
+      await Fs.rm(NodePath.join(root, "out"))
+      await Fs.symlink(NodePath.join(outside, "planted"), NodePath.join(root, "out"))
+      const tree = await readRestorableOutput({ workspaceRoot: root, cwd: ".", declared: "out", contentDigest, blobs })
+      await restoreOutput(tree!, blobs)
+
+      expect((await Fs.lstat(NodePath.join(root, "out"))).isSymbolicLink()).toBe(false)
+      expect(await Fs.readFile(NodePath.join(root, "out"), "utf8")).toBe("produced\n")
+      expect(await Fs.readFile(NodePath.join(outside, "planted"), "utf8")).toBe("outside\n")
+      await blobs.close()
+    } finally {
+      await Fs.rm(outside, { recursive: true, force: true })
+    }
+  })
+
+  it("refuses to restore beneath an ancestor that resolves outside the workspace", async () => {
+    const outside = await Fs.mkdtemp(NodePath.join(Os.tmpdir(), "smithers-build-outside-"))
+    try {
+      await Fs.mkdir(NodePath.join(root, "pkg/dist"), { recursive: true })
+      await Fs.writeFile(NodePath.join(root, "pkg/dist/out"), "produced\n")
+      const contentDigest = await measure("pkg/dist/out")
+      const blobs = await open()
+      await publishOutput({ workspaceRoot: root, cwd: ".", declared: "pkg/dist/out", contentDigest, blobs })
+
+      // The declared path checks out lexically. Its `pkg` ancestor now points
+      // out of the workspace, so the restore refuses before a directory or a
+      // byte lands out there.
+      await Fs.rm(NodePath.join(root, "pkg"), { recursive: true })
+      await Fs.symlink(outside, NodePath.join(root, "pkg"), "dir")
+      const tree = await readRestorableOutput({
+        workspaceRoot: root,
+        cwd: ".",
+        declared: "pkg/dist/out",
+        contentDigest,
+        blobs
+      })
+      await expect(restoreOutput(tree!, blobs)).rejects.toThrow(/resolves outside the workspace/)
+
+      expect(await Fs.readdir(outside)).toEqual([])
+      await blobs.close()
+    } finally {
+      await Fs.rm(outside, { recursive: true, force: true })
+    }
+  })
+
   it("refuses a tree blob whose paths are not usable manifest paths", async () => {
     const blobs = await open()
     const forged = Buffer.from(JSON.stringify([["file", "../escaped", false, digestOf("x")]]), "utf8")
