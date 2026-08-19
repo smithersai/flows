@@ -68,21 +68,56 @@ export interface ClientErrorRecord {
 
 const LOG_KEY = "reports";
 
-const sizeOf = (value: unknown): number => JSON.stringify(value)?.length ?? 0;
+/*
+ * Real UTF-8 bytes, not JSON characters. The store measures bytes and
+ * JSON.stringify leaves non-ASCII literal, so a message in a language that
+ * is not English costs up to three bytes a character — counting characters
+ * would under-measure exactly the reports written by the users hardest to
+ * support.
+ */
+const encoder = new TextEncoder();
+const sizeOf = (value: unknown): number => encoder.encode(JSON.stringify(value) ?? "").length;
 
 /** One report, cut to its byte budget. The truncation is stated, never silent. */
 export const capRecord = (record: ClientErrorRecord): ClientErrorRecord => {
 	if (sizeOf(record) <= CLIENT_ERROR_RECORD_MAX_BYTES) return record;
-	const text = typeof record.report === "string" ? record.report : JSON.stringify(record.report) ?? "";
-	// Leave room for the surrounding fields and the note.
-	const room = Math.max(0, CLIENT_ERROR_RECORD_MAX_BYTES - sizeOf({ ...record, report: "" }) - 40);
-	return { ...record, report: `${text.slice(0, room)}… [truncated from ${text.length} characters]` };
+	const text = typeof record.report === "string" ? record.report : (JSON.stringify(record.report) ?? "");
+	const withHead = (head: string): ClientErrorRecord => ({
+		...record,
+		report: `${head}… [truncated from ${text.length} characters]`
+	});
+	/*
+	 * String.slice counts characters and the budget counts bytes, so a first
+	 * guess in characters overshoots by up to 3x on non-ASCII text. Shrink
+	 * geometrically until it actually fits — a handful of iterations, and
+	 * correct for any alphabet rather than for English only.
+	 */
+	let head = text.slice(0, CLIENT_ERROR_RECORD_MAX_BYTES);
+	while (head.length > 0 && sizeOf(withHead(head)) > CLIENT_ERROR_RECORD_MAX_BYTES) {
+		head = head.slice(0, Math.floor(head.length * 0.75));
+	}
+	return withHead(head);
 };
 
-/** The newest reports that fit, both bounds enforced: count and bytes. */
+/**
+ * The newest reports that fit, both bounds enforced: count and bytes.
+ *
+ * Each record is measured once and the budget accumulated, rather than
+ * re-serializing the whole log per eviction — during a storm this runs on
+ * every append.
+ */
 export const bounded = (records: ReadonlyArray<ClientErrorRecord>): Array<ClientErrorRecord> => {
-	const kept = records.slice(0, CLIENT_ERROR_LOG_LIMIT);
-	while (kept.length > 1 && sizeOf(kept) > CLIENT_ERROR_LOG_MAX_BYTES) kept.pop();
+	const kept: Array<ClientErrorRecord> = [];
+	// Two bytes of array framing per record ("[", "]", and the commas between).
+	let used = 2;
+	for (const record of records.slice(0, CLIENT_ERROR_LOG_LIMIT)) {
+		const cost = sizeOf(record) + 1;
+		// The newest report is kept whatever it costs: a log that answers
+		// nothing because one report was too big has failed at its only job.
+		if (kept.length > 0 && used + cost > CLIENT_ERROR_LOG_MAX_BYTES) break;
+		kept.push(record);
+		used += cost;
+	}
 	return kept;
 };
 
@@ -129,7 +164,7 @@ export class ClientErrorLog {
  */
 export const appendClientError = async (
 	logs: ClientErrorNamespace | undefined,
-    record: ClientErrorRecord,
+	record: ClientErrorRecord,
 ): Promise<void> => {
 	if (logs === undefined) return;
 	const stub = logs.get(logs.idFromName(CLIENT_ERROR_LOG_NAME));

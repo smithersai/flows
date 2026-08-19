@@ -285,3 +285,31 @@ describe("the log stays inside one storage value", () => {
 		expect(bounded([huge])).toHaveLength(1);
 	});
 });
+
+/*
+ * The store's limit is in bytes and JSON.stringify leaves non-ASCII literal,
+ * so counting characters would under-measure exactly the reports written by
+ * the users hardest to support.
+ */
+describe("the byte bound counts bytes, not characters", () => {
+	test("a report in a non-ASCII language is measured at its real size", async () => {
+		const logs = memoryLog();
+		// Three bytes per character in UTF-8: 20k characters is ~60 KB.
+		for (let index = 0; index < 20; index += 1) {
+			await appendClientError(logs, {
+				at: new Date(index).toISOString(),
+				report: { message: "文".repeat(20_000) },
+			});
+		}
+		const read = await readClientErrors(logs);
+		const bytes = new TextEncoder().encode(JSON.stringify(read.reports)).length;
+		expect(bytes).toBeLessThanOrEqual(CLIENT_ERROR_LOG_MAX_BYTES);
+	});
+
+	test("a single non-ASCII report is truncated to its byte budget", () => {
+		const capped = capRecord({ at: "2026-08-18T00:00:00.000Z", report: "文".repeat(20_000) });
+		expect(new TextEncoder().encode(JSON.stringify(capped)).length).toBeLessThanOrEqual(
+			CLIENT_ERROR_RECORD_MAX_BYTES,
+		);
+	});
+});
