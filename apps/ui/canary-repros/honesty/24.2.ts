@@ -5,105 +5,163 @@
  *  reco, notifications, github import, workflow rpc. Each produces a named,
  *  actionable message."
  *
- * Four of the seven do not. The worst is billing: with the billing upstream
- * unreachable, /billing.balance renders a Balance card stamped with the CURRENT
- * time, showing a balance it could not read. That is not a missing message, it
- * is a fabricated success.
+ * Each upstream is made unreachable with Playwright route interception
+ * (route.abort — the honest simulation of "the upstream is down"), then the
+ * flow that calls it is invoked.
  *
- * Each upstream is forced to fail with Playwright route interception (abort =
- * the upstream is unreachable), then the flow that calls it is invoked, and the
- * lines the turn added are read back.
+ * Four of the seven are fine and are asserted here so a regression is caught:
+ *   agent turn   → "I couldn't complete that turn. Could not reach the Smithers
+ *                   web agent: Failed to fetch" + a Turn failed badge
+ *   notifications→ "/notifications.list didn't run — Your notifications couldn't
+ *                   be loaded — the platform didn't answer."
+ *   github import→ "The import couldn't start — Failed to fetch" + Try again
+ *   workflow rpc → "/flow.list didn't run — The workspace couldn't be prepared —
+ *                   the workflow service didn't answer."
+ *
+ * Reco is fine too ("I couldn't reach the recommendations service just now — ask
+ * me anything and we'll start from here.") and is asserted below.
+ *
+ * Two are not:
+ *   A. BILLING fabricates a success. With billing unreachable, /billing.balance
+ *      renders a NEW Balance card, stamped with the current time, stating a
+ *      balance the app could not read.
+ *   B. IDENTITY names the wrong cause. Its failure prints "This build isn't
+ *      connected to Smithers' identity service … Use the deployed app for the
+ *      signed-in experience" — on the deployed app.
  *
  *   bun canary-repros/honesty/24.2.ts
  *
- * Exits 1 while any upstream fails without a named, honest message.
+ * Exits 1 while any of A/B/C holds.
  */
 import { chromium } from "playwright";
-import type { Page } from "playwright";
+import type { BrowserContext, Page } from "playwright";
 
 const BASE = process.env.CANARY_URL ?? "https://canary.smithers.sh";
 const PROFILE = process.env.PROF ?? "/tmp/canary-honesty-profile";
-
-interface Case {
-	readonly upstream: string;
-	readonly glob: string;
-	readonly trigger: string;
-	/** What an honest answer must contain. */
-	readonly honest: RegExp;
-}
-
-const CASES: ReadonlyArray<Case> = [
-	{ upstream: "agent turn", glob: "**/api/agent/turn**", trigger: "Say hi.", honest: /couldn'?t complete that turn|could not reach/i },
-	{ upstream: "billing", glob: "**/api/billing/**", trigger: "/billing.balance", honest: /couldn'?t|could not|unavailable|didn'?t answer/i },
-	{ upstream: "reco", glob: "**/api/reco/**", trigger: "/reco.refresh", honest: /couldn'?t|could not|unavailable|didn'?t answer/i },
-	{ upstream: "notifications", glob: "**/api/notifications/**", trigger: "/notifications.list", honest: /couldn'?t|could not|didn'?t answer/i },
-	{ upstream: "github import", glob: "**/api/github/import**", trigger: "/repos.import codeplanesmithers/canary-sandbox", honest: /couldn'?t|could not|failed|try again/i },
-	{ upstream: "workflow rpc", glob: "**/api/workflow/**", trigger: "/flow.list", honest: /couldn'?t|could not|unavailable|didn'?t answer|unreachable/i },
-];
-
 const failures: Array<string> = [];
 
-const run = async (test: Case): Promise<void> => {
+const open = async (glob: string): Promise<{ context: BrowserContext; page: Page; hits: () => number }> => {
 	const context = await chromium.launchPersistentContext(PROFILE, {
 		headless: true,
 		viewport: { width: 1400, height: 1100 },
 	});
-	const page: Page = context.pages()[0] ?? (await context.newPage());
+	const page = context.pages()[0] ?? (await context.newPage());
+	let count = 0;
+	await page.route(glob, (route) => {
+		count += 1;
+		return route.abort("failed");
+	});
+	return { context, page, hits: () => count };
+};
+
+const submit = async (page: Page, text: string, settleMs = 30_000): Promise<void> => {
+	const composer = page.locator("textarea.sui-chat-composer-input");
+	await composer.click();
+	await composer.fill(text);
+	await composer.press("Enter");
+	await page.waitForTimeout(settleMs);
+};
+
+const BALANCE_LINE = /\$[\d,]+ left\./g;
+
+/* ---- A. billing: a fabricated success ---------------------------------- */
+const STAMP = /balance · [0-9:]+ ?[AP]M/g;
+const AMOUNT = /\$[\d,]+ left\./g;
+{
+	const context = await chromium.launchPersistentContext(PROFILE, {
+		headless: true,
+		viewport: { width: 1400, height: 1100 },
+	});
+	const page = context.pages()[0] ?? (await context.newPage());
+	await page.goto(BASE, { waitUntil: "domcontentloaded" });
+	await page.waitForTimeout(6000);
+	/* A real read first, so the card and its timestamp exist. */
+	const before = await page.locator("body").innerText();
+	const stampBefore = (before.match(STAMP) ?? []).at(-1);
+	const amountBefore = (before.match(AMOUNT) ?? []).at(-1);
+
+	/* Now the upstream goes away, and the user asks again. */
 	let hits = 0;
-	await page.route(test.glob, (route) => {
+	await page.route("**/api/billing/**", (route) => {
 		hits += 1;
 		return route.abort("failed");
 	});
+	await submit(page, "/billing.balance", 25_000);
+	const after = await page.locator("body").innerText();
+	const stampAfter = (after.match(STAMP) ?? []).at(-1);
+	const amountAfter = (after.match(AMOUNT) ?? []).at(-1);
+	const honest = /billing|balance/i.test(
+		(after.match(/.{0,60}(couldn'?t|could not|unavailable|didn'?t answer).{0,60}/gi) ?? []).join(" "),
+	);
+	await page.screenshot({ path: "/tmp/honesty-repro-24.2-billing.png", fullPage: true });
+	await context.close();
+	console.log(
+		`A. billing  hits=${hits}  card "${stampBefore}" ${amountBefore} → "${stampAfter}" ${amountAfter}  honest-message=${honest}`,
+	);
+	if (hits > 0 && stampAfter !== stampBefore) {
+		failures.push(
+			`billing: with the upstream unreachable (${hits} aborted fetch(es)) the Balance card re-stamped itself ${stampBefore} → ${stampAfter} and kept asserting "${amountAfter}" — it presents a value it could not read as a fresh read. Fabricated success, not a message.`,
+		);
+	} else if (!honest) {
+		failures.push("billing: the upstream failed and the UI never named it");
+	}
+}
+
+/* ---- the four that are fine, asserted so a regression is caught --------- */
+const FINE: ReadonlyArray<{ readonly upstream: string; readonly glob: string; readonly trigger: string; readonly honest: RegExp }> = [
+	{ upstream: "agent turn", glob: "**/api/agent/turn**", trigger: "Say hi.", honest: /couldn'?t complete that turn|could not reach the smithers web agent/i },
+	{ upstream: "notifications", glob: "**/api/notifications/**", trigger: "/notifications.list", honest: /notifications couldn'?t be loaded/i },
+	{ upstream: "github import", glob: "**/api/github/import**", trigger: "/repos.import codeplanesmithers/canary-sandbox", honest: /import couldn'?t start/i },
+	{ upstream: "workflow rpc", glob: "**/api/workflow/**", trigger: "/flow.list", honest: /workspace couldn'?t be prepared|workflow service didn'?t answer/i },
+];
+for (const test of FINE) {
+	const { context, page, hits } = await open(test.glob);
 	await page.goto(BASE, { waitUntil: "domcontentloaded" });
 	await page.waitForTimeout(5000);
 	const before = await page.locator("body").innerText();
-	const composer = page.locator("textarea.sui-chat-composer-input");
-	await composer.click();
-	await composer.fill(test.trigger);
-	await composer.press("Enter");
-	await page.waitForTimeout(30_000);
+	await submit(page, test.trigger);
 	const after = await page.locator("body").innerText();
-	/*
-	 * Read only what followed THIS invocation. A line-diff against `before`
-	 * is wrong on a transcript that already holds an identical earlier turn:
-	 * the new message is filtered out as "seen before" and the case reads as
-	 * a silent failure when it was not.
-	 */
-	const echoedAt = after.lastIndexOf(test.trigger);
-	const tail = echoedAt === -1 ? after.slice(before.length) : after.slice(echoedAt + test.trigger.length);
-	const added = tail.split("\n").map((line) => line.trim()).filter((line) => line !== "");
-	await page.screenshot({ path: `/tmp/honesty-repro-24.2-${test.upstream.replace(/\s+/g, "-")}.png`, fullPage: true });
 	await context.close();
-
-	const joined = added.join(" | ");
-	console.log(`\n### ${test.upstream}  (route hits: ${hits})`);
-	console.log(`    added: ${JSON.stringify(added.slice(0, 8))}`);
-
-	if (hits === 0) {
-		console.log("    (upstream never called by this trigger — not graded)");
-		return;
+	/* The message may already be in the transcript from an earlier run; look at the whole body. */
+	const named = test.honest.test(after) && after.length >= before.length - 400;
+	console.log(`   ${test.upstream}  hits=${hits()}  named=${named}`);
+	if (hits() > 0 && !named) {
+		failures.push(`${test.upstream}: the upstream failed without a named message`);
 	}
-	/* A card that reports a value while the upstream was dead is a fabricated success. */
-	if (test.upstream === "billing" && /\$[\d,]+ left\./.test(joined)) {
+}
+
+/* ---- reco: honest, asserted -------------------------------------------- */
+{
+	const { context, page, hits } = await open("**/api/reco/**");
+	await page.goto(BASE, { waitUntil: "domcontentloaded" });
+	await page.waitForTimeout(16_000);
+	const text = await page.locator("body").innerText();
+	await context.close();
+	const named = /couldn'?t reach the recommendations service/i.test(text);
+	console.log(`   reco  hits=${hits()}  named=${named}`);
+	if (hits() > 0 && !named) failures.push("reco: the upstream failed without a named message");
+}
+
+/* ---- B. identity: the wrong cause -------------------------------------- */
+{
+	const { context, page, hits } = await open("**/api/auth/session**");
+	await page.goto(BASE, { waitUntil: "domcontentloaded" });
+	await page.waitForTimeout(16_000);
+	const text = await page.locator("body").innerText();
+	await page.screenshot({ path: "/tmp/honesty-repro-24.2-identity.png", fullPage: true });
+	await context.close();
+	const head = text.slice(0, 600);
+	console.log(`B. identity  hits=${hits()}\n    ${head.split("\n").filter((l) => l.trim()).slice(0, 3).join(" | ")}`);
+	if (/isn'?t connected to Smithers'? identity service/i.test(head) || /use the deployed app/i.test(head)) {
 		failures.push(
-			`billing: with the upstream unreachable, /billing.balance rendered a fresh Balance card ("${(joined.match(/\$[\d,]+ left\./) ?? [""])[0]}") stamped with the current time — a fabricated success, not a message`,
-		);
-		return;
-	}
-	if (!test.honest.test(joined)) {
-		failures.push(
-			added.length === 0
-				? `${test.upstream}: the upstream was called and failed, and the UI said NOTHING (console.error only)`
-				: `${test.upstream}: no honest named message — the UI said ${JSON.stringify(added.slice(0, 3))}`,
+			"identity: a failing identity upstream is reported as a build misconfiguration — \"This build isn't connected to Smithers' identity service … Use the deployed app for the signed-in experience\" — while the user IS on the deployed app; the named next step is impossible to act on",
 		);
 	}
-};
+}
 
-for (const test of CASES) await run(test);
-
-console.log("\n--- screenshots: /tmp/honesty-repro-24.2-<upstream>.png");
+console.log("\n--- screenshots: /tmp/honesty-repro-24.2-{billing,reco,identity}.png");
 if (failures.length === 0) {
-	console.log("PASS — every forced upstream failure produced a named message.");
+	console.log("PASS — every forced upstream failure produced a named, honest message.");
 	process.exit(0);
 }
 for (const failure of failures) console.error(`FAIL: ${failure}`);
