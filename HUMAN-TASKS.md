@@ -11,7 +11,7 @@ Verify that the publishing identity controls `@smthrs`:
 npm org ls smthrs
 ```
 
-Reserve or confirm every engine-group `-next` name below. All returned E404 at
+Reserve or confirm every engine-group name below. All returned E404 at
 the audit; recheck each name before publishing:
 
 ```sh
