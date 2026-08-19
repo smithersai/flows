@@ -111,6 +111,18 @@ const declaredEffects = (effects: Effects.Declaration | undefined): Descriptor.E
 })
 
 /**
+ * Drops the own properties whose value is exactly `null`.
+ *
+ * Only the top level, and only `null` — this is the JSON round trip of a
+ * JavaScript object with `undefined`-valued keys, not a general coercion.
+ */
+const withoutNulls = (input: unknown): unknown => {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) return input
+  const entries = Object.entries(input as Record<string, unknown>).filter(([, value]) => value !== null)
+  return Object.fromEntries(entries)
+}
+
+/**
  * Renders one schema as a JSON Schema document, or `undefined` when it has no
  * JSON Schema form.
  *
@@ -262,12 +274,23 @@ export const make = <
     descriptor,
     run: (call) =>
       Effect.gen(function*() {
-        const decoded = decodeInput(call.input)
+        const first = decodeInput(call.input)
+        // A cell is JavaScript, where `{ env: undefined }` and `{}` are the
+        // same object for an optional key — but the call crosses a JSON
+        // boundary, which has no `undefined`, so the omission arrives as an
+        // explicit `null` that an optional field rejects. That cost a whole
+        // frame per occurrence: the model reissued the identical call minus
+        // one key, learning the shape one rejection at a time. Retrying once
+        // without the nulls is exactly the JavaScript reading of the same
+        // value, and a schema that genuinely accepts `null` already decoded on
+        // the first attempt.
+        const decoded = first._tag === "Failure" ? decodeInput(withoutNulls(call.input)) : first
         if (decoded._tag === "Failure") {
+          // The first attempt's failure is the one worth reporting: it names
+          // the key the caller actually wrote.
+          const failure = first._tag === "Failure" ? first.failure : decoded.failure
           return refused(
-            `Flow ${descriptor.name} rejected its input: ${
-              describe(decoded.failure)
-            }. Re-read ctx.flows and reissue the call.`
+            `Flow ${descriptor.name} rejected its input: ${describe(failure)}. Re-read ctx.flows and reissue the call.`
           )
         }
         const produced = yield* Effect.result(options.handler(decoded.success, call))
