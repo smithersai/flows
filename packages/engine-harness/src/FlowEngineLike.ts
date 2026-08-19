@@ -159,6 +159,30 @@ export interface WorkspaceCallRunner {
 }
 
 /**
+ * Rewrites one declared effect path into the workspace-relative form the
+ * engine's file boundary speaks.
+ *
+ * The two sides use different vocabularies for the same idea. A flow
+ * declaration is written against `@smthrs/core`'s `Effects.covers`, whose
+ * only wildcard form is an absolute prefix glob — which is why every
+ * filesystem flow in `@smthrs/std` declares `/**` for "any path". The
+ * engine's `StepBoundary` resolves boundary paths against the pinned
+ * workspace root, and `AtomicFileSystem` refuses `/**` outright as "path is
+ * outside the pinned root". Handing the declaration across untranslated made
+ * every `read`, `write`, `edit`, `glob`, `grep`, and `ls` call from a cell
+ * fail before its handler ran.
+ *
+ * The translation is exact rather than lenient: a flow cannot reach outside
+ * the workspace at all — the kernel filesystem pins it — so the declaration's
+ * "anywhere" and the boundary's "everything under the root" name the same
+ * set, and a leading `/` is the only difference between how the two write it.
+ *
+ * @category conversions
+ * @since 0.1.0
+ */
+export const workspaceRelative = (path: string): string => path.startsWith("/") ? path.slice(1) : path
+
+/**
  * Converts the agent-side declaration into the file boundary understood by
  * the production engine and its workspace sandbox.
  *
@@ -171,8 +195,8 @@ export interface WorkspaceCallRunner {
  * @since 0.1.0
  */
 export const callBoundary = (call: Cell.Call): FileBoundary => ({
-  readSet: call.effects.reads.map((path) => ({ path, digest: call.identity.declaration })),
-  writeSet: call.effects.writes,
+  readSet: call.effects.reads.map((path) => ({ path: workspaceRelative(path), digest: call.identity.declaration })),
+  writeSet: call.effects.writes.map(workspaceRelative),
   boundaryMode: call.effects.mode === "hermetic" ? "hard" : "expected"
 })
 
