@@ -127,8 +127,10 @@ export interface ExecuteOptions {
    * declaration, then the default. It decides whether a target runs projected
    * and which host environment values a tool may read. The projection mode a
    * target settles into is cache-key material; the policy and the flag are
-   * not, following the `readCache` and `remoteCache` precedent. Omitted, every
-   * target runs exactly as it ran before projection existed.
+   * not, following the `readCache` and `remoteCache` precedent. Omitted, the
+   * default policy applies: a target whose planned metadata opts in runs
+   * projected, and every other target runs exactly as it ran before
+   * projection existed.
    */
   readonly sandbox?: Config.Sandbox | undefined
 }
