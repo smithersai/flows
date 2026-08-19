@@ -52,3 +52,9 @@ export * as WorkspaceSandbox from "./WorkspaceSandbox.ts"
  * @since 0.1.0
  */
 export * as InMemoryWorkspaceSandbox from "./InMemoryWorkspaceSandbox.ts"
+
+/**
+ * @category constructors
+ * @since 0.1.0
+ */
+export * as AgentAction from "./AgentAction.ts"
