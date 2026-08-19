@@ -85,11 +85,11 @@ key.
 Three shapes, and nothing else. A workflow that can only be one of three shapes
 is a workflow whose safety property a renderer can enforce.
 
-| Constructor                  | Runs                                                    |
-| ---------------------------- | ------------------------------------------------------- |
-| `Smithers.Automation.agent`  | One `factory/automation/<entry>` under `node`.          |
-| `Smithers.Automation.verb`   | One smthrs verb over a target pattern.                  |
-| `Smithers.Automation.script` | One shell script.                                       |
+| Constructor                  | Runs                                           |
+| ---------------------------- | ---------------------------------------------- |
+| `Smithers.Automation.agent`  | One `factory/automation/<entry>` under `node`. |
+| `Smithers.Automation.verb`   | One smthrs verb over a target pattern.         |
+| `Smithers.Automation.script` | One shell script.                              |
 
 Every job also renders, in order: a checkout, the declared manager's frozen
 install, any `downloads`, the work step, and any `uploads`. `checkout` and
@@ -107,11 +107,11 @@ it.
 
 ## Modes and verbs
 
-| Verb    | Mode    | Behavior                                                     |
-| ------- | ------- | ------------------------------------------------------------ |
-| `build` | `check` | Byte-compares the checked-in file against the render.        |
-| `lint`  | `check` | The same. This is the drift gate `smthrs ci` runs.           |
-| `run`   | `write` | Renders and writes.                                          |
+| Verb    | Mode    | Behavior                                              |
+| ------- | ------- | ----------------------------------------------------- |
+| `build` | `check` | Byte-compares the checked-in file against the render. |
+| `lint`  | `check` | The same. This is the drift gate `smthrs ci` runs.    |
+| `run`   | `write` | Renders and writes.                                   |
 
 `smthrs ci` can therefore never rewrite a workflow, and `smthrs run
 //:<target>` is the only writer. A `run` target is excluded from generated
@@ -127,41 +127,41 @@ target and the gate runs again.
 
 ## Attributes
 
-| Name             | Type                            | Default              | Description                                                                                              |
-| ---------------- | ------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------- |
-| `slug`           | `string`                        | required             | Lowercase, `[a-z][a-z0-9-]*`. The output is `.github/workflows/gen.<slug>.yml`; it is not separately declarable. |
-| `target`         | `string`                        | required             | The BUILD.ts export name, which the marker header tells an editor to run.                                |
-| `workflowName`   | `string`                        | required             | The operator-facing workflow name.                                                                       |
-| `on`             | `Triggers`                      | required             | `issues`, `issueComment`, `pullRequest`, `schedule`, `workflowDispatch`. At least one is required.       |
-| `jobs`           | `Array<Job>`                    | required             | One or more jobs, in render order.                                                                       |
-| `permissions`    | `Record<string, PermissionLevel>` | `{ contents: "read" }` | Workflow-level `GITHUB_TOKEN` permissions. Scopes are checked against the known set.                   |
-| `concurrency`    | `string`                        | optional             | The `concurrency.group` expression. `cancel-in-progress` is always false: cancelling a bookkeeping job mid-commit is worse than queuing. |
-| `packageManager` | `PackageManager.PackageManager` | required             | The declared manager. Its frozen install is what every job runs.                                         |
-| `nodeVersion`    | `string`                        | `"22.19.0"`          | The version the generated `setup-node` step pins.                                                        |
-| `mode`           | `"check" \| "write"`            | `"check"`            | Overridden per verb by `attrsForKind`.                                                                   |
+| Name             | Type                              | Default                | Description                                                                                                                              |
+| ---------------- | --------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `slug`           | `string`                          | required               | Lowercase, `[a-z][a-z0-9-]*`. The output is `.github/workflows/gen.<slug>.yml`; it is not separately declarable.                         |
+| `target`         | `string`                          | required               | The BUILD.ts export name, which the marker header tells an editor to run.                                                                |
+| `workflowName`   | `string`                          | required               | The operator-facing workflow name.                                                                                                       |
+| `on`             | `Triggers`                        | required               | `issues`, `issueComment`, `pullRequest`, `schedule`, `workflowDispatch`. At least one is required.                                       |
+| `jobs`           | `Array<Job>`                      | required               | One or more jobs, in render order.                                                                                                       |
+| `permissions`    | `Record<string, PermissionLevel>` | `{ contents: "read" }` | Workflow-level `GITHUB_TOKEN` permissions. Scopes are checked against the known set.                                                     |
+| `concurrency`    | `string`                          | optional               | The `concurrency.group` expression. `cancel-in-progress` is always false: cancelling a bookkeeping job mid-commit is worse than queuing. |
+| `packageManager` | `PackageManager.PackageManager`   | required               | The declared manager. Its frozen install is what every job runs.                                                                         |
+| `nodeVersion`    | `string`                          | `"22.19.0"`            | The version the generated `setup-node` step pins.                                                                                        |
+| `mode`           | `"check" \| "write"`              | `"check"`              | Overridden per verb by `attrsForKind`.                                                                                                   |
 
 ### Job attributes
 
 Shared by all three constructors:
 
-| Name              | Type                              | Default            | Description                                                                     |
-| ----------------- | --------------------------------- | ------------------ | --------------------------------------------------------------------------------- |
-| `id`              | `string`                          | required           | The GitHub Actions job id.                                                       |
-| `name`            | `string`                          | optional           | The operator-facing job name.                                                    |
-| `runsOn`          | `string`                          | `"ubuntu-latest"`  | A label, or a `[label, label]` set.                                              |
-| `needs`           | `Array<string>`                   | `[]`               | Job ids in this workflow. A dangling or self reference is refused.               |
-| `condition`       | `string`                          | optional           | An extra `if:` expression, ANDed with the gate on a gated job.                   |
-| `untrustedInput`  | `boolean`                         | `false`            | Applies the full boundary above.                                                 |
-| `requireApproval` | `boolean`                         | `false`            | Applies the gate condition alone. Implied by `untrustedInput`.                   |
-| `secrets`         | `Array<Secret.Secret>`            | `[]`               | Rendered as `NAME: ${{ secrets.NAME }}`. Refused on an untrusted-input job.      |
-| `env`             | `Record<string, string>`          | `{}`               | Literal environment entries.                                                     |
-| `permissions`     | `Record<string, PermissionLevel>` | `{}`               | Forced to `contents: read` on an untrusted-input job.                            |
-| `timeoutMinutes`  | `number`                          | optional           | A whole number from 1 to 360.                                                    |
-| `checkout`        | `boolean`                         | `true`             | Whether the job checks the repository out.                                       |
-| `install`         | `boolean`                         | `true`             | Whether the job installs the workspace.                                          |
-| `downloads`       | `Array<Artifact>`                 | `[]`               | Downloaded before the work step.                                                 |
-| `uploads`         | `Array<Artifact>`                 | `[]`               | Uploaded after it, with `if-no-files-found: error`.                              |
-| `caches`          | `Array<Cache>`                    | `[]`               | `actions/cache@v4` steps. Refused on an untrusted-input job.                     |
+| Name              | Type                              | Default           | Description                                                                 |
+| ----------------- | --------------------------------- | ----------------- | --------------------------------------------------------------------------- |
+| `id`              | `string`                          | required          | The GitHub Actions job id.                                                  |
+| `name`            | `string`                          | optional          | The operator-facing job name.                                               |
+| `runsOn`          | `string`                          | `"ubuntu-latest"` | A label, or a `[label, label]` set.                                         |
+| `needs`           | `Array<string>`                   | `[]`              | Job ids in this workflow. A dangling or self reference is refused.          |
+| `condition`       | `string`                          | optional          | An extra `if:` expression, ANDed with the gate on a gated job.              |
+| `untrustedInput`  | `boolean`                         | `false`           | Applies the full boundary above.                                            |
+| `requireApproval` | `boolean`                         | `false`           | Applies the gate condition alone. Implied by `untrustedInput`.              |
+| `secrets`         | `Array<Secret.Secret>`            | `[]`              | Rendered as `NAME: ${{ secrets.NAME }}`. Refused on an untrusted-input job. |
+| `env`             | `Record<string, string>`          | `{}`              | Literal environment entries.                                                |
+| `permissions`     | `Record<string, PermissionLevel>` | `{}`              | Forced to `contents: read` on an untrusted-input job.                       |
+| `timeoutMinutes`  | `number`                          | optional          | A whole number from 1 to 360.                                               |
+| `checkout`        | `boolean`                         | `true`            | Whether the job checks the repository out.                                  |
+| `install`         | `boolean`                         | `true`            | Whether the job installs the workspace.                                     |
+| `downloads`       | `Array<Artifact>`                 | `[]`              | Downloaded before the work step.                                            |
+| `uploads`         | `Array<Artifact>`                 | `[]`              | Uploaded after it, with `if-no-files-found: error`.                         |
+| `caches`          | `Array<Cache>`                    | `[]`              | `actions/cache@v4` steps. Refused on an untrusted-input job.                |
 
 `agent` adds `entry` (a lowercase `.ts` file directly under
 `factory/automation`) and `args` (plain words). `verb` adds `verb` and
@@ -170,12 +170,12 @@ single-quoted shell word. `script` adds `run`.
 
 ## Errors
 
-| Error                         | Raised when                                                                  |
-| ----------------------------- | ---------------------------------------------------------------------------- |
-| `UntrustedJobError`           | A declaration would weaken the untrusted-input boundary.                     |
-| `AutomationDeclarationError`  | A shape GitHub Actions rejects, or one the vocabulary does not express.      |
-| `WriteFileError`              | The generated file could not be written.                                     |
-| `DriftError`                  | The checked-in file is missing or differs from the render.                   |
+| Error                        | Raised when                                                             |
+| ---------------------------- | ----------------------------------------------------------------------- |
+| `UntrustedJobError`          | A declaration would weaken the untrusted-input boundary.                |
+| `AutomationDeclarationError` | A shape GitHub Actions rejects, or one the vocabulary does not express. |
+| `WriteFileError`             | The generated file could not be written.                                |
+| `DriftError`                 | The checked-in file is missing or differs from the render.              |
 
 Both refusals happen at plan time, before an action is scheduled. Nothing is
 written by a declaration the renderer could not prove safe.
@@ -189,12 +189,12 @@ shared by both rules.
 
 ## Channels and status
 
-|          |                                                                       |
-| -------- | --------------------------------------------------------------------- |
-| Kinds    | `build`, `lint`, `run`                                                |
-| Success  | `Schema.Void`                                                         |
-| Error    | `WriteFileError \| DriftError`                                        |
-| Executes | Yes. The executor provides the write and byte-check actions.          |
+|          |                                                              |
+| -------- | ------------------------------------------------------------ |
+| Kinds    | `build`, `lint`, `run`                                       |
+| Success  | `Schema.Void`                                                |
+| Error    | `WriteFileError \| DriftError`                               |
+| Executes | Yes. The executor provides the write and byte-check actions. |
 
 ## See also
 

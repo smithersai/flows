@@ -55,12 +55,12 @@ exists for future additions and is unused. See
 
 ## Generation
 
-| Target                                  | Kinds           | Cacheable                          | Status   | Summary                                                                      |
-| --------------------------------------- | --------------- | ---------------------------------- | -------- | ---------------------------------------------------------------------------- |
-| [SortPackageJson](sort-package-json.md) | `build`, `lint` | Never                              | Executes | Validates or rewrites `package.json` key ordering.                           |
-| [PackageJson](package-json-gen.md)      | `lint` / `run`  | Check only                         | Executes | Expands a typed manifest declaration into check, write, and refresh targets. |
-| [GithubCiGen](github-ci-gen.md)         | `build`, `lint` | Effective `contract`/`check` modes | Executes | Generates the GitHub Actions CI workflow from attrs.                         |
-| [GithubAutomation](github-automation.md) | `build`, `lint`, `run` | Effective `check` mode        | Executes | Generates one event-driven `gen.<slug>.yml` and enforces the untrusted-input gate. |
+| Target                                   | Kinds                  | Cacheable                          | Status   | Summary                                                                            |
+| ---------------------------------------- | ---------------------- | ---------------------------------- | -------- | ---------------------------------------------------------------------------------- |
+| [SortPackageJson](sort-package-json.md)  | `build`, `lint`        | Never                              | Executes | Validates or rewrites `package.json` key ordering.                                 |
+| [PackageJson](package-json-gen.md)       | `lint` / `run`         | Check only                         | Executes | Expands a typed manifest declaration into check, write, and refresh targets.       |
+| [GithubCiGen](github-ci-gen.md)          | `build`, `lint`        | Effective `contract`/`check` modes | Executes | Generates the GitHub Actions CI workflow from attrs.                               |
+| [GithubAutomation](github-automation.md) | `build`, `lint`, `run` | Effective `check` mode             | Executes | Generates one event-driven `gen.<slug>.yml` and enforces the untrusted-input gate. |
 
 ## Documentation
 
