@@ -249,6 +249,14 @@ export const UsageEvent = Schema.Struct({
  * @slop
  */
 export type UsageEvent = typeof UsageEvent.Type
+/** A bounded model-boundary retry, recorded so run reports can count transport recovery. */
+export const Retry = Schema.Struct({
+  type: Schema.Literal("retry"),
+  attempt: Schema.Int,
+  code: Schema.String
+})
+/** The decoded form of {@link Retry}. */
+export type Retry = typeof Retry.Type
 /**
  * Ends the stream and states why. A stream without one was interrupted.
  *
@@ -296,6 +304,7 @@ export const ModelEvent = Object.assign(
     ToolCallEnd,
     ToolResult,
     UsageEvent,
+    Retry,
     Settle
   ]).pipe(Schema.toTaggedUnion("type")),
   {
@@ -310,6 +319,7 @@ export const ModelEvent = Object.assign(
     ToolCallEnd: ToolCallEnd.make,
     ToolResult: ToolResult.make,
     Usage: (input: Usage): UsageEvent => ({ type: "usage", ...input }),
+    Retry: Retry.make,
     Settle: Settle.make,
     settledMessage
   }
@@ -413,6 +423,8 @@ export function settledMessage(
         }
         break
       }
+      case "retry":
+        break
       case "settle":
         if (!didSettle) {
           stopReason = event.stopReason

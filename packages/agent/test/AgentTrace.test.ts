@@ -60,6 +60,18 @@ describe("trace", () => {
   it.each(
     [
       [
+        "model-retried",
+        new AgentEvent.ModelRetried({
+          eventType: "flows.harness.model-retried.v1",
+          attempt: 2,
+          code: "transport"
+        }),
+        {
+          eventType: "control.agent.model-retried",
+          payload: { attempt: 2, code: "transport" }
+        }
+      ],
+      [
         "discipline-armed",
         new AgentEvent.DisciplineArmed({
           eventType: "flows.harness.discipline-armed.v1",
@@ -86,6 +98,20 @@ describe("trace", () => {
             callMs: 120_000,
             totalMs: 900_000
           }
+        }
+      ],
+      [
+        "read-only-demanded",
+        new AgentEvent.ReadOnlyDemanded({
+          eventType: "flows.harness.read-only-demanded.v1",
+          streak: 12,
+          cap: 12,
+          nextFrame: 13,
+          nextAction: "write"
+        }),
+        {
+          eventType: "control.agent.read-only-demanded",
+          payload: { streak: 12, cap: 12, nextFrame: 13, nextAction: "write" }
         }
       ],
       [

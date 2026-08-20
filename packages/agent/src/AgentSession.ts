@@ -144,6 +144,11 @@ export const trace = (
   switch (event._tag) {
     case "model-delta":
       return undefined
+    case "model-retried":
+      return {
+        eventType: "control.agent.model-retried",
+        payload: { attempt: event.attempt, code: event.code }
+      }
     case "discipline-armed":
       // The positive record of what this run armed, written before any of it
       // can fire. A run that never completes still proves its arming here.
@@ -211,6 +216,16 @@ export const trace = (
           ...(event.verification === undefined
             ? {}
             : { flowName: event.verification.flow, input: event.verification.input })
+        }
+      }
+    case "read-only-demanded":
+      return {
+        eventType: "control.agent.read-only-demanded",
+        payload: {
+          streak: event.streak,
+          cap: event.cap,
+          nextFrame: event.nextFrame,
+          nextAction: event.nextAction
         }
       }
     case "suspended":

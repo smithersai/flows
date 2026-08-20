@@ -52,6 +52,7 @@ import * as QuickJSSandbox from "@smthrs/harness/QuickJSSandbox"
 import type * as Sandbox from "@smthrs/harness/Sandbox"
 import * as Steering from "@smthrs/harness/Steering"
 import type * as MemorySource from "@smthrs/memory/Source"
+import type * as Model from "@smthrs/model/Model"
 import * as ModelRequest from "@smthrs/model/ModelRequest"
 import type { FlowsHooks, PluginInput } from "@smthrs/plugin"
 import type { FlowsConfig, ResolvedConfig } from "@smthrs/plugin/Config"
@@ -60,6 +61,7 @@ import type * as Plugins from "@smthrs/plugin/Plugins"
 import type * as Descriptor from "@smthrs/registry/Descriptor"
 import type * as Registry from "@smthrs/registry/Registry"
 import { Context, Effect, Layer, Option, Stream } from "effect"
+import type * as Schedule from "effect/Schedule"
 import * as CellPlugin from "./CellPlugin.ts"
 import * as FlowEngineLike from "./FlowEngineLike.ts"
 import * as Seat from "./Seat.ts"
@@ -78,6 +80,8 @@ import * as Seat from "./Seat.ts"
 export interface Options {
   /** The durable session or lineage every call identity is scoped to. */
   readonly session: string
+  /** Overrides the bounded transport retry schedule at the model boundary. */
+  readonly modelRetryPolicy?: Schedule.Schedule<unknown, Model.ModelFailure> | undefined
   /**
    * The resolved seat this run streams from.
    *
@@ -315,7 +319,8 @@ const runProduction: Service["run"] = (options) =>
               run: resolver.run
             },
             layers,
-            capabilities: { envelope }
+            capabilities: { envelope },
+            modelRetryPolicy: options.modelRetryPolicy
           })
           const state = CellTurn.make({
             session: options.session,

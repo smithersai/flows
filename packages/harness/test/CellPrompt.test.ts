@@ -146,4 +146,12 @@ describe("cellPrompt", () => {
       expect(contract).toContain(intent)
     }
   })
+
+  it("teaches canonical regression evidence and language-aware post-edit diagnostics", () => {
+    const contract = CellPrompt.make({})[0]?.text ?? ""
+    expect(contract).toContain("failed before the first write")
+    expect(contract).toContain("state.verification")
+    expect(contract).toContain("language-aware per-file diagnostics")
+    expect(contract).toContain("undefined-name")
+  })
 })

@@ -83,6 +83,8 @@ const eventType = {
   cellSettled: "flows.harness.cell-settled.v1",
   compactionSettled: "flows.harness.compaction-settled.v1",
   completionAudited: "flows.harness.completion-audited.v1",
+  modelRetried: "flows.harness.model-retried.v1",
+  readOnlyDemanded: "flows.harness.read-only-demanded.v1",
   modelDelta: "flows.harness.model-delta.v1",
   modelSettled: "flows.harness.model-settled.v1",
   permissionRequired: "flows.harness.permission-required.v1",
@@ -169,6 +171,11 @@ export class State extends Schema.Class<State>("flows/harness/CellTurn/State")({
     Schema.withConstructorDefault(Effect.succeed(0)),
     Schema.withDecodingDefaultKey(Effect.succeed(0))
   ),
+  /** Intervention waiting to be resolved by the next frame. */
+  pendingReadOnlyDemand: Schema.optional(Schema.Struct({
+    streak: NonNegativeSafeInt,
+    cap: NonNegativeSafeInt
+  })),
   /**
    * Signatures of the calls this run actually made, most recent last.
    *
@@ -177,6 +184,20 @@ export class State extends Schema.Class<State>("flows/harness/CellTurn/State")({
    * Bounded, because it is carried frame to frame.
    */
   executedCalls: Schema.Array(Schema.String).pipe(
+    Schema.withConstructorDefault(Effect.succeed([])),
+    Schema.withDecodingDefaultKey(Effect.succeed([]))
+  ),
+  /** Number of mutating calls settled so far. */
+  mutationEpoch: NonNegativeSafeInt.pipe(
+    Schema.withConstructorDefault(Effect.succeed(0)),
+    Schema.withDecodingDefaultKey(Effect.succeed(0))
+  ),
+  /** Bounded machine observations used to prove a baseline regression changed. */
+  verificationHistory: Schema.Array(Schema.Struct({
+    signature: Schema.String,
+    passed: Schema.Boolean,
+    mutationEpoch: NonNegativeSafeInt
+  })).pipe(
     Schema.withConstructorDefault(Effect.succeed([])),
     Schema.withDecodingDefaultKey(Effect.succeed([]))
   )
@@ -262,7 +283,10 @@ export const make = (options: {
     readOnlyCap: options.readOnlyCap ?? 0,
     readOnlyFrames: 0,
     readOnlyGrace: 0,
-    executedCalls: []
+    pendingReadOnlyDemand: undefined,
+    executedCalls: [],
+    mutationEpoch: 0,
+    verificationHistory: []
   })
 
 /**
@@ -520,6 +544,22 @@ const mutating = (descriptor: Descriptor.FlowDescriptor, input: Schema.Json): bo
 const callSignature = (flow: string, input: Schema.Json): string =>
   Digest.digest(CanonicalJson.stringify({ flow, input }))
 
+const emitModelProgress = (
+  event: ModelEvent.ModelEvent,
+  emit: (event: AgentEvent.AgentEvent) => Effect.Effect<void>
+): Effect.Effect<void> =>
+  event.type === "retry"
+    ? emit(
+      new AgentEvent.ModelRetried({
+        eventType: eventType.modelRetried,
+        attempt: event.attempt,
+        code: event.code
+      })
+    )
+    : event.type === "settle"
+    ? Effect.void
+    : emit(new AgentEvent.ModelDelta({ eventType: eventType.modelDelta, delta: event }))
+
 /** The exit code a settled call reported, when its output carries one. */
 const exitCodeOf = (value: Schema.Json): number | undefined => {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined
@@ -618,6 +658,8 @@ const verifyCompletion = (options: {
   readonly cell: Cell.Source
   readonly descriptors: ReadonlyMap<string, Descriptor.FlowDescriptor>
   readonly executed: ReadonlySet<string>
+  readonly verificationHistory: State["verificationHistory"]
+  readonly mutationEpoch: number
   readonly ordinal: number
   readonly verification: Cell.Verification | undefined
   readonly engine: EngineLike.EngineLike
@@ -639,6 +681,17 @@ const verifyCompletion = (options: {
         accepted: false,
         detail:
           `This run never called ${verification.flow} with that exact input, so the declared check cites work that was never done.`
+      }
+    }
+    const signature = callSignature(verification.flow, verification.input)
+    const failedOnBaseline = options.verificationHistory.some(
+      (entry) => entry.signature === signature && !entry.passed && entry.mutationEpoch === 0
+    )
+    if (options.mutationEpoch > 0 && !failedOnBaseline) {
+      return {
+        accepted: false,
+        detail:
+          "The identical check did not fail before the first write and cannot prove the bug changed. Run a targeted reproduction on the baseline, edit, then cite that exact command."
       }
     }
     const result = yield* callHandler(
@@ -712,7 +765,9 @@ const compacted = (
       params: summaryRequest.params
     })
     const events = yield* Stream.runCollect(
-      engine.sealStep({ request, keyMaterial: keyMaterialFrom(state, request) })
+      engine.sealStep({ request, keyMaterial: keyMaterialFrom(state, request) }).pipe(
+        Stream.tap((event) => emitModelProgress(event, emit))
+      )
     ).pipe(Effect.map((collected) => Array.from(collected)))
     if (!events.some((event) => event.type === "settle")) {
       return yield* new HarnessError({
@@ -780,13 +835,11 @@ const frame = (
     // supplies a clock sees the duration it declared.
     const startedAt = yield* Clock.currentTimeMillis
     const events = yield* Stream.runCollect(
-      engine.sealStep({ request, keyMaterial: keyMaterialFrom(state, request) })
+      engine.sealStep({ request, keyMaterial: keyMaterialFrom(state, request) }).pipe(
+        Stream.tap((event) => emitModelProgress(event, emit))
+      )
     ).pipe(Effect.map((collected) => Array.from(collected)))
     const settledAt = yield* Clock.currentTimeMillis
-    for (const event of events) {
-      if (event.type === "settle") continue
-      yield* emit(new AgentEvent.ModelDelta({ eventType: eventType.modelDelta, delta: event }))
-    }
     if (!events.some((event) => event.type === "settle")) {
       return yield* new HarnessError({
         code: "model_failed",
@@ -872,7 +925,10 @@ const frame = (
       readonly mutates: boolean
       /** The signature a later completion may cite this call by. */
       readonly signature: string
+      readonly passed: boolean
+      readonly mutationEpoch: number
     }> = []
+    let mutationEpoch = state.mutationEpoch
     const observing: Sandbox.Handler = (invocation) =>
       callHandler(state, cell, descriptors, engine, emit)(invocation).pipe(
         Effect.tap((result) =>
@@ -881,12 +937,17 @@ const frame = (
               ? JSON.stringify(result.value) ?? "null"
               : result.message ?? "failed"
             const descriptor = descriptors.get(invocation.flow)
+            const doesMutate = descriptor !== undefined && mutating(descriptor, invocation.input)
+            if (doesMutate) mutationEpoch++
+            const exitCode = result.outcome === "success" ? exitCodeOf(result.value) : undefined
             observedCalls.push({
               flow: invocation.flow,
               ok: result.outcome === "success",
               summary: clip(rendered, 400),
-              mutates: descriptor !== undefined && mutating(descriptor, invocation.input),
-              signature: callSignature(invocation.flow, invocation.input)
+              mutates: doesMutate,
+              signature: callSignature(invocation.flow, invocation.input),
+              passed: result.outcome === "success" && (exitCode === undefined || exitCode === 0),
+              mutationEpoch
             })
           })
         )
@@ -909,8 +970,27 @@ const frame = (
       ...state.executedCalls,
       ...observedCalls.filter((call) => call.ok).map((call) => call.signature)
     ].slice(-executedCallsRemembered)
+    const verificationHistory = [
+      ...state.verificationHistory,
+      ...observedCalls.map((call) => ({
+        signature: call.signature,
+        passed: call.passed,
+        mutationEpoch: call.mutationEpoch
+      }))
+    ].slice(-executedCallsRemembered)
 
     if (outcome._tag !== "settled") {
+      if (state.pendingReadOnlyDemand !== undefined) {
+        yield* emit(
+          new AgentEvent.ReadOnlyDemanded({
+            eventType: eventType.readOnlyDemanded,
+            streak: state.pendingReadOnlyDemand.streak,
+            cap: state.pendingReadOnlyDemand.cap,
+            nextFrame: state.frame,
+            nextAction: mutatingCalls > 0 ? "write" : "read-only"
+          })
+        )
+      }
       const salvage = observedCalls.length === 0
         ? ""
         : `\nCalls this cell already completed (their results are durable; use them instead of redoing the work):\n${
@@ -924,6 +1004,9 @@ const frame = (
       // did land before throwing still clears it.
       const step = observe(note, {
         executedCalls,
+        mutationEpoch,
+        verificationHistory,
+        pendingReadOnlyDemand: undefined,
         ...(mutatingCalls > 0 ? { readOnlyFrames: 0, readOnlyGrace: 0 } : {})
       })
       yield* emit(
@@ -975,6 +1058,21 @@ const frame = (
     const cap = state.readOnlyCap
     const readOnly = mutatingCalls === 0
     const readOnlyFrames = readOnly ? state.readOnlyFrames + 1 : 0
+    if (state.pendingReadOnlyDemand !== undefined) {
+      yield* emit(
+        new AgentEvent.ReadOnlyDemanded({
+          eventType: eventType.readOnlyDemanded,
+          streak: state.pendingReadOnlyDemand.streak,
+          cap: state.pendingReadOnlyDemand.cap,
+          nextFrame: state.frame,
+          nextAction: mutatingCalls > 0
+            ? "write"
+            : (transition._tag === "continue" && (transition.justification ?? "").trim().length > 0)
+            ? "justification"
+            : "read-only"
+        })
+      )
+    }
     if (cap > 0 && readOnlyFrames >= cap * 2) {
       return yield* readOnlyCapFailure(cap, readOnlyFrames)
     }
@@ -1003,7 +1101,10 @@ const frame = (
             agentState: transition.state,
             completionChallenged: true,
             readOnlyFrames,
-            executedCalls
+            pendingReadOnlyDemand: undefined,
+            executedCalls,
+            mutationEpoch,
+            verificationHistory
           })
         }
       }
@@ -1016,6 +1117,8 @@ const frame = (
           cell,
           descriptors,
           executed: new Set(executedCalls),
+          verificationHistory,
+          mutationEpoch,
           ordinal: observedCalls.length,
           verification: transition.verify,
           engine,
@@ -1055,7 +1158,10 @@ const frame = (
               contextWindow: observed(state, settled.message, verificationRefused(verdict.detail)),
               agentState: transition.state,
               readOnlyFrames,
-              executedCalls
+              pendingReadOnlyDemand: undefined,
+              executedCalls,
+              mutationEpoch,
+              verificationHistory
             })
           }
         }
@@ -1161,7 +1267,10 @@ const frame = (
         agentState: transition.state,
         readOnlyFrames,
         readOnlyGrace,
-        executedCalls
+        pendingReadOnlyDemand: demanded && !justified ? { streak: readOnlyFrames, cap } : undefined,
+        executedCalls,
+        mutationEpoch,
+        verificationHistory
       })
     }
   })
