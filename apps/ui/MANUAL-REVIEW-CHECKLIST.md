@@ -441,8 +441,10 @@ Run the flow, read the card, resize the window, switch theme, and reload.
       card, the world editor, the connectors pane, and the devtools panel in at
       least three themes.
 - [ ] **20.3** `/dark-mode` toggles, and every theme is legible in both modes.
-      Look specifically at code blocks, diffs, status pills, and disabled
-      controls.
+      Look specifically at code blocks, diffs, status pills, disabled controls,
+      and any row that fills itself when selected — the repo chooser, the
+      workflow picker, the slash menu — where the fill must not swallow the
+      text on top of it.
 - [ ] **20.4** The theme choice survives a reload and applies before first
       paint (no flash of the wrong theme).
 - [ ] **20.5** The OS `prefers-color-scheme` default is respected before the
