@@ -152,6 +152,9 @@ describe("an act row carries what it did (will, 2026-08-19)", () => {
 		expect(row?.text.startsWith("Smithers ")).toBe(true);
 		expect(row?.actDetail).toContain("/issues.list");
 		expect(row?.actDetail).toContain("open will/flows");
+		// The registry's own "executed /name" is what the visible line already
+		// says, so the detail carries what the reader cannot see, not an echo.
+		expect(row?.actDetail).not.toContain("executed /issues.list");
 		// It starts closed: the row opens because the human opened it.
 		expect(row?.actExpanded).toBe(false);
 	});

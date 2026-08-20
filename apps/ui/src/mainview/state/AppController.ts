@@ -2194,8 +2194,14 @@ export const createAppController = (
 			// The raw arguments are the honest source when they do not parse.
 			args = call.args;
 		}
+		/*
+		 * "executed /issues.list" is the registry's own acknowledgement, and the
+		 * visible line above already says the flow ran — repeating it as the
+		 * result would fill the row with what the reader can see.
+		 */
 		const answered = result.split("\n")[0] ?? "";
-		return actDetail([`/${flow}`, actDetailField(args), actDetailField(answered)]);
+		const said = answered.trim() === `executed /${flow}` ? "" : answered;
+		return actDetail([`/${flow}`, actDetailField(args), actDetailField(said)]);
 	};
 
 	const toolActLine = (call: PendingToolCall, result: string): string => {
