@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
  */
 
 const appRoot = fileURLToPath(new URL("../../..", import.meta.url));
-const repoRoot = fileURLToPath(new URL("../../../../../..", import.meta.url));
+const repoRoot = fileURLToPath(new URL("../../../../..", import.meta.url));
 
 describe("tailwind content globs resolve from any cwd", () => {
 	test("every content glob's static prefix names a real directory from the repo root", async () => {
