@@ -7,6 +7,11 @@
  * it cannot interpret. BUILD.ts modules therefore resolve every `effect` bare
  * import from the CLI package that owns the runtime.
  *
+ * The CLI also owns the BUILD.ts authoring surface. Resolving
+ * `@smthrs/targets` from here lets a globally installed `smthrs` bootstrap a
+ * repository that has only a BUILD.ts; requiring the repository to install the
+ * package would make generated package.json files circular to create.
+ *
  * ## BUILD.ts module format
  *
  * The resolve hook below reports `format: "module"` for every BUILD.ts, so a
@@ -45,7 +50,11 @@ export const installEffectResolution = () => {
   if (globalThis[installation] === true) return
   registerHooks({
     resolve(specifier, context, nextResolve) {
-      const resolved = specifier === "effect" || specifier.startsWith("effect/")
+      const cliOwned = specifier === "effect" ||
+        specifier.startsWith("effect/") ||
+        specifier === "@smthrs/targets" ||
+        specifier.startsWith("@smthrs/targets/")
+      const resolved = cliOwned
         ? nextResolve(specifier, { ...context, parentURL: import.meta.url })
         : nextResolve(specifier, context)
       return isBuildModule(resolved.url) ? { ...resolved, format: "module" } : resolved
