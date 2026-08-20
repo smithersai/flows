@@ -11,9 +11,10 @@ import { BrowserServices } from "@smthrs/platform-browser"
 import * as Effect from "effect/Effect"
 import { ChildProcess } from "effect/unstable/process"
 
-const program = Effect.scoped(ChildProcess.make`ls -la`).pipe(
-  Effect.provide(BrowserServices.layer({ bash, fs }))
-)
+const makeProgram = (options: Parameters<typeof BrowserServices.layer>[0]) =>
+  Effect.scoped(ChildProcess.make`ls -la`).pipe(
+    Effect.provide(BrowserServices.layer(options))
+  )
 ```
 
 Both backends are arguments, not imports: neither `@zenfs/core` nor `just-bash` is a dependency here. The page owns which ZenFS backend is mounted (IndexedDB, OPFS, memory) and which just-bash instance is wired to it. The signature says so. The package depends on `effect` alone.

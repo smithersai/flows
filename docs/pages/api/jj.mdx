@@ -38,10 +38,11 @@ import { Jj } from "@smthrs/jj"
 import * as BrowserJj from "@smthrs/jj/browser/BrowserJj"
 import * as Effect from "effect/Effect"
 
-const program = Effect.gen(function*() {
-  const jj = yield* Jj
-  return yield* jj.snapshot("before the step")
-}).pipe(Effect.provide(BrowserJj.layer({ wasm, fs, root: "/repo" })))
+const makeProgram = (options: BrowserJj.BrowserJjOptions) =>
+  Effect.gen(function*() {
+    const jj = yield* Jj
+    return yield* jj.snapshot("before the step")
+  }).pipe(Effect.provide(BrowserJj.layer(options)))
 ```
 
 :::

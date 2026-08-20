@@ -18,7 +18,7 @@ Everything below is stated against `packages/*/src`. Behavior with a test in sou
 | [Temporal](https://docs.temporal.io/) | a mature durable-execution service and cloud platform | shard and rangeID fencing became the run claim expressed as a `WHERE` clause; mutable state plus event batches in one persistence request became `Journal.transact`; reset and rebuild informed the rewind protocol; persisted attempt counts informed the retry origin |
 | [Restate](https://docs.restate.dev/foundations/services) | a lightweight runtime with durable services, state, promises, and exactly-once-per-ID workflows | the shape of an idempotency-derived execution id |
 | [Inngest](https://www.inngest.com/docs/learn/how-functions-are-executed) | managed coordination with memoized steps, queues, and flow control | the memoized-step model that `Action` implements |
-| [Bazel](https://bazel.build) Skyframe | keyed, memoizing, parallel, incremental evaluation | content-addressed step keys, the cache-admission gate, and the `GraphTester`-shaped deterministic test harness |
+| [Bazel](https://bazel.build) Skyframe | keyed, memoizing, parallel, incremental evaluation | content-addressed step keys, the cache-admission gate, and the `GraphTester`-shaped deterministic test fixture |
 | [BAML](https://github.com/BoundaryML/baml) | schema-first prompting and evals as a language feature | the discipline of declaring a typed contract before the effect that satisfies it |
 
 [Comparisons](/comparisons) expands the Bazel row: the caching model against TurboRepo, Nx, and Bazel.
@@ -51,7 +51,7 @@ The honest positioning is an embeddable, Effect-native durable-execution toolkit
 | Waiting taxonomy | `park`, `wake`, `waiting`, and `waitingRuns` with reason, wake time, and token columns, driven by `FlowRuntime.annotateWaiting` or derived from clock state |
 | Retry policy | data-shaped policy, pure `nextDelay`, a `decideEffect` decision point driven by the persisted attempt count, and an `expirationMs` bound measured from the durably persisted first-attempt start |
 | WAL atomicity | every lifecycle entry commits in the same write transaction as the state transition it describes |
-| Fault harness | `Notifying.wrap` and `layer` for interstitial crash and fence-loss injection, driven at every closed interstitial by `WalAtomicity.test.ts` |
+| Fault injection | `Notifying.wrap` and `layer` for interstitial crash and fence-loss injection, driven at every closed interstitial by `WalAtomicity.test.ts` |
 | Public error contract | `EngineStore.Errors` with stable `code` literals |
 | Time travel | replay projections, memory and SQL stores, fork, rewind, compensation, recovery, tier-aware retry |
 | Journal compaction | `Journal.checkpoint` captures replay state at a committed sequence; `Journal.compact` truncates below it atomically with the floor advance, refuses live in-process readers behind the boundary, and reads below the floor fail with a typed `compacted` resync signal; opt-in entry-count policy on `SqlJournal.layer` |

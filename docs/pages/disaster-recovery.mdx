@@ -97,8 +97,17 @@ Every durable write in the store is fenced by an `OwnerId` equality check compil
 The restore script runs the one-shot `restoreAndFence` API. If you need separate staging, run `restore` and then `fence` yourself before any engine adopts the restored database:
 
 ```ts
-const restored = yield* DisasterRecovery.restore({ backupDirectory, targetDirectory })
-const summary = yield* DisasterRecovery.fence(restored.manifest) // over the restored database's layers
+import { DisasterRecovery } from "@smthrs/engine-store"
+import * as Effect from "effect/Effect"
+
+const backupDirectory = "/backups/2026-08-13T12-00"
+const targetDirectory = "/srv/flows-restored"
+
+const program = Effect.gen(function*() {
+  const restored = yield* DisasterRecovery.restore({ backupDirectory, targetDirectory })
+  const summary = yield* DisasterRecovery.fence(restored.manifest) // over the restored database's layers
+  return { restored, summary }
+})
 ```
 
 ## Expectations
@@ -114,10 +123,10 @@ const summary = yield* DisasterRecovery.fence(restored.manifest) // over the res
 
 ## What is not covered
 
-- **Writes after the snapshot.** Lost by definition. The backup interval is the bound.
-- **External side effects.** The store records what ran; it cannot undo an email, a push, or an API call made after the snapshot, and an in-flight attempt re-executes on resume. Side effects need the same idempotency they need to survive a crash.
-- **Workspace trees and jj state.** Only the database and the objects directory are captured. Action workspaces, sandbox trees, and jj repositories are not part of the backup.
-- **Remote artifact tiers.** `RemoteArtifacts` content is not walked. The backup captures the local objects directory; a restored store backed by a remote tier heals remote misses through the normal read-through path.
-- **Retention, encryption, and off-host transport.** The backup directory is plain files; scheduling, rotation, encryption, and shipping it off the host are the operator's platform.
-- **Non-SQLite backends.** `backup` speaks SQLite (`VACUUM INTO`) and fails with its `sql` error code on any other `SqlClient`.
-- **Restarting the work.** Restore and fence make the store usable again; they do not run anything. Abandoned runs are not auto-resumed in this release: the supervision runtime in `@smthrs/gateway` is a noop (`packages/gateway/src/SuperviseRuntime.ts`), so nothing scans a restored store and launches a worker for it. `fence` changes every restored `running` row into an ownerless `suspended` row and clears its heartbeat. Those rows are immediately claimable, but they are not stale-running rows and no periodic sweep discovers them. Bring up a process composed through `@smthrs/flows/NodeRuntime` with every relevant flow registered, then explicitly re-drive each restored run through its flow definition's `resume(executionId)` operation. The procedure is in [Using the durable engine](https://github.com/smithersai/flows/blob/main/docs/guides/durable-engine.md#abandoned-runs-are-not-auto-resumed).
+- Writes after the snapshot are lost by definition. The backup interval is the bound.
+- The store cannot undo an external side effect, such as an email, a push, or an API call made after the snapshot. An in-flight attempt re-executes on resume. Side effects need the same idempotency they need to survive a crash.
+- Only the database and the objects directory are captured. Action workspaces, sandbox trees, and jj repositories are not part of the backup.
+- `RemoteArtifacts` content is not walked. The backup captures the local objects directory; a restored store backed by a remote tier heals remote misses through the normal read-through path.
+- The backup directory contains plain files. Scheduling, rotation, encryption, and off-host transport belong to the operator's platform.
+- `backup` speaks SQLite (`VACUUM INTO`) and fails with its `sql` error code on any other `SqlClient`.
+- Restore and fence make the store usable again; they do not restart the work. Abandoned runs are not auto-resumed in this release: the supervision runtime in `@smthrs/gateway` is a noop (`packages/gateway/src/SuperviseRuntime.ts`), so nothing scans a restored store and launches a worker for it. `fence` changes every restored `running` row into an ownerless `suspended` row and clears its heartbeat. Those rows are immediately claimable, but they are not stale-running rows and no periodic sweep discovers them. Bring up a process composed through `@smthrs/flows/NodeRuntime` with every relevant flow registered, then explicitly re-drive each restored run through its flow definition's `resume(executionId)` operation. The procedure is in [Using the durable engine](https://github.com/smithersai/flows/blob/main/docs/guides/durable-engine.md#abandoned-runs-are-not-auto-resumed).

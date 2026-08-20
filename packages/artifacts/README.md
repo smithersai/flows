@@ -99,7 +99,7 @@ Reclaiming published artifacts is an explicit verb per
 operation. The `.tmp-*` sweep in `layerFileSystem` reclaims crash orphans only;
 `ArtifactSweep` is the deletion surface, and the mark phase that decides what
 is live belongs to `@smthrs/engine-store`'s `ArtifactGc`
-(`docs/pages/artifact-gc.md`). Two concerns are ticketed rather than silently
+(`docs/pages/artifact-gc.mdx`). Two concerns are ticketed rather than silently
 omitted (`docs/specs/Concepts/Tickets Not Exceptions.md`):
 
 - `.smithers/tickets/cas-chunked-transfer.md` — chunked and resumable transfer.

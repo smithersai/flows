@@ -11,16 +11,20 @@ The design follows Temporal, where the durable "snapshot" is mutable state pinne
 ## Checkpoint
 
 ```ts
-import { Journal } from "@smthrs/journal"
+import { Journal, JournalEvent } from "@smthrs/journal"
 import * as Effect from "effect/Effect"
+import * as Schema from "effect/Schema"
+
+const runId = Schema.decodeUnknownSync(JournalEvent.RunId)("build-42")
+const seq = Schema.decodeUnknownSync(JournalEvent.Seq)(17)
 
 const program = Effect.gen(function*() {
   const journal = yield* Journal.Journal
   return yield* journal.checkpoint({
     runId,
-    seq,        // a committed sequence of this run
-    state       // your replay state, covering every entry with seq <= this one
-  }, owner)     // optional: fence on run ownership
+    seq, // a committed sequence of this run
+    state: { completedSteps: ["checkout", "build"] }
+  })
 })
 ```
 
@@ -42,8 +46,21 @@ The write shares `Journal.transact`'s discipline. Inside an open `transact` it j
 ## Compact
 
 ```ts
-yield* journal.compact({ runId }, owner)          // truncate below the latest checkpoint
-yield* journal.compact({ runId, upTo }, owner)    // truncate below a named checkpoint
+import { Journal, JournalEvent } from "@smthrs/journal"
+import * as Effect from "effect/Effect"
+import * as Schema from "effect/Schema"
+
+const runId = Schema.decodeUnknownSync(JournalEvent.RunId)("build-42")
+const compactLatest = Effect.gen(function*() {
+  const journal = yield* Journal.Journal
+  return yield* journal.compact({ runId })
+})
+
+const compactThrough = (upTo: JournalEvent.Seq) =>
+  Effect.gen(function*() {
+    const journal = yield* Journal.Journal
+    return yield* journal.compact({ runId, upTo })
+  })
 ```
 
 Compaction deletes the run's entries strictly below the checkpoint, deletes superseded checkpoints, and marks the checkpoint as the run's compaction floor, all in one write transaction. A crash mid-compaction is unrepresentable as a partial state: either everything committed or nothing did. A retried compaction is idempotent and reports `deleted: 0`.
@@ -69,9 +86,7 @@ Resync is three steps.
 
 ### Read the latest checkpoint
 
-```ts
-const latest = yield* journal.latestCheckpoint(runId)   // Option<Checkpoint>
-```
+Call `journal.latestCheckpoint(runId)`. It returns `Option<Checkpoint>`.
 
 ### Discard local derived state and apply `latest.state`
 
@@ -79,9 +94,7 @@ The checkpoint state subsumes every entry at or below `latest.seq`, so anything 
 
 ### Continue from the checkpoint sequence
 
-```ts
-journal.stream({ runId, afterSequence: latest.seq })
-```
+Call `journal.stream({ runId, afterSequence: latest.seq })`.
 
 ::::
 
@@ -92,14 +105,14 @@ A projection over a compacted run follows the same rule: start it from the check
 `SqlJournal.layer` takes an optional automatic policy. It is off by default.
 
 ```ts
-SqlJournal.layer({
-  capacity: 1024,
-  overflow: "reject",
-  compaction: {
-    entryThreshold: 10_000,
-    capture: (runId, upTo) => buildReplayState(runId, upTo)
-  }
-})
+import { SqlJournal } from "@smthrs/journal"
+
+const makeJournalLayer = (capture: SqlJournal.CompactionPolicy["capture"]) =>
+  SqlJournal.layer({
+    capacity: 1024,
+    overflow: "reject",
+    compaction: { entryThreshold: 10_000, capture }
+  })
 ```
 
 Once a run's committed entry count reaches `entryThreshold`, the journal calls `capture` for the replay state at the run's durable tail, checkpoints there, and compacts. The count is seeded from the durable history on the run's first committed entry in a process, so a restart still compacts a long pre-existing backlog.
@@ -120,7 +133,9 @@ Compaction truncates the durable producer-retry window: a retry of a source even
 `@smthrs/time-travel` forks copy the parent's surviving journal rows; history below the floor is gone. Compaction trades auditability below the boundary for bounded storage, which is its point. Keep full history on runs where the audit trail matters more than the disk.
 :::
 
-**Checkpoint state is unbounded by the journal.** Persist a digest or a reference if your replay state is large; the row is a single `state_json` column.
+:::note[Checkpoint size]
+The journal does not bound checkpoint state. Persist a digest or a reference if your replay state is large; the row is a single `state_json` column.
+:::
 
 :::warning[SQLite only]
 The implementation ships for the SQLite dialect (the `SqlJournal` all stores share). The PGlite/browser story is a follow-up: the SQL is standard except for the migration's `typeof` checks, and the read-side guard and transactional shape carry over unchanged, but only SQLite is exercised by the test suite today.

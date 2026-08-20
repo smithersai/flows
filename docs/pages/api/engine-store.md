@@ -123,7 +123,7 @@ This is a deterministic transaction model, not a security boundary.
 | `make`, `layer` | two-tier implementation | `layer` takes the local tier from the `ArtifactStore` tag |
 | `ArtifactPublicationFailed` | class | a referenced artifact could not be made durable in the shared tier |
 
-`publish` runs `findMissing` → upload the missing → re-probe to confirm, immediately **before** the transaction that records the cache entry and never inside it. That is Bazel's REAPI ordering constraint: the action result is uploaded after every blob it refers to.
+`publish` runs `findMissing` → upload the missing → re-probe to confirm immediately before the transaction that records the cache entry, never inside it. That is Bazel's REAPI ordering constraint: the action result is uploaded after every blob it refers to.
 
 ## ArtifactGc
 
@@ -152,7 +152,7 @@ Collection never runs automatically. `gc()` is an explicit verb, and the mark is
 | `makeLocal`, `layerLocal` | single-tier default | nothing to publish |
 | `make`, `layer` | shared implementation | over a remote [`CacheStore`](/api/step-cache) |
 
-The entry is published **after** the transaction that made the local row durable, because a host call must never be held across a `DurableWriter` write. Pair it with `CombinedCacheStore` in `"deferred"` publication mode, which leaves the shared write to this seam.
+The entry is published after the transaction that made the local row durable, because a host call must never be held across a `DurableWriter` write. Pair it with `CombinedCacheStore` in `"deferred"` publication mode, which leaves the shared write to this seam.
 
 Neither publication step can fail a run. By the time they run the result is already durably recorded on this host, so a refusal withholds the shared copy and journals a `cache-provenance` record with `action: "unpublished"`, which is visible rather than silent.
 

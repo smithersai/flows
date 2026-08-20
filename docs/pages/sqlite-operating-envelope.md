@@ -18,10 +18,10 @@ restart durability (`packages/database/src/test/TestDatabase.ts`).
 
 The package root is browser-bundleable because it exposes the `DurableWriter`
 contract, not a driver (`packages/database/src/index.ts`,
-`docs/pages/package-structure.md`). Running a durable browser engine still
+`docs/pages/package-structure.mdx`). Running a durable browser engine still
 requires a browser SQL client supplied by the application. This repository does
 not ship a sqlite-wasm, OPFS, PGlite, Postgres, or other browser database layer
-(`docs/architecture/browser-support.md`, `docs/pages/package-structure.md`).
+(`docs/architecture/browser-support.md`, `docs/pages/package-structure.mdx`).
 
 Postgres and PGlite are not parity backends today. `DurableWriter.make` accepts
 any Effect `SqlClient`, and its classifier recognizes Postgres SQLSTATEs and
