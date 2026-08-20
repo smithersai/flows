@@ -10,6 +10,7 @@ import type { AppController as AppControllerType } from "./AppController";
 import { createAppStore } from "./AppStore";
 import type { AppStore } from "./AppStore";
 import type { NativeAgent, NativeRepositories } from "../native/NativeBridge";
+import { repoImportPolling } from "./seams/RepoImportSeam";
 
 /*
  * Directive 1b (will, 2026-08-19): "I think what we should be showing here is a
@@ -65,6 +66,18 @@ const silentAgent: NativeAgent = {
 };
 
 const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+/** Poll the store rather than guess a delay; a miss fails on the deadline, never hangs. */
+const until = async (ready: () => boolean, deadlineMs = 2_000): Promise<void> => {
+	const started = Date.now();
+	while (!ready()) {
+		if (Date.now() - started > deadlineMs) throw new Error("the condition never became true");
+		await new Promise((resolve) => setTimeout(resolve, 1));
+	}
+};
+
+const json = (body: unknown, status = 200): Response =>
+	new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
 const mount = (controller: AppControllerType): { host: HTMLElement } => {
 	const host = document.createElement("div");
@@ -532,6 +545,124 @@ describe("the GitHub pane (will, 2026-08-19)", () => {
  * stacked above the pane. That is not a browsing pane; it is the transcript
  * with a pane in it.
  */
+/*
+ * The race directive 5 created, and the retry that closes it.
+ *
+ * Opening a repository starts a SILENT import and reads the repository in the
+ * same breath. A repository the account has never mirrored answers every read
+ * under `/api/repos/{o}/{r}/**` with a 404 until that import lands, and nothing
+ * renders the import — so without a retry the first open of a fresh repository
+ * sits on "Files have not been read yet." until the user tries again by hand.
+ * That is the implementation detail leaking out as broken browsing.
+ */
+describe("the first open of a repository the account has not mirrored yet", () => {
+	/** The import job the fake platform runs: cloning on the first poll, ready on the next. */
+	const importingBackend = (repo: string) => {
+		const calls = { contents: 0, imports: 0, polls: 0 };
+		let mirrored = false;
+		const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+			const url = String(input);
+			if (url.includes("/api/reco/repos")) {
+				return json({ candidates: CANDIDATES });
+			}
+			if (url.includes("/api/github/import/")) {
+				calls.polls += 1;
+				// One in-flight poll, then ready — the mirror exists from then on.
+				if (calls.polls === 1) return json({ importJobId: "job-1", status: "cloning", stage: "cloning_github" });
+				mirrored = true;
+				return json({ importJobId: "job-1", status: "ready" });
+			}
+			if (url.includes("/api/github/import") && init?.method === "POST") {
+				calls.imports += 1;
+				return json({ importJobId: "job-1", status: "cloning", stage: "resolving" });
+			}
+			if (url.includes(`/api/repos/${repo}/contents`)) {
+				calls.contents += 1;
+				// The whole namespace 404s until the import lands: the body names
+				// the REPOSITORY, never a path, which is the split FilesSeam reads.
+				if (!mirrored) return json({ error: "repository not found" }, 404);
+				return json([
+					{ name: "README.md", path: "README.md", type: "file" },
+					{ name: "src", path: "src", type: "dir" },
+				]);
+			}
+			return json({}, 503);
+		}) as typeof fetch;
+		return { calls, fetchImpl };
+	};
+
+	test("the pane fills itself when the silent import lands, with no second act from the user", async () => {
+		const store = await webStore();
+		const backend = importingBackend("will/flows");
+		const controller = createAppController(store, unavailableRepositories, silentAgent, {
+			fetchImpl: backend.fetchImpl,
+		});
+		await signedIn(store, []);
+		const restore = repoImportPolling.delayMs;
+		repoImportPolling.delayMs = 1;
+		try {
+			await controller.commands.run("repo.open", "will/flows");
+			await settled();
+			// The first read really did degrade: the repository is not there yet.
+			expect(backend.calls.contents).toBe(1);
+			expect(store.collections.cards.get("files-will/flows-/")).toBeUndefined();
+			const { host } = mount(controller);
+			expect(host.textContent).toContain("Files have not been read yet.");
+
+			// Nothing else is pressed from here on. The import lands, and the
+			// frame re-runs the read that degraded.
+			await until(() => store.collections.repoImports.get("will/flows")?.phase === "done");
+			await until(() => store.collections.cards.get("files-will/flows-/") !== undefined);
+			expect(backend.calls.contents).toBe(2);
+
+			const listed = store.collections.cards.get("files-will/flows-/");
+			expect(listed?.kind === "file-list" && listed.payload.entries.map((entry) => entry.name)).toEqual([
+				"src",
+				"README.md",
+			]);
+			// And the pane shows it: the projection follows the collection.
+			flushSync(() => {});
+			await settled();
+			expect(host.textContent).toContain("README.md");
+			// Still no import card, at any phase (directive 5).
+			expect(store.collections.cards.get("repo-import-will/flows")).toBeUndefined();
+		} finally {
+			repoImportPolling.delayMs = restore;
+		}
+	});
+
+	test("a read that did not degrade is never read twice", async () => {
+		const store = await webStore();
+		const backend = importingBackend("will/flows");
+		const controller = createAppController(store, unavailableRepositories, silentAgent, {
+			fetchImpl: (async (input: RequestInfo | URL, init?: RequestInit) => {
+				const url = String(input);
+				// The mirror is already there: the contents read answers at once.
+				if (url.includes("/api/repos/will/flows/contents")) {
+					return json([{ name: "README.md", path: "README.md", type: "file" }]);
+				}
+				return backend.fetchImpl(input, init);
+			}) as typeof fetch,
+		});
+		await signedIn(store, []);
+		const restore = repoImportPolling.delayMs;
+		repoImportPolling.delayMs = 1;
+		try {
+			await controller.commands.run("repo.open", "will/flows");
+			await until(() => store.collections.cards.get("files-will/flows-/") !== undefined);
+			await until(() => store.collections.repoImports.get("will/flows")?.phase === "done");
+			await settled();
+			const listed = store.collections.cards.get("files-will/flows-/");
+			// One read, one card: the retry is armed by the degradation, not by
+			// the import finishing.
+			expect(listed?.kind === "file-list" && listed.payload.entries.length).toBe(1);
+			expect(store.collections.cards.get("files-will/flows-/")?.createdAt).toBe(listed?.createdAt);
+		} finally {
+			repoImportPolling.delayMs = restore;
+		}
+	});
+});
+
 describe("a frame owns the reads it renders", () => {
 	const issueCard = (id: string, repo: string, ordinal: number) =>
 		({

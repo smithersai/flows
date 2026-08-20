@@ -14,7 +14,7 @@
  */
 import type { Card } from "../AppState";
 import { resolveTargetRepo } from "../RepoContext";
-import { readErrorMessage } from "./SeamContext";
+import { notReadyYet, readErrorMessage } from "./SeamContext";
 import type { SeamContext } from "./SeamContext";
 
 export interface IssuesSeam {
@@ -148,8 +148,7 @@ export const createIssuesSeam = (ctx: SeamContext): IssuesSeam => {
 		return `${ctx.baseUrl}/api/user/github-repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/issues?state=${filter}`;
 	};
 
-	const notImported = (repo: string): string =>
-		`${repo} isn't ready yet — try again shortly`;
+	const notImported = (repo: string): string => notReadyYet(repo);
 
 	const upsert = (card: Card): void => {
 		ctx.dispatch({ type: "card.upsert", actor: ctx.actor(), card });

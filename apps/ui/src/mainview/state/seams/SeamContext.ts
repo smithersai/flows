@@ -43,3 +43,21 @@ export const readErrorMessage = async (response: Response, fallback: string): Pr
 	}
 	return fallback;
 };
+
+/**
+ * The one degradation a repository-scoped read has while its mirror does not
+ * exist yet.
+ *
+ * Directive 5 (will, 2026-08-19) made the import invisible: it starts when a
+ * repository is opened and renders nothing. A read issued before it lands has
+ * nothing to show, and nobody is watching a progress card who could try again.
+ * So the message and the recognizer live together here — the controller asks
+ * `isNotReadyYet` of a read's outcome and re-runs that read once the import
+ * reports ready (AppController's `readWithImport`), instead of matching a
+ * sentence by hand at the call site.
+ */
+export const notReadyYet = (repo: string): string => `${repo} isn't ready yet — try again shortly`;
+
+/** True when a seam answered a read with `notReadyYet`. */
+export const isNotReadyYet = (outcome: unknown): boolean =>
+	typeof outcome === "string" && outcome.endsWith("isn't ready yet — try again shortly");
