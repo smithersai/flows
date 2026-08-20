@@ -272,6 +272,47 @@ export default defineSuite({
 			);
 			report.ok("the Pull Requests tab lists number, title, state, author, comment count and updated time");
 
+			/*
+			 * The Flows tab: the same list treatment on the flow side, with only
+			 * the fields a flow has. The stub gateway answers listWorkflows with
+			 * two entries, so this proves the rows, not just the tab label.
+			 */
+			const flowsTab = (await textsOf(page, TAB)).indexOf("Flows");
+			report.check(await clickNth(page, TAB, flowsTab), "the Flows tab was not clickable");
+			await waitUntil(
+				report,
+				"the Flows tab never rendered the repository's flows",
+				async () => (await count(page, `${PANE} ul.world-card-list.workflow-list li.world-card-row`)) > 0,
+				OPEN_MS,
+			);
+			const flowTitles = await textsOf(page, `${PANE} .workflow-list-row .world-card-title`);
+			report.check(
+				flowTitles.includes("create-workflow"),
+				`a flow row did not state its key (saw ${flowTitles.join(" | ")})`,
+			);
+			const flowDescriptions = await textsOf(page, `${PANE} .workflow-list-row .world-card-path`);
+			report.check(
+				flowDescriptions.some((text) => text.includes("Build a new Smithers workflow")),
+				`a flow row lost its description (saw ${flowDescriptions.join(" | ")})`,
+			);
+			report.equals(
+				await count(page, `${PANE} .workflow-list-row [data-flow="flow.run"]`),
+				flowTitles.length,
+				"a flow row carried no run act bound to the registered command",
+			);
+			// NO INVENTION: a flow has no open/closed state, so no row wears one.
+			report.equals(
+				await count(page, `${PANE} .workflow-list-row [data-slot="badge"]`),
+				0,
+				"a flow row wore a state badge no flow has",
+			);
+			report.equals(
+				await count(page, `[data-flow="prs.view"]`),
+				0,
+				"the Pull Requests tab's list was left behind when the user changed tabs",
+			);
+			report.ok("the Flows tab lists the repository's flows in the shared row treatment");
+
 			// The Files tab is the SAME browser the /files frame mounts.
 			const filesTab = (await textsOf(page, TAB)).indexOf("Files");
 			report.check(await clickNth(page, TAB, filesTab), "the Files tab was not clickable");
