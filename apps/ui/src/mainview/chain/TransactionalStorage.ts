@@ -227,33 +227,44 @@ export const openTransactionalStorage = async (
 		}
 	}
 
-	const base = new Map<string, string>(Object.entries(entries));
+	let base = new Map<string, string>(Object.entries(entries));
 	let pending: Map<string, string | null> | undefined;
 	let batchDepth = 0;
 
-	const serialize = (): string =>
-		JSON.stringify({ version: ENVELOPE_VERSION, entries: Object.fromEntries(base) });
+	const serialize = (next: ReadonlyMap<string, string>): string =>
+		JSON.stringify({ version: ENVELOPE_VERSION, entries: Object.fromEntries(next) });
 
 	/*
 	 * The one commit point. Stage the next envelope, commit it with a single
 	 * atomic write, then clear the stage. A crash before the middle write
 	 * leaves the old envelope authoritative; a crash after it leaves the new
 	 * one; the boot's recovery finishes either direction.
+	 *
+	 * The in-memory mirror adopts `next` only after the host write returns.
+	 * A commit that throws (a quota rejection, a revoked host) must leave the
+	 * mirror on the last committed envelope: otherwise the live session would
+	 * read a projection the host never took, and the NEXT successful commit
+	 * would persist it — the half-applied transition this facade exists to
+	 * prevent.
 	 */
-	const commit = (): void => {
-		const serialized = serialize();
+	const commit = (next: Map<string, string>): void => {
+		const serialized = serialize(next);
 		host.setItem(STAGED_ENVELOPE_STORAGE_KEY, serialized);
 		host.setItem(ENVELOPE_STORAGE_KEY, serialized);
 		host.removeItem(STAGED_ENVELOPE_STORAGE_KEY);
+		base = next;
 	};
 
-	const flushPending = (): void => {
-		if (pending === undefined) return;
-		for (const [key, value] of pending) {
-			if (value === null) base.delete(key);
-			else base.set(key, value);
+	/** The mirror the pending delta would produce, without touching `base`. */
+	const withPending = (): Map<string, string> => {
+		const next = new Map(base);
+		if (pending !== undefined) {
+			for (const [key, value] of pending) {
+				if (value === null) next.delete(key);
+				else next.set(key, value);
+			}
 		}
-		pending = undefined;
+		return next;
 	};
 
 	const storage: StorageApi = {
@@ -266,16 +277,18 @@ export const openTransactionalStorage = async (
 				pending.set(key, value);
 				return;
 			}
-			base.set(key, value);
-			commit();
+			const next = new Map(base);
+			next.set(key, value);
+			commit(next);
 		},
 		removeItem: (key) => {
 			if (pending !== undefined) {
 				pending.set(key, null);
 				return;
 			}
-			base.delete(key);
-			commit();
+			const next = new Map(base);
+			next.delete(key);
+			commit(next);
 		},
 	};
 
@@ -288,8 +301,11 @@ export const openTransactionalStorage = async (
 		if (batchDepth === 0) return;
 		batchDepth -= 1;
 		if (batchDepth > 0) return;
-		flushPending();
-		commit();
+		const next = withPending();
+		// `pending` is cleared before the write so a throwing commit leaves the
+		// facade out of the batch entirely, on the last committed mirror.
+		pending = undefined;
+		commit(next);
 	};
 
 	const abortBatch = (): void => {
@@ -324,7 +340,7 @@ export const openTransactionalStorage = async (
 	// Persist the freshly recovered/migrated/adopted state as one committed
 	// write. Rewriting identical bytes in the common case costs one write per
 	// boot and keeps every open's end state committed by construction.
-	commit();
+	commit(base);
 
 	return { storage, beginBatch, commitBatch, abortBatch, batch, recovery, quarantinedKeys };
 };
