@@ -91,12 +91,21 @@ export interface RowResult {
 	readonly evidence: ReadonlyArray<string>;
 	readonly durationMs: number;
 	readonly tests: ReadonlyArray<string>;
+	/**
+	 * True when the PROBE returned not-testable-yet in a real run — the row
+	 * ran and still decided nothing. Missing env and a missing browser are
+	 * capability gaps and stay green; a probe that punted is an incomplete
+	 * check, and in run mode it fails the command (see exitCodeFor).
+	 */
+	readonly undecidedInProbe?: boolean;
 }
 
 export interface Totals {
 	readonly pass: number;
 	readonly fail: number;
 	readonly notTestableYet: number;
+	/** Rows whose probe ran and still decided nothing (subset of notTestableYet). */
+	readonly probeUndecided: number;
 	readonly skippedDryRun: number;
 }
 

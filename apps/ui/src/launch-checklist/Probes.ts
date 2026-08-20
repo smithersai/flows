@@ -95,9 +95,10 @@ export const TABBABLE_FLOWS = `(() => {
 
 /** Expression source: does any card lead with process chrome instead of its result? */
 export const CARD_LEADS = `(() => {
-	return Array.from(document.querySelectorAll("[data-card-kind], .card"))
+	/* The app renders cards as .smithers-card[data-kind] (ChatCards.tsx). */
+	return Array.from(document.querySelectorAll(".smithers-card[data-kind], .card"))
 		.map((card) => {
-			const kind = card.getAttribute("data-card-kind") ?? "card";
+			const kind = card.getAttribute("data-kind") ?? "card";
 			const lead = (card.textContent ?? "").trim().split("\\n").map((line) => line.trim()).filter((line) => line.length > 0)[0] ?? "";
 			return { kind, lead: lead.slice(0, 80) };
 		});

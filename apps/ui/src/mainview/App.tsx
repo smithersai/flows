@@ -611,6 +611,7 @@ function Composer({
 							aria-selected={index === slashHighlighted}
 							data-highlighted={index === slashHighlighted ? "true" : "false"}
 							data-gold={item.recommended}
+							data-flow={item.flow.name}
 							className="slash-menu-item"
 							onMouseEnter={() => setSlashMenu({ draft, index, dismissed: false })}
 							onClick={() => runSlashCommand(item.flow.name)}

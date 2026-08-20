@@ -378,18 +378,16 @@ export default defineSuite({
 
 		/*
 		 * The shared instrument row B-4 itself uses. It selects
-		 * `[data-card-kind], .card`; the app renders `.smithers-card[data-kind]`
-		 * and nothing anywhere carries either, so the live row has always
-		 * answered "not-testable-yet". Recorded, not asserted: fixing
-		 * src/launch-checklist/Probes.ts belongs to whoever owns that file.
+		 * `.smithers-card[data-kind], .card` — exactly what the app renders —
+		 * so it must read every rendered card. (It once selected a spelling
+		 * nothing renders, matched zero cards, and left live row B-4
+		 * undecidable.)
 		 */
 		const shared = await page.evaluate<ReadonlyArray<{ kind: string; lead: string }>>(CARD_LEADS);
-		if (shared.length !== settled.length) {
-			console.log(
-				`note: E4.5-E4.9 — Probes.CARD_LEADS read ${shared.length} of the ${settled.length} rendered cards. ` +
-					`Its selector "[data-card-kind], .card" matches nothing this app renders, so live row B-4 is undecidable.`,
-			);
-		}
+		report.check(
+			shared.length === settled.length,
+			`Probes.CARD_LEADS read ${shared.length} of the ${settled.length} rendered cards, so live row B-4 cannot see them all.`,
+		);
 
 		/* ---------------------------------------------------------------- *
 		 * B-5 — no score, grade or quality number is user-facing.
