@@ -314,10 +314,12 @@ export const applyFrame = (store: TranscriptStore, frame: AgentTurnFrame): void 
 // TODO(shared): move to a shared package (the line fold mirrors apps/ui/src/mainview/native/WebAgent.ts streamFrames)
 export class AgentTurnFrameDecoder {
 	private buffer = "";
+	private invalidLinesValue = 0;
 
 	constructor(
 		private readonly publish: (frame: AgentTurnFrame) => void,
 		private readonly expectedRunId?: string,
+		private readonly injectExpectedRunId = false,
 	) {}
 
 	private decodeLine(line: string): number {
@@ -326,13 +328,23 @@ export class AgentTurnFrameDecoder {
 		try {
 			parsed = JSON.parse(line);
 		} catch {
+			this.invalidLinesValue += 1;
 			return 0;
 		}
-		if (!isAgentTurnFrame(parsed)) return 0;
-		if (this.expectedRunId !== undefined && parsed.runId !== this.expectedRunId) return 0;
-		this.publish(parsed);
+		const candidate =
+			this.injectExpectedRunId && this.expectedRunId !== undefined && typeof parsed === "object" && parsed !== null
+				? { ...parsed, runId: this.expectedRunId }
+				: parsed;
+		if (!isAgentTurnFrame(candidate)) {
+			this.invalidLinesValue += 1;
+			return 0;
+		}
+		if (this.expectedRunId !== undefined && candidate.runId !== this.expectedRunId) return 0;
+		this.publish(candidate);
 		return 1;
 	}
+
+	readonly invalidLines = (): number => this.invalidLinesValue;
 
 	readonly push = (chunk: string): number => {
 		this.buffer += chunk;
