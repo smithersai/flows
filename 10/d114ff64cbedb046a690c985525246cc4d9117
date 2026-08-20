@@ -1,0 +1,185 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "10d114ff64cbedb046a690c985525246cc4d9117",
+ "tree": "eb9530fd82bf4ab1973023541a1aad71535d8f5b",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 36,
+  "sectionCount": 71
+ },
+ "source": {
+  "commit": "ccfe1c0670ee788f360e3a77e633db5d298eadb3",
+  "subject": "📝 docs(run-store): promise the round-2 fold contract in the colocated docs",
+  "priorCanonicalCommit": "0f42111ca25aaffc7105fd19729f36c9f54478ab",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 36,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "storage",
+  "epicsTouched": [
+   {
+    "id": "engine-store",
+    "files": 1
+   },
+   {
+    "id": "storage",
+    "files": 2
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 874,
+  "globalCount": 909,
+  "purpose": "📝 docs(run-store): promise the round-2 fold contract in the colocated docs",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "934a70097b819b70f9190e5b9a97a3aa36b0304a"
+  ],
+  "parent": "934a70097b819b70f9190e5b9a97a3aa36b0304a",
+  "sourceImports": [],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "934a70097b819b70f9190e5b9a97a3aa36b0304a",
+  "next": "2632c05da63099666add6437c743f4c5b3922f59",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "9f4db87e9b528812c207c1054f8c36a09a06c2c7"
+ },
+ "size": {
+  "files": 3,
+  "added": 51,
+  "deleted": 14
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "ccfe1c0670ee788f360e3a77e633db5d298eadb3"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "packages/engine-store/README.md",
+   "mode": "100644",
+   "blob": "2b3d0c8abbb7c501efcd6fb5dc6c50edeb4466a6",
+   "previousBlob": "2118466e42714e40c3e2d87b2967a0777688c78b",
+   "added": 1,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 34,
+     "oldLines": 1,
+     "newStart": 34,
+     "newLines": 1
+    }
+   ],
+   "role": "docs",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/journal/README.md",
+   "mode": "100644",
+   "blob": "3ee5d7ec5b32d09c8e8a79a0f02140ef312a12bf",
+   "previousBlob": "ccded883db6ca0e0fd6c2fe9a9a032a4f3895921",
+   "added": 16,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 113,
+     "oldLines": 0,
+     "newStart": 114,
+     "newLines": 16
+    }
+   ],
+   "role": "docs",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/README.md",
+   "mode": "100644",
+   "blob": "ef346a04eda064fec2e0c7e2101c04c87cfc219a",
+   "previousBlob": "bc086d39413416ace6a3abe0859346584acdde34",
+   "added": 34,
+   "deleted": 13,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 21,
+     "oldLines": 1,
+     "newStart": 21,
+     "newLines": 7
+    },
+    {
+     "oldStart": 41,
+     "oldLines": 4,
+     "newStart": 47,
+     "newLines": 13
+    },
+    {
+     "oldStart": 69,
+     "oldLines": 7,
+     "newStart": 84,
+     "newLines": 7
+    },
+    {
+     "oldStart": 84,
+     "oldLines": 1,
+     "newStart": 99,
+     "newLines": 4
+    },
+    {
+     "oldStart": 100,
+     "oldLines": 0,
+     "newStart": 119,
+     "newLines": 1
+    },
+    {
+     "oldStart": 108,
+     "oldLines": 0,
+     "newStart": 128,
+     "newLines": 1
+    },
+    {
+     "oldStart": 109,
+     "oldLines": 0,
+     "newStart": 130,
+     "newLines": 1
+    }
+   ],
+   "role": "docs",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  }
+ ]
+}
