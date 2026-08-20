@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@effect/vitest"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
-import { Cause, Deferred, Effect, Exit, Fiber, Layer, Result, Stream } from "effect"
+import { Cause, Deferred, Effect, Exit, Fiber, Layer, Stream } from "effect"
 import { Journal } from "../src/Journal.ts"
 import { Input, type RunId, type Seq, type SourceId } from "../src/JournalEvent.ts"
 import * as Migrations from "../src/Migrations.ts"
@@ -163,11 +163,7 @@ describe("Projection", () => {
         const exit = yield* Fiber.await(consumer)
         expect(Exit.isFailure(exit)).toBe(true)
         if (Exit.isFailure(exit)) {
-          const failure = Cause.findError(exit.cause)
-          expect(
-            Cause.hasInterruptsOnly(exit.cause) ||
-              (Result.isSuccess(failure) && Cause.isDone(failure.success))
-          ).toBe(true)
+          expect(Cause.hasInterruptsOnly(exit.cause)).toBe(true)
         }
       })
     )

@@ -80,7 +80,9 @@ const grep = (
         skippedBinary++
         continue
       }
-      const lines = new TextDecoder().decode(bytes).split(/\r?\n/)
+      const content = new TextDecoder().decode(bytes)
+      const lines = content.length === 0 ? [] : content.split(/\r?\n/)
+      if (content.endsWith("\n")) lines.pop()
       const matched: Array<number> = []
       for (let index = 0; index < lines.length; index++) {
         if (input.maxCount !== undefined && matched.length >= input.maxCount) break
@@ -134,7 +136,7 @@ const glob = (
     const files = yield* walkFiles(fileSystem, path, input.root, input.hidden)
     const matching = files.filter((file) => {
       const relative = path.relative(input.root, file)
-      return Contract.matchesGlob(input.pattern, relative, path.basename(file))
+      return Contract.includedByGlobs([input.pattern], relative, path.basename(file))
     }).sort()
     const limit = Math.min(input.limit, MAX_ENTRIES)
     const paths = matching.slice(0, limit)

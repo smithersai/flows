@@ -80,11 +80,12 @@ exists for future additions and is unused. See
 | ---------------------------------- | ----- | --------- | --------------------------------------- | ------------------------------------------------------------------ |
 | [PnpmWorkspace](pnpm-workspace.md) | `run` | Never     | Executes                                | Runs the smthrs install flow for a pnpm workspace.                 |
 | [NewPackage](new-package.md)       | `run` | Never     | Executes                                | Scaffolds one package named with the invocation's `--name` option. |
-| [Changesets](changesets.md)        | `run` | Never     | `status` executes; `version` plans only | Reports Changesets status or applies versioning.                   |
-| [NpmPublish](npm-publish.md)       | `run` | Never     | Plans only                              | Publishes a package to an npm registry.                            |
-| [JsrPublish](jsr-publish.md)       | `run` | Never     | Plans only                              | Publishes a package to JSR.                                        |
+| [Changesets](changesets.md)        | `run` | Never     | Executes                                | Reports Changesets status or applies versioning.                   |
+| [NpmPublish](npm-publish.md)       | `run` | Never     | Executes (dry-run by default)           | Publishes a package to an npm registry.                            |
+| [JsrPublish](jsr-publish.md)       | `run` | Never     | Executes (dry-run by default)           | Publishes a package to JSR.                                        |
 | [Clean](clean.md)                  | `run` | Never     | Executes                                | Deletes explicitly declared generated paths.                       |
 | [Dev](dev.md)                      | `run` | Never     | Executes                                | Runs a long-lived development or watch command.                    |
+| [ToolRun](tool-run.md)             | `run` | Never     | Executes                                | Runs one arbitrary external command for its irreversible side effect. |
 
 ## File sets
 

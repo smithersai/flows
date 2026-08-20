@@ -1,0 +1,463 @@
+{
+  "generatedAt": "2026-08-20T04:17:25.804Z",
+  "mode": "run",
+  "target": "https://canary.smithers.sh",
+  "totals": {
+    "pass": 0,
+    "fail": 1,
+    "notTestableYet": 31,
+    "skippedDryRun": 0
+  },
+  "rows": [
+    {
+      "id": "A-1",
+      "section": "A",
+      "title": "Signed-out shows the chat (transcript + composer): the opening Smithers message carries the sentence, plain-words scopes, and a first-Tab sign-in; no separate landing view (no blank prompt box, no feature list)",
+      "status": "fail",
+      "reasons": [
+        "composer present=false; opening message present=false; first tab stop=button (auth.sign-in at index -1); transcript: Sign in\n‹\n›\nSign in with GitHub\nSelect a repo\n▾\nCreate empty repo"
+      ],
+      "evidence": [
+        "composer present=false; opening message present=false; first tab stop=button (auth.sign-in at index -1); transcript: Sign in\n‹\n›\nSign in with GitHub\nSelect a repo\n▾\nCreate empty repo"
+      ],
+      "durationMs": 108056,
+      "tests": [
+        "[A-1] Signed-out shows the chat (transcript + composer): the opening Smithers message carries the sentence, plain-words scopes, and a first-Tab sign-in; no separate landing view (no blank prompt box, no feature list) [failed]"
+      ]
+    },
+    {
+      "id": "A-2",
+      "section": "A",
+      "title": "Sign-in to first useful message in <= 90s",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_SESSION_COOKIE"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[A-2] Sign-in to first useful message in <= 90s [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "A-3",
+      "section": "A",
+      "title": "First message cites repo-specific data (not greeting-only boilerplate)",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_SESSION_COOKIE"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[A-3] First message cites repo-specific data (not greeting-only boilerplate) [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "A-4",
+      "section": "A",
+      "title": "Workspace pre-exists: no clone/install/configure copy anywhere",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_SESSION_COOKIE"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[A-4] Workspace pre-exists: no clone/install/configure copy anywhere [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "A-5",
+      "section": "A",
+      "title": "\"$500 of usage on us\" stated exactly once",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_SESSION_COOKIE"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[A-5] \"$500 of usage on us\" stated exactly once [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "A-6",
+      "section": "A",
+      "title": "No card form anywhere in the product",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_SESSION_COOKIE"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[A-6] No card form anywhere in the product [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "A-7",
+      "section": "A",
+      "title": "<= 3 questions asked in the whole first run",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_SESSION_COOKIE"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[A-7] <= 3 questions asked in the whole first run [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "A-8",
+      "section": "A",
+      "title": "One recommendation card carrying proposes / why-now / what-happens / accept-edit-dismiss",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_SESSION_COOKIE"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[A-8] One recommendation card carrying proposes / why-now / what-happens / accept-edit-dismiss [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "A-9",
+      "section": "A",
+      "title": "Dismiss is one key and the same recommendation does not return unchanged",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_SESSION_COOKIE"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[A-9] Dismiss is one key and the same recommendation does not return unchanged [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "B-1",
+      "section": "B",
+      "title": "Close browser mid-turn, reopen: conversation + in-flight work restored and correctly described",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_SESSION_COOKIE"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[B-1] Close browser mid-turn, reopen: conversation + in-flight work restored and correctly described [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "B-2",
+      "section": "B",
+      "title": "Escape stops foreground work <= 1s with a statement of what stopped",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_SESSION_COOKIE"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[B-2] Escape stops foreground work <= 1s with a statement of what stopped [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "B-3",
+      "section": "B",
+      "title": "A server-side kill surfaces in the UI (no silent completion/failure)",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_SESSION_COOKIE"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[B-3] A server-side kill surfaces in the UI (no silent completion/failure) [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "B-4",
+      "section": "B",
+      "title": "Result cards lead with the result",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_SESSION_COOKIE"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[B-4] Result cards lead with the result [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "B-5",
+      "section": "B",
+      "title": "No score/grade/number user-facing",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_SESSION_COOKIE"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[B-5] No score/grade/number user-facing [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "B-6",
+      "section": "B",
+      "title": "A correction never renders as an error state",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_SESSION_COOKIE"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[B-6] A correction never renders as an error state [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "B-7",
+      "section": "B",
+      "title": "Zero rating prompts (\"was this helpful?\" anywhere = fail)",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_SESSION_COOKIE"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[B-7] Zero rating prompts (\"was this helpful?\" anywhere = fail) [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "C-1",
+      "section": "C",
+      "title": "Every visible interactive affordance resolves to a named command also reachable by /name",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_SESSION_COOKIE"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[C-1] Every visible interactive affordance resolves to a named command also reachable by /name [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "C-2",
+      "section": "C",
+      "title": "\"/\" opens with the recommended command first and bare \"/\"+Enter runs it",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_SESSION_COOKIE"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[C-2] \"/\" opens with the recommended command first and bare \"/\"+Enter runs it [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "C-3",
+      "section": "C",
+      "title": "The whole section-A journey is completable keyboard-only",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_SESSION_COOKIE"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[C-3] The whole section-A journey is completable keyboard-only [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "D-1",
+      "section": "D",
+      "title": "GET /api/billing/balance shows the $500 design-partner balance for a signed-in user",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_SESSION_COOKIE"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[D-1] GET /api/billing/balance shows the $500 design-partner balance for a signed-in user [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "D-2",
+      "section": "D",
+      "title": "An interactive chat turn does NOT reduce the balance; its true supplier cost IS still recorded (comped, not uncounted)",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_SESSION_COOKIE"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[D-2] An interactive chat turn does NOT reduce the balance; its true supplier cost IS still recorded (comped, not uncounted) [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "D-3",
+      "section": "D",
+      "title": "No top-up/checkout/card-collection flow is exposed to MVP users",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_SESSION_COOKIE"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[D-3] No top-up/checkout/card-collection flow is exposed to MVP users [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "D-4",
+      "section": "D",
+      "title": "At $0, interactive chat keeps working; only non-complimentary work pauses",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_ZERO_BALANCE_BEARER"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[D-4] At $0, interactive chat keeps working; only non-complimentary work pauses [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "E-1",
+      "section": "E",
+      "title": "POST /api/billing/admin/grants rejects calls without the admin token (401)",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_BILLING_UPSTREAM_URL"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[E-1] POST /api/billing/admin/grants rejects calls without the admin token (401) [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "E-2",
+      "section": "E",
+      "title": "An untimestamped grant is refused (400 timestamp_required)",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_BILLING_UPSTREAM_URL, CHECKLIST_BILLING_ADMIN_TOKEN"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[E-2] An untimestamped grant is refused (400 timestamp_required) [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "E-3",
+      "section": "E",
+      "title": "A grant with requester + timestamp credits the balance exactly once (201, audit record)",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_BILLING_UPSTREAM_URL, CHECKLIST_BILLING_ADMIN_TOKEN"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[E-3] A grant with requester + timestamp credits the balance exactly once (201, audit record) [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "F-1",
+      "section": "F",
+      "title": "Impossible ask (send an email): honest \"can't yet + next step\", never fake success",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_SESSION_COOKIE"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[F-1] Impossible ask (send an email): honest \"can't yet + next step\", never fake success [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "F-2",
+      "section": "F",
+      "title": "Impossible ask (read local files): honest \"can't yet + next step\", never fake success",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_SESSION_COOKIE"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[F-2] Impossible ask (read local files): honest \"can't yet + next step\", never fake success [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "F-3",
+      "section": "F",
+      "title": "Impossible ask (unconnected tool): honest \"can't yet + next step\", never fake success",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_SESSION_COOKIE"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[F-3] Impossible ask (unconnected tool): honest \"can't yet + next step\", never fake success [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "F-4",
+      "section": "F",
+      "title": "Impossible ask (claim a push): honest \"can't yet + next step\", never fake success",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_SESSION_COOKIE"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[F-4] Impossible ask (claim a push): honest \"can't yet + next step\", never fake success [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "F-5",
+      "section": "F",
+      "title": "Impossible ask (claim a PR): honest \"can't yet + next step\", never fake success",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_SESSION_COOKIE"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[F-5] Impossible ask (claim a PR): honest \"can't yet + next step\", never fake success [not-testable-yet]"
+      ]
+    },
+    {
+      "id": "F-6",
+      "section": "F",
+      "title": "Blocked-on-approval state agrees across every surface (no RUNNING-vs-Blocked contradiction)",
+      "status": "not-testable-yet",
+      "reasons": [
+        "missing env: CHECKLIST_SESSION_COOKIE"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": [
+        "[F-6] Blocked-on-approval state agrees across every surface (no RUNNING-vs-Blocked contradiction) [not-testable-yet]"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+import { chromium } from "playwright";
+const context = await chromium.launchPersistentContext("/tmp/round3-appearance-admin-profile", { headless: true, viewport: { width: 1440, height: 1000 } });
+const page = context.pages()[0] ?? await context.newPage();
+await page.goto("https://canary.smithers.sh", { waitUntil: "networkidle" });
+const before = { body: (await page.locator("body").innerText()).slice(0, 5000), devtools: await page.locator('[data-flow="devtools"],.devtools-surface').count() };
+await page.keyboard.press("Control+Shift+D");
+await page.waitForTimeout(500);
+const after = { body: (await page.locator("body").innerText()).slice(0, 8000), devtools: await page.locator('[data-flow="devtools"],.devtools-surface').count() };
+console.log(JSON.stringify({ before, after }, null, 2));
+await context.close();

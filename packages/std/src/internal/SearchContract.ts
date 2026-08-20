@@ -46,11 +46,45 @@ export const validatePattern = (pattern: string, fixedStrings: boolean): StdErro
   if (!/^[\x20-\x7e]*$/.test(pattern)) return invalidPattern(pattern, "patterns must contain printable ASCII only")
   if (fixedStrings) return undefined
   if (pattern.includes("(?")) return invalidPattern(pattern, "special groups and lookaround are not supported")
-  if (/\\(?:[1-9]|[bBdDsSwWpPkKxXupPcC])/.test(pattern)) {
-    return invalidPattern(pattern, "backreferences, shorthand classes and encoded escapes are not supported")
+  let inClass = false
+  let classCharacters = 0
+  for (let index = 0; index < pattern.length; index++) {
+    const character = pattern[index]
+    if (character === "\\") {
+      const escaped = pattern[index + 1]
+      if (escaped === undefined || /[A-Za-z0-9]/.test(escaped)) {
+        return invalidPattern(pattern, "backreferences, shorthand classes and encoded escapes are not supported")
+      }
+      index++
+      if (inClass) classCharacters++
+      continue
+    }
+    if (character === "[" && inClass) {
+      return invalidPattern(pattern, "nested and named character classes are not supported")
+    }
+    if (character === "[") {
+      inClass = true
+      classCharacters = 0
+      continue
+    }
+    if (character === "]" && inClass) {
+      if (classCharacters === 0 || (classCharacters === 1 && pattern[index - 1] === "^")) {
+        return invalidPattern(pattern, "empty character classes are not supported")
+      }
+      inClass = false
+      continue
+    }
+    if (inClass) {
+      if ((character === "&" && pattern[index + 1] === "&") ||
+        (character === "-" && pattern[index + 1] === "-") ||
+        (character === "~" && pattern[index + 1] === "~")) {
+        return invalidPattern(pattern, "character-class set operations are not supported")
+      }
+      classCharacters++
+    }
   }
   try {
-    new RegExp(pattern)
+    new RegExp(pattern, "u")
     return undefined
   } catch {
     return invalidPattern(pattern, "invalid Flows Ripgrep ASCII v1 expression")
@@ -71,8 +105,31 @@ export const escapeRegex = (value: string): string => value.replace(/[.*+^${}()|
  * @private
  * @since 0.1.0
  */
-export const expression = (pattern: string, fixedStrings: boolean, insensitive: boolean): RegExp =>
-  new RegExp(fixedStrings ? escapeRegex(pattern) : pattern, insensitive ? "i" : "")
+export const expression = (pattern: string, fixedStrings: boolean, insensitive: boolean): RegExp => {
+  const input = fixedStrings ? escapeRegex(pattern) : pattern
+  let source = ""
+  let inClass = false
+  for (let index = 0; index < input.length; index++) {
+    const character = input[index]
+    if (character === "\\") {
+      source += `${character}${input[index + 1] ?? ""}`
+      index++
+    } else if (character === "[") {
+      inClass = true
+      source += character
+    } else if (character === "]" && inClass) {
+      inClass = false
+      source += character
+    } else if (!inClass && character === ".") {
+      source += "[^\\n]"
+    } else if (!inClass && character === "$") {
+      source += "(?![\\s\\S])"
+    } else {
+      source += character
+    }
+  }
+  return new RegExp(source, insensitive ? "iu" : "u")
+}
 
 const expandBraces = (pattern: string): ReadonlyArray<string> => {
   const opening = pattern.indexOf("{")
@@ -93,7 +150,11 @@ const globExpression = (pattern: string): RegExp => {
   for (let index = 0; index < pattern.length; index++) {
     const character = pattern[index]
     const next = pattern[index + 1]
-    if (character === "*" && next === "*") {
+    if (
+      character === "*" && next === "*" &&
+      (index === 0 || pattern[index - 1] === "/") &&
+      (pattern[index + 2] === undefined || pattern[index + 2] === "/")
+    ) {
       source += pattern[index + 2] === "/" ? "(?:.*/)?" : ".*"
       index += pattern[index + 2] === "/" ? 2 : 1
     } else if (character === "*") source += "[^/]*"
@@ -113,6 +174,40 @@ export const matchesGlob = (pattern: string, relative: string, basename: string)
   expandBraces(pattern).some((expanded) => globExpression(expanded).test(expanded.includes("/") ? relative : basename))
 
 /**
+ * Validates the portable `-g` grammar before either peer sees it.
+ *
+ * @private
+ * @since 0.1.0
+ */
+export const validateGlob = (glob: string): StdError.StdError | undefined => {
+  const pattern = glob.startsWith("!") ? glob.slice(1) : glob
+  if (!/^[\x20-\x7e]*$/.test(pattern)) return invalidPattern(glob, "globs must contain printable ASCII only")
+  if (pattern.includes("\\") || pattern.includes("[") || pattern.includes("]")) {
+    return invalidPattern(glob, "glob escapes and character classes are not supported")
+  }
+  let inBrace = false
+  let alternatives = 1
+  let expansionCount = 1
+  for (let index = 0; index < pattern.length; index++) {
+    const character = pattern[index]
+    if (character === "{") {
+      if (inBrace) return invalidPattern(glob, "nested brace alternatives are not supported")
+      inBrace = true
+      alternatives = 1
+    } else if (character === "," && inBrace) {
+      alternatives++
+    } else if (character === "}") {
+      if (!inBrace || alternatives < 2) return invalidPattern(glob, "braces must contain alternatives")
+      inBrace = false
+      expansionCount *= alternatives
+      if (expansionCount > 256) return invalidPattern(glob, "glob brace expansion exceeds 256 patterns")
+    }
+  }
+  if (inBrace) return invalidPattern(glob, "glob braces must be balanced")
+  return undefined
+}
+
+/**
  * Applies ripgrep `-g` ordering: positive globs include and `!` globs exclude.
  *
  * @private
@@ -120,6 +215,10 @@ export const matchesGlob = (pattern: string, relative: string, basename: string)
  */
 export const includedByGlobs = (globs: ReadonlyArray<string>, relative: string, basename: string): boolean => {
   const positives = globs.filter((glob) => !glob.startsWith("!"))
-  if (positives.length > 0 && !positives.some((glob) => matchesGlob(glob, relative, basename))) return false
-  return !globs.some((glob) => glob.startsWith("!") && matchesGlob(glob.slice(1), relative, basename))
+  let included = positives.length === 0
+  for (const glob of globs) {
+    const excluded = glob.startsWith("!")
+    if (matchesGlob(excluded ? glob.slice(1) : glob, relative, basename)) included = !excluded
+  }
+  return included
 }

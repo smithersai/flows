@@ -189,6 +189,46 @@ describe("EngineStore.layer", () => {
 })
 
 describe("EngineStore.make liveness", () => {
+  it.effect("forwards the stable registration-sweep wake identity to the journal", () =>
+    Effect.gen(function*() {
+      const state = DurableEngineState.makeMemory()
+      const entries = yield* withCrypto(
+        Effect.scoped(Effect.gen(function*() {
+          const runs = yield* RunStore.RunStore
+          yield* runs.create(
+            "historical-deferred",
+            JSON.stringify({ version: 1, flowName: LayerFlow._tag, payload: {} })
+          )
+          yield* state.completeDeferred({
+            flowName: LayerFlow._tag,
+            executionId: "historical-deferred",
+            deferredName: "answer",
+            exit: Exit.succeed("ready"),
+            completedAtMs: 1
+          })
+          const engine = yield* EngineStore.make({
+            owner: { hostId: "layer-host" },
+            journalSource: "layer-test",
+            isAlive: () => Effect.succeed(true)
+          })
+          yield* engine.register(LayerFlow, () => Effect.succeed("resumed"))
+          const journal = yield* Journal.Journal
+          yield* journal.flush
+          return (yield* journal.entries({ runId: "historical-deferred" as never, limit: 100 })).entries
+        })).pipe(Effect.provide(baseLayers(recordingJj([]), state)))
+      )
+
+      const wakes = entries.filter((entry) =>
+        entry.eventType === "flows.engine.run-decision" &&
+        (entry.payload as { readonly decision?: string }).decision === "wake-scheduled"
+      )
+      expect(wakes).toHaveLength(1)
+      expect(wakes[0]).toMatchObject({
+        sourceId: 'layer-test:wake:["EngineStoreLayer/Flow","historical-deferred","answer"]',
+        sourceSeq: 0
+      })
+    }))
+
   // Real elapsed time: `it.effect`'s TestClock would stall this.
   it.live("uses the required liveness probe, so a live foreign owner is never stolen from", () =>
     Effect.gen(function*() {
