@@ -21,7 +21,27 @@ const ndjsonResponse = (lines: ReadonlyArray<unknown>, init?: ResponseInit): Res
 		{ status: 200, ...init },
 	);
 
-const flush = () => new Promise((resolve) => setTimeout(resolve, 10));
+/*
+ * Turn streaming settles on the event loop, not on a wall clock: pump
+ * macrotask turns until the predicate holds. The mocked streams enqueue
+ * synchronously and every Effect step is promise-driven, so a settled turn is
+ * observable within a bounded number of turns — a fixed setTimeout raced a
+ * loaded machine instead.
+ */
+const until = async (predicate: () => boolean, what: string): Promise<void> => {
+	for (let attempt = 0; attempt < 1_000; attempt += 1) {
+		if (predicate()) return;
+		await new Promise((resolve) => setImmediate(resolve));
+	}
+	throw new Error(`the turn never settled: ${what}`);
+};
+
+/** A bounded number of event-loop turns, for assertions that something does NOT happen. */
+const drain = async (turns = 50): Promise<void> => {
+	for (let turn = 0; turn < turns; turn += 1) {
+		await new Promise((resolve) => setImmediate(resolve));
+	}
+};
 
 describe("createCloudAgent", () => {
 	test("streams upstream NDJSON frames to the publisher", async () => {
@@ -38,7 +58,7 @@ describe("createCloudAgent", () => {
 		});
 
 		expect(agent.start(request)).toEqual({ status: "started" });
-		await flush();
+		await until(() => frames.length === 3, "the three streamed frames");
 		expect(frames).toEqual([
 			{ runId: "run-1", type: "delta", kind: "reasoning", text: "hmm" },
 			{ runId: "run-1", type: "delta", kind: "text", text: "Hello!" },
@@ -53,7 +73,7 @@ describe("createCloudAgent", () => {
 		});
 
 		expect(agent.start(request)).toEqual({ status: "started" });
-		await flush();
+		await until(() => frames.some((frame) => frame.type === "done"), "the error frame");
 		expect(frames).toEqual([
 			{
 				runId: "run-1",
@@ -81,7 +101,7 @@ describe("createCloudAgent", () => {
 		expect(agent.cancel("run-1")).toEqual({ status: "not-found" });
 		expect(agent.start(request)).toEqual({ status: "started" });
 		expect(agent.cancel("run-1")).toEqual({ status: "cancelled" });
-		await flush();
+		await drain();
 		expect(frames.some((frame) => frame.type === "done" && frame.error !== undefined)).toBe(false);
 	});
 
@@ -107,7 +127,7 @@ describe("createCloudAgent", () => {
 		});
 
 		expect(agent.start(request)).toEqual({ status: "started" });
-		await flush();
+		await until(() => frames.some((frame) => frame.type === "done"), "the card turn's done frame");
 		expect(frames).toEqual([
 			{ runId: "run-1", type: "card", card: planCard },
 			{ runId: "run-1", type: "card.update", id: "card-plan", patch: { status: "acted" } },
@@ -123,11 +143,16 @@ describe("createCloudAgent", () => {
 		 * underlying stream sees its own cancel.
 		 */
 		let streamCancelled = false;
+		let readerActive = false;
 		const agent = createCloudAgent(() => {}, {
 			fetchImpl: async () =>
 				new Response(
 					new ReadableStream<Uint8Array>({
 						start: () => {},
+						/* pull() fires only once the turn has acquired its reader. */
+						pull: () => {
+							readerActive = true;
+						},
 						cancel: () => {
 							streamCancelled = true;
 						},
@@ -136,9 +161,9 @@ describe("createCloudAgent", () => {
 				),
 		});
 		expect(agent.start(request)).toEqual({ status: "started" });
-		await flush();
+		await until(() => readerActive, "the turn to acquire its reader");
 		expect(agent.cancel("run-1")).toEqual({ status: "cancelled" });
-		await flush();
+		await until(() => streamCancelled, "the stream's own cancel");
 		expect(streamCancelled).toBe(true);
 	});
 
@@ -153,10 +178,10 @@ describe("createCloudAgent", () => {
 			fetchImpl: async () => new Response(new ReadableStream<Uint8Array>({ start: () => {} }), { status: 200 }),
 		});
 		expect(agent.start(request)).toEqual({ status: "started" });
-		await flush();
+		await drain();
 		expect(agent.cancel("run-1")).toEqual({ status: "cancelled" });
 		expect(agent.start(request)).toEqual({ status: "started" });
-		await flush();
+		await drain();
 		expect(agent.cancel("run-1")).toEqual({ status: "cancelled" });
 	});
 });
