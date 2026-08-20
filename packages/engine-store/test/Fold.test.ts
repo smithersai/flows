@@ -47,10 +47,10 @@ const TestFlow = Flow.make("Fold/Test", {
 
 const migratedDatabase = Layer.provideMerge(Migrations.layer, TestDatabase.layer)
 
-const sqlStack = Layer.mergeAll(
-  SqlJournal.layer({ capacity: 1024, overflow: "reject" }),
-  DurableEngineState.layer
-).pipe(Layer.provideMerge(migratedDatabase))
+const sqlStack = DurableEngineState.layer.pipe(
+  Layer.provideMerge(SqlJournal.layer({ capacity: 1024, overflow: "reject" })),
+  Layer.provideMerge(migratedDatabase)
+)
 
 const journalStack = SqlJournal.layer({ capacity: 1024, overflow: "reject" }).pipe(
   Layer.provideMerge(migratedDatabase)
