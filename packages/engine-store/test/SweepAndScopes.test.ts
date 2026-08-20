@@ -30,6 +30,7 @@ const makeJournal = (events: Array<string>, options: { readonly flushFails?: boo
     })
   return Journal.makeNoop({
     emitDurable: record,
+    emitDurableUnfenced: record,
     flush: options.flushFails
       ? Effect.fail(
         new Journal.JournalError({

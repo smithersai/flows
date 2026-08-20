@@ -19,7 +19,7 @@ import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { Journal, JournalError } from "../src/Journal.ts"
-import { Input, type RunId, type SourceId, type SourceSeq } from "../src/JournalEvent.ts"
+import { Input, type RunId, type Seq, type SourceId, type SourceSeq } from "../src/JournalEvent.ts"
 import * as Migrations from "../src/Migrations.ts"
 import type { OwnerId } from "../src/OwnerId.ts"
 import * as SqlJournal from "../src/SqlJournal.ts"
@@ -63,6 +63,11 @@ const withStack = <A, E>(
 const claim = (sql: SqlClient.SqlClient, run: RunId, holder: OwnerId) =>
   sql`INSERT INTO flows_runs (run_id, status, owner_host_id, owner_pid, owner_nonce)
       VALUES (${run}, 'running', ${holder.hostId}, ${holder.pid}, ${holder.nonce})`
+
+const reclaim = (sql: SqlClient.SqlClient, run: RunId, holder: OwnerId) =>
+  sql`UPDATE flows_runs
+      SET owner_host_id = ${holder.hostId}, owner_pid = ${holder.pid}, owner_nonce = ${holder.nonce}
+      WHERE run_id = ${run}`
 
 describe("SqlJournal durable fencing", () => {
   it.effect("commits a fenced append while the supplied owner still holds the run", () =>
@@ -145,5 +150,40 @@ describe("SqlJournal durable fencing", () => {
 
       expect(receipts[0]._tag).toBe("Accepted")
       expect(receipts[1]._tag).toBe("Duplicate")
+    }))
+
+  it.effect("rejects a checkpoint from a superseded owner with fence_lost", () =>
+    Effect.gen(function*() {
+      const failure = yield* withStack(Effect.gen(function*() {
+        const journal = yield* Journal
+        const sql = yield* Effect.service(SqlClient.SqlClient)
+        const run = runId("fenced-checkpoint-superseded")
+        yield* claim(sql, run, owner)
+        yield* journal.emitDurable(input(run, sourceId("driver"), 0), owner)
+        // The run is reclaimed under a new owner; the old owner's fence is gone.
+        yield* reclaim(sql, run, { hostId: "host-b", pid: 7, nonce: "nonce-b" })
+        return yield* Effect.flip(journal.checkpoint({ runId: run, seq: 0 as Seq, state: null }, owner))
+      }))
+
+      expect(failure).toBeInstanceOf(JournalError)
+      expect((failure as JournalError).code).toBe("fence_lost")
+    }))
+
+  it.effect("rejects a compaction from a superseded owner with fence_lost", () =>
+    Effect.gen(function*() {
+      const failure = yield* withStack(Effect.gen(function*() {
+        const journal = yield* Journal
+        const sql = yield* Effect.service(SqlClient.SqlClient)
+        const run = runId("fenced-compact-superseded")
+        yield* claim(sql, run, owner)
+        yield* journal.emitDurable(input(run, sourceId("driver"), 0), owner)
+        yield* journal.checkpoint({ runId: run, seq: 0 as Seq, state: null }, owner)
+        // The run is reclaimed under a new owner; the old owner's fence is gone.
+        yield* reclaim(sql, run, { hostId: "host-b", pid: 7, nonce: "nonce-b" })
+        return yield* Effect.flip(journal.compact({ runId: run }, owner))
+      }))
+
+      expect(failure).toBeInstanceOf(JournalError)
+      expect((failure as JournalError).code).toBe("fence_lost")
     }))
 })

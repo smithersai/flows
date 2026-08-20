@@ -30,6 +30,7 @@ import { join } from "node:path"
 import { Journal, type Service } from "../src/Journal.ts"
 import { Input, type RunId, type Seq, type SourceId, type SourceSeq } from "../src/JournalEvent.ts"
 import * as Migrations from "../src/Migrations.ts"
+import type { OwnerId } from "../src/OwnerId.ts"
 import * as SqlJournal from "../src/SqlJournal.ts"
 
 const runId = (value: string): RunId => value as RunId
@@ -48,6 +49,31 @@ const input = (sequence: number): Input =>
   }, { disableChecks: true })
 
 const options: SqlJournal.SqlJournalOptions = { capacity: 64, overflow: "reject" }
+
+const owner: OwnerId = { hostId: "host-a", pid: 42, nonce: "nonce-a" }
+
+/**
+ * The `flows_runs` columns the fence reads, plus this run's running-owner row,
+ * written through a throwaway connection to the same file.
+ */
+const claim = (filename: string) =>
+  Effect.scoped(
+    Effect.provide(
+      Effect.gen(function*() {
+        const sql = yield* Effect.service(SqlClient.SqlClient)
+        yield* sql`CREATE TABLE flows_runs (
+          run_id TEXT PRIMARY KEY,
+          status TEXT NOT NULL,
+          owner_host_id TEXT,
+          owner_pid INTEGER,
+          owner_nonce TEXT
+        )`
+        yield* sql`INSERT INTO flows_runs (run_id, status, owner_host_id, owner_pid, owner_nonce)
+          VALUES (${run}, 'running', ${owner.hostId}, ${owner.pid}, ${owner.nonce})`
+      }),
+      migrated(filename)
+    )
+  )
 
 const withTempFile = <A, E>(body: (filename: string) => Effect.Effect<A, E>): Effect.Effect<A, E> =>
   Effect.acquireUseRelease(
@@ -114,9 +140,11 @@ const connection = (
 }
 
 const seed = (journal: Service, count: number) =>
-  Effect.forEach(Array.from({ length: count }, (_, index) => index), (index) => journal.emitDurable(input(index)), {
-    discard: true
-  })
+  Effect.forEach(
+    Array.from({ length: count }, (_, index) => index),
+    (index) => journal.emitDurableUnfenced(input(index)),
+    { discard: true }
+  )
 
 describe("SqlJournal reader and compactor on one file", () => {
   it.effect(
@@ -127,12 +155,13 @@ describe("SqlJournal reader and compactor on one file", () => {
           Effect.gen(function*() {
             const reached = yield* Deferred.make<void>()
             const gate = yield* Deferred.make<void>()
+            yield* claim(filename)
 
             yield* Effect.scoped(
               Effect.gen(function*() {
                 const writer = yield* connection(filename)
                 yield* seed(writer, 6)
-                yield* writer.checkpoint({ runId: run, seq: 5 as Seq, state: { at: 5 } })
+                yield* writer.checkpoint({ runId: run, seq: 5 as Seq, state: { at: 5 } }, owner)
               })
             )
 
@@ -149,7 +178,7 @@ describe("SqlJournal reader and compactor on one file", () => {
 
             // A compactor on its own connection truncates everything below the
             // checkpoint and commits.
-            const compacted = yield* compactor.compact({ runId: run })
+            const compacted = yield* compactor.compact({ runId: run }, owner)
             expect(compacted.deleted).toBe(5)
             expect(compacted.checkpointSeq).toBe(5)
 
@@ -179,12 +208,13 @@ describe("SqlJournal reader and compactor on one file", () => {
           Effect.gen(function*() {
             const reached = yield* Deferred.make<void>()
             const gate = yield* Deferred.make<void>()
+            yield* claim(filename)
 
             yield* Effect.scoped(
               Effect.gen(function*() {
                 const writer = yield* connection(filename)
                 yield* seed(writer, 7)
-                yield* writer.checkpoint({ runId: run, seq: 5 as Seq, state: { at: 5 } })
+                yield* writer.checkpoint({ runId: run, seq: 5 as Seq, state: { at: 5 } }, owner)
               })
             )
 
@@ -198,7 +228,7 @@ describe("SqlJournal reader and compactor on one file", () => {
               { startImmediately: true }
             )
             yield* Deferred.await(reached)
-            expect((yield* compactor.compact({ runId: run })).deleted).toBe(5)
+            expect((yield* compactor.compact({ runId: run }, owner)).deleted).toBe(5)
             yield* Deferred.succeed(gate, undefined)
 
             const exit = yield* Fiber.join(reading)

@@ -229,7 +229,7 @@ describe("BranchCommands", () => {
                       ? { entries: pages[0] ?? [], hasMore: true }
                       : { entries: pages[1] ?? [], hasMore: false }
                   ),
-                emitDurable: () =>
+                emitDurableUnfenced: () =>
                   Effect.succeed({
                     _tag: "Accepted",
                     seq: 99 as JournalEvent.Seq,
@@ -307,7 +307,7 @@ describe("BranchCommands", () => {
             Layer.mergeAll(
               Journal.layerNoop({
                 entries: () => Effect.succeed({ entries: [], hasMore: false }),
-                emitDurable: () =>
+                emitDurableUnfenced: () =>
                   Effect.fail(
                     new Journal.JournalError({
                       code: "idempotency_conflict",

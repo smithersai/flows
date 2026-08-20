@@ -68,8 +68,8 @@ describe("JournalMetrics", () => {
       yield* withJournal(Effect.gen(function*() {
         const journal = yield* Journal
 
-        expect((yield* journal.emitDurable(input(0)))._tag).toBe("Accepted")
-        expect((yield* journal.emitDurable(input(0)))._tag).toBe("Duplicate")
+        expect((yield* journal.emitDurableUnfenced(input(0)))._tag).toBe("Accepted")
+        expect((yield* journal.emitDurableUnfenced(input(0)))._tag).toBe("Duplicate")
         expect((yield* journal.emitLossy(input(1)))._tag).toBe("Accepted")
         expect((yield* journal.emitLossy(input(1)))._tag).toBe("Duplicate")
         yield* journal.flush

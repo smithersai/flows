@@ -39,6 +39,7 @@ import {
   type CheckpointOptions,
   type Compacted,
   type CompactOptions,
+  type DurableReceipt,
   type EmitReceipt,
   type EntriesPage,
   Journal,
@@ -1201,10 +1202,10 @@ export const layer = (
           )
         })
 
-      const emitDurable: Service["emitDurable"] = Effect.fn("Journal.emitDurable")((
+      const writeDurable = (
         input: Input,
-        owner?: OwnerId
-      ) =>
+        owner: OwnerId | undefined
+      ): Effect.Effect<DurableReceipt, JournalError> =>
         Effect.annotateCurrentSpan({
           runId: input.runId,
           sourceId: input.sourceId,
@@ -1293,14 +1294,24 @@ export const layer = (
                 isJournalError(cause) ? cause : error("sink_failed", "durable journal write failed", cause)
               )
             ))))))
+
+      const emitDurable: Service["emitDurable"] = Effect.fn("Journal.emitDurable")((
+        input: Input,
+        owner: OwnerId
+      ) =>
+        writeDurable(input, owner)
       )
+
+      const emitDurableUnfenced: Service["emitDurableUnfenced"] = Effect.fn("Journal.emitDurableUnfenced")((
+        input: Input
+      ) => writeDurable(input, undefined))
 
       const emitLossy: Service["emitLossy"] = queuedEmit
 
-      const checkpoint: Service["checkpoint"] = Effect.fn("Journal.checkpoint")((
+      const checkpointInternal = (
         checkpointOptions: CheckpointOptions,
-        owner?: OwnerId
-      ) =>
+        owner: OwnerId | undefined
+      ): Effect.Effect<Checkpoint, JournalError> =>
         Effect.gen(function*() {
           yield* Effect.annotateCurrentSpan({
             runId: checkpointOptions.runId,
@@ -1366,7 +1377,11 @@ export const layer = (
             )
           )
         })
-      )
+
+      const checkpoint: Service["checkpoint"] = Effect.fn("Journal.checkpoint")((
+        checkpointOptions: CheckpointOptions,
+        owner: OwnerId
+      ) => checkpointInternal(checkpointOptions, owner))
 
       const latestCheckpoint: Service["latestCheckpoint"] = Effect.fn("Journal.latestCheckpoint")((runId: RunId) =>
         Effect.gen(function*() {
@@ -1380,18 +1395,16 @@ export const layer = (
             WHERE run_id = ${runId}
             ORDER BY seq DESC
             LIMIT 1
-          `.pipe(Effect.mapError((cause) =>
-            error("unknown", "durable checkpoint read failed", cause)
-          ))
+          `.pipe(Effect.mapError((cause) => error("unknown", "durable checkpoint read failed", cause)))
           const row = rows[0]
           return row === undefined ? Option.none() : Option.some(yield* decodeCheckpointRow(row))
         })
       )
 
-      const compact: Service["compact"] = Effect.fn("Journal.compact")((
+      const compactInternal = (
         compactOptions: CompactOptions,
-        owner?: OwnerId
-      ) =>
+        owner: OwnerId | undefined
+      ): Effect.Effect<Compacted, JournalError> =>
         Effect.gen(function*() {
           yield* Effect.annotateCurrentSpan({
             runId: compactOptions.runId,
@@ -1479,7 +1492,11 @@ export const layer = (
             )
           )
         })
-      )
+
+      const compact: Service["compact"] = Effect.fn("Journal.compact")((
+        compactOptions: CompactOptions,
+        owner: OwnerId
+      ) => compactInternal(compactOptions, owner))
 
       const compactionPolicy = options.compaction
       const compactionCounts = new Map<RunId, number>()
@@ -1511,8 +1528,16 @@ export const layer = (
           }
           const upTo = Number(last) as Seq
           const captured = yield* policy.capture(runId, upTo)
-          yield* checkpoint({ runId, seq: upTo, state: captured })
-          yield* compact({ runId, upTo })
+          // The policy is the journal's OWN post-commit maintenance, not a
+          // caller's mutating entrypoint: it owns no run and holds no fence,
+          // so it drives the internal channel. The attempt only ever
+          // truncates below a tail the run's own commits produced, a retry is
+          // idempotent (a re-attempt after a reclaim compacts the same
+          // committed prefix the live owner also sees), and every failure is
+          // damped below — never surfaced to the emit that crossed the
+          // threshold.
+          yield* checkpointInternal({ runId, seq: upTo, state: captured }, undefined)
+          yield* compactInternal({ runId, upTo }, undefined)
           compactionCounts.set(runId, yield* countEntries(runId))
         }).pipe(
           Effect.catchCause((cause) =>
@@ -1722,6 +1747,7 @@ export const layer = (
       return makeJournal({
         emitLossy,
         emitDurable,
+        emitDurableUnfenced,
         transact,
         stream,
         entries: readPage,

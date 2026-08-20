@@ -84,7 +84,7 @@ describe("Notification projection", () => {
           yield* Effect.forEach(
             notifications,
             (value) =>
-              journal.emitDurable(
+              journal.emitDurableUnfenced(
                 input("flows/notifications/Admitted", {
                   notification: value,
                   decision: "admitted"
@@ -106,13 +106,13 @@ describe("Notification projection", () => {
       runJournal(
         Effect.gen(function*() {
           const journal = yield* Journal.Journal
-          yield* journal.emitDurable(
+          yield* journal.emitDurableUnfenced(
             input("flows/notifications/Admitted", {
               notification: notification("one"),
               decision: "admitted"
             })
           )
-          yield* journal.emitDurable(
+          yield* journal.emitDurableUnfenced(
             input("flows/notifications/Promoted", {
               boundary: "would-idle",
               targetLineageId: "notification-projection/root",
@@ -133,8 +133,8 @@ describe("Notification projection", () => {
       runJournal(
         Effect.gen(function*() {
           const journal = yield* Journal.Journal
-          yield* journal.emitDurable(input("foreign", { value: true }))
-          yield* journal.emitDurable(
+          yield* journal.emitDurableUnfenced(input("foreign", { value: true }))
+          yield* journal.emitDurableUnfenced(
             input(NotificationEvent.AdmittedEventType, {
               notification: notification("full"),
               decision: "rejected-full"

@@ -191,10 +191,11 @@ export const make = (
             const row = completion.row
 
             // Durable channel: a deferred completion is a lifecycle record and
-            // must never take the droppable lossy queue. It stays ownerless by
+            // must never take the droppable lossy queue. It is unfenced by
             // design — external-trigger admissions are first-writer-wins
-            // regardless of who owns the run (issue #10).
-            yield* journal.emitDurable(
+            // regardless of who owns the run (issue #10), which is exactly the
+            // admission `emitDurableUnfenced` exists for.
+            yield* journal.emitDurableUnfenced(
               JournalRecords.deferredCompleted({
                 runId: options.executionId,
                 lineageId: FlowEngine.Lineage.root(options.executionId),
@@ -261,13 +262,13 @@ export const make = (
 
     /**
      * Durable channel: clock schedule records are lifecycle evidence and must
-     * never be droppable (issue #10). Ownerless: registration-time sweeps
+     * never be droppable (issue #10). Unfenced: registration-time sweeps
      * re-record clocks the current process does not own.
      */
     const emitClockScheduled = (
       row: DurableEngineState.ClockRow
     ): Effect.Effect<void> =>
-      journal.emitDurable(
+      journal.emitDurableUnfenced(
         JournalRecords.clockScheduled({
           runId: row.executionId,
           lineageId: FlowEngine.Lineage.root(row.executionId),

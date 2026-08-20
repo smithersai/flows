@@ -66,7 +66,7 @@ describe("JournalGrantStore", () => {
         if (payload._tag === "Failure") {
           throw new Error("could not encode remembered grant")
         }
-        yield* journal.emitDurable(
+        yield* journal.emitDurableUnfenced(
           new Input({
             runId: runId(options.policyRunId),
             sourceId: sourceId(options.sourceId),
@@ -290,7 +290,7 @@ describe("JournalGrantStore", () => {
         if (payload._tag === "Failure") {
           throw new Error("could not encode remembered grant")
         }
-        yield* journal.emitDurable(
+        yield* journal.emitDurableUnfenced(
           new Input({
             runId: runId(options.policyRunId),
             sourceId: sourceId(options.sourceId),
@@ -313,7 +313,7 @@ describe("JournalGrantStore", () => {
         if (payload._tag === "Failure") {
           throw new Error("could not encode remembered grant")
         }
-        yield* journal.emitDurable(
+        yield* journal.emitDurableUnfenced(
           new Input({
             runId: runId(options.policyRunId),
             sourceId: sourceId("other-source"),

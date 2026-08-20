@@ -32,7 +32,7 @@ const program = <A, E>(effect: Effect.Effect<A, E, Journal.Journal | BranchShare
 
 const writeEntry = (runId: JournalEvent.RunId, text: string) =>
   Effect.flatMap(Journal.Journal, (journal) =>
-    journal.emitDurable(
+    journal.emitDurableUnfenced(
       new JournalEvent.Input({
         runId,
         sourceId: "flows/participant/alice" as JournalEvent.SourceId,

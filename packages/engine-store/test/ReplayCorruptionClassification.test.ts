@@ -378,7 +378,7 @@ describe("replay-failed classification (issue #150)", () => {
   it.effect("returns the durable outcome when a tolerant receiver accepts succeeded-row corruption", () =>
     Effect.gen(function*() {
       const key = "corruption/succeeded-tolerated"
-      const tolerant = Inconsistency.layerTolerant
+      const tolerant = Inconsistency.layerTolerant(owner)
       const outcome = yield* withCrypto(
         Effect.gen(function*() {
           const cache = yield* CacheStore.CacheStore
@@ -405,13 +405,13 @@ describe("replay-failed classification (issue #150)", () => {
           const cache = yield* CacheStore.CacheStore
           yield* activate("corruption-quarantine")
           yield* dispatch("corruption-quarantine", key, () => Effect.succeed("durable-outcome")).pipe(
-            Effect.provide(Layer.mergeAll(failingReplay(corruptionError), Inconsistency.layerTolerant))
+            Effect.provide(Layer.mergeAll(failingReplay(corruptionError), Inconsistency.layerTolerant(owner)))
           )
           // Route the re-dispatch to the succeeded-row branch, whose issue-#24
           // convergence block would republish the row.
           yield* cache.evict(sha256(key))
           const replayed = yield* dispatch("corruption-quarantine", key, () => Effect.die("must not re-execute")).pipe(
-            Effect.provide(Layer.mergeAll(failingReplay(corruptionError), Inconsistency.layerTolerant))
+            Effect.provide(Layer.mergeAll(failingReplay(corruptionError), Inconsistency.layerTolerant(owner)))
           )
           const cached = yield* cache.get(sha256(key))
           return { replayed, cached }
@@ -441,7 +441,8 @@ describe("replay-failed classification (issue #150)", () => {
           journal: Journal.makeNoop({
             emitDurable: () => Effect.fail(new Journal.JournalError({ code, message: code }))
           }),
-          verdict: "fail"
+          verdict: "fail",
+          owner
         })
       const converged = yield* withCrypto(failing("idempotency_conflict").noteCorruption(event))
       expect(converged).toBe("fail")
@@ -647,7 +648,7 @@ describe("replay-failed classification (issue #150)", () => {
               }
               yield* activate("corruption-real-second")
               const healed = yield* realDispatch("corruption-real-second").pipe(
-                Effect.provide(Inconsistency.layerTolerant),
+                Effect.provide(Inconsistency.layerTolerant(owner)),
                 Effect.provideService(CacheStore.CacheStore, observingCache)
               )
               const recorded = yield* cache.get(keyDigest)
@@ -717,11 +718,11 @@ describe("replay-failed classification (issue #150)", () => {
           const cache = yield* CacheStore.CacheStore
           yield* activate("corruption-replace-first")
           yield* dispatch("corruption-replace-first", key, () => Effect.succeed("recorded")).pipe(
-            Effect.provide(Layer.mergeAll(failingReplay(corruptionError), Inconsistency.layerTolerant))
+            Effect.provide(Layer.mergeAll(failingReplay(corruptionError), Inconsistency.layerTolerant(owner)))
           )
           yield* activate("corruption-replace-second")
           yield* dispatch("corruption-replace-second", key, () => Effect.succeed("recorded")).pipe(
-            Effect.provide(Layer.mergeAll(failingReplay(corruptionError), Inconsistency.layerTolerant))
+            Effect.provide(Layer.mergeAll(failingReplay(corruptionError), Inconsistency.layerTolerant(owner)))
           )
           return yield* cache.get(sha256(key))
         }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
@@ -944,11 +945,11 @@ describe("the effective decision counter under replay failure", () => {
           })
         yield* activate("metered-tolerated-first")
         yield* dispatch("metered-tolerated-first", key, body).pipe(
-          Effect.provide(Layer.mergeAll(failingReplay(corruptionError), Inconsistency.layerTolerant))
+          Effect.provide(Layer.mergeAll(failingReplay(corruptionError), Inconsistency.layerTolerant(owner)))
         )
         yield* activate("metered-tolerated-second")
         const second = yield* dispatch("metered-tolerated-second", key, body).pipe(
-          Effect.provide(Layer.mergeAll(failingReplay(corruptionError), Inconsistency.layerTolerant))
+          Effect.provide(Layer.mergeAll(failingReplay(corruptionError), Inconsistency.layerTolerant(owner)))
         )
         return { executions, second, replayFailed: yield* replayFailedCount }
       }).pipe(
