@@ -19,14 +19,25 @@
 #
 # The wave itself (run-sample.sh) is a different matter and does run its
 # instances concurrently; only grading serializes.
+#
+# SWB_CACHE_LEVEL is the evaluator's `--cache_level`. It defaults to `env`,
+# which deletes each official instance image once that instance is graded — a
+# 3 GB re-pull for the next wave. Set it to `instance` for a supplementary
+# grading that should leave the image cache as it found it. It changes what is
+# kept on disk, never how a patch is graded.
 set -u
 S="$(cd "$(dirname "$0")" && pwd)"
 RUN_ID="$1"; shift
 HARNESS="${HARNESS:-flows}"
 WORKERS="${SWB_EVAL_WORKERS:-1}"
+CACHE_LEVEL="${SWB_CACHE_LEVEL:-env}"
 
 case "$WORKERS" in
   ''|*[!0-9]*|0) echo "SWB_EVAL_WORKERS must be a positive integer"; exit 2 ;;
+esac
+case "$CACHE_LEVEL" in
+  none|base|env|instance) ;;
+  *) echo "SWB_CACHE_LEVEL must be none, base, env or instance"; exit 2 ;;
 esac
 
 if [ "$HARNESS" = "codex" ]; then
@@ -50,5 +61,5 @@ cd "$S" || exit 1
   --run_id "$RUN_ID" \
   --instance_ids "$@" \
   --max_workers "$WORKERS" \
-  --cache_level env \
+  --cache_level "$CACHE_LEVEL" \
   --timeout 1800

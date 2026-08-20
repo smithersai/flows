@@ -1,6 +1,6 @@
 # SWE-bench Verified scorecard
 
-Instances: 5 · flows resolved **4/5** · codex resolved **4/5** · flows wins **1** · codex wins 1 · both pass 3 · both fail 0
+Instances: 5 · flows resolved **4/5** · codex resolved **5/5** · flows wins **0** · codex wins 1 · both pass 4 · both fail 0
 
 ## Quality
 
@@ -10,7 +10,7 @@ Instances: 5 · flows resolved **4/5** · codex resolved **4/5** · flows wins *
 | django__django-16612 | resolved | resolved | both pass | 635 | 1/1 |
 | pydata__xarray-7393 | resolved | resolved | both pass | 678 | 2/2 |
 | pytest-dev__pytest-6197 | unresolved | resolved | codex win | 25,080 | 3/3 |
-| sphinx-doc__sphinx-11445 | resolved | unresolved | FLOWS WIN | 439 | 1/1 |
+| sphinx-doc__sphinx-11445 | resolved | resolved | both pass | 439 | 1/1 |
 
 ## Speed
 

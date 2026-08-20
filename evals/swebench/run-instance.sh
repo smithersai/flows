@@ -62,6 +62,13 @@ docker cp "$TMPC:/testbed/." "$WORK/" >/dev/null 2>&1
 docker rm -f "$TMPC" >/dev/null 2>&1
 rmdir "$LOCK" 2>/dev/null
 
+# Anchor the patch capture to the tree as extracted, before anything of ours
+# touches it. Everything the official image already changed relative to the base
+# commit is in this commit, so it cannot reappear as if the agent had written
+# it. See lib/snapshot-base.sh.
+CAPTURE_BASE="$("$S/lib/snapshot-base.sh" "$WORK")"
+echo "[$INSTANCE] capture base $CAPTURE_BASE (base commit $BASE)"
+
 docker rm -f "$CONTAINER" >/dev/null 2>&1
 docker run -d --platform linux/amd64 --name "$CONTAINER" \
   -v "$WORK:/testbed" -w /testbed "$IMAGE" sleep infinity >/dev/null 2>&1 || {
@@ -82,40 +89,44 @@ node "$S/lib/write-flow.mjs" "$DATASET" "$INSTANCE" "$SEAT" "$CONTAINER" "$TEST_
 
 ( cd "$WORK" && jj git init --colocate >/dev/null 2>&1 )
 
-echo "[$INSTANCE] agent start ($SEAT, ${BUDGET}s)"
-START=$(date +%s)
-set +e
-(
-  cd "$WORK" || exit 1
-  A=$("$S/flows.sh" --json plan fix | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.stringify(JSON.parse(s).approval))}catch{process.exit(1)}})') || exit 1
-  "$S/flows.sh" --json approve "$A" --scope run >/dev/null 2>&1 || {
-    echo "[$INSTANCE] APPROVAL FAILED"; exit 1;
-  }
-  timeout "$BUDGET" "$S/flows.sh" --json run "$A"
-) > "$S/logs-agent/$INSTANCE.run.log" 2>&1
-RUN_STATUS=$?
-set -e
-END=$(date +%s)
-echo "[$INSTANCE] agent done in $((END-START))s (status $RUN_STATUS)"
+# SWB_SKIP_AGENT=1 builds the workspace and captures its patch without running
+# the agent or spending a token. The captured patch must then be empty, which is
+# the standing proof that capture reports agent edits and nothing else. It
+# writes no timings stamp, because no run happened to time.
+if [ "${SWB_SKIP_AGENT:-0}" = "1" ]; then
+  echo "[$INSTANCE] SWB_SKIP_AGENT=1 — no agent, capture proof only"
+  RUN_STATUS=0
+else
+  echo "[$INSTANCE] agent start ($SEAT, ${BUDGET}s)"
+  START=$(date +%s)
+  set +e
+  (
+    cd "$WORK" || exit 1
+    A=$("$S/flows.sh" --json plan fix | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.stringify(JSON.parse(s).approval))}catch{process.exit(1)}})') || exit 1
+    "$S/flows.sh" --json approve "$A" --scope run >/dev/null 2>&1 || {
+      echo "[$INSTANCE] APPROVAL FAILED"; exit 1;
+    }
+    timeout "$BUDGET" "$S/flows.sh" --json run "$A"
+  ) > "$S/logs-agent/$INSTANCE.run.log" 2>&1
+  RUN_STATUS=$?
+  set -e
+  END=$(date +%s)
+  echo "[$INSTANCE] agent done in $((END-START))s (status $RUN_STATUS)"
 
-# The wall clock the scorecard grades speed on. The journal's own span stops at
-# the last journaled event, which is not the same as how long the operator
-# waited for the process, so the process time is recorded here.
-printf '{\n  "instance_id": "%s",\n  "seat": "%s",\n  "budgetSeconds": %s,\n  "startedAt": %s,\n  "endedAt": %s,\n  "wallClockSeconds": %s,\n  "exitStatus": %s,\n  "timedOut": %s\n}\n' \
-  "$INSTANCE" "$SEAT" "$BUDGET" "$((START*1000))" "$((END*1000))" "$((END-START))" \
-  "$RUN_STATUS" "$([ "$RUN_STATUS" -eq 124 ] && printf true || printf false)" \
-  > "$S/timings/$INSTANCE.json"
+  # The wall clock the scorecard grades speed on. The journal's own span stops at
+  # the last journaled event, which is not the same as how long the operator
+  # waited for the process, so the process time is recorded here.
+  printf '{\n  "instance_id": "%s",\n  "seat": "%s",\n  "budgetSeconds": %s,\n  "startedAt": %s,\n  "endedAt": %s,\n  "wallClockSeconds": %s,\n  "exitStatus": %s,\n  "timedOut": %s\n}\n' \
+    "$INSTANCE" "$SEAT" "$BUDGET" "$((START*1000))" "$((END*1000))" "$((END-START))" \
+    "$RUN_STATUS" "$([ "$RUN_STATUS" -eq 124 ] && printf true || printf false)" \
+    > "$S/timings/$INSTANCE.json"
+fi
 
-# The model patch: the working tree against the instance's base commit, with
-# the scaffolding and build noise excluded.
-# `core.fileMode=false`: extracting the image's testbed to the host does not
-# preserve permission bits, so without it the diff is a flood of 100644->100755
-# mode changes and no content at all.
-( cd "$WORK" && git -c core.fileMode=false --no-pager diff "$BASE" -- \
-    ':(exclude)flows' ':(exclude).flows' ':(exclude).jj' \
-    ':(exclude)*.pyc' ':(exclude)**/__pycache__/**' ':(exclude).git' \
-) > "$S/patches/$INSTANCE.patch" 2>/dev/null
-node "$S/lib/strip-modes.mjs" "$S/patches/$INSTANCE.patch" >/dev/null 2>&1
+# The model patch: the working tree against the capture base recorded before the
+# agent started, with the harness scaffolding and build noise excluded.
+"$S/lib/capture-patch.sh" "$WORK" "$S/patches/$INSTANCE.patch" \
+  ':(exclude)flows' ':(exclude).flows' ':(exclude).jj' ':(exclude)agent-run.log' >/dev/null
 
 echo "[$INSTANCE] patch bytes: $(wc -c < "$S/patches/$INSTANCE.patch" | tr -d ' ')"
+echo "[$INSTANCE] untracked files left out of the patch: $(wc -l < "$S/patches/$INSTANCE.patch.untracked" | tr -d ' ')"
 exit "$RUN_STATUS"

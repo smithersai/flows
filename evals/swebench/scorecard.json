@@ -2,10 +2,10 @@
   "aggregate": {
     "instances": 5,
     "flowsResolved": 4,
-    "codexResolved": 4,
-    "flowsWins": 1,
+    "codexResolved": 5,
+    "flowsWins": 0,
     "codexWins": 1,
-    "bothPass": 3,
+    "bothPass": 4,
     "bothFail": 0,
     "flowsWallClockSeconds": 1447,
     "codexWallClockSeconds": 529,
@@ -213,14 +213,14 @@
         "priceSource": "OpenAI API list price, verified 2026-08-19"
       },
       "baseline": {
-        "verdict": "unresolved",
+        "verdict": "resolved",
         "seconds": 82,
         "tokens": 27988,
-        "patchBytes": 881,
+        "patchBytes": 439,
         "usd": 0.1399,
         "priceSource": "OpenAI API list price, verified 2026-08-19"
       },
-      "callout": "FLOWS WIN",
+      "callout": "both pass",
       "runIds": [
         "plan:plan-1",
         "run-1"

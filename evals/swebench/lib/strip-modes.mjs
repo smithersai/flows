@@ -7,6 +7,12 @@
  * colocated jj snapshot records the changed modes into git's index, so a diff
  * against the base commit is otherwise 1600 mode-only sections around a handful
  * of real edits. A SWE-bench patch is content; mode is noise.
+ *
+ * `capture-patch.sh` restores the index to the capture base before diffing, so
+ * both sides of the diff already carry the image's own modes and this should
+ * find nothing to drop. It stays as the check that says so out loud: a wave
+ * whose patch loses sections here has a capture that is still reading the
+ * host's permission bits.
  */
 import { readFileSync, writeFileSync } from "node:fs"
 

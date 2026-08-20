@@ -62,16 +62,16 @@ docker rm -f "$TMPC" >/dev/null 2>&1
 rmdir "$LOCK" 2>/dev/null
 trap - EXIT
 
+# Same capture base as the flows side: the tree as the image ships it, so the
+# image's own pre_install churn cannot enter the patch. Both harnesses are
+# captured under one rule or the comparison is not a comparison.
+CAPTURE_BASE="$("$S/lib/snapshot-base.sh" "$WORK")"
+echo "[$INSTANCE] capture base $CAPTURE_BASE"
+
 docker rm -f "$CONTAINER" >/dev/null 2>&1
 docker run -d --platform linux/amd64 --name "$CONTAINER" \
   -v "$WORK:/testbed" -w /testbed "$IMAGE" sleep infinity >/dev/null 2>&1 || {
   echo "[$INSTANCE] CONTAINER START FAILED"; exit 1; }
-
-BASE="$(node -e '
-const fs=require("fs");
-const all=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
-process.stdout.write(all.find(r=>r.instance_id===process.argv[2]).base_commit);
-' "$DATASET" "$INSTANCE")"
 
 node "$S/lib/write-prompt-codex.mjs" "$DATASET" "$INSTANCE" "$CONTAINER" > "$S/logs-codex/$INSTANCE.prompt.md"
 
@@ -117,12 +117,10 @@ printf '{\n  "instance_id": "%s",\n  "model": "%s",\n  "budgetSeconds": %s,\n  "
   "$INSTANCE" "$MODEL" "$BUDGET" "${SWB_CODEX_NETWORK:-on}" "$CODE" "$((START*1000))" "$((END*1000))" "$((END-START))" \
   > "$S/timings-codex/$INSTANCE.json"
 
-( cd "$WORK" && git -c core.fileMode=false --no-pager diff "$BASE" -- \
-    ':(exclude)*.pyc' ':(exclude)**/__pycache__/**' ':(exclude).git' \
-    ':(exclude)AGENTS.md' \
-) > "$S/patches-codex/$INSTANCE.patch" 2>/dev/null
-node "$S/lib/strip-modes.mjs" "$S/patches-codex/$INSTANCE.patch" >/dev/null 2>&1
+"$S/lib/capture-patch.sh" "$WORK" "$S/patches-codex/$INSTANCE.patch" \
+  ':(exclude)AGENTS.md' >/dev/null
 
 docker rm -f "$CONTAINER" >/dev/null 2>&1
 rm -rf "$WORK"
 echo "[$INSTANCE] patch bytes: $(wc -c < "$S/patches-codex/$INSTANCE.patch" | tr -d ' ')"
+echo "[$INSTANCE] untracked files left out of the patch: $(wc -l < "$S/patches-codex/$INSTANCE.patch.untracked" | tr -d ' ')"

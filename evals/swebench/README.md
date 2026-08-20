@@ -33,7 +33,7 @@ CLI wrapper, and the evaluator environment with it.
 | `verify.sh`                | Offline check that the scorecard still computes what it claims       |
 | `baseline/`                | The committed codex numbers and patches to compare against           |
 | `fixtures/`                | The recorded numbers `verify.sh` replays                             |
-| `lib/`                     | Sampler, prompt writers, prediction builder, patch cleaner           |
+| `lib/`                     | Sampler, prompt writers, prediction builder, patch capture           |
 
 Everything else the rig writes — `swb-verified.json`, `sample.json`,
 `.venv-swb/`, `work/`, `patches/`, `timings/`, `logs-*/`, `preds-*.json`, the
@@ -61,11 +61,11 @@ export OPENAI_API_KEY=sk-...
 
 The script extracts the instance's testbed out of the official image, bind
 mounts it back at `/testbed` so the container's interpreter sees the same tree
-the agent edits, writes the fix flow with `lib/write-flow.mjs`, drives the CLI
-through `plan` → `approve` → `run` under a timeout, then diffs the working tree
-against the instance's base commit with the harness scaffolding excluded and
-strips mode-only churn. It leaves `work/<id>/` (including the run's journal in
-`work/<id>/.flows/`), `patches/<id>.patch`, `timings/<id>.json`, and
+the agent edits, records the capture base (below), writes the fix flow with
+`lib/write-flow.mjs`, drives the CLI through `plan` → `approve` → `run` under a
+timeout, then captures the patch. It leaves `work/<id>/` (including the run's
+journal in `work/<id>/.flows/`), `patches/<id>.patch`,
+`patches/<id>.patch.untracked`, `timings/<id>.json`, and
 `logs-agent/<id>.run.log`.
 
 The codex baseline runs the same shape with its own isolated `CODEX_HOME`, the
@@ -81,6 +81,60 @@ The whole sample, one harness at a time:
 ./run-sample.sh flows 5
 ./run-sample.sh codex 5
 ```
+
+## Patch capture
+
+**The captured patch holds what the agent changed and nothing else.** Both run
+scripts record a *capture base* right after extracting the testbed and before
+anything of ours touches it (`lib/snapshot-base.sh`, kept in the workspace as
+`refs/flows/capture-base`), and capture the patch against that
+(`lib/capture-patch.sh`), never against the instance's base commit. Two
+contaminants are excluded at the source rather than edited out afterwards:
+
+- **What the official image already changed.** The images mutate tracked files
+  in their `pre_install` step — `sphinx-doc__sphinx-11445` seds `-rA` into
+  `tox.ini`. Diffed against the base commit that churn is reported as the
+  agent's work, and it does not merely inflate the patch: the evaluator's
+  container already carries it, so `git apply` fails on the whole patch and the
+  `patch --fuzz=5` fallback reads the already-applied hunks as a reversal and
+  **un-applies the real fix**. That defect decided the sphinx verdict in waves 2,
+  3 and 4, on both harnesses. The capture base contains the churn, so it cancels.
+- **Files that did not exist when the agent started.** The flows durability
+  snapshot writes the whole working tree into git's index, so agent scratch is
+  tracked by capture time; wave 3 shipped `.tmp_init_collect_repro/` with an
+  `assert False` in it. Capture restores the index to the capture base, which
+  drops them — and that is the same set the codex path never had in its index,
+  so both harnesses are captured under one rule. Whatever is dropped is listed
+  in `patches/<id>.patch.untracked`; read it when a run was supposed to add a
+  file.
+
+Normalising the modes falls out of the same restore: the patch is expressed in
+the image's own permission bits, so the executable-bit churn that `docker cp` to
+the host and the colocated jj snapshot introduce never appears.
+
+Two ways to check it, neither of which spends a token:
+
+```sh
+./verify.sh                                              # offline, no docker
+SWB_SKIP_AGENT=1 ./run-instance.sh sphinx-doc__sphinx-11445   # docker, no agent
+```
+
+`verify.sh` replays both contaminants over throwaway git repositories shaped
+like the official images (`fixtures/check-capture.mjs`). `SWB_SKIP_AGENT=1`
+builds the real workspace, runs no agent, and captures: **the patch must be
+empty.** It rebuilds `work/<id>/`, so do not point it at a workspace whose
+journal is still wanted, and it writes no timings stamp because no run happened.
+
+`regen-patch.sh <id>` re-captures from a surviving workspace. It refuses a
+workspace with no capture base instead of falling back to the base commit.
+
+**Deliberately not changed: what the agent is told.** `lib/write-flow.mjs` still
+tells the agent to review its own work with `git diff <base commit>`, so on an
+image with `pre_install` churn the agent sees a file it did not touch. Pointing
+it at `refs/flows/capture-base` would be more honest and would remove any
+incentive to "clean up" that file — but it is prompt text, and changing prompt
+text mid-drive confounds the wave-to-wave comparison the drive exists to make.
+Decide it as a wave change, not as a side effect of a capture fix.
 
 ## Wave arming gate
 
@@ -113,6 +167,12 @@ HARNESS=codex ./evaluate.sh r1-codex astropy__astropy-8707
 
 It writes `preds-<run-id>.json` and the evaluator's own
 `<model-name>.<run-id>.json` report into this directory.
+
+`SWB_EVAL_WORKERS` sets the evaluator's concurrency (default 1; raising it loses
+the report — see the script). `SWB_CACHE_LEVEL` sets `--cache_level` (default
+`env`, which deletes each official instance image once it is graded); use
+`instance` for a supplementary grading that should leave the image cache as it
+found it.
 
 ## Score
 
@@ -192,15 +252,32 @@ different sample and do not edit the pinned list to match a new draw.
   instance `FLOWS WIN`, `codex win`, `both pass`, or `both fail`, and counts
   wins in the aggregate line. Say so in the write-up when the count moves.
 - **Grading is the official evaluator.** Never grade a patch by reading it.
+- **Never correct a patch by hand.** If a captured patch holds something the
+  agent did not write, that is a capture defect: fix `lib/capture-patch.sh` or
+  `lib/snapshot-base.sh` and re-derive with `regen-patch.sh`. A patch edited
+  after the fact grades a different artifact from the one the run produced, and
+  it cannot be reproduced by the next wave.
 
 ## The committed baseline
 
 `baseline/codex-comparison.json` and `baseline/patches-codex/` are the Codex CLI
 results from the 2026-08-18 wave: `gpt-5.6-sol`, reasoning effort medium, the
-same extracted checkouts and containers, graded by the official evaluator. Codex
-resolved 4 of 5. The flows numbers recorded beside them are from the wave that
-scored 1 of 5; the drive's best recorded wave scored 2 of 5 (2026-08-19). Flows
-wins in both: 0. Those are the numbers to beat.
+same extracted checkouts and containers, graded by the official evaluator.
+**Codex resolved 5 of 5.**
+
+It was recorded as 4 of 5 until 2026-08-20. The `sphinx-doc__sphinx-11445`
+verdict was decided by the patch-capture defect above, not by codex's patch:
+captured against the base commit it carried the image's `tox.ini` churn, which
+reverse-applied at grading. The agent-only capture resolves. The committed
+baseline patch is now that capture, and the evidence is in `baseline/evidence/`
+— the evaluator's own report, its summary, and the raw contaminated capture the
+old rule produced. **Sphinx is not a flows win.** Flows matched it in wave 4,
+under the same correction, so the instance is both-pass; the only win on this
+sample belongs to codex, on `pytest-dev__pytest-6197`.
+
+The flows numbers recorded beside the baseline are from the wave that scored
+1 of 5; the best recorded wave scored 4 of 5 (wave 4, 2026-08-20). Flows wins:
+0. Those are the numbers to beat.
 
 `fixtures/mirror-results.json` is what the flows side measured on that wave. The
 journals themselves did not survive the scratchpad wipe, so `verify.sh` rebuilds
@@ -210,8 +287,10 @@ a journal carrying exactly those numbers and asserts the scorecard reports them:
 ./verify.sh
 ```
 
-That is an offline check of the tooling — no tokens, no docker, no dataset. Run
-it after touching `scorecard.ts`, `prices.ts`, or the journal's event shapes.
+That is an offline check of the tooling — no tokens, no docker, no dataset. It
+also replays the repository-specific verification guidance and the patch capture
+(`fixtures/check-capture.mjs`). Run it after touching `scorecard.ts`,
+`prices.ts`, the journal's event shapes, or anything under `lib/`.
 
 ## `flows.sh`
 

@@ -6,9 +6,11 @@
 # Builds the fixture journal twice — without and with the harness's exact
 # `ModelSettled.durationMillis` field — scores both, and asserts every reported
 # number against `fixtures/mirror-results.json` and the committed codex baseline.
+# Then replays the rig's instance guidance and its patch capture over throwaway
+# git repositories shaped like the official images.
 #
 # Spends no tokens, needs no docker, needs no dataset. Run it after touching
-# scorecard.ts, prices.ts, or the journal's event shapes.
+# scorecard.ts, prices.ts, the journal's event shapes, or patch capture.
 set -eu
 S="$(cd "$(dirname "$0")" && pwd)"
 
@@ -40,3 +42,6 @@ echo "verify.sh: the scorecard generator agrees with the recorded wave."
 echo "== repository-specific verification guidance"
 python3 "$S/fixtures/test-test-command.py"
 node "$S/fixtures/check-rig.mjs"
+
+echo "== patch capture"
+node "$S/fixtures/check-capture.mjs"

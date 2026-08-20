@@ -58,15 +58,20 @@
   {
     "id": "sphinx-doc__sphinx-11445",
     "codex": {
-      "verdict": "unresolved",
+      "verdict": "resolved",
       "tokens": 27988,
       "seconds": 82,
-      "patchBytes": 881,
+      "patchBytes": 439,
       "model": "gpt-5.6-sol",
       "reasoningEffort": "medium",
       "capturedAt": "2026-08-18",
       "verdictReverified2026_08_19": "unresolved",
-      "tracePath": "baseline/logs-codex/sphinx-doc__sphinx-11445.run.log"
+      "verdictCorrected2026_08_20": "resolved",
+      "tracePath": "baseline/logs-codex/sphinx-doc__sphinx-11445.run.log",
+      "captureNote": "The 2026-08-18 and 2026-08-19 gradings were decided by the patch-capture defect, not by the patch. The official image's pre_install step seds `-rA` into tox.ini before the agent starts, and the rig diffed against the base commit, so that churn entered the captured patch. The evaluator's `git apply` then failed on the whole patch, and the `patch --fuzz=5` fallback reverse-applied the fix. Both recorded `unresolved` verdicts are void. The patch committed here is the agent-only capture, byte-equal to what codex changed, and it resolves.",
+      "evidencePath": "baseline/evidence/codex-cli.wave4-codex-sphinx-clean.json",
+      "evidenceReportPath": "baseline/evidence/sphinx-doc__sphinx-11445.report.json",
+      "rawCapturePath": "baseline/evidence/sphinx-doc__sphinx-11445.raw-capture.patch"
     }
   }
 ]
