@@ -1,7 +1,9 @@
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
 import { describe, expect, it } from "@effect/vitest"
 import * as Crypto from "effect/Crypto"
+import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
+import * as Fiber from "effect/Fiber"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import * as KeyMaterial from "../src/KeyMaterial.ts"
@@ -138,6 +140,24 @@ describe("StepKey", () => {
         { _tag: "TreeArtifact", path: "dist" },
         { _tag: "Glob", include: ["src/**/*.ts"], exclude: ["src/a.ts", "src/z.ts"] }
       ], ["stale/a", "stale/z"]))
+      expect(left).toBe(right)
+    }))
+
+  it.effect("canonicalizes write entry property order and sorts by code unit", () =>
+    Effect.gen(function*() {
+      const identity = (writeSet: NonNullable<StepKey.ContentIdentity["hermetic"]>["writeSet"]) =>
+        StepKey.content({
+          body: 1,
+          inputs: {},
+          layers: [],
+          capabilities: {},
+          hermetic: { readSet: [], writeSet, boundaryMode: "hard" }
+        })
+      const ordinary = { _tag: "TreeArtifact" as const, path: "än/out.js" }
+      const reordered = { path: "än/out.js", _tag: "TreeArtifact" as const }
+      const left = yield* withCrypto(identity([ordinary, reordered, "z/out.js"]))
+      const right = yield* withCrypto(identity(["z/out.js", reordered]))
+
       expect(left).toBe(right)
     }))
 
@@ -315,6 +335,32 @@ describe("StepKey.dispatchIdentity", () => {
       // One projected-value digest plus one final key digest per call.
       expect(digestCalls).toBe(3)
       expect(memoized).toEqual([unmemoized, unmemoized])
+    }))
+
+  it.effect("evicts an interrupted projected-value computation", () =>
+    Effect.gen(function*() {
+      const memo = StepKey.makeDigestMemo()
+      const started = yield* Deferred.make<void>()
+      const blocked = yield* Deferred.make<void>()
+      const first = yield* Effect.forkChild(
+        memo.digest(
+          "upstream",
+          ["value"],
+          Deferred.succeed(started, undefined).pipe(
+            Effect.andThen(Deferred.await(blocked)),
+            Effect.as("key1_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as StepKey.StepKey)
+          )
+        )
+      )
+      yield* Deferred.await(started)
+      yield* Fiber.interrupt(first)
+
+      const recovered = yield* memo.digest(
+        "upstream",
+        ["value"],
+        Effect.succeed("key1_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" as StepKey.StepKey)
+      )
+      expect(recovered).toBe("key1_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
     }))
 
   it.effect("folds an engine-resolved environment without moving the absent identity", () =>

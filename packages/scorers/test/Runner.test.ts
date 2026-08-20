@@ -1,4 +1,4 @@
-import { Deferred, Effect, Fiber, Option } from "effect"
+import { Deferred, Effect, Fiber } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Runner from "../src/Runner.ts"
 import * as RunnerLive from "../src/RunnerLive.ts"
@@ -68,10 +68,10 @@ describe("Runner", () => {
       yield* runner.submit(job("three"))
       const fourth = yield* runner.submit(job("four")).pipe(Effect.forkChild({ startImmediately: true }))
       yield* Effect.yieldNow
-      const beforeRelease = yield* Fiber.poll(fourth)
+      const blocked = yield* Effect.sync(() => fourth.pollUnsafe() === undefined)
       yield* Deferred.succeed(release, void 0)
       yield* Fiber.join(fourth)
-      return { startedConcurrently: entered >= 2, blocked: Option.isNone(beforeRelease) }
+      return { startedConcurrently: entered >= 2, blocked }
     })
     const output = await Effect.runPromise(
       Effect.scoped(

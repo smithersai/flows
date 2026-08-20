@@ -413,4 +413,35 @@ describe("DeferredPersistence", () => {
 
       expect(resumes).toEqual(["completion-during-downtime:deferred"])
     }))
+
+  it.effect("uses one stable wake identity across repeated registration sweeps", () =>
+    Effect.gen(function*() {
+      const sourceIds: Array<string> = []
+      yield* withCrypto(Effect.scoped(Effect.gen(function*() {
+        const state = DurableEngineState.makeMemory()
+        yield* state.completeDeferred({
+          flowName: TestFlow._tag,
+          executionId: "historical-completion",
+          deferredName: "answer",
+          exit: Exit.succeed("ready"),
+          completedAtMs: 1
+        })
+        const service = yield* DeferredPersistence.make({
+          owner,
+          journalSource: "deferred-test",
+          scheduleResume: (_flowName, _executionId, _reason, sourceId) =>
+            Effect.sync(() => sourceIds.push(sourceId!))
+        }).pipe(
+          Effect.provideService(DurableEngineState.DurableEngineState, state),
+          Effect.provideService(Journal.Journal, makeJournal([]))
+        )
+        yield* service.sweepDue(TestFlow._tag)
+        yield* service.sweepDue(TestFlow._tag)
+      })))
+
+      expect(sourceIds).toEqual([
+        'deferred-test:wake:["DeferredPersistence/Test","historical-completion","answer"]',
+        'deferred-test:wake:["DeferredPersistence/Test","historical-completion","answer"]'
+      ])
+    }))
 })

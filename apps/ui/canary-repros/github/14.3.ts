@@ -33,10 +33,14 @@ const bookmark = await page.evaluate(async (repo) => {
 	return (body.items ?? []).map((row) => row.name).find((name) => name !== "main") ?? "";
 }, REPO);
 console.log(`source bookmark under test: ${bookmark || "(none found)"}`);
+if (bookmark === "") {
+	await context.close();
+	throw new Error("fixture precondition failed: no non-main source bookmark exists");
+}
 
 const failures: Array<string> = [];
 
-const attempt = async (line: string, label: string): Promise<void> => {
+const attempt = async (line: string, label: string) => {
 	const beforeCards = await page.locator("[data-kind]").count();
 	const beforeLast = beforeCards > 0 ? await page.locator("[data-kind]").last().innerText() : "";
 	const beforeText = await page.locator(".smithers-transcript").innerText();
@@ -66,11 +70,29 @@ const attempt = async (line: string, label: string): Promise<void> => {
 	console.log(
 		`${label}: landings ${beforeLandings}->${afterLandings}, cards ${beforeCards}->${afterCards}, transcript ${beforeText.length}->${afterText.length}, toasts ${JSON.stringify([...toasts].slice(-2))}`,
 	);
-	if (!openedOne && !saidSomething) failures.push(`${label} — "${line}" opened no pull request and said nothing at all`);
+	return {
+		landingDelta: afterLandings - beforeLandings,
+		cardDelta: afterCards - beforeCards,
+		lastCard: afterLast,
+		message: afterText.slice(beforeText.length),
+		toasts: [...toasts],
+		saidSomething,
+	};
 };
 
-await attempt(`/prs.create Canary repro 14.3 with bookmark from:${bookmark} ${REPO}`, "with from:<bookmark>");
-await attempt(`/prs.create Canary repro 14.3 without bookmark ${REPO}`, "without from:<bookmark>");
+const withTitle = `Canary repro 14.3 with bookmark ${Date.now()}`;
+const withBookmark = await attempt(`/prs.create ${withTitle} from:${bookmark} ${REPO}`, "with from:<bookmark>");
+if (withBookmark.landingDelta !== 1 || withBookmark.cardDelta !== 1 || !withBookmark.lastCard.includes(withTitle)) {
+	failures.push("with from:<bookmark> did not create exactly one landing and its matching PR card");
+}
+const withoutBookmark = await attempt(
+	`/prs.create Canary repro 14.3 without bookmark ${REPO}`,
+	"without from:<bookmark>",
+);
+const withoutText = [withoutBookmark.message, ...withoutBookmark.toasts, withoutBookmark.lastCard].join("\n");
+if (withoutBookmark.landingDelta !== 0 || !withoutText.includes("/branches.list")) {
+	failures.push("without from:<bookmark> did not leave landings unchanged and name /branches.list");
+}
 
 await page.screenshot({ path: "/tmp/canary-github-14.3.png", fullPage: true });
 console.log(`origin: ${BASE}; screenshot: /tmp/canary-github-14.3.png`);

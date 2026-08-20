@@ -745,14 +745,26 @@ export const make_ = (
         key: IdempotencyKey,
         fingerprint: string,
         receipt: Receipt
-      ) =>
-        sql`
+      ) => writer.write(Effect.gen(function*() {
+        yield* sql`
           INSERT INTO control_mutations (mutation_key, fingerprint, receipt_json)
           VALUES (${key}, ${fingerprint}, ${JSON.stringify(receipt)})
-          ON CONFLICT (mutation_key) DO UPDATE SET
-            fingerprint = excluded.fingerprint,
-            receipt_json = excluded.receipt_json
-        `.pipe(Effect.asVoid, Effect.mapError(persistence("record a mutation")))
+          ON CONFLICT (mutation_key) DO NOTHING
+        `
+        const rows = yield* sql<{ readonly fingerprint: string; readonly receiptJson: string }>`
+          SELECT fingerprint, receipt_json AS "receiptJson"
+          FROM control_mutations WHERE mutation_key = ${key}
+        `
+        const stored = rows[0]
+        if (stored === undefined || stored.fingerprint !== fingerprint || stored.receiptJson !== JSON.stringify(receipt)) {
+          return yield* Effect.fail(new PersistenceError({
+            operation: "record a mutation",
+            message: `Idempotency key ${key} was already settled by another mutation`
+          }))
+        }
+      })).pipe(Effect.asVoid, Effect.mapError((cause) =>
+        cause instanceof PersistenceError ? cause : persistence("record a mutation")(cause)
+      ))
       ),
       grants: Effect.fn("SqlControlRuntime.grants")(() =>
         sql<{

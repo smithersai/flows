@@ -19,7 +19,7 @@ import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import type * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
-import type * as SqlClient from "effect/unstable/sql/SqlClient"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -304,6 +304,40 @@ describe("fence", () => {
         DisasterRecovery.fence(manifest).pipe(Effect.provide(restoredDatabase(restored.databaseFile)))
       )
       expect(summary).toEqual({ clearedClaims: 0, suspendedRuns: 0 })
+    }))
+
+  it.effect("parks restored running rows as released so the recovery sweep can reach them", () =>
+    Effect.gen(function*() {
+      const { manifest, restored } = yield* restoredStore()
+      const result = yield* Effect.gen(function*() {
+        const sql = yield* Effect.service(SqlClient.SqlClient)
+        yield* sql`
+          INSERT INTO flows_runs (
+            run_id, status, created_at_ms, started_at_ms,
+            owner_host_id, owner_pid, owner_nonce, heartbeat_at_ms, state_json
+          ) VALUES (
+            'restored-running', 'running', 0, 0,
+            'dead-host', 7, 'old-fence', 10, '{}'
+          )
+        `
+        const summary = yield* DisasterRecovery.fence(manifest)
+        const rows = yield* sql<{
+          readonly status: string
+          readonly waiting_reason: string | null
+          readonly owner_host_id: string | null
+        }>`
+          SELECT status, waiting_reason, owner_host_id
+          FROM flows_runs WHERE run_id = 'restored-running'
+        `
+        return { row: rows[0], summary }
+      }).pipe(Effect.provide(restoredDatabase(restored.databaseFile)))
+
+      expect(result.summary).toEqual({ clearedClaims: 0, suspendedRuns: 1 })
+      expect(result.row).toEqual({
+        status: "suspended",
+        waiting_reason: "released",
+        owner_host_id: null
+      })
     }))
 
   it.effect("admits a database migrated forward past the manifest", () =>

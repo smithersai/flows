@@ -17,7 +17,7 @@ import { type Crypto, Deferred, Effect, Fiber, Layer, Stream } from "effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import { Control, type Service as ControlService } from "../src/Control.ts"
-import { ClaimLost, RunNotFound } from "../src/ControlError.ts"
+import { ClaimLost, PersistenceError, RunNotFound } from "../src/ControlError.ts"
 import * as ControlExecutor from "../src/ControlExecutor.ts"
 import * as ControlLive from "../src/ControlLive.ts"
 import { ControlRuntime, type Service as ControlRuntimeService } from "../src/ControlRuntime.ts"
@@ -278,6 +278,20 @@ describe("SqlControlRuntime", () => {
 
     expect(observed.hit).toEqual({ _tag: "AlreadyApplied", receiptId: "r", runId: "run-1" })
     expect(observed.miss).toBeUndefined()
+  })
+
+  it("never lets a racing mutation overwrite the first durable receipt", async () => {
+    const observed = await twoOwners((first, second) => Effect.gen(function*() {
+      yield* first.recordMutation("mut", "first", { _tag: "Accepted", receiptId: "first" })
+      const rejected = yield* Effect.flip(
+        second.recordMutation("mut", "second", { _tag: "Accepted", receiptId: "second" })
+      )
+      const retained = yield* second.lookupMutation("mut", "first")
+      return { rejected, retained }
+    }))
+
+    expect(observed.rejected).toBeInstanceOf(PersistenceError)
+    expect(observed.retained).toEqual({ _tag: "AlreadyApplied", receiptId: "first" })
   })
 
   it("allows a concurrent write while a finite snapshot page is being consumed", async () => {

@@ -243,7 +243,7 @@ describe("Runner", () => {
     const suite = await Effect.runPromise(
       Suite.make({ name: "identity", concurrency: 1, cases: [{ name: "one", input: 1 }] })
     )
-    const executor = CaseExecutor.make(() => Effect.succeed({ output: 1, stepKey: "step", target }))
+    const executor = CaseExecutor.make(() => Effect.succeed({ output: 1, stepKey: "step", latencyMs: 0, target }))
     const fail = (options: Runner.RunOptions) =>
       Effect.runPromiseExit(
         Runner.run(suite, options).pipe(

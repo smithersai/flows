@@ -158,7 +158,12 @@ const framesOf = (event: Event.Event, runId: string): ReadonlyArray<AgentTurnFra
 	}
 };
 
-const teeJournal = (inner: Journal.Service, emit: Emit, runId: string): Journal.Service =>
+const teeJournal = (
+	inner: Journal.Service,
+	emit: Emit,
+	runId: string,
+	onAppended?: (event: Event.Event) => void,
+): Journal.Service =>
 	Journal.make({
 		read: inner.read,
 		append: (event) =>
@@ -166,6 +171,7 @@ const teeJournal = (inner: Journal.Service, emit: Emit, runId: string): Journal.
 				Effect.tap(() =>
 					Effect.sync(() => {
 						for (const frame of framesOf(event, runId)) emit(frame);
+						onAppended?.(event);
 					}),
 				),
 			),
@@ -358,23 +364,6 @@ export const createChainRuntime = (options: ChainRuntimeOptions): NativeAgent =>
 				 * history, while boot reconciliation below can launch a committed
 				 * intent that crashed before this continuation ran.
 				 */
-				void (async () => {
-					for (let attempt = 0; attempt < 100; attempt += 1) {
-						const committed = [...options.store.collections.chainEvents.values()].some((row) => {
-							const event = row.event as {
-								readonly _tag?: unknown;
-								readonly name?: unknown;
-								readonly result?: { readonly lineage?: unknown };
-							};
-							return event._tag === "CallSettled" && event.name === "background" && event.result?.lineage === lineage;
-						});
-						if (committed) {
-							runBackground(lineage);
-							return;
-						}
-						await Promise.resolve();
-					}
-				})();
 				return { lineage };
 			});
 		},
@@ -460,6 +449,15 @@ export const createChainRuntime = (options: ChainRuntimeOptions): NativeAgent =>
 				makeCollectionJournal({ store: options.store, lineageId: request.runId }),
 				emit,
 				request.runId,
+				(event) => {
+					if (
+						event._tag === "CallSettled" &&
+						event.name === "background" &&
+						typeof (event.result as { readonly lineage?: unknown }).lineage === "string"
+					) {
+						runBackground((event.result as { readonly lineage: string }).lineage);
+					}
+				},
 			),
 		);
 		/*
