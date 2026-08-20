@@ -1,0 +1,263 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "a103589678771aec5c226e243be0441ae9e3c9d6",
+ "tree": "d97e7fa8ed7ff7698424af40d32c6fc716356530",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 79,
+  "sectionCount": 83
+ },
+ "source": {
+  "commit": "d05457f5064434484bc738754f9f8f084342df55",
+  "subject": "🐛 fix(ui): let every repository tab say the one sentence that re-reads it",
+  "priorCanonicalCommit": "d38b66e55afe3d2aa73034fd9f6acde16f0bcadb",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 67,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true,
+  "rebuild": {
+   "reason": "rebuilt onto the 13-commit split of canonical commit 2632c05da63099666add6437c743f4c5b3922f59",
+   "priorCanonicalCommit": "d38b66e55afe3d2aa73034fd9f6acde16f0bcadb",
+   "treePreserved": true,
+   "tree": "d97e7fa8ed7ff7698424af40d32c6fc716356530"
+  }
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "ui",
+  "epicsTouched": [
+   {
+    "id": "ui",
+    "files": 3
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 917,
+  "globalCount": 921,
+  "purpose": "🐛 fix(ui): let every repository tab say the one sentence that re-reads it",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "2a1120f1039f5b233a96df19172431b2768ba423"
+  ],
+  "parent": "2a1120f1039f5b233a96df19172431b2768ba423",
+  "sourceImports": [
+   "2a1120f1039f5b233a96df19172431b2768ba423",
+   "1b4c0c503bd86ec5e890a8be549758e0c60877bb",
+   "a66dca1eff483e5231ce3224a1939a478e0a52d6",
+   "c8c1b938d0d5c8a511814e0634abb19a8a890aaf",
+   "a6e62e957d45844c923f75337676e02826657a76",
+   "2de79a3cac95c21794f985f336c83768b0d40676",
+   "18af46e10e124876f17b6756c5b86313739e61a5",
+   "44b739c183d7508f003cbe31250f0a072c216002",
+   "7b93feb476d964525fe2226252159758a17ff6f9"
+  ],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": [],
+  "sourceImportsRemapped": {
+   "reason": "prior canonical SHAs rewritten by the 13-commit split of 2632c05da63099666add6437c743f4c5b3922f59",
+   "priorSourceImports": [
+    "d5103afd0c83435b07a5f852b2d13e02ee1dde53",
+    "1b4c0c503bd86ec5e890a8be549758e0c60877bb",
+    "1c6ac0f8487ccfacfe36dabe6f75d9056cd9ba69",
+    "07fdce401c691a30ae825340fac20a707f861379",
+    "a6e62e957d45844c923f75337676e02826657a76",
+    "4ab54ded55c99ce9460013a44fc14a970b5b548d",
+    "18af46e10e124876f17b6756c5b86313739e61a5",
+    "44b739c183d7508f003cbe31250f0a072c216002",
+    "7b93feb476d964525fe2226252159758a17ff6f9"
+   ]
+  }
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "2a1120f1039f5b233a96df19172431b2768ba423",
+  "next": "48413000a00065923ed68b6a30f72768f3a9d27e",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "6fe6857b28247375ab46b0d79cba15e74754ebd6"
+ },
+ "size": {
+  "files": 5,
+  "added": 136,
+  "deleted": 12
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "d05457f5064434484bc738754f9f8f084342df55"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "apps/ui/src/mainview/state/GitHubPane.test.tsx",
+   "mode": "100644",
+   "blob": "3ee264651538078e38477a56e78d52351151c3cb",
+   "previousBlob": "270e0ee56c37c57e4171b37f2e7202bdd740d079",
+   "added": 92,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 678,
+     "oldLines": 1,
+     "newStart": 678,
+     "newLines": 1
+    },
+    {
+     "oldStart": 695,
+     "oldLines": 0,
+     "newStart": 696,
+     "newLines": 24
+    },
+    {
+     "oldStart": 750,
+     "oldLines": 0,
+     "newStart": 775,
+     "newLines": 67
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "M",
+   "path": "apps/ui/src/mainview/state/Wave12.test.ts",
+   "mode": "100644",
+   "blob": "0bb3438f6d2a3dbe3f40ac1aef7054283b0073cc",
+   "previousBlob": "e0c15748184b4a30d3a428939985b49c024cfa7b",
+   "added": 11,
+   "deleted": 2,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 693,
+     "oldLines": 1,
+     "newStart": 693,
+     "newLines": 9
+    },
+    {
+     "oldStart": 705,
+     "oldLines": 1,
+     "newStart": 713,
+     "newLines": 2
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "M",
+   "path": "apps/ui/src/mainview/state/seams/LandingsSeam.ts",
+   "mode": "100644",
+   "blob": "a842c0db65c3c516799179bec7e72d11af87d99d",
+   "previousBlob": "982190d8e9196cf46661c55ea6937bed4a1da8fe",
+   "added": 12,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 13,
+     "oldLines": 1,
+     "newStart": 13,
+     "newLines": 1
+    },
+    {
+     "oldStart": 323,
+     "oldLines": 0,
+     "newStart": 324,
+     "newLines": 11
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "M",
+   "path": "apps/ui/src/mainview/state/seams/WorkflowSeam.test.ts",
+   "mode": "100644",
+   "blob": "814c2d2921cffce3c9566eacfa66f456ec0a5dc2",
+   "previousBlob": "bc4ce2c82cfa4edbd2fd9ef37fb8b7ffc5dd5d1c",
+   "added": 11,
+   "deleted": 2,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 14,
+     "oldLines": 0,
+     "newStart": 15,
+     "newLines": 1
+    },
+    {
+     "oldStart": 87,
+     "oldLines": 1,
+     "newStart": 88,
+     "newLines": 7
+    },
+    {
+     "oldStart": 89,
+     "oldLines": 1,
+     "newStart": 96,
+     "newLines": 3
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": null
+  },
+  {
+   "change": "M",
+   "path": "apps/ui/src/mainview/state/seams/WorkflowSeam.ts",
+   "mode": "100644",
+   "blob": "cb621d5b998a0a06b9375043c5e3c3f59f154900",
+   "previousBlob": "1e4c3ed779672843f6527324a0b9fca9024e0d57",
+   "added": 10,
+   "deleted": 6,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 13,
+     "oldLines": 1,
+     "newStart": 13,
+     "newLines": 1
+    },
+    {
+     "oldStart": 62,
+     "oldLines": 2,
+     "newStart": 62,
+     "newLines": 8
+    },
+    {
+     "oldStart": 65,
+     "oldLines": 3,
+     "newStart": 71,
+     "newLines": 1
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": null
+  }
+ ]
+}
