@@ -38,3 +38,7 @@ const program = Effect.gen(function*() {
 ```
 
 Use `ControlLive.layer` for in-process operation, `ControlClient.layer({ url, credential })` for authenticated RPC, or `ControlRuntime.layerMemory()` when assembling a deterministic runtime. `@smthrs/control/package.json` is also exported; `internal/*` and nested `*/index` subpaths are blocked.
+
+`ControlLive` records its lifecycle evidence as `control.*` journal events (`control.run.accepted`, `control.run.running`, ...) in the run's stream. That stream is shared: the journal reserves other event-type namespaces on the same run — among them the `flows.consensus.*` ownership transitions of
+[`docs/specs/Concepts/Journal Consensus.md`](../../../docs/specs/Concepts/Journal%20Consensus.md)
+— so every control projection that reads a run's stream selects its events by event-type namespace and never assumes the stream carries only control's own. Adding a namespace to the journal is not a breaking change for a projection that selects correctly.
