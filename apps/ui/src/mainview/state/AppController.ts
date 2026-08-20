@@ -60,7 +60,9 @@ import type { RepoCandidate } from "./seams/RepoCatalogSeam";
 import { createRepoImportSeam } from "./seams/RepoImportSeam";
 import type { RepoImportSeam } from "./seams/RepoImportSeam";
 import type { SeamContext } from "./seams/SeamContext";
-import { isNotReadyYet } from "./seams/SeamContext";
+import { errorMessageOf, isNotReadyYet } from "./seams/SeamContext";
+import { createWorkflowSeam } from "./seams/WorkflowSeam";
+import type { WorkflowRpcResult } from "./seams/WorkflowSeam";
 import { globalTransport } from "./seams/Transport";
 import {
 	impossibleAskOf,
@@ -509,24 +511,6 @@ export const createAppController = (
 		} finally {
 			clearTimeout(timer);
 		}
-	};
-
-	const errorMessageOf = async (response: Response, fallback: string): Promise<string> => {
-		const body = (await response.text().catch(() => "")).trim();
-		try {
-			const parsed: unknown = JSON.parse(body);
-			if (
-				typeof parsed === "object" &&
-				parsed !== null &&
-				"message" in parsed &&
-				typeof parsed.message === "string"
-			) {
-				return parsed.message;
-			}
-		} catch {
-			// A non-JSON error body carries no better message than the fallback.
-		}
-		return body === "" ? fallback : `${fallback} (${body.slice(0, 200)})`;
 	};
 
 	/*
@@ -3413,6 +3397,20 @@ export const createAppController = (
 			unref(timer);
 		});
 
+	/*
+	 * The workspace's own seam: the provision and RPC requests, in the one
+	 * directory that answers "what does this app talk to". The deadline, the
+	 * poll cadence and the timer stay the controller's, so no seam holds a
+	 * bun/node process open past the request it is waiting on.
+	 */
+	const workflowSeam = createWorkflowSeam(seamCtx, {
+		boundedHttp: boundedFetch,
+		pollMs: RUN_POLL_MS,
+		wait: waitMs,
+		provisionPath: WORKFLOW_PROVISION_PATH,
+		rpcPath: WORKFLOW_RPC_PATH,
+	});
+
 	const workflowIdentityGuard = (): string | undefined => {
 		const identity = store.collections.identitySessions.get("identity");
 		if (identity?.state !== "signed-in") {
@@ -3501,94 +3499,19 @@ export const createAppController = (
 			: `${missing} isn't one of your watched repositories — the chooser is open. Watching it is the one step that unlocks this.`;
 	};
 
-	const provisionWorkspaceImpl = async (repo: string): Promise<true | string> => {
-		// A 409 means mid-provision: poll to a bounded deadline, never stampede.
-		const deadline = Date.now() + RUN_POLL_MS * 36;
-		for (;;) {
-			let body: { status?: unknown; message?: unknown } | undefined;
-			try {
-				const response = await boundedFetch(`${baseUrl}${WORKFLOW_PROVISION_PATH}`, {
-					method: "POST",
-					headers: { "content-type": "application/json" },
-					body: JSON.stringify({ repo }),
-				});
-				if (!response.ok) {
-					return await errorMessageOf(response, "The workspace couldn't be prepared.");
-				}
-				body = (await response.json().catch(() => undefined)) as typeof body;
-			} catch {
-				return "The workspace couldn't be prepared — the workflow service didn't answer in time.";
-			}
-			if (body?.status === "ready") return true;
-			/*
-			 * Wave 12 §4 — the watched set is a GITHUB set; a gateway needs a
-			 * Smithers Cloud repository. When they don't coincide the honest
-			 * answer is that fact, not the provision seam's raw HTTP failure.
-			 */
-			if (body?.status === "no-cloud-repo") {
-				return `${repo} isn't on Smithers Cloud yet, so there's no workspace to run this on. Add it there and I'll pick it up, or point me at a repo that is.`;
-			}
-			if (body?.status === "provisioning") {
-				if (Date.now() > deadline) {
-					return `The workspace for ${repo} is still being prepared — try again in a moment.`;
-				}
-				await waitMs(RUN_POLL_MS);
-				continue;
-			}
-			if (typeof body?.message === "string") return body.message;
-			return "The workspace couldn't be prepared.";
-		}
-	};
-
+	/*
+	 * The wire for both of these lives in `state/seams/WorkflowSeam.ts` (the
+	 * network law). What stays here is the policy on top of it: the toast the
+	 * human sees while a workspace is prepared, and the repository resolution
+	 * every caller above went through to get here.
+	 */
 	const provisionWorkspace = (repo: string): Promise<true | string> =>
 		withToast(`flow.provision.${repo}`, `Preparing your ${repo} workspace…`, "Workspace ready", () =>
-			provisionWorkspaceImpl(repo),
+			workflowSeam.provisionWorkspace(repo),
 		);
 
-	type WorkflowRpcResult =
-		| { readonly status: "ok"; readonly payload: unknown }
-		| { readonly status: "error"; readonly message: string };
-
-	const workflowRpc = async (repo: string, method: string, params: unknown): Promise<WorkflowRpcResult> => {
-		let body:
-			| {
-					status?: unknown;
-					message?: unknown;
-					ok?: unknown;
-					payload?: unknown;
-					error?: { message?: unknown } | unknown;
-			  }
-			| undefined;
-		try {
-			const response = await http(`${baseUrl}${WORKFLOW_RPC_PATH}`, {
-				method: "POST",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ repo, method, params }),
-			});
-			if (!response.ok) {
-				return { status: "error", message: await errorMessageOf(response, "The workspace didn't answer.") };
-			}
-			body = (await response.json().catch(() => undefined)) as typeof body;
-		} catch {
-			return { status: "error", message: "The workspace didn't answer — the workflow service is unreachable." };
-		}
-		if (body?.ok === true) return { status: "ok", payload: body.payload };
-		const gatewayError = body?.error;
-		if (body?.ok === false) {
-			return {
-				status: "error",
-				message:
-					typeof gatewayError === "object" &&
-					gatewayError !== null &&
-					"message" in gatewayError &&
-					typeof gatewayError.message === "string"
-						? gatewayError.message
-						: "The workspace refused the call.",
-			};
-		}
-		if (typeof body?.message === "string") return { status: "error", message: body.message };
-		return { status: "error", message: "The workspace answered in a shape I didn't understand." };
-	};
+	const workflowRpc = (repo: string, method: string, params: unknown): Promise<WorkflowRpcResult> =>
+		workflowSeam.workflowRpc(repo, method, params);
 
 	interface WorkflowSummary {
 		readonly key: string;

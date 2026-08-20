@@ -82,6 +82,36 @@ const isDeclaredName = (node: ts.Identifier): boolean => {
 	);
 };
 
+/**
+ * Every endpoint constant `source` interpolates into a URL — i.e. every place
+ * it BUILDS a request target rather than merely naming a path.
+ *
+ * `${baseUrl}${WORKFLOW_RPC_PATH}` is a call site; passing the same constant to
+ * a seam as an option is not. Reading the parse is what tells them apart.
+ */
+const interpolatedEndpoints = (file: string, source: string): ReadonlyArray<string> => {
+	const parsed = ts.createSourceFile(
+		file,
+		source,
+		ts.ScriptTarget.Latest,
+		true,
+		file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+	);
+	const found = new Set<string>();
+	const visit = (node: ts.Node): void => {
+		if (ts.isTemplateExpression(node)) {
+			for (const span of node.templateSpans) {
+				if (ts.isIdentifier(span.expression) && span.expression.text.endsWith("_PATH")) {
+					found.add(span.expression.text);
+				}
+			}
+		}
+		ts.forEachChild(node, visit);
+	};
+	visit(parsed);
+	return [...found].sort();
+};
+
 /** `typeof fetch` in a type names the SHAPE of a transport, never one to call. */
 const isTypePosition = (node: ts.Identifier): boolean => {
 	for (let scope: ts.Node | undefined = node.parent; scope !== undefined; scope = scope.parent) {
@@ -173,6 +203,30 @@ describe("architecture laws", () => {
 			'// hand the fetch around\n/* the fetch ring */\nconst s = "fetch, fetch.";\nconst o = { fetch: impl };\nconst u = o.fetch;\ntype F = typeof fetch;\n';
 		expect(globalFetchReferences("probe.ts", offending)).toEqual(["probe.ts:1"]);
 		expect(globalFetchReferences("probe.ts", innocent)).toEqual([]);
+	});
+
+	test("the workspace endpoints are addressed from their own seam", () => {
+		/*
+		 * Directive 1's Flows tab reads the workspace, and both of its requests
+		 * were issued from AppController — the network law's letter kept (the
+		 * calls went through the tapped transport) and its point missed. The
+		 * constants still reach the controller, because the controller decides
+		 * WHICH repository and WHEN; only the seam may turn one into a URL.
+		 */
+		expect(interpolatedEndpoints("state/AppController.ts", read("state/AppController.ts"))).not.toContain(
+			"WORKFLOW_PROVISION_PATH",
+		);
+		expect(interpolatedEndpoints("state/AppController.ts", read("state/AppController.ts"))).not.toContain(
+			"WORKFLOW_RPC_PATH",
+		);
+		/*
+		 * A guard on the guard: deleting the constants would satisfy the two
+		 * assertions above and take the feature with them. They must still
+		 * reach the controller, which hands them to the seam as options.
+		 */
+		const controller = read("state/AppController.ts");
+		expect(controller).toContain("provisionPath: WORKFLOW_PROVISION_PATH");
+		expect(controller).toContain("rpcPath: WORKFLOW_RPC_PATH");
 	});
 
 	test("the seams directory is where the requests actually are", () => {
