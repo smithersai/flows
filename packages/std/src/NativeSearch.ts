@@ -102,6 +102,8 @@ const grep = (
   FileSystem.FileSystem | Path.Path | ChildProcessSpawner.ChildProcessSpawner
 > =>
   Effect.gen(function*() {
+    const fileSystem = yield* FileSystem.FileSystem
+    const path = yield* Path.Path
     const root = yield* resolveRoot(input.root)
     const args: Array<string> = [
       "--json",
@@ -120,7 +122,7 @@ const grep = (
     if (input.beforeContext > 0) args.push("--before-context", String(input.beforeContext))
     if (input.afterContext > 0) args.push("--after-context", String(input.afterContext))
     if (input.maxCount !== undefined) args.push("--max-count", String(input.maxCount))
-    const globs = [...input.globs, ...(input.hidden ? [] : hiddenGlobs), ...skipGlobs]
+    const globs = [...input.globs.map(Contract.canonicalGlob), ...(input.hidden ? [] : hiddenGlobs), ...skipGlobs]
     for (const glob of globs) args.push("--glob", glob)
     args.push("--", input.pattern, root.target)
     const result = yield* execute(root.cwd, args)
@@ -213,6 +215,13 @@ const grep = (
     const visibleLines = lines.filter((line) => !binaryFiles.has(line.file)).sort(pathOrder)
     const entries = input.filesWithMatches ? [...files].sort() : visibleLines
     const truncated = entries.length > input.limit
+    const unsatisfiable = entries.length > 0 ? undefined : yield* Contract.unsatisfiableNotice({
+      fileSystem,
+      path,
+      root: input.root,
+      globs: input.globs,
+      hidden: input.hidden
+    })
     return {
       matches: input.filesWithMatches ? [] : visibleLines.slice(0, input.limit),
       files: input.filesWithMatches ? [...files].sort().slice(0, input.limit) : [],
@@ -221,7 +230,8 @@ const grep = (
       filesSearched: filesSearched + binaryFiles.size,
       skippedBinary: binaryFiles.size,
       truncated,
-      ...(truncated ? { notice: notice(input.filesWithMatches ? "files" : "lines", input.limit, entries.length) } : {})
+      ...(truncated ? { notice: notice(input.filesWithMatches ? "files" : "lines", input.limit, entries.length) } : {}),
+      ...(unsatisfiable === undefined ? {} : { notice: unsatisfiable })
     }
   })
 
@@ -233,10 +243,12 @@ const glob = (
   FileSystem.FileSystem | Path.Path | ChildProcessSpawner.ChildProcessSpawner
 > =>
   Effect.gen(function*() {
+    const fileSystem = yield* FileSystem.FileSystem
+    const path = yield* Path.Path
     const root = yield* resolveRoot(input.root)
     const args: Array<string> = ["--files", "--no-ignore", "--no-messages", "--sort", "path"]
     if (input.hidden) args.push("--hidden")
-    args.push("--glob", input.pattern)
+    args.push("--glob", Contract.canonicalGlob(input.pattern))
     for (const glob of [...(input.hidden ? [] : hiddenGlobs), ...skipGlobs]) args.push("--glob", glob)
     args.push("--", root.target)
     const result = yield* execute(root.cwd, args)
@@ -247,11 +259,19 @@ const glob = (
     }
     const paths = result.stdout.split(/\r?\n/).filter((value) => value.length > 0).map(root.absolute).sort()
     const shown = paths.slice(0, input.limit)
+    const unsatisfiable = paths.length > 0 ? undefined : yield* Contract.unsatisfiableNotice({
+      fileSystem,
+      path,
+      root: input.root,
+      globs: [input.pattern],
+      hidden: input.hidden
+    })
     return {
       paths: shown,
       total: paths.length,
       truncated: paths.length > input.limit,
-      ...(paths.length > input.limit ? { notice: notice("entries", shown.length, paths.length) } : {})
+      ...(paths.length > input.limit ? { notice: notice("entries", shown.length, paths.length) } : {}),
+      ...(unsatisfiable === undefined ? {} : { notice: unsatisfiable })
     }
   })
 
