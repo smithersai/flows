@@ -52,6 +52,28 @@ describe("smithers mvp worker", () => {
 	 * The cap is a byte cap: a body of multi-byte characters encodes to up to 4x its
 	 * string length, so a UTF-16 `.length` check would wave a 2 MB body through.
 	 */
+	/*
+	 * Repro apps/ui/canary-repros/chat/4.13: every model call replays the whole
+	 * transcript, so an over-cap body is a fact about the CONVERSATION. The turn
+	 * seam said so; the relay — which carries every turn now that the browser
+	 * chain is the only backend — answered the bare "Request body is too large."
+	 * Both doors say the same sentence, and it names the way out.
+	 */
+	test("both model doors answer an over-cap transcript with the same actionable 413", async () => {
+		const oversize = { role: "user", content: "x".repeat(1100 * 1024) };
+		for (const request of [
+			post("/api/agent/turn", { ...turnBody, messages: [oversize] }),
+			post("/api/model/stream", { messages: [oversize] }),
+		]) {
+			const response = await worker.fetch(request, assetsEnv());
+			expect(response.status).toBe(413);
+			const body = (await response.json()) as { message: string };
+			expect(body.message).toContain("This conversation has grown too long");
+			expect(body.message).toContain("Start a new conversation");
+			expect(body.message).not.toBe("Request body is too large.");
+		}
+	});
+
 	test("measures the 1 MB cap in bytes, not UTF-16 code units", async () => {
 		// 768k x U+00E9 = 768k code units but 1.5 MB of UTF-8.
 		const instructions = "é".repeat(768 * 1024);
@@ -489,6 +511,81 @@ describe("auth navigation seam (wave 8)", () => {
 				expect(html).toContain("GitHub sign-in didn't finish.");
 				expect(html).toContain("HTTP 500");
 				expect(html).toContain('href="/"');
+			},
+		);
+	});
+
+	/*
+	 * Repro apps/ui/canary-repros/access/2.3: pressing Cancel on GitHub's
+	 * consent screen returns `?error=access_denied` with no `code`. That was
+	 * forwarded to identity, which read it as a malformed callback, and the page
+	 * told the user "the sign-in service answered HTTP 400" — blaming a service
+	 * for a button they pressed. The cause is in the query string, so it is read
+	 * here, named here, and never spends an upstream call.
+	 */
+	test("a cancelled consent screen is named as a cancellation, not an upstream failure", async () => {
+		let upstreamCalls = 0;
+		await withIdentity(
+			() => {
+				upstreamCalls += 1;
+				return new Response(JSON.stringify({ message: "code and state are required" }), { status: 400 });
+			},
+			async () => {
+				const response = await worker.fetch(
+					new Request(
+						"https://mvp.test/api/auth/github/callback?error=access_denied&error_description=The+user+has+denied+your+application+access.&state=zzz",
+						{ headers: { accept: BROWSER_ACCEPT } },
+					),
+					env,
+				);
+				// Nothing failed: the user declined and the app did as it was told.
+				expect(response.status).toBe(200);
+				expect(response.headers.get("content-type")).toContain("text/html");
+				const html = await response.text();
+				expect(html).toContain("You cancelled the GitHub sign-in.");
+				expect(html).toContain("Nothing was signed in");
+				expect(html).not.toContain("sign-in service answered");
+				expect(html).not.toContain("HTTP 400");
+				expect(html).toContain('href="/"');
+				expect(upstreamCalls).toBe(0);
+			},
+		);
+	});
+
+	test("any other OAuth error names what GitHub called it, and keeps a 400", async () => {
+		await withIdentity(
+			() => new Response("{}", { status: 400 }),
+			async () => {
+				const response = await worker.fetch(
+					new Request(
+						"https://mvp.test/api/auth/github/callback?error=redirect_uri_mismatch&error_description=The+redirect_uri+is+not+associated.&state=zzz",
+						{ headers: { accept: BROWSER_ACCEPT } },
+					),
+					env,
+				);
+				expect(response.status).toBe(400);
+				const html = await response.text();
+				expect(html).toContain("redirect_uri_mismatch");
+				expect(html).toContain("The redirect_uri is not associated.");
+				expect(html).toContain('href="/"');
+			},
+		);
+	});
+
+	test("a cancelled callback answers JSON callers a cancellation too", async () => {
+		await withIdentity(
+			() => new Response("{}", { status: 400 }),
+			async () => {
+				const response = await worker.fetch(
+					new Request("https://mvp.test/api/auth/github/callback?error=access_denied&state=zzz", {
+						headers: { accept: "application/json" },
+					}),
+					env,
+				);
+				expect(response.status).toBe(200);
+				const body = (await response.json()) as { status: string; message: string };
+				expect(body.status).toBe("cancelled");
+				expect(body.message).toContain("Nothing was signed in");
 			},
 		);
 	});
@@ -1180,6 +1277,42 @@ describe("the admin surface (non-enumerable)", () => {
 			const probe = await worker.fetch(new Request("https://mvp.test/api/admin/requests"), adminEnv());
 			expect(probe.status).toBe(404);
 			expect(await probe.text()).toBe(await unknown.text());
+		});
+	});
+
+	/*
+	 * Repro apps/ui/canary-repros/access/1.5: `admin` comes from identity's
+	 * ADMIN_LOGINS var, so removing a login from the closed-alpha allowlist left
+	 * the whole admin surface open to it — including POST /api/admin/allowlist,
+	 * the door that edits the allowlist itself. Identity now withholds the claim
+	 * from a non-allowlisted login; this Worker refuses on its own evidence too,
+	 * so one upstream field cannot re-open the surface on its own.
+	 */
+	test("a de-allowlisted admin is as undetectable as a stranger", async () => {
+		const deAllowlistedAdmin = new Response(
+			JSON.stringify({ login: "will", allowlisted: false, admin: true, scopes: [] }),
+			{ status: 200, headers: { "content-type": "application/json" } },
+		);
+		await withMockedFetch(identityDouble(deAllowlistedAdmin), async () => {
+			const unknown = await worker.fetch(new Request("https://mvp.test/api/nope"), adminEnv());
+			const unknownBody = await unknown.text();
+			for (const path of [
+				"/api/admin/requests",
+				"/api/admin/health",
+				"/api/admin/feedback",
+				"/api/admin/errors",
+			]) {
+				const probe = await worker.fetch(new Request(`https://mvp.test${path}`), adminEnv());
+				expect(probe.status).toBe(404);
+				expect(await probe.text()).toBe(unknownBody);
+			}
+			// The write door too: a revoked admin cannot re-add itself.
+			const write = await worker.fetch(
+				post("/api/admin/allowlist", { login: "will", action: "add" }),
+				adminEnv(),
+			);
+			expect(write.status).toBe(404);
+			expect(await write.text()).toBe(unknownBody);
 		});
 	});
 

@@ -433,6 +433,17 @@ class BodyTooLargeError extends Error {
 }
 
 /*
+ * Every model call replays the whole transcript, so "too large" is a fact about
+ * the CONVERSATION, not about the message that tripped it. The turn seam said
+ * so; the model relay — which since the browser chain became the only backend
+ * carries every turn — still answered the bare `Request body is too large.`,
+ * which names nothing the reader can act on (repro
+ * apps/ui/canary-repros/chat/4.13). One sentence, both doors.
+ */
+const TRANSCRIPT_TOO_LARGE =
+	"This conversation has grown too long to send in one turn. Start a new conversation to keep going — nothing was charged, and the transcript above stays where it is.";
+
+/*
  * Live turns keyed by runId so /cancel can abort one. Per-isolate best effort,
  * used only when no TURN_CANCELS binding exists (unit tests): a disconnect of
  * the turn's own request always cancels upstream regardless.
@@ -638,11 +649,7 @@ const handleTurn = async (
 		// The transcript rides every turn, so "too large" is a fact about the
 		// conversation, not about this one message. Say which, and say the way out.
 		if (error instanceof BodyTooLargeError) {
-			return json(413, {
-				status: "error",
-				message:
-					"This conversation has grown too long to send in one turn. Start a new conversation to keep going — nothing was charged, and the transcript above stays where it is.",
-			});
+			return json(413, { status: "error", message: TRANSCRIPT_TOO_LARGE });
 		}
 		return json(400, {
 			status: "error",
@@ -788,7 +795,10 @@ const handleModelStream = async (
 	try {
 		body = await readTurnBody(request);
 	} catch (error) {
-		return json(error instanceof BodyTooLargeError ? 413 : 400, {
+		if (error instanceof BodyTooLargeError) {
+			return json(413, { status: "error", message: TRANSCRIPT_TOO_LARGE });
+		}
+		return json(400, {
 			status: "error",
 			message: error instanceof Error ? error.message : "Invalid request.",
 		});
@@ -1112,11 +1122,59 @@ const authErrorResponse = (status: number, heading: string, detail: string): Res
 
 const OAUTH_OFF_HEADING = "GitHub sign-in isn't switched on yet for this preview.";
 
+/*
+ * GitHub reports a refused authorization on the callback as `?error=…` with no
+ * `code`. Forwarded to identity, that reads as a malformed callback and the
+ * page told the user "the sign-in service answered HTTP 400" — blaming a
+ * service for a button the user pressed (repro
+ * apps/ui/canary-repros/access/2.3). The cause is knowable from the query
+ * string, so it is read here and named.
+ *
+ * `access_denied` is not a failure: the user declined, the app did exactly what
+ * it was told, and nothing was signed in. It answers 200 with that sentence.
+ * Every other documented OAuth error IS a failure of the exchange and keeps a
+ * 400 with the error GitHub named.
+ */
+const OAUTH_DENIED_HEADING = "You cancelled the GitHub sign-in.";
+
+const oauthCallbackRefusal = (url: URL): { status: number; heading: string; detail: string } | undefined => {
+	const error = url.searchParams.get("error")?.trim();
+	if (error === undefined || error === "") return undefined;
+	if (error === "access_denied") {
+		return {
+			status: 200,
+			heading: OAUTH_DENIED_HEADING,
+			detail:
+				"You chose not to give Smithers access on GitHub, so the sign-in stopped there. Nothing was signed in and nothing was shared — head back whenever you want to try again.",
+		};
+	}
+	const described = url.searchParams.get("error_description")?.trim();
+	return {
+		status: 400,
+		heading: "GitHub sign-in didn't finish.",
+		detail: `GitHub stopped the sign-in and called it "${error}"${
+			described === undefined || described === "" ? "" : ` — ${described}`
+		}. Nothing was signed in — head back and try again.`,
+	};
+};
+
 const handleAuthNavigation = async (
 	request: Request,
 	env: WorkerEnv,
 	route: "start" | "callback",
 ): Promise<Response> => {
+	if (route === "callback") {
+		const refusal = oauthCallbackRefusal(new URL(request.url));
+		if (refusal !== undefined) {
+			if (prefersJson(request)) {
+				return json(refusal.status, {
+					status: refusal.status === 200 ? "cancelled" : "error",
+					message: refusal.detail,
+				});
+			}
+			return authErrorResponse(refusal.status, refusal.heading, refusal.detail);
+		}
+	}
 	const upstream = env.IDENTITY_UPSTREAM_URL?.trim();
 	if (upstream === undefined || upstream === "") {
 		if (prefersJson(request)) return proxyToIdentity(request, env);
@@ -1590,15 +1648,24 @@ const parseAdminBody = async (request: Request): Promise<Record<string, unknown>
 
 /**
  * The admin plugin's server half (Launch Checklist §E). Every /api/admin/*
- * route FIRST validates the session through identity and requires admin:true;
- * anything else gets the canonical 404, byte-identical to an unknown route.
- * Admin writes carry their audit attribution at write time: requester is the
- * admin's own validated login and the timestamp is fresh — the siblings
- * refuse unattributed writes by contract.
+ * route FIRST validates the session through identity and requires BOTH
+ * admin:true and allowlisted:true; anything else gets the canonical 404,
+ * byte-identical to an unknown route. Admin writes carry their audit
+ * attribution at write time: requester is the admin's own validated login and
+ * the timestamp is fresh — the siblings refuse unattributed writes by contract.
+ *
+ * Allowlisted is part of the gate because removing a login from the
+ * closed-alpha allowlist has to revoke something. It did not: `admin` comes
+ * from identity's ADMIN_LOGINS var, so a de-allowlisted admin kept the whole
+ * surface — including POST /api/admin/allowlist, the door that edits the
+ * allowlist itself (repro apps/ui/canary-repros/access/1.5). Identity now
+ * withholds the claim from a non-allowlisted login too; this check is the
+ * second half of that fix, so the product Worker refuses on its own evidence
+ * rather than trusting one upstream field.
  */
 const handleAdmin = async (request: Request, env: WorkerEnv, url: URL): Promise<Response> => {
 	const session = await validateSession(request, env);
-	if (session === undefined || !session.admin) return notFound();
+	if (session === undefined || !session.admin || !session.allowlisted) return notFound();
 
 	if (url.pathname === ADMIN_ALLOWLIST_PATH && request.method === "POST") {
 		const upstream = env.IDENTITY_UPSTREAM_URL?.trim();
@@ -1615,6 +1682,22 @@ const handleAdmin = async (request: Request, env: WorkerEnv, url: URL): Promise<
 		const action = body.action;
 		if (login === "" || (action !== "add" && action !== "remove")) {
 			return json(400, { status: "error", message: "Body must be { login, action: \"add\" | \"remove\" }." });
+		}
+		/*
+		 * An admin cannot remove its own login. Now that being allowlisted is
+		 * what carries admin, a self-removal is a one-way door: it revokes the
+		 * session's admin claim, and the only door that could undo it is this
+		 * one. The first caller to try it would lock the closed alpha's admin
+		 * surface out of the product with no in-app way back — the operator's
+		 * ADMIN_SERVICE_TOKEN would be the only remaining route. Refuse, and
+		 * name the route that does work.
+		 */
+		if (action === "remove" && login.toLowerCase() === session.login.toLowerCase()) {
+			return json(409, {
+				status: "error",
+				message:
+					"You can't remove your own login from the allowlist: it would revoke your admin access through the only door that could restore it. Ask another admin to remove you, or use the identity worker's admin token.",
+			});
 		}
 		return forwardAdminCall(upstream, "/api/identity/admin/allowlist", token, {
 			method: "POST",

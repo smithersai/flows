@@ -145,10 +145,15 @@ describe("invite mechanics: request-access -> admin approval -> allowlist gate",
 	};
 
 	test("the full path: request-access queues the login, admin approval allowlists it, and the same session then passes the gate", async () => {
-		const double = identityDouble({
-			"admin-session": { login: "will", admin: true },
-			"stranger-session": { login: "octocat", admin: false },
-		});
+		// The admin is allowlisted, as every real admin is: the surface requires
+		// BOTH claims now, so de-allowlisting one revokes it (repro access/1.5).
+		const double = identityDouble(
+			{
+				"admin-session": { login: "will", admin: true },
+				"stranger-session": { login: "octocat", admin: false },
+			},
+			["will"],
+		);
 
 		await withDouble(double, async () => {
 			// 1. octocat is signed in but not allowlisted: a gated route refuses them.
@@ -207,10 +212,76 @@ describe("invite mechanics: request-access -> admin approval -> allowlist gate",
 		});
 	});
 
+	/*
+	 * Repro apps/ui/canary-repros/access/1.5: removing a login from the
+	 * allowlist has to revoke the ADMIN surface too. It did not — `admin` rides
+	 * ADMIN_LOGINS, so a revoked admin kept every /api/admin/* route, the
+	 * allowlist editor included, and could simply put itself back.
+	 */
+	/*
+	 * The other half of that rule: because the allowlist is what carries admin,
+	 * a self-removal is a ONE-WAY door — it revokes the caller's own claim, and
+	 * this route is the only door that could restore it. The first admin to try
+	 * would lock the alpha out of its own product.
+	 */
+	test("an admin cannot remove its own login, and the refusal names the route that works", async () => {
+		const double = identityDouble({ "admin-session": { login: "will", admin: true } }, ["will"]);
+
+		await withDouble(double, async () => {
+			for (const login of ["will", "WILL"]) {
+				const selfRemove = await worker.fetch(
+					post("/api/admin/allowlist", { login, action: "remove" }, { cookie: "smithers_session=admin-session" }),
+					env,
+				);
+				expect(selfRemove.status).toBe(409);
+				const body = (await selfRemove.json()) as { message: string };
+				expect(body.message).toContain("your own login");
+				expect(body.message).toContain("admin token");
+				expect(double.allowlist.has("will")).toBe(true);
+			}
+			// Removing SOMEONE ELSE is still the ordinary admin write.
+			double.allowlist.add("octocat");
+			const other = await worker.fetch(
+				post("/api/admin/allowlist", { login: "octocat", action: "remove" }, { cookie: "smithers_session=admin-session" }),
+				env,
+			);
+			expect(other.status).toBe(201);
+			expect(double.allowlist.has("octocat")).toBe(false);
+		});
+	});
+
+	test("removing an admin from the allowlist revokes the admin surface, editor first", async () => {
+		const double = identityDouble({ "admin-session": { login: "will", admin: true } }, ["will"]);
+
+		await withDouble(double, async () => {
+			expect(
+				(await worker.fetch(get("/api/admin/requests", { cookie: "smithers_session=admin-session" }), env)).status,
+			).toBe(200);
+
+			double.allowlist.delete("will");
+
+			const unknown = await worker.fetch(get("/api/definitely-not-a-route"), env);
+			const canonical = await unknown.text();
+			const afterRead = await worker.fetch(
+				get("/api/admin/requests", { cookie: "smithers_session=admin-session" }),
+				env,
+			);
+			expect(afterRead.status).toBe(404);
+			expect(await afterRead.text()).toBe(canonical);
+
+			const selfRestore = await worker.fetch(
+				post("/api/admin/allowlist", { login: "will", action: "add" }, { cookie: "smithers_session=admin-session" }),
+				env,
+			);
+			expect(selfRestore.status).toBe(404);
+			expect(double.allowlist.has("will")).toBe(false);
+		});
+	});
+
 	test("removing a login from the allowlist revokes the gate immediately", async () => {
 		const double = identityDouble(
 			{ "admin-session": { login: "will", admin: true }, "member-session": { login: "octocat", admin: false } },
-			["octocat"],
+			["octocat", "will"],
 		);
 
 		await withDouble(double, async () => {
