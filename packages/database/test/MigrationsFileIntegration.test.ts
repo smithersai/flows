@@ -1,5 +1,6 @@
 import { describe, expect, it } from "@effect/vitest"
 import { Deferred, Duration, Effect, Exit, Fiber, Layer } from "effect"
+import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -98,16 +99,18 @@ describe("file-backed migrations", () => {
               Effect.forkChild({ startImmediately: true })
             )
             yield* Deferred.await(entered)
-            const releaseFiber = yield* Effect.promise(
-              () => new Promise<void>((resolve) => setImmediate(resolve))
-            ).pipe(
-              Effect.andThen(Deferred.succeed(release, undefined)),
+            const secondFiber = yield* Migrations.run([concurrentSet]).pipe(
+              Effect.provideService(SqlClient.SqlClient, sqlB),
+              Effect.exit,
               Effect.forkChild({ startImmediately: true })
             )
-            const second = yield* Effect.exit(
-              Migrations.run([concurrentSet]).pipe(Effect.provideService(SqlClient.SqlClient, sqlB))
-            )
-            yield* Fiber.join(releaseFiber)
+            // The migration retry schedule consumes the caller's Clock. Let
+            // the peer observe the lock, commit the winner, then drive that
+            // schedule deterministically instead of smuggling in wall time.
+            yield* Effect.yieldNow
+            yield* Deferred.succeed(release, undefined)
+            yield* TestClock.adjust("1 second")
+            const second = yield* Fiber.join(secondFiber)
             const first = yield* Fiber.join(firstFiber)
             const rows = yield* sqlA<
               { readonly id: number; readonly marker: string }
