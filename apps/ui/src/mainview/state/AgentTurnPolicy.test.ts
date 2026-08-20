@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { AgentChatMessage } from "smithers-shared/NativeAgent";
 import type { Message } from "./AppState";
 import {
 	MAX_TURN_REQUEST_BYTES,
@@ -10,6 +11,11 @@ import {
 	turnRequestBytes,
 	utf8Bytes,
 } from "./AgentTurnPolicy";
+
+/** `AgentChatMessage` is a union: a chat turn, or a tool call/result item. */
+const textOf = (message: AgentChatMessage | undefined): string =>
+	message !== undefined && "content" in message ? message.content : "";
+
 
 const message = (ordinal: number, role: Message["role"], text: string, act?: string): Message => ({
 	id: `m-${ordinal}`,
@@ -135,7 +141,7 @@ describe("one turn request is bounded to the boundary's body limit", () => {
 		const bounded = boundTurnRequest(request);
 		expect(bounded.dropped).toBeGreaterThan(0);
 		expect(turnRequestBytes(bounded.request)).toBeLessThanOrEqual(MAX_TURN_REQUEST_BYTES);
-		expect(bounded.request.messages.at(-1)?.content).toBe("and now say ok");
+		expect(textOf(bounded.request.messages.at(-1))).toBe("and now say ok");
 	});
 
 	test("what was dropped is stated, never silently missing", () => {
@@ -147,8 +153,8 @@ describe("one turn request is bounded to the boundary's body limit", () => {
 				{ role: "user", content: "still here?" },
 			]),
 		);
-		expect(bounded.request.messages[0]?.content).toContain("dropped to fit this turn's size limit");
-		expect(bounded.request.messages[0]?.content).toContain("say you may no longer have it");
+		expect(textOf(bounded.request.messages[0])).toContain("dropped to fit this turn's size limit");
+		expect(textOf(bounded.request.messages[0])).toContain("say you may no longer have it");
 	});
 
 	test("a tool leg's call and output are never split by the bound", () => {
@@ -165,7 +171,7 @@ describe("one turn request is bounded to the boundary's body limit", () => {
 			2,
 		);
 		expect(turnRequestBytes(bounded.request)).toBeLessThanOrEqual(MAX_TURN_REQUEST_BYTES);
-		expect(bounded.request.messages.slice(-2).map((message) => message.content)).toEqual([
+		expect(bounded.request.messages.slice(-2).map(textOf)).toEqual([
 			"call: issues.list",
 			"result: two issues",
 		]);
