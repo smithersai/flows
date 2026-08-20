@@ -8,7 +8,7 @@
   "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
   "section": "post-bootstrap replay",
   "indexInSection": 6,
-  "sectionCount": 71
+  "sectionCount": 83
  },
  "source": {
   "commit": "d4560127de75742bfd6181f8b7f3aca5d34943d9",
@@ -36,7 +36,7 @@
  },
  "atomic": {
   "globalIndex": 844,
-  "globalCount": 909,
+  "globalCount": 921,
   "purpose": "🔀 chore(queue): merge the fold queue notes with the consensus admission fix",
   "merge": true
  },
@@ -56,7 +56,7 @@
   "next": "1c97a83102ede95094854664a5e8ab32d742264a",
   "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
   "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
-  "sectionLast": "9f4db87e9b528812c207c1054f8c36a09a06c2c7"
+  "sectionLast": "6fe6857b28247375ab46b0d79cba15e74754ebd6"
  },
  "size": {
   "files": 2,
