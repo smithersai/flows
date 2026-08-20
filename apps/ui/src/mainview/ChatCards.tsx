@@ -230,9 +230,11 @@ export type RecoAction = "accept" | "edit" | "dismiss";
 const RecoCardBody = ({
 	card,
 	onRecoAction,
+	onRunCommand,
 }: {
 	readonly card: Extract<Card, { kind: "reco" }>;
 	readonly onRecoAction: (id: string, action: RecoAction) => void;
+	readonly onRunCommand: (name: string, args?: string) => void;
 }) => {
 	const { digest, recommendation } = card.payload;
 	const actionable = card.status !== "acted" && recommendation !== null;
@@ -311,9 +313,7 @@ const RecoCardBody = ({
 						</div>
 					)}
 				</div>
-			) : (
-				<p className="smithers-card-note">Nothing needs you right now.</p>
-			)}
+			) : <Button size="sm" data-flow="github" onClick={() => onRunCommand("github")}>Browse repositories</Button>}
 			{card.status === "error" && card.payload.error !== undefined ? (
 				<p className="sui-approval-error" role="alert">
 					{card.payload.error}
@@ -1052,7 +1052,7 @@ export function CardView({
 					) : null}
 					{card.kind === "status" ? <StatusCardBody card={card} /> : null}
 					{card.kind === "balance" ? <BalanceCardBody card={card} /> : null}
-					{card.kind === "reco" ? <RecoCardBody card={card} onRecoAction={onRecoAction} /> : null}
+					{card.kind === "reco" ? <RecoCardBody card={card} onRecoAction={onRecoAction} onRunCommand={onRunCommand} /> : null}
 					{card.kind === "grant-confirm" ? (
 						<GrantConfirmCardBody card={card} onGrantConfirm={onGrantConfirm} onGrantCancel={onGrantCancel} />
 					) : null}
