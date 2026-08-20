@@ -2202,7 +2202,23 @@ const handleBrowserFetch = async (request: Request): Promise<Response> => {
 	if (url === undefined || url.trim() === "") {
 		return json(400, { status: "error", message: "Body must be { url }." });
 	}
-	const outcome = await browserFetch(url.trim(), { resolveHost: resolveHostOverHttps });
+	const outcome = await browserFetch(url.trim(), {
+		resolveHost: resolveHostOverHttps,
+		/*
+		 * Pinned egress on this runtime: an IP-LITERAL target involves no DNS at
+		 * all — the guard's address IS the host — so a direct fetch cannot be
+		 * rebound and is the pinned read. A hostname target would need a second
+		 * lookup this runtime cannot pin (workerd fetch owns resolution), so it
+		 * refuses honestly instead of pretending the pin held.
+		 */
+		fetchImpl: (input, init, address) => {
+			const host = new URL(input).hostname.replace(/^\[|\]$/g, "");
+			if (host !== address) {
+				throw new Error("this runtime cannot pin a hostname to its resolved address");
+			}
+			return fetch(input, init);
+		},
+	});
 	return json(outcome.ok ? 200 : 422, browserFetchResponseBody(outcome));
 };
 
