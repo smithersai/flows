@@ -14,7 +14,6 @@ import { DatabaseError, DurableWriter } from "@smthrs/database/DurableWriter"
 import { Journal, JournalError } from "@smthrs/journal/Journal"
 import * as JournalEvent from "@smthrs/journal/JournalEvent"
 import type { OwnerId } from "@smthrs/run-store/Ownership"
-import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -775,35 +774,38 @@ export const make: Effect.Effect<
       Effect.orDie
     )
 
+  /**
+   * A park or wake changes only the waiting columns, so its entry carries
+   * only the `waiting` payload: no `status` and no lifecycle timestamp. A
+   * cancel can race a park — `RunDriver.cancelOwned` transitions the run
+   * terminal and then wakes it in one transaction — and an entry that
+   * re-asserted the run's status with a fresh clock read would re-stamp
+   * `finished_at_ms` past the value the row holds, breaking the fold
+   * invariant (`docs/specs/Concepts/Run State Fold.md`, round 3).
+   */
   const recordWaitingEvent = (
     runId: string,
-    status: string,
     waiting: WaitingRow | null,
     owner?: OwnerId | undefined
   ): Effect.Effect<void, unknown> =>
-    Effect.gen(function*() {
-      const atMs = yield* Clock.currentTimeMillis
-      yield* journal.emitDurable(
-        new JournalEvent.Input({
-          runId: runId as JournalEvent.RunId,
-          sourceId: "flows/engine-store/waiting" as JournalEvent.SourceId,
-          eventType: "flows.run.transitioned",
-          payload: {
-            status,
-            atMs,
-            waiting: waiting === null
-              ? null
-              : {
-                reason: waiting.reason,
-                wakeAt: waiting.wakeAt,
-                token: waiting.token
-              }
-          },
-          meta: { lineageId: `${runId}/root` }
-        }),
-        owner
-      )
-    }).pipe(Effect.asVoid)
+    journal.emitDurable(
+      new JournalEvent.Input({
+        runId: runId as JournalEvent.RunId,
+        sourceId: "flows/engine-store/waiting" as JournalEvent.SourceId,
+        eventType: "flows.run.transitioned",
+        payload: {
+          waiting: waiting === null
+            ? null
+            : {
+              reason: waiting.reason,
+              wakeAt: waiting.wakeAt,
+              token: waiting.token
+            }
+        },
+        meta: { lineageId: `${runId}/root` }
+      }),
+      owner
+    ).pipe(Effect.asVoid)
 
   const deferred: Service["deferred"] = Effect.fn("DurableEngineState.deferred")((address) =>
     selectDeferred(address).pipe(
@@ -1102,7 +1104,7 @@ export const make: Effect.Effect<
           return { _tag: "NotFound" as const }
         }
         const row = yield* decodeWaitingRow(updated[0])
-        yield* recordWaitingEvent(runId, updated[0].status, row, owner)
+        yield* recordWaitingEvent(runId, row, owner)
         return { _tag: "Parked" as const, row }
       }),
       { _tag: "NotFound" as const }
@@ -1129,7 +1131,7 @@ export const make: Effect.Effect<
           WHERE run_id = ${runId}
             AND waiting_reason IS NOT NULL
         `
-        yield* recordWaitingEvent(runId, before[0].status, null)
+        yield* recordWaitingEvent(runId, null)
         return { _tag: "Woken" as const, row }
       }),
       { _tag: "NotFound" as const }

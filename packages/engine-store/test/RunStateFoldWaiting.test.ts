@@ -123,6 +123,14 @@ describe("run state fold waiting materialization", () => {
         { reason: "event", wakeAt: null, token: "event-token" },
         null
       ])
+      // A park or wake changes only the waiting columns, so its entry carries
+      // only the waiting payload: no status and no lifecycle timestamp
+      // (`docs/specs/Concepts/Run State Fold.md`, round 3).
+      for (const entry of waitingEvents) {
+        const payload = entry.payload as Record<string, unknown>
+        expect(Object.hasOwn(payload, "status")).toBe(false)
+        expect(Object.hasOwn(payload, "atMs")).toBe(false)
+      }
 
       const folded = yield* Fold.foldEntries(entries)
       const live = yield* waitingRows
@@ -130,5 +138,50 @@ describe("run state fold waiting materialization", () => {
 
       yield* Fold.rebuild
       expect(yield* waitingRows).toEqual(live)
+    })))
+
+  it.effect("a wake after a terminal cancel cannot move finished_at_ms (cancel while parked)", () =>
+    withStack(Effect.gen(function*() {
+      const runs = yield* RunStore.RunStore
+      const state = yield* DurableEngineState.DurableEngineState
+      const sql = yield* SqlClient.SqlClient
+
+      yield* runs.create("cancelled-parked", "{}")
+      expect(yield* runs.claimAndOwn("cancelled-parked", snapshot(yield* runs.get("cancelled-parked")), owner, 1))
+        .toEqual({ _tag: "Activated" })
+      expect(yield* state.park("cancelled-parked", { reason: "approval", token: "gate" }, owner)).toMatchObject({
+        _tag: "Parked"
+      })
+
+      // A cancel races the park: `RunDriver.cancelOwned` transitions the run
+      // terminal and then wakes it. Under a real clock the wake's reads run
+      // later than the transition's, so the TestClock advances between the
+      // two — round 2's wake event re-stamped `finished_at_ms` with exactly
+      // this later read (`docs/specs/Concepts/Run State Fold.md`, round 3).
+      expect(yield* runs.transitionOwned("cancelled-parked", owner, "cancelled")).toEqual({ _tag: "Transitioned" })
+      yield* TestClock.adjust("5 seconds")
+      expect(yield* state.wake("cancelled-parked")).toMatchObject({
+        _tag: "Woken",
+        row: { reason: "approval", wakeAt: null, token: "gate" }
+      })
+
+      const live = yield* runs.get("cancelled-parked")
+      expect(live.status).toBe("cancelled")
+      const entries = yield* entriesFor(["cancelled-parked"])
+      const folded = yield* Fold.foldEntries(entries)
+      const foldedRow = folded.runs.get("cancelled-parked")
+      expect(foldedRow).toMatchObject({
+        status: "cancelled",
+        finishedAtMs: live.finishedAtMs,
+        waitingReason: null,
+        waitingWakeAtMs: null,
+        waitingToken: null
+      })
+
+      yield* Fold.rebuild
+      const rebuilt = yield* sql<{ readonly finishedAtMs: number | null; readonly status: string }>`
+        SELECT status, finished_at_ms AS "finishedAtMs" FROM flows_runs WHERE run_id = 'cancelled-parked'
+      `
+      expect(rebuilt[0]).toEqual({ status: "cancelled", finishedAtMs: live.finishedAtMs })
     })))
 })

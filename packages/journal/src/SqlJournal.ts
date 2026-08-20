@@ -72,10 +72,23 @@ const UnknownFromJsonString = Schema.fromJsonString(Schema.Unknown)
  * doing so would let automatic compaction recursively trigger more durable
  * journal work from the settlement path.
  *
+ * `snapshot` is the run/attempt fold's barrier hook
+ * (`docs/specs/Concepts/Run State Fold.md`): `compact` refuses wholesale
+ * when a run has `flows.run.*`/`flows.attempt.*` entries below the floor
+ * and no `flows.run.snapshot` at or after it, so a composition whose
+ * journal carries fold history wires this hook to `@smthrs/run-store`'s
+ * `Fold.snapshot`. The policy runs it after writing the checkpoint and
+ * before compacting, so the snapshot set sequences after the floor and the
+ * compact succeeds. The hook receives this journal in context; unlike
+ * `capture`, its appends are sanctioned durable entries — they count toward
+ * the next threshold, and the per-run in-flight guard plus the damping
+ * counter bound re-entry. Without the hook the barrier simply refuses and
+ * nothing is lost.
+ *
  * A failed or refused attempt — a live stream behind the boundary, a
- * capture failure — is logged at warning, damped for `entryThreshold`
- * further committed entries, and never surfaced to the emit that triggered
- * it.
+ * capture or snapshot failure — is logged at warning, damped for
+ * `entryThreshold` further committed entries, and never surfaced to the
+ * emit that triggered it.
  *
  * @category models
  * @since 0.1.0
@@ -84,6 +97,7 @@ const UnknownFromJsonString = Schema.fromJsonString(Schema.Unknown)
 export interface CompactionPolicy {
   readonly entryThreshold: number
   readonly capture: (runId: RunId, upTo: Seq) => Effect.Effect<unknown, unknown>
+  readonly snapshot?: ((runId: RunId) => Effect.Effect<void, unknown, Journal>) | undefined
 }
 
 /**
@@ -1535,6 +1549,17 @@ export const layerWith = (
           const upTo = Number(last) as Seq
           const captured = yield* policy.capture(runId, upTo)
           yield* checkpoint({ runId, seq: upTo, state: captured })
+          // The fold's snapshot barrier hook runs between the checkpoint
+          // write and the compact, so the snapshot set sequences after the
+          // floor and satisfies `compact`'s `flows.run.snapshot` barrier
+          // (`docs/specs/Concepts/Run State Fold.md`). It appends through
+          // this journal on purpose; `compactingRuns` keeps those
+          // settlements from re-triggering compaction while this attempt is
+          // in flight, and the tail count below absorbs them into the next
+          // threshold window.
+          if (policy.snapshot !== undefined) {
+            yield* Effect.provideService(policy.snapshot(runId), Journal, service)
+          }
           yield* compact({ runId, upTo })
           compactionCounts.set(runId, yield* countEntries(runId))
         }).pipe(
@@ -1742,7 +1767,10 @@ export const layerWith = (
           )(projection, streamOptions)
         )
 
-      return makeJournal({
+      // Bound before `policyCompact` ever runs: the snapshot hook receives
+      // this very journal in context, so its snapshot set lands in the same
+      // event stream the compact call is about to truncate.
+      const service = makeJournal({
         emitLossy,
         emitDurable,
         transact,
@@ -1760,6 +1788,7 @@ export const layerWith = (
         latestCheckpoint,
         compact
       })
+      return service
     })
   )
 

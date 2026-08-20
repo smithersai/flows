@@ -703,6 +703,90 @@ describe("the compaction policy hook", () => {
       Effect.scoped
     ))
 
+  effect("runs the snapshot hook between the checkpoint and the compact, so fold history compacts", () => {
+    const snapshotted: Array<string> = []
+    return Effect.gen(function*() {
+      const service = yield* Journal
+      yield* service.emitDurable(foldInput(0, "flows.run.created", { createdAtMs: 0, status: "queued" }))
+      yield* service.emitDurable(foldInput(1, "flows.attempt.put", { stepKeyDigest: "step", attempt: 0 }))
+      yield* service.emitDurable(input(2))
+      // The third settlement crossed the threshold: the policy checkpointed
+      // at the tail, ran the hook — whose snapshot set sequenced after the
+      // floor and satisfied the fold barrier — and compacted below it.
+      expect(snapshotted).toEqual([run])
+      const latest = yield* service.latestCheckpoint(run)
+      expect(Option.getOrThrow(latest).seq).toBe(2)
+      expect(Option.getOrThrow(latest).compactedAtMs).not.toBeNull()
+      const page = yield* service.entries({ runId: run, after: seqOf(1), limit: 10 })
+      expect(page.entries.map((entry) => entry.eventType)).toEqual([
+        "event",
+        "flows.run.snapshot",
+        "flows.attempt.snapshot"
+      ])
+      expect(yield* eventCount).toBe(3)
+    }).pipe(
+      Effect.provide(journal({
+        compaction: {
+          entryThreshold: 3,
+          capture: () => Effect.succeed(null),
+          snapshot: (target) =>
+            Effect.gen(function*() {
+              const service = yield* Journal
+              // The hook appends through the journal it received in context:
+              // the run snapshot first, then the attempt snapshot, as
+              // `@smthrs/run-store`'s `Fold.snapshot` does.
+              yield* service.emitDurable(
+                new Input({
+                  runId: target,
+                  sourceId: sourceId("fold-snapshotter"),
+                  sourceSeq: 0 as SourceSeq,
+                  eventType: "flows.run.snapshot",
+                  payload: { createdAtMs: 0, status: "queued" }
+                }, { disableChecks: true })
+              )
+              yield* service.emitDurable(
+                new Input({
+                  runId: target,
+                  sourceId: sourceId("fold-snapshotter"),
+                  sourceSeq: 1 as SourceSeq,
+                  eventType: "flows.attempt.snapshot",
+                  payload: { stepKeyDigest: "step", attempt: 0 }
+                }, { disableChecks: true })
+              )
+              snapshotted.push(target)
+            })
+        }
+      })),
+      Effect.scoped
+    )
+  })
+
+  effect(
+    "without the snapshot hook the fold barrier refuses, is damped, and deletes nothing",
+    () =>
+      Effect.gen(function*() {
+        const service = yield* Journal
+        yield* service.emitDurable(foldInput(0, "flows.run.created", { createdAtMs: 0, status: "queued" }))
+        yield* service.emitDurable(input(1))
+        yield* service.emitDurable(input(2))
+        // The policy checkpointed at the tail, but `compact` refused the whole
+        // call: fold history sits below the floor with no snapshot at or after
+        // it, and no hook was wired to append one. Nothing is lost.
+        const latest = yield* service.latestCheckpoint(run)
+        expect(Option.getOrThrow(latest).seq).toBe(2)
+        expect(Option.getOrThrow(latest).compactedAtMs).toBeNull()
+        expect(yield* eventCount).toBe(3)
+      }).pipe(
+        Effect.provide(journal({
+          compaction: {
+            entryThreshold: 3,
+            capture: () => Effect.succeed(null)
+          }
+        })),
+        Effect.scoped
+      )
+  )
+
   effect("seeds the threshold from durable history, so a restart still compacts", () =>
     Effect.gen(function*() {
       yield* Effect.gen(function*() {

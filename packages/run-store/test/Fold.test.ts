@@ -8,7 +8,7 @@ import * as JournalEvent from "@smthrs/journal/JournalEvent"
 import * as JournalMigrations from "@smthrs/journal/Migrations"
 import * as SqlConsensus from "@smthrs/journal/SqlConsensus"
 import * as SqlJournal from "@smthrs/journal/SqlJournal"
-import { Effect, Layer } from "effect"
+import { Effect, Layer, Option } from "effect"
 import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as AttemptStore from "../src/AttemptStore.ts"
@@ -30,6 +30,35 @@ const stackFor = (
   ).pipe(
     Layer.provideMerge(
       SqlJournal.layerWith({ capacity: 128, overflow: "reject" }).pipe(Layer.provideMerge(strategy))
+    ),
+    Layer.provideMerge(Layer.provideMerge(migrationsLayer, TestDatabase.layer))
+  )
+
+/**
+ * The composition the vault note's "runtime half" prescribes: the automatic
+ * `CompactionPolicy` carries a snapshot hook wired to `Fold.snapshot`, run
+ * by the policy between the checkpoint write and the compact call.
+ */
+const compactionStackFor = (
+  strategy: Layer.Layer<Consensus.Consensus, never, DurableWriter.DurableWriter | SqlClient.SqlClient>
+) =>
+  Layer.mergeAll(
+    RunStoreLive.layerWith,
+    AttemptStore.layer
+  ).pipe(
+    Layer.provideMerge(
+      Layer.unwrap(Effect.gen(function*() {
+        const sql = yield* Effect.service(SqlClient.SqlClient)
+        return SqlJournal.layerWith({
+          capacity: 128,
+          overflow: "reject",
+          compaction: {
+            entryThreshold: 4,
+            capture: () => Effect.succeed(null),
+            snapshot: (runId) => Fold.snapshot(runId).pipe(Effect.provideService(SqlClient.SqlClient, sql))
+          }
+        }).pipe(Layer.provideMerge(strategy))
+      }))
     ),
     Layer.provideMerge(Layer.provideMerge(migrationsLayer, TestDatabase.layer))
   )
@@ -571,6 +600,124 @@ const suite = (
             stateJson: "{\"phase\":\"created\"}"
           })
         })
+      ))
+
+    it.effect("compacts a run with fold history below the floor via the snapshot operation", () =>
+      withStack(
+        strategy,
+        Effect.gen(function*() {
+          const runs = yield* RunStore
+          const attempts = yield* AttemptStore.AttemptStore
+          const journal = yield* Journal
+
+          yield* runs.create("compaction-driver", "{\"phase\":\"created\"}")
+          expect(
+            yield* runs.claimAndOwn("compaction-driver", snapshot(yield* runs.get("compaction-driver")), ownerA, 1)
+          ).toEqual({ _tag: "Activated" })
+          expect(
+            yield* attempts.put({
+              runId: "compaction-driver",
+              stepKeyDigest: "step-0",
+              attempt: 0,
+              state: "running",
+              startedAtMs: 2,
+              meta: { phase: "inserted" }
+            }, ownerA)
+          ).toEqual({ _tag: "Inserted" })
+          expect(yield* runs.transitionOwned("compaction-driver", ownerA, "completed", "{\"phase\":\"done\"}"))
+            .toEqual({ _tag: "Transitioned" })
+
+          const before = yield* journal.entries({
+            runId: "compaction-driver" as JournalEvent.RunId,
+            limit: 100
+          })
+          const tail = before.entries.at(-1)!.seq
+          expect(
+            before.entries.some((entry) =>
+              entry.eventType.startsWith("flows.run.") || entry.eventType.startsWith("flows.attempt.")
+            )
+          ).toBe(true)
+
+          // The manual compaction driver order the note prescribes:
+          // checkpoint at the chosen floor, append the snapshot set so it
+          // sequences after the floor, then compact.
+          yield* journal.checkpoint({ runId: "compaction-driver" as JournalEvent.RunId, seq: tail, state: null })
+          yield* Fold.snapshot("compaction-driver")
+          const compacted = yield* journal.compact({ runId: "compaction-driver" as JournalEvent.RunId })
+          expect(compacted.deleted).toBe(Number(tail))
+
+          const surviving = yield* journal.entries({
+            runId: "compaction-driver" as JournalEvent.RunId,
+            after: (Number(tail) - 1) as JournalEvent.Seq,
+            limit: 100
+          })
+          const snapshots = surviving.entries.filter((entry) => entry.eventType.endsWith(".snapshot"))
+          expect(snapshots.map((entry) => entry.eventType)).toEqual([
+            "flows.run.snapshot",
+            "flows.attempt.snapshot"
+          ])
+          expect(snapshots.every((entry) => entry.sourceId === "flows/run-store/fold/snapshot")).toBe(true)
+
+          const live = yield* materialized
+          yield* Fold.rebuild
+          expect(materializedComparable(yield* materialized)).toEqual(materializedComparable({
+            attempts: live.attempts,
+            runs: live.runs
+          }))
+
+          // A run the tables do not know appends nothing.
+          const beforeUnknown = yield* journal.runs
+          yield* Fold.snapshot("compaction-unknown")
+          expect(yield* journal.runs).toEqual(beforeUnknown)
+        })
+      ))
+
+    it.effect("automatic compaction succeeds over fold history through the wired snapshot hook", () =>
+      Effect.gen(function*() {
+        const runs = yield* RunStore
+        const attempts = yield* AttemptStore.AttemptStore
+        const journal = yield* Journal
+
+        yield* runs.create("compaction-auto", "{\"phase\":\"created\"}")
+        expect(yield* runs.claimAndOwn("compaction-auto", snapshot(yield* runs.get("compaction-auto")), ownerA, 1))
+          .toEqual({ _tag: "Activated" })
+        expect(
+          yield* attempts.put({
+            runId: "compaction-auto",
+            stepKeyDigest: "step-0",
+            attempt: 0,
+            state: "running",
+            startedAtMs: 2,
+            meta: { phase: "inserted" }
+          }, ownerA)
+        ).toEqual({ _tag: "Inserted" })
+        expect(yield* runs.transitionOwned("compaction-auto", ownerA, "completed", "{\"phase\":\"done\"}"))
+          .toEqual({ _tag: "Transitioned" })
+
+        // Every entry this scenario appends is fold or consensus history, so
+        // any successful automatic compaction proves the hook satisfied the
+        // barrier at runtime rather than refusing forever.
+        const latest = yield* journal.latestCheckpoint("compaction-auto" as JournalEvent.RunId)
+        const checkpoint = Option.getOrThrow(latest)
+        expect(checkpoint.compactedAtMs).not.toBeNull()
+
+        const surviving = yield* journal.entries({
+          runId: "compaction-auto" as JournalEvent.RunId,
+          after: (Number(checkpoint.seq) - 1) as JournalEvent.Seq,
+          limit: 100
+        })
+        expect(surviving.entries.some((entry) => entry.eventType === "flows.run.snapshot")).toBe(true)
+
+        const live = yield* materialized
+        yield* Fold.rebuild
+        expect(materializedComparable(yield* materialized)).toEqual(materializedComparable({
+          attempts: live.attempts,
+          runs: live.runs
+        }))
+      }).pipe(
+        Effect.provide(compactionStackFor(strategy)),
+        Effect.provide(TestClock.layer()),
+        Effect.scoped
       ))
   })
 }
