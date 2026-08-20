@@ -2,10 +2,20 @@ import { use } from "react";
 import type { ReactNode } from "react";
 import type { AppController } from "./state/AppController";
 import { ControllerContext } from "./ControllerContext";
-import { runControllerBoot } from "./ControllerBoot.client";
+import type { BootSession } from "./BootSession";
 import { createControllerBoot } from "./ControllerBootMemo";
 
-export const controllerBootPromise = createControllerBoot(runControllerBoot);
+/*
+ * The boot module is reached through a dynamic import, not a static one. This
+ * module is rendered on the server by the Start entry (`routes/__root.tsx`),
+ * and the boot chain reaches `electrobun/view`, which reads `window` while its
+ * own module body evaluates — a static import therefore throws "window is not
+ * defined" before any component runs. The import happens when a browser asks
+ * to boot, which is the only place a controller exists.
+ */
+export const controllerBootPromise = createControllerBoot((session?: BootSession) =>
+	import("./ControllerBoot.client").then(({ runControllerBoot }) => runControllerBoot(session)),
+);
 
 export function ControllerProvider({
 	boot,
