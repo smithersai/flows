@@ -63,8 +63,15 @@ process.stdout.write(all.find(r=>r.instance_id===process.argv[2]).base_commit);
 # Keep the harness scaffolding out of the model patch.
 printf 'flows/\n.flows/\n.jj/\nagent-run.log\n' >> "$WORK/.git/info/exclude"
 
+# The repository's own test runner, from the pinned evaluator's spec map. The
+# rig used to prescribe `python -m pytest` for every repo; Django ships no
+# pytest module and Sphinx runs under tox, so that command could not verify a
+# fix in either, and the completion audit accepts only a check that passes.
+TEST_CMD="$("$S/.venv-swb/bin/python" "$S/lib/test-command.py" "$DATASET" "$INSTANCE")" || {
+  echo "[$INSTANCE] NO TEST COMMAND — run ./bootstrap.sh first"; exit 1; }
+
 mkdir -p "$WORK/flows/fix"
-node "$S/lib/write-flow.mjs" "$DATASET" "$INSTANCE" "$SEAT" "$CONTAINER" > "$WORK/flows/fix/flow.mdx"
+node "$S/lib/write-flow.mjs" "$DATASET" "$INSTANCE" "$SEAT" "$CONTAINER" "$TEST_CMD" > "$WORK/flows/fix/flow.mdx"
 
 ( cd "$WORK" && jj git init --colocate >/dev/null 2>&1 )
 
