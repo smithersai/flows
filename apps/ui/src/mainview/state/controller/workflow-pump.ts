@@ -352,6 +352,7 @@ export const createWorkflowPumpController = (
 				if (approvalEvent) approvalPending = true;
 				if (blockedKind === "approval" || runStatus === "waiting-approval" || approvalPending) {
 					const approvals = await workflowRpc(repo, "listApprovals", { filter: { runId } });
+					if (pump.stopped || ctx.runPumps.get(cardId) !== pump) return;
 					// Keep asking until the gate is actually in hand: the parked
 					// event can land a beat before the approval row is readable.
 					if (approvals.status === "ok" && upsertRunApprovals(runId, repo, approvals.payload) > 0) {
@@ -363,8 +364,9 @@ export const createWorkflowPumpController = (
 				if (settled !== undefined) {
 					const steps = [...card.payload.steps, ...newSteps].slice(-RUN_STEPS_TAIL);
 					if (settled === "completed") {
-						const result =
-							whatHappenedWords(await workflowRpc(repo, "whatHappened", { runId })) ?? "The run finished.";
+						const happened = await workflowRpc(repo, "whatHappened", { runId });
+						if (pump.stopped || ctx.runPumps.get(cardId) !== pump) return;
+						const result = whatHappenedWords(happened) ?? "The run finished.";
 						patchRunCard(cardId, { phase: "completed", steps, lastSeq: newSeq, result }, "acted");
 						store.dispatch({ type: "message.appended", actor: "system", text: result });
 					} else {

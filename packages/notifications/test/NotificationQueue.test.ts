@@ -70,6 +70,27 @@ describe("NotificationQueue", () => {
     expect(error.code).toBe("idempotency_conflict")
   })
 
+  it("serializes concurrent admissions at the durable capacity", async () => {
+    const result = await run(Effect.gen(function*() {
+      const queue = yield* NotificationQueue.NotificationQueue
+      const receipts = yield* Effect.all(
+        Array.from({ length: 129 }, (_, index) => queue.admit("run", item(`n-${index}`, "steer"))),
+        { concurrency: "unbounded" }
+      )
+      const drained = yield* queue.drain({
+        runId: "run",
+        targetLineageId: "run/root",
+        boundary: "turn",
+        wouldIdle: false
+      })
+      return { receipts, drained }
+    }))
+
+    expect(result.receipts.filter((receipt) => receipt.decision === "admitted")).toHaveLength(128)
+    expect(result.receipts.filter((receipt) => receipt.decision === "rejected-full")).toHaveLength(1)
+    expect(result.drained.notifications).toHaveLength(128)
+  })
+
   it("targets lineage, batches steers, and promotes one queued follow-up only at idle", async () => {
     const result = await run(
       Effect.gen(function*() {

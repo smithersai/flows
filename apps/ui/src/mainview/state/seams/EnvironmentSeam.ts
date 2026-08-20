@@ -85,6 +85,22 @@ const mergeVariable = (
 	);
 
 export const createEnvironmentSeam = (ctx: SeamContext): EnvironmentSeam => {
+	const writes = new Map<string, Promise<void>>();
+	const serialize = async <A>(repo: string, work: () => Promise<A>): Promise<A> => {
+		const previous = writes.get(repo) ?? Promise.resolve();
+		let release!: () => void;
+		const current = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		writes.set(repo, current);
+		await previous;
+		try {
+			return await work();
+		} finally {
+			release();
+			if (writes.get(repo) === current) writes.delete(repo);
+		}
+	};
 	const environmentUrl = (repo: string): string => {
 		const [owner = "", name = ""] = repo.split("/");
 		return `${ctx.baseUrl}/api/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/agent-environment`;
@@ -145,6 +161,7 @@ export const createEnvironmentSeam = (ctx: SeamContext): EnvironmentSeam => {
 		if (typeof pair === "string") return pair;
 		const target = resolveTargetRepo(ctx.store, repo);
 		if ("error" in target) return target.error;
+		return serialize(target.repo, async () => {
 		// Read-merge-write: the platform stores the WHOLE environment, so the
 		// one pair merges into the current answer and the whole document goes
 		// back (multi set-env-var/command.ts).
@@ -175,6 +192,7 @@ export const createEnvironmentSeam = (ctx: SeamContext): EnvironmentSeam => {
 		await response.body?.cancel();
 		// The refreshed card states the platform's answer, not the local merge.
 		return viewEnvironment(target.repo);
+		});
 	};
 
 	return { viewEnvironment, setEnvironmentVar };

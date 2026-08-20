@@ -113,7 +113,8 @@ export interface Service {
   readonly scheduleResume: (
     flowName: string,
     executionId: string,
-    reason: "deferred" | "clock" | "parent" | "operator"
+    reason: "deferred" | "clock" | "parent" | "operator",
+    sourceId?: string | undefined
   ) => Effect.Effect<void>
   readonly active: Effect.Effect<ReadonlySet<string>>
   /**
@@ -310,13 +311,15 @@ export const make = (
      */
     const emitDecision = (
       runId: string,
-      payload: unknown
+      payload: unknown,
+      sourceId = dependencies.journalSource
     ): Effect.Effect<void> =>
       journal.emitDurable(
         JournalRecords.runDecision({
           runId,
           lineageId: FlowEngine.Lineage.root(runId),
-          sourceId: dependencies.journalSource
+          sourceId,
+          ...(sourceId === dependencies.journalSource ? {} : { sourceSeq: 0 })
         }, payload)
       ).pipe(Effect.asVoid, Effect.orDie)
 
@@ -1730,7 +1733,8 @@ export const make = (
     const scheduleResume: Service["scheduleResume"] = Effect.fn("FlowEngine.scheduleResume")((
       flowName,
       executionId,
-      reason
+      reason,
+      sourceId
     ) =>
       Effect.gen(function*() {
         yield* Effect.annotateCurrentSpan({ executionId, flow: flowName, reason })
@@ -1747,7 +1751,7 @@ export const make = (
         yield* emitDecision(executionId, {
           decision: "wake-scheduled",
           reason
-        })
+        }, sourceId)
         yield* coordinator.wake(executionId)
         // The runnability change (deferred completed, clock fired, operator
         // resume) is already durable — the caller commits before scheduling —

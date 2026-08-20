@@ -35,8 +35,9 @@ export const derive = JournalProjection.make({
 
     const event = decoded.value
     if ("notification" in event) {
-      if (event.decision === "rejected-full") return Effect.succeed(state)
-      return Effect.succeed(NotificationState.admit(state, event.notification, entry.seq).state)
+      return Effect.succeed(
+        NotificationState.applyAdmission(state, event.notification, entry.seq, event.decision)
+      )
     }
     return Effect.succeed(NotificationState.applyPromoted(state, event.ids))
   }

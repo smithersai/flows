@@ -7,7 +7,12 @@ import * as Scorer from "../src/Scorer.ts"
 describe("Binding", () => {
   it("does not modify the target declaration", () => {
     const target = Flow.make({ name: "target" })
-    const scorer = Scorer.make({ name: "score", score: () => Effect.succeed({ score: 1 }) })
+    const scorer = Scorer.make({
+      id: "packages/scorers/test/Binding/score",
+      version: "1",
+      name: "score",
+      score: () => Effect.succeed({ score: 1 })
+    })
     const binding = Binding.make({
       scorer,
       appliesTo: target,

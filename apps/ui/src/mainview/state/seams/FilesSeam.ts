@@ -33,6 +33,19 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const normalizePath = (path: string): string =>
 	path.trim().replace(/^\/+/, "").replace(/\/+$/, "");
 
+const unsafePath = (path: string): boolean => {
+	const slashNormalized = path.replace(/\\/g, "/");
+	return slashNormalized.split("/").some((segment) => {
+		let decoded = segment;
+		try {
+			decoded = decodeURIComponent(segment);
+		} catch {
+			return true;
+		}
+		return decoded === "." || decoded === ".." || decoded.includes("/") || decoded.includes("\\");
+	});
+};
+
 /** Per-segment encoding, mirroring multi filesClient.ts encodeRepoPath (:53). */
 const encodeRepoPath = (path: string): string =>
 	path.split("/").filter(Boolean).map(encodeURIComponent).join("/");
@@ -113,6 +126,7 @@ export const createFilesSeam = (ctx: SeamContext): FilesSeam => {
 
 	return {
 		listFiles: async (path, explicitRepo) => {
+			if (unsafePath(path)) return "File paths must stay inside the repository.";
 			const target = resolveTargetRepo(ctx.store, explicitRepo);
 			if ("error" in target) return target.error;
 			const { repo } = target;
@@ -158,6 +172,7 @@ export const createFilesSeam = (ctx: SeamContext): FilesSeam => {
 		},
 
 		readFile: async (path, explicitRepo) => {
+			if (unsafePath(path)) return "File paths must stay inside the repository.";
 			const target = resolveTargetRepo(ctx.store, explicitRepo);
 			if ("error" in target) return target.error;
 			const { repo } = target;

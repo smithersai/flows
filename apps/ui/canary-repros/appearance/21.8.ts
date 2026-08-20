@@ -18,6 +18,10 @@ const PROFILE = process.env.APPEARANCE_PROFILE ?? "/tmp/canary-appearance-profil
 /** iPhone 14/15 CSS viewport. */
 const WIDTH = 390;
 const HEIGHT = 844;
+const MOBILE_SCOPE = process.env.CANARY_MOBILE_SCOPE;
+if (MOBILE_SCOPE !== "in" && MOBILE_SCOPE !== "out") {
+	throw new Error("CANARY_MOBILE_SCOPE must be the recorded product-owner decision: in or out");
+}
 
 const context = await chromium.launchPersistentContext(PROFILE, {
 	headless: true,
@@ -70,7 +74,11 @@ console.log(`  controls wider than the viewport: ${report.widerThanViewport.leng
 console.log(`  boxes clipping their content:     ${report.clipped.length}`);
 console.log(`  controls under a 44x44 target:    ${report.belowTouchTarget.length}`);
 console.log("scope decision: NOT recorded anywhere in the repo — the product owner must state it.");
-if (report.widerThanViewport.length > 0 || report.clipped.length > 0) {
+if (
+	report.widerThanViewport.length > 0 ||
+	report.clipped.length > 0 ||
+	(MOBILE_SCOPE === "in" && report.belowTouchTarget.length > 0)
+) {
 	console.error("phone width is not clean today");
 	process.exit(1);
 }

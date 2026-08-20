@@ -52,6 +52,9 @@ export const SCHEMA_VERSION_STORAGE_KEY = `${PERSISTED_KEY_PREFIX}schemaVersion`
 /** Where boot stamps the backend that holds the live store. */
 export const PERSISTENCE_BACKEND_STORAGE_KEY = `${PERSISTED_KEY_PREFIX}persistenceBackend`;
 
+/** Raw pre-migration envelopes retained outside the live namespace on a reset. */
+export const SCHEMA_QUARANTINE_PREFIX = "smithers-mvp-quarantine.";
+
 /** The two stores AppStore can persist into. */
 export type PersistenceBackendKind = "opfs" | "localStorage";
 
@@ -122,6 +125,8 @@ export interface SchemaVersionOutcome {
 	readonly to: number;
 	/** The keys the gate removed, sorted. */
 	readonly clearedKeys: ReadonlyArray<string>;
+	/** Backup keys holding the raw envelopes removed from the live namespace. */
+	readonly quarantinedKeys: ReadonlyArray<string>;
 }
 
 export interface SchemaVersionOptions {
@@ -193,14 +198,22 @@ export const enforceSchemaVersion = (
 	const version = options.version ?? APP_SCHEMA_VERSION;
 	const from = storage.getItem(SCHEMA_VERSION_STORAGE_KEY);
 	if (from === String(version)) {
-		return { action: "match", from, to: version, clearedKeys: [] };
+		return { action: "match", from, to: version, clearedKeys: [], quarantinedKeys: [] };
 	}
 	if (from === null) {
 		storage.setItem(SCHEMA_VERSION_STORAGE_KEY, String(version));
-		return { action: "adopt", from, to: version, clearedKeys: [] };
+		return { action: "adopt", from, to: version, clearedKeys: [], quarantinedKeys: [] };
 	}
 	const clearedKeys = keysToClear(storage);
+	const quarantinedKeys: string[] = [];
+	for (const key of clearedKeys) {
+		const raw = storage.getItem(key);
+		if (raw === null) continue;
+		const quarantineKey = `${SCHEMA_QUARANTINE_PREFIX}${from}.${key.slice(PERSISTED_KEY_PREFIX.length)}`;
+		storage.setItem(quarantineKey, raw);
+		quarantinedKeys.push(quarantineKey);
+	}
 	for (const key of clearedKeys) storage.removeItem(key);
 	storage.setItem(SCHEMA_VERSION_STORAGE_KEY, String(version));
-	return { action: "reset", from, to: version, clearedKeys };
+	return { action: "reset", from, to: version, clearedKeys, quarantinedKeys };
 };

@@ -138,7 +138,8 @@ describe("DurableWriter", () => {
     expect(
       WriteRetry.isRetryableWriteError(unknownSqlError({ message: "cannot rollback - no transaction is active" }))
     ).toBe(true)
-    expect(WriteRetry.isRetryableWriteError(unknownSqlError({ message: "disk I/O error" }))).toBe(true)
+    expect(WriteRetry.isRetryableWriteError(unknownSqlError({ message: "disk I/O error" }))).toBe(false)
+    expect(WriteRetry.isRetryableWriteError(unknownSqlError({ code: "SQLITE_IOERR_FSYNC" }))).toBe(false)
     expect(WriteRetry.isRetryableWriteError(unknownSqlError({ cause: { code: "SQLITE_LOCKED_SHAREDCACHE" } })))
       .toBe(true)
 
@@ -245,7 +246,15 @@ describe("DurableWriter", () => {
       expect(attempts).toBe(3)
     }))
 
-  it.effect.each([0, -5, 1.7])(
+  it.effect.each([
+    0,
+    -5,
+    1.7,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    Number.NEGATIVE_INFINITY,
+    Number.MAX_SAFE_INTEGER + 1
+  ])(
     "clamps maxAttempts $maxAttempts to one attempt",
     (maxAttempts) =>
       Effect.gen(function*() {
@@ -271,6 +280,20 @@ describe("DurableWriter", () => {
         expect(attempts).toBe(1)
       })
   )
+
+  it.effect("surfaces a SQLite I/O failure without replaying the write body", () =>
+    Effect.gen(function*() {
+      let attempts = 0
+      const writer = DurableWriter.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 10 })
+      const failure = yield* Effect.flip(writer.write(Effect.suspend(() => {
+        attempts += 1
+        return Effect.fail(sqliteError("SQLITE_IOERR_FSYNC"))
+      })))
+
+      expect(failure).toBeInstanceOf(DurableWriter.DatabaseError)
+      expect(failure).toMatchObject({ code: "io" })
+      expect(attempts).toBe(1)
+    }))
 
   it.effect("caps every exponential retry delay at maxDelayMs under TestClock", () =>
     Effect.gen(function*() {

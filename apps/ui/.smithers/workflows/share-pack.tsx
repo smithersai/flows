@@ -6,6 +6,9 @@
 // smithers-system: true
 /** @jsxImportSource smthrs */
 import { createSmithers, UI } from "smthrs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { basename, dirname, join } from "node:path";
 import { z } from "zod/v4";
 import { agents } from "../agents";
 
@@ -19,7 +22,7 @@ const completionSchema = z.object({ completed: z.boolean(), detail: z.string() }
 const prepareSchema = z.object({
   ok: z.boolean(),
   detail: z.string(),
-  stagingRoot: z.string().nullable().default(null),
+  stagingId: z.string().nullable().default(null),
 });
 const outputSchema = z.object({
   validated: z.boolean(),
@@ -40,6 +43,43 @@ const { Workflow, Task, Sequence, smithers, outputs } = createSmithers({
 });
 const cliModule = (name: string) =>
   process.env.SMITHERS_CLI_SRC_DIR ? `${process.env.SMITHERS_CLI_SRC_DIR}/${name}.js` : `@smthrs/cli/${name}`;
+const PREPARED_PREFIX = "smithers-share-stage-";
+const OWNED_PREFIX = "smithers-share-run-";
+const OWNERSHIP_MARKER = ".smithers-share-owner.json";
+
+function assertDedicatedTempPath(candidate: string, prefix: string): string {
+  const canonicalTmp = realpathSync(tmpdir());
+  if (!existsSync(candidate) || lstatSync(candidate).isSymbolicLink()) throw new Error("staging path is missing or symbolic");
+  const canonical = realpathSync(candidate);
+  if (dirname(canonical) !== canonicalTmp || !basename(canonical).startsWith(prefix)) {
+    throw new Error(`staging path is outside the dedicated temporary root: ${candidate}`);
+  }
+  return canonical;
+}
+
+/** Move CLI staging into a run-owned directory and persist only its basename. */
+export function claimPreparedStagingRoot(preparedRoot: string, runId: string): string {
+  const source = assertDedicatedTempPath(preparedRoot, PREPARED_PREFIX);
+  const parent = mkdtempSync(join(realpathSync(tmpdir()), OWNED_PREFIX));
+  const staging = join(parent, "stage");
+  renameSync(source, staging);
+  writeFileSync(join(parent, OWNERSHIP_MARKER), JSON.stringify({ runId, staging: "stage" }));
+  return basename(parent);
+}
+
+/** Reconstruct and verify the owned staging path before publication or deletion. */
+export function resolveOwnedStagingRoot(stagingId: string, runId: string): { parent: string; staging: string } {
+  if (basename(stagingId) !== stagingId || !stagingId.startsWith(OWNED_PREFIX)) {
+    throw new Error("invalid persisted staging identifier");
+  }
+  const parent = assertDedicatedTempPath(join(realpathSync(tmpdir()), stagingId), OWNED_PREFIX);
+  const markerPath = join(parent, OWNERSHIP_MARKER);
+  const marker = JSON.parse(readFileSync(markerPath, "utf8")) as { runId?: unknown; staging?: unknown };
+  if (marker.runId !== runId || marker.staging !== "stage") throw new Error("staging ownership marker does not match this run");
+  const staging = realpathSync(join(parent, "stage"));
+  if (dirname(staging) !== parent || lstatSync(staging).isSymbolicLink()) throw new Error("owned staging path is not contained");
+  return { parent, staging };
+}
 
 async function validateManifest(repo: string | undefined, registry: string | undefined) {
   const { loadManifest } = await import(cliModule("manifest"));
@@ -121,9 +161,13 @@ Edit ONLY .smithers/smithers.toon. Return completed=true when the manifest is fi
                 // path is persisted so publish uses THIS artifact and cleanup can
                 // always find it, even in a fresh process after a durable retry.
                 const result = preparePackForShare({ from: process.cwd(), repository: ctx.input.repo });
-                return { ok: true, detail: result.detail, stagingRoot: result.stagingRoot };
+                return {
+                  ok: true,
+                  detail: result.detail,
+                  stagingId: claimPreparedStagingRoot(result.stagingRoot, ctx.runId),
+                };
               } catch (error) {
-                return { ok: false, detail: error instanceof Error ? error.message : String(error), stagingRoot: null };
+                return { ok: false, detail: error instanceof Error ? error.message : String(error), stagingId: null };
               }
             }}
           </Task>
@@ -138,7 +182,9 @@ Edit ONLY .smithers/smithers.toon. Return completed=true when the manifest is fi
                   detail: publishPackRepository({
                     from: process.cwd(),
                     repository: ctx.input.repo,
-                    stagingRoot: prepare?.stagingRoot ?? undefined,
+                    stagingRoot: prepare?.stagingId
+                      ? resolveOwnedStagingRoot(prepare.stagingId, ctx.runId).staging
+                      : undefined,
                   }),
                 };
               } catch (error) {
@@ -170,10 +216,10 @@ Edit ONLY .smithers/smithers.toon. Return completed=true when the manifest is fi
             {async () => {
               // Terminal cleanup on every path (success, dry-run, or failure): the
               // staging copy must never outlive the run.
-              const stagingRoot = prepare?.stagingRoot;
-              if (stagingRoot) {
-                const { rmSync } = await import("node:fs");
-                rmSync(stagingRoot, { recursive: true, force: true });
+              const stagingId = prepare?.stagingId;
+              if (stagingId) {
+                const owned = resolveOwnedStagingRoot(stagingId, ctx.runId);
+                rmSync(owned.parent, { recursive: true, force: true });
               }
               return {
                 validated: manifestReady,

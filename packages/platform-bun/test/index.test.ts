@@ -7,6 +7,9 @@
  * has no business in a Bun bundle, and the resolved module graph says so.
  */
 import { build } from "esbuild"
+import * as KernelFileSystem from "@smthrs/kernel/FileSystem"
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
 import { describe, expect, it } from "vitest"
 import * as BunFileSystem from "../src/BunFileSystem.ts"
 import * as BunHost from "../src/BunHost.ts"
@@ -21,6 +24,16 @@ describe("@smthrs/platform-bun barrel", () => {
 
   it("names Effect's own Bun HttpClient as the network slot implementation", () => {
     expect(Object.values(BunHost.implementationIds)).toContain("@effect/platform-bun/BunHttpClient")
+  })
+
+  it("carries the kernel atomic filesystem extension", async () => {
+    const fileSystem = await Effect.runPromise(
+      Effect.provide(FileSystem.FileSystem, BunFileSystem.layer)
+    )
+    const atomic = (fileSystem as Partial<KernelFileSystem.AtomicHostFileSystem>)[
+      KernelFileSystem.AtomicFileSystemTypeId
+    ]
+    expect(atomic).toBeDefined()
   })
 })
 

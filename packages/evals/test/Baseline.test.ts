@@ -15,4 +15,17 @@ describe("Baseline", () => {
     const bad = await Effect.runPromiseExit(Baseline.load("{\"version\":2,\"records\":[]}"))
     expect(bad._tag).toBe("Failure")
   })
+
+  it("orders non-ASCII keys by code unit", async () => {
+    const baseline = await Effect.runPromise(Baseline.make({
+      records: [
+        { suite: "é", case: "c", scorer: "x", stepKey: "k", score: 1 },
+        { suite: "z", case: "c", scorer: "x", stepKey: "k", score: 1 }
+      ]
+    }))
+    expect(JSON.parse(Baseline.write(baseline)).records.map((record: { suite: string }) => record.suite)).toEqual([
+      "z",
+      "é"
+    ])
+  })
 })

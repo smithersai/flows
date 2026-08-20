@@ -122,7 +122,7 @@ const acceptanceAssertions = z.strictObject({
 
 const input = z.strictObject({
   targetRepo: z.string().min(1).refine(path.isAbsolute, "targetRepo must be absolute").default("/Users/williamcory/mvp"),
-  architectureSitePath: z.string().min(1).default("docs/architecture"),
+  architectureSitePath: z.string().min(1).refine(isSafeRelativeArchitecturePath, "architectureSitePath must be a normalized relative path without '.' or '..' components").default("docs/architecture"),
   maxPrototypeRounds: z.number().int().min(1).max(5).default(3),
   maxProductionRounds: z.number().int().min(1).max(6).default(4),
   maxConcurrency: z.number().int().min(1).max(4).default(4),
@@ -505,6 +505,40 @@ const validatePocRoundPlan = (
   };
 };
 type GitWorktreeSpec = { path: string; branch: string };
+
+export function isSafeRelativeArchitecturePath(value: string): boolean {
+  if (!value || value.includes("\\") || path.isAbsolute(value)) return false;
+  const segments = value.split("/");
+  return segments.every((segment) => segment.length > 0 && segment !== "." && segment !== "..")
+    && path.posix.normalize(value) === value;
+}
+
+/** Resolve inside a worktree and reject any existing symlink in the path. */
+export function resolveArchitectureSitePath(worktreeRoot: string, relativePath: string): string {
+  if (!isSafeRelativeArchitecturePath(relativePath)) {
+    throw new Error(`Unsafe architectureSitePath: ${relativePath}`);
+  }
+  const lexicalRoot = path.resolve(worktreeRoot);
+  const lexicalTarget = path.resolve(lexicalRoot, relativePath);
+  if (!lexicalTarget.startsWith(`${lexicalRoot}${path.sep}`)) {
+    throw new Error(`architectureSitePath escapes its worktree: ${relativePath}`);
+  }
+  if (!existsSync(lexicalRoot)) return lexicalTarget;
+  const canonicalRoot = realpathSync(lexicalRoot);
+  let current = lexicalRoot;
+  for (const segment of relativePath.split("/")) {
+    current = path.join(current, segment);
+    if (!existsSync(current)) break;
+    if (lstatSync(current).isSymbolicLink()) {
+      throw new Error(`architectureSitePath traverses a symbolic link: ${current}`);
+    }
+    const canonicalCurrent = realpathSync(current);
+    if (canonicalCurrent !== canonicalRoot && !canonicalCurrent.startsWith(`${canonicalRoot}${path.sep}`)) {
+      throw new Error(`architectureSitePath escapes its canonical worktree: ${current}`);
+    }
+  }
+  return path.join(canonicalRoot, relativePath);
+}
 const execText = (command: string, args: string[], cwd: string) => execFileSync(command, args, { cwd, encoding: "utf8" }).trim();
 const runBounded = (command: string, args: string[], cwd: string, timeoutMs: number) =>
   runBoundedProcess(command, args, cwd, { timeoutMs });
@@ -649,7 +683,7 @@ export default smithers((ctx) => {
   const pocDistributionRoot = activeRound.distributionRoot;
   const pocWorktreeSpecs = pocRounds.flatMap((round) => round.specs);
   const pocWorktreePath = (lane: "poc-authority-foundation" | "poc-state-journal" | "poc-flows-harness" | "poc-platform-worldview" | "poc-transcript-chat-ui" | "poc-integration") => activeRound.specs.find((spec) => spec.path.endsWith(`/${lane}`))!.path;
-  const expectedPocArchitectureSitePath = path.resolve(pocWorktreePath("poc-integration"), architectureSitePath);
+  const expectedPocArchitectureSitePath = resolveArchitectureSitePath(pocWorktreePath("poc-integration"), architectureSitePath);
 
   const inventoryEvidenceReceipt = ctx.latest(outputs.validate_inventory_evidence, "validate_inventory_evidence");
   const inventoryEvidenceValid = inventoryEvidenceReceipt?.status === "pass";

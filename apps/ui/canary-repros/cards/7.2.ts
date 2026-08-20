@@ -71,6 +71,10 @@ if (afterEscape !== "false") {
 	console.error("FAIL 7.2: Escape did not minimize the card.");
 	process.exit(1);
 }
+if (focusAfterEscape !== "card.maximize") {
+	console.error(`FAIL 7.2: focus after Escape was ${String(focusAfterEscape)}, not the card's maximize button.`);
+	process.exit(1);
+}
 if (overhang > 0) {
 	console.error(
 		`FAIL 7.2: the maximized card is ${box.width}px wide at x=${box.left} in a ${viewport.clientWidth}px viewport — it hangs ${overhang}px off the right edge` +

@@ -11,6 +11,34 @@ import { existsSync, readFileSync } from "node:fs";
 import { z } from "zod/v4";
 import { agents } from "../agents";
 
+const DEFAULT_GATEWAY_URL = "http://127.0.0.1:7331";
+
+function configuredGatewayOrigin(): string {
+  const configured = process.env.SMITHERS_GATEWAY_URL?.trim() || DEFAULT_GATEWAY_URL;
+  const parsed = new URL(configured);
+  if ((parsed.protocol !== "http:" && parsed.protocol !== "https:") || parsed.username || parsed.password) {
+    throw new Error("SMITHERS_GATEWAY_URL must be an HTTP(S) origin without credentials");
+  }
+  return parsed.origin;
+}
+
+/** Accept only the operator-configured Gateway origin, never a caller-selected host. */
+export function trustedGatewayUrl(value: string | undefined): string {
+  const trustedOrigin = configuredGatewayOrigin();
+  const parsed = new URL(value?.trim() || trustedOrigin);
+  if (
+    parsed.origin !== trustedOrigin ||
+    parsed.username ||
+    parsed.password ||
+    parsed.pathname !== "/" ||
+    parsed.search ||
+    parsed.hash
+  ) {
+    throw new Error(`gatewayUrl must be exactly the configured Gateway origin (${trustedOrigin})`);
+  }
+  return trustedOrigin;
+}
+
 const inputSchema = z.object({
   targetWorkflow: z
     .string()
@@ -28,16 +56,16 @@ const inputSchema = z.object({
       z
         .string()
         .url()
-        .refine((value) => {
+        .transform((value, ctx) => {
           try {
-            const parsed = new URL(value);
-            return (parsed.protocol === "http:" || parsed.protocol === "https:") && !/[\\'"`;$(){}<>\n\r]/.test(value);
-          } catch {
-            return false;
+            return trustedGatewayUrl(value);
+          } catch (error) {
+            ctx.addIssue({ code: "custom", message: error instanceof Error ? error.message : String(error) });
+            return z.NEVER;
           }
-        }, "gatewayUrl must be a safe HTTP(S) URL"),
+        }),
     )
-    .default("http://127.0.0.1:7331"),
+    .default(DEFAULT_GATEWAY_URL),
   exampleRunId: z.string().default(""),
 });
 
@@ -134,10 +162,9 @@ export async function verifyGatewayUi(
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), gatewayRequestTimeoutMs);
       try {
-        const response = await fetch(url, { signal: controller.signal });
+        const response = await fetch(url, { signal: controller.signal, redirect: "manual" });
         if (response.status === 200) return null;
-        const body = (await response.text()).replace(/\s+/g, " ").slice(0, 240);
-        return { rule, detail: `${url} returned HTTP ${response.status}${body ? `: ${body}` : "."}` };
+        return { rule, detail: `${url} returned HTTP ${response.status}.` };
       } catch (error) {
         return { rule, detail: `${url} could not be requested: ${String(error)}` };
       } finally {
@@ -191,7 +218,7 @@ export async function gradeUi(
 export default smithers((ctx) => {
   const raw = (ctx.input ?? {}) as Record<string, unknown>;
   const target = String(raw.targetWorkflow ?? "").trim();
-  const gatewayUrl = String(raw.gatewayUrl ?? "").trim() || "http://127.0.0.1:7331";
+  const gatewayUrl = trustedGatewayUrl(String(raw.gatewayUrl ?? "").trim() || undefined);
   const exampleRunId = String(raw.exampleRunId ?? "").trim();
 
   const compliance = ctx.latest(outputs.cuCompliance, "ui-compliance");

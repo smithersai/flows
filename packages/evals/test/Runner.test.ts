@@ -1,7 +1,9 @@
 import * as Flow from "@smthrs/core/Flow"
 import * as Binding from "@smthrs/scorers/Binding"
 import * as Scorer from "@smthrs/scorers/Scorer"
+import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
+import * as Fiber from "effect/Fiber"
 import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"
 import * as CaseExecutor from "../src/CaseExecutor.ts"
@@ -11,6 +13,8 @@ import * as Suite from "../src/Suite.ts"
 
 const target = Flow.make({ name: "target" })
 const scorerFlow = Scorer.make({
+  id: "packages/evals/test/Runner/exact",
+  version: "1",
   name: "exact",
   score: ({ output, groundTruth }) =>
     Effect.succeed({
@@ -19,6 +23,7 @@ const scorerFlow = Scorer.make({
     })
 })
 const binding = Binding.make({ scorer: scorerFlow, appliesTo: target })
+const runOptions = { runId: "run", at: "2026-01-01T00:00:00.000Z" } as const
 
 const inlineScorer: Runner.ScoreBatchRunner = {
   runBatch: (jobs, options) =>
@@ -50,9 +55,12 @@ describe("Runner", () => {
         cases: [{ name: "slow", input: 1 }, { name: "fast", input: 2 }]
       })
     )
+    const slowStarted = Deferred.makeUnsafe<void>()
+    const releaseSlow = Deferred.makeUnsafe<void>()
     const executor = CaseExecutor.make((suiteCase) =>
       suiteCase.name === "slow"
-        ? Effect.sleep("20 millis").pipe(
+        ? Deferred.succeed(slowStarted, void 0).pipe(
+          Effect.andThen(Deferred.await(releaseSlow)),
           Effect.as({ output: suiteCase.input, stepKey: suiteCase.name, latencyMs: 20, target })
         )
         : Effect.succeed({ output: suiteCase.input, stepKey: suiteCase.name, latencyMs: 1, target })
@@ -70,9 +78,15 @@ describe("Runner", () => {
         )
     }
     const result = await Effect.runPromise(
-      Runner.run(suite, { scorer }).pipe(
+      Effect.gen(function*() {
+        const fiber = yield* Runner.run(suite, { ...runOptions, scorer }).pipe(Effect.forkChild())
+        yield* Deferred.await(slowStarted)
+        yield* Deferred.succeed(releaseSlow, void 0)
+        return yield* Fiber.join(fiber)
+      }).pipe(
         Effect.provide(Layer.succeed(CaseExecutor.CaseExecutor)(executor)),
-        Effect.provide(Runner.layerNoop)
+        Effect.provide(Runner.layerNoop),
+        Effect.scoped
       )
     )
     expect(result.cases.map((caseResult) => caseResult.case)).toEqual(["slow", "fast"])
@@ -87,7 +101,7 @@ describe("Runner", () => {
     )
     const scorer = { runBatch: () => Effect.fail("judge unavailable") }
     const result = await Effect.runPromise(
-      Runner.run(suite, { scorer }).pipe(
+      Runner.run(suite, { ...runOptions, scorer }).pipe(
         Effect.provide(Layer.succeed(CaseExecutor.CaseExecutor)(executor)),
         Effect.provide(Runner.layerNoop)
       )
@@ -101,7 +115,7 @@ describe("Runner", () => {
     )
     const executor = CaseExecutor.make(() => Effect.fail(new EvalError({ code: "executor", message: "target failed" })))
     const result = await Effect.runPromise(
-      Runner.run(suite).pipe(
+      Runner.run(suite, runOptions).pipe(
         Effect.provide(Layer.succeed(CaseExecutor.CaseExecutor)(executor)),
         Effect.provide(Runner.layerNoop)
       )
@@ -131,7 +145,7 @@ describe("Runner", () => {
         })
     }
     const result = await Effect.runPromise(
-      Runner.run(suite, { scorer }).pipe(
+      Runner.run(suite, { ...runOptions, scorer }).pipe(
         Effect.provide(Layer.succeed(CaseExecutor.CaseExecutor)(executor)),
         Effect.provide(Runner.layerNoop)
       )
@@ -154,7 +168,7 @@ describe("Runner", () => {
       Effect.succeed({ output: suiteCase.input, stepKey: "step", latencyMs: 0, target })
     )
     const result = await Effect.runPromise(
-      Runner.run(suite).pipe(
+      Runner.run(suite, runOptions).pipe(
         Effect.provide(Layer.succeed(CaseExecutor.CaseExecutor)(executor)),
         Effect.provide(Layer.succeed(Runner.Runner)(inlineScorer))
       )
@@ -169,7 +183,7 @@ describe("Runner", () => {
       Suite.make({ name: "interrupt", concurrency: 1, cases: [{ name: "one", input: 1 }] })
     )
     const executor = CaseExecutor.make(() => Effect.never)
-    const run = Runner.run(suite).pipe(
+    const run = Runner.run(suite, runOptions).pipe(
       Effect.provide(Layer.succeed(CaseExecutor.CaseExecutor)(executor)),
       Effect.provide(Runner.layerNoop),
       Effect.timeout("10 millis")
@@ -182,6 +196,8 @@ describe("Runner", () => {
     const other = Flow.make({ name: "other" })
     let seen: Scorer.Input | undefined
     const inspecting = Scorer.make({
+      id: "packages/evals/test/Runner/inspect",
+      version: "1",
       name: "inspect",
       score: (input) =>
         Effect.sync(() => {
@@ -209,7 +225,7 @@ describe("Runner", () => {
       Effect.succeed({ output: "answer", stepKey: "step", latencyMs: 1, target })
     )
     const result = await Effect.runPromise(
-      Runner.run(suite, { runId: "run", sampleId: "sample" }).pipe(
+      Runner.run(suite, { ...runOptions, sampleId: "sample" }).pipe(
         Effect.provide(Layer.succeed(CaseExecutor.CaseExecutor)(executor)),
         Effect.provide(Layer.succeed(Runner.Runner)(inlineScorer))
       )
@@ -221,5 +237,21 @@ describe("Runner", () => {
       groundTruth: "answer",
       context: { rubric: "exact" }
     })
+  })
+
+  it("requires deterministic run identity and a canonical UTC timestamp", async () => {
+    const suite = await Effect.runPromise(
+      Suite.make({ name: "identity", concurrency: 1, cases: [{ name: "one", input: 1 }] })
+    )
+    const executor = CaseExecutor.make(() => Effect.succeed({ output: 1, stepKey: "step", target }))
+    const fail = (options: Runner.RunOptions) =>
+      Effect.runPromiseExit(
+        Runner.run(suite, options).pipe(
+          Effect.provide(Layer.succeed(CaseExecutor.CaseExecutor)(executor)),
+          Effect.provide(Runner.layerNoop)
+        )
+      )
+    expect((await fail({ runId: "", at: runOptions.at }))._tag).toBe("Failure")
+    expect((await fail({ runId: "run", at: "2026-01-01" }))._tag).toBe("Failure")
   })
 })

@@ -50,6 +50,15 @@ console.log("recency reorders the remainder:", JSON.stringify(before) !== JSON.s
 
 console.log(`\nqueries over the ${CAP}-item cap:`, JSON.stringify(over));
 const bug = over.length > 0;
+const debugSnapshotIndex = after.indexOf("/debug.snapshot");
+const debugEventsIndex = after.indexOf("/debug.events");
+if (debugSnapshotIndex < 0 || debugEventsIndex < 0 || debugEventsIndex > debugSnapshotIndex) {
+	console.error(
+		`FAIL: recency order did not put the last executed flow first: events=${debugEventsIndex}, snapshot=${debugSnapshotIndex}`,
+	);
+	await ctx.close();
+	process.exit(1);
+}
 console.log(bug ? "FAIL: the listing is not capped" : "OK: every listing is capped");
 await ctx.close();
 process.exit(bug ? 1 : 0);

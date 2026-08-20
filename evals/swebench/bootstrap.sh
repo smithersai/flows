@@ -65,8 +65,10 @@ node "$S/lib/sample.mjs" "$DATASET" "$SAMPLE" "$SIZE" || {
 echo "== 4/4 docker"
 if ! command -v docker >/dev/null 2>&1; then
   echo "   docker is not on PATH — the run scripts cannot work without it"
+  exit 1
 elif ! docker info >/dev/null 2>&1; then
   echo "   docker is installed but not running — start it before running instances"
+  exit 1
 else
   echo "   docker is running"
 fi

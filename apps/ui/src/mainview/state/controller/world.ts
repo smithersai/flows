@@ -120,9 +120,13 @@ export const createWorldController = (ctx: ControllerContext): WorldController =
 		const identity = ctx.store.collections.identitySessions.get("identity");
 		const canSweep = identity?.state === "signed-in" && identity.allowlisted;
 		const transcript = ctx.contextMessages();
+		const sweptRevision = ctx.store.session().revision;
 		let kept = 0;
 		if (canSweep && transcript.length > 0) {
 			const notes = await runSweep(transcript);
+			if (ctx.store.session().revision !== sweptRevision) {
+				return "The conversation changed while I was reviewing it, so I left it exactly as it is. Try /clear again.";
+			}
 			if (notes === undefined) {
 				// A failed sweep leaves the chat UNcleared — nothing is silently lost.
 				const message = "I couldn't finish reviewing the conversation, so I left it exactly as it was. Try /clear again in a moment.";

@@ -648,7 +648,10 @@ export const fence = Effect.fn("DisasterRecovery.fence")(function*(manifest: Bac
           owner_host_id = NULL,
           owner_pid = NULL,
           owner_nonce = NULL,
-          heartbeat_at_ms = NULL
+          heartbeat_at_ms = NULL,
+          waiting_reason = 'released',
+          waiting_wake_at_ms = NULL,
+          waiting_token = NULL
         WHERE status = 'running'
         RETURNING run_id
       `.withoutTransform

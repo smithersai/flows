@@ -20,7 +20,10 @@
  * only latency. Collapsing them would lose which of the three is true.
  */
 import { AUTH_SCOPES_PATH, TURN_PATH } from "smithers-shared/AgentApiRoutes";
+import { AgentTurnFrameSchema } from "smithers-shared/NativeAgent";
 import { resolveOrigin } from "./BuildStamp.ts";
+
+const FIRST_FRAME_MAX_BYTES = 64 * 1024;
 
 /**
  * The end-to-end product bar this repo already states: row A-2's
@@ -634,9 +637,45 @@ export const meteredTurnSample = async (deps: ProbeDeps, options: ProbeOptions, 
 			};
 		}
 		const reader = response.body.getReader();
-		const first = await reader.read();
+		const chunks: Array<Uint8Array> = [];
+		let received = 0;
+		let newline = -1;
+		while (received < FIRST_FRAME_MAX_BYTES && newline === -1) {
+			const next = await reader.read();
+			if (next.done) break;
+			const remaining = FIRST_FRAME_MAX_BYTES - received;
+			const value = next.value.subarray(0, remaining);
+			chunks.push(value);
+			const localNewline = value.indexOf(0x0a);
+			if (localNewline !== -1) newline = received + localNewline;
+			received += value.byteLength;
+		}
 		const elapsedMs = deps.now() - started;
 		await reader.cancel();
+		let frameError: string | undefined;
+		if (newline === -1) {
+			frameError = received === 0
+				? "the turn seam answered 200 but streamed no frame"
+				: `the turn seam did not stream a complete frame within ${FIRST_FRAME_MAX_BYTES} bytes`;
+		} else {
+			const bytes = new Uint8Array(newline);
+			let offset = 0;
+			for (const chunk of chunks) {
+				const slice = chunk.subarray(0, Math.min(chunk.byteLength, newline - offset));
+				bytes.set(slice, offset);
+				offset += slice.byteLength;
+				if (offset >= newline) break;
+			}
+			try {
+				const decoded = AgentTurnFrameSchema.safeParse(JSON.parse(new TextDecoder().decode(bytes)));
+				const expectedRunId = `${options.runId}-metered`;
+				if (!decoded.success) frameError = "the turn seam streamed a malformed AgentTurnFrame";
+				else if (decoded.data.runId !== expectedRunId) frameError = "the turn seam streamed a frame for another run";
+				else if (decoded.data.type !== "delta") frameError = "the turn seam streamed a terminal or non-delta first frame";
+			} catch {
+				frameError = "the turn seam streamed malformed NDJSON";
+			}
+		}
 		return {
 			label: "turn-first-frame",
 			status: response.status,
@@ -645,7 +684,7 @@ export const meteredTurnSample = async (deps: ProbeDeps, options: ProbeOptions, 
 			// A 200 that closes without a single frame is a failed turn, not a
 			// fast one, and the elapsed time above would otherwise read as a
 			// very good latency.
-			transportError: first.done ? "the turn seam answered 200 but streamed no frame" : undefined,
+			transportError: frameError,
 		};
 	} catch (error) {
 		return {

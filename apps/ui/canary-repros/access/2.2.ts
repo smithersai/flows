@@ -61,6 +61,7 @@ const claimed = new Set((claim.scopes ?? []).map((entry) => entry.scope ?? ""));
 console.log("the app claims:", JSON.stringify([...claimed]));
 
 const failures: Array<string> = [];
+const observed = new Set<string>();
 if (claim.authKind !== "github-app") {
 	failures.push(`the claim no longer says which auth kind it is (authKind: ${String(claim.authKind)})`);
 }
@@ -71,9 +72,10 @@ await page.waitForTimeout(2500);
 const authorization = await page.locator("body").innerText();
 for (const [wording, scope] of USER_LEVEL) {
 	if (!authorization.includes(wording)) {
-		console.log(`note: GitHub no longer lists the user-level grant "${wording}"`);
+		failures.push(`GitHub's authorization page did not expose the expected grant "${wording}"`);
 		continue;
 	}
+	observed.add(scope);
 	if (!claimed.has(scope)) failures.push(`GitHub asks for "${wording}" and the app does not claim ${scope}`);
 }
 
@@ -100,17 +102,18 @@ const permissions = await page.locator("body").innerText();
 console.log("GitHub's repository permissions page:\n" + permissions.replace(/\n{2,}/g, "\n").slice(0, 1200));
 for (const [wording, scope] of REPOSITORY) {
 	if (!permissions.includes(wording)) {
-		console.log(`note: GitHub does not list "${wording}" right now`);
+		failures.push(`GitHub's installation page did not expose the expected permission "${wording}"`);
 		continue;
 	}
+	observed.add(scope);
 	if (!claimed.has(scope)) failures.push(`GitHub asks for "${wording}" and the app does not claim ${scope}`);
 }
 
 /* And the other direction: nothing claimed that GitHub never asks for. */
-const known = new Set([...USER_LEVEL, ...REPOSITORY].map(([, scope]) => scope));
 for (const scope of claimed) {
-	if (!known.has(scope)) failures.push(`the app claims ${scope}, which appears on neither GitHub page`);
+	if (!observed.has(scope)) failures.push(`the app claims ${scope}, which was not observed on either GitHub page`);
 }
+for (const scope of observed) if (!claimed.has(scope)) failures.push(`GitHub exposes ${scope}, which the app does not claim`);
 
 await page.screenshot({ path: "/tmp/canary-access/2.2-permissions.png", fullPage: true });
 await context.close();

@@ -30,4 +30,28 @@ describe("Regression", () => {
     )
     expect(result.missing).toEqual([{ side: "run", case: "c", scorer: "x", stepKey: "old" }])
   })
+
+  it("matches repeated scorer observations by step key before array order", async () => {
+    const repeated = {
+      version: 1 as const,
+      records: [
+        { suite: "s", case: "c", scorer: "x", stepKey: "a", score: 0.2 },
+        { suite: "s", case: "c", scorer: "x", stepKey: "b", score: 0.8 }
+      ]
+    }
+    const result = await Effect.runPromise(
+      Regression.compare(repeated, {
+        runId: "run",
+        suite: "s",
+        cases: [],
+        observations: [
+          { case: "c", scorer: "x", stepKey: "b", kind: "score" as const, score: 0.8, at: "t" },
+          { case: "c", scorer: "x", stepKey: "a", kind: "score" as const, score: 0.2, at: "t" }
+        ]
+      })
+    )
+    expect(result.regressions).toEqual([])
+    expect(result.nondeterminism).toEqual([])
+    expect(result.missing).toEqual([])
+  })
 })

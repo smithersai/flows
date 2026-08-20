@@ -28,6 +28,21 @@ CONTAINER="codexbench-$(echo "$INSTANCE" | tr '_.' '--')"
 
 mkdir -p "$S/work-codex" "$S/patches-codex" "$S/logs-codex" "$S/timings-codex"
 
+# The isolated CODEX_HOME must exist and hold an API-key login before
+# `codex exec` runs. The CLI refuses to start when CODEX_HOME names a missing
+# directory and does not create it, and a home with no auth record fails every
+# request with 401 even when OPENAI_API_KEY is exported — the key reaches the
+# API through this login, not through the environment. The directory is
+# gitignored, so a fresh checkout always starts without both.
+mkdir -p "$S/.codex-home"
+if ! CODEX_HOME="$S/.codex-home" codex login status >/dev/null 2>&1; then
+  if [ -z "${OPENAI_API_KEY:-}" ]; then
+    echo "[$INSTANCE] no OPENAI_API_KEY to log codex in with"; exit 1
+  fi
+  printenv OPENAI_API_KEY | CODEX_HOME="$S/.codex-home" codex login --with-api-key >/dev/null 2>&1 || {
+    echo "[$INSTANCE] codex login failed"; exit 1; }
+fi
+
 echo "[$INSTANCE] image $IMAGE"
 if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
   docker pull --platform linux/amd64 "$IMAGE" >"$S/logs-codex/$INSTANCE.pull.log" 2>&1 || {

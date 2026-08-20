@@ -40,11 +40,18 @@ test("retarget leaves third-party ranges alone", () => {
   assert.equal(retargeted.version, "9.9.9")
 })
 
+test("retarget preserves private versions while updating exact workspace ranges", () => {
+  const privateManifest = { ...example, private: true, version: "0.0.0" }
+  const retargeted = retarget(privateManifest, "0.1.0-next.0", workspaceNames)
+  assert.equal(retargeted.version, "0.0.0")
+  assert.equal(retargeted.dependencies["@smthrs/kernel"], "0.1.0-next.0")
+})
+
 test("mismatches names the version and every stale internal range", () => {
   const entries = [
-    { directory: "flows", manifest: example },
+    { directory: "packages/flows", manifest: example },
     {
-      directory: "kernel",
+      directory: "packages/kernel",
       manifest: { name: "@smthrs/kernel", version: "0.1.0-next.0" }
     }
   ]
@@ -58,7 +65,17 @@ test("mismatches names the version and every stale internal range", () => {
 
 test("this workspace is internally coherent at its current version", () => {
   const entries = readManifests()
-  const version = entries.find(({ directory }) => directory === "flows").manifest.version
+  const version = entries.find(({ directory }) => directory === "packages/flows").manifest.version
 
   assert.deepEqual(mismatches(entries, version), [])
+})
+
+test("workspace discovery follows every pnpm-workspace package glob", () => {
+  const directories = new Set(readManifests().map(({ directory }) => directory))
+  assert.equal(directories.has("packages/build/infra"), true)
+  assert.equal(directories.has("examples"), true)
+  assert.equal(directories.has("apps/server"), true)
+  assert.equal(directories.has("apps/shared"), true)
+  assert.equal(directories.has("apps/tui"), true)
+  assert.equal(directories.has("apps/ui"), true)
 })

@@ -51,6 +51,30 @@ export class SecretUnavailable extends Error {
   }
 }
 
+/** Parses and validates an HTTP CONNECT authority. */
+export const parseConnectAuthority = (
+  authority: string
+): { readonly host: string; readonly port: number } | undefined => {
+  let host: string
+  let rawPort: string
+  if (authority.startsWith("[")) {
+    const close = authority.indexOf("]")
+    if (close <= 1 || authority[close + 1] !== ":" || NodeNet.isIP(authority.slice(1, close)) !== 6) {
+      return undefined
+    }
+    host = authority.slice(1, close)
+    rawPort = authority.slice(close + 2)
+  } else {
+    const separator = authority.lastIndexOf(":")
+    if (separator <= 0 || authority.indexOf(":") !== separator) return undefined
+    host = authority.slice(0, separator)
+    rawPort = authority.slice(separator + 1)
+  }
+  if (/[/\\\s\u0000-\u001f\u007f]/.test(host) || !/^\d+$/.test(rawPort)) return undefined
+  const port = Number(rawPort)
+  return Number.isInteger(port) && port >= 1 && port <= 65_535 ? { host, port } : undefined
+}
+
 /**
  * Reads one host environment variable.
  *
@@ -234,23 +258,34 @@ export const startProxy = (vault: Vault): Promise<Proxy> =>
       })
     })
     server.on("connect", (request, socket: NodeNet.Socket, head: Buffer) => {
-      const [host, port] = (request.url ?? "").split(":")
-      if (host === undefined) {
+      const authority = parseConnectAuthority(request.url ?? "")
+      if (authority === undefined) {
         socket.end("HTTP/1.1 400 Bad Request\r\n\r\n")
         return
       }
-      const upstream = NodeNet.connect({ host, port: Number(port ?? 443) }, () => {
-        socket.write("HTTP/1.1 200 Connection Established\r\n\r\n")
-        if (head.byteLength > 0) upstream.write(head)
-        socket.pipe(upstream)
-        upstream.pipe(socket)
-      })
+      let upstream: NodeNet.Socket
+      let connected = false
+      try {
+        upstream = NodeNet.connect(authority, () => {
+          connected = true
+          socket.write("HTTP/1.1 200 Connection Established\r\n\r\n")
+          if (head.byteLength > 0) upstream.write(head)
+          socket.pipe(upstream)
+          upstream.pipe(socket)
+        })
+      } catch {
+        socket.end("HTTP/1.1 502 Bad Gateway\r\n\r\n")
+        return
+      }
       const drop = () => {
-        socket.destroy()
+        if (!connected && !socket.destroyed) socket.end("HTTP/1.1 502 Bad Gateway\r\n\r\n")
+        else socket.destroy()
         upstream.destroy()
       }
-      upstream.on("error", drop)
-      socket.on("error", drop)
+      upstream.once("error", drop)
+      socket.once("error", drop)
+      socket.once("close", () => upstream.destroy())
+      upstream.once("close", () => socket.destroy())
     })
     server.on("error", reject)
     server.listen(0, "127.0.0.1", () => {

@@ -48,7 +48,9 @@ await page.waitForTimeout(800);
 
 type Violation = { id: string; impact: string; help: string; nodes: Array<{ target: Array<string>; failureSummary: string }> };
 
-const audit = async (surface: string): Promise<Array<Violation>> => {
+const audit = async (surface: string, landmark: string, expectedMode: "light" | "dark"): Promise<Array<Violation>> => {
+	await page.locator(landmark).waitFor({ state: "visible", timeout: 10_000 });
+	await page.waitForFunction((mode) => document.documentElement.getAttribute("data-theme") === mode, expectedMode);
 	await page.addScriptTag({ path: AXE });
 	const result = (await page.evaluate(
 		async () =>
@@ -59,6 +61,9 @@ const audit = async (surface: string): Promise<Array<Violation>> => {
 	)) as { violations: Array<Violation> };
 	const mode = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
 	const palette = await page.evaluate(() => document.documentElement.getAttribute("data-palette"));
+	if (mode !== expectedMode || palette !== "night-owl") {
+		throw new Error(`${surface} mounted with palette=${palette} mode=${mode}; expected night-owl/${expectedMode}`);
+	}
 	console.log(`\n=== ${surface} | palette=${palette} mode=${mode} | ${result.violations.length} violation(s)`);
 	for (const violation of result.violations) {
 		console.log(`  - [${violation.impact}] ${violation.id}: ${violation.help} (${violation.nodes.length} node(s))`);
@@ -71,14 +76,15 @@ const audit = async (surface: string): Promise<Array<Violation>> => {
 };
 
 const found: Array<{ surface: string; violations: Array<Violation> }> = [];
+const initialMode = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
+if (initialMode !== "light" && initialMode !== "dark") throw new Error(`invalid initial data-theme: ${String(initialMode)}`);
 for (const mode of ["as-loaded", "toggled"]) {
-	found.push({ surface: `chat (${mode})`, violations: await audit(`chat (${mode})`) });
+	const expectedMode = mode === "as-loaded" ? initialMode : initialMode === "light" ? "dark" : "light";
+	found.push({ surface: `chat (${mode})`, violations: await audit(`chat (${mode})`, ".smithers-chat-messages", expectedMode) });
 	await run("/world");
-	await page.waitForTimeout(1500);
-	found.push({ surface: `world (${mode})`, violations: await audit(`world (${mode})`) });
+	found.push({ surface: `world (${mode})`, violations: await audit(`world (${mode})`, ".world-surface", expectedMode) });
 	await run("/connect");
-	await page.waitForTimeout(1500);
-	found.push({ surface: `connectors (${mode})`, violations: await audit(`connectors (${mode})`) });
+	found.push({ surface: `connectors (${mode})`, violations: await audit(`connectors (${mode})`, ".connectors-surface", expectedMode) });
 	await run("/chat");
 	await page.waitForTimeout(600);
 	if (mode === "as-loaded") {

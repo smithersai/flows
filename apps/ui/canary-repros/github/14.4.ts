@@ -16,46 +16,34 @@
  */
 import { BASE, ensureSignedIn, open, report } from "./_lib";
 
-const REPO = process.env.REPO ?? "codeplanesmithers/canary-sandbox";
+const REPO = process.env.CANARY_DISPOSABLE_REPO ?? "";
+const number = Number(process.env.CANARY_FIXTURE_LANDING_NUMBER ?? "");
+const expectedTitle = process.env.CANARY_FIXTURE_LANDING_TITLE ?? "";
+if (REPO === "" || !Number.isSafeInteger(number) || number <= 0 || expectedTitle === "") {
+	throw new Error("CANARY_DISPOSABLE_REPO, CANARY_FIXTURE_LANDING_NUMBER, and CANARY_FIXTURE_LANDING_TITLE are required");
+}
 const { context, page } = await open();
 await ensureSignedIn(page);
 
-/* Pick any open landing; create one only if the repo has none. */
-const number = await page.evaluate(async (repo) => {
-	const response = await fetch(`/api/repos/${repo}/landings`);
-	const body = (await response.json().catch(() => [])) as Array<{ number: number; state: string }>;
-	const open = Array.isArray(body) ? body.find((row) => row.state === "open") : undefined;
-	return open?.number ?? 0;
-}, REPO);
-if (number === 0) {
-	console.error(`no open landing in ${REPO} — seed one before running this repro`);
-	process.exit(2);
+const fixture = await page.evaluate(async ([repo, n]: [string, number]) => {
+	const response = await fetch(`/api/repos/${repo}/landings/${n}`);
+	return { status: response.status, body: await response.json().catch(() => null) };
+}, [REPO, number] as [string, number]);
+if (fixture.status !== 200 || fixture.body?.title !== expectedTitle || fixture.body?.state !== "open") {
+	throw new Error(`fixture fence failed: expected open "${expectedTitle}", got ${JSON.stringify(fixture)}`);
 }
 console.log(`landing under test: ${REPO}#${number}`);
 
-/* The platform's own answer, so the refusal the UI must relay is on the record. */
-const direct = await page.evaluate(
-	async ([repo, n]: [string, number]) => {
-		const response = await fetch(`/api/repos/${repo}/landings/${n}/reviews`, {
-			method: "POST",
-			headers: { "content-type": "application/json" },
-			body: JSON.stringify({ type: "approve", body: "canary repro 14.4 direct" }),
-		});
-		return { status: response.status, body: (await response.text()).trim() };
-	},
-	[REPO, number] as [string, number],
-);
-console.log(`platform POST reviews (approve) -> ${direct.status} ${direct.body}`);
-
 const failures: Array<string> = [];
 
-const verb = async (line: string, label: string): Promise<{ said: boolean }> => {
+const verb = async (type: "comment" | "request-changes" | "approve"): Promise<void> => {
+	const marker = `uicanaries-14.4-${type}-${Date.now()}`;
 	const beforeCards = await page.locator("[data-kind]").count();
 	const beforeLast = beforeCards > 0 ? await page.locator("[data-kind]").last().innerText() : "";
 	const beforeText = await page.locator(".smithers-transcript").innerText();
 	const composer = page.locator("textarea").last();
 	await composer.click();
-	await composer.fill(line);
+	await composer.fill(`/prs.review ${number} ${type} ${marker} ${REPO}`);
 	await page.waitForTimeout(400);
 	await page.keyboard.press("Enter");
 	const toasts = new Set<string>();
@@ -70,19 +58,20 @@ const verb = async (line: string, label: string): Promise<{ said: boolean }> => 
 	const afterText = await page.locator(".smithers-transcript").innerText();
 	const said =
 		afterCards !== beforeCards || afterLast !== beforeLast || afterText.length !== beforeText.length || toasts.size > 0;
-	console.log(`${label}: changed=${said}, toasts=${JSON.stringify([...toasts].slice(-2))}`);
-	return { said };
+	const reviews = await page.evaluate(async ([repo, n]: [string, number]) => {
+		const response = await fetch(`/api/repos/${repo}/landings/${n}/reviews?limit=100`);
+		return { status: response.status, body: await response.json().catch(() => null) };
+	}, [REPO, number] as [string, number]);
+	const persisted = reviews.status === 200 && JSON.stringify(reviews.body).includes(marker);
+	const surfaced = [...toasts, afterText.slice(beforeText.length), afterLast].join("\n");
+	const honestRefusal = /couldn't|didn't|cannot|refus|failed|author/i.test(surfaced);
+	console.log(`${type}: persisted=${persisted}, changed=${said}, refusal=${honestRefusal}`);
+	if (!persisted && !honestRefusal) failures.push(`${type} neither persisted an exact review nor surfaced an honest refusal`);
 };
 
-await verb(`/prs.review ${number} comment canary repro 14.4 comment ${REPO}`, "comment");
-await verb(`/prs.review ${number} request-changes canary repro 14.4 request-changes ${REPO}`, "request-changes");
-const approve = await verb(`/prs.review ${number} approve canary repro 14.4 approve ${REPO}`, "approve");
-
-if (direct.status >= 400 && !approve.said) {
-	failures.push(
-		`/prs.review ${number} approve was refused by the platform (${direct.status} ${direct.body}) and the app surfaced nothing — no card change, no message, no toast`,
-	);
-}
+await verb("comment");
+await verb("request-changes");
+await verb("approve");
 
 await page.screenshot({ path: "/tmp/canary-github-14.4.png", fullPage: true });
 console.log(`origin: ${BASE}; screenshot: /tmp/canary-github-14.4.png`);

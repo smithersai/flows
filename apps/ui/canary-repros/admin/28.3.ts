@@ -36,12 +36,21 @@ const cards = await page.evaluate(() =>
 		};
 	}),
 );
+const expectedKinds = ["request-queue", "reco-log", "admin-health"];
+const renderedKinds = await page.locator("section.smithers-card").evaluateAll((nodes) =>
+	nodes.map((node) => node.getAttribute("data-kind")),
+);
 for (const card of cards) console.log(JSON.stringify(card));
 await page.screenshot({ path: "/tmp/canary-28.3.png", fullPage: true });
 console.log("screenshot: /tmp/canary-28.3.png");
 await context.close();
 
 const stuck = cards.filter((card) => card.badge === "PENDING" && card.hasContent);
+const missing = expectedKinds.filter((kind) => !renderedKinds.includes(kind));
+if (missing.length > 0) {
+	console.error(`SETUP: expected completed admin cards did not render: ${missing.join(", ")}`);
+	process.exit(2);
+}
 if (stuck.length === 0) {
 	console.log("PASS — no finished read is still badged PENDING.");
 	process.exit(0);

@@ -91,6 +91,11 @@ const userMessageIndex = afterMessage.map((entry, index) => ({ entry, index }))
 	.filter(({ entry }) => entry.startsWith("msg:reply with the word ping"))
 	.map(({ index }) => index)
 	.at(-1) ?? -1;
+const reloadBalanceIndex = afterReload.indexOf("card:balance");
+const reloadUserMessageIndex = afterReload.map((entry, index) => ({ entry, index }))
+	.filter(({ entry }) => entry.startsWith("msg:reply with the word ping"))
+	.map(({ index }) => index)
+	.at(-1) ?? -1;
 
 if (balanceIndex === -1 || userMessageIndex === -1) {
 	console.error("FAIL 7.5: could not find both the balance card and the user message in the transcript.");
@@ -99,6 +104,12 @@ if (balanceIndex === -1 || userMessageIndex === -1) {
 if (userMessageIndex < balanceIndex) {
 	console.error(
 		`FAIL 7.5: the balance card was created first but renders at index ${balanceIndex}, below the later user message at index ${userMessageIndex}; messages number themselves over messages only.`,
+	);
+	process.exit(1);
+}
+if (reloadBalanceIndex === -1 || reloadUserMessageIndex === -1 || reloadUserMessageIndex < reloadBalanceIndex) {
+	console.error(
+		`FAIL 7.5 after reload: balance index ${reloadBalanceIndex}, later user-message index ${reloadUserMessageIndex}.`,
 	);
 	process.exit(1);
 }

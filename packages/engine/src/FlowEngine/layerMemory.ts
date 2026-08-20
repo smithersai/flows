@@ -65,6 +65,43 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
     }
     const executions = new Map<string, ExecutionState>()
 
+    // Every child execution request records an edge, including a fan-in that
+    // joins an existing execution. This mirrors the durable engine's edge
+    // table: keeping only ExecutionState.parent would miss second-parent
+    // cycles and let the participants join one another forever.
+    const parents = new Map<string, Set<string>>()
+    const recordParent = (
+      child: string,
+      parent: string
+    ): Effect.Effect<void, FlowRuntime.FlowCycleDetected> =>
+      Effect.suspend(() => {
+        const pending: Array<readonly [string, ReadonlyArray<string>]> = [[parent, [parent]]]
+        const visited = new Set<string>()
+        while (pending.length > 0) {
+          const [current, path] = pending.shift()!
+          if (current === child) {
+            return Effect.fail(
+              new FlowRuntime.FlowCycleDetected({
+                code: "flow_cycle_detected",
+                path: [...path].reverse()
+              })
+            )
+          }
+          if (visited.has(current)) continue
+          visited.add(current)
+          for (const ancestor of parents.get(current) ?? []) {
+            pending.push([ancestor, [...path, ancestor]])
+          }
+        }
+        const existing = parents.get(child)
+        if (existing === undefined) {
+          parents.set(child, new Set([parent]))
+        } else {
+          existing.add(parent)
+        }
+        return Effect.void
+      })
+
     type ActionState = {
       exit: Exit.Exit<Flow.Result<unknown, unknown>> | undefined
     }
@@ -172,6 +209,9 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
               `execution ${options.executionId} already belongs to flow ${state.instance.flow._tag}; it cannot be reused for flow ${flow._tag}`
             )
           )
+        }
+        if (options.parent !== undefined) {
+          yield* recordParent(options.executionId, options.parent.executionId)
         }
         if (!state) {
           state = {

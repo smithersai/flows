@@ -19,6 +19,7 @@
  *   bun 1.5.ts        exit 1 while the bug is present, 0 once it is fixed.
  */
 import { chromium } from "playwright";
+import { withVerifiedRestoration } from "../../scripts/canary-restoration";
 import { BASE, ensureSignedIn, PROFILE, registry, report, session } from "./_lib";
 
 const LOGIN = process.env.CANARY_LOGIN ?? "codeplanesmithers";
@@ -47,38 +48,57 @@ if (!JSON.stringify(before).includes('"admin":true')) {
 }
 
 const failures: Array<string> = [];
-try {
-	console.log("remove:", JSON.stringify(await allowlist("remove")));
-	await page.reload({ waitUntil: "domcontentloaded" });
-	await page.waitForTimeout(8000);
-
-	const during = await session(page);
-	console.log("session while NOT allowlisted:", JSON.stringify(during));
-	if (!JSON.stringify(during).includes('"allowlisted":false')) {
-		console.error("precondition failed: the session is still allowlisted");
-		process.exit(2);
-	}
-
-	const adminFlows = (await registry(page)).filter((name) => name.startsWith("admin."));
-	console.log("admin.* still registered:", JSON.stringify(adminFlows));
-	if (adminFlows.length > 0) {
-		failures.push(`a non-allowlisted session still has ${adminFlows.length} admin flows registered: ${adminFlows.join(", ")}`);
-	}
-
-	const requests = await page.evaluate(async () => {
-		const response = await fetch("/api/admin/requests");
-		return { status: response.status, body: (await response.text()).slice(0, 200) };
-	});
-	console.log("GET /api/admin/requests while NOT allowlisted:", JSON.stringify(requests));
-	if (requests.status === 200) {
-		failures.push("a non-allowlisted session still reads GET /api/admin/requests (HTTP 200), instead of the canonical 404");
-	}
-} finally {
-	console.log("restore:", JSON.stringify(await allowlist("add")));
-	await page.reload({ waitUntil: "domcontentloaded" });
-	await page.waitForTimeout(5000);
-	console.log("session restored:", JSON.stringify(await session(page)));
+const removed = await allowlist("remove");
+console.log("remove:", JSON.stringify(removed));
+if (removed.status < 200 || removed.status >= 300) {
+	await context.close();
+	throw new Error(`precondition failed: removing ${LOGIN} answered HTTP ${removed.status}: ${removed.body}`);
 }
+
+await withVerifiedRestoration(
+	async () => {
+		await page.reload({ waitUntil: "domcontentloaded" });
+		await page.waitForTimeout(8000);
+
+		const during = await session(page);
+		console.log("session while NOT allowlisted:", JSON.stringify(during));
+		if (!JSON.stringify(during).includes('"allowlisted":false')) {
+			throw new Error("precondition failed: the session is still allowlisted after a successful removal");
+		}
+
+		const adminFlows = (await registry(page)).filter((name) => name.startsWith("admin."));
+		console.log("admin.* still registered:", JSON.stringify(adminFlows));
+		if (adminFlows.length > 0) {
+			failures.push(`a non-allowlisted session still has ${adminFlows.length} admin flows registered: ${adminFlows.join(", ")}`);
+		}
+
+		const requests = await page.evaluate(async () => {
+			const response = await fetch("/api/admin/requests");
+			return { status: response.status, body: (await response.text()).slice(0, 200) };
+		});
+		console.log("GET /api/admin/requests while NOT allowlisted:", JSON.stringify(requests));
+		if (requests.status === 200) {
+			failures.push("a non-allowlisted session still reads GET /api/admin/requests (HTTP 200), instead of the canonical 404");
+		}
+	},
+	async () => {
+		const restored = await allowlist("add");
+		console.log("restore:", JSON.stringify(restored));
+		if (restored.status < 200 || restored.status >= 300) {
+			throw new Error(`allowlist add answered HTTP ${restored.status}: ${restored.body}`);
+		}
+	},
+	async () => {
+		await page.reload({ waitUntil: "domcontentloaded" });
+		await page.waitForTimeout(5000);
+		const restored = await session(page);
+		console.log("session restored:", JSON.stringify(restored));
+		if (!JSON.stringify(restored).includes('"allowlisted":true')) {
+			throw new Error(`session still is not allowlisted: ${JSON.stringify(restored)}`);
+		}
+	},
+	`re-add ${LOGIN} through the identity admin service credential`,
+);
 
 await context.close();
 report(failures);

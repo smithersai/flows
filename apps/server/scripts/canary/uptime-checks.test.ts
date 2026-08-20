@@ -22,6 +22,7 @@ import {
 	isErrorSample,
 	LATENCY_BUDGETS_MS,
 	latencyVerdict,
+	meteredTurnSample,
 	median,
 	type ProbeDeps,
 	type ProbeOptions,
@@ -490,6 +491,14 @@ const ndjson = (frames: ReadonlyArray<string>): ReadableStream<Uint8Array> =>
 		},
 	});
 
+const chunked = (chunks: ReadonlyArray<string>): ReadableStream<Uint8Array> =>
+	new ReadableStream({
+		start(controller) {
+			for (const chunk of chunks) controller.enqueue(new TextEncoder().encode(chunk));
+			controller.close();
+		},
+	});
+
 describe("runUptimeProbe", () => {
 	test("a healthy deployment passes uptime, every latency budget and the error rate", async () => {
 		const { deps, calls } = makeDeps(50, (url) => healthy(url));
@@ -558,7 +567,7 @@ describe("runUptimeProbe", () => {
 	test("with a session cookie the probe takes exactly one metered turn and times its first frame", async () => {
 		const { deps, calls } = makeDeps(3_000, (url, init) => {
 			if (url.endsWith("/api/agent/turn") && (init.headers as Record<string, string>).cookie !== undefined) {
-				return new Response(ndjson(['{"type":"text","text":"ok"}', '{"type":"done"}']), { status: 200 });
+				return new Response(ndjson(['{"runId":"run-1-metered","type":"delta","kind":"text","text":"ok"}']), { status: 200 });
 			}
 			return healthy(url);
 		});
@@ -571,10 +580,29 @@ describe("runUptimeProbe", () => {
 		expect(check.detail).toContain(`budget ${LATENCY_BUDGETS_MS.turnFirstFrame}ms`);
 	});
 
+	test("the metered sample decodes one complete split NDJSON frame", async () => {
+		const frame = '{"runId":"run-1-metered","type":"delta","kind":"text","text":"ok"}\n';
+		const { deps } = makeDeps(1, () => new Response(chunked([frame.slice(0, 12), frame.slice(12)]), { status: 200 }));
+		const result = await meteredTurnSample(deps, options(), "s=1");
+		expect(result.transportError).toBeUndefined();
+	});
+
+	test("the metered sample rejects corrupt, foreign-run, and HTML first frames", async () => {
+		for (const body of [
+			"{broken}\n",
+			'{"runId":"other","type":"delta","kind":"text","text":"ok"}\n',
+			"<html>upstream error</html>\n",
+		]) {
+			const { deps } = makeDeps(1, () => new Response(body, { status: 200 }));
+			const result = await meteredTurnSample(deps, options(), "s=1");
+			expect(result.transportError).toBeDefined();
+		}
+	});
+
 	test("a metered turn slower than the first-frame budget fails", async () => {
 		const { deps } = makeDeps(LATENCY_BUDGETS_MS.turnFirstFrame + 1_000, (url, init) => {
 			if (url.endsWith("/api/agent/turn") && (init.headers as Record<string, string>).cookie !== undefined) {
-				return new Response(ndjson(['{"type":"text","text":"ok"}']), { status: 200 });
+				return new Response(ndjson(['{"runId":"run-1-metered","type":"delta","kind":"text","text":"ok"}']), { status: 200 });
 			}
 			return healthy(url);
 		});
@@ -637,7 +665,7 @@ describe("runUptimeProbe", () => {
 	test("the turn-seam verdict declares that it is a single sample, in the line a human reads", async () => {
 		const { deps, calls } = makeDeps(3_000, (url, init) => {
 			if (url.endsWith("/api/agent/turn") && (init.headers as Record<string, string>).cookie !== undefined) {
-				return new Response(ndjson(['{"type":"text","text":"ok"}']), { status: 200 });
+				return new Response(ndjson(['{"runId":"run-1-metered","type":"delta","kind":"text","text":"ok"}']), { status: 200 });
 			}
 			return healthy(url);
 		});

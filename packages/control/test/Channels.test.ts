@@ -197,6 +197,47 @@ describe("Channels", () => {
     expect(calls).toEqual(["plan", "run", "signal"])
   })
 
+  it("does not poison an inbound key when Control fails", async () => {
+    let attempts = 0
+    const retryingControl = Layer.succeed(
+      Control.Control,
+      Control.make({
+        plan: () => Effect.die("unused"),
+        run: () => Effect.die("unused"),
+        approve: () => Effect.die("unused"),
+        deny: () => Effect.die("unused"),
+        steer: () => Effect.die("unused"),
+        signal: () => Effect.suspend(() => {
+          attempts += 1
+          return attempts === 1
+            ? Effect.fail(new Unauthorized({ message: "transient" }))
+            : Effect.succeed(accepted)
+        }),
+        cancel: () => Effect.die("unused"),
+        pause: () => Effect.die("unused"),
+        resume: () => Effect.die("unused"),
+        list: () => Effect.die("unused"),
+        watch: () => Stream.empty
+      })
+    )
+    const channel: Channels.Channel = {
+      name: "retry",
+      schema: Schema.Unknown,
+      verify: () => Effect.void,
+      decode: () => Effect.succeed(null),
+      map: () => Effect.succeed({ _tag: "Signal", runId: "run", signal: { name: "retry", payload: null } }),
+      project: () => ({ cursor: "1", operation: "post", message: {} })
+    }
+    await Effect.runPromise(Effect.gen(function*() {
+      const channels = yield* Channels.Channels
+      yield* channels.register(channel)
+      yield* Effect.exit(channels.ingest({ channel: "retry", raw: raw("retry-key") }))
+      const receipt = yield* channels.ingest({ channel: "retry", raw: raw("retry-key") })
+      expect(receipt._tag).toBe("Accepted")
+    }).pipe(Effect.provide(Channels.layer.pipe(Layer.provide(retryingControl)))))
+    expect(attempts).toBe(2)
+  })
+
   it("retains delivery cursors for edit projections and redacts credentials", async () => {
     const deliveries: Array<Channels.Delivery | undefined> = []
     const channel: Channels.Channel = {

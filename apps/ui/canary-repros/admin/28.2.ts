@@ -37,7 +37,7 @@ const rows = await page.locator('[data-kind="notifications"] .world-card-row').c
 if (rows > 0) {
 	console.log(`SKIP: the inbox holds ${rows} notification(s), so its empty state is not on screen.`);
 	await context.close();
-	process.exit(0);
+	process.exit(2);
 }
 
 // For contrast, the chat empty state, which does name a next step.

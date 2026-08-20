@@ -112,7 +112,7 @@ It writes `preds-<run-id>.json` and the evaluator's own
 ## Score
 
 ```sh
-node scorecard.ts
+node scorecard.ts --report flows-cell-harness.<wave>.json
 ```
 
 It reads every `flows-cell-harness.*.json` report in this directory, the

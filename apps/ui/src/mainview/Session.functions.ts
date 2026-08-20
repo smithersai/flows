@@ -41,21 +41,6 @@ const fallbackSessionRequest = (request: Request): Promise<Response> => {
 	return fetch(url, { headers });
 };
 
-const injectedSessionResponse = (request: Request): Response | undefined => {
-	const encoded = request.headers.get("x-smithers-start-session");
-	if (encoded === null) return undefined;
-	try {
-		const envelope = JSON.parse(decodeURIComponent(encoded)) as { status?: unknown; body?: unknown };
-		if (typeof envelope.status !== "number" || typeof envelope.body !== "string") return undefined;
-		return new Response(envelope.body, {
-			status: envelope.status,
-			headers: { "content-type": "application/json" },
-		});
-	} catch {
-		return undefined;
-	}
-};
-
 const resolveCurrentRequest = async (): Promise<BootSession> => {
 	const request = getRequest();
 	const url = new URL(request.url);
@@ -74,7 +59,7 @@ const resolveCurrentRequest = async (): Promise<BootSession> => {
 	const authFailed = getCookie(AUTH_FAILED_COOKIE) === "1";
 	if (authFailed) deleteCookie(AUTH_FAILED_COOKIE, { path: "/" });
 	try {
-		const response = injectedSessionResponse(request) ?? (await fallbackSessionRequest(request));
+		const response = await fallbackSessionRequest(request);
 		return normalizeSession(response, authFailed);
 	} catch {
 		return unavailableBootSession(authFailed);

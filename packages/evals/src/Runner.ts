@@ -129,9 +129,9 @@ export interface RunResult {
  */
 export interface RunOptions {
   readonly scorer?: ScoreBatchRunner | undefined
-  readonly runId?: string | undefined
+  readonly runId: string
   readonly sampleId?: string | undefined
-  readonly at?: string | undefined
+  readonly at: string
 }
 
 /**
@@ -146,8 +146,6 @@ export class Runner extends Context.Service<Runner, ScoreBatchRunner>()("flows/e
 const scorerName = (binding: Binding): string => {
   return binding.scorer.scorerKey
 }
-
-const now = (): string => new Date().toISOString()
 
 const inconclusive = (caseName: string, scorer: string, stepKey: string, reason: string, at: string): Observation => ({
   case: caseName,
@@ -246,7 +244,7 @@ const score = (
           score: result.score,
           ...(result.reason === undefined ? {} : { reason: result.reason }),
           ...(result.meta === undefined ? {} : { meta: result.meta }),
-          at: job.at ?? Date.now()
+          at: job.at
         })),
         Effect.catchCause((cause) =>
           Cause.hasInterrupts(cause)
@@ -255,7 +253,7 @@ const score = (
               ...job.observation,
               kind: "inconclusive" as const,
               reason: "Scorer execution was inconclusive",
-              at: job.at ?? Date.now()
+              at: job.at
             })
         )
       )
@@ -270,7 +268,7 @@ const score = (
                 ...job.observation,
                 kind: "inconclusive" as const,
                 reason: "Scorer batch failed",
-                at: job.at ?? Date.now()
+                at: job.at
               }))
             )
         )
@@ -314,15 +312,29 @@ const score = (
  */
 export const run = (
   suite: Suite,
-  options: RunOptions = {}
+  options: RunOptions
 ): Effect.Effect<RunResult, EvalError, CaseExecutor | Runner> =>
   Effect.gen(function*() {
     const executor = yield* CaseExecutor
     const scorer = options.scorer ?? (yield* Effect.serviceOption(Runner)).pipe(
       (option) => option._tag === "Some" ? option.value : undefined
     )
-    const at = options.at ?? now()
-    const runId = options.runId ?? crypto.randomUUID()
+    const atMillis = Date.parse(options.at)
+    if (
+      options.runId.trim().length === 0 ||
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(options.at) ||
+      !Number.isFinite(atMillis) ||
+      new Date(atMillis).toISOString() !== options.at
+    ) {
+      return yield* Effect.fail(
+        new EvalError({
+          code: "invalid_suite",
+          message: "Deterministic runs require a non-empty runId and canonical UTC timestamp"
+        })
+      )
+    }
+    const at = options.at
+    const runId = options.runId
     const sampleId = options.sampleId ?? "default"
     const cases = yield* Effect.forEach(suite.cases, (suiteCase) => runCase(executor, suiteCase), {
       concurrency: suite.concurrency,

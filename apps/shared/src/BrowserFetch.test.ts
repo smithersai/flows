@@ -134,6 +134,26 @@ describe("browserFetch guards", () => {
 		if (!outcome.ok) expect(outcome.message).toContain("private");
 	});
 
+	test("pins each request to the address approved for that redirect hop", async () => {
+		const connected: Array<string> = [];
+		const outcome = await browserFetch("https://example.com/", {
+			resolveHost: async (hostname) => hostname === "example.com" ? ["203.0.113.10"] : ["203.0.113.11"],
+			fetchImpl: async (_url, _init, address) => {
+				connected.push(address);
+				return connected.length === 1
+					? new Response(null, { status: 302, headers: { location: "https://next.example.com/" } })
+					: okPage("<p>ok</p>");
+			},
+		});
+		expect(outcome.ok).toBe(true);
+		expect(connected).toEqual(["203.0.113.10", "203.0.113.11"]);
+	});
+
+	test("fails closed instead of falling back to a second hostname lookup", async () => {
+		const outcome = await browserFetch("https://example.com/", { resolveHost: publicResolver });
+		expect(outcome).toEqual({ ok: false, message: "Secure pinned egress is unavailable for the browser tool." });
+	});
+
 	test("a readable page returns text, the final URL, the status — and frameability", async () => {
 		const outcome = await browserFetch("https://example.com/", {
 			resolveHost: publicResolver,

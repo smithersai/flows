@@ -1,4 +1,5 @@
 import * as NodeHttp from "node:http"
+import * as NodeNet from "node:net"
 import { describe, expect, it } from "vitest"
 import * as Secret from "../src/Secret.ts"
 import * as SecretProxy from "../src/SecretProxy.ts"
@@ -283,6 +284,30 @@ describe("SecretProxy server", () => {
         outgoing.end()
       })
       expect(status).toBe(502)
+    } finally {
+      await proxy.close()
+    }
+  })
+
+  it("rejects malformed CONNECT authorities and parses bracketed IPv6", async () => {
+    expect(SecretProxy.parseConnectAuthority("example.com:443")).toEqual({ host: "example.com", port: 443 })
+    expect(SecretProxy.parseConnectAuthority("[::1]:8443")).toEqual({ host: "::1", port: 8443 })
+    for (const authority of ["example.com", "example.com:nope", "example.com:0", "example.com:65536", "::1:443"]) {
+      expect(SecretProxy.parseConnectAuthority(authority)).toBeUndefined()
+    }
+
+    const proxy = await SecretProxy.startProxy(SecretProxy.makeVault())
+    try {
+      const port = Number(new URL(proxy.endpoint).port)
+      const response = await new Promise<string>((resolve, reject) => {
+        const socket = NodeNet.connect({ host: "127.0.0.1", port }, () => {
+          socket.write("CONNECT example.com:not-a-port HTTP/1.1\r\nHost: example.com\r\n\r\n")
+        })
+        socket.setEncoding("utf8")
+        socket.once("data", resolve)
+        socket.once("error", reject)
+      })
+      expect(response).toStartWith("HTTP/1.1 400 Bad Request")
     } finally {
       await proxy.close()
     }

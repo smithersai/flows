@@ -577,12 +577,27 @@ const forgetAccountState = (collections: AppCollections): void => {
 		collections.messages,
 		collections.cards,
 		collections.toasts,
-		collections.billingAccounts,
 		collections.watchedRepos,
 		collections.toolCalls,
+		collections.chainEvents,
+		collections.transitions,
 	]) {
 		const keys = [...(collection as { keys: () => Iterable<string> }).keys()];
 		if (keys.length > 0) (collection as { delete: (keys: string[]) => void }).delete(keys);
+	}
+	const reset = initialBillingAccount();
+	if (collections.billingAccounts.get("billing") === undefined) {
+		collections.billingAccounts.insert(reset);
+	} else {
+		collections.billingAccounts.update("billing", (draft) => {
+			draft.state = reset.state;
+			draft.totalUsd = reset.totalUsd;
+			draft.allowedToStartWork = reset.allowedToStartWork;
+			draft.lifetimeChargedUsd = reset.lifetimeChargedUsd;
+			draft.chargeCount = reset.chargeCount;
+			draft.refreshedAt = reset.refreshedAt;
+			draft.revision = reset.revision;
+		});
 	}
 };
 
@@ -1386,7 +1401,14 @@ export const createAppStore = async (
 					 * "unavailable" is not that: it means the seam could not answer,
 					 * and the last known state stays honest-but-stale.
 					 */
-					if (transition.state === "signed-out" && existing.state === "signed-in") {
+					const accountChanged =
+						transition.state === "signed-in" &&
+						existing.state === "signed-in" &&
+						existing.login !== transition.login;
+					if (
+						(existing.state === "signed-in" && transition.state === "signed-out") ||
+						accountChanged
+					) {
 						forgetAccountState(collections);
 					}
 					collections.identitySessions.update("identity", (draft) => {

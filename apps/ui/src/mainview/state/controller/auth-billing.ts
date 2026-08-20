@@ -90,8 +90,9 @@ export const createAuthBillingController = (
 		}
 	};
 
-	const dispatchSignedOut = async (): Promise<void> => {
+	const dispatchSignedOut = async (epoch: number): Promise<void> => {
 		const scopesPlain = await fetchScopesPlain();
+		if (ctx.accountEpoch !== epoch) return;
 		store.dispatch({
 			type: "identity.session.loaded",
 			actor: "system",
@@ -116,33 +117,38 @@ export const createAuthBillingController = (
 	};
 
 	const loadSession = async (): Promise<void> => {
+		const epoch = ++ctx.accountEpoch;
 		const previous = store.collections.identitySessions.get("identity");
 		let response: Response;
 		try {
 			response = await http(`${baseUrl}${AUTH_SESSION_PATH}`);
 		} catch {
+			if (ctx.accountEpoch !== epoch) return;
 			dispatchUnavailable();
 			return;
 		}
+		if (ctx.accountEpoch !== epoch) return;
 		// Signed-out is the expected resolved answer, never an error path: the
 		// identity upstream states it as 401/403, the product Worker's seam
 		// restates it as 200 { status: "signed-out" } so the browser never logs
 		// the expected answer as a console error. Both shapes resolve the same.
 		if (response.status === 401 || response.status === 403) {
 			await response.body?.cancel();
-			await dispatchSignedOut();
+			await dispatchSignedOut(epoch);
 			return;
 		}
 		if (!response.ok) {
 			await response.body?.cancel();
+			if (ctx.accountEpoch !== epoch) return;
 			dispatchUnavailable();
 			return;
 		}
 		const body = (await response.json().catch(() => undefined)) as
 			| { status?: unknown; login?: unknown; allowlisted?: unknown; admin?: unknown }
 			| undefined;
+		if (ctx.accountEpoch !== epoch) return;
 		if (body?.status === "signed-out") {
-			await dispatchSignedOut();
+			await dispatchSignedOut(epoch);
 			return;
 		}
 		if (body === undefined || typeof body.login !== "string" || body.login === "") {
@@ -327,6 +333,7 @@ export const createAuthBillingController = (
 		} catch {
 			return "Signing out didn't go through — the identity service didn't answer. You are still signed in.";
 		}
+		ctx.accountEpoch += 1;
 		store.dispatch({ type: "identity.session.cleared", actor: "user" });
 		ctx.identityChanged();
 	};
@@ -373,13 +380,23 @@ export const createAuthBillingController = (
 
 	/** Billing seam: dollars only; chat is complimentary, so a definitive $0 never pauses it. */
 	const refreshBalanceImpl = async (): Promise<true | string> => {
+		const identity = store.collections.identitySessions.get("identity");
+		const epoch = ctx.accountEpoch;
+		const identityState = identity?.state;
+		const login = identity?.login;
+		const current = (): boolean => {
+			const latest = store.collections.identitySessions.get("identity");
+			return ctx.accountEpoch === epoch && latest?.state === identityState && latest?.login === login;
+		};
 		let response: Response;
 		try {
 			response = await http(`${baseUrl}${BILLING_BALANCE_PATH}`);
 		} catch {
+			if (!current()) return true;
 			store.dispatch({ type: "billing.unavailable", actor: "system" });
 			return "Your balance couldn't be refreshed — the billing service didn't answer.";
 		}
+		if (!current()) return true;
 		if (!response.ok) {
 			await response.body?.cancel();
 			store.dispatch({ type: "billing.unavailable", actor: "system" });
@@ -392,6 +409,7 @@ export const createAuthBillingController = (
 					balance?: { totalUsd?: unknown; lifetimeChargedUsd?: unknown; chargeCount?: unknown };
 			  }
 			| undefined;
+		if (!current()) return true;
 		const state = body?.state;
 		if (
 			body === undefined ||

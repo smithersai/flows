@@ -27,6 +27,7 @@ const lead = async (query: string) =>
 			count: options.length,
 			first: options[0] ? (options[0].querySelector(".slash-menu-name") as HTMLElement).innerText : null,
 			gold: options[0]?.getAttribute("data-gold") ?? null,
+			selected: options[0]?.getAttribute("aria-selected") ?? null,
 		};
 	});
 
@@ -67,13 +68,28 @@ const stopButton = await page.evaluate(() =>
 console.log("while a turn streams      :", JSON.stringify(whileTyping));
 console.log("mid-stream stop affordance:", JSON.stringify(stopButton));
 await page.keyboard.press("Escape");
+await page.locator(stopSelector).click().catch(() => {});
+
+// (d) signed out -> auth.sign-in leads. Clear only this disposable profile's
+// cookies after the signed-in branches have completed.
+await ctx.clearCookies();
+await page.goto(new URL(BASE).origin, { waitUntil: "domcontentloaded" });
+await page.waitForTimeout(2500);
+await openSlashMenu(page, "/");
+const signedOut = await lead("/");
+console.log("signed out                :", JSON.stringify(signedOut));
 
 await page.screenshot({ path: "/tmp/canary-chat-5.2.png", fullPage: true });
 console.log("screenshot: /tmp/canary-chat-5.2.png");
 
-const signedOutIsSeparate = "signed out -> auth.sign-in verified on a signed-out profile: /auth.sign-in leads, gold, aria-selected";
-console.log("\n" + signedOutIsSeparate);
-const bug = whileTyping.count === 0 || whileTyping.first !== "/chat.stop";
+const bug =
+	onChat.first !== "/reco.accept" ||
+	offChat.first !== "/chat" ||
+	whileTyping.count === 0 ||
+	whileTyping.first !== "/chat.stop" ||
+	signedOut.first !== "/auth.sign-in" ||
+	signedOut.gold !== "true" ||
+	signedOut.selected !== "true";
 console.log(`\nreco waiting  -> reco.accept leads : ${onChat.first === "/reco.accept"}`);
 console.log(`off the chat surface -> chat leads : ${offChat.first === "/chat"}`);
 console.log(`typing -> chat.stop leads          : ${!bug} (menu items while streaming: ${whileTyping.count})`);

@@ -24,8 +24,17 @@
  *   bun apps/ui/canary-repros/github/14.6.ts
  */
 import { BASE, ensureSignedIn, open, report } from "./_lib";
+import { withVerifiedRestoration } from "../../scripts/canary-restoration";
 
-const REPO = process.env.REPO ?? "codeplanesmithers/canary-sandbox";
+const REPO = process.env.CANARY_DISPOSABLE_REPO ?? "";
+const CHANGE = process.env.CANARY_FIXTURE_CHANGE_ID ?? "";
+const LANDING = Number(process.env.CANARY_FIXTURE_LANDING_NUMBER ?? "");
+const EXPECTED_TITLE = process.env.CANARY_FIXTURE_LANDING_TITLE ?? "";
+if (REPO === "" || CHANGE === "" || !Number.isSafeInteger(LANDING) || LANDING <= 0 || EXPECTED_TITLE === "") {
+	throw new Error(
+		"CANARY_DISPOSABLE_REPO, CANARY_FIXTURE_CHANGE_ID, CANARY_FIXTURE_LANDING_NUMBER, and CANARY_FIXTURE_LANDING_TITLE are required",
+	);
+}
 const CHECK = "ci/canary-required";
 const { context, page } = await open();
 await ensureSignedIn(page);
@@ -44,67 +53,65 @@ const api = (path: string, method = "GET", body?: unknown): Promise<{ status: nu
 		[path, method, body ?? null] as [string, string, unknown],
 	);
 
-const repoBefore = JSON.parse((await api(`/api/repos/${REPO}`)).body) as {
+const repoResponse = await api(`/api/repos/${REPO}`);
+if (repoResponse.status !== 200) throw new Error(`fixture repo could not be read: HTTP ${repoResponse.status}`);
+const repoBefore = JSON.parse(repoResponse.body) as {
 	landing_queue_required_checks?: string[];
 };
 const previousChecks = repoBefore.landing_queue_required_checks ?? [];
-
-await api(`/api/repos/${REPO}`, "PATCH", { landing_queue_required_checks: [CHECK] });
-
-/* Any change id will do as the landing's tip; take the newest one. */
-const change = JSON.parse((await api(`/api/repos/${REPO}/changes?limit=5`)).body).items[0].change_id as string;
-const created = await api(`/api/repos/${REPO}/landings`, "POST", {
-	title: `Canary repro 14.6 unmergeable ${Date.now()}`,
-	body: "",
-	source_bookmark: "main",
-	target_bookmark: "main",
-	change_ids: [change],
-});
-const number = JSON.parse(created.body).number as number;
-await api(`/api/repos/${REPO}/statuses/${change}`, "POST", {
-	context: CHECK,
-	status: "failure",
-	description: "canary repro 14.6",
-});
-console.log(`landing ${REPO}#${number} on change ${change}, required check ${CHECK} = failure`);
-
-const beforeCards = await page.locator("[data-kind]").count();
-const beforeLast = beforeCards > 0 ? await page.locator("[data-kind]").last().innerText() : "";
-const beforeText = await page.locator(".smithers-transcript").innerText();
-
-const composer = page.locator("textarea").last();
-await composer.click();
-await composer.fill(`/prs.land ${number} ${REPO}`);
-await page.waitForTimeout(400);
-await page.keyboard.press("Enter");
-const toasts = new Set<string>();
-for (let tick = 0; tick < 12; tick += 1) {
-	await page.waitForTimeout(1500);
-	for (const toast of await page.locator("[class*=toast]").allTextContents()) {
-		if (toast.trim() !== "") toasts.add(toast.trim());
-	}
-}
-const afterText = await page.locator(".smithers-transcript").innerText();
-const afterLast =
-	(await page.locator("[data-kind]").count()) > 0 ? await page.locator("[data-kind]").last().innerText() : "";
-
-const platform = await api(`/api/repos/${REPO}/landings/${number}/land`, "PUT");
-console.log(`platform PUT land -> ${platform.status} ${platform.body.trim()}`);
-console.log(`transcript ${beforeText.length}->${afterText.length}, lastCardChanged=${afterLast !== beforeLast}`);
-console.log(`toasts: ${JSON.stringify([...toasts].slice(-2))}`);
-
 const failures: Array<string> = [];
-const named = [...toasts, afterText.slice(beforeText.length), afterLast].some((text) =>
-	new RegExp(CHECK.replace("/", "\\/")).test(text ?? ""),
-);
-if (platform.status >= 400 && !named) {
-	failures.push(
-		`/prs.land ${number} was refused by the platform (${platform.status} ${platform.body.trim()}) and the app named no reason — card unchanged, no message, no toast`,
-	);
-}
+await withVerifiedRestoration(
+	async () => {
+		const landingResponse = await api(`/api/repos/${REPO}/landings/${LANDING}`);
+		if (landingResponse.status !== 200) throw new Error(`fixture landing could not be read: HTTP ${landingResponse.status}`);
+		const landing = JSON.parse(landingResponse.body) as { title?: string; state?: string };
+		if (landing.title !== EXPECTED_TITLE || landing.state !== "open") {
+			throw new Error(`fixture fence failed: expected open "${EXPECTED_TITLE}", got ${JSON.stringify(landing)}`);
+		}
 
-await api(`/api/repos/${REPO}`, "PATCH", { landing_queue_required_checks: previousChecks });
-console.log(`restored landing_queue_required_checks to ${JSON.stringify(previousChecks)}`);
+		const patched = await api(`/api/repos/${REPO}`, "PATCH", { landing_queue_required_checks: [CHECK] });
+		if (patched.status < 200 || patched.status >= 300) throw new Error(`required-check PATCH failed: HTTP ${patched.status}`);
+		const status = await api(`/api/repos/${REPO}/statuses/${CHANGE}`, "POST", {
+			context: CHECK,
+			status: "failure",
+			description: "canary repro 14.6 disposable fixture",
+		});
+		if (status.status < 200 || status.status >= 300) throw new Error(`fixture status write failed: HTTP ${status.status}`);
+
+		const beforeCards = await page.locator("[data-kind]").count();
+		const beforeLast = beforeCards > 0 ? await page.locator("[data-kind]").last().innerText() : "";
+		const beforeText = await page.locator(".smithers-transcript").innerText();
+		const composer = page.locator("textarea").last();
+		await composer.click();
+		await composer.fill(`/prs.land ${LANDING} ${REPO}`);
+		await page.keyboard.press("Enter");
+		const toasts = new Set<string>();
+		for (let tick = 0; tick < 12; tick += 1) {
+			await page.waitForTimeout(1500);
+			for (const toast of await page.locator("[class*=toast]").allTextContents()) if (toast.trim() !== "") toasts.add(toast.trim());
+		}
+		const afterText = await page.locator(".smithers-transcript").innerText();
+		const afterLast = (await page.locator("[data-kind]").count()) > 0 ? await page.locator("[data-kind]").last().innerText() : "";
+		const platform = await api(`/api/repos/${REPO}/landings/${LANDING}/land`, "PUT");
+		const named = [...toasts, afterText.slice(beforeText.length), afterLast].some((text) => text.includes(CHECK));
+		if (platform.status >= 400 && !named) {
+			failures.push(`/prs.land ${LANDING} was refused by the platform (${platform.status} ${platform.body.trim()}) and the app named no reason`);
+		}
+	},
+	async () => {
+		const restored = await api(`/api/repos/${REPO}`, "PATCH", { landing_queue_required_checks: previousChecks });
+		if (restored.status < 200 || restored.status >= 300) throw new Error(`restore PATCH answered HTTP ${restored.status}`);
+	},
+	async () => {
+		const restored = await api(`/api/repos/${REPO}`);
+		if (restored.status !== 200) throw new Error(`restored repo could not be read: HTTP ${restored.status}`);
+		const checks = (JSON.parse(restored.body) as { landing_queue_required_checks?: string[] }).landing_queue_required_checks ?? [];
+		if (JSON.stringify(checks) !== JSON.stringify(previousChecks)) {
+			throw new Error(`required checks are ${JSON.stringify(checks)}, expected ${JSON.stringify(previousChecks)}`);
+		}
+	},
+	`restore landing_queue_required_checks on ${REPO} to ${JSON.stringify(previousChecks)}`,
+);
 await page.screenshot({ path: "/tmp/canary-github-14.6.png", fullPage: true });
 console.log(`origin: ${BASE}; screenshot: /tmp/canary-github-14.6.png`);
 await context.close();

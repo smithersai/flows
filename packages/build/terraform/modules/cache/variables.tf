@@ -1,7 +1,7 @@
 variable "name_prefix" {
   description = "Prefix for every resource this module creates."
   type        = string
-  default     = "smithers build"
+  default     = "smithers-build"
 
   validation {
     # The prefix becomes a container, network, and volume name, and one of
@@ -36,7 +36,7 @@ variable "bun_image" {
 variable "postgres_user" {
   description = "Postgres role that owns the cache schema."
   type        = string
-  default     = "smithers build"
+  default     = "smithers_build"
 
   validation {
     # The role name is interpolated into the container healthcheck command and

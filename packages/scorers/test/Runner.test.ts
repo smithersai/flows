@@ -1,4 +1,4 @@
-import * as Effect from "effect/Effect"
+import { Deferred, Effect, Fiber, Option } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Runner from "../src/Runner.ts"
 import * as RunnerLive from "../src/RunnerLive.ts"
@@ -39,5 +39,48 @@ describe("Runner", () => {
     )
     expect(output[0]).toMatchObject({ kind: "inconclusive", reason: expect.stringContaining("inconclusive") })
     expect(seen).toEqual(output)
+  })
+
+  it("starts every configured worker and backpressures at the queue bound", async () => {
+    const store = ScoreStore.make({
+      record: () => Effect.void,
+      recordOnce: () => Effect.succeed(true),
+      observations: () => Effect.succeed([]),
+      aggregate: () => Effect.succeed(undefined)
+    })
+    const program = Effect.gen(function*() {
+      const runner = yield* Runner.Runner
+      const release = yield* Deferred.make<void>()
+      const twoEntered = yield* Deferred.make<void>()
+      let entered = 0
+      const job = (identity: string): Runner.Job => ({
+        identity,
+        observation: { targetStepKey: identity, scorerKey: "s" },
+        at: 1,
+        score: Effect.sync(() => {
+          entered += 1
+          if (entered === 2) Deferred.doneUnsafe(twoEntered, Effect.void)
+        }).pipe(Effect.andThen(Deferred.await(release)), Effect.as({ score: 1 }))
+      })
+      yield* runner.submit(job("one"))
+      yield* runner.submit(job("two"))
+      yield* Deferred.await(twoEntered)
+      yield* runner.submit(job("three"))
+      const fourth = yield* runner.submit(job("four")).pipe(Effect.forkChild({ startImmediately: true }))
+      yield* Effect.yieldNow
+      const beforeRelease = yield* Fiber.poll(fourth)
+      yield* Deferred.succeed(release, void 0)
+      yield* Fiber.join(fourth)
+      return { startedConcurrently: entered >= 2, blocked: Option.isNone(beforeRelease) }
+    })
+    const output = await Effect.runPromise(
+      Effect.scoped(
+        program.pipe(
+          Effect.provide(RunnerLive.layer({ concurrency: 2, capacity: 1 })),
+          Effect.provideService(ScoreStore.ScoreStore, store)
+        )
+      )
+    )
+    expect(output).toEqual({ startedConcurrently: true, blocked: true })
   })
 })

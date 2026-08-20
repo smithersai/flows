@@ -354,10 +354,9 @@ export type ArtifactUpload = typeof ArtifactUpload.Type
 /**
  * Declares that a job collects and uploads artifacts after its targets run.
  *
- * Collection is best-effort by construction: a green run leaves nothing behind
- * for most sources, and the upload declares `if-no-files-found: ignore`. That is
- * deliberate, and it is why this is a declaration rather than a step condition —
- * the generated workflow carries no `if:` key at all.
+ * Collection is strict: every declared source must exist and copy successfully.
+ * The upload action still ignores an empty collection for jobs that declare no
+ * sources, while a misspelled or failed source never masquerades as success.
  *
  * @category constructors
  * @since 0.1.0

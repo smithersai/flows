@@ -30,7 +30,6 @@
  *
  * @since 0.1.0
  */
-import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Ref from "effect/Ref"
@@ -88,13 +87,6 @@ const migrationOrder = (left: Migrator.ResolvedMigration, right: Migrator.Resolv
 
 /** @private */
 const fail = (message: string) => new Migrator.MigrationError({ kind: "BadState", message })
-
-/**
- * The wall clock, unaffected by a test environment's virtualized `Clock`.
- *
- * @private
- */
-const liveClock = Clock.Clock.defaultValue()
 
 /**
  * The migration ids the database has already recorded.
@@ -307,12 +299,6 @@ export const run = (
         ),
         table
       })
-    ).pipe(
-      // The peer holding the database's write lock is another process, and
-      // its progress is wall-clock time: a virtualized test clock can never
-      // advance it, so the retry's backoff sleeps on the live clock. The
-      // NodeDatabase open retry waits on the same kind of peer.
-      Effect.provideService(Clock.Clock, liveClock)
     )
     const zero = yield* Ref.get(zeroApplied)
     return [...zero, ...completed]
