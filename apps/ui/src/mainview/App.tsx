@@ -31,7 +31,7 @@ import {
 	Sun,
 	Trash2,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode, RefObject } from "react";
 import { useLiveQuery } from "@tanstack/react-db";
 import { CardView } from "./ChatCards";
@@ -108,6 +108,7 @@ function ComposerMenu({
 	surface,
 	open,
 	triggerRef,
+	menuRef,
 }: {
 	readonly controller: AppController;
 	readonly surface: "chat" | "world" | "connectors" | "github" | "files";
@@ -119,36 +120,18 @@ function ComposerMenu({
 	 * renders is a query against our own DOM; a ref IS the handle.
 	 */
 	readonly triggerRef: RefObject<HTMLButtonElement | null>;
+	/*
+	 * The menu root, owned by the shell for the same reason the trigger is: the
+	 * shell's own pointer handler decides whether a press landed outside this
+	 * menu, so it needs the handle. §5.15's dismissal rules live there now — a
+	 * document-level subscription would be an effect, and this package bans
+	 * those.
+	 */
+	readonly menuRef: RefObject<HTMLDivElement | null>;
 }) {
 	const [highlighted, setHighlighted] = useState(0);
-	const menuRef = useRef<HTMLDivElement>(null);
 	/* The entries are a fixed list, so index-assigned refs stay aligned with the DOM. */
 	const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
-
-	/*
-	 * A pointer press outside the menu dismisses it.
-	 *
-	 * §5.15: dismissing by pointer used to leave focus wherever the press
-	 * landed, because the item that HAD focus was unmounted with the menu — so
-	 * a Tab after a pointer dismissal restarted from the transcript viewport.
-	 * Dismissing returns to the trigger, exactly as Escape does, so the menu
-	 * has one exit however it is closed.
-	 */
-	useEffect(() => {
-		if (!open) return;
-		const onPointerDown = (event: PointerEvent): void => {
-			const root = menuRef.current;
-			if (root === null || !(event.target instanceof Node) || root.contains(event.target)) return;
-			const heldFocus = root.contains(document.activeElement);
-			controller.runCommand("surfaces");
-			if (!heldFocus) return;
-			requestAnimationFrame(() => {
-				triggerRef.current?.focus();
-			});
-		};
-		document.addEventListener("pointerdown", onPointerDown);
-		return () => document.removeEventListener("pointerdown", onPointerDown);
-	}, [open, controller, triggerRef]);
 
 	const entries = [
 		{
@@ -276,18 +259,20 @@ function ComposerConnect({
 	controller,
 	open,
 	triggerRef,
+	menuRef,
 }: {
 	readonly controller: AppController;
 	/* C-1 mirror: the open state is the session's, not this component's. */
 	readonly open: boolean;
 	/* The shell closes this session menu too, so it owns the focus handle. */
 	readonly triggerRef: RefObject<HTMLButtonElement | null>;
+	/* …and the menu root, for the shell's outside-press handler. */
+	readonly menuRef: RefObject<HTMLDivElement | null>;
 }) {
 	const { collections } = controller.store;
 	const { data: connectorRows } = useLiveQuery(collections.connectors);
 	const { data: operationRows } = useLiveQuery(collections.connectorOperations);
 	const { data: identityRows } = useLiveQuery(collections.identitySessions);
-	const menuRef = useRef<HTMLDivElement>(null);
 	/*
 	 * The entries are built as DATA below so index-assigned refs stay aligned
 	 * with the DOM through every conditional entry. Arrow keys, Escape, and
@@ -295,19 +280,6 @@ function ComposerConnect({
 	 * only job here would be to find nodes this package itself rendered.
 	 */
 	const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
-
-	/* A pointer press outside the menu dismisses it without moving focus. */
-	useEffect(() => {
-		if (!open) return;
-		const onPointerDown = (event: PointerEvent): void => {
-			const root = menuRef.current;
-			if (root !== null && event.target instanceof Node && !root.contains(event.target)) {
-				controller.closeConnectMenu();
-			}
-		};
-		document.addEventListener("pointerdown", onPointerDown);
-		return () => document.removeEventListener("pointerdown", onPointerDown);
-	}, [open, controller]);
 
 	const connectors = [...connectorRows].sort((left, right) => left.name.localeCompare(right.name));
 	const operation =
@@ -512,6 +484,8 @@ function Composer({
 	connectMenuOpen,
 	surfacesTriggerRef,
 	connectTriggerRef,
+	surfacesMenuRef,
+	connectMenuRef,
 	autoFocus,
 	placeholder,
 }: {
@@ -522,6 +496,9 @@ function Composer({
 	readonly connectMenuOpen: boolean;
 	readonly surfacesTriggerRef: RefObject<HTMLButtonElement | null>;
 	readonly connectTriggerRef: RefObject<HTMLButtonElement | null>;
+	/* The menu roots the shell's outside-press handler measures against. */
+	readonly surfacesMenuRef: RefObject<HTMLDivElement | null>;
+	readonly connectMenuRef: RefObject<HTMLDivElement | null>;
 	readonly autoFocus: boolean;
 	readonly placeholder: string;
 }) {
@@ -657,12 +634,14 @@ function Composer({
 								controller={controller}
 								open={connectMenuOpen}
 								triggerRef={connectTriggerRef}
+								menuRef={connectMenuRef}
 							/>
 							<ComposerMenu
 								controller={controller}
 								surface={surface}
 								open={surfacesMenuOpen}
 								triggerRef={surfacesTriggerRef}
+								menuRef={surfacesMenuRef}
 							/>
 						</div>
 					}
@@ -730,6 +709,15 @@ function App() {
 	const surfacesTriggerRef = useRef<HTMLButtonElement>(null);
 	/* The connect trigger has the same shell-level Escape exit as surfaces. */
 	const connectTriggerRef = useRef<HTMLButtonElement>(null);
+	/*
+	 * Both menu roots. A press outside an open menu dismisses it, and this shell
+	 * is where that is decided: the app renders inside `.app-shell`, so its own
+	 * capture-phase pointer handler sees every press this app can receive. That
+	 * used to be a `document` listener installed by `useEffect` in each menu —
+	 * two effects, in a package whose first architecture law bans them.
+	 */
+	const surfacesMenuRef = useRef<HTMLDivElement>(null);
+	const connectMenuRef = useRef<HTMLDivElement>(null);
 	const messages = messageRows;
 	const worldDocuments = [...worldDocumentRows].sort((left, right) =>
 		left.path.localeCompare(right.path),
@@ -932,6 +920,32 @@ function App() {
 		<div
 			className="app-shell"
 			data-flows={controller.commands.all().map((command) => command.name).join(" ")}
+			/*
+			 * §5.15, without an effect: a pointer press outside an open menu
+			 * dismisses it, and dismissing by pointer returns focus to the
+			 * trigger exactly as Escape does — otherwise a Tab after a pointer
+			 * dismissal restarts from the transcript viewport, because the item
+			 * that HAD focus was unmounted with the menu. Capture phase so the
+			 * dismissal is decided before the pressed control acts, which is the
+			 * order the document listener this replaced produced.
+			 */
+			onPointerDownCapture={(event) => {
+				const target = event.target instanceof Node ? event.target : null;
+				const outside = (root: HTMLDivElement | null): boolean =>
+					root !== null && (target === null || !root.contains(target));
+				if (session.surfacesMenuOpen && outside(surfacesMenuRef.current)) {
+					const heldFocus = surfacesMenuRef.current?.contains(document.activeElement) === true;
+					controller.runCommand("surfaces");
+					if (heldFocus) {
+						requestAnimationFrame(() => {
+							surfacesTriggerRef.current?.focus();
+						});
+					}
+				}
+				if (session.connectMenuOpen === true && outside(connectMenuRef.current)) {
+					controller.closeConnectMenu();
+				}
+			}}
 			onKeyDown={(event) => {
 				if (event.defaultPrevented) return;
 				if (event.key === "Escape" && session.maximizedCardId !== null) {
@@ -1229,6 +1243,8 @@ function App() {
 							connectMenuOpen={session.connectMenuOpen === true}
 							surfacesTriggerRef={surfacesTriggerRef}
 							connectTriggerRef={connectTriggerRef}
+							surfacesMenuRef={surfacesMenuRef}
+							connectMenuRef={connectMenuRef}
 							autoFocus={authMessage === undefined}
 							placeholder={
 								identity?.state === "signed-out"

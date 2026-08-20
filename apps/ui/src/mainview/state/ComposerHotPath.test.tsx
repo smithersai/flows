@@ -199,6 +199,12 @@ const connectTrigger = (host: HTMLElement): HTMLButtonElement | null =>
 const connectList = (host: HTMLElement): HTMLElement | null =>
 	host.querySelector<HTMLElement>(".composer-connect-list");
 
+const surfacesTrigger = (host: HTMLElement): HTMLButtonElement | null =>
+	host.querySelector<HTMLButtonElement>(".composer-menu-trigger");
+
+const surfacesList = (host: HTMLElement): HTMLElement | null =>
+	host.querySelector<HTMLElement>('.composer-menu-list[aria-label="Surfaces"]');
+
 describe("the connect menu's open state lives in the store", () => {
 	test("the open state round-trips through the connect-menu.toggled transition", async () => {
 		const view = await mountCounted();
@@ -241,12 +247,56 @@ describe("the connect menu's open state lives in the store", () => {
 		});
 		expect(store.session().connectMenuOpen).toBe(true);
 
+		/*
+		 * A press anywhere else in the app IS a dismissal. It is delivered to
+		 * the shell root, which is where the app now decides this: the app
+		 * renders inside `.app-shell`, so its capture-phase handler sees every
+		 * press this app can receive, and no `document` subscription (and so no
+		 * effect) is needed to hear one.
+		 */
+		const shell = view.host.querySelector<HTMLElement>(".app-shell");
+		expect(shell).not.toBeNull();
 		await view.act(() => {
-			document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+			shell?.dispatchEvent(new Event("pointerdown", { bubbles: true }));
 		});
 
 		expect(store.session().connectMenuOpen).toBe(false);
 		expect(connectList(view.host)).toBeNull();
+	});
+
+	test("the surfaces menu takes the same outside press, and returns focus", async () => {
+		/*
+		 * The surfaces menu's dismissal used to be its own `document`
+		 * pointerdown subscription. Both menus are dismissed by the one shell
+		 * handler now, so this pins the second half of that move — including
+		 * §5.15's focus return, which is the part a naive rewrite drops.
+		 */
+		const view = await mountCounted();
+		const { store } = view.controller;
+
+		await view.act(() => surfacesTrigger(view.host)?.click());
+		expect(store.session().surfacesMenuOpen).toBe(true);
+		const list = surfacesList(view.host);
+		expect(list).not.toBeNull();
+
+		// A press inside the menu is not a dismissal.
+		await view.act(() => {
+			list?.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+		});
+		expect(store.session().surfacesMenuOpen).toBe(true);
+
+		// Focus is inside the menu, so the dismissal has to hand it back.
+		const firstItem = list?.querySelector<HTMLButtonElement>(".composer-menu-item");
+		firstItem?.focus();
+		const shell = view.host.querySelector<HTMLElement>(".app-shell");
+		await view.act(() => {
+			shell?.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+		});
+
+		expect(store.session().surfacesMenuOpen).toBe(false);
+		expect(surfacesList(view.host)).toBeNull();
+		await frame();
+		expect(document.activeElement).toBe(surfacesTrigger(view.host));
 	});
 
 	test("opening from the trigger, then Escape, closes it and returns focus", async () => {
