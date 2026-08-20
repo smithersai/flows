@@ -187,6 +187,36 @@ export const baseFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> => 
 	}),
 	flow({
 		/*
+		 * The repository row and the tab strip inside the GitHub pane: id-scoped
+		 * button actions, so hidden from the listing, and the human's own
+		 * navigation, so user-only. /github is the listed way in.
+		 */
+		name: "repo.open",
+		summary: "Open a repository in the GitHub pane",
+		hidden: true,
+		userOnly: true,
+		args: "<fullName>",
+		input: Schema.Struct({ fullName: Schema.String }),
+		handler: ({ fullName }) => {
+			actions.openRepository(fullName);
+		},
+	}),
+	flow({
+		name: "repo.tab",
+		summary: "Show a section of the open repository",
+		hidden: true,
+		userOnly: true,
+		args: "files | issues | pulls | flows",
+		input: Schema.Struct({ tab: Schema.String }),
+		handler: ({ tab }) => {
+			if (tab !== "files" && tab !== "issues" && tab !== "pulls" && tab !== "flows") {
+				return "repo.tab takes files, issues, pulls, or flows";
+			}
+			actions.selectRepositoryTab(tab);
+		},
+	}),
+	flow({
+		/*
 		 * The color theme, the axis orthogonal to light/dark (dark-mode below):
 		 * `/theme <key>` wears a palette, bare `/theme` answers with the list and
 		 * where the human already is. User-only browser chrome, like every other

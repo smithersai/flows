@@ -308,6 +308,16 @@ export const slashItems = <C extends CatalogItem>(
 export type Submit =
 	| { readonly kind: "empty" }
 	| { readonly kind: "command"; readonly name: string; readonly args?: string }
+	/**
+	 * A leading token that IS flow syntax and names no registered flow.
+	 *
+	 * Handing it to the model as prose is the dishonest answer: typing `/reset`
+	 * on a non-admin session (where `reset` does not register) put the literal
+	 * string in front of the model, which reached for whatever flow it could
+	 * see and ran something else entirely (§23.5). A name the app does not have
+	 * is answered by the app, not improvised by the model.
+	 */
+	| { readonly kind: "unknown-command"; readonly name: string }
 	| { readonly kind: "prompt"; readonly text: string };
 
 // Flow names are deliberately narrower than arbitrary prompt text. Keeping
@@ -333,6 +343,8 @@ const commandHead = (text: string): { readonly name: string; readonly args?: str
  *    menu selecting its first (recommended) item,
  *  - an input that is ONLY a registered slash flow executes it directly
  *    (aliases parse as themselves; execution resolves the canonical target),
+ *  - flow syntax naming no registered flow is refused BY NAME, never handed to
+ *    the model as prose (§23.5),
  *  - `/name <text>` executes directly when the flow declares an args hint,
  *  - anything else is a prompt for the agent.
  *
@@ -350,7 +362,7 @@ export const parseSubmit = <C extends CatalogItem>(
 	const invocation = commandHead(text);
 	if (invocation === undefined) return { kind: "prompt", text };
 	const command = commands.find((candidate) => candidate.name === invocation.name);
-	if (command === undefined) return { kind: "prompt", text };
+	if (command === undefined) return { kind: "unknown-command", name: invocation.name };
 	if (invocation.args === undefined) return { kind: "command", name: invocation.name };
 	if (command.args !== undefined) {
 		return { kind: "command", name: invocation.name, args: invocation.args };

@@ -1302,7 +1302,15 @@ function App({ controller }: { readonly controller: AppController }) {
 				) : session.surface === "files" ? (
 					<section className="github-pane embedded-pane" aria-label="Repository files">
 						<SurfaceHeader icon={<FolderGit2 size={17} aria-hidden="true" />} title="Files" subtitle={session.selectedRepository ?? "Repository"} closeCommand="chat" onClose={() => controller.runCommand("chat")} />
-						<RepoFilesBrowser repo={session.selectedRepository} cards={cardRows} onRunCommand={controller.runCommandArgs} />
+						<RepoFilesBrowser
+							repo={session.selectedRepository}
+							cards={cardRows}
+							onRunCommand={(name, commandArgs) =>
+								commandArgs === undefined
+									? controller.runCommand(name)
+									: controller.runCommandArgs(name, commandArgs)
+							}
+						/>
 					</section>
 				) : null}
 

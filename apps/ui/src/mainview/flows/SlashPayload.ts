@@ -70,6 +70,8 @@ const GRAMMAR: Readonly<Record<string, (args: string | undefined) => Parsed>> = 
 	theme: (args) => ok({ palette: args ?? "" }),
 	send: (args) => required("text", args, "send needs the text to submit"),
 	"repos.watch": (args) => optional("repo", args),
+	"repo.open": (args) => required("fullName", args, "repo.open needs a repository name"),
+	"repo.tab": (args) => required("tab", args, "repo.tab needs a section: files, issues, pulls, or flows"),
 	"repos.watch.toggle": (args) =>
 		required("fullName", args, "repos.watch.toggle needs a repository name"),
 	browser: (args) =>

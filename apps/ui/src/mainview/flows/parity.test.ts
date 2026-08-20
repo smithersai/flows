@@ -132,17 +132,22 @@ describe("launch-law parity: every affordance is a command", () => {
 		);
 		expect(counts).toEqual({
 			/*
-			 * 22 = 27 − the five per-item onClick handlers the connect menu used
-			 * to carry. Its entries are DATA now (flow + optional args), rendered
+			 * 23 = 22 + the Files entry beside World in the surfaces menu. 22 was
+			 * 27 − the five per-item onClick handlers the connect menu used to
+			 * carry: its entries are DATA now (flow + optional args), rendered
 			 * through one handler that dispatches `runCommand`/`runCommandArgs`,
 			 * so the six affordances share a single binding site instead of
 			 * repeating it. 27 was 25 + the auth shortcut (the signed-out step's
 			 * first-tab-stop copy) + the reset confirm's own trigger (§28.4).
 			 */
-			"../App.tsx": 22,
+			"../App.tsx": 23,
 			"../ConnectorsSurface.tsx": 5,
 			"../ChatCards.tsx": 23,
 			"../DevtoolsPanel.tsx": 1,
+			/* The repository row and the four tabs of the repository view. */
+			"../GitHubPane.tsx": 3,
+			/* The breadcrumb up one directory; rows come from the file cards. */
+			"../RepoFilesBrowser.tsx": 1,
 			"../SurfaceChrome.tsx": 3,
 			"../ToastStack.tsx": 1,
 			/* The multi-parity domain cards: every handler routes through onRunCommand. */
@@ -150,9 +155,12 @@ describe("launch-law parity: every affordance is a command", () => {
 			"../cards/LandingCards.tsx": 4,
 			"../cards/FileCards.tsx": 2,
 			"../cards/KeysCard.tsx": 1,
-			/* Mark-all-read, plus the empty state's named next step (§28.2). */
-			"../cards/NotificationsCard.tsx": 2,
-			"../cards/RepoImportCard.tsx": 1,
+			/* Mark-all-read; the empty state names its next step in prose (§28.2). */
+			"../cards/NotificationsCard.tsx": 1,
+			/*
+			 * RepoImportCard has no affordance at all: importing is background
+			 * work the human never asks for, so the card only states the phase.
+			 */
 			/* The /theme picker: nine swatches, one shared handler through onRunCommand. */
 			"../cards/ThemePickerCard.tsx": 1,
 		});

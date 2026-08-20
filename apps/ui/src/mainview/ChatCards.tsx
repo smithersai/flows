@@ -659,12 +659,10 @@ const ConnectCardBody = ({
 	card,
 	onConnectGitHub,
 	onConnectLocal,
-	onRunCommand,
 }: {
 	readonly card: Extract<Card, { kind: "connect" }>;
 	readonly onConnectGitHub: () => void;
 	readonly onConnectLocal: () => void;
-	readonly onRunCommand: (name: string, args?: string) => void;
 }) => (
 	<ul className="connect-store-list">
 		<li className="connect-store-row">
@@ -1075,7 +1073,6 @@ export function CardView({
 							card={card}
 							onConnectGitHub={onConnectGitHub}
 							onConnectLocal={onConnectLocal}
-							onRunCommand={onRunCommand}
 						/>
 					) : null}
 					{card.kind === "world" ? (
@@ -1102,7 +1099,7 @@ export function CardView({
 						<NotificationsCardBody card={card} onRunCommand={onRunCommand} />
 					) : null}
 					{card.kind === "env" ? <EnvCardBody card={card} onRunCommand={onRunCommand} /> : null}
-					{card.kind === "repo-import" ? <RepoImportCardBody card={card} onRunCommand={onRunCommand} /> : null}
+					{card.kind === "repo-import" ? <RepoImportCardBody card={card} /> : null}
 					{card.kind === "branches" ? <BranchesCardBody card={card} onRunCommand={onRunCommand} /> : null}
 					{card.kind === "file-list" ? <FileListCardBody card={card} onRunCommand={onRunCommand} /> : null}
 					{card.kind === "file" ? <FileCardBody card={card} onRunCommand={onRunCommand} /> : null}

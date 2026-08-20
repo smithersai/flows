@@ -20,7 +20,10 @@ export function RepoFilesBrowser({
 }) {
 	if (repo === null) return <p className="world-card-empty">Choose a repository to browse its files.</p>;
 	const current = [...cards]
-		.filter((card) => (card.kind === "file-list" || card.kind === "file") && card.payload.repo === repo)
+		.filter(
+			(card): card is Extract<Card, { kind: "file-list" | "file" }> =>
+				(card.kind === "file-list" || card.kind === "file") && card.payload.repo === repo,
+		)
 		.sort((left, right) => right.createdAt - left.createdAt)[0];
 	const path = current?.payload.path ?? "";
 	return (

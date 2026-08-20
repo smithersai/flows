@@ -192,17 +192,23 @@ describe("command registry pure model", () => {
 			"goal",
 			"hello /goal",
 			"//goal",
-			"/unknown",
-			"/unknown words",
 			"/Goal",
 			"/GOAL",
 			"/goal!",
 			"/goal/child",
 			"/goal..show",
-			"/goal.show.more",
 			"/no-args surprise",
 		])("keeps %j as an agent prompt", (input) => {
 			expect(parseSubmit(input, commands)).toEqual({ kind: "prompt", text: input.trim() });
+		});
+
+		test.each([
+			["/unknown", "unknown"],
+			["/unknown words", "unknown"],
+			["/goal.show.more", "goal.show.more"],
+			["/reset", "reset"],
+		])("refuses %j by name instead of improvising", (input, name) => {
+			expect(parseSubmit(input, commands)).toEqual({ kind: "unknown-command", name });
 		});
 
 		test("does not mutate the registry or depend on command order", () => {
@@ -222,6 +228,8 @@ describe("command registry bindings", () => {
 			"world",
 			"github",
 			"files",
+			"repo.open",
+			"repo.tab",
 			"theme",
 			"surfaces",
 			"dark-mode",

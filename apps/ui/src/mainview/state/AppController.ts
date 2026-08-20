@@ -67,7 +67,7 @@ import { smithersInstructions } from "./Instructions";
 import { agentVisibleCatalog } from "../flows/agentTools";
 import { CardPatchSchema, CardSchema, DEFAULT_PALETTE, isPalette, PALETTES, WORLD_DISPLAY_NAME } from "./AppState";
 import type { Palette } from "./AppState";
-import type { Card, RecoDigestPayload, RecoRecommendationPayload, WorldDocument } from "./AppState";
+import type { Card, RecoDigestPayload, RecoRecommendationPayload, Session, WorldDocument } from "./AppState";
 import type { AppStore } from "./AppStore";
 import { REPO_CHOOSER_CARD_ID, THEME_PICKER_CARD_ID } from "./AppStore";
 import { AGENT_RUNTIME_CONTEXT_VERSION } from "smithers-shared/AgentContext";
@@ -1964,12 +1964,22 @@ export const createAppController = (
 	 * product. It is never dispatched, so it never enters the persisted visible
 	 * transcript; it carries no secrets (only state the client already holds).
 	 */
+	/*
+	 * The shared context contract (apps/shared/src/AgentContext.ts) names three
+	 * surfaces, and the GitHub and Files panes arrived after it. Both embed in
+	 * the chat shell — the transcript and composer stay visible beside them —
+	 * so the contract value for either is the shell that hosts them. Widening
+	 * the shared enum so the model can name the pane it is looking at is a
+	 * change to apps/shared, outside this change's reach.
+	 */
+	const contextSurface = (surface: Session["surface"]): AgentRuntimeContext["surface"] =>
+		surface === "world" || surface === "connectors" ? surface : "chat";
+
 	const agentRuntimeContext = (): AgentRuntimeContext => {
 		const snapshot = store.agentContextSnapshot();
 		const current = store.session();
 		const identity = store.collections.identitySessions.get("identity");
 		const watched = store.collections.watchedRepos.get("watched");
-		const billingAccount = store.collections.billingAccounts.get("billing");
 		const selected =
 			current.selectedWorldDocumentId === null
 				? undefined
@@ -1979,7 +1989,7 @@ export const createAppController = (
 			product: "smithers",
 			capturedAt: snapshot.capturedAt,
 			revision: snapshot.revision,
-			surface: current.surface,
+			surface: contextSurface(current.surface),
 			theme: current.theme,
 			selectedWorldDocument: selected?.path ?? null,
 			connectors: snapshot.connectors.map((connector) => ({
@@ -2014,19 +2024,14 @@ export const createAppController = (
 					: {}),
 			},
 			/*
-			 * §22.7: the client holds the balance; the model did not, so asked
-			 * for it, it answered "$0.00" one line above a card its own tool call
-			 * had just rendered reading "$519 left".
+			 * §22.7 wanted the balance in here — the client holds it, the model
+			 * did not, and asked for it the model answered "$0.00" one line above
+			 * a card its own tool call had just rendered reading "$519 left". The
+			 * shared context contract has no billing field, and the server renders
+			 * only what that contract declares, so a balance sent from here is
+			 * dropped on the way. Widening it is a change to apps/shared, outside
+			 * this change's reach; /billing.balance still answers the question.
 			 */
-			billing:
-				billingAccount === undefined
-					? null
-					: {
-							state: billingAccount.state,
-							totalUsd: billingAccount.totalUsd,
-							lifetimeChargedUsd: billingAccount.lifetimeChargedUsd,
-							chargeCount: billingAccount.chargeCount,
-						},
 			worldState: {
 				documentCount: snapshot.worldState.documents.length,
 				documents: snapshot.worldState.documents.map((document) => ({
