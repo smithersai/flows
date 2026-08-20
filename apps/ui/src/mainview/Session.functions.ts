@@ -3,6 +3,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { deleteCookie, getCookie, getRequest, setCookie } from "@tanstack/react-start/server";
 import type { BootSession } from "./BootSession";
 import { unavailableBootSession } from "./BootSession";
+/* The network law: every request this app makes is issued from state/seams/. */
+import type { BootSessionRequest } from "./state/seams/BootSessionSeam";
+import { bootSessionRequest } from "./state/seams/BootSessionSeam";
 
 const AUTH_FAILED_COOKIE = "smithers_auth_failed";
 const START_SESSION_HEADER = "x-smithers-start-session";
@@ -48,17 +51,9 @@ const normalizeSession = async (response: Response, authFailed: boolean): Promis
 	};
 };
 
-const fallbackSessionRequest = (request: Request): Promise<Response> => {
-	const url = new URL("/api/auth/session", request.url);
-	const headers = new Headers();
-	const cookie = request.headers.get("cookie");
-	if (cookie !== null) headers.set("cookie", cookie);
-	return fetch(url, { headers });
-};
-
 export const sessionResponseForRequest = async (
 	request: Request,
-	fallback: (request: Request) => Promise<Response> = fallbackSessionRequest,
+	fallback: BootSessionRequest = bootSessionRequest,
 ): Promise<Response> => {
 	const envelope = request.headers.get(START_SESSION_HEADER);
 	return envelope === null ? fallback(request) : decodeStartSessionHandoff(envelope);
