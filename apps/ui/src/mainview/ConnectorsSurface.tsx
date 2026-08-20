@@ -195,10 +195,33 @@ export function ConnectorsSurface({ controller }: { readonly controller: AppCont
 					</div>
 
 					{connectors.length === 0 ? (
+						/*
+						 * §11.6: the zero case told the reader a fact and gave them no
+						 * move. It matters most here: on the web the one way to add a
+						 * repository is the import row above, and connector.add answers
+						 * "native app only", so a reader who is not pointed at import has
+						 * nowhere obvious to look. Signed out there is exactly one door
+						 * and it is the GitHub row (§1.1), so no second one is offered.
+						 */
 						<div className="connector-empty">
 							<FolderGit2 size={20} />
 							<div>
 								<strong>No repositories connected</strong>
+								<span>
+									{signedIn
+										? "Import a GitHub repository into Smithers Cloud and it appears here."
+										: "Connecting GitHub above is the first step; imported repositories appear here."}
+								</span>
+								{signedIn ? (
+									<Button
+										size="sm"
+										variant="outline"
+										data-flow="repos.import"
+										onClick={() => controller.runCommand("repos.import")}
+									>
+										Import a repository
+									</Button>
+								) : null}
 							</div>
 						</div>
 					) : (

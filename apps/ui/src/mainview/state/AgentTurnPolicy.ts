@@ -128,3 +128,59 @@ export const boundToolResult = (
 	};
 };
 
+
+/**
+ * The line that stands where dropped history was.
+ *
+ * Never silent: a model that is missing the start of a conversation must know
+ * it is missing it, or it will answer confidently about words it never saw.
+ */
+export const droppedHistoryNotice = (dropped: number): string =>
+	`[${dropped} earlier message${dropped === 1 ? "" : "s"} in this conversation ${
+		dropped === 1 ? "was" : "were"
+	} dropped to fit this turn's size limit. If the user refers to something from before, say you may no longer have it rather than guessing.]`;
+
+export interface BoundedTurnRequest {
+	readonly request: StartAgentTurnRequest;
+	/** How many messages were dropped from the head, zero when the turn already fit. */
+	readonly dropped: number;
+}
+
+/**
+ * Bound one turn request to the boundary's body limit (§4.13).
+ *
+ * The client re-sent the whole transcript on every turn, so seven long answers
+ * pushed `POST /api/agent/turn` past the upstream body limit and the
+ * conversation was then permanently dead: every later turn failed the same
+ * way, and `/clear` could not recover it because `/clear` runs a model turn of
+ * its own and hit the same wall. The only escape was clearing the origin's
+ * storage from outside the app.
+ *
+ * So the oldest messages are dropped until the request fits, and a notice
+ * takes their place. `keepTail` is the count of trailing messages that must
+ * survive — the user's own prompt, and the function_call/function_call_output
+ * pairs of a tool leg, which are meaningless split apart.
+ */
+export const boundTurnRequest = (
+	request: StartAgentTurnRequest,
+	keepTail = 1,
+	maxBytes = MAX_TURN_REQUEST_BYTES,
+): BoundedTurnRequest => {
+	if (turnRequestBytes(request) <= maxBytes) return { request, dropped: 0 };
+	const messages = [...request.messages];
+	const floor = Math.min(Math.max(keepTail, 1), messages.length);
+	let dropped = 0;
+	let candidate = request;
+	while (messages.length > floor) {
+		messages.shift();
+		dropped += 1;
+		candidate = {
+			...request,
+			messages: [{ role: "user", content: droppedHistoryNotice(dropped) }, ...messages],
+		};
+		if (turnRequestBytes(candidate) <= maxBytes) return { request: candidate, dropped };
+	}
+	// Even the tail alone is over the limit: the seam refuses it honestly, and
+	// dropping the user's own words to hide that would be the worse answer.
+	return { request: candidate, dropped };
+};

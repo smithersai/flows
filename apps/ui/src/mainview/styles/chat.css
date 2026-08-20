@@ -645,6 +645,12 @@
 	font-size: 10px;
 }
 
+/* §11.6: the empty state's own next step sits under the sentence naming it. */
+.connector-empty div > button {
+	align-self: flex-start;
+	margin-top: 8px;
+}
+
 .connected-repository-list {
 	display: flex;
 	flex-direction: column;
