@@ -41,13 +41,13 @@ The root exports these namespaces, also available from matching
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `JournalEvent` | Branded schema/types `RunId`, `Seq`, `SourceId`, and `SourceSeq`; input/committed schemas `Input` and `Entry`; deterministic `makeEventId`.                                                                                                                                                                                                                                                                                                                                         |
 | `Journal`      | `Journal` / `Service` operations `emitLossy`, `emitDurable`, `transact`, `stream`, `entries`, `changes`, `project`, `flush`, `checkpoint`, and `compact`; typed errors, receipts, and read options; constructors and no-op layer.                                                                                                                                                                                                                                                   |
-| `SqlJournal`   | `SqlJournalOptions` and database-backed `layer(options)` with explicit lossy and durable channels.                                                                                                                                                                                                                                                                                                                                                                                  |
-| `Consensus`    | The injectable strategy arbitrating rules R1–R6: `Service` operations `claim`, `activate`, `heartbeat`, `release`, `steal`, and `guard`; typed outcomes and rejection reasons (`Claimed { grantedAtMs }`, `Rejected { reason }`, `Activated`, `Lost`, `Renewed`, `FenceLost`); `make`, `layerNoop`, and the browser-safe in-memory `layerLocal` (single process, exact commit-time admission). Defined here for the same reason `OwnerId` is: the journal is what consensus fences. |
+| `SqlJournal`   | `SqlJournalOptions` and database-backed layers with explicit lossy and durable channels: `layer(options)` runs over the default `SqlConsensus` strategy; `layerWith(options)` takes the `Consensus` strategy from context instead.                                                                                                                                                                                                                                                    |
+| `Consensus`    | The injectable strategy arbitrating rules R1–R6: `Service` operations `claim`, `activate`, `heartbeat`, `release`, `steal`, `recover`, and `guard`; typed outcomes `Claimed { grantedAtMs }`, `Rejected { reason: RejectionReason }`, `Activated`, `Lost`, `Renewed { heartbeatAtMs }`, and `Recovered`, unioned as `ClaimOutcome`, `ActivateOutcome`, `HeartbeatOutcome`, and `RecoverOutcome`; the `ConsensusError` failure (codes `fence_lost` and `persistence_failed`); the liveness vocabulary `LivenessEvidence`, `sameOwner`, `matchesEvidence`, and the heartbeat timing constants; `make`, `makeNoop`, `layerNoop`, and the browser-safe in-memory `layerLocal` (single process, exact commit-time admission). Defined here for the same reason `OwnerId` is: the journal is what consensus fences. |
 | `SqlConsensus` | The default database-backed strategy: `layer` keeps the lease in a table the strategy owns — the owner tuple, the two-phase claim columns, `recoverClaim`, and the generation fence relocated from `flows_runs` — and its `guard` joins the append transaction as a `DurableWriter` savepoint, so commit-time admission (R3) is exact.                                                                                                                                              |
 | `Projection`   | Reproducible `Projection` model and identity constructor `make`.                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `Redaction`    | The payload redaction applied to journal entries before they are written.                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `OwnerId`      | `OwnerId` — `hostId`, `pid`, `nonce` — the fencing token `emitDurable` accepts. Defined here because the journal is what it fences; `@smthrs/run-store`'s `Ownership` re-exports it alongside the arbitration built on it.                                                                                                                                                                                                                                                          |
-| `Migrations`   | `set` (the namespaced migration set for `flows_journal_events`, `flows_journal_checkpoints`, and the `SqlConsensus` lease table), `run`, and prerequisite `layer`.                                                                                                                                                                                                                                                                                                                  |
+| `Migrations`   | `set` (the namespaced migration set for `flows_journal_events`, `flows_journal_checkpoints`, and the `flows_consensus_leases` lease table), `run`, and prerequisite `layer`.                                                                                                                                                                                                                                                                                                        |
 
 The root is written against the driver-neutral `@smthrs/database` contract
 and bundles for the browser. The test doubles bind a Node SQLite database, so
@@ -60,11 +60,18 @@ they live under explicit subpaths:
 
 The `migrations/` modules create this package's tables: `0001_initial` the
 event table, `0002_checkpoints` the checkpoint/compaction-floor table, and
-the `SqlConsensus` lease table joins the same namespaced set. `Migrations.run`
-and `Migrations.layer` install this set alone; an application that also needs
-run, cache, or engine tables composes `Migrations.set` with the other
-packages' sets through `@smthrs/database`'s `Migrations`, which is what
-`@smthrs/engine-store/Migrations` already does.
+`0003_consensus` the `flows_consensus_leases` lease table. `0003_consensus`
+relocates arbitration state, so on a database whose `flows_runs` table
+predates it, the migration backfills a lease row from each `running` run's
+owner and claim columns; a `running` run that still has no lease row is not
+abandoned — `steal` and `recover` accept valid liveness evidence against it
+instead of rejecting. `Migrations.run` and `Migrations.layer` install this
+set alone; an application that also needs run, cache, or engine tables
+composes `Migrations.set` with the other packages' sets through
+`@smthrs/database`'s `Migrations`, which is what
+`@smthrs/engine-store/Migrations` already does. The reverse dependency is new
+with the lease table: `@smthrs/run-store`'s SQL layers arbitrate through
+`SqlConsensus` by default, so they need this set installed too.
 
 ```ts
 import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
@@ -110,13 +117,21 @@ package split — the journal no longer reads a table `@smthrs/run-store` owns.
 A fenced append admitted under a fence must not commit after that fence is
 lost (rule R3): `SqlConsensus.guard` joins the append transaction as a
 `DurableWriter` savepoint, and `layerLocal` is exact within its single
-process. Losing the fence still fails the write with `fence_lost`; the error
-code and its semantics are unchanged.
+process. Losing the fence still fails the write: the strategy's `guard` fails
+with `ConsensusError` (code `"fence_lost"` — there is no separate outcome
+type), and the journal surfaces it under its own `fence_lost` error code with
+unchanged semantics.
 
 Ownership transitions — claimed, activated, released, stolen, expired —
 append to the journal as events (rule R6) so history explains who drove what.
-Heartbeats and lease rows are the strategy's private state and never enter
-the event history. One shared conformance suite runs the ownership and
+Recording a transition is safe inside an enclosing `transact`: the R6 append
+joins the outer write transaction the way every `transact` emit does —
+allocated inside the enclosing critical section, publication parked until
+COMMIT — and never re-acquires the journal's allocation permit, so a store
+that records transitions while driving a run under `transact` cannot
+deadlock. Heartbeats and lease rows are the strategy's private state and
+never enter the event history. One shared conformance suite runs the
+ownership and
 fencing contracts against both `layerLocal` and `SqlConsensus.layer` (the
 Bazel `GraphTester` pattern), with clock-driven staleness/steal cases and a
 commit-after-fence-loss case pinning R3.
