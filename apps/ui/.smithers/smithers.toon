@@ -4,9 +4,9 @@ description: ""
 repository: ""
 smithers: *
 contents:
-  workflows[12]: add,create-skill,create-ui,create-workflow,docs-driven-development,eval-suite-run,init,post-failure,share-pack,smithers-repo-federation,upgrade,whole-foods-meal-planner
-  ui[6]: create-skill,create-workflow,docs-driven-development,share-pack,smithers-repo-federation,whole-foods-meal-planner
+  workflows[15]: add,create-skill,create-ui,create-workflow,design-engineering-callouts,docs-driven-development,eval-suite-run,init,post-failure,production-readiness-swarm,share-pack,smithers-repo-federation,universal-flow-runtime-swarm,upgrade,whole-foods-meal-planner
+  ui[7]: create-skill,create-workflow,docs-driven-development,production-readiness-swarm,share-pack,smithers-repo-federation,whole-foods-meal-planner
 capabilities:
   bins: []
   env: []
-  writes: none
+  writes: repo
