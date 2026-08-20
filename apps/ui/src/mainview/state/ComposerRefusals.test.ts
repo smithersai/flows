@@ -108,7 +108,7 @@ describe("a flow typed into the composer states its refusal", () => {
 	test("a flow that succeeds raises no refusal", async () => {
 		const store = await signedInStore();
 		const controller = createAppController(store, unavailableRepositories, silentAgent(), {
-			fetchImpl: async () => json(200, { issues: [] }),
+			fetchImpl: async () => json(200, []),
 		});
 		controller.send("/issues.list open codeplanesmithers/canary-sandbox");
 		await settled();

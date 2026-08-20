@@ -52,6 +52,30 @@ describe("worldview entries over worldDocuments", () => {
 		expect(document?.sources.filter((source) => source === "chain-remember")).toHaveLength(1);
 	});
 
+	test("remember fails the call when the state transaction cannot persist", async () => {
+		const data = new Map<string, string>();
+		let rejectWrites = false;
+		const storage: StorageApi = {
+			getItem: (key) => data.get(key) ?? null,
+			setItem: (key, value) => {
+				if (rejectWrites) throw new Error("quota exhausted");
+				data.set(key, value);
+			},
+			removeItem: (key) => void data.delete(key),
+		};
+		const store = await createAppStore({ kind: "localStorage", storage });
+		const remember = worldviewEntries(store).find((entry) => entry.name === "remember")!;
+		rejectWrites = true;
+		const error = await Effect.runPromise(
+			Effect.flip(remember.handler({ title: "Must persist", text: "Never acknowledge early." })) as Effect.Effect<
+				{ readonly message: string },
+				never,
+				never
+			>,
+		);
+		expect(error.message).toContain("quota exhausted");
+	});
+
 	test("recall ranks title hits above body hits and answers with confidence and freshness", async () => {
 		const store = await createAppStore({ kind: "localStorage", storage: memoryStorage() });
 		const [recall, remember] = [

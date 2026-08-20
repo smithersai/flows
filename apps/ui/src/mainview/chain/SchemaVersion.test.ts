@@ -11,6 +11,7 @@ import {
 	readRecordedBackend,
 	recordBackend,
 	SCHEMA_VERSION_STORAGE_KEY,
+	SCHEMA_QUARANTINE_PREFIX,
 } from "./SchemaVersion";
 
 /** Each case gets its own storage so no case observes another case's writes. */
@@ -134,6 +135,11 @@ describe("enforceSchemaVersion", () => {
 		expect(outcome.from).toBe(String(APP_SCHEMA_VERSION));
 		expect([...outcome.clearedKeys]).toEqual([...persistedStorageKeys()].sort());
 		for (const key of persistedStorageKeys()) expect(storage.getItem(key)).toBe(null);
+		expect(outcome.quarantinedKeys).toHaveLength(persistedStorageKeys().length);
+		for (const key of outcome.quarantinedKeys) {
+			expect(key.startsWith(SCHEMA_QUARANTINE_PREFIX)).toBe(true);
+			expect(storage.getItem(key)).toBe("{}");
+		}
 		expect(storage.getItem(SCHEMA_VERSION_STORAGE_KEY)).toBe(String(APP_SCHEMA_VERSION + 1));
 	});
 

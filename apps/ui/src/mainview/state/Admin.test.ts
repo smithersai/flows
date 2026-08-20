@@ -89,6 +89,16 @@ const QUEUE = {
 };
 
 describe("the admin plugin (admin session)", () => {
+	test("human-authority confirmations are structurally absent from the model catalog", async () => {
+		const store = await adminStore();
+		const controller = createAppController(store, unavailableRepositories, silentAgent());
+		const callable = controller.commands.callable().map((entry) => entry.binding.descriptor.name);
+		expect(callable).not.toContain("admin.grant.confirm");
+		expect(callable).not.toContain("admin.grant.cancel");
+		expect(callable).not.toContain("admin.queue.approve");
+		expect((await controller.commands.runForAgent("admin.grant.confirm", "grant-card")).status).toBe("failed");
+	});
+
 	test("allowlist add posts and confirms from the server echo", async () => {
 		const store = await adminStore();
 		const recorded: RecordedRequest[] = [];

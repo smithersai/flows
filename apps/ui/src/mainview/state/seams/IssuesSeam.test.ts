@@ -164,6 +164,16 @@ const cardOfKind = <K extends Card["kind"]>(
 };
 
 describe("issues seam — the list", () => {
+	test("rejects malformed top-level lists instead of reporting an empty success", async () => {
+		for (const body of [{}, "not a list", null]) {
+			const { store, controller } = await issuesController(
+				backend({ "GET /api/repos/will/flows/issues": json(200, body) }),
+			);
+			const outcome = await controller.commands.run("issues.list");
+			expect(outcome.status).toBe("failed");
+			expect(store.collections.cards.get("issues-will/flows")).toBeUndefined();
+		}
+	});
 	test("issues.list upserts the issue-list card with defensively parsed rows and asks state=open", async () => {
 		const calls: string[] = [];
 		const { store, controller } = await issuesController(

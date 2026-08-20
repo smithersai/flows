@@ -190,6 +190,15 @@ const fileCard = (store: AppStore, id: string) => {
 };
 
 describe("files seam — files.list", () => {
+	test("rejects dot-segment and mixed-separator traversal before any request", async () => {
+		const { store, controller, requests } = await freshController();
+		await ready(store);
+		for (const path of ["../../api/admin/health", "src/../secret", String.raw`..\api\admin`, "%2e%2e/admin"]) {
+			const outcome = await controller.commands.run("files.list", path);
+			expect(outcome.status).toBe("failed");
+		}
+		expect(requests).toEqual([]);
+	});
 	test("the bare command lists the root: entries sorted dirs-first then by name, malformed rows dropped", async () => {
 		const { store, controller, requests } = await freshController();
 		await ready(store);
