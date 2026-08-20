@@ -562,6 +562,17 @@ function Composer({
 	};
 
 	const onComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
+		/*
+		 * §21.4: an open menu closes before anything else. §5.2 made the slash
+		 * listing reachable DURING a turn, and this order was never revisited —
+		 * so Escape on an open menu mid-turn stopped the turn and left the menu
+		 * standing, which is the one thing Escape is never supposed to do.
+		 */
+		if (event.key === "Escape" && slashOpen) {
+			event.preventDefault();
+			setSlashMenu({ draft, index: slashHighlighted, dismissed: true });
+			return;
+		}
 		if (event.key === "Escape" && typing) {
 			event.preventDefault();
 			controller.runCommand("chat.stop");
@@ -592,10 +603,6 @@ function Composer({
 				slashMatches.length === 1 ? slashMatches[0] : slashMatches[slashHighlighted];
 			if (command !== undefined) runSlashCommand(command.flow.name);
 			return;
-		}
-		if (event.key === "Escape") {
-			event.preventDefault();
-			setSlashMenu({ draft, index: slashHighlighted, dismissed: true });
 		}
 	};
 

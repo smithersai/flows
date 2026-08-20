@@ -114,3 +114,45 @@ changes personally.
   does. A larger alternative — extending `Capability.Action` with an
   application-defined namespace — would also work but changes a security-
   relevant closed set, so the host-callback version is proposed first.
+
+## 3. `ChatComposer` always renders the Send button, disabled
+
+- **File**: `packages/ui/src/chat/ChatComposer.tsx` (the `sui-chat-composer-send`
+  block at ~line 149)
+- **What**: the submit button is rendered unconditionally and carries
+  `disabled={!canSubmit}`, where
+  `canSubmit = !disabled && !busy && value.trim().length > 0`. So whenever the
+  composer is empty, or a turn is in flight, the page holds a **visible but
+  disabled** button. The Stop button, by contrast, is rendered only while busy.
+- **Why it matters here**: launch-checklist row C-3 — "every visible affordance
+  is reachable from the keyboard" — is evaluated by two probes in
+  `apps/ui/src/launch-checklist/Probes.ts`. `TABBABLE_FLOWS` excludes elements
+  carrying `disabled`; `VISIBLE_AFFORDANCES` does not. A disabled control is
+  therefore counted as an affordance the keyboard cannot reach, and the
+  composer's Send button is disabled in the app's resting state. E5's keyboard
+  walk reads `affordances a keyboard cannot reach: send` whenever it samples the
+  page with an empty draft or a streaming turn.
+- **Workaround taken**: none. Un-stamping `data-flow` from the disabled button
+  would hide the row rather than answer it, and loosening
+  `VISIBLE_AFFORDANCES` to skip disabled controls changes what C-3 means for
+  every other affordance in the app. The row stays red and says why.
+- **Proposed diff sketch**: render the submit button only when it can act, the
+  way Stop already does — the two are alternatives, not a pair.
+
+  ```diff
+  -          <Button
+  -            type="submit"
+  -            className="sui-chat-composer-send"
+  -            disabled={!canSubmit}
+  -          >
+  +          {busy && onStop ? null : (
+  +          <Button
+  +            type="submit"
+  +            className="sui-chat-composer-send"
+  +            disabled={!canSubmit}
+  +          >
+  ```
+
+  A smaller alternative keeps the button and marks it `aria-hidden` plus
+  `tabindex="-1"` while disabled, which states the same thing to assistive
+  technology and to the probe without moving anything on screen.
