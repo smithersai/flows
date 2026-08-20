@@ -238,6 +238,28 @@ const scenarios: Readonly<Record<string, Scenario>> = {
     expected: failed("/harness/HarnessError", 4, ["probe:reading", "probe:demanded"])
   },
 
+  "park-without-a-human-is-answered": {
+    summary:
+      "A park in a run with no approval channel is refused and answered in the frame that asked, and the run spends the budget it still held instead of suspending on nobody.",
+    run: () => {
+      const recorder = Subject.makeRecorder()
+      return Subject.runAgent({
+        recorder,
+        // The second cell answers only when the refusal actually reached the
+        // model, so a loop that quietly suspended cannot pass by ending some
+        // other way: it would never produce this answer at all.
+        respond: (prompt) =>
+          prompt.includes("No human is available")
+            ? `await ctx.call("probe", { note: "settled-it-myself" })
+               return { intent: "complete", state: {}, output: "settled it myself" }`
+            : `return { intent: "park", state: {}, reason: "waiting-input", message: "which branch?" }`,
+        maxFrames: 4,
+        flows: [Subject.probeSource(recorder)]
+      })
+    },
+    expected: answered("settled it myself", 2, ["probe:settled-it-myself"])
+  },
+
   "max-frames-stops-the-run": {
     summary: "A run that never completes stops at its frame budget and reports a typed harness failure.",
     run: () => {

@@ -106,6 +106,17 @@ export interface Options {
    */
   readonly readOnlyCap?: number | undefined
   /**
+   * Whether a human answers this executor's runs, which is what makes a cell's
+   * `park` transition honorable.
+   *
+   * The executor wires an approval gate on every run, but a gate is not an
+   * answerer: a benchmark, a cron, and a CI lane all register approvals that
+   * nobody will ever decide. So the host says. It defaults to false, and a run
+   * that claims false has its `park` transitions refused and answered in-frame
+   * rather than left waiting on an operator who is not there.
+   */
+  readonly approvalChannel?: boolean | undefined
+  /**
    * The reasoning effort agent seats run at when their flow declares none.
    *
    * The flow's own `effort:` frontmatter wins; this is the host's default
@@ -162,6 +173,7 @@ export const trace = (
         payload: {
           readOnlyCap: event.readOnlyCap,
           maxFrames: event.maxFrames,
+          approvalChannel: event.approvalChannel,
           calls: event.calls,
           memoryBytes: event.memoryBytes,
           steps: event.steps,
@@ -788,7 +800,8 @@ export const make = (
           maxFrames: options.maxFrames,
           // A task run's frames are supposed to change something, so hold it
           // to a rhythm of acting rather than only reading.
-          readOnlyCap: options.readOnlyCap ?? CellTurn.defaultReadOnlyFrames
+          readOnlyCap: options.readOnlyCap ?? CellTurn.defaultReadOnlyFrames,
+          approvalChannel: options.approvalChannel ?? false
         }).pipe(
           Stream.runForEach(record),
           Effect.provide(QuickJSSandbox.layer),

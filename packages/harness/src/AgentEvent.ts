@@ -33,6 +33,14 @@ export class DisciplineArmed extends Schema.TaggedClass<DisciplineArmed>(
   readOnlyCap: Schema.Number,
   /** The frame budget the run stops at. */
   maxFrames: Schema.Number,
+  /**
+   * Whether a human can answer this run.
+   *
+   * False says nothing is listening: a `park` transition is refused and
+   * answered in the frame that returned it, because a run that waits for an
+   * answer nobody will give has stopped working with its budget unspent.
+   */
+  approvalChannel: Schema.Boolean,
   /** Maximum calls per cell, when this binding can enforce one. */
   calls: Schema.optional(Schema.Number),
   /** Maximum sandbox heap, when this binding can enforce one. */

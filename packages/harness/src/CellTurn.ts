@@ -149,6 +149,19 @@ export class State extends Schema.Class<State>("flows/harness/CellTurn/State")({
     cap: NonNegativeSafeInt
   })),
   /**
+   * Whether a human can answer this run, which is what makes a park honorable.
+   *
+   * A park is durable waiting, and waiting only ends when somebody answers. A
+   * run with no approval channel has nobody to answer it, so a park there is
+   * not patience: it is the run abandoning a budget it still holds. False —
+   * the default — refuses the transition and answers it in the frame that
+   * returned it.
+   */
+  approvalChannel: Schema.Boolean.pipe(
+    Schema.withConstructorDefault(Effect.succeed(false)),
+    Schema.withDecodingDefaultKey(Effect.succeed(false))
+  ),
+  /**
    * Output this run has been handed as a fragment, by digest.
    *
    * The ledger is state rather than a per-frame detail because a cell may store
@@ -209,6 +222,12 @@ export const make = (options: {
    * only meant to read — a question, a review — should get.
    */
   readonly readOnlyCap?: number | undefined
+  /**
+   * Whether a human can answer this run. Omitted or false refuses a `park`
+   * transition and answers it in-frame; only a host that has wired somewhere
+   * for an answer to come from may claim true.
+   */
+  readonly approvalChannel?: boolean | undefined
 }): State =>
   new State({
     session: options.session,
@@ -226,6 +245,7 @@ export const make = (options: {
     readOnlyFrames: 0,
     readOnlyGrace: 0,
     pendingReadOnlyDemand: undefined,
+    approvalChannel: options.approvalChannel ?? false,
     truncatedOutputs: []
   })
 
@@ -457,12 +477,44 @@ const invalidProbeNotice = (
   }\nThat result is not a reproduction and is not a regression: it reads identically on a broken tree and on a fixed one, so it can neither prove the bug nor prove the repair. Repair the command before editing anything — find the real names first — and do not store it as \`state.verification\` or name it when you complete.`
 }
 
+/**
+ * The intervention text, which asks for a decision and not for a keystroke.
+ *
+ * The first version of this said "write something". It was answered: on the
+ * SWE-bench pytest instance the demanded frame ran `git show <base>:<path> >
+ * <path>`, which satisfied nothing the cap is for and deleted the fix the run
+ * had already landed. So the two ways out are stated as equals, the evidence a
+ * real edit carries is named, and the writes that are worse than another quiet
+ * frame are named too.
+ */
 const readOnlyDemand = (cap: number, frames: number): string =>
-  `Read-only discipline — ${frames} consecutive frames have made no call that declares a write, and this run's read-only budget is ${cap}. The next cell must do one of two things: call a flow that writes (an edit, a write, a patch — reading, searching, and running read-only commands do not count), or return { intent: "continue", state, context, justification: "<why an edit is still impossible, and the exact call that will make one possible>" }. A justification is recorded and buys ${cap} quiet frames; it does not reset this counter. At ${
+  `Read-only discipline — ${frames} consecutive frames have made no call that declares a write, and this run's read-only budget is ${cap}. The next cell must do one of two things, and they are equally acceptable: land an edit you can already name the evidence for — the file, the change, and the check you have watched fail that will now pass — or return { intent: "continue", state, context, justification: "<the evidence you are still missing, and the exact call that will get it>" }. Do not write something merely to answer this notice. A restore, a revert, an overwrite from captured output, or any edit whose evidence you cannot name is worse than another read-only frame, because it destroys work this run has already done. A justification is recorded and buys ${cap} quiet frames; it does not reset this counter. At ${
     cap * 2
   } consecutive read-only frames the run stops as a failure, so ${
     cap * 2 - frames
   } frames remain in which to commit to a change.`
+
+/**
+ * The answer a park gets when nothing is listening for it.
+ *
+ * A park is a request for a human, and the run's own arming says whether one
+ * exists. Refusing it is not an error the model has to repair — the frame is
+ * ordinary, its state is kept, and the note states what is left to spend so the
+ * next frame has no reason to read the refusal as "there is nothing more to
+ * try". On the SWE-bench sphinx instance a run parked at frame 3 with 97
+ * frames unspent, asking about a definition `grep` finds in the workspace it
+ * was already holding.
+ */
+const parkRefusal = (
+  message: string,
+  framesLeft: number,
+  frameSeconds: number | undefined
+): string =>
+  `No human is available: this run has no approval channel, so nobody can answer a park and the transition is not honored. What you asked — "${message}" — is now yours to settle. You have ${framesLeft} frame${
+    framesLeft === 1 ? "" : "s"
+  } left${
+    frameSeconds === undefined ? "" : `, each able to spend up to ${frameSeconds} seconds`
+  }, and the flows in ctx.flows to spend them on. Answer the question yourself with a call — search the workspace, read the file, run the command — and continue.`
 
 const readOnlyCapFailure = (cap: number, frames: number): HarnessError =>
   new HarnessError({
@@ -545,6 +597,14 @@ const budgetMessage = (state: State): string =>
  * only party that sees both a result that declared its capture cut short and a
  * later call handing those exact bytes to something that writes, and a write of
  * a known fragment is refused rather than performed. See `TruncatedOutput`.
+ *
+ * `performed` collects the ordinal of every invocation that actually reached
+ * the engine. The three refusals above return before it, and a refused call
+ * changed nothing — so it must not read as a write to anything downstream. It
+ * did once: the truncated-write refusal is the newest of the three and lands on
+ * exactly the calls the read-only cap watches, so a run whose only edit was
+ * refused had its read-only streak cleared by a write that never happened, and
+ * the cap stayed silent through the stall it exists to break.
  */
 const callHandler = (
   state: State,
@@ -552,6 +612,7 @@ const callHandler = (
   descriptors: ReadonlyMap<string, Descriptor.FlowDescriptor>,
   engine: EngineLike.EngineLike,
   ledger: Array<TruncatedOutput.Capture>,
+  performed: Set<number>,
   emit: (event: AgentEvent.AgentEvent) => Effect.Effect<void>
 ): Sandbox.Handler =>
 (invocation) =>
@@ -606,6 +667,7 @@ const callHandler = (
         layers: [...new Set(state.layers)].sort()
       })
     })
+    performed.add(invocation.ordinal)
     yield* emit(new AgentEvent.CellCallStarted({ eventType: eventType.cellCallStarted, call }))
     const result = yield* engine.call(call)
     if (result.outcome === "success") ledger.push(...TruncatedOutput.captures(call.flowName, result.value))
@@ -830,13 +892,19 @@ const frame = (
       readonly flow: string
       readonly ok: boolean
       readonly summary: string
-      /** Whether the call declared a write, which is what breaks a read-only run. */
+      /**
+       * Whether the call reached the engine declaring a write, which is what
+       * breaks a read-only run. A call the boundary refused is not one: it
+       * declared a write and performed none.
+       */
       readonly mutates: boolean
       /** What the flow said about its own failure, when it said it ran nothing. */
       readonly invalidProbe: { readonly reason: string; readonly message: string } | undefined
     }> = []
+    /** Ordinals of the invocations that reached the engine this frame. */
+    const performed = new Set<number>()
     const observing: Sandbox.Handler = (invocation) =>
-      callHandler(state, cell, descriptors, engine, ledger, emit)(invocation).pipe(
+      callHandler(state, cell, descriptors, engine, ledger, performed, emit)(invocation).pipe(
         Effect.tap((result) =>
           Effect.sync(() => {
             const rendered = result.outcome === "success"
@@ -847,7 +915,8 @@ const frame = (
               flow: invocation.flow,
               ok: result.outcome === "success",
               summary: clip(rendered, 400),
-              mutates: descriptor !== undefined && mutating(descriptor, invocation.input),
+              mutates: performed.has(invocation.ordinal) && descriptor !== undefined &&
+                mutating(descriptor, invocation.input),
               invalidProbe: result.outcome === "success" ? invalidProbeOf(result.value) : undefined
             })
           })
@@ -939,6 +1008,41 @@ const frame = (
           })
         )
       }
+      // A park with no channel to answer it is refused and answered here. The
+      // journal states this without a event of its own: the pair
+      // `transition-applied` carrying a `park` and `turn-closed` carrying
+      // `continue` occurs for no other reason.
+      if (!state.approvalChannel) {
+        const limits = Sandbox.withDefaults(sandbox.capabilities, input.limits)
+        const step = observe(
+          parkRefusal(
+            transition.message,
+            Math.max(0, state.maxFrames - state.frame - 1),
+            limits.totalMs === undefined ? undefined : Math.floor(limits.totalMs / 1000)
+          ),
+          {
+            agentState: transition.state,
+            pendingReadOnlyDemand: undefined,
+            ...(mutatingCalls > 0 ? { readOnlyFrames: 0, readOnlyGrace: 0 } : {})
+          }
+        )
+        yield* emit(
+          new AgentEvent.TurnClosed({
+            eventType: eventType.turnClosed,
+            stopReason: settled.message.stopReason,
+            outcome: step._tag === "Done" ? "resolved" : "continue"
+          })
+        )
+        if (step._tag === "Done") {
+          yield* emit(
+            new AgentEvent.Resolved({
+              eventType: eventType.resolved,
+              message: ModelRequest.Message.assistant(budgetMessage(state), { stopReason: "stop" })
+            })
+          )
+        }
+        return step
+      }
       yield* emit(
         new AgentEvent.TurnClosed({
           eventType: eventType.turnClosed,
@@ -956,8 +1060,10 @@ const frame = (
     }
 
     // Read-only discipline, applied to every frame that settled a decision.
-    // A park is exempt: waiting is not evasion, and a parked run is not
-    // reporting anything as done.
+    // A park is exempt, honored or refused: waiting is not evasion, a parked
+    // run is not reporting anything as done, and a refused park has already
+    // been told what it still has to spend. The frame budget bounds a run that
+    // does nothing but ask.
     const cap = state.readOnlyCap
     const readOnly = mutatingCalls === 0
     const readOnlyFrames = readOnly ? state.readOnlyFrames + 1 : 0
@@ -1129,6 +1235,7 @@ export const run = (
             eventType: eventType.disciplineArmed,
             readOnlyCap: current.readOnlyCap,
             maxFrames: current.maxFrames,
+            approvalChannel: current.approvalChannel,
             ...limits
           })
         )

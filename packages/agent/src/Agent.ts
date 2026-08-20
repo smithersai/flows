@@ -143,6 +143,15 @@ export interface Options {
    * unset.
    */
   readonly readOnlyCap?: number | undefined
+  /**
+   * Whether a human can answer this run; see `CellTurn.make`.
+   *
+   * The default is false, because the default run is unattended. Only a caller
+   * that has somewhere for an answer to come from — an operator on the other
+   * end of `flows approve`, an interactive session — may claim true, and a
+   * caller that claims it wrongly buys a run that waits forever.
+   */
+  readonly approvalChannel?: boolean | undefined
   readonly limits?: Sandbox.Limits | undefined
 }
 
@@ -330,7 +339,8 @@ const runProduction: Service["run"] = (options) =>
             contextWindow: opening(options, flows),
             contextWindowTokens: options.seat.contextWindowTokens,
             maxFrames: options.maxFrames,
-            readOnlyCap: options.readOnlyCap
+            readOnlyCap: options.readOnlyCap,
+            approvalChannel: options.approvalChannel
           })
           return CellTurn.run({ state, flows, limits: options.limits }).pipe(
             Stream.provideService(EngineLike.EngineLike, withRequestPlugins(port, kernel.plugins))

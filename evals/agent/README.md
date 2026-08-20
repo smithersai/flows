@@ -36,7 +36,7 @@ Two flags:
 
 ## What it measures
 
-Ten cases. Each one is a whole agent run: the real cell loop, the real QuickJS
+Nine cases. Each one is a whole agent run: the real cell loop, the real QuickJS
 sandbox, the real registry-backed call bridge, and the real structured-output
 boundary, executing over `FlowEngine.layerMemory` — the engine's in-process
 volatile runtime, not the durable SQLite one a deployed host uses. Three things
@@ -54,13 +54,15 @@ loop and its seams, not durability and not a real catalog.
 | `correction-budget-exhausted`          | A model that never produces the declared shape fails `/harness/StructuredOutputFailure`, not silently.                 |
 | `cell-calls-a-flow`                    | A cell reaches a host capability through `ctx.call`, and the flow's typed result reaches the answer.                   |
 | `read-only-cap-stops-a-reading-run`    | A task run that only reads is told to write or justify at its cap, and stops as `/harness/HarnessError` at twice it.   |
+| `park-without-a-human-is-answered`     | A park in a run with no approval channel is refused, answered in-frame, and the run spends the budget it still held.  |
 | `max-frames-stops-the-run`             | A run that never completes stops at its frame budget and reports `/harness/HarnessError`.                              |
 | `seat-unresolved-is-typed`             | A host with no model for the declared seat refuses before any model call, as `@smthrs/agent/Seat/SeatUnresolved`.      |
 
 Seven cases drive the agent through `AgentAction` — one typed step inside an
-ordinary flow, which is how a workflow author reaches it. The read-only-cap case
-drives the `Agent` service directly inside a real flow execution, because
-`readOnlyCap` is an `Agent.Options` field that `AgentAction` does not forward.
+ordinary flow, which is how a workflow author reaches it. The read-only-cap and
+park cases drive the `Agent` service directly inside a real flow execution,
+because `readOnlyCap` and `approvalChannel` are `Agent.Options` fields that
+`AgentAction` does not forward.
 
 Each case reduces its run to one `Observation`:
 
@@ -81,16 +83,17 @@ possible. The correction case answers with valid JSON only when the prompt
 carries the correction teaching, so a boundary that stopped re-prompting reports
 the wrong answer and not merely a different call count. The read-only case
 records `probe:demanded` only if the structural demand actually reached the
-model.
+model, and the park case answers only when the refusal text reached it, so a
+loop that suspended quietly cannot pass by ending some other way.
 
 ## Files
 
 | File            | What it is                                                                                                           |
 | --------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `subject.ts`    | The composition under evaluation: the scripted provider, the seat seam, the host, and the two ways to run the agent. |
-| `suite.ts`      | The ten scenarios, their declared expectations, the two scorers, and the case executor.                              |
+| `suite.ts`      | The nine scenarios, their declared expectations, the two scorers, and the case executor.                            |
 | `run.ts`        | The entry point: runs the suite, compares it to the baseline, applies the gate, sets the exit code.                  |
-| `baseline.json` | The committed baseline, in `@smthrs/evals` `Baseline` v1 form. Twenty records: ten cases times two scorers.          |
+| `baseline.json` | The committed baseline, in `@smthrs/evals` `Baseline` v1 form. Eighteen records: nine cases times two scorers.       |
 | `tsconfig.json` | Typechecks the suite: `npx tsc -p evals/agent`. Nothing else references it.                                          |
 
 `baseline.json` is written by `Baseline.write`, which emits canonical

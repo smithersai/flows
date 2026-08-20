@@ -82,6 +82,7 @@ describe("trace", () => {
           eventType: "flows.harness.discipline-armed.v1",
           readOnlyCap: 12,
           maxFrames: 100,
+          approvalChannel: false,
           calls: 64,
           memoryBytes: 134_217_728,
           steps: 1_000,
@@ -94,6 +95,11 @@ describe("trace", () => {
           payload: {
             readOnlyCap: 12,
             maxFrames: 100,
+            // False says nobody can answer a park, so the loop refuses one
+            // rather than leaving the run waiting on an operator who is not
+            // there. It is journaled before the first frame, like every other
+            // armed budget.
+            approvalChannel: false,
             calls: 64,
             memoryBytes: 134_217_728,
             steps: 1_000,

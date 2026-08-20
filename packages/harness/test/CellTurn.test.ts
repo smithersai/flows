@@ -90,6 +90,8 @@ const state = (
     readonly maxFrames?: number
     readonly envelope?: ReadonlyArray<string>
     readonly readOnlyCap?: number
+    /** Declared per case: a park is only honored where somebody can answer it. */
+    readonly approvalChannel?: boolean
   } = {}
 ) =>
   CellTurn.make({
@@ -107,7 +109,8 @@ const state = (
     placement: Option.none(),
     contextWindow: window,
     maxFrames: overrides.maxFrames ?? 4,
-    readOnlyCap: overrides.readOnlyCap ?? 0
+    readOnlyCap: overrides.readOnlyCap ?? 0,
+    approvalChannel: overrides.approvalChannel ?? false
   })
 
 /**
@@ -435,6 +438,7 @@ describe("CellTurn", () => {
 
   it("parks when the cell asks to, carrying the reason it chose", async () => {
     const { engine, events } = await run({
+      state: state({ approvalChannel: true }),
       script: [
         emits(
           `return { intent: "park", state: { waiting: true }, reason: "waiting-input", message: "which branch?" }`
@@ -1031,6 +1035,87 @@ describe("CellTurn read-only cap", () => {
     expect(JSON.stringify(model.recorder.requests[1]?.messages)).not.toContain("Read-only discipline")
   })
 
+  it("journals the demand a thirteen-frame stall must produce at the shipped cap", async () => {
+    // The exact shape SWE-bench wave 5's pytest run had: one frame that edits,
+    // then thirteen that only read, under the `readOnlyCap: 12` its own
+    // `discipline-armed` record names. That run journaled no demand at all,
+    // and spent frames four through sixteen reading, diagnosing, and finally
+    // destroying the edit it had made, with no controller pressure at any
+    // point. The cap is only worth arming if the twelfth quiet frame is heard.
+    const { events, model } = await run({
+      state: capped(CellTurn.defaultReadOnlyFrames, 16),
+      flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] }), editor],
+      script: [
+        emits(
+          `await ctx.call("edit", { path: "a.py", text: "fixed" })
+           return { intent: "continue", state: {}, context: [] }`
+        ),
+        ...readCells(13),
+        emits(`return { intent: "complete", state: {}, output: "done" }`)
+      ],
+      calls: successes(14)
+    })
+
+    expect(of(events, "read-only-demanded")[0]).toMatchObject({
+      streak: CellTurn.defaultReadOnlyFrames,
+      cap: CellTurn.defaultReadOnlyFrames,
+      nextFrame: 13,
+      nextAction: "read-only"
+    })
+    expect(JSON.stringify(model.recorder.requests[13]?.messages)).toContain("Read-only discipline")
+  })
+
+  it("asks a demanded frame for evidence, not for a keystroke", async () => {
+    const { model } = await run({
+      state: capped(1, 3),
+      flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] }), editor],
+      script: [...readCells(2), emits(`return { intent: "complete", state: {}, output: "done" }`)],
+      calls: successes(2)
+    })
+
+    // Wave 4 answered the first version of this text by running
+    // `git show <base>:<path> > <path>`, which wrote something and deleted the
+    // fix the run had already landed. The two ways out are stated as equals,
+    // and the writes that are worse than another quiet frame are named.
+    const demanded = JSON.stringify(model.recorder.requests[1]?.messages)
+    expect(demanded).toContain("equally acceptable")
+    expect(demanded).toContain("name the evidence for")
+    expect(demanded).toContain("Do not write something merely to answer this notice")
+    expect(demanded).toContain("A restore, a revert, an overwrite from captured output")
+  })
+
+  it("does not let a write the boundary refused clear the read-only streak", async () => {
+    const { events, model } = await run({
+      // `edit` needs `fs:write:**`, which this run's envelope does not carry,
+      // so the boundary refuses the call before it reaches the engine.
+      state: state({ readOnlyCap: 2, maxFrames: 5, envelope: ["fs:read:**"] }),
+      flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] }), editor],
+      script: [
+        ...readCells(1),
+        emits(
+          `try { await ctx.call("edit", { path: "a.py", text: "fixed" }) } catch (error) {}
+           return { intent: "continue", state: {}, context: [] }`
+        ),
+        ...readCells(1),
+        emits(`return { intent: "complete", state: {}, output: "done" }`)
+      ],
+      calls: successes(2)
+    })
+
+    // A refused call performed nothing, so the frame that made it is still a
+    // read-only frame and the streak runs through it. Counting it as a write
+    // is how a stalled run buys silence from the cap with a call that never
+    // happened.
+    expect(of(events, "cell-call-started").map((event) => event.call.flowName)).toEqual(["fs/list", "fs/list"])
+    expect(of(events, "read-only-demanded")[0]).toMatchObject({
+      streak: 2,
+      cap: 2,
+      nextFrame: 2,
+      nextAction: "read-only"
+    })
+    expect(JSON.stringify(model.recorder.requests[2]?.messages)).toContain("Read-only discipline")
+  })
+
   it("leaves a run with no cap alone", async () => {
     const { failure, model } = await run({
       state: state({ maxFrames: 4 }),
@@ -1227,6 +1312,33 @@ describe("CellTurn truncated output", () => {
     expect(engine.recorder.calls.map((call) => call.flowName)).toEqual(["bash"])
     const resolved = of(events, "resolved")[0]?.message.content[0]
     expect(resolved?.type === "text" ? resolved.text : "").toContain("refused:")
+  })
+
+  it("leaves the read-only streak running through a refused restore", async () => {
+    const { events, model } = await run({
+      state: state({ readOnlyCap: 2, maxFrames: 5 }),
+      script: [
+        emits(
+          `await ctx.call("bash", { mode: "unhermetic", command: "git show HEAD:src/module.py" })
+           return { intent: "continue", state: {}, context: [] }`
+        ),
+        emits(
+          `const out = await ctx.call("bash", { mode: "unhermetic", command: "git show HEAD:src/module.py" })
+           try { await ctx.call("write", { path: "src/module.py", content: out.stdout }) } catch (error) {}
+           return { intent: "continue", state: {}, context: [] }`
+        ),
+        emits(`return { intent: "complete", output: "done" }`)
+      ],
+      flows: restoreFlows,
+      calls: [truncatedShellResult, truncatedShellResult]
+    })
+
+    // The truncated-write guard lands on exactly the calls the read-only cap
+    // watches, so a run whose only edit is refused would otherwise have its
+    // streak cleared by a write that never happened — and go quiet through the
+    // stall the cap exists to break.
+    expect(of(events, "read-only-demanded")[0]).toMatchObject({ streak: 2, cap: 2, nextAction: "read-only" })
+    expect(JSON.stringify(model.recorder.requests[2]?.messages)).toContain("Read-only discipline")
   })
 
   it("performs a large write that is not a fragment the run was handed", async () => {
