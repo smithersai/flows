@@ -566,7 +566,15 @@ export default smithers((ctx) => {
                   summary: `Spec build failed: ${message}`,
                 };
                 writeJsonArtifact(BOOTSTRAP_ARTIFACT, output);
-                return output;
+                /*
+                 * The bootstrap gates the loop: a failed docs build used to
+                 * return docsBuildPassed:false and let metaTicket/audit and
+                 * every downstream mutation run against a spec state the build
+                 * had already rejected. Fail the node instead — the artifact
+                 * above keeps the failure inspectable, and no repair-shaped
+                 * work starts from a broken bootstrap.
+                 */
+                throw new Error(`Spec build failed: ${message}`);
               }
             }}
           </Task>
