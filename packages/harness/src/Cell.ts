@@ -223,6 +223,11 @@ const Returned = Schema.Union([
  * Every one of these is a durable observation the model may correct on a later
  * frame; none of them is a harness crash.
  *
+ * `imports_forbidden` names module syntax the cell itself uses, which
+ * `Sandbox.compile` finds by parsing. A quoted mention of an import is data:
+ * cells routinely carry a `bash` command whose heredoc imports a Python module,
+ * and those cells run.
+ *
  * @category models
  * @since 0.1.0
  * @slop
@@ -486,23 +491,16 @@ const languageOf = (info: string): Language | undefined => {
 }
 
 /**
- * Detects a static or dynamic module import, which a cell may never use.
- *
- * The cell's only binding is the injected frozen context, so any import is a
- * contract violation reported back to the model rather than a resolution
- * attempt inside the sandbox.
- */
-const importsSource = (text: string): boolean =>
-  /(^|[^\w$.])import(?=[\s(*{'"`])/.test(text) ||
-  /(^|[^\w$.])export(?=[\s{*])/.test(text) ||
-  /(^|[^\w$.])require\s*\(/.test(text)
-
-/**
  * Extracts the cell one model settlement emitted.
  *
  * The last fenced block tagged as a cell wins, so a model that reasons in prose
  * with illustrative snippets before committing to its final cell is read the
  * way it intended.
+ *
+ * Extraction reads text and never judges syntax. Whether the source uses module
+ * syntax is a question about JavaScript, and it is answered by parsing the cell
+ * in `Sandbox.compile`, which is also where an `imports_forbidden` rejection is
+ * raised.
  *
  * @category conversions
  * @since 0.1.0
@@ -526,15 +524,6 @@ export const extract = (text: string): Result.Result<Source, Rejected> => {
         code: "no_cell",
         message:
           "No cell was found in the response. Emit exactly one fenced ```cell block containing the JavaScript for this transition."
-      })
-    )
-  }
-  if (importsSource(body)) {
-    return Result.fail(
-      new Rejected({
-        code: "imports_forbidden",
-        message:
-          "A cell may not import, export, or require anything. Use ctx.call and ctx.flows; they are the only bindings available."
       })
     )
   }

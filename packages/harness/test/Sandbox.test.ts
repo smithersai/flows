@@ -11,6 +11,7 @@ import * as Cell from "../src/Cell.ts"
 import { HarnessError } from "../src/HarnessError.ts"
 import * as QuickJSSandbox from "../src/QuickJSSandbox.ts"
 import * as Sandbox from "../src/Sandbox.ts"
+import { rejectedCell, rejectedCellNames } from "./fixtures/rejectedCells.ts"
 
 const listInputDocument = JSON.parse(
   JSON.stringify(Schema.toJsonSchemaDocument(Schema.Struct({ path: Schema.String })))
@@ -239,6 +240,21 @@ for (const [name, binding] of bindings) {
       const outcome = await evaluate(binding, `return {`)
       expect(outcome._tag).toBe("rejected")
       expect((outcome as Cell.Rejected).code).toBe("compile_failed")
+    })
+
+    it("teaches ctx.call to a cell that imports, and runs one that only quotes an import", async () => {
+      const imported = await evaluate(binding, `import { readFile } from "node:fs"\nreturn null`)
+      expect(imported._tag).toBe("rejected")
+      expect((imported as Cell.Rejected).code).toBe("imports_forbidden")
+      expect((imported as Cell.Rejected).message).toContain("ctx.call")
+
+      // The same word, inside the string a benchmark cell actually passed.
+      const quoted = await evaluate(
+        binding,
+        `const command = "python - <<'PY'\\nfrom pathlib import Path\\nprint(Path('.'))\\nPY"
+         return { intent: "complete", output: command }`
+      )
+      expect(quoted._tag).toBe("settled")
     })
 
     it("runs erasable TypeScript without changing its runtime meaning", async () => {
@@ -920,10 +936,10 @@ describe("Sandbox.compile", () => {
   it("names the construct that needs JavaScript emit rather than emitting it", () => {
     const cases: ReadonlyArray<readonly [string, string]> = [
       ["enum Direction { Left, Right }\nreturn null", "enum declarations"],
+      // The `export` inside the namespace is not ESM, and the module check
+      // steps over a namespace body so it cannot be read as ESM either.
       ["namespace Shapes { export const sides = 3 }\nreturn null", "namespace/module declarations"],
       ["declare module \"node:fs\" {}\nreturn null", "namespace/module declarations"],
-      ["import fs = require(\"node:fs\")\nreturn null", "import-equals declarations"],
-      ["export = 1", "export assignments"],
       ["class A { constructor(public a: number) {} }\nreturn null", "parameter properties"],
       ["class A { constructor(private a: number) {} }\nreturn null", "parameter properties"],
       ["class A { constructor(protected a: number) {} }\nreturn null", "parameter properties"],
@@ -959,6 +975,57 @@ describe("Sandbox.compile", () => {
       })
     )
   })
+
+  it("refuses module syntax and says which binding to use instead", () => {
+    const cases: ReadonlyArray<readonly [string, Cell.Language, string]> = [
+      ["import { readFile } from \"node:fs\"\nreturn null", "javascript", "import"],
+      ["import \"node:fs\"\nimport \"node:path\"\nreturn null", "javascript", "import"],
+      ["const m = await import(\"node:fs\")\nreturn null", "javascript", "import"],
+      ["return import.meta.url", "javascript", "import"],
+      ["const fs = require(\"node:fs\")\nreturn null", "javascript", "require"],
+      ["export const x = 1\nreturn null", "javascript", "export"],
+      ["const x = 1\nexport { x }\nreturn null", "javascript", "export"],
+      ["export default 1", "javascript", "export"],
+      ["import fs = require(\"node:fs\")\nreturn null", "typescript", "import"],
+      ["export = 1", "typescript", "export"]
+    ]
+
+    for (const [text, language, syntax] of cases) {
+      expect(Sandbox.compile(Cell.source(text, language)), text).toStrictEqual(
+        new Cell.Rejected({
+          code: "imports_forbidden",
+          message: `A cell may not ${syntax} anything: it runs in a realm with no module loader. ` +
+            "Use ctx.call for every effect and ctx.flows for the catalog it may call; " +
+            "they are the only bindings a cell has."
+        })
+      )
+    }
+  })
+
+  it("keeps the JavaScript that only looks like module syntax", () => {
+    const cases: ReadonlyArray<string> = [
+      // The identifier prefix, the property name, and the string: the three
+      // ways a regexp over the source read a cell as importing.
+      "const important = ctx.flows\nreturn important.export",
+      "return ctx.call(\"bash\", { command: \"python -c 'from pathlib import Path'\" })",
+      "return ctx.call(\"grep\", { pattern: \"from _pytest import\" })",
+      // A modifier that is not `export`, and a meta-property that is not
+      // `import.meta`.
+      "async function work() { return new.target }\nreturn work()"
+    ]
+
+    for (const text of cases) {
+      expect(Sandbox.compile(Cell.source(text)), text).toBe(text)
+    }
+  })
+
+  for (const name of rejectedCellNames) {
+    it(`compiles the wave-5 cell ${name} that the text match rejected`, () => {
+      const extracted = Cell.extract(rejectedCell(name))
+      expect(extracted._tag).toBe("Success")
+      expect(typeof Sandbox.compile((extracted as { readonly success: Cell.Source }).success)).toBe("string")
+    })
+  }
 })
 
 describe("Sandbox.layer", () => {

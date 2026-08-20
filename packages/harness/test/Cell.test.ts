@@ -3,6 +3,7 @@ import { Option, Result } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Cell from "../src/Cell.ts"
 import * as FlowBinding from "../src/FlowBinding.ts"
+import { rejectedCell, rejectedCellNames } from "./fixtures/rejectedCells.ts"
 
 const fenced = (info: string, body: string): string => "```" + info + "\n" + body + "\n```"
 
@@ -102,25 +103,34 @@ describe("Cell.extract", () => {
     expect(rejection.message).toContain("fenced ```cell block")
   })
 
-  it("refuses any module access, which the sandbox has no way to satisfy", () => {
+  it("reads text and leaves every judgement about syntax to the compiler", () => {
+    // Extraction used to match `import` against the raw source, which read a
+    // quoted Python import as a module import. Whether a cell uses module
+    // syntax is `Sandbox.compile`'s question, answered by parsing.
     for (
       const body of [
         "import { readFile } from \"node:fs\"\nreturn null",
-        "const fs = require(\"node:fs\")\nreturn null",
-        "export const x = 1\nreturn null",
-        "const m = await import(\"node:fs\")\nreturn null"
+        "const important = ctx.flows\nreturn { intent: \"park\" }"
       ]
     ) {
-      const extracted = Cell.extract(fenced("cell", body))
-      expect(extracted._tag).toBe("Failure")
-      expect((extracted as Result.Failure<never, Cell.Rejected>).failure.code).toBe("imports_forbidden")
+      expect(Cell.extract(fenced("cell", body))._tag, body).toBe("Success")
     }
   })
+})
 
-  it("does not mistake an identifier ending in import for a module import", () => {
-    const extracted = Cell.extract(fenced("cell", "const important = ctx.flows\nreturn { intent: \"park\" }"))
-    expect(extracted._tag).toBe("Success")
-  })
+describe("Cell.extract on the frames one benchmark wave rejected", () => {
+  // Verbatim final cells from SWE-bench wave 5, each recorded in its run's
+  // journal beside the `imports_forbidden` rejection it drew. Every one of them
+  // only mentions an import inside a bash command or a grep pattern, and the
+  // sphinx cell is that instance's opening frame, so the run began by spending
+  // a turn on a rule it had not broken.
+  for (const name of rejectedCellNames) {
+    it(`extracts the cell ${name} carried`, () => {
+      const extracted = Cell.extract(rejectedCell(name))
+      expect(extracted._tag).toBe("Success")
+      expect(Result.getOrThrow(extracted).text).toContain("ctx.call")
+    })
+  }
 })
 
 describe("Cell.source", () => {

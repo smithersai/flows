@@ -604,14 +604,55 @@ const denied = (name: string): never => {
   )
 }
 
+/**
+ * The module syntax a cell used, named as the model would say it.
+ *
+ * @private
+ */
+type ModuleSyntax = "import" | "export" | "require"
+
+/**
+ * Finds module syntax a cell wrote, by parsing rather than by matching text.
+ *
+ * A cell has no module loader to reach, so this is a real violation. Its
+ * strings are another matter: cells routinely pass a `bash` command whose
+ * Python heredoc reads `from pathlib import Path`, or a `grep` pattern naming
+ * `from _pytest import`. That text is data. A regexp over the source cannot
+ * tell the two apart, and reading the source as text rejected five otherwise
+ * correct SWE-bench frames in one wave, one of them an instance's opening
+ * frame, each costing a whole turn to a rule the cell had not broken.
+ *
+ * A namespace body is not descended into. `export` inside one is not ESM, and
+ * the namespace itself is refused by {@link nonErasableSyntax}.
+ *
+ * @private
+ */
+const moduleSyntax = (source: ts.SourceFile): ModuleSyntax | undefined => {
+  let found: ModuleSyntax | undefined
+  const visit = (node: ts.Node): void => {
+    if (found !== undefined) return
+    if (ts.isImportDeclaration(node) || ts.isImportEqualsDeclaration(node)) found = "import"
+    else if (ts.isExportDeclaration(node) || ts.isExportAssignment(node)) found = "export"
+    else if (
+      ts.canHaveModifiers(node) &&
+      ts.getModifiers(node)?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword) === true
+    ) found = "export"
+    else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) found = "import"
+    else if (ts.isMetaProperty(node) && node.keywordToken === ts.SyntaxKind.ImportKeyword) found = "import"
+    else if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "require") {
+      found = "require"
+    } else if (!ts.isModuleDeclaration(node)) ts.forEachChild(node, visit)
+  }
+  visit(source)
+  return found
+}
+
 const nonErasableSyntax = (source: ts.SourceFile): string | undefined => {
   let found: string | undefined
   const visit = (node: ts.Node): void => {
     if (found !== undefined) return
     if (ts.isEnumDeclaration(node)) found = "enum declarations"
     else if (ts.isModuleDeclaration(node)) found = "namespace/module declarations"
-    else if (ts.isImportEqualsDeclaration(node)) found = "import-equals declarations"
-    else if (ts.isExportAssignment(node)) found = "export assignments"
     else if (
       ts.isParameter(node) &&
       node.modifiers?.some((modifier) =>
@@ -635,13 +676,35 @@ const nonErasableSyntax = (source: ts.SourceFile): string | undefined => {
  * JavaScript emit are refused instead of being silently transformed into new
  * runtime behaviour.
  *
+ * Every cell is parsed, JavaScript included, because a cell that writes module
+ * syntax is refused here rather than at the realm. The realm does refuse it:
+ * `import` inside the async wrapper is a syntax error and `require` is an
+ * undefined identifier. Neither says what to do instead, and the model reads
+ * the rejection text as its next instruction, so this rejection carries the
+ * lesson while the realm's own message would only carry the symptom.
+ *
  * @category conversions
  * @since 0.1.0
  * @slop
  */
 export const compile = (cell: Cell.Source): string | Cell.Rejected => {
-  if (cell.language === "javascript") return cell.text
-  const parsed = ts.createSourceFile("cell.ts", cell.text, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS)
+  const isTypeScript = cell.language === "typescript"
+  const parsed = ts.createSourceFile(
+    isTypeScript ? "cell.ts" : "cell.js",
+    cell.text,
+    ts.ScriptTarget.ES2022,
+    true,
+    isTypeScript ? ts.ScriptKind.TS : ts.ScriptKind.JS
+  )
+  const moduleUse = moduleSyntax(parsed)
+  if (moduleUse !== undefined) {
+    return new Cell.Rejected({
+      code: "imports_forbidden",
+      message: `A cell may not ${moduleUse} anything: it runs in a realm with no module loader. ` +
+        "Use ctx.call for every effect and ctx.flows for the catalog it may call; they are the only bindings a cell has."
+    })
+  }
+  if (!isTypeScript) return cell.text
   const forbidden = nonErasableSyntax(parsed)
   if (forbidden !== undefined) {
     return new Cell.Rejected({
