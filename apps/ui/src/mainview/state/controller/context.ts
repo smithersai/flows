@@ -74,6 +74,7 @@ export interface ControllerContext {
 	resumeDeferredCommand: () => void;
 	stopWorkflowPumps: () => void;
 	contextMessages: () => ReadonlyArray<AgentChatMessage>;
+	openRepoChooser: (preselect?: string) => Promise<string | void>;
 	workflowRpc: (repo: string, method: string, params: unknown) => Promise<WorkflowRpcResult>;
 	commands: CommandRegistry;
 	withToast: <T>(
@@ -136,6 +137,7 @@ export const createControllerContext = (
 		resumeDeferredCommand: () => {},
 		stopWorkflowPumps: () => {},
 		contextMessages: () => [],
+		openRepoChooser: async () => {},
 		workflowRpc: async () => ({ status: "error", message: "Workflow RPC is not wired." }),
 		commands: undefined as unknown as CommandRegistry,
 		withToast: undefined as unknown as ControllerContext["withToast"],
