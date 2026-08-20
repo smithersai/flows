@@ -809,17 +809,17 @@ export const layer = (
                 })
             )
             const historical = yield* readAvailable
-            const local = Stream.fromSubscription(wake).pipe(
-              Stream.mapEffect(() => readAvailable),
-              Stream.flattenIterable
-            )
             // PubSub is only a local fast path. Another journal process cannot
             // publish into it, so a bounded poll must recheck both the durable
             // tail and the compaction floor while the follower is otherwise idle.
-            const remote = Stream.fromEffectRepeat(
-              Effect.sleep("1 second").pipe(Effect.andThen(readAvailable))
+            // One raced wake keeps the live tail in the consumer fiber instead
+            // of merging two background streams, which also preserves a plain
+            // interruption cause when the consumer is cancelled.
+            const live = Stream.fromEffectRepeat(
+              Effect.raceFirst(PubSub.take(wake), Effect.sleep("1 second")).pipe(
+                Effect.andThen(readAvailable)
+              )
             ).pipe(Stream.flattenIterable)
-            const live = Stream.merge(local, remote)
             return Stream.concat(Stream.fromIterable(historical), live)
           })()
         )
@@ -1150,7 +1150,11 @@ export const layer = (
         Effect.flatMap(Effect.serviceOption(Settlements), (enclosing) => {
           const settlement = Effect.sync(() => rememberCommitted(queued, commit.entry.seq)).pipe(
             Effect.andThen(publish([commit])),
-            Effect.andThen(noteCommitted(queued.runId, commit.inserted ? 1 : 0))
+            // Indexing and subscriber publication are the mandatory
+            // post-COMMIT settlement. Automatic compaction may invoke an
+            // arbitrary capture effect and remains interruptible once those
+            // invariants are restored.
+            Effect.andThen(Effect.interruptible(noteCommitted(queued.runId, commit.inserted ? 1 : 0)))
           )
           return Option.isNone(enclosing)
             ? settlement
@@ -1260,21 +1264,21 @@ export const layer = (
                 const commit = yield* insertOne(queued, owner)
                 return { commit, queued, sourceSeq }
               }))).pipe(
-              /**
-               * `writer.write` is a retrying transaction: its body replays on
-               * `SQLITE_BUSY(_SNAPSHOT)` and can still abort at COMMIT after the
-               * body succeeded. Cache mutation and publication therefore happen
-               * strictly after the transaction returns, so subscribers never
-               * observe a rolled-back entry and a replayed body never publishes
-               * twice. Mirrors the queued path, which publishes in a `.tap`
-               * outside `persistBatch`.
-               *
-               * Under `transact` "after the transaction returns" is not yet
-               * "after COMMIT" — this write is a savepoint of the caller's
-               * transaction — so `settle` parks both effects until the
-               * outermost transaction commits.
-               */
-              Effect.tap(({ commit, queued }) => settleCommit(queued, commit)),
+                /**
+                 * `writer.write` is a retrying transaction: its body replays on
+                 * `SQLITE_BUSY(_SNAPSHOT)` and can still abort at COMMIT after the
+                 * body succeeded. Cache mutation and publication therefore happen
+                 * strictly after the transaction returns, so subscribers never
+                 * observe a rolled-back entry and a replayed body never publishes
+                 * twice. Mirrors the queued path, which publishes in a `.tap`
+                 * outside `persistBatch`.
+                 *
+                 * Under `transact` "after the transaction returns" is not yet
+                 * "after COMMIT" — this write is a savepoint of the caller's
+                 * transaction — so `settle` parks both effects until the
+                 * outermost transaction commits.
+                 */
+                Effect.tap(({ commit, queued }) => settleCommit(queued, commit))
               )
             ).pipe(
               Effect.map(({ commit, sourceSeq }) =>
@@ -1600,6 +1604,7 @@ export const layer = (
         for (const queued of batch) {
           const identity = sourceEventKey(queued.runId, queued.sourceId, queued.sourceSeq)
           const pending = state.sourceEvents.get(identity)
+          /* v8 ignore next -- the single allocation permit prevents this identity from changing before its batch settles */
           if (pending?.status === "pending" && pending.seq === queued.seq) {
             state.sourceEvents.delete(identity)
           }
