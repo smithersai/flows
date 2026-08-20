@@ -1,0 +1,125 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "790cadb3fb933f3ce5158eeed06531a69d431007",
+ "tree": "82e9601b0e52b08559b4772104c537109f6bf5a0",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 55,
+  "sectionCount": 83
+ },
+ "source": {
+  "commit": "5bf4b5240d607b5308532facd34e587eb80c9576",
+  "subject": "🔥 fix(time-travel): drop the unjournaled helper the round-3 contract retired",
+  "priorCanonicalCommit": "1ba807ac4ffffafbb4082fc9f4a6d32fadc26ee7",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 43,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true,
+  "rebuild": {
+   "reason": "rebuilt onto the 13-commit split of canonical commit 2632c05da63099666add6437c743f4c5b3922f59",
+   "priorCanonicalCommit": "1ba807ac4ffffafbb4082fc9f4a6d32fadc26ee7",
+   "treePreserved": true,
+   "tree": "82e9601b0e52b08559b4772104c537109f6bf5a0"
+  }
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "engine-store",
+  "epicsTouched": [
+   {
+    "id": "engine-store",
+    "files": 1
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 893,
+  "globalCount": 921,
+  "purpose": "🔥 fix(time-travel): drop the unjournaled helper the round-3 contract retired",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "8bfe0aa8cb753a20399294ecc01f8c9f19c9d85c"
+  ],
+  "parent": "8bfe0aa8cb753a20399294ecc01f8c9f19c9d85c",
+  "sourceImports": [
+   "1741fe3e11078585191eacc9cf2eccd8a3526c1d",
+   "c6c0d5170329c2c48b6f3ad7b1f39755c840387c",
+   "0cbeeb277d9929243737e789e6318cc45bd98bac",
+   "a3268b56e9da9bd3213f796ff44e6ac6e5ac5d43",
+   "5170b035bdf2d833b4acb4be7324ea335c388b5f"
+  ],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": [],
+  "sourceImportsRemapped": {
+   "reason": "prior canonical SHAs rewritten by the 13-commit split of 2632c05da63099666add6437c743f4c5b3922f59",
+   "priorSourceImports": [
+    "1741fe3e11078585191eacc9cf2eccd8a3526c1d",
+    "c6c0d5170329c2c48b6f3ad7b1f39755c840387c",
+    "0cbeeb277d9929243737e789e6318cc45bd98bac",
+    "a3268b56e9da9bd3213f796ff44e6ac6e5ac5d43",
+    "16b531103a259eea1ce78d5ac3f3cda3ed2eefa4"
+   ]
+  }
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "8bfe0aa8cb753a20399294ecc01f8c9f19c9d85c",
+  "next": "1511d2674244fe7343ef51d3e67bcef530ed8de0",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "6fe6857b28247375ab46b0d79cba15e74754ebd6"
+ },
+ "size": {
+  "files": 1,
+  "added": 0,
+  "deleted": 10
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "5bf4b5240d607b5308532facd34e587eb80c9576"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "packages/time-travel/src/internal/Recovery.ts",
+   "mode": "100644",
+   "blob": "3cf521a392c0b24c3dfca7cb1b57b2e4eae5e2b8",
+   "previousBlob": "67ab803d467b067abd647f74ae84df5039754b54",
+   "added": 0,
+   "deleted": 10,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 13,
+     "oldLines": 1,
+     "newStart": 12,
+     "newLines": 0
+    },
+    {
+     "oldStart": 23,
+     "oldLines": 9,
+     "newStart": 21,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  }
+ ]
+}
