@@ -1,0 +1,106 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "dc6ba67374716dccdfa793a35fc9db9bf4b5b360",
+ "tree": "9c9c53c063bdb7f3ac6ca706c9e3ff30db62d0ad",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 13,
+  "sectionCount": 71
+ },
+ "source": {
+  "commit": "210cc1dc0feed8aeb2865cf1cf0cd8e3ab06fbba",
+  "subject": "🐛 fix(e2e): boot the Start Worker the app actually ships",
+  "priorCanonicalCommit": "9a266406f47f311b9c7d81c67edf85e2194d2049",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 13,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "ui",
+  "epicsTouched": [
+   {
+    "id": "ui",
+    "files": 1
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 851,
+  "globalCount": 909,
+  "purpose": "🐛 fix(e2e): boot the Start Worker the app actually ships",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "37dbdbb66ad61221a02caf7d58a904708d47be26"
+  ],
+  "parent": "37dbdbb66ad61221a02caf7d58a904708d47be26",
+  "sourceImports": [
+   "e822dc188bbe3d101505bc4e0d8671fc01102cc9",
+   "f01dafa893105f00d06046ae8d94c86cb040cc24"
+  ],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "37dbdbb66ad61221a02caf7d58a904708d47be26",
+  "next": "316ed72b6baf1a1942e7d3f3f313ddfae37f770b",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "9f4db87e9b528812c207c1054f8c36a09a06c2c7"
+ },
+ "size": {
+  "files": 1,
+  "added": 10,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "210cc1dc0feed8aeb2865cf1cf0cd8e3ab06fbba"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "apps/ui/e2e/Stack.ts",
+   "mode": "100644",
+   "blob": "eeec0934f41a3c30775238cf09cd91c31e3832a5",
+   "previousBlob": "07b477faace272021f4a3c59db33cc9e05440d63",
+   "added": 10,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 187,
+     "oldLines": 0,
+     "newStart": 188,
+     "newLines": 8
+    },
+    {
+     "oldStart": 193,
+     "oldLines": 0,
+     "newStart": 202,
+     "newLines": 2
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  }
+ ]
+}
