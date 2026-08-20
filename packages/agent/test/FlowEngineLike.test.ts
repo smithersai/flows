@@ -304,9 +304,14 @@ describe("FlowEngineLike.make", () => {
     expect(completed(outcome)).toBe(2)
   })
 
-  it("retries one transient model failure inside the sealed step", async () => {
+  it.each(
+    [
+      ["transport", "connection reset"],
+      ["provider_internal", "provider overloaded"]
+    ] as const
+  )("retries one transient %s model failure inside the sealed step", async (code, message) => {
     let attempts = 0
-    const transient = new ModelError({ code: "transport", message: "connection reset" })
+    const transient = new ModelError({ code, message })
     const model = Model.make({
       stream: () =>
         Stream.suspend(() => {
@@ -331,7 +336,7 @@ describe("FlowEngineLike.make", () => {
     }))
 
     expect(completed(outcome)).toMatchObject([
-      { type: "retry", attempt: 1, code: "transport" },
+      { type: "retry", attempt: 1, code },
       { type: "text-start" },
       { type: "text-delta" },
       { type: "settle" }
