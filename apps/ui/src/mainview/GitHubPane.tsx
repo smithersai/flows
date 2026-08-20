@@ -119,7 +119,7 @@ export function GitHubPane({ controller, session, available, watched, cards }: {
 				{session.repositoryTab === "files" ? <RepoFilesBrowser repo={repo} cards={cards} onRunCommand={run} /> : null}
 				{session.repositoryTab === "issues" ? issueCard ? <IssueListCardBody card={issueCard} onRunCommand={run} /> : <p className="world-card-empty">No issues have been read for this repository.</p> : null}
 				{session.repositoryTab === "pulls" ? pullCard ? <LandingListCardBody card={pullCard} onRunCommand={run} /> : <p className="world-card-empty">No pull requests have been read for this repository.</p> : null}
-				{session.repositoryTab === "flows" ? flowCard ? <WorkflowListCardBody card={flowCard} onRunWorkflow={(name) => run("flow.run", name)} /> : <p className="world-card-empty">No flows have been read for this repository.</p> : null}
+				{session.repositoryTab === "flows" ? flowCard ? <WorkflowListCardBody card={flowCard} onRunWorkflow={(name, flowRepo) => run("flow.run", `${name} ${flowRepo}`)} /> : <p className="world-card-empty">No flows have been read for this repository.</p> : null}
 			</main>
 		</div>}
 	</section>;

@@ -265,6 +265,63 @@ describe("the GitHub pane (will, 2026-08-19)", () => {
 	 * comment count — because NO INVENTION forbids dressing it in data the
 	 * source never answered.
 	 */
+	/*
+	 * The Run button used to hand `flow.run` a workflow name and nothing else.
+	 * `flow.run` takes `<name> [owner/repo]` and resolves a missing repository
+	 * to the FIRST watched one, so browsing the second repository and pressing
+	 * Run launched outbound work on the first — a wrong-target launch, not a
+	 * cosmetic slip. The row states its card's repository now, so the two
+	 * mounts of this list cannot disagree about where a run lands.
+	 */
+	test("Run launches on the repository being browsed, not the first watched one", async () => {
+		const store = await webStore();
+		const launched: Array<{ repo: string; params: unknown }> = [];
+		const controller = createAppController(store, unavailableRepositories, silentAgent, {
+			fetchImpl: (async (input: RequestInfo | URL, init?: RequestInit) => {
+				const url = String(input);
+				if (url.includes("/api/reco/repos")) return json({ candidates: CANDIDATES });
+				if (url.includes("/api/workflow/provision")) return json({ status: "ready" });
+				if (url.includes("/api/workflow/rpc")) {
+					const body = JSON.parse(String(init?.body)) as { repo: string; method: string; params: unknown };
+					if (body.method === "launchRun") {
+						launched.push({ repo: body.repo, params: body.params });
+						return json({ ok: true, payload: { runId: "run-1" } });
+					}
+					if (body.method === "listWorkflows") {
+						return json({ ok: true, payload: [{ key: "alpha-ui", description: null }] });
+					}
+					return json({ ok: true, payload: [] });
+				}
+				return new Response("{}", { status: 503, headers: { "content-type": "application/json" } });
+			}) as typeof fetch,
+		});
+		// Two watched repositories: will/flows sorts first, will/quiet second.
+		await signedIn(store, ["will/flows", "will/quiet"]);
+		store.dispatch({
+			type: "billing.refreshed",
+			actor: "system",
+			state: "ok",
+			totalUsd: "100",
+			allowedToStartWork: true,
+			lifetimeChargedUsd: "0",
+			chargeCount: 0,
+		});
+		await controller.commands.run("repo.open", "will/quiet");
+		await settled();
+		// The list the tab reads for itself, through the workspace seam.
+		await controller.commands.run("repo.tab", "flows");
+		await until(() => store.collections.cards.get("workflow-list-will/quiet") !== undefined);
+
+		const { host } = mount(controller);
+		const runButton = host.querySelector<HTMLElement>('.workflow-list [data-flow="flow.run"]');
+		expect(runButton).not.toBeNull();
+		runButton?.click();
+		await until(() => launched.length > 0);
+
+		expect(launched[0]?.repo).toBe("will/quiet");
+		expect(launched[0]?.params).toMatchObject({ workflow: "alpha-ui" });
+	});
+
 	test("the Flows tab wears the shared row treatment, with only the fields a flow has", async () => {
 		const store = await webStore();
 		const controller = controllerWith(store);

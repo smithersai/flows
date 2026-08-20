@@ -1103,7 +1103,7 @@ function App() {
 									onMinimize={() => controller.runCommand("card.minimize")}
 									onConnectGitHub={() => controller.runCommand("auth.sign-in")}
 									onConnectLocal={() => controller.runCommandArgs("connector.add", "read")}
-									onRunWorkflow={(name) => controller.runCommandArgs("flow.run", name)}
+									onRunWorkflow={(name, repo) => controller.runCommandArgs("flow.run", `${name} ${repo}`)}
 									onStopRun={(id) => controller.runCommandArgs("flow.run.stop", id)}
 									onRetryRun={(id) => controller.runCommandArgs("flow.run.retry", id)}
 									onChooseWorkflowRepo={(name) => controller.runCommandArgs("flow.repo.choose", name)}
