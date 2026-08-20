@@ -67,7 +67,7 @@ describe("NodeControl.layerExecutor liveness", () => {
       const engine = NodeControl.engineDurable(root, registry)
       const executor = NodeControl.layerExecutor(registry, engine, root, {})
       const composition = Application.layer({}, registry, engine, executor) as Layer.Layer<Control.Control>
-      const open = <A>(use: Effect.Effect<A, never, Control.Control>) =>
+      const open = <A, E>(use: Effect.Effect<A, E, Control.Control>) =>
         Effect.runPromise(use.pipe(Effect.provide(composition), Effect.scoped, Effect.orDie))
 
       // One process's worth of lifetime: enough to migrate the execution

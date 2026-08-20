@@ -2,7 +2,7 @@ import { Effect, Layer, Redacted, Schema, Stream } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Channels from "../src/Channels.ts"
 import * as Control from "../src/Control.ts"
-import { Unauthorized } from "../src/ControlError.ts"
+import { PersistenceError, Unauthorized } from "../src/ControlError.ts"
 import * as WebhookChannel from "../src/WebhookChannel.ts"
 
 const accepted = { _tag: "Accepted" as const, receiptId: "receipt" }
@@ -211,7 +211,7 @@ describe("Channels", () => {
           Effect.suspend(() => {
             attempts += 1
             return attempts === 1
-              ? Effect.fail(new Unauthorized({ message: "transient" }))
+              ? Effect.fail(new PersistenceError({ operation: "signal", message: "transient" }))
               : Effect.succeed(accepted)
           }),
         cancel: () => Effect.die("unused"),

@@ -73,7 +73,7 @@ const status = (entrypoint: Entrypoint, exit: Exit.Exit<unknown, unknown>): numb
 const failure = (error: unknown): Exit.Exit<never, unknown> => Exit.failCause(Cause.fail(error))
 
 let entrypoint: Entrypoint
-let previousExitCode: number | string | undefined
+let previousExitCode: number | string | null | undefined
 
 beforeAll(async () => {
   previousExitCode = process.exitCode
