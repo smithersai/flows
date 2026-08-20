@@ -7,6 +7,31 @@
  * and the fixed skip-directory convention still permits an explicitly named
  * skipped directory as the root.
  *
+ * **Patterns are relative to `root`, never to the filesystem.** A candidate is
+ * matched by the path it has *relative to the search root*, so `tests/**\/*.py`
+ * — what every caller writing a project-relative pattern means — matches
+ * `<root>/tests/admin_views/admin.py`. Three rules follow, and both peers
+ * implement all three identically:
+ *
+ * - A pattern with no `/` matches the **basename** at any depth: `*.py` finds
+ *   every Python file in the subtree.
+ * - A pattern containing `/` is matched against the root-relative path and is
+ *   anchored at the root: `tests/*.py` matches `<root>/tests/a.py` and not
+ *   `<root>/src/tests/a.py`.
+ * - A leading `/` is the same anchor spelled explicitly, not a filesystem
+ *   absolute path: `/a.py` matches only `<root>/a.py`, where bare `a.py` would
+ *   match any `a.py` in the subtree. A leading `./` means the same anchor.
+ *
+ * `**` crosses directory boundaries, `*` and `?` stay inside one segment, and
+ * `?` consumes one UTF-8 byte.
+ *
+ * The consequence worth stating is the one that cost a SWE-bench run 41 of its
+ * 43 frames: an *absolute* pattern such as `/home/repo/tests/**` is read as the
+ * root-relative path `home/repo/tests/**`, which nothing under a root of
+ * `/home/repo` can match. That answer is now never silent — a pattern no file
+ * under the root could match reports why through `notice`, so "unsatisfiable"
+ * and "searched and found none" stay distinguishable.
+ *
  * @since 0.1.0
  */
 import * as Flow from "@smthrs/core/Flow"
@@ -38,8 +63,13 @@ export const description = "Find files through the Flows Ripgrep Subset v1 contr
  * @since 0.1.0
  */
 export const Input = Schema.Struct({
-  pattern: Schema.NonEmptyString.annotate({ description: "Ripgrep -g pattern supporting *, **, ?, and {a,b}." }),
-  root: Schema.optional(Schema.String).annotate({ description: "Search root; defaults to /." }),
+  pattern: Schema.NonEmptyString.annotate({
+    description:
+      "Ripgrep -g pattern, matched against paths relative to root, never absolute paths: *, ?, {a,b} stay inside one segment, ** crosses directories, a pattern without / matches any basename, and a leading / anchors at root."
+  }),
+  root: Schema.optional(Schema.String).annotate({
+    description: "Search root the pattern is relative to; defaults to /. Pass the project directory."
+  }),
   hidden: Schema.optional(Schema.Boolean).annotate({ description: "Ripgrep --hidden." }),
   noIgnore: Schema.optional(Schema.Boolean).annotate({
     description: "Must be true in v1; ignore files are not consulted."

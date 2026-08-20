@@ -7,8 +7,19 @@
  * context; per-file `--max-count`; `--files-with-matches`; `--hidden`; and
  * deterministic path/line ordering. Ignore files and file-type registries are
  * outside v1: callers must use `noIgnore: true` (the default), and any `types`
- * request is rejected. Results are globally bounded by `limit` and disclose
+ * request is rejected. Patterns are capped at 4096 ASCII bytes and counted
+ * repetitions at 1000. Invalid UTF-8 is replacement-decoded; NUL-bearing
+ * files are skipped and counted, while an explicitly named binary file is a
+ * typed failure. Results are globally bounded by `limit` and disclose
  * truncation through `notice`.
+ *
+ * `globs` accepts exactly the shapes `glob` accepts and reads them the same
+ * way: every pattern is matched against each candidate's path *relative to
+ * `root`*, a pattern without `/` matches the basename at any depth, and a
+ * leading `/` or `./` anchors at the root rather than naming a filesystem
+ * absolute path. See `Glob` for the full statement of the rules. A search that
+ * matched nothing because a positive glob was unsatisfiable says so through
+ * `notice` instead of returning a silent empty result.
  *
  * Native and in-process implementations are peers behind `Search.Search`.
  * This module declares and validates the call; it performs no host access.
@@ -46,12 +57,15 @@ export const description = "Search file contents through the Flows Ripgrep Subse
  */
 export const Input = Schema.Struct({
   pattern: Schema.String.annotate({ description: "Flows Ripgrep ASCII v1 expression." }),
-  root: Schema.optional(Schema.String).annotate({ description: "Search root; defaults to /." }),
+  root: Schema.optional(Schema.String).annotate({
+    description: "Search root the globs are relative to; defaults to /. Pass the project directory."
+  }),
   fixedStrings: Schema.optional(Schema.Boolean).annotate({ description: "Ripgrep -F." }),
   ignoreCase: Schema.optional(Schema.Boolean).annotate({ description: "Ripgrep -i." }),
   smartCase: Schema.optional(Schema.Boolean).annotate({ description: "Ripgrep -S." }),
   globs: Schema.optional(Schema.Array(Schema.String)).annotate({
-    description: "Ordered ripgrep -g globs; prefix exclusions with !."
+    description:
+      "Ordered ripgrep -g globs, matched against paths relative to root, never absolute paths: a glob without / matches any basename, a leading / anchors at root, and ** crosses directories. Prefix exclusions with !."
   }),
   beforeContext: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))).annotate({
     description: "Ripgrep -B."

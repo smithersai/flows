@@ -1,9 +1,19 @@
 /**
  * Shared validation and matching rules for the ripgrep contract.
  *
+ * Both peers match globs through {@link includedByGlobs} and canonicalize them
+ * through {@link canonicalGlob}, so the two implementations cannot drift on
+ * what a pattern means. {@link unsatisfiableNotice} is the shared explanation
+ * for the one honest empty answer: a pattern no file under the root could ever
+ * match.
+ *
  * @since 0.1.0
  */
+import type * as Path from "@smthrs/kernel/Path"
+import { Effect } from "effect"
+import type * as FileSystem from "effect/FileSystem"
 import * as StdError from "../StdError.ts"
+import * as Walk from "./Walk.ts"
 
 /**
  * Constructs the common unsupported-pattern failure.
@@ -37,13 +47,16 @@ export const notFound = (path: string): StdError.StdError =>
  * Rust regex and JavaScript RegExp: ASCII patterns, captures, alternation,
  * ASCII character classes and ordinary quantifiers. Lookaround,
  * backreferences, named/inline groups, Unicode/shorthand classes and control
- * escapes are rejected before either implementation runs.
+ * escapes are rejected before either implementation runs. Patterns are
+ * limited to 4096 bytes and counted repetitions to 1000 so both engines also
+ * share the same compilation boundary.
  *
  * @private
  * @since 0.1.0
  */
 export const validatePattern = (pattern: string, fixedStrings: boolean): StdError.StdError | undefined => {
   if (!/^[\x20-\x7e]*$/.test(pattern)) return invalidPattern(pattern, "patterns must contain printable ASCII only")
+  if (pattern.length > 4096) return invalidPattern(pattern, "patterns must not exceed 4096 bytes")
   if (fixedStrings) return undefined
   if (pattern.includes("(?")) return invalidPattern(pattern, "special groups and lookaround are not supported")
   let inClass = false
@@ -67,6 +80,15 @@ export const validatePattern = (pattern: string, fixedStrings: boolean): StdErro
       classCharacters = 0
       continue
     }
+    if (character === "{" && !inClass) {
+      const closing = pattern.indexOf("}", index + 1)
+      if (closing >= 0) {
+        const counts = pattern.slice(index + 1, closing).split(",").filter((value) => value.length > 0)
+        if (counts.some((value) => /^\d+$/.test(value) && Number(value) > 1000)) {
+          return invalidPattern(pattern, "repetition counts above 1000 are not supported")
+        }
+      }
+    }
     if (character === "]" && inClass) {
       if (classCharacters === 0 || (classCharacters === 1 && pattern[index - 1] === "^")) {
         return invalidPattern(pattern, "empty character classes are not supported")
@@ -75,9 +97,11 @@ export const validatePattern = (pattern: string, fixedStrings: boolean): StdErro
       continue
     }
     if (inClass) {
-      if ((character === "&" && pattern[index + 1] === "&") ||
+      if (
+        (character === "&" && pattern[index + 1] === "&") ||
         (character === "-" && pattern[index + 1] === "-") ||
-        (character === "~" && pattern[index + 1] === "~")) {
+        (character === "~" && pattern[index + 1] === "~")
+      ) {
         return invalidPattern(pattern, "character-class set operations are not supported")
       }
       classCharacters++
@@ -164,14 +188,166 @@ const globExpression = (pattern: string): RegExp => {
   return new RegExp(`^${source}$`)
 }
 
+const outsidePrintableAscii = /[^\x20-\x7e]/
+
+// Printable ASCII is its own UTF-8 encoding, and paths are overwhelmingly
+// printable ASCII, so the encoder only runs for the paths that need it.
+const utf8ByteString = (value: string): string =>
+  outsidePrintableAscii.test(value)
+    ? Array.from(new TextEncoder().encode(value), (byte) => String.fromCharCode(byte)).join("")
+    : value
+
 /**
- * Matches the supported `-g` subset. A pattern without `/` matches any basename.
+ * Rewrites a glob into the one spelling both peers match against.
+ *
+ * `.` is never a path component either peer can produce, so a leading `./` and
+ * every interior `/./` would silently make a pattern unmatchable. Both are
+ * folded into the root anchor, which is what a caller writing `./src/**` means.
+ * A leading `!` is preserved so exclusion globs canonicalize the same way.
+ *
+ * @private
+ * @since 0.1.0
+ */
+export const canonicalGlob = (glob: string): string => {
+  const excluded = glob.startsWith("!")
+  const pattern = excluded ? glob.slice(1) : glob
+  const canonical = pattern.replace(/\/\.(?=\/)/g, "").replace(/^\.\//, "/")
+  return excluded ? `!${canonical}` : canonical
+}
+
+interface CompiledGlob {
+  readonly byPath: boolean
+  readonly expression: RegExp
+}
+
+const compiled = new Map<string, ReadonlyArray<CompiledGlob>>()
+
+/**
+ * Compiles one glob into its alternatives, once per distinct pattern.
+ *
+ * The in-process peer asks whether a pattern matches for every candidate file
+ * in the walk, so canonicalizing, brace expanding and compiling the pattern
+ * inside that loop makes the work quadratic in the tree. A pattern compiles to
+ * the same matchers every time, so the compilation is cached; the cache is
+ * bounded because callers, not the tree, supply the patterns.
+ *
+ * @private
+ * @since 0.1.0
+ */
+const compileGlob = (pattern: string): ReadonlyArray<CompiledGlob> => {
+  const cached = compiled.get(pattern)
+  if (cached !== undefined) return cached
+  const matchers = expandBraces(canonicalGlob(pattern)).map((expanded) => {
+    const rooted = expanded.startsWith("/")
+    const normalized = rooted ? expanded.slice(1) : expanded
+    return { byPath: rooted || normalized.includes("/"), expression: globExpression(normalized) }
+  })
+  if (compiled.size >= 256) compiled.clear()
+  compiled.set(pattern, matchers)
+  return matchers
+}
+
+/**
+ * Matches the supported `-g` subset against a root-relative candidate path.
+ *
+ * A pattern without `/` matches the basename at any depth. Every other pattern
+ * is matched against the candidate's path relative to the search root, anchored
+ * at the root, whether or not it carries the optional leading `/`.
  *
  * @private
  * @since 0.1.0
  */
 export const matchesGlob = (pattern: string, relative: string, basename: string): boolean =>
-  expandBraces(pattern).some((expanded) => globExpression(expanded).test(expanded.includes("/") ? relative : basename))
+  compileGlob(pattern).some((matcher) => matcher.expression.test(utf8ByteString(matcher.byPath ? relative : basename)))
+
+const wildcard = /[*?{}]/
+
+const literalDirectory = (pattern: string): ReadonlyArray<string> => {
+  if (!pattern.includes("/")) return []
+  const segments = pattern.replace(/^\//, "").split("/").filter((segment) => segment.length > 0)
+  const wildcardAt = segments.findIndex((segment) => wildcard.test(segment))
+  return wildcardAt < 0 ? segments.slice(0, -1) : segments.slice(0, wildcardAt)
+}
+
+const rootRelativeSuffix = (pattern: string, root: string): string | undefined => {
+  const anchored = pattern.replace(/^\//, "")
+  const stem = root.replace(/^\/+/, "").replace(/\/+$/, "")
+  return stem.length > 0 && anchored.startsWith(`${stem}/`) ? anchored.slice(stem.length + 1) : undefined
+}
+
+const unsatisfiedReason = (
+  options: {
+    readonly fileSystem: FileSystem.FileSystem
+    readonly path: Path.Path
+    readonly root: string
+    readonly hidden: boolean
+  },
+  pattern: string
+): Effect.Effect<string | undefined> =>
+  Effect.gen(function*() {
+    const reasons: Array<string> = []
+    for (const alternative of expandBraces(pattern)) {
+      const segments = literalDirectory(alternative)
+      if (segments.length === 0) return undefined
+      const skipped = segments.find((segment) => Walk.skippedDirectories.has(segment))
+      if (skipped !== undefined) {
+        reasons.push(`${skipped} is never descended into; name it as the search root to look inside it`)
+        continue
+      }
+      if (!options.hidden && segments.some((segment) => segment.startsWith("."))) {
+        reasons.push("hidden paths are excluded unless hidden is true")
+        continue
+      }
+      const directory = segments.join("/")
+      const present = yield* options.fileSystem.stat(options.path.join(options.root, directory)).pipe(
+        Effect.map((info) => info.type === "Directory"),
+        Effect.orElseSucceed(() => false)
+      )
+      if (present) return undefined
+      reasons.push(`there is no ${directory} directory there`)
+    }
+    return reasons[0]
+  })
+
+/**
+ * Explains the positive globs that no file under the root could ever match.
+ *
+ * A search that returns nothing is ambiguous: the tree may hold no match, or
+ * the pattern may be unsatisfiable — an absolute path written where a
+ * root-relative one belongs, a directory that does not exist, a skipped
+ * directory, a hidden path with `hidden` left false. Callers attach the result
+ * to `notice` when they produced no entries, so the two cases stay
+ * distinguishable. Exclusion globs are ignored: excluding what is not there
+ * changes nothing.
+ *
+ * @private
+ * @since 0.1.0
+ */
+export const unsatisfiableNotice = (options: {
+  readonly fileSystem: FileSystem.FileSystem
+  readonly path: Path.Path
+  readonly root: string
+  readonly globs: ReadonlyArray<string>
+  readonly hidden: boolean
+}): Effect.Effect<string | undefined> =>
+  Effect.gen(function*() {
+    const sentences: Array<string> = []
+    for (const glob of options.globs) {
+      if (glob.startsWith("!")) continue
+      const canonical = canonicalGlob(glob)
+      const reason = yield* unsatisfiedReason(options, canonical)
+      if (reason === undefined) continue
+      const suffix = rootRelativeSuffix(canonical, options.root)
+      sentences.push(
+        `No file under ${options.root} can match "${glob}": ${
+          suffix === undefined
+            ? reason
+            : `glob patterns are relative to the search root, so use "${suffix}" instead`
+        }.`
+      )
+    }
+    return sentences.length === 0 ? undefined : sentences.join(" ")
+  })
 
 /**
  * Validates the portable `-g` grammar before either peer sees it.
@@ -181,6 +357,7 @@ export const matchesGlob = (pattern: string, relative: string, basename: string)
  */
 export const validateGlob = (glob: string): StdError.StdError | undefined => {
   const pattern = glob.startsWith("!") ? glob.slice(1) : glob
+  if (pattern.length === 0) return invalidPattern(glob, "glob patterns must not be empty")
   if (!/^[\x20-\x7e]*$/.test(pattern)) return invalidPattern(glob, "globs must contain printable ASCII only")
   if (pattern.includes("\\") || pattern.includes("[") || pattern.includes("]")) {
     return invalidPattern(glob, "glob escapes and character classes are not supported")
