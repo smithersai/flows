@@ -45,11 +45,12 @@ import * as Bash from "@smthrs/std/Bash"
 import * as Edit from "@smthrs/std/Edit"
 import * as Glob from "@smthrs/std/Glob"
 import * as Grep from "@smthrs/std/Grep"
+import * as PortableSearch from "@smthrs/std/PortableSearch"
+import * as Search from "@smthrs/std/Search"
 import * as Ls from "@smthrs/std/Ls"
 import * as Read from "@smthrs/std/Read"
 import * as Write from "@smthrs/std/Write"
-import type { Context } from "effect"
-import { Duration, Effect, Schema } from "effect"
+import { Context, Duration, Effect, Schema } from "effect"
 import type * as FileSystem from "effect/FileSystem"
 
 /**
@@ -71,17 +72,20 @@ import type * as FileSystem from "effect/FileSystem"
  * @since 0.1.0
  */
 export const filesystem = (
-  services: Context.Context<FileSystem.FileSystem | Path.Path>
-): FlowBinding.Source =>
-  FlowBinding.source("std/filesystem", [
+  services: Context.Context<FileSystem.FileSystem | Path.Path>,
+  search: Search.Search = PortableSearch.make(services)
+): FlowBinding.Source => {
+  const searchServices = Context.add(services, Search.Search, search)
+  return FlowBinding.source("std/filesystem", [
     FlowBinding.provide(FlowBinding.make({ flow: Read.flow, handler: Read.run }), services),
     FlowBinding.provide(FlowBinding.make({ flow: Write.flow, handler: Write.run }), services),
     FlowBinding.provide(FlowBinding.make({ flow: Edit.flow, handler: Edit.run }), services),
     FlowBinding.provide(FlowBinding.make({ flow: ApplyPatch.flow, handler: ApplyPatch.run }), services),
     FlowBinding.provide(FlowBinding.make({ flow: Ls.flow, handler: Ls.run }), services),
-    FlowBinding.provide(FlowBinding.make({ flow: Glob.flow, handler: Glob.run }), services),
-    FlowBinding.provide(FlowBinding.make({ flow: Grep.flow, handler: Grep.run }), services)
+    FlowBinding.provide(FlowBinding.make({ flow: Glob.flow, handler: Glob.run }), searchServices),
+    FlowBinding.provide(FlowBinding.make({ flow: Grep.flow, handler: Grep.run }), searchServices)
   ])
+}
 
 /**
  * Shell execution, as one ordinary flow.

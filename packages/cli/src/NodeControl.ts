@@ -39,12 +39,13 @@ import * as RequestExecutor from "@smthrs/model/RequestExecutor"
 import * as Route from "@smthrs/model/Route"
 import type { NotificationQueue } from "@smthrs/notifications"
 import * as AtomicFileSystem from "@smthrs/platform-node/AtomicFileSystem"
+import * as NativeSearch from "@smthrs/std/NativeSearch"
 import type * as Descriptor from "@smthrs/registry/Descriptor"
 import * as Discovery from "@smthrs/registry/Discovery"
 import * as Registry from "@smthrs/registry/Registry"
 import { Migrations as RunStoreMigrations, RunStore } from "@smthrs/run-store"
 import type { FileSystem, Path, Result } from "effect"
-import { Effect, Layer, Redacted } from "effect"
+import { Context, Effect, Layer, Redacted } from "effect"
 import { HttpRouter } from "effect/unstable/http"
 import { RpcSerialization } from "effect/unstable/rpc"
 import { Socket } from "effect/unstable/socket"
@@ -465,9 +466,10 @@ export const layerExecutor = (
         KernelChildProcessSpawner.ChildProcessSpawner | Path.Path
       >()
       const memoryServices = yield* Effect.context<MemoryStore.MemoryStore | Recall.Recall>()
+      const nativeSearch = NativeSearch.make(Context.merge(filesystemServices, shellServices))
       return yield* AgentSession.make({
         flows: [
-          StandardFlows.filesystem(filesystemServices),
+          StandardFlows.filesystem(filesystemServices, nativeSearch),
           StandardFlows.shell(shellServices),
           StandardFlows.memory(memoryServices)
         ],
