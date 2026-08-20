@@ -25,6 +25,7 @@
  * @since 0.1.0
  */
 import * as Cause from "effect/Cause"
+import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import { readFile, writeFile } from "node:fs/promises"
@@ -41,6 +42,32 @@ import {
 import * as AgentSuite from "./suite.ts"
 
 const baselinePath = new URL("./baseline.json", import.meta.url)
+
+interface EvalRunHostService {
+  readonly args: ReadonlyArray<string>
+  readonly readBaseline: Effect.Effect<string, EvalError.EvalError>
+  readonly writeBaseline: (contents: string) => Effect.Effect<void, EvalError.EvalError>
+  readonly stdout: (text: string) => Effect.Effect<void>
+  readonly stderr: (text: string) => Effect.Effect<void>
+  readonly setExitCode: (code: number) => Effect.Effect<void>
+}
+
+class EvalRunHost extends Context.Service<EvalRunHost, EvalRunHostService>()("evals/agent/run/EvalRunHost") {}
+
+const evalRunHostLayer = Layer.succeed(EvalRunHost)(EvalRunHost.of({
+  args: process.argv.slice(2),
+  readBaseline: Effect.tryPromise({
+    try: () => readFile(baselinePath, "utf8"),
+    catch: (cause) => new EvalError.EvalError({ code: "invalid_baseline", message: "Could not read the eval baseline", cause })
+  }),
+  writeBaseline: (contents) => Effect.tryPromise({
+    try: () => writeFile(baselinePath, contents),
+    catch: (cause) => new EvalError.EvalError({ code: "invalid_baseline", message: "Could not write the eval baseline", cause })
+  }),
+  stdout: (text) => Effect.sync(() => process.stdout.write(text)).pipe(Effect.asVoid),
+  stderr: (text) => Effect.sync(() => process.stderr.write(text)).pipe(Effect.asVoid),
+  setExitCode: (code) => Effect.sync(() => { process.exitCode = code })
+}))
 
 /**
  * A fixed instant. Observation timestamps are report material, not evidence,
@@ -79,6 +106,7 @@ const execute = Effect.gen(function*() {
 })
 
 const update = Effect.gen(function*() {
+  const host = yield* EvalRunHost
   const { failures, run } = yield* execute
   if (failures.length > 0) {
     return yield* Effect.fail(
@@ -89,14 +117,15 @@ const update = Effect.gen(function*() {
     )
   }
   const baseline = yield* Baseline.fromRun(run)
-  yield* Effect.promise(() => writeFile(baselinePath, Baseline.write(baseline)))
-  process.stdout.write(`${scores(run)}\nrecorded ${baseline.records.length} baseline record(s)\n`)
+  yield* host.writeBaseline(Baseline.write(baseline))
+  yield* host.stdout(`${scores(run)}\nrecorded ${baseline.records.length} baseline record(s)\n`)
   return 0
 })
 
 const gate = Effect.gen(function*() {
+  const host = yield* EvalRunHost
   const { run } = yield* execute
-  const baselineText = yield* Effect.promise(() => readFile(baselinePath, "utf8"))
+  const baselineText = yield* host.readBaseline
   const baseline = yield* Baseline.load(baselineText)
   const regression = yield* Regression.compare(baseline, run)
   // A threshold breach is a typed failure rather than a verdict, so it is
@@ -112,13 +141,13 @@ const gate = Effect.gen(function*() {
     )
   )
   const drifted = regression.regressions.length + regression.nondeterminism.length + regression.missing.length
-  process.stdout.write(`${scores(run)}\n\n${Report.markdown(regression)}`)
+  yield* host.stdout(`${scores(run)}\n\n${Report.markdown(regression)}`)
   if (drifted > 0) {
     // The full JSON report carries per-case latencies, which are the one
     // nondeterministic field in a run; it is printed only on request so the
     // ordinary output stays diffable.
-    if (process.argv.includes("--json")) process.stdout.write(Report.json(regression))
-    process.stdout.write(`\nthe run disagrees with ${baselinePath.pathname}\n`)
+    if (host.args.includes("--json")) yield* host.stdout(Report.json(regression))
+    yield* host.stdout(`\nthe run disagrees with ${baselinePath.pathname}\n`)
   }
   // Precedence: an undecided gate outranks drift. An inconclusive observation
   // is excluded from the comparison's actual set, so it also counts as a
@@ -131,20 +160,21 @@ const gate = Effect.gen(function*() {
   const verdict = drifted > 0 && exitCode === 1
     ? `failed: ${drifted} observation(s) disagree with the baseline`
     : graded.summary
-  process.stdout.write(`${AgentSuite.name}: ${verdict}\n`)
+  yield* host.stdout(`${AgentSuite.name}: ${verdict}\n`)
   return exitCode
 })
 
 // A harness that cannot load its own baseline, or a scenario that crashed the
 // suite, still has to leave a readable exit rather than an unhandled rejection.
-const program = (process.argv.includes("--update") ? update : gate).pipe(
-  Effect.provide(layer),
+const program = Effect.gen(function*() {
+  const host = yield* EvalRunHost
+  return yield* (host.args.includes("--update") ? update : gate)
+}).pipe(
   Effect.catchCause((cause) =>
-    Effect.sync(() => {
-      process.stderr.write(`${Cause.pretty(cause)}\n`)
-      return 1
-    })
-  )
+    EvalRunHost.use((host) => host.stderr(`${Cause.pretty(cause)}\n`).pipe(Effect.as(1)))
+  ),
+  Effect.flatMap((exitCode) => EvalRunHost.use((host) => host.setExitCode(exitCode))),
+  Effect.provide([layer, evalRunHostLayer])
 )
 
-process.exitCode = await Effect.runPromise(program)
+await Effect.runPromise(program)
