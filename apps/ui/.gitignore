@@ -27,3 +27,8 @@ reports/**/trace.zip
 # The monorepo root .gitignore excludes every .smithers/ directory; this app's
 # .smithers/ is a tracked workflow pack (its own .smithers/.gitignore excludes state).
 !.smithers/
+
+# Ad-hoc probe scripts written while driving the app by hand. They are session
+# scratch, not product: they were committed by accident and the review contract
+# forbids them in the tree. Kept on disk, out of the repository.
+.scratch-surfaces/
