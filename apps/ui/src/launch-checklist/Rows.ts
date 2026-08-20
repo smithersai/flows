@@ -559,6 +559,81 @@ export const ROWS: ReadonlyArray<ChecklistRow> = [
 		},
 	},
 	{
+		/*
+		 * THE EMBED LAW, on the target rather than in a fixture (will,
+		 * 2026-08-09, permanent): "every capability's output renders as a
+		 * card/embed inside the transcript at conversation width, composer
+		 * visible below". The GitHub frame is the newest surface to answer to
+		 * it, and a side pane satisfies "the transcript is still there" while
+		 * breaking the law — so this row measures containment and width, not
+		 * presence.
+		 */
+		id: "C-4",
+		section: "C",
+		title: "The GitHub frame is a transcript entry at conversation width, not a second column",
+		requiredEnv: [SESSION_COOKIE],
+		browser: true,
+		probe: async (ctx) => {
+			const page = await signedInPage(ctx);
+			await waitForText(page, hasSmithersMessage, FIRST_MESSAGE_BUDGET_MS, ctx.now, ctx.sleep);
+			const focused = await page.evaluate<boolean>(
+				`(() => { const composer = document.querySelector("textarea"); if (composer === null) return false; composer.focus(); composer.select(); return true; })()`,
+			);
+			if (focused !== true) return fail("the composer textarea never mounted, so /github cannot be run");
+			await page.type("/github");
+			await page.press("Enter");
+			// The frame arrives with the catalog read behind it; poll rather than
+			// sleep a fixed guess, so a slow target reports "never opened" and a
+			// fast one is not paid for.
+			const deadline = ctx.now() + 20_000;
+			for (;;) {
+				const here = await page.evaluate<boolean>(
+					`document.querySelector('[aria-label="GitHub repositories"]') !== null`,
+				);
+				if (here === true || ctx.now() >= deadline) break;
+				await ctx.sleep(500);
+			}
+			const shape = await page.evaluate<{
+				readonly present: boolean;
+				readonly insideTranscript: boolean;
+				readonly parentClass: string;
+				readonly dataPane: string | null;
+				readonly paneWidth: number;
+				readonly columnWidth: number;
+				readonly composers: number;
+				readonly composerBelow: boolean;
+			}>(`(() => {
+				const pane = document.querySelector('[aria-label="GitHub repositories"]');
+				const transcript = document.querySelector(".smithers-transcript");
+				const column = pane === null ? null : pane.parentElement;
+				const composer = document.querySelector("textarea");
+				return {
+					present: pane !== null,
+					insideTranscript: transcript !== null && pane !== null && transcript.contains(pane),
+					parentClass: column === null ? "" : column.className,
+					dataPane: document.querySelector(".chat-frame")?.getAttribute("data-pane") ?? null,
+					paneWidth: pane === null ? 0 : pane.getBoundingClientRect().width,
+					columnWidth: column === null ? 0 : column.getBoundingClientRect().width,
+					composers: document.querySelectorAll("textarea").length,
+					composerBelow:
+						pane !== null && composer !== null &&
+						composer.getBoundingClientRect().top >= pane.getBoundingClientRect().top,
+				};
+			})()`);
+			if (!shape.present) return fail("/github opened no GitHub frame, so there is nothing to measure");
+			const withinColumn = shape.columnWidth > 0 && shape.paneWidth <= shape.columnWidth + 1;
+			return verdict(
+				shape.insideTranscript &&
+					shape.parentClass.includes("sui-chat-messages") &&
+					shape.dataPane === null &&
+					withinColumn &&
+					shape.composers === 1 &&
+					shape.composerBelow,
+				`inside transcript=${shape.insideTranscript}; parent=${shape.parentClass || "none"}; chat-frame data-pane=${shape.dataPane ?? "none"}; frame ${Math.round(shape.paneWidth)}px in a ${Math.round(shape.columnWidth)}px conversation column; composers=${shape.composers}; composer below the frame=${shape.composerBelow}`,
+			);
+		},
+	},
+	{
 		id: "D-1",
 		section: "D",
 		title: "GET /api/billing/balance shows the $500 design-partner balance for a signed-in user",
