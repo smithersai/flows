@@ -179,16 +179,20 @@ const discover = async (): Promise<{ found: ReadonlyArray<Discovered>; broken: R
 const basename = (file: string): string => file.slice(file.lastIndexOf("/") + 1);
 
 /**
- * `work`, or a SuiteFailure once `ms` has passed. The abandoned work keeps
- * running in the background; the runner's final `process.exit` is what stops
- * it, which is why the deadline belongs here and not inside a suite.
+ * `work`, or a distinct timeout failure once `ms` has passed. The runner
+ * treats this as terminal for the run so no later suite can reuse resources
+ * that timed-out work may still hold.
  */
+export class SuiteTimeoutFailure extends SuiteFailure {}
+export const suiteFailureAction = (error: unknown): "abort-run" | "continue" =>
+	error instanceof SuiteTimeoutFailure ? "abort-run" : "continue";
+
 const withDeadline = async <T>(what: string, ms: number, work: Promise<T>): Promise<T> => {
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	const deadline = new Promise<never>((_, reject) => {
 		timer = setTimeout(() => {
 			reject(
-				new SuiteFailure(
+					new SuiteTimeoutFailure(
 					`${what} did not finish within ${ms}ms and the runner cut it off so the run terminates (raise FLOWS_E2E_SUITE_TIMEOUT_MS if the suite is honestly this slow).`,
 				),
 			);
@@ -262,6 +266,7 @@ const main = async (): Promise<number> => {
 	let skipped = 0;
 	let checks = 0;
 	let claimedIds = 0;
+	let timedOut = false;
 
 	// Reported first, and red: a suite file that will not load proves nothing.
 	for (const { file, error, claims } of brokenSelected) {
@@ -272,6 +277,7 @@ const main = async (): Promise<number> => {
 	}
 
 	for (const phase of ["B", "A"] as const) {
+		if (timedOut) break;
 		const inPhase = selected
 			.filter(({ suite }) => (suite.phase ?? "B") === phase)
 			.sort((left, right) => {
@@ -350,6 +356,7 @@ const main = async (): Promise<number> => {
 					if (!(error instanceof SuiteFailure) && error instanceof Error && error.stack !== undefined) {
 						console.error(error.stack);
 					}
+					if (suiteFailureAction(error) === "abort-run") timedOut = true;
 				}
 				// A suite that passes its whole body proves the row its own id names,
 				// even when its `ok:` lines carry no id prefix.
@@ -359,6 +366,10 @@ const main = async (): Promise<number> => {
 				outcomes.push({ suiteId: suite.id, status, unproven });
 				if (unproven.length > 0 && status === "pass") {
 					console.log(`unproven: ${suite.id} — ${unproven.join(", ")} claimed but never printed an ok: line.`);
+				}
+				if (timedOut) {
+					console.error("FAIL: timeout is terminal; tearing down the suite-owned browser and stack before stopping the run.");
+					break;
 				}
 			}
 		} finally {
