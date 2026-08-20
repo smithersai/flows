@@ -675,7 +675,7 @@ describe("the GitHub pane (will, 2026-08-19)", () => {
 describe("the first open of a repository the account has not mirrored yet", () => {
 	/** The import job the fake platform runs: cloning on the first poll, ready on the next. */
 	const importingBackend = (repo: string) => {
-		const calls = { contents: 0, imports: 0, polls: 0 };
+		const calls = { contents: 0, imports: 0, polls: 0, landings: 0, provisions: 0, rpcs: 0 };
 		let mirrored = false;
 		const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
 			const url = String(input);
@@ -692,6 +692,30 @@ describe("the first open of a repository the account has not mirrored yet", () =
 			if (url.includes("/api/github/import") && init?.method === "POST") {
 				calls.imports += 1;
 				return json({ importJobId: "job-1", status: "cloning", stage: "resolving" });
+			}
+			if (url.includes(`/api/repos/${repo}/landings`)) {
+				calls.landings += 1;
+				// The same namespace, the same 404 until the mirror lands.
+				if (!mirrored) return json({ error: "repository not found" }, 404);
+				return json([
+					{
+						number: 7,
+						title: "Land the pane",
+						state: "open",
+						author: "will",
+						comments: 2,
+						updatedAt: "2026-08-19T09:00:00.000Z",
+					},
+				]);
+			}
+			if (url.includes("/api/workflow/provision")) {
+				calls.provisions += 1;
+				// The gateway's own way of saying the mirror is not there yet.
+				return json(mirrored ? { status: "ready" } : { status: "no-cloud-repo" });
+			}
+			if (url.includes("/api/workflow/rpc")) {
+				calls.rpcs += 1;
+				return json({ ok: true, payload: [{ key: "alpha-ui", description: null }] });
 			}
 			if (url.includes(`/api/repos/${repo}/contents`)) {
 				calls.contents += 1;
@@ -742,6 +766,73 @@ describe("the first open of a repository the account has not mirrored yet", () =
 			await settled();
 			expect(host.textContent).toContain("README.md");
 			// Still no import card, at any phase (directive 5).
+			expect(store.collections.cards.get("repo-import-will/flows")).toBeUndefined();
+		} finally {
+			repoImportPolling.delayMs = restore;
+		}
+	});
+
+	/*
+	 * The re-read is armed by ONE sentence: a read that answered the shared
+	 * readiness line. Files and Issues said it; Pull Requests answered a
+	 * namespace 404 with a generic failure and Flows answered the gateway's
+	 * `no-cloud-repo` with a bespoke sentence, so neither armed it. Since a
+	 * repository selection keeps whichever tab was open, opening a fresh
+	 * repository from either of those tabs left the pane empty until the human
+	 * poked it. Both now say the same words the other two say.
+	 */
+	test("first open on the Pull Requests tab fills itself when the import lands", async () => {
+		const store = await webStore();
+		const backend = importingBackend("will/flows");
+		const controller = createAppController(store, unavailableRepositories, silentAgent, {
+			fetchImpl: backend.fetchImpl,
+		});
+		await signedIn(store, []);
+		const restore = repoImportPolling.delayMs;
+		repoImportPolling.delayMs = 1;
+		try {
+			// The tab the human left open before opening a different repository.
+			store.dispatch({ type: "repository.tab.changed", actor: "user", tab: "pulls" });
+			await controller.commands.run("repo.open", "will/flows");
+			await settled();
+			expect(backend.calls.landings).toBe(1);
+			expect(store.collections.cards.get("prs-will/flows")).toBeUndefined();
+
+			await until(() => store.collections.repoImports.get("will/flows")?.phase === "done");
+			await until(() => store.collections.cards.get("prs-will/flows") !== undefined);
+			expect(backend.calls.landings).toBe(2);
+			const listed = store.collections.cards.get("prs-will/flows");
+			expect(listed?.kind === "pr-list" && listed.payload.landings.map((row) => row.number)).toEqual([7]);
+			expect(store.collections.cards.get("repo-import-will/flows")).toBeUndefined();
+		} finally {
+			repoImportPolling.delayMs = restore;
+		}
+	});
+
+	test("first open on the Flows tab fills itself when the import lands", async () => {
+		const store = await webStore();
+		const backend = importingBackend("will/flows");
+		const controller = createAppController(store, unavailableRepositories, silentAgent, {
+			fetchImpl: backend.fetchImpl,
+		});
+		await signedIn(store, []);
+		const restore = repoImportPolling.delayMs;
+		repoImportPolling.delayMs = 1;
+		try {
+			store.dispatch({ type: "repository.tab.changed", actor: "user", tab: "flows" });
+			await controller.commands.run("repo.open", "will/flows");
+			await settled();
+			// The gateway refused the first provision, so nothing was listed.
+			expect(backend.calls.provisions).toBe(1);
+			expect(backend.calls.rpcs).toBe(0);
+			expect(store.collections.cards.get("workflow-list-will/flows")).toBeUndefined();
+
+			await until(() => store.collections.repoImports.get("will/flows")?.phase === "done");
+			await until(() => store.collections.cards.get("workflow-list-will/flows") !== undefined);
+			const listed = store.collections.cards.get("workflow-list-will/flows");
+			expect(listed?.kind === "workflow-list" && listed.payload.workflows.map((row) => row.key)).toEqual([
+				"alpha-ui",
+			]);
 			expect(store.collections.cards.get("repo-import-will/flows")).toBeUndefined();
 		} finally {
 			repoImportPolling.delayMs = restore;

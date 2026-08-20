@@ -690,7 +690,15 @@ describe("wave 12 §3 — a run the workspace never finishes", () => {
 });
 
 describe("wave 12 §4 — the residuals", () => {
-	test("a watched repo with no Smithers Cloud counterpart gets its own honest line", async () => {
+	/*
+	 * This used to assert "isn't on Smithers Cloud yet … Add it there and I'll
+	 * pick it up". Directive 5 (will, 2026-08-19) retired that sentence: the
+	 * import is automatic and silent, so there is nothing for the human to add
+	 * and no reason to name the mirror. The answer is now the same readiness
+	 * miss the Files and Issues reads give, in the same words — which is also
+	 * what arms the controller's one re-read when the import lands.
+	 */
+	test("a watched repo with no Smithers Cloud counterpart gets the readiness line", async () => {
 		const store = await webStore();
 		const double = relay({
 			provision: () => ({
@@ -702,7 +710,8 @@ describe("wave 12 §4 — the residuals", () => {
 		await signIn(store);
 
 		const outcome = await controller.commands.run("flow.create", "summarize my issues");
-		expect(said(outcome)).toContain("isn't on Smithers Cloud yet");
+		expect(said(outcome)).toContain(`${REPO} isn't ready yet — try again shortly`);
+		expect(said(outcome)).not.toContain("Smithers Cloud");
 		// Honest, and un-looped: one provision attempt, nothing launched.
 		expect(double.calls.filter((call) => call.path === "/api/workflow/provision")).toHaveLength(1);
 		expect(double.state.launched).toHaveLength(0);

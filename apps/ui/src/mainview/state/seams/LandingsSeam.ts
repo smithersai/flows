@@ -10,7 +10,7 @@ import type { Card } from "../AppState";
 import { resolveTargetRepo } from "../RepoContext";
 import { fetchAllBookmarks } from "./BookmarksSeam";
 import type { SeamContext } from "./SeamContext";
-import { readErrorMessage } from "./SeamContext";
+import { notReadyYet, readErrorMessage } from "./SeamContext";
 
 export interface LandingsSeam {
 	readonly listLandings: (repo?: string) => Promise<string | void>;
@@ -321,6 +321,17 @@ export const createLandingsSeam = (ctx: SeamContext): LandingsSeam => {
 			} catch {
 				return `Pull requests for ${repo} couldn't be listed — the platform didn't answer.`;
 			}
+			/*
+			 * The whole `/api/repos/{o}/{r}/**` namespace 404s until the
+			 * repository's mirror exists. Directive 5 (will, 2026-08-19) made
+			 * that import silent and automatic, and the controller re-reads a
+			 * tab once the import lands — but only when the read SAID it was a
+			 * readiness miss. Answering this 404 with a generic failure left
+			 * the Pull Requests tab of a freshly opened repository empty until
+			 * the human poked it, which is the implementation detail leaking
+			 * out as broken browsing.
+			 */
+			if (response.status === 404) return notReadyYet(repo);
 			if (!response.ok) {
 				return readErrorMessage(response, `Pull requests for ${repo} couldn't be listed.`);
 			}
