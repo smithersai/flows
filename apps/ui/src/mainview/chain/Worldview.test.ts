@@ -67,7 +67,7 @@ describe("worldview entries over worldDocuments", () => {
 		const remember = worldviewEntries(store).find((entry) => entry.name === "remember")!;
 		rejectWrites = true;
 		const error = await Effect.runPromise(
-			Effect.flip(remember.handler({ title: "Must persist", text: "Never acknowledge early." })) as Effect.Effect<
+			Effect.flip(remember.handler({ title: "Must persist", text: "Never acknowledge early." })) as unknown as Effect.Effect<
 				{ readonly message: string },
 				never,
 				never
