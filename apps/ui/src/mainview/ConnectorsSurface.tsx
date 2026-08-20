@@ -47,7 +47,7 @@ export function ConnectorsSurface() {
 
 	interface StoreRow {
 		readonly key: string;
-		readonly icon: "github" | "local" | "cloud";
+		readonly icon: "github" | "local";
 		readonly name: string;
 		readonly description: string;
 		readonly action:
@@ -82,25 +82,14 @@ export function ConnectorsSurface() {
 					} satisfies StoreRow,
 				]
 			: []),
-		{
-			/*
-			 * No longer "coming soon": repos.import mirrors a GitHub repository
-			 * into Smithers Cloud (the platform proxy's import job), tracked by
-			 * the repo-import card.
-			 *
-			 * §1.1: importing needs a session, and pressing it signed out only
-			 * defers into the GitHub row above. Offering it as available work
-			 * made the signed-out app look like it had several ways in when it
-			 * has one; signed out it states what it needs instead.
-			 */
-			key: "cloud",
-			icon: "cloud",
-			name: "Smithers Cloud repository",
-			description: "Import a GitHub repository into hosted workspace storage.",
-			action: signedIn
-				? { kind: "button", label: "Import", flow: "repos.import" }
-				: { kind: "badge", label: "Needs GitHub", variant: "outline" },
-		},
+		/*
+		 * Directive 5 (will, 2026-08-19): there is NO "Smithers Cloud
+		 * repository" store row. Importing into Smithers Cloud is an
+		 * implementation detail that happens in the background when a
+		 * repository is watched or opened — the user feels like they are on
+		 * GitHub. The import machinery (repos.import, RepoImportSeam, the
+		 * repo-import card) stays; only the user-facing affordance is gone.
+		 */
 	];
 
 	const rowIcon = (icon: StoreRow["icon"]) =>
