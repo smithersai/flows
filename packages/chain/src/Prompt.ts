@@ -7,7 +7,9 @@
  * sources and the generated module drift. Assembly is byte-stable — same
  * inputs, identical string — so the provider prompt-prefix cache hits
  * across turns (`docs/specs/Concepts/Chain Harness Build.md`, PR 1;
- * design authority: `docs/specs/Concepts/System Prompt.md`).
+ * design authority: `docs/specs/Concepts/System Prompt.md`). The authored
+ * block is plain JavaScript over `ctx.call` by ruling, not by default:
+ * `docs/specs/Concepts/Model Authoring Surface.md` (will, 2026-08-20).
  *
  * The catalog block renders what the chain actually dispatches: names
  * dedupe last-wins exactly like `Catalog.make`'s lookup, an entry named
