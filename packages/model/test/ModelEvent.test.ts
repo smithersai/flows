@@ -24,6 +24,7 @@ describe("ModelEvent", () => {
         cacheWriteTokens: 5,
         totalTokens: 6
       },
+      { type: "retry", attempt: 1, code: "transport" },
       { type: "settle", stopReason: "stop" }
     ]
     for (const event of events) {
@@ -40,6 +41,7 @@ describe("ModelEvent", () => {
       { type: "tool-call-start", id: "call", name: "read" },
       { type: "tool-call-delta", id: "call", arguments: "{\"path\":\"a\"}" },
       { type: "usage", totalTokens: 9 },
+      { type: "retry", attempt: 1, code: "provider_internal" },
       { type: "settle", stopReason: "tool-calls" }
     ])
     expect(settled.message).toMatchObject({
@@ -99,6 +101,11 @@ describe("ModelEvent", () => {
       totalTokens: 2
     })
     expect(Events.ModelEvent.TextStart({ type: "text-start", id: "a" })).toEqual({ type: "text-start", id: "a" })
+    expect(Events.ModelEvent.Retry({ type: "retry", attempt: 2, code: "transport" })).toEqual({
+      type: "retry",
+      attempt: 2,
+      code: "transport"
+    })
     expect(Events.ModelEvent.ToolResult({ type: "tool-result", id: "a", output: "out" })).toMatchObject({
       type: "tool-result",
       output: "out"
