@@ -111,6 +111,17 @@ export const createRepoImportSeam = (ctx: SeamContext): RepoImportSeam => {
 		createdAt: number,
 		epoch: number,
 	): Promise<void> => {
+		/*
+		 * The epochs map exists to supersede stale loops; an entry whose loop
+		 * has reached a terminal hand-off is dead weight retained per repo for
+		 * the session's life. Every terminal branch below settles it, guarded
+		 * so a re-run's newer epoch is never deleted out from under it (a
+		 * deleted entry reads as !== any stale epoch, which is the same stop
+		 * signal the supersede check already relies on).
+		 */
+		const settleEpoch = (): void => {
+			if (epochs.get(repo) === epoch) epochs.delete(repo);
+		};
 		let failures = 0;
 		for (let attempt = 0; attempt < repoImportPolling.maxAttempts; attempt += 1) {
 			await sleep(repoImportPolling.delayMs);
@@ -129,15 +140,18 @@ export const createRepoImportSeam = (ctx: SeamContext): RepoImportSeam => {
 				failures += 1;
 				if (failures <= repoImportPolling.networkRetries) continue;
 				upsert(repo, ordinal, createdAt, jobId, "running", REPO_IMPORT_LOST_STREAM_DETAIL);
+				settleEpoch();
 				return;
 			}
 			failures = 0;
 			if (job.status === "ready") {
 				upsert(repo, ordinal, createdAt, jobId, "done", null);
+				settleEpoch();
 				return;
 			}
 			if (job.status === "failed") {
 				upsert(repo, ordinal, createdAt, jobId, "failed", job.error ?? "The import failed upstream.");
+				settleEpoch();
 				return;
 			}
 			upsert(repo, ordinal, createdAt, jobId, "running", stageDetail(job) ?? job.error);
@@ -145,6 +159,7 @@ export const createRepoImportSeam = (ctx: SeamContext): RepoImportSeam => {
 		// Attempts exhausted without a terminal status: same honest hand-off as a
 		// lost stream — the command re-checks the job when run again.
 		upsert(repo, ordinal, createdAt, jobId, "running", REPO_IMPORT_LOST_STREAM_DETAIL);
+		settleEpoch();
 	};
 
 	const importRepository = async (explicit?: string): Promise<string | void> => {
@@ -158,6 +173,15 @@ export const createRepoImportSeam = (ctx: SeamContext): RepoImportSeam => {
 		const epoch = (epochs.get(repo) ?? 0) + 1;
 		epochs.set(repo, epoch);
 		upsert(repo, ordinal, createdAt, null, "starting", null);
+		/*
+		 * A start that ends without a tracking loop (every branch that returns
+		 * before `track` below) has a terminal epoch: settle it the same way
+		 * the loop's own terminal branches do, or one dead entry accumulates
+		 * per imported repo for the session.
+		 */
+		const settleEpoch = (): void => {
+			if (epochs.get(repo) === epoch) epochs.delete(repo);
+		};
 
 		let response: Response;
 		try {
@@ -170,6 +194,7 @@ export const createRepoImportSeam = (ctx: SeamContext): RepoImportSeam => {
 			const reason = error instanceof Error ? error.message : String(error);
 			const message = `The import couldn't start — ${reason}`;
 			upsert(repo, ordinal, createdAt, null, "failed", message);
+			settleEpoch();
 			return message;
 		}
 		if (response.status === 409) {
@@ -177,6 +202,7 @@ export const createRepoImportSeam = (ctx: SeamContext): RepoImportSeam => {
 			// "github_import_already_active") both mean the mirror is already
 			// there or already on its way — stated honestly, not failed.
 			upsert(repo, ordinal, createdAt, null, "done", "already imported");
+			settleEpoch();
 			return undefined;
 		}
 		if (!response.ok) {
@@ -185,21 +211,25 @@ export const createRepoImportSeam = (ctx: SeamContext): RepoImportSeam => {
 				`The import couldn't start (HTTP ${response.status})`,
 			);
 			upsert(repo, ordinal, createdAt, null, "failed", message);
+			settleEpoch();
 			return message;
 		}
 		const job = parseImportJob(await response.json().catch(() => undefined));
 		if (job === null) {
 			const message = "The import answer was malformed — the job id never arrived.";
 			upsert(repo, ordinal, createdAt, null, "failed", message);
+			settleEpoch();
 			return message;
 		}
 		if (job.status === "ready") {
 			upsert(repo, ordinal, createdAt, job.jobId, "done", "already imported");
+			settleEpoch();
 			return undefined;
 		}
 		if (job.status === "failed") {
 			const message = job.error ?? "The import failed upstream.";
 			upsert(repo, ordinal, createdAt, job.jobId, "failed", message);
+			settleEpoch();
 			return message;
 		}
 		upsert(repo, ordinal, createdAt, job.jobId, "running", stageDetail(job));
