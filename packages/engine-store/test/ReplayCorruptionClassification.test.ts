@@ -585,7 +585,10 @@ describe("replay-failed classification (issue #150)", () => {
           Layer.provide(KernelWorkspace.layer(root)),
           Layer.provide(GrantStore.layerNoop)
         )
-        const artifacts = ArtifactStore.layerFileSystem({ directory: objectsDirectory }).pipe(
+        const artifacts = ArtifactStore.layerFileSystem({
+          directory: objectsDirectory,
+          durability: "best-effort"
+        }).pipe(
           Layer.provideMerge(host)
         )
         const production = Layer.merge(
