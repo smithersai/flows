@@ -342,6 +342,12 @@ export interface Projector {
   readonly activeKeys: () => number
 }
 
+/**
+ * Constructs the bounded-lifetime semantic projection coordinator.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const makeProjector = (options: Options): Projector => {
   const locks = new Map<string, { readonly lock: Semaphore.Semaphore; users: number }>()
   const project = (row: {

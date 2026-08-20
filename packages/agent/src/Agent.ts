@@ -388,7 +388,7 @@ export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<Agent> 
  * @category layers
  * @since 0.1.0
  */
-export const layerDefaults: Layer.Layer<Sandbox.Sandbox | Steering.Source> = Layer.merge(
+export const layerDefaults: Layer.Layer<Sandbox.Sandbox | Steering.Source, Sandbox.SandboxError> = Layer.merge(
   QuickJSSandbox.layer,
   Steering.layerNoop()
 )

@@ -83,6 +83,17 @@ describe("QuickJSSandbox limits", () => {
     expect(attempts).toBe(2)
   })
 
+  it("maps a rejected module load into the typed sandbox channel", async () => {
+    const cause = new Error("module unavailable")
+    await expect(Effect.runPromise(
+      QuickJSSandbox.loadModule(() => Promise.reject(cause))
+    )).rejects.toMatchObject({
+      code: "runtime_failed",
+      message: "QuickJS WebAssembly module could not be loaded",
+      cause
+    })
+  })
+
   it("reads compute time through the injected synchronous clock", async () => {
     let now = 0
     const outcome = await Effect.gen(function*() {

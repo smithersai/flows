@@ -909,13 +909,17 @@ export const make = (
           )
         )
         const start = yield* Deferred.make<void>()
-        const fiber = yield* Effect.forkIn(
+        // Start from the executor's construction context, not this launch
+        // fiber. ControlLive invokes launch inside its admission transaction;
+        // forking here would inherit that transaction's FiberRefs and make the
+        // engine's first write look like an illegal nested transaction.
+        const fiber = Effect.runForkWith(services)(
           Deferred.await(start).pipe(
             Effect.andThen(Effect.yieldNow),
             Effect.andThen(driver(input.run.runId, input.plan.card.planId))
-          ),
-          scope
+          )
         )
+        yield* Scope.addFinalizer(scope, Fiber.interrupt(fiber))
         yield* registerDriver(
           () => runtime.registerFiber(input.run.runId, fiber),
           input.run.runId
