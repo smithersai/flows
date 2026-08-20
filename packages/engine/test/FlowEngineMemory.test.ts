@@ -128,10 +128,13 @@ describe("execution identity", () => {
         payload: { id: "x" },
         discard: true
       }).pipe(
-        Effect.provideService(FlowRuntime.FlowInstance, {
-          executionId: "self-cycle",
-          interrupted: false
-        } as FlowRuntime.FlowInstance["Service"]),
+        Effect.provideService(
+          FlowRuntime.FlowInstance,
+          {
+            executionId: "self-cycle",
+            interrupted: false
+          } as FlowRuntime.FlowInstance["Service"]
+        ),
         Effect.exit
       )
       expect(Exit.isFailure(exit)).toBe(true)
@@ -139,6 +142,51 @@ describe("execution identity", () => {
       const failure = Cause.squash(exit.cause)
       expect(failure).toBeInstanceOf(FlowRuntime.FlowCycleDetected)
       expect((failure as FlowRuntime.FlowCycleDetected).path).toEqual(["self-cycle"])
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("detects a cycle through a cycle-free fan-in graph", () => {
+    const flow = Flow.make("Memory/fan-in-cycle", {
+      payload: { id: Schema.String },
+      success: Schema.Void,
+      body: () => Node.succeed(undefined)
+    })
+    const layer = Interpreter.layer(flow).pipe(
+      Layer.provideMerge(Action.layerImplementations),
+      Layer.provideMerge(FlowEngine.layerMemory)
+    )
+    return Effect.gen(function*() {
+      const engine = yield* FlowRuntime.FlowRuntime
+      const execute = (executionId: string, parentExecutionId?: string) => {
+        const execution = engine.execute(flow, {
+          executionId,
+          payload: { id: executionId },
+          discard: true
+        })
+        return parentExecutionId === undefined
+          ? execution
+          : Effect.provideService(
+            execution,
+            FlowRuntime.FlowInstance,
+            {
+              executionId: parentExecutionId,
+              interrupted: false
+            } as FlowRuntime.FlowInstance["Service"]
+          )
+      }
+
+      yield* execute("root")
+      yield* execute("left", "root")
+      yield* execute("right", "root")
+      yield* execute("join", "left")
+      // Joining an existing run records its second parent and must not be
+      // mistaken for a cycle merely because both branches reach root.
+      yield* execute("join", "right")
+      yield* execute("leaf", "join")
+
+      const failure = yield* Effect.flip(execute("root", "leaf"))
+      expect(failure).toBeInstanceOf(FlowRuntime.FlowCycleDetected)
+      expect(failure.path).toEqual(["root", "left", "join", "leaf"])
     }).pipe(Effect.provide(layer))
   })
 
