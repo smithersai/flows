@@ -39,6 +39,13 @@ const CDP_TIMEOUT_MS = Number(process.env.FLOWS_E2E_CDP_TIMEOUT_MS ?? 120_000);
 
 /** How long the DevTools websocket may take to open before the launch is called dead. */
 const SOCKET_OPEN_TIMEOUT_MS = 15_000;
+/*
+ * How long the between-suite teardown waits for tabs to acknowledge their own
+ * closure. Deliberately far under CDP_TIMEOUT_MS: closing a tab we are
+ * discarding is best-effort, and the point of waiting at all is to stop its
+ * pumps hammering the shared stack, not to witness the close.
+ */
+const SESSION_CLOSE_TIMEOUT_MS = 5_000;
 
 /** How long one /json/new probe may hang before the next attempt. */
 const TARGET_PROBE_TIMEOUT_MS = 5_000;
@@ -443,15 +450,25 @@ export const createE2eBrowser = (origin: string): E2eBrowser => {
 			return await open(cookie);
 		},
 		closeSessions: async () => {
-			for (const connection of connections) {
-				try {
-					await connection.send("Page.close");
-				} catch {
-					// Already closed, or the tab is gone — either way there is
-					// nothing left running on it.
-				}
-				connection.close();
-			}
+			/*
+			 * Ask every tab to close AT ONCE, and wait only briefly.
+			 *
+			 * This awaited `Page.close` one connection at a time, and each of
+			 * those awaits carried the full CDP budget — two minutes. One tab
+			 * whose renderer was too busy to acknowledge its own closure
+			 * therefore stalled the run, serially, once per tab: every full run
+			 * stopped dead in this function between two suites that each passed
+			 * alone, printing nothing further.
+			 *
+			 * The reason to wait at all is to stop the tab's pumps hammering
+			 * the stack the next suite is about to use. A tab that has not
+			 * answered in five seconds is not going to, and it loses its grip
+			 * anyway: the debugger socket closes below, and the browser process
+			 * dies with the phase.
+			 */
+			const closing = connections.map((connection) => connection.send("Page.close").catch(() => undefined));
+			await Promise.race([Promise.all(closing), wait(SESSION_CLOSE_TIMEOUT_MS)]);
+			for (const connection of connections) connection.close();
 			connections.length = 0;
 		},
 		close: async () => {

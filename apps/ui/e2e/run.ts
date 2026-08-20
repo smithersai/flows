@@ -207,6 +207,48 @@ const withDeadline = async <T>(what: string, ms: number, work: Promise<T>): Prom
 };
 
 /**
+ * How long one between-suite teardown step may take before the runner stops
+ * waiting on it.
+ *
+ * The suite BODY has always run under a deadline. The teardown between suites
+ * did not, and it is three awaits — the previous suite's clients, its browser
+ * tabs, the stack reset, whose stub-control fetches carry no timeout of their
+ * own. So one tab that would not close, or one stub front that stopped
+ * answering, stalled the entire run with no message and no timeout: the last
+ * line printed was the liveness probe's `GET /` and nothing followed it, for as
+ * long as anyone was willing to wait. Every full run stalled that way after
+ * E2.4-E2.9, while both it and the suite behind it passed alone.
+ */
+const TEARDOWN_TIMEOUT_MS = Number(process.env.FLOWS_E2E_TEARDOWN_TIMEOUT_MS ?? 60_000);
+
+/**
+ * Run one teardown step under a deadline, and say so rather than stall.
+ *
+ * A step that overruns is NOT fatal: the run continues into the next suite,
+ * which starts by proving the stack still answers. Leaving a stale tab behind
+ * costs that suite some noise; refusing to come back costs every remaining
+ * suite entirely.
+ */
+const tearDown = async (what: string, step: () => Promise<void> | void): Promise<void> => {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const deadline = new Promise<"overran">((resolve) => {
+		timer = setTimeout(() => resolve("overran"), TEARDOWN_TIMEOUT_MS);
+	});
+	try {
+		const outcome = await Promise.race([Promise.resolve(step()).then(() => "done" as const), deadline]);
+		if (outcome === "overran") {
+			console.error(
+				`teardown: ${what} did not finish within ${TEARDOWN_TIMEOUT_MS}ms — moving on to the next suite rather than stalling the run.`,
+			);
+		}
+	} catch (error) {
+		console.error(`teardown: ${what} failed (${error instanceof Error ? error.message : String(error)}) — moving on.`);
+	} finally {
+		clearTimeout(timer);
+	}
+};
+
+/**
  * True once the Worker under test answers again. `wrangler dev` reloads itself
  * whenever a sibling touches apps/server or rebuilds the SPA, and a reload
  * refuses connections for a second or two, so a single refusal is not a death.
@@ -330,11 +372,11 @@ const main = async (): Promise<number> => {
 				 * it — which is how E5's balance chip and E8's browser turn timed
 				 * out at the tail of a full run while both passed alone.
 				 */
-				closeOpenClients();
+				await tearDown(`closing ${suite.id}'s predecessor's clients`, () => closeOpenClients());
 				// Same leak on the browser side: closing a session's debugger
 				// socket leaves its TAB running, pumps and all.
-				await browser.closeSessions();
-				await stack.reset();
+				await tearDown(`closing the browser tabs before ${suite.id}`, () => browser.closeSessions());
+				await tearDown(`resetting the stack before ${suite.id}`, () => stack.reset());
 				const base = createReporter(suite.id);
 				// The `ok:` lines are the record of what was proven, so read the ids
 				// off them rather than trusting a suite to have run every section.
