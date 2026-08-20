@@ -7,7 +7,7 @@
  */
 import { DurableWriter } from "@smthrs/database/DurableWriter"
 import { type EntriesPage, Journal, type JournalError } from "@smthrs/journal/Journal"
-import type * as JournalEvent from "@smthrs/journal/JournalEvent"
+import * as JournalEvent from "@smthrs/journal/JournalEvent"
 import type { OwnerId } from "@smthrs/journal/OwnerId"
 import * as Projection from "@smthrs/journal/Projection"
 import * as Effect from "effect/Effect"
@@ -15,6 +15,7 @@ import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
+import type * as SqlError from "effect/unstable/sql/SqlError"
 import type { RunStatus } from "./RunStore.ts"
 
 /** JSON text carrying an arbitrary decoded value. */
@@ -229,16 +230,19 @@ const applyRunEvent = (state: State, entry: JournalEvent.Entry, payload: Record<
     return
   }
 
-  /* v8 ignore next -- non-fold run namespaces are ignored defensively. */
   if (entry.eventType !== "flows.run.transitioned") return
-  /* v8 ignore next -- malformed transition payloads are defensive guardrails. */
   const status = typeof payload.status === "string" ? payload.status as RunStatus : undefined
-  /* v8 ignore next -- malformed transition payloads are defensive guardrails. */
   const atMs = numberOrNull(payload.atMs)
-  /* v8 ignore next -- malformed transition payloads are defensive guardrails. */
-  if (status === undefined || atMs === null) return
   const stateJson = typeof payload.stateJson === "string" ? payload.stateJson : row.stateJson
-  const transitioned = status === "running"
+  // Lifecycle columns move only when the entry carries them: `status` and
+  // `atMs` are present together exactly when the writer changed the
+  // lifecycle columns. A waiting-payload write (`park`, `wake`) carries only
+  // `waiting`, so it can never re-assert a status or re-stamp
+  // `finished_at_ms` it did not write — the cancel-of-a-parked-run race of
+  // `docs/specs/Concepts/Run State Fold.md`, round 3.
+  const transitioned: RunFoldRow = status === undefined || atMs === null
+    ? { ...row, stateJson }
+    : status === "running"
     ? {
       ...row,
       status,
@@ -476,6 +480,167 @@ export const attemptProjection = (): Projection.Projection<Map<string, AttemptFo
         }
         return attempts
       })
+  })
+
+interface RunSnapshotSourceRow {
+  readonly status: string
+  readonly createdAtMs: number
+  readonly startedAtMs: number | null
+  readonly finishedAtMs: number | null
+  readonly ownerHostId: string | null
+  readonly ownerPid: number | null
+  readonly ownerNonce: string | null
+  readonly heartbeatAtMs: number | null
+  readonly claimHostId: string | null
+  readonly claimPid: number | null
+  readonly claimNonce: string | null
+  readonly claimedAtMs: number | null
+  readonly parentRunId: string | null
+  readonly cancelRequestedAtMs: number | null
+  readonly waitingReason: string | null
+  readonly waitingWakeAtMs: number | null
+  readonly waitingToken: string | null
+  readonly lineageId: string | null
+  readonly roundOrdinal: number | null
+  readonly stateJson: string
+}
+
+interface AttemptSnapshotSourceRow {
+  readonly stepKeyDigest: string
+  readonly attempt: number
+  readonly state: string
+  readonly startedAtMs: number
+  readonly finishedAtMs: number | null
+  readonly checkpointJson: string | null
+  readonly errorJson: string | null
+  readonly outcomeJson: string | null
+  readonly metaJson: string
+}
+
+const snapshotOwner = (hostId: string | null, pid: number | null, nonce: string | null) =>
+  hostId === null || pid === null || nonce === null ? null : { hostId, pid, nonce }
+
+/**
+ * Appends one run's snapshot set through the journal: one
+ * `flows.run.snapshot` first, then one `flows.attempt.snapshot` per attempt
+ * row, in a single transaction. The run snapshot leads so a run snapshot at
+ * or after a compaction floor certifies that every attempt snapshot of its
+ * set sequences at or after it too.
+ *
+ * This is the runtime half of the compaction barrier:
+ * `SqlJournal.compact` refuses to drop fold-namespace history that no
+ * `flows.run.snapshot` at or after the floor captures, and the automatic
+ * `CompactionPolicy`'s snapshot hook is wired to this operation, run between
+ * the checkpoint write and the compact call so the set sequences after the
+ * floor (`docs/specs/Concepts/Run State Fold.md`). The same snapshot events
+ * seed {@link rebuild} after a compaction, and the fold migration appends
+ * them for pre-fold rows: one mechanism serves compaction, migration
+ * backfill, and disaster rebuild.
+ *
+ * A run the tables do not know appends nothing: with no rows there is no
+ * folded state to capture and no fold history for the barrier to hold.
+ *
+ * @category persistence
+ * @since 0.1.0
+ */
+export const snapshot = (
+  runId: string
+): Effect.Effect<void, JournalError | SqlError.SqlError, Journal | SqlClient.SqlClient> =>
+  Effect.gen(function*() {
+    const sql = yield* Effect.service(SqlClient.SqlClient)
+    const journal = yield* Journal
+    const emit = (
+      eventType: "flows.run.snapshot" | "flows.attempt.snapshot",
+      payload: Record<string, unknown>
+    ) =>
+      journal.emitDurable(
+        new JournalEvent.Input({
+          runId: runId as JournalEvent.RunId,
+          sourceId: "flows/run-store/fold/snapshot" as JournalEvent.SourceId,
+          eventType,
+          payload,
+          meta: { lineageId: `${runId}/root` }
+        })
+      )
+    yield* journal.transact(Effect.gen(function*() {
+      const runs = yield* sql<RunSnapshotSourceRow>`
+        SELECT
+          status AS "status",
+          created_at_ms AS "createdAtMs",
+          started_at_ms AS "startedAtMs",
+          finished_at_ms AS "finishedAtMs",
+          owner_host_id AS "ownerHostId",
+          owner_pid AS "ownerPid",
+          owner_nonce AS "ownerNonce",
+          heartbeat_at_ms AS "heartbeatAtMs",
+          claim_host_id AS "claimHostId",
+          claim_pid AS "claimPid",
+          claim_nonce AS "claimNonce",
+          claimed_at_ms AS "claimedAtMs",
+          parent_run_id AS "parentRunId",
+          cancel_requested_at_ms AS "cancelRequestedAtMs",
+          waiting_reason AS "waitingReason",
+          waiting_wake_at_ms AS "waitingWakeAtMs",
+          waiting_token AS "waitingToken",
+          lineage_id AS "lineageId",
+          round_ordinal AS "roundOrdinal",
+          state_json AS "stateJson"
+        FROM flows_runs
+        WHERE run_id = ${runId}
+      `
+      const run = runs[0]
+      if (run === undefined) return
+      yield* emit("flows.run.snapshot", {
+        status: run.status,
+        createdAtMs: run.createdAtMs,
+        startedAtMs: run.startedAtMs,
+        finishedAtMs: run.finishedAtMs,
+        owner: snapshotOwner(run.ownerHostId, run.ownerPid, run.ownerNonce),
+        heartbeatAtMs: run.heartbeatAtMs,
+        claim: snapshotOwner(run.claimHostId, run.claimPid, run.claimNonce),
+        claimedAtMs: run.claimedAtMs,
+        parentRunId: run.parentRunId,
+        cancelRequestedAtMs: run.cancelRequestedAtMs,
+        lineageId: run.lineageId,
+        roundOrdinal: run.roundOrdinal,
+        waiting: run.waitingReason === null
+          ? null
+          : {
+            reason: run.waitingReason,
+            wakeAt: run.waitingWakeAtMs,
+            token: run.waitingToken
+          },
+        stateJson: run.stateJson
+      })
+      const attempts = yield* sql<AttemptSnapshotSourceRow>`
+        SELECT
+          step_key_digest AS "stepKeyDigest",
+          attempt AS "attempt",
+          state AS "state",
+          started_at_ms AS "startedAtMs",
+          finished_at_ms AS "finishedAtMs",
+          checkpoint_json AS "checkpointJson",
+          error_json AS "errorJson",
+          outcome_json AS "outcomeJson",
+          meta_json AS "metaJson"
+        FROM flows_attempts
+        WHERE run_id = ${runId}
+        ORDER BY step_key_digest, attempt
+      `
+      for (const row of attempts) {
+        yield* emit("flows.attempt.snapshot", {
+          stepKeyDigest: row.stepKeyDigest,
+          attempt: row.attempt,
+          state: row.state,
+          startedAtMs: row.startedAtMs,
+          finishedAtMs: row.finishedAtMs,
+          checkpointJson: row.checkpointJson,
+          errorJson: row.errorJson,
+          outcomeJson: row.outcomeJson,
+          metaJson: row.metaJson
+        })
+      }
+    }))
   })
 
 const rebuildPageSize = 256

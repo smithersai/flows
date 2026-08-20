@@ -11,7 +11,6 @@ import * as RunStore from "@smthrs/run-store/RunStore"
 import type * as CacheStore from "@smthrs/step-cache/CacheStore"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
-import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
@@ -344,22 +343,22 @@ const snapshotOf = (row: RunStore.RunRow): RunStore.RunSnapshot => ({
 })
 
 /**
- * Runs a `RunStore` ownership operation with the `Journal` masked out of the
- * fiber context, so it fences through consensus without appending an R6 event.
- * Rewind fencing is administrative: its durable record is the audit row, and
- * its own lease events must not enter the suffix it is about to truncate.
- */
-const unjournaled = <A, E>(
-  effect: Effect.Effect<A, E>
-): Effect.Effect<A, E, Journal.Journal> =>
-  Effect.updateContext(
-    effect,
-    (context: Context.Context<Journal.Journal>) => Context.omit(Journal.Journal)(context)
-  )
-
-/**
  * Time travel cuts replay history, not the run/attempt materialization or
  * consensus namespaces that now share the same journal stream.
+ *
+ * A rewind fences the run through the ordinary `RunStore` ownership
+ * operations, and that fencing is journaled: the run state fold makes a row
+ * write without its event impossible
+ * (`docs/specs/Concepts/Run State Fold.md`), so the surgery's own
+ * `claimed`/`activated` land inside the very suffix `archiveAndTruncate`
+ * cuts — and are archived with it — while its post-restore transitions and
+ * closing `released` land past the restored frame and stay. Every consumer
+ * compensates here, by namespace, not by suppression: replay and frame
+ * validation exclude the `flows.run.*`, `flows.attempt.*`, and
+ * `flows.consensus.*` entries they do not own, and recovery's
+ * archive-commit evidence — "no live entries after the frame" — counts only
+ * entries this predicate owns. The audit row remains the durable record of
+ * who drove a rewind.
  *
  * @since 0.1.0
  * @category predicates
@@ -389,7 +388,10 @@ const claimRun = (
       return yield* Effect.fail(error("busy", `run ${options.runId} is not available for rewind`))
     }
     const expected = snapshotOf(row)
-    const outcome = yield* unjournaled(runs.claim(options.runId, expected, options.owner, nowMs)).pipe(
+    // The claim/activate fencing below appends ordinary R6 events. They land
+    // inside the suffix the archive step cuts and are archived with it;
+    // consumers that outlive the cut select by namespace (`ownsReplayEntry`).
+    const outcome = yield* runs.claim(options.runId, expected, options.owner, nowMs).pipe(
       Effect.mapError((cause) => runStoreFailure("claim run", cause))
     )
     if (outcome._tag === "NotFound") {
@@ -398,16 +400,16 @@ const claimRun = (
     if (outcome._tag !== "Claimed") {
       return yield* Effect.fail(error("busy", `run ${options.runId} lost the rewind claim`))
     }
-    const activated = yield* unjournaled(runs.activate(
+    const activated = yield* runs.activate(
       options.runId,
       options.owner,
       outcome.claimedAtMs,
       expected
-    )).pipe(
+    ).pipe(
       Effect.mapError((cause) => runStoreFailure("activate rewind claim", cause))
     )
     if (activated._tag !== "Activated") {
-      yield* Effect.ignore(unjournaled(runs.abandonClaim(options.runId, options.owner, outcome.claimedAtMs)))
+      yield* Effect.ignore(runs.abandonClaim(options.runId, options.owner, outcome.claimedAtMs))
       return yield* Effect.fail(error("busy", `run ${options.runId} lost the rewind activation`))
     }
     return { row: rewindableRow, claimedAtMs: outcome.claimedAtMs }
@@ -711,11 +713,14 @@ export const rewind = (
                 yield* store.updateAudit(auditId, { detail })
               }
 
-              const suspended = yield* unjournaled(runs.transitionOwned(
+              // Journaled on purpose: this transition and the closing
+              // `released` land past the restored frame and stay; replay and
+              // recovery exclude them by namespace (`ownsReplayEntry`).
+              const suspended = yield* runs.transitionOwned(
                 options.runId,
                 options.owner,
                 "suspended"
-              )).pipe(
+              ).pipe(
                 Effect.mapError((cause) => runStoreFailure("suspend rewound run", cause))
               )
               if (suspended._tag !== "Transitioned") {
@@ -747,19 +752,17 @@ export const rewind = (
           if (!archiveCommitted) {
             const rollbackExit = yield* Effect.exit(Compensation.rollback(compensation))
             if (claimed !== undefined) {
-              const restored = yield* unjournaled(runs.transitionOwned(
+              const restored = yield* runs.transitionOwned(
                 options.runId,
                 options.owner,
                 claimed.row.status,
                 claimed.row.stateJson
-              )).pipe(
+              ).pipe(
                 Effect.mapError((cause) => runStoreFailure("restore run state", cause)),
                 Effect.exit
               )
               if (Exit.isFailure(restored) && detail === undefined) {
-                yield* Effect.ignore(
-                  unjournaled(runs.abandonClaim(options.runId, options.owner, claimed.claimedAtMs))
-                )
+                yield* Effect.ignore(runs.abandonClaim(options.runId, options.owner, claimed.claimedAtMs))
               }
             }
             if (detail !== undefined) {
