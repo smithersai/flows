@@ -32,6 +32,7 @@ The root exports these namespaces; each is also available from its matching
 | Namespace            | Public exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `DurableEngineState` | `DurableEngineState` / `Service` persist deferreds, clocks, and parked-run state through `deferred`, `completeDeferred`, `clock`, `scheduleClock`, `completeClock`, `dueClocks`, `completedDeferreds`, `park`, `wake`, `waiting`, and `waitingRuns`. Address/row types are `DeferredAddress`, `DeferredRow`, `ClockAddress`, `ClockRow`, `Waiting`, `WaitingRow`, and `WaitingRunsFilter`; outcome types are `CompleteDeferredOutcome`, `ScheduleClockOutcome`, `CompleteClockOutcome`, `ParkOutcome`, and `WakeOutcome`; `WaitingReason` is the open wait taxonomy. `make` / `layer` use `DurableWriter`; `makeMemory` / `layerMemory` are deterministic in-memory variants. |
+| `Fold`               | The deferred/clock journal fold. `deferredProjection` and `clockProjection` are the two reducers as `@smthrs/journal` `Projection`s over the fold-input event types; `rebuild` truncates and repopulates `flows_deferred_completions` and `flows_clock_deadlines` from the journal inside one `DurableWriter` transaction. See "Deferred and clock state is a journal fold" below.                                                                                                                                                                                                                                                                                            |
 | `EngineStore`        | `Options` configures owner identity, journal source, liveness probing, and the optional `clockFireRetryPolicy` (defaults to exponential from 100ms capped at 30s, forever). `make` builds the service and `layer` provides `FlowEngine` plus `SnapshotBoundary`; `EngineCompositionError` is the stable composition error.                                                                                                                                                                                                                                                                                                                                                    |
 | `StepBoundary`       | `PreparedBoundary`, `BoundaryDeviation`, `BoundaryEvidence`, `Service`, and `StepBoundary`; errors `UndeclaredWrite`, `UnsupportedBoundary`, and `BoundaryCorruption`; production and test layers. The shared declaration types `FileBoundary`, `BoundaryMode`, and `FileInput` live in `@smthrs/flow`'s `Action` namespace.                                                                                                                                                                                                                                                                                                                                                  |
 | `WorkspaceSandbox`   | The functional workspace transaction. Models `Resource`, `InputObservation`, `OutputObservation`, `Provenance`, `FileChange`, `QueuedEffect`, `WorkflowResult`, `Execution`, `DeclarationViolation`, `CacheDisposition`, `Accepted` / `Invalidated` / `ExecutionResult`, and `Host`; services `Workspace` (the in-transaction filesystem and effect outbox) and `EffectDispatcher`; errors `WorkspaceError` and `MaterializationConflict`; the `violations` accessor; `make` / `layer`, `makeHosted`, `makeMemory` (deterministic, browser-safe), and `makeFileSystem` / `layerFileSystem` / `layerDispatcher`.                                                               |
@@ -80,7 +81,10 @@ is that composition; `docs/concepts/hosts-and-capabilities.md` explains why the
 transaction is not a security boundary.
 
 `RunStore`, `AttemptStore`, `CacheStore`, and `DurableEngineState` are the
-executable authorities today. Every lifecycle event is written with
+executable authorities today, with one demotion: the deferred/clock tables
+are journal folds (see "Deferred and clock state is a journal fold" below),
+so for them the event history is the contract and the rows are a rebuildable
+wakeup index. Every lifecycle event is written with
 `emitDurable` **inside `Journal.transact`**, the write transaction that also
 carries the state transition it describes: the attempt row and its
 `attemptStarted`/`attemptFinished`, the run-row CAS and its decision, the
@@ -91,6 +95,51 @@ time travel can no longer read a hole. A crash before the commit loses the
 whole unit, so an action that had already executed re-executes on adoption.
 No local WAL makes a remote effect atomic, so external effects still need
 idempotency keys, fencing, or compensation.
+
+## Deferred and clock state is a journal fold
+
+Design: `docs/specs/Concepts/Deferred Clock Fold.md`, stage 2 of the journal
+fold in `docs/specs/Concepts/Journal Consensus.md`. The invariant: at every
+commit, `flows_deferred_completions` and `flows_clock_deadlines` equal the
+fold of the journal. Forward progress appends the event and updates the row
+as savepoints of one `DurableWriter` transaction; recovery, rebuild, and
+time-travel rewind recompute the tables from the journal. There is no third
+way to write these tables.
+
+- **The tables are wakeup indexes, not contracts.** `dueClocks`,
+  `pendingClocks`, and `completedDeferreds` keep reading them — a sweeper
+  must not replay a journal per tick — but `Fold.rebuild` can drop and
+  recompute both tables from the journal at any time, and restart recovery
+  is proven against that rebuild.
+- **The fold inputs are exact event types inside `flows.engine.*`:**
+  `deferred-completed` (payload now self-contained, carrying
+  `completedAtMs`), `clock-scheduled`, `clock-completed` (new; appended in
+  the same transaction as the `completed_at_ms` compare-and-set, covering
+  both a fired deadline and an early completion — the cancel path), and the
+  administrative `deferred-snapshot` / `clock-snapshot` records that
+  migration backfill and compaction checkpointing append. A projection
+  selects these types; the rest of `flows.engine.*` is not an input to these
+  tables.
+- **Semantics do not change.** First completion wins; clock scheduling stays
+  fenced to the run's current owner; `completeClock` keeps its
+  `Completed`/`AlreadyCompleted`/`NotFound` CAS outcomes, and refused writes
+  append nothing; delivery order stays durable state, then durable journal,
+  then claim-gated resume; the registration sweep still re-arms pending
+  clocks (a dedup no-op in the journal) and re-drives completed deferreds.
+  The clock fire path commits the deferred completion and the clock CAS in
+  one transaction.
+- **Deferred exits stay byte-exact.** They are executable state — decoded
+  and re-entered on resume — so the five fold-input event types are exact
+  entries in the journal's `Redaction.verbatimNamespaces` allowlist, the
+  journal-owned bypass of the write-path redactor. The bypass is allowlist
+  policy, not a producer-set flag on the entry, and the allowlist never
+  names the `flows.engine.` prefix: the rest of that namespace stays
+  redacted. Hygiene for values that must never persist remains the
+  caller-schema `Redacted` rule.
+- **Pre-fold databases survive.** Events without `completedAtMs` predate the
+  fold and are not fold inputs; the fold migration appends one snapshot
+  event per surviving row first, so migrate, drop, and rebuild yields
+  equivalent state.
 
 ## Selection
 
