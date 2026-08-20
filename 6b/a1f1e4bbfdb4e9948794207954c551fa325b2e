@@ -1,0 +1,477 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "6ba1f1e4bbfdb4e9948794207954c551fa325b2e",
+ "tree": "9f4d4c41d5797aaa90f7e75b1b339fbcc01536f6",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 44,
+  "sectionCount": 83
+ },
+ "source": {
+  "commit": "bdd707bfcf264bb5dad763ed13108ee81323899e",
+  "subject": "🐛 fix(run-store): make run state fold durable",
+  "priorCanonicalCommit": "2632c05da63099666add6437c743f4c5b3922f59",
+  "treeEqualToSource": false,
+  "indexOnSourceLine": 37,
+  "sourceLineCount": 71,
+  "subjectRewritten": true,
+  "rewriteReason": "the source commit landed 13 separable concerns under one subject; this commit carries one of them and states it, while the last commit of the split keeps the source subject verbatim and reproduces the source tree exactly",
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true,
+  "split": {
+   "of": "2632c05da63099666add6437c743f4c5b3922f59",
+   "index": 8,
+   "count": 13,
+   "granularity": "whole-path",
+   "rationale": "path-partitioned split of prior canonical commit 2632c05da63099666add6437c743f4c5b3922f59 (85 files, 2647 changed lines) into 13 dependency-ordered atomic commits; the partition is by whole path, no hunk is divided, and the union of the 13 path sets is exactly the prior commit's path set, so the last split commit's tree is byte-identical to the prior canonical tree and to the source commit's tree",
+   "members": [
+    "35e8bb5ee63f687e4c5d505c0eeb2a0dc4852912",
+    "f2a7988d68204605a0893d95d2e72986c5324607",
+    "0db9b9e56057fdb635498531007046b455f59f17",
+    "93a03795321b1c8eb6b0549f7e9c077983b2a4de",
+    "4b74f1869551d52856c373d3c00176b5239f6d70",
+    "10e7bcaae6ead421319a8d67cc58759ba7fcea9b",
+    "92af181d2eb89f8f5c08e2bb547c02e96afc8955",
+    "6ba1f1e4bbfdb4e9948794207954c551fa325b2e",
+    "83bb9a5cb7fd6687b99a75a8be32bcb4e79bf977",
+    "1c4f303b40917cb36087ef46817a11f2cb9e0d29",
+    "ceccf909f0e096f82af297262f7e60620400663f",
+    "c92bd7ef9e370096bcb56fdd661d9f3ba04dd080",
+    "45e3c1570fd6be09e9c529beaab1c8602d059998"
+   ],
+   "priorSize": {
+    "files": 85,
+    "added": 1940,
+    "deleted": 707,
+    "changed": 2647
+   }
+  }
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "storage",
+  "epicsTouched": [
+   {
+    "id": "storage",
+    "files": 10
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 882,
+  "globalCount": 921,
+  "purpose": "♻️ refactor(run-store): compose the store suites over the one journal they fold into",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "92af181d2eb89f8f5c08e2bb547c02e96afc8955"
+  ],
+  "parent": "92af181d2eb89f8f5c08e2bb547c02e96afc8955",
+  "sourceImports": [
+   "38d4d52ca52f0442023133d1c458a08080e2edf9",
+   "4390fe6159b47fbf5df3fcbcadcdc24e77d5ce8d",
+   "94f7c8bf4001f5fb8bb81bf239df5caa97fbbaec",
+   "c8bce393ea55d3257b21dbf5095fb2af8220a9d3",
+   "cf89bd45358cb59d87d7077d99bbc04e932b4e18",
+   "dbf468b7175db5c08f3863ca79e9353b458536d5",
+   "eda3d9fa41d4dd7cdd5f0541dfa6e17bbc59247b"
+  ],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "92af181d2eb89f8f5c08e2bb547c02e96afc8955",
+  "next": "83bb9a5cb7fd6687b99a75a8be32bcb4e79bf977",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "6fe6857b28247375ab46b0d79cba15e74754ebd6"
+ },
+ "size": {
+  "files": 10,
+  "added": 93,
+  "deleted": 58
+ },
+ "provenance": {
+  "strategy": "path-partitioned split of the source commit's tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": false,
+  "sourceCommit": "bdd707bfcf264bb5dad763ed13108ee81323899e",
+  "splitOf": "2632c05da63099666add6437c743f4c5b3922f59"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "packages/run-store/src/test/TestRunStore.ts",
+   "mode": "100644",
+   "blob": "c9173289b7da0dc1d7dae61594b44ae730eb53a2",
+   "previousBlob": "e356f4c519a9eea2a12742d362f89298487f2874",
+   "added": 2,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 10,
+     "oldLines": 0,
+     "newStart": 11,
+     "newLines": 1
+    },
+    {
+     "oldStart": 23,
+     "oldLines": 0,
+     "newStart": 25,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/test/AttemptStoreInterleavings.test.ts",
+   "mode": "100644",
+   "blob": "0266875e74a2edbcb37f742f6825b1bad2accdc9",
+   "previousBlob": "b1200d6b9fed7e82f9a65faf970d39ae08879bfd",
+   "added": 2,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 4,
+     "oldLines": 0,
+     "newStart": 5,
+     "newLines": 1
+    },
+    {
+     "oldStart": 17,
+     "oldLines": 0,
+     "newStart": 19,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/test/AttemptStoreOptions.test.ts",
+   "mode": "100644",
+   "blob": "ee9cdee4261c3ae1a3e0350cca8c020fa552ef13",
+   "previousBlob": "96819b8f402a7735c13f4d81407d424cc4cca87a",
+   "added": 4,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 5,
+     "oldLines": 0,
+     "newStart": 6,
+     "newLines": 1
+    },
+    {
+     "oldStart": 16,
+     "oldLines": 0,
+     "newStart": 18,
+     "newLines": 2
+    },
+    {
+     "oldStart": 19,
+     "oldLines": 1,
+     "newStart": 22,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/test/OwnershipConsensus.test.ts",
+   "mode": "100644",
+   "blob": "7527977bdda1a4c6d3c4ea8a980fd7dc07193978",
+   "previousBlob": "dd81a5d96e51f4c7674aecb24c65a46466061c20",
+   "added": 3,
+   "deleted": 4,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 55,
+     "oldLines": 2,
+     "newStart": 54,
+     "newLines": 0
+    },
+    {
+     "oldStart": 61,
+     "oldLines": 2,
+     "newStart": 59,
+     "newLines": 3
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/test/RunMetadata.test.ts",
+   "mode": "100644",
+   "blob": "dcf85172709b2fb90745d729355fcce2d3d2ed9d",
+   "previousBlob": "637ec28d861210c10278856b1afbdfdaa3974d5a",
+   "added": 48,
+   "deleted": 40,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 5,
+     "oldLines": 0,
+     "newStart": 6,
+     "newLines": 1
+    },
+    {
+     "oldStart": 13,
+     "oldLines": 0,
+     "newStart": 15,
+     "newLines": 1
+    },
+    {
+     "oldStart": 19,
+     "oldLines": 1,
+     "newStart": 21,
+     "newLines": 1
+    },
+    {
+     "oldStart": 239,
+     "oldLines": 2,
+     "newStart": 241,
+     "newLines": 6
+    },
+    {
+     "oldStart": 242,
+     "oldLines": 4,
+     "newStart": 248,
+     "newLines": 1
+    },
+    {
+     "oldStart": 246,
+     "oldLines": 0,
+     "newStart": 250,
+     "newLines": 1
+    },
+    {
+     "oldStart": 277,
+     "oldLines": 26,
+     "newStart": 281,
+     "newLines": 31
+    },
+    {
+     "oldStart": 304,
+     "oldLines": 7,
+     "newStart": 313,
+     "newLines": 6
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/test/RunStoreLeaseOrdering.test.ts",
+   "mode": "100644",
+   "blob": "480fa9ffe5afa93c76061415086697ca816ff68e",
+   "previousBlob": "046ba5467297aff8c8e4b5b143a6d736b9d004a7",
+   "added": 7,
+   "deleted": 3,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 5,
+     "oldLines": 0,
+     "newStart": 6,
+     "newLines": 1
+    },
+    {
+     "oldStart": 13,
+     "oldLines": 0,
+     "newStart": 15,
+     "newLines": 5
+    },
+    {
+     "oldStart": 21,
+     "oldLines": 3,
+     "newStart": 27,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/test/RunStoreMetrics.test.ts",
+   "mode": "100644",
+   "blob": "d0a0928c33d3e5b98bf9c025ee24d4d9163e9825",
+   "previousBlob": "9bb1f3634fdf0a8fc787c1b5a4d93d3c35eabdf3",
+   "added": 7,
+   "deleted": 3,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 9,
+     "oldLines": 0,
+     "newStart": 10,
+     "newLines": 1
+    },
+    {
+     "oldStart": 19,
+     "oldLines": 0,
+     "newStart": 21,
+     "newLines": 5
+    },
+    {
+     "oldStart": 23,
+     "oldLines": 3,
+     "newStart": 29,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/test/SpanAnnotations.test.ts",
+   "mode": "100644",
+   "blob": "2a54d559b58e58bf615eb111986abebc01c65cab",
+   "previousBlob": "5e762454b30f35251f16495747afbb5472c167d2",
+   "added": 13,
+   "deleted": 6,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 9,
+     "oldLines": 0,
+     "newStart": 10,
+     "newLines": 1
+    },
+    {
+     "oldStart": 18,
+     "oldLines": 0,
+     "newStart": 20,
+     "newLines": 5
+    },
+    {
+     "oldStart": 23,
+     "oldLines": 3,
+     "newStart": 29,
+     "newLines": 1
+    },
+    {
+     "oldStart": 115,
+     "oldLines": 3,
+     "newStart": 119,
+     "newLines": 6
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/test/StorePayloadAndTimelineLimits.test.ts",
+   "mode": "100644",
+   "blob": "d5c643ebc51e78dc38e9a5d8e81c8969722decea",
+   "previousBlob": "613887e2dbb357aae31693871d2e883d4e19c2eb",
+   "added": 2,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 4,
+     "oldLines": 0,
+     "newStart": 5,
+     "newLines": 1
+    },
+    {
+     "oldStart": 14,
+     "oldLines": 0,
+     "newStart": 16,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/test/fixtures/run-store-file-fence-child.ts",
+   "mode": "100644",
+   "blob": "0b5fbbbf9a0ffd9a70dea80472e2eb260cd931a6",
+   "previousBlob": "825cd7ca755f800ca4981b0ed0318c4bff65b402",
+   "added": 5,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 4,
+     "oldLines": 0,
+     "newStart": 5,
+     "newLines": 1
+    },
+    {
+     "oldStart": 29,
+     "oldLines": 1,
+     "newStart": 30,
+     "newLines": 4
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  }
+ ],
+ "sizeJustification": "split from prior canonical commit 2632c05da63099666add6437c743f4c5b3922f59; 151 changed lines across 10 files, below the 2000-line large-commit threshold"
+}
