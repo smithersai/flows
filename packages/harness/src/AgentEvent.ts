@@ -31,6 +31,11 @@ export class DisciplineArmed extends Schema.TaggedClass<DisciplineArmed>(
   eventType: Schema.Literal("flows.harness.discipline-armed.v1"),
   /** Whether the run's first `complete` is challenged for evidence. */
   auditCompletion: Schema.Boolean,
+  /** Whether accepted evidence must prove a baseline regression changed after a write. */
+  requireRegressionEvidence: Schema.Boolean.pipe(
+    Schema.withConstructorDefault(Effect.succeed(false)),
+    Schema.withDecodingDefaultKey(Effect.succeed(false))
+  ),
   /** Consecutive read-only frames allowed; zero means the cap is disarmed. */
   readOnlyCap: Schema.Number,
   /** The frame budget the run stops at. */
@@ -235,7 +240,7 @@ export class ReadOnlyDemanded extends Schema.TaggedClass<ReadOnlyDemanded>(
   streak: Schema.Int,
   cap: Schema.Int,
   nextFrame: Schema.Int,
-  nextAction: Schema.Literals(["write", "justification", "read-only"])
+  nextAction: Schema.Literals(["write", "justification", "read-only", "park"])
 }) {}
 
 /**

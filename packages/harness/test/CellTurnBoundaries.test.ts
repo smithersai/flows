@@ -1020,6 +1020,12 @@ describe("CellTurn discipline interaction", () => {
     // waiting is not evasion, and a parked run reports nothing as done.
     expect(failure).toMatchObject({ code: "suspended" })
     expect(of(events, "suspended")[0]?.reason.code).toBe("waiting-input")
+    expect(of(events, "read-only-demanded")[0]).toMatchObject({
+      streak: 1,
+      cap: 1,
+      nextFrame: 1,
+      nextAction: "park"
+    })
   })
 
   it("arms the discipline with the limits the host declared, defaulting only what it omitted", async () => {

@@ -231,13 +231,14 @@ const scenarios: Readonly<Record<string, Scenario>> = {
                  verify: { flow: "check", input: { command: "suite" } }
                }`
             : `await ctx.call("check", { command: "suite" })
+               await ctx.call("edit", { path: "src/bug.ts" })
                return { intent: "complete", state: {}, output: "claimed" }`,
         maxFrames: 4,
         auditCompletion: true,
-        flows: [Subject.checkSource(recorder)]
+        flows: [Subject.checkSource(recorder, [1, 0]), Subject.editSource(recorder)]
       })
     },
-    expected: answered("audited", 2, ["check:suite", "check:suite"])
+    expected: answered("audited", 2, ["check:suite", "edit:src/bug.ts", "check:suite"])
   },
 
   "completion-audit-refuses-an-unproven-claim": {
@@ -253,6 +254,7 @@ const scenarios: Readonly<Record<string, Scenario>> = {
         respond: (prompt) =>
           prompt.includes("Completion refused")
             ? `await ctx.call("check", { command: "suite" })
+               await ctx.call("edit", { path: "src/bug.ts" })
                return {
                  intent: "complete",
                  state: {},
@@ -262,10 +264,10 @@ const scenarios: Readonly<Record<string, Scenario>> = {
             : Subject.completeWith("I ran the tests and they passed, trust me"),
         maxFrames: 5,
         auditCompletion: true,
-        flows: [Subject.checkSource(recorder)]
+        flows: [Subject.checkSource(recorder, [1, 0]), Subject.editSource(recorder)]
       })
     },
-    expected: answered("proven", 3, ["check:suite", "check:suite"])
+    expected: answered("proven", 3, ["check:suite", "edit:src/bug.ts", "check:suite"])
   },
 
   "read-only-cap-stops-a-reading-run": {
@@ -279,7 +281,9 @@ const scenarios: Readonly<Record<string, Scenario>> = {
         // the case proves the intervention reached the model and not just
         // that a run ended.
         respond: (prompt) =>
-          `await ctx.call("probe", { note: ${prompt.includes("Read-only discipline") ? '"demanded"' : '"reading"'} })
+          `await ctx.call("probe", { note: ${
+            prompt.includes("Read-only discipline") ? "\"demanded\"" : "\"reading\""
+          } })
            return { intent: "continue", state: {}, context: [{ role: "user", text: "still reading" }] }`,
         maxFrames: 20,
         readOnlyCap: 2,

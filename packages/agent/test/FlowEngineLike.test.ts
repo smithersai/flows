@@ -259,6 +259,15 @@ describe("FlowEngineLike conversions", () => {
 })
 
 describe("FlowEngineLike.make", () => {
+  it("keeps pre-retry array records decodable for resumed sealed steps", () => {
+    const legacy = [
+      ModelEvent.ModelEvent.TextStart({ type: "text-start", id: "0" }),
+      ModelEvent.ModelEvent.Settle({ type: "settle", stopReason: "stop" })
+    ]
+
+    expect(Schema.decodeUnknownSync(FlowEngineLike.RecordedModelStep)(legacy)).toEqual(legacy)
+  })
+
   it("streams the model events of a sealed step and records them for replay", async () => {
     const calls: Array<string> = []
     const outcome = await drive(Effect.gen(function*() {

@@ -90,6 +90,7 @@ const state = (
     readonly maxFrames?: number
     readonly envelope?: ReadonlyArray<string>
     readonly auditCompletion?: boolean
+    readonly requireRegressionEvidence?: boolean
     readonly readOnlyCap?: number
   } = {}
 ) =>
@@ -109,6 +110,7 @@ const state = (
     contextWindow: window,
     maxFrames: overrides.maxFrames ?? 4,
     auditCompletion: overrides.auditCompletion ?? false,
+    requireRegressionEvidence: overrides.requireRegressionEvidence ?? false,
     readOnlyCap: overrides.readOnlyCap ?? 0
   })
 
@@ -695,10 +697,18 @@ const audited = (overrides: { readonly maxFrames?: number } = {}) =>
     ...(overrides.maxFrames === undefined ? {} : { maxFrames: overrides.maxFrames })
   })
 
+const regressionAudited = (overrides: { readonly maxFrames?: number } = {}) =>
+  state({
+    auditCompletion: true,
+    requireRegressionEvidence: true,
+    envelope: ["proc:spawn:*", "fs:write:**"],
+    ...(overrides.maxFrames === undefined ? {} : { maxFrames: overrides.maxFrames })
+  })
+
 describe("CellTurn completion audit", () => {
   it("bounces the first completion, then re-runs the check the second declares", async () => {
     const { engine, events, model } = await run({
-      state: audited(),
+      state: regressionAudited(),
       flows: [check, auditEditor],
       script: [
         emits(
@@ -748,7 +758,7 @@ describe("CellTurn completion audit", () => {
 
   it("refuses a completion whose declared check does not pass", async () => {
     const { events, model } = await run({
-      state: audited(),
+      state: regressionAudited(),
       flows: [check, auditEditor],
       script: [
         emits(
@@ -786,7 +796,7 @@ describe("CellTurn completion audit", () => {
 
   it("refuses green evidence whose only failure happened after the first write", async () => {
     const { events } = await run({
-      state: audited(),
+      state: regressionAudited(),
       flows: [check, auditEditor],
       script: [
         emits(
@@ -811,6 +821,58 @@ describe("CellTurn completion audit", () => {
 
     expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: false })
     expect(of(events, "completion-audited")[0]?.detail).toContain("did not fail before the first write")
+  })
+
+  it("refuses a transient baseline pass when the run made no write", async () => {
+    const { engine, events } = await run({
+      state: regressionAudited(),
+      flows: [check],
+      script: [
+        emits(
+          `await ctx.call("bash", { command: "pytest -q" })
+           return { intent: "complete", state: {}, output: "the unchanged tree is green" }`
+        ),
+        emits(
+          `return {
+             intent: "complete", state: {}, output: "done without an edit",
+             verify: { flow: "bash", input: { command: "pytest -q" } }
+           }`
+        ),
+        emits(`return { intent: "continue", state: {}, context: [] }`),
+        emits(`return { intent: "continue", state: {}, context: [] }`)
+      ],
+      calls: [{ _tag: "Success", value: { exitCode: 0, stdout: "2 passed" } }]
+    })
+
+    expect(engine.recorder.calls).toHaveLength(1)
+    expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: false })
+    expect(of(events, "completion-audited")[0]?.detail).toContain("did not fail before the first write")
+  })
+
+  it("refuses a flaky regression pass when no write separated it from the baseline failure", async () => {
+    const { engine, events } = await run({
+      state: regressionAudited(),
+      flows: [check],
+      script: [
+        emits(
+          `await ctx.call("bash", { command: "pytest -q" })
+           return { intent: "complete", state: {}, output: "the reproduction failed" }`
+        ),
+        emits(
+          `return {
+             intent: "complete", state: {}, output: "a retry would be green",
+             verify: { flow: "bash", input: { command: "pytest -q" } }
+           }`
+        ),
+        emits(`return { intent: "continue", state: {}, context: [] }`),
+        emits(`return { intent: "continue", state: {}, context: [] }`)
+      ],
+      calls: [{ _tag: "Success", value: { exitCode: 1, stdout: "1 failed" } }]
+    })
+
+    expect(engine.recorder.calls).toHaveLength(1)
+    expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: false })
+    expect(of(events, "completion-audited")[0]?.detail).toContain("made no declared write")
   })
 
   it("refuses a completion citing a call the run never made", async () => {

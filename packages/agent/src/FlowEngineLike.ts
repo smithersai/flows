@@ -432,11 +432,25 @@ export interface Options {
   readonly capabilities?: Readonly<Record<string, ReadonlyArray<string>>> | undefined
 }
 
-/** The recorded outcome of one sealed model step, including a terminal typed model failure. */
-const RecordedStep = Schema.Struct({
-  events: Schema.Array(ModelEvent.ModelEvent),
-  error: Schema.optional(ModelError.ModelError)
-})
+/**
+ * The durable outcome of one sealed model step.
+ *
+ * The array branch is the format written before model-boundary retries were
+ * introduced. Keeping it decodable matters because a parked run may resume
+ * against a newer agent package and replay that already-settled activity.
+ * New records always use the object branch so a terminal typed model failure
+ * can be replayed after its retry events.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const RecordedModelStep = Schema.Union([
+  Schema.Array(ModelEvent.ModelEvent),
+  Schema.Struct({
+    events: Schema.Array(ModelEvent.ModelEvent),
+    error: Schema.optional(ModelError.ModelError)
+  })
+])
 
 /**
  * Every failure `Model.stream` may report, as one encodable schema. The engine
@@ -485,7 +499,7 @@ const recordModelStep = (
   model: Model.Model,
   request: ModelRequest.ModelRequest,
   policy: Schedule.Schedule<unknown, Model.ModelFailure>
-): Effect.Effect<typeof RecordedStep.Type, Exclude<Model.ModelFailure, ModelError.ModelError>> => {
+): Effect.Effect<typeof RecordedModelStep.Type, Exclude<Model.ModelFailure, ModelError.ModelError>> => {
   const retries: Array<ModelEvent.ModelEvent> = []
   let attempt = 0
   const schedule = policy.pipe(
@@ -812,7 +826,7 @@ export const make = (
           const key = yield* seal(step, options.route)
           const recorded = yield* Action.make({
             name: sealStepActivityName,
-            success: RecordedStep,
+            success: RecordedModelStep,
             error: ModelFailure,
             tier: "sealed",
             idempotencyKey: key,
@@ -822,8 +836,11 @@ export const make = (
               options.modelRetryPolicy ?? defaultModelRetryPolicy
             )
           })
-          const replay = Stream.fromIterable(recorded.events)
-          return recorded.error === undefined ? replay : Stream.concat(replay, Stream.fail(recorded.error))
+          const normalized = "events" in recorded ? recorded : { events: recorded, error: undefined }
+          const replay = Stream.fromIterable(normalized.events)
+          return normalized.error === undefined
+            ? replay
+            : Stream.concat(replay, Stream.fail(normalized.error))
         }).pipe(Effect.provide(context))
       )
 

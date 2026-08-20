@@ -76,6 +76,7 @@ describe("trace", () => {
         new AgentEvent.DisciplineArmed({
           eventType: "flows.harness.discipline-armed.v1",
           auditCompletion: true,
+          requireRegressionEvidence: true,
           readOnlyCap: 12,
           maxFrames: 100,
           calls: 64,
@@ -89,6 +90,7 @@ describe("trace", () => {
           eventType: "control.agent.discipline-armed",
           payload: {
             auditCompletion: true,
+            requireRegressionEvidence: true,
             readOnlyCap: 12,
             maxFrames: 100,
             calls: 64,

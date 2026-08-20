@@ -154,7 +154,7 @@ const noteFlow = CoreFlow.make({
   description: "Save one line to the run's note log.",
   input: Schema.Struct({ text: Schema.String }),
   output: Schema.Struct({ saved: Schema.Number }),
-  effects: { reads: [], writes: [], mode: "expected", onConflict: "serialize", tier: "irreversible" }
+  effects: { reads: [], writes: ["/notes/**"], mode: "expected", onConflict: "serialize", tier: "irreversible" }
 })
 
 const checkFlow = CoreFlow.make({
@@ -165,8 +165,8 @@ const checkFlow = CoreFlow.make({
   effects: { reads: [], writes: [], mode: "expected", onConflict: "serialize", tier: "irreversible" }
 })
 
-const frameZero = `const saved = await ctx.call("note/save", { text: "frame zero note" })
-await ctx.call("project/check", { command: "npm test" })
+const frameZero = `await ctx.call("project/check", { command: "npm test" })
+const saved = await ctx.call("note/save", { text: "frame zero note" })
 return { intent: "continue", state: { saved: saved.saved }, context: [{ role: "user", text: "note saved" }] }`
 
 const frameOne = `const decision = await ctx.call("ask", { question: "publish the log?", options: ["yes", "no"] })
@@ -252,13 +252,15 @@ const stack = (options: StackOptions) => {
         )
     })
   ])
+  let checkCalls = 0
   const checkSource = FlowBinding.source("test/check", [
     FlowBinding.make({
       flow: checkFlow,
       handler: (input) =>
         Effect.sync(() => {
           options.checks?.push(input.command)
-          return { exitCode: 0 }
+          checkCalls++
+          return { exitCode: checkCalls === 1 ? 1 : 0 }
         })
     })
   ])
