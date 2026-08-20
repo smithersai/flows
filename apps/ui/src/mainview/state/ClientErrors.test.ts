@@ -35,6 +35,7 @@ const readSource = (relative: string): string =>
 
 const serverIndex = readSource("../../../../server/src/index.ts");
 const mainSource = readSource("../main.tsx");
+const watchdogSource = readSource("../StartupWatchdog.ts");
 
 /** A `const NAME = "value";` declaration in the Worker, or undefined. */
 const serverString = (name: string): string | undefined =>
@@ -138,20 +139,21 @@ describe("the client-error reporter's contract with the Worker", () => {
 		// The defect this pins: main.tsx once carried its own copy of the
 		// reporter, with its own limit and its own truncation, so everything
 		// asserted above was asserted about code the app never ran.
-		expect(mainSource).toContain('from "./state/ClientErrors"');
-		expect(mainSource).toContain("createClientErrorReporter(");
-		expect(mainSource).not.toMatch(/const CLIENT_ERROR/);
-		expect(mainSource).not.toMatch(/\.slice\(0, 4_?000\)/);
-		expect(mainSource).not.toMatch(/fetch\(\s*["'`]\/api\//);
+		expect(mainSource).toContain('from "./StartupWatchdog"');
+		expect(watchdogSource).toContain('from "./state/ClientErrors"');
+		expect(watchdogSource).toContain("createClientErrorReporter(");
+		expect(watchdogSource).not.toMatch(/const CLIENT_ERROR/);
+		expect(watchdogSource).not.toMatch(/\.slice\(0, 4_?000\)/);
+		expect(watchdogSource).not.toMatch(/fetch\(\s*["'`]\/api\//);
 	});
 
 	test("main.tsx still routes both window listeners into a client-error report", () => {
 		// Red when the wiring is deleted or one listener stops reporting. The
 		// app keeps running, so nothing else here would ever notice.
-		expect(mainSource).toContain('window.addEventListener("error"');
-		expect(mainSource).toContain('window.addEventListener("unhandledrejection"');
-		expect(mainSource).toMatch(/report\w*\("error"/);
-		expect(mainSource).toMatch(/report\w*\("unhandledrejection"/);
+		expect(watchdogSource).toContain('windowTarget.addEventListener("error"');
+		expect(watchdogSource).toContain('windowTarget.addEventListener("unhandledrejection"');
+		expect(watchdogSource).toMatch(/report\w*\("error"/);
+		expect(watchdogSource).toMatch(/report\w*\("unhandledrejection"/);
 	});
 
 	test("no file in the app posts to a client-error path other than the constant", () => {

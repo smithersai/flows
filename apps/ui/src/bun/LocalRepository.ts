@@ -12,7 +12,7 @@ const git = async (
 	args: ReadonlyArray<string>,
 ): Promise<{ readonly exitCode: number; readonly stdout: string; readonly stderr: string }> => {
 	const process = Bun.spawn(["git", "-C", directory, ...args], {
-		env: { ...Bun.env, GIT_TERMINAL_PROMPT: "0" },
+		env: { ...(Bun.env as Record<string, string | undefined>), GIT_TERMINAL_PROMPT: "0" },
 		stdout: "pipe",
 		stderr: "pipe",
 	});

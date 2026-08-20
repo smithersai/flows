@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useLiveQuery } from "@tanstack/react-db";
 import { foldLineages } from "./chain/DebugFolds";
 import { SurfaceHeader } from "./SurfaceChrome";
-import type { AppController } from "./state/AppController";
+import { useController } from "./ControllerContext";
 
 /*
  * The admin dev-tools panel (§2b/§2d): the machinery, visible for admin
@@ -11,7 +11,8 @@ import type { AppController } from "./state/AppController";
  * register, so devtoolsOpen can never turn true). Chrome attached to the
  * chat, composed from store state like everything else.
  */
-export function DevtoolsPanel({ controller }: { readonly controller: AppController }) {
+export function DevtoolsPanel() {
+	const controller = useController();
 	const { data: toolCallRows } = useLiveQuery(controller.store.collections.toolCalls);
 	const { data: chainEventRows } = useLiveQuery(controller.store.collections.chainEvents);
 	const { data: transitionRows } = useLiveQuery(controller.store.collections.transitions);
@@ -235,4 +236,3 @@ export function DevtoolsPanel({ controller }: { readonly controller: AppControll
 		</aside>
 	);
 }
-

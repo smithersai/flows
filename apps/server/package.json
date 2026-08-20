@@ -5,9 +5,9 @@
 	"type": "module",
 	"description": "Smithers closed-alpha Cloudflare Worker: same-origin agent API, gateway relay, and host for the smithers-ui build",
 	"scripts": {
-		"dev": "bun x wrangler dev",
-		"serve:local": "bun x wrangler dev",
-		"deploy:dry-run": "bun x wrangler deploy --dry-run",
+		"dev": "pnpm --dir ../ui run web",
+		"serve:local": "pnpm --dir ../ui run web",
+		"deploy:dry-run": "bun scripts/deploy.ts --dry-run",
 		"deploy": "bun scripts/deploy.ts",
 		"deploy:dry": "bun scripts/deploy.ts --dry-run",
 		"check": "tsc --noEmit",
@@ -21,6 +21,7 @@
 		"canary:rollback": "bun scripts/canary/rollback-probe.ts"
 	},
 	"dependencies": {
+		"@tanstack/react-start": "1.168.48",
 		"smithers-shared": "workspace:*"
 	},
 	"devDependencies": {

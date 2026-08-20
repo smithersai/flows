@@ -4,6 +4,7 @@ import type { StorageApi } from "@tanstack/db";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import App from "../App";
+import { ControllerTestProvider } from "../ControllerContext";
 import { chooserFilter, chooserKeyAction } from "../ChatCards";
 import { createAppController } from "./AppController";
 import type { AppController as AppControllerType, AppServices } from "./AppController";
@@ -36,7 +37,7 @@ const mount = (controller: AppControllerType): { host: HTMLElement; markup: () =
 	const host = document.createElement("div");
 	document.body.append(host);
 	const root = createRoot(host);
-	flushSync(() => root.render(<App controller={controller} />));
+	flushSync(() => root.render(<ControllerTestProvider controller={controller}><App /></ControllerTestProvider>));
 	mounted.push(() => {
 		flushSync(() => root.unmount());
 		host.remove();

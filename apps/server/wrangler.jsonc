@@ -2,6 +2,7 @@
 	"name": "smithers-mvp-web",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-08-01",
+	"compatibility_flags": ["nodejs_compat"],
 	// Wave 7: this Worker IS the canary. The custom domain was repointed from
 	// the flows/ui POC worker `smithers-ui-canary` (rollback: redeploy that
 	// worker from ~/flows/ui — `bun x wrangler deploy` — and the domain
