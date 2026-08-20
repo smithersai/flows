@@ -61,6 +61,7 @@ import { createRepoImportSeam } from "./seams/RepoImportSeam";
 import type { RepoImportSeam } from "./seams/RepoImportSeam";
 import type { SeamContext } from "./seams/SeamContext";
 import { isNotReadyYet } from "./seams/SeamContext";
+import { globalTransport } from "./seams/Transport";
 import {
 	impossibleAskOf,
 	renderedAskTurnText,
@@ -442,7 +443,7 @@ export const createAppController = (
 		netRing.push(entry);
 		if (netRing.length > 100) netRing.shift();
 	};
-	const rawHttp: FetchLike = services.fetchImpl ?? fetch.bind(globalThis);
+	const rawHttp: FetchLike = services.fetchImpl ?? globalTransport();
 	/*
 	 * Mid-session 401 recovery (multi's AUTH_REQUIRED discipline, one seam):
 	 * a 401 off any /api call while the app believes it is signed in means the
