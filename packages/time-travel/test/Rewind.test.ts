@@ -131,7 +131,7 @@ const boundaryRecord = (
   lineageId: "run/root",
   payload: {
     eventType: EffectBoundary.eventType,
-    payload: { effect },
+    payload: { version: 1, effect },
     meta: { lineageId: "run/root" }
   }
 })

@@ -168,6 +168,7 @@ describe.skipIf(!jjInstalled)("rewind crash recovery over file SQLite", () => {
             VALUES ('intended-only', 1, 'intended-1', 'crash', 1, 1, ${EffectBoundary.eventType},
                     ${
                 JSON.stringify({
+                  version: 1,
                   effect: {
                     id: "unsettled-send",
                     kind: "mail/send",

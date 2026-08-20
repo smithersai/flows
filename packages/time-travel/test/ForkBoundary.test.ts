@@ -53,6 +53,7 @@ const boundaryEntry = (seq: number, id: string, kind: string): JournalEvent.Entr
     emittedAtMs: 0,
     eventType: EffectBoundary.eventType,
     payload: {
+      version: 1,
       effect: {
         id,
         kind,
@@ -447,6 +448,9 @@ describe("the compensation descriptor on a boundary record", () => {
           runId: "parent",
           lineageId: frame.lineageId,
           sourceId: "test",
+          sourceSeq: 0,
+          owner: { hostId: "test-host", pid: 1, nonce: "test-owner" },
+          idempotencyKey: "charge-1",
           compensation: "billing/refund@v2",
           residue: "The charge stands."
         }, Effect.succeed("ok")).pipe(
