@@ -46,6 +46,7 @@ const mounts: ReadonlyArray<{ readonly key: string; readonly title: string; read
   { key: "create-workflow", title: "Create Workflow", required: true },
   { key: "create-skill", title: "Create Skill", required: true },
   { key: "docs-driven-development", title: "Docs Driven Development", required: true },
+  { key: "production-readiness-swarm", title: "Production Readiness Swarm", required: true },
   { key: "share-pack", title: "Share Pack", required: true },
   { key: "smithers-repo-federation", title: "Smithers Repo Federation", required: true },
   { key: "whole-foods-meal-planner", title: "Whole Foods Meal Planner", required: true },
