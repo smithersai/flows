@@ -12,10 +12,9 @@
  * computed by the real reader, the real `Forensics.digest`, and the real price
  * table.
  *
- * `--with-latency` stamps a per-call duration onto each model settlement, which
- * the journal does not carry yet. `verify.sh` builds the fixture both ways to
- * prove the scorecard reports latency when it is there and says so plainly when
- * it is not.
+ * `--with-latency` stamps the harness's exact `durationMillis` field onto each
+ * model settlement. `verify.sh` builds the fixture both ways to prove the
+ * scorecard reports latency when it is there and says so plainly when it is not.
  *
  * Writes work/, patches/, timings/ and one evaluator-shaped report under
  * fixtures/. All of it is generated and gitignored.
@@ -90,7 +89,7 @@ const build = (row) => {
           inputTokens: last ? (row.inTok ?? 0) - perTurnInput * (turns - 1) : perTurnInput,
           outputTokens: last ? (row.outTok ?? 0) - perTurnOutput * (turns - 1) : perTurnOutput
         },
-        ...(withLatency ? { durationMs: 4000 + turn } : {})
+        ...(withLatency ? { durationMillis: 4000 + turn } : {})
       },
       at()
     ])

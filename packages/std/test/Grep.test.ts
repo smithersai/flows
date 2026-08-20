@@ -57,6 +57,32 @@ describe("Grep", () => {
     expect(result.notice).toBeDefined()
   })
 
+  it("skips repository metadata and caches unless the caller names one as the root", async () => {
+    const files = {
+      "/repo/source.py": "needle",
+      "/repo/.git/objects/object.py": "needle",
+      "/repo/.jj/store/object.py": "needle",
+      "/repo/.flows/engine.py": "needle",
+      "/repo/node_modules/package.py": "needle",
+      "/repo/.venv/site.py": "needle"
+    }
+    const broad = await execute(
+      Effect.provide(Grep.run({ pattern: "needle", root: "/repo", include: "*.py" }), layer({ files }))
+    )
+    const explicit = await execute(
+      Effect.provide(Grep.run({ pattern: "needle", root: "/repo/.git", include: "*.py" }), layer({ files }))
+    )
+
+    expect(broad).toMatchObject({
+      matches: [{ file: "/repo/source.py", line: 1, text: "needle" }],
+      filesSearched: 1
+    })
+    expect(explicit).toMatchObject({
+      matches: [{ file: "/repo/.git/objects/object.py", line: 1, text: "needle" }],
+      filesSearched: 1
+    })
+  })
+
   it("declares sealed hermetic effects and narrows to the root subtree", () => {
     expect(Grep.effects).toMatchObject({ tier: "sealed", mode: "hermetic" })
     expect(Grep.effectsFor({ root: "/src" }).reads).toEqual(["/src/**"])
