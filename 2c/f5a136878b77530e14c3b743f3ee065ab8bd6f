@@ -51,7 +51,8 @@
  "size": {
   "files": 1,
   "added": 24390,
-  "deleted": 0
+  "deleted": 0,
+  "justification": "Single generated file: pnpm-lock.yaml is machine-generated and its entries are interdependent; the lockfile was already sharded 3 ways along workspace dependency order and further hunk-level splits would not be independently reviewable (generated/vendor exception)."
  },
  "provenance": {
   "strategy": "whole-file introduction from the epic source tree",
