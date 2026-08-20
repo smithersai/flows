@@ -57,7 +57,8 @@
  "size": {
   "files": 1,
   "added": 2576,
-  "deleted": 0
+  "deleted": 0,
+  "justification": "Single new source file: apps/server/src/index.ts is the server public surface in one module; introducing it in pieces would leave non-parsing intermediate states, so it lands as one unit."
  },
  "provenance": {
   "strategy": "whole-file introduction from the epic source tree",
