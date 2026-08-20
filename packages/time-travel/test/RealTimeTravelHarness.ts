@@ -65,14 +65,15 @@ export const withRealFixture = <A, E>(
 export const realLayer = (filename: string) => {
   const database = Layer.provideMerge(DurableWriter.layer(), NodeDatabase.layer({ filename }))
   const migrated = Layer.provideMerge(Migrations.layer, database)
-  const journalLayer = SqlJournal.layer({ capacity: 128, overflow: "reject" })
   const persistence = Layer.mergeAll(
-    journalLayer,
     RunStore.layer,
-    CacheStore.layer.pipe(Layer.provide(journalLayer)),
+    CacheStore.layer,
     SqlTimeTravelStore.layer,
     NodeJj.layer
-  ).pipe(Layer.provideMerge(migrated))
+  ).pipe(
+    Layer.provideMerge(SqlJournal.layer({ capacity: 128, overflow: "reject" })),
+    Layer.provideMerge(migrated)
+  )
   return TimeTravel.layer.pipe(Layer.provideMerge(persistence))
 }
 
@@ -96,15 +97,16 @@ const ownerIsAlive = (owner: OwnerId): Effect.Effect<boolean> =>
 export const realEngineLayer = (filename: string, hostId: string) => {
   const database = Layer.provideMerge(DurableWriter.layer(), NodeDatabase.layer({ filename }))
   const migrated = Layer.provideMerge(Migrations.layer, database)
-  const journalLayer = SqlJournal.layer({ capacity: 128, overflow: "reject" })
   const stores = Layer.mergeAll(
-    journalLayer,
     RunStore.layer,
     AttemptStore.layer,
-    CacheStore.layer.pipe(Layer.provide(journalLayer)),
+    CacheStore.layer,
     DurableEngineState.layer,
     SqlTimeTravelStore.layer
-  ).pipe(Layer.provideMerge(migrated))
+  ).pipe(
+    Layer.provideMerge(SqlJournal.layer({ capacity: 128, overflow: "reject" })),
+    Layer.provideMerge(migrated)
+  )
   const hostAndArtifacts = Layer.provideMerge(
     ArtifactStore.layerFileSystem({ directory: join(dirname(filename), "artifacts") }),
     NodeFileSystem.layer
