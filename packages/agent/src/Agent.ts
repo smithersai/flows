@@ -254,6 +254,7 @@ const withRequestPlugins = (
     splice: engine.splice,
     call: engine.call,
     record: engine.record,
+    observe: engine.observe,
     suspend: engine.suspend
   })
 

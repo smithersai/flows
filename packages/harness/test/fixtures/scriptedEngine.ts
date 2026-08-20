@@ -1,6 +1,6 @@
 import { Permission } from "@smthrs/kernel"
 import { Model } from "@smthrs/model"
-import { Effect, Layer, Schema, Stream } from "effect"
+import { Effect, Layer, Option, Schema, Stream } from "effect"
 import * as Cell from "../../src/Cell.ts"
 import * as EngineLike from "../../src/EngineLike.ts"
 import { HarnessError } from "../../src/HarnessError.ts"
@@ -33,7 +33,19 @@ export type SpliceStep =
  * @since 0.1.0
  */
 export type CallStep =
-  | { readonly _tag: "Success"; readonly value: Schema.Json }
+  | {
+    readonly _tag: "Success"
+    readonly value: Schema.Json
+    /**
+     * The workspace this call leaves behind, when it changes one.
+     *
+     * Stated separately from the call's declared effects on purpose: this is
+     * how a shell command behaves. It writes a tracked file, its input names
+     * no write set, and the only way anything finds out is by measuring the
+     * tree afterwards.
+     */
+    readonly tree?: string | undefined
+  }
   | { readonly _tag: "Failure"; readonly message: string }
   | { readonly _tag: "PermissionRequired"; readonly request: Permission.PermissionRequired }
   | { readonly _tag: "Interrupt" }
@@ -64,6 +76,14 @@ export interface Fixture {
   readonly engine: EngineLike.EngineLike
   readonly layer: Layer.Layer<EngineLike.EngineLike>
   readonly recorder: Recorder
+  /**
+   * The workspace the engine measures, as one string.
+   *
+   * `undefined` is a host that cannot measure its tree at all, which is what
+   * an engine constructed without an initial tree reports — so every case
+   * written before observation existed keeps the declared-writes basis.
+   */
+  readonly workspace: { value: string | undefined }
 }
 
 /**
@@ -76,8 +96,10 @@ export interface Fixture {
 export const make = (
   model: Model.Model,
   spliceScript: ReadonlyArray<SpliceStep> = [],
-  callScript: ReadonlyArray<CallStep> = []
+  callScript: ReadonlyArray<CallStep> = [],
+  tree?: string
 ): Fixture => {
+  const workspace: { value: string | undefined } = { value: tree }
   const recorder: Recorder = {
     sealStep: [],
     splice: [],
@@ -134,6 +156,7 @@ export const make = (
       const step = callScript[callIndex++] ?? { _tag: "Success", value: null }
       switch (step._tag) {
         case "Success":
+          if (step.tree !== undefined) workspace.value = step.tree
           return Effect.succeed(new Cell.CallResult({ outcome: "success", value: step.value }))
         case "Failure":
           return Effect.succeed(
@@ -158,6 +181,13 @@ export const make = (
       recorder.records.push(boundary)
       return boundary.execute
     },
+    observe: Effect.suspend(() =>
+      Effect.succeed(
+        workspace.value === undefined
+          ? Option.none()
+          : Option.some(new EngineLike.Observation({ digest: workspace.value, paths: 1 }))
+      )
+    ),
     suspend: (reason) => {
       recorder.suspend.push(reason)
       return Effect.fail(
@@ -172,6 +202,7 @@ export const make = (
   return {
     engine,
     layer: EngineLike.layer(engine),
-    recorder
+    recorder,
+    workspace
   }
 }

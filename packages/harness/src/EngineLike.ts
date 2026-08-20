@@ -13,7 +13,7 @@ import type * as KeyMaterial from "@smthrs/core/KeyMaterial"
 import type * as Model from "@smthrs/model/Model"
 import type * as ModelEvent from "@smthrs/model/ModelEvent"
 import type * as ModelRequest from "@smthrs/model/ModelRequest"
-import { Context, Effect, Layer, Schema, Stream } from "effect"
+import { Context, Effect, Layer, Option, Schema, Stream } from "effect"
 import type * as Cell from "./Cell.ts"
 import { HarnessError } from "./HarnessError.ts"
 import type * as Plan from "./Plan.ts"
@@ -120,6 +120,26 @@ export interface RecordBoundary<A> {
 }
 
 /**
+ * One measurement of the workspace the run is changing.
+ *
+ * The controller never interprets `digest`; it only asks whether two
+ * measurements are equal. That is deliberate — the host owns what "the
+ * workspace" means (which paths it covers, and what it reads off each one),
+ * and the only thing the loop is entitled to conclude is "this is the tree I
+ * left" or "this is not". `paths` is carried for the journal, so a reader can
+ * tell an observation over 7,000 files from one over an empty root.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export class Observation extends Schema.Class<Observation>("flows/harness/EngineLike/Observation")({
+  /** A content address of everything the measurement covered, taken together. */
+  digest: Schema.String,
+  /** How many paths the measurement covered. */
+  paths: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
+}) {}
+
+/**
  * The engine operations required by harness translation.
  *
  * @category services
@@ -175,6 +195,28 @@ export interface EngineLike {
    * divergence — and, downstream of one, duplicate irreversible effects.
    */
   readonly record: <A>(boundary: RecordBoundary<A>) => Effect.Effect<A, HarnessError>
+  /**
+   * Measures the workspace as it stands right now.
+   *
+   * This is what makes the loop's mutation accounting honest. Every other
+   * signal the controller has about "did this frame change anything" is a
+   * *declaration*: a flow's registry envelope, or the write set an invocation
+   * claimed. A shell command declares neither — spawning a process is the one
+   * call whose effects do not travel through any boundary the harness can
+   * read — so a run whose only edits went through `bash` looked, to every
+   * control, exactly like a run that did nothing. Comparing two measurements
+   * around a frame answers the question from the world instead of from the
+   * paperwork.
+   *
+   * `Option.none()` is the honest answer for a host with no workspace to
+   * measure, or none it can measure cheaply. It is not an error and it is not
+   * "nothing changed": the controller reads it as "unobserved" and falls back
+   * to declared writes, and says in the journal which basis it used.
+   *
+   * The result is nondeterministic, so the controller journals it through
+   * {@link EngineLike.record} rather than calling this on a replayed frame.
+   */
+  readonly observe: Effect.Effect<Option.Option<Observation>, HarnessError>
   readonly suspend: (reason: SuspendReason) => Effect.Effect<never, HarnessError>
 }
 
@@ -228,6 +270,11 @@ export const makeNoop = (overrides: Partial<EngineLike> = {}): EngineLike =>
     splice: () => Stream.fail(unavailable("splice")),
     call: Effect.fn("EngineLike.call")(() => Effect.fail(unavailable("call"))),
     record: Effect.fn("EngineLike.record")(() => Effect.fail(unavailable("record"))),
+    // Unobservable rather than unavailable. A stub engine has no workspace, and
+    // the honest report of that is "I measured nothing" — which the controller
+    // already knows how to read. Failing here instead would turn a host that
+    // simply has no tree into a failed run.
+    observe: Effect.succeed(Option.none()),
     suspend: Effect.fn("EngineLike.suspend")(() => Effect.fail(unavailable("suspend", "suspended"))),
     ...overrides
   })

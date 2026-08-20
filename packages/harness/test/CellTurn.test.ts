@@ -150,9 +150,15 @@ const run = async (options: {
   readonly flows?: ReadonlyArray<Descriptor.FlowDescriptor>
   readonly state?: CellTurn.State
   readonly clock?: Clock.Clock
+  /**
+   * The workspace the engine can measure, as one string. Omitted means the
+   * host measures nothing, which is what every case written before observed
+   * mutation existed expects.
+   */
+  readonly tree?: string
 }): Promise<Run> => {
   const model = ScriptedModel.make(options.script)
-  const engine = ScriptedEngine.make(model.model, [], options.calls ?? [])
+  const engine = ScriptedEngine.make(model.model, [], options.calls ?? [], options.tree)
   const events: Array<AgentEvent.AgentEvent> = []
   // Collected event-by-event so a run that ends in a park or a failure is still
   // observed through everything it published first.
@@ -616,9 +622,10 @@ describe("CellTurn", () => {
     // source through a journaled engine boundary — keyed on the frame and the
     // cell digest — never through a bare `steering.drain` a replay would
     // re-issue against an already-drained queue.
-    expect(engine.recorder.records.map((boundary) => boundary.name)).toEqual(["steering-drain"])
-    expect(engine.recorder.records[0]?.identity).toMatchObject({ session: "session-1", frame: 0 })
-    expect(engine.recorder.records[0]?.identity.boundary).toMatch(/^[a-f0-9]{64}$/)
+    const drains = engine.recorder.records.filter((boundary) => boundary.name === "steering-drain")
+    expect(drains).toHaveLength(1)
+    expect(drains[0]?.identity).toMatchObject({ session: "session-1", frame: 0 })
+    expect(drains[0]?.identity.boundary).toMatch(/^[a-f0-9]{64}$/)
   })
 
   it("reports a model step that never settles as a typed harness failure", async () => {
@@ -1127,6 +1134,184 @@ describe("CellTurn read-only cap", () => {
     expect(model.recorder.requests).toHaveLength(4)
     expect(JSON.stringify(model.recorder.requests)).not.toContain("Read-only discipline")
     expect(failure).toBeUndefined()
+  })
+})
+
+describe("CellTurn observed mutation", () => {
+  /**
+   * The one shell command that started this: on SWE-bench wave 5 the pytest
+   * run overwrote a tracked source file with a redirect, deleting the fix it
+   * had landed six frames earlier. The invocation names `mode`, `command`,
+   * `cwd` and nothing else — no write set anywhere — so every control that
+   * reads declarations saw a frame that did nothing.
+   */
+  const redirect = `await ctx.call("bash", {
+      mode: "unhermetic",
+      command: "git show base:src/_pytest/python.py > src/_pytest/python.py"
+    })
+    return { intent: "continue", state: {}, context: [] }`
+
+  const reading = `await ctx.call("bash", { mode: "unhermetic", command: "git status --short" })
+    return { intent: "continue", state: {}, context: [] }`
+
+  const shell = (
+    cells: ReadonlyArray<string>,
+    calls: ReadonlyArray<ScriptedEngine.CallStep>,
+    overrides: { readonly cap?: number; readonly tree?: string; readonly maxFrames?: number } = {}
+  ) =>
+    run({
+      state: state({
+        readOnlyCap: overrides.cap ?? 2,
+        maxFrames: overrides.maxFrames ?? cells.length + 1,
+        envelope: ["fs:read:**", "fs:write:**", "proc:spawn:*"]
+      }),
+      flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] }), check, editor],
+      script: cells.map(emits),
+      calls,
+      tree: overrides.tree ?? "src/_pytest/python.py=fixed"
+    })
+
+  it("counts a shell redirect as a mutation and resets the read-only streak", async () => {
+    const { events, model } = await shell(
+      [reading, reading, redirect, reading, reading, reading],
+      [
+        { _tag: "Success", value: { exitCode: 0, stdout: "" } },
+        { _tag: "Success", value: { exitCode: 0, stdout: "" } },
+        // The call declares nothing and changes the tree anyway.
+        { _tag: "Success", value: { exitCode: 0, stdout: "" }, tree: "src/_pytest/python.py=base" },
+        { _tag: "Success", value: { exitCode: 0, stdout: "" } },
+        { _tag: "Success", value: { exitCode: 0, stdout: "" } },
+        { _tag: "Success", value: { exitCode: 0, stdout: "" } }
+      ],
+      { maxFrames: 6 }
+    )
+
+    const observed = of(events, "mutation-observed")
+    expect(observed.map((event) => event.mutated)).toEqual([false, false, true, false, false, false])
+    // The frame that rewrote the file declared no write at all. That gap is
+    // the defect, so both numbers are journaled.
+    expect(observed[2]).toMatchObject({
+      basis: "observed",
+      mutated: true,
+      declaredWrites: 0,
+      digest: "src/_pytest/python.py=base"
+    })
+
+    // Frames 0 and 1 build the streak to the cap, so frame 2 is demanded — and
+    // the redirect answers it as a write, which is exactly what the old
+    // declaration-only accounting could not see. The streak then restarts and
+    // reaches the cap again at frame 4, demanding frame 5.
+    expect(of(events, "read-only-demanded")).toEqual([
+      expect.objectContaining({ nextFrame: 2, nextAction: "write" }),
+      expect.objectContaining({ nextFrame: 5, nextAction: "read-only" })
+    ])
+    expect(JSON.stringify(model.recorder.requests[2]?.messages)).toContain("Read-only discipline")
+    expect(JSON.stringify(model.recorder.requests[3]?.messages)).not.toContain("Read-only discipline")
+  })
+
+  it("leaves the streak running through a shell call that changed nothing", async () => {
+    const { events, model } = await shell(
+      [reading, reading, reading],
+      [
+        { _tag: "Success", value: { exitCode: 0, stdout: "" } },
+        { _tag: "Success", value: { exitCode: 0, stdout: "" } },
+        { _tag: "Success", value: { exitCode: 0, stdout: "" } }
+      ]
+    )
+
+    // A command that only reads is the case `bash` is most often used for, and
+    // it must not buy silence from the cap merely by being a command.
+    expect(of(events, "mutation-observed").map((event) => event.mutated)).toEqual([false, false, false])
+    expect(of(events, "read-only-demanded")[0]).toMatchObject({
+      streak: 2,
+      cap: 2,
+      nextFrame: 2,
+      nextAction: "read-only"
+    })
+    expect(JSON.stringify(model.recorder.requests[2]?.messages)).toContain("Read-only discipline")
+  })
+
+  it("stops a run whose declared writes never reach the tree", async () => {
+    // The failure the measured basis exists to catch from the other side: the
+    // calls all declare writes, so the old accounting would have called every
+    // frame productive, and the workspace never moves.
+    const declaring = `await ctx.call("edit", { path: "a.py", text: "same" })
+       return { intent: "continue", state: {}, context: [] }`
+    const { events, failure } = await shell(
+      [declaring, declaring, declaring, declaring, declaring],
+      Array.from({ length: 5 }, () => ({ _tag: "Success", value: null }) as const),
+      { cap: 2, tree: "a.py=same" }
+    )
+
+    const observed = of(events, "mutation-observed")
+    expect(observed.map((event) => event.declaredWrites)).toEqual([1, 1, 1, 1])
+    expect(observed.map((event) => event.mutated)).toEqual([false, false, false, false])
+    expect(failure).toMatchObject({
+      code: "read_only_cap",
+      message: expect.stringContaining("4 consecutive frames")
+    })
+  })
+
+  it("falls back to declared writes, and says so, when the host measures nothing", async () => {
+    const { events } = await run({
+      state: state({ readOnlyCap: 2, maxFrames: 3, envelope: ["fs:read:**", "fs:write:**"] }),
+      flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] }), editor],
+      script: [
+        emits(
+          `await ctx.call("edit", { path: "a.py", text: "fixed" })
+           return { intent: "continue", state: {}, context: [] }`
+        ),
+        emits(`return { intent: "complete", state: {}, output: "done" }`)
+      ],
+      calls: successes(1)
+    })
+
+    // No tree was given, so `observe` reports nothing and the loop keeps the
+    // old rule. The journal names the basis rather than presenting a
+    // declaration as a measurement.
+    expect(of(events, "mutation-observed")).toEqual([
+      expect.objectContaining({ basis: "declared", mutated: true, declaredWrites: 1, digest: "", paths: 0 }),
+      expect.objectContaining({ basis: "declared", mutated: false, declaredWrites: 0 })
+    ])
+  })
+
+  it("measures once per frame and journals both measurements as durable boundaries", async () => {
+    const { engine } = await shell(
+      [reading, reading],
+      [{ _tag: "Success", value: null }, { _tag: "Success", value: null }]
+    )
+
+    // The opening walk happens once, on the first frame; every later frame
+    // opens on what its predecessor closed with. Both are recorded boundaries,
+    // so a resumed frame replays the measurement instead of walking a tree
+    // that has moved on.
+    const names = engine.recorder.records.map((record) => record.name)
+    expect(names.filter((name) => name === "workspace-open")).toHaveLength(1)
+    expect(names.filter((name) => name === "workspace-close")).toHaveLength(2)
+    expect(engine.recorder.records[0]?.identity).toMatchObject({ session: "session-1", frame: 0 })
+  })
+
+  it("clears the streak from a mutation a raised cell landed before it threw", async () => {
+    const { events } = await shell(
+      [
+        reading,
+        `await ctx.call("bash", { mode: "unhermetic", command: "sed -i s/a/b/ a.py" })
+         throw new Error("boom")`,
+        reading
+      ],
+      [
+        { _tag: "Success", value: null },
+        { _tag: "Success", value: null, tree: "a.py=b" },
+        { _tag: "Success", value: null }
+      ],
+      { cap: 2, tree: "a.py=a" }
+    )
+
+    // The cell never settled a transition, so the frame judges nothing — but
+    // the tree moved, and the streak must not run through a frame that
+    // changed a tracked file.
+    expect(of(events, "mutation-observed")[1]).toMatchObject({ basis: "observed", mutated: true })
+    expect(of(events, "read-only-demanded")).toEqual([])
   })
 })
 

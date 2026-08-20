@@ -1,0 +1,245 @@
+/**
+ * Measuring the workspace a run is changing, so the loop's mutation
+ * accounting is a fact rather than a claim.
+ *
+ * `@smthrs/harness` declares the port
+ * (`EngineLike.observe`) and states why it exists. This module is the
+ * production answer to it: a pruned walk of the workspace root that reads a
+ * cheap identity off every file it keeps and folds the lot into one digest.
+ * Two measurements taken around a frame answer "did this frame change the
+ * tree", which is the question `bash` makes unanswerable from declarations —
+ * a spawned process writes wherever it likes and tells nobody.
+ *
+ * Three properties are the design:
+ *
+ * - **Identity, not content.** Each kept file contributes its path, its size,
+ *   and its modification time. Reading every byte would be the stronger
+ *   measurement and it costs the whole tree twice per frame; size and mtime
+ *   move for every write a shell command can perform, including the redirect
+ *   that started this. A rewrite that restores the byte count *and* the
+ *   timestamp is invisible here, and that is the stated limit.
+ * - **Pruning is the signal.** An unpruned walk reports a mutation every time
+ *   the run executes anything: `pytest` writes `__pycache__`, a build writes
+ *   `.so` files beside their sources, `git` rewrites its own index. Those are
+ *   derived artifacts, not the work a run is judged on, and counting them
+ *   would keep the read-only cap permanently satisfied — the same blindness
+ *   the measurement exists to remove, inverted. {@link defaultPrune} and
+ *   {@link defaultIgnoreSuffixes} name what is skipped and both are
+ *   injectable, so a host whose derived artifacts differ declares its own.
+ * - **A vanished path is not an error.** Paths are listed and then measured,
+ *   and a background process the run spawned can remove one in between. Such a
+ *   path is left out of the measurement rather than failing it: the tree moved,
+ *   and the next measurement will say so.
+ *
+ * @since 0.1.0
+ */
+import * as Digest from "@smthrs/core/Digest"
+import * as EngineLike from "@smthrs/harness/EngineLike"
+import { HarnessError } from "@smthrs/harness/HarnessError"
+import { Context, Effect, Layer, Option } from "effect"
+import * as FileSystem from "effect/FileSystem"
+
+/**
+ * Directory names never descended into.
+ *
+ * Every entry is a place a tool writes derived state while the run is working:
+ * version-control internals, dependency trees, and the caches Python, Node,
+ * Rust and their test runners keep beside the sources. A run that changes only
+ * these has changed nothing it will be judged on.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const defaultPrune: ReadonlyArray<string> = [
+  ".git",
+  ".jj",
+  ".hg",
+  ".svn",
+  ".flows",
+  "node_modules",
+  "__pycache__",
+  ".pytest_cache",
+  ".mypy_cache",
+  ".ruff_cache",
+  ".tox",
+  ".nox",
+  ".venv",
+  "venv",
+  ".eggs",
+  ".gradle",
+  ".turbo",
+  ".next",
+  "target"
+]
+
+/**
+ * File and directory name suffixes left out of a measurement.
+ *
+ * Compiled output is the case that matters: several SWE-bench projects build
+ * extensions in place (`setup.py build_ext --inplace`), which drops `.so`
+ * files next to the `.py` files they came from. Those move whenever the run
+ * executes its test suite, and counting them would report every probe as an
+ * edit.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const defaultIgnoreSuffixes: ReadonlyArray<string> = [
+  ".pyc",
+  ".pyo",
+  ".pyd",
+  ".so",
+  ".o",
+  ".a",
+  ".dylib",
+  ".class",
+  ".egg-info"
+]
+
+/**
+ * What a measurement covers.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface Options {
+  /** Directory names never descended into. Defaults to {@link defaultPrune}. */
+  readonly prune?: ReadonlyArray<string> | undefined
+  /** Name suffixes skipped. Defaults to {@link defaultIgnoreSuffixes}. */
+  readonly ignoreSuffixes?: ReadonlyArray<string> | undefined
+  /**
+   * The largest number of files one measurement will cover.
+   *
+   * A bound rather than a budget: a tree past it is measured up to the bound
+   * and reported as measured, which is honest — the digest still moves when
+   * anything inside the covered prefix moves — and it keeps one pathological
+   * checkout from turning every frame into a full-disk walk. The walk is
+   * ordered, so the prefix is stable between frames.
+   */
+  readonly maxPaths?: number | undefined
+}
+
+/**
+ * The port {@link EngineLike.Observation} is produced through.
+ *
+ * A service rather than an option threaded through the agent, because it is
+ * host equipment: whoever composed a workspace is the only party that knows
+ * where its root is and what it keeps under it. A composition that provides
+ * none leaves the loop on declared writes, and the journal says so.
+ *
+ * @category services
+ * @since 0.1.0
+ */
+export interface Observer {
+  readonly observe: Effect.Effect<EngineLike.Observation, HarnessError>
+}
+
+/**
+ * The {@link Observer} tag.
+ *
+ * @category services
+ * @since 0.1.0
+ */
+export const Observer: Context.Service<Observer, Observer> = Context.Service<Observer>(
+  "@smthrs/agent/WorkspaceObservation/Observer"
+)
+
+const defaultMaxPaths = 50_000
+
+/** Whether one entry name is skipped outright. */
+const ignored = (name: string, suffixes: ReadonlyArray<string>): boolean =>
+  suffixes.some((suffix) => name.endsWith(suffix))
+
+/**
+ * Walks one workspace and folds it into a single measurement.
+ *
+ * The listing is built depth-first in sorted order so two measurements of an
+ * unchanged tree are byte-identical, and the digest is taken over the whole
+ * listing rather than per file: the controller only ever asks whether two
+ * measurements are equal, so one hash is all it can use.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const observe = (
+  fs: FileSystem.FileSystem,
+  root: string,
+  options: Options = {}
+): Effect.Effect<EngineLike.Observation> =>
+  Effect.gen(function*() {
+    const prune = new Set(options.prune ?? defaultPrune)
+    const suffixes = options.ignoreSuffixes ?? defaultIgnoreSuffixes
+    const maxPaths = options.maxPaths ?? defaultMaxPaths
+    const lines: Array<string> = []
+    const walk = (directory: string): Effect.Effect<void> =>
+      Effect.gen(function*() {
+        // A directory that cannot be listed contributes nothing. It is either
+        // gone — which the next measurement reports through everything under
+        // it disappearing — or unreadable, which no amount of failing here
+        // would fix.
+        const entries = yield* fs.readDirectory(directory).pipe(Effect.orElseSucceed(() => []))
+        for (const name of [...entries].sort()) {
+          if (lines.length >= maxPaths) return
+          if (prune.has(name) || ignored(name, suffixes)) continue
+          const path = `${directory}/${name}`
+          const info = yield* fs.stat(path).pipe(Effect.asSome, Effect.orElseSucceed(() => Option.none()))
+          if (Option.isNone(info)) continue
+          if (info.value.type === "Directory") {
+            yield* walk(path)
+            continue
+          }
+          if (info.value.type !== "File") continue
+          const size = info.value.size
+          const modified = Option.match(info.value.mtime, {
+            onNone: () => 0,
+            onSome: (at) => at.getTime()
+          })
+          lines.push(`${size} ${modified} ${JSON.stringify(path)}`)
+        }
+      })
+    yield* walk(root.replaceAll(/\/+$/g, ""))
+    return new EngineLike.Observation({ digest: Digest.digest(lines.join("\n")), paths: lines.length })
+  })
+
+/**
+ * Builds an {@link Observer} over one workspace root.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const make = (
+  fs: FileSystem.FileSystem,
+  root: string,
+  options: Options = {}
+): Observer => Observer.of({ observe: observe(fs, root, options) })
+
+/**
+ * Provides an {@link Observer} over the workspace root, from the host's
+ * `FileSystem`.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
+export const layer = (
+  root: string,
+  options: Options = {}
+): Layer.Layer<Observer, never, FileSystem.FileSystem> =>
+  Layer.effect(Observer)(Effect.map(FileSystem.FileSystem, (fs) => make(fs, root, options)))
+
+/**
+ * Provides an observer that reports a failure rather than a measurement.
+ *
+ * This is not "measures nothing" — a composition that wants that provides no
+ * observer at all, and `FlowEngineLike` then reports the workspace as
+ * unobserved. This exists so a host can prove the failing path.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
+export const layerNoop: Layer.Layer<Observer> = Layer.succeed(Observer)(
+  Observer.of({
+    observe: Effect.fail(
+      new HarnessError({ code: "engine_failed", message: "No workspace observer is configured" })
+    )
+  })
+)

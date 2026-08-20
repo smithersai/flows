@@ -234,6 +234,46 @@ export class ReadOnlyDemanded extends Schema.TaggedClass<ReadOnlyDemanded>(
 }) {}
 
 /**
+ * What one frame did to the workspace, and how the controller knows.
+ *
+ * Emitted once per frame that ran a cell. It is the frame's own answer to the
+ * question every later audit asks — "did this frame change anything" — written
+ * before any control acts on it, so a run that never trips the cap still leaves
+ * the evidence behind.
+ *
+ * `basis` is the field that keeps the record honest. `observed` means the two
+ * measurements around the frame disagreed (or agreed), and `mutated` is a fact
+ * about the tree. `declared` means the host measured nothing and `mutated` is
+ * only what the frame's calls claimed about themselves — which is exactly the
+ * signal that missed a shell redirect over a tracked source file.
+ *
+ * @category events
+ * @since 0.1.0
+ */
+export class MutationObserved extends Schema.TaggedClass<MutationObserved>(
+  "flows/harness/AgentEvent/MutationObserved"
+)("mutation-observed", {
+  eventType: Schema.Literal("flows.harness.mutation-observed.v1"),
+  /** Where `mutated` came from: the workspace, or the frame's own paperwork. */
+  basis: Schema.Literals(["observed", "declared"]),
+  /** Whether this frame left the workspace different from how it found it. */
+  mutated: Schema.Boolean,
+  /** Content address of the workspace as the frame left it; empty when unobserved. */
+  digest: Schema.String,
+  /** Paths the closing measurement covered; zero when unobserved. */
+  paths: Schema.Int,
+  /**
+   * Calls this frame made that DECLARED a write.
+   *
+   * Journaled beside the observed answer rather than instead of it, because
+   * the gap between the two numbers is the accounting defect itself: a frame
+   * with `declaredWrites: 0` and `mutated: true` is a shell mutation nothing
+   * else in the run can see.
+   */
+  declaredWrites: Schema.Int
+}) {}
+
+/**
  * The durable reason a cell execution parked.
  *
  * @category events
@@ -351,6 +391,7 @@ export const AgentEvent = Schema.Union([
   CellCallSettled,
   CellSettled,
   TransitionApplied,
+  MutationObserved,
   ReadOnlyDemanded,
   Suspended,
   CompactionSettled,

@@ -128,7 +128,11 @@ const turn = (
     const calls = yield* FlowEngineLike.sandboxed(sandbox, writer, { layers: ["layer-a"] })
     const port = EngineLike.makeNoop({
       sealStep: () => cellEvents,
-      call: (call) => calls.run(call)
+      call: (call) => calls.run(call),
+      // Every frame journals its workspace measurement through this boundary,
+      // so a host that runs the loop has to answer it even when the frame
+      // completes without continuing.
+      record: (boundary) => boundary.execute
     })
     const messages: Array<string> = []
     yield* CellTurn.run({ state, flows: [flow] }).pipe(

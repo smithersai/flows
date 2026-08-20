@@ -48,12 +48,12 @@ export const defaultMaxFrames = 100
 /**
  * Default number of consecutive read-only frames a task run may spend.
  *
- * Read-only means the frame made no call that declares a write: searching,
- * reading, and running commands under a read-only envelope all leave the
- * world as they found it. The number comes from the first head-to-head
- * benchmark — every instance the loop resolved had edited a file well before
- * frame 15, and the instance it lost outright read for all 100 frames, made
- * 132 calls, attempted zero edits, and then claimed the fix was implemented.
+ * Read-only means the frame left the workspace exactly as it found it —
+ * measured, not declared; see {@link State.readOnlyFrames}. The number comes
+ * from the first head-to-head benchmark — every instance the loop resolved had
+ * edited a file well before frame 15, and the instance it lost outright read
+ * for all 100 frames, made 132 calls, attempted zero edits, and then claimed
+ * the fix was implemented.
  *
  * @category constants
  * @since 0.1.0
@@ -87,6 +87,7 @@ const eventType = {
   readOnlyDemanded: "flows.harness.read-only-demanded.v1",
   modelDelta: "flows.harness.model-delta.v1",
   modelSettled: "flows.harness.model-settled.v1",
+  mutationObserved: "flows.harness.mutation-observed.v1",
   permissionRequired: "flows.harness.permission-required.v1",
   resolved: "flows.harness.resolved.v1",
   steeringDrained: "flows.harness.steering-drained.v1",
@@ -127,7 +128,31 @@ export class State extends Schema.Class<State>("flows/harness/CellTurn/State")({
     Schema.withConstructorDefault(Effect.succeed(0)),
     Schema.withDecodingDefaultKey(Effect.succeed(0))
   ),
-  /** Frames settled since the last call that declared a write. */
+  /**
+   * Frames settled since the last frame that changed the workspace.
+   *
+   * Changed-ness is measured, not declared: the controller compares the
+   * observation the previous frame closed on ({@link State.workspace}) against
+   * the one this frame closes on, and a difference is a mutation whoever
+   * performed it.
+   *
+   * It used to count frames since the last call that *declared* a write, and
+   * the difference is not academic. `bash` declares no write set at all — its
+   * registry envelope is the conservative empty one and an unhermetic
+   * invocation carries no `writes` key, because a shell command's effects do
+   * not travel through any boundary the harness can read. On the SWE-bench
+   * pytest instance a frame ran `git show <base>:src/_pytest/python.py >
+   * src/_pytest/python.py`, destroyed the fix the run had landed six frames
+   * earlier, and was counted as read-only; the whole wave made 41 shell calls
+   * and not one of them declared a write, so nothing in the harness saw a
+   * single one of them.
+   *
+   * Declared writes are still what the capability envelope is enforced
+   * against, still what decides whether the truncated-write refusal applies to
+   * a call, and still journaled beside the measured answer as
+   * `declaredWrites`. This is accounting, not permission. A host that measures
+   * nothing keeps the old rule, and `MutationObserved.basis` says so.
+   */
   readOnlyFrames: NonNegativeSafeInt.pipe(
     Schema.withConstructorDefault(Effect.succeed(0)),
     Schema.withDecodingDefaultKey(Effect.succeed(0))
@@ -161,6 +186,22 @@ export class State extends Schema.Class<State>("flows/harness/CellTurn/State")({
     Schema.withConstructorDefault(Effect.succeed(false)),
     Schema.withDecodingDefaultKey(Effect.succeed(false))
   ),
+  /**
+   * The workspace as the last measured frame left it.
+   *
+   * Carried in state rather than re-measured because one measurement serves
+   * two frames: what a frame closes on is what the next frame opens on, and
+   * nothing between them touches the tree — the sealed model step in between
+   * only produces text. So a run pays one walk per frame, not two, and a
+   * resumed run replays the recorded measurement instead of walking a tree
+   * that has moved on.
+   *
+   * Absent means no frame has measured yet; `None` means a frame measured and
+   * the host reported it has nothing to measure. The two are kept apart so an
+   * unobservable host is asked once and then left alone, instead of paying an
+   * opening boundary every frame for an answer that will not change.
+   */
+  workspace: Schema.optional(Schema.Option(EngineLike.Observation)),
   /**
    * Output this run has been handed as a fragment, by digest.
    *
@@ -246,6 +287,7 @@ export const make = (options: {
     readOnlyGrace: 0,
     pendingReadOnlyDemand: undefined,
     approvalChannel: options.approvalChannel ?? false,
+    workspace: undefined,
     truncatedOutputs: []
   })
 
@@ -524,15 +566,21 @@ const readOnlyCapFailure = (cap: number, frames: number): HarnessError =>
   })
 
 /**
- * Whether one resolved call changes anything outside the run.
+ * Whether one resolved call *declares* that it changes something.
  *
  * Classification happens at the call boundary and reads declarations, not
- * flow names: a call mutates when its resolved descriptor declares writes, or
- * when the invocation itself declares them — which is how a shell flow whose
- * registry-time envelope is the conservative empty set still counts when the
- * cell declares what the command writes. `Forensics` classifies the same
- * events after the fact by name; the loop cannot, because a host catalog is
- * whatever the host bound.
+ * flow names: a call declares a write when its resolved descriptor declares
+ * writes, or when the invocation itself declares them — which is how a shell
+ * flow whose registry-time envelope is the conservative empty set still counts
+ * when the cell declares what the command writes. `Forensics` classifies the
+ * same events after the fact by name; the loop cannot, because a host catalog
+ * is whatever the host bound.
+ *
+ * This is a claim, not an observation, and the two are used for different
+ * things. The claim decides authority — whether the truncated-write refusal
+ * applies to this call — and the frame's *measured* change decides discipline.
+ * A shell command that rewrites a tracked source file declares nothing and is
+ * false here; it is still a mutation, and {@link witness} is what sees it.
  */
 const mutating = (descriptor: Descriptor.FlowDescriptor, input: Schema.Json): boolean => {
   if (descriptor.effects.writes.length > 0) return true
@@ -541,6 +589,42 @@ const mutating = (descriptor: Descriptor.FlowDescriptor, input: Schema.Json): bo
     : undefined
   return Array.isArray(declared) && declared.length > 0
 }
+
+/**
+ * The schema one workspace measurement is journaled under.
+ *
+ * `Option` and not a bare struct because "the host measured nothing" is a
+ * recorded answer in its own right: a replayed frame must be told that its
+ * original attempt could not observe the tree, rather than inferring it from
+ * an absent record and measuring a tree that has since moved.
+ */
+const RecordedObservation = Schema.Option(EngineLike.Observation)
+
+/**
+ * Measures the workspace once, through a journaled boundary.
+ *
+ * The measurement is a read of the world — the same class of thing as the
+ * steering drain — so it goes through {@link EngineLike.EngineLike.record}
+ * rather than being called directly. Left unjournaled, a resumed frame would
+ * walk a tree that has moved on since the original attempt, compare it against
+ * the recorded state of a different one, and invent a mutation nobody made.
+ *
+ * `phase` distinguishes the two measurements a frame can take. Only the first
+ * frame of a run takes an opening one; every later frame opens on what its
+ * predecessor closed with.
+ */
+const witness = (
+  engine: EngineLike.EngineLike,
+  state: State,
+  boundary: string,
+  phase: "open" | "close"
+): Effect.Effect<Option.Option<EngineLike.Observation>, HarnessError> =>
+  engine.record({
+    name: `workspace-${phase}`,
+    identity: { session: state.session, frame: state.frame, boundary },
+    success: RecordedObservation,
+    execute: engine.observe
+  })
 
 const emitModelProgress = (
   event: ModelEvent.ModelEvent,
@@ -922,6 +1006,10 @@ const frame = (
           })
         )
       )
+    // What the tree looked like before this frame's calls. Every frame after
+    // the first opens on the measurement its predecessor closed with, so this
+    // walks the workspace only when the run has none yet.
+    const opened = state.workspace ?? (yield* witness(engine, state, cell.digest, "open"))
     const outcome = yield* sandbox.evaluate({
       cell,
       flows: projections,
@@ -929,13 +1017,34 @@ const frame = (
       state: state.agentState,
       limits: input.limits
     })
+    const closed = yield* witness(engine, state, cell.digest, "close")
     yield* emit(
       new AgentEvent.CellSettled({ eventType: eventType.cellSettled, cell: cell.digest, outcome })
     )
 
     // The frame's own record of what it did to the world, computed once and
     // carried out through every exit.
-    const mutatingCalls = observedCalls.filter((call) => call.mutates).length
+    //
+    // `declaredWrites` is what the frame's calls said about themselves;
+    // `mutated` is what the workspace says. They are journaled together and
+    // only the second one drives discipline, because the first cannot see a
+    // shell redirect and the whole point of the measurement is that a run
+    // cannot be counted as idle while it is rewriting tracked files.
+    const declaredWrites = observedCalls.filter((call) => call.mutates).length
+    const measured = Option.isSome(opened) && Option.isSome(closed)
+    const mutated = measured
+      ? opened.value.digest !== closed.value.digest
+      : declaredWrites > 0
+    yield* emit(
+      new AgentEvent.MutationObserved({
+        eventType: eventType.mutationObserved,
+        basis: measured ? "observed" : "declared",
+        mutated,
+        digest: Option.match(closed, { onNone: () => "", onSome: (value) => value.digest }),
+        paths: Option.match(closed, { onNone: () => 0, onSome: (value) => value.paths }),
+        declaredWrites
+      })
+    )
     // The frame's own broken probes, stated once and delivered through every
     // exit. A cell chooses the context its successor sees, so a frame that
     // summarised "the test still fails" would otherwise carry the wrong belief
@@ -950,7 +1059,7 @@ const frame = (
             streak: state.pendingReadOnlyDemand.streak,
             cap: state.pendingReadOnlyDemand.cap,
             nextFrame: state.frame,
-            nextAction: mutatingCalls > 0 ? "write" : "read-only"
+            nextAction: mutated ? "write" : "read-only"
           })
         )
       }
@@ -968,7 +1077,8 @@ const frame = (
       // did land before throwing still clears it.
       const step = observe(note, {
         pendingReadOnlyDemand: undefined,
-        ...(mutatingCalls > 0 ? { readOnlyFrames: 0, readOnlyGrace: 0 } : {})
+        workspace: closed,
+        ...(mutated ? { readOnlyFrames: 0, readOnlyGrace: 0 } : {})
       })
       yield* emit(
         new AgentEvent.TurnClosed({
@@ -1004,7 +1114,7 @@ const frame = (
             streak: state.pendingReadOnlyDemand.streak,
             cap: state.pendingReadOnlyDemand.cap,
             nextFrame: state.frame,
-            nextAction: mutatingCalls > 0 ? "write" : "park"
+            nextAction: mutated ? "write" : "park"
           })
         )
       }
@@ -1023,7 +1133,8 @@ const frame = (
           {
             agentState: transition.state,
             pendingReadOnlyDemand: undefined,
-            ...(mutatingCalls > 0 ? { readOnlyFrames: 0, readOnlyGrace: 0 } : {})
+            workspace: closed,
+            ...(mutated ? { readOnlyFrames: 0, readOnlyGrace: 0 } : {})
           }
         )
         yield* emit(
@@ -1065,7 +1176,7 @@ const frame = (
     // been told what it still has to spend. The frame budget bounds a run that
     // does nothing but ask.
     const cap = state.readOnlyCap
-    const readOnly = mutatingCalls === 0
+    const readOnly = !mutated
     const readOnlyFrames = readOnly ? state.readOnlyFrames + 1 : 0
     if (state.pendingReadOnlyDemand !== undefined) {
       yield* emit(
@@ -1074,7 +1185,7 @@ const frame = (
           streak: state.pendingReadOnlyDemand.streak,
           cap: state.pendingReadOnlyDemand.cap,
           nextFrame: state.frame,
-          nextAction: mutatingCalls > 0
+          nextAction: mutated
             ? "write"
             : (transition._tag === "continue" && (transition.justification ?? "").trim().length > 0)
             ? "justification"
@@ -1188,6 +1299,7 @@ const frame = (
         }),
         agentState: transition.state,
         truncatedOutputs: TruncatedOutput.retain(ledger),
+        workspace: closed,
         readOnlyFrames,
         readOnlyGrace,
         pendingReadOnlyDemand: demanded && !justified ? { streak: readOnlyFrames, cap } : undefined

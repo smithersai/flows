@@ -10,6 +10,7 @@ import * as FlowEngineLike from "@smthrs/agent/FlowEngineLike"
 import * as Seat from "@smthrs/agent/Seat"
 import * as SeatResolver from "@smthrs/agent/SeatResolver"
 import * as StandardFlows from "@smthrs/agent/StandardFlows"
+import * as WorkspaceObservation from "@smthrs/agent/WorkspaceObservation"
 import {
   ControlExecutor,
   ControlRpcs,
@@ -39,11 +40,11 @@ import * as RequestExecutor from "@smthrs/model/RequestExecutor"
 import * as Route from "@smthrs/model/Route"
 import type { NotificationQueue } from "@smthrs/notifications"
 import * as AtomicFileSystem from "@smthrs/platform-node/AtomicFileSystem"
-import * as NativeSearch from "@smthrs/std/NativeSearch"
 import type * as Descriptor from "@smthrs/registry/Descriptor"
 import * as Discovery from "@smthrs/registry/Discovery"
 import * as Registry from "@smthrs/registry/Registry"
 import { Migrations as RunStoreMigrations, RunStore } from "@smthrs/run-store"
+import * as NativeSearch from "@smthrs/std/NativeSearch"
 import type { FileSystem, Path, Result } from "effect"
 import { Context, Effect, Layer, Redacted } from "effect"
 import { HttpRouter } from "effect/unstable/http"
@@ -482,6 +483,11 @@ export const layerExecutor = (
       memory,
       Recall.layerNoop,
       Agent.layer,
+      // The run's mutation accounting is measured rather than declared, and
+      // this is what measures it: without an observer in the composition the
+      // controller falls back to what a frame's calls claimed about
+      // themselves, which is blind to every `bash` write.
+      WorkspaceObservation.layer(root).pipe(Layer.provide(platform)),
       layerSeatResolver(environment).pipe(Layer.provide(dispatcher))
     ])
   )

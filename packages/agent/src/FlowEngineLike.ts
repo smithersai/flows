@@ -33,8 +33,14 @@
  *   engine's requirement that an irreversible activity declare an idempotency
  *   key before it may be retried.
  * - `record` journals one nondeterministic controller read — the steering
- *   drain — as its own run-scoped boundary, so a resumed run replays the
- *   recorded value instead of reading the world a second time.
+ *   drain, and the workspace measurements below — as its own run-scoped
+ *   boundary, so a resumed run replays the recorded value instead of reading
+ *   the world a second time.
+ * - `observe` measures the workspace through `WorkspaceObservation.Observer`
+ *   when the composition provides one, and reports it unobserved when it does
+ *   not. This is what lets the controller decide "did this frame change
+ *   anything" from the tree rather than from what the frame's calls declared —
+ *   a shell command declares nothing and writes wherever it likes.
  * - Every key folds in the resolved composition identity `Options.layers` — the
  *   host's layer stack and its resolved plugin list. A boundary resolved under a
  *   different composition is a different boundary.
@@ -66,6 +72,7 @@ import * as Route from "@smthrs/model/Route"
 import * as PersistedPlan from "@smthrs/plan/Plan"
 import * as StepKey from "@smthrs/plan/StepKey"
 import { Context, Crypto, Duration, Effect, Layer, Option, Schedule, Schema, Stream } from "effect"
+import * as WorkspaceObservation from "./WorkspaceObservation.ts"
 import type * as WorkspaceSandbox from "./WorkspaceSandbox.ts"
 
 /**
@@ -1004,11 +1011,23 @@ export const make = (
         })
       }).pipe(Effect.provide(context))
 
+    // Resolved once, at construction, and asked nothing further. A composition
+    // either equips its runs with a way to measure their workspace or it does
+    // not, and the controller reads the absence as "unobserved" and says so in
+    // the journal rather than presenting declared writes as measurements.
+    const observer = yield* Effect.serviceOption(WorkspaceObservation.Observer)
+    const observe = Option.match(observer, {
+      onNone: (): Effect.Effect<Option.Option<EngineLike.Observation>, HarnessError.HarnessError> =>
+        Effect.succeed(Option.none()),
+      onSome: (service) => Effect.asSome(service.observe)
+    })
+
     return EngineLike.make({
       sealStep,
       splice,
       call,
       record,
+      observe,
       suspend: (reason) =>
         Effect.andThen(
           Effect.annotateLogs(Effect.logDebug("Harness parked the engine frame"), {

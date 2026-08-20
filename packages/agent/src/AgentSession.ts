@@ -223,6 +223,21 @@ export const trace = (
       return { eventType: "control.agent.cell-settled", payload: { outcome: event.outcome } }
     case "transition-applied":
       return { eventType: "control.agent.transition-applied", payload: { transition: event.transition } }
+    case "mutation-observed":
+      // Written for every frame, not only for the ones that trip a control.
+      // `basis` travels with it because a `declared` answer is paperwork and an
+      // `observed` one is a fact about the tree, and a reader reconstructing a
+      // run must not have to guess which it is holding.
+      return {
+        eventType: "control.agent.mutation-observed",
+        payload: {
+          basis: event.basis,
+          mutated: event.mutated,
+          digest: event.digest,
+          paths: event.paths,
+          declaredWrites: event.declaredWrites
+        }
+      }
     case "read-only-demanded":
       return {
         eventType: "control.agent.read-only-demanded",

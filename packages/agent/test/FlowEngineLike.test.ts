@@ -40,6 +40,7 @@ import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as FlowEngineLike from "../src/FlowEngineLike.ts"
+import * as WorkspaceObservation from "../src/WorkspaceObservation.ts"
 
 const preparedFor = (routeId: string, body: string): Route.PreparedRequest => ({
   routeId,
@@ -311,6 +312,27 @@ describe("FlowEngineLike.make", () => {
     // Same sealed step key, so the engine replayed the recorded events instead
     // of calling the provider a second time.
     expect(calls).toEqual(["test-model"])
+  })
+
+  it("measures the workspace through the composition's observer, and reports it unobserved without one", async () => {
+    const measurement = new EngineLike.Observation({ digest: "tree-1", paths: 3 })
+    const outcome = await drive(Effect.gen(function*() {
+      const equipped = yield* FlowEngineLike.make({
+        model: countingModel([]),
+        route: staticRoute()
+      }).pipe(
+        Effect.provideService(WorkspaceObservation.Observer, { observe: Effect.succeed(measurement) })
+      )
+      const bare = yield* FlowEngineLike.make({ model: countingModel([]), route: staticRoute() })
+      return { equipped: yield* equipped.observe, bare: yield* bare.observe }
+    }))
+
+    // A composition either equips its runs with a way to measure their
+    // workspace or it does not. The second answer is `None` and not an empty
+    // tree, because the controller must be able to tell "nothing changed" from
+    // "nobody looked" — the first drives the read-only cap and the second
+    // leaves it on declared writes.
+    expect(completed(outcome)).toEqual({ equipped: Option.some(measurement), bare: Option.none() })
   })
 
   it("derives a different sealed key when the prepared wire request changes", async () => {

@@ -253,6 +253,9 @@ const stubEngine = (
         : overrides.call(call)
     },
     record: (boundary) => boundary.execute,
+    // A stub host has no workspace to measure, so the loop falls back to
+    // declared writes — which is what these cases are written against.
+    observe: Effect.succeed(Option.none()),
     suspend: (reason) => {
       suspended.push(reason)
       return Effect.fail(new HarnessError({ code: "suspended", message: reason.message, cause: reason }))
@@ -976,7 +979,7 @@ describe("CellTurn steering boundaries", () => {
     // Nothing to deliver is still a read of the world, so the boundary is
     // recorded rather than skipped.
     expect(of(events, "steering-drained").map((event) => event.messages)).toEqual([[]])
-    expect(engine.recorder.records.map((record) => record.name)).toEqual(["steering-drain"])
+    expect(engine.recorder.records.filter((record) => record.name === "steering-drain")).toHaveLength(1)
   })
 
   it("delivers steering that arrived mid-frame at the next frame boundary", async () => {
@@ -1256,7 +1259,9 @@ describe("CellTurn replay", () => {
       ]
     })
 
-    const identities = engine.recorder.records.map((record) => record.identity)
+    const identities = engine.recorder.records
+      .filter((record) => record.name === "steering-drain")
+      .map((record) => record.identity)
     expect(identities.map((identity) => identity.frame)).toEqual([0, 1])
     // Two frames, two distinct boundaries: a replay of frame one cannot serve
     // frame zero's recorded drain.

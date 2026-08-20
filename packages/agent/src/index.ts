@@ -66,6 +66,12 @@ export * as ChildFlows from "./ChildFlows.ts"
 export * as WorkspaceSandbox from "./WorkspaceSandbox.ts"
 
 /**
+ * @category services
+ * @since 0.1.0
+ */
+export * as WorkspaceObservation from "./WorkspaceObservation.ts"
+
+/**
  * @category constructors
  * @since 0.1.0
  */
