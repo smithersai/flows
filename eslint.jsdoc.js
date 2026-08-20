@@ -13,7 +13,11 @@ import jsdoc from "eslint-plugin-jsdoc"
  * from "…"`) is deliberately not matched: its prose belongs at the definition
  * site, and an index that re-states it would be a second copy to keep honest.
  */
-const exported = ["ExportNamedDeclaration[declaration]"]
+const exported = [
+  "ExportNamedDeclaration[declaration]",
+  "ExportDefaultDeclaration[declaration.type='FunctionDeclaration']",
+  "ExportDefaultDeclaration[declaration.type='ClassDeclaration']"
+]
 
 const restrict = (comment, message) => exported.map((context) => ({ context, comment, message }))
 
@@ -28,7 +32,7 @@ const lacking = (tag) => `JsdocBlock:not(*:has(JsdocTag[tag=${tag}]))`
  * with a header separated by a blank line does not. Both answers are wrong.
  * Reading the leading comments directly is unambiguous.
  */
-const moduleHeader = {
+export const moduleHeader = {
   meta: {
     type: "suggestion",
     docs: { description: "require a module header block carrying `@since` before the first statement" },
@@ -41,7 +45,12 @@ const moduleHeader = {
       const leading = first === undefined
         ? source.getAllComments()
         : source.getAllComments().filter((comment) => comment.range[1] <= first.range[0])
-      const header = leading.find((comment) => comment.type === "Block" && comment.value.startsWith("*"))
+      const header = leading.find((comment) => {
+        if (comment.type !== "Block" || !comment.value.startsWith("*")) return false
+        // Export documentation carries @category; module documentation does
+        // not. @module is also accepted as an explicit identity marker.
+        return /^\s*\*\s*@module\b/m.test(comment.value) || !/^\s*\*\s*@category\b/m.test(comment.value)
+      })
       if (header !== undefined && /^\s*\*\s*@since\b/m.test(header.value)) return
       context.report({
         node,

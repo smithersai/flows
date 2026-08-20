@@ -13,6 +13,7 @@
     "deploy:dry": "pnpm --filter smithers-server run deploy:dry",
     "lint": "pnpm --recursive --if-present run lint",
     "test": "pnpm --recursive --if-present run test",
+    "test:jsdoc": "node --test scripts/eslint-jsdoc.test.mjs",
     "test:examples": "pnpm --filter @smthrs/examples run test"
   },
   "engines": {
