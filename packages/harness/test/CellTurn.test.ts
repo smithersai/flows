@@ -474,7 +474,7 @@ describe("CellTurn", () => {
   })
 
   it("declares no provider tools and forbids the provider from inventing one", async () => {
-    const { model } = await run({
+    const { events, model } = await run({
       script: [emits(`return { intent: "complete", output: "done" }`)]
     })
 
@@ -666,11 +666,16 @@ const crowded = ContextWindow.make({
 
 /** The check flow an audited completion cites, plus the run that may call it. */
 const check = descriptor("bash", { capabilities: ["proc:spawn:*"], tier: "irreversible" })
+const auditEditor = descriptor("edit", {
+  capabilities: ["fs:write:**"],
+  tier: "compensable",
+  writes: ["/**"]
+})
 
 const audited = (overrides: { readonly maxFrames?: number } = {}) =>
   state({
     auditCompletion: true,
-    envelope: ["proc:spawn:*"],
+    envelope: ["proc:spawn:*", "fs:write:**"],
     ...(overrides.maxFrames === undefined ? {} : { maxFrames: overrides.maxFrames })
   })
 
@@ -678,10 +683,11 @@ describe("CellTurn completion audit", () => {
   it("bounces the first completion, then re-runs the check the second declares", async () => {
     const { engine, events, model } = await run({
       state: audited(),
-      flows: [check],
+      flows: [check, auditEditor],
       script: [
         emits(
           `await ctx.call("bash", { command: "pytest -q" })
+           await ctx.call("edit", { path: "src/bug.py", text: "fixed" })
            return { intent: "complete", state: { done: 1 }, output: "implemented the fix" }`
         ),
         emits(
@@ -694,7 +700,8 @@ describe("CellTurn completion audit", () => {
         )
       ],
       calls: [
-        { _tag: "Success", value: { exitCode: 0, stdout: "2 passed" } },
+        { _tag: "Success", value: { exitCode: 1, stdout: "1 failed" } },
+        { _tag: "Success", value: { edited: true } },
         { _tag: "Success", value: { exitCode: 0, stdout: "2 passed" } }
       ]
     })
@@ -713,8 +720,8 @@ describe("CellTurn completion audit", () => {
     // The harness ran the declared check itself, at the boundary a cell call
     // uses, rather than believing the claim: two `bash` calls for one cell
     // call. The second is the controller's.
-    expect(engine.recorder.calls.map((call) => call.flowName)).toEqual(["bash", "bash"])
-    expect(engine.recorder.calls[1]?.input).toEqual({ command: "pytest -q" })
+    expect(engine.recorder.calls.map((call) => call.flowName)).toEqual(["bash", "edit", "bash"])
+    expect(engine.recorder.calls[2]?.input).toEqual({ command: "pytest -q" })
     expect(of(events, "completion-audited")[0]).toMatchObject({
       accepted: true,
       verification: { flow: "bash", input: { command: "pytest -q" } }
@@ -726,10 +733,11 @@ describe("CellTurn completion audit", () => {
   it("refuses a completion whose declared check does not pass", async () => {
     const { events, model } = await run({
       state: audited(),
-      flows: [check],
+      flows: [check, auditEditor],
       script: [
         emits(
           `await ctx.call("bash", { command: "pytest -q" })
+           await ctx.call("edit", { path: "src/bug.py", text: "broken" })
            return { intent: "complete", state: {}, output: "fixed it" }`
         ),
         emits(
@@ -744,7 +752,8 @@ describe("CellTurn completion audit", () => {
         emits(`return { intent: "continue", state: {}, context: [] }`)
       ],
       calls: [
-        { _tag: "Success", value: { exitCode: 0, stdout: "2 passed" } },
+        { _tag: "Success", value: { exitCode: 1, stdout: "1 failed" } },
+        { _tag: "Success", value: { edited: true } },
         { _tag: "Success", value: { exitCode: 1, stdout: "1 failed" } }
       ]
     })
@@ -757,6 +766,35 @@ describe("CellTurn completion audit", () => {
     // it was the frame budget, not the completion.
     expect(JSON.stringify(model.recorder.requests[2]?.messages)).toContain("Completion refused")
     expect(of(events, "resolved")[0]?.message.content[0]).toMatchObject({ text: expect.stringContaining("budget") })
+  })
+
+  it("refuses green evidence whose only failure happened after the first write", async () => {
+    const { events } = await run({
+      state: audited(),
+      flows: [check, auditEditor],
+      script: [
+        emits(
+          `await ctx.call("edit", { path: "src/bug.py", text: "bad edit" })
+           await ctx.call("bash", { command: "pytest -q" })
+           return { intent: "complete", state: {}, output: "fixed" }`
+        ),
+        emits(
+          `return {
+             intent: "complete", state: {}, output: "reverted until green",
+             verify: { flow: "bash", input: { command: "pytest -q" } }
+           }`
+        ),
+        emits(`return { intent: "continue", state: {}, context: [] }`),
+        emits(`return { intent: "continue", state: {}, context: [] }`)
+      ],
+      calls: [
+        { _tag: "Success", value: { edited: true } },
+        { _tag: "Success", value: { exitCode: 1, stdout: "undefined name" } }
+      ]
+    })
+
+    expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: false })
+    expect(of(events, "completion-audited")[0]?.detail).toContain("did not fail before the first write")
   })
 
   it("refuses a completion citing a call the run never made", async () => {
@@ -904,7 +942,7 @@ const successes = (count: number): ReadonlyArray<ScriptedEngine.CallStep> =>
 
 describe("CellTurn read-only cap", () => {
   it("demands a write or a justification once the cap is reached", async () => {
-    const { model } = await run({
+    const { events, model } = await run({
       state: capped(2, 5),
       flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] }), editor],
       script: readCells(5),
@@ -917,6 +955,12 @@ describe("CellTurn read-only cap", () => {
     const demanded = JSON.stringify(model.recorder.requests[2]?.messages)
     expect(demanded).toContain("Read-only discipline")
     expect(demanded).toContain("justification")
+    expect(of(events, "read-only-demanded")[0]).toMatchObject({
+      streak: 2,
+      cap: 2,
+      nextFrame: 2,
+      nextAction: "read-only"
+    })
   })
 
   it("clears the streak when a call declares a write", async () => {

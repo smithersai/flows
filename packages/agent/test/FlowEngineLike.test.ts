@@ -20,7 +20,7 @@ import * as ModelRequest from "@smthrs/model/ModelRequest"
 import * as Route from "@smthrs/model/Route"
 import { Node } from "@smthrs/plan"
 import * as PersistedPlan from "@smthrs/plan/Plan"
-import { Cause, Deferred, Effect, Exit, Layer, Option, Redacted, Result, Schema, Scope, Stream } from "effect"
+import { Cause, Deferred, Effect, Exit, Layer, Option, Redacted, Result, Schedule, Schema, Scope, Stream } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
 import * as FlowEngineLike from "../src/FlowEngineLike.ts"
@@ -324,13 +324,64 @@ describe("FlowEngineLike.make", () => {
       const engine = yield* FlowEngineLike.make({
         model,
         route: staticRoute(),
-        children: countingChildren([])
+        children: countingChildren([]),
+        modelRetryPolicy: Schedule.recurs(2)
       })
-      return yield* Stream.runCollect(engine.sealStep(step("hello")))
+      return Array.from(yield* Stream.runCollect(engine.sealStep(step("hello"))))
     }))
 
-    expect((completed(outcome) as ReadonlyArray<unknown>).length).toBe(3)
+    expect(completed(outcome)).toMatchObject([
+      { type: "retry", attempt: 1, code: "transport" },
+      { type: "text-start" },
+      { type: "text-delta" },
+      { type: "settle" }
+    ])
     expect(attempts).toBe(2)
+  })
+
+  it.each(["invalid_provider_output", "quota_exceeded"] as const)(
+    "does not retry terminal %s failures",
+    async (code) => {
+      let attempts = 0
+      const original = new ModelError({ code, message: `terminal ${code}` })
+      const outcome = await drive(Effect.gen(function*() {
+        const engine = yield* FlowEngineLike.make({
+          model: Model.make({
+            stream: () =>
+              Stream.suspend(() => {
+                attempts++
+                return Stream.fail(original)
+              })
+          }),
+          route: staticRoute(),
+          modelRetryPolicy: Schedule.recurs(2)
+        })
+        return yield* Stream.runCollect(engine.sealStep(step(code)))
+      }))
+      expect(failure(outcome)).toStrictEqual(original)
+      expect(attempts).toBe(1)
+    }
+  )
+
+  it("surfaces the original typed transport error after bounded retries are exhausted", async () => {
+    let attempts = 0
+    const original = new ModelError({ code: "transport", message: "destroyed HTTP/2 session" })
+    const outcome = await drive(Effect.gen(function*() {
+      const engine = yield* FlowEngineLike.make({
+        model: Model.make({
+          stream: () =>
+            Stream.suspend(() => {
+              attempts++
+              return Stream.fail(original)
+            })
+        }),
+        route: staticRoute(),
+        modelRetryPolicy: Schedule.recurs(2)
+      })
+      return yield* Stream.runCollect(engine.sealStep(step("exhausted")))
+    }))
+    expect(failure(outcome)).toStrictEqual(original)
+    expect(attempts).toBe(3)
   })
 
   it("surfaces an authentication failure without retrying or replacing it", async () => {

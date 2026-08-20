@@ -382,6 +382,8 @@ export const sandboxed = (
  */
 export interface Options {
   readonly model: Model.Model
+  /** Bounded model-boundary retry policy; injectable so tests and hosts control time. */
+  readonly modelRetryPolicy?: Schedule.Schedule<unknown, Model.ModelFailure> | undefined
   readonly route: RouteResolver
   readonly children?: ChildRunner | undefined
   readonly calls?: CallRunner | undefined
@@ -430,8 +432,11 @@ export interface Options {
   readonly capabilities?: Readonly<Record<string, ReadonlyArray<string>>> | undefined
 }
 
-/** The recorded outcome of one sealed model step. */
-const RecordedEvents = Schema.Array(ModelEvent.ModelEvent)
+/** The recorded outcome of one sealed model step, including a terminal typed model failure. */
+const RecordedStep = Schema.Struct({
+  events: Schema.Array(ModelEvent.ModelEvent),
+  error: Schema.optional(ModelError.ModelError)
+})
 
 /**
  * Every failure `Model.stream` may report, as one encodable schema. The engine
@@ -453,12 +458,11 @@ const RecordedEvents = Schema.Array(ModelEvent.ModelEvent)
  * one is pure latency. `context_overflow` in particular must reach the caller
  * unchanged: it is the typed signal compaction reads.
  */
-const retryableModelCodes: ReadonlySet<string> = new Set([
-  "rate_limited",
-  "provider_internal",
-  "transport",
-  "invalid_provider_output"
-])
+const retryableModelCodes: ReadonlySet<string> = new Set(["provider_internal", "transport"])
+
+/** The production transport retry budget: two retries, with a short reconnect backoff. */
+export const defaultModelRetryPolicy: Schedule.Schedule<unknown, Model.ModelFailure> = Schedule.exponential(1000, 2)
+  .pipe(Schedule.upTo({ times: 2 }))
 
 /**
  * Retries transient provider failures inside the sealed step.
@@ -472,18 +476,35 @@ const retryableModelCodes: ReadonlySet<string> = new Set([
  * precise and lets the original typed error surface unchanged when the
  * backoff gives up.
  */
-const withTransientRetry = <A, E, R>(
-  effect: Effect.Effect<A, E, R>
-): Effect.Effect<A, E, R> =>
-  Effect.retry(effect, {
-    while: (error: E) => error instanceof ModelError.ModelError && retryableModelCodes.has(error.code),
-    // A destroyed HTTP/2 session poisons immediate retries — the first three
-    // attempts of a 500 ms schedule all land on the same dead connection and
-    // a run died exactly that way. One second doubling five times spans ~30 s,
-    // enough for the pool to re-establish and for a rate-limit window to pass.
-    schedule: Schedule.jittered(Schedule.exponential(1000, 2)),
-    times: 5
-  })
+const recordModelStep = (
+  model: Model.Model,
+  request: ModelRequest.ModelRequest,
+  policy: Schedule.Schedule<unknown, Model.ModelFailure>
+): Effect.Effect<typeof RecordedStep.Type, Exclude<Model.ModelFailure, ModelError.ModelError>> => {
+  const retries: Array<ModelEvent.ModelEvent> = []
+  let attempt = 0
+  const schedule = policy.pipe(
+    Schedule.tap(({ input }) =>
+      Effect.sync(() => {
+        attempt++
+        if (input instanceof ModelError.ModelError) {
+          retries.push(ModelEvent.ModelEvent.Retry({ type: "retry", attempt, code: input.code }))
+        }
+      })
+    )
+  )
+  return Stream.runCollect(model.stream(request)).pipe(
+    Effect.retry({
+      schedule,
+      while: (error) => error instanceof ModelError.ModelError && retryableModelCodes.has(error.code)
+    }),
+    Effect.map((events) => ({ events: [...retries, ...events] })),
+    Effect.catchIf(
+      (error): error is ModelError.ModelError => error instanceof ModelError.ModelError,
+      (error) => Effect.succeed({ events: retries, error })
+    )
+  )
+}
 
 const ModelFailure = Schema.Union([
   ModelError.ModelError,
@@ -784,13 +805,18 @@ export const make = (
           const key = yield* seal(step, options.route)
           const recorded = yield* Action.make({
             name: sealStepActivityName,
-            success: RecordedEvents,
+            success: RecordedStep,
             error: ModelFailure,
             tier: "sealed",
             idempotencyKey: key,
-            execute: withTransientRetry(Stream.runCollect(options.model.stream(step.request)))
+            execute: recordModelStep(
+              options.model,
+              step.request,
+              options.modelRetryPolicy ?? defaultModelRetryPolicy
+            )
           })
-          return Stream.fromIterable(recorded)
+          const replay = Stream.fromIterable(recorded.events)
+          return recorded.error === undefined ? replay : Stream.concat(replay, Stream.fail(recorded.error))
         }).pipe(Effect.provide(context))
       )
 

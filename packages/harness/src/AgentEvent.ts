@@ -80,6 +80,15 @@ export class ModelDelta extends Schema.TaggedClass<ModelDelta>(
   delta: ModelEvent.ModelEvent
 }) {}
 
+/** A transport-only model retry taken before the sealed step settled. */
+export class ModelRetried extends Schema.TaggedClass<ModelRetried>(
+  "flows/harness/AgentEvent/ModelRetried"
+)("model-retried", {
+  eventType: Schema.Literal("flows.harness.model-retried.v1"),
+  attempt: Schema.Int,
+  code: Schema.String
+}) {}
+
 /**
  * The complete recorded model settlement and usage.
  *
@@ -208,6 +217,17 @@ export class CompletionAudited extends Schema.TaggedClass<CompletionAudited>(
   detail: Schema.String
 }) {}
 
+/** The outcome of the frame immediately following a read-cap intervention. */
+export class ReadOnlyDemanded extends Schema.TaggedClass<ReadOnlyDemanded>(
+  "flows/harness/AgentEvent/ReadOnlyDemanded"
+)("read-only-demanded", {
+  eventType: Schema.Literal("flows.harness.read-only-demanded.v1"),
+  streak: Schema.Int,
+  cap: Schema.Int,
+  nextFrame: Schema.Int,
+  nextAction: Schema.Literals(["write", "justification", "read-only"])
+}) {}
+
 /**
  * The durable reason a cell execution parked.
  *
@@ -319,6 +339,7 @@ export const AgentEvent = Schema.Union([
   DisciplineArmed,
   TurnOpened,
   ModelDelta,
+  ModelRetried,
   ModelSettled,
   CellProduced,
   CellCallStarted,
@@ -326,6 +347,7 @@ export const AgentEvent = Schema.Union([
   CellSettled,
   TransitionApplied,
   CompletionAudited,
+  ReadOnlyDemanded,
   Suspended,
   CompactionSettled,
   SteeringDrained,
