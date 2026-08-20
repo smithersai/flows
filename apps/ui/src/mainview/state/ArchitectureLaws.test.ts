@@ -68,9 +68,24 @@ describe("architecture laws", () => {
 		expect(offenders).toEqual([]);
 	});
 
+	test("no application file reaches the global transport by another name", () => {
+		/*
+		 * The bare-`fetch(` scan alone has a hole: `globalThis.fetch` is a
+		 * member expression, so it reads as a tapped transport and slips past.
+		 * The crash reporter went through that hole. Naming the global at all,
+		 * outside the seams, is the violation — whether it is called on the spot
+		 * or handed to something else that calls it.
+		 */
+		const offenders = applicationFiles()
+			.filter((file) => !file.startsWith("state/seams/"))
+			.filter((file) => /\b(?:globalThis|window|self)\s*\.\s*fetch\b/.test(read(file)));
+		expect(offenders).toEqual([]);
+	});
+
 	test("the seams directory is where the requests actually are", () => {
 		const seams = applicationFiles().filter((file) => file.startsWith("state/seams/"));
 		expect(seams.length).toBeGreaterThan(5);
 		expect(seams).toContain("state/seams/BootSessionSeam.ts");
+		expect(seams).toContain("state/seams/ClientErrorSeam.ts");
 	});
 });

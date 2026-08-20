@@ -24,6 +24,9 @@
  * helped by the report crashing too.
  */
 
+import type { ClientErrorPost } from "./seams/ClientErrorSeam";
+import { postClientError } from "./seams/ClientErrorSeam";
+
 /** The Worker route. Must equal `CLIENT_ERRORS_PATH` in apps/server/src/index.ts. */
 export const CLIENT_ERRORS_PATH = "/api/client-errors";
 
@@ -71,9 +74,10 @@ export interface ClientErrorReport {
 /*
  * Narrower than `typeof fetch` on purpose: the reporter only ever posts one
  * string path, and the wide type drags in the platform's extra statics
- * (`preconnect`), which no test double can satisfy.
+ * (`preconnect`), which no test double can satisfy. It is the seam's own type;
+ * this alias is kept because the option and its tests are named for it.
  */
-export type ClientErrorFetch = (input: string, init: RequestInit) => Promise<Response>;
+export type ClientErrorFetch = ClientErrorPost;
 
 export interface ClientErrorReporterOptions {
 	/** Injected for tests. Defaults to the global fetch. */
@@ -182,7 +186,8 @@ export const createClientErrorReporter = (
 			// triggers. The browser allows 64 KiB of keepalive bodies in flight
 			// at once, which is four reports at this cap, and a crashing page
 			// sends them one at a time.
-			const post = options?.fetchImpl ?? globalThis.fetch;
+			// The network law: the transport is the seam's, never the global here.
+			const post = options?.fetchImpl ?? postClientError;
 			const sending = post(CLIENT_ERRORS_PATH, {
 				method: "POST",
 				headers: { "content-type": "application/json" },
