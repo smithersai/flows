@@ -129,6 +129,13 @@ export interface RecordBoundary<A> {
  * left" or "this is not". `paths` is carried for the journal, so a reader can
  * tell an observation over 7,000 files from one over an empty root.
  *
+ * `complete` is the answer to the one question that makes "this is the tree I
+ * left" meaningful. A measurement that stopped at a bound covers a prefix of
+ * the workspace, and a prefix cannot say that the rest of it held still — a
+ * checkout larger than the host's bound would otherwise report every frame as
+ * idle, and the read-only cap would fail a run that had been editing the whole
+ * time. A host that does not narrow its own measurement leaves it `true`.
+ *
  * @category models
  * @since 0.1.0
  */
@@ -136,7 +143,12 @@ export class Observation extends Schema.Class<Observation>("flows/harness/Engine
   /** A content address of everything the measurement covered, taken together. */
   digest: Schema.String,
   /** How many paths the measurement covered. */
-  paths: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
+  paths: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  /** Whether the measurement covered the whole tree it was asked to measure. */
+  complete: Schema.Boolean.pipe(
+    Schema.withConstructorDefault(Effect.succeed(true)),
+    Schema.withDecodingDefaultKey(Effect.succeed(true))
+  )
 }) {}
 
 /**

@@ -156,9 +156,14 @@ const run = async (options: {
    * mutation existed expects.
    */
   readonly tree?: string
+  /**
+   * Whether the engine's walk covered the whole tree. False is the bounded
+   * measurement a checkout larger than the host's path bound produces.
+   */
+  readonly treeComplete?: boolean
 }): Promise<Run> => {
   const model = ScriptedModel.make(options.script)
-  const engine = ScriptedEngine.make(model.model, [], options.calls ?? [], options.tree)
+  const engine = ScriptedEngine.make(model.model, [], options.calls ?? [], options.tree, options.treeComplete)
   const events: Array<AgentEvent.AgentEvent> = []
   // Collected event-by-event so a run that ends in a park or a failure is still
   // observed through everything it published first.
@@ -1157,7 +1162,12 @@ describe("CellTurn observed mutation", () => {
   const shell = (
     cells: ReadonlyArray<string>,
     calls: ReadonlyArray<ScriptedEngine.CallStep>,
-    overrides: { readonly cap?: number; readonly tree?: string; readonly maxFrames?: number } = {}
+    overrides: {
+      readonly cap?: number
+      readonly tree?: string
+      readonly treeComplete?: boolean
+      readonly maxFrames?: number
+    } = {}
   ) =>
     run({
       state: state({
@@ -1168,7 +1178,8 @@ describe("CellTurn observed mutation", () => {
       flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] }), check, editor],
       script: cells.map(emits),
       calls,
-      tree: overrides.tree ?? "src/_pytest/python.py=fixed"
+      tree: overrides.tree ?? "src/_pytest/python.py=fixed",
+      ...(overrides.treeComplete === undefined ? {} : { treeComplete: overrides.treeComplete })
     })
 
   it("counts a shell redirect as a mutation and resets the read-only streak", async () => {
@@ -1231,25 +1242,67 @@ describe("CellTurn observed mutation", () => {
     expect(JSON.stringify(model.recorder.requests[2]?.messages)).toContain("Read-only discipline")
   })
 
-  it("stops a run whose declared writes never reach the tree", async () => {
-    // The failure the measured basis exists to catch from the other side: the
-    // calls all declare writes, so the old accounting would have called every
-    // frame productive, and the workspace never moves.
-    const declaring = `await ctx.call("edit", { path: "a.py", text: "same" })
+  const declaring = `await ctx.call("edit", { path: "a.py", text: "same" })
        return { intent: "continue", state: {}, context: [] }`
+
+  it("keeps a declared write the measurement never saw, rather than failing the run", async () => {
+    // The measurement is rooted at one path, prunes directories, and stops at
+    // a path bound. Every edit outside what it covers looks, to the digest,
+    // exactly like an idle frame — and this repository is already past the
+    // bound, so its own first 50,000 paths are `.claude` and `.smithers` and
+    // nothing under `packages/`. If the measurement could overrule a
+    // declaration, a run editing files the whole time would be stopped as
+    // `read_only_cap` at twice its cap. It cannot: a measurement adds
+    // mutations and never removes one.
     const { events, failure } = await shell(
       [declaring, declaring, declaring, declaring, declaring],
       Array.from({ length: 5 }, () => ({ _tag: "Success", value: null }) as const),
-      { cap: 2, tree: "a.py=same" }
+      { cap: 2, tree: "a.py=same", maxFrames: 5 }
     )
 
     const observed = of(events, "mutation-observed")
-    expect(observed.map((event) => event.declaredWrites)).toEqual([1, 1, 1, 1])
-    expect(observed.map((event) => event.mutated)).toEqual([false, false, false, false])
-    expect(failure).toMatchObject({
-      code: "read_only_cap",
-      message: expect.stringContaining("4 consecutive frames")
-    })
+    expect(observed.map((event) => event.declaredWrites)).toEqual([1, 1, 1, 1, 1])
+    expect(observed.map((event) => event.mutated)).toEqual([true, true, true, true, true])
+    // The basis still reports that a full measurement was available, so the
+    // gap between `declaredWrites: 1` and a digest that never moved is legible
+    // to a reader without being acted on.
+    expect(observed.every((event) => event.basis === "observed")).toBe(true)
+    expect(of(events, "read-only-demanded")).toEqual([])
+    expect(failure).toBeUndefined()
+  })
+
+  it("sets aside a measurement that stopped at its path bound", async () => {
+    const { events, failure } = await shell(
+      [declaring, declaring, declaring, declaring, declaring],
+      Array.from({ length: 5 }, () => ({ _tag: "Success", value: null }) as const),
+      { cap: 2, tree: "prefix-of-the-tree", treeComplete: false, maxFrames: 5 }
+    )
+
+    // A bounded walk covers a prefix chosen by sort order. It is journaled as
+    // `partial` and decides nothing: the prefix holding still says nothing
+    // about the files being edited outside it, and the prefix moving is as
+    // likely to be a tool's own churn.
+    expect(of(events, "mutation-observed").every((event) => event.basis === "partial")).toBe(true)
+    expect(of(events, "mutation-observed").map((event) => event.mutated)).toEqual([true, true, true, true, true])
+    expect(failure).toBeUndefined()
+  })
+
+  it("still demands a run that neither declares nor measures a change under a bounded walk", async () => {
+    const { events, model } = await shell(
+      [reading, reading, reading],
+      [
+        { _tag: "Success", value: { exitCode: 0, stdout: "" } },
+        // The prefix moves. It is not the workspace, so it decides nothing and
+        // the streak runs through the frame that moved it.
+        { _tag: "Success", value: { exitCode: 0, stdout: "" }, tree: "prefix-churned" },
+        { _tag: "Success", value: { exitCode: 0, stdout: "" } }
+      ],
+      { cap: 2, tree: "prefix-of-the-tree", treeComplete: false }
+    )
+
+    expect(of(events, "mutation-observed").map((event) => event.mutated)).toEqual([false, false, false])
+    expect(of(events, "read-only-demanded")[0]).toMatchObject({ streak: 2, cap: 2, nextAction: "read-only" })
+    expect(JSON.stringify(model.recorder.requests[2]?.messages)).toContain("Read-only discipline")
   })
 
   it("falls back to declared writes, and says so, when the host measures nothing", async () => {

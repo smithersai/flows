@@ -131,10 +131,14 @@ export class State extends Schema.Class<State>("flows/harness/CellTurn/State")({
   /**
    * Frames settled since the last frame that changed the workspace.
    *
-   * Changed-ness is measured, not declared: the controller compares the
+   * Changed-ness is measured as well as declared: the controller compares the
    * observation the previous frame closed on ({@link State.workspace}) against
    * the one this frame closes on, and a difference is a mutation whoever
-   * performed it.
+   * performed it. The measurement is what a frame's calls cannot say; it is
+   * never what overrules them. A frame is read-only when nothing declared a
+   * write *and* no complete measurement saw one, because a measurement is
+   * rooted, pruned and bounded, and the paths it does not cover are not
+   * evidence that a run stopped working.
    *
    * It used to count frames since the last call that *declared* a write, and
    * the difference is not academic. `bash` declares no write set at all — its
@@ -149,9 +153,11 @@ export class State extends Schema.Class<State>("flows/harness/CellTurn/State")({
    *
    * Declared writes are still what the capability envelope is enforced
    * against, still what decides whether the truncated-write refusal applies to
-   * a call, and still journaled beside the measured answer as
-   * `declaredWrites`. This is accounting, not permission. A host that measures
-   * nothing keeps the old rule, and `MutationObserved.basis` says so.
+   * a call, still enough on their own to clear this counter, and still
+   * journaled beside the measured answer as `declaredWrites`. This is
+   * accounting, not permission. A host that measures nothing, or measures only
+   * a prefix of its tree, keeps the old rule, and `MutationObserved.basis`
+   * says which.
    */
   readOnlyFrames: NonNegativeSafeInt.pipe(
     Schema.withConstructorDefault(Effect.succeed(0)),
@@ -546,6 +552,12 @@ const readOnlyDemand = (cap: number, frames: number): string =>
  * try". On the SWE-bench sphinx instance a run parked at frame 3 with 97
  * frames unspent, asking about a definition `grep` finds in the workspace it
  * was already holding.
+ *
+ * The frame it is answered in is an ordinary frame in every other respect,
+ * read-only discipline included. Exempting it would hand a stalled run a way
+ * out of the only control that ends a stall: a cell that parks every frame
+ * would change nothing, be demanded nothing, and spend the whole frame budget
+ * and the whole wall clock asking questions nobody is listening to.
  */
 const parkRefusal = (
   message: string,
@@ -1025,20 +1037,24 @@ const frame = (
     // The frame's own record of what it did to the world, computed once and
     // carried out through every exit.
     //
-    // `declaredWrites` is what the frame's calls said about themselves;
-    // `mutated` is what the workspace says. They are journaled together and
-    // only the second one drives discipline, because the first cannot see a
-    // shell redirect and the whole point of the measurement is that a run
-    // cannot be counted as idle while it is rewriting tracked files.
+    // `declaredWrites` is what the frame's calls said about themselves and the
+    // measurement is what the workspace says. The frame changed something when
+    // *either* says so, and never only when the measurement does: a
+    // measurement can add a mutation nothing declared — the shell redirect
+    // this exists for — but it may not take a declared one away. It does not
+    // cover the whole world. It stops at a bound, it prunes directories, and
+    // it is rooted at one path; a declared write outside what it covers would
+    // otherwise read as an idle frame, and twice the cap later the run fails
+    // as `read_only_cap` having edited files the whole time. Killing a working
+    // run on the absence of evidence is the worse error of the two.
     const declaredWrites = observedCalls.filter((call) => call.mutates).length
     const measured = Option.isSome(opened) && Option.isSome(closed)
-    const mutated = measured
-      ? opened.value.digest !== closed.value.digest
-      : declaredWrites > 0
+    const covered = measured && opened.value.complete && closed.value.complete
+    const mutated = declaredWrites > 0 || (covered && opened.value.digest !== closed.value.digest)
     yield* emit(
       new AgentEvent.MutationObserved({
         eventType: eventType.mutationObserved,
-        basis: measured ? "observed" : "declared",
+        basis: covered ? "observed" : measured ? "partial" : "declared",
         mutated,
         digest: Option.match(closed, { onNone: () => "", onSome: (value) => value.digest }),
         paths: Option.match(closed, { onNone: () => 0, onSome: (value) => value.paths }),
@@ -1123,6 +1139,16 @@ const frame = (
       // `transition-applied` carrying a `park` and `turn-closed` carrying
       // `continue` occurs for no other reason.
       if (!state.approvalChannel) {
+        // A refused park continues the run, so its frame is judged like every
+        // other continuing frame. Waiting was the exemption and there is no
+        // waiting here: a cell that parks every frame changes nothing, and
+        // without this it would be the one shape a stalled run can take that
+        // the read-only cap never sees.
+        const parkCap = state.readOnlyCap
+        const parkFrames = mutated ? 0 : state.readOnlyFrames + 1
+        if (parkCap > 0 && parkFrames >= parkCap * 2) {
+          return yield* readOnlyCapFailure(parkCap, parkFrames)
+        }
         const limits = Sandbox.withDefaults(sandbox.capabilities, input.limits)
         const step = observe(
           parkRefusal(
@@ -1134,7 +1160,8 @@ const frame = (
             agentState: transition.state,
             pendingReadOnlyDemand: undefined,
             workspace: closed,
-            ...(mutated ? { readOnlyFrames: 0, readOnlyGrace: 0 } : {})
+            readOnlyFrames: parkFrames,
+            ...(mutated ? { readOnlyGrace: 0 } : {})
           }
         )
         yield* emit(
@@ -1171,10 +1198,9 @@ const frame = (
     }
 
     // Read-only discipline, applied to every frame that settled a decision.
-    // A park is exempt, honored or refused: waiting is not evasion, a parked
-    // run is not reporting anything as done, and a refused park has already
-    // been told what it still has to spend. The frame budget bounds a run that
-    // does nothing but ask.
+    // An honored park is exempt: waiting is not evasion, and a parked run is
+    // not reporting anything as done. A refused park is not exempt — it
+    // continues the run — and the branch above applies the same rule to it.
     const cap = state.readOnlyCap
     const readOnly = !mutated
     const readOnlyFrames = readOnly ? state.readOnlyFrames + 1 : 0

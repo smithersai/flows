@@ -30,6 +30,11 @@
  *   and a background process the run spawned can remove one in between. Such a
  *   path is left out of the measurement rather than failing it: the tree moved,
  *   and the next measurement will say so.
+ * - **A partial walk says so.** The walk stops at {@link Options.maxPaths}, and
+ *   a measurement that stopped there covers a prefix. It reports
+ *   `complete: false`, and the controller then decides changed-ness from what
+ *   the frame's calls declared rather than from a prefix that may never have
+ *   looked at the files being edited.
  *
  * @since 0.1.0
  */
@@ -110,11 +115,17 @@ export interface Options {
   /**
    * The largest number of files one measurement will cover.
    *
-   * A bound rather than a budget: a tree past it is measured up to the bound
-   * and reported as measured, which is honest — the digest still moves when
-   * anything inside the covered prefix moves — and it keeps one pathological
-   * checkout from turning every frame into a full-disk walk. The walk is
-   * ordered, so the prefix is stable between frames.
+   * A bound rather than a budget: it keeps one pathological checkout from
+   * turning every frame into a full-disk walk. A walk that stops there covers
+   * a prefix chosen by nothing but sort order, so it reports
+   * `complete: false` and the controller sets it aside rather than reading it
+   * as the workspace's answer. Both of its answers would be wrong: the prefix
+   * holding still says nothing about the files the run is editing outside it,
+   * and the prefix moving is as likely to be a tool's own churn as work. This
+   * repository is the case — pruned, it is 279,440 paths, and the first 50,000
+   * end inside `.smithers`, so a measurement that called itself whole would
+   * report every edit under `packages/` as an idle frame and every frame at all
+   * as a mutation.
    */
   readonly maxPaths?: number | undefined
 }
@@ -171,6 +182,11 @@ export const observe = (
     const suffixes = options.ignoreSuffixes ?? defaultIgnoreSuffixes
     const maxPaths = options.maxPaths ?? defaultMaxPaths
     const lines: Array<string> = []
+    // Set the moment the walk turns back at the bound with entries still to
+    // visit, which is what makes `complete` false. A walk that ends because it
+    // ran out of tree and a walk that ends because it ran out of budget are
+    // different answers, and only the first is the workspace's.
+    let bounded = false
     const walk = (directory: string): Effect.Effect<void> =>
       Effect.gen(function*() {
         // A directory that cannot be listed contributes nothing. It is either
@@ -179,7 +195,10 @@ export const observe = (
         // would fix.
         const entries = yield* fs.readDirectory(directory).pipe(Effect.orElseSucceed(() => []))
         for (const name of [...entries].sort()) {
-          if (lines.length >= maxPaths) return
+          if (lines.length >= maxPaths) {
+            bounded = true
+            return
+          }
           if (prune.has(name) || ignored(name, suffixes)) continue
           const path = `${directory}/${name}`
           const info = yield* fs.stat(path).pipe(Effect.asSome, Effect.orElseSucceed(() => Option.none()))
@@ -198,7 +217,11 @@ export const observe = (
         }
       })
     yield* walk(root.replaceAll(/\/+$/g, ""))
-    return new EngineLike.Observation({ digest: Digest.digest(lines.join("\n")), paths: lines.length })
+    return new EngineLike.Observation({
+      digest: Digest.digest(lines.join("\n")),
+      paths: lines.length,
+      complete: !bounded
+    })
   })
 
 /**

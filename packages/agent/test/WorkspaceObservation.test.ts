@@ -92,7 +92,7 @@ describe("WorkspaceObservation", () => {
     rmSync(root, { recursive: true, force: true })
   })
 
-  it("stops at the path bound and still reports a usable measurement", async () => {
+  it("stops at the path bound and reports the measurement as partial", async () => {
     const root = workspace()
     write(root, "a.py", "one")
     write(root, "b.py", "two")
@@ -100,10 +100,25 @@ describe("WorkspaceObservation", () => {
 
     const bounded = await measured(root, { maxPaths: 2 })
     expect(bounded.paths).toBe(2)
-    // The walk is ordered, so the covered prefix is the same between frames and
-    // a change inside it still moves the digest.
+    // A prefix chosen by sort order is not the workspace. Saying so is what
+    // keeps the controller from reading `c.py` holding still — or the whole
+    // rest of a large checkout — as a run that stopped working. This
+    // repository is already past the shipped bound.
+    expect(bounded.complete).toBe(false)
     write(root, "a.py", "one, edited")
     expect((await measured(root, { maxPaths: 2 })).digest).not.toBe(bounded.digest)
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it("reports a walk that covered everything as complete, bound or no bound", async () => {
+    const root = workspace()
+    write(root, "a.py", "one")
+    write(root, "b.py", "two")
+
+    // Exactly at the bound with nothing left to visit is a whole measurement:
+    // the walk never turned back.
+    expect((await measured(root, { maxPaths: 2 })).complete).toBe(true)
+    expect((await measured(root)).complete).toBe(true)
     rmSync(root, { recursive: true, force: true })
   })
 
@@ -112,7 +127,9 @@ describe("WorkspaceObservation", () => {
     write(root, "a/one.py", "one")
     write(root, "b/two.py", "two")
 
-    expect((await measured(root, { maxPaths: 1 })).paths).toBe(1)
+    const bounded = await measured(root, { maxPaths: 1 })
+    expect(bounded.paths).toBe(1)
+    expect(bounded.complete).toBe(false)
     rmSync(root, { recursive: true, force: true })
   })
 

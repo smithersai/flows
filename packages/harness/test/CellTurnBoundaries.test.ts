@@ -935,6 +935,51 @@ describe("CellTurn park without a human", () => {
     expect(messagesOf(model, 1)).not.toContain("Read-only discipline")
   })
 
+  it("counts the refused frame against the read-only cap and stops a run that only asks", async () => {
+    const { events, failure, model } = await run({
+      state: state({ readOnlyCap: 1, maxFrames: 40 }),
+      flows: [lister],
+      script: [
+        parking("which branch?"),
+        parking("which branch, really?"),
+        parking("please, which branch?"),
+        emits(`return { intent: "complete", output: "never reached" }`)
+      ]
+    })
+
+    // A refused park continues the run, so it is not the exemption an honored
+    // park is. Without this the one shape a stalled run can take that the cap
+    // never sees is "park every frame": nothing changes, nothing is demanded,
+    // and the run spends all 40 frames and its whole wall clock asking a
+    // question nobody is listening to. Twice a cap of one is two.
+    expect(failure).toMatchObject({ code: "read_only_cap" })
+    expect(of(events, "suspended")).toHaveLength(0)
+    expect(model.recorder.requests).toHaveLength(2)
+    expect(of(events, "transition-applied")).toHaveLength(2)
+  })
+
+  it("restarts the streak from a refused frame that changed something", async () => {
+    const { events, failure } = await run({
+      state: state({ readOnlyCap: 2, maxFrames: 8, envelope: ["fs:read:**", "fs:write:**"] }),
+      flows: [lister, descriptor("edit", { capabilities: ["fs:write:**"], writes: ["/**"] })],
+      script: [
+        parking("which branch?"),
+        emits(
+          `await ctx.call("edit", { path: "a.py", text: "fixed" })
+           return { intent: "park", state: {}, reason: "waiting-input", message: "is this right?" }`
+        ),
+        parking("and now?"),
+        emits(`return { intent: "complete", output: "settled it myself" }`)
+      ],
+      calls: [{ _tag: "Success", value: { edited: true } }]
+    })
+
+    // The middle frame edited before it asked, so the streak restarts there and
+    // the run reaches the fourth cell instead of stopping at twice the cap.
+    expect(failure).toBeUndefined()
+    expect(resolvedText(events)).toBe("settled it myself")
+  })
+
   it("honors the identical park when a human can answer it", async () => {
     const { events, failure } = await run({
       state: state({ maxFrames: 3, approvalChannel: true }),

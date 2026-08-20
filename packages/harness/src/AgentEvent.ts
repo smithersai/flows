@@ -241,11 +241,21 @@ export class ReadOnlyDemanded extends Schema.TaggedClass<ReadOnlyDemanded>(
  * before any control acts on it, so a run that never trips the cap still leaves
  * the evidence behind.
  *
- * `basis` is the field that keeps the record honest. `observed` means the two
- * measurements around the frame disagreed (or agreed), and `mutated` is a fact
- * about the tree. `declared` means the host measured nothing and `mutated` is
- * only what the frame's calls claimed about themselves — which is exactly the
- * signal that missed a shell redirect over a tracked source file.
+ * `basis` is the field that keeps the record honest. `observed` means the frame
+ * had two measurements around it that each covered the whole workspace, so the
+ * tree itself could answer. `partial` means a measurement was taken and stopped
+ * at a bound before it covered the tree, so it is set aside: a prefix chosen by
+ * sort order cannot say the files being edited outside it held still, and its
+ * own movement is as likely to be a tool's churn as work. `declared` means the
+ * host measured nothing at all.
+ * Under the last two, `mutated` is only what the frame's calls claimed about
+ * themselves — which is exactly the signal that missed a shell redirect over a
+ * tracked source file.
+ *
+ * `mutated` is the union of the two signals and never the measurement alone: a
+ * declared write stands even where the measurement cannot see the path it
+ * touched, because the alternative is failing a run that has been editing all
+ * along on the strength of a walk that never looked at its files.
  *
  * @category events
  * @since 0.1.0
@@ -254,9 +264,9 @@ export class MutationObserved extends Schema.TaggedClass<MutationObserved>(
   "flows/harness/AgentEvent/MutationObserved"
 )("mutation-observed", {
   eventType: Schema.Literal("flows.harness.mutation-observed.v1"),
-  /** Where `mutated` came from: the workspace, or the frame's own paperwork. */
-  basis: Schema.Literals(["observed", "declared"]),
-  /** Whether this frame left the workspace different from how it found it. */
+  /** What the frame had to decide with: a full measurement, a partial one, or paperwork. */
+  basis: Schema.Literals(["observed", "partial", "declared"]),
+  /** Whether this frame changed anything: the tree said so, or a call declared it. */
   mutated: Schema.Boolean,
   /** Content address of the workspace as the frame left it; empty when unobserved. */
   digest: Schema.String,

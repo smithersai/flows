@@ -82,8 +82,11 @@ export interface Fixture {
    * `undefined` is a host that cannot measure its tree at all, which is what
    * an engine constructed without an initial tree reports — so every case
    * written before observation existed keeps the declared-writes basis.
+   *
+   * `complete` is a host whose walk covered the whole tree. False is the
+   * bounded walk a large checkout produces, which the controller sets aside.
    */
-  readonly workspace: { value: string | undefined }
+  readonly workspace: { value: string | undefined; complete: boolean }
 }
 
 /**
@@ -97,9 +100,10 @@ export const make = (
   model: Model.Model,
   spliceScript: ReadonlyArray<SpliceStep> = [],
   callScript: ReadonlyArray<CallStep> = [],
-  tree?: string
+  tree?: string,
+  treeComplete = true
 ): Fixture => {
-  const workspace: { value: string | undefined } = { value: tree }
+  const workspace: { value: string | undefined; complete: boolean } = { value: tree, complete: treeComplete }
   const recorder: Recorder = {
     sealStep: [],
     splice: [],
@@ -185,7 +189,9 @@ export const make = (
       Effect.succeed(
         workspace.value === undefined
           ? Option.none()
-          : Option.some(new EngineLike.Observation({ digest: workspace.value, paths: 1 }))
+          : Option.some(
+            new EngineLike.Observation({ digest: workspace.value, paths: 1, complete: workspace.complete })
+          )
       )
     ),
     suspend: (reason) => {

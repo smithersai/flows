@@ -260,6 +260,26 @@ const scenarios: Readonly<Record<string, Scenario>> = {
     expected: answered("settled it myself", 2, ["probe:settled-it-myself"])
   },
 
+  "park-every-frame-still-hits-the-read-only-cap": {
+    summary:
+      "A run that answers every refused park with another park is stopped at twice its read-only cap, not left to spend the whole frame budget asking.",
+    run: () => {
+      const recorder = Subject.makeRecorder()
+      return Subject.runAgent({
+        recorder,
+        // A refused park continues the run, so the frame is judged like any
+        // other frame that changed nothing. Exempting it would leave one shape
+        // of stall — ask, be refused, ask again — outside the only control
+        // that ends one, and the run would spend all forty frames on it.
+        respond: () => `return { intent: "park", state: {}, reason: "waiting-input", message: "which branch?" }`,
+        maxFrames: 40,
+        readOnlyCap: 1,
+        flows: [Subject.probeSource(recorder)]
+      })
+    },
+    expected: failed("/harness/HarnessError", 2)
+  },
+
   "max-frames-stops-the-run": {
     summary: "A run that never completes stops at its frame budget and reports a typed harness failure.",
     run: () => {
