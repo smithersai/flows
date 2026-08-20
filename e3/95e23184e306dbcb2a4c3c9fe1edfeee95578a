@@ -53,7 +53,8 @@
  "size": {
   "files": 1,
   "added": 2303,
-  "deleted": 0
+  "deleted": 0,
+  "justification": "Single new test file: apps/server/src/index.test.ts validates the server surface shipped in this epic; tests are included with the implementation they validate and the file is indivisible without breaking test validity."
  },
  "provenance": {
   "strategy": "whole-file introduction from the epic source tree",
