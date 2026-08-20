@@ -558,18 +558,25 @@ export const createChainRuntime = (options: ChainRuntimeOptions): NativeAgent =>
 				return;
 			}
 			const cause = String(settled.cause ?? "unknown cause");
+			/*
+			 * The product's one sentence per failure shape, whatever backend
+			 * produced it (§3.9, §14.1) — honesty copy does not fork per wire.
+			 * "aborted" is the author stream dying mid-flight: EOF with no
+			 * terminal frame, the client-side signature of a dropped wire. An
+			 * upstream that spoke a human sentence keeps its own words; the raw
+			 * Cause chain is wire debris and never reaches the transcript.
+			 */
+			const upstreamSentence = /ModelError: [a-z_]+: (.*?)(?= \(cause:| \[|\)\]|$)/.exec(cause)?.[1];
 			emit({
 				runId: request.runId,
 				type: "done",
-				// The product's one sentence per failure shape, whatever backend
-				// produced it (§3.9, §14.1) — honesty copy does not fork per wire.
-				// "aborted" is the author stream dying mid-flight: EOF with no
-				// terminal frame, the client-side signature of a dropped wire.
 				error: cause.includes("no visible text")
 					? "Smithers Cloud returned an empty response."
 					: cause.includes('stopReason "aborted"')
 						? "The response stream ended before Smithers finished the turn."
-						: `The chain failed: ${cause}`,
+						: upstreamSentence !== undefined && upstreamSentence.trim() !== ""
+							? upstreamSentence.trim()
+							: `The chain failed: ${cause}`,
 			});
 		});
 		return { status: "started" } as const;

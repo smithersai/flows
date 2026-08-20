@@ -42,7 +42,7 @@ import type { ProbePage } from "../../src/launch-checklist/Types.ts";
 import { createAppController, type AppController } from "../../src/mainview/state/AppController.ts";
 import { createAppStore, type AppStore } from "../../src/mainview/state/AppStore.ts";
 import type { Message } from "../../src/mainview/state/AppState.ts";
-import { createWebAgent } from "../../src/mainview/native/WebAgent.ts";
+import { createAgentSeat, createChainRuntime } from "../../src/mainview/chain/ChainRuntime.ts";
 import {
 	PERSISTED_KEY_PREFIX,
 	PERSISTENCE_BACKEND_STORAGE_KEY,
@@ -120,19 +120,40 @@ const CLICK_RETRY = `(() => {
  * so the transcript stops growing while the session stays "responding" — the
  * restore rows can then read a stable partial instead of racing the stream.
  */
-const MID_TURN_SCRIPT = {
-	gapMs: 250,
-	frames: [
-		{ type: "delta", kind: "text", text: "chunk 0 " },
-		{ type: "delta", kind: "text", text: "chunk 1 " },
-		...Array.from({ length: 240 }, (_unused, index) => ({
+/*
+ * A turn caught MID-FLIGHT, on the chain wire: link 1 says the partial the
+ * reload must restore and asks for its successor; the successor's author
+ * stream then idles on keepalive frames for a minute, holding the turn open
+ * with the partial on screen and the session persisted as responding.
+ */
+const MID_TURN_SCRIPT = [
+	{
+		raw: true,
+		frames: [
+			{
+				type: "delta",
+				kind: "text",
+				text: [
+					"```flow",
+					'await ctx.call("say", { text: "chunk 0 chunk 1 " })',
+					'return to(await ctx.call("author", { context: ["continue"] }))',
+					"```",
+				].join("\n"),
+			},
+			{ type: "done", reason: "stop" },
+		],
+	},
+	{
+		raw: true,
+		gapMs: 250,
+		frames: Array.from({ length: 240 }, (_unused, index) => ({
 			type: "call.started",
 			link: 0,
 			ordinal: index,
 			name: "sys/e2e-keepalive",
 		})),
-	],
-};
+	},
+];
 
 const ordered = (store: AppStore): ReadonlyArray<Message> =>
 	[...store.collections.messages.values()].sort((left, right) => left.ordinal - right.ordinal);
@@ -162,9 +183,6 @@ const forwardedRunId = (request: ChatRequest | undefined): string =>
  * an assertion keyed on "the first one" would break on traffic that is not this
  * assertion's.
  */
-const turnFor = (requests: ReadonlyArray<ChatRequest>, runId: string): ChatRequest | undefined =>
-	requests.find((request) => forwardedRunId(request) === runId);
-
 /** Every turn the double saw, for a failure that explains itself. */
 const describeTurns = (requests: ReadonlyArray<ChatRequest>): string =>
 	requests.map((request) => `${forwardedRunId(request)}=${lastUserContent(request)}`).join(" | ") || "none";
@@ -341,12 +359,27 @@ export default defineSuite({
 		// the upstream error stops reaching statusDetail, or when a dead turn
 		// leaves the composer stuck in "responding".
 		stack.chat.reset();
-		stack.chat.script({
-			frames: [
-				{ type: "delta", kind: "text", text: WARM_PARTIAL },
-				{ type: "done", error: PROVIDER_ERROR },
-			],
-		});
+		stack.chat.script([
+			// Chain staging: the partial exists once say() landed; the successor
+			// link's author call is the one the provider kills.
+			{
+				raw: true,
+				frames: [
+					{
+						type: "delta",
+						kind: "text",
+						text: [
+							"```flow",
+							`await ctx.call("say", { text: ${JSON.stringify(WARM_PARTIAL)} })`,
+							'return to(await ctx.call("author", { context: ["continue"] }))',
+							"```",
+						].join("\n"),
+					},
+					{ type: "done", reason: "stop" },
+				],
+			},
+			{ raw: true, frames: [{ type: "done", error: PROVIDER_ERROR }] },
+		]);
 		const warm = await openClient({ origin, cookie });
 		await warm.controller.loadSession();
 		warm.controller.runCommandArgs("send", PROMPT);
@@ -360,9 +393,14 @@ export default defineSuite({
 		report.equals(warmBubble?.status, "failed", "the failed turn's status");
 		report.equals(warmBubble?.statusDetail, PROVIDER_ERROR, "the failed turn's stated detail");
 		report.equals(warm.store.session().phase, "idle", "the phase a failed turn leaves behind");
+		/*
+		 * The relay mints the upstream run id itself (anti-replay: a caller who
+		 * could choose it could replay a receipt), so the client's turn id never
+		 * reaches the wire — the PROMPT is what proves this turn was forwarded.
+		 */
 		report.check(
-			turnFor(stack.chat.requests(), warmTurnId) !== undefined,
-			`the Worker never forwarded the turn the bubble is keyed by (${warmTurnId}); it forwarded ${describeTurns(stack.chat.requests())}`,
+			stack.chat.requests().some((request) => lastUserContent(request).includes(PROMPT)),
+			`the Worker never forwarded the turn the bubble is keyed by; it forwarded ${describeTurns(stack.chat.requests())}`,
 		);
 		report.ok(
 			"E3.9 — a turn that fails mid-stream keeps its partial text, reports status failed with the upstream's own sentence, and returns the composer to idle.",
@@ -434,7 +472,7 @@ export default defineSuite({
 		);
 		const failedTurnId = lastTurnId(retry.store, report);
 		report.check(
-			turnFor(stack.chat.requests(), failedTurnId) !== undefined,
+			stack.chat.requests().some((request) => lastUserContent(request).includes(PROMPT)),
 			`the turn to be retried never reached the upstream; it forwarded ${describeTurns(stack.chat.requests())}`,
 		);
 		const postsBeforeRetry = stack.chat.requests().length;
@@ -444,12 +482,13 @@ export default defineSuite({
 			() => stack.chat.requests().length > postsBeforeRetry,
 		);
 		const second = stack.chat.requests()[postsBeforeRetry];
-		report.equals(lastUserContent(second), PROMPT, "the prompt the retry resubmitted");
-		report.equals(
-			forwardedRunId(second),
-			failedTurnId,
-			"the retry re-runs the failed turn, so it carries that turn's id",
-		);
+		/*
+		 * The relay mints its own upstream run id, so "the retry re-runs the
+		 * SAME turn" is proven where it is true: the prompt rides again, and the
+		 * failed turn's own bubble (same turn id) is the one that completes
+		 * below — never a second user bubble.
+		 */
+		report.includes(lastUserContent(second) ?? "", PROMPT, "the prompt the retry resubmitted");
 		// Checklist 4.6: the same question is not asked twice in the transcript.
 		report.equals(
 			ordered(retry.store).filter((message) => message.role === "user" && message.text === PROMPT).length,
@@ -479,7 +518,40 @@ export default defineSuite({
 		// clearing text, if the detail sentence changes, if the phase stays
 		// responding, or if frames keep landing after the kill.
 		stack.chat.reset();
-		stack.chat.slow();
+		/*
+		 * Chain staging: the words the user can lose exist once say() landed, so
+		 * link 1 says the prefix and asks for a successor whose author stream is
+		 * the slow one the kill interrupts.
+		 */
+		stack.chat.script([
+			{
+				raw: true,
+				frames: [
+					{
+						type: "delta",
+						kind: "text",
+						text: [
+							"```flow",
+							`await ctx.call("say", { text: ${JSON.stringify(
+								Array.from({ length: 8 }, (_unused, index) => `chunk ${index} `).join(""),
+							)} })`,
+							'return to(await ctx.call("author", { context: ["continue"] }))',
+							"```",
+						].join("\n"),
+					},
+					{ type: "done", reason: "stop" },
+				],
+			},
+			{
+				raw: true,
+				gapMs: 250,
+				frames: Array.from({ length: 32 }, (_unused, index) => ({
+					type: "delta",
+					kind: "text",
+					text: `slow successor chunk ${index} `,
+				})),
+			},
+		]);
 		const stopped = await openClient({ origin, cookie });
 		await stopped.controller.loadSession();
 		stopped.controller.runCommandArgs("send", SLOW_PROMPT);
@@ -723,12 +795,25 @@ export default defineSuite({
 			// partial, with a retry beside it.
 			stack.chat.reset();
 			stack.chat.script([
+				// Chain staging, as in the store half: the partial exists once
+				// say() landed; the successor's author call is the one that dies.
 				{
+					raw: true,
 					frames: [
-						{ type: "delta", kind: "text", text: WARM_PARTIAL },
-						{ type: "done", error: PROVIDER_ERROR },
+						{
+							type: "delta",
+							kind: "text",
+							text: [
+								"```flow",
+								`await ctx.call("say", { text: ${JSON.stringify(WARM_PARTIAL)} })`,
+								'return to(await ctx.call("author", { context: ["continue"] }))',
+								"```",
+							].join("\n"),
+						},
+						{ type: "done", reason: "stop" },
 					],
 				},
+				{ raw: true, frames: [{ type: "done", error: PROVIDER_ERROR }] },
 				{
 					frames: [
 						{ type: "delta", kind: "text", text: RETRY_REPLY },
@@ -768,10 +853,28 @@ export default defineSuite({
 				() => stack.chat.requests().length > postsBeforeClick,
 				15_000,
 			);
-			const clicked = stack.chat.requests()[postsBeforeClick];
-			report.equals(lastUserContent(clicked), PROMPT, "the prompt the retry button resubmitted");
+			/*
+			 * The retry resumes the SAME lineage from its settled prefix, so the
+			 * wire carries the successor authoring's context, not the original
+			 * prompt again. The proof the same question was re-run is on screen:
+			 * the answer arrives under the same turn, with the user's message
+			 * still asked exactly once.
+			 */
+			const retriedPage = await waitForText(
+				page,
+				(text) => text.includes(RETRY_REPLY),
+				30_000,
+				() => Date.now(),
+				wait,
+			);
+			report.check(retriedPage.ok, "the retried turn never rendered its completed answer");
+			report.equals(
+				(retriedPage.text.match(new RegExp(PROMPT.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")) ?? []).length,
+				1,
+				"the retry duplicated the user's message",
+			);
 			report.ok(
-				"E3.9/E3.10 — a failed turn renders its partial, states the failure in the system note, and its retry button resubmits the same prompt.",
+				"E3.9/E3.10 — a failed turn renders its partial, states the failure in the system note, and its retry re-runs the turn to completion without duplicating the question.",
 			);
 
 			// -------------------------------------------------------- E3.5 page
@@ -779,7 +882,35 @@ export default defineSuite({
 			// command, if stopping stops saying what stopped, or if it takes
 			// longer than the budget the checklist sets.
 			stack.chat.reset();
-			stack.chat.slow();
+			// Chain staging, as in the store half: say the words first, then hold
+			// the successor's author stream open for the Escape to interrupt.
+			stack.chat.script([
+				{
+					raw: true,
+					frames: [
+						{
+							type: "delta",
+							kind: "text",
+							text: [
+								"```flow",
+								'await ctx.call("say", { text: "chunk 0 chunk 1 chunk 2 " })',
+								'return to(await ctx.call("author", { context: ["continue"] }))',
+								"```",
+							].join("\n"),
+						},
+						{ type: "done", reason: "stop" },
+					],
+				},
+				{
+					raw: true,
+					gapMs: 250,
+					frames: Array.from({ length: 32 }, (_unused, index) => ({
+						type: "delta",
+						kind: "text",
+						text: `slow successor chunk ${index} `,
+					})),
+				},
+			]);
 			// Count the chunks already on screen first. The restored turn from E3.6
 			// is still in this transcript and it streamed the same words, so
 			// "chunk 1 is on the page" was true before this prompt was even sent:
@@ -966,11 +1097,14 @@ const openSharedClient = async (
 		return fetch(request);
 	};
 	const store = await createAppStore({ kind: "localStorage", storage });
-	const controller = createAppController(
-		store,
-		NO_NATIVE_REPOSITORIES,
-		createWebAgent({ baseUrl: origin, fetchImpl }),
-		{ baseUrl: origin, fetchImpl, workflowPollMs: 150 },
-	);
+	// The product's one backend: the chain seat, bound exactly as
+	// ControllerBoot binds it (Client.ts does the same).
+	const seat = createAgentSeat();
+	const controller = createAppController(store, NO_NATIVE_REPOSITORIES, seat, {
+		baseUrl: origin,
+		fetchImpl,
+		workflowPollMs: 150,
+	});
+	seat.bindChain(createChainRuntime({ store, commands: controller.commands, baseUrl: origin, fetchImpl }));
 	return { store, controller };
 };
