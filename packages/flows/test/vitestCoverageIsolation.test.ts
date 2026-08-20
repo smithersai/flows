@@ -115,7 +115,6 @@ describe("vitest coverage isolation conformance", () => {
     "core",
     "evals",
     "fs",
-    "harness",
     "memory",
     "model",
     "patterns",
@@ -477,15 +476,9 @@ describe("vitest coverage isolation conformance", () => {
     // directives that the earlier literal-`v8 ignore` grep never saw.
     const directive = /(?:istanbul|[cv]8|node:coverage)\s+ignore\s+(if|else|next|file|start|stop)(?=\W|$)/g
     const allowlist: Record<string, number> = {
-      // Cell calls are schema-decoded before keying and controller boundary
-      // identities are JSON-shaped, so these two canonicalization error
-      // mappers are unreachable. Each ignore is scoped to its one mapper.
-      "agent/src/FlowEngineLike.ts": 2,
-      // The agent session's remaining hints are narrowly scoped to
-      // process-loss and corrupted-registry fallbacks. They translate
-      // engine/journal failures that the durable integration stack cannot
-      // synthesize without breaking the very invariants it is proving.
-      "agent/src/AgentSession.ts": 10,
+      // The agent package's former hints (FlowEngineLike's canonicalization
+      // mappers and AgentSession's process-loss fallbacks) were removed with
+      // the code that needed them in 81b218ce7; the entries leave with them.
       // Canonical capture rejects accessor properties before recursively
       // freezing the captured object graph, so the descriptor walk only sees
       // data properties in both identity implementations.
@@ -510,7 +503,35 @@ describe("vitest coverage isolation conformance", () => {
       // they reach the sandbox.
       "engine-store/src/WorkspaceSandbox.ts": 1,
       "engine-store/src/internal/RunCoordinator.ts": 1,
+      // `releaseOwned`'s successful arm is the generator's terminal
+      // fallthrough; V8 emits no executable location for that synthetic
+      // branch, so the `else` on the owned transition can never be covered.
+      "engine-store/src/internal/RunDriver.ts": 1,
       "engine/src/FlowEngine/make.ts": 1,
+      // `fenced`'s `info` and `body` groups are mandatory (outside any
+      // alternation or quantifier), so they participate in every match; the
+      // fallbacks only discharge the optional type on
+      // `RegExpMatchArray.groups`.
+      "harness/src/Cell.ts": 2,
+      // `withDefaults` fills each declared limit from `defaultLimits`, so the
+      // optional chains and coalesces never take their fallbacks; they only
+      // discharge the optional types on `Sandbox.Limits`.
+      "harness/src/QuickJSSandbox.ts": 3,
+      // The `Function` constructor rejects unparseable source with a
+      // `SyntaxError` and raises nothing else, so `cause` is always an
+      // `Error`; the `String` arm only discharges the `unknown` a `catch`
+      // binding is typed as.
+      "harness/src/Sandbox.ts": 1,
+      // Both callers pass an `Error` (`JSON.parse` throws `SyntaxError`;
+      // `Schema.decodeUnknownEffect` fails with `SchemaError`, which extends
+      // `Error`), so the `String` arm only discharges the `unknown` a `catch`
+      // binding and a schema failure channel are typed as.
+      "harness/src/StructuredOutput.ts": 1,
+      // The first pass already ran the decoders over every entry of the same
+      // `events` array and returned on failure, and `decode` is pure, so
+      // re-decoding a surviving entry cannot fail; the branches exist
+      // because `Result` has no way to carry that proof.
+      "harness/src/Transcript.ts": 2,
       "journal/src/SqlJournal.ts": 1,
       // `FileSet.Entry` is a closed two-member union, so the final
       // comparison arm's `else` and the fallthrough after every pair
