@@ -3,9 +3,9 @@
  *
  * `CellTurn.test.ts` fixes the loop's ordinary contract. These cases fix its
  * edges: budgets of zero and one, a context budget that disables compaction and
- * one so small nothing is compactable, the audit bounce crossed with the frame
- * wall and with the read-only cap, steering that arrives while a cell is still
- * running, and the durable values a host may hand back malformed.
+ * one so small nothing is compactable, the read-only cap crossed with the frame
+ * wall and with a park, steering that arrives while a cell is still running,
+ * and the durable values a host may hand back malformed.
  */
 import { type KeyMaterial, Placement } from "@smthrs/core"
 import { Capability, Permission } from "@smthrs/kernel"
@@ -133,7 +133,6 @@ const state = (
     readonly frame?: number
     readonly maxFrames?: number
     readonly envelope?: ReadonlyArray<string>
-    readonly auditCompletion?: boolean
     readonly readOnlyCap?: number
     readonly placement?: Option.Option<Descriptor.Placement>
     readonly contextWindow?: ContextWindow.ContextWindow
@@ -154,7 +153,6 @@ const state = (
     frame: overrides.frame === undefined ? 0 : overrides.frame,
     maxFrames: overrides.maxFrames === undefined ? 4 : overrides.maxFrames,
     contextWindowTokens: overrides.contextWindowTokens === undefined ? 0 : overrides.contextWindowTokens,
-    auditCompletion: overrides.auditCompletion ?? false,
     readOnlyCap: overrides.readOnlyCap === undefined ? 0 : overrides.readOnlyCap,
     ...(overrides.agentState === undefined ? {} : { agentState: overrides.agentState })
   })
@@ -682,305 +680,10 @@ describe("CellTurn call classification", () => {
   })
 })
 
-describe("CellTurn completion audit boundaries", () => {
-  const audited = (overrides: { readonly maxFrames?: number; readonly readOnlyCap?: number } = {}) =>
-    state({
-      auditCompletion: true,
-      envelope: ["proc:spawn:*"],
-      maxFrames: overrides.maxFrames === undefined ? 4 : overrides.maxFrames,
-      ...(overrides.readOnlyCap === undefined ? {} : { readOnlyCap: overrides.readOnlyCap })
-    })
-
-  it("charges the audit bounce once per run, never once per completion attempt", async () => {
-    const { events, model } = await run({
-      state: audited({ maxFrames: 5 }),
-      flows: [check],
-      script: [
-        emits(`return { intent: "complete", state: {}, output: "first claim" }`),
-        emits(
-          `await ctx.call("bash", { command: "pytest -q" })
-           return { intent: "continue", state: {}, context: [{ role: "user", text: "ran the suite" }] }`
-        ),
-        emits(
-          `return {
-             intent: "complete",
-             state: {},
-             output: "second claim",
-             verify: { flow: "bash", input: { command: "pytest -q" } }
-           }`
-        )
-      ],
-      calls: [
-        { _tag: "Success", value: { exitCode: 0, stdout: "2 passed" } },
-        { _tag: "Success", value: { exitCode: 0, stdout: "2 passed" } }
-      ]
-    })
-
-    // One bounce for the whole run: the second completion went straight to the
-    // machine check instead of paying the demand again.
-    const demands = model.recorder.requests.filter((request) =>
-      JSON.stringify(request.messages).includes("Completion review")
-    )
-    expect(demands).toHaveLength(1)
-    expect(of(events, "completion-audited")).toHaveLength(1)
-    expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: true })
-    expect(resolvedText(events)).toBe("second claim")
-  })
-
-  it("clips a claimed output that is one character over the demand's limit", async () => {
-    const exact = "a".repeat(400)
-    const held = await run({
-      state: audited(),
-      flows: [check],
-      script: [
-        emits(`return { intent: "complete", state: {}, output: ${JSON.stringify(exact)} }`),
-        emits(`return { intent: "continue", state: {}, context: [] }`),
-        emits(`return { intent: "continue", state: {}, context: [] }`),
-        emits(`return { intent: "continue", state: {}, context: [] }`)
-      ]
-    })
-    expect(observationsOf(held.model, 1)).toContain(exact)
-
-    const over = "b".repeat(401)
-    const clipped = await run({
-      state: audited(),
-      flows: [check],
-      script: [
-        emits(`return { intent: "complete", state: {}, output: ${JSON.stringify(over)} }`),
-        emits(`return { intent: "continue", state: {}, context: [] }`),
-        emits(`return { intent: "continue", state: {}, context: [] }`),
-        emits(`return { intent: "continue", state: {}, context: [] }`)
-      ]
-    })
-    const demand = observationsOf(clipped.model, 1)
-    expect(demand).toContain(`${"b".repeat(399)}…`)
-    expect(demand).not.toContain(over)
-  })
-
-  it("accepts a re-run whose output carries no exit code to read", async () => {
-    const { events } = await run({
-      state: audited(),
-      flows: [check],
-      script: [
-        emits(
-          `await ctx.call("bash", { command: "make test" })
-           return { intent: "complete", state: {}, output: "done" }`
-        ),
-        emits(
-          `return {
-             intent: "complete",
-             state: {},
-             output: "done",
-             verify: { flow: "bash", input: { command: "make test" } }
-           }`
-        )
-      ],
-      calls: [
-        { _tag: "Success", value: "all tests passed" },
-        { _tag: "Success", value: "all tests passed" }
-      ]
-    })
-
-    expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: true })
-    expect(of(events, "completion-audited")[0]?.detail).toContain("all tests passed")
-    expect(resolvedText(events)).toBe("done")
-  })
-
-  it("accepts a re-run whose exit code is not a number", async () => {
-    const { events } = await run({
-      state: audited(),
-      flows: [check],
-      script: [
-        emits(
-          `await ctx.call("bash", { command: "make test" })
-           return { intent: "complete", state: {}, output: "done" }`
-        ),
-        emits(
-          `return {
-             intent: "complete",
-             state: {},
-             output: "done",
-             verify: { flow: "bash", input: { command: "make test" } }
-           }`
-        )
-      ],
-      calls: [
-        { _tag: "Success", value: { exitCode: "0" } },
-        { _tag: "Success", value: { exitCode: "0" } }
-      ]
-    })
-
-    // Only a number is an exit code. Prose in that slot proves nothing, so it
-    // is read as absent rather than as a pass or a failure of its own.
-    expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: true })
-  })
-
-  it("refuses a re-run that exited on a negative code", async () => {
-    const { events } = await run({
-      state: audited(),
-      flows: [check],
-      script: [
-        emits(
-          `await ctx.call("bash", { command: "make test" })
-           return { intent: "complete", state: {}, output: "done" }`
-        ),
-        emits(
-          `return {
-             intent: "complete",
-             state: {},
-             output: "done",
-             verify: { flow: "bash", input: { command: "make test" } }
-           }`
-        ),
-        emits(`return { intent: "continue", state: {}, context: [] }`),
-        emits(`return { intent: "continue", state: {}, context: [] }`)
-      ],
-      calls: [
-        { _tag: "Success", value: { exitCode: 0 } },
-        { _tag: "Success", value: { exitCode: -1 } }
-      ]
-    })
-
-    expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: false })
-    expect(of(events, "completion-audited")[0]?.detail).toContain("exited -1")
-  })
-
-  it("refuses a re-run the host failed without saying why", async () => {
-    const model = ScriptedModel.make([
-      emits(
-        `await ctx.call("bash", { command: "make test" })
-         return { intent: "complete", state: {}, output: "done" }`
-      ),
-      emits(
-        `return {
-           intent: "complete",
-           state: {},
-           output: "done",
-           verify: { flow: "bash", input: { command: "make test" } }
-         }`
-      ),
-      emits(`return { intent: "continue", state: {}, context: [] }`),
-      emits(`return { intent: "continue", state: {}, context: [] }`)
-    ])
-    let ordinal = 0
-    const engine = stubEngine(model.model, {
-      call: () =>
-        Effect.succeed(
-          ordinal++ === 0
-            ? new Cell.CallResult({ outcome: "success", value: { exitCode: 0 } })
-            : new Cell.CallResult({ outcome: "failure", value: null })
-        )
-    })
-    const { events } = await collect(
-      { state: audited(), flows: [check] },
-      { engine: engine.layer }
-    )
-
-    expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: false })
-    expect(of(events, "completion-audited")[0]?.detail).toContain("no message")
-  })
-
-  it("accepts a re-run the host settled without a value", async () => {
-    const model = ScriptedModel.make([
-      emits(
-        `await ctx.call("bash", { command: "make test" })
-         return { intent: "complete", state: {}, output: "done" }`
-      ),
-      emits(
-        `return {
-           intent: "complete",
-           state: {},
-           output: "done",
-           verify: { flow: "bash", input: { command: "make test" } }
-         }`
-      )
-    ])
-    const engine = stubEngine(model.model, { call: () => Effect.succeed(valueless()) })
-    const { events } = await collect({ state: audited(), flows: [check] }, { engine: engine.layer })
-
-    expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: true })
-    expect(of(events, "completion-audited")[0]?.detail).toBe("Re-ran bash: null")
-  })
-
-  it("fails a bounced completion at the budget wall when its check does not hold", async () => {
-    const { events, failure, model } = await run({
-      state: audited({ maxFrames: 2 }),
-      flows: [check],
-      script: [
-        emits(`return { intent: "complete", state: {}, output: "first claim" }`),
-        emits(
-          `return {
-             intent: "complete",
-             state: {},
-             output: "final claim",
-             verify: { flow: "bash", input: { command: "never ran" } }
-           }`
-        )
-      ]
-    })
-
-    expect(model.recorder.requests).toHaveLength(2)
-    expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: false })
-    expect(of(events, "completion-audited")[0]?.detail).toContain("never called")
-    expect(failure).toMatchObject({
-      code: "unverified_completion",
-      cause: { output: "final claim", detail: expect.stringContaining("never called") }
-    })
-    expect(of(events, "resolved")).toHaveLength(0)
-  })
-
-  it("records the declared check on the audit even when it is refused", async () => {
-    const { events } = await run({
-      state: audited(),
-      flows: [check],
-      script: [
-        emits(`return { intent: "complete", state: {}, output: "done" }`),
-        emits(
-          `return {
-             intent: "complete",
-             state: {},
-             output: "done",
-             verify: { flow: "bash", input: { command: "never ran" } }
-           }`
-        ),
-        emits(`return { intent: "continue", state: {}, context: [] }`),
-        emits(`return { intent: "continue", state: {}, context: [] }`)
-      ]
-    })
-
-    expect(of(events, "completion-audited")[0]).toMatchObject({
-      accepted: false,
-      verification: { flow: "bash", input: { command: "never ran" } }
-    })
-  })
-
-  it("does not audit an unarmed run's completion, however it is declared", async () => {
-    const { engine, events } = await run({
-      script: [
-        emits(
-          `return {
-             intent: "complete",
-             state: {},
-             output: "done",
-             verify: { flow: "fs/list", input: { path: "." } }
-           }`
-        )
-      ]
-    })
-
-    // The verify block is carried on the transition either way; only an armed
-    // run acts on it, and only an armed run pays the bounce.
-    expect(of(events, "transition-applied")[0]?.transition).toMatchObject({ _tag: "complete" })
-    expect(of(events, "completion-audited")).toHaveLength(0)
-    expect(engine.recorder.calls).toHaveLength(0)
-    expect(resolvedText(events)).toBe("done")
-  })
-})
-
 describe("CellTurn discipline interaction", () => {
-  it("stops a run at twice the read-only cap before its completion is ever audited", async () => {
+  it("stops a run at twice the read-only cap before its completion is ever considered", async () => {
     const { events, failure } = await run({
-      state: state({ auditCompletion: true, readOnlyCap: 1, maxFrames: 6, envelope: ["proc:spawn:*"] }),
+      state: state({ readOnlyCap: 1, maxFrames: 6, envelope: ["proc:spawn:*"] }),
       flows: [check],
       script: [
         emits(
@@ -995,7 +698,6 @@ describe("CellTurn discipline interaction", () => {
     // The cap is judged before the completion block, so a run that never wrote
     // anything cannot buy its way past the hard stop with a claim.
     expect(failure).toMatchObject({ code: "read_only_cap" })
-    expect(of(events, "completion-audited")).toHaveLength(0)
     expect(of(events, "resolved")).toHaveLength(0)
   })
 
@@ -1059,12 +761,11 @@ describe("CellTurn discipline interaction", () => {
   it("arms the discipline with the limits the host declared, defaulting only what it omitted", async () => {
     const { events } = await run({
       script: [emits(`return { intent: "complete", output: "done" }`)],
-      state: state({ maxFrames: 7, readOnlyCap: 3, auditCompletion: true }),
+      state: state({ maxFrames: 7, readOnlyCap: 3 }),
       limits: { calls: 5 }
     })
 
     expect(of(events, "discipline-armed")[0]).toMatchObject({
-      auditCompletion: true,
       readOnlyCap: 3,
       maxFrames: 7,
       calls: 5,

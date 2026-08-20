@@ -30,15 +30,13 @@
 ### Added
 
 - Journaled `control.agent.discipline-armed` once at run start with the
-  completion audit, read-only and frame caps, and every effective sandbox
-  limit, so a run that never reaches completion still proves what it armed.
+  read-only and frame caps and every effective sandbox limit, so a run that
+  never reaches completion still proves what it armed.
 
 - Added `Agent.Options.readOnlyCap`, armed by `AgentSession` for every task run
   (`AgentSession.Options.readOnlyCap`, default `CellTurn.defaultReadOnlyFrames`).
   It caps consecutive frames that write nothing; a run that is meant only to
   answer leaves it unset.
-- Journaled `control.agent.completion-audited`: the check a completion declared,
-  whether the controller accepted it, and the real output the re-run produced.
 - Journaled `durationMillis` on `control.agent.model-settled`, the wall-clock
   duration of that one sealed model call.
 - Added `Seat`: the resolved seat record, `Seat.modelIdOf`, and the typed
@@ -52,8 +50,6 @@
 
 - Placed the run's task prompt in a prefix segment so it survives every frame; it previously lived in the rebuilt tail and vanished after frame one.
 - Widened the sealed step's transient retry to five one-second-doubling attempts; a destroyed HTTP/2 session outlives a half-second backoff.
-
-- Armed the completion audit on every executor-launched agent run; one benchmark run closed claiming an implemented fix after 16 read-only calls.
 
 - Made agent reasoning effort configurable: the flow's `effort:` frontmatter wins, then the host's `Options.reasoningEffort`, then the `high` default.
 

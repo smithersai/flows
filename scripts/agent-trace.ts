@@ -151,13 +151,6 @@ for (const row of rows) {
         current.projected = p.transition?.context ?? []
       }
       break
-    case "control.agent.completion-audited":
-      current?.notes.push({
-        kind: "completion audit",
-        ok: p.accepted === true,
-        text: `${p.accepted ? "ACCEPTED" : "REFUSED"} — ${p.detail ?? ""}`
-      })
-      break
     default:
       if (row.type.startsWith("control.agent.") && row.type.includes("read-only")) {
         current?.notes.push({ kind: row.type.replace("control.agent.", ""), text: JSON.stringify(p) })

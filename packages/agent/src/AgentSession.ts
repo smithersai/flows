@@ -155,8 +155,6 @@ export const trace = (
       return {
         eventType: "control.agent.discipline-armed",
         payload: {
-          auditCompletion: event.auditCompletion,
-          requireRegressionEvidence: event.requireRegressionEvidence,
           readOnlyCap: event.readOnlyCap,
           maxFrames: event.maxFrames,
           calls: event.calls,
@@ -208,17 +206,6 @@ export const trace = (
       return { eventType: "control.agent.cell-settled", payload: { outcome: event.outcome } }
     case "transition-applied":
       return { eventType: "control.agent.transition-applied", payload: { transition: event.transition } }
-    case "completion-audited":
-      return {
-        eventType: "control.agent.completion-audited",
-        payload: {
-          accepted: event.accepted,
-          detail: event.detail,
-          ...(event.verification === undefined
-            ? {}
-            : { flowName: event.verification.flow, input: event.verification.input })
-        }
-      }
     case "read-only-demanded":
       return {
         eventType: "control.agent.read-only-demanded",
@@ -516,7 +503,10 @@ export const make = (
       eventType: string,
       payload: unknown
     ): Effect.Effect<void, unknown> =>
-      journal.emitDurable(
+      // Unfenced: a session is a client of the runs it traces, not their
+      // owner — its records are first-writer-wins admissions on the run's
+      // journal.
+      journal.emitDurableUnfenced(
         new JournalEvent.Input({
           runId: JournalEvent.RunId.make(runId),
           sourceId,
@@ -791,10 +781,8 @@ export const make = (
           capabilityEnvelope: patterns(card.envelope.capabilities),
           limits: options.limits,
           maxFrames: options.maxFrames,
-          // A task run's "done" is a claim about the world; audit it once,
-          // and hold it to a rhythm of acting rather than only reading.
-          auditCompletion: true,
-          requireRegressionEvidence: true,
+          // A task run's frames are supposed to change something, so hold it
+          // to a rhythm of acting rather than only reading.
           readOnlyCap: options.readOnlyCap ?? CellTurn.defaultReadOnlyFrames
         }).pipe(
           Stream.runForEach(record),

@@ -15,7 +15,7 @@
  *
  * @since 0.1.0
  */
-import { Digest, Effects, type KeyMaterial, Placement } from "@smthrs/core"
+import { Effects, type KeyMaterial, Placement } from "@smthrs/core"
 import { Capability, CapabilitySet, Permission } from "@smthrs/kernel"
 import { CanonicalJson, type Model, ModelEvent, ModelRequest } from "@smthrs/model"
 import { Descriptor } from "@smthrs/registry"
@@ -82,7 +82,6 @@ const eventType = {
   cellProduced: "flows.harness.cell-produced.v1",
   cellSettled: "flows.harness.cell-settled.v1",
   compactionSettled: "flows.harness.compaction-settled.v1",
-  completionAudited: "flows.harness.completion-audited.v1",
   modelRetried: "flows.harness.model-retried.v1",
   readOnlyDemanded: "flows.harness.read-only-demanded.v1",
   modelDelta: "flows.harness.model-delta.v1",
@@ -120,39 +119,6 @@ export class State extends Schema.Class<State>("flows/harness/CellTurn/State")({
   contextWindowTokens: ContextWindowTokens,
   agentState: Schema.Json,
   /**
-   * Whether this run's first `complete` has already been challenged.
-   *
-   * The controller considers a completion only after one audit bounce: the
-   * first `complete` is answered with a demand for host-observable evidence
-   * and another frame, and an armed audit then checks the second. A model will
-   * claim "implemented the fix" without ever editing a file — one benchmark
-   * run closed with exactly that claim after 16 read-only calls — and prose
-   * rules alone did not stop it. Sticky once set, so the gate costs one frame
-   * per run, never one per completion attempt.
-   */
-  completionChallenged: Schema.Boolean.pipe(
-    Schema.withConstructorDefault(Effect.succeed(false)),
-    Schema.withDecodingDefaultKey(Effect.succeed(false))
-  ),
-  /**
-   * Whether this run's completions are machine-checked.
-   *
-   * Armed, a completion must declare the check that proves it — a flow and
-   * the exact input to call it with — and the controller runs that check
-   * itself before it accepts anything. Prose evidence is not evidence: a
-   * benchmark run shipped a patch that called a symbol it never imported and
-   * closed by quoting a test run it had not repeated.
-   */
-  auditCompletion: Schema.Boolean.pipe(
-    Schema.withConstructorDefault(Effect.succeed(false)),
-    Schema.withDecodingDefaultKey(Effect.succeed(false))
-  ),
-  /** Whether the audit also requires a failing baseline observation and a declared write. */
-  requireRegressionEvidence: Schema.Boolean.pipe(
-    Schema.withConstructorDefault(Effect.succeed(false)),
-    Schema.withDecodingDefaultKey(Effect.succeed(false))
-  ),
-  /**
    * Consecutive read-only frames this run may spend before the controller
    * intervenes. Zero disarms the cap, which is what a conversational run gets.
    */
@@ -180,46 +146,8 @@ export class State extends Schema.Class<State>("flows/harness/CellTurn/State")({
   pendingReadOnlyDemand: Schema.optional(Schema.Struct({
     streak: NonNegativeSafeInt,
     cap: NonNegativeSafeInt
-  })),
-  /**
-   * Signatures of the calls this run actually made, most recent last.
-   *
-   * The completion audit will only re-run a check the run already ran, which
-   * is what stops a completion from citing a command that was never issued.
-   * Bounded, because it is carried frame to frame.
-   */
-  executedCalls: Schema.Array(Schema.String).pipe(
-    Schema.withConstructorDefault(Effect.succeed([])),
-    Schema.withDecodingDefaultKey(Effect.succeed([]))
-  ),
-  /** Number of mutating calls settled so far. */
-  mutationEpoch: NonNegativeSafeInt.pipe(
-    Schema.withConstructorDefault(Effect.succeed(0)),
-    Schema.withDecodingDefaultKey(Effect.succeed(0))
-  ),
-  /** Bounded machine observations used to prove a baseline regression changed. */
-  verificationHistory: Schema.Array(Schema.Struct({
-    signature: Schema.String,
-    passed: Schema.Boolean,
-    /**
-     * Whether the call ran a check at all.
-     *
-     * A command that named a test, path, module, environment, or program that
-     * does not exist fails without reaching any code. It is recorded so the
-     * regression audit can refuse it: without this field an invalid probe is
-     * a `passed: false` entry like any other, and citing one as the baseline
-     * failure proves nothing that a correct fix would change.
-     */
-    valid: Schema.Boolean,
-    mutationEpoch: NonNegativeSafeInt
-  })).pipe(
-    Schema.withConstructorDefault(Effect.succeed([])),
-    Schema.withDecodingDefaultKey(Effect.succeed([]))
-  )
+  }))
 }) {}
-
-/** How many call signatures one run remembers for the completion audit. */
-const executedCallsRemembered = 64
 
 /**
  * Rebuilds controller state with only the fields one step changes.
@@ -266,16 +194,6 @@ export const make = (options: {
   readonly frame?: number | undefined
   readonly maxFrames?: number | undefined
   /**
-   * Arms the completion audit: the run's first `complete` is answered with a
-   * demand for host-observable evidence, and only the second is accepted.
-   * Off by default — a conversational cell's completion is the reply itself
-   * and must not pay a bounce; a task run's completion is a claim about the
-   * world and should.
-   */
-  readonly auditCompletion?: boolean | undefined
-  /** Requires the audited check to fail before a write and pass after one. */
-  readonly requireRegressionEvidence?: boolean | undefined
-  /**
    * Caps consecutive read-only frames: at the cap the controller demands an
    * edit or a typed justification, and at twice the cap the run stops as a
    * typed failure. Omitted or zero disarms it, which is what a run that is
@@ -295,16 +213,10 @@ export const make = (options: {
     contextWindow: options.contextWindow,
     contextWindowTokens: options.contextWindowTokens ?? 0,
     agentState: options.agentState ?? null,
-    completionChallenged: !(options.auditCompletion ?? false),
-    auditCompletion: options.auditCompletion ?? false,
-    requireRegressionEvidence: options.requireRegressionEvidence ?? false,
     readOnlyCap: options.readOnlyCap ?? 0,
     readOnlyFrames: 0,
     readOnlyGrace: 0,
-    pendingReadOnlyDemand: undefined,
-    executedCalls: [],
-    mutationEpoch: 0,
-    verificationHistory: []
+    pendingReadOnlyDemand: undefined
   })
 
 /**
@@ -509,23 +421,6 @@ const projected = (
 const clip = (text: string, width: number): string => text.length > width ? `${text.slice(0, width - 1)}…` : text
 
 /**
- * The shape a completion has to declare so the controller can check it.
- *
- * Stated in one place because the model is told it twice: once when the first
- * completion is bounced, and again whenever a declared check does not hold up.
- */
-const verifyContract =
-  `Declare the check as data, not prose: { intent: "complete", state, output, verify: { flow: "<the flow you called>", input: <the identical input> } }. The harness calls that flow with that input itself and accepts the completion only if it passes. A missing verify block, a flow this run never called with that exact input, a failed call, a non-zero exit code, or a command that never ran the check it named is a refusal.`
-
-const completionAudit = (claimed: string): string =>
-  `Completion review — this run does not accept a completion on its first attempt, and it does not accept quoted output as evidence. Re-run the check that proves the task is done (for a code change, the project's own test or build command, run AFTER your edit), then return complete again. ${verifyContract} Your claimed output was: ${
-    clip(claimed, 400)
-  }`
-
-const verificationRefused = (detail: string): string =>
-  `Completion refused — the check you declared was not accepted. ${detail} ${verifyContract} Fix the work, run the check yourself so the harness has a call to re-run, and complete again citing it.`
-
-/**
  * States, unambiguously, that a call this frame failed about itself.
  *
  * The whole defect this closes is that `exitCode: 1` reads the same whether the
@@ -585,10 +480,6 @@ const mutating = (descriptor: Descriptor.FlowDescriptor, input: Schema.Json): bo
   return Array.isArray(declared) && declared.length > 0
 }
 
-/** The stable identity of one call, used to cite it in a completion. */
-const callSignature = (flow: string, input: Schema.Json): string =>
-  Digest.digest(CanonicalJson.stringify({ flow, input }))
-
 const emitModelProgress = (
   event: ModelEvent.ModelEvent,
   emit: (event: AgentEvent.AgentEvent) => Effect.Effect<void>
@@ -605,22 +496,14 @@ const emitModelProgress = (
     ? Effect.void
     : emit(new AgentEvent.ModelDelta({ eventType: eventType.modelDelta, delta: event }))
 
-/** The exit code a settled call reported, when its output carries one. */
-const exitCodeOf = (value: Schema.Json): number | undefined => {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined
-  const code = (value as Record<string, unknown>).exitCode
-  return typeof code === "number" ? code : undefined
-}
-
 /**
  * The reserved key a flow reports an invalid probe under.
  *
- * The loop reads exactly two conventions off an otherwise opaque call result:
- * the `exitCode` a command reported, and this. Neither is a shared type — the
- * controller must not depend on the tool library — so both are documented wire
- * keys. `@smthrs/std/Probe` is the producing half and owns the taxonomy; the
- * controller only has to know that a result carrying this key is a result whose
- * failure was about the command.
+ * This is the one convention the loop reads off an otherwise opaque call
+ * result. It is not a shared type — the controller must not depend on the tool
+ * library — so it is a documented wire key. `@smthrs/std/Probe` is the
+ * producing half and owns the taxonomy; the controller only has to know that a
+ * result carrying this key is a result whose failure was about the command.
  */
 const invalidProbeKey = "invalidProbe"
 
@@ -633,12 +516,6 @@ const invalidProbeOf = (
   if (declared === null || typeof declared !== "object" || Array.isArray(declared)) return undefined
   const { message, reason } = declared as Record<string, unknown>
   return typeof reason === "string" && typeof message === "string" ? { reason, message } : undefined
-}
-
-/** What the controller concluded about one completion claim. */
-interface Verdict {
-  readonly accepted: boolean
-  readonly detail: string
 }
 
 const budgetMessage = (state: State): string =>
@@ -710,104 +587,6 @@ const callHandler = (
       })
     )
     return result
-  })
-
-/**
- * Runs the check a completing cell declared and reports what happened.
- *
- * The re-run goes through the same boundary a cell call goes through, so it
- * is keyed, journaled, and visible as an ordinary call — the harness is not
- * given a private way to run commands. The declared call must be one this run
- * already made: a completion cites a check it performed, and the controller
- * repeats it. That is what a quoted transcript could never prove.
- */
-const verifyCompletion = (options: {
-  readonly state: State
-  readonly cell: Cell.Source
-  readonly descriptors: ReadonlyMap<string, Descriptor.FlowDescriptor>
-  readonly executed: ReadonlySet<string>
-  readonly verificationHistory: State["verificationHistory"]
-  readonly mutationEpoch: number
-  readonly requireRegressionEvidence: boolean
-  readonly ordinal: number
-  readonly verification: Cell.Verification | undefined
-  readonly engine: EngineLike.EngineLike
-  readonly emit: (event: AgentEvent.AgentEvent) => Effect.Effect<void>
-}): Effect.Effect<Verdict, HarnessError> =>
-  Effect.gen(function*() {
-    const verification = options.verification
-    if (verification === undefined) {
-      return { accepted: false, detail: "The completion declared no verify block, so nothing could be checked." }
-    }
-    if (!options.descriptors.has(verification.flow)) {
-      return {
-        accepted: false,
-        detail: `No flow named ${verification.flow} is callable in this run, so the declared check cannot be run.`
-      }
-    }
-    if (!options.executed.has(callSignature(verification.flow, verification.input))) {
-      return {
-        accepted: false,
-        detail:
-          `This run never called ${verification.flow} with that exact input, so the declared check cites work that was never done.`
-      }
-    }
-    if (options.requireRegressionEvidence) {
-      const signature = callSignature(verification.flow, verification.input)
-      // A baseline failure only counts if it was a failure of the code. A
-      // command that never found what it named fails identically on a fixed
-      // tree, so accepting one would let the audit be satisfied by a probe
-      // that can never change.
-      const failedOnBaseline = options.verificationHistory.some(
-        (entry) => entry.signature === signature && !entry.passed && entry.valid && entry.mutationEpoch === 0
-      )
-      if (!failedOnBaseline) {
-        const brokenOnBaseline = options.verificationHistory.some(
-          (entry) => entry.signature === signature && !entry.valid && entry.mutationEpoch === 0
-        )
-        return {
-          accepted: false,
-          detail: brokenOnBaseline
-            ? "The identical check never ran on the baseline: it named something that does not exist, so its failure was the command's and not the code's. Repair the command, watch it fail for the right reason, edit, then cite that exact command."
-            : "The identical check did not fail before the first write and cannot prove the bug changed. Run a targeted reproduction on the baseline, edit, then cite that exact command."
-        }
-      }
-      if (options.mutationEpoch === 0) {
-        return {
-          accepted: false,
-          detail:
-            "The check failed on the baseline, but this run made no declared write. A transient pass on an unchanged tree cannot prove the bug was fixed."
-        }
-      }
-    }
-    const result = yield* callHandler(
-      options.state,
-      options.cell,
-      options.descriptors,
-      options.engine,
-      options.emit
-    )({ ordinal: options.ordinal, flow: verification.flow, input: verification.input })
-    if (result.outcome === "failure") {
-      return {
-        accepted: false,
-        detail: `Re-running ${verification.flow} failed: ${clip(result.message ?? "no message", 600)}`
-      }
-    }
-    const rendered = clip(JSON.stringify(result.value) ?? "null", 600)
-    // Checked before the exit code, because an invalid probe's exit code is the
-    // one piece of the result that means nothing.
-    const probe = invalidProbeOf(result.value)
-    if (probe !== undefined) {
-      return {
-        accepted: false,
-        detail: `Re-running ${verification.flow} did not run a check (${probe.reason}): ${clip(probe.message, 400)}`
-      }
-    }
-    const exitCode = exitCodeOf(result.value)
-    if (exitCode !== undefined && exitCode !== 0) {
-      return { accepted: false, detail: `Re-running ${verification.flow} exited ${exitCode}: ${rendered}` }
-    }
-    return { accepted: true, detail: `Re-ran ${verification.flow}: ${rendered}` }
   })
 
 /**
@@ -1018,14 +797,9 @@ const frame = (
       readonly summary: string
       /** Whether the call declared a write, which is what breaks a read-only run. */
       readonly mutates: boolean
-      /** The signature a later completion may cite this call by. */
-      readonly signature: string
-      readonly passed: boolean
       /** What the flow said about its own failure, when it said it ran nothing. */
       readonly invalidProbe: { readonly reason: string; readonly message: string } | undefined
-      readonly mutationEpoch: number
     }> = []
-    let mutationEpoch = state.mutationEpoch
     const observing: Sandbox.Handler = (invocation) =>
       callHandler(state, cell, descriptors, engine, emit)(invocation).pipe(
         Effect.tap((result) =>
@@ -1034,19 +808,12 @@ const frame = (
               ? JSON.stringify(result.value) ?? "null"
               : result.message ?? "failed"
             const descriptor = descriptors.get(invocation.flow)
-            const doesMutate = descriptor !== undefined && mutating(descriptor, invocation.input)
-            if (doesMutate) mutationEpoch++
-            const exitCode = result.outcome === "success" ? exitCodeOf(result.value) : undefined
-            const probe = result.outcome === "success" ? invalidProbeOf(result.value) : undefined
             observedCalls.push({
               flow: invocation.flow,
               ok: result.outcome === "success",
               summary: clip(rendered, 400),
-              mutates: doesMutate,
-              signature: callSignature(invocation.flow, invocation.input),
-              passed: result.outcome === "success" && (exitCode === undefined || exitCode === 0),
-              invalidProbe: probe,
-              mutationEpoch
+              mutates: descriptor !== undefined && mutating(descriptor, invocation.input),
+              invalidProbe: result.outcome === "success" ? invalidProbeOf(result.value) : undefined
             })
           })
         )
@@ -1063,21 +830,8 @@ const frame = (
     )
 
     // The frame's own record of what it did to the world, computed once and
-    // carried out through every exit: what it changed, and what it ran.
+    // carried out through every exit.
     const mutatingCalls = observedCalls.filter((call) => call.mutates).length
-    const executedCalls = [
-      ...state.executedCalls,
-      ...observedCalls.filter((call) => call.ok).map((call) => call.signature)
-    ].slice(-executedCallsRemembered)
-    const verificationHistory = [
-      ...state.verificationHistory,
-      ...observedCalls.map((call) => ({
-        signature: call.signature,
-        passed: call.passed,
-        valid: call.invalidProbe === undefined,
-        mutationEpoch: call.mutationEpoch
-      }))
-    ].slice(-executedCallsRemembered)
     // The frame's own broken probes, stated once and delivered through every
     // exit. A cell chooses the context its successor sees, so a frame that
     // summarised "the test still fails" would otherwise carry the wrong belief
@@ -1109,9 +863,6 @@ const frame = (
       // read-only counter — it produced no decision to judge — but an edit it
       // did land before throwing still clears it.
       const step = observe(note, {
-        executedCalls,
-        mutationEpoch,
-        verificationHistory,
         pendingReadOnlyDemand: undefined,
         ...(mutatingCalls > 0 ? { readOnlyFrames: 0, readOnlyGrace: 0 } : {})
       })
@@ -1195,101 +946,6 @@ const frame = (
     }
 
     if (transition._tag === "complete") {
-      // The audit bounce. A completion inside the frame budget is accepted
-      // only on its second attempt: the first is answered with a demand for
-      // evidence, because the claim "done" is the one output the model can
-      // produce without doing anything. At the frame wall a claim is checked
-      // immediately; lacking a later frame never converts failed evidence into
-      // successful evidence.
-      const finalFrame = state.frame + 1 >= state.maxFrames
-      if (!state.completionChallenged && !finalFrame) {
-        yield* emit(
-          new AgentEvent.TurnClosed({
-            eventType: eventType.turnClosed,
-            stopReason: settled.message.stopReason,
-            outcome: "continue"
-          })
-        )
-        return {
-          _tag: "Continue",
-          state: advance(state, {
-            frame: state.frame + 1,
-            contextWindow: observed(
-              state,
-              settled.message,
-              probeNotice === undefined
-                ? completionAudit(transition.output)
-                : `${completionAudit(transition.output)}\n\n${probeNotice}`
-            ),
-            agentState: transition.state,
-            completionChallenged: true,
-            readOnlyFrames,
-            pendingReadOnlyDemand: undefined,
-            executedCalls,
-            mutationEpoch,
-            verificationHistory
-          })
-        }
-      }
-      // The machine check. The controller runs the declared check itself,
-      // through the ordinary call boundary, and records the real output next
-      // to the claim: a grader reads what was checked, not what was said.
-      if (state.auditCompletion) {
-        const verdict = yield* verifyCompletion({
-          state,
-          cell,
-          descriptors,
-          executed: new Set(executedCalls),
-          verificationHistory,
-          mutationEpoch,
-          requireRegressionEvidence: state.requireRegressionEvidence,
-          ordinal: observedCalls.length,
-          verification: transition.verify,
-          engine,
-          emit
-        })
-        yield* emit(
-          new AgentEvent.CompletionAudited({
-            eventType: eventType.completionAudited,
-            ...(transition.verify === undefined ? {} : { verification: transition.verify }),
-            accepted: verdict.accepted,
-            detail: verdict.detail
-          })
-        )
-        if (!verdict.accepted && finalFrame) {
-          return yield* new HarnessError({
-            code: "unverified_completion",
-            message: `Completion could not be verified before the frame budget was exhausted: ${verdict.detail}`,
-            cause: {
-              output: transition.output,
-              detail: verdict.detail,
-              ...(transition.verify === undefined ? {} : { verification: transition.verify })
-            }
-          })
-        }
-        if (!verdict.accepted) {
-          yield* emit(
-            new AgentEvent.TurnClosed({
-              eventType: eventType.turnClosed,
-              stopReason: settled.message.stopReason,
-              outcome: "continue"
-            })
-          )
-          return {
-            _tag: "Continue",
-            state: advance(state, {
-              frame: state.frame + 1,
-              contextWindow: observed(state, settled.message, verificationRefused(verdict.detail)),
-              agentState: transition.state,
-              readOnlyFrames,
-              pendingReadOnlyDemand: undefined,
-              executedCalls,
-              mutationEpoch,
-              verificationHistory
-            })
-          }
-        }
-      }
       yield* emit(
         new AgentEvent.TurnClosed({
           eventType: eventType.turnClosed,
@@ -1392,10 +1048,7 @@ const frame = (
         agentState: transition.state,
         readOnlyFrames,
         readOnlyGrace,
-        pendingReadOnlyDemand: demanded && !justified ? { streak: readOnlyFrames, cap } : undefined,
-        executedCalls,
-        mutationEpoch,
-        verificationHistory
+        pendingReadOnlyDemand: demanded && !justified ? { streak: readOnlyFrames, cap } : undefined
       })
     }
   })
@@ -1438,8 +1091,6 @@ export const run = (
         yield* emit(
           new AgentEvent.DisciplineArmed({
             eventType: eventType.disciplineArmed,
-            auditCompletion: current.auditCompletion,
-            requireRegressionEvidence: current.requireRegressionEvidence,
             readOnlyCap: current.readOnlyCap,
             maxFrames: current.maxFrames,
             ...limits

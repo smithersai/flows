@@ -211,65 +211,6 @@ const scenarios: Readonly<Record<string, Scenario>> = {
     expected: answered(review(true, ["pong:one"]), 1, ["echo"])
   },
 
-  "completion-audit-bounces-first-claim": {
-    summary:
-      "With the audit armed, the first completion is refused and the second is accepted only after the harness re-runs the check it declares.",
-    run: () => {
-      const recorder = Subject.makeRecorder()
-      return Subject.runAgent({
-        recorder,
-        // The answer encodes whether the audit demand arrived, so a suite that
-        // stopped bouncing would report "claimed" rather than a moved number,
-        // and the flow calls encode the machine check: the cell ran the
-        // command once and the harness ran the cited call itself.
-        respond: (prompt) =>
-          prompt.includes("Completion review")
-            ? `return {
-                 intent: "complete",
-                 state: {},
-                 output: "audited",
-                 verify: { flow: "check", input: { command: "suite" } }
-               }`
-            : `await ctx.call("check", { command: "suite" })
-               await ctx.call("edit", { path: "src/bug.ts" })
-               return { intent: "complete", state: {}, output: "claimed" }`,
-        maxFrames: 4,
-        auditCompletion: true,
-        flows: [Subject.checkSource(recorder, [1, 0]), Subject.editSource(recorder)]
-      })
-    },
-    expected: answered("audited", 2, ["check:suite", "edit:src/bug.ts", "check:suite"])
-  },
-
-  "completion-audit-refuses-an-unproven-claim": {
-    summary:
-      "A completion that declares no check is refused with what the harness actually observed; the run recovers by running one and citing it.",
-    run: () => {
-      const recorder = Subject.makeRecorder()
-      return Subject.runAgent({
-        recorder,
-        // Three answers, each keyed on what the harness said last: the claim,
-        // the same claim after the bounce, and a real check after the refusal.
-        // Quoted prose never resolves the run.
-        respond: (prompt) =>
-          prompt.includes("Completion refused")
-            ? `await ctx.call("check", { command: "suite" })
-               await ctx.call("edit", { path: "src/bug.ts" })
-               return {
-                 intent: "complete",
-                 state: {},
-                 output: "proven",
-                 verify: { flow: "check", input: { command: "suite" } }
-               }`
-            : Subject.completeWith("I ran the tests and they passed, trust me"),
-        maxFrames: 5,
-        auditCompletion: true,
-        flows: [Subject.checkSource(recorder, [1, 0]), Subject.editSource(recorder)]
-      })
-    },
-    expected: answered("proven", 3, ["check:suite", "edit:src/bug.ts", "check:suite"])
-  },
-
   "read-only-cap-stops-a-reading-run": {
     summary:
       "A task run that only reads is told to write or justify at its cap, and stops as a typed failure at twice it rather than reporting work it never did.",

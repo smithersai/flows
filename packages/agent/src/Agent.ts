@@ -134,17 +134,13 @@ export interface Options {
   readonly capabilityEnvelope?: ReadonlyArray<Capability.CapabilityPattern> | undefined
   readonly placement?: Option.Option<Descriptor.Placement> | undefined
   readonly maxFrames?: number | undefined
-  /** Arms CellTurn's completion audit; see `CellTurn.make`. */
-  readonly auditCompletion?: boolean | undefined
-  /** Requires an audited baseline-fail/write/pass regression proof. */
-  readonly requireRegressionEvidence?: boolean | undefined
   /**
    * Caps consecutive read-only frames; see `CellTurn.make`.
    *
-   * Armed the same way the audit is, and for the same reason: a task run's
-   * frames are supposed to change something, and a run that only reads is the
-   * failure mode a flat frame budget cannot see. A run that is meant to
-   * answer rather than act leaves it unset.
+   * Armed for task runs only: a task run's frames are supposed to change
+   * something, and a run that only reads is the failure mode a flat frame
+   * budget cannot see. A run that is meant to answer rather than act leaves it
+   * unset.
    */
   readonly readOnlyCap?: number | undefined
   readonly limits?: Sandbox.Limits | undefined
@@ -334,8 +330,6 @@ const runProduction: Service["run"] = (options) =>
             contextWindow: opening(options, flows),
             contextWindowTokens: options.seat.contextWindowTokens,
             maxFrames: options.maxFrames,
-            auditCompletion: options.auditCompletion,
-            requireRegressionEvidence: options.requireRegressionEvidence,
             readOnlyCap: options.readOnlyCap
           })
           return CellTurn.run({ state, flows, limits: options.limits }).pipe(

@@ -73,7 +73,7 @@ printf 'flows/\n.flows/\n.jj/\nagent-run.log\n' >> "$WORK/.git/info/exclude"
 # The repository's own test runner, from the pinned evaluator's spec map. The
 # rig used to prescribe `python -m pytest` for every repo; Django ships no
 # pytest module and Sphinx runs under tox, so that command could not verify a
-# fix in either, and the completion audit accepts only a check that passes.
+# fix in either, and an agent that cannot run a check cannot know it is done.
 TEST_CMD="$("$S/.venv-swb/bin/python" "$S/lib/test-command.py" "$DATASET" "$INSTANCE")" || {
   echo "[$INSTANCE] NO TEST COMMAND — run ./bootstrap.sh first"; exit 1; }
 
