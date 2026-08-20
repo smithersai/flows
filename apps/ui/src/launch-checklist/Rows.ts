@@ -31,7 +31,6 @@ import {
 	ZERO_BALANCE_PAUSE_COPY,
 	asRecord,
 	fail,
-	pass,
 	replyRegion,
 	sendPrompt,
 	undecided,
@@ -525,7 +524,9 @@ export const ROWS: ReadonlyArray<ChecklistRow> = [
 			await page.type("/");
 			await ctx.sleep(500);
 			const suggestions = await page.evaluate<ReadonlyArray<string | null>>(
-				`Array.from(document.querySelectorAll("[data-suggestion], [role='option']")).map((element) => element.getAttribute("data-flow"))`,
+				// The slash menu's options carry their command name in data-flow
+				// (App.tsx); the [data-suggestion] spelling matched nothing.
+				`Array.from(document.querySelectorAll("[role='option']")).map((element) => element.getAttribute("data-flow"))`,
 			);
 			const first = suggestions[0] ?? null;
 			if (first === null) return fail(`"/" opened no command list (${suggestions.length} suggestion element(s) found)`);
@@ -571,8 +572,32 @@ export const ROWS: ReadonlyArray<ChecklistRow> = [
 		requiredEnv: [SESSION_COOKIE],
 		probe: async (ctx) => {
 			const cookie = ctx.env[SESSION_COOKIE];
-			const before = await balanceRead(ctx, SESSION_COOKIE, "balance before the turn");
-			if (before.status !== "pass") return fail(`pre-turn balance check failed — ${before.detail}`);
+			/*
+			 * The row's claim is numeric, so the assertion is numeric: the
+			 * balance payload carries totalUsd, lifetimeChargedUsd and
+			 * chargeCount (apps/shared Cards.ts), and "comped, not uncounted"
+			 * means the total never drops while the lifetime cost and charge
+			 * tally still move. Reading only pass/fail off balanceRead let the
+			 * whole claim pass vacuously.
+			 */
+			const balanceNow = async (label: string) => {
+				const response = await ctx.fetch(`${ctx.target}/api/billing/balance`, {
+					headers: cookie === undefined ? {} : { cookie },
+				});
+				const text = await response.text();
+				let body: unknown = null;
+				try {
+					body = JSON.parse(text);
+				} catch {
+					body = null;
+				}
+				const record = asRecord(body);
+				return { label, status: response.status, record, text };
+			};
+			const before = await balanceNow("balance before the turn");
+			if (before.record?.state !== "ok") {
+				return fail(`pre-turn balance check failed — HTTP ${before.status} ${before.text.slice(0, 200)}`);
+			}
 			const turn = await ctx.fetch(`${ctx.target}/api/agent/turn`, {
 				method: "POST",
 				headers: { "content-type": "application/json", ...(cookie === undefined ? {} : { cookie }) },
@@ -584,10 +609,21 @@ export const ROWS: ReadonlyArray<ChecklistRow> = [
 			});
 			const turnText = await turn.text();
 			const done = turnText.includes('"type":"done"');
-			const after = await balanceRead(ctx, SESSION_COOKIE, "balance after the turn");
+			const after = await balanceNow("balance after the turn");
+			const totalBefore = Number(before.record?.totalUsd);
+			const totalAfter = Number(after.record?.totalUsd);
+			const lifetimeBefore = Number(before.record?.lifetimeChargedUsd);
+			const lifetimeAfter = Number(after.record?.lifetimeChargedUsd);
+			const countBefore = Number(before.record?.chargeCount);
+			const countAfter = Number(after.record?.chargeCount);
+			const numeric = [totalBefore, totalAfter, lifetimeBefore, lifetimeAfter, countBefore, countAfter].every(
+				(value) => Number.isFinite(value),
+			);
+			const notReduced = numeric && totalAfter >= totalBefore;
+			const costRecorded = numeric && (lifetimeAfter > lifetimeBefore || countAfter > countBefore);
 			return verdict(
-				turn.status === 200 && done && after.status === "pass",
-				`turn HTTP ${turn.status} (done frame: ${done}); ${after.detail}`,
+				turn.status === 200 && done && after.record?.state === "ok" && notReduced && costRecorded,
+				`turn HTTP ${turn.status} (done frame: ${done}); totalUsd ${before.record?.totalUsd} -> ${after.record?.totalUsd} (must not drop); lifetimeChargedUsd ${before.record?.lifetimeChargedUsd} -> ${after.record?.lifetimeChargedUsd}; chargeCount ${before.record?.chargeCount} -> ${after.record?.chargeCount} (cost recording must move)`,
 			);
 		},
 	},
@@ -713,11 +749,20 @@ export const ROWS: ReadonlyArray<ChecklistRow> = [
 			const first = await ctx.fetch(`${upstream}/api/billing/admin/grants`, { method: "POST", headers, body });
 			const firstText = await first.text();
 			// The same key again must not credit twice — "exactly once" is the row.
+			// The upstream's definite replay answer is 200 with duplicate:true
+			// (billing-grants.e2e.ts E6.9 proves the shape against the double);
+			// any other non-201 — a 500 above all — is a failure, not a pass.
 			const repeat = await ctx.fetch(`${upstream}/api/billing/admin/grants`, { method: "POST", headers, body });
 			const repeatText = await repeat.text();
+			let duplicate = false;
+			try {
+				duplicate = asRecord(JSON.parse(repeatText))?.duplicate === true;
+			} catch {
+				duplicate = false;
+			}
 			return verdict(
-				first.status === 201 && repeat.status !== 201,
-				`grant: HTTP ${first.status} ${firstText.slice(0, 160)}; replay of the same idempotency key: HTTP ${repeat.status} ${repeatText.slice(0, 160)}`,
+				first.status === 201 && repeat.status === 200 && duplicate,
+				`grant: HTTP ${first.status} ${firstText.slice(0, 160)}; replay of the same idempotency key: HTTP ${repeat.status} duplicate=${duplicate} ${repeatText.slice(0, 160)}`,
 			);
 		},
 	},
@@ -773,7 +818,13 @@ export const ROWS: ReadonlyArray<ChecklistRow> = [
 			const text = await page.text();
 			const blocked = /\b(blocked|waiting on you|needs approval|approve)\b/i.test(text);
 			const running = /\b(running|in progress)\b/i.test(text);
-			if (!blocked) return pass("no surface reports a blocked-on-approval state, so there is no contradiction to find");
+			// A transcript with no approval state proves nothing either way:
+			// passing here would be vacuous, so the row marks itself incomplete.
+			if (!blocked) {
+				return undecided(
+					"no surface reports a blocked-on-approval state on this transcript, so there is no contradiction to check; stage a parked approval to decide this row",
+				);
+			}
 			return verdict(
 				!running,
 				`a blocked-on-approval state is on screen while a running state is also rendered=${running}; transcript: ${text.trim().slice(0, 240)}`,

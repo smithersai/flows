@@ -95,9 +95,31 @@ describe("report shaping", () => {
 	test("only a real fail fails the command", () => {
 		expect(exitCodeFor(totalsOf([]))).toBe(0);
 		expect(
-			exitCodeFor({ pass: 3, fail: 0, notTestableYet: 9, skippedDryRun: 0 }),
+			exitCodeFor({ pass: 3, fail: 0, notTestableYet: 9, probeUndecided: 0, skippedDryRun: 0 }),
 		).toBe(0);
-		expect(exitCodeFor({ pass: 3, fail: 1, notTestableYet: 0, skippedDryRun: 0 })).toBe(1);
+		expect(exitCodeFor({ pass: 3, fail: 1, notTestableYet: 0, probeUndecided: 0, skippedDryRun: 0 })).toBe(1);
+	});
+
+	test("a probe that ran and still decided nothing fails a real run, never a dry run", async () => {
+		const results = await runChecklist({
+			rows: [row({ probe: async () => ({ status: "not-testable-yet", detail: "nothing rendered to check" }) })],
+			mode: "run",
+			context: context(),
+		});
+		const totals = totalsOf(results);
+		expect(totals.probeUndecided).toBe(1);
+		expect(exitCodeFor(totals, "run")).toBe(2);
+		expect(exitCodeFor(totals, "dry-run")).toBe(0);
+		// A capability gap (missing env) is not a punt: it stays green.
+		const missingEnv = totalsOf(
+			await runChecklist({
+				rows: [row({ requiredEnv: ["SMITHERS_TEST_MISSING"], probe: async () => ({ status: "pass", detail: "ok" }) })],
+				mode: "run",
+				context: context(),
+			}),
+		);
+		expect(missingEnv.probeUndecided).toBe(0);
+		expect(exitCodeFor(missingEnv, "run")).toBe(0);
 	});
 
 	test("the report keeps the historical shape and renders every row", async () => {
@@ -108,7 +130,7 @@ describe("report shaping", () => {
 		});
 		const report = buildReport("run", "https://example.test", "2026-08-16T00:00:00.000Z", results);
 		expect(report.target).toBe("https://example.test");
-		expect(report.totals).toEqual({ pass: 1, fail: 0, notTestableYet: 0, skippedDryRun: 0 });
+		expect(report.totals).toEqual({ pass: 1, fail: 0, notTestableYet: 0, probeUndecided: 0, skippedDryRun: 0 });
 		const markdown = renderMarkdown(report);
 		expect(markdown).toContain("| X-1 | A | pass | a row |");
 		expect(markdown).toContain("Evidence:");

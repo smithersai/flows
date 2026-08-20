@@ -1054,13 +1054,14 @@ export function CardView({
 					onClick={() => onMinimize()}
 				/>
 			) : null}
-			<section
-				className="smithers-card"
-				data-kind={card.kind}
-				data-status={card.status}
-				data-maximized={maximized}
-				aria-label={card.title}
-			>
+		<section
+			className="smithers-card"
+			data-kind={card.kind}
+			data-status={card.status}
+			data-maximized={maximized}
+			data-run-id={card.kind === "flow-run" ? card.payload.runId : undefined}
+			aria-label={card.title}
+		>
 				<header className="smithers-card-header">
 					<span className="smithers-card-title">{card.title}</span>
 					<StatusPill status={pillStatus(card)} />
