@@ -1,0 +1,251 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "d48c06021b62ba4a1dbdc615ef8cdb5f1a9bfd6d",
+ "tree": "62c2fadec603a5b7998118799ee094c193291b02",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 26,
+  "sectionCount": 71
+ },
+ "source": {
+  "commit": "64938080977d2fd1c41f295ce44eb1b91b91bc4b",
+  "subject": "✅ test(e2e): stage turn-failure where the chain wire actually fails",
+  "priorCanonicalCommit": "c8ce36fc90b04c2466ae68bdcca39a0c8be110ab",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 26,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "ui",
+  "epicsTouched": [
+   {
+    "id": "ui",
+    "files": 2
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 864,
+  "globalCount": 909,
+  "purpose": "✅ test(e2e): stage turn-failure where the chain wire actually fails",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "bfe87e288aee957ed67d609f29d7dd08b841bfff"
+  ],
+  "parent": "bfe87e288aee957ed67d609f29d7dd08b841bfff",
+  "sourceImports": [
+   "f01dafa893105f00d06046ae8d94c86cb040cc24",
+   "55cc0d8ceb120ba78e2dd9d25f3b8ad05e33d804",
+   "767956221a8bd966d33df1ed26427b0e7bcf4a57",
+   "6c83b7b131e8e10ed61bea58861cb8758e0fe470",
+   "44053b9f5f436d435ee9eeac6beba54dbfa3323b",
+   "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+   "6ee5df66db65e929997a2795336b742366b9a8d1",
+   "1f701eba4f32fa9c4cddfdad0b5fea3a212c69e7",
+   "48a4b77f8b5cffc7e2b75e0aa340f9c6f07dfb0a",
+   "51308f4793d76771c4129ad12325ce6ff071fbda",
+   "3b0c70f67ee7274e2c106e4cb4411598aed405ec",
+   "a6e62e957d45844c923f75337676e02826657a76",
+   "4ebfe9f90b4b8be1920b53ed369f919e15828f6a",
+   "316ed72b6baf1a1942e7d3f3f313ddfae37f770b",
+   "f1d7e3f3b271cdf382bfdc34069d1ba559f1c3ea"
+  ],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "bfe87e288aee957ed67d609f29d7dd08b841bfff",
+  "next": "d2ed01714fb36ac612f8769b7360d2a561e67d54",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "9f4db87e9b528812c207c1054f8c36a09a06c2c7"
+ },
+ "size": {
+  "files": 2,
+  "added": 186,
+  "deleted": 45
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "64938080977d2fd1c41f295ce44eb1b91b91bc4b"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "apps/ui/e2e/suites/turn-failure.e2e.ts",
+   "mode": "100644",
+   "blob": "a78ddf1e848d3bd98e161df8082c8f20db84a75d",
+   "previousBlob": "d171c36d49674fd86317e4d51cae085f6a26db8e",
+   "added": 174,
+   "deleted": 40,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 45,
+     "oldLines": 1,
+     "newStart": 45,
+     "newLines": 1
+    },
+    {
+     "oldStart": 123,
+     "oldLines": 6,
+     "newStart": 123,
+     "newLines": 27
+    },
+    {
+     "oldStart": 134,
+     "oldLines": 2,
+     "newStart": 155,
+     "newLines": 2
+    },
+    {
+     "oldStart": 165,
+     "oldLines": 3,
+     "newStart": 185,
+     "newLines": 0
+    },
+    {
+     "oldStart": 344,
+     "oldLines": 6,
+     "newStart": 362,
+     "newLines": 21
+    },
+    {
+     "oldStart": 362,
+     "oldLines": 0,
+     "newStart": 396,
+     "newLines": 5
+    },
+    {
+     "oldStart": 364,
+     "oldLines": 2,
+     "newStart": 402,
+     "newLines": 2
+    },
+    {
+     "oldStart": 437,
+     "oldLines": 1,
+     "newStart": 475,
+     "newLines": 1
+    },
+    {
+     "oldStart": 447,
+     "oldLines": 6,
+     "newStart": 485,
+     "newLines": 7
+    },
+    {
+     "oldStart": 482,
+     "oldLines": 1,
+     "newStart": 521,
+     "newLines": 34
+    },
+    {
+     "oldStart": 725,
+     "oldLines": 0,
+     "newStart": 798,
+     "newLines": 2
+    },
+    {
+     "oldStart": 726,
+     "oldLines": 0,
+     "newStart": 801,
+     "newLines": 1
+    },
+    {
+     "oldStart": 728,
+     "oldLines": 2,
+     "newStart": 803,
+     "newLines": 11
+    },
+    {
+     "oldStart": 731,
+     "oldLines": 0,
+     "newStart": 816,
+     "newLines": 1
+    },
+    {
+     "oldStart": 771,
+     "oldLines": 2,
+     "newStart": 856,
+     "newLines": 20
+    },
+    {
+     "oldStart": 774,
+     "oldLines": 1,
+     "newStart": 877,
+     "newLines": 1
+    },
+    {
+     "oldStart": 782,
+     "oldLines": 1,
+     "newStart": 885,
+     "newLines": 29
+    },
+    {
+     "oldStart": 969,
+     "oldLines": 6,
+     "newStart": 1100,
+     "newLines": 9
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "M",
+   "path": "apps/ui/src/mainview/chain/ChainRuntime.ts",
+   "mode": "100644",
+   "blob": "db2fa5a5b0afe037e2da710b40247a47c55e11a4",
+   "previousBlob": "af5c68852964acc9b3e0cc38bb96e17d8cca8531",
+   "added": 12,
+   "deleted": 5,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 560,
+     "oldLines": 0,
+     "newStart": 561,
+     "newLines": 9
+    },
+    {
+     "oldStart": 564,
+     "oldLines": 4,
+     "newStart": 572,
+     "newLines": 0
+    },
+    {
+     "oldStart": 572,
+     "oldLines": 1,
+     "newStart": 577,
+     "newLines": 3
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  }
+ ]
+}
