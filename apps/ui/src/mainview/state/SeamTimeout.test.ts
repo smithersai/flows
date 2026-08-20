@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { StorageApi } from "@tanstack/db";
 import { createAppController } from "./AppController";
 import { createAppStore } from "./AppStore";
+import { createControllerContext } from "./controller/context";
 import type { NativeAgent, NativeRepositories } from "../native/NativeBridge";
 
 /*
@@ -82,5 +83,28 @@ describe("a seam that never answers becomes an honest answer", () => {
 		expect(Date.now() - started).toBeLessThan(5_000);
 		expect(outcome.status).toBe("failed");
 		if (outcome.status === "failed") expect(outcome.error).toContain("didn't answer in time");
+	});
+
+	test("the deadline rejects with a named seam timeout, not a message-less TimeoutError", async () => {
+		/*
+		 * boundedFetch's deadline is the seam's own failure and has to say so:
+		 * `Effect.timeout` alone rejects with a TimeoutError whose `message` is
+		 * undefined, which reaches any caller that reports `error.message` as
+		 * the literal string "undefined".
+		 */
+		const store = await createAppStore({ kind: "localStorage", storage: memoryStorage() });
+		const ctx = createControllerContext(store, unavailableRepositories, unavailableAgent, {
+			seamTimeoutMs: 20,
+			fetchImpl: (_input, init) =>
+				new Promise((_resolve, reject) => {
+					init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+				}),
+		});
+		const failure = await ctx.boundedFetch("https://app.test/api/anything", { method: "GET" }).then(
+			() => undefined,
+			(error: unknown) => error,
+		);
+		expect(failure).toBeInstanceOf(Error);
+		expect((failure as Error).message).toBe("seam timeout");
 	});
 });
