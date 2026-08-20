@@ -1,0 +1,11 @@
+import { open, run, text } from "./drv.ts";
+const { context, page } = await open();
+await page.waitForTimeout(6000);
+await run(page, "/debug.snapshot", 8000);
+const cards = await page.locator("pre, code, [class*='snapshot']").allInnerTexts();
+const all = cards.join("\n");
+console.log("len", all.length);
+const idx = all.indexOf("worldDocuments");
+console.log("worldDocuments idx", idx, JSON.stringify(all.slice(Math.max(0,idx-200), idx+900)));
+console.log("has zarquon:", all.includes("zarquon"));
+await context.close();
