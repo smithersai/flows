@@ -15,7 +15,6 @@
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
 import { describe, expect, it } from "@effect/vitest"
 import { ArtifactStore, ArtifactSweep } from "@smthrs/artifacts"
-import { SqlJournal } from "@smthrs/journal"
 import * as SqlJournal from "@smthrs/journal/SqlJournal"
 import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
 import { CacheStore } from "@smthrs/step-cache"
