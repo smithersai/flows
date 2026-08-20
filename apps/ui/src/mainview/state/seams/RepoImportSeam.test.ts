@@ -303,3 +303,104 @@ describe("repo import — honest failures", () => {
 		expect(card?.status).toBe("active");
 	});
 });
+
+/*
+ * Directive 5 (will, 2026-08-19): "import to smithers cloud button exists and
+ * it shouldn't. importing to smithers cloud just happens in background — it's
+ * an implementation detail. the user feels like they are on github".
+ *
+ * The automatic import that opening a repository starts must therefore render
+ * NOTHING. These pin the whole of that: the requests still go out, the
+ * readiness is still kept (in a collection the app renders nowhere), no card is
+ * written and no card.upsert is even journaled, and the explicit capability
+ * keeps the card it always had.
+ */
+describe("repo import — the background half", () => {
+	test("opening a repository starts the import and renders nothing for it", async () => {
+		const started: Array<string> = [];
+		const { store, controller } = await readyStore({
+			fetchImpl: async (input, init) => {
+				const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+				const path = new URL(url, "https://app.test").pathname;
+				if (path === "/api/github/import" && (init?.method ?? "GET") === "POST") {
+					started.push(String(init?.body ?? ""));
+					return json(202, jobBody("cloning", "resolving"));
+				}
+				if (path.startsWith("/api/github/import/")) return json(200, jobBody("ready"));
+				return json(404, { status: "error", message: `no stub for ${path}` });
+			},
+		});
+
+		const outcome = await controller.commands.run("repo.open", "will/flows");
+		expect(outcome.status).toBe("executed");
+		await until(() => started.length === 1, "the import request");
+
+		// The request went out with the repository the user opened.
+		expect(started[0]).toContain('"owner":"will"');
+		expect(started[0]).toContain('"repo":"flows"');
+
+		// …and the readiness is real state, in the store.
+		await until(() => store.collections.repoImports.get("will/flows") !== undefined, "the readiness row");
+		expect(store.collections.repoImports.get("will/flows")?.phase).toBeDefined();
+
+		// Nothing renderable was written. Not the card, and not even the
+		// transition that would have written one.
+		expect(importCard(store)).toBeUndefined();
+		expect(importUpserts(store)).toEqual([]);
+		expect([...store.collections.cards.values()].filter((card) => card.kind === "repo-import")).toEqual([]);
+	});
+
+	test("a background import that finishes records done, still with no card", async () => {
+		const { store, controller } = await readyStore(
+			importBackend(
+				() => json(202, jobBody("cloning", "resolving")),
+				pollSequence([() => json(200, jobBody("ready", "provisioning_workspace"))]),
+			),
+		);
+		await controller.commands.run("repo.open", "will/flows");
+		await until(() => store.collections.repoImports.get("will/flows")?.phase === "done", "the done phase");
+		expect(importCard(store)).toBeUndefined();
+		expect(importUpserts(store)).toEqual([]);
+	});
+
+	test("a background import that fails stays silent — the reads degrade, the user is not told twice", async () => {
+		const { store, controller } = await readyStore(
+			importBackend(() => json(500, { message: "upstream is down" })),
+		);
+		await controller.commands.run("repo.open", "will/flows");
+		await until(() => store.collections.repoImports.get("will/flows")?.phase === "failed", "the failed phase");
+		expect(store.collections.repoImports.get("will/flows")?.detail).toContain("upstream is down");
+		expect(importCard(store)).toBeUndefined();
+	});
+
+	test("the explicit capability still writes its card — asking for an import is owed an answer", async () => {
+		const { store, controller } = await readyStore(
+			importBackend(
+				() => json(202, jobBody("cloning", "resolving")),
+				pollSequence([() => json(200, jobBody("ready"))]),
+			),
+		);
+		const outcome = await controller.commands.run("repos.import", "will/flows");
+		expect(outcome.status).toBe("executed");
+		await until(() => importCard(store) !== undefined, "the explicit import card");
+		expect(importCard(store)?.title).toBe("Import · will/flows");
+	});
+
+	test("a repository opened twice imports once", async () => {
+		let starts = 0;
+		const { controller } = await readyStore(
+			importBackend(
+				() => {
+					starts += 1;
+					return json(202, jobBody("cloning", "resolving"));
+				},
+				pollSequence([() => json(200, jobBody("ready"))]),
+			),
+		);
+		await controller.commands.run("repo.open", "will/flows");
+		await until(() => starts === 1, "the first import");
+		await controller.commands.run("repo.open", "will/flows");
+		await settled();
+		expect(starts).toBe(1);
+	});
+});

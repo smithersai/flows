@@ -2854,9 +2854,11 @@ export const createAppController = (
 	const openRepository = (repo: string): void => {
 		store.dispatch({ type: "repository.selected", actor: commandActor, repo });
 		store.dispatch({ type: "surface.changed", actor: commandActor, surface: "github" });
-		// Importing is an implementation detail. Reads retain their existing honest
-		// degradation while this background job is still becoming ready.
-		void repoImportSeam.importRepository(repo);
+		// Importing is an implementation detail (will, 2026-08-19, directive 5):
+		// the job runs, its readiness is kept, and NOTHING is rendered for it —
+		// the user is browsing GitHub, not watching a mirror job they never asked
+		// for. Reads retain their existing honest degradation meanwhile.
+		void repoImportSeam.importRepository(repo, { silent: true });
 		// Opening a repository is asking to see it: the section on screen reads
 		// itself rather than waiting for the user to press its own tab.
 		readRepositoryTab(store.session().repositoryTab, repo);
@@ -2897,7 +2899,8 @@ export const createAppController = (
 		store.dispatch({ type: "surface.changed", actor: commandActor, surface: "files" });
 		void loadRepoCatalog();
 		if (repo === null) return;
-		void repoImportSeam.importRepository(repo);
+		/* Directive 5 again: the Files frame imports in the background, silently. */
+		void repoImportSeam.importRepository(repo, { silent: true });
 		void filesSeam.listFiles("", repo);
 	};
 
