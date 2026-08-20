@@ -1,0 +1,281 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+ "tree": "5d70b017954c2f40882849b93e11063188694097",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 1,
+  "sectionCount": 71
+ },
+ "source": {
+  "commit": "2f3369b760d595c6c8519e5aceadaa922df15bcb",
+  "subject": "🐛 fix(e2e): stop a suite's clients before the next one runs",
+  "priorCanonicalCommit": "1d4ec98d3ba17e6d2f70d4c79ca175260cf18f2b",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 1,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "ui",
+  "epicsTouched": [
+   {
+    "id": "ui",
+    "files": 6
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 839,
+  "globalCount": 909,
+  "purpose": "🐛 fix(e2e): stop a suite's clients before the next one runs",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "fffae75b8237d90c06e1e523162a7fe23b56959e"
+  ],
+  "parent": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sourceImports": [
+   "3b0c70f67ee7274e2c106e4cb4411598aed405ec",
+   "bbc11668994cc8f212fa1e75ab120b1725a5ade3",
+   "51308f4793d76771c4129ad12325ce6ff071fbda",
+   "a6e62e957d45844c923f75337676e02826657a76",
+   "7d8076c868cdde0907e4ea01fe4c775ecb67670f",
+   "767956221a8bd966d33df1ed26427b0e7bcf4a57",
+   "f01dafa893105f00d06046ae8d94c86cb040cc24",
+   "c7389c8fb2e161d11d7f53dbeea9064f56c9c167",
+   "6ee5df66db65e929997a2795336b742366b9a8d1"
+  ],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "next": "ab7f9bfc50bd64295245de69ff27841d00a7ddfd",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "9f4db87e9b528812c207c1054f8c36a09a06c2c7"
+ },
+ "size": {
+  "files": 6,
+  "added": 75,
+  "deleted": 8
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "2f3369b760d595c6c8519e5aceadaa922df15bcb"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "apps/ui/e2e/Client.ts",
+   "mode": "100644",
+   "blob": "5b49433eedd61a3e8606576d1dced2b333888e76",
+   "previousBlob": "96a3d7ade48b51599fb215314f59b5ad8fe69d3a",
+   "added": 36,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 68,
+     "oldLines": 0,
+     "newStart": 69,
+     "newLines": 8
+    },
+    {
+     "oldStart": 70,
+     "oldLines": 0,
+     "newStart": 79,
+     "newLines": 13
+    },
+    {
+     "oldStart": 156,
+     "oldLines": 1,
+     "newStart": 177,
+     "newLines": 12
+    },
+    {
+     "oldStart": 158,
+     "oldLines": 0,
+     "newStart": 191,
+     "newLines": 1
+    },
+    {
+     "oldStart": 172,
+     "oldLines": 0,
+     "newStart": 206,
+     "newLines": 2
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "M",
+   "path": "apps/ui/e2e/run.ts",
+   "mode": "100644",
+   "blob": "3e750313058055dd8596064f7448835afeb5492b",
+   "previousBlob": "510d063119abd930591790c35280caaa68ae58ff",
+   "added": 12,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 25,
+     "oldLines": 0,
+     "newStart": 26,
+     "newLines": 1
+    },
+    {
+     "oldStart": 323,
+     "oldLines": 0,
+     "newStart": 325,
+     "newLines": 9
+    },
+    {
+     "oldStart": 375,
+     "oldLines": 0,
+     "newStart": 386,
+     "newLines": 2
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "M",
+   "path": "apps/ui/e2e/suites/commands-registry.e2e.ts",
+   "mode": "100644",
+   "blob": "8a8acda6becf0fbb62769e8909e8503ab3a90c8d",
+   "previousBlob": "ae289877292984b7cb2f38c1a6ab1dc31660d921",
+   "added": 15,
+   "deleted": 3,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1939,
+     "oldLines": 2,
+     "newStart": 1939,
+     "newLines": 10
+    },
+    {
+     "oldStart": 1942,
+     "oldLines": 1,
+     "newStart": 1950,
+     "newLines": 5
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "M",
+   "path": "apps/ui/src/launch-checklist/Probes.test.ts",
+   "mode": "100644",
+   "blob": "9c89bb1c0c077d934780a13681a3c9d9039487fd",
+   "previousBlob": "99d305c68643468d4e7b0285ac88330a055d1396",
+   "added": 3,
+   "deleted": 3,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 61,
+     "oldLines": 3,
+     "newStart": 61,
+     "newLines": 3
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "M",
+   "path": "apps/ui/src/launch-checklist/Probes.ts",
+   "mode": "100644",
+   "blob": "f97c4024a14816469f5519b3f825e0874a9981c0",
+   "previousBlob": "2ed60f5219a5ffb6f83138b62828e610840ddb13",
+   "added": 6,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 84,
+     "oldLines": 0,
+     "newStart": 85,
+     "newLines": 4
+    },
+    {
+     "oldStart": 176,
+     "oldLines": 0,
+     "newStart": 181,
+     "newLines": 2
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "M",
+   "path": "apps/ui/src/launch-checklist/Rows.ts",
+   "mode": "100644",
+   "blob": "f589c9ef9b83bfe9c6900391680e1dfaaa7201bf",
+   "previousBlob": "9369da3c47f1302510e160e68cb5908f85224df8",
+   "added": 3,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 548,
+     "oldLines": 0,
+     "newStart": 549,
+     "newLines": 2
+    },
+    {
+     "oldStart": 550,
+     "oldLines": 1,
+     "newStart": 552,
+     "newLines": 1
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  }
+ ]
+}
