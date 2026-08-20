@@ -2429,6 +2429,18 @@ const handlePlatformProxy = async (request: Request, env: WorkerEnv, url: URL): 
 	return new Response(upstream.body, { status: upstream.status, headers: out });
 };
 
+const START_SESSION_HEADER = "x-smithers-start-session";
+
+/** Replace any client-supplied value with the session resolved for the Start branch. */
+export const withStartSessionHandoff = async (request: Request, sessionResponse: Response): Promise<Request> => {
+	const sessionEnvelope = encodeURIComponent(
+		JSON.stringify({ status: sessionResponse.status, body: await sessionResponse.text() }),
+	);
+	const startHeaders = new Headers(request.headers);
+	startHeaders.set(START_SESSION_HEADER, sessionEnvelope);
+	return new Request(request, { headers: startHeaders });
+};
+
 export default {
 	async fetch(request: Request, env: WorkerEnv): Promise<Response> {
 		const url = new URL(request.url);
@@ -2552,17 +2564,11 @@ export default {
 		 */
 		if (typeof __SMITHERS_START__ !== "undefined" && __SMITHERS_START__) {
 			const { default: start } = await import("@tanstack/react-start/server-entry");
-			// Start server functions run in a separate RPC context, so resolve the
-			// trusted session once at the Worker boundary and overwrite any client
-			// attempt to supply the internal handoff header.
+			// Resolve once at the trusted boundary; the server function reads this
+			// request header, and a client-supplied value is always overwritten here.
 			const sessionRequest = new Request(new URL(AUTH_SESSION_PATH, request.url), request);
 			const sessionResponse = await probeAuthSession(sessionRequest, env);
-			const sessionEnvelope = encodeURIComponent(
-				JSON.stringify({ status: sessionResponse.status, body: await sessionResponse.text() }),
-			);
-			const startHeaders = new Headers(request.headers);
-			startHeaders.set("x-smithers-start-session", sessionEnvelope);
-			const response = await start.fetch(new Request(request, { headers: startHeaders }));
+			const response = await start.fetch(await withStartSessionHandoff(request, sessionResponse));
 			return withIsolationHeaders(response);
 		}
 		return withIsolationHeaders(await env.ASSETS.fetch(request));

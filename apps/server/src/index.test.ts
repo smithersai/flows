@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import worker, { TurnCancelRegistry } from "./index";
+import worker, { TurnCancelRegistry, withStartSessionHandoff } from "./index";
 import type { TurnCancelNamespace, TurnCancelStorage, WorkerEnv } from "./index";
 
 const assetsEnv = (html = "<html><body>smithers</body></html>"): WorkerEnv => ({
@@ -32,6 +32,24 @@ const post = (path: string, body: unknown): Request =>
 	});
 
 describe("smithers mvp worker", () => {
+	test("the trusted Start session handoff overwrites a forged client value", async () => {
+		const forged = encodeURIComponent(JSON.stringify({ status: 200, body: JSON.stringify({ login: "forged" }) }));
+		const request = new Request("https://mvp.test/", {
+			headers: { "x-smithers-start-session": forged },
+		});
+		const handedOff = await withStartSessionHandoff(
+			request,
+			new Response(JSON.stringify({ status: "signed-out" }), { status: 200 }),
+		);
+		const encoded = handedOff.headers.get("x-smithers-start-session");
+		expect(encoded).not.toBeNull();
+		expect(JSON.parse(decodeURIComponent(encoded ?? ""))).toEqual({
+			status: 200,
+			body: JSON.stringify({ status: "signed-out" }),
+		});
+		expect(encoded).not.toBe(forged);
+	});
+
 	test("serves the SPA with the cross-origin isolation headers OPFS needs", async () => {
 		const response = await worker.fetch(new Request("https://mvp.test/"), assetsEnv());
 		expect(response.status).toBe(200);
