@@ -1,0 +1,165 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "ceccf909f0e096f82af297262f7e60620400663f",
+ "tree": "0b9b07acabeab6f10082aeaddb29538f767930a0",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 47,
+  "sectionCount": 83
+ },
+ "source": {
+  "commit": "bdd707bfcf264bb5dad763ed13108ee81323899e",
+  "subject": "🐛 fix(run-store): make run state fold durable",
+  "priorCanonicalCommit": "2632c05da63099666add6437c743f4c5b3922f59",
+  "treeEqualToSource": false,
+  "indexOnSourceLine": 37,
+  "sourceLineCount": 71,
+  "subjectRewritten": true,
+  "rewriteReason": "the source commit landed 13 separable concerns under one subject; this commit carries one of them and states it, while the last commit of the split keeps the source subject verbatim and reproduces the source tree exactly",
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true,
+  "split": {
+   "of": "2632c05da63099666add6437c743f4c5b3922f59",
+   "index": 11,
+   "count": 13,
+   "granularity": "whole-path",
+   "rationale": "path-partitioned split of prior canonical commit 2632c05da63099666add6437c743f4c5b3922f59 (85 files, 2647 changed lines) into 13 dependency-ordered atomic commits; the partition is by whole path, no hunk is divided, and the union of the 13 path sets is exactly the prior commit's path set, so the last split commit's tree is byte-identical to the prior canonical tree and to the source commit's tree",
+   "members": [
+    "35e8bb5ee63f687e4c5d505c0eeb2a0dc4852912",
+    "f2a7988d68204605a0893d95d2e72986c5324607",
+    "0db9b9e56057fdb635498531007046b455f59f17",
+    "93a03795321b1c8eb6b0549f7e9c077983b2a4de",
+    "4b74f1869551d52856c373d3c00176b5239f6d70",
+    "10e7bcaae6ead421319a8d67cc58759ba7fcea9b",
+    "92af181d2eb89f8f5c08e2bb547c02e96afc8955",
+    "6ba1f1e4bbfdb4e9948794207954c551fa325b2e",
+    "83bb9a5cb7fd6687b99a75a8be32bcb4e79bf977",
+    "1c4f303b40917cb36087ef46817a11f2cb9e0d29",
+    "ceccf909f0e096f82af297262f7e60620400663f",
+    "c92bd7ef9e370096bcb56fdd661d9f3ba04dd080",
+    "45e3c1570fd6be09e9c529beaab1c8602d059998"
+   ],
+   "priorSize": {
+    "files": 85,
+    "added": 1940,
+    "deleted": 707,
+    "changed": 2647
+   }
+  }
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "control",
+  "epicsTouched": [
+   {
+    "id": "control",
+    "files": 2
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 885,
+  "globalCount": 921,
+  "purpose": "♻️ refactor(control): provide the journal into the control plane's run store",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "1c4f303b40917cb36087ef46817a11f2cb9e0d29"
+  ],
+  "parent": "1c4f303b40917cb36087ef46817a11f2cb9e0d29",
+  "sourceImports": [
+   "6d02ba3e074e63db93f229f2d09d856006aa4761",
+   "72d009042a79d12f6a35e9587eede9460661b735",
+   "7e9430eb10b89354851c7c933be7f914f2d882b1",
+   "97ff849a7257cced78e9a772087e7be2185f7927",
+   "aa41b1a90fd808ad5cfbaa20e2efecfd532d6847",
+   "ace5d9a9e3038fc29f3325b6cbe0b28a7ab46897",
+   "f509c10e2479db023f15e532897a64ca1432dd25"
+  ],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "1c4f303b40917cb36087ef46817a11f2cb9e0d29",
+  "next": "c92bd7ef9e370096bcb56fdd661d9f3ba04dd080",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "6fe6857b28247375ab46b0d79cba15e74754ebd6"
+ },
+ "size": {
+  "files": 2,
+  "added": 11,
+  "deleted": 5
+ },
+ "provenance": {
+  "strategy": "path-partitioned split of the source commit's tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": false,
+  "sourceCommit": "bdd707bfcf264bb5dad763ed13108ee81323899e",
+  "splitOf": "2632c05da63099666add6437c743f4c5b3922f59"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "packages/control/src/SqlControlRuntime.ts",
+   "mode": "100644",
+   "blob": "314e98ce069275505ff49ad17dd23e6a5247ff79",
+   "previousBlob": "0050517c995d3026f6c5f9c5217f28695736587b",
+   "added": 9,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 48,
+     "oldLines": 0,
+     "newStart": 49,
+     "newLines": 1
+    },
+    {
+     "oldStart": 832,
+     "oldLines": 1,
+     "newStart": 833,
+     "newLines": 8
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 8,
+    "id": "control",
+    "name": "Model, memory, notification and control services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/control/test/SqlControlRuntime.test.ts",
+   "mode": "100644",
+   "blob": "74dd9a9be545ece7d0d7e4c68305e0c02a2b9a78",
+   "previousBlob": "794da1a44ebc8230b76865e160f52dac3a9e1112",
+   "added": 2,
+   "deleted": 4,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 32,
+     "oldLines": 4,
+     "newStart": 32,
+     "newLines": 2
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 8,
+    "id": "control",
+    "name": "Model, memory, notification and control services"
+   }
+  }
+ ],
+ "sizeJustification": "split from prior canonical commit 2632c05da63099666add6437c743f4c5b3922f59; 16 changed lines across 2 files, below the 2000-line large-commit threshold"
+}
