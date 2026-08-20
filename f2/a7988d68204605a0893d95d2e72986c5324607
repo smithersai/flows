@@ -1,0 +1,144 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "f2a7988d68204605a0893d95d2e72986c5324607",
+ "tree": "4a348592ecdee471f6fae4a96ea8a49db30c2dee",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 38,
+  "sectionCount": 83
+ },
+ "source": {
+  "commit": "bdd707bfcf264bb5dad763ed13108ee81323899e",
+  "subject": "🐛 fix(run-store): make run state fold durable",
+  "priorCanonicalCommit": "2632c05da63099666add6437c743f4c5b3922f59",
+  "treeEqualToSource": false,
+  "indexOnSourceLine": 37,
+  "sourceLineCount": 71,
+  "subjectRewritten": true,
+  "rewriteReason": "the source commit landed 13 separable concerns under one subject; this commit carries one of them and states it, while the last commit of the split keeps the source subject verbatim and reproduces the source tree exactly",
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true,
+  "split": {
+   "of": "2632c05da63099666add6437c743f4c5b3922f59",
+   "index": 2,
+   "count": 13,
+   "granularity": "whole-path",
+   "rationale": "path-partitioned split of prior canonical commit 2632c05da63099666add6437c743f4c5b3922f59 (85 files, 2647 changed lines) into 13 dependency-ordered atomic commits; the partition is by whole path, no hunk is divided, and the union of the 13 path sets is exactly the prior commit's path set, so the last split commit's tree is byte-identical to the prior canonical tree and to the source commit's tree",
+   "members": [
+    "35e8bb5ee63f687e4c5d505c0eeb2a0dc4852912",
+    "f2a7988d68204605a0893d95d2e72986c5324607",
+    "0db9b9e56057fdb635498531007046b455f59f17",
+    "93a03795321b1c8eb6b0549f7e9c077983b2a4de",
+    "4b74f1869551d52856c373d3c00176b5239f6d70",
+    "10e7bcaae6ead421319a8d67cc58759ba7fcea9b",
+    "92af181d2eb89f8f5c08e2bb547c02e96afc8955",
+    "6ba1f1e4bbfdb4e9948794207954c551fa325b2e",
+    "83bb9a5cb7fd6687b99a75a8be32bcb4e79bf977",
+    "1c4f303b40917cb36087ef46817a11f2cb9e0d29",
+    "ceccf909f0e096f82af297262f7e60620400663f",
+    "c92bd7ef9e370096bcb56fdd661d9f3ba04dd080",
+    "45e3c1570fd6be09e9c529beaab1c8602d059998"
+   ],
+   "priorSize": {
+    "files": 85,
+    "added": 1940,
+    "deleted": 707,
+    "changed": 2647
+   }
+  }
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "engine-store",
+  "epicsTouched": [
+   {
+    "id": "engine-store",
+    "files": 1
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 876,
+  "globalCount": 921,
+  "purpose": "🐛 fix(sync): skip the process-recovery suite where loopback binding is denied",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "35e8bb5ee63f687e4c5d505c0eeb2a0dc4852912"
+  ],
+  "parent": "35e8bb5ee63f687e4c5d505c0eeb2a0dc4852912",
+  "sourceImports": [
+   "239bfc3fc9ed99100f271bcb1d4a5a4ad9a3f524",
+   "2466cc971787b3ecc68cc046ccba9fc9b2acf82b",
+   "3c12dbdf04c94ac01d62039a304e31f3a5799f9e",
+   "409d977dc6850904988b0a037cbfd926daa547f0"
+  ],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "35e8bb5ee63f687e4c5d505c0eeb2a0dc4852912",
+  "next": "0db9b9e56057fdb635498531007046b455f59f17",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "6fe6857b28247375ab46b0d79cba15e74754ebd6"
+ },
+ "size": {
+  "files": 1,
+  "added": 20,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "path-partitioned split of the source commit's tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": false,
+  "sourceCommit": "bdd707bfcf264bb5dad763ed13108ee81323899e",
+  "splitOf": "2632c05da63099666add6437c743f4c5b3922f59"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "packages/sync/test/SyncProcessRecovery.integration.test.ts",
+   "mode": "100644",
+   "blob": "1be55d72a840e564f856a8affb892cd2d86d2b31",
+   "previousBlob": "9abf7610689c26b05c78e60665b274786bcf3f32",
+   "added": 20,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 15,
+     "oldLines": 0,
+     "newStart": 16,
+     "newLines": 1
+    },
+    {
+     "oldStart": 122,
+     "oldLines": 0,
+     "newStart": 124,
+     "newLines": 18
+    },
+    {
+     "oldStart": 127,
+     "oldLines": 0,
+     "newStart": 147,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  }
+ ],
+ "sizeJustification": "split from prior canonical commit 2632c05da63099666add6437c743f4c5b3922f59; 20 changed lines across 1 files, below the 2000-line large-commit threshold"
+}
