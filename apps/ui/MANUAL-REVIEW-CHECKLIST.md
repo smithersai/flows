@@ -354,6 +354,13 @@ Run the flow, read the card, resize the window, switch theme, and reload.
 - [ ] **11a.8** Nothing in either pane offers to import a repository. Opening a
       repository prepares it in the background, and reads degrade honestly
       while preparation is still running.
+- [ ] **11a.9** The frame OWNS the reads it shows: each tab's list appears
+      exactly once, inside the pane, with no copy of it above the pane, and
+      changing tabs leaves nothing behind. Browse Files → Issues → Pull
+      Requests → Flows and back; the transcript above the pane must be
+      unchanged throughout. Another repository's earlier read stays where it
+      was read, and closing the pane returns this repository's reads to the
+      transcript — the pane hides them, it never deletes them.
 
 ## §12 Repos and the GitHub App
 
@@ -365,10 +372,12 @@ Run the flow, read the card, resize the window, switch theme, and reload.
 - [ ] **12.1** No user-facing import affordance exists: not in the composer
       connect menu, not in the connectors store list, not in the slash menu.
 - [ ] **12.2** Opening a repository in the GitHub pane starts its preparation
-      in the background; progress is legible on the repo-import card and it
-      ends in a terminal state.
-- [ ] **12.3** Opening a repo you do not have access to: honest refusal, and
-      no invented progress.
+      in the background and renders NOTHING for it: no import card, no
+      "Import · owner/repo" title, no stage line, at any phase. The user is
+      browsing GitHub, not watching a mirror job they never asked for.
+- [ ] **12.3** Opening a repo you do not have access to: the reads degrade
+      honestly (the pane says what it could not read), and the failed import
+      still says nothing of its own — one honest refusal, not two.
 - [ ] **12.4** Opening the same repo twice does not start a second job.
 - [ ] **12.5** `/repos.app` reports the GitHub App's real installation state
       and links to the fix when it is not installed.
