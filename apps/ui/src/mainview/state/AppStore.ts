@@ -14,6 +14,8 @@ import {
 	readRecordedBackend,
 	recordBackend,
 } from "../chain/SchemaVersion";
+import { openTransactionalStorage } from "../chain/TransactionalStorage";
+import type { TransactionalStorage } from "../chain/TransactionalStorage";
 import { PALETTE_MIRROR_KEY, rememberAppearance, THEME_MIRROR_KEY } from "./Appearance";
 import {
 	BillingAccountSchema,
@@ -57,6 +59,33 @@ import type {
 } from "./AppState";
 
 const SESSION_ID = "main";
+
+/*
+ * Retention bounds for the log collections (apps/ui/docs/persistence.md §
+ * "Retention and compaction"). Compaction runs inside the same dispatch
+ * transaction that appends, so it is part of the atomic commit, and it keeps
+ * the newest records: the debuggable tail is the valuable end of a log.
+ */
+export const MAX_TRANSITION_RECORDS = 500;
+export const MAX_TOOL_CALL_RECORDS = 250;
+export const MAX_CHAIN_EVENT_RECORDS = 1000;
+
+/**
+ * The keys of the records beyond `keep`, oldest first. `order` is the row's
+ * position in the log (a revision, a createdAt); ties fall to the key so the
+ * choice is stable.
+ */
+const staleLogKeys = <T extends { readonly id: string }>(
+	rows: ReadonlyArray<T>,
+	keep: number,
+	order: (row: T) => number,
+): Array<string> => {
+	if (rows.length <= keep) return [];
+	return [...rows]
+		.sort((left, right) => order(left) - order(right) || left.id.localeCompare(right.id))
+		.slice(0, rows.length - keep)
+		.map((row) => row.id);
+};
 
 /** The stable ids the reco seam's first-run surfaces reuse, so a boot refresh upserts instead of duplicating. */
 export const RECO_DIGEST_MESSAGE_ID = "message-reco-digest";
@@ -615,7 +644,7 @@ export const createAppStore = async (
 		backend === undefined
 			? await resolvePersistence()
 			: { backend, mode: backend.kind, degraded: false };
-	const resolvedBackend = resolved.backend;
+	let resolvedBackend = resolved.backend;
 	/*
 	 * E14.2: the localStorage backend gets the version gate the OPFS backend
 	 * gets from `schemaMismatchPolicy`. It runs here, before the first
@@ -623,7 +652,34 @@ export const createAppStore = async (
 	 * soon as it is preloaded and TanStack never validates them.
 	 */
 	const persistedLocally = localStorageOf(resolvedBackend);
-	if (persistedLocally !== undefined) enforceSchemaVersion(persistedLocally);
+	let transactional: TransactionalStorage | undefined;
+	if (persistedLocally !== undefined) {
+		enforceSchemaVersion(persistedLocally);
+		/*
+		 * Ruling A: the localStorage host has no transaction primitive, so the
+		 * collections write through a single-blob write-ahead facade
+		 * (docs/persistence.md). Open recovers any interrupted commit and
+		 * migrates/quarantines the envelope BEFORE the first collection reads.
+		 */
+		transactional = await openTransactionalStorage(persistedLocally, {
+			collections: [
+				{ id: "app-sessions", schema: SessionSchema },
+				{ id: "app-messages", schema: MessageSchema },
+				{ id: "app-connectors", schema: LocalRepositoryConnectorSchema },
+				{ id: "app-connector-operations", schema: ConnectorOperationSchema },
+				{ id: "world-documents", schema: WorldDocumentSchema },
+				{ id: "app-cards", schema: CardSchema },
+				{ id: "app-transitions", schema: TransitionRecordSchema },
+				{ id: "app-identity-sessions", schema: IdentitySessionSchema },
+				{ id: "app-billing-accounts", schema: BillingAccountSchema },
+				{ id: "app-toasts", schema: ToastSchema },
+				{ id: "app-watched-repos", schema: WatchedReposSchema },
+				{ id: "app-tool-calls", schema: ToolCallRecordSchema },
+				{ id: "app-chain-events", schema: ChainEventRecordSchema },
+			],
+		});
+		resolvedBackend = { kind: "localStorage", storage: transactional.storage };
+	}
 	const collections: AppCollections = {
 		sessions: createSessionCollection(resolvedBackend),
 		messages: createMessageCollection(resolvedBackend),
@@ -681,21 +737,30 @@ export const createAppStore = async (
 	};
 
 	const persist = async (transaction: Parameters<typeof collections.sessions.utils.acceptMutations>[0]) => {
-		await Promise.all([
-			collections.sessions.utils.acceptMutations(transaction),
-			collections.messages.utils.acceptMutations(transaction),
-			collections.connectors.utils.acceptMutations(transaction),
-			collections.connectorOperations.utils.acceptMutations(transaction),
-			collections.worldDocuments.utils.acceptMutations(transaction),
-			collections.cards.utils.acceptMutations(transaction),
-			collections.transitions.utils.acceptMutations(transaction),
-			collections.identitySessions.utils.acceptMutations(transaction),
-			collections.billingAccounts.utils.acceptMutations(transaction),
-			collections.toasts.utils.acceptMutations(transaction),
-			collections.watchedRepos.utils.acceptMutations(transaction),
-			collections.toolCalls.utils.acceptMutations(transaction),
-			collections.chainEvents.utils.acceptMutations(transaction),
-		]);
+		const fanOut = (): Promise<unknown[]> =>
+			Promise.all([
+				collections.sessions.utils.acceptMutations(transaction),
+				collections.messages.utils.acceptMutations(transaction),
+				collections.connectors.utils.acceptMutations(transaction),
+				collections.connectorOperations.utils.acceptMutations(transaction),
+				collections.worldDocuments.utils.acceptMutations(transaction),
+				collections.cards.utils.acceptMutations(transaction),
+				collections.transitions.utils.acceptMutations(transaction),
+				collections.identitySessions.utils.acceptMutations(transaction),
+				collections.billingAccounts.utils.acceptMutations(transaction),
+				collections.toasts.utils.acceptMutations(transaction),
+				collections.watchedRepos.utils.acceptMutations(transaction),
+				collections.toolCalls.utils.acceptMutations(transaction),
+				collections.chainEvents.utils.acceptMutations(transaction),
+			]);
+		/*
+		 * The one atomic commit point per logical transition: inside the batch
+		 * every collection's write accumulates into a single envelope commit,
+		 * so every projection of the transition changes or none does
+		 * (docs/persistence.md). The OPFS backend keeps SQLite's own WAL.
+		 */
+		if (transactional !== undefined) await transactional.batch(fanOut);
+		else await fanOut();
 	};
 
 	const dispatch = (transition: AppTransition): Transaction => {
@@ -1762,14 +1827,37 @@ export const createAppStore = async (
 				}
 			}
 
-			collections.transitions.insert({
-				id: `transition-${revision}`,
-				revision,
-				actor: transition.actor,
-				type: transition.type,
-				payload: transitionPayload(transition),
-				createdAt,
-			});
+		collections.transitions.insert({
+			id: `transition-${revision}`,
+			revision,
+			actor: transition.actor,
+			type: transition.type,
+			payload: transitionPayload(transition),
+			createdAt,
+		});
+		/*
+		 * Retention (docs/persistence.md): the log collections compact inside
+		 * the appending transaction, so the bound is part of the atomic commit
+		 * and a crash can never leave a half-swept log.
+		 */
+		const staleTransitions = staleLogKeys(
+			[...collections.transitions.values()],
+			MAX_TRANSITION_RECORDS,
+			(record) => record.revision,
+		);
+		if (staleTransitions.length > 0) collections.transitions.delete(staleTransitions);
+		const staleToolCalls = staleLogKeys(
+			[...collections.toolCalls.values()],
+			MAX_TOOL_CALL_RECORDS,
+			(record) => record.createdAt,
+		);
+		if (staleToolCalls.length > 0) collections.toolCalls.delete(staleToolCalls);
+		const staleChainEvents = staleLogKeys(
+			[...collections.chainEvents.values()],
+			MAX_CHAIN_EVENT_RECORDS,
+			(record) => record.createdAt,
+		);
+		if (staleChainEvents.length > 0) collections.chainEvents.delete(staleChainEvents);
 		});
 
 		return transaction;
