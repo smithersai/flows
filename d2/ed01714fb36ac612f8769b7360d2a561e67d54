@@ -1,0 +1,106 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "d2ed01714fb36ac612f8769b7360d2a561e67d54",
+ "tree": "646b111ae68e83e615e65fc5d1a6ae4211d0e276",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 27,
+  "sectionCount": 71
+ },
+ "source": {
+  "commit": "bdf4afed8058c19b2e679fd5fd5c60829b8b0cc1",
+  "subject": "🐛 fix(ui): take directive 5's restored store row back out, again",
+  "priorCanonicalCommit": "a3b4ea1e8139ad343ac70b0f3b184695e3cd639c",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 27,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "ui",
+  "epicsTouched": [
+   {
+    "id": "ui",
+    "files": 1
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 865,
+  "globalCount": 909,
+  "purpose": "🐛 fix(ui): take directive 5's restored store row back out, again",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "d48c06021b62ba4a1dbdc615ef8cdb5f1a9bfd6d"
+  ],
+  "parent": "d48c06021b62ba4a1dbdc615ef8cdb5f1a9bfd6d",
+  "sourceImports": [
+   "49f05ad33ae4477ca468fc044d7ccfd9cbfbacab",
+   "1b4c0c503bd86ec5e890a8be549758e0c60877bb"
+  ],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "d48c06021b62ba4a1dbdc615ef8cdb5f1a9bfd6d",
+  "next": "bb22a362a7901e91e3bfa179c7bfb82ee353f75a",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "9f4db87e9b528812c207c1054f8c36a09a06c2c7"
+ },
+ "size": {
+  "files": 1,
+  "added": 9,
+  "deleted": 20
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "bdf4afed8058c19b2e679fd5fd5c60829b8b0cc1"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "apps/ui/src/mainview/ConnectorsSurface.tsx",
+   "mode": "100644",
+   "blob": "16ce7d7cd35ffbd73a60655ad2b2fade5aaddcb6",
+   "previousBlob": "8263eab2ef95b1519ffd3448347c0861aeae6a12",
+   "added": 9,
+   "deleted": 20,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 50,
+     "oldLines": 1,
+     "newStart": 50,
+     "newLines": 1
+    },
+    {
+     "oldStart": 85,
+     "oldLines": 19,
+     "newStart": 85,
+     "newLines": 8
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  }
+ ]
+}
