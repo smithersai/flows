@@ -98,6 +98,23 @@ action that had already executed re-executes on adoption. No local WAL makes a
 remote effect atomic, so external effects still need idempotency keys, fencing,
 or compensation.
 
+`DurableEngineState.park` and `wake` are fold writes: they append
+`flows.run.transitioned` carrying the `waiting` payload (`reason`, `wakeAt`,
+`token`; `null` clears it) — and only the waiting payload: a park or wake
+changes no lifecycle column, so its entry carries no `status` and no
+lifecycle timestamp, and a wake can never re-stamp `finished_at_ms` on a
+run a cancel closed in the same transaction — in the same transaction as
+the waiting-column update, so `@smthrs/run-store`'s `Fold.rebuild` can
+reconstruct `waiting_reason`, `waiting_wake_at_ms`, and `waiting_token`.
+`park` is fenced by the driving owner; `wake` is an external admission — a
+deferred completion or a clock firing wakes an unowned run — and is unfenced
+by design, like a cancellation request. `DurableEngineState.layer` therefore
+requires `Journal` in context, exactly as the `RunStore` and `AttemptStore`
+SQL layers do: the requirement is declared in the layer type, so a
+composition that would silently skip the append does not typecheck. The
+in-memory `layerMemory` composes without a journal, as the noop store
+layers do.
+
 ## Deferred and clock state is a journal fold
 
 Design: `docs/specs/Concepts/Deferred Clock Fold.md`, stage 2 of the journal
