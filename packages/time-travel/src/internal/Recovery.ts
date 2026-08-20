@@ -17,7 +17,7 @@ import { error, TimeTravelError, type TimeTravelError as TimeTravelFailure } fro
 import { type Audit, TimeTravelStore } from "../TimeTravelStore.ts"
 import * as Compensation from "./Compensation.ts"
 import type { EffectHandlerRegistry } from "./EffectHandlerRegistry.ts"
-import { AuditDetail } from "./Rewind.ts"
+import { AuditDetail, unjournaled } from "./Rewind.ts"
 
 /**
  * Recovery construction options.
@@ -71,11 +71,15 @@ const sameOwner = (left: OwnerId, right: OwnerId): boolean =>
   left.pid === right.pid &&
   left.nonce === right.nonce
 
+// The fencing below runs `unjournaled`: recovery of an interrupted rewind is
+// the same administrative surgery as the rewind itself, and its steal or
+// claim must not append R6 events into a journal whose post-frame emptiness
+// is the archive-commit evidence `archiveCommitted` reads.
 const acquire = (
   runs: RunStore.Service,
   audit: Audit,
   options: Options
-): Effect.Effect<Ownership, TimeTravelFailure> =>
+): Effect.Effect<Ownership, TimeTravelFailure, Journal.Journal> =>
   Effect.gen(function*() {
     const row = yield* runs.get(audit.runId).pipe(
       Effect.mapError((cause) => runFailure("read recovery run", cause))
@@ -101,26 +105,26 @@ const acquire = (
         if (evidence === undefined) {
           return yield* Effect.fail(error("busy", `run ${audit.runId} is still live`))
         }
-        return yield* runs.steal(audit.runId, expected, options.owner, nowMs, evidence).pipe(
+        return yield* unjournaled(runs.steal(audit.runId, expected, options.owner, nowMs, evidence)).pipe(
           Effect.mapError((cause) => runFailure("steal recovery run", cause))
         )
       })
-      : yield* runs.claim(audit.runId, expected, options.owner, nowMs).pipe(
+      : yield* unjournaled(runs.claim(audit.runId, expected, options.owner, nowMs)).pipe(
         Effect.mapError((cause) => runFailure("claim recovery run", cause))
       )
     if (claimed._tag !== "Claimed") {
       return yield* Effect.fail(error("busy", `run ${audit.runId} could not be claimed for recovery`))
     }
-    const activated = yield* runs.activate(
+    const activated = yield* unjournaled(runs.activate(
       audit.runId,
       options.owner,
       claimed.claimedAtMs,
       expected
-    ).pipe(
+    )).pipe(
       Effect.mapError((cause) => runFailure("activate recovery run", cause))
     )
     if (activated._tag !== "Activated") {
-      yield* Effect.ignore(runs.abandonClaim(audit.runId, options.owner, claimed.claimedAtMs))
+      yield* Effect.ignore(unjournaled(runs.abandonClaim(audit.runId, options.owner, claimed.claimedAtMs)))
       return yield* Effect.fail(error("busy", `run ${audit.runId} lost its recovery claim`))
     }
     return { row, owned: true }
@@ -215,7 +219,7 @@ const recoverOne = (
           const committed = yield* archiveCommitted(journal, store, audit, detail)
           if (committed) {
             if (ownership.owned) {
-              const suspended = yield* runs.transitionOwned(audit.runId, options.owner, "suspended").pipe(
+              const suspended = yield* unjournaled(runs.transitionOwned(audit.runId, options.owner, "suspended")).pipe(
                 Effect.mapError((cause) => runFailure("finish recovered suspension", cause))
               )
               if (suspended._tag !== "Transitioned") {
@@ -235,12 +239,12 @@ const recoverOne = (
             yield* Compensation.rollback(detail.compensation)
           }
           if (ownership.owned) {
-            const restored = yield* runs.transitionOwned(
+            const restored = yield* unjournaled(runs.transitionOwned(
               audit.runId,
               options.owner,
               detail.originalStatus,
               ownership.row.stateJson
-            ).pipe(
+            )).pipe(
               Effect.mapError((cause) => runFailure("restore recovered run", cause))
             )
             if (restored._tag !== "Transitioned") {

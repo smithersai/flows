@@ -657,6 +657,15 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
    * question in `docs/specs/Concepts/Journal Consensus.md`, and this
    * admission mode is provisional until it is ruled. Heartbeats never enter
    * the journal.
+   *
+   * The entry is an ordinary journal entry and carries the lineage meta every
+   * other durable append carries: `meta.lineageId` is the run's root JOURNAL
+   * lineage, `<runId>/root` — a transition addresses the run as a whole, not
+   * a node — so lineage folds such as time travel's rewind and archive
+   * boundaries can place it. An entry that belongs to no lineage is not
+   * admissible (`docs/specs/Concepts/Journal Consensus.md`, round 3). This is
+   * not the trampoline `lineage_id` column this store persists, which names a
+   * chain of round executions, not a journal position.
    */
   const recordTransition = (
     runId: string,
@@ -672,7 +681,8 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
             runId: runId as JournalEvent.RunId,
             sourceId: `flows/run-store/consensus:${actor.hostId}:${actor.pid}:${actor.nonce}` as JournalEvent.SourceId,
             eventType: `flows.consensus.${transition}`,
-            payload: { owner: actor, grantedAtMs }
+            payload: { owner: actor, grantedAtMs },
+            meta: { lineageId: `${runId}/root` }
           })
         ).pipe(Effect.asVoid)
     )
@@ -1134,10 +1144,10 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
             // monotonic: MAX() keeps a heartbeat that arrives late — delayed
             // past a newer one from the same owner — from moving
             // `heartbeat_at_ms` backwards and making a live run look stale to
-            // `claimAndOwn`/`steal`'s cutoff. The outcome is still `Updated`:
-            // the fence held, and the write proves liveness regardless of
-            // which caller clock reading it carried. Prior art: Temporal's
-            // shard `rangeID` only ever advances
+            // `claimAndOwn`/`steal`'s cutoff. A late clock reading still
+            // reports `Updated`: the fence held, and the write proves
+            // liveness regardless of which caller clock reading it carried.
+            // Prior art: Temporal's shard `rangeID` only ever advances
             // (`reference/temporal/service/history/shard/context_impl.go`,
             // `renewRangeLocked`). Heartbeats never enter the journal (R6).
             const outcome = yield* consensus.heartbeat(runId, owner, nowMs)
@@ -1145,7 +1155,12 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
               const current = yield* selectRun(sql, runId)
               return current.length === 0 ? notFound : fenceLost
             }
-            yield* sql`
+            // The mirror write is verified: a renewed lease over a row this
+            // owner no longer holds is a lease/row disagreement, and a
+            // success that wrote nothing would hide it. RETURNING keeps the
+            // old row-CAS answer — `FenceLost` when the row moved on,
+            // `NotFound` when it is gone.
+            const rows = yield* sql<{ readonly runId: string }>`
           UPDATE flows_runs
           SET heartbeat_at_ms = MAX(heartbeat_at_ms, ${outcome.heartbeatAtMs})
           WHERE run_id = ${runId}
@@ -1153,8 +1168,11 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
             AND owner_host_id = ${owner.hostId}
             AND owner_pid = ${owner.pid}
             AND owner_nonce = ${owner.nonce}
+          RETURNING run_id AS "runId"
         `
-            return updated
+            if (rows.length > 0) return updated
+            const current = yield* selectRun(sql, runId)
+            return current.length === 0 ? notFound : fenceLost
           })
         )
       })),
@@ -1346,6 +1364,14 @@ export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<RunStor
  * outcome in the same transaction. When a `Journal` is also in context,
  * ownership transitions append R6 events through it.
  *
+ * `layerWith` and {@link layer} share one constructor; only the declared
+ * requirement differs. Declaring `Consensus` here makes composing this layer
+ * without providing a strategy fail to typecheck — nothing checks at
+ * runtime, and the constructor's `SqlConsensus` fallback is what answers if
+ * the requirement is discharged without a real strategy. Use `layerWith`
+ * when the strategy choice matters (for example `Consensus.layerLocal` in
+ * the browser) and `layer` when the SQL default is the point.
+ *
  * @since 0.1.0
  * @category layers
  */
@@ -1356,7 +1382,9 @@ export const layerWith: Layer.Layer<RunStore, never, Consensus | DurableWriter |
 
 /**
  * Provides the database-backed `RunStore` over the `Consensus` strategy in
- * context, defaulting to `SqlConsensus` when none is provided.
+ * context, defaulting to `SqlConsensus` over the same database when none is
+ * provided. The fallback is silent by design — see {@link layerWith} to make
+ * the strategy an explicit, type-checked requirement.
  *
  * @since 0.1.0
  * @category layers

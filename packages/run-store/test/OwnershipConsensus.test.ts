@@ -63,14 +63,18 @@ const stackFor = (
     Layer.provideMerge(Layer.provideMerge(migrationsLayer, TestDatabase.layer))
   )
 
-const consensusEvents = (runId: string) =>
+const consensusEntries = (runId: string) =>
   Effect.gen(function*() {
     const journal = yield* Journal
     const page = yield* journal.entries({ runId: runId as JournalEvent.RunId, limit: 50 })
-    return page.entries
-      .filter((entry) => entry.eventType.startsWith("flows.consensus."))
-      .map((entry) => entry.eventType.replace("flows.consensus.", ""))
+    return page.entries.filter((entry) => entry.eventType.startsWith("flows.consensus."))
   })
+
+const consensusEvents = (runId: string) =>
+  Effect.map(
+    consensusEntries(runId),
+    (entries) => entries.map((entry) => entry.eventType.replace("flows.consensus.", ""))
+  )
 
 const suite = (
   name: string,
@@ -107,6 +111,16 @@ const suite = (
         expect(yield* consensusEvents("run-lifecycle")).toEqual(["claimed", "activated", "released"])
         // The released lease refuses further pulses.
         expect(yield* store.heartbeat("run-lifecycle", ownerA, nowMs + 6)).toEqual({ _tag: "FenceLost" })
+
+        // R6 entries are ordinary journal entries: each carries the run's
+        // root JOURNAL lineage in `meta`, so lineage folds can place them
+        // (`docs/specs/Concepts/Journal Consensus.md`, round 3).
+        const entries = yield* consensusEntries("run-lifecycle")
+        expect(entries.map((entry) => entry.meta)).toEqual([
+          { lineageId: "run-lifecycle/root" },
+          { lineageId: "run-lifecycle/root" },
+          { lineageId: "run-lifecycle/root" }
+        ])
       })))
 
     it.effect("re-owns one's own stale run through release, re-claim, and activation", () =>
@@ -280,6 +294,33 @@ describe("the strategy is authoritative when the materialization disagrees", () 
         ) VALUES ('run-row-only', 'running', 0, ${ownerA.hostId}, ${ownerA.pid}, ${ownerA.nonce}, 0, '{}')
       `
       expect(yield* store.transitionOwned("run-row-only", ownerA, "completed")).toEqual({ _tag: "FenceLost" })
+    })))
+
+  it.effect("heartbeat reports FenceLost when the lease renews but the row no longer records the owner", () =>
+    withLocal(Effect.gen(function*() {
+      const store = yield* RunStore
+      const sql = yield* Effect.service(SqlClient.SqlClient)
+      yield* store.create("run-mirror-lost", "{}")
+      expect(yield* store.claimAndOwn("run-mirror-lost", pending, ownerA, 0)).toEqual({ _tag: "Activated" })
+      // The row moves on behind the mirror, so the lease still renews while
+      // the verified UPDATE matches nothing. A success here would report a
+      // liveness stamp that was never written.
+      yield* sql`
+        UPDATE flows_runs
+        SET status = 'suspended', owner_host_id = NULL, owner_pid = NULL, owner_nonce = NULL, heartbeat_at_ms = NULL
+        WHERE run_id = 'run-mirror-lost'
+      `
+      expect(yield* store.heartbeat("run-mirror-lost", ownerA, 1)).toEqual({ _tag: "FenceLost" })
+    })))
+
+  it.effect("heartbeat reports NotFound when the lease renews but the run row is gone", () =>
+    withLocal(Effect.gen(function*() {
+      const store = yield* RunStore
+      const sql = yield* Effect.service(SqlClient.SqlClient)
+      yield* store.create("run-mirror-gone", "{}")
+      expect(yield* store.claimAndOwn("run-mirror-gone", pending, ownerA, 0)).toEqual({ _tag: "Activated" })
+      yield* sql`DELETE FROM flows_runs WHERE run_id = 'run-mirror-gone'`
+      expect(yield* store.heartbeat("run-mirror-gone", ownerA, 1)).toEqual({ _tag: "NotFound" })
     })))
 })
 

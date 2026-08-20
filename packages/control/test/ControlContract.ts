@@ -8,7 +8,7 @@
  *
  * Contract source: `.smithers/tickets/control-runtime-engine-integration.md`.
  */
-import { Journal } from "@smthrs/journal"
+import { Journal, JournalEvent } from "@smthrs/journal"
 import { NotificationQueue } from "@smthrs/notifications"
 import { Cause, Effect, Exit, Fiber, type Layer, Stream } from "effect"
 import { describe, expect, it } from "vitest"
@@ -497,6 +497,47 @@ export const contract = (name: string, harness: Harness): void => {
         )
 
         expect(events.map((event) => event.kind)).toContain("control.signal.delivered")
+      }))
+
+    test("watch selects control's namespace and skips other namespaces in the run stream", () =>
+      Effect.gen(function*() {
+        const control = yield* Control
+        const journal = yield* Journal.Journal
+        const { runId } = yield* start
+        // The journal reserves other event-type namespaces on the same run —
+        // here an R6 ownership transition per
+        // `docs/specs/Concepts/Journal Consensus.md` — so a control
+        // projection selects its own namespace instead of assuming the
+        // stream carries only control events.
+        yield* journal.emitDurable(
+          new JournalEvent.Input({
+            runId: JournalEvent.RunId.make(runId),
+            sourceId: JournalEvent.SourceId.make("/consensus-contract"),
+            eventType: "flows.consensus.claimed",
+            payload: { owner: { hostId: "host-x", pid: 1, nonce: "n" }, grantedAtMs: 0 },
+            meta: { lineageId: `${runId}/root` }
+          })
+        )
+        yield* control.signal({
+          runId,
+          signal: { name: "namespaced", payload: null },
+          idempotencyKey: "signal:namespaced"
+        })
+        yield* journal.flush
+
+        const followed = yield* control.watch({ runId }).pipe(
+          Stream.takeUntil((event) => event.kind === "control.signal.delivered"),
+          Stream.runCollect
+        )
+        const snapshot = yield* control.watch({ runId, follow: false }).pipe(
+          Stream.runCollect,
+          Effect.timeout("1 second")
+        )
+        for (const events of [followed, snapshot]) {
+          expect(events.length).toBeGreaterThan(0)
+          expect(events.map((event) => event.kind).every((kind) => kind.startsWith("control."))).toBe(true)
+        }
+        expect(snapshot.map((event) => event.kind)).toContain("control.signal.delivered")
       }))
 
     test("unscoped finite watch includes plan-only journal partitions", () =>

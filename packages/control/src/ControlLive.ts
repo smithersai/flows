@@ -86,6 +86,17 @@ const eventFromEntry = (entry: JournalEvent.Entry): ControlEvent => ({
 })
 
 /**
+ * Selects control's own events out of a run's stream. A run's journal stream
+ * carries every event-type namespace appended to that run — among them the
+ * reserved `flows.consensus.*` ownership transitions of
+ * `docs/specs/Concepts/Journal Consensus.md` — so the projection filters by
+ * the `control.` namespace instead of assuming the stream is all its own.
+ * Adding a namespace to the journal is not a breaking change for a
+ * projection that selects this way.
+ */
+const isControlEntry = (entry: JournalEvent.Entry): boolean => entry.eventType.startsWith("control.")
+
+/**
  * Live in-process Control layer.
  *
  * Writes delegate to `ControlRuntime`; journal events are observational
@@ -247,6 +258,7 @@ export const layer: Layer.Layer<
           ? {}
           : { afterSequence: JournalEvent.Seq.make(filter.afterSequence) })
       }).pipe(
+        Stream.filter(isControlEntry),
         Stream.map(eventFromEntry),
         Stream.mapError(() => unavailable("watch"))
       )
@@ -332,7 +344,7 @@ export const layer: Layer.Layer<
                 return [entries, next] as const
               }),
               Effect.mapError(() => unavailable("watch"))
-            )).pipe(Stream.map(eventFromEntry))
+            )).pipe(Stream.filter(isControlEntry), Stream.map(eventFromEntry))
         })
       )
     }
@@ -366,6 +378,7 @@ export const layer: Layer.Layer<
             const subscription = yield* journal.changes
             const partitions = yield* journalPartitions
             const tail = Stream.fromSubscription(subscription).pipe(
+              Stream.filter(isControlEntry),
               Stream.filter((entry) => filter.afterSequence === undefined || entry.seq > filter.afterSequence),
               Stream.map(eventFromEntry)
             )

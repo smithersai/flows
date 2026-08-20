@@ -329,4 +329,28 @@ describe("time travel over an engine-written journal", () => {
       expect(result.rewound.archive.archived).toBeGreaterThan(0)
       expect(result.remaining).toBeLessThan(result.total)
     }))
+
+  it.effect("fences a rewind without appending ownership events to the journal it cuts", () =>
+    Effect.gen(function*() {
+      const result = yield* drive([], () =>
+        Effect.gen(function*() {
+          const before = yield* entries
+          const timeTravel = yield* TimeTravel
+          const rewound = yield* timeTravel.rewind({
+            runId: "ledger-1",
+            frame: { lineageId: "ledger-1/root", seq: before.at(-1)!.seq }
+          })
+          const after = yield* entries
+          return { after, before, rewound }
+        }))
+
+      // The rewind claimed, suspended, and released the run through the
+      // consensus lease, and none of that fencing entered the journal: an
+      // exact-tail rewind archives nothing and leaves the history identical.
+      // The engine's OWN R6 events from driving the run are history and stay.
+      expect(result.rewound.archive.archived).toBe(0)
+      expect(result.after.map((entry) => ({ eventType: entry.eventType, seq: entry.seq }))).toEqual(
+        result.before.map((entry) => ({ eventType: entry.eventType, seq: entry.seq }))
+      )
+    }))
 })
