@@ -40,13 +40,51 @@ export const runBoundedProcess = (
 		detached: grouped,
 	});
 
-	let stdout = "";
-	let stderr = "";
 	let timedOut = false;
 	let overflowed = false;
 	let settled = false;
 	let closedExitCode: number | null = null;
 	let forceKill: ReturnType<typeof setTimeout> | undefined;
+
+	/*
+	 * Output capture is chunk-bounded, never string-accumulated: repeated
+	 * `current + chunk` concatenation is quadratic in the capture size, and
+	 * slicing a JS string cuts UTF-16 code units — a cap compared against
+	 * Buffer.byteLength could then keep up to 3x the byte budget and split a
+	 * surrogate pair. Chunks are appended until the byte budget is spent, the
+	 * final chunk is cut on the budget, and decoding happens once at finish,
+	 * where the TextDecoder turns a mid-sequence cut into a clean U+FFFD
+	 * instead of invalid text.
+	 */
+	const createCapture = () => {
+		const chunks: Buffer[] = [];
+		let bytes = 0;
+		return {
+			push: (chunk: Buffer): void => {
+				if (bytes >= maxCaptureBytes) {
+					// The budget is spent and the child is still writing: that IS the overflow.
+					overflowed = true;
+					beginTermination();
+					return;
+				}
+				if (bytes + chunk.length <= maxCaptureBytes) {
+					chunks.push(chunk);
+					bytes += chunk.length;
+					return;
+				}
+				const room = maxCaptureBytes - bytes;
+				if (room > 0) {
+					chunks.push(chunk.subarray(0, room));
+					bytes = maxCaptureBytes;
+				}
+				overflowed = true;
+				beginTermination();
+			},
+			text: (): string => new TextDecoder("utf8").decode(Buffer.concat(chunks, bytes)),
+		};
+	};
+	const stdoutCapture = createCapture();
+	const stderrCapture = createCapture();
 
 	const signalProcessGroup = (signal: NodeJS.Signals) => {
 		if (child.pid === undefined) return;
@@ -71,6 +109,8 @@ export const runBoundedProcess = (
 		settled = true;
 		clearTimeout(timeout);
 		if (forceKill !== undefined) clearTimeout(forceKill);
+		const stdout = stdoutCapture.text();
+		const stderr = stderrCapture.text();
 		const passed = exitCode === 0 && launchError === undefined && !timedOut && !overflowed;
 		const failureDetail = launchError?.message || stderr || stdout || "unknown failure";
 		resolve({
@@ -98,18 +138,8 @@ export const runBoundedProcess = (
 			finish(closedExitCode);
 		}, terminationGraceMs);
 	};
-	const append = (current: string, chunk: Buffer) => {
-		const next = current + chunk.toString("utf8");
-		if (Buffer.byteLength(next) > maxCaptureBytes) {
-			overflowed = true;
-			beginTermination();
-			return next.slice(0, maxCaptureBytes);
-		}
-		return next;
-	};
-
-	child.stdout.on("data", (chunk: Buffer) => { stdout = append(stdout, chunk); });
-	child.stderr.on("data", (chunk: Buffer) => { stderr = append(stderr, chunk); });
+	child.stdout.on("data", (chunk: Buffer) => { stdoutCapture.push(chunk); });
+	child.stderr.on("data", (chunk: Buffer) => { stderrCapture.push(chunk); });
 	const timeout = setTimeout(() => {
 		timedOut = true;
 		beginTermination();
