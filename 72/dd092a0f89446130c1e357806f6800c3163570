@@ -1,0 +1,470 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "72dd092a0f89446130c1e357806f6800c3163570",
+ "tree": "7cc485a7df69fe8846d853ff5f7722a1dbabf818",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 32,
+  "sectionCount": 71
+ },
+ "source": {
+  "commit": "38e2836386e58ea36a236aa262a096fe680a6cae",
+  "subject": "✨ feat(engine-store): fold deferred completions and clock deadlines into the journal",
+  "priorCanonicalCommit": "ff9d8c5cfa3acdc3d9c97fd61e0ac2434abf469c",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 32,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "engine-store",
+  "epicsTouched": [
+   {
+    "id": "engine-store",
+    "files": 8
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 870,
+  "globalCount": 909,
+  "purpose": "✨ feat(engine-store): fold deferred completions and clock deadlines into the journal",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "d28d9e5cae9a0eda78ca58aefa289970de4ca149"
+  ],
+  "parent": "d28d9e5cae9a0eda78ca58aefa289970de4ca149",
+  "sourceImports": [
+   "53e282376e1f7e7bd525a657644202288beca2d7",
+   "0ef4871b719f3876407cc5ccb9f876c69c3c7158",
+   "0652ee3e08c443204a3d36283b6878772c248510",
+   "9ae5474dc0e2fd1248b8b06eb2c344de17c26828",
+   "2371c029a5666dbf3616cc818e025811838efb01",
+   "dfcd1b0b79c78527f800c3a21bf07b1f8d50670f",
+   "4e5a78775e276beff95c0aa173daec8095e8012a",
+   "dded29a5fe0496432ad33f420f600b51f705a40b",
+   "14959d438856105f7144672e6447aec49b1acf21",
+   "e16017472c5103d74971b4b358956dca2d2f54e3",
+   "b8f28c7744a64c21bc1dabcd26df3f4dd3918860",
+   "a46536bcf51dcbee573a48b3bd480d0200f1c76b",
+   "2ce3d1312fd1d5ae4b0df76930ef2d5b95ef09dd",
+   "526fc19a7eb64ddbf26631417132a3cdfda8b362",
+   "2db286733e6b56ebdb55149cd22dcd85893f2354",
+   "bc886f08eec148bc732caf49edb090d6bcfebc61",
+   "c548fa2e9a8dd3d8c628aae3c79519cce53be5f7",
+   "cb8f99248af220028e149517dd12d294f006f3b1"
+  ],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "d28d9e5cae9a0eda78ca58aefa289970de4ca149",
+  "next": "de4f8b49b8c2d69d03650aa903aba898fa0995ba",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "9f4db87e9b528812c207c1054f8c36a09a06c2c7"
+ },
+ "size": {
+  "files": 11,
+  "added": 1853,
+  "deleted": 71
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "38e2836386e58ea36a236aa262a096fe680a6cae"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "packages/engine-store/CHANGELOG.md",
+   "mode": "100644",
+   "blob": "e96d720e48e56790a164ccdbbd58c99a8d19c876",
+   "previousBlob": "b5047c8011661e5dc4a3e08a7802e41f28522fdc",
+   "added": 25,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 4,
+     "oldLines": 0,
+     "newStart": 5,
+     "newLines": 15
+    },
+    {
+     "oldStart": 6,
+     "oldLines": 0,
+     "newStart": 22,
+     "newLines": 10
+    }
+   ],
+   "role": "docs",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/Fold.ts",
+   "mode": "100644",
+   "blob": "cb1a9a7567794606da4dce947ac1f87452159c73",
+   "previousBlob": null,
+   "added": 369,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 0,
+     "oldLines": 0,
+     "newStart": 1,
+     "newLines": 369
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": null
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/src/Migrations.ts",
+   "mode": "100644",
+   "blob": "582bb9de56c15977ffbb0d3ce108c24561c3b03d",
+   "previousBlob": "1746a1a9927f141cc1b4ece94f15a4babb809985",
+   "added": 3,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 25,
+     "oldLines": 0,
+     "newStart": 26,
+     "newLines": 1
+    },
+    {
+     "oldStart": 39,
+     "oldLines": 1,
+     "newStart": 40,
+     "newLines": 2
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/src/index.ts",
+   "mode": "100644",
+   "blob": "105ea1fa6924ac0df30cee37479d74e2266cbb79",
+   "previousBlob": "7519118fd7bb37ad100450671a0e66c31a5a50c9",
+   "added": 6,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 48,
+     "oldLines": 0,
+     "newStart": 49,
+     "newLines": 6
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/src/internal/DeferredPersistence.ts",
+   "mode": "100644",
+   "blob": "0ec2bfbed1fb6b96feca121cef65c2d163c90dc8",
+   "previousBlob": "7ebeea569047a93cdd27819563980cb65012d528",
+   "added": 165,
+   "deleted": 54,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 101,
+     "oldLines": 0,
+     "newStart": 102,
+     "newLines": 66
+    },
+    {
+     "oldStart": 169,
+     "oldLines": 0,
+     "newStart": 236,
+     "newLines": 48
+    },
+    {
+     "oldStart": 182,
+     "oldLines": 33,
+     "newStart": 296,
+     "newLines": 1
+    },
+    {
+     "oldStart": 228,
+     "oldLines": 9,
+     "newStart": 310,
+     "newLines": 14
+    },
+    {
+     "oldStart": 237,
+     "oldLines": 0,
+     "newStart": 325,
+     "newLines": 6
+    },
+    {
+     "oldStart": 239,
+     "oldLines": 4,
+     "newStart": 332,
+     "newLines": 22
+    },
+    {
+     "oldStart": 274,
+     "oldLines": 3,
+     "newStart": 385,
+     "newLines": 1
+    },
+    {
+     "oldStart": 337,
+     "oldLines": 5,
+     "newStart": 446,
+     "newLines": 7
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/src/internal/JournalRecords.ts",
+   "mode": "100644",
+   "blob": "a711ad7a4dc0bb9b2af68946d8b94bc6e64bd922",
+   "previousBlob": "01efb2215e7272bc8f8b41fbd701cfb2d602f93b",
+   "added": 54,
+   "deleted": 4,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 65,
+     "oldLines": 0,
+     "newStart": 66,
+     "newLines": 13
+    },
+    {
+     "oldStart": 100,
+     "oldLines": 1,
+     "newStart": 113,
+     "newLines": 3
+    },
+    {
+     "oldStart": 107,
+     "oldLines": 1,
+     "newStart": 122,
+     "newLines": 1
+    },
+    {
+     "oldStart": 111,
+     "oldLines": 1,
+     "newStart": 126,
+     "newLines": 2
+    },
+    {
+     "oldStart": 118,
+     "oldLines": 1,
+     "newStart": 134,
+     "newLines": 35
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/migrations/0003_deferred_clock_fold.ts",
+   "mode": "100644",
+   "blob": "87a647a14a8b2d7e7c9a6477b0823011e28e0be5",
+   "previousBlob": null,
+   "added": 180,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 0,
+     "oldLines": 0,
+     "newStart": 1,
+     "newLines": 180
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": null
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/DeferredPersistence.test.ts",
+   "mode": "100644",
+   "blob": "0a1a9230a7c0ef6277b323a5734daaaea0d0a4af",
+   "previousBlob": "68c694b1b6a48d4cf09efad71894e73a7c06ca02",
+   "added": 15,
+   "deleted": 12,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 237,
+     "oldLines": 2,
+     "newStart": 237,
+     "newLines": 6
+    },
+    {
+     "oldStart": 244,
+     "oldLines": 1,
+     "newStart": 248,
+     "newLines": 1
+    },
+    {
+     "oldStart": 246,
+     "oldLines": 1,
+     "newStart": 250,
+     "newLines": 1
+    },
+    {
+     "oldStart": 251,
+     "oldLines": 1,
+     "newStart": 255,
+     "newLines": 1
+    },
+    {
+     "oldStart": 300,
+     "oldLines": 1,
+     "newStart": 304,
+     "newLines": 1
+    },
+    {
+     "oldStart": 302,
+     "oldLines": 1,
+     "newStart": 306,
+     "newLines": 1
+    },
+    {
+     "oldStart": 306,
+     "oldLines": 1,
+     "newStart": 310,
+     "newLines": 1
+    },
+    {
+     "oldStart": 432,
+     "oldLines": 2,
+     "newStart": 436,
+     "newLines": 1
+    },
+    {
+     "oldStart": 443,
+     "oldLines": 2,
+     "newStart": 446,
+     "newLines": 2
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/Fold.test.ts",
+   "mode": "100644",
+   "blob": "a70088216fe2e1ef58fa2f71aea54e12032ea46f",
+   "previousBlob": null,
+   "added": 925,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 0,
+     "oldLines": 0,
+     "newStart": 1,
+     "newLines": 925
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": null
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/WalAtomicity.test.ts",
+   "mode": "100644",
+   "blob": "8281f9708962a4824ca7fd00191c95563d18695c",
+   "previousBlob": "2867eb187a3bc0b6d14a91be2dd9603342c904d1",
+   "added": 107,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 457,
+     "oldLines": 0,
+     "newStart": 458,
+     "newLines": 107
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/flows/test/vitestCoverageIsolation.test.ts",
+   "mode": "100644",
+   "blob": "ff7affabbe1b51999d64609f59d767f5116f1efb",
+   "previousBlob": "c07714e95f18f5b5cfb197575339187ad02441f6",
+   "added": 4,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 494,
+     "oldLines": 0,
+     "newStart": 495,
+     "newLines": 4
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  }
+ ]
+}
