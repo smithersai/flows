@@ -258,6 +258,19 @@ different sample and do not edit the pinned list to match a new draw.
   after the fact grades a different artifact from the one the run produced, and
   it cannot be reproduced by the next wave.
 
+  One recorded exception exists, and it is the reason the rule is written down.
+  A **codex** run deletes its workspace when it finishes (`run-instance-codex.sh`
+  ends in `rm -rf "$WORK"`), so a codex patch cannot be re-derived at all once
+  the run is over. The 2026-08-20 sphinx correction therefore removed the whole
+  contaminated `tox.ini` file section from the recorded capture rather than
+  re-capturing, and the corrected patch still carries the pre-fix
+  `old mode`/`new mode` lines that `lib/capture-patch.sh` no longer emits. That
+  is admissible only under all three of these conditions, each of which that
+  correction meets: whole file sections are dropped and no line is rewritten,
+  the untouched capture is committed beside it, and the official evaluator
+  re-grades the result. A future codex baseline should be re-run instead —
+  keeping its workspace is the real fix, and it is not done here.
+
 ## The committed baseline
 
 `baseline/codex-comparison.json` and `baseline/patches-codex/` are the Codex CLI
@@ -268,10 +281,15 @@ same extracted checkouts and containers, graded by the official evaluator.
 It was recorded as 4 of 5 until 2026-08-20. The `sphinx-doc__sphinx-11445`
 verdict was decided by the patch-capture defect above, not by codex's patch:
 captured against the base commit it carried the image's `tox.ini` churn, which
-reverse-applied at grading. The agent-only capture resolves. The committed
-baseline patch is now that capture, and the evidence is in `baseline/evidence/`
-— the evaluator's own report, its summary, and the raw contaminated capture the
-old rule produced. **Sphinx is not a flows win.** Flows matched it in wave 4,
+reverse-applied at grading. The agent-only content resolves. The committed
+baseline patch is the recorded capture with that whole `tox.ini` file section
+removed — not a re-capture, because a codex run deletes its workspace and there
+is nothing left to re-capture from — so it still carries the pre-fix
+`old mode`/`new mode` lines. See the hand-correction rule above for the
+conditions that makes admissible. The evidence is in `baseline/evidence/` — the
+evaluator's own report on exactly the committed patch, its summary, and the raw
+contaminated capture the old rule produced, which is that patch plus the removed
+section. **Sphinx is not a flows win.** Flows matched it in wave 4,
 under the same correction, so the instance is both-pass; the only win on this
 sample belongs to codex, on `pytest-dev__pytest-6197`.
 
