@@ -168,16 +168,35 @@ account rather than fail.
 | `smithers_billing_expired_usd_total` | 0 |
 | `smithers_billing_denials_total{reason="insufficient_balance"}` | 1 |
 
-Three billing accounts exist deployment-wide, and this repo's receipts name the
-two funded ones: `smithers-canary` $500 via grant
-`admin:2026-08-09:wave7-canary-subsidy` (`apps/WAVE7-DEPLOY-RECEIPT.md`) and
-`codeplanesmithers` $500 via `admin:2026-08-10:codeplanesmithers-launch`
-(`apps/WAVE13-RECEIPT.md`). That is $1000 of the $1046; the remainder is
-consistent with the launch checklist's own $1.00 E-3 grants. Both funded logins
-are test/canary identities. The third account — the login will actually signs
-in as — carries no grant, which is also what the single `insufficient_balance`
-denial records. Nothing has expired, so this is a never-granted balance, not a
-lapsed one.
+What these totals establish, and what they only suggest:
+
+- **Established.** Three billing accounts exist deployment-wide. $1046 of
+  promotional credit has been granted, $0 purchased, and essentially none
+  ($0.002675) consumed. `expired_usd_total` is $0, so no grant anywhere in this
+  deployment has lapsed. One request was denied for `insufficient_balance`.
+- **Named by this repo's receipts.** Two grants of $500 each:
+  `smithers-canary` via `admin:2026-08-09:wave7-canary-subsidy`
+  (`apps/WAVE7-DEPLOY-RECEIPT.md`) and `codeplanesmithers` via
+  `admin:2026-08-10:codeplanesmithers-launch` (`apps/WAVE13-RECEIPT.md`). Both
+  are test/canary identities. That accounts for $1000 of the $1046; the $46
+  remainder is *consistent with* the launch checklist's $1.00 E-3 grants, which
+  is an attribution, not a receipt.
+- **Inferred, not read.** If — and only if — the two receipted grants are the
+  two funded accounts and will signs in as the third, then his account holds no
+  grant. That chain is what the aggregates support; none of its links was
+  observed on his record. The metrics are sums, so they cannot say which
+  account holds which grant, and the `insufficient_balance` denial is one
+  counter with no account attached: it is consistent with a $0 account being
+  asked to start work, and equally consistent with any other account being.
+
+The alternatives this does NOT exclude are enumerated above in
+["Which record is wrong"](#which-record-is-wrong--an-inference-not-a-reading):
+his account may have been created under an earlier eligibility configuration,
+may be funded and read under a different normalized login than the one assumed
+here, or may not be the third account at all. `expired_usd_total` of $0 argues
+against a lapsed grant deployment-wide and is the one part of this paragraph
+the aggregates settle on their own. Everything else here stands until his
+normalized login and his per-account ledger are read.
 
 ### Limit of the evidence, stated plainly
 
