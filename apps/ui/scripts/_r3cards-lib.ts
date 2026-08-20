@@ -1,4 +1,4 @@
-import { chromium, type Page } from "playwright";
+import { chromium, type BrowserContext, type Page } from "playwright";
 
 export const BASE = "https://canary.smithers.sh";
 export const PROFILE = "/tmp/round3-cards-profile";
