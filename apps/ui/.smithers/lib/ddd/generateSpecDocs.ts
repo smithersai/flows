@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync, readdirSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync, readdirSync, renameSync, mkdtempSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { dddRoot } from "./dddRoot.ts";
 import type { Feature } from "./featuresSchema.ts";
@@ -248,14 +248,34 @@ export function generateSpecDocs(root: string = dddRoot()): number {
   const contentDir = resolve(root, ".smithers/spec/content");
   const featuresDir = resolve(contentDir, "features");
 
+  /*
+   * Stage, then swap: the docs are written into a fresh sibling directory
+   * and renamed over the old one only once every feature rendered. Deleting
+   * the live directory first meant a crash or a bad features.json left the
+   * tracked spec docs GONE until a rerun — the swap keeps the previous
+   * generation readable on any failure and makes the replacement one
+   * filesystem operation per directory.
+   */
   mkdirSync(contentDir, { recursive: true });
-  rmSync(featuresDir, { recursive: true, force: true });
-  mkdirSync(featuresDir, { recursive: true });
-
-  for (const feature of features) {
-    writeFileSync(resolve(featuresDir, `${feature.id}.md`), `${featureDoc(feature)}\n`);
+  const stagedDir = mkdtempSync(resolve(contentDir, ".features-stage-"));
+  const retiredDir = resolve(contentDir, `.features-retired-${process.pid}`);
+  try {
+    for (const feature of features) {
+      writeFileSync(resolve(stagedDir, `${feature.id}.md`), `${featureDoc(feature)}\n`);
+    }
+    const hadPrevious = existsSync(featuresDir);
+    if (hadPrevious) renameSync(featuresDir, retiredDir);
+    try {
+      renameSync(stagedDir, featuresDir);
+    } catch (error) {
+      if (hadPrevious) renameSync(retiredDir, featuresDir);
+      throw error;
+    }
+    rmSync(retiredDir, { recursive: true, force: true });
+    return readdirSync(featuresDir).length;
+  } finally {
+    rmSync(stagedDir, { recursive: true, force: true });
   }
-  return readdirSync(featuresDir).length;
 }
 
 if (import.meta.main) {

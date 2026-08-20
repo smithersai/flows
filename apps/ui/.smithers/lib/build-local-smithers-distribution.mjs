@@ -1,9 +1,36 @@
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-export const smithersSourceRoot = "/Users/williamcory/flows";
+const here = dirname(fileURLToPath(import.meta.url));
+
+/*
+ * The source tree the distribution is built FROM. Resolution order:
+ * SMITHERS_SOURCE_ROOT (an isolated caller states its tree explicitly), then
+ * the tree this file lives in (five levels up from .smithers/lib), then the
+ * path this script was written against. The hard-coded literal alone made the
+ * build unusable on any other machine and un-rerunnable from a moved checkout.
+ */
+const candidateRoots = [
+  process.env.SMITHERS_SOURCE_ROOT,
+  resolve(here, "../../../../.."),
+  "/Users/williamcory/flows",
+].filter((candidate) => candidate !== undefined && candidate !== "");
+const sourceRootFor = (relativeRoot) =>
+  candidateRoots.find((candidate) => existsSync(join(candidate, relativeRoot, "package.json")));
+
+export const smithersSourceRoot = (() => {
+  const probe = "flows/packages/database";
+  const found = sourceRootFor(probe);
+  if (found === undefined) {
+    throw new Error(
+      `no smithers source tree holds ${probe}; set SMITHERS_SOURCE_ROOT to the checkout that does`,
+    );
+  }
+  return found;
+})();
 
 // Smallest real package closure needed by the MVP authority composition root.
 // Keep this ordered from leaves to consumers so the manifest is useful to both
@@ -93,6 +120,14 @@ export const buildDistribution = (destination) => {
     `file:${join(outputDirectory, `${manifest.name.replace("@", "").replace("/", "-")}-${manifest.version}.tgz`)}`,
   ]));
   const stagingRoot = mkdtempSync(join(tmpdir(), "mvp-smithers-pack-"));
+  /*
+   * Publish is staged, never streamed into the destination: tarballs pack
+   * into a sibling staging directory and are RENAMED into place only once
+   * every package packed, with manifest.json landing last as the commit
+   * marker. A crash mid-build then leaves the previous distribution
+   * untouched instead of a half-written one consumers could install.
+   */
+  const publishRoot = mkdtempSync(join(outputDirectory, ".publish-"));
   const packed = [];
   try {
     for (const entry of packages) {
@@ -100,6 +135,12 @@ export const buildDistribution = (destination) => {
         ? []
         : ["dist/esm/index.js", "dist/esm/index.d.ts", "dist/cjs/index.js"];
       if (requiredArtifacts.some((required) => !existsSync(join(entry.sourceRoot, required)))) {
+        /*
+         * The build runs in the source repo, not the staging copy: the
+         * staging copy excludes node_modules, so a staged build could not
+         * resolve the workspace's own dependencies. dist/ is each repo's
+         * ordinary gitignored build output, so this mutates no source.
+         */
         run("npm", ["run", "build"], entry.sourceRoot);
       }
       for (const required of requiredArtifacts) {
@@ -111,7 +152,7 @@ export const buildDistribution = (destination) => {
         join(stagedRoot, "package.json"),
         `${JSON.stringify(publicationManifest(entry.manifest, dependencySpecs), null, 2)}\n`,
       );
-      const packOutput = JSON.parse(run("npm", ["pack", stagedRoot, "--json", "--ignore-scripts", "--pack-destination", outputDirectory], smithersSourceRoot));
+      const packOutput = JSON.parse(run("npm", ["pack", stagedRoot, "--json", "--ignore-scripts", "--pack-destination", publishRoot], smithersSourceRoot));
       const filename = packOutput[0]?.filename;
       if (typeof filename !== "string") throw new Error(`npm pack returned no filename for ${entry.manifest.name}`);
       packed.push({
@@ -127,10 +168,14 @@ export const buildDistribution = (destination) => {
       plugins: run("git", ["rev-parse", "HEAD"], join(smithersSourceRoot, "plugins")),
     };
     const manifest = { schemaVersion: 1, smithersSourceRoot, sourceRevisions, packages: packed };
-    writeFileSync(join(outputDirectory, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+    writeFileSync(join(publishRoot, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+    for (const entry of [...packed.map((entry) => entry.filename), "manifest.json"]) {
+      renameSync(join(publishRoot, entry), join(outputDirectory, entry));
+    }
     return manifest;
   } finally {
     rmSync(stagingRoot, { recursive: true, force: true });
+    rmSync(publishRoot, { recursive: true, force: true });
   }
 };
 
