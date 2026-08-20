@@ -1,0 +1,215 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "35e8bb5ee63f687e4c5d505c0eeb2a0dc4852912",
+ "tree": "39abf0899fa69697a3d371da177c48a31ddf8d71",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 37,
+  "sectionCount": 83
+ },
+ "source": {
+  "commit": "bdd707bfcf264bb5dad763ed13108ee81323899e",
+  "subject": "🐛 fix(run-store): make run state fold durable",
+  "priorCanonicalCommit": "2632c05da63099666add6437c743f4c5b3922f59",
+  "treeEqualToSource": false,
+  "indexOnSourceLine": 37,
+  "sourceLineCount": 71,
+  "subjectRewritten": true,
+  "rewriteReason": "the source commit landed 13 separable concerns under one subject; this commit carries one of them and states it, while the last commit of the split keeps the source subject verbatim and reproduces the source tree exactly",
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true,
+  "split": {
+   "of": "2632c05da63099666add6437c743f4c5b3922f59",
+   "index": 1,
+   "count": 13,
+   "granularity": "whole-path",
+   "rationale": "path-partitioned split of prior canonical commit 2632c05da63099666add6437c743f4c5b3922f59 (85 files, 2647 changed lines) into 13 dependency-ordered atomic commits; the partition is by whole path, no hunk is divided, and the union of the 13 path sets is exactly the prior commit's path set, so the last split commit's tree is byte-identical to the prior canonical tree and to the source commit's tree",
+   "members": [
+    "35e8bb5ee63f687e4c5d505c0eeb2a0dc4852912",
+    "f2a7988d68204605a0893d95d2e72986c5324607",
+    "0db9b9e56057fdb635498531007046b455f59f17",
+    "93a03795321b1c8eb6b0549f7e9c077983b2a4de",
+    "4b74f1869551d52856c373d3c00176b5239f6d70",
+    "10e7bcaae6ead421319a8d67cc58759ba7fcea9b",
+    "92af181d2eb89f8f5c08e2bb547c02e96afc8955",
+    "6ba1f1e4bbfdb4e9948794207954c551fa325b2e",
+    "83bb9a5cb7fd6687b99a75a8be32bcb4e79bf977",
+    "1c4f303b40917cb36087ef46817a11f2cb9e0d29",
+    "ceccf909f0e096f82af297262f7e60620400663f",
+    "c92bd7ef9e370096bcb56fdd661d9f3ba04dd080",
+    "45e3c1570fd6be09e9c529beaab1c8602d059998"
+   ],
+   "priorSize": {
+    "files": 85,
+    "added": 1940,
+    "deleted": 707,
+    "changed": 2647
+   }
+  }
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "host",
+  "epicsTouched": [
+   {
+    "id": "host",
+    "files": 1
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 875,
+  "globalCount": 921,
+  "purpose": "🐛 fix(kernel): skip the real-socket redirect suite where loopback binding is denied",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "10d114ff64cbedb046a690c985525246cc4d9117"
+  ],
+  "parent": "10d114ff64cbedb046a690c985525246cc4d9117",
+  "sourceImports": [
+   "486c60eee09160c8f2c90abe7f434a6606cc8d4a",
+   "f2593e80a73414263ea6c01969ff5ca604d53161",
+   "f6fd28b9c2647f8b2e822ff52f7a674cf673caff"
+  ],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "10d114ff64cbedb046a690c985525246cc4d9117",
+  "next": "f2a7988d68204605a0893d95d2e72986c5324607",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "6fe6857b28247375ab46b0d79cba15e74754ebd6"
+ },
+ "size": {
+  "files": 1,
+  "added": 34,
+  "deleted": 13
+ },
+ "provenance": {
+  "strategy": "path-partitioned split of the source commit's tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": false,
+  "sourceCommit": "bdd707bfcf264bb5dad763ed13108ee81323899e",
+  "splitOf": "2632c05da63099666add6437c743f4c5b3922f59"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "packages/kernel/test/HttpClient.integration.test.ts",
+   "mode": "100644",
+   "blob": "9f14fcb5ec128b2488f39dbe07894a9eb2f07230",
+   "previousBlob": "c3df52f663759d74fc7d7f2878c80ced24e88ad8",
+   "added": 34,
+   "deleted": 13,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 36,
+     "oldLines": 1,
+     "newStart": 35,
+     "newLines": 0
+    },
+    {
+     "oldStart": 41,
+     "oldLines": 0,
+     "newStart": 41,
+     "newLines": 1
+    },
+    {
+     "oldStart": 108,
+     "oldLines": 0,
+     "newStart": 109,
+     "newLines": 21
+    },
+    {
+     "oldStart": 111,
+     "oldLines": 1,
+     "newStart": 132,
+     "newLines": 1
+    },
+    {
+     "oldStart": 146,
+     "oldLines": 1,
+     "newStart": 167,
+     "newLines": 1
+    },
+    {
+     "oldStart": 149,
+     "oldLines": 1,
+     "newStart": 170,
+     "newLines": 1
+    },
+    {
+     "oldStart": 178,
+     "oldLines": 1,
+     "newStart": 199,
+     "newLines": 1
+    },
+    {
+     "oldStart": 183,
+     "oldLines": 1,
+     "newStart": 204,
+     "newLines": 1
+    },
+    {
+     "oldStart": 212,
+     "oldLines": 1,
+     "newStart": 233,
+     "newLines": 1
+    },
+    {
+     "oldStart": 216,
+     "oldLines": 1,
+     "newStart": 237,
+     "newLines": 1
+    },
+    {
+     "oldStart": 236,
+     "oldLines": 1,
+     "newStart": 257,
+     "newLines": 1
+    },
+    {
+     "oldStart": 239,
+     "oldLines": 1,
+     "newStart": 260,
+     "newLines": 1
+    },
+    {
+     "oldStart": 254,
+     "oldLines": 1,
+     "newStart": 275,
+     "newLines": 1
+    },
+    {
+     "oldStart": 257,
+     "oldLines": 1,
+     "newStart": 278,
+     "newLines": 1
+    },
+    {
+     "oldStart": 291,
+     "oldLines": 1,
+     "newStart": 312,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 5,
+    "id": "host",
+    "name": "Capability-checked platform adapters"
+   }
+  }
+ ],
+ "sizeJustification": "split from prior canonical commit 2632c05da63099666add6437c743f4c5b3922f59; 47 changed lines across 1 files, below the 2000-line large-commit threshold"
+}
