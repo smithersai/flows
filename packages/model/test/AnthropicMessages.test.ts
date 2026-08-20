@@ -59,6 +59,29 @@ const step = (
 const body = (request: ModelRequest, native = true): AnthropicMessages.Body =>
   Effect.runSync(AnthropicMessages.protocol.body.from(request, { native }))
 
+const replay = (data: ReadonlyArray<string>, finalize = false): ReadonlyArray<ModelEvent> => {
+  let state = AnthropicMessages.protocol.stream.initial(streamRequest)
+  const events: Array<ModelEvent> = []
+  for (const datum of data) {
+    const [next, emitted] = step(state, datum)
+    state = next
+    events.push(...emitted)
+  }
+  if (finalize) events.push(...(AnthropicMessages.protocol.stream.onHalt?.(state) ?? []))
+  return events
+}
+
+const replayError = (data: ReadonlyArray<string>): ModelError => {
+  let state = AnthropicMessages.protocol.stream.initial(streamRequest)
+  for (const datum of data.slice(0, -1)) {
+    const [next] = step(state, datum)
+    state = next
+  }
+  const last = data[data.length - 1] ?? ""
+  const event = Schema.decodeUnknownSync(AnthropicMessages.protocol.stream.event)(last)
+  return Effect.runSync(AnthropicMessages.protocol.stream.step(state, event).pipe(Effect.flip))
+}
+
 const run = (name: string, finalize = false) => {
   let state = AnthropicMessages.protocol.stream.initial(streamRequest)
   const events: Array<ModelEvent> = []
@@ -252,6 +275,183 @@ describe("AnthropicMessages streaming", () => {
     expect(CanonicalJson.stringify(requestBody)).not.toContain("{\\\"query\\\":")
   })
 
+  it("emits the seed text of a content block and skips an empty one", () => {
+    expect(replay([
+      "{\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"seed\"}}",
+      "{\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}",
+      "{\"type\":\"content_block_start\",\"index\":2,\"content_block\":{\"type\":\"text\"}}"
+    ])).toEqual([
+      { type: "text-start", id: "text-0" },
+      { type: "text-delta", id: "text-0", text: "seed" },
+      { type: "text-start", id: "text-1" },
+      { type: "text-start", id: "text-2" }
+    ])
+  })
+
+  it("opens a signed thinking block immediately and a second signature keeps it open", () => {
+    expect(replay([
+      "{\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"thinking\",\"thinking\":\"pre\",\"signature\":\"sig_0\"}}",
+      "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"signature_delta\",\"signature\":\"sig_1\"}}",
+      "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\" after\"}}",
+      "{\"type\":\"content_block_stop\",\"index\":0}"
+    ])).toEqual([
+      { type: "thinking-start", id: "thinking-0", signature: "sig_0" },
+      { type: "thinking-delta", id: "thinking-0", text: "pre" },
+      { type: "thinking-delta", id: "thinking-0", text: " after" },
+      { type: "thinking-end", id: "thinking-0" }
+    ])
+
+    expect(replay([
+      "{\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"thinking\",\"thinking\":\"\",\"signature\":\"sig\"}}"
+    ])).toEqual([{ type: "thinking-start", id: "thinking-0", signature: "sig" }])
+  })
+
+  it("replays a never-signed thinking block in order when its block stops", () => {
+    expect(replay([
+      "{\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"thinking\",\"thinking\":\"first\"}}",
+      "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\" second\"}}",
+      "{\"type\":\"content_block_stop\",\"index\":0}"
+    ])).toEqual([
+      { type: "thinking-start", id: "thinking-0", signature: undefined },
+      { type: "thinking-delta", id: "thinking-0", text: "first" },
+      { type: "thinking-delta", id: "thinking-0", text: " second" },
+      { type: "thinking-end", id: "thinking-0" }
+    ])
+  })
+
+  it("names a tool block by its index when the provider omits the id and name", () => {
+    expect(replay([
+      "{\"type\":\"content_block_start\",\"index\":3,\"content_block\":{\"type\":\"tool_use\"}}"
+    ])).toEqual([{ type: "tool-call-start", id: "3", name: "" }])
+  })
+
+  it("ignores frames that carry no addressable block", () => {
+    expect(replay([
+      "{\"type\":\"content_block_start\",\"content_block\":{\"type\":\"text\"}}",
+      "{\"type\":\"content_block_start\",\"index\":0}",
+      "{\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"server_tool_use\",\"id\":\"srv\"}}",
+      "{\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"x\"}}",
+      "{\"type\":\"content_block_delta\",\"index\":0}",
+      "{\"type\":\"content_block_delta\",\"index\":9,\"delta\":{\"type\":\"text_delta\",\"text\":\"x\"}}",
+      "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{}\"}}",
+      "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"citations_delta\"}}",
+      "{\"type\":\"content_block_stop\"}",
+      "{\"type\":\"content_block_stop\",\"index\":7}",
+      "{\"type\":\"ping\"}"
+    ])).toEqual([])
+  })
+
+  it("fails the stream when a completed tool call did not accumulate JSON", () => {
+    const error = replayError([
+      "{\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"tool_use\",\"id\":\"toolu_bad\",\"name\":\"weather\"}}",
+      "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{oops\"}}",
+      "{\"type\":\"content_block_stop\",\"index\":0}"
+    ])
+
+    expect(error).toBeInstanceOf(ModelError)
+    expect(error).toMatchObject({
+      code: "invalid_provider_output",
+      message: "Invalid JSON input for streamed tool call weather"
+    })
+  })
+
+  it("maps every Anthropic stop reason, including ones it does not know", () => {
+    const settle = (reason: string): ModelEvent | undefined =>
+      replay([
+        `{"type":"message_delta","delta":{"stop_reason":${JSON.stringify(reason)}}}`,
+        "{\"type\":\"message_stop\"}"
+      ]).at(-1)
+
+    expect(settle("end_turn")).toMatchObject({ stopReason: "stop" })
+    expect(settle("stop_sequence")).toMatchObject({ stopReason: "stop" })
+    expect(settle("pause_turn")).toMatchObject({ stopReason: "stop" })
+    expect(settle("max_tokens")).toMatchObject({ stopReason: "length" })
+    expect(settle("tool_use")).toMatchObject({ stopReason: "tool-calls" })
+    expect(settle("refusal")).toMatchObject({ stopReason: "content-filter" })
+    expect(settle("model_context_window_exceeded")).toMatchObject({ stopReason: "unknown" })
+    // No message_delta at all still settles, as `unknown`.
+    expect(replay(["{\"type\":\"message_stop\"}"])).toEqual([
+      { type: "settle", stopReason: "unknown", responseId: undefined }
+    ])
+  })
+
+  it("keeps partial usage reports and their totals independent", () => {
+    expect(replay([
+      "{\"type\":\"message_start\",\"message\":{\"usage\":{}}}",
+      "{\"type\":\"message_stop\"}"
+    ])).toEqual([
+      { type: "usage" },
+      { type: "settle", stopReason: "unknown", responseId: undefined }
+    ])
+
+    expect(replay([
+      "{\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":11}}}",
+      "{\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"}}",
+      "{\"type\":\"message_stop\"}"
+    ])).toEqual([
+      { type: "usage", inputTokens: 11, totalTokens: 11 },
+      { type: "settle", stopReason: "stop", responseId: undefined }
+    ])
+
+    expect(replay([
+      "{\"type\":\"message_start\",\"message\":{\"usage\":{\"cache_read_input_tokens\":6,\"cache_creation_input_tokens\":null}}}",
+      "{\"type\":\"message_delta\",\"usage\":{\"output_tokens\":4}}"
+    ])).toEqual([
+      { type: "usage", inputTokens: 6, outputTokens: 4, cachedInputTokens: 6, totalTokens: 10 }
+    ])
+
+    // Two counter-free reports merge into a counter-free report rather than
+    // into zeros, because a missing count is not a zero count.
+    expect(replay([
+      "{\"type\":\"message_start\",\"message\":{\"usage\":{}}}",
+      "{\"type\":\"message_delta\",\"usage\":{}}"
+    ])).toEqual([{ type: "usage" }])
+  })
+
+  it("carries a response id forward and settles a stream only once", () => {
+    const events = replay([
+      "{\"type\":\"message_start\",\"message\":{\"id\":\"msg_dup\",\"usage\":{\"input_tokens\":1}}}",
+      "{\"type\":\"message_start\",\"message\":{\"usage\":{\"output_tokens\":2}}}",
+      "{\"type\":\"message_delta\",\"usage\":{\"output_tokens\":2},\"delta\":{}}",
+      "{\"type\":\"message_stop\"}",
+      "{\"type\":\"message_stop\"}"
+    ])
+
+    expect(events).toEqual([
+      { type: "usage", inputTokens: 1, outputTokens: 2, totalTokens: 3 },
+      { type: "settle", stopReason: "unknown", responseId: "msg_dup" }
+    ])
+  })
+
+  it("closes every block an interrupted stream left open", () => {
+    expect(replay([
+      "{\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\"}}",
+      "{\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"thinking\",\"thinking\":\"open\"}}",
+      "{\"type\":\"content_block_start\",\"index\":2,\"content_block\":{\"type\":\"thinking\",\"signature\":\"sig\"}}"
+    ], true)).toEqual([
+      { type: "text-start", id: "text-0" },
+      { type: "thinking-start", id: "thinking-2", signature: "sig" },
+      { type: "text-end", id: "text-0" },
+      { type: "thinking-start", id: "thinking-1", signature: undefined },
+      { type: "thinking-delta", id: "thinking-1", text: "open" },
+      { type: "thinking-end", id: "thinking-1" },
+      { type: "thinking-end", id: "thinking-2" }
+    ])
+  })
+
+  it("emits no tool end for a duplicated tool id whose call was already completed", () => {
+    const events = replay([
+      "{\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"tool_use\",\"id\":\"toolu_same\",\"name\":\"weather\"}}",
+      "{\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"tool_use\",\"id\":\"toolu_same\",\"name\":\"weather\"}}",
+      "{\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"city\\\":\\\"Rome\\\"}\"}}",
+      "{\"type\":\"content_block_stop\",\"index\":1}"
+    ], true)
+
+    expect(events.filter((event) => event.type === "tool-call-end")).toEqual([
+      { type: "tool-call-end", id: "toolu_same", arguments: "{\"city\":\"Rome\"}" }
+    ])
+  })
+
   it("maps stream error events to ModelError", () => {
     const frame = {
       event: "error",
@@ -265,6 +465,22 @@ describe("AnthropicMessages streaming", () => {
     )
     expect(error).toBeInstanceOf(ModelError)
     expect(error).toMatchObject({ code: "provider_internal", providerCode: "overloaded_error" })
+  })
+
+  it("names a stream error even when the provider sends neither type nor message", () => {
+    expect(replayError(["{\"type\":\"error\"}"])).toMatchObject({
+      code: "unknown",
+      message: "Anthropic Messages stream error",
+      providerCode: undefined
+    })
+    expect(replayError(["{\"type\":\"error\",\"error\":{\"type\":\"authentication_error\"}}"])).toMatchObject({
+      code: "authentication",
+      message: "authentication_error: Anthropic Messages stream error"
+    })
+    expect(replayError(["{\"type\":\"error\",\"error\":{\"message\":\"blocked for safety\"}}"])).toMatchObject({
+      code: "content_policy",
+      message: "blocked for safety"
+    })
   })
 })
 
@@ -464,6 +680,133 @@ describe("AnthropicMessages body lowering", () => {
       providerCode: "rate_limit_error",
       httpStatus: 429
     })
+  })
+
+  it("classifies every HTTP failure shape, including bodies it cannot parse", () => {
+    const classify = AnthropicMessages.protocol.classifyError
+
+    expect(classify(401, "{}")).toMatchObject({
+      code: "authentication",
+      message: "Anthropic Messages request failed with HTTP 401",
+      providerCode: undefined,
+      httpStatus: 401
+    })
+    expect(classify(403, "{\"error\":{\"type\":\"permission_error\",\"message\":\"no access\"}}")).toMatchObject({
+      code: "authentication"
+    })
+    expect(classify(500, "<html>gateway</html>")).toMatchObject({
+      code: "provider_internal",
+      message: "Anthropic Messages request failed with HTTP 500"
+    })
+    expect(classify(529, "{\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"}}")).toMatchObject({
+      code: "provider_internal"
+    })
+    expect(classify(418, "{\"error\":{\"type\":\"api_error\",\"message\":\"teapot\"}}")).toMatchObject({
+      code: "provider_internal"
+    })
+    expect(classify(418, "{\"error\":{\"type\":\"tea_error\",\"message\":\"teapot\"}}")).toMatchObject({ code: "unknown" })
+    expect(classify(400, "{\"error\":{\"type\":\"invalid_request_error\",\"message\":\"unsafe content\"}}"))
+      .toMatchObject({ code: "invalid_request" })
+    expect(classify(400, "{\"error\":{\"type\":\"invalid_request_error\",\"message\":\"blocked by safety\"}}"))
+      .toMatchObject({ code: "content_policy" })
+  })
+
+  it("rejects a tool call whose recorded arguments are not a JSON object", () => {
+    const invalid = (arguments_: string) =>
+      Effect.runSync(
+        AnthropicMessages.protocol.body.from(
+          ModelRequest.make({
+            modelId: "claude-sonnet-4-5",
+            system: [],
+            messages: [
+              Message.assistant(ToolCallPart.make({ id: "toolu_1", name: "weather", arguments: arguments_ }), {
+                stopReason: "tool-calls"
+              })
+            ],
+            tools: [],
+            params: GenerationParams.make()
+          }),
+          { native: true }
+        ).pipe(Effect.flip)
+      )
+
+    expect(invalid("not json")).toMatchObject({
+      code: "invalid_request",
+      message: "Anthropic Messages tool-call arguments must be a JSON object"
+    })
+    expect(invalid("[1,2]")).toMatchObject({ code: "invalid_request" })
+    expect(invalid("")).toMatchObject({ code: "invalid_request" })
+  })
+
+  it("drops message parts no Anthropic wire block represents", () => {
+    const untyped = {
+      modelId: "claude-sonnet-4-5",
+      system: [],
+      messages: [
+        { role: "user", content: [{ type: "thinking", text: "not user content" }] },
+        {
+          role: "assistant",
+          content: [{ type: "tool-result", toolCallId: "call", content: "not assistant content" }],
+          stopReason: "stop"
+        }
+      ],
+      tools: [],
+      params: GenerationParams.make()
+    } as unknown as ModelRequest
+
+    expect(body(untyped).messages).toEqual([
+      { role: "user", content: [] },
+      { role: "assistant", content: [] }
+    ])
+  })
+
+  it("lowers every sampling knob and omits the ones left unset", () => {
+    const withParams = (params: GenerationParams): AnthropicMessages.Body =>
+      body(
+        ModelRequest.make({
+          modelId: "claude-sonnet-4-5",
+          system: [],
+          messages: [],
+          tools: [],
+          params
+        })
+      )
+
+    expect(withParams(GenerationParams.make({
+      maxTokens: 256,
+      temperature: 0.5,
+      topP: 0.9,
+      topK: 40,
+      stopSequences: ["END"],
+      thinkingBudget: 1_024
+    }))).toEqual({
+      model: "claude-sonnet-4-5",
+      max_tokens: 256,
+      messages: [],
+      stream: true,
+      temperature: 0.5,
+      top_p: 0.9,
+      top_k: 40,
+      stop_sequences: ["END"],
+      thinking: { type: "enabled", budget_tokens: 1_024 }
+    })
+
+    // An empty stop-sequence list is not a stop-sequence list, and an unset
+    // token budget leaves Anthropic's own default in place.
+    expect(withParams(GenerationParams.make({ stopSequences: [] }))).toEqual({
+      model: "claude-sonnet-4-5",
+      max_tokens: 4_096,
+      messages: [],
+      stream: true
+    })
+    expect(withParams(GenerationParams.make({ maxTokens: 0, thinkingBudget: 0 }))).toMatchObject({
+      max_tokens: 0,
+      thinking: { type: "enabled", budget_tokens: 0 }
+    })
+    // The Responses-only effort knob never reaches an Anthropic body.
+    expect(CanonicalJson.stringify(withParams(GenerationParams.make({ reasoningEffort: "high" })))).not.toContain(
+      "high"
+    )
   })
 
   it("classifies an oversized prompt as context_overflow, not as a bad request", () => {

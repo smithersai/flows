@@ -1,5 +1,6 @@
 import * as KernelHttpClient from "@smthrs/kernel/HttpClient"
 import { Effect, Layer, Redacted, Result, Schema, Stream } from "effect"
+import * as Sse from "effect/unstable/encoding/Sse"
 import * as HttpClient from "effect/unstable/http/HttpClient"
 import type * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
 import * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"
@@ -147,7 +148,103 @@ describe("Route.prepare", () => {
 
     expect(compatible.protocol.id).toBe("openai-responses")
     expect(compatible.protocol.supportsDeferred("gpt-5.4")).toBe(false)
+    expect(compatible.headers).toBeUndefined()
     await expect(Route.prepare(compatible, request).pipe(Effect.runPromise)).resolves.toMatchObject({ routeId: "groq" })
+  })
+
+  it("carries an OpenAI-compatible deployment's own headers and rejects an unusable base URL", async () => {
+    const withHeaders = Result.getOrThrow(OpenAICompatible.make({
+      id: "vllm",
+      baseUrl: "https://vllm.test/",
+      apiKey: Redacted.make("compatible-secret"),
+      headers: { "x-tenant": "acme" }
+    }))
+
+    expect(withHeaders.headers).toEqual({ "x-tenant": "acme" })
+    expect(withHeaders.endpoint.url).toBe("https://vllm.test/v1/responses")
+    const prepared = await Effect.runPromise(Route.prepare(withHeaders, request))
+    expect(prepared.publicHeaders).toEqual({ "content-type": "application/json", "x-tenant": "acme" })
+
+    const invalid = OpenAICompatible.make({
+      id: "broken",
+      baseUrl: "not a url",
+      apiKey: Redacted.make("compatible-secret")
+    })
+    expect(Result.isFailure(invalid)).toBe(true)
+  })
+
+  it("composes the built-in provider deployments and their credential-free views", async () => {
+    const anthropic = Result.getOrThrow(Route.anthropic({ apiKey: Redacted.make("anthropic-secret") }))
+
+    expect(anthropic.id).toBe("anthropic")
+    expect(anthropic.protocol.id).toBe("anthropic-messages")
+    expect(anthropic.framing.id).toBe("sse")
+    expect(anthropic.endpoint).toEqual({
+      method: "POST",
+      url: "https://api.anthropic.com/v1/messages",
+      query: []
+    })
+    expect(anthropic.headers).toEqual({ "anthropic-version": "2023-06-01" })
+
+    const prepared = await Effect.runPromise(Route.prepare(anthropic, request))
+    expect(prepared).toMatchObject({
+      routeId: "anthropic",
+      protocolId: "anthropic-messages",
+      method: "POST",
+      url: "https://api.anthropic.com/v1/messages",
+      publicHeaders: { "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      bodyText: "{\"max_tokens\":4096,\"messages\":[],\"model\":\"test-model\",\"stream\":true}"
+    })
+    expect(JSON.stringify(prepared)).not.toContain("anthropic-secret")
+
+    const signed = await Effect.runPromise(anthropic.auth.sign({ "content-type": "application/json" }))
+    expect(signed).toEqual({ "content-type": "application/json", "x-api-key": "anthropic-secret" })
+
+    const openai = Result.getOrThrow(Route.openai({ apiKey: Redacted.make("openai-secret") }))
+    expect(openai.endpoint.url).toBe("https://api.openai.com/v1/responses")
+    expect(openai.headers).toBeUndefined()
+    expect(await Effect.runPromise(openai.auth.sign({}))).toEqual({ Authorization: "Bearer openai-secret" })
+  })
+
+  it("fails a route whose credential is empty rather than sending an unauthenticated request", async () => {
+    const route = Result.getOrThrow(Route.anthropic({ apiKey: Redacted.make("") }))
+    const executor = RequestExecutor.RequestExecutor.of({
+      execute: () => Effect.die(new Error("the request must never be sent"))
+    })
+
+    const error = await Effect.runPromise(
+      Effect.scoped(
+        Route.toModel(route).pipe(
+          Effect.flatMap((model) => model.stream(request).pipe(Stream.runDrain, Effect.flip)),
+          Effect.provideService(RequestExecutor.RequestExecutor, executor)
+        )
+      )
+    )
+
+    expect(error).toMatchObject({ code: "authentication", message: "API key must not be empty" })
+  })
+
+  it("rejects a provider body that cannot be canonically encoded", async () => {
+    const uncanonical = Protocol.make({
+      ...protocol,
+      body: {
+        schema: Schema.Unknown,
+        from: () => Effect.succeed({ generatedAt: new Date(0) } as unknown)
+      }
+    })
+    const route = Route.make({
+      id: "uncanonical",
+      protocol: uncanonical,
+      endpoint: endpoint({ url: "https://example.test" }),
+      auth: Auth.bearer(Redacted.make("secret")),
+      framing: Framing.sse
+    })
+
+    const error = await Effect.runPromise(Route.prepare(route, request).pipe(Effect.flip))
+    expect(error).toMatchObject({
+      code: "invalid_request",
+      message: "Model request could not be encoded as canonical JSON"
+    })
   })
 
   it("wires route, auth, executor, framing, protocol, and settlement over a fake HTTP client", async () => {
@@ -293,5 +390,140 @@ describe("Route.prepare", () => {
     )
 
     expect(error).toBe(expected)
+  })
+})
+
+const executorOf = (
+  respond: (httpRequest: HttpClientRequest.HttpClientRequest) => Response
+): RequestExecutor.RequestExecutor =>
+  RequestExecutor.RequestExecutor.of({
+    execute: (httpRequest) => Effect.succeed(HttpClientResponse.fromWeb(httpRequest, respond(httpRequest)))
+  })
+
+const sseResponse = (frames: ReadonlyArray<string>): Response =>
+  new Response(frames.map((frame) => `data: ${frame}\n\n`).join(""), {
+    status: 200,
+    headers: { "content-type": "text/event-stream" }
+  })
+
+const collect = <Body, Frame, Event, State>(
+  config: Route.Config<Body, Frame, Event, State>,
+  executor: RequestExecutor.RequestExecutor
+): Promise<ReadonlyArray<ModelEvent.ModelEvent>> =>
+  Effect.runPromise(
+    Effect.scoped(
+      Route.toModel(config).pipe(
+        Effect.flatMap((model) => model.stream(request).pipe(Stream.runCollect)),
+        Effect.provideService(RequestExecutor.RequestExecutor, executor)
+      )
+    )
+  ).then((events) => Array.from(events))
+
+const drainError = <Body, Frame, Event, State>(
+  config: Route.Config<Body, Frame, Event, State>,
+  executor: RequestExecutor.RequestExecutor
+): Promise<Model.ModelFailure> =>
+  Effect.runPromise(
+    Effect.scoped(
+      Route.toModel(config).pipe(
+        Effect.flatMap((model) => model.stream(request).pipe(Stream.runDrain, Effect.flip)),
+        Effect.provideService(RequestExecutor.RequestExecutor, executor)
+      )
+    )
+  )
+
+const routeOf = <Body, Frame, Event, State>(
+  input: {
+    readonly protocol: Protocol.Protocol<Body, Frame, Event, State>
+    readonly framing: Framing.Framing<Frame>
+  }
+): Route.Route<Body, Frame, Event, State> =>
+  Route.make({
+    id: "streamed",
+    protocol: input.protocol,
+    endpoint: endpoint({ url: "https://example.test" }),
+    auth: Auth.bearer(Redacted.make("secret")),
+    framing: input.framing
+  })
+
+describe("Route.stream", () => {
+  it("reports a response body that dies mid-stream as a transport failure", async () => {
+    const executor = executorOf(() =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode("data: {\"text\":\"partial\"}\n\n"))
+            controller.error(new Error("socket reset"))
+          }
+        }),
+        { status: 200, headers: { "content-type": "text/event-stream" } }
+      )
+    )
+
+    const error = await drainError(routeOf({ protocol, framing: Framing.sse }), executor)
+    expect(error).toMatchObject({ code: "transport", message: "Model response stream failed" })
+    expect(JSON.stringify(error)).not.toContain("socket reset")
+  })
+
+  it("reports an oversized SSE event as a transport failure", async () => {
+    const framing: Framing.Framing<string> = {
+      id: "sse-too-large",
+      frame: () => Stream.fail(new Sse.SseError({ reason: new Sse.EventTooLarge({ maxEventSize: 8 }) }))
+    }
+
+    const error = await drainError(routeOf({ protocol, framing }), executorOf(() => sseResponse(["{}"])))
+    expect(error).toMatchObject({ code: "transport", message: "Model response stream failed" })
+  })
+
+  it("rejects a frame the protocol cannot decode", async () => {
+    const error = await drainError(
+      routeOf({ protocol, framing: Framing.sse }),
+      executorOf(() => sseResponse(["{\"ok\":true}", "not-json"]))
+    )
+
+    expect(error).toMatchObject({
+      code: "invalid_provider_output",
+      message: "test emitted an invalid stream event"
+    })
+  })
+
+  it("stops at the protocol's terminal event and needs no halt handler", async () => {
+    const terminal = Protocol.make({
+      id: "terminal",
+      supportsDeferred: () => false,
+      body: protocol.body,
+      stream: {
+        event: Schema.fromJsonString(TestEvent),
+        initial: () => 0,
+        step: (state: number, event: { readonly [key: string]: unknown }) =>
+          Effect.succeed(
+            [
+              state + 1,
+              [ModelEvent.ModelEvent.TextDelta({ type: "text-delta", id: `f${state}`, text: String(event["text"]) })]
+            ] as const
+          ),
+        terminal: (event: { readonly [key: string]: unknown }) => event["stop"] === true
+      },
+      classifyError: protocol.classifyError
+    })
+
+    const events = await collect(
+      routeOf({ protocol: terminal, framing: Framing.sse }),
+      executorOf(() => sseResponse([
+        "{\"text\":\"one\"}",
+        "{\"text\":\"two\",\"stop\":true}",
+        "{\"text\":\"three\"}"
+      ]))
+    )
+
+    expect(events).toEqual([
+      { type: "text-delta", id: "f0", text: "one" },
+      { type: "text-delta", id: "f1", text: "two" }
+    ])
+  })
+
+  it("streams zero events when the provider settles without sending any", async () => {
+    const events = await collect(routeOf({ protocol, framing: Framing.sse }), executorOf(() => sseResponse(["[DONE]"])))
+    expect(events).toEqual([])
   })
 })

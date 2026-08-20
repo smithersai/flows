@@ -17,11 +17,20 @@ export default defineConfig({
       // each other's coverage scratch state (issues #115/#121).
       reportsDirectory: join(tmpdir(), `flows-registry-coverage-${process.pid}`),
       include: ["src/**"],
+      // Everything reachable is covered. The remainder is four defensive
+      // guards that no input can reach: the `?? ""` fallbacks in
+      // `ModuleMetadata.skipTrivia` and `ModuleMetadata.nextToken` (both sit
+      // behind an `index < source.length` check, so the indexed read is always
+      // a string), the unmatched-brace return in
+      // `ModuleMetadata.objectProperties` (every property value is sliced out
+      // of an already brace-balanced declaration), and the `Option.getOrElse`
+      // fallback in `Discovery` module naming (a path-named source rejects
+      // root-level entries, so its path-derived name is always present).
       thresholds: {
-        branches: 75,
-        functions: 82,
-        lines: 83,
-        statements: 83
+        branches: 99.65,
+        functions: 99.21,
+        lines: 99.73,
+        statements: 99.74
       }
     }
   }

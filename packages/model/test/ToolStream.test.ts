@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { ModelError } from "../src/ModelError.ts"
 import * as ToolStream from "../src/ToolStream.ts"
 
 describe("ToolStream", () => {
@@ -21,6 +22,52 @@ describe("ToolStream", () => {
 
     const result = ToolStream.end(state, "call_1")
     expect(result).toMatchObject({ code: "invalid_provider_output" })
+  })
+
+  it("appends a fragment only to the addressed call", () => {
+    let state = ToolStream.start(ToolStream.initial(), { callId: "first", name: "one" })
+    state = ToolStream.start(state, { callId: "second", name: "two" })
+    state = ToolStream.delta(state, "second", "{\"b\":2}")
+    state = ToolStream.delta(state, "missing", "ignored")
+
+    expect(state.open).toEqual([
+      { callId: "first", name: "one", fragments: [] },
+      { callId: "second", name: "two", fragments: ["{\"b\":2}"] }
+    ])
+  })
+
+  it("reports a completion for a call it never opened", () => {
+    const result = ToolStream.end(ToolStream.initial(), "call_unknown")
+
+    expect(result).toBeInstanceOf(ModelError)
+    expect(result).toMatchObject({
+      code: "invalid_provider_output",
+      message: "Received completion for unknown tool call call_unknown"
+    })
+  })
+
+  it("completes a call with no fragments as an empty object", () => {
+    const state = ToolStream.start(ToolStream.initial(), { callId: "call_1", name: "lookup" })
+
+    const result = ToolStream.end(state, "call_1")
+    if (result instanceof ModelError) throw result
+    expect(result.completed).toEqual({ callId: "call_1", name: "lookup", arguments: "{}" })
+    expect(result.state.open).toEqual([])
+  })
+
+  it("replaces a duplicate call id rather than accumulating two entries", () => {
+    let state = ToolStream.start(ToolStream.initial(), { callId: "call_1", name: "first" })
+    state = ToolStream.delta(state, "call_1", "{\"stale\":true}")
+    state = ToolStream.start(state, { callId: "call_1", name: "second" })
+
+    expect(state.open).toEqual([{ callId: "call_1", name: "second", fragments: [] }])
+    const result = ToolStream.end(state, "call_1")
+    if (result instanceof ModelError) throw result
+    expect(result.completed).toEqual({ callId: "call_1", name: "second", arguments: "{}" })
+  })
+
+  it("flushes an accumulator that never opened a call", () => {
+    expect(ToolStream.flushAborted(ToolStream.initial())).toEqual({ state: { open: [] }, completed: [] })
   })
 
   it("settles open calls with valid synthetic arguments after an abort", () => {

@@ -5,6 +5,24 @@ import * as MemoryStore from "../src/MemoryStore.ts"
 import * as Recall from "../src/Recall.ts"
 import * as Source from "../src/Source.ts"
 
+const storeOf = (listNotes: () => Effect.Effect<ReadonlyArray<{ readonly text: string }>>) =>
+  MemoryStore.MemoryStore.of({ listNotes } as unknown as MemoryStore.Service)
+
+const read = (
+  input: Source.Input,
+  options: {
+    readonly store: MemoryStore.Service
+    readonly recall: Recall.Service
+    readonly source?: Source.Source
+  }
+) =>
+  Effect.runPromise(
+    Source.declaredText(options.source ?? Source.make(), input).pipe(
+      Effect.provideService(MemoryStore.MemoryStore, options.store),
+      Effect.provideService(Recall.Recall, options.recall)
+    )
+  )
+
 describe("Source", () => {
   it("returns no injection after the advisory timeout", async () => {
     const store = MemoryStore.MemoryStore.of({
@@ -99,5 +117,118 @@ describe("Source", () => {
     )
     expect(exit._tag).toBe("Failure")
     if (exit._tag === "Failure") expect(Cause.hasInterrupts(exit.cause)).toBe(true)
+  })
+
+  it("injects nothing when no bank holds a primer and recall returns no row", async () => {
+    const declared = await read({ lineageId: "empty", iteration: 0, banks: ["bank"], query: "q" }, {
+      store: storeOf(() => Effect.succeed([])),
+      recall: Recall.makeNoop()
+    })
+    expect(declared).toEqual({ text: "", digest: "811c9dc5" })
+  })
+
+  it("renders every primer bank before the recalled rows", async () => {
+    const declared = await read({
+      lineageId: "rendered",
+      iteration: 0,
+      banks: ["flow-one"],
+      primerBanks: ["global-standards", "flow-one"],
+      query: "durable"
+    }, {
+      store: storeOf(() => Effect.succeed([{ text: "primer text" }])),
+      recall: Recall.make({
+        recall: () => Effect.succeed([{ bank: "flow-one", key: "runbook", text: "recalled text", score: 1 }])
+      })
+    })
+
+    expect(declared.text).toBe(
+      [
+        "<flows_memory_context>",
+        "[primer:global-standards] primer text",
+        "[primer:flow-one] primer text",
+        "[flow-one/runbook] recalled text",
+        "</flows_memory_context>"
+      ].join("\n")
+    )
+  })
+
+  it("injects nothing when the fence alone exceeds the byte budget", async () => {
+    const options = {
+      store: storeOf(() => Effect.succeed([{ text: "primer text" }])),
+      recall: Recall.makeNoop()
+    }
+    const tiny = await read({ lineageId: "tiny", iteration: 0, banks: ["bank"], query: "q", maxBytes: 10 }, options)
+    const zero = await read({ lineageId: "zero", iteration: 0, banks: ["bank"], query: "q", maxBytes: 0 }, options)
+    const negative = await read(
+      { lineageId: "negative", iteration: 0, banks: ["bank"], query: "q", maxBytes: -1 },
+      options
+    )
+    const exact = await read({
+      lineageId: "exact",
+      iteration: 0,
+      banks: ["bank"],
+      query: "q",
+      maxBytes: Source.byteLength("<flows_memory_context>\n\n</flows_memory_context>")
+    }, options)
+
+    expect([tiny.text, zero.text, negative.text]).toEqual(["", "", ""])
+    expect(exact.text).toBe("<flows_memory_context>\n\n</flows_memory_context>")
+  })
+
+  it("keys the frozen snapshot on the lineage and the iteration", async () => {
+    let reads = 0
+    const source = Source.make()
+    const options = {
+      source,
+      store: storeOf(() =>
+        Effect.sync(() => {
+          reads += 1
+          return [{ text: `read-${reads}` }]
+        })
+      ),
+      recall: Recall.makeNoop()
+    }
+    const first = await read({ lineageId: "lineage", iteration: 0, banks: ["bank"], query: "q" }, options)
+    const replay = await read({ lineageId: "lineage", iteration: 0, banks: ["bank"], query: "q" }, options)
+    const next = await read({ lineageId: "lineage", iteration: 1, banks: ["bank"], query: "q" }, options)
+    const other = await read({ lineageId: "other", iteration: 0, banks: ["bank"], query: "q" }, options)
+
+    expect(replay).toEqual(first)
+    expect(next.text).toContain("read-2")
+    expect(other.text).toContain("read-3")
+    expect(reads).toBe(3)
+  })
+
+  it("digests identical text identically and changes the digest when the text changes", async () => {
+    const options = { store: storeOf(() => Effect.succeed([{ text: "same" }])), recall: Recall.makeNoop() }
+    const first = await read({ lineageId: "a", iteration: 0, banks: ["bank"], query: "q" }, options)
+    const second = await read({ lineageId: "b", iteration: 0, banks: ["bank"], query: "q" }, options)
+    const changed = await read({ lineageId: "c", iteration: 0, banks: ["bank"], query: "q" }, {
+      ...options,
+      store: storeOf(() => Effect.succeed([{ text: "edited" }]))
+    })
+
+    expect(second).toEqual(first)
+    expect(changed.digest).not.toBe(first.digest)
+    expect(first.digest).toMatch(/^[0-9a-f]{8}$/)
+  })
+
+  it("reads through the default source value", async () => {
+    const declared = await read({ lineageId: "default-source", iteration: 0, banks: [], query: "q" }, {
+      source: Source.source,
+      store: storeOf(() => Effect.succeed([])),
+      recall: Recall.makeNoop()
+    })
+    expect(declared.text).toBe("")
+  })
+
+  it("truncates to a byte budget without splitting a code point", () => {
+    expect(Source.byteLength("")).toBe(0)
+    expect(Source.byteLength("héllo")).toBe(6)
+    expect(Source.truncate("héllo", 6)).toBe("héllo")
+    expect(Source.truncate("héllo", 7)).toBe("héllo")
+    expect(Source.truncate("héllo", 2)).toBe("h")
+    expect(Source.truncate("héllo", 0)).toBe("")
+    expect(Source.truncate("😀😀", 4)).toBe("😀")
   })
 })

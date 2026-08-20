@@ -3,7 +3,7 @@ import * as NodePath from "@effect/platform-node/NodePath"
 import { Effect, FileSystem, Layer, Option, Path, PlatformError } from "effect"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
-import type { Source } from "../src/Descriptor.ts"
+import { type Source, SourceScan } from "../src/Descriptor.ts"
 import * as Discovery from "../src/Discovery.ts"
 
 const projectRoot = fileURLToPath(new URL("./fixtures/project/flows", import.meta.url))
@@ -162,6 +162,33 @@ describe("Discovery", () => {
     )
 
     expect(error).toMatchObject({ code: "read_failed", cause })
+  })
+
+  it("scans nothing from a stub and keeps overridden methods", async () => {
+    const source: Source = { source: "stub", root: projectRoot, naming: "path" }
+    const overridden = new SourceScan({ entries: [], warnings: [] })
+
+    const result = await Effect.runPromise(
+      Effect.all([
+        Discovery.makeNoop().scan(source),
+        Discovery.makeNoop({ scan: () => Effect.succeed(overridden) }).scan(source),
+        Effect.gen(function*() {
+          const discovery = yield* Discovery.Discovery
+          return yield* discovery.scan(source)
+        }).pipe(Effect.provide(Discovery.layerNoop())),
+        Effect.gen(function*() {
+          const discovery = yield* Discovery.Discovery
+          return yield* discovery.scan(source)
+        }).pipe(Effect.provide(Discovery.layerNoop({ scan: () => Effect.succeed(overridden) })))
+      ])
+    )
+
+    expect(result).toEqual([
+      new SourceScan({ entries: [], warnings: [] }),
+      overridden,
+      new SourceScan({ entries: [], warnings: [] }),
+      overridden
+    ])
   })
 
   it("returns deterministic scans", async () => {

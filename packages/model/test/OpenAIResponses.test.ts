@@ -50,6 +50,29 @@ const replay = (name: string) => {
   return events
 }
 
+const replayData = (data: ReadonlyArray<string>, finalize = false): ReadonlyArray<Events.ModelEvent> => {
+  let state = OpenAIResponses.protocol.stream.initial(streamRequest)
+  const events: Array<Events.ModelEvent> = []
+  for (const datum of data) {
+    const [next, emitted] = step(state, datum)
+    state = next
+    events.push(...emitted)
+  }
+  if (finalize) events.push(...(OpenAIResponses.protocol.stream.onHalt?.(state) ?? []))
+  return events
+}
+
+const replayDataError = (data: ReadonlyArray<string>) => {
+  let state = OpenAIResponses.protocol.stream.initial(streamRequest)
+  for (const datum of data.slice(0, -1)) {
+    const [next] = step(state, datum)
+    state = next
+  }
+  const last = data[data.length - 1] ?? ""
+  const event = Schema.decodeUnknownSync(OpenAIResponses.protocol.stream.event)(last)
+  return Effect.runSync(OpenAIResponses.protocol.stream.step(state, event).pipe(Effect.flip))
+}
+
 const request = (modelId = "gpt-5.4"): Request.ModelRequest =>
   Request.ModelRequest.make({
     modelId,
@@ -199,6 +222,120 @@ describe("OpenAIResponses", () => {
     ])
   })
 
+  it("ignores frames that address nothing it has opened", () => {
+    expect(replayData([
+      "{\"type\":\"response.created\",\"response\":{}}",
+      "{\"type\":\"response.output_text.done\",\"item_id\":\"never\"}",
+      "{\"type\":\"response.reasoning_text.done\",\"item_id\":\"never\"}",
+      "{\"type\":\"response.output_item.added\",\"item_id\":\"m\",\"item\":{\"type\":\"message\",\"id\":\"m\"}}",
+      "{\"type\":\"response.output_item.done\",\"item_id\":\"m\",\"item\":{\"type\":\"message\",\"id\":\"m\"}}",
+      "{\"type\":\"response.output_item.done\",\"item_id\":\"orphan\",\"item\":{\"type\":\"function_call\"}}",
+      "{\"type\":\"response.output_item.done\",\"item_id\":\"ghost\",\"item\":{\"type\":\"function_call\",\"call_id\":\"call_ghost\",\"name\":\"read\",\"arguments\":\"{}\"}}",
+      "{\"type\":\"response.in_progress\"}"
+    ])).toEqual([])
+  })
+
+  it("completes a call named only by its item id and one whose arguments arrive whole", () => {
+    expect(replayData([
+      "{\"type\":\"response.output_item.added\",\"item_id\":\"fc\",\"item\":{\"type\":\"function_call\",\"id\":\"call_by_item\",\"name\":\"read\",\"arguments\":\"{\\\"path\\\":\\\"a\\\"}\"}}",
+      "{\"type\":\"response.function_call_arguments.done\",\"item_id\":\"fc\",\"arguments\":\"{\\\"path\\\":\\\"a\\\"}\"}"
+    ])).toEqual([
+      { type: "tool-call-start", id: "call_by_item", name: "read" },
+      { type: "tool-call-delta", id: "call_by_item", arguments: "{\"path\":\"a\"}" },
+      { type: "tool-call-end", id: "call_by_item", arguments: "{\"path\":\"a\"}" }
+    ])
+
+    // No deltas at all: the terminal `arguments` field is the whole payload.
+    expect(replayData([
+      "{\"type\":\"response.output_item.added\",\"item_id\":\"fc\",\"item\":{\"type\":\"function_call\",\"call_id\":\"call_whole\",\"name\":\"read\"}}",
+      "{\"type\":\"response.output_item.done\",\"item_id\":\"fc\",\"item\":{\"type\":\"function_call\",\"call_id\":\"call_whole\",\"name\":\"read\",\"arguments\":\"{\\\"path\\\":\\\"b\\\"}\"}}"
+    ])).toEqual([
+      { type: "tool-call-start", id: "call_whole", name: "read" },
+      { type: "tool-call-end", id: "call_whole", arguments: "{\"path\":\"b\"}" }
+    ])
+  })
+
+  it("rejects a function call with no identity, orphan arguments, and unparseable arguments", () => {
+    expect(
+      replayDataError([
+        "{\"type\":\"response.output_item.added\",\"item_id\":\"fc\",\"item\":{\"type\":\"function_call\",\"name\":\"read\"}}"
+      ])
+    ).toMatchObject({
+      code: "invalid_provider_output",
+      message: "OpenAI Responses emitted a function call without an id or name"
+    })
+
+    expect(
+      replayDataError([
+        "{\"type\":\"response.function_call_arguments.delta\",\"item_id\":\"ghost\",\"delta\":\"{}\"}"
+      ])
+    ).toMatchObject({
+      code: "invalid_provider_output",
+      message: "OpenAI Responses emitted arguments for an unknown function call"
+    })
+
+    expect(
+      replayDataError([
+        "{\"type\":\"response.output_item.added\",\"item_id\":\"fc\",\"item\":{\"type\":\"function_call\",\"call_id\":\"call_bad\",\"name\":\"read\"}}",
+        "{\"type\":\"response.function_call_arguments.delta\",\"item_id\":\"fc\",\"delta\":\"{oops\"}",
+        "{\"type\":\"response.function_call_arguments.done\",\"item_id\":\"fc\",\"arguments\":\"{oops\"}"
+      ])
+    ).toMatchObject({
+      code: "invalid_provider_output",
+      message: "Invalid JSON input for streamed tool call read"
+    })
+  })
+
+  it("opens one reasoning part per id no matter how many deltas arrive", () => {
+    expect(replayData([
+      "{\"type\":\"response.reasoning_summary.delta\",\"item_id\":\"rs_1\",\"delta\":\"one\"}",
+      "{\"type\":\"response.reasoning_summary_text.delta\",\"item_id\":\"rs_1\",\"delta\":\" two\"}",
+      "{\"type\":\"response.reasoning_summary_text.done\",\"item_id\":\"rs_1\"}",
+      "{\"type\":\"response.reasoning_summary.done\",\"item_id\":\"rs_1\"}"
+    ])).toEqual([
+      { type: "thinking-start", id: "rs_1", signature: "rs_1" },
+      { type: "thinking-delta", id: "rs_1", text: "one" },
+      { type: "thinking-delta", id: "rs_1", text: " two" },
+      { type: "thinking-end", id: "rs_1" },
+      { type: "thinking-end", id: "rs_1" }
+    ])
+  })
+
+  it("settles an incomplete response as a length stop and ignores everything after it", () => {
+    expect(replayData([
+      "{\"type\":\"response.output_text.delta\",\"item_id\":\"msg\",\"delta\":\"trunc\"}",
+      "{\"type\":\"response.incomplete\",\"response\":{\"id\":\"resp_cut\"}}",
+      "{\"type\":\"response.output_text.delta\",\"item_id\":\"msg\",\"delta\":\"after\"}",
+      "{\"type\":\"response.completed\",\"response\":{\"id\":\"resp_cut\"}}"
+    ])).toEqual([
+      { type: "text-start", id: "msg" },
+      { type: "text-delta", id: "msg", text: "trunc" },
+      { type: "settle", stopReason: "length", responseId: undefined }
+    ])
+  })
+
+  it("settles a completed response with neither an id nor usage", () => {
+    expect(replayData(["{\"type\":\"response.completed\",\"response\":{}}"])).toEqual([
+      { type: "settle", stopReason: "stop", responseId: undefined }
+    ])
+
+    expect(replayData(["{\"type\":\"response.completed\",\"response\":{\"id\":\"r\",\"usage\":{}}}"])).toEqual([
+      { type: "usage" },
+      { type: "settle", stopReason: "stop", responseId: "r" }
+    ])
+  })
+
+  it("falls back to a synthetic id when the provider names no item", () => {
+    expect(replayData([
+      "{\"type\":\"response.output_text.delta\",\"delta\":\"anonymous\"}",
+      "{\"type\":\"response.output_text.done\"}"
+    ])).toEqual([
+      { type: "text-start", id: "output-0" },
+      { type: "text-delta", id: "output-0", text: "anonymous" },
+      { type: "text-end", id: "output-0" }
+    ])
+  })
+
   it("rejects malformed stream frames as typed provider output errors", () => {
     expect(() => Schema.decodeUnknownSync(OpenAIResponses.protocol.stream.event)("not-json"))
       .toThrow()
@@ -225,6 +362,104 @@ describe("OpenAIResponses", () => {
       )
       expect(error).toMatchObject(expected)
     }
+  })
+
+  it("classifies streamed failures from the event, the response, or neither", () => {
+    expect(replayDataError(["{\"type\":\"error\",\"error\":{\"code\":\"rate_limit_exceeded\",\"message\":\"slow down\"}}"]))
+      .toMatchObject({ code: "rate_limited", providerCode: "rate_limit_exceeded", message: "slow down" })
+
+    expect(replayDataError(["{\"type\":\"error\",\"error\":{\"type\":\"server_error\"}}"])).toMatchObject({
+      code: "provider_internal",
+      providerCode: "server_error",
+      message: "OpenAI Responses stream failed"
+    })
+
+    expect(
+      replayDataError(["{\"type\":\"response.failed\",\"response\":{\"error\":{\"code\":\"c\",\"message\":\"failed\"}}}"])
+    ).toMatchObject({ code: "unknown", providerCode: "c", message: "failed" })
+
+    expect(replayDataError(["{\"type\":\"error\"}"])).toMatchObject({
+      code: "unknown",
+      message: "OpenAI Responses stream failed",
+      providerCode: undefined
+    })
+  })
+
+  it("classifies every HTTP failure shape, including bodies it cannot parse", () => {
+    const classify = OpenAIResponses.protocol.classifyError
+
+    expect(classify(402, "{\"error\":{\"code\":\"insufficient_quota\"}}")).toMatchObject({ code: "quota_exceeded" })
+    expect(classify(403, "{\"error\":{\"code\":\"permission_denied\"}}")).toMatchObject({ code: "authentication" })
+    expect(classify(429, "{\"error\":{\"code\":\"rate_limit_exceeded\",\"message\":\"slow\"}}")).toMatchObject({
+      code: "rate_limited",
+      providerCode: "rate_limit_exceeded",
+      httpStatus: 429
+    })
+    expect(classify(400, "{\"error\":{\"message\":\"content_policy violation\"}}")).toMatchObject({
+      code: "content_policy"
+    })
+    expect(classify(400, "{\"error\":{\"code\":\"context_length_exceeded\",\"message\":\"maximum context length\"}}"))
+      .toMatchObject({ code: "context_overflow" })
+    for (const status of [404, 409, 413, 422]) {
+      expect(classify(status, "{}")).toMatchObject({
+        code: "invalid_request",
+        message: `OpenAI Responses request failed with HTTP ${status}`
+      })
+    }
+    expect(classify(418, "{\"error\":{\"type\":\"invalid_request_error\"}}")).toMatchObject({ code: "invalid_request" })
+    expect(classify(500, "{}")).toMatchObject({ code: "provider_internal" })
+    expect(classify(503, "<html>gateway</html>")).toMatchObject({
+      code: "provider_internal",
+      message: "OpenAI Responses request failed with HTTP 503"
+    })
+    expect(classify(418, "{\"code\":\"server_error\",\"message\":\"boom\"}")).toMatchObject({
+      code: "provider_internal",
+      providerCode: "server_error",
+      message: "boom"
+    })
+    expect(classify(418, "{}")).toMatchObject({
+      code: "unknown",
+      providerCode: undefined,
+      message: "OpenAI Responses request failed with HTTP 418"
+    })
+  })
+
+  it("replays reasoning signatures as stored items and opaque ones as references", () => {
+    const withId = JSON.stringify({ type: "reasoning", id: "rs_keep", encrypted_content: "cipher" })
+    const withoutId = JSON.stringify({ type: "reasoning", summary: [] })
+    const opaque = "sig_opaque"
+    const assistant = Request.Message.assistant([
+      Request.TextPart.make({ text: "part one" }),
+      Request.TextPart.make({ text: " part two" }),
+      Request.ThinkingPart.make({ text: "a", signature: withId }),
+      Request.ThinkingPart.make({ text: "b", signature: withoutId }),
+      Request.ThinkingPart.make({ text: "c", signature: opaque }),
+      Request.ThinkingPart.make({ text: "d", signature: opaque }),
+      Request.ThinkingPart.make({ text: "e" }),
+      Request.ToolCallPart.make({ id: "call_1", name: "read", arguments: "{}" })
+    ], { stopReason: "tool-calls", itemIds: ["rs_keep", "item_a", "item_a", "item_b"] })
+
+    const input = body(
+      Request.ModelRequest.make({
+        modelId: "gpt-5.4",
+        system: [],
+        messages: [assistant],
+        tools: [],
+        params: Request.GenerationParams.make()
+      })
+    ).input
+
+    expect(input).toEqual([
+      // `rs_keep` is already replayed as a stored reasoning item, so it is not
+      // also referenced, and a repeated id is referenced once.
+      { type: "item_reference", id: "item_a" },
+      { type: "item_reference", id: "item_b" },
+      { role: "assistant", content: [{ type: "output_text", text: "part one part two" }] },
+      { type: "reasoning", id: "rs_keep", encrypted_content: "cipher" },
+      { type: "reasoning", summary: [] },
+      { type: "item_reference", id: "sig_opaque" },
+      { type: "function_call", call_id: "call_1", name: "read", arguments: "{}" }
+    ])
   })
 
   it("lowers a deterministic native deferred tool-search load point", () => {
