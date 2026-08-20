@@ -24,6 +24,12 @@ const crypto = Layer.succeed(Crypto.Crypto)(Crypto.make({
   digest: (_algorithm, data) => Effect.succeed(data)
 }))
 
+/**
+ * Provides the authoritative memory store with deterministic test services.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
 export const layer = MemoryStore.layer.pipe(Layer.provide(Layer.merge(TestDatabase.layer, crypto)))
 
 /**

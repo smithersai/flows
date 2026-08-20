@@ -164,12 +164,11 @@ const handleFromJson = (
 }
 
 /**
- * The loaded WebAssembly module, shared by every sandbox in the process.
+ * Caches only a successful asynchronous load; a rejection may be retried.
  *
- * Compiling QuickJS is expensive and the module holds no per-cell state — each
- * evaluation gets its own runtime and context out of it.
+ * @category constructors
+ * @since 0.1.0
  */
-/** Caches only a successful asynchronous load; a rejection may be retried. */
 export const cacheSuccessful = <A>(load: () => Promise<A>): () => Promise<A> => {
   let loaded: Promise<A> | undefined
   return () => {
@@ -177,7 +176,7 @@ export const cacheSuccessful = <A>(load: () => Promise<A>): () => Promise<A> => 
       const pending = load()
       loaded = pending
       void pending.catch(() => {
-        if (loaded === pending) loaded = undefined
+        loaded = undefined
       })
     }
     return loaded
@@ -186,17 +185,32 @@ export const cacheSuccessful = <A>(load: () => Promise<A>): () => Promise<A> => 
 
 const wasmModule = cacheSuccessful(() => newQuickJSWASMModuleFromVariant(variant))
 
-/** Synchronous monotonic-enough clock required by QuickJS's interrupt callback. */
+/**
+ * Synchronous monotonic-enough clock required by QuickJS's interrupt callback.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface ComputeClockService {
   readonly now: () => number
 }
 
-/** Synchronous monotonic-enough clock required by QuickJS's interrupt callback. */
+/**
+ * Synchronous monotonic-enough clock required by QuickJS's interrupt callback.
+ *
+ * @category services
+ * @since 0.1.0
+ */
 export class ComputeClock extends Context.Service<ComputeClock, ComputeClockService>()(
   "flows/harness/QuickJSSandbox/ComputeClock"
 ) {}
 
-/** Provides the browser-safe host clock behind the QuickJS clock seam. */
+/**
+ * Provides the browser-safe host clock behind the QuickJS clock seam.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
 export const layerClockLive: Layer.Layer<ComputeClock> = Layer.succeed(ComputeClock)({ now: () => Date.now() })
 
 const capabilities: Sandbox.Capabilities = {
@@ -448,6 +462,25 @@ const evaluate = (
   )
 
 /**
+ * Loads a QuickJS module through the sandbox's typed failure boundary.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const loadModule = (
+  loader: () => Promise<QuickJSWASMModule>
+): Effect.Effect<QuickJSWASMModule, Sandbox.SandboxError> =>
+  Effect.tryPromise({
+    try: loader,
+    catch: (cause) =>
+      new Sandbox.SandboxError({
+        code: "runtime_failed",
+        message: "QuickJS WebAssembly module could not be loaded",
+        cause
+      })
+  })
+
+/**
  * Constructs the QuickJS sandbox, compiling the WebAssembly module once.
  *
  * @category constructors
@@ -457,15 +490,7 @@ const evaluate = (
 export const makeWithClock: Effect.Effect<Sandbox.Sandbox, Sandbox.SandboxError, ComputeClock> = Effect.gen(
   function*() {
     const clock = yield* ComputeClock
-    const module = yield* Effect.tryPromise({
-      try: wasmModule,
-      catch: (cause) =>
-        new Sandbox.SandboxError({
-          code: "runtime_failed",
-          message: "QuickJS WebAssembly module could not be loaded",
-          cause
-        })
-    })
+    const module = yield* loadModule(wasmModule)
     return Sandbox.make({
       capabilities,
       evaluate: (evaluation) => evaluate(module, evaluation, clock)
@@ -473,7 +498,12 @@ export const makeWithClock: Effect.Effect<Sandbox.Sandbox, Sandbox.SandboxError,
   }
 )
 
-/** Constructs the QuickJS sandbox with the live clock layer. */
+/**
+ * Constructs the QuickJS sandbox with the live clock layer.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const make: Effect.Effect<Sandbox.Sandbox, Sandbox.SandboxError> = makeWithClock.pipe(
   Effect.provide(layerClockLive)
 )
