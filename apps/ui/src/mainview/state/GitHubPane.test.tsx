@@ -257,6 +257,66 @@ describe("the GitHub pane (will, 2026-08-19)", () => {
 		expect(host.textContent).not.toContain("available in the transcript");
 	});
 
+	/*
+	 * "Everything is pretty close to a github clone" (will, 2026-08-19). The
+	 * three list tabs are one list: the Flows tab wears the same row treatment
+	 * the Issues and Pull Requests tabs wear. What it must NOT wear is a column
+	 * a flow does not have — a number, an open/closed badge, an author, a
+	 * comment count — because NO INVENTION forbids dressing it in data the
+	 * source never answered.
+	 */
+	test("the Flows tab wears the shared row treatment, with only the fields a flow has", async () => {
+		const store = await webStore();
+		const controller = controllerWith(store);
+		await signedIn(store, []);
+		await controller.commands.run("repo.open", "will/flows");
+		await settled();
+		store.dispatch({
+			type: "card.upsert",
+			actor: "system",
+			card: {
+				id: "workflow-list-will/flows",
+				kind: "workflow-list",
+				title: "Workflows — will/flows",
+				status: "active",
+				createdAt: 1,
+				ordinal: 1,
+				payload: {
+					repo: "will/flows",
+					workflows: [
+						{ key: "alpha-ui", description: "The alpha UI lane" },
+						{ key: "post-failure", description: null },
+					],
+				},
+			},
+		});
+		await controller.commands.run("repo.tab", "flows");
+		await settled();
+		const { host } = mount(controller);
+
+		// The same list element the Issues and Pull Requests tabs render into.
+		const list = host.querySelector("ul.world-card-list.workflow-list");
+		expect(list).not.toBeNull();
+		const rows = [...(list?.querySelectorAll<HTMLElement>("li.world-card-row") ?? [])];
+		expect(rows.length).toBe(2);
+
+		// Row one: the key as the row's title, the description as its metadata
+		// column, the run act bound to the registered command.
+		expect(rows[0]?.querySelector(".world-card-title")?.textContent).toBe("alpha-ui");
+		expect(rows[0]?.querySelector(".world-card-path")?.textContent).toBe("The alpha UI lane");
+		expect(rows[0]?.querySelector('[data-flow="flow.run"]')).not.toBeNull();
+
+		// Row two has no description, so it states none — no placeholder copy.
+		expect(rows[1]?.querySelector(".world-card-title")?.textContent).toBe("post-failure");
+		expect(rows[1]?.querySelector(".world-card-path")).toBeNull();
+
+		// Nothing a flow does not have: no issue number, no state badge.
+		for (const row of rows) {
+			expect(row.querySelector('[data-slot="badge"]')).toBeNull();
+			expect(row.textContent).not.toContain("#");
+		}
+	});
+
 	test("the issue and pull-request rows retain the author and updated time their seams read", async () => {
 		const store = await webStore();
 		const controller = controllerWith(store);

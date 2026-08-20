@@ -533,31 +533,17 @@
 	color: var(--muted-foreground, #6b6457);
 	font-size: 0.8125rem;
 }
+/*
+ * The flows list wears the repository tabs' shared row treatment
+ * (.world-card-list / .world-card-row / .world-card-title / .world-card-path);
+ * these two rules add only what a flow row needs on top of it — a little more
+ * air between rows, and the Run act pushed to the trailing edge.
+ */
 .workflow-list {
-	list-style: none;
-	margin: 0;
-	padding: 0;
-	display: flex;
-	flex-direction: column;
 	gap: 0.375rem;
 }
-.workflow-list-row {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 0.75rem;
-}
-.workflow-list-text {
-	display: flex;
-	flex-direction: column;
-	min-width: 0;
-}
-.workflow-list-text > span {
-	color: var(--muted-foreground, #6b6457);
-	font-size: 0.8125rem;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+.workflow-list-row > [data-slot="button"]:last-child {
+	margin-left: auto;
 }
 
 /* Wave 12 — the quiet run's two acts, and the which-watched-repo question. */

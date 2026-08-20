@@ -976,7 +976,19 @@ const WorkflowRepoCardBody = ({
 	);
 };
 
-/* The workspace's workflows (flow.list) — each row's Run is a command binding. */
+/*
+ * The workspace's flows (flow.list), in the repository tabs' shared list
+ * treatment — the same `world-card-list` rows the Issues and Pull Requests
+ * tabs render (will, 2026-08-19: "Everything is pretty close to a github
+ * clone"). One component, both mounts: the standalone transcript card and the
+ * repo view's Flows tab.
+ *
+ * A flow has a key and sometimes a description. It has no number, no
+ * open/closed state, no author and no comment count, and NO INVENTION forbids
+ * dressing it in columns it does not have — so a row states the two facts the
+ * source answers with, and the one act it offers. Each row's Run is a command
+ * binding like every other row act.
+ */
 export const WorkflowListCardBody = ({
 	card,
 	onRunWorkflow,
@@ -985,27 +997,28 @@ export const WorkflowListCardBody = ({
 	readonly onRunWorkflow: (name: string) => void;
 }) => {
 	const { workflows } = card.payload;
-	if (workflows.length === 0) {
-		return <p className="smithers-card-note">No workflows on this workspace yet — ask for one and I'll create it.</p>;
-	}
 	return (
-		<ul className="workflow-list">
-			{workflows.map((workflow) => (
-				<li key={workflow.key} className="workflow-list-row">
-					<span className="workflow-list-text">
-						<strong>{workflow.key}</strong>
-						{workflow.description !== null ? <span>{workflow.description}</span> : null}
-					</span>
-					<Button
-						size="sm"
-						variant="outline"
-						data-flow="flow.run"
-						onClick={() => onRunWorkflow(workflow.key)}
-					>
-						Run
-					</Button>
-				</li>
-			))}
+		<ul className="workflow-list world-card-list">
+			{workflows.length === 0 ? (
+				<li className="world-card-empty">No workflows on this workspace yet — ask for one and I'll create it.</li>
+			) : (
+				workflows.map((workflow) => (
+					<li key={workflow.key} className="workflow-list-row world-card-row">
+						<span className="world-card-title">{workflow.key}</span>
+						{workflow.description !== null ? (
+							<span className="world-card-path">{workflow.description}</span>
+						) : null}
+						<Button
+							size="sm"
+							variant="outline"
+							data-flow="flow.run"
+							onClick={() => onRunWorkflow(workflow.key)}
+						>
+							Run
+						</Button>
+					</li>
+				))
+			)}
 		</ul>
 	);
 };
