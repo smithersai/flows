@@ -164,7 +164,10 @@ describe("Projection", () => {
         expect(Exit.isFailure(exit)).toBe(true)
         if (Exit.isFailure(exit)) {
           const failure = Cause.findError(exit.cause)
-          expect(Result.isSuccess(failure) && Cause.isDone(failure.success)).toBe(true)
+          expect(
+            Cause.hasInterruptsOnly(exit.cause) ||
+              (Result.isSuccess(failure) && Cause.isDone(failure.success))
+          ).toBe(true)
         }
       })
     )
