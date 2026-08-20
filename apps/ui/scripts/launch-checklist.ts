@@ -89,4 +89,4 @@ console.log(
 	`\nLAUNCH CHECKLIST (${mode}): ${report.totals.fail} fail · ${report.totals.pass} pass · ${report.totals.notTestableYet} not-testable-yet · ${report.totals.skippedDryRun} skipped-dry-run — report in ${outDir}`,
 );
 
-process.exit(exitCodeFor(report.totals));
+process.exit(exitCodeFor(report.totals, mode));
