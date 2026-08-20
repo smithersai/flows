@@ -505,6 +505,43 @@ describe("EffectHandlerRegistry", () => {
       expect(owners).toEqual([boundaryAuthority.owner])
     }))
 
+  it.effect("rejects invalid and unfenceable boundary descriptions before resolving the journal", () =>
+    Effect.gen(function*() {
+      const base = {
+        id: "invalid-boundary",
+        kind: "mail.send",
+        tier: "sealed" as const,
+        runId: "run",
+        lineageId: "run/root",
+        sourceId: "adapter",
+        owner: boundaryAuthority.owner,
+        sourceSeq: boundaryAuthority.sourceSeq
+      }
+
+      const malformed = yield* Effect.flip(
+        EffectBoundary.guard({ ...base, sourceSeq: -1 }, Effect.void)
+      )
+      const exhausted = yield* Effect.flip(
+        EffectBoundary.guard({ ...base, sourceSeq: Number.MAX_SAFE_INTEGER }, Effect.void)
+      )
+      const irreversible = yield* Effect.flip(
+        EffectBoundary.guard({
+          ...base,
+          tier: "irreversible"
+        }, Effect.void)
+      )
+
+      expect(malformed).toMatchObject({ code: "invalid", message: "effect boundary description is invalid" })
+      expect(exhausted).toMatchObject({
+        code: "invalid",
+        message: "effect invalid-boundary has no terminal source sequence"
+      })
+      expect(irreversible).toMatchObject({
+        code: "invalid",
+        message: "irreversible effect invalid-boundary requires an idempotency key"
+      })
+    }))
+
   it.effect("reports a succeeded-boundary persistence failure after the action has completed", () =>
     Effect.gen(function*() {
       let actionRuns = 0

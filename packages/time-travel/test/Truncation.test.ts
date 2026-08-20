@@ -12,6 +12,8 @@ const records: ReadonlyArray<Memory.JournalRecord> = [
   { runId: "detached", seq: 0, eventId: "detached-0", lineageId: "detached/root", payload: null }
 ]
 
+const owner = { hostId: "host-a", pid: 1234, nonce: "nonce" } as const
+
 const edges: ReadonlyArray<LineageEdge> = [
   { parentRunId: "parent", parentSeq: 2, childRunId: "child", kind: "child", attached: true },
   { parentRunId: "child", parentSeq: 0, childRunId: "grandchild", kind: "continuation", attached: true },
@@ -80,7 +82,7 @@ describe("truncation", () => {
     Effect.gen(function*() {
       const store = Memory.make({ records, edges })
       const result = yield* (
-        store.archiveAndTruncate("parent", { lineageId: "parent/root", seq: 0 }, [])
+        store.archiveAndTruncate("parent", { lineageId: "parent/root", seq: 0 }, [], owner)
       )
 
       expect(result.archived).toBe(3)
@@ -102,7 +104,7 @@ describe("truncation", () => {
       const before = store.state()
 
       yield* (
-        Effect.flip(store.archiveAndTruncate("parent", { lineageId: "parent/root", seq: 0 }, []))
+        Effect.flip(store.archiveAndTruncate("parent", { lineageId: "parent/root", seq: 0 }, [], owner))
       )
 
       expect(store.state()).toEqual(before)
@@ -121,7 +123,7 @@ describe("truncation", () => {
         const store = Memory.make({ records, edges, failAt })
         const before = store.state()
         yield* (
-          Effect.flip(store.archiveAndTruncate("parent", { lineageId: "parent/root", seq: 0 }, [receipt]))
+          Effect.flip(store.archiveAndTruncate("parent", { lineageId: "parent/root", seq: 0 }, [receipt], owner))
         )
         expect(store.state()).toEqual(before)
       }
@@ -199,7 +201,7 @@ describe("truncation", () => {
       const before = store.state()
 
       const failure = yield* (
-        Effect.flip(store.archiveAndTruncate("parent", { lineageId: "parent/root", seq: 0 }, []))
+        Effect.flip(store.archiveAndTruncate("parent", { lineageId: "parent/root", seq: 0 }, [], owner))
       )
 
       expect(failure).toMatchObject({ code: "unknown", message: "memory transaction failed" })

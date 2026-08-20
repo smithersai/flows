@@ -18,6 +18,7 @@
  *
  * @since 0.1.0
  */
+import type { OwnerId } from "@smthrs/journal/OwnerId"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -244,11 +245,17 @@ export interface Service {
    * Truncates a run back to a frame, moving the records above it into the
    * archive rather than deleting them, and persisting the compensation
    * `receipts` that justified the truncation.
+   *
+   * The mutation is fenced on the caller's ownership of the run: the commit
+   * re-checks `flows_runs` for `owner` inside the same transaction, and a
+   * superseded owner is refused with a typed `fence_lost` error instead of
+   * truncating history behind the live owner.
    */
   readonly archiveAndTruncate: (
     runId: string,
     frame: Frame,
-    receipts: ReadonlyArray<Receipt>
+    receipts: ReadonlyArray<Receipt>,
+    owner: OwnerId
   ) => Effect.Effect<ArchiveResult, TimeTravelError>
   /**
    * Whether the archive holds a record at `(runId, seq)`. This is recovery's

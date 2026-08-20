@@ -22,7 +22,10 @@ import * as Schema from "effect/Schema"
  * limiter rejected the attempt. `compensation_failed` — a side effect's
  * rollback handler failed, so the rewind stopped rather than leave the world
  * half-reverted. `irreversible` — an effect in the truncated range cannot be
- * undone at all. `unknown` — the store or an unmapped host failure.
+ * undone at all. `fence_lost` — the caller's ownership of the run was
+ * superseded before a mutation committed, so the mutation was refused rather
+ * than written behind the live owner. `unknown` — the store or an unmapped
+ * host failure.
  *
  * @since 0.1.0
  * @category schemas
@@ -36,6 +39,7 @@ export const TimeTravelErrorCode = Schema.Literals([
   "rate_limited",
   "compensation_failed",
   "irreversible",
+  "fence_lost",
   "unknown"
 ])
 /**

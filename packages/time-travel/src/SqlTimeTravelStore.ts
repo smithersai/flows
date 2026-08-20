@@ -10,8 +10,12 @@
  *
  * The derived reads — state and attempts at a frame — are folds over journal
  * records rather than columns, because the run row holds only the *latest*
- * state. The SQL sticks to portable scalar columns and JSON text so the same
- * schema runs on every backend the `SqlClient` supports.
+ * state. The store is SQLite-dialect only: the schema's CHECK constraints use
+ * `typeof()` and `json_valid`, the reads use `json_extract` with `$` paths,
+ * and the archive writes use `INSERT OR IGNORE`, none of which Postgres or
+ * MySQL parse. Any SQLite-speaking `SqlClient` (wa-sqlite, libsql, node or
+ * bun SQLite) runs it; a genuinely generic dialect would have to abstract the
+ * JSON functions and the constraint syntax, which is a redesign, not an edit.
  *
  * @since 0.1.0
  */
@@ -45,7 +49,10 @@ const isDuplicateColumn = (cause: unknown): boolean => {
 }
 
 /**
- * Creates the time-travel tables. The SQL uses only portable scalar columns.
+ * Creates the time-travel tables. The DDL is SQLite dialect — `typeof()` and
+ * `json_valid` CHECK constraints, a `json_extract` expression index — so it
+ * runs on any SQLite-speaking `SqlClient` and nowhere else (see the module
+ * header).
  *
  * @since 0.1.0
  * @category migrations
@@ -231,7 +238,9 @@ const attemptRef = Schema.decodeUnknownOption(AttemptPayload)
 
 /**
  * Builds the SQL-backed store, running {@link migrate} first so a fresh
- * database is usable without a separate setup step.
+ * database is usable without a separate setup step. The `SqlClient`
+ * requirement is a SQLite dialect requirement, not a portable one — see the
+ * module header.
  *
  * Writes go through `DurableWriter` rather than straight to `SqlClient`, so a
  * rewind's audit row, receipts, and truncation land under the same durability
@@ -491,10 +500,30 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter |
           Effect.mapError(mapError)
         )
       ),
-      archiveAndTruncate: Effect.fn("TimeTravelStore.archiveAndTruncate")((runId, frame, receipts) =>
+      archiveAndTruncate: Effect.fn("TimeTravelStore.archiveAndTruncate")((runId, frame, receipts, owner) =>
         Effect.annotateCurrentSpan({ runId, lineageId: frame.lineageId, seq: frame.seq }).pipe(Effect.andThen(
           writer.write(
             Effect.gen(function*() {
+              // The commit-time owner predicate: the whole archive+truncate
+              // only commits while `flows_runs` still records this owner, so
+              // a superseded rewinder can never truncate history behind the
+              // live owner — the same fence the journal's `emitDurable`
+              // asserts, one store up.
+              const fence = yield* sql<{ readonly ok: number }>`
+            SELECT 1 AS ok FROM flows_runs
+            WHERE run_id = ${runId}
+              AND owner_host_id = ${owner.hostId}
+              AND owner_pid = ${owner.pid}
+              AND owner_nonce = ${owner.nonce}
+          `
+              if (fence.length === 0) {
+                return yield* Effect.fail(
+                  error(
+                    "fence_lost",
+                    `run ${runId} is no longer owned by ${owner.hostId}:${owner.pid}:${owner.nonce}`
+                  )
+                )
+              }
               const rows = yield* allEdges
               const descendants = descendantsFrom(rows, runId, frame)
               const nowMs = yield* Clock.currentTimeMillis

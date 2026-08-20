@@ -14,7 +14,7 @@ describe("TimeTravelStore.makeNoop", () => {
         ["writeAudit", store.writeAudit({ id: "a", runId: "run", frame, status: "in_progress" })],
         ["updateAudit", store.updateAudit("a", { status: "completed" })],
         ["pendingAudits", store.pendingAudits()],
-        ["archiveAndTruncate", store.archiveAndTruncate("run", frame, [])],
+        ["archiveAndTruncate", store.archiveAndTruncate("run", frame, [], { hostId: "h", pid: 1, nonce: "n" })],
         ["archivedAt", store.archivedAt("run", 1)],
         ["createFork", store.createFork("run", frame)],
         ["recordReceipt", store.recordReceipt({ id: "r", auditId: "a", effectId: "e", receipt: {} })]
