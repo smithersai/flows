@@ -179,11 +179,19 @@ export const baseFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> => 
 		handler: () => actions.showGithub(),
 	}),
 	flow({
+		/*
+		 * "clicking world is cool. we should be able to also click files and view
+		 * the repo" (will, 2026-08-19). A trailing `owner/repo` names the
+		 * repository — the same RepoTarget every repo-scoped command takes — and
+		 * without one the frame resolves through RepoContext or opens on the
+		 * repository list so the human chooses.
+		 */
 		name: "files",
 		summary: "Browse repository files",
+		args: "[owner/repo]",
 		requires: ["signed-in"],
-		input: NoPayload,
-		handler: () => actions.showFiles(),
+		input: RepoTarget,
+		handler: ({ repo }) => actions.showFiles(repo),
 	}),
 	flow({
 		/*

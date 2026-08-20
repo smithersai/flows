@@ -104,6 +104,9 @@ const GRAMMAR: Readonly<Record<string, (args: string | undefined) => Parsed>> = 
 		}
 		return ok({ suggestions });
 	},
+	// `/files [owner/repo]` — the Files frame's own target, same grammar as
+	// every other repo-scoped flow.
+	files: (args) => repoOnly("files", args),
 	"repos.watch": (args) => optional("repo", args),
 	"repo.open": (args) => required("fullName", args, "repo.open needs a repository name"),
 	"repo.tab": (args) => required("tab", args, "repo.tab needs a section: files, issues, pulls, or flows"),

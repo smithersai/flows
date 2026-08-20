@@ -51,6 +51,9 @@ import { createLandingsSeam } from "./seams/LandingsSeam";
 import type { LandingsSeam } from "./seams/LandingsSeam";
 import { createNotificationsSeam } from "./seams/NotificationsSeam";
 import type { NotificationsSeam } from "./seams/NotificationsSeam";
+import { resolveTargetRepo } from "./RepoContext";
+import { createRepoCatalogSeam, parseRepoCandidates } from "./seams/RepoCatalogSeam";
+import type { RepoCandidate } from "./seams/RepoCatalogSeam";
 import { createRepoImportSeam } from "./seams/RepoImportSeam";
 import type { RepoImportSeam } from "./seams/RepoImportSeam";
 import type { SeamContext } from "./seams/SeamContext";
@@ -131,7 +134,7 @@ export interface AppController {
 	readonly showWorld: () => void;
 	readonly showConnectors: () => void;
 	readonly showGithub: () => void;
-	readonly showFiles: () => void;
+	readonly showFiles: (repo?: string) => void;
 	readonly openRepository: (repo: string) => void;
 	readonly selectRepositoryTab: (tab: Session["repositoryTab"]) => void;
 	readonly runCommand: (name: string) => boolean;
@@ -169,7 +172,7 @@ export interface AppController {
 		description: string,
 		repo?: string,
 	) => Promise<string | void | { readonly value: string }>;
-	readonly listWorkspaceWorkflows: () => Promise<string | void | { readonly value: string }>;
+	readonly listWorkspaceWorkflows: (repo?: string) => Promise<string | void | { readonly value: string }>;
 	readonly runWorkflow: (name: string, repo?: string) => Promise<string | void | { readonly value: string }>;
 	/* Wave 12 §2 — the answer to "which watched repository?" (one act). */
 	readonly chooseWorkflowRepo: (fullName: string) => Promise<string | void | { readonly value: string }>;
@@ -996,6 +999,10 @@ export const createAppController = (
 	const notificationsSeam = createNotificationsSeam(seamCtx);
 	const environmentSeam = createEnvironmentSeam(seamCtx);
 	const repoImportSeam = createRepoImportSeam(seamCtx);
+	const repoCatalogSeam = createRepoCatalogSeam(seamCtx, {
+		repos: RECO_REPOS_PATH,
+		watched: RECO_WATCHED_PATH,
+	});
 	const bookmarksSeam = createBookmarksSeam(seamCtx);
 	const filesSeam = createFilesSeam(seamCtx);
 	const appStatusSeam = createAppStatusSeam(seamCtx);
@@ -1048,36 +1055,6 @@ export const createAppController = (
 	 * logging law) and a failed post leaves the card retryable with the honest
 	 * error — the approval discipline, applied to recommendations.
 	 */
-	interface RepoCandidate {
-		readonly fullName: string;
-		readonly private: boolean;
-		readonly pushedAt: string | null;
-		readonly openIssues: number;
-	}
-
-	/** The reco seam's candidate rows, validated; anything off-shape is dropped. */
-	const parseRepoCandidates = (wire: unknown): RepoCandidate[] =>
-		(Array.isArray(wire) ? wire : [])
-			.filter(
-				(candidate) =>
-					typeof candidate === "object" &&
-					candidate !== null &&
-					typeof (candidate as { fullName?: unknown }).fullName === "string",
-			)
-			.map((candidate) => {
-				const row = candidate as {
-					fullName: string;
-					private?: unknown;
-					pushedAt?: unknown;
-					openIssues?: unknown;
-				};
-				return {
-					fullName: row.fullName,
-					private: row.private === true,
-					pushedAt: typeof row.pushedAt === "string" ? row.pushedAt : null,
-					openIssues: typeof row.openIssues === "number" ? row.openIssues : 0,
-				};
-			});
 
 	/** Mirror the seam's selection locally, keeping provenance the row already holds. */
 	const mirrorWatched = (selected: ReadonlyArray<string>): void => {
@@ -1114,14 +1091,9 @@ export const createAppController = (
 	 */
 	const loadWatchedSelection = async (): Promise<void> => {
 		try {
-			const response = await http(`${baseUrl}${RECO_WATCHED_PATH}`);
-			if (!response.ok) {
-				await response.body?.cancel();
-				return;
-			}
-			const body = (await response.json().catch(() => undefined)) as { selected?: unknown } | undefined;
-			if (!Array.isArray(body?.selected)) return;
-			mirrorWatched(body.selected.filter((name): name is string => typeof name === "string"));
+			const selected = await repoCatalogSeam.readWatchedSelection();
+			if (selected === undefined) return;
+			mirrorWatched(selected);
 		} catch {
 			// The honest message the caller already rendered is the whole answer.
 		}
@@ -1155,48 +1127,15 @@ export const createAppController = (
 	 * every actor — a chooser is never a takeover.
 	 */
 	/*
-	 * The account's repositories, from the one source that has them (GET
-	 * /api/reco/repos, behind the product Worker proxy). The onboarding chooser
-	 * and the GitHub pane's repository list are the same read: one asks the user
-	 * to pick, the other lets them browse, and neither may show a repository the
-	 * account does not have. `undefined` is "the service did not answer" —
-	 * distinct from an account with no repositories, which is an empty array.
+	 * The account's repositories, and the catalog the repository list projects,
+	 * both from the one seam that owns those reads (RepoCatalogSeam — GET
+	 * /api/reco/repos, GET /api/reco/watched). The onboarding chooser and the
+	 * GitHub pane's repository list are the same read: one asks the user to
+	 * pick, the other lets them browse, and neither may show a repository the
+	 * account does not have.
 	 */
-	const readRepoCandidates = async (): Promise<RepoCandidate[] | undefined> => {
-		const response = await http(`${baseUrl}${RECO_REPOS_PATH}`);
-		if (!response.ok) {
-			await response.body?.cancel();
-			return undefined;
-		}
-		const body = (await response.json().catch(() => undefined)) as { candidates?: unknown } | undefined;
-		return parseRepoCandidates(body?.candidates);
-	};
-
-	/*
-	 * Fill the GitHub pane's repository list. Background work behind an already
-	 * open pane: a read that cannot answer leaves the list as it was, and the
-	 * pane states its own honest empty state rather than an error the user did
-	 * not ask for.
-	 */
-	const loadRepoCatalog = async (): Promise<void> => {
-		if (store.collections.identitySessions.get("identity")?.state !== "signed-in") return;
-		let available: RepoCandidate[] | undefined;
-		try {
-			available = await readRepoCandidates();
-		} catch {
-			return;
-		}
-		if (available === undefined) return;
-		store.dispatch({
-			type: "repos.catalog.loaded",
-			actor: commandActor,
-			available: available.map((candidate) => ({
-				fullName: candidate.fullName,
-				pushedAt: candidate.pushedAt,
-				openIssues: candidate.openIssues,
-			})),
-		});
-	};
+	const readRepoCandidates = repoCatalogSeam.readCandidates;
+	const loadRepoCatalog = repoCatalogSeam.loadCatalog;
 
 	const openRepoChooserImpl = async (preselect?: string): Promise<true | string> => {
 		/*
@@ -1215,17 +1154,7 @@ export const createAppController = (
 		let candidates: RepoCandidate[] | undefined;
 		let selected: string[] = [];
 		try {
-			const watchedResponse = await http(`${baseUrl}${RECO_WATCHED_PATH}`);
-			if (watchedResponse.ok) {
-				const watchedBody = (await watchedResponse.json().catch(() => undefined)) as
-					| { selected?: unknown }
-					| undefined;
-				if (Array.isArray(watchedBody?.selected)) {
-					selected = watchedBody.selected.filter((name): name is string => typeof name === "string");
-				}
-			} else {
-				await watchedResponse.body?.cancel();
-			}
+			selected = (await repoCatalogSeam.readWatchedSelection()) ?? [];
 			candidates = await readRepoCandidates();
 		} catch {
 			return "The recommendations service didn't answer — the chooser couldn't open. Try again.";
@@ -1312,33 +1241,18 @@ export const createAppController = (
 		if (card.payload.phase === "saving") return true;
 		const { selected, via } = card.payload;
 		patchChooser({ phase: "saving" });
-		let echoed: { selected?: unknown; selectedAt?: unknown; via?: unknown } | undefined;
-		try {
-			const response = await http(`${baseUrl}${RECO_WATCHED_PATH}`, {
-				method: "PUT",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ selected, via }),
-			});
-			if (!response.ok) {
-				const message = await errorMessageOf(response, "The selection didn't save. Try again.");
-				patchChooser({ phase: "failed", error: message }, "error");
-				return message;
-			}
-			echoed = (await response.json().catch(() => undefined)) as typeof echoed;
-		} catch {
-			const message = "The selection didn't save — the recommendations service is unreachable.";
-			patchChooser({ phase: "failed", error: message }, "error");
-			return message;
+		const echoed = await repoCatalogSeam.saveWatchedSelection(selected, via);
+		if ("error" in echoed) {
+			patchChooser({ phase: "failed", error: echoed.error }, "error");
+			return echoed.error;
 		}
-		const saved = Array.isArray(echoed?.selected)
-			? echoed.selected.filter((name): name is string => typeof name === "string")
-			: selected;
+		const saved = [...echoed.selected];
 		store.dispatch({
 			type: "watched.replaced",
 			actor: commandActor,
 			selected: saved,
-			selectedAt: typeof echoed?.selectedAt === "string" ? echoed.selectedAt : new Date().toISOString(),
-			via: typeof echoed?.via === "string" && ["onboarding", "command", "agent"].includes(echoed.via)
+			selectedAt: echoed.selectedAt ?? new Date().toISOString(),
+			via: echoed.via !== null && ["onboarding", "command", "agent"].includes(echoed.via)
 				? (echoed.via as "onboarding" | "command" | "agent")
 				: via,
 		});
@@ -1522,6 +1436,13 @@ export const createAppController = (
 			recommendation,
 			bump,
 		});
+		/*
+		 * A digest with nothing to recommend LANDS on the repository list (will,
+		 * 2026-08-19), so the catalog the list projects is read here rather than
+		 * waiting for the user to press something. With a recommendation on
+		 * screen the list is not shown, so nothing is read for it.
+		 */
+		if (recommendation === null) void loadRepoCatalog();
 		// A scoped digest proves a selection exists — mirror it (the local
 		// record keeps the chooser's pre-fill and the agent context honest).
 		if (Array.isArray(body.watched)) {
@@ -2775,12 +2696,17 @@ export const createAppController = (
 		});
 	};
 
-	/** Read the section the repository view is showing, through its own seam. */
+	/**
+	 * Read the section the repository view is showing, through its own seam.
+	 * Every read is scoped to the repository the user opened — including the
+	 * Flows tab, which used to resolve the watched set instead and so could show
+	 * a different repository's workflows than the one on screen.
+	 */
 	const readRepositoryTab = (tab: Session["repositoryTab"], repo: string): void => {
 		if (tab === "files") void filesSeam.listFiles("", repo);
 		if (tab === "issues") void issuesSeam.listIssues("open", repo);
 		if (tab === "pulls") void landingsSeam.listLandings(repo);
-		if (tab === "flows") void listWorkspaceWorkflows();
+		if (tab === "flows") void listWorkspaceWorkflows(repo);
 	};
 
 	const openRepository = (repo: string): void => {
@@ -2814,8 +2740,17 @@ export const createAppController = (
 		void loadRepoCatalog();
 	};
 
-	const showFiles = (): void => {
-		const repo = store.session().selectedRepository ?? store.collections.watchedRepos.get("watched")?.selected?.[0] ?? null;
+	/*
+	 * "clicking world is cool. we should be able to also click files and view
+	 * the repo" (will, 2026-08-19). The target follows the one repo-resolution
+	 * rule every repo-scoped command follows (RepoContext.ts): an explicit
+	 * `owner/repo` wins, a single watched repository is the target, and anything
+	 * else is a genuine choice — so the frame opens on the repository LIST and
+	 * the human picks, rather than the surface guessing one for them.
+	 */
+	const showFiles = (explicit?: string): void => {
+		const resolved = resolveTargetRepo(store, explicit);
+		const repo = "error" in resolved ? null : resolved.repo;
 		store.dispatch({ type: "repository.selected", actor: commandActor, repo });
 		store.dispatch({ type: "surface.changed", actor: commandActor, surface: "files" });
 		void loadRepoCatalog();
@@ -4065,12 +4000,27 @@ export const createAppController = (
 		return { value: `run-started workflow=create-workflow run=${launched.runId} repo=${repo}` };
 	};
 
-	const listWorkspaceWorkflows = async (): Promise<string | void | { readonly value: string }> => {
+	/**
+	 * The workspace's workflows. A repository named explicitly IS the target —
+	 * the GitHub pane's Flows tab passes the repository the user opened, which
+	 * may not be one of the watched set — so it never resolves the watched list
+	 * behind the caller's back and never opens the chooser over a repository
+	 * that was named.
+	 */
+	const listWorkspaceWorkflows = async (
+		explicit?: string,
+	): Promise<string | void | { readonly value: string }> => {
 		const guard = workflowIdentityGuard();
 		if (guard !== undefined) return guard;
-		const target = workflowTargetRepo();
-		if ("chooser" in target) return openChooserForWorkflow(target.chooser);
-		const repo = target.repo;
+		let repo: string;
+		if (explicit !== undefined && explicit !== "") {
+			if (!isWorkflowRepoArg(explicit)) return `"${explicit}" is not an owner/repo name`;
+			repo = explicit;
+		} else {
+			const target = workflowTargetRepo();
+			if ("chooser" in target) return openChooserForWorkflow(target.chooser);
+			repo = target.repo;
+		}
 		const provisioned = await provisionWorkspace(repo);
 		if (provisioned !== true) return provisioned;
 		const list = await workflowRpc(repo, "listWorkflows", {});
