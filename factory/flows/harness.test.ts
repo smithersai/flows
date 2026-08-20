@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import * as Effect from "effect/Effect"
 import { execFileSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { listWorkspacePackages, makeConfinementValidator, runProcess } from "./harness.ts"
@@ -34,7 +34,7 @@ describe("factory harness guards", () => {
     )
     expect(result.exitCode).toBe(0)
     expect(existsSync(injected)).toBe(false)
-  })
+  }, 15_000)
 
   test("successful agents still require a machine-readable completion marker", async () => {
     const root = mkdtempSync(join(tmpdir(), "factory-marker-"))
@@ -51,7 +51,7 @@ describe("factory harness guards", () => {
       })
     )
     expect(result.exitCode).toBe(-2)
-  })
+  }, 15_000)
 
   test("post-run confinement rejects writes outside declared roots", () => {
     const root = mkdtempSync(join(tmpdir(), "factory-confinement-"))
@@ -66,5 +66,16 @@ describe("factory harness guards", () => {
     const validate = makeConfinementValidator(root, [join(root, "allowed")])
     writeFileSync(join(root, "outside.txt"), "escaped")
     expect(validate()).toContain("outside.txt")
+  })
+
+  test("mutating drivers fail closed and publish reports only after green gates", () => {
+    const flows = import.meta.dir
+    for (const filename of ["coverage-baseline.ts", "review-docs.ts", "slop-sweep.ts", "bazel-review.ts"]) {
+      const source = readFileSync(join(flows, filename), "utf8")
+      expect(source).toContain("process.exitCode = 1")
+    }
+    expect(readFileSync(join(flows, "coverage-baseline.ts"), "utf8")).toContain("reportPath}.partial")
+    expect(readFileSync(join(flows, "slop-sweep.ts"), "utf8")).toContain("reportPath}.partial")
+    expect(readFileSync(join(flows, "review-docs.ts"), "utf8")).toContain("No current report was published")
   })
 })

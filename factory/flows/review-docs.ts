@@ -357,14 +357,14 @@ const lines = [
   ""
 ]
 fs.mkdirSync(REPORTS_DIR, { recursive: true })
-fs.writeFileSync(reportPath, lines.join("\n"))
 const failedAgents = results.filter((result) => result.exitCode !== 0)
 const gateFailed = build !== null && build.exitCode !== 0
 if (failedAgents.length > 0 || gateFailed) {
   process.exitCode = 1
   console.error(
-    `review-docs failed: ${failedAgents.length} agent seat(s) and ${gateFailed ? 1 : 0} build gate(s) failed. Report: ${reportPath}`
+    `review-docs failed: ${failedAgents.length} agent seat(s) and ${gateFailed ? 1 : 0} build gate(s) failed. No current report was published.`
   )
 } else {
+  fs.writeFileSync(reportPath, lines.join("\n"))
   console.log(`review-docs done. Report: ${reportPath}`)
 }

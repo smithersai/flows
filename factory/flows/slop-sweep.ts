@@ -28,6 +28,7 @@ const MODEL = "sonnet"
 const TIMEOUT_MS = 30 * 60_000
 const logDir = path.join(REPORTS_DIR, "slop-sweep")
 const reportPath = path.join(REPORTS_DIR, "SLOP-SWEEP.md")
+const progressPath = `${reportPath}.partial`
 
 const promptFor = (pkg: string): string =>
   [
@@ -57,7 +58,7 @@ const writeReport = (done: number) => {
     ""
   ]
   fs.mkdirSync(REPORTS_DIR, { recursive: true })
-  fs.writeFileSync(reportPath, lines.join("\n"))
+  fs.writeFileSync(progressPath, lines.join("\n"))
 }
 
 const startedAt = new Date().toISOString()
@@ -106,11 +107,12 @@ const slopCount = execSync('grep -rn "@slop" packages/*/src 2>/dev/null | wc -l'
 })
   .toString()
   .trim()
-fs.appendFileSync(reportPath, `\nTotal @slop tags after sweep: ${slopCount}\n`)
+fs.appendFileSync(progressPath, `\nTotal @slop tags after sweep: ${slopCount}\n`)
 const failed = results.filter((result) => result.exitCode !== 0)
 if (failed.length > 0) {
   process.exitCode = 1
-  console.error(`slop-sweep failed: ${failed.length} agent seat(s) failed. Report: ${reportPath}`)
+  console.error(`slop-sweep failed: ${failed.length} agent seat(s) failed. Partial diagnostics: ${progressPath}`)
 } else {
+  fs.renameSync(progressPath, reportPath)
   console.log(`slop-sweep done: ${slopCount} tags. Report: ${reportPath}`)
 }
