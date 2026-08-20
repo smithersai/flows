@@ -25,6 +25,7 @@ import {
   REPO_ROOT,
   REPORTS_DIR,
   runFlow,
+  selectPackages,
   ShellTask,
   type TaskResult
 } from "./harness.ts"
@@ -243,28 +244,18 @@ const promptFor = (pkg: string): string =>
 // The driver: manifest, agent waves, sidebar, build gate, report.
 // ---------------------------------------------------------------------------
 const args = process.argv.slice(2)
-const argValue = (flag: string): string | undefined => {
-  const index = args.indexOf(flag)
-  return index >= 0 ? args[index + 1] : undefined
-}
 const skipAgents = args.includes("--skip-agents")
 const skipBuild = args.includes("--skip-build")
 
 const allPackages = listPackages().filter((pkg) =>
   fs.existsSync(path.join(FLOWS_ROOT, "packages", pkg, "package.json"))
 )
-const packagesArg = argValue("--packages")
-const packages = packagesArg
-  ? packagesArg
-      .split(",")
-      .map((pkg) => pkg.trim())
-      .filter((pkg) => allPackages.includes(pkg))
-  : allPackages
+const packages = selectPackages(args, allPackages)
 
 const startedAt = new Date().toISOString()
-const manifest = buildManifest(allPackages)
+const initialManifest = buildManifest(allPackages)
 console.log(
-  `review-docs: manifest for ${Object.keys(manifest).length} packages, ` +
+  `review-docs: manifest for ${Object.keys(initialManifest).length} packages, ` +
     `${skipAgents ? "agents skipped" : `${packages.length} maintenance seats`} `
 )
 
@@ -309,6 +300,7 @@ if (!skipAgents) {
   }
 }
 
+const manifest = buildManifest(allPackages)
 const packagesListed = buildSidebar()
 console.log(`sidebar: ${packagesListed} package entries, checkDeadlinks on`)
 

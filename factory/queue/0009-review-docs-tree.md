@@ -9,7 +9,7 @@ priority: p1
 Make the code reviewable purely through the vocs docs: a tree in the outer
 repo's `website/` site shaped like the repo itself. Repo-wide pages at the
 root, one section per submodule, and one directory per workspace package with
-exactly three leaves: `api` (every export of every entry point), `internals`
+one `index` plus exactly three leaves: `api` (every export of every entry point), `internals`
 (core data structures, public and private, with their invariants), and
 `tests` (every test file and what it proves). Every package page carries
 Depends on / Used by lists from the dependency graph, and primary exports

@@ -8,6 +8,7 @@
  * Result:   factory/reports/BAZEL-PARITY-REVIEW.md
  */
 import * as Schema from "effect/Schema"
+import { randomUUID } from "node:crypto"
 import * as fs from "node:fs"
 import * as path from "node:path"
 import { Flow } from "../../packages/flow/src/index.ts"
@@ -28,7 +29,7 @@ const SKYFRAME = path.join(
   REPO_ROOT,
   "reference/bazel/src/main/java/com/google/devtools/build/skyframe"
 )
-const logDir = path.join(REPORTS_DIR, "bazel-review")
+const logDir = path.join(REPORTS_DIR, "bazel-review", randomUUID())
 const reportPath = path.join(REPORTS_DIR, "BAZEL-PARITY-REVIEW.md")
 
 const promptFor = (pkg: string): string =>
