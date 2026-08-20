@@ -1692,6 +1692,13 @@ export const createAppStore = async (
 					break;
 				}
 
+				case "agent.backend.changed":
+					collections.sessions.update(SESSION_ID, (draft) => {
+						draft.agentBackend = transition.backend;
+						draft.revision = revision;
+					});
+					break;
+
 				case "message.tool.executed": {
 					collections.messages.insert({
 						id: `message-act-${revision}`,

@@ -111,6 +111,14 @@ export const SessionSchema = z.object({
 	 * inference.
 	 */
 	palette: z.enum(PALETTES).optional(),
+	/*
+	 * Which backend drives a turn (DESIGN.md §14): the chat.smithers.sh proxy
+	 * with the client tool loop, or the Agent Chain runtime. Optional (missing
+	 * = proxy) so persisted sessions from before the flag parse without a
+	 * schema reset — the same discipline palette follows above. Flipped only by
+	 * the human (admin /debug.backend); the agent never switches its own engine.
+	 */
+	agentBackend: z.enum(["proxy", "chain"]).optional(),
 	composerOwner: z.enum(["user", "smithers"]),
 	surface: z.enum(["chat", "world", "connectors", "github", "files"]),
 	/** The repository currently projected by the GitHub and Files frames. */
@@ -653,6 +661,12 @@ export type AppTransition =
 	  }
 	| { type: "card.removed"; actor: Actor; id: string }
 	| {
+			/* The human flips which backend drives a turn (admin /debug.backend). */
+			type: "agent.backend.changed";
+			actor: "user" | "system";
+			backend: "proxy" | "chain";
+	  }
+	| {
 			/* The visible one-line record of an agent tool execution. */
 			type: "message.tool.executed";
 			actor: "smithers";
@@ -706,6 +720,7 @@ export const initialSession = (theme: Session["theme"]): Session => ({
 	maximizedCardId: null,
 	devtoolsOpen: false,
 	surfacesMenuOpen: false,
+	agentBackend: "proxy",
 	connectMenuOpen: false,
 	pendingWorldDeleteId: null,
 	revision: 0,

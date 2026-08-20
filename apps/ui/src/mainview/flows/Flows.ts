@@ -935,15 +935,15 @@ export const adminFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> =>
 	}),
 	flow({
 		/*
-		 * DESIGN.md §14: name what drives a turn. user-only — the engine is not
-		 * the agent's to inspect or to change, and there is nothing to switch:
-		 * the chain is the one backend.
+		 * DESIGN.md §14: flip which backend drives a turn. user-only — the agent
+		 * must never switch its own engine. Bare, it flips to the other one.
 		 */
 		name: "debug.backend",
-		summary: "Name the agent backend",
+		summary: "Switch the agent backend (proxy | chain)",
 		userOnly: true,
+		args: "proxy | chain",
 		input: Schema.Struct({ backend: Schema.String }),
-		handler: ({ backend }) => actions.describeAgentBackend(backend),
+		handler: ({ backend }) => actions.setAgentBackend(backend),
 	}),
 	flow({
 		/* The debug reads — one typed surface the panel AND the agent share. */

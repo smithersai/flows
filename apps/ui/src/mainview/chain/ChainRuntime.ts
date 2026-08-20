@@ -557,13 +557,12 @@ export const createChainRuntime = (options: ChainRuntimeOptions): NativeAgent =>
 };
 
 /*
- * The agent seam the controller holds: the chain runs every turn once it is
- * bound, and the proxy answers only while it is not (the boot window before
- * the runtime exists, and any client that never binds one). Cancellation,
- * steering and approvals route to the backend that started the run, so a turn
- * that began on the proxy still settles there after the chain binds.
+ * The backend switch: one NativeAgent the controller holds, delegating per
+ * turn to the proxy or the chain by the session flag. Cancellation routes to
+ * the backend that started the run, whatever the flag says now.
  */
 export const createAgentSwitch = (
+	store: AppStore,
 	proxy: NativeAgent,
 ): NativeAgent & { readonly bindChain: (chain: NativeAgent) => void } => {
 	const listeners = new Set<(frame: AgentTurnFrame) => void>();
@@ -575,13 +574,15 @@ export const createAgentSwitch = (
 	};
 	proxy.subscribe(forward);
 
-	const current = (): NativeAgent => chain ?? proxy;
+	const current = (): NativeAgent =>
+		store.session().agentBackend === "chain" && chain !== undefined ? chain : proxy;
 
 	return {
 		available: true,
 		startTurn: async (request) => {
 			// A resume reuses its lineage's runId: route it to the backend that
-			// started the run. A fresh runId goes to the chain once one is bound.
+			// started the run, whatever the flag says now. Fresh runIds route by
+			// the flag.
 			const backend = startedBy.get(request.runId) ?? current();
 			startedBy.set(request.runId, backend);
 			return backend.startTurn(request);
@@ -596,7 +597,7 @@ export const createAgentSwitch = (
 		},
 		resolveApproval: async (runId, decision, ask) => {
 			// Only the chain implements approvals; background lineages never
-			// pass through startTurn, so prefer the chain.
+			// pass through startTurn, so prefer the chain over the flag.
 			const backend = startedBy.get(runId) ?? chain ?? current();
 			return backend.resolveApproval === undefined
 				? false

@@ -165,8 +165,8 @@ export interface AppController {
 	readonly minimizeCard: () => void;
 	/* The admin dev-tools panel + debug reads (§2b/§2d; admin registry only). */
 	readonly toggleDevtools: () => void;
-	/** Report what drives a turn (admin /debug.backend; DESIGN.md §14). */
-	readonly describeAgentBackend: (backend: string) => string | { readonly value: string };
+	/** Flip which backend drives a turn (admin /debug.backend; DESIGN.md §14). */
+	readonly setAgentBackend: (backend: string) => string | { readonly value: string };
 	/* The composer surfaces menu — the /surfaces command's open state. */
 	readonly toggleSurfacesMenu: () => void;
 	/*
@@ -2716,23 +2716,27 @@ export const createAppController = (
 	};
 
 	/*
-	 * The one backend, named once. `/debug.backend` reports it and the manual
-	 * checklist quotes it, so drift between what runs and what is claimed shows
-	 * up as a failing row rather than as a confident wrong sentence.
+	 * DESIGN.md §14: the human flips which backend drives a turn — the
+	 * chat.smithers.sh proxy with the client tool loop, or the in-browser Agent
+	 * Chain over /api/model/stream. user-only by the trigger axis (the agent
+	 * must never switch its own engine), honest about the argument instead of
+	 * guessing, and it states the answer in the chat: a backend answer the
+	 * human cannot see is a backend they cannot trust.
 	 */
-	const AGENT_BACKEND = "chain (in-browser Agent Chain over /api/model/stream)";
-
-	/*
-	 * DESIGN.md §14: what drives a turn. A read, not a switch — Smithers has one
-	 * backend, so there is nothing here to flip and an argument is answered
-	 * honestly rather than silently ignored.
-	 */
-	const describeAgentBackend = (backend: string): string | { readonly value: string } => {
+	const setAgentBackend = (backend: string): string | { readonly value: string } => {
+		const live = store.session().agentBackend ?? "proxy";
 		const asked = backend.trim();
-		if (asked !== "") {
-			return `there is one backend and it cannot be switched: ${AGENT_BACKEND}`;
+		// Bare /debug.backend flips to the other one: naming what you are already
+		// on is what the answer below does anyway.
+		const target = asked === "" ? (live === "chain" ? "proxy" : "chain") : asked;
+		if (target !== "proxy" && target !== "chain") {
+			return `debug.backend needs "proxy" or "chain" (currently: ${live})`;
 		}
-		const value = `agent backend: ${AGENT_BACKEND}`;
+		if (store.session().phase !== "idle") {
+			return "the backend can only change between turns — stop the current turn first";
+		}
+		store.dispatch({ type: "agent.backend.changed", actor: "user", backend: target });
+		const value = `agent backend: ${target}`;
 		// A backend answer the human cannot see is a backend they cannot trust.
 		if (commandActor !== "smithers") {
 			store.dispatch({ type: "message.appended", actor: "system", text: value });
@@ -4577,7 +4581,7 @@ export const createAppController = (
 		toggleSurfacesMenu,
 		toggleConnectMenu,
 		closeConnectMenu,
-		describeAgentBackend,
+		setAgentBackend,
 		debugSnapshot,
 		debugEvents,
 		debugChain,
@@ -4773,7 +4777,7 @@ export const createAppController = (
 		toggleSurfacesMenu,
 		toggleConnectMenu,
 		closeConnectMenu,
-		describeAgentBackend,
+		setAgentBackend,
 		debugSnapshot,
 		debugEvents,
 		debugChain,

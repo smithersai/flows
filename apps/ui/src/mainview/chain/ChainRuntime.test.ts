@@ -71,13 +71,15 @@ const harness = async (options: {
 	readonly storage?: StorageApi;
 	readonly author: Layer.Layer<Author.Author>;
 	readonly entries?: ReadonlyArray<Catalog.Entry>;
+	/** Which backend the session flag names; the chain unless a test says otherwise. */
+	readonly backend?: "proxy" | "chain";
 }): Promise<Harness> => {
 	const store = await createAppStore({
 		kind: "localStorage",
 		storage: options.storage ?? memoryStorage(),
 	});
 	const proxy = recordingProxy();
-	const agent = createAgentSwitch(proxy.agent);
+	const agent = createAgentSwitch(store, proxy.agent);
 	const controller = createAppController(store, unavailableRepositories, agent);
 	agent.bindChain(
 		createChainRuntime({
@@ -88,6 +90,13 @@ const harness = async (options: {
 			runnerLayer: ScriptRunner.layerInProcess,
 		}),
 	);
+	store.dispatch({
+		// The flag is the switch's only input, so the suite sets it the way the
+		// app does rather than through the admin flow's own copy.
+		type: "agent.backend.changed",
+		actor: "system",
+		backend: options.backend ?? "chain",
+	});
 	const frames: Array<AgentTurnFrame> = [];
 	const doneWaiters: Array<(frame: AgentTurnFrame & { readonly type: "done" }) => void> = [];
 	agent.subscribe((frame) => {
@@ -165,16 +174,30 @@ describe("ChainRuntime behind the NativeAgent seam", () => {
 		expect(smithers?.text).toContain("Recovered.");
 	});
 
-	test("the chain owns every turn once it is bound, and says so", async () => {
-		const h = await harness({ author: Author.layerMock(scripts) });
-		// There is one backend: /debug.backend NAMES it, it does not switch it.
-		expect(h.controller.describeAgentBackend("")).toEqual({
-			value: "agent backend: chain (in-browser Agent Chain over /api/model/stream)",
-		});
-		expect(h.controller.describeAgentBackend("proxy")).toContain("cannot be switched");
+	test("the proxy backend still owns turns while the flag is proxy", async () => {
+		const h = await harness({ author: Author.layerMock(scripts), backend: "proxy" });
 		h.controller.send("hello there");
 		await new Promise((resolve) => setTimeout(resolve, 0));
-		expect(h.proxyRequests).toHaveLength(0);
+		expect(h.proxyRequests).toHaveLength(1);
+		expect(h.store.collections.chainEvents.size).toBe(0);
+	});
+
+	test("the backend cannot change mid-turn, and rejects unknown names honestly", async () => {
+		const h = await harness({ author: Author.layerMock(scripts), backend: "proxy" });
+		expect(h.controller.setAgentBackend("warp-drive")).toContain('needs "proxy" or "chain"');
+		h.controller.send("start something");
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(h.controller.setAgentBackend("chain")).toContain("between turns");
+	});
+
+	test("bare, it flips to the other backend and states the answer in the chat", async () => {
+		const h = await harness({ author: Author.layerMock(scripts), backend: "proxy" });
+		expect(h.controller.setAgentBackend("")).toEqual({ value: "agent backend: chain" });
+		expect(h.store.session().agentBackend).toBe("chain");
+		// The human typed it, so the human can see the answer.
+		const said = [...h.store.collections.messages.values()].map((message) => message.text);
+		expect(said).toContain("agent backend: chain");
+		expect(h.controller.setAgentBackend("")).toEqual({ value: "agent backend: proxy" });
 	});
 
 	test("stop() interrupts a hung chain turn into an honest cancelled state", async () => {
