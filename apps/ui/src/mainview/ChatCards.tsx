@@ -494,7 +494,13 @@ export interface CardViewProps {
 	readonly onMinimize: () => void;
 	readonly onConnectGitHub: () => void;
 	readonly onConnectLocal: () => void;
-	readonly onRunWorkflow: (name: string) => void;
+	/*
+	 * The repository is a REQUIRED argument, not a convenience: `flow.run`
+	 * resolves a missing target to the first watched repository, so a Run
+	 * button that passed only the workflow name launched outbound work on
+	 * whichever repo happened to sort first — never the one on screen.
+	 */
+	readonly onRunWorkflow: (name: string, repo: string) => void;
 	/* Wave 12 — the run card's quiet-state acts and the which-repo answer. */
 	readonly onStopRun: (cardId: string) => void;
 	readonly onRetryRun: (cardId: string) => void;
@@ -994,9 +1000,15 @@ export const WorkflowListCardBody = ({
 	onRunWorkflow,
 }: {
 	readonly card: Extract<Card, { kind: "workflow-list" }>;
-	readonly onRunWorkflow: (name: string) => void;
+	readonly onRunWorkflow: (name: string, repo: string) => void;
 }) => {
-	const { workflows } = card.payload;
+	/*
+	 * The card states which repository it read, so the Run button names it.
+	 * Taking it from the card rather than from the caller is what makes the
+	 * two mounts of this list — the transcript card and the GitHub pane's
+	 * Flows tab — incapable of disagreeing about the target.
+	 */
+	const { repo, workflows } = card.payload;
 	return (
 		<ul className="workflow-list world-card-list">
 			{workflows.length === 0 ? (
@@ -1012,7 +1024,7 @@ export const WorkflowListCardBody = ({
 							size="sm"
 							variant="outline"
 							data-flow="flow.run"
-							onClick={() => onRunWorkflow(workflow.key)}
+							onClick={() => onRunWorkflow(workflow.key, repo)}
 						>
 							Run
 						</Button>
