@@ -1,0 +1,430 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "3f2d44bef8dbf5b14d94e352616edaef05965b47",
+ "tree": "84f560c82bf8592a73945d7dacfa7922e9c1d9e9",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 40,
+  "sectionCount": 71
+ },
+ "source": {
+  "commit": "6ab4a3e1bb7d25f083f52a878abe2910b072b04a",
+  "subject": "✅ test(run-store): cover the fold's defensive arms instead of ignoring them",
+  "priorCanonicalCommit": "8ca2c7e57f23a774bef1def211335afcf23cf818",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 40,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "storage",
+  "epicsTouched": [
+   {
+    "id": "storage",
+    "files": 1
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 878,
+  "globalCount": 909,
+  "purpose": "✅ test(run-store): cover the fold's defensive arms instead of ignoring them",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "16b531103a259eea1ce78d5ac3f3cda3ed2eefa4"
+  ],
+  "parent": "16b531103a259eea1ce78d5ac3f3cda3ed2eefa4",
+  "sourceImports": [
+   "dbf468b7175db5c08f3863ca79e9353b458536d5",
+   "94f7c8bf4001f5fb8bb81bf239df5caa97fbbaec",
+   "2632c05da63099666add6437c743f4c5b3922f59",
+   "934a70097b819b70f9190e5b9a97a3aa36b0304a"
+  ],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "16b531103a259eea1ce78d5ac3f3cda3ed2eefa4",
+  "next": "4ea8eb8531bba86c58bb01ad5c6116c5dd576ec5",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "9f4db87e9b528812c207c1054f8c36a09a06c2c7"
+ },
+ "size": {
+  "files": 3,
+  "added": 327,
+  "deleted": 52
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "6ab4a3e1bb7d25f083f52a878abe2910b072b04a"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "packages/run-store/src/Fold.ts",
+   "mode": "100644",
+   "blob": "3eee646d5db7d3baa7b63267e24021a5583296c1",
+   "previousBlob": "e220fbfe8b5785f6ffb4921374e9358b33c90c85",
+   "added": 32,
+   "deleted": 50,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 107,
+     "oldLines": 1,
+     "newStart": 106,
+     "newLines": 0
+    },
+    {
+     "oldStart": 121,
+     "oldLines": 1,
+     "newStart": 119,
+     "newLines": 0
+    },
+    {
+     "oldStart": 133,
+     "oldLines": 1,
+     "newStart": 130,
+     "newLines": 0
+    },
+    {
+     "oldStart": 136,
+     "oldLines": 0,
+     "newStart": 134,
+     "newLines": 20
+    },
+    {
+     "oldStart": 160,
+     "oldLines": 1,
+     "newStart": 176,
+     "newLines": 0
+    },
+    {
+     "oldStart": 162,
+     "oldLines": 1,
+     "newStart": 177,
+     "newLines": 0
+    },
+    {
+     "oldStart": 187,
+     "oldLines": 1,
+     "newStart": 201,
+     "newLines": 0
+    },
+    {
+     "oldStart": 189,
+     "oldLines": 1,
+     "newStart": 202,
+     "newLines": 0
+    },
+    {
+     "oldStart": 191,
+     "oldLines": 1,
+     "newStart": 203,
+     "newLines": 0
+    },
+    {
+     "oldStart": 193,
+     "oldLines": 1,
+     "newStart": 204,
+     "newLines": 0
+    },
+    {
+     "oldStart": 210,
+     "oldLines": 1,
+     "newStart": 220,
+     "newLines": 0
+    },
+    {
+     "oldStart": 220,
+     "oldLines": 1,
+     "newStart": 229,
+     "newLines": 0
+    },
+    {
+     "oldStart": 225,
+     "oldLines": 1,
+     "newStart": 233,
+     "newLines": 0
+    },
+    {
+     "oldStart": 227,
+     "oldLines": 1,
+     "newStart": 234,
+     "newLines": 0
+    },
+    {
+     "oldStart": 267,
+     "oldLines": 1,
+     "newStart": 273,
+     "newLines": 0
+    },
+    {
+     "oldStart": 269,
+     "oldLines": 1,
+     "newStart": 274,
+     "newLines": 0
+    },
+    {
+     "oldStart": 271,
+     "oldLines": 1,
+     "newStart": 275,
+     "newLines": 0
+    },
+    {
+     "oldStart": 293,
+     "oldLines": 1,
+     "newStart": 296,
+     "newLines": 0
+    },
+    {
+     "oldStart": 295,
+     "oldLines": 1,
+     "newStart": 297,
+     "newLines": 0
+    },
+    {
+     "oldStart": 297,
+     "oldLines": 1,
+     "newStart": 298,
+     "newLines": 0
+    },
+    {
+     "oldStart": 299,
+     "oldLines": 1,
+     "newStart": 299,
+     "newLines": 0
+    },
+    {
+     "oldStart": 316,
+     "oldLines": 1,
+     "newStart": 315,
+     "newLines": 0
+    },
+    {
+     "oldStart": 318,
+     "oldLines": 1,
+     "newStart": 316,
+     "newLines": 0
+    },
+    {
+     "oldStart": 320,
+     "oldLines": 1,
+     "newStart": 317,
+     "newLines": 0
+    },
+    {
+     "oldStart": 324,
+     "oldLines": 1,
+     "newStart": 320,
+     "newLines": 0
+    },
+    {
+     "oldStart": 326,
+     "oldLines": 1,
+     "newStart": 321,
+     "newLines": 0
+    },
+    {
+     "oldStart": 329,
+     "oldLines": 1,
+     "newStart": 323,
+     "newLines": 0
+    },
+    {
+     "oldStart": 331,
+     "oldLines": 1,
+     "newStart": 324,
+     "newLines": 0
+    },
+    {
+     "oldStart": 348,
+     "oldLines": 1,
+     "newStart": 340,
+     "newLines": 0
+    },
+    {
+     "oldStart": 351,
+     "oldLines": 1,
+     "newStart": 342,
+     "newLines": 0
+    },
+    {
+     "oldStart": 353,
+     "oldLines": 1,
+     "newStart": 343,
+     "newLines": 0
+    },
+    {
+     "oldStart": 355,
+     "oldLines": 1,
+     "newStart": 344,
+     "newLines": 0
+    },
+    {
+     "oldStart": 360,
+     "oldLines": 1,
+     "newStart": 348,
+     "newLines": 0
+    },
+    {
+     "oldStart": 369,
+     "oldLines": 3,
+     "newStart": 357,
+     "newLines": 3
+    },
+    {
+     "oldStart": 375,
+     "oldLines": 1,
+     "newStart": 362,
+     "newLines": 0
+    },
+    {
+     "oldStart": 379,
+     "oldLines": 6,
+     "newStart": 366,
+     "newLines": 4
+    },
+    {
+     "oldStart": 400,
+     "oldLines": 1,
+     "newStart": 384,
+     "newLines": 0
+    },
+    {
+     "oldStart": 674,
+     "oldLines": 1,
+     "newStart": 658,
+     "newLines": 1
+    },
+    {
+     "oldStart": 678,
+     "oldLines": 1,
+     "newStart": 661,
+     "newLines": 0
+    },
+    {
+     "oldStart": 681,
+     "oldLines": 1,
+     "newStart": 664,
+     "newLines": 1
+    },
+    {
+     "oldStart": 696,
+     "oldLines": 1,
+     "newStart": 679,
+     "newLines": 1
+    },
+    {
+     "oldStart": 714,
+     "oldLines": 1,
+     "newStart": 697,
+     "newLines": 1
+    },
+    {
+     "oldStart": 716,
+     "oldLines": 1,
+     "newStart": 699,
+     "newLines": 1
+    },
+    {
+     "oldStart": 772,
+     "oldLines": 1,
+     "newStart": 754,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": null
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/src/RunStore.ts",
+   "mode": "100644",
+   "blob": "b593f2042862b924bf78c81856a3f48e7177014e",
+   "previousBlob": "850a67f8d91b01979e84ad259591bfbe8350a7ed",
+   "added": 5,
+   "deleted": 2,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 658,
+     "oldLines": 2,
+     "newStart": 658,
+     "newLines": 5
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/test/Fold.test.ts",
+   "mode": "100644",
+   "blob": "fec9465a485101711d3d4b4b623a6626b3c51af2",
+   "previousBlob": "8a167594d86d743aa7618c84c33d1328bf8a9a15",
+   "added": 290,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 308,
+     "oldLines": 0,
+     "newStart": 309,
+     "newLines": 55
+    },
+    {
+     "oldStart": 420,
+     "oldLines": 0,
+     "newStart": 476,
+     "newLines": 201
+    },
+    {
+     "oldStart": 500,
+     "oldLines": 0,
+     "newStart": 757,
+     "newLines": 12
+    },
+    {
+     "oldStart": 514,
+     "oldLines": 0,
+     "newStart": 783,
+     "newLines": 3
+    },
+    {
+     "oldStart": 520,
+     "oldLines": 0,
+     "newStart": 792,
+     "newLines": 10
+    },
+    {
+     "oldStart": 628,
+     "oldLines": 0,
+     "newStart": 910,
+     "newLines": 9
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": null
+  }
+ ]
+}
