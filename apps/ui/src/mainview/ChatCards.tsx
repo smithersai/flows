@@ -543,6 +543,9 @@ export const chooserFilter = <C extends { fullName: string }>(
 		: candidates.filter((candidate) => candidate.fullName.toLowerCase().includes(needle));
 };
 
+/** Keep a 200+ repository account responsive while preserving local search over the whole inventory. */
+export const REPO_CHOOSER_PAGE_SIZE = 50;
+
 const RepoChooserCardBody = ({
 	card,
 	onRepoToggle,
@@ -559,8 +562,10 @@ const RepoChooserCardBody = ({
 	const { candidates, selected, phase, error } = card.payload;
 	const [filter, setFilter] = useState("");
 	const [highlighted, setHighlighted] = useState(0);
+	const [visibleLimit, setVisibleLimit] = useState(REPO_CHOOSER_PAGE_SIZE);
 	const saving = phase === "saving";
-	const visibleRows = chooserFilter(candidates, filter);
+	const filteredRows = chooserFilter(candidates, filter);
+	const visibleRows = filteredRows.slice(0, visibleLimit);
 	const highlightedIndex = Math.min(highlighted, Math.max(visibleRows.length - 1, 0));
 
 	const onFilterKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
@@ -597,10 +602,21 @@ const RepoChooserCardBody = ({
 				onChange={(event) => {
 					setFilter(event.target.value);
 					setHighlighted(0);
+					setVisibleLimit(REPO_CHOOSER_PAGE_SIZE);
 				}}
 				onKeyDown={onFilterKeyDown}
 			/>
-			<ul className="repo-chooser-list" role="listbox" aria-multiselectable aria-label="Your repositories">
+			<ul
+				className="repo-chooser-list"
+				role="listbox"
+				aria-multiselectable
+				aria-label="Your repositories"
+				onScroll={(event) => {
+					const list = event.currentTarget;
+					if (list.scrollTop + list.clientHeight < list.scrollHeight - 8) return;
+					setVisibleLimit((current) => Math.min(current + REPO_CHOOSER_PAGE_SIZE, filteredRows.length));
+				}}
+			>
 				{visibleRows.map((candidate, index) => {
 					const checked = selected.includes(candidate.fullName);
 					return (

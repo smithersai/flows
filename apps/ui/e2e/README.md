@@ -19,6 +19,19 @@ bun e2e/run.ts --port 8799        # a port of your own; $FLOWS_E2E_PORT also wor
 `package.json` exposes `test:e2e`, `test:e2e:list`, and `test:e2e:all` (the
 landed `scripts/worker-e2e.ts` suite, then this one).
 
+## GitHub persona policy
+
+Real GitHub and the real test account are the default for every checklist row.
+The typed personas in `Personas.ts` are an explicit, hermetic exception only
+for states a real account cannot reliably return to: first-ever sign-in,
+zero or 200+ repositories, and a $0 balance. Suites apply one whole persona
+with `stack.signInAs(persona)`; they must not assemble identity, billing, and
+recommendation state independently.
+
+Evidence from a persona run must say `verified-via-mock`. It grades only the
+product-behaviour half of a checklist row and never counts as live GitHub
+verification; any live-GitHub half remains a separate optional check.
+
 ## What a lane owns
 
 One file, `e2e/suites/<name>.e2e.ts`, default-exporting one suite. Nothing else.
@@ -99,9 +112,10 @@ A registered path matches exactly, or by prefix when it ends with `*`. A handler
 returning `undefined` falls through to the double. Everything a front holds is
 dropped by the next `reset()`.
 
-If a double genuinely lacks a control you need, register it on the front. Do not
-edit `scripts/stub-backends.ts`, and do not edit `scripts/worker-e2e.ts`: that
-suite is landed and goes to CI unchanged.
+If a one-off fault is needed, register it on the front. Shared, cross-seam
+persona state belongs in the doubles' `/stub/persona` controls and is applied
+only through `stack.signInAs`. Do not edit `scripts/worker-e2e.ts`: that suite
+is landed and goes to CI unchanged.
 
 ## Scripting the model
 
