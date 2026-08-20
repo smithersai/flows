@@ -14,6 +14,5 @@ console.log(await page.evaluate(() => {
 console.log("=== all data-flow attrs ===");
 console.log(await page.evaluate(() => Array.from(document.querySelectorAll("[data-flow]")).map(e => e.getAttribute("data-flow")).join(", ")));
 // click sign in
-const btn = page.locator('[data-flow="auth.sign-in"]').first();
 console.log("signin btn count", await page.locator('[data-flow="auth.sign-in"]').count());
 await ctx.close();
