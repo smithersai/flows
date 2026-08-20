@@ -504,9 +504,6 @@ importers:
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
-      '@smthrs/platform-node':
-        specifier: 0.1.0
-        version: link:../platform-node
       '@types/node':
         specifier: 25.9.5
         version: 25.9.5
@@ -966,6 +963,9 @@ importers:
       '@smthrs/run-store':
         specifier: 0.1.0
         version: link:../run-store
+      '@smthrs/std':
+        specifier: 0.1.0
+        version: link:../std
       effect:
         specifier: 4.0.0-rc.108
         version: 4.0.0-rc.108
