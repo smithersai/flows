@@ -155,7 +155,10 @@ export function DevtoolsPanel({ controller }: { readonly controller: AppControll
 				<section className="devtools-section" aria-label="Network tap">
 					<h3>Network</h3>
 					{(() => {
-						const entries = JSON.parse(controller.debugNet().value) as ReadonlyArray<{
+						// netTap, never debugNet: the flow SURFACES the read by dispatching
+						// a transcript message, and dispatching from a render is the
+						// re-render loop that hung the panel.
+						const entries = JSON.parse(controller.netTap()) as ReadonlyArray<{
 							readonly at: number;
 							readonly method: string;
 							readonly url: string;
