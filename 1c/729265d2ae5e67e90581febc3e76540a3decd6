@@ -1,0 +1,94 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "1c729265d2ae5e67e90581febc3e76540a3decd6",
+ "tree": "e1c8f2672e9585fd571e4019be553c8c3b8c273e",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 73,
+  "sectionCount": 83
+ },
+ "source": {
+  "commit": "28cc5a488f787d97f82d0abdf59e9ff3ca605903",
+  "subject": "📝 docs(server): split the metrics paragraph into what they establish and what they only suggest",
+  "priorCanonicalCommit": "fba35ac0b519cd5dfce31befa91acc2f3e1b731e",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 61,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true,
+  "rebuild": {
+   "reason": "rebuilt onto the 13-commit split of canonical commit 2632c05da63099666add6437c743f4c5b3922f59",
+   "priorCanonicalCommit": "fba35ac0b519cd5dfce31befa91acc2f3e1b731e",
+   "treePreserved": true,
+   "tree": "e1c8f2672e9585fd571e4019be553c8c3b8c273e"
+  }
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": null,
+  "epicsTouched": [],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 911,
+  "globalCount": 921,
+  "purpose": "📝 docs(server): split the metrics paragraph into what they establish and what they only suggest",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "accd954effff1526c08ec94dce285582d4089333"
+  ],
+  "parent": "accd954effff1526c08ec94dce285582d4089333",
+  "sourceImports": [],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "accd954effff1526c08ec94dce285582d4089333",
+  "next": "dfd293fa308145905de8ebff9aa5ac2ff2e6c7b3",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "6fe6857b28247375ab46b0d79cba15e74754ebd6"
+ },
+ "size": {
+  "files": 1,
+  "added": 29,
+  "deleted": 10
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "28cc5a488f787d97f82d0abdf59e9ff3ca605903"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "apps/server/BALANCE-DIAGNOSIS.md",
+   "mode": "100644",
+   "blob": "4541b70112d5ac3f962e9ccc93778986cbb9fc9b",
+   "previousBlob": "41b382fffd6f38f84086eb0c225b60d4175e2d7f",
+   "added": 29,
+   "deleted": 10,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 171,
+     "oldLines": 10,
+     "newStart": 171,
+     "newLines": 29
+    }
+   ],
+   "role": "docs",
+   "introducedByEpic": null
+  }
+ ]
+}
