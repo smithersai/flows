@@ -1483,12 +1483,29 @@ export default defineSuite({
 						45_000,
 					);
 					const recovered = await evaluate<string>(`document.querySelector('[data-slot="chat-transcript"]').innerText`);
+					/*
+					 * Retry RE-RUNS the turn: "the turn's own answer (and its act
+					 * rows) make way for the re-run; the user's message stays
+					 * exactly where it was" (AppStore, message.retried). So the
+					 * question is asked once and answered once — the abandoned
+					 * partial and the note describing it are replaced by the answer
+					 * that succeeded, rather than left beside it as a second,
+					 * contradictory answer to the same question. This block used to
+					 * demand both on screen at once.
+					 */
 					report.check(
-						recovered.length > beforeDrop.length,
-						"the retried turn did not grow the transcript, so recovery replaced history instead of adding to it",
+						!recovered.includes(INTERRUPTED_NOTE),
+						"the interrupted note outlived the answer it described, so one question has two answers",
 					);
-					report.includes(recovered, INTERRUPTED_NOTE, "the interrupted note after a successful retry");
-					report.ok("E14.1 — retrying the dropped turn completes it, and the honest record of the interruption stays on screen.");
+					report.check(
+						!recovered.includes("partial answer before the drop"),
+						"the abandoned partial survived the re-run it made way for",
+					);
+					report.check(
+						beforeDrop.length > 0 && recovered.includes(STUB_REPLY),
+						"the retried turn never rendered its completed answer",
+					);
+					report.ok("E14.1 — retrying the dropped turn completes it in place: the abandoned partial and its interrupted note make way for the answer that succeeded.");
 				});
 			}
 
@@ -1550,16 +1567,23 @@ export default defineSuite({
 						"the reconnected retry never completed",
 						async () => {
 							const probe = await evaluate<A11yProbe>(A11Y_PROBE);
+							// Same re-run-in-place rule as the dropped turn above: the
+							// honest failure line is REPLACED by the answer, not
+							// appended after it.
 							return (
 								probe.transcriptBusy === "false" &&
 								probe.pendingRole === null &&
-								probe.transcript.length > beforeReconnect.length &&
-								probe.transcript.slice(beforeReconnect.length).includes(STUB_REPLY)
+								probe.transcript.includes(STUB_REPLY) &&
+								!probe.transcript.includes(FAILED_MESSAGE_LEAD)
 							);
 						},
 						45_000,
 					);
-					report.ok("E14.1 — once the network is back, the same retry affordance completes the turn the outage killed.");
+					report.check(
+						beforeReconnect.includes(FAILED_MESSAGE_LEAD),
+						"the outage never left a failed turn on screen, so nothing was retried",
+					);
+					report.ok("E14.1 — once the network is back, the same retry affordance completes the turn the outage killed, replacing its failure line.");
 				});
 			}
 		};
