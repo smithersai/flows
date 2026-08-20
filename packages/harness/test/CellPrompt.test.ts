@@ -165,6 +165,15 @@ describe("cellPrompt", () => {
     expect(contract).toContain("before you edit anything")
   })
 
+  it("teaches that a file is restored with git, never through captured stdout", () => {
+    const contract = CellPrompt.make({})[0]?.text ?? ""
+    expect(contract).toContain("a result flagged truncated is a fragment")
+    expect(contract).toContain("git checkout or git restore")
+    expect(contract).toContain("never route file content through captured stdout")
+    // The refusal is stated, so the first frame that tries it already knows why.
+    expect(contract).toContain("a write of bytes a call returned truncated is refused")
+  })
+
   it("teaches that one cell can baseline, edit, and re-check without spending three frames", () => {
     const contract = CellPrompt.make({})[0]?.text ?? ""
     expect(contract).toContain("ONE cell may run the baseline check")

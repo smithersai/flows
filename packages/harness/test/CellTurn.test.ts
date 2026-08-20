@@ -1138,3 +1138,145 @@ describe("CellTurn compaction", () => {
     expect(of(events, "resolved")).toHaveLength(1)
   })
 })
+
+describe("CellTurn truncated output", () => {
+  /** A shell capture the flow reports as cut, exactly as `Bash` shapes one. */
+  const captured = "def visit(node):\n    return node\n".repeat(80)
+  const truncatedShellResult = {
+    _tag: "Success",
+    value: {
+      exitCode: 0,
+      stdout: captured,
+      stderr: "",
+      stdoutTruncated: true,
+      stderrTruncated: false,
+      stdoutDroppedBytes: 24_071,
+      stderrDroppedBytes: 0
+    }
+  } as const
+  const restoreFlows = [
+    descriptor("bash"),
+    descriptor("write", { tier: "compensable", writes: ["/**"] }),
+    descriptor("grep")
+  ]
+  const restoring = (target: string) =>
+    `const out = await ctx.call("bash", { mode: "unhermetic", command: "git show HEAD:src/module.py" })
+     try {
+       await ctx.call(${JSON.stringify(target)}, { path: "src/module.py", content: out.stdout })
+       return { intent: "complete", output: "wrote the file" }
+     } catch (error) {
+       return { intent: "complete", output: "refused: " + error.message }
+     }`
+
+  it("refuses a write of bytes a call already returned truncated", async () => {
+    const { engine, events } = await run({
+      script: [emits(restoring("write"))],
+      flows: restoreFlows,
+      calls: [truncatedShellResult]
+    })
+
+    // The write never reached the engine, so the file on disk is untouched.
+    expect(engine.recorder.calls.map((call) => call.flowName)).toEqual(["bash"])
+    expect(of(events, "cell-call-started")).toHaveLength(1)
+
+    const resolved = of(events, "resolved")[0]?.message.content[0]
+    const text = resolved?.type === "text" ? resolved.text : ""
+    expect(text).toContain("refused:")
+    expect(text).toContain("byte-identical")
+    expect(text).toContain("bash cut stdout and dropped 24071 bytes")
+    expect(text).toContain("git checkout or git restore")
+  })
+
+  it("refuses on the declared write set rather than on the flow's name", async () => {
+    const { engine } = await run({
+      script: [emits(restoring("fs/store"))],
+      flows: [...restoreFlows, descriptor("fs/store", { tier: "compensable", writes: ["/**"] })],
+      calls: [truncatedShellResult]
+    })
+
+    expect(engine.recorder.calls.map((call) => call.flowName)).toEqual(["bash"])
+  })
+
+  it("refuses the same bytes a frame later, carried through durable state", async () => {
+    const { engine, events } = await run({
+      state: state({ maxFrames: 3 }),
+      script: [
+        emits(
+          `const out = await ctx.call("bash", { mode: "unhermetic", command: "git show HEAD:src/module.py" })
+           return {
+             intent: "continue",
+             state: { captured: out.stdout },
+             context: [{ role: "user", text: "restore the module" }]
+           }`
+        ),
+        emits(
+          `try {
+             await ctx.call("write", { path: "src/module.py", content: ctx.state.captured })
+             return { intent: "complete", output: "wrote the file" }
+           } catch (error) {
+             return { intent: "complete", output: "refused: " + error.message }
+           }`
+        )
+      ],
+      flows: restoreFlows,
+      calls: [truncatedShellResult]
+    })
+
+    // The ledger is controller state, so a fragment stashed in `state` is still
+    // recognised on the frame that finally writes it.
+    expect(engine.recorder.calls.map((call) => call.flowName)).toEqual(["bash"])
+    const resolved = of(events, "resolved")[0]?.message.content[0]
+    expect(resolved?.type === "text" ? resolved.text : "").toContain("refused:")
+  })
+
+  it("performs a large write that is not a fragment the run was handed", async () => {
+    const { engine, events } = await run({
+      script: [
+        emits(
+          `await ctx.call("bash", { mode: "unhermetic", command: "git show HEAD:src/module.py" })
+           const generated = "print('generated')\\n".repeat(4000)
+           await ctx.call("write", { path: "src/generated.py", content: generated })
+           return { intent: "complete", output: "wrote " + generated.length + " characters" }`
+        )
+      ],
+      flows: restoreFlows,
+      calls: [truncatedShellResult, { _tag: "Success", value: { path: "src/generated.py" } }]
+    })
+
+    // Size is not the signal; provenance is. A 76,000-character file the cell
+    // composed itself is written without argument.
+    expect(engine.recorder.calls.map((call) => call.flowName)).toEqual(["bash", "write"])
+    const written = engine.recorder.calls[1]?.input as { readonly content: string }
+    expect(written.content).toHaveLength(76_000)
+    const resolved = of(events, "resolved")[0]?.message.content[0]
+    expect(resolved?.type === "text" ? resolved.text : "").toBe("wrote 76000 characters")
+  })
+
+  it("passes a truncated capture to a call that writes nothing", async () => {
+    const { engine } = await run({
+      script: [
+        emits(
+          `const out = await ctx.call("bash", { mode: "unhermetic", command: "git show HEAD:src/module.py" })
+           const hits = await ctx.call("grep", { pattern: "def visit", text: out.stdout })
+           return { intent: "complete", output: JSON.stringify(hits) }`
+        )
+      ],
+      flows: restoreFlows,
+      calls: [truncatedShellResult, { _tag: "Success", value: { matches: 80 } }]
+    })
+
+    // Searching, diffing, or summarising a fragment is ordinary use of what the
+    // flow returned; only a write of it is refused.
+    expect(engine.recorder.calls.map((call) => call.flowName)).toEqual(["bash", "grep"])
+    expect((engine.recorder.calls[1]?.input as { readonly text: string }).text).toBe(captured)
+  })
+
+  it("compiles the restore teaching into the taught system prefix", () => {
+    const system = ContextWindow.render(CellTurn.teach(window, [descriptor("bash")])).system
+      .map((part) => part.text)
+      .join("\n")
+
+    expect(system).toContain("never route file content through captured stdout")
+    expect(system).toContain("git checkout or git restore")
+  })
+})

@@ -29,6 +29,7 @@ import { HarnessError } from "./HarnessError.ts"
 import * as cellPrompt from "./internal/cellPrompt.ts"
 import * as Sandbox from "./Sandbox.ts"
 import * as Steering from "./Steering.ts"
+import * as TruncatedOutput from "./TruncatedOutput.ts"
 
 const NonNegativeSafeInt = Schema.Int.check(
   Schema.isGreaterThanOrEqualTo(0),
@@ -146,7 +147,15 @@ export class State extends Schema.Class<State>("flows/harness/CellTurn/State")({
   pendingReadOnlyDemand: Schema.optional(Schema.Struct({
     streak: NonNegativeSafeInt,
     cap: NonNegativeSafeInt
-  }))
+  })),
+  /**
+   * Output this run has been handed as a fragment, by digest.
+   *
+   * The ledger is state rather than a per-frame detail because a cell may store
+   * a truncated capture and write it a frame later. It carries no bytes; see
+   * `TruncatedOutput`.
+   */
+  truncatedOutputs: TruncatedOutput.Ledger
 }) {}
 
 /**
@@ -216,7 +225,8 @@ export const make = (options: {
     readOnlyCap: options.readOnlyCap ?? 0,
     readOnlyFrames: 0,
     readOnlyGrace: 0,
-    pendingReadOnlyDemand: undefined
+    pendingReadOnlyDemand: undefined,
+    truncatedOutputs: []
   })
 
 /**
@@ -530,12 +540,18 @@ const budgetMessage = (state: State): string =>
  * declares must still be inside the run's narrowed envelope. Both denials are
  * ordinary call failures the cell can catch, which is what lets an agent
  * discover the shape of its authority without crashing the run.
+ *
+ * The truncation ledger is kept here for the same reason. The boundary is the
+ * only party that sees both a result that declared its capture cut short and a
+ * later call handing those exact bytes to something that writes, and a write of
+ * a known fragment is refused rather than performed. See `TruncatedOutput`.
  */
 const callHandler = (
   state: State,
   cell: Cell.Source,
   descriptors: ReadonlyMap<string, Descriptor.FlowDescriptor>,
   engine: EngineLike.EngineLike,
+  ledger: Array<TruncatedOutput.Capture>,
   emit: (event: AgentEvent.AgentEvent) => Effect.Effect<void>
 ): Sandbox.Handler =>
 (invocation) =>
@@ -562,6 +578,19 @@ const callHandler = (
         message: `Flow ${invocation.flow} needs ${refused.join(", ")}, which is outside this run's capability envelope.`
       })
     }
+    // Only a call that changes something is checked. Passing a fragment to a
+    // search, a diff, or a summary is ordinary use of what the flow returned;
+    // handing it to something that writes is the one case that destroys a file.
+    if (mutating(descriptor, invocation.input)) {
+      const found = TruncatedOutput.reuse(invocation.input, ledger)
+      if (found !== undefined) {
+        return new Cell.CallResult({
+          outcome: "failure",
+          value: null,
+          message: TruncatedOutput.refusal(invocation.flow, found)
+        })
+      }
+    }
     const call = new Cell.Call({
       flowName: descriptor.name,
       input: invocation.input,
@@ -579,6 +608,7 @@ const callHandler = (
     })
     yield* emit(new AgentEvent.CellCallStarted({ eventType: eventType.cellCallStarted, call }))
     const result = yield* engine.call(call)
+    if (result.outcome === "success") ledger.push(...TruncatedOutput.captures(call.flowName, result.value))
     yield* emit(
       new AgentEvent.CellCallSettled({
         eventType: eventType.cellCallSettled,
@@ -694,6 +724,9 @@ const frame = (
     const descriptors = new Map(input.flows.map((descriptor) => [descriptor.name, descriptor]))
     const projections: Record<string, Cell.FlowProjection> = {}
     for (const descriptor of input.flows) projections[descriptor.name] = Cell.project(descriptor)
+    // Seeded from what earlier frames were handed, appended to as this frame's
+    // calls settle, and carried out through every exit that continues the run.
+    const ledger: Array<TruncatedOutput.Capture> = [...state.truncatedOutputs]
 
     yield* emit(
       new AgentEvent.TurnOpened({
@@ -742,6 +775,7 @@ const frame = (
         state: advance(state, {
           frame: state.frame + 1,
           contextWindow: observed(state, settled.message, note),
+          truncatedOutputs: TruncatedOutput.retain(ledger),
           ...changes
         })
       }
@@ -802,7 +836,7 @@ const frame = (
       readonly invalidProbe: { readonly reason: string; readonly message: string } | undefined
     }> = []
     const observing: Sandbox.Handler = (invocation) =>
-      callHandler(state, cell, descriptors, engine, emit)(invocation).pipe(
+      callHandler(state, cell, descriptors, engine, ledger, emit)(invocation).pipe(
         Effect.tap((result) =>
           Effect.sync(() => {
             const rendered = result.outcome === "success"
@@ -1047,6 +1081,7 @@ const frame = (
           replaced: context.replaced
         }),
         agentState: transition.state,
+        truncatedOutputs: TruncatedOutput.retain(ledger),
         readOnlyFrames,
         readOnlyGrace,
         pendingReadOnlyDemand: demanded && !justified ? { streak: readOnlyFrames, cap } : undefined

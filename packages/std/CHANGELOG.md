@@ -9,6 +9,7 @@
 
 ### Changed
 
+- Documented Bash's `stdoutTruncated`/`stderrTruncated` flags as the wire convention `@smthrs/harness/TruncatedOutput` reads, and stated in each stream's description that a truncated capture is a fragment that must not be written to a file.
 - Allowed hermetic Bash invocations to use the resolved base directory as their working directory without declaring it as a read.
 - Exempted `/dev/*` from the hermetic Bash path scan; process plumbing is not a workspace effect.
 

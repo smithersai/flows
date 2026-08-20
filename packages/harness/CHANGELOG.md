@@ -23,6 +23,10 @@
 
 ### Added
 
+- Added `TruncatedOutput`, the run's ledger of output a flow returned after cutting it, and wired it into the cell call boundary: a call that declares writes and carries a string byte-identical to an earlier truncated capture is refused as a catchable `CallResult` failure naming git checkout/restore as the way to restore a file. The ledger is durable controller state (`CellTurn.State.truncatedOutputs`, digests only, sixteen most recent), so a fragment stashed in `state` is still recognised a frame later. A benchmark instance lost this way: `git show <base>:src/_pytest/python.py` returned 30,000 bytes of a 54,000-byte module with `stdoutTruncated: true`, the cell wrote exactly those bytes back over the file, and the mangled tail was the graded patch.
+
+- Taught the cell contract that a result flagged truncated is a fragment: restore a file from git with git checkout or git restore, never by routing file content through captured stdout.
+
 - Added the run-start `DisciplineArmed` event, recording the read-only and
   frame caps and every effective sandbox limit before the first frame runs.
 

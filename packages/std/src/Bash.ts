@@ -95,15 +95,31 @@ export type Input = typeof Input.Type
  * the command was meant to check, which is the distinction an exit code alone
  * cannot carry. See `Probe`.
  *
+ * The `<stream>Truncated` flags are a wire convention, not a display detail.
+ * A truncated capture is a fragment of what the process printed, and the
+ * harness reads these flags to refuse a later write of those exact bytes —
+ * `@smthrs/harness/TruncatedOutput` is the consuming half. Renaming a flag, or
+ * dropping it when the capture is cut, disarms that guard silently.
+ *
  * @category schemas
  * @since 0.1.0
  */
 export const Output = Schema.Struct({
   exitCode: Schema.Number.annotate({ description: "Command exit code, including non-zero codes" }),
-  stdout: Schema.String.annotate({ description: "Captured stdout, retaining the tail when truncated" }),
-  stderr: Schema.String.annotate({ description: "Captured stderr, retaining the tail when truncated" }),
-  stdoutTruncated: Schema.Boolean.annotate({ description: "Whether stdout exceeded the capture limit" }),
-  stderrTruncated: Schema.Boolean.annotate({ description: "Whether stderr exceeded the capture limit" }),
+  stdout: Schema.String.annotate({
+    description: "Captured stdout; only the tail, and not the whole output, when stdoutTruncated is true"
+  }),
+  stderr: Schema.String.annotate({
+    description: "Captured stderr; only the tail, and not the whole output, when stderrTruncated is true"
+  }),
+  stdoutTruncated: Schema.Boolean.annotate({
+    description:
+      "Whether stdout exceeded the capture limit, leaving stdout a fragment that must not be written to a file"
+  }),
+  stderrTruncated: Schema.Boolean.annotate({
+    description:
+      "Whether stderr exceeded the capture limit, leaving stderr a fragment that must not be written to a file"
+  }),
   stdoutDroppedBytes: Schema.Number.annotate({ description: "UTF-8 bytes omitted from the start of stdout" }),
   stderrDroppedBytes: Schema.Number.annotate({ description: "UTF-8 bytes omitted from the start of stderr" }),
   invalidProbe: Schema.optional(
