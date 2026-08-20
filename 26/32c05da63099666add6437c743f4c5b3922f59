@@ -1,0 +1,4260 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "2632c05da63099666add6437c743f4c5b3922f59",
+ "tree": "cd2647ed0e73bbdbf7c6ce2ceed7c26e3cc5b9b4",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 37,
+  "sectionCount": 71
+ },
+ "source": {
+  "commit": "bdd707bfcf264bb5dad763ed13108ee81323899e",
+  "subject": "🐛 fix(run-store): make run state fold durable",
+  "priorCanonicalCommit": "2a33262ea1942fd1b1f4933233e2237b91b63261",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 37,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "engine-store",
+  "epicsTouched": [
+   {
+    "id": "agent",
+    "files": 2
+   },
+   {
+    "id": "control",
+    "files": 2
+   },
+   {
+    "id": "storage",
+    "files": 25
+   },
+   {
+    "id": "engine-store",
+    "files": 50
+   },
+   {
+    "id": "flow",
+    "files": 1
+   },
+   {
+    "id": "host",
+    "files": 1
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 875,
+  "globalCount": 909,
+  "purpose": "🐛 fix(run-store): make run state fold durable",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "10d114ff64cbedb046a690c985525246cc4d9117"
+  ],
+  "parent": "10d114ff64cbedb046a690c985525246cc4d9117",
+  "sourceImports": [
+   "918016d734938ee85ce0f2a709807d78cedd937f",
+   "bef8dae787e0b91df1aea3109425c3cba19dc0f4",
+   "0e89640ea2f070b6c20786d09d69a86571c5ad79",
+   "d2e3a531341c00d1819d0c7118a20f5e752f5628",
+   "97ff849a7257cced78e9a772087e7be2185f7927",
+   "6d02ba3e074e63db93f229f2d09d856006aa4761",
+   "ace5d9a9e3038fc29f3325b6cbe0b28a7ab46897",
+   "7e9430eb10b89354851c7c933be7f914f2d882b1",
+   "72d009042a79d12f6a35e9587eede9460661b735",
+   "f509c10e2479db023f15e532897a64ca1432dd25",
+   "aa41b1a90fd808ad5cfbaa20e2efecfd532d6847",
+   "38d4d52ca52f0442023133d1c458a08080e2edf9",
+   "229f2a2a62fbf8eb4f2df6c8c9204deee510e76d",
+   "72dd092a0f89446130c1e357806f6800c3163570",
+   "2371c029a5666dbf3616cc818e025811838efb01",
+   "526fc19a7eb64ddbf26631417132a3cdfda8b362",
+   "c548fa2e9a8dd3d8c628aae3c79519cce53be5f7",
+   "b8f28c7744a64c21bc1dabcd26df3f4dd3918860",
+   "0ef4871b719f3876407cc5ccb9f876c69c3c7158",
+   "bc886f08eec148bc732caf49edb090d6bcfebc61",
+   "13373e8984e787685db54b712a84b60c7c7c8b5c",
+   "2db286733e6b56ebdb55149cd22dcd85893f2354",
+   "cb8f99248af220028e149517dd12d294f006f3b1",
+   "9ae5474dc0e2fd1248b8b06eb2c344de17c26828",
+   "1c757bccd26029a3a99d6359d33f5ba2b5d627c3",
+   "f45aa60effc741bc536c230931b2a48c75670648",
+   "4249b81454f984bbb7a11ab20830d4d7cf6386bf",
+   "d0a9059a174eaeb3296fb48024ea8cc8068b58b2",
+   "c8bce393ea55d3257b21dbf5095fb2af8220a9d3",
+   "bf30564cff185becab3c94a5dbbd2833264ae9de",
+   "cf89bd45358cb59d87d7077d99bbc04e932b4e18",
+   "4390fe6159b47fbf5df3fcbcadcdc24e77d5ce8d",
+   "934a70097b819b70f9190e5b9a97a3aa36b0304a",
+   "eda3d9fa41d4dd7cdd5f0541dfa6e17bbc59247b",
+   "486c60eee09160c8f2c90abe7f434a6606cc8d4a",
+   "f6fd28b9c2647f8b2e822ff52f7a674cf673caff",
+   "f2593e80a73414263ea6c01969ff5ca604d53161",
+   "dbf468b7175db5c08f3863ca79e9353b458536d5",
+   "94f7c8bf4001f5fb8bb81bf239df5caa97fbbaec",
+   "72b08b12f257280fccf737d94499dd559ddf7464",
+   "3c12dbdf04c94ac01d62039a304e31f3a5799f9e",
+   "409d977dc6850904988b0a037cbfd926daa547f0",
+   "239bfc3fc9ed99100f271bcb1d4a5a4ad9a3f524",
+   "2466cc971787b3ecc68cc046ccba9fc9b2acf82b",
+   "d62c430a56c4fec9e9ccc2c81a1884c93ded9643",
+   "1741fe3e11078585191eacc9cf2eccd8a3526c1d",
+   "c6c0d5170329c2c48b6f3ad7b1f39755c840387c",
+   "0cbeeb277d9929243737e789e6318cc45bd98bac",
+   "a3268b56e9da9bd3213f796ff44e6ac6e5ac5d43",
+   "30fab3bcf2a89c54c6357770164337d851030e04",
+   "12ad8369e9068d18b27bf6a8f389602099843668",
+   "631875a2b7e3b2e961c0926efe053ef9b1bcbff0",
+   "3c5d2a382f0b4329646f29959243a04c97df5c2b"
+  ],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "10d114ff64cbedb046a690c985525246cc4d9117",
+  "next": "8352754720a5576ffd94ec37065b9c036a31d71f",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "9f4db87e9b528812c207c1054f8c36a09a06c2c7"
+ },
+ "size": {
+  "files": 85,
+  "added": 1940,
+  "deleted": 707
+ },
+ "sizeJustification": "replayed verbatim from source commit bdd707bfcf26; the change is a single landing on the source line and splitting it further would invent commits that never existed and whose intermediate trees were never built or checked",
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "bdd707bfcf264bb5dad763ed13108ee81323899e"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "packages/cli/src/NodeControl.ts",
+   "mode": "100644",
+   "blob": "41334408427ca73a17bf5246f0746d5c250b2079",
+   "previousBlob": "b8c4c5cc391bafc6a6a69fbd62971bc4bde1f3a6",
+   "added": 2,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 287,
+     "oldLines": 1,
+     "newStart": 287,
+     "newLines": 2
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 9,
+    "id": "agent",
+    "name": "Harness, chain, tools and CLI"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/cli/test/ControlSurface.test.ts",
+   "mode": "100644",
+   "blob": "7e76a7150cf1b8575a1e0e811a67e2b7abb2e6a9",
+   "previousBlob": "0e86326386cbfc674ba2607a65dbd00b3872305e",
+   "added": 17,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 8,
+     "oldLines": 0,
+     "newStart": 9,
+     "newLines": 1
+    },
+    {
+     "oldStart": 104,
+     "oldLines": 0,
+     "newStart": 106,
+     "newLines": 12
+    },
+    {
+     "oldStart": 203,
+     "oldLines": 0,
+     "newStart": 217,
+     "newLines": 1
+    },
+    {
+     "oldStart": 387,
+     "oldLines": 0,
+     "newStart": 402,
+     "newLines": 1
+    },
+    {
+     "oldStart": 431,
+     "oldLines": 0,
+     "newStart": 447,
+     "newLines": 1
+    },
+    {
+     "oldStart": 468,
+     "oldLines": 0,
+     "newStart": 485,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 9,
+    "id": "agent",
+    "name": "Harness, chain, tools and CLI"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/control/src/SqlControlRuntime.ts",
+   "mode": "100644",
+   "blob": "314e98ce069275505ff49ad17dd23e6a5247ff79",
+   "previousBlob": "0050517c995d3026f6c5f9c5217f28695736587b",
+   "added": 9,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 48,
+     "oldLines": 0,
+     "newStart": 49,
+     "newLines": 1
+    },
+    {
+     "oldStart": 832,
+     "oldLines": 1,
+     "newStart": 833,
+     "newLines": 8
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 8,
+    "id": "control",
+    "name": "Model, memory, notification and control services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/control/test/SqlControlRuntime.test.ts",
+   "mode": "100644",
+   "blob": "74dd9a9be545ece7d0d7e4c68305e0c02a2b9a78",
+   "previousBlob": "794da1a44ebc8230b76865e160f52dac3a9e1112",
+   "added": 2,
+   "deleted": 4,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 32,
+     "oldLines": 4,
+     "newStart": 32,
+     "newLines": 2
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 8,
+    "id": "control",
+    "name": "Model, memory, notification and control services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/database/src/Migrations.ts",
+   "mode": "100644",
+   "blob": "1909de95e91446888d88d17d8edeb21c9ec6c6ba",
+   "previousBlob": "35cadaae20f2ec34c8784bbcc76bcdd381211b9f",
+   "added": 56,
+   "deleted": 45,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 18,
+     "oldLines": 6,
+     "newStart": 18,
+     "newLines": 5
+    },
+    {
+     "oldStart": 122,
+     "oldLines": 0,
+     "newStart": 122,
+     "newLines": 4
+    },
+    {
+     "oldStart": 146,
+     "oldLines": 10,
+     "newStart": 149,
+     "newLines": 2
+    },
+    {
+     "oldStart": 159,
+     "oldLines": 1,
+     "newStart": 154,
+     "newLines": 1
+    },
+    {
+     "oldStart": 161,
+     "oldLines": 10,
+     "newStart": 156,
+     "newLines": 23
+    },
+    {
+     "oldStart": 172,
+     "oldLines": 3,
+     "newStart": 180,
+     "newLines": 2
+    },
+    {
+     "oldStart": 177,
+     "oldLines": 5,
+     "newStart": 184,
+     "newLines": 5
+    },
+    {
+     "oldStart": 186,
+     "oldLines": 0,
+     "newStart": 194,
+     "newLines": 1
+    },
+    {
+     "oldStart": 188,
+     "oldLines": 1,
+     "newStart": 196,
+     "newLines": 1
+    },
+    {
+     "oldStart": 194,
+     "oldLines": 1,
+     "newStart": 202,
+     "newLines": 1
+    },
+    {
+     "oldStart": 197,
+     "oldLines": 1,
+     "newStart": 205,
+     "newLines": 2
+    },
+    {
+     "oldStart": 209,
+     "oldLines": 0,
+     "newStart": 219,
+     "newLines": 1
+    },
+    {
+     "oldStart": 245,
+     "oldLines": 0,
+     "newStart": 256,
+     "newLines": 1
+    },
+    {
+     "oldStart": 250,
+     "oldLines": 1,
+     "newStart": 261,
+     "newLines": 1
+    },
+    {
+     "oldStart": 292,
+     "oldLines": 1,
+     "newStart": 303,
+     "newLines": 1
+    },
+    {
+     "oldStart": 296,
+     "oldLines": 3,
+     "newStart": 307,
+     "newLines": 3
+    },
+    {
+     "oldStart": 303,
+     "oldLines": 2,
+     "newStart": 314,
+     "newLines": 2
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/database/test/Migrations.test.ts",
+   "mode": "100644",
+   "blob": "da7c39f5975451898d749b23637b07f86a1f9736",
+   "previousBlob": "78a398ed231429142f161a1fa96e4b3ab7fa3665",
+   "added": 67,
+   "deleted": 9,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 206,
+     "oldLines": 1,
+     "newStart": 206,
+     "newLines": 1
+    },
+    {
+     "oldStart": 209,
+     "oldLines": 8,
+     "newStart": 209,
+     "newLines": 66
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/src/DurableEngineState.ts",
+   "mode": "100644",
+   "blob": "cc1b6d52280b3a51b987d7946a252eb91ea359cd",
+   "previousBlob": "a84c54d8fee9f0c170a98af7166c4ed32b88308f",
+   "added": 34,
+   "deleted": 14,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 710,
+     "oldLines": 1,
+     "newStart": 710,
+     "newLines": 5
+    },
+    {
+     "oldStart": 713,
+     "oldLines": 1,
+     "newStart": 717,
+     "newLines": 5
+    },
+    {
+     "oldStart": 753,
+     "oldLines": 0,
+     "newStart": 762,
+     "newLines": 7
+    },
+    {
+     "oldStart": 757,
+     "oldLines": 5,
+     "newStart": 772,
+     "newLines": 2
+    },
+    {
+     "oldStart": 765,
+     "oldLines": 1,
+     "newStart": 776,
+     "newLines": 0
+    },
+    {
+     "oldStart": 773,
+     "oldLines": 1,
+     "newStart": 784,
+     "newLines": 1
+    },
+    {
+     "oldStart": 775,
+     "oldLines": 1,
+     "newStart": 786,
+     "newLines": 1
+    },
+    {
+     "oldStart": 1419,
+     "oldLines": 0,
+     "newStart": 1431,
+     "newLines": 8
+    },
+    {
+     "oldStart": 1424,
+     "oldLines": 4,
+     "newStart": 1443,
+     "newLines": 5
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/src/test/TestStores.ts",
+   "mode": "100644",
+   "blob": "29a8ba9555e028d1b8504fff3e7ae1f96afac361",
+   "previousBlob": "b36ff373d5a912926517befce1134d33a11f0c2d",
+   "added": 18,
+   "deleted": 13,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 60,
+     "oldLines": 8,
+     "newStart": 60,
+     "newLines": 2
+    },
+    {
+     "oldStart": 70,
+     "oldLines": 3,
+     "newStart": 64,
+     "newLines": 1
+    },
+    {
+     "oldStart": 74,
+     "oldLines": 2,
+     "newStart": 66,
+     "newLines": 15
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/ActionPersistence.test.ts",
+   "mode": "100644",
+   "blob": "7015d3ae772e577dbccec24d82a3324d2d9dcd59",
+   "previousBlob": "67e948a0e54dc10f5b200dacb6a7f2af3318038d",
+   "added": 6,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 161,
+     "oldLines": 1,
+     "newStart": 161,
+     "newLines": 6
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/ArtifactGc.test.ts",
+   "mode": "100644",
+   "blob": "a72e6ef31154e9f5fb7128975786c0eb74013b24",
+   "previousBlob": "6e6dbe3d326c35919c7a335b56485bb708a97157",
+   "added": 5,
+   "deleted": 2,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 18,
+     "oldLines": 0,
+     "newStart": 19,
+     "newLines": 1
+    },
+    {
+     "oldStart": 132,
+     "oldLines": 1,
+     "newStart": 133,
+     "newLines": 1
+    },
+    {
+     "oldStart": 138,
+     "oldLines": 0,
+     "newStart": 140,
+     "newLines": 2
+    },
+    {
+     "oldStart": 140,
+     "oldLines": 1,
+     "newStart": 143,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/AttemptProbeCost.test.ts",
+   "mode": "100644",
+   "blob": "67dc14d3753f07569aac742554e86a29f4611f88",
+   "previousBlob": "2060bbce9b030c57256edd868cae533a800fb6cd",
+   "added": 2,
+   "deleted": 3,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 68,
+     "oldLines": 1,
+     "newStart": 67,
+     "newLines": 0
+    },
+    {
+     "oldStart": 70,
+     "oldLines": 1,
+     "newStart": 68,
+     "newLines": 0
+    },
+    {
+     "oldStart": 73,
+     "oldLines": 1,
+     "newStart": 71,
+     "newLines": 1
+    },
+    {
+     "oldStart": 75,
+     "oldLines": 0,
+     "newStart": 74,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/AttemptSurvivorsParity.test.ts",
+   "mode": "100644",
+   "blob": "6b3ff5cd902b4f239e182a9d3c835735fb33ec0b",
+   "previousBlob": "a997a77de9233cb7f46c1522c881cc797cbaecda",
+   "added": 5,
+   "deleted": 3,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 11,
+     "oldLines": 0,
+     "newStart": 12,
+     "newLines": 1
+    },
+    {
+     "oldStart": 24,
+     "oldLines": 3,
+     "newStart": 25,
+     "newLines": 4
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/CacheProvenanceGeneration.test.ts",
+   "mode": "100644",
+   "blob": "d9a3a2d04004419edd7792d8735f4c3b83874f76",
+   "previousBlob": "d012d06ac576601f214669650a141fd31707e77b",
+   "added": 5,
+   "deleted": 4,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 303,
+     "oldLines": 1,
+     "newStart": 302,
+     "newLines": 0
+    },
+    {
+     "oldStart": 305,
+     "oldLines": 1,
+     "newStart": 303,
+     "newLines": 0
+    },
+    {
+     "oldStart": 308,
+     "oldLines": 1,
+     "newStart": 306,
+     "newLines": 1
+    },
+    {
+     "oldStart": 312,
+     "oldLines": 1,
+     "newStart": 310,
+     "newLines": 4
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/CycleDetectionSql.test.ts",
+   "mode": "100644",
+   "blob": "ff38a8d600e09736b1d82a9b335def75ef66c319",
+   "previousBlob": "5c15470dfba302b7ae0dc7fbdffd2be83b636309",
+   "added": 11,
+   "deleted": 4,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 4,
+     "oldLines": 0,
+     "newStart": 5,
+     "newLines": 1
+    },
+    {
+     "oldStart": 16,
+     "oldLines": 0,
+     "newStart": 18,
+     "newLines": 3
+    },
+    {
+     "oldStart": 37,
+     "oldLines": 1,
+     "newStart": 41,
+     "newLines": 1
+    },
+    {
+     "oldStart": 173,
+     "oldLines": 0,
+     "newStart": 178,
+     "newLines": 4
+    },
+    {
+     "oldStart": 175,
+     "oldLines": 3,
+     "newStart": 183,
+     "newLines": 2
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/DeferredRestartMatrix.test.ts",
+   "mode": "100644",
+   "blob": "d27e1c216d8f9feecaae5feba786f1a13356c7e3",
+   "previousBlob": "2543fd9ba84f7abe3ae5780cf761f99e0f5071dd",
+   "added": 41,
+   "deleted": 5,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 10,
+     "oldLines": 0,
+     "newStart": 11,
+     "newLines": 2
+    },
+    {
+     "oldStart": 412,
+     "oldLines": 1,
+     "newStart": 414,
+     "newLines": 1
+    },
+    {
+     "oldStart": 416,
+     "oldLines": 2,
+     "newStart": 418,
+     "newLines": 13
+    },
+    {
+     "oldStart": 424,
+     "oldLines": 0,
+     "newStart": 438,
+     "newLines": 5
+    },
+    {
+     "oldStart": 430,
+     "oldLines": 1,
+     "newStart": 448,
+     "newLines": 1
+    },
+    {
+     "oldStart": 434,
+     "oldLines": 0,
+     "newStart": 453,
+     "newLines": 6
+    },
+    {
+     "oldStart": 435,
+     "oldLines": 0,
+     "newStart": 460,
+     "newLines": 9
+    },
+    {
+     "oldStart": 436,
+     "oldLines": 0,
+     "newStart": 470,
+     "newLines": 3
+    },
+    {
+     "oldStart": 442,
+     "oldLines": 1,
+     "newStart": 478,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/DurableEngineStateContract.test.ts",
+   "mode": "100644",
+   "blob": "ba6de79f43059322784f8aab85cd886d9f697d52",
+   "previousBlob": "d4d9d754d9f773a26c173cc693912d8fd9c59e4e",
+   "added": 51,
+   "deleted": 23,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 2,
+     "oldLines": 0,
+     "newStart": 3,
+     "newLines": 2
+    },
+    {
+     "oldStart": 12,
+     "oldLines": 0,
+     "newStart": 15,
+     "newLines": 3
+    },
+    {
+     "oldStart": 20,
+     "oldLines": 0,
+     "newStart": 26,
+     "newLines": 1
+    },
+    {
+     "oldStart": 26,
+     "oldLines": 1,
+     "newStart": 32,
+     "newLines": 2
+    },
+    {
+     "oldStart": 29,
+     "oldLines": 21,
+     "newStart": 36,
+     "newLines": 42
+    },
+    {
+     "oldStart": 69,
+     "oldLines": 1,
+     "newStart": 97,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/DurableEngineStateSql.test.ts",
+   "mode": "100644",
+   "blob": "f352f670d999010fdd44fdccb5ab61bce6685f48",
+   "previousBlob": "0dfe00cfee7aef7ec1c6c44a61f83028e3d035e3",
+   "added": 8,
+   "deleted": 4,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 3,
+     "oldLines": 0,
+     "newStart": 4,
+     "newLines": 1
+    },
+    {
+     "oldStart": 21,
+     "oldLines": 0,
+     "newStart": 23,
+     "newLines": 3
+    },
+    {
+     "oldStart": 81,
+     "oldLines": 1,
+     "newStart": 85,
+     "newLines": 1
+    },
+    {
+     "oldStart": 134,
+     "oldLines": 1,
+     "newStart": 138,
+     "newLines": 1
+    },
+    {
+     "oldStart": 178,
+     "oldLines": 1,
+     "newStart": 182,
+     "newLines": 1
+    },
+    {
+     "oldStart": 197,
+     "oldLines": 1,
+     "newStart": 201,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/DurableStateOrdering.test.ts",
+   "mode": "100644",
+   "blob": "6faee7cc70f4f130fe44abc78b3afb1ebef42420",
+   "previousBlob": "568b74d651cbb578b561dbba522f7eabd68d75bd",
+   "added": 8,
+   "deleted": 4,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 3,
+     "oldLines": 0,
+     "newStart": 4,
+     "newLines": 1
+    },
+    {
+     "oldStart": 21,
+     "oldLines": 0,
+     "newStart": 23,
+     "newLines": 3
+    },
+    {
+     "oldStart": 146,
+     "oldLines": 1,
+     "newStart": 150,
+     "newLines": 1
+    },
+    {
+     "oldStart": 170,
+     "oldLines": 1,
+     "newStart": 174,
+     "newLines": 1
+    },
+    {
+     "oldStart": 200,
+     "oldLines": 1,
+     "newStart": 204,
+     "newLines": 1
+    },
+    {
+     "oldStart": 245,
+     "oldLines": 1,
+     "newStart": 249,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/HardKillReclaim.test.ts",
+   "mode": "100644",
+   "blob": "2d23ede0c0165f8fcbab27a1137ebc5720dced82",
+   "previousBlob": "629d6533c373d605d70267131ec053566b20bc15",
+   "added": 4,
+   "deleted": 2,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 55,
+     "oldLines": 1,
+     "newStart": 54,
+     "newLines": 0
+    },
+    {
+     "oldStart": 58,
+     "oldLines": 1,
+     "newStart": 57,
+     "newLines": 4
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/JournalIntegration.test.ts",
+   "mode": "100644",
+   "blob": "c4bb58eee89f83b09e8d9d41dfa7b274c30890bf",
+   "previousBlob": "45c7bc30ae8b4bf325a2c0d3b63a6a27c033e197",
+   "added": 11,
+   "deleted": 6,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 58,
+     "oldLines": 4,
+     "newStart": 58,
+     "newLines": 6
+    },
+    {
+     "oldStart": 67,
+     "oldLines": 2,
+     "newStart": 69,
+     "newLines": 1
+    },
+    {
+     "oldStart": 69,
+     "oldLines": 0,
+     "newStart": 71,
+     "newLines": 4
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/JournalTransaction.test.ts",
+   "mode": "100644",
+   "blob": "afeb952e1c862468802e24ed92a35e800b00424b",
+   "previousBlob": "a2c1aae76c6e11262f5b9ce175c18b2f6c06a176",
+   "added": 6,
+   "deleted": 4,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 48,
+     "oldLines": 2,
+     "newStart": 48,
+     "newLines": 2
+    },
+    {
+     "oldStart": 86,
+     "oldLines": 1,
+     "newStart": 86,
+     "newLines": 1
+    },
+    {
+     "oldStart": 157,
+     "oldLines": 0,
+     "newStart": 158,
+     "newLines": 1
+    },
+    {
+     "oldStart": 159,
+     "oldLines": 1,
+     "newStart": 160,
+     "newLines": 2
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/LateLinkedChildCancellation.test.ts",
+   "mode": "100644",
+   "blob": "1ac919b66e5b86e4313c1362c49dc73e113d44d4",
+   "previousBlob": "021d292665d2a35b40a88a8a967829ea319ef0e5",
+   "added": 4,
+   "deleted": 2,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 67,
+     "oldLines": 1,
+     "newStart": 66,
+     "newLines": 0
+    },
+    {
+     "oldStart": 70,
+     "oldLines": 1,
+     "newStart": 69,
+     "newLines": 4
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/OutOfLadderSchema.test.ts",
+   "mode": "100644",
+   "blob": "674bd609cb3b4be6c18fb03bcdb3ff7c7a3960f2",
+   "previousBlob": "64141f786b66cc04ddd702cdb577ac048cb5d667",
+   "added": 6,
+   "deleted": 2,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 16,
+     "oldLines": 0,
+     "newStart": 17,
+     "newLines": 1
+    },
+    {
+     "oldStart": 25,
+     "oldLines": 0,
+     "newStart": 27,
+     "newLines": 3
+    },
+    {
+     "oldStart": 44,
+     "oldLines": 1,
+     "newStart": 48,
+     "newLines": 1
+    },
+    {
+     "oldStart": 74,
+     "oldLines": 1,
+     "newStart": 78,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/RestoreDrill.test.ts",
+   "mode": "100644",
+   "blob": "f1cd822c6526c4db5366643f64e85991bd8866e8",
+   "previousBlob": "244d38f2af15a066524917a27cbd0b531e69b052",
+   "added": 4,
+   "deleted": 6,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 79,
+     "oldLines": 4,
+     "newStart": 79,
+     "newLines": 2
+    },
+    {
+     "oldStart": 85,
+     "oldLines": 1,
+     "newStart": 83,
+     "newLines": 1
+    },
+    {
+     "oldStart": 87,
+     "oldLines": 0,
+     "newStart": 86,
+     "newLines": 1
+    },
+    {
+     "oldStart": 97,
+     "oldLines": 1,
+     "newStart": 95,
+     "newLines": 0
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/RetryOrigin.test.ts",
+   "mode": "100644",
+   "blob": "c4bb38a3ab73a75cafe2764315668b06cd6746ec",
+   "previousBlob": "8527a8d41927067d1320a1818c163ccca998729f",
+   "added": 7,
+   "deleted": 9,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 169,
+     "oldLines": 9,
+     "newStart": 169,
+     "newLines": 7
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/RunParentAtomicity.test.ts",
+   "mode": "100644",
+   "blob": "68e30204395b86ad190786ee7ca8b8ea686949f2",
+   "previousBlob": "3438d90743cda3a898c01b2833a7d4a465bea013",
+   "added": 4,
+   "deleted": 2,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 49,
+     "oldLines": 1,
+     "newStart": 48,
+     "newLines": 0
+    },
+    {
+     "oldStart": 52,
+     "oldLines": 1,
+     "newStart": 51,
+     "newLines": 4
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/RunParentEdges.test.ts",
+   "mode": "100644",
+   "blob": "ed9deb6a9b9c635560cd166adf1b1f4ba8f0d6fc",
+   "previousBlob": "325ed347a570c78b044cac8f5ded7e0c02abb7d9",
+   "added": 7,
+   "deleted": 3,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 3,
+     "oldLines": 0,
+     "newStart": 4,
+     "newLines": 1
+    },
+    {
+     "oldStart": 13,
+     "oldLines": 0,
+     "newStart": 15,
+     "newLines": 3
+    },
+    {
+     "oldStart": 33,
+     "oldLines": 1,
+     "newStart": 37,
+     "newLines": 1
+    },
+    {
+     "oldStart": 231,
+     "oldLines": 1,
+     "newStart": 235,
+     "newLines": 1
+    },
+    {
+     "oldStart": 263,
+     "oldLines": 1,
+     "newStart": 267,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/RunStateFoldWaiting.test.ts",
+   "mode": "100644",
+   "blob": "bf4d2ff16eeaac17d43db585e632adf6c533fda0",
+   "previousBlob": "f2a9f2c6be29cb602037db36e4fa9588c45649b0",
+   "added": 17,
+   "deleted": 8,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 0,
+     "newStart": 2,
+     "newLines": 1
+    },
+    {
+     "oldStart": 7,
+     "oldLines": 1,
+     "newStart": 8,
+     "newLines": 2
+    },
+    {
+     "oldStart": 25,
+     "oldLines": 1,
+     "newStart": 26,
+     "newLines": 0
+    },
+    {
+     "oldStart": 28,
+     "oldLines": 1,
+     "newStart": 29,
+     "newLines": 4
+    },
+    {
+     "oldStart": 31,
+     "oldLines": 1,
+     "newStart": 35,
+     "newLines": 5
+    },
+    {
+     "oldStart": 59,
+     "oldLines": 3,
+     "newStart": 67,
+     "newLines": 4
+    },
+    {
+     "oldStart": 82,
+     "oldLines": 1,
+     "newStart": 91,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": null
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/Sha256.ts",
+   "mode": "100644",
+   "blob": "11e3b59a925dd904957534e5266722de3fd47f6b",
+   "previousBlob": "6b40cab9bb4ee49c7246a900ccd6376711356526",
+   "added": 2,
+   "deleted": 2,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 15,
+     "oldLines": 2,
+     "newStart": 15,
+     "newLines": 2
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/SweepFiltering.test.ts",
+   "mode": "100644",
+   "blob": "78dd59e71a38499d0989b5003f6b3b749e833393",
+   "previousBlob": "1b67fc647cf63e7257325e794d56ab6d92ba7a8f",
+   "added": 4,
+   "deleted": 2,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 43,
+     "oldLines": 1,
+     "newStart": 42,
+     "newLines": 0
+    },
+    {
+     "oldStart": 46,
+     "oldLines": 1,
+     "newStart": 45,
+     "newLines": 4
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/TestStores.test.ts",
+   "mode": "100644",
+   "blob": "a15fb8896cf3444e1502f2afb9081bd3f86a1d91",
+   "previousBlob": "8ca4f4308fbaa4051bbee4c300d336d718185ca3",
+   "added": 9,
+   "deleted": 4,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 92,
+     "oldLines": 4,
+     "newStart": 92,
+     "newLines": 9
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/Trampoline.test.ts",
+   "mode": "100644",
+   "blob": "68b84be1cf2927af44aa72b3a9e0448de5c8f7f2",
+   "previousBlob": "a0f2dcf3ad1ee65298d929a54f5412f26c245f2d",
+   "added": 2,
+   "deleted": 4,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 132,
+     "oldLines": 2,
+     "newStart": 131,
+     "newLines": 0
+    },
+    {
+     "oldStart": 135,
+     "oldLines": 1,
+     "newStart": 132,
+     "newLines": 0
+    },
+    {
+     "oldStart": 138,
+     "oldLines": 1,
+     "newStart": 135,
+     "newLines": 1
+    },
+    {
+     "oldStart": 140,
+     "oldLines": 0,
+     "newStart": 138,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/WaitingReason.test.ts",
+   "mode": "100644",
+   "blob": "ab4d03e902a33c92a2ab063d9be846c55a5d6dff",
+   "previousBlob": "5f6bfaa9b46e9a907a7ee76a7ae06b7efcb54960",
+   "added": 50,
+   "deleted": 6,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 3,
+     "oldLines": 0,
+     "newStart": 4,
+     "newLines": 1
+    },
+    {
+     "oldStart": 25,
+     "oldLines": 0,
+     "newStart": 27,
+     "newLines": 3
+    },
+    {
+     "oldStart": 50,
+     "oldLines": 0,
+     "newStart": 55,
+     "newLines": 17
+    },
+    {
+     "oldStart": 74,
+     "oldLines": 1,
+     "newStart": 95,
+     "newLines": 1
+    },
+    {
+     "oldStart": 107,
+     "oldLines": 1,
+     "newStart": 128,
+     "newLines": 1
+    },
+    {
+     "oldStart": 125,
+     "oldLines": 1,
+     "newStart": 146,
+     "newLines": 1
+    },
+    {
+     "oldStart": 131,
+     "oldLines": 0,
+     "newStart": 153,
+     "newLines": 23
+    },
+    {
+     "oldStart": 137,
+     "oldLines": 1,
+     "newStart": 181,
+     "newLines": 1
+    },
+    {
+     "oldStart": 153,
+     "oldLines": 1,
+     "newStart": 197,
+     "newLines": 1
+    },
+    {
+     "oldStart": 179,
+     "oldLines": 1,
+     "newStart": 223,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/WalAtomicity.test.ts",
+   "mode": "100644",
+   "blob": "9078a4a700813695bf1c227364c7e7e939fc7d8c",
+   "previousBlob": "8281f9708962a4824ca7fd00191c95563d18695c",
+   "added": 7,
+   "deleted": 5,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 79,
+     "oldLines": 2,
+     "newStart": 78,
+     "newLines": 0
+    },
+    {
+     "oldStart": 82,
+     "oldLines": 1,
+     "newStart": 79,
+     "newLines": 0
+    },
+    {
+     "oldStart": 85,
+     "oldLines": 1,
+     "newStart": 82,
+     "newLines": 1
+    },
+    {
+     "oldStart": 87,
+     "oldLines": 1,
+     "newStart": 84,
+     "newLines": 6
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/fixtures/durable-wait-child.ts",
+   "mode": "100644",
+   "blob": "4bbe87370263b6fda4591b7fe73edfcfeacf8d0b",
+   "previousBlob": "4e3beebb5f8b3c1d4137946b9e2d558f5ee33f03",
+   "added": 12,
+   "deleted": 11,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 56,
+     "oldLines": 10,
+     "newStart": 56,
+     "newLines": 11
+    },
+    {
+     "oldStart": 103,
+     "oldLines": 1,
+     "newStart": 104,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/flow/src/Interpreter.ts",
+   "mode": "100644",
+   "blob": "2843906949a581f3f0005a8b62177a6c12e88e18",
+   "previousBlob": "13b88d73a2270d00eb3471713f8a922d0ff26930",
+   "added": 14,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 49,
+     "oldLines": 0,
+     "newStart": 50,
+     "newLines": 1
+    },
+    {
+     "oldStart": 653,
+     "oldLines": 0,
+     "newStart": 655,
+     "newLines": 10
+    },
+    {
+     "oldStart": 659,
+     "oldLines": 0,
+     "newStart": 671,
+     "newLines": 3
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 4,
+    "id": "flow",
+    "name": "Typed flow plans and execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/flows/src/NodeRuntime.ts",
+   "mode": "100644",
+   "blob": "4e7d097502b8ab64fc88c4876c809b1c04343921",
+   "previousBlob": "7ff11b0aebac8c6c5d243f3d1c9a8835c5867efd",
+   "added": 8,
+   "deleted": 6,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 96,
+     "oldLines": 1,
+     "newStart": 96,
+     "newLines": 3
+    },
+    {
+     "oldStart": 98,
+     "oldLines": 1,
+     "newStart": 99,
+     "newLines": 0
+    },
+    {
+     "oldStart": 101,
+     "oldLines": 3,
+     "newStart": 102,
+     "newLines": 1
+    },
+    {
+     "oldStart": 108,
+     "oldLines": 1,
+     "newStart": 107,
+     "newLines": 4
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/flows/test/AuthoringErrors.test.ts",
+   "mode": "100644",
+   "blob": "9ec67cc29ecb2e96c2e672120e8a911a3f12fd64",
+   "previousBlob": "125e2ac5bcb32ab335be3e3a1486afe6af82b0f6",
+   "added": 2,
+   "deleted": 4,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 49,
+     "oldLines": 2,
+     "newStart": 48,
+     "newLines": 0
+    },
+    {
+     "oldStart": 52,
+     "oldLines": 1,
+     "newStart": 49,
+     "newLines": 0
+    },
+    {
+     "oldStart": 55,
+     "oldLines": 1,
+     "newStart": 52,
+     "newLines": 1
+    },
+    {
+     "oldStart": 58,
+     "oldLines": 0,
+     "newStart": 56,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/flows/test/NodeRuntime.test.ts",
+   "mode": "100644",
+   "blob": "926b12f117668cf10ca0ebcee3755d7f83dbcb65",
+   "previousBlob": "5300daca3fb16a616b2f6f9dac68dbe972f9cb1e",
+   "added": 5,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 329,
+     "oldLines": 1,
+     "newStart": 329,
+     "newLines": 5
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/flows/test/e2e-authoring.test.ts",
+   "mode": "100644",
+   "blob": "62613b497892111a72f80334a2b0ea65c7be61cd",
+   "previousBlob": "93455533827cb989e82880b99671ef749f0837f1",
+   "added": 44,
+   "deleted": 23,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 93,
+     "oldLines": 2,
+     "newStart": 92,
+     "newLines": 0
+    },
+    {
+     "oldStart": 96,
+     "oldLines": 1,
+     "newStart": 93,
+     "newLines": 0
+    },
+    {
+     "oldStart": 99,
+     "oldLines": 1,
+     "newStart": 96,
+     "newLines": 1
+    },
+    {
+     "oldStart": 102,
+     "oldLines": 0,
+     "newStart": 100,
+     "newLines": 1
+    },
+    {
+     "oldStart": 174,
+     "oldLines": 0,
+     "newStart": 173,
+     "newLines": 20
+    },
+    {
+     "oldStart": 387,
+     "oldLines": 3,
+     "newStart": 405,
+     "newLines": 11
+    },
+    {
+     "oldStart": 392,
+     "oldLines": 6,
+     "newStart": 417,
+     "newLines": 0
+    },
+    {
+     "oldStart": 404,
+     "oldLines": 2,
+     "newStart": 424,
+     "newLines": 9
+    },
+    {
+     "oldStart": 407,
+     "oldLines": 5,
+     "newStart": 433,
+     "newLines": 0
+    },
+    {
+     "oldStart": 1071,
+     "oldLines": 1,
+     "newStart": 1092,
+     "newLines": 0
+    },
+    {
+     "oldStart": 1073,
+     "oldLines": 1,
+     "newStart": 1093,
+     "newLines": 0
+    },
+    {
+     "oldStart": 1076,
+     "oldLines": 1,
+     "newStart": 1096,
+     "newLines": 1
+    },
+    {
+     "oldStart": 1079,
+     "oldLines": 0,
+     "newStart": 1100,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/flows/test/vitestCoverageIsolation.test.ts",
+   "mode": "100644",
+   "blob": "25b405b6440cc69ddaaec3a6d0167c73a701ca4d",
+   "previousBlob": "ff7affabbe1b51999d64609f59d767f5116f1efb",
+   "added": 6,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 538,
+     "oldLines": 1,
+     "newStart": 538,
+     "newLines": 6
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/journal/src/Journal.ts",
+   "mode": "100644",
+   "blob": "5aad487a836d2e403355bb0a0b39d7f417e75be3",
+   "previousBlob": "6506c578acfe76b49f1d97fa5f8ff8066f778d8d",
+   "added": 16,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 474,
+     "oldLines": 0,
+     "newStart": 475,
+     "newLines": 11
+    },
+    {
+     "oldStart": 509,
+     "oldLines": 1,
+     "newStart": 520,
+     "newLines": 4
+    },
+    {
+     "oldStart": 567,
+     "oldLines": 0,
+     "newStart": 582,
+     "newLines": 1
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/journal/src/SqlJournal.ts",
+   "mode": "100644",
+   "blob": "6e10bd54d1c576e1bd3494cb29c02ed3d4799d93",
+   "previousBlob": "5fffb394423a60f427c15a51b9697cd3b489effa",
+   "added": 70,
+   "deleted": 7,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 747,
+     "oldLines": 0,
+     "newStart": 748,
+     "newLines": 9
+    },
+    {
+     "oldStart": 1428,
+     "oldLines": 0,
+     "newStart": 1438,
+     "newLines": 34
+    },
+    {
+     "oldStart": 1454,
+     "oldLines": 1,
+     "newStart": 1497,
+     "newLines": 1
+    },
+    {
+     "oldStart": 1707,
+     "oldLines": 0,
+     "newStart": 1751,
+     "newLines": 1
+    },
+    {
+     "oldStart": 1723,
+     "oldLines": 2,
+     "newStart": 1767,
+     "newLines": 3
+    },
+    {
+     "oldStart": 1727,
+     "oldLines": 3,
+     "newStart": 1772,
+     "newLines": 8
+    },
+    {
+     "oldStart": 1737,
+     "oldLines": 1,
+     "newStart": 1787,
+     "newLines": 14
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/journal/test/ConsensusConformance.ts",
+   "mode": "100644",
+   "blob": "fc6a7022a43e384bc91a518ca2d44100867f64dc",
+   "previousBlob": "020e448600cbb45d7429350b4e6d10361fc4fa5f",
+   "added": 1,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 65,
+     "oldLines": 1,
+     "newStart": 65,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/journal/test/Contracts.test.ts",
+   "mode": "100644",
+   "blob": "48548ffb22a875ef4fd0c74b69729845eaff3dbf",
+   "previousBlob": "77af8ccafa0a3316cc5d4664ca1dd8701b21f0ec",
+   "added": 1,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 24,
+     "oldLines": 0,
+     "newStart": 25,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/journal/test/JournalCompaction.test.ts",
+   "mode": "100644",
+   "blob": "78bb3c3fea034806dcea97144f854174179f1308",
+   "previousBlob": "c4d45d2a38cb4b456e36b0c66d81d6a552ecfbb0",
+   "added": 40,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 47,
+     "oldLines": 0,
+     "newStart": 48,
+     "newLines": 9
+    },
+    {
+     "oldStart": 288,
+     "oldLines": 0,
+     "newStart": 298,
+     "newLines": 30
+    },
+    {
+     "oldStart": 862,
+     "oldLines": 1,
+     "newStart": 901,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/journal/test/JournalDurable.test.ts",
+   "mode": "100644",
+   "blob": "60974316f8fe101805d28816db59a72b62692de4",
+   "previousBlob": "cea5ebffafb0015355a44ddcbffc89bad3659037",
+   "added": 22,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 161,
+     "oldLines": 0,
+     "newStart": 162,
+     "newLines": 22
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/journal/test/Redaction.test.ts",
+   "mode": "100644",
+   "blob": "4616a668c88f96f6522476d0912c35dedda48923",
+   "previousBlob": "e53cf6d897530d397403d558e52827dc60ade195",
+   "added": 12,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 223,
+     "oldLines": 0,
+     "newStart": 224,
+     "newLines": 6
+    },
+    {
+     "oldStart": 237,
+     "oldLines": 0,
+     "newStart": 244,
+     "newLines": 4
+    },
+    {
+     "oldStart": 242,
+     "oldLines": 1,
+     "newStart": 252,
+     "newLines": 2
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/kernel/test/HttpClient.integration.test.ts",
+   "mode": "100644",
+   "blob": "9f14fcb5ec128b2488f39dbe07894a9eb2f07230",
+   "previousBlob": "c3df52f663759d74fc7d7f2878c80ced24e88ad8",
+   "added": 34,
+   "deleted": 13,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 36,
+     "oldLines": 1,
+     "newStart": 35,
+     "newLines": 0
+    },
+    {
+     "oldStart": 41,
+     "oldLines": 0,
+     "newStart": 41,
+     "newLines": 1
+    },
+    {
+     "oldStart": 108,
+     "oldLines": 0,
+     "newStart": 109,
+     "newLines": 21
+    },
+    {
+     "oldStart": 111,
+     "oldLines": 1,
+     "newStart": 132,
+     "newLines": 1
+    },
+    {
+     "oldStart": 146,
+     "oldLines": 1,
+     "newStart": 167,
+     "newLines": 1
+    },
+    {
+     "oldStart": 149,
+     "oldLines": 1,
+     "newStart": 170,
+     "newLines": 1
+    },
+    {
+     "oldStart": 178,
+     "oldLines": 1,
+     "newStart": 199,
+     "newLines": 1
+    },
+    {
+     "oldStart": 183,
+     "oldLines": 1,
+     "newStart": 204,
+     "newLines": 1
+    },
+    {
+     "oldStart": 212,
+     "oldLines": 1,
+     "newStart": 233,
+     "newLines": 1
+    },
+    {
+     "oldStart": 216,
+     "oldLines": 1,
+     "newStart": 237,
+     "newLines": 1
+    },
+    {
+     "oldStart": 236,
+     "oldLines": 1,
+     "newStart": 257,
+     "newLines": 1
+    },
+    {
+     "oldStart": 239,
+     "oldLines": 1,
+     "newStart": 260,
+     "newLines": 1
+    },
+    {
+     "oldStart": 254,
+     "oldLines": 1,
+     "newStart": 275,
+     "newLines": 1
+    },
+    {
+     "oldStart": 257,
+     "oldLines": 1,
+     "newStart": 278,
+     "newLines": 1
+    },
+    {
+     "oldStart": 291,
+     "oldLines": 1,
+     "newStart": 312,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 5,
+    "id": "host",
+    "name": "Capability-checked platform adapters"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/src/AttemptStore.ts",
+   "mode": "100644",
+   "blob": "ad4bba1b833a1f4b49f47e535e9ca508402de23d",
+   "previousBlob": "0dd2faf50be4336c6433d26be79a363df6ed2820",
+   "added": 51,
+   "deleted": 21,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 16,
+     "oldLines": 1,
+     "newStart": 16,
+     "newLines": 1
+    },
+    {
+     "oldStart": 386,
+     "oldLines": 0,
+     "newStart": 387,
+     "newLines": 13
+    },
+    {
+     "oldStart": 408,
+     "oldLines": 4,
+     "newStart": 421,
+     "newLines": 3
+    },
+    {
+     "oldStart": 418,
+     "oldLines": 0,
+     "newStart": 431,
+     "newLines": 1
+    },
+    {
+     "oldStart": 457,
+     "oldLines": 1,
+     "newStart": 470,
+     "newLines": 1
+    },
+    {
+     "oldStart": 460,
+     "oldLines": 3,
+     "newStart": 473,
+     "newLines": 5
+    },
+    {
+     "oldStart": 477,
+     "oldLines": 0,
+     "newStart": 493,
+     "newLines": 8
+    },
+    {
+     "oldStart": 481,
+     "oldLines": 5,
+     "newStart": 504,
+     "newLines": 3
+    },
+    {
+     "oldStart": 489,
+     "oldLines": 1,
+     "newStart": 509,
+     "newLines": 0
+    },
+    {
+     "oldStart": 501,
+     "oldLines": 1,
+     "newStart": 521,
+     "newLines": 1
+    },
+    {
+     "oldStart": 876,
+     "oldLines": 1,
+     "newStart": 896,
+     "newLines": 3
+    },
+    {
+     "oldStart": 907,
+     "oldLines": 0,
+     "newStart": 930,
+     "newLines": 6
+    },
+    {
+     "oldStart": 911,
+     "oldLines": 3,
+     "newStart": 939,
+     "newLines": 3
+    },
+    {
+     "oldStart": 917,
+     "oldLines": 0,
+     "newStart": 946,
+     "newLines": 2
+    },
+    {
+     "oldStart": 923,
+     "oldLines": 1,
+     "newStart": 953,
+     "newLines": 1
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/src/Fold.ts",
+   "mode": "100644",
+   "blob": "6235c5d15ec344336be5e520c55ae0e0dc7973d6",
+   "previousBlob": "95f24cb44ad41b81a8625b4ef70d4c7d5dc59fac",
+   "added": 216,
+   "deleted": 72,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 9,
+     "oldLines": 1,
+     "newStart": 9,
+     "newLines": 2
+    },
+    {
+     "oldStart": 10,
+     "oldLines": 0,
+     "newStart": 12,
+     "newLines": 1
+    },
+    {
+     "oldStart": 13,
+     "oldLines": 0,
+     "newStart": 16,
+     "newLines": 1
+    },
+    {
+     "oldStart": 76,
+     "oldLines": 12,
+     "newStart": 78,
+     "newLines": 0
+    },
+    {
+     "oldStart": 107,
+     "oldLines": 2,
+     "newStart": 98,
+     "newLines": 1
+    },
+    {
+     "oldStart": 115,
+     "oldLines": 0,
+     "newStart": 106,
+     "newLines": 1
+    },
+    {
+     "oldStart": 128,
+     "oldLines": 0,
+     "newStart": 120,
+     "newLines": 1
+    },
+    {
+     "oldStart": 139,
+     "oldLines": 0,
+     "newStart": 132,
+     "newLines": 1
+    },
+    {
+     "oldStart": 165,
+     "oldLines": 0,
+     "newStart": 159,
+     "newLines": 1
+    },
+    {
+     "oldStart": 166,
+     "oldLines": 0,
+     "newStart": 161,
+     "newLines": 1
+    },
+    {
+     "oldStart": 190,
+     "oldLines": 0,
+     "newStart": 186,
+     "newLines": 1
+    },
+    {
+     "oldStart": 191,
+     "oldLines": 0,
+     "newStart": 188,
+     "newLines": 1
+    },
+    {
+     "oldStart": 192,
+     "oldLines": 0,
+     "newStart": 190,
+     "newLines": 1
+    },
+    {
+     "oldStart": 193,
+     "oldLines": 0,
+     "newStart": 192,
+     "newLines": 1
+    },
+    {
+     "oldStart": 209,
+     "oldLines": 0,
+     "newStart": 209,
+     "newLines": 1
+    },
+    {
+     "oldStart": 218,
+     "oldLines": 0,
+     "newStart": 219,
+     "newLines": 1
+    },
+    {
+     "oldStart": 222,
+     "oldLines": 0,
+     "newStart": 224,
+     "newLines": 1
+    },
+    {
+     "oldStart": 223,
+     "oldLines": 0,
+     "newStart": 226,
+     "newLines": 1
+    },
+    {
+     "oldStart": 228,
+     "oldLines": 0,
+     "newStart": 232,
+     "newLines": 1
+    },
+    {
+     "oldStart": 229,
+     "oldLines": 0,
+     "newStart": 234,
+     "newLines": 1
+    },
+    {
+     "oldStart": 230,
+     "oldLines": 0,
+     "newStart": 236,
+     "newLines": 1
+    },
+    {
+     "oldStart": 231,
+     "oldLines": 0,
+     "newStart": 238,
+     "newLines": 1
+    },
+    {
+     "oldStart": 255,
+     "oldLines": 0,
+     "newStart": 263,
+     "newLines": 1
+    },
+    {
+     "oldStart": 256,
+     "oldLines": 0,
+     "newStart": 265,
+     "newLines": 1
+    },
+    {
+     "oldStart": 257,
+     "oldLines": 0,
+     "newStart": 267,
+     "newLines": 1
+    },
+    {
+     "oldStart": 278,
+     "oldLines": 0,
+     "newStart": 289,
+     "newLines": 1
+    },
+    {
+     "oldStart": 279,
+     "oldLines": 0,
+     "newStart": 291,
+     "newLines": 1
+    },
+    {
+     "oldStart": 280,
+     "oldLines": 0,
+     "newStart": 293,
+     "newLines": 1
+    },
+    {
+     "oldStart": 281,
+     "oldLines": 0,
+     "newStart": 295,
+     "newLines": 1
+    },
+    {
+     "oldStart": 297,
+     "oldLines": 0,
+     "newStart": 312,
+     "newLines": 1
+    },
+    {
+     "oldStart": 298,
+     "oldLines": 0,
+     "newStart": 314,
+     "newLines": 1
+    },
+    {
+     "oldStart": 299,
+     "oldLines": 0,
+     "newStart": 316,
+     "newLines": 1
+    },
+    {
+     "oldStart": 302,
+     "oldLines": 0,
+     "newStart": 320,
+     "newLines": 1
+    },
+    {
+     "oldStart": 303,
+     "oldLines": 0,
+     "newStart": 322,
+     "newLines": 1
+    },
+    {
+     "oldStart": 305,
+     "oldLines": 0,
+     "newStart": 325,
+     "newLines": 1
+    },
+    {
+     "oldStart": 306,
+     "oldLines": 0,
+     "newStart": 327,
+     "newLines": 1
+    },
+    {
+     "oldStart": 322,
+     "oldLines": 0,
+     "newStart": 344,
+     "newLines": 1
+    },
+    {
+     "oldStart": 324,
+     "oldLines": 0,
+     "newStart": 347,
+     "newLines": 1
+    },
+    {
+     "oldStart": 325,
+     "oldLines": 0,
+     "newStart": 349,
+     "newLines": 1
+    },
+    {
+     "oldStart": 326,
+     "oldLines": 0,
+     "newStart": 351,
+     "newLines": 1
+    },
+    {
+     "oldStart": 330,
+     "oldLines": 0,
+     "newStart": 356,
+     "newLines": 1
+    },
+    {
+     "oldStart": 344,
+     "oldLines": 0,
+     "newStart": 371,
+     "newLines": 1
+    },
+    {
+     "oldStart": 363,
+     "oldLines": 1,
+     "newStart": 390,
+     "newLines": 3
+    },
+    {
+     "oldStart": 365,
+     "oldLines": 1,
+     "newStart": 394,
+     "newLines": 4
+    },
+    {
+     "oldStart": 395,
+     "oldLines": 19,
+     "newStart": 427,
+     "newLines": 51
+    },
+    {
+     "oldStart": 414,
+     "oldLines": 0,
+     "newStart": 479,
+     "newLines": 69
+    },
+    {
+     "oldStart": 416,
+     "oldLines": 1,
+     "newStart": 549,
+     "newLines": 7
+    },
+    {
+     "oldStart": 419,
+     "oldLines": 1,
+     "newStart": 558,
+     "newLines": 7
+    },
+    {
+     "oldStart": 427,
+     "oldLines": 23,
+     "newStart": 572,
+     "newLines": 20
+    },
+    {
+     "oldStart": 464,
+     "oldLines": 8,
+     "newStart": 606,
+     "newLines": 9
+    },
+    {
+     "oldStart": 480,
+     "oldLines": 3,
+     "newStart": 623,
+     "newLines": 4
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": null
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/src/RunStore.ts",
+   "mode": "100644",
+   "blob": "850a67f8d91b01979e84ad259591bfbe8350a7ed",
+   "previousBlob": "648c6f7b82f53b0781bbb0579dd012e1950295f7",
+   "added": 93,
+   "deleted": 77,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 472,
+     "oldLines": 0,
+     "newStart": 473,
+     "newLines": 13
+    },
+    {
+     "oldStart": 474,
+     "oldLines": 1,
+     "newStart": 487,
+     "newLines": 1
+    },
+    {
+     "oldStart": 618,
+     "oldLines": 1,
+     "newStart": 631,
+     "newLines": 5
+    },
+    {
+     "oldStart": 623,
+     "oldLines": 3,
+     "newStart": 640,
+     "newLines": 4
+    },
+    {
+     "oldStart": 627,
+     "oldLines": 0,
+     "newStart": 646,
+     "newLines": 1
+    },
+    {
+     "oldStart": 636,
+     "oldLines": 4,
+     "newStart": 655,
+     "newLines": 6
+    },
+    {
+     "oldStart": 641,
+     "oldLines": 1,
+     "newStart": 662,
+     "newLines": 1
+    },
+    {
+     "oldStart": 645,
+     "oldLines": 23,
+     "newStart": 666,
+     "newLines": 1
+    },
+    {
+     "oldStart": 693,
+     "oldLines": 13,
+     "newStart": 692,
+     "newLines": 9
+    },
+    {
+     "oldStart": 706,
+     "oldLines": 0,
+     "newStart": 702,
+     "newLines": 10
+    },
+    {
+     "oldStart": 713,
+     "oldLines": 14,
+     "newStart": 718,
+     "newLines": 10
+    },
+    {
+     "oldStart": 758,
+     "oldLines": 1,
+     "newStart": 759,
+     "newLines": 1
+    },
+    {
+     "oldStart": 840,
+     "oldLines": 1,
+     "newStart": 841,
+     "newLines": 1
+    },
+    {
+     "oldStart": 899,
+     "oldLines": 1,
+     "newStart": 900,
+     "newLines": 1
+    },
+    {
+     "oldStart": 969,
+     "oldLines": 1,
+     "newStart": 970,
+     "newLines": 1
+    },
+    {
+     "oldStart": 1045,
+     "oldLines": 1,
+     "newStart": 1046,
+     "newLines": 1
+    },
+    {
+     "oldStart": 1121,
+     "oldLines": 1,
+     "newStart": 1122,
+     "newLines": 1
+    },
+    {
+     "oldStart": 1161,
+     "oldLines": 1,
+     "newStart": 1162,
+     "newLines": 1
+    },
+    {
+     "oldStart": 1267,
+     "oldLines": 1,
+     "newStart": 1268,
+     "newLines": 1
+    },
+    {
+     "oldStart": 1360,
+     "oldLines": 1,
+     "newStart": 1361,
+     "newLines": 1
+    },
+    {
+     "oldStart": 1450,
+     "oldLines": 2,
+     "newStart": 1451,
+     "newLines": 7
+    },
+    {
+     "oldStart": 1457,
+     "oldLines": 3,
+     "newStart": 1463,
+     "newLines": 4
+    },
+    {
+     "oldStart": 1464,
+     "oldLines": 1,
+     "newStart": 1471,
+     "newLines": 5
+    },
+    {
+     "oldStart": 1473,
+     "oldLines": 1,
+     "newStart": 1484,
+     "newLines": 3
+    },
+    {
+     "oldStart": 1478,
+     "oldLines": 1,
+     "newStart": 1491,
+     "newLines": 4
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/src/migrations/0003_fold_snapshots.ts",
+   "mode": "100644",
+   "blob": "f88604618097c8a3320e339ebe978a3d32f3cbbe",
+   "previousBlob": "9fabbcb3189e91f682dd633cda1ee62dbd89ef32",
+   "added": 2,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 47,
+     "oldLines": 0,
+     "newStart": 48,
+     "newLines": 1
+    },
+    {
+     "oldStart": 65,
+     "oldLines": 0,
+     "newStart": 67,
+     "newLines": 1
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": null
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/src/test/TestRunStore.ts",
+   "mode": "100644",
+   "blob": "c9173289b7da0dc1d7dae61594b44ae730eb53a2",
+   "previousBlob": "e356f4c519a9eea2a12742d362f89298487f2874",
+   "added": 2,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 10,
+     "oldLines": 0,
+     "newStart": 11,
+     "newLines": 1
+    },
+    {
+     "oldStart": 23,
+     "oldLines": 0,
+     "newStart": 25,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/test/AttemptStore.test.ts",
+   "mode": "100644",
+   "blob": "f401c3a20129e554922677c5a8ff9310f0ff1307",
+   "previousBlob": "4fb0ecc598118d06d2efd04842379ab3fa5d91e5",
+   "added": 18,
+   "deleted": 3,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 2,
+     "oldLines": 0,
+     "newStart": 3,
+     "newLines": 1
+    },
+    {
+     "oldStart": 3,
+     "oldLines": 0,
+     "newStart": 5,
+     "newLines": 3
+    },
+    {
+     "oldStart": 12,
+     "oldLines": 0,
+     "newStart": 17,
+     "newLines": 7
+    },
+    {
+     "oldStart": 20,
+     "oldLines": 3,
+     "newStart": 31,
+     "newLines": 1
+    },
+    {
+     "oldStart": 51,
+     "oldLines": 0,
+     "newStart": 61,
+     "newLines": 5
+    },
+    {
+     "oldStart": 655,
+     "oldLines": 0,
+     "newStart": 670,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/test/AttemptStoreInterleavings.test.ts",
+   "mode": "100644",
+   "blob": "0266875e74a2edbcb37f742f6825b1bad2accdc9",
+   "previousBlob": "b1200d6b9fed7e82f9a65faf970d39ae08879bfd",
+   "added": 2,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 4,
+     "oldLines": 0,
+     "newStart": 5,
+     "newLines": 1
+    },
+    {
+     "oldStart": 17,
+     "oldLines": 0,
+     "newStart": 19,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/test/AttemptStoreOptions.test.ts",
+   "mode": "100644",
+   "blob": "ee9cdee4261c3ae1a3e0350cca8c020fa552ef13",
+   "previousBlob": "96819b8f402a7735c13f4d81407d424cc4cca87a",
+   "added": 4,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 5,
+     "oldLines": 0,
+     "newStart": 6,
+     "newLines": 1
+    },
+    {
+     "oldStart": 16,
+     "oldLines": 0,
+     "newStart": 18,
+     "newLines": 2
+    },
+    {
+     "oldStart": 19,
+     "oldLines": 1,
+     "newStart": 22,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/test/Fold.test.ts",
+   "mode": "100644",
+   "blob": "1d5e7a65debb73b590f32ed93fa1b3ca021a0b66",
+   "previousBlob": "742858ab490e82d195706813653df489757e45a6",
+   "added": 334,
+   "deleted": 110,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 7,
+     "oldLines": 1,
+     "newStart": 7,
+     "newLines": 1
+    },
+    {
+     "oldStart": 28,
+     "oldLines": 1,
+     "newStart": 27,
+     "newLines": 0
+    },
+    {
+     "oldStart": 32,
+     "oldLines": 1,
+     "newStart": 31,
+     "newLines": 3
+    },
+    {
+     "oldStart": 216,
+     "oldLines": 3,
+     "newStart": 217,
+     "newLines": 4
+    },
+    {
+     "oldStart": 230,
+     "oldLines": 0,
+     "newStart": 233,
+     "newLines": 159
+    },
+    {
+     "oldStart": 237,
+     "oldLines": 3,
+     "newStart": 398,
+     "newLines": 5
+    },
+    {
+     "oldStart": 241,
+     "oldLines": 14,
+     "newStart": 404,
+     "newLines": 14
+    },
+    {
+     "oldStart": 256,
+     "oldLines": 16,
+     "newStart": 419,
+     "newLines": 16
+    },
+    {
+     "oldStart": 273,
+     "oldLines": 22,
+     "newStart": 436,
+     "newLines": 26
+    },
+    {
+     "oldStart": 296,
+     "oldLines": 7,
+     "newStart": 463,
+     "newLines": 9
+    },
+    {
+     "oldStart": 304,
+     "oldLines": 8,
+     "newStart": 473,
+     "newLines": 12
+    },
+    {
+     "oldStart": 313,
+     "oldLines": 5,
+     "newStart": 486,
+     "newLines": 6
+    },
+    {
+     "oldStart": 319,
+     "oldLines": 7,
+     "newStart": 493,
+     "newLines": 33
+    },
+    {
+     "oldStart": 327,
+     "oldLines": 1,
+     "newStart": 527,
+     "newLines": 1
+    },
+    {
+     "oldStart": 329,
+     "oldLines": 13,
+     "newStart": 529,
+     "newLines": 6
+    },
+    {
+     "oldStart": 343,
+     "oldLines": 8,
+     "newStart": 536,
+     "newLines": 39
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": null
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/test/MigrationsDurableUpgrade.test.ts",
+   "mode": "100644",
+   "blob": "a4ff443174567d3961b11df2ab02be31d5a85854",
+   "previousBlob": "9aaf47752fa38bd88a060db8417cd7ad9b77f2c9",
+   "added": 30,
+   "deleted": 5,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 4,
+     "oldLines": 0,
+     "newStart": 5,
+     "newLines": 1
+    },
+    {
+     "oldStart": 5,
+     "oldLines": 0,
+     "newStart": 7,
+     "newLines": 1
+    },
+    {
+     "oldStart": 24,
+     "oldLines": 0,
+     "newStart": 27,
+     "newLines": 11
+    },
+    {
+     "oldStart": 99,
+     "oldLines": 1,
+     "newStart": 112,
+     "newLines": 6
+    },
+    {
+     "oldStart": 102,
+     "oldLines": 1,
+     "newStart": 119,
+     "newLines": 0
+    },
+    {
+     "oldStart": 157,
+     "oldLines": 1,
+     "newStart": 174,
+     "newLines": 7
+    },
+    {
+     "oldStart": 227,
+     "oldLines": 1,
+     "newStart": 250,
+     "newLines": 1
+    },
+    {
+     "oldStart": 250,
+     "oldLines": 1,
+     "newStart": 273,
+     "newLines": 3
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/test/OwnershipConsensus.test.ts",
+   "mode": "100644",
+   "blob": "7527977bdda1a4c6d3c4ea8a980fd7dc07193978",
+   "previousBlob": "dd81a5d96e51f4c7674aecb24c65a46466061c20",
+   "added": 3,
+   "deleted": 4,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 55,
+     "oldLines": 2,
+     "newStart": 54,
+     "newLines": 0
+    },
+    {
+     "oldStart": 61,
+     "oldLines": 2,
+     "newStart": 59,
+     "newLines": 3
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/test/Redaction.test.ts",
+   "mode": "100644",
+   "blob": "e142b2b2248137549f299503450c143655704d84",
+   "previousBlob": "d264f4e23d00e4886037431fa1d80eebec2ef7fd",
+   "added": 15,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 11,
+     "oldLines": 0,
+     "newStart": 12,
+     "newLines": 1
+    },
+    {
+     "oldStart": 34,
+     "oldLines": 1,
+     "newStart": 35,
+     "newLines": 4
+    },
+    {
+     "oldStart": 94,
+     "oldLines": 0,
+     "newStart": 99,
+     "newLines": 5
+    },
+    {
+     "oldStart": 134,
+     "oldLines": 0,
+     "newStart": 144,
+     "newLines": 5
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/test/RunMetadata.test.ts",
+   "mode": "100644",
+   "blob": "dcf85172709b2fb90745d729355fcce2d3d2ed9d",
+   "previousBlob": "637ec28d861210c10278856b1afbdfdaa3974d5a",
+   "added": 48,
+   "deleted": 40,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 5,
+     "oldLines": 0,
+     "newStart": 6,
+     "newLines": 1
+    },
+    {
+     "oldStart": 13,
+     "oldLines": 0,
+     "newStart": 15,
+     "newLines": 1
+    },
+    {
+     "oldStart": 19,
+     "oldLines": 1,
+     "newStart": 21,
+     "newLines": 1
+    },
+    {
+     "oldStart": 239,
+     "oldLines": 2,
+     "newStart": 241,
+     "newLines": 6
+    },
+    {
+     "oldStart": 242,
+     "oldLines": 4,
+     "newStart": 248,
+     "newLines": 1
+    },
+    {
+     "oldStart": 246,
+     "oldLines": 0,
+     "newStart": 250,
+     "newLines": 1
+    },
+    {
+     "oldStart": 277,
+     "oldLines": 26,
+     "newStart": 281,
+     "newLines": 31
+    },
+    {
+     "oldStart": 304,
+     "oldLines": 7,
+     "newStart": 313,
+     "newLines": 6
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/test/RunStore.test.ts",
+   "mode": "100644",
+   "blob": "b1098a93a8919292d7edcf2be9bfddf485b29602",
+   "previousBlob": "098366994c0dfe110a25ebe6d9ac7ee300c02534",
+   "added": 11,
+   "deleted": 4,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 5,
+     "oldLines": 0,
+     "newStart": 6,
+     "newLines": 1
+    },
+    {
+     "oldStart": 22,
+     "oldLines": 0,
+     "newStart": 24,
+     "newLines": 5
+    },
+    {
+     "oldStart": 29,
+     "oldLines": 3,
+     "newStart": 35,
+     "newLines": 1
+    },
+    {
+     "oldStart": 163,
+     "oldLines": 0,
+     "newStart": 168,
+     "newLines": 1
+    },
+    {
+     "oldStart": 179,
+     "oldLines": 1,
+     "newStart": 184,
+     "newLines": 2
+    },
+    {
+     "oldStart": 196,
+     "oldLines": 0,
+     "newStart": 203,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/test/RunStoreLeaseOrdering.test.ts",
+   "mode": "100644",
+   "blob": "480fa9ffe5afa93c76061415086697ca816ff68e",
+   "previousBlob": "046ba5467297aff8c8e4b5b143a6d736b9d004a7",
+   "added": 7,
+   "deleted": 3,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 5,
+     "oldLines": 0,
+     "newStart": 6,
+     "newLines": 1
+    },
+    {
+     "oldStart": 13,
+     "oldLines": 0,
+     "newStart": 15,
+     "newLines": 5
+    },
+    {
+     "oldStart": 21,
+     "oldLines": 3,
+     "newStart": 27,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/test/RunStoreMetrics.test.ts",
+   "mode": "100644",
+   "blob": "d0a0928c33d3e5b98bf9c025ee24d4d9163e9825",
+   "previousBlob": "9bb1f3634fdf0a8fc787c1b5a4d93d3c35eabdf3",
+   "added": 7,
+   "deleted": 3,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 9,
+     "oldLines": 0,
+     "newStart": 10,
+     "newLines": 1
+    },
+    {
+     "oldStart": 19,
+     "oldLines": 0,
+     "newStart": 21,
+     "newLines": 5
+    },
+    {
+     "oldStart": 23,
+     "oldLines": 3,
+     "newStart": 29,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/test/SpanAnnotations.test.ts",
+   "mode": "100644",
+   "blob": "2a54d559b58e58bf615eb111986abebc01c65cab",
+   "previousBlob": "5e762454b30f35251f16495747afbb5472c167d2",
+   "added": 13,
+   "deleted": 6,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 9,
+     "oldLines": 0,
+     "newStart": 10,
+     "newLines": 1
+    },
+    {
+     "oldStart": 18,
+     "oldLines": 0,
+     "newStart": 20,
+     "newLines": 5
+    },
+    {
+     "oldStart": 23,
+     "oldLines": 3,
+     "newStart": 29,
+     "newLines": 1
+    },
+    {
+     "oldStart": 115,
+     "oldLines": 3,
+     "newStart": 119,
+     "newLines": 6
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/test/StorePayloadAndTimelineLimits.test.ts",
+   "mode": "100644",
+   "blob": "d5c643ebc51e78dc38e9a5d8e81c8969722decea",
+   "previousBlob": "613887e2dbb357aae31693871d2e883d4e19c2eb",
+   "added": 2,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 4,
+     "oldLines": 0,
+     "newStart": 5,
+     "newLines": 1
+    },
+    {
+     "oldStart": 14,
+     "oldLines": 0,
+     "newStart": 16,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/test/fixtures/run-store-file-fence-child.ts",
+   "mode": "100644",
+   "blob": "0b5fbbbf9a0ffd9a70dea80472e2eb260cd931a6",
+   "previousBlob": "825cd7ca755f800ca4981b0ed0318c4bff65b402",
+   "added": 5,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 4,
+     "oldLines": 0,
+     "newStart": 5,
+     "newLines": 1
+    },
+    {
+     "oldStart": 29,
+     "oldLines": 1,
+     "newStart": 30,
+     "newLines": 4
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/sync/test/SyncProcessRecovery.integration.test.ts",
+   "mode": "100644",
+   "blob": "1be55d72a840e564f856a8affb892cd2d86d2b31",
+   "previousBlob": "9abf7610689c26b05c78e60665b274786bcf3f32",
+   "added": 20,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 15,
+     "oldLines": 0,
+     "newStart": 16,
+     "newLines": 1
+    },
+    {
+     "oldStart": 122,
+     "oldLines": 0,
+     "newStart": 124,
+     "newLines": 18
+    },
+    {
+     "oldStart": 127,
+     "oldLines": 0,
+     "newStart": 147,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/time-travel/src/MemoryTimeTravelStore.ts",
+   "mode": "100644",
+   "blob": "47a40946fee297be89deacdde879fcb047b546cb",
+   "previousBlob": "83a48a721edfb2a069fcd2c1271d2e38a1a7e5c6",
+   "added": 19,
+   "deleted": 4,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 45,
+     "oldLines": 0,
+     "newStart": 46,
+     "newLines": 9
+    },
+    {
+     "oldStart": 302,
+     "oldLines": 2,
+     "newStart": 311,
+     "newLines": 5
+    },
+    {
+     "oldStart": 310,
+     "oldLines": 2,
+     "newStart": 322,
+     "newLines": 5
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/time-travel/src/SqlTimeTravelStore.ts",
+   "mode": "100644",
+   "blob": "74566809409bb755f07e35a27f00a88503c6946f",
+   "previousBlob": "1911ad1d6f1e40daf2da5f5229e877d1fd503803",
+   "added": 28,
+   "deleted": 3,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 503,
+     "oldLines": 0,
+     "newStart": 504,
+     "newLines": 3
+    },
+    {
+     "oldStart": 511,
+     "oldLines": 0,
+     "newStart": 515,
+     "newLines": 3
+    },
+    {
+     "oldStart": 515,
+     "oldLines": 0,
+     "newStart": 522,
+     "newLines": 3
+    },
+    {
+     "oldStart": 520,
+     "oldLines": 0,
+     "newStart": 530,
+     "newLines": 3
+    },
+    {
+     "oldStart": 526,
+     "oldLines": 2,
+     "newStart": 538,
+     "newLines": 13
+    },
+    {
+     "oldStart": 529,
+     "oldLines": 1,
+     "newStart": 551,
+     "newLines": 0
+    },
+    {
+     "oldStart": 635,
+     "oldLines": 0,
+     "newStart": 658,
+     "newLines": 3
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/time-travel/src/internal/Recovery.ts",
+   "mode": "100644",
+   "blob": "a65321f87399b68315b4e7b9d413b99088caf1d4",
+   "previousBlob": "8beb7e5f49f5838fa507e47f38fefe8365b00d9c",
+   "added": 21,
+   "deleted": 18,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 21,
+     "oldLines": 1,
+     "newStart": 21,
+     "newLines": 1
+    },
+    {
+     "oldStart": 153,
+     "oldLines": 17,
+     "newStart": 153,
+     "newLines": 20
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/time-travel/src/internal/Rewind.ts",
+   "mode": "100644",
+   "blob": "e6bd5b28bdb4c972cd8031a46bb85b9593316eaf",
+   "previousBlob": "0d76bf167d9b918c6d34452c74049afd049dab5f",
+   "added": 17,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 267,
+     "oldLines": 0,
+     "newStart": 268,
+     "newLines": 1
+    },
+    {
+     "oldStart": 329,
+     "oldLines": 1,
+     "newStart": 330,
+     "newLines": 1
+    },
+    {
+     "oldStart": 358,
+     "oldLines": 0,
+     "newStart": 360,
+     "newLines": 15
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/time-travel/test/EngineIntegration.test.ts",
+   "mode": "100644",
+   "blob": "555606665538a3fa7784593e1ccc11c75bba812e",
+   "previousBlob": "f21c7c3bf3da9a1d69738c8ef712693d83631e9a",
+   "added": 19,
+   "deleted": 11,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 132,
+     "oldLines": 1,
+     "newStart": 131,
+     "newLines": 0
+    },
+    {
+     "oldStart": 134,
+     "oldLines": 1,
+     "newStart": 132,
+     "newLines": 0
+    },
+    {
+     "oldStart": 137,
+     "oldLines": 1,
+     "newStart": 135,
+     "newLines": 1
+    },
+    {
+     "oldStart": 139,
+     "oldLines": 1,
+     "newStart": 137,
+     "newLines": 4
+    },
+    {
+     "oldStart": 194,
+     "oldLines": 0,
+     "newStart": 196,
+     "newLines": 7
+    },
+    {
+     "oldStart": 342,
+     "oldLines": 1,
+     "newStart": 350,
+     "newLines": 1
+    },
+    {
+     "oldStart": 348,
+     "oldLines": 4,
+     "newStart": 356,
+     "newLines": 3
+    },
+    {
+     "oldStart": 353,
+     "oldLines": 2,
+     "newStart": 360,
+     "newLines": 2
+    },
+    {
+     "oldStart": 355,
+     "oldLines": 0,
+     "newStart": 363,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/time-travel/test/ForkBoundary.test.ts",
+   "mode": "100644",
+   "blob": "754969235c5dfbb232a218abaf7f696dc918d039",
+   "previousBlob": "1f827dae55bcd8d4ac13de0ae452b5b74da4dac8",
+   "added": 5,
+   "deleted": 4,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 371,
+     "oldLines": 1,
+     "newStart": 370,
+     "newLines": 0
+    },
+    {
+     "oldStart": 374,
+     "oldLines": 2,
+     "newStart": 373,
+     "newLines": 1
+    },
+    {
+     "oldStart": 377,
+     "oldLines": 1,
+     "newStart": 375,
+     "newLines": 4
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/time-travel/test/ForkLineage.test.ts",
+   "mode": "100644",
+   "blob": "334fa48dc0b0fb7937c347b02b015126800c868e",
+   "previousBlob": "bf46d17e62b9c2b1acb8e22353b2bc71ebd56d71",
+   "added": 19,
+   "deleted": 6,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 58,
+     "oldLines": 1,
+     "newStart": 58,
+     "newLines": 7
+    },
+    {
+     "oldStart": 74,
+     "oldLines": 1,
+     "newStart": 80,
+     "newLines": 7
+    },
+    {
+     "oldStart": 121,
+     "oldLines": 1,
+     "newStart": 132,
+     "newLines": 0
+    },
+    {
+     "oldStart": 123,
+     "oldLines": 1,
+     "newStart": 133,
+     "newLines": 0
+    },
+    {
+     "oldStart": 125,
+     "oldLines": 1,
+     "newStart": 135,
+     "newLines": 1
+    },
+    {
+     "oldStart": 131,
+     "oldLines": 1,
+     "newStart": 141,
+     "newLines": 4
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/time-travel/test/FrameValidation.test.ts",
+   "mode": "100644",
+   "blob": "85804dafd359d9cbbbfa2227918be6c796692879",
+   "previousBlob": "25e2c3a48e90e9500ee1b87f1aa348f1a76b5808",
+   "added": 2,
+   "deleted": 3,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 313,
+     "oldLines": 1,
+     "newStart": 312,
+     "newLines": 0
+    },
+    {
+     "oldStart": 315,
+     "oldLines": 1,
+     "newStart": 313,
+     "newLines": 0
+    },
+    {
+     "oldStart": 317,
+     "oldLines": 1,
+     "newStart": 315,
+     "newLines": 1
+    },
+    {
+     "oldStart": 320,
+     "oldLines": 0,
+     "newStart": 319,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/time-travel/test/RealTimeTravelHarness.ts",
+   "mode": "100644",
+   "blob": "87792ee1336cdfb1c226f3e0dd4c920f75893e88",
+   "previousBlob": "4e64d604b8ea357f04fb7df3e2a10090a47858c6",
+   "added": 10,
+   "deleted": 8,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 68,
+     "oldLines": 1,
+     "newStart": 67,
+     "newLines": 0
+    },
+    {
+     "oldStart": 70,
+     "oldLines": 1,
+     "newStart": 68,
+     "newLines": 0
+    },
+    {
+     "oldStart": 72,
+     "oldLines": 1,
+     "newStart": 70,
+     "newLines": 1
+    },
+    {
+     "oldStart": 75,
+     "oldLines": 1,
+     "newStart": 73,
+     "newLines": 4
+    },
+    {
+     "oldStart": 99,
+     "oldLines": 1,
+     "newStart": 99,
+     "newLines": 0
+    },
+    {
+     "oldStart": 101,
+     "oldLines": 1,
+     "newStart": 100,
+     "newLines": 0
+    },
+    {
+     "oldStart": 104,
+     "oldLines": 1,
+     "newStart": 103,
+     "newLines": 1
+    },
+    {
+     "oldStart": 107,
+     "oldLines": 1,
+     "newStart": 106,
+     "newLines": 4
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/time-travel/test/Recovery.test.ts",
+   "mode": "100644",
+   "blob": "d1dfd390fc8f5f2f77d757bcd5cb683b0e73bf43",
+   "previousBlob": "71337ca95757698c12fe0f89d77bf9b720a0d3e0",
+   "added": 44,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 169,
+     "oldLines": 0,
+     "newStart": 170,
+     "newLines": 44
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/time-travel/test/RecoveryCorruption.test.ts",
+   "mode": "100644",
+   "blob": "dc11dffad99f783bd533f1fe4e2358686558493d",
+   "previousBlob": "197fc0c533e76ec9e8a6aa82af6bd6c30e680b0b",
+   "added": 1,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 20,
+     "oldLines": 1,
+     "newStart": 19,
+     "newLines": 0
+    },
+    {
+     "oldStart": 23,
+     "oldLines": 0,
+     "newStart": 23,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/time-travel/test/RewindCrashRecovery.e2e.test.ts",
+   "mode": "100644",
+   "blob": "1223cd64f372950d46f4c01a367382ca5beebc80",
+   "previousBlob": "eee4e0e7126ae126bc187b4ee82ea9d9f1ec1500",
+   "added": 6,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 87,
+     "oldLines": 1,
+     "newStart": 87,
+     "newLines": 6
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/time-travel/test/RewindInFlight.e2e.test.ts",
+   "mode": "100644",
+   "blob": "4424a0501717b12c77a136bf8db5403edac2246b",
+   "previousBlob": "fe49a1af3489242cc845b732464d2c078be272f7",
+   "added": 7,
+   "deleted": 2,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 228,
+     "oldLines": 1,
+     "newStart": 228,
+     "newLines": 6
+    },
+    {
+     "oldStart": 239,
+     "oldLines": 1,
+     "newStart": 244,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/time-travel/test/SqlForkExecution.test.ts",
+   "mode": "100644",
+   "blob": "49ae128ce17d12adff2e876c81f7d771053460ae",
+   "previousBlob": "8119b8ed8494d3a4dcf03c5c6049630121e9efdc",
+   "added": 8,
+   "deleted": 10,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 51,
+     "oldLines": 10,
+     "newStart": 51,
+     "newLines": 8
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/time-travel/test/TimeTravelRewind.e2e.test.ts",
+   "mode": "100644",
+   "blob": "9b4dfdbe505a693e364accadd735fe98698a6c58",
+   "previousBlob": "458602ecf640caf80db759b55349dbb32f6baa3e",
+   "added": 21,
+   "deleted": 7,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 24,
+     "oldLines": 1,
+     "newStart": 24,
+     "newLines": 12
+    },
+    {
+     "oldStart": 53,
+     "oldLines": 1,
+     "newStart": 64,
+     "newLines": 2
+    },
+    {
+     "oldStart": 66,
+     "oldLines": 1,
+     "newStart": 78,
+     "newLines": 1
+    },
+    {
+     "oldStart": 71,
+     "oldLines": 1,
+     "newStart": 83,
+     "newLines": 1
+    },
+    {
+     "oldStart": 87,
+     "oldLines": 0,
+     "newStart": 100,
+     "newLines": 3
+    },
+    {
+     "oldStart": 117,
+     "oldLines": 2,
+     "newStart": 132,
+     "newLines": 1
+    },
+    {
+     "oldStart": 120,
+     "oldLines": 1,
+     "newStart": 134,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/time-travel/test/Truncation.test.ts",
+   "mode": "100644",
+   "blob": "ccc40ce261c120c5f3b6eeedcbdf65ebe86952ac",
+   "previousBlob": "c3c88479111882ae8c12b179f1c7ef8431403a76",
+   "added": 52,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 98,
+     "oldLines": 0,
+     "newStart": 99,
+     "newLines": 52
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  }
+ ]
+}
