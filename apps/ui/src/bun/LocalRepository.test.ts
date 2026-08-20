@@ -44,7 +44,7 @@ beforeAll(() => {
 const git = async (cwd: string, args: ReadonlyArray<string>): Promise<void> => {
 	const child = Bun.spawn(["git", "-C", cwd, ...args], {
 		env: {
-			...Bun.env,
+			...(Bun.env as Record<string, string | undefined>),
 			GIT_TERMINAL_PROMPT: "0",
 			GIT_CONFIG_GLOBAL: "/dev/null",
 			GIT_CONFIG_SYSTEM: "/dev/null",

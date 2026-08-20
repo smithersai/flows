@@ -18,7 +18,7 @@ import {
 import { useState } from "react";
 import type { KeyboardEvent } from "react";
 import { ConfirmDialog, SurfaceHeader } from "./SurfaceChrome";
-import type { AppController } from "./state/AppController";
+import { useController } from "./ControllerContext";
 
 const shortHead = (head: string | null): string => head?.slice(0, 8) ?? "No commits yet";
 
@@ -29,7 +29,8 @@ const shortHead = (head: string | null): string => head?.slice(0, 8) ?? "No comm
  * Keyboard-complete: arrows move between rows, Enter is the row's action.
  * Sign-in IS the GitHub connector (§2a′): a valid session reads Connected.
  */
-export function ConnectorsSurface({ controller }: { readonly controller: AppController }) {
+export function ConnectorsSurface() {
+	const controller = useController();
 	const { collections } = controller.store;
 	const { data: connectorRows } = useLiveQuery(collections.connectors);
 	const { data: operationRows } = useLiveQuery(collections.connectorOperations);

@@ -40,7 +40,7 @@ import { ConnectorsSurface } from "./ConnectorsSurface";
 import { DevtoolsPanel } from "./DevtoolsPanel";
 import { ConfirmDialog, SurfaceHeader } from "./SurfaceChrome";
 import { ToastStack } from "./ToastStack";
-import type { AppController } from "./state/AppController";
+import { useController } from "./ControllerContext";
 import { scrubToolEcho } from "./state/MessageScrub";
 import { timeLabel } from "./Timestamps";
 import { tabOutOf } from "./FocusRing";
@@ -103,12 +103,10 @@ function CopyMessageButton({
  * registry, so the affordance and the command are the same act.
  */
 function ComposerMenu({
-	controller,
 	surface,
 	open,
 	triggerRef,
 }: {
-	readonly controller: AppController;
 	readonly surface: "chat" | "world" | "connectors";
 	readonly open: boolean;
 	/*
@@ -119,6 +117,7 @@ function ComposerMenu({
 	 */
 	readonly triggerRef: RefObject<HTMLButtonElement | null>;
 }) {
+	const controller = useController();
 	const [highlighted, setHighlighted] = useState(0);
 	const menuRef = useRef<HTMLDivElement>(null);
 	/* The entries are a fixed list, so index-assigned refs stay aligned with the DOM. */
@@ -266,16 +265,15 @@ function ComposerMenu({
  * through /connect.
  */
 function ComposerConnect({
-	controller,
 	open,
 	triggerRef,
 }: {
-	readonly controller: AppController;
 	/* C-1 mirror: the open state is the session's, not this component's. */
 	readonly open: boolean;
 	/* The shell closes this session menu too, so it owns the focus handle. */
 	readonly triggerRef: RefObject<HTMLButtonElement | null>;
 }) {
+	const controller = useController();
 	const { collections } = controller.store;
 	const { data: connectorRows } = useLiveQuery(collections.connectors);
 	const { data: operationRows } = useLiveQuery(collections.connectorOperations);
@@ -508,7 +506,6 @@ function ComposerConnect({
  * part of the same hot path (it is a function of the draft) and moved with it.
  */
 function Composer({
-	controller,
 	typing,
 	surface,
 	surfacesMenuOpen,
@@ -518,7 +515,6 @@ function Composer({
 	autoFocus,
 	placeholder,
 }: {
-	readonly controller: AppController;
 	readonly typing: boolean;
 	readonly surface: "chat" | "world" | "connectors";
 	readonly surfacesMenuOpen: boolean;
@@ -528,6 +524,7 @@ function Composer({
 	readonly autoFocus: boolean;
 	readonly placeholder: string;
 }) {
+	const controller = useController();
 	const { collections } = controller.store;
 	const { data: draftRows } = useLiveQuery((q) =>
 		q
@@ -650,12 +647,10 @@ function Composer({
 					actions={
 						<div className="composer-actions">
 							<ComposerConnect
-								controller={controller}
 								open={connectMenuOpen}
 								triggerRef={connectTriggerRef}
 							/>
 							<ComposerMenu
-								controller={controller}
 								surface={surface}
 								open={surfacesMenuOpen}
 								triggerRef={surfacesTriggerRef}
@@ -668,7 +663,8 @@ function Composer({
 	);
 }
 
-function App({ controller }: { readonly controller: AppController }) {
+function App() {
+	const controller = useController();
 	const { collections } = controller.store;
 	/*
 	 * The transcript's order is the QUERY's order (§hot path): sorting a copy of
@@ -1109,7 +1105,6 @@ function App({ controller }: { readonly controller: AppController }) {
 							))}
 						</SuggestionGroup>
 						<Composer
-							controller={controller}
 							typing={typing}
 							surface={session.surface}
 							surfacesMenuOpen={session.surfacesMenuOpen}
@@ -1297,11 +1292,11 @@ function App({ controller }: { readonly controller: AppController }) {
 						/>
 					</section>
 				) : session.surface === "connectors" ? (
-					<ConnectorsSurface controller={controller} />
+					<ConnectorsSurface />
 				) : null}
 
 				{/* Admin-only: the panel is absent — not hidden — for everyone else. */}
-				{isAdmin && session.devtoolsOpen ? <DevtoolsPanel controller={controller} /> : null}
+				{isAdmin && session.devtoolsOpen ? <DevtoolsPanel /> : null}
 			</div>
 
 			{/*

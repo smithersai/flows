@@ -44,6 +44,8 @@ import type { ClientErrorNamespace } from "./clientErrorLog";
 import { spendTurn, TurnRateLimiter, turnLimitResponse } from "./turnLimit";
 import type { TurnLimitNamespace } from "./turnLimit";
 
+declare const __SMITHERS_START__: boolean | undefined;
+
 /* The per-user gateway session registry (Wave 11) — wrangler binds this DO. */
 export { GatewaySessionRegistry };
 /* The per-login turn ceiling and the client-error log — wrangler binds both. */
@@ -2543,6 +2545,26 @@ export default {
 		// Any other /api/* path is an unknown route: the same canonical 404 the
 		// admin surface answers non-admins with, so nothing is enumerable.
 		if (url.pathname.startsWith("/api/")) return notFound();
+		/*
+		 * Vite replaces this guarded import in the Cloudflare Start build. Bun's
+		 * unit tests and a plain Wrangler invocation retain the asset fallback,
+		 * so the API Worker remains importable without Start's virtual manifest.
+		 */
+		if (typeof __SMITHERS_START__ !== "undefined" && __SMITHERS_START__) {
+			const { default: start } = await import("@tanstack/react-start/server-entry");
+			// Start server functions run in a separate RPC context, so resolve the
+			// trusted session once at the Worker boundary and overwrite any client
+			// attempt to supply the internal handoff header.
+			const sessionRequest = new Request(new URL(AUTH_SESSION_PATH, request.url), request);
+			const sessionResponse = await probeAuthSession(sessionRequest, env);
+			const sessionEnvelope = encodeURIComponent(
+				JSON.stringify({ status: sessionResponse.status, body: await sessionResponse.text() }),
+			);
+			const startHeaders = new Headers(request.headers);
+			startHeaders.set("x-smithers-start-session", sessionEnvelope);
+			const response = await start.fetch(new Request(request, { headers: startHeaders }));
+			return withIsolationHeaders(response);
+		}
 		return withIsolationHeaders(await env.ASSETS.fetch(request));
 	},
 };

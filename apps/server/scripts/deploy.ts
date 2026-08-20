@@ -1,7 +1,7 @@
 /**
- * Scripted deploy: `vite build` for the SPA (apps/ui), then `wrangler deploy`
- * for the Worker (apps/server), recording a receipt (git sha + timestamp +
- * wrangler version id) either way.
+ * Scripted deploy: build the TanStack Start client and Worker (apps/ui), then
+ * deploy that generated Wrangler bundle, recording a receipt (git sha +
+ * timestamp + wrangler version id) either way.
  *
  *   bun scripts/deploy.ts --dry-run
  *     Runs the real vite build, then `wrangler deploy --dry-run` — no
@@ -60,15 +60,24 @@ const gitSha = (await run(["git", "rev-parse", "HEAD"], { cwd: serverDir, captur
 const gitDirty =
 	(await run(["git", "status", "--porcelain"], { cwd: serverDir, capture: true })).output.trim() !== "";
 
-console.log(`[deploy] building the SPA (vite build) in ${uiDir}, stamped ${gitSha}${gitDirty ? " (dirty tree)" : ""}...`);
+console.log(`[deploy] building TanStack Start in ${uiDir}, stamped ${gitSha}${gitDirty ? " (dirty tree)" : ""}...`);
 const build = await run(["bun", "run", "build"], { cwd: uiDir, env: { SMITHERS_BUILD_SHA: gitSha } });
 if (build.exitCode !== 0) {
 	console.error("[deploy] vite build failed.");
 	process.exit(build.exitCode);
 }
 
-console.log(`[deploy] ${dryRun ? "dry-run " : ""}wrangler deploy in ${serverDir}...`);
-const deployArgs = ["bun", "x", "wrangler@4.123.0", "deploy", ...(dryRun ? ["--dry-run"] : [])];
+console.log(`[deploy] ${dryRun ? "dry-run " : ""}wrangler deploy of the Start/Worker build...`);
+const startConfig = `${uiDir}/dist/server/wrangler.json`;
+const deployArgs = [
+	"bun",
+	"x",
+	"wrangler@4.124.0",
+	"deploy",
+	"--config",
+	startConfig,
+	...(dryRun ? ["--dry-run"] : []),
+];
 const deploy = await run(deployArgs, { cwd: serverDir, capture: true });
 if (deploy.exitCode !== 0) {
 	console.error("[deploy] wrangler deploy failed.");

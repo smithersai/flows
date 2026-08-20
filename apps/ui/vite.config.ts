@@ -15,7 +15,7 @@ import { installAgentApi } from "./src/dev/AgentApi";
  * the app graph.
  */
 
-const crossOriginIsolationHeaders = {
+export const crossOriginIsolationHeaders = {
 	"Cross-Origin-Opener-Policy": "same-origin",
 	"Cross-Origin-Embedder-Policy": "require-corp",
 };
@@ -26,7 +26,7 @@ const crossOriginIsolationHeaders = {
  * renders; the upstream chat.smithers.sh URL/origin stay server-side via
  * SMITHERS_CHAT_URL / SMITHERS_CHAT_ORIGIN (defaults match the native CloudAgent).
  */
-const smithersAgentApi = (): Plugin => {
+export const smithersAgentApi = (): Plugin => {
 	const options = {
 		chatUrl: process.env.SMITHERS_CHAT_URL,
 		origin: process.env.SMITHERS_CHAT_ORIGIN,
@@ -44,7 +44,7 @@ const smithersAgentApi = (): Plugin => {
  * because a bare "src/mainview" resolved under the root instead. Every path
  * below is absolute for the same reason.
  */
-const here = fileURLToPath(new URL(".", import.meta.url));
+export const here = fileURLToPath(new URL(".", import.meta.url));
 
 /** The deployed seams dev rides. */
 const devUpstream = process.env.SMITHERS_DEV_UPSTREAM ?? "https://canary.smithers.sh";
@@ -75,7 +75,7 @@ interface ProxyRequest {
 const BUILD_STAMP_ASSET = "__build.json";
 const BUILD_STAMP_META = "smithers-build-sha";
 
-const resolveBuildSha = (): string => {
+export const resolveBuildSha = (): string => {
 	const fromEnv = process.env.SMITHERS_BUILD_SHA ?? process.env.GITHUB_SHA;
 	if (fromEnv !== undefined && fromEnv.trim() !== "") return fromEnv.trim();
 	try {
@@ -85,7 +85,7 @@ const resolveBuildSha = (): string => {
 	}
 };
 
-const buildStamp = (): Plugin => {
+export const buildStamp = (): Plugin => {
 	const gitSha = resolveBuildSha();
 	const builtAt = new Date().toISOString();
 	return {
