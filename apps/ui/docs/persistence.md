@@ -178,15 +178,38 @@ localStorage fallback — the host with no transaction primitive at all, and
 the host every test exercises — gets full cross-collection atomicity from
 `TransactionalStorage`.
 
+### Boundary: the NativeBridge import-time singleton
+
+`NativeBridge.ts` constructs its RPC bridge and agent singleton at import
+time (`Electroview.defineRPC` + `new Electroview(...)`) and exposes no
+teardown API; the composition root (`ControllerBoot.client.ts`) injects the
+singleton synchronously, so deferring acquisition into a scope would make
+every consumer of `nativeAgent`/`nativeRepositories` asynchronous and break
+the synchronous UI command path. The safe portion was converted instead:
+everything a CONTROLLER opens on top of the bridge — the agent frame
+subscription, the cross-tab identity listeners, the identity
+`BroadcastChannel`, the workflow pumps — is scoped to the controller and
+released by `AppController.dispose()`. The bridge singleton itself is a
+page-lifetime resource by design, like `window.localStorage`, and stays.
+
 ### Wall-clock sleeps in tests
 
-Verdict: partial, converted where the suite allows it. The majority of the
-remaining `await new Promise(r => setTimeout(r, N))` call sites are 0–1 ms
-promise-drain flushes, where fake timers are the wrong tool (there is no
-duration being waited out; advancing a clock changes nothing). The
-duration-dependent suites interleave real async I/O (TanStack persistence
-promises, stream readers) with the waited duration, and `jest.useFakeTimers`
-deadlocks those suites because the drained promise never resolves while the
-clock is frozen. `StartupWatchdog.test.ts` already uses fake timers, and the
-converted `boundedFetch` timeout is now clock-based (Effect `Clock`), which
-is the seam a future `TestClock` conversion should ride.
+Verdict: no-go for a broad conversion, with evidence; the one seam where a
+clock conversion was safe — `boundedFetch` — now rides Effect's `Clock`
+(interruption-based timeout), which is the seam a future `TestClock`
+conversion should use. The evidence for the rest:
+
+- The majority of `await new Promise(r => setTimeout(r, N))` call sites in
+  the suites are 0–1 ms promise-drain flushes. No duration is being waited
+  out, so advancing a fake clock changes nothing; converting them would be
+  churn, not determinism.
+- The duration-dependent suites (toast debounce/auto-dismiss, the chain
+  runtime's 50 ms windows) interleave the waited duration with real async
+  I/O — TanStack persistence promises, stream readers, `queueMicrotask`
+  frame delivery. `jest.useFakeTimers` (the bun:test compat the one
+  existing fake-timer suite, `StartupWatchdog.test.ts`, uses) freezes the
+  macrotask queue those suites drain through, so the awaited work never
+  arrives and the suites deadlock.
+- The checklist runner and e2e harnesses already take `now`/`sleep` as
+  injected parameters (`ProbeContext`), so their waits are faked by
+  construction and were never wall-clock-bound in tests.
