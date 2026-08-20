@@ -1,0 +1,192 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "d28d9e5cae9a0eda78ca58aefa289970de4ca149",
+ "tree": "652cdef8d78c2e0e438b0ab40125e764177e4c7f",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 31,
+  "sectionCount": 71
+ },
+ "source": {
+  "commit": "9a35da054f234dba6f4540d4b82c6e20f2e582a0",
+  "subject": "✨ feat(journal): allowlist the deferred/clock fold inputs past the redactor",
+  "priorCanonicalCommit": "c6eabd398d169d0a77998c4ed006675de241a894",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 31,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "storage",
+  "epicsTouched": [
+   {
+    "id": "storage",
+    "files": 4
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 869,
+  "globalCount": 909,
+  "purpose": "✨ feat(journal): allowlist the deferred/clock fold inputs past the redactor",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "18d5a97b28672f1920339a70728de187a00ff786"
+  ],
+  "parent": "18d5a97b28672f1920339a70728de187a00ff786",
+  "sourceImports": [
+   "946fffb7dde55e7f5fa758d10ceca5a9d0d09494",
+   "c8bce393ea55d3257b21dbf5095fb2af8220a9d3",
+   "4390fe6159b47fbf5df3fcbcadcdc24e77d5ce8d",
+   "bfe87e288aee957ed67d609f29d7dd08b841bfff"
+  ],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "18d5a97b28672f1920339a70728de187a00ff786",
+  "next": "72dd092a0f89446130c1e357806f6800c3163570",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "9f4db87e9b528812c207c1054f8c36a09a06c2c7"
+ },
+ "size": {
+  "files": 4,
+  "added": 77,
+  "deleted": 3
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "9a35da054f234dba6f4540d4b82c6e20f2e582a0"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "packages/journal/CHANGELOG.md",
+   "mode": "100644",
+   "blob": "48cc4e05bd975cb07e95d0b36cc1ba7b120d1078",
+   "previousBlob": "4b4829ce39e4560d1797d6c721635c1fc96defe9",
+   "added": 8,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 10,
+     "oldLines": 0,
+     "newStart": 11,
+     "newLines": 8
+    }
+   ],
+   "role": "docs",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/journal/README.md",
+   "mode": "100644",
+   "blob": "7bd30f5cce325323f48ae65dbcb1980b3cab7942",
+   "previousBlob": "6f98cbcfc0c0bcc34328206700dcef5e57d4d997",
+   "added": 1,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 48,
+     "oldLines": 1,
+     "newStart": 48,
+     "newLines": 1
+    }
+   ],
+   "role": "docs",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/journal/src/Redaction.ts",
+   "mode": "100644",
+   "blob": "c6dc1318201e63b383c141d597065e3a3ed9f2d0",
+   "previousBlob": "66bb7b388630869bd907a71cecd2e27894a89be8",
+   "added": 17,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 173,
+     "oldLines": 0,
+     "newStart": 174,
+     "newLines": 9
+    },
+    {
+     "oldStart": 181,
+     "oldLines": 1,
+     "newStart": 190,
+     "newLines": 8
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/journal/test/Redaction.test.ts",
+   "mode": "100644",
+   "blob": "8a6225d79ec16607f7fe0939efc3d13e608df150",
+   "previousBlob": "2f8ac894ef12d30135de5709138b2eb3fe9b43ca",
+   "added": 51,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 107,
+     "oldLines": 1,
+     "newStart": 107,
+     "newLines": 8
+    },
+    {
+     "oldStart": 111,
+     "oldLines": 0,
+     "newStart": 119,
+     "newLines": 10
+    },
+    {
+     "oldStart": 141,
+     "oldLines": 0,
+     "newStart": 159,
+     "newLines": 33
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  }
+ ]
+}
