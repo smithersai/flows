@@ -265,7 +265,12 @@ describe("FlowEngineLike.make", () => {
       ModelEvent.ModelEvent.Settle({ type: "settle", stopReason: "stop" })
     ]
 
-    expect(Schema.decodeUnknownSync(FlowEngineLike.RecordedModelStep)(legacy)).toEqual(legacy)
+    const decoded = Schema.decodeUnknownSync(FlowEngineLike.RecordedModelStep)(legacy)
+    expect(decoded).toEqual(legacy)
+    expect(FlowEngineLike.normalizeRecordedModelStep(decoded)).toEqual({ events: legacy, error: undefined })
+
+    const current = { events: legacy }
+    expect(FlowEngineLike.normalizeRecordedModelStep(current)).toBe(current)
   })
 
   it("streams the model events of a sealed step and records them for replay", async () => {

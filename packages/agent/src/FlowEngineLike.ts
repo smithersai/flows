@@ -452,6 +452,12 @@ export const RecordedModelStep = Schema.Union([
   })
 ])
 
+/** @internal */
+export const normalizeRecordedModelStep = (
+  recorded: typeof RecordedModelStep.Type
+): { readonly events: ReadonlyArray<ModelEvent.ModelEvent>; readonly error?: ModelError.ModelError | undefined } =>
+  "events" in recorded ? recorded : { events: recorded, error: undefined }
+
 /**
  * Every failure `Model.stream` may report, as one encodable schema. The engine
  * stores an activity's failure as well as its success, so the port's error
@@ -836,7 +842,7 @@ export const make = (
               options.modelRetryPolicy ?? defaultModelRetryPolicy
             )
           })
-          const normalized = "events" in recorded ? recorded : { events: recorded, error: undefined }
+          const normalized = normalizeRecordedModelStep(recorded)
           const replay = Stream.fromIterable(normalized.events)
           return normalized.error === undefined
             ? replay

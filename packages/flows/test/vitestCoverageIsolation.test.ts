@@ -345,6 +345,10 @@ describe("vitest coverage isolation conformance", () => {
     // `dev` is a developer entry point, not a gate: it forwards to the UI
     // workspace's vite server so the `--configLoader runner` flag lives in one
     // place. It runs nothing in CI and fans nothing out.
+    //
+    // `test:jsdoc` is the root-level contract for the repository's custom
+    // JSDoc rule harness; pinning it here keeps that non-workspace gate from
+    // appearing or disappearing without conformance review.
     const root = JSON.parse(readFileSync(join(packagesDir, "..", "package.json"), "utf8")) as {
       readonly scripts?: Record<string, string>
     }
@@ -357,7 +361,8 @@ describe("vitest coverage isolation conformance", () => {
       dev: "pnpm --filter smithers-ui run web",
       lint: "pnpm --recursive --if-present run lint",
       test: "pnpm --recursive --if-present run test",
-      "test:examples": "pnpm --filter @smthrs/examples run test"
+      "test:examples": "pnpm --filter @smthrs/examples run test",
+      "test:jsdoc": "node --test scripts/eslint-jsdoc.test.mjs"
     })
   })
 

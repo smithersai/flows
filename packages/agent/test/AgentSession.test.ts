@@ -784,7 +784,15 @@ describe("AgentSession", () => {
             if (receipt._tag !== "Accepted" || receipt.runId === undefined) {
               return yield* Effect.die("expected an accepted run")
             }
-            yield* awaitStatus(runtime, receipt.runId, "failed")
+            // The durable event is the synchronization point. A bounded
+            // `yieldNow` polling loop can exhaust while the run fiber is still
+            // publishing its terminal projection on a busy test worker.
+            yield* control.watch({ runId: receipt.runId }).pipe(
+              Stream.filter((event) => event.kind === "control.run.failed"),
+              Stream.take(1),
+              Stream.runDrain
+            )
+            expect((yield* runtime.getRun(receipt.runId)).status).toBe("failed")
           }
         }).pipe(
           Effect.provide(
