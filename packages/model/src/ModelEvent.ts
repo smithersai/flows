@@ -1,5 +1,5 @@
 /** @since 0.1.0 */
-import { Option, Schema } from "effect"
+import { Effect, Option, Schema } from "effect"
 import { AssistantMessage, JsonObject, StopReason, ToolCallPart } from "./ModelRequest.ts"
 
 /**
@@ -258,7 +258,23 @@ export type UsageEvent = typeof UsageEvent.Type
 export const Retry = Schema.Struct({
   type: Schema.Literal("retry"),
   attempt: Schema.Int,
-  code: Schema.String
+  code: Schema.String,
+  /**
+   * Milliseconds the boundary waited before this attempt, as the retry
+   * schedule decided it on the injected clock.
+   *
+   * Recording the count alone was not enough to tell a working backoff from a
+   * broken one. Every retry of one sealed step is buffered and journaled
+   * together when the step settles, so two retries carry the same journal
+   * timestamp whether they were seconds apart or instantaneous — a wave report
+   * reading those timestamps cannot see the schedule at all. The delay is
+   * therefore stated by the event that took it. Zero is what a record written
+   * before this field carried, and what an unscheduled retry means.
+   */
+  delayMillis: Schema.Number.pipe(
+    Schema.withConstructorDefault(Effect.succeed(0)),
+    Schema.withDecodingDefaultKey(Effect.succeed(0))
+  )
 })
 /**
  * The decoded form of {@link Retry}.

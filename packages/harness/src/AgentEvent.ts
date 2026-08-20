@@ -89,7 +89,19 @@ export class ModelRetried extends Schema.TaggedClass<ModelRetried>(
 )("model-retried", {
   eventType: Schema.Literal("flows.harness.model-retried.v1"),
   attempt: Schema.Int,
-  code: Schema.String
+  code: Schema.String,
+  /**
+   * Milliseconds the boundary waited before this attempt.
+   *
+   * Every retry of one sealed step is journaled at the moment the step
+   * settles, so the event timestamps cannot show the schedule. This carries
+   * it. Zero is what an unscheduled retry, or a record written before the
+   * field existed, reports.
+   */
+  delayMillis: Schema.Number.pipe(
+    Schema.withConstructorDefault(Effect.succeed(0)),
+    Schema.withDecodingDefaultKey(Effect.succeed(0))
+  )
 }) {}
 
 /**

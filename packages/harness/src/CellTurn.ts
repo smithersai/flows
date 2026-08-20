@@ -489,7 +489,8 @@ const emitModelProgress = (
       new AgentEvent.ModelRetried({
         eventType: eventType.modelRetried,
         attempt: event.attempt,
-        code: event.code
+        code: event.code,
+        delayMillis: event.delayMillis
       })
     )
     : event.type === "settle"

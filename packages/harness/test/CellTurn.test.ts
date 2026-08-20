@@ -180,14 +180,23 @@ describe("CellTurn", () => {
     const { events } = await run({
       script: [{
         events: [
-          ModelEvent.ModelEvent.Retry({ type: "retry", attempt: 1, code: "transport" }),
+          ModelEvent.ModelEvent.Retry({
+            type: "retry",
+            attempt: 1,
+            code: "transport",
+            delayMillis: 1_137
+          }),
           ...settled.events
         ]
       }]
     })
 
+    // The delay travels with the attempt. Every retry of one sealed step is
+    // journaled when that step settles, so the event timestamps are identical
+    // whether the backoff waited or not, and the schedule is only legible if
+    // the event carries it.
     expect(of(events, "model-retried")).toEqual([
-      expect.objectContaining({ attempt: 1, code: "transport" })
+      expect.objectContaining({ attempt: 1, code: "transport", delayMillis: 1_137 })
     ])
   })
 

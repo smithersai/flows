@@ -65,7 +65,7 @@ import * as ModelRequest from "@smthrs/model/ModelRequest"
 import * as Route from "@smthrs/model/Route"
 import * as PersistedPlan from "@smthrs/plan/Plan"
 import * as StepKey from "@smthrs/plan/StepKey"
-import { Context, Crypto, Effect, Layer, Option, Schedule, Schema, Stream } from "effect"
+import { Context, Crypto, Duration, Effect, Layer, Option, Schedule, Schema, Stream } from "effect"
 import type * as WorkspaceSandbox from "./WorkspaceSandbox.ts"
 
 /**
@@ -452,7 +452,12 @@ export const RecordedModelStep = Schema.Union([
   })
 ])
 
-/** @internal */
+/**
+ * Reads either {@link RecordedModelStep} branch as the object form.
+ *
+ * @since 0.1.0
+ * @private
+ */
 export const normalizeRecordedModelStep = (
   recorded: typeof RecordedModelStep.Type
 ): { readonly events: ReadonlyArray<ModelEvent.ModelEvent>; readonly error?: ModelError.ModelError | undefined } =>
@@ -481,13 +486,57 @@ export const normalizeRecordedModelStep = (
 const retryableModelCodes: ReadonlySet<string> = new Set(["provider_internal", "transport"])
 
 /**
- * The production transport retry budget: two retries, with a short reconnect backoff.
+ * The first delay the production transport policy waits, in milliseconds.
  *
  * @category policies
  * @since 0.1.0
  */
-export const defaultModelRetryPolicy: Schedule.Schedule<unknown, Model.ModelFailure> = Schedule.exponential(1000, 2)
-  .pipe(Schedule.upTo({ times: 2 }))
+export const defaultModelRetryBaseMillis = 1000
+
+/**
+ * The factor each successive production transport delay multiplies by.
+ *
+ * @category policies
+ * @since 0.1.0
+ */
+export const defaultModelRetryFactor = 2
+
+/**
+ * How many times the production transport policy retries one sealed step.
+ *
+ * @category policies
+ * @since 0.1.0
+ */
+export const defaultModelRetryTimes = 5
+
+/**
+ * The production transport retry budget: five retries over a jittered
+ * exponential backoff spanning roughly thirty seconds.
+ *
+ * The shape is load-bearing, not decorative. A transport-class failure is
+ * almost never local: a destroyed HTTP/2 session, a 5xx, an overloaded
+ * provider. All three persist for seconds to tens of seconds, so a retry that
+ * fires inside that window is a wasted attempt, and a budget that empties
+ * inside it turns one provider incident into a dead run. Wave 4 of the
+ * SWE-bench harness lost `pytest-dev__pytest-6197` exactly that way: both of
+ * its `transport` retries were spent, and the run ended `failed`, while the
+ * provider was still refusing.
+ *
+ * Doubling from one second across five retries spans about 31 s, which is
+ * long enough for a connection pool to re-establish and for a short rate-limit
+ * window to pass. Jitter is what keeps a fleet of runs that all hit the same
+ * incident from re-converging on the provider in lockstep; {@link
+ * Schedule.jittered} scales each delay by a random factor in `[0.8, 1.2]`
+ * drawn from the injected `Random` service, and the sleep itself is taken on
+ * the injected clock, so a test that supplies both sees the schedule it
+ * declared and never a wall-clock wait.
+ *
+ * @category policies
+ * @since 0.1.0
+ */
+export const defaultModelRetryPolicy: Schedule.Schedule<unknown, Model.ModelFailure> = Schedule
+  .exponential(defaultModelRetryBaseMillis, defaultModelRetryFactor)
+  .pipe(Schedule.jittered, Schedule.upTo({ times: defaultModelRetryTimes }))
 
 /**
  * Retries transient provider failures inside the sealed step.
@@ -500,8 +549,26 @@ export const defaultModelRetryPolicy: Schedule.Schedule<unknown, Model.ModelFail
  * `code` the caller branches on. Retrying in place keeps the classification
  * precise and lets the original typed error surface unchanged when the
  * backoff gives up.
+ *
+ * Each retry states the delay the schedule chose for it. The delay cannot be
+ * read back off the journal timestamps: every retry of one step is buffered
+ * and written when the step settles, so a run that backed off for half a
+ * minute and one that did not back off at all are indistinguishable there.
+ *
+ * The classification is a `Schedule.while` *inside* the schedule rather than
+ * `Effect.retry`'s `while` option, and the tap sits outside it. Both placements
+ * matter. `Effect.retry` applies its `while` after stepping the schedule, so a
+ * tap under it fires once for a terminal failure too and records a retry that
+ * never happened — a `quota_exceeded` run journaled a phantom `model-retried`
+ * exactly that way. Stopping the schedule first means the tap only ever sees a
+ * step that will really recur, and `duration` is then the delay actually
+ * slept — jitter and bound already applied — not the nominal one the base
+ * schedule would have produced.
+ *
+ * @since 0.1.0
+ * @private
  */
-const recordModelStep = (
+export const recordModelStep = (
   model: Model.Model,
   request: ModelRequest.ModelRequest,
   policy: Schedule.Schedule<unknown, Model.ModelFailure>
@@ -509,22 +576,28 @@ const recordModelStep = (
   const retries: Array<ModelEvent.ModelEvent> = []
   let attempt = 0
   const schedule = policy.pipe(
-    Schedule.tap(({ input }) =>
+    Schedule.while(({ input }) => input instanceof ModelError.ModelError && retryableModelCodes.has(input.code)),
+    Schedule.tap(({ duration, input }) =>
       Effect.sync(() => {
         attempt++
-        // The retry predicate admits only ModelError transport classes before
-        // the schedule advances, so every scheduled input is the typed error
-        // being retried.
+        // Only a retryable `ModelError` reaches the tap: the classification
+        // above stops the schedule before it on anything else.
         const error = input as ModelError.ModelError
-        retries.push(ModelEvent.ModelEvent.Retry({ type: "retry", attempt, code: error.code }))
+        retries.push(
+          ModelEvent.ModelEvent.Retry({
+            type: "retry",
+            attempt,
+            code: error.code,
+            // Jitter produces a fractional millisecond. The whole millisecond
+            // is the honest resolution for a report to read.
+            delayMillis: Math.round(Duration.toMillis(duration))
+          })
+        )
       })
     )
   )
   return Stream.runCollect(model.stream(request)).pipe(
-    Effect.retry({
-      schedule,
-      while: (error) => error instanceof ModelError.ModelError && retryableModelCodes.has(error.code)
-    }),
+    Effect.retry(schedule),
     Effect.map((events) => ({ events: [...retries, ...events] })),
     Effect.catchIf(
       (error): error is ModelError.ModelError => error instanceof ModelError.ModelError,

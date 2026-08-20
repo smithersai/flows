@@ -20,8 +20,24 @@ import * as ModelRequest from "@smthrs/model/ModelRequest"
 import * as Route from "@smthrs/model/Route"
 import { Node } from "@smthrs/plan"
 import * as PersistedPlan from "@smthrs/plan/Plan"
-import { Cause, Deferred, Effect, Exit, Layer, Option, Redacted, Result, Schedule, Schema, Scope, Stream } from "effect"
+import {
+  Cause,
+  Clock,
+  Deferred,
+  Effect,
+  Exit,
+  Fiber,
+  Layer,
+  Option,
+  Redacted,
+  Result,
+  Schedule,
+  Schema,
+  Scope,
+  Stream
+} from "effect"
 import type * as Crypto from "effect/Crypto"
+import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as FlowEngineLike from "../src/FlowEngineLike.ts"
 
@@ -1027,6 +1043,139 @@ describe("cell call identity across runs", () => {
     // boundary means.
     expect(outcomes.map((outcome) => outcome._tag)).toEqual(["completed", "completed"])
     expect(executed).toEqual(["fs/write#0", "fs/write#0"])
+  })
+})
+
+/**
+ * The transport backoff, driven on the test clock.
+ *
+ * `recordModelStep` is exercised directly rather than through `drive` because
+ * the assertion is about time: the sealed step has to be forked so the test
+ * clock can advance past every scheduled sleep, and the flow engine's own
+ * execution is not what is under test here.
+ */
+describe("FlowEngineLike.defaultModelRetryPolicy", () => {
+  /** What the provider actually saw: how often it was called, and how far apart. */
+  interface Observed {
+    attempts: number
+    readonly gaps: Array<number>
+  }
+
+  /**
+   * Fails every attempt with `code`, timing itself on the injected clock.
+   *
+   * The gaps are read off the clock the run slept on, so they are the delays
+   * the schedule really took rather than the ones it claims to have taken.
+   */
+  const alwaysFailing = (
+    code: "transport" | "quota_exceeded",
+    observed: Observed
+  ): { readonly model: Model.Model; readonly error: ModelError } => {
+    const error = new ModelError({ code, message: `always ${code}` })
+    let previous: number | undefined
+    return {
+      error,
+      model: Model.make({
+        stream: () =>
+          Stream.fromEffect(
+            Effect.gen(function*() {
+              const now = yield* Clock.currentTimeMillis
+              observed.attempts++
+              if (previous !== undefined) observed.gaps.push(now - previous)
+              previous = now
+              return yield* Effect.fail(error)
+            })
+          )
+      })
+    }
+  }
+
+  /**
+   * Runs one sealed model step to exhaustion on the test clock.
+   *
+   * A single large adjustment settles every sleep the schedule asks for in
+   * order, so the delays the run actually took are whatever the policy chose,
+   * not a cadence the test imposed.
+   */
+  const exhaust = (model: Model.Model): Promise<typeof FlowEngineLike.RecordedModelStep.Type> =>
+    Effect.gen(function*() {
+      const fiber = yield* FlowEngineLike.recordModelStep(
+        model,
+        request("hello"),
+        FlowEngineLike.defaultModelRetryPolicy
+      ).pipe(Effect.forkChild({ startImmediately: true }))
+      yield* TestClock.adjust("10 minutes")
+      return yield* Fiber.join(fiber)
+    }).pipe(Effect.provide(TestClock.layer()), Effect.runPromise)
+
+  const retriesOf = (
+    recorded: typeof FlowEngineLike.RecordedModelStep.Type
+  ): ReadonlyArray<ModelEvent.Retry> =>
+    FlowEngineLike.normalizeRecordedModelStep(recorded).events.filter(
+      (event): event is ModelEvent.Retry => event.type === "retry"
+    )
+
+  const nominalMillis = (index: number): number =>
+    FlowEngineLike.defaultModelRetryBaseMillis * Math.pow(FlowEngineLike.defaultModelRetryFactor, index)
+
+  it("waits a growing, jittered delay before each transport attempt", async () => {
+    const observed: Observed = { attempts: 0, gaps: [] }
+    const { model } = alwaysFailing("transport", observed)
+    const recorded = await exhaust(model)
+
+    const retries = retriesOf(recorded)
+    expect(retries.map((retry) => retry.attempt)).toEqual([1, 2, 3, 4, 5])
+    expect(new Set(retries.map((retry) => retry.code))).toEqual(new Set(["transport"]))
+
+    // The defect this closes is two attempts inside one provider incident.
+    // Every delay is real, and each is larger than the one before it: with
+    // jitter bounded to [0.8, 1.2] and a factor of two, 1.2x one delay is
+    // still below 0.8x the next, so the growth is guaranteed, not luck.
+    const delays = retries.map((retry) => retry.delayMillis)
+    delays.reduce((previous, delay) => {
+      expect(delay).toBeGreaterThan(previous)
+      return delay
+    }, 0)
+    delays.forEach((delay, index) => {
+      expect(delay).toBeGreaterThanOrEqual(nominalMillis(index) * 0.8)
+      expect(delay).toBeLessThanOrEqual(nominalMillis(index) * 1.2)
+    })
+    // Jitter, not a fixed ladder: at least one delay is off its nominal value.
+    expect(delays.some((delay, index) => delay !== nominalMillis(index))).toBe(true)
+
+    // The recorded delays are the delays the run actually slept on the injected
+    // clock, so a report reading the journaled events reads the real schedule.
+    expect(observed.gaps.map((gap) => Math.round(gap))).toEqual(delays)
+    // Roughly thirty seconds of cover, long enough to outlast a provider blip.
+    expect(observed.gaps.reduce((total, gap) => total + gap, 0)).toBeGreaterThan(24_000)
+  })
+
+  it("stops at the declared budget and surfaces the original transport error", async () => {
+    const observed: Observed = { attempts: 0, gaps: [] }
+    const { error, model } = alwaysFailing("transport", observed)
+    const recorded = await exhaust(model)
+
+    // One first attempt plus the budget, and not one call more.
+    expect(observed.attempts).toBe(FlowEngineLike.defaultModelRetryTimes + 1)
+    expect(retriesOf(recorded)).toHaveLength(FlowEngineLike.defaultModelRetryTimes)
+    // Exhaustion returns the provider's own typed error, never a wrapper.
+    expect(FlowEngineLike.normalizeRecordedModelStep(recorded).error).toStrictEqual(error)
+  })
+
+  it("spends no delay and no attempt on a terminal failure", async () => {
+    const observed: Observed = { attempts: 0, gaps: [] }
+    const { error, model } = alwaysFailing("quota_exceeded", observed)
+    const recorded = await exhaust(model)
+
+    // Widening the backoff must not widen what it applies to: an exhausted
+    // quota is terminal for the request as written, and waiting on it is pure
+    // latency. The step is not retried, and — because the classification stops
+    // the schedule before the tap — it does not journal a retry that never
+    // happened either.
+    expect(observed.attempts).toBe(1)
+    expect(observed.gaps).toEqual([])
+    expect(retriesOf(recorded)).toEqual([])
+    expect(FlowEngineLike.normalizeRecordedModelStep(recorded).error).toStrictEqual(error)
   })
 })
 

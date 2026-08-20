@@ -64,11 +64,16 @@ describe("trace", () => {
         new AgentEvent.ModelRetried({
           eventType: "flows.harness.model-retried.v1",
           attempt: 2,
-          code: "transport"
+          code: "transport",
+          delayMillis: 2_137
         }),
         {
           eventType: "control.agent.model-retried",
-          payload: { attempt: 2, code: "transport" }
+          // The delay is journaled with the attempt: every retry of one sealed
+          // step is written when that step settles, so the run's own event
+          // timestamps cannot tell a backoff from an immediate re-fire, and a
+          // wave report reads the schedule off this payload instead.
+          payload: { attempt: 2, code: "transport", delayMillis: 2_137 }
         }
       ],
       [

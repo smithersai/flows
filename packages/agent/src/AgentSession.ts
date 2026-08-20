@@ -145,9 +145,14 @@ export const trace = (
     case "model-delta":
       return undefined
     case "model-retried":
+      // The delay is journaled with the attempt because it cannot be
+      // recovered from the timestamps: every retry of one sealed step is
+      // written when that step settles, so a run that backed off for half a
+      // minute and one that did not back off at all produce the same
+      // timestamps. A wave report reads the schedule off this field.
       return {
         eventType: "control.agent.model-retried",
-        payload: { attempt: event.attempt, code: event.code }
+        payload: { attempt: event.attempt, code: event.code, delayMillis: event.delayMillis }
       }
     case "discipline-armed":
       // The positive record of what this run armed, written before any of it

@@ -24,12 +24,35 @@ describe("ModelEvent", () => {
         cacheWriteTokens: 5,
         totalTokens: 6
       },
-      { type: "retry", attempt: 1, code: "transport" },
+      { type: "retry", attempt: 1, code: "transport", delayMillis: 1_137 },
       { type: "settle", stopReason: "stop" }
     ]
     for (const event of events) {
       expect(Schema.decodeUnknownSync(Events.ModelEvent)(Schema.encodeSync(Events.ModelEvent)(event))).toEqual(event)
     }
+  })
+
+  it("states the retry delay, and reads a record written before the field as an unmeasured zero", () => {
+    // Every retry of one sealed step is journaled together when that step
+    // settles, so the event timestamps are identical whether the backoff waited
+    // half a minute or nothing at all. The delay has to be carried by the event
+    // itself for a wave report to see the schedule.
+    const scheduled = Schema.decodeUnknownSync(Events.ModelEvent)({
+      type: "retry",
+      attempt: 3,
+      code: "transport",
+      delayMillis: 4_311
+    })
+    expect(scheduled).toEqual({ type: "retry", attempt: 3, code: "transport", delayMillis: 4_311 })
+
+    // A run parked before the field existed replays against this schema.
+    expect(Schema.decodeUnknownSync(Events.ModelEvent)({ type: "retry", attempt: 1, code: "transport" })).toEqual({
+      type: "retry",
+      attempt: 1,
+      code: "transport",
+      delayMillis: 0
+    })
+    expect(Events.ModelEvent.Retry({ type: "retry", attempt: 1, code: "transport" }).delayMillis).toBe(0)
   })
 
   it("folds accumulated stream content on settlement", () => {
@@ -41,7 +64,7 @@ describe("ModelEvent", () => {
       { type: "tool-call-start", id: "call", name: "read" },
       { type: "tool-call-delta", id: "call", arguments: "{\"path\":\"a\"}" },
       { type: "usage", totalTokens: 9 },
-      { type: "retry", attempt: 1, code: "provider_internal" },
+      { type: "retry", attempt: 1, code: "provider_internal", delayMillis: 2_000 },
       { type: "settle", stopReason: "tool-calls" }
     ])
     expect(settled.message).toMatchObject({
@@ -101,10 +124,11 @@ describe("ModelEvent", () => {
       totalTokens: 2
     })
     expect(Events.ModelEvent.TextStart({ type: "text-start", id: "a" })).toEqual({ type: "text-start", id: "a" })
-    expect(Events.ModelEvent.Retry({ type: "retry", attempt: 2, code: "transport" })).toEqual({
+    expect(Events.ModelEvent.Retry({ type: "retry", attempt: 2, code: "transport", delayMillis: 2_400 })).toEqual({
       type: "retry",
       attempt: 2,
-      code: "transport"
+      code: "transport",
+      delayMillis: 2_400
     })
     expect(Events.ModelEvent.ToolResult({ type: "tool-result", id: "a", output: "out" })).toMatchObject({
       type: "tool-result",
