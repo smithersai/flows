@@ -9,18 +9,25 @@
  * shows (full name, freshness, open-issue count) and in the chooser's own row
  * styles. Choose one and it is the REPO VIEW: Files, Issues, Pull Requests,
  * Flows, each rendered by the card body that already renders that read
- * elsewhere. Per THE EMBED LAW it embeds in the transcript flow like every
- * other surface, with the same close affordance.
+ * elsewhere.
+ *
+ * THE EMBED LAW: this is a transcript entry, not a second column. App.tsx
+ * mounts it as the last child of the ChatTranscript, so it renders in the
+ * message flow at conversation width with the composer still below it, and the
+ * close affordance returns the conversation to itself.
  */
 import { Button } from "@smthrs/ui";
 import { ChevronLeft, FolderGit2 } from "lucide-react";
 import { RepoFilesBrowser } from "./RepoFilesBrowser";
-import { freshnessLabel, WorkflowListCardBody } from "./ChatCards";
+import { RepositoryList, repositoryRows } from "./RepositoryList";
+import { WorkflowListCardBody } from "./ChatCards";
 import { IssueListCardBody } from "./cards/IssueCards";
 import { LandingListCardBody } from "./cards/LandingCards";
 import { SurfaceHeader } from "./SurfaceChrome";
 import type { AppController } from "./state/AppController";
 import type { Card, RepoCatalogEntry, Session } from "./state/AppState";
+
+export { repositoryRows } from "./RepositoryList";
 
 const tabs = [
 	["files", "Files"],
@@ -29,28 +36,8 @@ const tabs = [
 	["flows", "Flows"],
 ] as const;
 
-/** One row of the repository list: what the catalog knows, never more. */
-interface RepoRow {
-	readonly fullName: string;
-	readonly pushedAt?: string | null;
-	readonly openIssues?: number;
-}
-
-/*
- * The account's repositories, then the watched ones the catalog has not
- * answered for yet. A watched name with no catalog row still gets a row — it is
- * a repository the user really has — but only its name, because freshness and
- * an issue count nobody read would be invented.
- */
-export const repositoryRows = (
-	available: ReadonlyArray<RepoCatalogEntry>,
-	watched: ReadonlyArray<string>,
-): ReadonlyArray<RepoRow> => [
-	...available.map((entry) => ({ fullName: entry.fullName, pushedAt: entry.pushedAt, openIssues: entry.openIssues })),
-	...watched
-		.filter((name) => !available.some((entry) => entry.fullName === name))
-		.map((name) => ({ fullName: name })),
-];
+/** The one class the transcript-embedded frames wear; see styles/chat.css. */
+export const TRANSCRIPT_PANE_CLASS = "github-pane transcript-pane";
 
 export function GitHubPane({ controller, session, available, watched, cards }: {
 	readonly controller: AppController;
@@ -75,18 +62,16 @@ export function GitHubPane({ controller, session, available, watched, cards }: {
 	const issueCard = latest("issue-list");
 	const pullCard = latest("pr-list");
 	const flowCard = latest("workflow-list");
-	return <section className="github-pane embedded-pane" aria-label="GitHub repositories">
+	return <section className={TRANSCRIPT_PANE_CLASS} aria-label="GitHub repositories">
 		<SurfaceHeader icon={<FolderGit2 size={17} aria-hidden="true" />} title="GitHub" subtitle={repo ?? "Repositories"} closeCommand="chat" onClose={() => controller.runCommand("chat")} />
-		{repo === null ? <ul className="repo-chooser-list" aria-label="Your repositories">
-			{rows.map((row) => <li key={row.fullName}>
-				<button type="button" className="repo-chooser-row" data-flow="repo.open" onClick={() => controller.runCommandArgs("repo.open", row.fullName)}>
-					<span className="repo-chooser-name">{row.fullName}</span>
-					{row.pushedAt === undefined ? null : <span className="repo-chooser-freshness">{freshnessLabel(row.pushedAt)}</span>}
-					{row.openIssues === undefined ? null : <span className="repo-chooser-issues">{row.openIssues} open issue{row.openIssues === 1 ? "" : "s"}</span>}
-				</button>
-			</li>)}
-			{rows.length === 0 ? <li className="repo-chooser-empty">No repositories to browse yet.</li> : null}
-		</ul> : <div className="world-workspace">
+		{repo === null ? (
+			<RepositoryList
+				rows={rows}
+				flow="repo.open"
+				label="Your repositories"
+				onOpen={(fullName) => controller.runCommandArgs("repo.open", fullName)}
+			/>
+		) : <div className="world-workspace">
 			<main className="world-document">
 				<div className="world-card-row">
 					<Button variant="ghost" size="sm" data-flow="github" onClick={() => controller.runCommand("github")}>
@@ -103,4 +88,53 @@ export function GitHubPane({ controller, session, available, watched, cards }: {
 			</main>
 		</div>}
 	</section>;
+}
+
+/*
+ * The Files frame (will, 2026-08-19): "clicking world is cool. we should be
+ * able to also click files and view the repo". It is the SAME
+ * RepoFilesBrowser the repository view's Files tab renders — one component,
+ * two mounts — and it embeds in the transcript on the same terms.
+ *
+ * With no repository resolved (nothing watched, or several and no explicit
+ * target) it shows the repository list rather than guessing one: choosing is
+ * the user's act, and `files <owner/repo>` is the command each row runs.
+ */
+export function RepoFilesPane({ controller, session, available, watched, cards }: {
+	readonly controller: AppController;
+	readonly session: Pick<Session, "selectedRepository">;
+	readonly available: ReadonlyArray<RepoCatalogEntry>;
+	readonly watched: ReadonlyArray<string>;
+	readonly cards: ReadonlyArray<Card>;
+}) {
+	const repo = session.selectedRepository;
+	return (
+		<section className={TRANSCRIPT_PANE_CLASS} aria-label="Repository files">
+			<SurfaceHeader
+				icon={<FolderGit2 size={17} aria-hidden="true" />}
+				title="Files"
+				subtitle={repo ?? "Choose a repository"}
+				closeCommand="chat"
+				onClose={() => controller.runCommand("chat")}
+			/>
+			{repo === null ? (
+				<RepositoryList
+					rows={repositoryRows(available, watched)}
+					flow="files"
+					label="Your repositories"
+					onOpen={(fullName) => controller.runCommandArgs("files", fullName)}
+				/>
+			) : (
+				<RepoFilesBrowser
+					repo={repo}
+					cards={cards}
+					onRunCommand={(name, commandArgs) =>
+						commandArgs === undefined
+							? controller.runCommand(name)
+							: controller.runCommandArgs(name, commandArgs)
+					}
+				/>
+			)}
+		</section>
+	);
 }

@@ -29,6 +29,7 @@ const cardViewHandlers = {
 	onStopRun: () => {},
 	onRetryRun: () => {},
 	onChooseWorkflowRepo: () => {},
+	repositories: [],
 	worldDocuments: [],
 	onChangeWorldDocument: () => {},
 	onRunCommand: () => {},
@@ -77,6 +78,45 @@ describe("the recommendation card (launch checklist A-8)", () => {
 		};
 		const markup = renderToStaticMarkup(<CardView card={digestOnly} {...cardViewHandlers} />);
 		expect(markup).not.toContain("Waiting for your approval below.");
+	});
+
+	/*
+	 * Directive 1b (will, 2026-08-19): "what we should be showing here is a bit
+	 * of a github pane so we should see a list of repos available and if we click
+	 * on it we see the repo view". The landing IS the list — not a button that
+	 * leads to one.
+	 */
+	test("a digest with no recommendation lands on the repository list itself", () => {
+		const digestOnly: Card = {
+			...recoCard,
+			payload: { ...recoCard.payload, recommendation: null },
+		};
+		const markup = renderToStaticMarkup(
+			<CardView
+				card={digestOnly}
+				{...cardViewHandlers}
+				repositories={[
+					{ fullName: "will/flows", pushedAt: "2026-08-18T09:00:00.000Z", openIssues: 4 },
+					{ fullName: "will/quiet", pushedAt: null, openIssues: 0 },
+				]}
+			/>,
+		);
+		expect(markup).toContain('data-flow="repo.open"');
+		expect(markup).toContain("will/flows");
+		expect(markup).toContain("will/quiet");
+		expect(markup).toContain("4 open issues");
+		// No intermediate press between the landing and the repositories.
+		expect(markup).not.toContain("Browse repositories");
+	});
+
+	test("with no repositories read yet the landing states that, and invents none", () => {
+		const digestOnly: Card = {
+			...recoCard,
+			payload: { ...recoCard.payload, recommendation: null },
+		};
+		const markup = renderToStaticMarkup(<CardView card={digestOnly} {...cardViewHandlers} />);
+		expect(markup).toContain("No repositories to browse yet.");
+		expect(markup).not.toContain('data-flow="repo.open"');
 	});
 
 	test("renders proposes, why-now, and what-happens from the recommendation payload", () => {

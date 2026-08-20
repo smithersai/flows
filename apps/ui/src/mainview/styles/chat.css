@@ -51,6 +51,50 @@
 	}
 }
 
+/*
+ * THE EMBED LAW (AGENTS.md, will 2026-08-09): a capability's output is a
+ * transcript entry at conversation width, with the composer below — never a
+ * takeover and never a second column. The GitHub and Files frames render as
+ * the last child of .sui-chat-messages, so conversation width is inherited
+ * from the message column above rather than restated here; the frame is a
+ * bordered card in the flow, exactly like every other card.
+ */
+.app-shell .smithers-transcript .transcript-pane {
+	display: flex;
+	width: 100%;
+	max-width: 100%;
+	min-width: 0;
+	flex-direction: column;
+	overflow: hidden;
+	border: 1px solid var(--border);
+	border-radius: 12px;
+	background: var(--surface);
+}
+
+.app-shell .smithers-transcript .transcript-pane .surface-header {
+	border-radius: 12px 12px 0 0;
+}
+
+/*
+ * A repository with a long file tree must not push the composer off the
+ * screen: the frame scrolls inside itself past half the viewport, and the
+ * conversation keeps scrolling around it.
+ */
+.app-shell .smithers-transcript .transcript-pane .world-workspace,
+.app-shell .smithers-transcript .transcript-pane .repo-chooser-list {
+	max-height: 52vh;
+	overflow: auto;
+}
+
+.app-shell .smithers-transcript .transcript-pane .world-workspace {
+	display: block;
+}
+
+.app-shell .smithers-transcript .transcript-pane .world-document {
+	padding: 10px 12px 12px;
+	gap: 6px;
+}
+
 .app-shell .smithers-transcript .sui-chat-messages {
 	width: min(100%, 760px);
 	padding: 42px 24px 24px;

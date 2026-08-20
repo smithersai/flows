@@ -89,6 +89,10 @@ const PRESENTATION_ONLY = [
 	"onConfirm}", // SurfaceChrome delegates to its binding site
 	"onCancel}", // dismissing a dialog changes no application state
 	"onClose}", // SurfaceChrome delegates to its binding site
+	// The shared repository list is mounted three times (the GitHub frame, the
+	// Files frame, the recommendation-less landing) and each binding site names
+	// its own command — repo.open or files — through the registry.
+	"onOpen(",
 ] as const;
 
 const routesThroughRegistry = (context: string): boolean =>
@@ -132,9 +136,11 @@ describe("launch-law parity: every affordance is a command", () => {
 		);
 		expect(counts).toEqual({
 			/*
-			 * 24 = 23 + the act row's own toggle (will, 2026-08-19: the marker rows
-			 * open up). 23 was 22 + the Files entry beside World in the surfaces
-			 * menu. 22 was 27 − the five per-item onClick handlers the connect menu
+			 * 23 = 24 − the Files surface's own file-browser mount, which moved
+			 * into GitHubPane.tsx as RepoFilesPane (one frame component, embedded
+			 * in the transcript). 24 was 23 + the act row's own toggle (will,
+			 * 2026-08-19: the marker rows open up). 23 was 22 + the Files entry
+			 * beside World in the surfaces menu. 22 was 27 − the five per-item onClick handlers the connect menu
 			 * used to carry: its entries are DATA now (flow + optional args),
 			 * rendered through one handler that dispatches
 			 * `runCommand`/`runCommandArgs`, so the six affordances share a single
@@ -142,9 +148,9 @@ describe("launch-law parity: every affordance is a command", () => {
 			 * (the signed-out step's first-tab-stop copy) + the reset confirm's own
 			 * trigger (§28.4).
 			 */
-			"../App.tsx": 24,
+			"../App.tsx": 23,
 			"../ConnectorsSurface.tsx": 5,
-			"../ChatCards.tsx": 23,
+			"../ChatCards.tsx": 22,
 			"../DevtoolsPanel.tsx": 1,
 			/*
 			 * The pane's close, a repository row in the list, the way back to that
@@ -153,6 +159,11 @@ describe("launch-law parity: every affordance is a command", () => {
 			"../GitHubPane.tsx": 4,
 			/* The breadcrumb up one directory; rows come from the file cards. */
 			"../RepoFilesBrowser.tsx": 1,
+			/*
+			 * The one repository row, shared by the three mounts above; each
+			 * binding site names the command the row runs.
+			 */
+			"../RepositoryList.tsx": 1,
 			"../SurfaceChrome.tsx": 3,
 			"../ToastStack.tsx": 1,
 			/* The multi-parity domain cards: every handler routes through onRunCommand. */

@@ -288,6 +288,228 @@ describe("the GitHub pane (will, 2026-08-19)", () => {
 		expect(host.textContent).toContain("2026-08-19 10:00");
 	});
 
+	/*
+	 * THE EMBED LAW (AGENTS.md): the frame is a transcript entry at conversation
+	 * width with the composer below — not a second column beside the chat. The
+	 * shell allocates .chat-frame[data-pane] a 58% side pane, so the absence of
+	 * that attribute is the load-bearing half of this.
+	 */
+	test("the pane is the last entry INSIDE the transcript, not a pane beside it", async () => {
+		const store = await webStore();
+		const controller = controllerWith(store);
+		await signedIn(store, []);
+		await controller.commands.run("github");
+		await settled();
+		const { host } = mount(controller);
+		const pane = host.querySelector('[aria-label="GitHub repositories"]');
+		const transcript = host.querySelector(".smithers-transcript");
+		expect(pane).not.toBeNull();
+		expect(transcript).not.toBeNull();
+		expect(transcript?.contains(pane as Node)).toBe(true);
+		// The conversation column keeps the whole shell.
+		expect(host.querySelector(".chat-frame")?.getAttribute("data-pane")).toBeNull();
+		expect(pane?.classList.contains("embedded-pane")).toBe(false);
+		expect(pane?.classList.contains("transcript-pane")).toBe(true);
+		// The composer is still below it, and the frame is the newest entry.
+		expect(host.querySelector("textarea")).not.toBeNull();
+		const messageColumn = pane?.parentElement;
+		expect(messageColumn?.classList.contains("sui-chat-messages")).toBe(true);
+		const entries = [...(messageColumn?.children ?? [])];
+		expect(entries.at(-1) === pane).toBe(true);
+	});
+
+	test("the Files frame embeds in the transcript on the same terms", async () => {
+		const store = await webStore();
+		const controller = controllerWith(store);
+		await signedIn(store, ["will/flows"]);
+		expect((await controller.commands.run("files")).status).toBe("executed");
+		await settled();
+		const { host } = mount(controller);
+		const pane = host.querySelector('[aria-label="Repository files"]');
+		expect(pane).not.toBeNull();
+		expect(host.querySelector(".smithers-transcript")?.contains(pane as Node)).toBe(true);
+		expect(host.querySelector(".chat-frame")?.getAttribute("data-pane")).toBeNull();
+		expect(host.querySelector("textarea")).not.toBeNull();
+	});
+
+	/*
+	 * The Flows tab used to call listWorkspaceWorkflows() with no argument,
+	 * which resolves the WATCHED set and answers with watched[0] — so opening
+	 * the second repository read the first one's workspace.
+	 */
+	test("the Flows tab reads the repository that is open, not the first watched one", async () => {
+		const store = await webStore();
+		const asked: Array<string> = [];
+		const controller = createAppController(store, unavailableRepositories, silentAgent, {
+			fetchImpl: (async (input: RequestInfo | URL, init?: RequestInit) => {
+				const url = String(input);
+				if (url.includes("/api/reco/repos")) {
+					return new Response(JSON.stringify({ candidates: CANDIDATES }), {
+						status: 200,
+						headers: { "content-type": "application/json" },
+					});
+				}
+				// Both workflow calls (provision, then the listWorkflows RPC) name
+				// their repository in the POST body.
+				if (url.includes("/api/workflow")) {
+					const body = JSON.parse(String(init?.body ?? "{}")) as { repo?: unknown };
+					if (typeof body.repo === "string") asked.push(body.repo);
+				}
+				return new Response("{}", { status: 503, headers: { "content-type": "application/json" } });
+			}) as typeof fetch,
+		});
+		await signedIn(store, ["will/first", "will/second"]);
+		await controller.commands.run("repo.open", "will/second");
+		await settled();
+		await controller.commands.run("repo.tab", "flows");
+		await settled();
+		expect(store.session().selectedRepository).toBe("will/second");
+		// The read named the repository on screen, and never the first watched one.
+		expect(asked.length).toBeGreaterThan(0);
+		expect([...new Set(asked)]).toEqual(["will/second"]);
+		// Two repositories are watched, so the old path would have opened the
+		// workflow chooser instead of reading the repository on screen.
+		expect(store.collections.cards.get("workflow-repo")).toBeUndefined();
+	});
+
+	/*
+	 * The Files frame used to take `selectedRepository ?? watched[0]`, which
+	 * guesses a target whenever more than one repository is watched.
+	 */
+	test("the Files frame asks which repository when several are watched", async () => {
+		const store = await webStore();
+		const controller = controllerWith(store);
+		await signedIn(store, ["will/first", "will/second"]);
+		await controller.commands.run("files");
+		await settled();
+		expect(store.session().surface).toBe("files");
+		expect(store.session().selectedRepository).toBeNull();
+		const { host } = mount(controller);
+		// A real choice, not a sentence: the repository list, each row bound to
+		// the /files command that opens that repository.
+		const choices = [...host.querySelectorAll<HTMLElement>('.repo-chooser-row[data-flow="files"]')];
+		expect(choices.map((row) => row.querySelector(".repo-chooser-name")?.textContent)).toEqual([
+			"will/flows",
+			"will/quiet",
+			"will/first",
+			"will/second",
+		]);
+	});
+
+	test("naming a repository opens the Files frame on it", async () => {
+		const store = await webStore();
+		const controller = controllerWith(store);
+		await signedIn(store, ["will/first", "will/second"]);
+		expect((await controller.commands.run("files", "will/second")).status).toBe("executed");
+		await settled();
+		expect(store.session().selectedRepository).toBe("will/second");
+	});
+
+	test("the single watched repository is the Files frame's target", async () => {
+		const store = await webStore();
+		const controller = controllerWith(store);
+		await signedIn(store, ["will/only"]);
+		await controller.commands.run("files");
+		await settled();
+		expect(store.session().selectedRepository).toBe("will/only");
+	});
+
+	/*
+	 * The Files/Code tab and the Files frame are ONE component (will, 2026-08-19,
+	 * directive 6: "the same view as the repo view's Files/Code tab").
+	 */
+	test("one files browser, mounted in both the Files frame and the repo view's Files tab", async () => {
+		const store = await webStore();
+		const controller = controllerWith(store);
+		await signedIn(store, ["will/flows"]);
+		await controller.commands.run("files");
+		await settled();
+		const filesFrame = mount(controller);
+		expect(
+			filesFrame.host.querySelectorAll('[data-repo-files-browser="shared"]'),
+		).toHaveLength(1);
+		await controller.commands.run("repo.open", "will/flows");
+		await controller.commands.run("repo.tab", "files");
+		await settled();
+		const repoView = mount(controller);
+		expect(repoView.host.querySelectorAll('[data-repo-files-browser="shared"]')).toHaveLength(1);
+	});
+
+	/*
+	 * `files.list` parses the FIRST token as the path, so the root cannot be
+	 * sent as the empty string: `" will/flows"` collapses to one token and the
+	 * repository name is then read as a path.
+	 */
+	test("the breadcrumb at the root asks for the root, not for a path named after the repo", async () => {
+		const store = await webStore();
+		const paths: Array<string> = [];
+		const controller = createAppController(store, unavailableRepositories, silentAgent, {
+			fetchImpl: (async (input: RequestInfo | URL) => {
+				const url = String(input);
+				const contents = /\/contents\/?([^?]*)/.exec(url);
+				if (contents !== null) {
+					paths.push(decodeURIComponent(contents[1] ?? ""));
+					return new Response(JSON.stringify([]), {
+						status: 200,
+						headers: { "content-type": "application/json" },
+					});
+				}
+				return new Response("{}", { status: 503, headers: { "content-type": "application/json" } });
+			}) as typeof fetch,
+		});
+		await signedIn(store, ["will/flows"]);
+		await controller.commands.run("files");
+		await settled();
+		const { host } = mount(controller);
+		const crumb = host.querySelector<HTMLElement>('[data-flow="files.list"]');
+		expect(crumb).not.toBeNull();
+		paths.length = 0;
+		crumb?.click();
+		await settled();
+		// The root, addressed as the root — never as the repository's own name.
+		expect(paths).toEqual([""]);
+	});
+
+	test("a pull-request row states its comment count beside the rest", async () => {
+		const store = await webStore();
+		const controller = controllerWith(store);
+		await signedIn(store, []);
+		await controller.commands.run("repo.open", "will/flows");
+		store.dispatch({
+			type: "card.upsert",
+			actor: "system",
+			card: {
+				id: "prs-will/flows",
+				kind: "pr-list",
+				title: "Pull requests · will/flows",
+				status: "active",
+				createdAt: 2,
+				ordinal: 2,
+				payload: {
+					repo: "will/flows",
+					landings: [
+						{
+							number: 8,
+							title: "Show when it changed",
+							state: "open",
+							author: "will",
+							comments: 5,
+							updatedAt: "2026-08-19T10:00:00Z",
+						},
+					],
+				},
+			},
+		});
+		await controller.commands.run("repo.tab", "pulls");
+		await settled();
+		const { host } = mount(controller);
+		const row = host.querySelector('[data-flow="prs.view"]');
+		expect(row?.textContent).toContain("#8 Show when it changed");
+		expect(row?.textContent).toContain("5");
+		expect(row?.textContent).toContain("by will");
+		expect(row?.textContent).toContain("2026-08-19 10:00");
+	});
+
 	test("a repository with no flows read says so instead of showing an empty list", async () => {
 		const store = await webStore();
 		const controller = controllerWith(store);

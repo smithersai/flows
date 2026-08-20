@@ -36,8 +36,8 @@ import type { KeyboardEvent, ReactNode, RefObject } from "react";
 import { useLiveQuery } from "@tanstack/react-db";
 import { CardView } from "./ChatCards";
 import { ConnectorsSurface } from "./ConnectorsSurface";
-import { GitHubPane } from "./GitHubPane";
-import { RepoFilesBrowser } from "./RepoFilesBrowser";
+import { GitHubPane, RepoFilesPane } from "./GitHubPane";
+import { repositoryRows } from "./RepositoryList";
 import { DevtoolsPanel } from "./DevtoolsPanel";
 import { ConfirmDialog, SurfaceHeader } from "./SurfaceChrome";
 import { ToastStack } from "./ToastStack";
@@ -885,6 +885,44 @@ function App({ controller }: { readonly controller: AppController }) {
 		return entryCreatedAt(left) - entryCreatedAt(right);
 	});
 
+	/*
+	 * The account's repositories, live: the GitHub frame's list, the Files
+	 * frame's choice, and the recommendation-less landing all project the same
+	 * catalog row.
+	 */
+	const repositories = repositoryRows(watched?.available ?? [], watched?.selected ?? []);
+
+	/*
+	 * THE EMBED LAW (AGENTS.md): a capability's output is a transcript entry at
+	 * conversation width, never a takeover and never a second column. The GitHub
+	 * and Files frames are appended to the transcript's own child list, so they
+	 * scroll with the conversation and the composer stays where it was.
+	 */
+	const transcriptFrames: ReadonlyArray<ReactNode> =
+		session.surface === "github"
+			? [
+					<GitHubPane
+						key="github-frame"
+						controller={controller}
+						session={session}
+						available={watched?.available ?? []}
+						watched={watched?.selected ?? []}
+						cards={cardRows}
+					/>,
+				]
+			: session.surface === "files"
+				? [
+						<RepoFilesPane
+							key="files-frame"
+							controller={controller}
+							session={session}
+							available={watched?.available ?? []}
+							watched={watched?.selected ?? []}
+							cards={cardRows}
+						/>,
+					]
+				: [];
+
 	return (
 		// data-flows is the live registry manifest (visible AND hidden names):
 		// under commands-are-the-app the registry is not secret — the agent tool
@@ -944,7 +982,18 @@ function App({ controller }: { readonly controller: AppController }) {
 			<SmithersUiStyles />
 			<MarkdownEditorStyles />
 
-			<div className="chat-frame" data-pane={session.surface === "chat" ? undefined : session.surface}>
+			{/*
+			 * THE EMBED LAW: only World and Connectors open beside the
+			 * conversation. The GitHub and Files frames are transcript entries at
+			 * conversation width (below), so the chat column keeps the whole shell
+			 * while they are open.
+			 */}
+			<div
+				className="chat-frame"
+				data-pane={
+					session.surface === "world" || session.surface === "connectors" ? session.surface : undefined
+				}
+			>
 				<div className="chat-column">
 					{/*
 					 * The one available step, first in the focus ring.
@@ -985,7 +1034,8 @@ function App({ controller }: { readonly controller: AppController }) {
 							/>
 						}
 					>
-						{entries.map((entry) =>
+						{[
+							...entries.map((entry) =>
 							entry.kind === "card" ? (
 								<CardView
 									key={entry.card.id}
@@ -1032,6 +1082,7 @@ function App({ controller }: { readonly controller: AppController }) {
 									onStopRun={(id) => controller.runCommandArgs("flow.run.stop", id)}
 									onRetryRun={(id) => controller.runCommandArgs("flow.run.retry", id)}
 									onChooseWorkflowRepo={(name) => controller.runCommandArgs("flow.repo.choose", name)}
+									repositories={repositories}
 									worldDocuments={worldDocuments}
 									onChangeWorldDocument={(id, body) => controller.changeWorldDocument(id, body)}
 									onRunCommand={(name, commandArgs) =>
@@ -1144,7 +1195,17 @@ function App({ controller }: { readonly controller: AppController }) {
 									</span>
 								</ChatMessage>
 							),
-						)}
+						),
+							/*
+							 * THE EMBED LAW: the GitHub and Files frames are the last
+							 * entry in the transcript, at conversation width, with the
+							 * composer still below. They are appended to the same child
+							 * array the messages and cards are in, so the transcript's
+							 * own empty state still counts an empty conversation as
+							 * empty.
+							 */
+							...transcriptFrames,
+						]}
 					</ChatTranscript>
 
 					<div className="composer-wrap">
@@ -1358,27 +1419,6 @@ function App({ controller }: { readonly controller: AppController }) {
 					</section>
 				) : session.surface === "connectors" ? (
 					<ConnectorsSurface controller={controller} />
-				) : session.surface === "github" ? (
-					<GitHubPane
-						controller={controller}
-						session={session}
-						available={watchedRows[0]?.available ?? []}
-						watched={watchedRows[0]?.selected ?? []}
-						cards={cardRows}
-					/>
-				) : session.surface === "files" ? (
-					<section className="github-pane embedded-pane" aria-label="Repository files">
-						<SurfaceHeader icon={<FolderGit2 size={17} aria-hidden="true" />} title="Files" subtitle={session.selectedRepository ?? "Repository"} closeCommand="chat" onClose={() => controller.runCommand("chat")} />
-						<RepoFilesBrowser
-							repo={session.selectedRepository}
-							cards={cardRows}
-							onRunCommand={(name, commandArgs) =>
-								commandArgs === undefined
-									? controller.runCommand(name)
-									: controller.runCommandArgs(name, commandArgs)
-							}
-						/>
-					</section>
 				) : null}
 
 				{/* Admin-only: the panel is absent — not hidden — for everyone else. */}

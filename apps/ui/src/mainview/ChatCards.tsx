@@ -31,6 +31,10 @@ import { LandingCardBody, LandingListCardBody } from "./cards/LandingCards";
 import { NotificationsCardBody } from "./cards/NotificationsCard";
 import { RepoImportCardBody } from "./cards/RepoImportCard";
 import { ThemePickerCardBody } from "./cards/ThemePickerCard";
+import { freshnessLabel, RepositoryList } from "./RepositoryList";
+import type { RepoRow } from "./RepositoryList";
+
+export { freshnessLabel } from "./RepositoryList";
 
 const clockLabel = (timestamp: number): string =>
 	new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -229,10 +233,13 @@ export type RecoAction = "accept" | "edit" | "dismiss";
  */
 const RecoCardBody = ({
 	card,
+	repositories,
 	onRecoAction,
 	onRunCommand,
 }: {
 	readonly card: Extract<Card, { kind: "reco" }>;
+	/* The account's repositories: what a digest with nothing to recommend shows. */
+	readonly repositories: ReadonlyArray<RepoRow>;
 	readonly onRecoAction: (id: string, action: RecoAction) => void;
 	readonly onRunCommand: (name: string, args?: string) => void;
 }) => {
@@ -313,7 +320,21 @@ const RecoCardBody = ({
 						</div>
 					)}
 				</div>
-			) : <Button size="sm" data-flow="github" onClick={() => onRunCommand("github")}>Browse repositories</Button>}
+			) : (
+				/*
+				 * A digest with nothing to recommend is the landing (will,
+				 * 2026-08-19): "what we should be showing here is a bit of a
+				 * github pane so we should see a list of repos available and if
+				 * we click on it we see the repo view". The list IS the landing —
+				 * no button in between — and a row opens that repository.
+				 */
+				<RepositoryList
+					rows={repositories}
+					flow="repo.open"
+					label="Your repositories"
+					onOpen={(fullName) => onRunCommand("repo.open", fullName)}
+				/>
+			)}
 			{card.status === "error" && card.payload.error !== undefined ? (
 				<p className="sui-approval-error" role="alert">
 					{card.payload.error}
@@ -478,6 +499,11 @@ export interface CardViewProps {
 	readonly onStopRun: (cardId: string) => void;
 	readonly onRetryRun: (cardId: string) => void;
 	readonly onChooseWorkflowRepo: (fullName: string) => void;
+	/*
+	 * The account's repositories, live from the catalog: the digest card with no
+	 * recommendation lands on the repository list rather than a dead end.
+	 */
+	readonly repositories: ReadonlyArray<RepoRow>;
 	/* The world card reads live documents so its editor never shows stale bodies. */
 	readonly worldDocuments: ReadonlyArray<WorldDocument>;
 	readonly onChangeWorldDocument: (id: string, body: string) => void;
@@ -495,16 +521,7 @@ export interface CardViewProps {
  * empty), typing filters, Enter confirms. Select-all/none plus the one
  * confirm action; every act is a command binding.
  */
-export const freshnessLabel = (pushedAt: string | null): string => {
-	if (pushedAt === null) return "never pushed";
-	const days = Math.max(0, Math.floor((Date.now() - Date.parse(pushedAt)) / 86_400_000));
-	if (Number.isNaN(days)) return "";
-	if (days === 0) return "today";
-	if (days === 1) return "yesterday";
-	if (days < 30) return `${days}d ago`;
-	const months = Math.floor(days / 30);
-	return months < 12 ? `${months}mo ago` : `${Math.floor(months / 12)}y ago`;
-};
+
 
 /*
  * The chooser's keyboard map, pure so the completeness contract is testable
@@ -991,6 +1008,7 @@ export function CardView({
 	onStopRun,
 	onRetryRun,
 	onChooseWorkflowRepo,
+	repositories,
 	worldDocuments,
 	onChangeWorldDocument,
 	onRunCommand,
@@ -1050,7 +1068,14 @@ export function CardView({
 					) : null}
 					{card.kind === "status" ? <StatusCardBody card={card} /> : null}
 					{card.kind === "balance" ? <BalanceCardBody card={card} /> : null}
-					{card.kind === "reco" ? <RecoCardBody card={card} onRecoAction={onRecoAction} onRunCommand={onRunCommand} /> : null}
+					{card.kind === "reco" ? (
+						<RecoCardBody
+							card={card}
+							repositories={repositories}
+							onRecoAction={onRecoAction}
+							onRunCommand={onRunCommand}
+						/>
+					) : null}
 					{card.kind === "grant-confirm" ? (
 						<GrantConfirmCardBody card={card} onGrantConfirm={onGrantConfirm} onGrantCancel={onGrantCancel} />
 					) : null}
