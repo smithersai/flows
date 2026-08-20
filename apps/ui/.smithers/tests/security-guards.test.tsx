@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { safeExternalHref, resolveDocLink } from "../ui/ddd-shared.tsx";
@@ -83,5 +83,25 @@ describe("workflow security guards", () => {
   test("bearer-token webhooks cannot rely on re-resolvable DNS", async () => {
     await expect(assertTokenSafeWebhookDestination("https://attacker.example/order", "secret")).rejects.toThrow("IP-literal");
     await expect(assertTokenSafeWebhookDestination("https://127.0.0.1/order", "secret")).rejects.toThrow("non-public");
+  });
+
+  test("approval and publication workflows retain their binding and resume contracts", () => {
+    const workflows = join(import.meta.dir, "..", "workflows");
+    const docs = readFileSync(join(workflows, "docs-driven-development.tsx"), "utf8");
+    expect(docs).not.toContain("implementationApproved");
+    expect(docs).toContain("triageReady(ctx) && approvalRequired");
+    expect(docs).toContain('dependsOn={approvalRequired ? ["materialize-tickets", "approve-implementation"]');
+
+    const federation = readFileSync(join(workflows, "smithers-repo-federation.tsx"), "utf8");
+    expect(federation).toContain("captureMergeApprovalBinding");
+    expect(federation).toContain("PR head, base, repository, number, or checks drifted after approval");
+    expect(federation).toContain('"--ledger", ledgerPath, "--resume"');
+    expect(federation).toContain("Release is partial:");
+
+    const universal = readFileSync(join(workflows, "universal-flow-runtime-swarm.tsx"), "utf8");
+    expect(universal).toContain("snapshot.bases");
+    expect(universal).toContain("landing ledger does not match");
+    expect(universal).toContain("--force-with-lease=refs/heads/");
+    expect(universal).toContain("Existing worktree origin mismatch");
   });
 });
