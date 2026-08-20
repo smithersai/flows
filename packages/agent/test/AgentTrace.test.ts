@@ -66,6 +66,10 @@ describe("trace", () => {
           auditCompletion: true,
           readOnlyCap: 12,
           maxFrames: 100,
+          calls: 64,
+          memoryBytes: 134_217_728,
+          steps: 1_000,
+          timeMs: 30_000,
           callMs: 120_000,
           totalMs: 900_000
         }),
@@ -75,6 +79,10 @@ describe("trace", () => {
             auditCompletion: true,
             readOnlyCap: 12,
             maxFrames: 100,
+            calls: 64,
+            memoryBytes: 134_217_728,
+            steps: 1_000,
+            timeMs: 30_000,
             callMs: 120_000,
             totalMs: 900_000
           }

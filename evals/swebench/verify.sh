@@ -1,5 +1,5 @@
 #!/bin/bash
-# Verifies the scorecard generator end to end against a past wave's numbers.
+# Verifies the scorecard generator and instance guidance without model calls.
 #
 #   ./verify.sh
 #
@@ -36,3 +36,7 @@ score
 node "$S/fixtures/check.mjs" expect-latency
 
 echo "verify.sh: the scorecard generator agrees with the recorded wave."
+
+echo "== repository-specific verification guidance"
+python3 "$S/fixtures/test-test-command.py"
+node "$S/fixtures/check-rig.mjs"

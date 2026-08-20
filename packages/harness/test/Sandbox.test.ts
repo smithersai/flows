@@ -308,7 +308,10 @@ for (const [name, binding] of bindings) {
            await ctx.call("fs/list", {})
            return { intent: "complete", output: "unreachable" }
          } catch (error) {
-           return { intent: "complete", output: error.message }
+           return {
+             intent: "complete",
+             output: JSON.stringify({ name: error.name, message: error.message, value: error.value })
+           }
          }`,
         {
           call: () =>
@@ -322,8 +325,12 @@ for (const [name, binding] of bindings) {
       expect(entered).toBe(true)
       expect((outcome as Cell.Settled).transition).toMatchObject({
         _tag: "complete",
-        output:
-          "Flow fs/list did not settle within 0 seconds and was cancelled. Narrow the call — a smaller root, a tighter pattern, a shorter command — and issue it again."
+        output: JSON.stringify({
+          name: Sandbox.callTimeoutErrorName,
+          message:
+            "Flow fs/list timed out after 0.05 seconds. Narrow the call — a smaller root, a tighter pattern, a shorter command — and issue it again.",
+          value: { _tag: Sandbox.callTimeoutTag, flow: "fs/list", budgetMs: 50 }
+        })
       })
     })
 
@@ -473,6 +480,16 @@ describe("Sandbox projections", () => {
     expect([withMessage.name, withMessage.message]).toEqual(["FlowCallError", "denied"])
     const withoutMessage = Sandbox.failureError(new Cell.CallResult({ outcome: "failure", value: null }))
     expect(withoutMessage.message).toBe("The flow call failed")
+    const timedOut = Sandbox.failureError(
+      new Cell.CallResult({
+        outcome: "failure",
+        value: { _tag: Sandbox.callTimeoutTag, flow: "grep", budgetMs: 120_000 }
+      })
+    ) as Error & { readonly value: unknown }
+    expect([timedOut.name, timedOut.value]).toEqual([
+      Sandbox.callTimeoutErrorName,
+      { _tag: Sandbox.callTimeoutTag, flow: "grep", budgetMs: 120_000 }
+    ])
   })
 
   it("defaults every supported safety ceiling and preserves explicit raises", async () => {
@@ -543,6 +560,10 @@ describe("Sandbox projections", () => {
       const limits of [
         { timeMs: Number.POSITIVE_INFINITY },
         { timeMs: Number.NaN },
+        { totalMs: Number.POSITIVE_INFINITY },
+        { totalMs: Number.NaN },
+        { callMs: -1 },
+        { callMs: Number.NaN },
         { steps: Number.POSITIVE_INFINITY },
         { steps: Number.NaN },
         { memoryBytes: 0 },
@@ -598,7 +619,9 @@ describe("Sandbox.layerRestricted", () => {
   })
 
   it("refuses a limit it cannot enforce instead of ignoring it", async () => {
-    for (const limits of [{ memoryBytes: 1024 * 1024 }, { steps: 1000 }, { timeMs: 1000 }]) {
+    for (
+      const limits of [{ memoryBytes: 1024 * 1024 }, { steps: 1000 }, { timeMs: 1000 }, { totalMs: 1000 }]
+    ) {
       const outcome = await Effect.gen(function*() {
         const sandbox = yield* Sandbox.Sandbox
         return yield* Effect.result(

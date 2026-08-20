@@ -10,6 +10,11 @@
 
 ### Fixed
 
+- Bounded each host flow call independently of the cell's 15-minute backstop.
+  An over-budget call now returns a catchable, typed
+  `FlowCallTimeoutError` with a model-facing narrowing instruction, while the
+  cell keeps running and may retry a smaller call.
+
 - Stopped charging a settled flow call's duration to the cell's compute clock; a new `totalMs` ceiling (default 15 minutes) backstops a call that never settles. 57 of the 62 rejected frames in the first SWE-bench benchmark were legitimate long test runs hitting the old 30-second wall clock.
 
 - Journaled the turn-boundary steering drain through the new `EngineLike.record` boundary in `CellTurn`. The drain consumes host queue state, so it is a nondeterministic read: left unjournaled, a run resumed after a park or crash drained an already-drained queue, rebuilt a different context than the original attempt, re-keyed every later sealed step, and could re-execute irreversible effects. The drain is now recorded once per frame boundary and replayed verbatim on re-execution.
@@ -17,6 +22,10 @@
 - Restored `FlowProjection` construction without an explicit input document by defaulting the field to `Option.none()`.
 
 ### Added
+
+- Added the run-start `DisciplineArmed` event, recording the completion audit,
+  read-only and frame caps, and every effective sandbox limit before the first
+  frame runs.
 
 - Added the opt-in read-only frame cap (`CellTurn.make({ readOnlyCap })`, default `CellTurn.defaultReadOnlyFrames` = 12 for task runs). A frame that made no call declaring a write extends the run's read-only streak; at the cap the controller demands a write or a typed `justification` on the next transition, and at twice the cap the run stops with `HarnessError` code `read_only_cap` instead of reporting work it never did. A justification is recorded and buys `readOnlyCap` quiet frames without resetting the counter. One benchmark instance read for all 100 frames, made 132 calls with zero edit attempts, and completed claiming the fix was implemented.
 
