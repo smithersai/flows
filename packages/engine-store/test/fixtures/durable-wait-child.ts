@@ -53,13 +53,14 @@ const jj = Jj.make({
 
 const database = Layer.provideMerge(DurableWriter.layer(), NodeDatabase.layer({ filename }))
 const migratedDatabase = Layer.provideMerge(Migrations.layer, database)
+const journalLayer = SqlJournal.layer({ capacity: 64, overflow: "reject" })
 const sqlServices = Layer.provideMerge(
   Layer.mergeAll(
     AttemptStore.layer,
-    CacheStore.layer,
+    CacheStore.layer.pipe(Layer.provide(journalLayer)),
     RunStore.layer,
     DurableEngineState.layer,
-    SqlJournal.layer({ capacity: 64, overflow: "reject" })
+    journalLayer
   ),
   migratedDatabase
 )

@@ -89,6 +89,9 @@ describe("TestStores", () => {
 
       expect(Option.getOrThrow(result.attempt).meta).toEqual({ poisonPill: false })
       expect(Option.getOrThrow(result.cache).result).toEqual({ value: "ok" })
-      expect(result.entries.entries.map((entry) => entry.seq)).toEqual([0, 1, 2])
+      // seq 3 is the cache fold's own `flows.cache.recorded` event: the bundle
+      // wires the store to the same journal, so the put appends through it.
+      expect(result.entries.entries.map((entry) => entry.seq)).toEqual([0, 1, 2, 3])
+      expect(result.entries.entries[3]!.eventType).toBe("flows.cache.recorded")
     }))
 })

@@ -90,11 +90,13 @@ const jj = Jj.make({
 })
 
 /** Every durable store an engine composes, over one fresh in-memory database. */
+const journalLayer = SqlJournal.layer({ capacity: 1024, overflow: "reject" })
+
 const services = Layer.mergeAll(
-  SqlJournal.layer({ capacity: 1024, overflow: "reject" }),
+  journalLayer,
   RunStore.layer,
   AttemptStore.layer,
-  CacheStore.layer,
+  CacheStore.layer.pipe(Layer.provide(journalLayer)),
   PlanStore.layer,
   DurableEngineState.layer
 ).pipe(
@@ -1066,11 +1068,12 @@ describe("journal admission is visible at the authoring boundary", () => {
         })
       )
       const gatedDatabase = Layer.provideMerge(gatedWriter, TestDatabase.layer)
+      const overflowJournal = SqlJournal.layer({ capacity: 1, overflow: "reject", batchSize: 1 })
       const overflowServices = Layer.mergeAll(
-        SqlJournal.layer({ capacity: 1, overflow: "reject", batchSize: 1 }),
+        overflowJournal,
         RunStore.layer,
         AttemptStore.layer,
-        CacheStore.layer,
+        CacheStore.layer.pipe(Layer.provide(overflowJournal)),
         PlanStore.layer,
         DurableEngineState.layer
       ).pipe(

@@ -19,9 +19,10 @@ import { jjInstalled, parkSealedFlow, runRealEngine, withRealFixture } from "./R
 const services = (filename: string) => {
   const database = Layer.provideMerge(DurableWriter.layer(), NodeDatabase.layer({ filename }))
   const migrated = Layer.provideMerge(Migrations.layer, database)
+  const journalLayer = SqlJournal.layer({ capacity: 32, overflow: "reject" })
   return Layer.mergeAll(
-    SqlJournal.layer({ capacity: 32, overflow: "reject" }),
-    CacheStore.layer
+    journalLayer,
+    CacheStore.layer.pipe(Layer.provide(journalLayer))
   ).pipe(Layer.provideMerge(migrated))
 }
 

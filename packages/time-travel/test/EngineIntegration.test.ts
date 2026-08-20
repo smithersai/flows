@@ -129,11 +129,12 @@ const engineLayer = (harness: Harness, handlers: ReadonlyArray<CompensationHandl
       return `${amount}:${receipt}:${settled}`
     })
 
+  const journalLayer = SqlJournal.layer({ capacity: 1024, overflow: "reject" })
   const stores = Layer.mergeAll(
-    SqlJournal.layer({ capacity: 1024, overflow: "reject" }),
+    journalLayer,
     RunStore.layer,
     AttemptStore.layer,
-    CacheStore.layer,
+    CacheStore.layer.pipe(Layer.provide(journalLayer)),
     DurableEngineState.layer
   ).pipe(Layer.provideMerge(Layer.effectDiscard(EngineMigrations.run)))
 

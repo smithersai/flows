@@ -17,6 +17,7 @@
 import { describe, expect, it } from "@effect/vitest"
 import { DurableWriter } from "@smthrs/database"
 import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
+import * as SqlJournal from "@smthrs/journal/SqlJournal"
 import * as Context from "effect/Context"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
@@ -57,7 +58,12 @@ const migrated = (filename: string) =>
 /** One independent connection to the file, as its own cache store instance. */
 const connection = (filename: string) =>
   Effect.map(
-    Layer.build(CacheStoreLive.layer.pipe(Layer.provide(migrated(filename)))),
+    Layer.build(
+      CacheStoreLive.layer.pipe(
+        Layer.provide(SqlJournal.layer({ capacity: 64, overflow: "reject" })),
+        Layer.provide(migrated(filename))
+      )
+    ),
     (context) => Context.get(context, CacheStore)
   )
 

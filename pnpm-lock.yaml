@@ -3140,6 +3140,9 @@ importers:
       '@smthrs/database':
         specifier: 0.1.0
         version: link:../database
+      '@smthrs/journal':
+        specifier: 0.1.0
+        version: link:../journal
       effect:
         specifier: 4.0.0-rc.108
         version: 4.0.0-rc.108

@@ -65,11 +65,12 @@ describe("attempt probe cost over SQL durable state (issue #77)", () => {
         })
       })
 
+      const journalLayer = SqlJournal.layer({ capacity: 1024, overflow: "reject" })
       const stores = Layer.mergeAll(
-        SqlJournal.layer({ capacity: 1024, overflow: "reject" }),
+        journalLayer,
         RunStore.layer,
         AttemptStore.layer,
-        CacheStore.layer,
+        CacheStore.layer.pipe(Layer.provide(journalLayer)),
         DurableEngineState.layer
       ).pipe(
         Layer.provideMerge(Layer.provideMerge(Migrations.layer, TestDatabase.layer)),

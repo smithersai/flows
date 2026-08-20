@@ -93,11 +93,14 @@ export const storage = (filename: string) => {
   const root = dirname(validatedFilename)
   const database = Layer.provideMerge(Migrations.layer, databaseLayer(validatedFilename))
   const consensus = SqlConsensus.layer
+  const journal = SqlJournal.layer({ capacity: 1024, overflow: "reject" }).pipe(Layer.provideMerge(consensus))
   return Layer.mergeAll(
-    SqlJournal.layer({ capacity: 1024, overflow: "reject" }).pipe(Layer.provideMerge(consensus)),
+    journal,
     RunStore.layerWith.pipe(Layer.provideMerge(consensus)),
     AttemptStore.layer,
-    CacheStore.layer,
+    // The cache is a fold of journal events, so its layer appends through the
+    // journal; the same layer reference is memoized, so both see one journal.
+    CacheStore.layer.pipe(Layer.provide(journal)),
     DurableEngineState.layer,
     OwnerIdentity.layer,
     Workspace.layer(root),

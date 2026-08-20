@@ -368,10 +368,11 @@ describe("fork boundary assessment", () => {
   it.effect("rolls back every SQL fork row when workspace creation fails", () =>
     Effect.gen(function*() {
       const migrated = Layer.provideMerge(Migrations.layer, TestDatabase.layer)
+      const journalLayer = SqlJournal.layer({ capacity: 32, overflow: "reject" })
       const services = Layer.mergeAll(
         RunStore.layer,
-        SqlJournal.layer({ capacity: 32, overflow: "reject" }),
-        CacheStore.layer,
+        journalLayer,
+        CacheStore.layer.pipe(Layer.provide(journalLayer)),
         SqlTimeTravelStore.layer
       ).pipe(Layer.provideMerge(migrated))
 

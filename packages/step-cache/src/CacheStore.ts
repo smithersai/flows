@@ -4,13 +4,20 @@
  * This store receives already-computed digests and recorded results. It does
  * not inspect step layers, capabilities, or result metadata.
  *
- * Governing designs: `docs/specs/Concepts/Step Keys.md` and
- * `docs/specs/Concepts/Trust Granularity.md`.
+ * The two tables it owns are rebuildable materializations of journal events:
+ * every row change appends a `flows.cache.*` event in the same
+ * `DurableWriter` transaction, and `Fold` rebuilds the tables from those
+ * events. See `docs/specs/Concepts/Step Cache Fold.md`.
+ *
+ * Governing designs: `docs/specs/Concepts/Step Keys.md`,
+ * `docs/specs/Concepts/Trust Granularity.md`, and
+ * `docs/specs/Concepts/Journal Consensus.md`.
  *
  * @since 0.1.0
  */
 import { Canonical } from "@smthrs/canonical/Canonical"
-import { affectedRows, DatabaseError, DurableWriter } from "@smthrs/database/DurableWriter"
+import { affectedRows, DatabaseError } from "@smthrs/database/DurableWriter"
+import * as Journal from "@smthrs/journal/Journal"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -20,6 +27,7 @@ import * as Schema from "effect/Schema"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as SqlError from "effect/unstable/sql/SqlError"
 import * as CacheStoreMetrics from "./CacheStoreMetrics.ts"
+import * as CacheEvents from "./internal/CacheEvents.ts"
 
 /** JSON text carrying an arbitrary decoded value. */
 const UnknownFromJsonString = Schema.fromJsonString(Schema.Unknown)
@@ -70,19 +78,14 @@ const NonNegativeSafeInt = Schema.Int.check(
 )
 
 /**
- * The durable data recorded for a cache key.
+ * The durable data recorded for a cache key. Also the payload of the
+ * `flows.cache.recorded` event a `put` appends, which is what makes the
+ * materialized row rebuildable byte-for-byte.
  *
  * @category schemas
  * @since 0.1.0
  */
-export const CacheEntry = Schema.Struct({
-  keyDigest: Schema.NonEmptyString,
-  result: Schema.Unknown,
-  meta: Schema.Unknown,
-  createdAtMs: NonNegativeSafeInt,
-  recordedRunId: Schema.NonEmptyString,
-  recordedEventSeq: NonNegativeSafeInt
-})
+export const CacheEntry = CacheEvents.Entry
 
 /**
  * The durable data recorded for a cache key.
@@ -211,6 +214,8 @@ const error = (code: CacheStoreErrorCode, message: string, cause?: unknown): Cac
  *
  * `RemoteCacheStore.put` runs the same check before serializing an entry onto
  * the wire, so a value with no JSON form is refused identically by both tiers.
+ * `Fold.rebuild` materializes rows through it, so a rebuilt row is byte-equal
+ * to the row the live write landed.
  *
  * @since 0.1.0
  * @private
@@ -271,6 +276,12 @@ const mapPersistenceError = (cause: unknown): CacheStoreError => {
   if (Schema.is(CacheStoreError)(cause)) {
     return cause
   }
+  // `Journal.transact` wraps a failed cache transaction in its own error with
+  // the database failure as `cause`; classify from the underlying failure so
+  // a constraint keeps reporting `constraint` through the fold.
+  if (Schema.is(Journal.JournalError)(cause) && cause.cause !== undefined) {
+    return mapPersistenceError(cause.cause)
+  }
   const constraint = Schema.is(DatabaseError)(cause)
     ? cause.code === "constraint"
     : SqlError.isSqlError(cause) &&
@@ -306,12 +317,19 @@ const decodeRow = (input: unknown): Effect.Effect<CacheEntry, CacheStoreError> =
  * executable state and are persisted verbatim; rewriting them here would
  * serve a different value than the one the step produced (issue #72).
  *
+ * Every row change commits with the `flows.cache.*` event describing it in
+ * one `Journal.transact` transaction, so either the row and its event are
+ * both durable or neither is. Cache events are unfenced — admission is
+ * content-address first-writer-wins, not run ownership — and a repeat that
+ * changes nothing appends nothing, which is the fold's idempotency
+ * (`docs/specs/Concepts/Step Cache Fold.md`).
+ *
  * @category constructors
  * @since 0.1.0
  */
-export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlClient> = Effect.gen(function*() {
+export const make: Effect.Effect<Service, never, Journal.Journal | SqlClient.SqlClient> = Effect.gen(function*() {
   const sql = yield* Effect.service(SqlClient.SqlClient)
-  const writer = yield* DurableWriter
+  const journal = yield* Journal.Journal
 
   const get: Service["get"] = Effect.fn("CacheStore.get")((keyDigest, options) =>
     Effect.gen(function*() {
@@ -356,20 +374,22 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
       yield* validateEntry(entry)
       const result = yield* encodeCanonical(entry.result, "result")
       const meta = yield* encodeCanonical(entry.meta, "meta")
-      return yield* writer.write(
+      return yield* journal.transact(
         Effect.gen(function*() {
           // The recorded ledger lands first and unconditionally: whatever the
           // head decides — first write, duplicate, or conflict — this event
           // durably recorded these bytes, and a later replay naming exactly
           // this provenance must read them back. First writer wins per
-          // provenance key; nothing ever deletes a ledger row.
-          yield* sql`
+          // provenance key; nothing but journal compaction deletes a ledger
+          // row, and the fold itself never does.
+          const ledger = yield* sql`
             INSERT INTO flows_step_cache_recorded (
               key_digest, result_json, meta_json, created_at_ms, recorded_run_id, recorded_event_seq
             ) VALUES (
               ${entry.keyDigest}, ${result}, ${meta}, ${entry.createdAtMs}, ${entry.recordedRunId}, ${entry.recordedEventSeq}
             ) ON CONFLICT (key_digest, recorded_run_id, recorded_event_seq) DO NOTHING
-          `.pipe(Effect.mapError(mapPersistenceError))
+          `.raw.pipe(Effect.mapError(mapPersistenceError))
+          const ledgerInserted = (yield* affectedRows(ledger)) > 0
           const inserted = yield* sql`
             INSERT INTO flows_step_cache (
               key_digest, result_json, meta_json, created_at_ms, recorded_run_id, recorded_event_seq
@@ -377,19 +397,33 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
               ${entry.keyDigest}, ${result}, ${meta}, ${entry.createdAtMs}, ${entry.recordedRunId}, ${entry.recordedEventSeq}
             ) ON CONFLICT (key_digest) DO NOTHING
           `.raw.pipe(Effect.mapError(mapPersistenceError))
-          if ((yield* affectedRows(inserted)) > 0) {
-            return { _tag: "Inserted" } as const
+          const headInserted = (yield* affectedRows(inserted)) > 0
+          const outcome = yield* Effect.gen(function*() {
+            if (headInserted) {
+              return { _tag: "Inserted" } as const
+            }
+            const rows = yield* sql<Pick<CacheRow, "result_json">>`
+              SELECT result_json FROM flows_step_cache WHERE key_digest = ${entry.keyDigest}
+            `.pipe(Effect.mapError(mapPersistenceError))
+            /* v8 ignore next -- the conflicting row is read in the same serialized write transaction */
+            if (rows.length === 0) {
+              return yield* Effect.fail(error("unknown", "cache entry disappeared during put"))
+            }
+            return rows[0]!.result_json === result
+              ? { _tag: "ExistingSame" } as const
+              : { _tag: "Conflict" } as const
+          })
+          // An event is appended when and only when a table changed: an
+          // inserted head, or a new ledger generation. An `ExistingSame`
+          // under an existing triple — the convergence re-record after a
+          // crash between `attempts.finish` and `cache.put` — changed nothing
+          // and appends nothing, which is the fold's idempotency. The append
+          // joins this transaction, so the rows and the event describing them
+          // are one commit.
+          if (headInserted || ledgerInserted) {
+            yield* journal.emitDurable(CacheEvents.recorded(entry))
           }
-          const rows = yield* sql<Pick<CacheRow, "result_json">>`
-            SELECT result_json FROM flows_step_cache WHERE key_digest = ${entry.keyDigest}
-          `.pipe(Effect.mapError(mapPersistenceError))
-          /* v8 ignore next -- the conflicting row is read in the same serialized write transaction */
-          if (rows.length === 0) {
-            return yield* Effect.fail(error("unknown", "cache entry disappeared during put"))
-          }
-          return rows[0]!.result_json === result
-            ? { _tag: "ExistingSame" } as const
-            : { _tag: "Conflict" } as const
+          return outcome
         })
       ).pipe(
         Effect.mapError(mapPersistenceError),
@@ -403,26 +437,59 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
       yield* Effect.annotateCurrentSpan({ keyDigest })
       yield* validateKey(keyDigest)
       yield* validateFence(options?.ifRecordedBy)
-      // The provenance predicate rides in the DELETE itself (issue #119):
-      // a read-then-delete leaves a window in which another *process* records
-      // a fresh row under the same key, and the unconditional delete would
-      // drop it. Temporal fences its mutable-state writes the same way — the
-      // guard is part of the write, never a prior read.
       const fenced = options?.ifRecordedBy
-      const deleted = yield* writer.write(
-        fenced === undefined
-          ? sql`DELETE FROM flows_step_cache WHERE key_digest = ${keyDigest}`.raw
-          : sql`
+      return yield* journal.transact(
+        Effect.gen(function*() {
+          // The row is read before the DELETE because the `flows.cache.evicted`
+          // event carries the deleted row's provenance and appends under its
+          // recorded run. The read and the delete share one serialized write
+          // transaction, so no foreign row can land between them; the
+          // provenance predicate still rides in the DELETE itself (issue
+          // #119), which keeps the compare-and-swap structural rather than
+          // an artifact of transaction scheduling. Temporal fences its
+          // mutable-state writes the same way — the guard is part of the
+          // write.
+          const rows = yield* (
+            fenced === undefined
+              ? sql<Pick<CacheRow, "recorded_run_id" | "recorded_event_seq">>`
+                SELECT recorded_run_id, recorded_event_seq
+                FROM flows_step_cache WHERE key_digest = ${keyDigest}
+              `
+              : sql<Pick<CacheRow, "recorded_run_id" | "recorded_event_seq">>`
+                SELECT recorded_run_id, recorded_event_seq
+                FROM flows_step_cache
+                WHERE key_digest = ${keyDigest}
+                  AND recorded_run_id = ${fenced.runId}
+                  AND recorded_event_seq = ${fenced.eventSeq}
+              `
+          ).pipe(Effect.mapError(mapPersistenceError))
+          const row = rows[0]
+          // A compare-and-swap that matched no row appends nothing.
+          if (row === undefined) {
+            return false
+          }
+          const deleted = yield* sql`
             DELETE FROM flows_step_cache
             WHERE key_digest = ${keyDigest}
-              AND recorded_run_id = ${fenced.runId}
-              AND recorded_event_seq = ${fenced.eventSeq}
-          `.raw
-      ).pipe(
-        Effect.flatMap(affectedRows),
-        Effect.mapError(mapPersistenceError)
-      )
-      return deleted > 0
+              AND recorded_run_id = ${row.recorded_run_id}
+              AND recorded_event_seq = ${Number(row.recorded_event_seq)}
+          `.raw.pipe(
+            Effect.flatMap(affectedRows),
+            Effect.mapError(mapPersistenceError)
+          )
+          if (deleted === 0) {
+            return false
+          }
+          // The DELETE and the event describing it are one commit: a crash
+          // can no longer leave a deleted row the journal cannot explain.
+          yield* journal.emitDurable(CacheEvents.evicted({
+            keyDigest,
+            recordedRunId: row.recorded_run_id,
+            recordedEventSeq: Number(row.recorded_event_seq)
+          }))
+          return true
+        })
+      ).pipe(Effect.mapError(mapPersistenceError))
     })
   )
 
@@ -457,7 +524,14 @@ export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<CacheSt
 /**
  * Provides the SQL-backed cache store.
  *
+ * Requires the `Journal` in context and the journal's migration set installed
+ * alongside this package's: the fold appends `flows.cache.*` events to
+ * `@smthrs/journal`'s tables in the same transaction as every row change, so
+ * a row write without its event is a hole in the contract.
+ *
  * @category layers
  * @since 0.1.0
  */
-export const layer: Layer.Layer<CacheStore, never, DurableWriter | SqlClient.SqlClient> = Layer.effect(CacheStore)(make)
+export const layer: Layer.Layer<CacheStore, never, Journal.Journal | SqlClient.SqlClient> = Layer.effect(CacheStore)(
+  make
+)

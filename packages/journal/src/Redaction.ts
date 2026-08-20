@@ -160,6 +160,37 @@ export const redact = (value: unknown, options?: Options): unknown => {
 }
 
 /**
+ * Event-type namespaces whose entries bypass the write-path redactor.
+ *
+ * A fold namespace moves executable state into journal events: the fold's
+ * materialized row is rebuilt from the event payload and served back into the
+ * executable path, so redacting the event corrupts the rebuilt state exactly
+ * the way redacting `flows_runs.state_json` would (issue #72). `flows.cache.*`
+ * carries cached step results served verbatim on a hit — the step-cache fold,
+ * `docs/specs/Concepts/Step Cache Fold.md`. The run/attempt fold's
+ * `flows.run.*` and `flows.attempt.*` namespaces join this list when that fold
+ * lands (`docs/specs/Concepts/Run State Fold.md`).
+ *
+ * The accepted consequences are the module doc's: hygiene for values that must
+ * never persist stays the caller-schema `Redacted` rule, and export/display
+ * surfaces scrub at render time.
+ *
+ * @since 0.1.0
+ * @category constants
+ */
+export const verbatimNamespaces: ReadonlyArray<string> = ["flows.cache."]
+
+/**
+ * Whether entries of this event type bypass the write-path redactor because
+ * their payloads are executable state.
+ *
+ * @since 0.1.0
+ * @category predicates
+ */
+export const isVerbatimEventType = (eventType: string): boolean =>
+  verbatimNamespaces.some((namespace) => eventType.startsWith(namespace))
+
+/**
  * A redaction function, as the journal consumes it.
  *
  * @since 0.1.0

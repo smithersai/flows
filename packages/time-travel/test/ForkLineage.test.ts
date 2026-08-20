@@ -118,10 +118,11 @@ describe("fork lineage", () => {
       const layer = () => {
         const database = Layer.provideMerge(DurableWriter.layer(), NodeDatabase.layer({ filename }))
         const migrated = Layer.provideMerge(TimeTravelMigrations.layer, database)
+        const journalLayer = SqlJournal.layer({ capacity: 32, overflow: "reject" })
         const persistence = Layer.mergeAll(
-          SqlJournal.layer({ capacity: 32, overflow: "reject" }),
+          journalLayer,
           RunStore.layer,
-          CacheStore.layer,
+          CacheStore.layer.pipe(Layer.provide(journalLayer)),
           SqlTimeTravelStore.layer,
           Layer.succeed(Jj.Jj)(Jj.makeNoop({
             workspaceAdd: () => Effect.void,

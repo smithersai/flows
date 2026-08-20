@@ -103,6 +103,42 @@ describe("Redaction", () => {
       expect(entry.meta).toEqual({ authorization: Redaction.placeholder })
     }).pipe(Effect.provide(journalLayer()), Effect.scoped))
 
+  it("names the fold namespaces whose entries bypass the write-path redactor", () => {
+    expect(Redaction.verbatimNamespaces).toEqual(["flows.cache."])
+    expect(Redaction.isVerbatimEventType("flows.cache.recorded")).toBe(true)
+    expect(Redaction.isVerbatimEventType("flows.cache.evicted")).toBe(true)
+    expect(Redaction.isVerbatimEventType("flows.cachex.other")).toBe(false)
+    expect(Redaction.isVerbatimEventType("action.completed")).toBe(false)
+  })
+
+  effect("keeps fold-namespace payloads verbatim on the write path", () =>
+    Effect.gen(function*() {
+      // A fold namespace moves executable state into events: the cache's
+      // materialized row is rebuilt from the payload and served back on a
+      // hit, so redacting it would corrupt the rebuilt state exactly the way
+      // redacting `flows_runs.state_json` would (issue #72).
+      const journal = yield* Journal
+      const run = runId("redaction-fold")
+      yield* journal.emitDurable(
+        input(run, sourceId("cache"), "flows.cache.recorded", {
+          keyDigest: "digest",
+          result: { apiKey: "sk-ant-api03-abcdefgh" }
+        }, { lineageId: "redaction-fold/root" })
+      )
+      // Every other namespace in the same run still funnels through the
+      // redactor: the bypass selects by event type, not by run.
+      yield* journal.emitDurable(
+        input(run, sourceId("action"), "action.completed", { apiKey: "sk-ant-api03-abcdefgh" })
+      )
+      const page = yield* journal.entries({ runId: run, limit: 10 })
+      expect(page.entries[0]!.payload).toEqual({
+        keyDigest: "digest",
+        result: { apiKey: "sk-ant-api03-abcdefgh" }
+      })
+      expect(page.entries[0]!.meta).toEqual({ lineageId: "redaction-fold/root" })
+      expect(page.entries[1]!.payload).toEqual({ apiKey: Redaction.placeholder })
+    }).pipe(Effect.provide(journalLayer()), Effect.scoped))
+
   effect("never persists a secret through the lossy queue either", () =>
     Effect.gen(function*() {
       const journal = yield* Journal

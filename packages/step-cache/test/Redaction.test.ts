@@ -7,6 +7,7 @@
 import { describe, expect, it } from "@effect/vitest"
 import { DurableWriter } from "@smthrs/database/DurableWriter"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import * as SqlJournal from "@smthrs/journal/SqlJournal"
 import { Effect, Layer, Option } from "effect"
 import { TestClock } from "effect/testing"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"
@@ -24,6 +25,7 @@ describe("cached step result redaction", () => {
   }
 
   const storeLayers = CacheStore.layer.pipe(
+    Layer.provide(SqlJournal.layer({ capacity: 64, overflow: "reject" })),
     Layer.provideMerge(Layer.provideMerge(Migrations.layer, TestDatabase.layer))
   )
 

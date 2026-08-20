@@ -46,11 +46,13 @@ const jj = Jj.make({
   status: () => Effect.succeed("")
 })
 
+const journalLayer = SqlJournal.layer({ capacity: 128, overflow: "reject" })
+
 const services = Layer.mergeAll(
-  SqlJournal.layer({ capacity: 128, overflow: "reject" }),
+  journalLayer,
   RunStore.layer,
   AttemptStore.layer,
-  CacheStore.layer,
+  CacheStore.layer.pipe(Layer.provide(journalLayer)),
   PlanStore.layer,
   DurableEngineState.layer
 ).pipe(

@@ -76,12 +76,13 @@ const services = (
   filename: string,
   objectsDirectory: string,
   owner: Ownership.OwnerId = ownerA
-) =>
-  Layer.mergeAll(
-    SqlJournal.layer({ capacity: 1024, overflow: "reject" }),
+) => {
+  const journalLayer = SqlJournal.layer({ capacity: 1024, overflow: "reject" })
+  return Layer.mergeAll(
+    journalLayer,
     RunStore.layer,
     AttemptStore.layer,
-    CacheStore.layer,
+    CacheStore.layer.pipe(Layer.provide(journalLayer)),
     DurableEngineState.layer
   ).pipe(
     Layer.provideMerge(
@@ -93,6 +94,7 @@ const services = (
     Layer.provideMerge(ArtifactStore.layerFileSystem({ directory: objectsDirectory })),
     Layer.provideMerge(NodeFileSystem.layer)
   )
+}
 
 const dispatch = (options: {
   readonly owner: Ownership.OwnerId
