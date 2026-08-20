@@ -54,7 +54,8 @@
  "size": {
   "files": 1,
   "added": 2119,
-  "deleted": 0
+  "deleted": 0,
+  "justification": "Single new script file: apps/ui/scripts/stub-backends.ts is one self-contained e2e support script; a partial introduction has no reviewable meaning and would not run."
  },
  "provenance": {
   "strategy": "whole-file introduction from the epic source tree",
