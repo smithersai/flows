@@ -32,6 +32,10 @@ const DISMISS = `${CARD} [data-flow='reco.dismiss']`;
  * reason, and the suggestion row is counted separately.
  */
 const SUGGESTED_ACCEPT = ".smithers-suggestions [data-flow='reco.accept']";
+/** The repository rows the recommendation-less landing shows in place of a button. */
+const LANDING_ROW = `${CARD} .repo-chooser-row[data-flow="repo.open"]`;
+/** The reco double's candidates, in the order it answers them. */
+const RECO_CANDIDATES = ["will/flows", "will/smithers", "will/mvp"] as const;
 const CHOOSER = ".repo-chooser";
 const CONFIRM = "[data-flow='repos.watch.confirm']";
 
@@ -689,10 +693,59 @@ export default defineSuite({
 				0,
 				"the dismissed recommendation still leads the suggestion row",
 			);
+			/*
+			 * Directive 1b (will, 2026-08-19): the recommendation-less landing IS
+			 * the repository list — "we should see a list of repos available and
+			 * if we click on it we see the repo view". Not a button that leads to
+			 * one: the rows are in the landing, and pressing one opens that
+			 * repository.
+			 */
+			await waitUntil(
+				report,
+				"the recommendation-less landing never showed the account's repositories",
+				async () => (await count(dismissPage, LANDING_ROW)) === RECO_CANDIDATES.length,
+				BOOT_MS,
+			);
 			report.equals(
-				await count(dismissPage, '[data-flow="github"]'),
-				1,
-				"the recommendation-less digest did not route into repository browsing",
+				(await textsOf(dismissPage, `${LANDING_ROW} .repo-chooser-name`)).join(","),
+				RECO_CANDIDATES.join(","),
+				"the landing list did not show the account's repositories",
+			);
+			report.equals(
+				await count(dismissPage, `${CARD} [data-flow="github"]`),
+				0,
+				"the landing still asks for a press before showing the repositories",
+			);
+			report.check(
+				await clickOn(dismissPage, LANDING_ROW),
+				"a repository row in the landing was not clickable",
+			);
+			await waitUntil(
+				report,
+				"pressing a repository row in the landing never opened the repo view",
+				async () => (await count(dismissPage, '[data-flow="repo.tab"]')) === 4,
+				BOOT_MS,
+			);
+			// THE EMBED LAW: what opened is a transcript entry, not a column.
+			report.equals(
+				await dismissPage.evaluate<string | null>(
+					`document.querySelector(".chat-frame")?.getAttribute("data-pane") ?? null`,
+				),
+				null,
+				"browsing into a repository opened a pane beside the conversation",
+			);
+			report.check(
+				await dismissPage.evaluate<boolean>(
+					`document.querySelector(".smithers-transcript")?.contains(document.querySelector('[aria-label="GitHub repositories"]')) === true`,
+				),
+				"the repository view rendered outside the transcript",
+			);
+			await dismissPage.reload();
+			await waitUntil(
+				report,
+				"the landing never came back after the reload",
+				async () => (await count(dismissPage, CARD)) === 1,
+				BOOT_MS,
 			);
 
 			// It comes back only once something has changed, and it says what.

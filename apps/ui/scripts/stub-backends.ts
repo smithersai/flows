@@ -994,6 +994,53 @@ export const createStubGateway = (): StubHandle => {
 		return seeded;
 	};
 
+	/*
+	 * The landings ("PRs") the Pull Requests tab reads. Same row shape plue
+	 * answers: number, title, state, author, comment_count, updated_at.
+	 */
+	interface StubLanding {
+		number: number;
+		title: string;
+		state: string;
+		author: { login: string };
+		comment_count: number;
+		change_ids: Array<string>;
+		body: string;
+		created_at: string;
+		updated_at: string;
+	}
+	const landingsByRepo = new Map<string, StubLanding[]>();
+	const landingsFor = (repo: string): StubLanding[] => {
+		const existing = landingsByRepo.get(repo);
+		if (existing !== undefined) return existing;
+		const seeded: StubLanding[] = [
+			{
+				number: 31,
+				title: "Reconnect the sync adapter",
+				state: "open",
+				author: { login: "will" },
+				comment_count: 3,
+				change_ids: ["chg-a", "chg-b"],
+				body: "Retries the socket with backoff.",
+				created_at: "2026-07-26T10:00:00.000Z",
+				updated_at: "2026-07-29T10:00:00.000Z",
+			},
+			{
+				number: 28,
+				title: "Document the harness",
+				state: "queued",
+				author: { login: "octocat" },
+				comment_count: 0,
+				change_ids: ["chg-c"],
+				body: "",
+				created_at: "2026-07-20T10:00:00.000Z",
+				updated_at: "2026-07-24T10:00:00.000Z",
+			},
+		];
+		landingsByRepo.set(repo, seeded);
+		return seeded;
+	};
+
 	interface StubEnvironment {
 		setup_script: string;
 		env: Array<{ name: string; value: string }>;
@@ -1406,6 +1453,10 @@ export const createStubGateway = (): StubHandle => {
 			}
 		}
 
+		if (rest === "/landings" && request.method === "GET") {
+			return json(200, landingsFor(repo));
+		}
+
 		if (rest === "/issues" && request.method === "GET") {
 			const state = url.searchParams.get("state");
 			// Plue 422s an unknown state, "all" included. The client is supposed
@@ -1586,6 +1637,7 @@ export const createStubGateway = (): StubHandle => {
 				githubAppInstalled = true;
 				issuesByRepo.clear();
 				commentsByIssue.clear();
+				landingsByRepo.clear();
 				environments.clear();
 				importedRepos.clear();
 				for (const repo of ["will/flows", "will/smithers"]) importedRepos.add(repo);
