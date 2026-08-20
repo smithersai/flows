@@ -16,7 +16,8 @@
  */
 import { BASE, ensureSignedIn, open, report } from "./_lib";
 
-const REPO = process.env.REPO ?? "codeplanesmithers/canary-sandbox";
+const REPO = process.env.CANARY_DISPOSABLE_REPO ?? "";
+if (REPO === "") throw new Error("CANARY_DISPOSABLE_REPO is required; refusing to create a landing in an ambient repository");
 const { context, page } = await open();
 await ensureSignedIn(page);
 
