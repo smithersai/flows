@@ -49,6 +49,21 @@ const countingAgent = (): { agent: NativeAgent; listeners: Set<(frame: AgentTurn
 };
 
 describe("disposing a controller releases what it opened", () => {
+	test("the persistence resource is released with the controller scope", async () => {
+		let releases = 0;
+		const store = {
+			...(await createAppStore({ kind: "localStorage", storage: memoryStorage() })),
+			dispose: () => {
+				releases += 1;
+			},
+		};
+		const { agent } = countingAgent();
+		const controller = createAppController(store, unavailableRepositories, agent);
+		controller.dispose();
+		controller.dispose();
+		expect(releases).toBe(1);
+	});
+
 	test("the agent subscription is unsubscribed", async () => {
 		const { agent, listeners } = countingAgent();
 		const controller = createAppController(

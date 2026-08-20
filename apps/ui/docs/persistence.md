@@ -11,20 +11,21 @@ of what was converted.
 
 Two candidate designs were considered.
 
-1. **A transactional backend.** The OPFS host already is one: wa-sqlite gives
-   each collection SQLite's WAL atomicity. But TanStack's persistence adapter
-   owns the transaction boundary internally and exposes no API that spans
-   collections, so "every projection changes or none does" cannot be built on
-   the adapter's public surface without replacing the adapter.
-2. **The smallest correct single-blob write-ahead pattern.** The localStorage
-   host has no transaction primitive at all: each of the 13 collections
-   persists as one host key, and a dispatch's `mutationFn` writes them with a
-   `Promise.all` — a crash mid-fan-out leaves a half-applied transition.
+1. **A direct multi-table transaction.** wa-sqlite can provide one, but the
+   TanStack persistence adapter owns its transaction boundary and exposes no
+   API spanning collections. Keeping that adapter would preserve the bug.
+2. **A backend-independent single-blob write-ahead pattern.** Both OPFS and
+   localStorage can expose the three-method `StorageApi` seam. The 13 TanStack
+   projections then become entries inside one authoritative envelope, so the
+   adapter choice no longer defines transaction semantics.
 
 Chosen: **design 2**, implemented as `TransactionalStorage`
-(`src/mainview/chain/TransactionalStorage.ts`), a `StorageApi` facade the
-localStorage backend's collections write through. The OPFS backend keeps
-SQLite's per-collection WAL atomicity; the boundary is recorded below.
+(`src/mainview/chain/TransactionalStorage.ts`) over either the browser's
+localStorage or `SqliteKeyValueStorage` (`SqliteKeyValueStorage.ts`). The OPFS
+adapter owns one `smithers_kv` table, loads a synchronous read mirror, and
+serializes writes in call order. Its live-envelope UPSERT is one SQLite
+statement and therefore one SQLite transaction; `AppStore.persist` awaits
+`flush()` before the TanStack transaction reports persistence complete.
 
 `TransactionalStorage` holds the whole persisted state as one versioned
 envelope (`smithers-mvp.store`): `{ version, entries }` where `entries` maps
@@ -40,8 +41,8 @@ pending delta; reads see delta-over-base. The batch ends in one commit:
 1. **stage** — write the serialized envelope to `smithers-mvp.store.staged`.
 2. **commit** — write the same bytes to `smithers-mvp.store`. This single
    write is the commit point: before it the old envelope is authoritative,
-   after it the new one is. localStorage `setItem` is atomic per key, so the
-   commit point cannot tear.
+   after it the new one is. localStorage `setItem` is atomic per key; OPFS uses
+   one atomic SQLite UPSERT. The commit point cannot tear on either backend.
 3. **clear** — remove the staged key.
 
 A batch that fails before the commit point is discarded (`abortBatch`): no
@@ -84,6 +85,10 @@ the stored version and `ENVELOPE_VERSION` in order.
   (`smithers-mvp-quarantine.row.<collection>.<key>`) and never adopted; a
   collection key whose bytes do not parse is quarantined whole. Nothing is
   adopted blind.
+  For an existing OPFS database, `SqliteKeyValueStorage` first copies each
+  `collection_registry` table into that same version-0 shape. The ordered
+  decoder then applies the identical row checks; the former tables are not
+  dropped or cleared, so their original bytes remain available for recovery.
 - **A future version** (written by a newer build) is quarantined to
   `smithers-mvp-quarantine.store.future.<version>` and the live envelope key
   is removed so this build reseeds empty. The quarantine copy is never
@@ -91,9 +96,9 @@ the stored version and `ENVELOPE_VERSION` in order.
 - **An unparseable envelope** is quarantined the same way.
 
 The app-level gate (`SchemaVersion.enforceSchemaVersion`, APP_SCHEMA_VERSION)
-still runs first and still owns the reset-vs-adopt decision for the app
-shape; the blob keys join its declared clear list so a bump quarantines the
-envelope too.
+runs against the selected host first and owns the reset-vs-adopt decision for
+the app shape; the blob keys join its declared clear list so a bump quarantines
+the envelope too on either backend.
 
 ### Retention and compaction
 
@@ -106,8 +111,8 @@ is part of the atomic commit, never a separate sweep):
 - `app-chain-events`: keep the newest **1000** records.
 
 These cover a long session's debuggable history (the dev-tools journal fold,
-`/debug.chain`) while bounding the single-blob serialize cost of the
-localStorage fallback. Records beyond the bound are deleted oldest-first.
+`/debug.chain`) while bounding single-blob serialization on both backends.
+Records beyond the bound are deleted oldest-first.
 
 ## Ruling B boundaries
 
@@ -163,6 +168,10 @@ localStorage fallback. Records beyond the bound are deleted oldest-first.
   stacking listeners on the shared `document`/`window`. Wiring `dispose()` to
   `pagehide` would buy nothing: the page is being destroyed anyway.
 
+  The OPFS key/value host participates in the same scope: controller disposal
+  flushes the ordered write queue and closes the wa-sqlite database/worker
+  handles. localStorage has no acquired resource to release.
+
 ### No-go: ambient `commandActor` invocation-context threading
 
 Not converted; the evidence:
@@ -185,15 +194,14 @@ Not converted; the evidence:
   capability gating (user-only commands are excluded from the agent catalog
   at the registry, not by the cell).
 
-### Boundary: OPFS cross-collection atomicity
+### Completed: OPFS cross-collection atomicity
 
-The wa-sqlite persistence adapter does not expose a transaction spanning
-collections, so on the OPFS backend each collection commits with SQLite WAL
-atomicity but a multi-collection dispatch is not one database transaction.
-Closing that means replacing the adapter, which is out of scope. The
-localStorage fallback — the host with no transaction primitive at all, and
-the host every test exercises — gets full cross-collection atomicity from
-`TransactionalStorage`.
+The per-collection wa-sqlite adapter was replaced in AppStore by the
+`SqliteKeyValueStorage` host. OPFS and localStorage now construct the same
+TanStack collection adapter over the same `TransactionalStorage` facade. A
+logical dispatch buffers every collection projection and commits one live
+envelope; OPFS settles that envelope as one SQLite UPSERT before persistence is
+reported. The OPFS exception no longer exists.
 
 ### Boundary: the NativeBridge import-time singleton
 

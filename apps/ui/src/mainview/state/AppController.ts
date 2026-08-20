@@ -271,6 +271,7 @@ export const createAppController = (
 	services: AppServices = {},
 ): AppController => {
 	const ctx = createControllerContext(store, repositories, agent, services);
+	if (store.dispose !== undefined) ctx.onDispose(store.dispose);
 	const { baseUrl, http } = ctx;
 	const { withToast, dismissToast, surfaceCommandFailure } = createFailureController(ctx);
 	ctx.withToast = withToast;

@@ -1,19 +1,15 @@
-import {
-	createBrowserWASQLitePersistence,
-	openBrowserWASQLiteOPFSDatabase,
-	persistedCollectionOptions,
-} from "@tanstack/browser-db-sqlite-persistence";
+import { openBrowserWASQLiteOPFSDatabase } from "@tanstack/browser-db-sqlite-persistence";
 import { localStorageCollectionOptions } from "@tanstack/db";
-import type { InferSchemaOutput, StorageApi } from "@tanstack/db";
+import type { InferSchemaOutput, StorageApi, StorageEventApi } from "@tanstack/db";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { createCollection, createTransaction } from "@tanstack/react-db";
 import type { Transaction } from "@tanstack/react-db";
 import {
-	APP_SCHEMA_VERSION,
 	enforceSchemaVersion,
 	readRecordedBackend,
 	recordBackend,
 } from "../chain/SchemaVersion";
+import { openSqliteKeyValueStorage } from "../chain/SqliteKeyValueStorage";
 import { openTransactionalStorage } from "../chain/TransactionalStorage";
 import type { TransactionalStorage } from "../chain/TransactionalStorage";
 import { PALETTE_MIRROR_KEY, rememberAppearance, THEME_MIRROR_KEY } from "./Appearance";
@@ -164,7 +160,10 @@ export type PersistenceMode = "opfs" | "localStorage" | "memory";
 export type PersistenceBackend =
 	| {
 			readonly kind: "opfs";
-			readonly persistence: ReturnType<typeof createBrowserWASQLitePersistence>;
+			readonly storage: StorageApi;
+			readonly storageEventApi: StorageEventApi;
+			readonly flush: () => Promise<void>;
+			readonly close: () => Promise<void>;
 	  }
 	| {
 			readonly kind: "localStorage";
@@ -194,6 +193,12 @@ const memoryStorage = (): StorageApi => {
 		setItem: (key, value) => void data.set(key, value),
 		removeItem: (key) => void data.delete(key),
 	};
+};
+
+/* OPFS has no window `storage` events; localStorage events name another host. */
+const inertStorageEvents: StorageEventApi = {
+	addEventListener: () => {},
+	removeEventListener: () => {},
 };
 
 /*
@@ -302,14 +307,18 @@ const resolvePersistence = async (): Promise<ResolvedPersistence> => {
 	}
 	try {
 		const database = await openOpfsDatabaseWithinBudget(recorded === "opfs" ? OPFS_OPEN_ATTEMPTS : 1);
+		const sqlite = await openSqliteKeyValueStorage(database).catch(async (error) => {
+			await database.close?.();
+			throw error;
+		});
 		if (record !== undefined) stampBackend(record, "opfs");
 		return {
 			backend: {
 				kind: "opfs",
-				persistence: createBrowserWASQLitePersistence({
-					database,
-					schemaMismatchPolicy: "reset",
-				}),
+				storage: sqlite.storage,
+				storageEventApi: inertStorageEvents,
+				flush: sqlite.flush,
+				close: sqlite.close,
 			},
 			mode: "opfs",
 			degraded: false,
@@ -344,8 +353,8 @@ const resolvePersistence = async (): Promise<ResolvedPersistence> => {
  * omitted `storage` to window.localStorage, then to its own in-memory store;
  * the last case has nothing persisted to gate.
  */
-const localStorageOf = (backend: PersistenceBackend): StorageApi | undefined =>
-	backend.kind !== "localStorage" ? undefined : (backend.storage ?? bootRecordStorage());
+const storageOf = (backend: PersistenceBackend): StorageApi | undefined =>
+	backend.kind === "opfs" ? backend.storage : (backend.storage ?? bootRecordStorage());
 
 interface CollectionSpec<TSchema extends StandardSchemaV1> {
 	readonly id: string;
@@ -357,22 +366,13 @@ const createPersistedCollection = <TSchema extends StandardSchemaV1>(
 	backend: PersistenceBackend,
 	spec: CollectionSpec<TSchema>,
 ) => {
-	if (backend.kind === "opfs") {
-		const options = persistedCollectionOptions({
-			id: spec.id,
-			getKey: spec.getKey,
-			persistence: backend.persistence,
-			schema: spec.schema,
-			schemaVersion: APP_SCHEMA_VERSION,
-		});
-		return createCollection({ ...options, schema: spec.schema });
-	}
 	const options = localStorageCollectionOptions({
 		id: spec.id,
 		storageKey: `smithers-mvp.${spec.id}`,
 		getKey: spec.getKey,
 		schema: spec.schema,
 		...(backend.storage === undefined ? {} : { storage: backend.storage }),
+		...(backend.kind === "opfs" ? { storageEventApi: backend.storageEventApi } : {}),
 	});
 	return createCollection({ ...options, schema: spec.schema });
 };
@@ -421,6 +421,8 @@ export interface AppStore {
 	readonly session: () => Session;
 	readonly worldStateSnapshot: () => WorldStateSnapshot;
 	readonly agentContextSnapshot: () => AgentContextSnapshot;
+	/** Release persistence resources acquired for this store. */
+	readonly dispose?: () => void;
 }
 
 const createSessionCollection = (backend: PersistenceBackend) =>
@@ -651,13 +653,12 @@ export const createAppStore = async (
 	 * collection exists, because a collection reads its rows out of storage as
 	 * soon as it is preloaded and TanStack never validates them.
 	 */
-	const persistedLocally = localStorageOf(resolvedBackend);
+	const persistedLocally = storageOf(resolvedBackend);
 	let transactional: TransactionalStorage | undefined;
 	if (persistedLocally !== undefined) {
 		enforceSchemaVersion(persistedLocally);
 		/*
-		 * Ruling A: the localStorage host has no transaction primitive, so the
-		 * collections write through a single-blob write-ahead facade
+		 * Ruling A: every backend writes through the same single-blob facade
 		 * (docs/persistence.md). Open recovers any interrupted commit and
 		 * migrates/quarantines the envelope BEFORE the first collection reads.
 		 */
@@ -678,7 +679,7 @@ export const createAppStore = async (
 				{ id: "app-chain-events", schema: ChainEventRecordSchema },
 			],
 		});
-		resolvedBackend = { kind: "localStorage", storage: transactional.storage };
+		resolvedBackend = { ...resolvedBackend, storage: transactional.storage };
 	}
 	const collections: AppCollections = {
 		sessions: createSessionCollection(resolvedBackend),
@@ -697,6 +698,7 @@ export const createAppStore = async (
 	};
 
 	await seed(collections);
+	if (resolvedBackend.kind === "opfs") await resolvedBackend.flush();
 	applyTheme(collections.sessions.get(SESSION_ID)?.theme ?? "light");
 	applyPalette(collections.sessions.get(SESSION_ID)?.palette ?? DEFAULT_PALETTE);
 
@@ -776,6 +778,7 @@ export const createAppStore = async (
 		try {
 			await fanOut();
 			transactional.commitBatch();
+			if (resolvedBackend.kind === "opfs") await resolvedBackend.flush();
 		} catch (error) {
 			transactional.abortBatch();
 			throw error;
@@ -1948,5 +1951,6 @@ export const createAppStore = async (
 		session,
 		worldStateSnapshot,
 		agentContextSnapshot,
+		dispose: resolvedBackend.kind === "opfs" ? () => void resolvedBackend.close() : undefined,
 	};
 };
