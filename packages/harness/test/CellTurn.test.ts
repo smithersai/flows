@@ -177,6 +177,22 @@ const of = <T extends AgentEvent.AgentEvent["_tag"]>(
   events.filter((event): event is Extract<AgentEvent.AgentEvent, { readonly _tag: T }> => event._tag === tag)
 
 describe("CellTurn", () => {
+  it("projects a model-boundary retry as its own control event", async () => {
+    const settled = emits(`return { intent: "complete", state: {}, output: "done" }`)
+    const { events } = await run({
+      script: [{
+        events: [
+          ModelEvent.ModelEvent.Retry({ type: "retry", attempt: 1, code: "transport" }),
+          ...settled.events
+        ]
+      }]
+    })
+
+    expect(of(events, "model-retried")).toEqual([
+      expect.objectContaining({ attempt: 1, code: "transport" })
+    ])
+  })
+
   it("records the armed discipline once before a run's first frame", async () => {
     const { events } = await run({
       state: state({ maxFrames: 2, auditCompletion: true, readOnlyCap: 3 }),
@@ -960,6 +976,60 @@ describe("CellTurn read-only cap", () => {
       cap: 2,
       nextFrame: 2,
       nextAction: "read-only"
+    })
+  })
+
+  it("records a demanded frame that writes before continuing", async () => {
+    const { events } = await run({
+      state: capped(1, 3),
+      flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] }), editor],
+      script: [
+        ...readCells(1),
+        emits(
+          `await ctx.call("edit", { path: "a.py", text: "fixed" })
+           return { intent: "continue", state: {}, context: [] }`
+        ),
+        emits(`return { intent: "complete", state: {}, output: "done" }`)
+      ],
+      calls: successes(2)
+    })
+
+    expect(of(events, "read-only-demanded")[0]).toMatchObject({
+      streak: 1,
+      cap: 1,
+      nextFrame: 1,
+      nextAction: "write"
+    })
+  })
+
+  it.each([
+    ["read-only", `throw new Error("diagnostic failed")`, 2],
+    [
+      "write",
+      `await ctx.call("edit", { path: "a.py", text: "partial" })
+       throw new Error("post-edit diagnostic failed")`,
+      3
+    ]
+  ] as const)("records a demanded frame that raises after a %s response", async (nextAction, response, calls) => {
+    const { events } = await run({
+      state: capped(1, 3),
+      flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] }), editor],
+      script: [
+        ...readCells(1),
+        emits(response),
+        emits(
+          `await ctx.call("edit", { path: "a.py", text: "recovered" })
+           return { intent: "complete", state: {}, output: "done" }`
+        )
+      ],
+      calls: successes(calls)
+    })
+
+    expect(of(events, "read-only-demanded")[0]).toMatchObject({
+      streak: 1,
+      cap: 1,
+      nextFrame: 1,
+      nextAction
     })
   })
 
