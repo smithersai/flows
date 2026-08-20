@@ -149,9 +149,25 @@ describe("cellPrompt", () => {
 
   it("teaches canonical regression evidence and language-aware post-edit diagnostics", () => {
     const contract = CellPrompt.make({})[0]?.text ?? ""
-    expect(contract).toContain("failed before the first write")
+    expect(contract).toContain("Before the first write")
     expect(contract).toContain("state.verification")
     expect(contract).toContain("language-aware per-file diagnostics")
     expect(contract).toContain("undefined-name")
+  })
+
+  it("teaches that a check is evidence only once it has failed for the right reason", () => {
+    const contract = CellPrompt.make({})[0]?.text ?? ""
+    expect(contract).toContain("FOR THE RIGHT REASON")
+    // Naming the class is the point: a probe that fails because it named
+    // something absent reads the same before and after a correct fix.
+    expect(contract).toContain("does not exist reproduces nothing")
+    expect(contract).toContain("invalidProbe")
+    expect(contract).toContain("before you edit anything")
+  })
+
+  it("teaches that one cell can baseline, edit, and re-check without spending three frames", () => {
+    const contract = CellPrompt.make({})[0]?.text ?? ""
+    expect(contract).toContain("ONE cell may run the baseline check")
+    expect(contract).toContain("a cell can make many calls")
   })
 })

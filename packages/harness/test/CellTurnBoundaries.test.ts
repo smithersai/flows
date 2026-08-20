@@ -1028,6 +1028,34 @@ describe("CellTurn discipline interaction", () => {
     })
   })
 
+  it("records the write when a demanded frame edits and then parks", async () => {
+    const { events, failure } = await run({
+      state: state({ readOnlyCap: 1, maxFrames: 6, envelope: ["fs:read:**", "fs:write:**"] }),
+      flows: [lister, descriptor("edit", { capabilities: ["fs:write:**"], writes: ["/**"] })],
+      script: [
+        emits(
+          `await ctx.call("fs/list", { path: "." })
+           return { intent: "continue", state: {}, context: [{ role: "user", text: "still reading" }] }`
+        ),
+        emits(
+          `await ctx.call("edit", { path: "a.py", text: "fixed" })
+           return { intent: "park", state: {}, reason: "waiting-input", message: "is this the right fix?" }`
+        )
+      ],
+      calls: [{ _tag: "Success", value: [] }, { _tag: "Success", value: { edited: true } }]
+    })
+
+    // The demand is answered by what the frame did, not by how it ended: an
+    // edit that landed before the park is recorded as a write.
+    expect(failure).toMatchObject({ code: "suspended" })
+    expect(of(events, "read-only-demanded")[0]).toMatchObject({
+      streak: 1,
+      cap: 1,
+      nextFrame: 1,
+      nextAction: "write"
+    })
+  })
+
   it("arms the discipline with the limits the host declared, defaulting only what it omitted", async () => {
     const { events } = await run({
       script: [emits(`return { intent: "complete", output: "done" }`)],
