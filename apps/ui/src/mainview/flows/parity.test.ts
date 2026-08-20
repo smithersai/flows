@@ -146,8 +146,11 @@ describe("launch-law parity: every affordance is a command", () => {
 			"../ConnectorsSurface.tsx": 5,
 			"../ChatCards.tsx": 23,
 			"../DevtoolsPanel.tsx": 1,
-			/* The repository row and the four tabs of the repository view. */
-			"../GitHubPane.tsx": 3,
+			/*
+			 * The pane's close, a repository row in the list, the way back to that
+			 * list, and the four tabs of the repository view.
+			 */
+			"../GitHubPane.tsx": 4,
 			/* The breadcrumb up one directory; rows come from the file cards. */
 			"../RepoFilesBrowser.tsx": 1,
 			"../SurfaceChrome.tsx": 3,

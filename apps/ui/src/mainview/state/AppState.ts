@@ -242,8 +242,27 @@ export type Session = z.infer<typeof SessionSchema>;
  * GET /api/reco/watched answer. `selected: null` = never chosen (a real
  * distinct state, NOT "all repos"); an empty array = deliberately chose none.
  */
+/*
+ * One repository the account can browse, as the recommendations service reports
+ * it (GET /api/reco/repos — the same read the onboarding chooser opens on). The
+ * three columns the chooser row shows are the three the GitHub pane's row shows:
+ * full name, freshness, open-issue count.
+ */
+export const RepoCatalogEntrySchema = z.object({
+	fullName: z.string(),
+	pushedAt: z.string().nullable(),
+	openIssues: z.number(),
+});
+export type RepoCatalogEntry = z.infer<typeof RepoCatalogEntrySchema>;
+
 export const WatchedReposSchema = z.object({
 	id: z.literal("watched"),
+	/*
+	 * The repositories the account HAS, as opposed to the ones it watches.
+	 * Optional (missing = never read) so rows persisted before the field parse
+	 * without a schema reset, the same discipline palette follows above.
+	 */
+	available: z.array(RepoCatalogEntrySchema).optional(),
 	selected: z.array(z.string()).nullable(),
 	selectedAt: z.string().nullable(),
 	via: z.enum(["onboarding", "command", "agent"]).nullable(),
@@ -537,9 +556,15 @@ export type AppTransition =
 			surface: Session["surface"];
 	  }
 	| {
+			/*
+			 * Which repository the GitHub and Files frames project. `null` is the
+			 * repository LIST — will's own landing ("we should see a list of repos
+			 * available and if we click on it we see the repo view"), not an
+			 * absence to be papered over.
+			 */
 			type: "repository.selected";
 			actor: Actor;
-			repo: string;
+			repo: string | null;
 	  }
 	| {
 			type: "repository.tab.changed";
@@ -680,6 +705,16 @@ export type AppTransition =
 				pushedAt: string | null;
 				openIssues: number;
 			}>;
+	  }
+	| {
+			/*
+			 * The repositories the account can browse, read from the same source
+			 * the onboarding chooser opens on. An empty list is a correct state —
+			 * the pane says so rather than inventing a row.
+			 */
+			type: "repos.catalog.loaded";
+			actor: Actor;
+			available: ReadonlyArray<RepoCatalogEntry>;
 	  }
 	| {
 			/* The watched-repos selection changed (onboarding, /repos.watch, or asking). */

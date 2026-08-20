@@ -495,7 +495,7 @@ export interface CardViewProps {
  * empty), typing filters, Enter confirms. Select-all/none plus the one
  * confirm action; every act is a command binding.
  */
-const freshnessLabel = (pushedAt: string | null): string => {
+export const freshnessLabel = (pushedAt: string | null): string => {
 	if (pushedAt === null) return "never pushed";
 	const days = Math.max(0, Math.floor((Date.now() - Date.parse(pushedAt)) / 86_400_000));
 	if (Number.isNaN(days)) return "";
@@ -938,7 +938,7 @@ const WorkflowRepoCardBody = ({
 };
 
 /* The workspace's workflows (flow.list) — each row's Run is a command binding. */
-const WorkflowListCardBody = ({
+export const WorkflowListCardBody = ({
 	card,
 	onRunWorkflow,
 }: {

@@ -1352,7 +1352,13 @@ function App({ controller }: { readonly controller: AppController }) {
 				) : session.surface === "connectors" ? (
 					<ConnectorsSurface controller={controller} />
 				) : session.surface === "github" ? (
-					<GitHubPane controller={controller} session={session} watched={watchedRows[0]?.selected ?? []} cards={cardRows} />
+					<GitHubPane
+						controller={controller}
+						session={session}
+						available={watchedRows[0]?.available ?? []}
+						watched={watchedRows[0]?.selected ?? []}
+						cards={cardRows}
+					/>
 				) : session.surface === "files" ? (
 					<section className="github-pane embedded-pane" aria-label="Repository files">
 						<SurfaceHeader icon={<FolderGit2 size={17} aria-hidden="true" />} title="Files" subtitle={session.selectedRepository ?? "Repository"} closeCommand="chat" onClose={() => controller.runCommand("chat")} />

@@ -133,7 +133,7 @@ export interface AppController {
 	readonly showGithub: () => void;
 	readonly showFiles: () => void;
 	readonly openRepository: (repo: string) => void;
-	readonly selectRepositoryTab: (tab: "files" | "issues" | "pulls" | "flows") => void;
+	readonly selectRepositoryTab: (tab: Session["repositoryTab"]) => void;
 	readonly runCommand: (name: string) => boolean;
 	readonly runCommandArgs: (name: string, args: string) => boolean;
 	readonly connectLocalRepository: (access: RepositoryAccess) => Promise<void>;
@@ -1154,6 +1154,50 @@ export const createAppController = (
 	 * argument pre-selects on top. The card is embedded in the transcript for
 	 * every actor — a chooser is never a takeover.
 	 */
+	/*
+	 * The account's repositories, from the one source that has them (GET
+	 * /api/reco/repos, behind the product Worker proxy). The onboarding chooser
+	 * and the GitHub pane's repository list are the same read: one asks the user
+	 * to pick, the other lets them browse, and neither may show a repository the
+	 * account does not have. `undefined` is "the service did not answer" —
+	 * distinct from an account with no repositories, which is an empty array.
+	 */
+	const readRepoCandidates = async (): Promise<RepoCandidate[] | undefined> => {
+		const response = await http(`${baseUrl}${RECO_REPOS_PATH}`);
+		if (!response.ok) {
+			await response.body?.cancel();
+			return undefined;
+		}
+		const body = (await response.json().catch(() => undefined)) as { candidates?: unknown } | undefined;
+		return parseRepoCandidates(body?.candidates);
+	};
+
+	/*
+	 * Fill the GitHub pane's repository list. Background work behind an already
+	 * open pane: a read that cannot answer leaves the list as it was, and the
+	 * pane states its own honest empty state rather than an error the user did
+	 * not ask for.
+	 */
+	const loadRepoCatalog = async (): Promise<void> => {
+		if (store.collections.identitySessions.get("identity")?.state !== "signed-in") return;
+		let available: RepoCandidate[] | undefined;
+		try {
+			available = await readRepoCandidates();
+		} catch {
+			return;
+		}
+		if (available === undefined) return;
+		store.dispatch({
+			type: "repos.catalog.loaded",
+			actor: commandActor,
+			available: available.map((candidate) => ({
+				fullName: candidate.fullName,
+				pushedAt: candidate.pushedAt,
+				openIssues: candidate.openIssues,
+			})),
+		});
+	};
+
 	const openRepoChooserImpl = async (preselect?: string): Promise<true | string> => {
 		/*
 		 * The chooser lists the USER'S repositories: without a signed-in
@@ -1182,15 +1226,7 @@ export const createAppController = (
 			} else {
 				await watchedResponse.body?.cancel();
 			}
-			const reposResponse = await http(`${baseUrl}${RECO_REPOS_PATH}`);
-			if (reposResponse.ok) {
-				const reposBody = (await reposResponse.json().catch(() => undefined)) as
-					| { candidates?: unknown }
-					| undefined;
-				candidates = parseRepoCandidates(reposBody?.candidates);
-			} else {
-				await reposResponse.body?.cancel();
-			}
+			candidates = await readRepoCandidates();
 		} catch {
 			return "The recommendations service didn't answer — the chooser couldn't open. Try again.";
 		}
@@ -2739,34 +2775,51 @@ export const createAppController = (
 		});
 	};
 
-	const openRepository = (repo: string): void => {
-		store.dispatch({ type: "repository.selected", actor: commandActor, repo });
-		store.dispatch({ type: "surface.changed", actor: commandActor, surface: "github" });
-		// Importing is an implementation detail. Reads retain their existing honest
-		// degradation while this background job is still becoming ready.
-		void repoImportSeam.importRepository(repo);
-	};
-	const selectRepositoryTab = (tab: "files" | "issues" | "pulls" | "flows"): void => {
-		store.dispatch({ type: "repository.tab.changed", actor: commandActor, tab });
-		const repo = store.session().selectedRepository;
-		if (repo === null) return;
+	/** Read the section the repository view is showing, through its own seam. */
+	const readRepositoryTab = (tab: Session["repositoryTab"], repo: string): void => {
 		if (tab === "files") void filesSeam.listFiles("", repo);
 		if (tab === "issues") void issuesSeam.listIssues("open", repo);
 		if (tab === "pulls") void landingsSeam.listLandings(repo);
 		if (tab === "flows") void listWorkspaceWorkflows();
 	};
 
+	const openRepository = (repo: string): void => {
+		store.dispatch({ type: "repository.selected", actor: commandActor, repo });
+		store.dispatch({ type: "surface.changed", actor: commandActor, surface: "github" });
+		// Importing is an implementation detail. Reads retain their existing honest
+		// degradation while this background job is still becoming ready.
+		void repoImportSeam.importRepository(repo);
+		// Opening a repository is asking to see it: the section on screen reads
+		// itself rather than waiting for the user to press its own tab.
+		readRepositoryTab(store.session().repositoryTab, repo);
+	};
+
+	const selectRepositoryTab = (tab: Session["repositoryTab"]): void => {
+		store.dispatch({ type: "repository.tab.changed", actor: commandActor, tab });
+		const repo = store.session().selectedRepository;
+		if (repo === null) return;
+		readRepositoryTab(tab, repo);
+	};
+
+	/*
+	 * The GitHub pane opens on the repository LIST (will, 2026-08-19: "we should
+	 * see a list of repos available and if we click on it we see the repo view").
+	 * It opens whether or not anything is watched — a pane that silently refuses
+	 * to open is the worst answer to a button the user just pressed — and the
+	 * list states its own empty case when the account has no repositories.
+	 */
 	const showGithub = (): void => {
-		const repo = store.session().selectedRepository ?? store.collections.watchedRepos.get("watched")?.selected?.[0];
-		if (repo === undefined || repo === null) return;
-		openRepository(repo);
+		store.dispatch({ type: "repository.selected", actor: commandActor, repo: null });
+		store.dispatch({ type: "surface.changed", actor: commandActor, surface: "github" });
+		void loadRepoCatalog();
 	};
 
 	const showFiles = (): void => {
-		const repo = store.session().selectedRepository ?? store.collections.watchedRepos.get("watched")?.selected?.[0];
-		if (repo === undefined || repo === null) return;
+		const repo = store.session().selectedRepository ?? store.collections.watchedRepos.get("watched")?.selected?.[0] ?? null;
 		store.dispatch({ type: "repository.selected", actor: commandActor, repo });
 		store.dispatch({ type: "surface.changed", actor: commandActor, surface: "files" });
+		void loadRepoCatalog();
+		if (repo === null) return;
 		void repoImportSeam.importRepository(repo);
 		void filesSeam.listFiles("", repo);
 	};

@@ -1081,6 +1081,38 @@ export const createAppStore = async (
 					break;
 				}
 
+				case "repos.catalog.loaded": {
+					/*
+					 * The catalog rides on the watched row because it answers the
+					 * same question from the other side: these are the repositories
+					 * the account HAS, those are the ones it watches. A row that
+					 * does not exist yet is created empty-selection — reading the
+					 * catalog is not choosing anything.
+					 */
+					const available = transition.available.map((entry) => ({ ...entry }));
+					if (collections.watchedRepos.get("watched") === undefined) {
+						collections.watchedRepos.insert({
+							id: "watched",
+							available,
+							selected: null,
+							selectedAt: null,
+							via: null,
+							updatedAt: createdAt,
+							revision,
+						});
+					} else {
+						collections.watchedRepos.update("watched", (draft) => {
+							draft.available = available;
+							draft.updatedAt = createdAt;
+							draft.revision = revision;
+						});
+					}
+					collections.sessions.update(SESSION_ID, (draft) => {
+						draft.revision = revision;
+					});
+					break;
+				}
+
 				case "watched.replaced": {
 					const watched: WatchedRepos = {
 						id: "watched",
