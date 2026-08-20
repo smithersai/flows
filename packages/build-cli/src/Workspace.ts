@@ -1331,6 +1331,17 @@ export class Workspace {
         expanded.push(input)
         continue
       }
+      if (declaration._tag === "PnpmWorkspace") {
+        const matches = await Input.expandPnpmWorkspace(this.root, packagePath, declaration, {
+          cacheDirectory: this.cacheDirectory,
+          signal: this.signal
+        })
+        const files = await Input.digestFiles(this.root, matches, { signal: this.signal })
+        const input = { declaration, files, digest: Input.digestText(JSON.stringify(files)) }
+        this.inputPackages.set(input, packagePath)
+        expanded.push(input)
+        continue
+      }
       const base = Input.validateGitBase(declaration.base)
       const names = await runGit(
         this.root,

@@ -37,11 +37,19 @@ record, not a design.
 - **Workflow generation (2026-08-19).** `.github/workflows/ci.yml` is a
   generated root file. The root `BUILD.ts` declares it through `GithubCiGen`
   with `mode: "check"`, `smthrs build //:ci` regenerates it, and every other
-  verb drift-checks it — the same terms as `pnpm-workspace.yaml` and
-  `tsconfig.json`. Nothing in the declaration is a command: a job states what
-  the runner must provide and which targets it runs, and the generator derives
-  every step. The `test` job also runs `smthrs lint "//:ci"`, so the workflow
-  describing the pipeline is drift-checked by the pipeline.
+  verb drift-checks it, on the same terms as `tsconfig.json`. Nothing in the
+  declaration is a command: a job states what the runner must provide and
+  which targets it runs, and the generator derives every step. The `test` job
+  also runs `smthrs lint "//:ci"`, so the workflow describing the pipeline is
+  drift-checked by the pipeline.
+- **Workspace-file authority (2026-08-19).** `pnpm-workspace.yaml` is
+  hand-written and authoritative rather than generated from root BUILD attrs.
+  The root lockfile and install declarations use a planner input that parses
+  and schema-validates its `packages` list, then digests the file, root
+  manifest, and every selected member manifest. pnpm can therefore maintain
+  settings that are not representable by the old generator without creating
+  an unsatisfiable drift check, while membership and manifest edits still
+  invalidate dependency resolution.
 
 - **Root-level gates (2026-08-19).** Every gate that used to be a workflow
   string is a target now, in the package that owns it: `scripts/BUILD.ts`

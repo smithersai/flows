@@ -73,7 +73,7 @@ export * as PackageJsonDeclaration from "./PackageJson.ts"
 export * as PackageJsonTemplate from "./PackageJsonTemplate.ts"
 
 /** @category constructors @since 0.1.0 */
-export { file, gitDiff, glob } from "./Input.ts"
+export { file, gitDiff, glob, pnpmWorkspace } from "./Input.ts"
 /** @category constructors @since 0.1.0 */
 export { Workspace } from "./Config.ts"
 /** @category constructors @since 0.1.0 */

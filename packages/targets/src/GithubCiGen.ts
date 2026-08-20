@@ -865,12 +865,11 @@ export const render = (attrs: Attrs): string => {
 /**
  * Generates the GitHub Actions CI workflow from BUILD.ts attrs.
  *
- * The workflow is a generated root file, on the same terms as
- * `pnpm-workspace.yaml`, `tsconfig.json`, and `pnpm-lock.yaml`: BUILD.ts is the
- * only description of the pipeline, `write` renders it, and `check` — the
- * default — fails on drift. A pipeline that lives in two places, a BUILD.ts
- * declaration and a hand-maintained YAML file, is two descriptions of one
- * thing, free to disagree.
+ * The workflow is a generated root file, on the same terms as `tsconfig.json`:
+ * BUILD.ts is the only description of the pipeline, `write` renders it, and
+ * `check` — the default — fails on drift. A pipeline that lives in two places,
+ * a BUILD.ts declaration and a hand-maintained YAML file, is two descriptions
+ * of one thing, free to disagree.
  *
  * Every step the workflow carries is derived, never authored. A job declares
  * what it requires and which targets it runs; {@link toolchainSteps} turns the
