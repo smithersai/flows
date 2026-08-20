@@ -655,8 +655,11 @@ export const make: Effect.Effect<
    * Runs a row write and the journal appends describing it inside ONE write
    * transaction (`Journal.transact`), so the entries publish only after the
    * transaction commits and roll back with it. An append the journal refuses
-   * fails the row write with it, surfaced as `persistence_failed`: there is
-   * no success path that writes a row without its event
+   * fails the row write with it: the fenced operations catch a `fence_lost`
+   * inside the transaction and report their typed `FenceLost` outcome — the
+   * same answer the row-level fence gives — and any other journal failure
+   * reaches this mapping as `persistence_failed`. There is no success path
+   * that writes a row without its event
    * (`docs/specs/Concepts/Run State Fold.md`).
    */
   const writeThrough = <A, E, R>(

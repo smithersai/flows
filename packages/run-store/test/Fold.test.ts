@@ -306,6 +306,61 @@ it.effect("exposes the public reducer helpers over a fresh fold state", () =>
       payload: { status: "suspended", atMs: 3, waiting: null },
       meta: { lineageId: "reducer-run/root" }
     } as JournalEvent.Entry)
+    // A run event this fold does not own reduces to the same state.
+    yield* Fold.reduce(reduced, {
+      runId: "reducer-run" as JournalEvent.RunId,
+      seq: 4 as JournalEvent.Seq,
+      eventId: "reducer-run:unowned",
+      sourceId: "fold-test" as JournalEvent.SourceId,
+      sourceSeq: 4 as JournalEvent.SourceSeq,
+      emittedAtMs: 4,
+      eventType: "flows.run.reannounced",
+      payload: { status: "running", atMs: 4 },
+      meta: { lineageId: "reducer-run/root" }
+    } as JournalEvent.Entry)
+    // A transition carrying a status without its timestamp moves nothing:
+    // status and atMs are present together or the lifecycle columns stay.
+    yield* Fold.reduce(reduced, {
+      runId: "reducer-run" as JournalEvent.RunId,
+      seq: 4 as JournalEvent.Seq,
+      eventId: "reducer-run:status-only",
+      sourceId: "fold-test" as JournalEvent.SourceId,
+      sourceSeq: 4 as JournalEvent.SourceSeq,
+      emittedAtMs: 4,
+      eventType: "flows.run.transitioned",
+      payload: { status: "running" },
+      meta: { lineageId: "reducer-run/root" }
+    } as JournalEvent.Entry)
+    // The waiting-payload shape `park`/`wake` append: only `waiting`, no
+    // status and no lifecycle timestamp.
+    yield* Fold.reduce(reduced, {
+      runId: "reducer-run" as JournalEvent.RunId,
+      seq: 4 as JournalEvent.Seq,
+      eventId: "reducer-run:waiting-only",
+      sourceId: "fold-test" as JournalEvent.SourceId,
+      sourceSeq: 4 as JournalEvent.SourceSeq,
+      emittedAtMs: 4,
+      eventType: "flows.run.transitioned",
+      payload: { waiting: { reason: "timer", wakeAt: 8, token: "tick" } },
+      meta: { lineageId: "reducer-run/root" }
+    } as JournalEvent.Entry)
+    expect(reduced.runs.get("reducer-run")).toMatchObject({
+      status: "suspended",
+      waitingReason: "timer",
+      waitingWakeAtMs: 8,
+      waitingToken: "tick"
+    })
+    yield* Fold.reduce(reduced, {
+      runId: "reducer-run" as JournalEvent.RunId,
+      seq: 4 as JournalEvent.Seq,
+      eventId: "reducer-run:waiting-cleared",
+      sourceId: "fold-test" as JournalEvent.SourceId,
+      sourceSeq: 4 as JournalEvent.SourceSeq,
+      emittedAtMs: 4,
+      eventType: "flows.run.transitioned",
+      payload: { waiting: null },
+      meta: { lineageId: "reducer-run/root" }
+    } as JournalEvent.Entry)
     yield* Fold.reduce(reduced, {
       runId: "reducer-run" as JournalEvent.RunId,
       seq: 4 as JournalEvent.Seq,
@@ -418,6 +473,207 @@ it.effect("exposes the public reducer helpers over a fresh fold state", () =>
     })
   }))
 
+const entryOf = (eventType: string, payload: unknown, runId = "malformed-run"): JournalEvent.Entry =>
+  ({
+    runId: runId as JournalEvent.RunId,
+    seq: 0 as JournalEvent.Seq,
+    eventId: `${runId}:${eventType}`,
+    sourceId: "fold-test" as JournalEvent.SourceId,
+    sourceSeq: 0 as JournalEvent.SourceSeq,
+    emittedAtMs: 0,
+    eventType,
+    payload,
+    meta: {}
+  }) as JournalEvent.Entry
+
+it.effect("malformed or foreign journal history reduces to the same state", () =>
+  Effect.gen(function*() {
+    const circular: Record<string, unknown> = {}
+    circular.self = circular
+    const seeded = () => [
+      entryOf("flows.run.created", { createdAtMs: 0, stateJson: "{}" }),
+      entryOf("flows.consensus.claimed", { owner: ownerA, grantedAtMs: 1 }),
+      entryOf("flows.consensus.activated", { owner: ownerA, grantedAtMs: 2 }),
+      entryOf("flows.attempt.put", { stepKeyDigest: "step", attempt: 0, state: "running", startedAtMs: 3, meta: {} })
+    ]
+    const base = yield* Fold.foldEntries(seeded())
+    // Every entry below is either malformed (a payload arm the writer can
+    // never produce) or foreign (a run or attempt the fold never saw). The
+    // reducer ignores them all rather than corrupting the fold.
+    const noise = [
+      entryOf("flows.run.created", { stateJson: "{}" }),
+      entryOf("flows.run.created", { createdAtMs: 0 }),
+      entryOf("flows.run.snapshot", { createdAtMs: 0, stateJson: "{}" }),
+      entryOf("flows.run.snapshot", { status: "pending", stateJson: "{}" }),
+      entryOf("flows.run.snapshot", { status: "pending", createdAtMs: 0 }),
+      entryOf("flows.run.transitioned", { status: "running", atMs: 1 }, "never-created"),
+      entryOf("flows.run.reclassified", { status: "running", atMs: 1 }),
+      entryOf("flows.run.cancel-requested", { requestedAtMs: 1 }, "never-created"),
+      entryOf("flows.run.cancel-requested", {}),
+      entryOf("flows.consensus.claimed", { owner: ownerA, grantedAtMs: 1 }, "never-created"),
+      entryOf("flows.consensus.claimed", { owner: { hostId: "half" }, grantedAtMs: 1 }),
+      entryOf("flows.consensus.claimed", { owner: "nobody", grantedAtMs: 1 }),
+      entryOf("flows.consensus.released", { owner: ownerB, grantedAtMs: 9 }),
+      entryOf("flows.consensus.expired", { owner: ownerB, grantedAtMs: 9 }),
+      entryOf("flows.attempt.put", { attempt: 0, state: "running", startedAtMs: 1, meta: {} }),
+      entryOf("flows.attempt.put", { stepKeyDigest: "step", state: "running", startedAtMs: 1, meta: {} }),
+      entryOf("flows.attempt.put", { stepKeyDigest: "step", attempt: 1, startedAtMs: 1, meta: {} }),
+      entryOf("flows.attempt.put", { stepKeyDigest: "step", attempt: 1, state: "running", meta: {} }),
+      entryOf("flows.attempt.put", {
+        stepKeyDigest: "step",
+        attempt: 1,
+        state: "running",
+        startedAtMs: 1,
+        meta: circular
+      }),
+      entryOf("flows.attempt.put", { stepKeyDigest: "step", attempt: 1, state: "running", startedAtMs: 1 }),
+      entryOf("flows.attempt.snapshot", { stepKeyDigest: "step", attempt: 2 }),
+      entryOf("flows.attempt.checkpointed", { stepKeyDigest: "ghost", attempt: 9, checkpoint: {} }),
+      entryOf("flows.attempt.checkpointed", { stepKeyDigest: "step", attempt: 0, checkpoint: circular }),
+      entryOf("flows.attempt.checkpointed", { stepKeyDigest: "step", attempt: 0 }),
+      entryOf("flows.attempt.finished", { stepKeyDigest: "step", attempt: 0, finishedAtMs: 9 }),
+      entryOf("flows.attempt.finished", { stepKeyDigest: "step", attempt: 0, state: "completed" }),
+      entryOf("flows.attempt.patched", { stepKeyDigest: "ghost", attempt: 9, meta: {} }),
+      entryOf("flows.attempt.annotated", { stepKeyDigest: "step", attempt: 0 }),
+      entryOf("event.other", { anything: true })
+    ]
+    const withNoise = yield* Fold.foldEntries([...seeded(), ...noise])
+    expect(foldComparable(withNoise)).toEqual(foldComparable(base))
+  }))
+
+it.effect("applies snapshot and attempt payload variants column by column", () =>
+  Effect.gen(function*() {
+    const circular: Record<string, unknown> = {}
+    circular.self = circular
+    const state = yield* Fold.foldEntries([
+      entryOf("flows.run.snapshot", {
+        status: "suspended",
+        createdAtMs: 1,
+        startedAtMs: 2,
+        finishedAtMs: null,
+        owner: ownerA,
+        heartbeatAtMs: 2,
+        claim: null,
+        claimedAtMs: null,
+        parentRunId: null,
+        cancelRequestedAtMs: null,
+        lineageId: null,
+        roundOrdinal: null,
+        waiting: { reason: "gate", wakeAt: 3, token: "tok" },
+        stateJson: "{}"
+      }, "snapshot-run"),
+      entryOf("flows.attempt.snapshot", {
+        stepKeyDigest: "snap",
+        attempt: 0,
+        state: "completed",
+        startedAtMs: 1,
+        finishedAtMs: 2,
+        checkpointJson: "{\"cursor\":1}",
+        errorJson: null,
+        outcomeJson: "{\"ok\":true}",
+        metaJson: "{}"
+      }, "snapshot-run"),
+      entryOf("flows.attempt.put", {
+        stepKeyDigest: "step",
+        attempt: 0,
+        state: "running",
+        startedAtMs: 3,
+        meta: {}
+      }, "snapshot-run"),
+      entryOf("flows.attempt.patched", {
+        stepKeyDigest: "step",
+        attempt: 0,
+        checkpoint: { cursor: 9 },
+        error: { boom: true }
+      }, "snapshot-run"),
+      entryOf("flows.attempt.finished", {
+        stepKeyDigest: "step",
+        attempt: 0,
+        state: "failed",
+        finishedAtMs: 9,
+        error: { boom: "final" },
+        meta: { closed: true }
+      }, "snapshot-run"),
+      // A pre-encoded *Json string wins over the decoded value; a value the
+      // writer failed to pre-encode falls back to null for the nullable
+      // columns and keeps the recorded value for required metaJson.
+      entryOf("flows.attempt.patched", {
+        stepKeyDigest: "step",
+        attempt: 0,
+        error: { ignored: true },
+        errorJson: "{\"exact\":1}"
+      }, "snapshot-run"),
+      entryOf("flows.attempt.patched", { stepKeyDigest: "step", attempt: 0, outcome: circular }, "snapshot-run"),
+      entryOf("flows.attempt.finished", {
+        stepKeyDigest: "step",
+        attempt: 0,
+        state: "failed",
+        finishedAtMs: 10,
+        meta: circular
+      }, "snapshot-run")
+    ])
+    expect(state.runs.get("snapshot-run")).toMatchObject({
+      status: "suspended",
+      owner: ownerA,
+      heartbeatAtMs: 2,
+      waitingReason: "gate",
+      waitingWakeAtMs: 3,
+      waitingToken: "tok"
+    })
+    const attempts = Array.from(state.attempts.values()).sort((left, right) =>
+      left.stepKeyDigest.localeCompare(right.stepKeyDigest)
+    )
+    expect(attempts).toMatchObject([
+      {
+        stepKeyDigest: "snap",
+        state: "completed",
+        checkpointJson: "{\"cursor\":1}",
+        outcomeJson: "{\"ok\":true}",
+        metaJson: "{}"
+      },
+      {
+        stepKeyDigest: "step",
+        state: "failed",
+        finishedAtMs: 10,
+        checkpointJson: "{\"cursor\":9}",
+        errorJson: "{\"exact\":1}",
+        outcomeJson: null,
+        metaJson: "{\"closed\":true}"
+      }
+    ])
+  }))
+
+it.effect("a released grant clears exactly the matching owner or claim", () =>
+  Effect.gen(function*() {
+    // A release without a preceding lifecycle transition: the rewind and
+    // recovery surgery of `@smthrs/time-travel` produces this shape, where
+    // the released grant must clear the mirror columns itself.
+    const state = yield* Fold.foldEntries([
+      entryOf("flows.run.created", { createdAtMs: 0, stateJson: "{}" }, "released-run"),
+      entryOf("flows.consensus.claimed", { owner: ownerA, grantedAtMs: 1 }, "released-run"),
+      entryOf("flows.consensus.activated", { owner: ownerA, grantedAtMs: 2 }, "released-run"),
+      entryOf("flows.consensus.claimed", { owner: ownerB, grantedAtMs: 3 }, "released-run"),
+      entryOf("flows.consensus.released", { owner: ownerA, grantedAtMs: 4 }, "released-run")
+    ])
+    expect(state.runs.get("released-run")).toMatchObject({
+      owner: null,
+      heartbeatAtMs: null,
+      claim: ownerB,
+      claimedAtMs: 3
+    })
+    const cleared = yield* Fold.foldEntries([
+      entryOf("flows.run.created", { createdAtMs: 0, stateJson: "{}" }, "released-run"),
+      entryOf("flows.consensus.claimed", { owner: ownerB, grantedAtMs: 3 }, "released-run"),
+      entryOf("flows.consensus.released", { owner: ownerB, grantedAtMs: 4 }, "released-run")
+    ])
+    expect(cleared.runs.get("released-run")).toMatchObject({
+      owner: null,
+      heartbeatAtMs: null,
+      claim: null,
+      claimedAtMs: null
+    })
+  }))
+
 const suite = (
   name: string,
   strategy: Layer.Layer<Consensus.Consensus, never, DurableWriter.DurableWriter | SqlClient.SqlClient>
@@ -498,6 +754,18 @@ const suite = (
           expect(yield* attempts.finish({ ...attempt1, state: "failed", finishedAtMs: 22 }, ownerB)).toEqual({
             _tag: "Finished"
           })
+          // A retry of step-0, so the rebuild insert order exercises the
+          // attempt-ordinal comparator arm behind the run and digest ties.
+          expect(
+            yield* attempts.put({
+              runId: "fold-run",
+              stepKeyDigest: "step-0",
+              attempt: 1,
+              state: "running",
+              startedAtMs: 23,
+              meta: { phase: "retry" }
+            }, ownerB)
+          ).toEqual({ _tag: "Inserted" })
 
           expect(
             yield* runs.transitionOwned("fold-run", ownerB, "completed", "{\"phase\":\"done\"}", {
@@ -512,12 +780,25 @@ const suite = (
           ).toEqual({ _tag: "FenceLost" })
           expect(yield* attemptEventCount("fold-run")).toBe(beforeLatePatch)
 
+          // A later creation time, so the rebuild insert order exercises both
+          // comparator arms: the created-at difference and the run-id tie.
+          yield* TestClock.adjust(5)
           yield* runs.create("heartbeat-run", "{}")
           expect(yield* runs.claimAndOwn("heartbeat-run", snapshot(yield* runs.get("heartbeat-run")), ownerA, 30))
             .toEqual(
               { _tag: "Activated" }
             )
           expect(yield* runs.heartbeat("heartbeat-run", ownerA, 50)).toEqual({ _tag: "Updated" })
+          expect(
+            yield* attempts.put({
+              runId: "heartbeat-run",
+              stepKeyDigest: "step-0",
+              attempt: 1,
+              state: "running",
+              startedAtMs: 31,
+              meta: { phase: "second-run" }
+            }, ownerA)
+          ).toEqual({ _tag: "Inserted" })
 
           for (const [runId, status] of [["fold-failed", "failed"], ["fold-cancelled", "cancelled"]] as const) {
             yield* runs.create(runId, "{}")
@@ -626,6 +907,15 @@ const suite = (
           ).toEqual({ _tag: "Inserted" })
           expect(yield* runs.transitionOwned("compaction-driver", ownerA, "completed", "{\"phase\":\"done\"}"))
             .toEqual({ _tag: "Transitioned" })
+          // An administratively restored waiting payload: the snapshot set
+          // must capture the waiting columns byte-for-byte, so a rebuild
+          // after compaction still lands on them.
+          const sql = yield* Effect.service(SqlClient.SqlClient)
+          yield* sql`
+            UPDATE flows_runs
+            SET waiting_reason = 'timer', waiting_wake_at_ms = 9, waiting_token = 'tok'
+            WHERE run_id = 'compaction-driver'
+          `
 
           const before = yield* journal.entries({
             runId: "compaction-driver" as JournalEvent.RunId,

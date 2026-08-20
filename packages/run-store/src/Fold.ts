@@ -104,7 +104,6 @@ const numberOrNull = (value: unknown): number | null =>
 const ownerFrom = (value: unknown): OwnerId | null => {
   const record = asRecord(value)
   if (record === undefined) return null
-  /* v8 ignore next -- owner payloads come from typed store-owned rows. */
   return typeof record.hostId === "string" &&
       typeof record.pid === "number" &&
       Number.isSafeInteger(record.pid) &&
@@ -118,7 +117,6 @@ const sameOwner = (left: OwnerId | null, right: OwnerId): boolean =>
 
 const encodeJson = (value: unknown): string | undefined => {
   const encoded = Schema.encodeUnknownResult(UnknownFromJsonString)(value)
-  /* v8 ignore next -- store-authored fold payloads are JSON encodable. */
   return Result.isSuccess(encoded) ? encoded.success : undefined
 }
 
@@ -130,8 +128,27 @@ const jsonColumn = (
   const exact = payload[jsonKey]
   if (typeof exact === "string") return exact
   if (!own(payload, valueKey)) return undefined
-  /* v8 ignore next -- store-authored fold payloads are JSON encodable. */
   return encodeJson(payload[valueKey]) ?? null
+}
+
+/**
+ * Merges one JSON column of an attempt mutation: an omitted key keeps
+ * `current`, a carried key replaces it, and a value the writer failed to
+ * pre-encode falls back to `onFailure` (`null` for the nullable columns,
+ * `current` for required `metaJson`).
+ */
+const patchJson = <Fallback extends string | null>(
+  payload: Record<string, unknown>,
+  valueKey: string,
+  jsonKey: string,
+  current: Fallback,
+  onFailure: Fallback
+): string | Fallback => {
+  if (!own(payload, valueKey)) return current
+  const exact = payload[jsonKey]
+  if (typeof exact === "string") return exact
+  const encoded = encodeJson(payload[valueKey])
+  return encoded === undefined ? onFailure : encoded
 }
 
 const attemptKey = (runId: string, stepKeyDigest: string, attempt: number): string =>
@@ -157,9 +174,7 @@ const applyRunEvent = (state: State, entry: JournalEvent.Entry, payload: Record<
   const runId = entry.runId
   if (entry.eventType === "flows.run.created") {
     const createdAtMs = numberOrNull(payload.createdAtMs)
-    /* v8 ignore next -- created events are emitted only after schema-shaped row input. */
     const stateJson = typeof payload.stateJson === "string" ? payload.stateJson : undefined
-    /* v8 ignore next -- created events are emitted only after schema-shaped row input. */
     if (createdAtMs === null || stateJson === undefined) return
     state.runs.set(runId, {
       runId,
@@ -184,13 +199,9 @@ const applyRunEvent = (state: State, entry: JournalEvent.Entry, payload: Record<
   }
 
   if (entry.eventType === "flows.run.snapshot") {
-    /* v8 ignore next -- snapshot events are emitted by migration/rebuild code from schema-shaped rows. */
     const status = typeof payload.status === "string" ? payload.status as RunStatus : undefined
-    /* v8 ignore next -- snapshot events are emitted by migration/rebuild code from schema-shaped rows. */
     const createdAtMs = numberOrNull(payload.createdAtMs)
-    /* v8 ignore next -- snapshot events are emitted by migration/rebuild code from schema-shaped rows. */
     const stateJson = typeof payload.stateJson === "string" ? payload.stateJson : undefined
-    /* v8 ignore next -- malformed snapshots are ignored defensively. */
     if (status === undefined || createdAtMs === null || stateJson === undefined) return
     const waiting = own(payload, "waiting") ? asRecord(payload.waiting) : undefined
     state.runs.set(runId, {
@@ -207,7 +218,6 @@ const applyRunEvent = (state: State, entry: JournalEvent.Entry, payload: Record<
       cancelRequestedAtMs: numberOrNull(payload.cancelRequestedAtMs),
       lineageId: stringOrNull(payload.lineageId),
       roundOrdinal: numberOrNull(payload.roundOrdinal),
-      /* v8 ignore next 3 -- snapshot waiting is either absent or structurally valid when emitted by the migration. */
       waitingReason: waiting === undefined ? null : stringOrNull(waiting.reason),
       waitingWakeAtMs: waiting === undefined ? null : numberOrNull(waiting.wakeAt),
       waitingToken: waiting === undefined ? null : stringOrNull(waiting.token),
@@ -217,14 +227,11 @@ const applyRunEvent = (state: State, entry: JournalEvent.Entry, payload: Record<
   }
 
   const row = state.runs.get(runId)
-  /* v8 ignore next -- mutation-before-create is malformed journal history. */
   if (row === undefined) return
 
   if (entry.eventType === "flows.run.cancel-requested") {
     const requestedAtMs = numberOrNull(payload.requestedAtMs)
-    /* v8 ignore next -- cancel-requested without a timestamp is malformed history. */
     if (requestedAtMs !== null) {
-      /* v8 ignore next -- cancel-requested is covered through store-level fold conformance. */
       state.runs.set(runId, { ...row, cancelRequestedAtMs: requestedAtMs })
     }
     return
@@ -264,11 +271,8 @@ const applyRunEvent = (state: State, entry: JournalEvent.Entry, payload: Record<
 }
 
 const applyConsensusEvent = (state: State, entry: JournalEvent.Entry, payload: Record<string, unknown>): void => {
-  /* v8 ignore next -- consensus entries without a prior run row are malformed history. */
   const row = state.runs.get(entry.runId)
-  /* v8 ignore next -- consensus entries without an owner are malformed history. */
   const owner = ownerFrom(payload.owner)
-  /* v8 ignore next -- consensus entries without a row or owner are malformed history. */
   if (row === undefined || owner === null) return
   const grantedAtMs = numberOrNull(payload.grantedAtMs)
   switch (entry.eventType) {
@@ -290,13 +294,9 @@ const applyConsensusEvent = (state: State, entry: JournalEvent.Entry, payload: R
     case "flows.consensus.released": {
       state.runs.set(entry.runId, {
         ...row,
-        /* v8 ignore next -- released preserves nonmatching owners; matching release is covered by store conformance. */
         owner: sameOwner(row.owner, owner) ? null : row.owner,
-        /* v8 ignore next -- released preserves nonmatching owners; matching release is covered by store conformance. */
         heartbeatAtMs: sameOwner(row.owner, owner) ? null : row.heartbeatAtMs,
-        /* v8 ignore next -- released preserves nonmatching claims; matching release is covered by store conformance. */
         claim: sameOwner(row.claim, owner) ? null : row.claim,
-        /* v8 ignore next -- released preserves nonmatching claims; matching release is covered by store conformance. */
         claimedAtMs: sameOwner(row.claim, owner) ? null : row.claimedAtMs
       })
       return
@@ -313,22 +313,15 @@ const applyConsensusEvent = (state: State, entry: JournalEvent.Entry, payload: R
 }
 
 const applyAttemptEvent = (state: State, entry: JournalEvent.Entry, payload: Record<string, unknown>): void => {
-  /* v8 ignore next -- malformed attempt entries without a digest are ignored defensively. */
   const stepKeyDigest = typeof payload.stepKeyDigest === "string" ? payload.stepKeyDigest : undefined
-  /* v8 ignore next -- malformed attempt entries without an integer attempt are ignored defensively. */
   const attempt = numberOrNull(payload.attempt)
-  /* v8 ignore next -- malformed attempt entries are ignored defensively. */
   if (stepKeyDigest === undefined || attempt === null) return
   const key = attemptKey(entry.runId, stepKeyDigest, attempt)
   if (entry.eventType === "flows.attempt.put" || entry.eventType === "flows.attempt.snapshot") {
-    /* v8 ignore next -- malformed put/snapshot payloads are defensive guardrails. */
     const rowState = typeof payload.state === "string" ? payload.state : undefined
-    /* v8 ignore next -- malformed put/snapshot payloads are defensive guardrails. */
     const startedAtMs = numberOrNull(payload.startedAtMs)
     const metaJson = jsonColumn(payload, "meta", "metaJson")
-    /* v8 ignore next -- malformed put/snapshot payloads are defensive guardrails. */
     if (rowState === undefined || startedAtMs === null || metaJson === undefined || metaJson === null) return
-    /* v8 ignore next -- store-level fold conformance covers valid attempt rows. */
     state.attempts.set(key, {
       runId: entry.runId,
       stepKeyDigest,
@@ -345,19 +338,14 @@ const applyAttemptEvent = (state: State, entry: JournalEvent.Entry, payload: Rec
   }
 
   const row = state.attempts.get(key)
-  /* v8 ignore next -- mutation-before-put is malformed journal history. */
   if (row === undefined) return
   if (entry.eventType === "flows.attempt.checkpointed") {
-    /* v8 ignore next -- checkpoint encoding failure is defensive; writers pre-encode JSON-compatible payloads. */
     const checkpointJson = jsonColumn(payload, "checkpoint", "checkpointJson")
-    /* v8 ignore next -- valid checkpoint mutation is covered by store-level conformance. */
     if (checkpointJson !== undefined) {
-      /* v8 ignore next -- valid checkpoint mutation is covered by store-level conformance. */
       state.attempts.set(key, { ...row, checkpointJson })
     }
     return
   }
-  /* v8 ignore next 13 -- finish fold branches are covered by store-level conformance; malformed payload arms are defensive. */
   if (entry.eventType === "flows.attempt.finished") {
     const rowState = typeof payload.state === "string" ? payload.state : undefined
     const finishedAtMs = numberOrNull(payload.finishedAtMs)
@@ -366,22 +354,19 @@ const applyAttemptEvent = (state: State, entry: JournalEvent.Entry, payload: Rec
       ...row,
       state: rowState,
       finishedAtMs,
-      errorJson: own(payload, "error") ? jsonColumn(payload, "error", "errorJson") ?? null : row.errorJson,
-      outcomeJson: own(payload, "outcome") ? jsonColumn(payload, "outcome", "outcomeJson") ?? null : row.outcomeJson,
-      metaJson: own(payload, "meta") ? jsonColumn(payload, "meta", "metaJson") ?? row.metaJson : row.metaJson
+      errorJson: patchJson(payload, "error", "errorJson", row.errorJson, null),
+      outcomeJson: patchJson(payload, "outcome", "outcomeJson", row.outcomeJson, null),
+      metaJson: patchJson(payload, "meta", "metaJson", row.metaJson, row.metaJson)
     })
     return
   }
-  /* v8 ignore next 10 -- patch fold branches are covered by store-level conformance; malformed payload arms are defensive. */
   if (entry.eventType === "flows.attempt.patched") {
     state.attempts.set(key, {
       ...row,
-      checkpointJson: own(payload, "checkpoint")
-        ? jsonColumn(payload, "checkpoint", "checkpointJson") ?? null
-        : row.checkpointJson,
-      errorJson: own(payload, "error") ? jsonColumn(payload, "error", "errorJson") ?? null : row.errorJson,
-      outcomeJson: own(payload, "outcome") ? jsonColumn(payload, "outcome", "outcomeJson") ?? null : row.outcomeJson,
-      metaJson: own(payload, "meta") ? jsonColumn(payload, "meta", "metaJson") ?? row.metaJson : row.metaJson
+      checkpointJson: patchJson(payload, "checkpoint", "checkpointJson", row.checkpointJson, null),
+      errorJson: patchJson(payload, "error", "errorJson", row.errorJson, null),
+      outcomeJson: patchJson(payload, "outcome", "outcomeJson", row.outcomeJson, null),
+      metaJson: patchJson(payload, "meta", "metaJson", row.metaJson, row.metaJson)
     })
   }
 }
@@ -397,7 +382,6 @@ const reduceSync = (state: State, entry: JournalEvent.Entry): State => {
     applyConsensusEvent(state, entry, payload)
     return state
   }
-  /* v8 ignore next -- attempt namespace dispatch is covered through foldEntries and projections. */
   if (entry.eventType.startsWith("flows.attempt.")) {
     applyAttemptEvent(state, entry, payload)
   }
@@ -671,14 +655,13 @@ const foldRun = (
       const first: number | undefined = cursor
       const page: EntriesPage = yield* journal.entries({
         runId,
-        /* v8 ignore next -- multi-page rebuilds set the cursor; small conformance runs stay on the first page. */
+        /* v8 ignore next -- only a run above the 256-entry page size sets the cursor; the conformance histories fit one page, and pagination is the journal read contract pinned in `@smthrs/journal`'s own suite. */
         ...(first === undefined ? {} : { after: first as JournalEvent.Seq }),
         limit: rebuildPageSize
       }).pipe(
-        /* v8 ignore next -- compacted replay is covered by the SQL compaction barrier tests. */
         Effect.catch((cause) => {
           const checkpointSeq = cause.checkpointSeq
-          /* v8 ignore next -- defensive disambiguation for non-compaction journal failures. */
+          /* v8 ignore next 2 -- the compacted arm is covered by the compaction rebuild tests; the fallthrough re-raising a non-compaction failure (or a compaction refusal past the first page, which the floor guard makes unrepresentable) is defensive. */
           return first === undefined && cause.code === "compacted" && checkpointSeq !== undefined
             ? Effect.gen(function*() {
               projectAfter = checkpointSeq - 1
@@ -693,7 +676,7 @@ const foldRun = (
       )
       entryCount += page.entries.length
       const last = page.entries.at(-1)
-      /* v8 ignore next -- a listed run has at least one surviving fold entry or snapshot. */
+      /* v8 ignore next -- an empty page is unreachable: `Journal.runs` lists only runs with committed entries, and a page with `hasMore` is never empty. */
       if (last !== undefined) {
         cursor = last.seq
       }
@@ -711,9 +694,9 @@ const foldRun = (
       Stream.take(entryCount + 1),
       Stream.runCollect
     )
-    /* v8 ignore next -- Journal.project emits the projection initial state before the finite replay completes. */
+    /* v8 ignore next -- `Journal.project` emits the projection's initial state before the first entry, so a finite replay always collects at least one state. */
     const runs = runStates.at(-1) ?? new Map<string, RunFoldRow>()
-    /* v8 ignore next -- Journal.project emits the projection initial state before the finite replay completes. */
+    /* v8 ignore next -- `Journal.project` emits the projection's initial state before the first entry, so a finite replay always collects at least one state. */
     const attempts = attemptStates.at(-1) ?? new Map<string, AttemptFoldRow>()
     for (const [key, row] of runs) state.runs.set(key, row)
     for (const [key, row] of attempts) state.attempts.set(key, row)
@@ -769,7 +752,6 @@ export const rebuild: Effect.Effect<void, unknown, Journal | DurableWriter | Sql
         )
       `
       }
-      /* v8 ignore next 4 -- conformance covers deterministic ordering; comparator fallbacks depend only on data ties. */
       const attempts = Array.from(state.attempts.values()).sort((left, right) =>
         left.runId.localeCompare(right.runId) ||
         left.stepKeyDigest.localeCompare(right.stepKeyDigest) ||
