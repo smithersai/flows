@@ -1,4 +1,5 @@
 import type { AgentChatMessage, FetchLike } from "smithers-shared/NativeAgent";
+import { globalTransport } from "../seams/Transport";
 import type { NativeAgent, NativeRepositories } from "../../native/NativeBridge";
 import type { CommandRegistry } from "../../flows/Commands";
 import type { ImpossibleAskClass } from "../Instructions";
@@ -108,7 +109,7 @@ export const createControllerContext = (
 		netRing.push(entry);
 		if (netRing.length > 100) netRing.shift();
 	};
-	const rawHttp: FetchLike = services.fetchImpl ?? fetch.bind(globalThis);
+	const rawHttp: FetchLike = services.fetchImpl ?? globalTransport();
 	const unref = (timer: ReturnType<typeof setTimeout>): void => {
 		// Bun/Node timers hold the process open (e2e scripts); browser timers don't.
 		(timer as { unref?: () => void }).unref?.();

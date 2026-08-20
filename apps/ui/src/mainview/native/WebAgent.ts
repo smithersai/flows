@@ -1,6 +1,7 @@
 import { CANCEL_PATH, TURN_PATH } from "smithers-shared/AgentApiRoutes";
 import { isAgentTurnFrame } from "smithers-shared/NativeAgent";
 import type { AgentTurnFrame, FetchLike, StartAgentTurnResult } from "smithers-shared/NativeAgent";
+import { globalTransport } from "../state/seams/Transport";
 import type { NativeAgent } from "./NativeBridge";
 
 const MAX_ERROR_BYTES = 320;
@@ -136,7 +137,7 @@ const streamFrames = async (
  */
 export const createWebAgent = (options: WebAgentOptions = {}): NativeAgent => {
 	const baseUrl = options.baseUrl ?? "";
-	const fetchImpl = options.fetchImpl ?? fetch.bind(globalThis);
+	const fetchImpl = options.fetchImpl ?? globalTransport();
 	const listeners = new Set<(frame: AgentTurnFrame) => void>();
 	const activeTurns = new Map<string, AbortController>();
 	const publish = (frame: AgentTurnFrame): void => {
