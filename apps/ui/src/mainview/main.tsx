@@ -108,11 +108,11 @@ const main = async (): Promise<void> => {
 	try {
 		const store = await createAppStore();
 		/*
-		 * DESIGN.md §14: one agent seam, two backends. The switch delegates each
-		 * turn by the session flag; the chain runtime binds after the controller
-		 * exists because its catalog IS the controller's command registry.
+		 * DESIGN.md §14: one agent seam. The chain runtime binds after the
+		 * controller exists because its catalog IS the controller's command
+		 * registry, and it owns every turn from that moment on.
 		 */
-		const agent = createAgentSwitch(store, nativeAgent);
+		const agent = createAgentSwitch(nativeAgent);
 		const controller = createAppController(store, nativeRepositories, agent, {
 			// The native shell's system-browser door: sign-in runs the handoff
 			// (OAuth outside the webview, where passkeys work). Absent on web.

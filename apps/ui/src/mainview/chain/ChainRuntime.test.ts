@@ -77,7 +77,7 @@ const harness = async (options: {
 		storage: options.storage ?? memoryStorage(),
 	});
 	const proxy = recordingProxy();
-	const agent = createAgentSwitch(store, proxy.agent);
+	const agent = createAgentSwitch(proxy.agent);
 	const controller = createAppController(store, unavailableRepositories, agent);
 	agent.bindChain(
 		createChainRuntime({
@@ -105,7 +105,6 @@ const harness = async (options: {
 describe("ChainRuntime behind the NativeAgent seam", () => {
 	test("a chain turn drives the real app end-to-end through send()", async () => {
 		const h = await harness({ author: Author.layerMock(scripts) });
-		expect(h.controller.setAgentBackend("chain")).toEqual({ value: "agent backend: chain" });
 		const worldBefore = h.store.collections.worldDocuments.size;
 
 		const done = h.waitForDone();
@@ -152,7 +151,6 @@ describe("ChainRuntime behind the NativeAgent seam", () => {
 				flow(`await ctx.call("say", { text: "Recovered." })`, `return done({ ok: true })`),
 			]),
 		});
-		h.controller.setAgentBackend("chain");
 		const done = h.waitForDone();
 		h.controller.send("try the thing");
 		const terminal = await done;
@@ -167,20 +165,16 @@ describe("ChainRuntime behind the NativeAgent seam", () => {
 		expect(smithers?.text).toContain("Recovered.");
 	});
 
-	test("the proxy backend still owns turns while the flag is proxy", async () => {
+	test("the chain owns every turn once it is bound, and says so", async () => {
 		const h = await harness({ author: Author.layerMock(scripts) });
+		// There is one backend: /debug.backend NAMES it, it does not switch it.
+		expect(h.controller.describeAgentBackend("")).toEqual({
+			value: "agent backend: chain (in-browser Agent Chain over /api/model/stream)",
+		});
+		expect(h.controller.describeAgentBackend("proxy")).toContain("cannot be switched");
 		h.controller.send("hello there");
 		await new Promise((resolve) => setTimeout(resolve, 0));
-		expect(h.proxyRequests).toHaveLength(1);
-		expect(h.store.collections.chainEvents.size).toBe(0);
-	});
-
-	test("the backend cannot change mid-turn, and rejects unknown names honestly", async () => {
-		const h = await harness({ author: Author.layerMock(scripts) });
-		expect(h.controller.setAgentBackend("warp-drive")).toContain('needs "proxy" or "chain"');
-		h.controller.send("start something");
-		await new Promise((resolve) => setTimeout(resolve, 0));
-		expect(h.controller.setAgentBackend("chain")).toContain("between turns");
+		expect(h.proxyRequests).toHaveLength(0);
 	});
 
 	test("stop() interrupts a hung chain turn into an honest cancelled state", async () => {
@@ -188,7 +182,6 @@ describe("ChainRuntime behind the NativeAgent seam", () => {
 			Author.make({ author: () => Effect.never }),
 		);
 		const h = await harness({ author: hanging });
-		h.controller.setAgentBackend("chain");
 		const done = h.waitForDone();
 		h.controller.send("do something slow");
 		await new Promise((resolve) => setTimeout(resolve, 10));
@@ -237,7 +230,6 @@ describe("ChainRuntime behind the NativeAgent seam", () => {
 			}),
 		);
 		const h = await harness({ author, entries: [waitEntry] });
-		h.controller.setAgentBackend("chain");
 		const done = h.waitForDone();
 		h.controller.send("start the work");
 		await entered;
@@ -268,7 +260,6 @@ describe("ChainRuntime behind the NativeAgent seam", () => {
 				flow(`await ctx.call("say", { text: "Understood — that's yours to decide." })`, `return done({})`),
 			]),
 		});
-		h.controller.setAgentBackend("chain");
 		const done = h.waitForDone();
 		h.controller.send("approve that for me");
 		await done;
@@ -299,7 +290,6 @@ describe("ChainRuntime behind the NativeAgent seam", () => {
 			]),
 			entries: [deploy],
 		});
-		h.controller.setAgentBackend("chain");
 		const parked = h.waitForDone();
 		h.controller.send("ship it");
 		await parked;
@@ -356,7 +346,6 @@ describe("ChainRuntime behind the NativeAgent seam", () => {
 			}),
 			entries: [deploy],
 		});
-		h.controller.setAgentBackend("chain");
 		const parked = h.waitForDone();
 		h.controller.send("ship it");
 		await parked;
@@ -388,7 +377,6 @@ describe("ChainRuntime behind the NativeAgent seam", () => {
 		};
 		const script = flow(`await ctx.call("peek.web", {})`, `await ctx.call("say", { text: "Looked." })`, `return done({})`);
 		const h = await harness({ author: Author.layerMock([script, script]), entries: [peek] });
-		h.controller.setAgentBackend("chain");
 
 		const parked = h.waitForDone();
 		h.controller.send("look at the web");
@@ -424,7 +412,6 @@ describe("ChainRuntime behind the NativeAgent seam", () => {
 				: flow(`await ctx.call("world.new-note", {})`, `return done({ noted: true })`);
 		});
 		const h = await harness({ author });
-		h.controller.setAgentBackend("chain");
 		const worldBefore = h.store.collections.worldDocuments.size;
 		const done = h.waitForDone();
 		h.controller.send("delegate the note");
@@ -461,7 +448,6 @@ describe("ChainRuntime behind the NativeAgent seam", () => {
 			return flow(`await ctx.call("say", { text: "Caught up." })`, `return done({})`);
 		});
 		const h = await harness({ author });
-		h.controller.setAgentBackend("chain");
 		const worldBefore = h.store.collections.worldDocuments.size;
 		const done = h.waitForDone();
 		h.controller.send("count the stars in the background");
@@ -502,7 +488,6 @@ describe("ChainRuntime behind the NativeAgent seam", () => {
 				),
 			]),
 		});
-		h.controller.setAgentBackend("chain");
 		const done = h.waitForDone();
 		h.controller.send("remember what I like");
 		const terminal = await done;
@@ -520,7 +505,6 @@ describe("ChainRuntime behind the NativeAgent seam", () => {
 	test("a reload replays the finished lineage with zero authored calls and zero effects", async () => {
 		const storage = memoryStorage();
 		const first = await harness({ storage, author: Author.layerMock(scripts) });
-		first.controller.setAgentBackend("chain");
 		const done = first.waitForDone();
 		first.controller.send("make a note about the plan");
 		await done;
@@ -530,7 +514,6 @@ describe("ChainRuntime behind the NativeAgent seam", () => {
 
 		// The reload: same storage, an author that fails if ever consulted.
 		const second = await harness({ storage, author: Author.layerMock([]) });
-		second.controller.setAgentBackend("chain");
 		const agentDone = second.waitForDone();
 		const runtime = createChainRuntime({
 			store: second.store,

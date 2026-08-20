@@ -220,6 +220,8 @@ describe("command registry bindings", () => {
 		expect(names).toEqual([
 			"connect",
 			"world",
+			"github",
+			"files",
 			"theme",
 			"surfaces",
 			"dark-mode",
@@ -252,6 +254,8 @@ describe("command registry bindings", () => {
 			"world.new-note",
 			"world.select",
 			"world.delete",
+			"world.delete.confirm",
+			"world.delete.cancel",
 			"auth.sign-in",
 			"auth.prompt",
 			"auth.sign-out",
@@ -313,7 +317,10 @@ describe("command registry bindings", () => {
 			document.path.startsWith("Untitled"),
 		);
 		expect(note).toBeDefined();
+		// Deleting is not undoable, so world.delete ASKS and the human answers.
 		expect((await controller.commands.run("world.delete", note?.id ?? "")).status).toBe("executed");
+		expect(store.session().pendingWorldDeleteId).toBe(note?.id ?? "");
+		expect((await controller.commands.run("world.delete.confirm")).status).toBe("executed");
 		expect(store.collections.worldDocuments.get(note?.id ?? "")).toBeUndefined();
 
 		expect((await controller.commands.run("does-not-exist")).status).toBe("unknown-command");

@@ -523,6 +523,29 @@ export const baseFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> => 
 		},
 	}),
 	flow({
+		/*
+		 * §10.6 / §28.4: deleting a note is not undoable, so world.delete ASKS
+		 * and these two are the answer. The answer is the human's alone — the
+		 * agent may raise the question, never settle it.
+		 */
+		name: "world.delete.confirm",
+		summary: "Delete the note Smithers asked about",
+		hidden: true,
+		userOnly: true,
+		input: NoPayload,
+		handler: () => actions.confirmWorldDelete(),
+	}),
+	flow({
+		name: "world.delete.cancel",
+		summary: "Keep the note Smithers asked about",
+		hidden: true,
+		userOnly: true,
+		input: NoPayload,
+		handler: () => {
+			actions.cancelWorldDelete();
+		},
+	}),
+	flow({
 		name: "auth.sign-in",
 		summary: "Sign in with GitHub",
 		userOnly: true,
@@ -882,15 +905,15 @@ export const adminFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> =>
 	}),
 	flow({
 		/*
-		 * DESIGN.md §14: flip which backend drives a turn. user-only — the agent
-		 * must never switch its own engine.
+		 * DESIGN.md §14: name what drives a turn. user-only — the engine is not
+		 * the agent's to inspect or to change, and there is nothing to switch:
+		 * the chain is the one backend.
 		 */
 		name: "debug.backend",
-		summary: "Switch the agent backend (proxy | chain)",
+		summary: "Name the agent backend",
 		userOnly: true,
-		args: "proxy | chain",
 		input: Schema.Struct({ backend: Schema.String }),
-		handler: ({ backend }) => actions.setAgentBackend(backend),
+		handler: ({ backend }) => actions.describeAgentBackend(backend),
 	}),
 	flow({
 		/* The debug reads — one typed surface the panel AND the agent share. */
