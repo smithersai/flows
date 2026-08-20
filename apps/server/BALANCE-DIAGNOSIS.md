@@ -4,11 +4,24 @@ Will, 2026-08-19, testing the closed alpha: *"it says I have $0 but I should
 have a lot more than $0."*
 
 **Verdict: production data, not code.** Nothing in `apps/ui` or `apps/server`
-can produce a zero that the ledger did not answer with. Will's billing account
-holds no grants, because the deployed billing worker's promotional grant is
-gated on an eligibility check that no account can pass in its current
-configuration. Fixing it is one admin grant plus one config change; there is
-no code change in this repository to make, and none was made.
+can produce a zero that the ledger did not answer with — that half is proved
+below, at both layers, by reading the code and running the tests. The remaining
+half is an INFERENCE, and is labelled as one throughout: the deployed billing
+worker gates its promotional grant on an eligibility check that no account can
+pass in its current configuration, so the most likely reason will's account
+holds no grants is that it never received one. Fixing it is one admin grant
+plus one config change; there is no code change in this repository to make, and
+none was made.
+
+**What was and was not read.** The two code layers were read directly and their
+suites run. The deployed billing worker's configuration and its aggregate
+metrics were read directly. Will's individual account record was NOT read: the
+billing worker exposes no read-only per-account route, and the one call that
+would resolve his account CREATES it as a side effect, which is a production
+write this diagnosis would not make. Every statement about his specific ledger
+row is therefore an inference from mechanism plus aggregates, and
+["Which record is wrong — an inference, not a reading"](#which-record-is-wrong--an-inference-not-a-reading)
+enumerates the alternatives that inference does not exclude.
 
 Verified 2026-08-19 against the deployed stack.
 
@@ -88,13 +101,38 @@ account's ledger is empty, and `summary.totalNanos <= 0` summarizes to exactly
 `state: "empty"`, `totalUsd: "0"`, `allowedToStartWork: false` — the wire
 answer will is seeing.
 
-### The wrong record, precisely
+### Which record is wrong — an inference, not a reading
 
-The account keyed by the normalized (trimmed, lowercased) GitHub login will
-signs in as, in the `ACCOUNTS` Durable Object namespace of the
-`smithers-cloud-billing` Worker, holds **zero grants** in its `ledger` record.
-Its stored `account` record carries
+The most likely wrong record is the account keyed by the normalized (trimmed,
+lowercased) GitHub login will signs in as, in the `ACCOUNTS` Durable Object
+namespace of the `smithers-cloud-billing` Worker: it holds zero grants in its
+`ledger` record, and its stored `account` record carries
 `eligibility: {eligible: false, policy: "allowlist", reason: "not_allowlisted"}`.
+
+**That record was not read.** What supports it is the mechanism (the only
+automatic funding path is gated on a stored eligibility verdict, and the
+deployed policy cannot produce a passing one), the aggregate ledger state (three
+accounts, two of them the documented canary/test logins that hold the whole
+$1046), and the wire answer itself (`state: "empty"`, `totalUsd: "0"`). Current
+configuration and deployment-wide totals cannot prove the FROZEN eligibility
+value stored on an account that already existed, so the stored `reason` above is
+the expected value, not an observed one.
+
+Alternatives this evidence does not exclude, each of which also produces a $0
+answer and each of which the remediation below still repairs:
+
+| Alternative | Why the evidence does not exclude it |
+| --- | --- |
+| Will's account was created while an earlier, different `ALPHA_ELIGIBILITY_POLICY`/allowlist was deployed, so its stored `eligibility` says something else and the promo was skipped for a different reason. | Only the CURRENT configuration was read. Wrangler config history was not. |
+| Will's account is the third account and was funded, then fully consumed. | Ruled out only in aggregate: `consumed_usd_total` is $0.002675 and `expired_usd_total` is $0 deployment-wide, which is too small to have drained a grant. This is strong, not conclusive, since it assumes the two documented $500 grants are the two funded accounts. |
+| Will signs in under a login that normalizes to something other than the one assumed here, so the account read is a different (fresh, empty) account than any that was ever granted. | The exact normalized login was never read; step 1 of the remediation is to read it precisely because of this. |
+| The account holds a grant with an `expiresAt` in the past. | `expired_usd_total` is 0, which argues against it, but expiry accounting was read only in aggregate. |
+
+Reading the record itself needs will's session cookie (`GET
+/api/billing/balance` as him, which resolves his real account), or an operator
+running an admin diagnostic that accepts the account-creating side effect.
+Either one turns the inference above into a reading; neither was available to
+this diagnosis.
 
 ### Two details that change the remediation
 
@@ -151,7 +189,8 @@ login through the trusted-caller balance read was deliberately **not** done:
 that call runs `ensureAccount`, which CREATES the account and increments
 `accounts_total`. It is a production write, and production inspection here is
 read-only. What is confirmed is the mechanism, the deployed configuration and
-the aggregate ledger state; will's individual grant row was not read. Doing so
+the aggregate ledger state; will's individual grant row was not read, and every
+claim about it above is labelled an inference for that reason. Doing so
 requires his session cookie, or an admin who accepts the account-creating side
 effect.
 
