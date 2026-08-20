@@ -416,7 +416,7 @@ export const createTurnController = (
 	};
 
 	const subscribeToAgent = (): void => {
-		agent.subscribe((frame: AgentTurnFrame) => {
+		const unsubscribe = agent.subscribe((frame: AgentTurnFrame) => {
 			if (frame.runId !== ctx.activeTurn?.id) return;
 			if (frame.type === "card" || frame.type === "card.update") {
 				handleCardFrame(frame);
@@ -590,6 +590,9 @@ export const createTurnController = (
 			}
 			settleTurnBilling();
 		});
+		// The subscription is scoped to the controller: disposing the controller
+		// unsubscribes instead of leaking the listener for the page lifetime.
+		if (typeof unsubscribe === "function") ctx.onDispose(unsubscribe);
 	};
 
 	const send = (text: string): void => {

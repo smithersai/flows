@@ -52,6 +52,8 @@ export type CommandActions = Omit<
 	| "runCommandArgs"
 	| "commands"
 	| "tappedFetch"
+	// The scope close is the composition root's act, never a flow's.
+	| "dispose"
 > & {
 	readonly snapshot: () => CommandState;
 	/*

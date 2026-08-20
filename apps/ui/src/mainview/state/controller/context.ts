@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import type { AgentChatMessage, FetchLike } from "smithers-shared/NativeAgent";
 import type { NativeAgent, NativeRepositories } from "../../native/NativeBridge";
 import type { CommandRegistry } from "../../flows/Commands";
@@ -53,9 +54,18 @@ export interface ControllerContext {
 	readonly baseUrl: string;
 	readonly rawHttp: FetchLike;
 	http: FetchLike;
-	boundedFetch: (url: string, init: RequestInit) => Promise<Response>;
+	boundedFetch: (url: string, init?: RequestInit) => Promise<Response>;
 	errorMessageOf: (response: Response, fallback: string) => Promise<string>;
 	readonly unref: (timer: ReturnType<typeof setTimeout>) => void;
+	/**
+	 * Register a finalizer for something this controller opened (a
+	 * subscription, a host listener, a channel). Everything registered runs
+	 * when the controller's scope closes via `dispose` — nothing a controller
+	 * opened outlives it.
+	 */
+	readonly onDispose: (finalizer: () => void) => void;
+	/** Close the controller's scope: run every registered finalizer, once. */
+	readonly dispose: () => void;
 	readonly toastDebounceMs: number;
 	readonly toastAutoDismissMs: number;
 	readonly workflowPollMs: number;
@@ -113,6 +123,16 @@ export const createControllerContext = (
 		// Bun/Node timers hold the process open (e2e scripts); browser timers don't.
 		(timer as { unref?: () => void }).unref?.();
 	};
+	/*
+	 * The controller's disposal scope (Ruling B, docs/persistence.md): the
+	 * acquisition half lives where the resource is opened (the agent
+	 * subscription in turns.ts, the cross-tab identity listeners in
+	 * auth-billing.ts, the workflow pumps), and closing the scope releases
+	 * all of it. Previously the agent unsubscribe was discarded and the
+	 * identity listeners and BroadcastChannel leaked for the page lifetime.
+	 */
+	const finalizers: Array<() => void> = [];
+	let disposed = false;
 	const ctx = {
 		store,
 		repositories,
@@ -144,6 +164,20 @@ export const createControllerContext = (
 		commands: undefined as unknown as CommandRegistry,
 		withToast: undefined as unknown as ControllerContext["withToast"],
 		unref,
+		onDispose: (finalizer) => {
+			// Registering after disposal runs the finalizer at once, so a late
+			// acquisition never leaks either.
+			if (disposed) {
+				finalizer();
+				return;
+			}
+			finalizers.push(finalizer);
+		},
+		dispose: () => {
+			if (disposed) return;
+			disposed = true;
+			for (const finalizer of finalizers.splice(0)) finalizer();
+		},
 		http: undefined as unknown as FetchLike,
 		boundedFetch: undefined as unknown as ControllerContext["boundedFetch"],
 		errorMessageOf: undefined as unknown as ControllerContext["errorMessageOf"],
@@ -194,22 +228,23 @@ export const createControllerContext = (
 	/**
 	 * One request, with a deadline on it.
 	 *
-	 * Built from an AbortController rather than `AbortSignal.timeout` so the
-	 * timer is CLEARED the moment the request settles: a dangling timer per
-	 * request holds the process open outside a browser, and the deadline is
-	 * about the request, not about the page.
+	 * The deadline is Effect's timeout (Ruling B, docs/persistence.md): when
+	 * it wins, the request fiber is interrupted and tryPromise aborts the
+	 * fetch's signal — cancellation is interruption, not a manual
+	 * AbortController, and a settled request clears its own clock, so nothing
+	 * dangles per request. The public shape is unchanged: a promise of the
+	 * response, rejecting with plain Errors.
 	 */
-	ctx.boundedFetch = async (url: string, init: RequestInit): Promise<Response> => {
-		if (typeof AbortController !== "function") return ctx.http(url, init);
-		const aborter = new AbortController();
-		const timer = setTimeout(() => aborter.abort(new Error("seam timeout")), seamTimeoutMs);
-		unref(timer);
-		try {
-			return await ctx.http(url, { ...init, signal: aborter.signal });
-		} finally {
-			clearTimeout(timer);
-		}
-	};
+	ctx.boundedFetch = (url: string, init?: RequestInit): Promise<Response> =>
+		Effect.runPromise(
+			Effect.tryPromise({
+				try: (signal) => ctx.http(url, { ...init, signal }),
+				catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+			}).pipe(
+				Effect.timeout(seamTimeoutMs),
+				Effect.mapError((error) => (error instanceof Error ? error : new Error("seam timeout"))),
+			),
+		);
 	ctx.errorMessageOf = async (response: Response, fallback: string): Promise<string> => {
 		const body = (await response.text().catch(() => "")).trim();
 		try {
