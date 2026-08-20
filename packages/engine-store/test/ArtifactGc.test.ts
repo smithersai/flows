@@ -128,14 +128,8 @@ const harness = (host: Host, options?: {
   readonly policy?: ArtifactGc.Policy | undefined
   readonly sweep?: ArtifactSweep.Service | undefined
 }) => {
-  const journalLayer = SqlJournal.layer({ capacity: 64, overflow: "reject" })
-  const durable =  Layer.provideMerge(
-    Layer.mergeAll(
-      journalLayer,
-      RunStore.layer,
-      AttemptStore.layer,
-      CacheStore.layer.pipe(Layer.provide(journalLayer))
-    ),
+  const durable = Layer.provideMerge(
+    Layer.mergeAll(RunStore.layer, AttemptStore.layer, CacheStore.layer),
     SqlJournal.layer({ capacity: 1024, overflow: "reject" })
   ).pipe(Layer.provideMerge(
     TestStores.database
