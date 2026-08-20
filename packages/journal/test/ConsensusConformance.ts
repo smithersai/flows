@@ -62,7 +62,7 @@ export const conformance = (
   name: string,
   strategyLayer: Layer.Layer<Consensus, never, DurableWriter | SqlClient.SqlClient>
 ): void => {
-  const stack = SqlJournal.layerWith({ capacity: 32, overflow: "reject" }).pipe(
+  const stack = SqlJournal.layer({ capacity: 32, overflow: "reject" }).pipe(
     Layer.provideMerge(strategyLayer),
     Layer.provideMerge(Layer.provideMerge(Migrations.layer, TestDatabase.layer))
   )

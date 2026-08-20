@@ -89,9 +89,14 @@ describe("TestStores", () => {
 
       expect(Option.getOrThrow(result.attempt).meta).toEqual({ poisonPill: false })
       expect(Option.getOrThrow(result.cache).result).toEqual({ value: "ok" })
-      // seq 3 is the cache fold's own `flows.cache.recorded` event: the bundle
-      // wires the store to the same journal, so the put appends through it.
-      expect(result.entries.entries.map((entry) => entry.seq)).toEqual([0, 1, 2, 3])
-      expect(result.entries.entries[3]!.eventType).toBe("flows.cache.recorded")
+      // The run, attempt, and cache folds interleave their own events with the
+      // caller's, so the pin is on gapless seqs, not a fixed count.
+      expect(result.entries.entries.map((entry) => entry.seq)).toEqual(
+        result.entries.entries.map((_, index) => index)
+      )
+      expect(result.entries.entries.filter((entry) => entry.eventType === "step.completed")).toHaveLength(1)
+      // The cache fold's own `flows.cache.recorded` event rides the same
+      // journal: the bundle wires the store to it, so the put appends through.
+      expect(result.entries.entries.map((entry) => entry.eventType)).toContain("flows.cache.recorded")
     }))
 })

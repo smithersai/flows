@@ -9,6 +9,7 @@ import { DurableWriter } from "@smthrs/database/DurableWriter"
 import * as DatabaseMigrations from "@smthrs/database/Migrations"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import * as JournalMigrations from "@smthrs/journal/Migrations"
+import * as SqlJournal from "@smthrs/journal/SqlJournal"
 import { Effect, Layer, Option } from "effect"
 import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
@@ -31,7 +32,10 @@ describe("durable run state redaction", () => {
   const storeLayers = Layer.mergeAll(
     RunStore.layer,
     AttemptStore.layer
-  ).pipe(Layer.provideMerge(Layer.provideMerge(migrationsLayer, TestDatabase.layer)))
+  ).pipe(
+    Layer.provideMerge(SqlJournal.layer({ capacity: 1024, overflow: "reject" })),
+    Layer.provideMerge(Layer.provideMerge(migrationsLayer, TestDatabase.layer))
+  )
 
   const withStores = <A, E>(
     body: Effect.Effect<
@@ -93,6 +97,11 @@ describe("durable run state redaction", () => {
           run_id, status, created_at_ms, owner_host_id, owner_pid, owner_nonce, heartbeat_at_ms, state_json
         ) VALUES ('run-attempt', 'running', 1, 'host-a', 42, 'nonce-a', 1, '{}')
       `
+        yield* sql`
+        INSERT INTO flows_consensus_leases (
+          run_id, owner_host_id, owner_pid, owner_nonce, granted_at_ms, heartbeat_at_ms
+        ) VALUES ('run-attempt', 'host-a', 42, 'nonce-a', 1, 1)
+      `
         const store = yield* AttemptStore.AttemptStore
         const owner = { hostId: "host-a", pid: 42, nonce: "nonce-a" }
         yield* store.put({
@@ -132,6 +141,11 @@ describe("durable run state redaction", () => {
         INSERT INTO flows_runs (
           run_id, status, created_at_ms, owner_host_id, owner_pid, owner_nonce, heartbeat_at_ms, state_json
         ) VALUES ('run-patch', 'running', 1, 'host-a', 42, 'nonce-a', 1, '{}')
+      `
+        yield* sql`
+        INSERT INTO flows_consensus_leases (
+          run_id, owner_host_id, owner_pid, owner_nonce, granted_at_ms, heartbeat_at_ms
+        ) VALUES ('run-patch', 'host-a', 42, 'nonce-a', 1, 1)
       `
         const store = yield* AttemptStore.AttemptStore
         const id = { runId: "run-patch", stepKeyDigest: "digest-2", attempt: 0 }

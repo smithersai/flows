@@ -45,6 +45,15 @@ const input = (sequence: number): Input =>
     payload: { value: sequence }
   }, { disableChecks: true })
 
+const foldInput = (sequence: number, eventType: string, payload: unknown): Input =>
+  new Input({
+    runId: run,
+    sourceId: source,
+    sourceSeq: sequence as SourceSeq,
+    eventType,
+    payload
+  }, { disableChecks: true })
+
 const effect = <E>(
   name: string,
   body: () => Effect.Effect<void, E, DurableWriter | SqlClient.SqlClient>
@@ -284,6 +293,36 @@ describe("Journal.compact", () => {
       const failure = yield* Effect.flip(service.compact({ runId: run }))
       expect(failure.code).toBe("checkpoint_invalid")
       expect(yield* eventCount).toBe(3)
+    }).pipe(Effect.provide(journal()), Effect.scoped))
+
+  effect("refuses to compact fold entries before a snapshot barrier", () =>
+    Effect.gen(function*() {
+      const service = yield* Journal
+      yield* service.emitDurable(foldInput(0, "flows.run.created", { createdAtMs: 0, status: "queued" }))
+      yield* service.emitDurable(input(1))
+      yield* service.checkpoint({ runId: run, seq: seqOf(1), state: null })
+
+      const failure = yield* Effect.flip(service.compact({ runId: run }))
+
+      expect(failure.code).toBe("reader_behind")
+      expect(failure.message).toContain("run/attempt fold")
+      expect(failure.checkpointSeq).toBe(1)
+      expect(yield* eventCount).toBe(2)
+    }).pipe(Effect.provide(journal()), Effect.scoped))
+
+  effect("compacts fold entries once a run snapshot lands at the checkpoint", () =>
+    Effect.gen(function*() {
+      const service = yield* Journal
+      yield* service.emitDurable(foldInput(0, "flows.run.created", { createdAtMs: 0, status: "queued" }))
+      yield* service.emitDurable(input(1))
+      yield* service.emitDurable(foldInput(2, "flows.run.snapshot", { createdAtMs: 0, status: "queued" }))
+      yield* service.checkpoint({ runId: run, seq: seqOf(2), state: null })
+
+      const compacted = yield* service.compact({ runId: run })
+
+      expect(compacted).toEqual({ runId: run, checkpointSeq: 2, deleted: 2 })
+      const page = yield* service.entries({ runId: run, after: seqOf(1), limit: 10 })
+      expect(page.entries.map((entry) => entry.eventType)).toEqual(["flows.run.snapshot"])
     }).pipe(Effect.provide(journal()), Effect.scoped))
 
   effect("is idempotent: a retried compaction deletes nothing further", () =>
@@ -859,7 +898,7 @@ describe("the compaction policy hook", () => {
             compaction: { entryThreshold: 1, capture: () => Effect.succeed(null) }
           },
           stubbedRows(
-            (text) => text.includes("COUNT(*) AS total FROM flows_journal_events"),
+            (text) => text.includes("SELECT COUNT(*) AS total FROM flows_journal_events WHERE run_id ="),
             () => []
           )
         )),

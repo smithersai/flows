@@ -470,8 +470,21 @@ const runStoreError = (
     cause
   })
 
+const hasCauseCode = (cause: unknown, expected: string): boolean => {
+  const seen = new Set<unknown>()
+  let current = cause
+  while (typeof current === "object" && current !== null && !seen.has(current)) {
+    seen.add(current)
+    if ("code" in current && current.code === expected) {
+      return true
+    }
+    current = "cause" in current ? current.cause : undefined
+  }
+  return false
+}
+
 const persistenceError = (method: string, cause: unknown): RunStoreError => {
-  const code = typeof cause === "object" && cause !== null && "code" in cause && cause.code === "constraint"
+  const code = hasCauseCode(cause, "constraint")
     ? "constraint"
     : "persistence_failed"
   return runStoreError(method, code, "database operation failed", cause)
@@ -615,16 +628,22 @@ const evidenceMatches = (
  * @since 0.1.0
  * @category constructors
  */
-export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlClient> = Effect.gen(function*() {
+export const make: Effect.Effect<
+  Service,
+  never,
+  Journal | DurableWriter | SqlClient.SqlClient
+> = Effect.gen(function*() {
   const sql = yield* Effect.service(SqlClient.SqlClient)
   const writer = yield* DurableWriter
   // Arbitration is delegated to the `Consensus` strategy in context,
   // defaulting to the database-backed `SqlConsensus` over the same client.
-  // Ownership methods resolve `Journal` from the caller's fiber context so
-  // standard `Layer.mergeAll` compositions still record R6 events when the
-  // journal service is present beside this store.
+  // The journal is a declared requirement, never an optional lookup: every
+  // lifecycle and ownership write appends the event describing it, and a
+  // row write without its event is a hole in the fold contract
+  // (`docs/specs/Concepts/Run State Fold.md`).
   const injected = yield* Effect.serviceOption(Consensus)
   const consensus = Option.isSome(injected) ? injected.value : yield* SqlConsensus.make
+  const journal = yield* Journal
 
   const write = <A, E, R>(
     method: string,
@@ -633,38 +652,18 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
     writer.write(effect).pipe(Effect.mapError((cause) => persistenceError(method, cause)))
 
   /**
-   * Lifecycle row writes are the run fold's source of truth when a journal is
-   * present. The plain-writer fallback keeps older direct unit compositions
-   * alive; composed engine layers provide `Journal` and take this transaction
-   * path.
+   * Runs a row write and the journal appends describing it inside ONE write
+   * transaction (`Journal.transact`), so the entries publish only after the
+   * transaction commits and roll back with it. An append the journal refuses
+   * fails the row write with it, surfaced as `persistence_failed`: there is
+   * no success path that writes a row without its event
+   * (`docs/specs/Concepts/Run State Fold.md`).
    */
-  const writeLifecycle = <A, E, R>(
+  const writeThrough = <A, E, R>(
     method: string,
     effect: Effect.Effect<A, E, R>
   ): Effect.Effect<A, RunStoreError, R> =>
-    Effect.flatMap(Effect.serviceOption(Journal), (journal) => {
-      const transacted: Effect.Effect<A, unknown, R> = Option.isSome(journal)
-        ? journal.value.transact(effect)
-        : writer.write(effect)
-      return transacted.pipe(Effect.mapError((cause) => persistenceError(method, cause)))
-    })
-
-  /**
-   * Ownership operations run inside `Journal.transact` when a journal is in
-   * context, so the R6 ownership-transition events they append publish only
-   * after the transaction commits and roll back with it; without a journal
-   * they run inside the plain durable writer and no events are recorded.
-   */
-  const writeOwnership = <A, E, R>(
-    method: string,
-    effect: Effect.Effect<A, E, R>
-  ): Effect.Effect<A, RunStoreError, R> =>
-    Effect.flatMap(Effect.serviceOption(Journal), (journal) => {
-      const transacted: Effect.Effect<A, unknown, R> = Option.isSome(journal)
-        ? journal.value.transact(effect)
-        : writer.write(effect)
-      return transacted.pipe(Effect.mapError((cause) => persistenceError(method, cause)))
-    })
+    journal.transact(effect).pipe(Effect.mapError((cause) => persistenceError(method, cause)))
 
   /**
    * Appends an R6 ownership-transition event — claimed, activated, released,
@@ -690,40 +689,42 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
     actor: OwnerId,
     grantedAtMs: number | null
   ): Effect.Effect<void, unknown> =>
-    Effect.flatMap(
-      Effect.serviceOption(Journal),
-      (journal) =>
-        Option.isNone(journal) ? Effect.void : journal.value.emitDurable(
-          new JournalEvent.Input({
-            runId: runId as JournalEvent.RunId,
-            sourceId: `flows/run-store/consensus:${actor.hostId}:${actor.pid}:${actor.nonce}` as JournalEvent.SourceId,
-            eventType: `flows.consensus.${transition}`,
-            payload: { owner: actor, grantedAtMs },
-            meta: { lineageId: `${runId}/root` }
-          })
-        ).pipe(Effect.asVoid)
-    )
+    journal.emitDurable(
+      new JournalEvent.Input({
+        runId: runId as JournalEvent.RunId,
+        sourceId: `flows/run-store/consensus:${actor.hostId}:${actor.pid}:${actor.nonce}` as JournalEvent.SourceId,
+        eventType: `flows.consensus.${transition}`,
+        payload: { owner: actor, grantedAtMs },
+        meta: { lineageId: `${runId}/root` }
+      })
+    ).pipe(Effect.asVoid)
 
+  /**
+   * Appends a lifecycle fold event in the same transaction as the row write
+   * it describes. `flows.run.created` and `flows.run.cancel-requested` are
+   * external admissions and stay unfenced; `flows.run.transitioned` is
+   * fenced by the driving owner. The transition appended inside `activate`
+   * and `claimAndOwn` is admitted under the grant the same transaction
+   * records: the strategy records the grant before the append's guard runs,
+   * so activation never fails itself with `fence_lost`
+   * (`docs/specs/Concepts/Run State Fold.md`).
+   */
   const recordRunEvent = (
     runId: string,
     eventType: "flows.run.created" | "flows.run.cancel-requested" | "flows.run.transitioned",
     payload: Record<string, unknown>,
     owner?: OwnerId | undefined
   ): Effect.Effect<void, unknown> =>
-    Effect.flatMap(
-      Effect.serviceOption(Journal),
-      (journal) =>
-        Option.isNone(journal) ? Effect.void : journal.value.emitDurable(
-          new JournalEvent.Input({
-            runId: runId as JournalEvent.RunId,
-            sourceId: "flows/run-store/run" as JournalEvent.SourceId,
-            eventType,
-            payload,
-            meta: { lineageId: `${runId}/root` }
-          }),
-          owner
-        ).pipe(Effect.asVoid)
-    )
+    journal.emitDurable(
+      new JournalEvent.Input({
+        runId: runId as JournalEvent.RunId,
+        sourceId: "flows/run-store/run" as JournalEvent.SourceId,
+        eventType,
+        payload,
+        meta: { lineageId: `${runId}/root` }
+      }),
+      owner
+    ).pipe(Effect.asVoid)
 
   // A bare SELECT needs no write transaction and no replay; only the error
   // vocabulary stays shared with `write`.
@@ -755,7 +756,7 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
           }
           return Clock.currentTimeMillis.pipe(
             Effect.flatMap((createdAtMs) =>
-              writeLifecycle(
+              writeThrough(
                 "create",
                 Effect.gen(function*() {
                   yield* sql`
@@ -837,7 +838,7 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
         if (!Number.isSafeInteger(nowMs) || nowMs < 0) {
           return Effect.fail(invalidRunError("requestCancel", { runId, nowMs }))
         }
-        return writeLifecycle(
+        return writeThrough(
           "requestCancel",
           Effect.gen(function*() {
             const record = () =>
@@ -896,7 +897,7 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
   ): Effect.Effect<ClaimOutcome, RunStoreError> =>
     Effect.annotateCurrentSpan({ runId, claimantHostId: claimant.hostId }).pipe(
       Effect.andThen(
-        writeOwnership(
+        writeThrough(
           "claim",
           Effect.gen(function*() {
             // `claim` never admits a running run, so it needs no staleness
@@ -966,7 +967,7 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
           )
         }
 
-        return writeOwnership(
+        return writeThrough(
           "claimAndOwn",
           Effect.gen(function*() {
             const row = (yield* selectRun(sql, runId))[0]
@@ -1042,7 +1043,7 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
       Effect.andThen(
         Clock.currentTimeMillis.pipe(
           Effect.flatMap((activatedAtMs) =>
-            writeOwnership(
+            writeThrough(
               "activate",
               Effect.gen(function*() {
                 const row = (yield* selectRun(sql, runId))[0]
@@ -1118,7 +1119,7 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
     claimedAtMs: number
   ): Effect.Effect<AbandonClaimOutcome, RunStoreError> =>
     Effect.annotateCurrentSpan({ runId, claimantHostId: claimant.hostId }).pipe(
-      Effect.andThen(writeOwnership(
+      Effect.andThen(writeThrough(
         "abandonClaim",
         Effect.gen(function*() {
           const rows = yield* sql<{ readonly runId: string }>`
@@ -1158,7 +1159,7 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
         if (!matchesEvidence(staleClaimant, observer, nowMs, evidence)) {
           return Effect.succeed(livenessUnconfirmed)
         }
-        return writeOwnership(
+        return writeThrough(
           "recoverClaim",
           Effect.gen(function*() {
             const row = (yield* selectRun(sql, runId))[0]
@@ -1264,7 +1265,7 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
         const state = stateJson ?? null
         return Clock.currentTimeMillis.pipe(
           Effect.flatMap((transitionedAtMs) =>
-            writeOwnership(
+            writeThrough(
               "transitionOwned",
               Effect.gen(function*() {
                 // The fence check is a strategy call (R3); the row check keeps
@@ -1357,7 +1358,7 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
         if (!evidenceMatches(expected, claimant, nowMs, evidence)) {
           return Effect.succeed(snapshotChanged)
         }
-        return writeOwnership(
+        return writeThrough(
           "steal",
           Effect.gen(function*() {
             const row = (yield* selectRun(sql, runId))[0]
@@ -1447,21 +1448,31 @@ export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<RunStor
  *
  * Arbitration — claims, activation, steals, heartbeats, and fence checks — is
  * delegated to the `Consensus` service in context; the run row mirrors the
- * outcome in the same transaction. When a `Journal` is also in context,
- * ownership transitions append R6 events through it.
+ * outcome in the same transaction. Every lifecycle and ownership write
+ * appends its `flows.run.*` / `flows.consensus.*` event through the
+ * `Journal` the layer type requires: composing either SQL layer without a
+ * journal fails to typecheck, so a missing journal can never silently skip
+ * an append — a row write without its event is a hole in the fold contract
+ * (`docs/specs/Concepts/Run State Fold.md`). Only the noop layers compose
+ * without one.
  *
  * `layerWith` and {@link layer} share one constructor; only the declared
  * requirement differs. Declaring `Consensus` here makes composing this layer
  * without providing a strategy fail to typecheck — nothing checks at
  * runtime, and the constructor's `SqlConsensus` fallback is what answers if
- * the requirement is discharged without a real strategy. Use `layerWith`
- * when the strategy choice matters (for example `Consensus.layerLocal` in
- * the browser) and `layer` when the SQL default is the point.
+ * the requirement is discharged without a real strategy. Unlike the
+ * `Consensus` fallback there is no journal fallback. Use `layerWith` when
+ * the strategy choice matters (for example `Consensus.layerLocal` in the
+ * browser) and `layer` when the SQL default is the point.
  *
  * @since 0.1.0
  * @category layers
  */
-export const layerWith: Layer.Layer<RunStore, never, Consensus | DurableWriter | SqlClient.SqlClient> = Layer.effect(
+export const layerWith: Layer.Layer<
+  RunStore,
+  never,
+  Consensus | Journal | DurableWriter | SqlClient.SqlClient
+> = Layer.effect(
   RunStore,
   make
 )
@@ -1470,9 +1481,14 @@ export const layerWith: Layer.Layer<RunStore, never, Consensus | DurableWriter |
  * Provides the database-backed `RunStore` over the `Consensus` strategy in
  * context, defaulting to `SqlConsensus` over the same database when none is
  * provided. The fallback is silent by design — see {@link layerWith} to make
- * the strategy an explicit, type-checked requirement.
+ * the strategy an explicit, type-checked requirement. The `Journal` is a
+ * declared requirement on both layers, never a fallback: a row write
+ * without its event is a hole in the fold contract.
  *
  * @since 0.1.0
  * @category layers
  */
-export const layer: Layer.Layer<RunStore, never, DurableWriter | SqlClient.SqlClient> = Layer.effect(RunStore, make)
+export const layer: Layer.Layer<RunStore, never, Journal | DurableWriter | SqlClient.SqlClient> = Layer.effect(
+  RunStore,
+  make
+)

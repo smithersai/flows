@@ -9,6 +9,7 @@
 import { describe, expect, it } from "@effect/vitest"
 import { DurableWriter } from "@smthrs/database"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import * as SqlJournal from "@smthrs/journal/SqlJournal"
 import { AttemptStore, type Ownership } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -21,9 +22,10 @@ import { withCrypto } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "survivor-parity", pid: 1, nonce: "owner" }
 
-const layers = Layer.provideMerge(
-  Layer.mergeAll(Migrations.layer, Layer.provide(AttemptStore.layer, Migrations.layer)),
-  TestDatabase.layer
+const migratedDatabase = Layer.provideMerge(Migrations.layer, TestDatabase.layer)
+const layers = AttemptStore.layer.pipe(
+  Layer.provideMerge(SqlJournal.layer({ capacity: 1024, overflow: "reject" })),
+  Layer.provideMerge(migratedDatabase)
 )
 
 const insertOwnedRun = (runId: string) =>

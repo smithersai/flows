@@ -43,6 +43,15 @@ export interface JournalRecord {
    */
   readonly eventType?: string | undefined
 }
+
+const ownsReplayRecord = (record: JournalRecord): boolean =>
+  record.eventType === undefined ||
+  (
+    !record.eventType.startsWith("flows.run.") &&
+    !record.eventType.startsWith("flows.attempt.") &&
+    !record.eventType.startsWith("flows.consensus.")
+  )
+
 /**
  * The store's entire contents, as returned by the `state()` method
  * {@link make} attaches.
@@ -299,16 +308,22 @@ export const make = (options: Options = {}): TimeTravelStore.Service & { readonl
           fail("archiveAndTruncate:start")
           const descendants = descendantsFrom(edges, runId, frame)
           const doomed = records.filter((record) =>
-            (record.runId === runId && record.seq > frame.seq) ||
-            descendants.attachedRunIds.has(record.runId)
+            ownsReplayRecord(record) &&
+            (
+              (record.runId === runId && record.seq > frame.seq) ||
+              descendants.attachedRunIds.has(record.runId)
+            )
           )
           fail("archiveAndTruncate:before-archive")
           archived.push(...doomed)
           fail("archiveAndTruncate:before-truncate")
           records = records.filter((record) =>
             !(
-              (record.runId === runId && record.seq > frame.seq) ||
-              descendants.attachedRunIds.has(record.runId)
+              ownsReplayRecord(record) &&
+              (
+                (record.runId === runId && record.seq > frame.seq) ||
+                descendants.attachedRunIds.has(record.runId)
+              )
             )
           )
           const attachedChildren = new Set(descendants.attached.map((edge) => edge.childRunId))

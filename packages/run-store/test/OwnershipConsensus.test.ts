@@ -52,14 +52,13 @@ const evidence = (
   kind: expectedOwner.hostId === claimant.hostId ? "same-host-pid-dead" : "cross-host-unreachable-stale"
 })
 
-const journalLayer = SqlJournal.layer({ capacity: 64, overflow: "reject" })
-
 const stackFor = (
   strategy: Layer.Layer<Consensus.Consensus, never, DurableWriter.DurableWriter | SqlClient.SqlClient>
 ) =>
   RunStoreLive.layer.pipe(
-    Layer.provideMerge(strategy),
-    Layer.provideMerge(journalLayer),
+    Layer.provideMerge(
+      SqlJournal.layerWith({ capacity: 64, overflow: "reject" }).pipe(Layer.provideMerge(strategy))
+    ),
     Layer.provideMerge(Layer.provideMerge(migrationsLayer, TestDatabase.layer))
   )
 

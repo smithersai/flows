@@ -4,7 +4,7 @@ import * as DatabaseMigrations from "@smthrs/database/Migrations"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import * as Consensus from "@smthrs/journal/Consensus"
 import { Journal } from "@smthrs/journal/Journal"
-import type * as JournalEvent from "@smthrs/journal/JournalEvent"
+import * as JournalEvent from "@smthrs/journal/JournalEvent"
 import * as JournalMigrations from "@smthrs/journal/Migrations"
 import * as SqlConsensus from "@smthrs/journal/SqlConsensus"
 import * as SqlJournal from "@smthrs/journal/SqlJournal"
@@ -25,11 +25,12 @@ const stackFor = (
   strategy: Layer.Layer<Consensus.Consensus, never, DurableWriter.DurableWriter | SqlClient.SqlClient>
 ) =>
   Layer.mergeAll(
-    SqlJournal.layer({ capacity: 128, overflow: "reject" }),
     RunStoreLive.layerWith,
     AttemptStore.layer
   ).pipe(
-    Layer.provideMerge(strategy),
+    Layer.provideMerge(
+      SqlJournal.layerWith({ capacity: 128, overflow: "reject" }).pipe(Layer.provideMerge(strategy))
+    ),
     Layer.provideMerge(Layer.provideMerge(migrationsLayer, TestDatabase.layer))
   )
 
@@ -213,9 +214,10 @@ const entriesFor = (runIds: ReadonlyArray<string>) =>
   Effect.gen(function*() {
     const journal = yield* Journal
     const pages = yield* Effect.forEach(runIds, (runId) =>
-      journal.entries({ runId: runId as JournalEvent.RunId, limit: 100 })
-    )
-    return pages.flatMap((page) => page.entries).filter((entry) =>
+      journal.entries({ runId: runId as JournalEvent.RunId, limit: 100 }))
+    return pages.flatMap((page) =>
+      page.entries
+    ).filter((entry) =>
       entry.eventType.startsWith("flows.run.") ||
       entry.eventType.startsWith("flows.attempt.") ||
       entry.eventType.startsWith("flows.consensus.")
@@ -228,126 +230,348 @@ const attemptEventCount = (runId: string) =>
     (entries) => entries.filter((entry) => entry.eventType.startsWith("flows.attempt.")).length
   )
 
+it.effect("exposes the public reducer helpers over a fresh fold state", () =>
+  Effect.gen(function*() {
+    const state = Fold.initial()
+    const reduced = yield* Fold.reduce(state, {
+      runId: "reducer-run" as JournalEvent.RunId,
+      seq: 0 as JournalEvent.Seq,
+      eventId: "reducer-run:0",
+      sourceId: "fold-test" as JournalEvent.SourceId,
+      sourceSeq: 0 as JournalEvent.SourceSeq,
+      emittedAtMs: 0,
+      eventType: "flows.run.created",
+      payload: { createdAtMs: 0, stateJson: "{}", lineageId: "reducer-run/root" },
+      meta: { lineageId: "reducer-run/root" }
+    } as JournalEvent.Entry)
+    yield* Fold.reduce(reduced, {
+      runId: "reducer-run" as JournalEvent.RunId,
+      seq: 1 as JournalEvent.Seq,
+      eventId: "reducer-run:1",
+      sourceId: "fold-test" as JournalEvent.SourceId,
+      sourceSeq: 1 as JournalEvent.SourceSeq,
+      emittedAtMs: 1,
+      eventType: "flows.run.transitioned",
+      payload: { status: "suspended", atMs: 1, waiting: { reason: "gate", wakeAt: 2, token: "tok" } },
+      meta: { lineageId: "reducer-run/root" }
+    } as JournalEvent.Entry)
+    yield* Fold.reduce(reduced, {
+      runId: "reducer-run" as JournalEvent.RunId,
+      seq: 2 as JournalEvent.Seq,
+      eventId: "reducer-run:2",
+      sourceId: "fold-test" as JournalEvent.SourceId,
+      sourceSeq: 2 as JournalEvent.SourceSeq,
+      emittedAtMs: 2,
+      eventType: "flows.run.transitioned",
+      payload: { status: "suspended", atMs: 2, waiting: "invalid" },
+      meta: { lineageId: "reducer-run/root" }
+    } as JournalEvent.Entry)
+    yield* Fold.reduce(reduced, {
+      runId: "reducer-run" as JournalEvent.RunId,
+      seq: 3 as JournalEvent.Seq,
+      eventId: "reducer-run:3",
+      sourceId: "fold-test" as JournalEvent.SourceId,
+      sourceSeq: 3 as JournalEvent.SourceSeq,
+      emittedAtMs: 3,
+      eventType: "flows.run.transitioned",
+      payload: { status: "suspended", atMs: 3, waiting: null },
+      meta: { lineageId: "reducer-run/root" }
+    } as JournalEvent.Entry)
+    yield* Fold.reduce(reduced, {
+      runId: "reducer-run" as JournalEvent.RunId,
+      seq: 4 as JournalEvent.Seq,
+      eventId: "reducer-run:4",
+      sourceId: "fold-test" as JournalEvent.SourceId,
+      sourceSeq: 4 as JournalEvent.SourceSeq,
+      emittedAtMs: 4,
+      eventType: "flows.consensus.claimed",
+      payload: { owner: ownerA, grantedAtMs: 4 },
+      meta: { lineageId: "reducer-run/root" }
+    } as JournalEvent.Entry)
+    yield* Fold.reduce(reduced, {
+      runId: "reducer-run" as JournalEvent.RunId,
+      seq: 5 as JournalEvent.Seq,
+      eventId: "reducer-run:5",
+      sourceId: "fold-test" as JournalEvent.SourceId,
+      sourceSeq: 5 as JournalEvent.SourceSeq,
+      emittedAtMs: 5,
+      eventType: "flows.consensus.expired",
+      payload: { owner: ownerB, grantedAtMs: 5 },
+      meta: { lineageId: "reducer-run/root" }
+    } as JournalEvent.Entry)
+    yield* Fold.reduce(reduced, {
+      runId: "reducer-run" as JournalEvent.RunId,
+      seq: 6 as JournalEvent.Seq,
+      eventId: "reducer-run:6",
+      sourceId: "fold-test" as JournalEvent.SourceId,
+      sourceSeq: 6 as JournalEvent.SourceSeq,
+      emittedAtMs: 6,
+      eventType: "flows.consensus.expired",
+      payload: { owner: ownerA, grantedAtMs: 6 },
+      meta: { lineageId: "reducer-run/root" }
+    } as JournalEvent.Entry)
+    yield* Fold.reduce(reduced, {
+      runId: "reducer-run" as JournalEvent.RunId,
+      seq: 7 as JournalEvent.Seq,
+      eventId: "reducer-run:7",
+      sourceId: "fold-test" as JournalEvent.SourceId,
+      sourceSeq: 7 as JournalEvent.SourceSeq,
+      emittedAtMs: 7,
+      eventType: "flows.attempt.put",
+      payload: {
+        stepKeyDigest: "step",
+        attempt: 0,
+        state: "running",
+        startedAtMs: 7,
+        checkpoint: { cursor: 1 },
+        meta: { reducer: true }
+      },
+      meta: { lineageId: "reducer-run/root" }
+    } as JournalEvent.Entry)
+    yield* Fold.reduce(reduced, {
+      runId: "reducer-run" as JournalEvent.RunId,
+      seq: 8 as JournalEvent.Seq,
+      eventId: "reducer-run:8",
+      sourceId: "fold-test" as JournalEvent.SourceId,
+      sourceSeq: 8 as JournalEvent.SourceSeq,
+      emittedAtMs: 8,
+      eventType: "flows.attempt.checkpointed",
+      payload: { stepKeyDigest: "step", attempt: 0, checkpoint: { cursor: 2 } },
+      meta: { lineageId: "reducer-run/root" }
+    } as JournalEvent.Entry)
+    yield* Fold.reduce(reduced, {
+      runId: "reducer-run" as JournalEvent.RunId,
+      seq: 9 as JournalEvent.Seq,
+      eventId: "reducer-run:9",
+      sourceId: "fold-test" as JournalEvent.SourceId,
+      sourceSeq: 9 as JournalEvent.SourceSeq,
+      emittedAtMs: 9,
+      eventType: "flows.attempt.finished",
+      payload: {
+        stepKeyDigest: "step",
+        attempt: 0,
+        state: "completed",
+        finishedAtMs: 9,
+        error: null,
+        outcome: { ok: true },
+        meta: { done: true }
+      },
+      meta: { lineageId: "reducer-run/root" }
+    } as JournalEvent.Entry)
+    yield* Fold.reduce(reduced, {
+      runId: "reducer-run" as JournalEvent.RunId,
+      seq: 10 as JournalEvent.Seq,
+      eventId: "reducer-run:10",
+      sourceId: "fold-test" as JournalEvent.SourceId,
+      sourceSeq: 10 as JournalEvent.SourceSeq,
+      emittedAtMs: 10,
+      eventType: "custom",
+      payload: null,
+      meta: { lineageId: "reducer-run/root" }
+    } as JournalEvent.Entry)
+    yield* Fold.runProjection().reduce(new Map(), {
+      runId: "projection-run" as JournalEvent.RunId,
+      seq: 0 as JournalEvent.Seq,
+      eventId: "projection-run:0",
+      sourceId: "fold-test" as JournalEvent.SourceId,
+      sourceSeq: 0 as JournalEvent.SourceSeq,
+      emittedAtMs: 0,
+      eventType: "flows.run.created",
+      payload: null,
+      meta: {}
+    } as JournalEvent.Entry)
+
+    expect(reduced.runs.get("reducer-run")).toMatchObject({
+      runId: "reducer-run",
+      status: "suspended",
+      claim: null,
+      stateJson: "{}"
+    })
+  }))
+
 const suite = (
   name: string,
   strategy: Layer.Layer<Consensus.Consensus, never, DurableWriter.DurableWriter | SqlClient.SqlClient>
 ) => {
   describe(`Fold with ${name}`, () => {
     it.effect("rebuilds lifecycle, cancellation, terminal, heartbeat, and attempt mutations from the journal", () =>
-      withStack(strategy, Effect.gen(function*() {
-      const runs = yield* RunStore
-      const attempts = yield* AttemptStore.AttemptStore
+      withStack(
+        strategy,
+        Effect.gen(function*() {
+          const runs = yield* RunStore
+          const attempts = yield* AttemptStore.AttemptStore
 
-      yield* runs.create("fold-run", "{\"phase\":\"created\"}", {
-        lineageId: "fold-lineage",
-        roundOrdinal: 0
-      })
-      expect(yield* runs.claimAndOwn("fold-run", snapshot(yield* runs.get("fold-run")), ownerA, 1)).toEqual({
-        _tag: "Activated"
-      })
-      expect(yield* runs.transitionOwned("fold-run", ownerA, "suspended", "{\"phase\":\"suspended\"}")).toEqual({
-        _tag: "Transitioned"
-      })
-      expect(yield* runs.claimAndOwn("fold-run", snapshot(yield* runs.get("fold-run")), ownerB, 3)).toEqual({
-        _tag: "Activated"
-      })
-      expect(yield* runs.requestCancel("fold-run", 4)).toEqual({ _tag: "CancelRequested", requestedAtMs: 4 })
+          yield* runs.create("fold-run", "{\"phase\":\"created\"}", {
+            lineageId: "fold-lineage",
+            roundOrdinal: 0
+          })
+          expect(yield* runs.claimAndOwn("fold-run", snapshot(yield* runs.get("fold-run")), ownerA, 1)).toEqual({
+            _tag: "Activated"
+          })
+          expect(yield* runs.transitionOwned("fold-run", ownerA, "suspended", "{\"phase\":\"suspended\"}")).toEqual({
+            _tag: "Transitioned"
+          })
+          expect(yield* runs.claimAndOwn("fold-run", snapshot(yield* runs.get("fold-run")), ownerB, 3)).toEqual({
+            _tag: "Activated"
+          })
+          expect(yield* runs.requestCancel("fold-run", 4)).toEqual({ _tag: "CancelRequested", requestedAtMs: 4 })
 
-      const attempt0 = {
-        runId: "fold-run",
-        stepKeyDigest: "step-0",
-        attempt: 0,
-        state: "running",
-        startedAtMs: 10,
-        heartbeatAtMs: 11,
-        meta: { phase: "inserted" }
-      }
-      expect(yield* attempts.put(attempt0, ownerB)).toEqual({ _tag: "Inserted" })
-      const afterInsert = yield* attemptEventCount("fold-run")
-      expect(yield* attempts.put(attempt0, ownerB)).toEqual({ _tag: "ExistingSame" })
-      expect(yield* attempts.put({ ...attempt0, meta: { phase: "conflict" } }, ownerB)).toEqual({
-        _tag: "Conflict"
-      })
-      expect(yield* attemptEventCount("fold-run")).toBe(afterInsert)
+          const attempt0 = {
+            runId: "fold-run",
+            stepKeyDigest: "step-0",
+            attempt: 0,
+            state: "running",
+            startedAtMs: 10,
+            heartbeatAtMs: 11,
+            meta: { phase: "inserted" }
+          }
+          expect(yield* attempts.put(attempt0, ownerB)).toEqual({ _tag: "Inserted" })
+          const afterInsert = yield* attemptEventCount("fold-run")
+          expect(yield* attempts.put(attempt0, ownerB)).toEqual({ _tag: "ExistingSame" })
+          expect(yield* attempts.put({ ...attempt0, meta: { phase: "conflict" } }, ownerB)).toEqual({
+            _tag: "Conflict"
+          })
+          expect(yield* attemptEventCount("fold-run")).toBe(afterInsert)
 
-      expect(yield* attempts.heartbeat("fold-run", "step-0", 0, ownerB, 12, { cursor: 2 })).toEqual({
-        _tag: "Updated"
-      })
-      const afterCheckpoint = yield* attemptEventCount("fold-run")
-      expect(yield* attempts.heartbeat("fold-run", "step-0", 0, ownerB, 13)).toEqual({ _tag: "Updated" })
-      expect(yield* attemptEventCount("fold-run")).toBe(afterCheckpoint)
-      expect(yield* attempts.patch({
-        runId: "fold-run",
-        stepKeyDigest: "step-0",
-        attempt: 0
-      }, {
-        outcome: { partial: true },
-        meta: { phase: "patched" }
-      }, ownerB)).toEqual({ _tag: "Patched" })
-      expect(yield* attempts.finish({
-        runId: "fold-run",
-        stepKeyDigest: "step-0",
-        attempt: 0,
-        state: "completed",
-        finishedAtMs: 20,
-        outcome: { ok: true }
-      }, ownerB)).toEqual({ _tag: "Finished" })
+          expect(yield* attempts.heartbeat("fold-run", "step-0", 0, ownerB, 12, { cursor: 2 })).toEqual({
+            _tag: "Updated"
+          })
+          const afterCheckpoint = yield* attemptEventCount("fold-run")
+          expect(yield* attempts.heartbeat("fold-run", "step-0", 0, ownerB, 13)).toEqual({ _tag: "Updated" })
+          expect(yield* attemptEventCount("fold-run")).toBe(afterCheckpoint)
+          expect(
+            yield* attempts.patch({
+              runId: "fold-run",
+              stepKeyDigest: "step-0",
+              attempt: 0
+            }, {
+              outcome: { partial: true },
+              meta: { phase: "patched" }
+            }, ownerB)
+          ).toEqual({ _tag: "Patched" })
+          expect(
+            yield* attempts.finish({
+              runId: "fold-run",
+              stepKeyDigest: "step-0",
+              attempt: 0,
+              state: "completed",
+              finishedAtMs: 20,
+              outcome: { ok: true }
+            }, ownerB)
+          ).toEqual({ _tag: "Finished" })
 
-      const attempt1 = { runId: "fold-run", stepKeyDigest: "step-1", attempt: 0 }
-      expect(yield* attempts.put({ ...attempt1, state: "running", startedAtMs: 21, meta: { phase: "second" } }, ownerB))
-        .toEqual({ _tag: "Inserted" })
-      expect(yield* attempts.patch(attempt1, { outcome: { partial: "kept" } }, ownerB)).toEqual({ _tag: "Patched" })
-      expect(yield* attempts.finish({ ...attempt1, state: "failed", finishedAtMs: 22 }, ownerB)).toEqual({
-        _tag: "Finished"
-      })
+          const attempt1 = { runId: "fold-run", stepKeyDigest: "step-1", attempt: 0 }
+          expect(
+            yield* attempts.put({ ...attempt1, state: "running", startedAtMs: 21, meta: { phase: "second" } }, ownerB)
+          )
+            .toEqual({ _tag: "Inserted" })
+          expect(yield* attempts.patch(attempt1, { outcome: { partial: "kept" } }, ownerB)).toEqual({ _tag: "Patched" })
+          expect(yield* attempts.finish({ ...attempt1, state: "failed", finishedAtMs: 22 }, ownerB)).toEqual({
+            _tag: "Finished"
+          })
 
-      expect(yield* runs.transitionOwned("fold-run", ownerB, "completed", "{\"phase\":\"done\"}", {
-        cancelRequested: "present"
-      })).toEqual({ _tag: "Transitioned" })
-      const beforeLatePatch = yield* attemptEventCount("fold-run")
-      expect(yield* attempts.patch({ runId: "fold-run", stepKeyDigest: "step-0", attempt: 0 }, {
-        meta: { late: true }
-      }, ownerB)).toEqual({ _tag: "FenceLost" })
-      expect(yield* attemptEventCount("fold-run")).toBe(beforeLatePatch)
+          expect(
+            yield* runs.transitionOwned("fold-run", ownerB, "completed", "{\"phase\":\"done\"}", {
+              cancelRequested: "present"
+            })
+          ).toEqual({ _tag: "Transitioned" })
+          const beforeLatePatch = yield* attemptEventCount("fold-run")
+          expect(
+            yield* attempts.patch({ runId: "fold-run", stepKeyDigest: "step-0", attempt: 0 }, {
+              meta: { late: true }
+            }, ownerB)
+          ).toEqual({ _tag: "FenceLost" })
+          expect(yield* attemptEventCount("fold-run")).toBe(beforeLatePatch)
 
-      yield* runs.create("heartbeat-run", "{}")
-      expect(yield* runs.claimAndOwn("heartbeat-run", snapshot(yield* runs.get("heartbeat-run")), ownerA, 30)).toEqual(
-        { _tag: "Activated" }
-      )
-      expect(yield* runs.heartbeat("heartbeat-run", ownerA, 50)).toEqual({ _tag: "Updated" })
+          yield* runs.create("heartbeat-run", "{}")
+          expect(yield* runs.claimAndOwn("heartbeat-run", snapshot(yield* runs.get("heartbeat-run")), ownerA, 30))
+            .toEqual(
+              { _tag: "Activated" }
+            )
+          expect(yield* runs.heartbeat("heartbeat-run", ownerA, 50)).toEqual({ _tag: "Updated" })
 
-      for (const [runId, status] of [["fold-failed", "failed"], ["fold-cancelled", "cancelled"]] as const) {
-        yield* runs.create(runId, "{}")
-        expect(yield* runs.claimAndOwn(runId, snapshot(yield* runs.get(runId)), ownerA, 60)).toEqual({
-          _tag: "Activated"
+          for (const [runId, status] of [["fold-failed", "failed"], ["fold-cancelled", "cancelled"]] as const) {
+            yield* runs.create(runId, "{}")
+            expect(yield* runs.claimAndOwn(runId, snapshot(yield* runs.get(runId)), ownerA, 60)).toEqual({
+              _tag: "Activated"
+            })
+            expect(yield* runs.transitionOwned(runId, ownerA, status, JSON.stringify({ status }))).toEqual({
+              _tag: "Transitioned"
+            })
+          }
+
+          const entries = yield* entriesFor(["fold-run", "heartbeat-run", "fold-failed", "fold-cancelled"])
+          expect(
+            entries.every((entry) =>
+              (entry.meta as { readonly lineageId?: string }).lineageId === `${entry.runId}/root`
+            )
+          ).toBe(true)
+          const folded = yield* Fold.foldEntries(entries)
+          const live = yield* materialized
+          expect(materializedComparable(live)).toEqual(foldComparable(folded))
+          expect(live.attempts.find((row) => row.stepKeyDigest === "step-0")?.heartbeatAtMs).toBe(13)
+          const liveHeartbeat = live.runs.find((row) => row.runId === "heartbeat-run")?.heartbeatAtMs
+          const foldedHeartbeat = folded.runs.get("heartbeat-run")?.heartbeatAtMs
+          expect(liveHeartbeat).toBe(50)
+          expect(foldedHeartbeat).toBe(30)
+          expect(liveHeartbeat ?? 0).toBeGreaterThanOrEqual(foldedHeartbeat ?? Number.MAX_SAFE_INTEGER)
+
+          yield* Fold.rebuild
+          const rebuilt = yield* materialized
+          expect(materializedComparable(rebuilt)).toEqual(foldComparable(folded))
+          expect(rebuilt.attempts.find((row) => row.stepKeyDigest === "step-0")?.heartbeatAtMs).toBeNull()
+          expect(rebuilt.runs.find((row) => row.runId === "heartbeat-run")?.heartbeatAtMs).toBe(
+            folded.runs.get("heartbeat-run")?.heartbeatAtMs
+          )
         })
-        expect(yield* runs.transitionOwned(runId, ownerA, status, JSON.stringify({ status }))).toEqual({
-          _tag: "Transitioned"
+      ))
+
+    it.effect("rebuilds a compacted run from the snapshot barrier", () =>
+      withStack(
+        strategy,
+        Effect.gen(function*() {
+          const runs = yield* RunStore
+          const journal = yield* Journal
+
+          yield* runs.create("compacted-run", "{\"phase\":\"created\"}", {
+            lineageId: "compacted-run/root",
+            roundOrdinal: 0
+          })
+          const snapshotReceipt = yield* journal.emitDurable(
+            new JournalEvent.Input({
+              runId: "compacted-run" as JournalEvent.RunId,
+              sourceId: "fold-test/snapshot" as JournalEvent.SourceId,
+              sourceSeq: 1 as JournalEvent.SourceSeq,
+              eventType: "flows.run.snapshot",
+              payload: {
+                status: "pending",
+                createdAtMs: 0,
+                stateJson: "{\"phase\":\"created\"}",
+                lineageId: "compacted-run/root",
+                roundOrdinal: 0
+              },
+              meta: { lineageId: "compacted-run/root" }
+            })
+          )
+          expect(snapshotReceipt._tag).toBe("Accepted")
+          if (snapshotReceipt._tag !== "Accepted") return
+          yield* journal.checkpoint({
+            runId: "compacted-run" as JournalEvent.RunId,
+            seq: snapshotReceipt.seq,
+            state: null
+          })
+          const compacted = yield* journal.compact({ runId: "compacted-run" as JournalEvent.RunId })
+          expect(compacted.deleted).toBeGreaterThan(0)
+
+          yield* Fold.rebuild
+          const rebuilt = yield* materialized
+          expect(rebuilt.runs.find((row) => row.runId === "compacted-run")).toMatchObject({
+            runId: "compacted-run",
+            status: "pending",
+            stateJson: "{\"phase\":\"created\"}"
+          })
         })
-      }
-
-      const entries = yield* entriesFor(["fold-run", "heartbeat-run", "fold-failed", "fold-cancelled"])
-      expect(entries.every((entry) =>
-        (entry.meta as { readonly lineageId?: string }).lineageId === `${entry.runId}/root`
-      )).toBe(true)
-      const folded = yield* Fold.foldEntries(entries)
-      const live = yield* materialized
-      expect(materializedComparable(live)).toEqual(foldComparable(folded))
-      expect(live.attempts.find((row) => row.stepKeyDigest === "step-0")?.heartbeatAtMs).toBe(13)
-      const liveHeartbeat = live.runs.find((row) => row.runId === "heartbeat-run")?.heartbeatAtMs
-      const foldedHeartbeat = folded.runs.get("heartbeat-run")?.heartbeatAtMs
-      expect(liveHeartbeat).toBe(50)
-      expect(foldedHeartbeat).toBe(30)
-      expect(liveHeartbeat ?? 0).toBeGreaterThanOrEqual(foldedHeartbeat ?? Number.MAX_SAFE_INTEGER)
-
-      yield* Fold.rebuild
-      const rebuilt = yield* materialized
-      expect(materializedComparable(rebuilt)).toEqual(foldComparable(folded))
-      expect(rebuilt.attempts.find((row) => row.stepKeyDigest === "step-0")?.heartbeatAtMs).toBeNull()
-      expect(rebuilt.runs.find((row) => row.runId === "heartbeat-run")?.heartbeatAtMs).toBe(
-        folded.runs.get("heartbeat-run")?.heartbeatAtMs
-      )
-      })))
+      ))
   })
 }
 

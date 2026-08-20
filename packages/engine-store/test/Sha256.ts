@@ -12,8 +12,8 @@ export const sha256 = (input: string | Uint8Array): string =>
     )
   )
 
-/** Provides concrete Node cryptography to a test Effect. */
-export const withCrypto = <A, E>(effect: Effect.Effect<A, E, Crypto.Crypto>): Effect.Effect<A, E> =>
+/** Provides concrete Node cryptography to a test Effect, preserving other requirements. */
+export const withCrypto = <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, Exclude<R, Crypto.Crypto>> =>
   Effect.provide(effect, NodeCrypto.layer)
 
 /** Runs a synchronous test Effect with concrete Node cryptography. */

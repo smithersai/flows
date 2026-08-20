@@ -55,18 +55,23 @@ describe("engine-store journal integration", () => {
       // Every attempt now anchors its frame, not only a compensable one: a sealed
       // dispatch records a `carried` tier-2 pointer so a rewind to this frame has
       // an address to restore (`docs/specs/Concepts/Time Travel.md`).
-      // The fold appends the store's own `flows.cache.recorded` in the same
-      // transaction as the row the `cache-provenance` record describes
-      // (`docs/specs/Concepts/Step Cache Fold.md`).
-      expect(entries.entries.map((entry) => entry.eventType)).toEqual([
+      const engineEnvelope = entries.entries
+        .filter((entry) =>
+          entry.eventType.startsWith("flows.engine.") || entry.eventType.startsWith("flows.consensus.")
+        )
+        .map((entry) => entry.eventType)
+      expect(engineEnvelope).toEqual([
         "flows.consensus.claimed",
         "flows.consensus.activated",
         "flows.engine.attempt-started",
         "flows.engine.snapshot-identified",
         "flows.engine.attempt-finished",
-        "flows.engine.cache-provenance",
-        "flows.cache.recorded"
+        "flows.engine.cache-provenance"
       ])
+      // The fold appends the store's own `flows.cache.recorded` in the same
+      // transaction as the row the `cache-provenance` record describes
+      // (`docs/specs/Concepts/Step Cache Fold.md`).
+      expect(entries.entries.map((entry) => entry.eventType)).toContain("flows.cache.recorded")
       // Lineage is the frame address, and it is on every engine record.
       const engineEntries = entries.entries.filter((entry) => entry.eventType.startsWith("flows.engine."))
       expect(engineEntries.map((entry) => (entry.meta as { lineageId?: string }).lineageId)).toEqual(

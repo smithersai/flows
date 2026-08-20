@@ -48,16 +48,14 @@ const jj = Jj.make({
 const requirements = (filename: string) => {
   const database = Layer.provideMerge(DurableWriter.layer(), NodeDatabase.layer({ filename }))
   const migratedDatabase = Layer.provideMerge(Migrations.layer, database)
-  const journalLayer = SqlJournal.layer({ capacity: 64, overflow: "reject" })
-  const sqlServices = Layer.provideMerge(
-    Layer.mergeAll(
-      AttemptStore.layer,
-      CacheStore.layer.pipe(Layer.provide(journalLayer)),
-      RunStore.layer,
-      DurableEngineState.layer,
-      journalLayer
-    ),
-    migratedDatabase
+  const sqlServices = Layer.mergeAll(
+    AttemptStore.layer,
+    CacheStore.layer,
+    RunStore.layer,
+    DurableEngineState.layer
+  ).pipe(
+    Layer.provideMerge(SqlJournal.layer({ capacity: 64, overflow: "reject" })),
+    Layer.provideMerge(migratedDatabase)
   )
   // NodeCrypto feeds the merged stack rather than sitting beside it:
   // OwnerIdentity.layer consumes the Crypto service at construction.

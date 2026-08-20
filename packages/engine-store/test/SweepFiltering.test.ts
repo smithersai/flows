@@ -40,10 +40,12 @@ const fakeEngine = {} as unknown as FlowRuntime.FlowRuntime["Service"]
 const migratedDatabase = Layer.provideMerge(Migrations.layer, TestDatabase.layer)
 
 const services = Layer.mergeAll(
-  SqlJournal.layer({ capacity: 1024, overflow: "reject" }),
   RunStore.layer,
   DurableEngineState.layer
-).pipe(Layer.provideMerge(migratedDatabase))
+).pipe(
+  Layer.provideMerge(SqlJournal.layer({ capacity: 1024, overflow: "reject" })),
+  Layer.provideMerge(migratedDatabase)
+)
 
 /** Inserts a suspended, unowned, parked run row directly (fences bypassed). */
 const insertParkedRun = (

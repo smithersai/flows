@@ -84,7 +84,12 @@ describe.skipIf(!jjInstalled)("rewind crash recovery over file SQLite", () => {
                 SELECT status, detail_json FROM flows_time_travel_audits WHERE id = ${`${runId}-audit`}
               `
                   const live = yield* sql<{ readonly seq: number }>`
-                SELECT seq FROM flows_journal_events WHERE run_id = ${runId} ORDER BY seq
+                SELECT seq FROM flows_journal_events
+                WHERE run_id = ${runId}
+                  AND event_type NOT LIKE 'flows.run.%'
+                  AND event_type NOT LIKE 'flows.attempt.%'
+                  AND event_type NOT LIKE 'flows.consensus.%'
+                ORDER BY seq
               `
                   const archived = yield* sql<{ readonly seq: number }>`
                 SELECT seq FROM flows_time_travel_archive WHERE run_id = ${runId} ORDER BY seq

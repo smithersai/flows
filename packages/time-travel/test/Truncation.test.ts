@@ -96,6 +96,58 @@ describe("truncation", () => {
       expect(store.state().edges).toEqual([edges[2]])
     }))
 
+  it.effect("leaves run, attempt, and consensus materialization records out of rewind truncation", () =>
+    Effect.gen(function*() {
+      const store = Memory.make({
+        records: [
+          { runId: "parent", seq: 0, eventId: "parent-0", lineageId: "parent/root", payload: null },
+          {
+            runId: "parent",
+            seq: 1,
+            eventId: "parent-run",
+            lineageId: "parent/root",
+            payload: null,
+            eventType: "flows.run.transitioned"
+          },
+          {
+            runId: "parent",
+            seq: 2,
+            eventId: "parent-attempt",
+            lineageId: "parent/root",
+            payload: null,
+            eventType: "flows.attempt.put"
+          },
+          {
+            runId: "parent",
+            seq: 3,
+            eventId: "parent-consensus",
+            lineageId: "parent/root",
+            payload: null,
+            eventType: "flows.consensus.claimed"
+          },
+          {
+            runId: "parent",
+            seq: 4,
+            eventId: "parent-replay",
+            lineageId: "parent/root",
+            payload: null,
+            eventType: "custom.replay"
+          }
+        ]
+      })
+
+      const result = yield* (store.archiveAndTruncate("parent", { lineageId: "parent/root", seq: 0 }, []))
+
+      expect(result.archived).toBe(1)
+      expect(store.state().archived.map((record) => record.eventId)).toEqual(["parent-replay"])
+      expect(store.state().records.map((record) => record.eventId)).toEqual([
+        "parent-0",
+        "parent-run",
+        "parent-attempt",
+        "parent-consensus"
+      ])
+    }))
+
   it.effect("rolls back every mutation when the transaction fails before truncation", () =>
     Effect.gen(function*() {
       const store = Memory.make({ records, edges, failAt: "archiveAndTruncate:before-truncate" })

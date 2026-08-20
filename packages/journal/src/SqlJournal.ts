@@ -745,6 +745,15 @@ export const layerWith = (
         })
       )
 
+      const runs: Service["runs"] = Effect.fn("Journal.runs")(() =>
+        sql<{ readonly run_id: string }>`
+          SELECT DISTINCT run_id FROM flows_journal_events ORDER BY run_id ASC
+        `.pipe(
+          Effect.map((rows) => rows.map((row) => row.run_id as RunId)),
+          Effect.mapError((cause) => error("unknown", "durable journal read failed", cause))
+        )
+      )()
+
       const subscribeRun = (runId: RunId) =>
         Effect.gen(function*() {
           const wake = yield* PubSub.sliding<void>(1)
@@ -1426,6 +1435,40 @@ export const layerWith = (
                 )
               }
             }
+            // The run/attempt fold's snapshot barrier
+            // (`docs/specs/Concepts/Run State Fold.md`): fold-namespace
+            // history below the checkpoint may only be dropped once a
+            // `flows.run.snapshot` at or after it captures the folded state.
+            // Truncation is refused wholesale rather than skipping the fold
+            // rows, because a partially truncated run would advance the
+            // floor and hide the retained rows behind the read-side
+            // `compacted` guard — exactly the silently shortened history
+            // that guard exists to prevent. The fold is a reader of this
+            // run, so the refusal reuses `reader_behind`.
+            const foldBelow = yield* sql<{ readonly total: number }>`
+              SELECT COUNT(*) AS total FROM flows_journal_events
+              WHERE run_id = ${compactOptions.runId}
+                AND seq < ${checkpointSeq}
+                AND (event_type LIKE 'flows.run.%' OR event_type LIKE 'flows.attempt.%')
+            `
+            if (Number(foldBelow[0]!.total) > 0) {
+              const barrier = yield* sql<{ readonly total: number }>`
+                SELECT COUNT(*) AS total FROM flows_journal_events
+                WHERE run_id = ${compactOptions.runId}
+                  AND seq >= ${checkpointSeq}
+                  AND event_type = 'flows.run.snapshot'
+              `
+              if (Number(barrier[0]!.total) === 0) {
+                return yield* Effect.fail(
+                  new JournalError({
+                    code: "reader_behind",
+                    message:
+                      `the run/attempt fold of run ${compactOptions.runId} still needs sequences below checkpoint ${checkpointSeq}; append a flows.run.snapshot at or after it before compacting`,
+                    checkpointSeq
+                  })
+                )
+              }
+            }
             const doomed = yield* sql<{ readonly total: number }>`
               SELECT COUNT(*) AS total FROM flows_journal_events
               WHERE run_id = ${compactOptions.runId} AND seq < ${checkpointSeq}
@@ -1451,7 +1494,7 @@ export const layerWith = (
             return {
               runId: compactOptions.runId,
               checkpointSeq,
-              deleted: Number(doomed[0]?.total ?? 0)
+              deleted: Number(doomed[0]!.total)
             } satisfies Compacted
           })).pipe(
             Effect.mapError((cause) =>
@@ -1705,6 +1748,7 @@ export const layerWith = (
         transact,
         stream,
         entries: readPage,
+        runs,
         changes: PubSub.subscribe(changes),
         project,
         flush: Effect.fn("Journal.flush")(() =>
@@ -1720,13 +1764,19 @@ export const layerWith = (
   )
 
 /**
- * Provides the SQLite-backed journal over the default `SqlConsensus`
- * strategy.
+ * Provides the SQLite-backed journal over the `Consensus` strategy in
+ * context, defaulting to `SqlConsensus` over the same database when none is
+ * provided.
  *
  * `emitLossy` validates and admits telemetry to the non-blocking queue;
- * `emitDurable` allocates and commits inside the database transaction. To
- * choose a different consensus strategy, use {@link layerWith} and provide
- * the strategy layer explicitly.
+ * `emitDurable` allocates and commits inside the database transaction.
+ *
+ * The fallback mirrors `RunStore.layer`'s: the journal's fenced admission
+ * and the store driving the run must consult the SAME strategy, or a grant
+ * the store just recorded is invisible to the append's `guard` and a
+ * healthy activation fails itself with `fence_lost`
+ * (`docs/specs/Concepts/Run State Fold.md`). Use {@link layerWith} to make
+ * the strategy an explicit, type-checked requirement.
  *
  * @category layers
  * @since 0.1.0
@@ -1734,4 +1784,17 @@ export const layerWith = (
 export const layer = (
   options: SqlJournalOptions
 ): Layer.Layer<Journal, JournalError, DurableWriter | SqlClient.SqlClient> =>
-  layerWith(options).pipe(Layer.provide(SqlConsensus.layer))
+  layerWith(options).pipe(
+    Layer.provide(
+      Layer.effect(
+        Consensus,
+        Effect.gen(function*() {
+          const injected = yield* Effect.serviceOption(Consensus)
+          if (Option.isSome(injected)) {
+            return injected.value
+          }
+          return yield* SqlConsensus.make
+        })
+      )
+    )
+  )

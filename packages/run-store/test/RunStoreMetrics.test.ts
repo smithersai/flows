@@ -7,6 +7,7 @@ import type { DurableWriter } from "@smthrs/database"
 import * as DatabaseMigrations from "@smthrs/database/Migrations"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import * as JournalMigrations from "@smthrs/journal/Migrations"
+import * as SqlJournal from "@smthrs/journal/SqlJournal"
 import { Clock, Effect, Layer, Metric } from "effect"
 import { TestClock } from "effect/testing"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"
@@ -17,12 +18,15 @@ import * as RunStoreLive from "../src/RunStore.ts"
 import * as RunStoreMetrics from "../src/RunStoreMetrics.ts"
 
 const migrationsLayer = Layer.effectDiscard(DatabaseMigrations.run([JournalMigrations.set, Migrations.set]))
+const databaseLayer = Layer.provideMerge(migrationsLayer, TestDatabase.layer)
+const storeLayer = RunStoreLive.layer.pipe(
+  Layer.provideMerge(SqlJournal.layer({ capacity: 1024, overflow: "reject" })),
+  Layer.provideMerge(databaseLayer)
+)
 
 const migrated = <A, E>(effect: Effect.Effect<A, E, DurableWriter.DurableWriter | SqlClient.SqlClient | RunStore>) =>
   effect.pipe(
-    Effect.provide(RunStoreLive.layer),
-    Effect.provide(migrationsLayer),
-    Effect.provide(TestDatabase.layer),
+    Effect.provide(storeLayer),
     Effect.provide(TestClock.layer()),
     Effect.provideService(Metric.MetricRegistry, new Map())
   )

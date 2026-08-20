@@ -2,6 +2,7 @@ import { describe, expect, it } from "@effect/vitest"
 import * as DurableWriter from "@smthrs/database/DurableWriter"
 import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import * as SqlJournal from "@smthrs/journal/SqlJournal"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -14,6 +15,9 @@ import * as Migrations from "../src/Migrations.ts"
 import { withCrypto } from "./Sha256.ts"
 
 const migratedDatabase = Layer.provideMerge(Migrations.layer, TestDatabase.layer)
+const journalDatabase = SqlJournal.layer({ capacity: 1024, overflow: "reject" }).pipe(
+  Layer.provideMerge(migratedDatabase)
+)
 
 /**
  * Cross-owner cycle races against the REAL SQL `DurableEngineState` (issue
@@ -34,7 +38,7 @@ const run = <A>(
       const first = yield* DurableEngineState.make
       const second = yield* DurableEngineState.make
       return yield* body([first, second])
-    }).pipe(Effect.provide(migratedDatabase)) as Effect.Effect<A>
+    }).pipe(Effect.provide(journalDatabase)) as Effect.Effect<A>
   )
 
 const cycleFailure = (exit: Exit.Exit<unknown, unknown>) =>
@@ -171,10 +175,13 @@ describe("cross-connection cycle rejection (issue #74)", () => {
       // layer scope stays open for the whole race so both connections are live
       // concurrently.
       const owner = Effect.gen(function*() {
+        const database = Layer.provideMerge(
+          Migrations.layer,
+          Layer.provideMerge(DurableWriter.layer(), NodeDatabase.layer({ filename }))
+        )
         const context = yield* Layer.build(
-          Layer.provideMerge(
-            Migrations.layer,
-            Layer.provideMerge(DurableWriter.layer(), NodeDatabase.layer({ filename }))
+          SqlJournal.layer({ capacity: 1024, overflow: "reject" }).pipe(
+            Layer.provideMerge(database)
           ) as unknown as Layer.Layer<never>
         )
         return yield* (DurableEngineState.make.pipe(

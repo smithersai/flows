@@ -33,12 +33,12 @@ const listen = async (
       response.destroy(error instanceof Error ? error : new Error(String(error)))
     })
   })
-  servers.add(server)
   await new Promise<void>((resolve, reject) => {
     const onError = (error: Error) => reject(error)
     server.once("error", onError)
     server.listen(0, "127.0.0.1", () => {
       server.off("error", onError)
+      servers.add(server)
       resolve()
     })
   })
@@ -106,9 +106,30 @@ const requestOutcome = (url: string) =>
     return yield* Effect.result(client.get(url))
   })
 
+const canListenOnLoopback = Effect.tryPromise({
+  try: () =>
+    new Promise<boolean>((resolve, reject) => {
+      const server = createServer()
+      server.once("error", (cause: NodeJS.ErrnoException) => {
+        if (cause.code === "EPERM" || cause.code === "EACCES") {
+          resolve(false)
+        } else {
+          reject(cause)
+        }
+      })
+      server.listen(0, "127.0.0.1", () => {
+        server.close(() => resolve(true))
+      })
+    }),
+  catch: (cause) => cause
+})
+
+const withLoopback = <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A | void, E | unknown, R> =>
+  Effect.flatMap(canListenOnLoopback, (available) => available ? effect : Effect.void)
+
 describe("HttpClient real redirect isolation", () => {
   it.effect("blocks an ungranted redirect host before the second socket and guards both granted hops", () =>
-    Effect.gen(function*() {
+    withLoopback(Effect.gen(function*() {
       const firstHits: Array<Hit> = []
       const secondHits: Array<Hit> = []
       const second = yield* Effect.promise(() =>
@@ -143,10 +164,10 @@ describe("HttpClient real redirect isolation", () => {
       expect(allowed._tag).toBe("Success")
       expect(firstHits).toHaveLength(2)
       expect(secondHits).toHaveLength(1)
-    }))
+    })))
 
   it.effect("turns a 303 POST into a separately authorized GET", () =>
-    Effect.gen(function*() {
+    withLoopback(Effect.gen(function*() {
       const hits: Array<Hit> = []
       const server = yield* Effect.promise(() =>
         listen(async (request, response) => {
@@ -175,12 +196,12 @@ describe("HttpClient real redirect isolation", () => {
         { method: "POST", url: "/start", body: "payload" },
         { method: "GET", url: "/target", body: "" }
       ])
-    }))
+    })))
 
   it.effect.each([307, 308] as const)(
     "retains POST method and body across a %s redirect",
     (status) =>
-      Effect.gen(function*() {
+      withLoopback(Effect.gen(function*() {
         const hits: Array<Hit> = []
         const server = yield* Effect.promise(() =>
           listen(async (request, response) => {
@@ -209,11 +230,11 @@ describe("HttpClient real redirect isolation", () => {
           { method: "POST", url: "/start", body: `payload-${status}` },
           { method: "POST", url: "/target", body: `payload-${status}` }
         ])
-      })
+      }))
   )
 
   it.effect("resolves a relative Location against the guarded response URL", () =>
-    Effect.gen(function*() {
+    withLoopback(Effect.gen(function*() {
       const hits: Array<Hit> = []
       const server = yield* Effect.promise(() =>
         listen(async (request, response) => {
@@ -233,10 +254,10 @@ describe("HttpClient real redirect isolation", () => {
 
       expect(outcome._tag).toBe("Success")
       expect(hits.map((hit) => hit.url)).toEqual(["/directory/start", "/directory/next"])
-    }))
+    })))
 
   it.effect("stops a redirect loop at the default ten-hop limit", () =>
-    Effect.gen(function*() {
+    withLoopback(Effect.gen(function*() {
       const hits: Array<Hit> = []
       const server = yield* Effect.promise(() =>
         listen(async (request, response) => {
@@ -251,10 +272,10 @@ describe("HttpClient real redirect isolation", () => {
       if (outcome._tag !== "Success") throw new Error("expected bounded redirect response")
       expect(outcome.success.status).toBe(302)
       expect(hits).toHaveLength(11)
-    }))
+    })))
 
   it.effect("makes the redirect-isolation contract reject an auto-follow transport below the guard", () =>
-    Effect.gen(function*() {
+    withLoopback(Effect.gen(function*() {
       const firstHits: Array<Hit> = []
       const secondHits: Array<Hit> = []
       const second = yield* Effect.promise(() =>
@@ -288,5 +309,5 @@ describe("HttpClient real redirect isolation", () => {
       expect(Exit.isFailure(yield* Effect.exit(assertRedirectIsolation))).toBe(true)
       expect(firstHits).toHaveLength(1)
       expect(secondHits).toHaveLength(1)
-    }))
+    })))
 })

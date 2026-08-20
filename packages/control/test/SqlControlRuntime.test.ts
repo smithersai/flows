@@ -29,10 +29,8 @@ import { contract, type Stack } from "./ControlContract.ts"
  * runtime and the journal share one connection and therefore one transaction
  * boundary.
  */
-const durableJournal = Layer.mergeAll(
-  SqlJournal.layer({ capacity: 1024, overflow: "reject" }),
-  RunStore.layer
-).pipe(
+const durableJournal = RunStore.layer.pipe(
+  Layer.provideMerge(SqlJournal.layer({ capacity: 1024, overflow: "reject" })),
   Layer.provideMerge(
     Layer.provideMerge(
       Layer.merge(Migrations.layer, RunStoreMigrations.layer),

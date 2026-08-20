@@ -284,7 +284,8 @@ export const engineDurable = (
   // A control plane that cannot open its own database has nothing to serve, so
   // a failed open, migration, or journal start is a startup defect rather than
   // a typed control-plane error every command would have to carry.
-  const stores = Layer.mergeAll(SqlJournal.layer({ capacity: 1024, overflow: "reject" }), RunStore.layer).pipe(
+  const stores = RunStore.layer.pipe(
+    Layer.provideMerge(SqlJournal.layer({ capacity: 1024, overflow: "reject" })),
     Layer.provideMerge(database),
     Layer.orDie
   )

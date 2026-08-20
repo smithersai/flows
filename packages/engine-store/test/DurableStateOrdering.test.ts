@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@effect/vitest"
 import { DurableWriter } from "@smthrs/database"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import * as SqlJournal from "@smthrs/journal/SqlJournal"
 import { type Ownership } from "@smthrs/run-store"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
@@ -19,6 +20,9 @@ const owner: Ownership.OwnerId = {
 }
 
 const migratedDatabase = Layer.provideMerge(Migrations.layer, TestDatabase.layer)
+const journalDatabase = SqlJournal.layer({ capacity: 1024, overflow: "reject" }).pipe(
+  Layer.provideMerge(migratedDatabase)
+)
 
 const insertOwnedRun = (runId: string) =>
   Effect.gen(function*() {
@@ -143,7 +147,7 @@ describe("SQL durable state encoding failures", () => {
             exit: circular,
             completedAtMs: 0
           }))
-        }).pipe(Effect.provide(migratedDatabase))
+        }).pipe(Effect.provide(journalDatabase))
       )
 
       expect(Exit.isFailure(exit)).toBe(true)
@@ -167,7 +171,7 @@ describe("SQL durable state encoding failures", () => {
             metadata: () => "not serializable",
             completedAtMs: 0
           }))
-        }).pipe(Effect.provide(migratedDatabase))
+        }).pipe(Effect.provide(journalDatabase))
       )
 
       expect(Exit.isFailure(exit)).toBe(true)
@@ -197,7 +201,7 @@ describe("SQL durable state encoding failures", () => {
           )
         `
           return { missing, read: yield* Effect.exit(state.deferred(address)) }
-        }).pipe(Effect.provide(migratedDatabase))
+        }).pipe(Effect.provide(journalDatabase))
       )
 
       expect(Option.isNone(result.missing)).toBe(true)
@@ -242,7 +246,7 @@ describe("SQL first-writer transaction integrity", () => {
           return yield* Effect.exit(
             torn.completeDeferred({ ...address, exit: Exit.succeed("second"), completedAtMs: 1 })
           )
-        }).pipe(Effect.provide(migratedDatabase))
+        }).pipe(Effect.provide(journalDatabase))
       )
 
       expect(Exit.isFailure(exit)).toBe(true)

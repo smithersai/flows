@@ -225,7 +225,12 @@ describe.skipIf(!jjInstalled)("rewind versus a genuinely in-flight engine", () =
                   })
                   const sql = yield* Effect.service(SqlClient.SqlClient)
                   const live = yield* sql<{ readonly seq: number }>`
-                SELECT seq FROM flows_journal_events WHERE run_id = ${runId} ORDER BY seq
+                SELECT seq FROM flows_journal_events
+                WHERE run_id = ${runId}
+                  AND event_type NOT LIKE 'flows.run.%'
+                  AND event_type NOT LIKE 'flows.attempt.%'
+                  AND event_type NOT LIKE 'flows.consensus.%'
+                ORDER BY seq
               `
                   const audits = yield* sql<{ readonly status: string }>`
                 SELECT status FROM flows_time_travel_audits WHERE run_id = ${runId}
@@ -236,7 +241,7 @@ describe.skipIf(!jjInstalled)("rewind versus a genuinely in-flight engine", () =
 
               expect(recovered.parked).toMatchObject({ status: "suspended", owner: null })
               expect(recovered.rewind.archive.archived).toBeGreaterThan(0)
-              expect(recovered.live).toEqual([{ seq: 0 }])
+              expect(recovered.live).toEqual([])
               expect(recovered.audits).toEqual([{ status: "completed" }])
             } finally {
               yield* Effect.promise(() => killHard(child))

@@ -6,6 +6,7 @@ import { Cause, Effect, Exit, Layer, Stream } from "effect"
 import { TestConsole } from "effect/testing"
 import { Command } from "effect/unstable/cli"
 import { HttpServer } from "effect/unstable/http"
+import { createServer } from "node:net"
 import { describe, expect, it } from "vitest"
 import * as CliError from "../src/CliError.ts"
 import { cli } from "../src/Command.ts"
@@ -101,6 +102,18 @@ const addressUrl = (server: HttpServer.HttpServer["Service"]): string => {
   if (address._tag !== "TcpAddress") throw new Error("expected a TCP control server")
   return `http://127.0.0.1:${address.port}`
 }
+
+const canListenOnLoopback = () =>
+  new Promise<boolean>((resolve, reject) => {
+    const server = createServer()
+    server.once("error", (cause: NodeJS.ErrnoException) => {
+      if (cause.code === "EPERM" || cause.code === "EACCES") resolve(false)
+      else reject(cause)
+    })
+    server.listen(0, "127.0.0.1", () => {
+      server.close(() => resolve(true))
+    })
+  })
 
 const testControl = TestControl.layer({ now: () => 0 })
 const websocketEvent = {
@@ -201,6 +214,7 @@ describe("Control surface", () => {
   })
 
   it("mounts the remote parser path on a real ephemeral Node server", async () => {
+    if (!(await canListenOnLoopback())) return
     const local = await Effect.runPromise(
       invoke(["--json", "plan", "system/test"]).pipe(
         Effect.provide(testControl),
@@ -385,6 +399,7 @@ describe("Control surface", () => {
   })
 
   it("runs plan, approval, launch, and finite logs through an authenticated remote server", async () => {
+    if (!(await canListenOnLoopback())) return
     const local = await Effect.runPromise(
       scenario().pipe(
         Effect.provide(testControl),
@@ -429,6 +444,7 @@ describe("Control surface", () => {
   })
 
   it("refuses an unauthenticated request on an explicitly exposed bind", async () => {
+    if (!(await canListenOnLoopback())) return
     const error = await Effect.runPromise(
       Effect.gen(function*() {
         const server = yield* HttpServer.HttpServer
@@ -466,6 +482,7 @@ describe("Control surface", () => {
   })
 
   it("uses the bearer credential for the remote WebSocket projection", async () => {
+    if (!(await canListenOnLoopback())) return
     const events = await Effect.runPromise(
       Effect.gen(function*() {
         const server = yield* HttpServer.HttpServer

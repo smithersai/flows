@@ -14,6 +14,7 @@
 import { describe, expect, it } from "@effect/vitest"
 import { DurableWriter } from "@smthrs/database"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import * as SqlJournal from "@smthrs/journal/SqlJournal"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
@@ -23,6 +24,9 @@ import * as Migrations from "../src/Migrations.ts"
 import { withCrypto } from "./Sha256.ts"
 
 const migratedDatabase = Layer.provideMerge(Migrations.layer, TestDatabase.layer)
+const journalDatabase = SqlJournal.layer({ capacity: 1024, overflow: "reject" }).pipe(
+  Layer.provideMerge(migratedDatabase)
+)
 
 const schemaObjects = Effect.gen(function*() {
   const sql = yield* Effect.service(SqlClient.SqlClient)
@@ -41,7 +45,7 @@ describe("out-of-ladder engine-store schema (issue #92)", () => {
           yield* DurableEngineState.make
           const after = yield* schemaObjects
           return [...after].filter((name) => !before.has(name)).sort()
-        }).pipe(Effect.provide(migratedDatabase))
+        }).pipe(Effect.provide(journalDatabase))
       )
 
       expect(created).toEqual(
@@ -71,7 +75,7 @@ describe("out-of-ladder engine-store schema (issue #92)", () => {
           yield* DurableEngineState.make
           const after = yield* schemaObjects
           return [...after].filter((name) => !before.has(name))
-        }).pipe(Effect.provide(migratedDatabase))
+        }).pipe(Effect.provide(journalDatabase))
       )
       expect(created).toEqual([])
     }))

@@ -472,6 +472,17 @@ export interface Service {
   readonly transact: <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E | JournalError, R>
   readonly stream: (options: StreamOptions) => Stream.Stream<Entry, JournalError>
   readonly entries: (options: EntriesOptions) => Effect.Effect<EntriesPage, JournalError>
+  /**
+   * Enumerates every run with at least one committed durable entry.
+   *
+   * This is the discovery read a fold rebuild starts from: the journal is
+   * the authority on which runs exist, and a materialization that was
+   * dropped cannot answer the question itself
+   * (`docs/specs/Concepts/Run State Fold.md`). Compaction never removes a
+   * run from this enumeration — truncation keeps the checkpointed entry, so
+   * a compacted run still reports at least that one.
+   */
+  readonly runs: Effect.Effect<ReadonlyArray<RunId>, JournalError>
   readonly changes: Effect.Effect<PubSub.Subscription<Entry>, never, Scope.Scope>
   readonly project: <S, E, R>(
     projection: Projection<S, E, R>,
@@ -506,7 +517,10 @@ export interface Service {
    *
    * Refusals are typed: `checkpoint_invalid` when the run has no checkpoint
    * to truncate below, `reader_behind` when a live in-process stream still
-   * needs a sequence the truncation would delete, and `fence_lost` when the
+   * needs a sequence the truncation would delete — or when the run/attempt
+   * fold does, because `flows.run.*` / `flows.attempt.*` entries below the
+   * checkpoint are not yet captured by a `flows.run.snapshot` at or after
+   * it (`docs/specs/Concepts/Run State Fold.md`) — and `fence_lost` when the
    * supplied `owner` no longer holds the run. Readers this process cannot
    * see — pollers of `entries` and followers in other processes — are
    * protected by the read-side guard instead: any read whose cursor starts
@@ -565,6 +579,7 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service => {
         )
       ),
     entries: Effect.fn("Journal.entries")(() => Effect.fail(unavailable("entries"))),
+    runs: Effect.fn("Journal.runs")(() => Effect.fail(unavailable("runs")))(),
     changes: Effect.acquireRelease(
       PubSub.sliding<Entry>(1),
       PubSub.shutdown

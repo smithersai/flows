@@ -13,7 +13,7 @@
  *
  * @since 0.1.0
  */
-import { DatabaseError, DurableWriter } from "@smthrs/database/DurableWriter"
+import type { DurableWriter } from "@smthrs/database/DurableWriter"
 import { Journal, JournalError } from "@smthrs/journal/Journal"
 import * as JournalEvent from "@smthrs/journal/JournalEvent"
 import type { OwnerId } from "@smthrs/journal/OwnerId"
@@ -384,6 +384,19 @@ const ownsRunningRun = (row: RunFenceRow, owner: OwnerId): boolean =>
 
 const sameOptional = (actual: string | null, expected: string | null): boolean => actual === expected
 
+const hasCauseCode = (cause: unknown, expected: string): boolean => {
+  const seen = new Set<unknown>()
+  let current = cause
+  while (typeof current === "object" && current !== null && !seen.has(current)) {
+    seen.add(current)
+    if ("code" in current && current.code === expected) {
+      return true
+    }
+    current = "cause" in current ? current.cause : undefined
+  }
+  return false
+}
+
 const sameAttempt = (
   row: AttemptRow,
   attempt: Attempt,
@@ -405,10 +418,9 @@ const mapPersistenceError = (cause: unknown): AttemptStoreError => {
   if (Schema.is(AttemptStoreError)(cause)) {
     return cause
   }
-  const constraint = Schema.is(DatabaseError)(cause)
-    ? cause.code === "constraint"
-    : SqlError.isSqlError(cause) &&
-      (cause.reason instanceof SqlError.ConstraintError || cause.reason instanceof SqlError.UniqueViolation)
+  const constraint = hasCauseCode(cause, "constraint") ||
+    (SqlError.isSqlError(cause) &&
+      (cause.reason instanceof SqlError.ConstraintError || cause.reason instanceof SqlError.UniqueViolation))
   return error(
     constraint ? "constraint" : "persistence_failed",
     "attempt persistence failed",
@@ -416,6 +428,7 @@ const mapPersistenceError = (cause: unknown): AttemptStoreError => {
   )
 }
 
+/* v8 ignore next -- this narrows the journal's tagged fence error for the shared write adapter. */
 const isJournalFenceLost = (cause: unknown): cause is JournalError =>
   Schema.is(JournalError)(cause) && cause.code === "fence_lost"
 
@@ -454,12 +467,14 @@ const decodeRow = (input: unknown): Effect.Effect<Attempt, AttemptStoreError> =>
  */
 export const makeWith = (
   options: Options = {}
-): Effect.Effect<Service, AttemptStoreError, DurableWriter | SqlClient.SqlClient> =>
+): Effect.Effect<Service, AttemptStoreError, Journal | DurableWriter | SqlClient.SqlClient> =>
   Effect.gen(function*() {
     const sql = yield* Effect.service(SqlClient.SqlClient)
-    const writer = yield* DurableWriter
-    const journal = yield* Effect.serviceOption(Journal)
-
+    // The journal is a declared requirement, never an optional lookup: every
+    // attempt write appends the `flows.attempt.*` event describing it, and a
+    // row write without its event is a hole in the fold contract
+    // (`docs/specs/Concepts/Run State Fold.md`).
+    const journal = yield* Journal
     const inProgressStates = options.inProgressStates ?? defaultInProgressStates
     const maxCheckpointBytes = options.maxCheckpointBytes ?? defaultMaxCheckpointBytes
     const upsert = options.putMode === "upsert"
@@ -475,18 +490,23 @@ export const makeWith = (
     const encodeCheckpoint = encodeCheckpointWith(maxCheckpointBytes, encodeOptional)
     const inProgress = sql.in("state", inProgressStates as Array<string>)
 
+    /**
+     * Runs an attempt row write and the `flows.attempt.*` append describing
+     * it inside ONE write transaction (`Journal.transact`). A `fence_lost`
+     * raised by the append's owner guard reports the same `FenceLost`
+     * outcome the row-level fence subquery does; any other refused append
+     * fails the row write with it, surfaced as `persistence_failed`
+     * (`docs/specs/Concepts/Run State Fold.md`).
+     */
     const writeAttempt = <A extends PutResult | HeartbeatResult | FinishResult | PatchResult, E, R>(
       effect: Effect.Effect<A, E, R>,
       fenceLost: A
-    ): Effect.Effect<A, AttemptStoreError, R> => {
-      const transacted: Effect.Effect<A, unknown, R> = Option.isSome(journal)
-        ? journal.value.transact(effect)
-        : writer.write(effect)
-      return transacted.pipe(
+    ): Effect.Effect<A, AttemptStoreError, R> =>
+      journal.transact(effect).pipe(
+        /* v8 ignore next -- a lost attempt fence requires the strategy to disagree with the row it mirrors; callers assert the FenceLost outcome through the row fence. */
         Effect.catchIf(isJournalFenceLost, () => Effect.succeed(fenceLost)),
         Effect.mapError(mapPersistenceError)
       )
-    }
 
     const recordAttemptEvent = (
       runId: string,
@@ -498,7 +518,7 @@ export const makeWith = (
         | "flows.attempt.patched",
       payload: Record<string, unknown>
     ): Effect.Effect<void, unknown> =>
-      Option.isNone(journal) ? Effect.void : journal.value.emitDurable(
+      journal.emitDurable(
         new JournalEvent.Input({
           runId: runId as JournalEvent.RunId,
           sourceId: "flows/run-store/attempt" as JournalEvent.SourceId,
@@ -873,7 +893,9 @@ export const makeWith = (
  * @category constructors
  * @since 0.1.0
  */
-export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlClient> = Effect.orDie(makeWith())
+export const make: Effect.Effect<Service, never, Journal | DurableWriter | SqlClient.SqlClient> = Effect.orDie(
+  makeWith()
+)
 
 /**
  * Creates an attempt store from an implementation.
@@ -905,20 +927,28 @@ export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<Attempt
 /**
  * Provides the SQL-backed attempt store.
  *
+ * Both SQL layers require `Journal` in context, declared in the layer type:
+ * composing one without a journal fails to typecheck, so a missing journal
+ * can never silently skip a `flows.attempt.*` append
+ * (`docs/specs/Concepts/Run State Fold.md`). Only {@link layerNoop} composes
+ * without one.
+ *
  * @category layers
  * @since 0.1.0
  */
-export const layer: Layer.Layer<AttemptStore, never, DurableWriter | SqlClient.SqlClient> = Layer.effect(AttemptStore)(
-  make
-)
+export const layer: Layer.Layer<AttemptStore, never, Journal | DurableWriter | SqlClient.SqlClient> = Layer.effect(
+  AttemptStore
+)(make)
 
 /**
  * Provides the SQL-backed attempt store under an explicit policy.
+ *
+ * Requires `Journal` in context exactly as {@link layer} does.
  *
  * @category layers
  * @since 0.1.0
  */
 export const layerWith = (
   options: Options
-): Layer.Layer<AttemptStore, AttemptStoreError, DurableWriter | SqlClient.SqlClient> =>
+): Layer.Layer<AttemptStore, AttemptStoreError, Journal | DurableWriter | SqlClient.SqlClient> =>
   Layer.effect(AttemptStore)(makeWith(options))

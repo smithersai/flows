@@ -76,15 +76,17 @@ const migratedDatabase = Layer.provideMerge(Migrations.layer, TestDatabase.layer
  * their writes share a transaction. A memory twin anywhere would make the
  * rollback vacuous.
  */
-const journalLayer = SqlJournal.layer({ capacity: 1024, overflow: "reject" })
-
 const services = Layer.mergeAll(
-  journalLayer,
   RunStore.layer,
   AttemptStore.layer,
-  CacheStore.layer.pipe(Layer.provide(journalLayer)),
+  CacheStore.layer,
   DurableEngineState.layer
-).pipe(Layer.provideMerge(migratedDatabase), Layer.merge(StepBoundary.layerTest()), Layer.merge(jj))
+).pipe(
+  Layer.provideMerge(SqlJournal.layer({ capacity: 1024, overflow: "reject" })),
+  Layer.provideMerge(migratedDatabase),
+  Layer.merge(StepBoundary.layerTest()),
+  Layer.merge(jj)
+)
 
 const run = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   withCrypto(

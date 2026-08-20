@@ -129,14 +129,15 @@ const engineLayer = (harness: Harness, handlers: ReadonlyArray<CompensationHandl
       return `${amount}:${receipt}:${settled}`
     })
 
-  const journalLayer = SqlJournal.layer({ capacity: 1024, overflow: "reject" })
   const stores = Layer.mergeAll(
-    journalLayer,
     RunStore.layer,
     AttemptStore.layer,
-    CacheStore.layer.pipe(Layer.provide(journalLayer)),
+    CacheStore.layer,
     DurableEngineState.layer
-  ).pipe(Layer.provideMerge(Layer.effectDiscard(EngineMigrations.run)))
+  ).pipe(
+    Layer.provideMerge(SqlJournal.layer({ capacity: 1024, overflow: "reject" })),
+    Layer.provideMerge(Layer.effectDiscard(EngineMigrations.run))
+  )
 
   return Layer.mergeAll(Post.toLayer(post), Interpreter.layer(Ledger)).pipe(
     Layer.provideMerge(Action.layerImplementations),
@@ -191,6 +192,13 @@ const entries = Effect.gen(function*() {
   const page = yield* journal.entries({ runId: "ledger-1" as JournalEvent.RunId, limit: 200 })
   return page.entries
 })
+
+const replayEntries = (committed: ReadonlyArray<JournalEvent.Entry>) =>
+  committed.filter((entry) =>
+    !entry.eventType.startsWith("flows.run.") &&
+    !entry.eventType.startsWith("flows.attempt.") &&
+    !entry.eventType.startsWith("flows.consensus.")
+  )
 
 /** The seq of the `nth` (1-based) record of `eventType`, which is where frames land. */
 const seqOf = (
@@ -339,19 +347,19 @@ describe("time travel over an engine-written journal", () => {
           const timeTravel = yield* TimeTravel
           const rewound = yield* timeTravel.rewind({
             runId: "ledger-1",
-            frame: { lineageId: "ledger-1/root", seq: before.at(-1)!.seq }
+            frame: { lineageId: "ledger-1/root", seq: replayEntries(before).at(-1)!.seq }
           })
           const after = yield* entries
           return { after, before, rewound }
         }))
 
-      // The rewind claimed, suspended, and released the run through the
-      // consensus lease, and none of that fencing entered the journal: an
-      // exact-tail rewind archives nothing and leaves the history identical.
-      // The engine's OWN R6 events from driving the run are history and stay.
+      // The rewind now records its run-store row mutations, but the replay
+      // history it cuts is namespace-filtered, so an exact-tail rewind archives
+      // nothing and leaves the engine/time-travel replay stream identical.
       expect(result.rewound.archive.archived).toBe(0)
-      expect(result.after.map((entry) => ({ eventType: entry.eventType, seq: entry.seq }))).toEqual(
-        result.before.map((entry) => ({ eventType: entry.eventType, seq: entry.seq }))
+      expect(replayEntries(result.after).map((entry) => ({ eventType: entry.eventType, seq: entry.seq }))).toEqual(
+        replayEntries(result.before).map((entry) => ({ eventType: entry.eventType, seq: entry.seq }))
       )
+      expect(result.after.length).toBeGreaterThan(result.before.length)
     }))
 })

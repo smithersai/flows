@@ -8,6 +8,8 @@ import * as Cause from "effect/Cause"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
+import * as Fiber from "effect/Fiber"
+import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
@@ -409,12 +411,23 @@ describe("partial dependency readiness across a restart", () => {
 
           const engine = yield* makeEngine
           yield* engine.register(flow, handler)
-          yield* engine.execute(flow, {
+          const initial = yield* Effect.forkChild(engine.execute(flow, {
             executionId: "mid-resume-run",
             payload: {},
             discard: true
-          })
-          const suspendedRow = yield* store.get("mid-resume-run")
+          }))
+          let suspendedRow = yield* store.get("mid-resume-run").pipe(
+            Effect.catch(() => Effect.succeed(undefined))
+          )
+          for (let count = 0; count < 400 && suspendedRow?.status !== "suspended"; count++) {
+            yield* Effect.yieldNow
+            suspendedRow = yield* store.get("mid-resume-run").pipe(
+              Effect.catch(() => Effect.succeed(undefined))
+            )
+          }
+          if (suspendedRow === undefined) {
+            return yield* Effect.die(new Error("mid-resume run was never created"))
+          }
 
           yield* engine.deferredDone(first, {
             flowName: flow._tag,
@@ -422,24 +435,47 @@ describe("partial dependency readiness across a restart", () => {
             deferredName: first.name,
             exit: Exit.succeed("a")
           })
+          const resume = yield* Effect.forkChild(engine.execute(flow, {
+            executionId: "mid-resume-run",
+            payload: {},
+            discard: true
+          }))
           yield* Deferred.await(reachedGate)
           const inFlight = yield* store.get("mid-resume-run")
 
           // lands during the in-flight resume: the run is past `first` but the
           // resume pass has not yet requested `second`
-          yield* engine.deferredDone(second, {
+          const secondCompletion = yield* Effect.forkChild(engine.deferredDone(second, {
             flowName: flow._tag,
             executionId: "mid-resume-run",
             deferredName: second.name,
             exit: Exit.succeed("b")
+          }))
+          const state = yield* DurableEngineState.DurableEngineState
+          let secondPersisted = yield* state.deferred({
+            flowName: flow._tag,
+            executionId: "mid-resume-run",
+            deferredName: second.name
           })
+          for (let count = 0; count < 400 && Option.isNone(secondPersisted); count++) {
+            yield* Effect.yieldNow
+            secondPersisted = yield* state.deferred({
+              flowName: flow._tag,
+              executionId: "mid-resume-run",
+              deferredName: second.name
+            })
+          }
+          expect(Option.isSome(secondPersisted)).toBe(true)
           yield* Deferred.succeed(gate, void 0)
+          yield* Fiber.join(secondCompletion)
+          yield* Fiber.join(resume)
+          yield* Fiber.join(initial)
 
           // no further execute/wake calls: the in-flight pass (or the wake
           // coalesced by the coordinator) must finish the run on its own
           let final = yield* store.get("mid-resume-run")
           for (let count = 0; count < 400 && final.status !== "completed"; count++) {
-            yield* Effect.sleep("25 millis")
+            yield* Effect.yieldNow
             final = yield* store.get("mid-resume-run")
           }
           return { suspendedRow, inFlight, final }

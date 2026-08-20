@@ -47,6 +47,7 @@ import * as Node from "@smthrs/plan/Node"
 import * as Planned from "@smthrs/plan/Planned"
 import * as StepKey from "@smthrs/plan/StepKey"
 import * as Cause from "effect/Cause"
+import * as Context from "effect/Context"
 import type * as Crypto from "effect/Crypto"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
@@ -651,12 +652,25 @@ export const layer = <
 > =>
   Layer.effectDiscard(Effect.gen(function*() {
     const runtime = yield* FlowRuntime
+    const table = yield* Implementations
+    const services = yield* Effect.context<
+      | Implementations
+      | Payload["DecodingServices"]
+      | Payload["EncodingServices"]
+      | Success["DecodingServices"]
+      | Success["EncodingServices"]
+      | Error["DecodingServices"]
+      | Error["EncodingServices"]
+    >()
     yield* runtime.register(
       flow,
       ((payload: Payload["Type"]) =>
         Effect.flatMap(
           interpret(flow, payload, options),
           (interpretation) => settle(interpretation.value)
+        ).pipe(
+          Effect.updateContext((input) => Context.merge(services, input) as Context.Context<any>),
+          Effect.provideService(Implementations, table)
         )) as (payload: Payload["Type"], executionId: string) => Effect.Effect<
           Success["Type"],
           Error["Type"],

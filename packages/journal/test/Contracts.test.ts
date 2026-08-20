@@ -22,6 +22,7 @@ describe("service contracts", () => {
             limit: 1
           }))).code
         ).toBe("journal_closed")
+        expect((yield* Effect.flip(implementation.runs)).code).toBe("journal_closed")
         expect(
           (yield* Stream.runHead(implementation.stream({
             runId: "run" as RunId

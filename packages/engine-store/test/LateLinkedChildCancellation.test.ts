@@ -64,10 +64,12 @@ const migratedDatabase = Layer.provideMerge(Migrations.layer, TestDatabase.layer
  * exercised against the implementation that has transactions.
  */
 const services = Layer.mergeAll(
-  SqlJournal.layer({ capacity: 1024, overflow: "reject" }),
   RunStore.layer,
   DurableEngineState.layer
-).pipe(Layer.provideMerge(migratedDatabase))
+).pipe(
+  Layer.provideMerge(SqlJournal.layer({ capacity: 1024, overflow: "reject" })),
+  Layer.provideMerge(migratedDatabase)
+)
 
 const run = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   withCrypto(

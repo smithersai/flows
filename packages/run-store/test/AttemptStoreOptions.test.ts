@@ -3,6 +3,7 @@ import { DurableWriter } from "@smthrs/database/DurableWriter"
 import * as DatabaseMigrations from "@smthrs/database/Migrations"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import * as JournalMigrations from "@smthrs/journal/Migrations"
+import * as SqlJournal from "@smthrs/journal/SqlJournal"
 import { Effect, Layer, Option } from "effect"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as AttemptStore from "../src/AttemptStore.ts"
@@ -14,9 +15,11 @@ const migrationsLayer = Layer.effectDiscard(DatabaseMigrations.run([JournalMigra
 
 const owner: OwnerId = { hostId: "host", pid: 1, nonce: "n" }
 
+const databaseLayer = Layer.provideMerge(migrationsLayer, TestDatabase.layer)
+
 const base = Layer.provideMerge(
   RunStore.layer,
-  Layer.provideMerge(migrationsLayer, TestDatabase.layer)
+  SqlJournal.layer({ capacity: 1024, overflow: "reject" }).pipe(Layer.provideMerge(databaseLayer))
 )
 
 const withStore = <A, E>(
