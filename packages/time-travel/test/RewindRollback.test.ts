@@ -122,8 +122,8 @@ const crossed = (
 
 const records = (): ReadonlyArray<MemoryTimeTravelStore.JournalRecord> => [
   stored(0, "baseline", {}),
-  stored(1, EffectBoundary.eventType, { effect: crossed("send", "send", "irreversible") }),
-  stored(2, EffectBoundary.eventType, { effect: crossed("workspace", "fs-write", "compensable") })
+  stored(1, EffectBoundary.eventType, { version: 1, effect: crossed("send", "send", "irreversible") }),
+  stored(2, EffectBoundary.eventType, { version: 1, effect: crossed("workspace", "fs-write", "compensable") })
 ]
 
 const edge: LineageEdge = {

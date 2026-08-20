@@ -14,6 +14,12 @@ import type { EffectRecord } from "../src/EffectBoundary.ts"
 import * as EffectHandlerRegistry from "../src/internal/EffectHandlerRegistry.ts"
 import { error } from "../src/TimeTravelError.ts"
 
+const boundaryAuthority = {
+  owner: { hostId: "test-host", pid: 1, nonce: "test-owner" },
+  sourceSeq: 0,
+  idempotencyKey: "test-idempotency-key"
+} as const
+
 const crossed = (
   status: EffectRecord["status"] = "succeeded"
 ): EffectRecord => ({
@@ -63,6 +69,7 @@ describe("EffectHandlerRegistry", () => {
             runId: "run",
             lineageId: "run/root",
             sourceId: "adapter",
+            ...boundaryAuthority,
             metadata: "legacy metadata"
           }, Effect.succeed("never")).pipe(Effect.provide(Layer.succeed(Journal.Journal, journal)))
         )
@@ -84,6 +91,7 @@ describe("EffectHandlerRegistry", () => {
       emittedAtMs: 0,
       eventType: EffectBoundary.eventType,
       payload: {
+        version: 1,
         effect: {
           id: "effect",
           kind: "mail.send",
@@ -152,7 +160,10 @@ describe("EffectHandlerRegistry", () => {
       sourceSeq: seq as JournalEvent.SourceSeq,
       emittedAtMs: 0,
       eventType: EffectBoundary.eventType,
-      payload: { effect: { id, kind: "kind", tier: "sealed", status, runId: "run", lineageId: "run/root" } },
+      payload: {
+        version: 1,
+        effect: { id, kind: "kind", tier: "sealed", status, runId: "run", lineageId: "run/root" }
+      },
       meta: {}
     })
     expect(EffectBoundary.fromEntry(entry(1, "a", "intended"))).toMatchObject({
@@ -415,6 +426,7 @@ describe("EffectHandlerRegistry", () => {
           runId: "run",
           lineageId: "run/root",
           sourceId: "adapter",
+          ...boundaryAuthority,
           sourceSeq: 10,
           input: { recipient: "person@example.com" },
           cacheKey: "mail-cache-key",
@@ -457,6 +469,42 @@ describe("EffectHandlerRegistry", () => {
       })
     }))
 
+  it.effect("fences the intended append and refuses to re-execute a duplicate boundary", () =>
+    Effect.gen(function*() {
+      let actionRuns = 0
+      const owners: Array<unknown> = []
+      const journal = Journal.makeNoop({
+        emitDurable: (_input, owner) =>
+          Effect.sync(() => {
+            owners.push(owner)
+            return {
+              _tag: "Duplicate" as const,
+              seq: 1 as JournalEvent.Seq,
+              sourceSeq: 0 as JournalEvent.SourceSeq,
+              status: "committed" as const
+            }
+          })
+      })
+
+      const failure = yield* Effect.flip(
+        EffectBoundary.guard({
+          id: "duplicate-boundary",
+          kind: "mail.send",
+          tier: "irreversible",
+          runId: "run",
+          lineageId: "run/root",
+          sourceId: "adapter",
+          ...boundaryAuthority
+        }, Effect.sync(() => ++actionRuns)).pipe(
+          Effect.provide(Layer.succeed(Journal.Journal, journal))
+        )
+      )
+
+      expect(failure).toMatchObject({ code: "busy" })
+      expect(actionRuns).toBe(0)
+      expect(owners).toEqual([boundaryAuthority.owner])
+    }))
+
   it.effect("reports a succeeded-boundary persistence failure after the action has completed", () =>
     Effect.gen(function*() {
       let actionRuns = 0
@@ -483,7 +531,8 @@ describe("EffectHandlerRegistry", () => {
             tier: "irreversible",
             runId: "run",
             lineageId: "run/root",
-            sourceId: "adapter"
+            sourceId: "adapter",
+            ...boundaryAuthority
           }, Effect.sync(() => ++actionRuns)).pipe(
             Effect.provide(Layer.succeed(Journal.Journal, journal))
           )
@@ -520,7 +569,8 @@ describe("EffectHandlerRegistry", () => {
             tier: "irreversible",
             runId: "run",
             lineageId: "run/root",
-            sourceId: "adapter"
+            sourceId: "adapter",
+            ...boundaryAuthority
           }, Effect.fail("action-failed")).pipe(
             Effect.provide(Layer.succeed(Journal.Journal, journal))
           )
@@ -558,7 +608,8 @@ describe("EffectHandlerRegistry", () => {
             tier: "irreversible",
             runId: "run",
             lineageId: "run/root",
-            sourceId: "adapter"
+            sourceId: "adapter",
+            ...boundaryAuthority
           }, Effect.die("action-defect")).pipe(
             Effect.provide(Layer.succeed(Journal.Journal, journal))
           )
@@ -598,7 +649,8 @@ describe("EffectHandlerRegistry", () => {
             tier: "irreversible",
             runId: "run",
             lineageId: "run/root",
-            sourceId: "adapter"
+            sourceId: "adapter",
+            ...boundaryAuthority
           }, Effect.fail("action-failed")).pipe(Effect.provide(Layer.succeed(Journal.Journal, journal)))
         )
       )
@@ -629,7 +681,8 @@ describe("EffectHandlerRegistry", () => {
           tier: "irreversible",
           runId: "run",
           lineageId: "run/root",
-          sourceId: "adapter"
+          sourceId: "adapter",
+          ...boundaryAuthority
         }, Deferred.succeed(entered, undefined).pipe(Effect.andThen(Effect.never))).pipe(
           Effect.provide(Layer.succeed(Journal.Journal, journal))
         )
