@@ -136,6 +136,8 @@ export interface Options {
   readonly maxFrames?: number | undefined
   /** Arms CellTurn's completion audit; see `CellTurn.make`. */
   readonly auditCompletion?: boolean | undefined
+  /** Requires an audited baseline-fail/write/pass regression proof. */
+  readonly requireRegressionEvidence?: boolean | undefined
   /**
    * Caps consecutive read-only frames; see `CellTurn.make`.
    *
@@ -333,6 +335,7 @@ const runProduction: Service["run"] = (options) =>
             contextWindowTokens: options.seat.contextWindowTokens,
             maxFrames: options.maxFrames,
             auditCompletion: options.auditCompletion,
+            requireRegressionEvidence: options.requireRegressionEvidence,
             readOnlyCap: options.readOnlyCap
           })
           return CellTurn.run({ state, flows, limits: options.limits }).pipe(

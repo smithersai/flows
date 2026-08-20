@@ -122,9 +122,9 @@ export class State extends Schema.Class<State>("flows/harness/CellTurn/State")({
   /**
    * Whether this run's first `complete` has already been challenged.
    *
-   * The controller accepts a completion only after one audit bounce: the
+   * The controller considers a completion only after one audit bounce: the
    * first `complete` is answered with a demand for host-observable evidence
-   * and another frame, the second is accepted unconditionally. A model will
+   * and another frame, and an armed audit then checks the second. A model will
    * claim "implemented the fix" without ever editing a file — one benchmark
    * run closed with exactly that claim after 16 read-only calls — and prose
    * rules alone did not stop it. Sticky once set, so the gate costs one frame
@@ -144,6 +144,11 @@ export class State extends Schema.Class<State>("flows/harness/CellTurn/State")({
    * closed by quoting a test run it had not repeated.
    */
   auditCompletion: Schema.Boolean.pipe(
+    Schema.withConstructorDefault(Effect.succeed(false)),
+    Schema.withDecodingDefaultKey(Effect.succeed(false))
+  ),
+  /** Whether the audit also requires a failing baseline observation and a declared write. */
+  requireRegressionEvidence: Schema.Boolean.pipe(
     Schema.withConstructorDefault(Effect.succeed(false)),
     Schema.withDecodingDefaultKey(Effect.succeed(false))
   ),
@@ -258,6 +263,8 @@ export const make = (options: {
    * world and should.
    */
   readonly auditCompletion?: boolean | undefined
+  /** Requires the audited check to fail before a write and pass after one. */
+  readonly requireRegressionEvidence?: boolean | undefined
   /**
    * Caps consecutive read-only frames: at the cap the controller demands an
    * edit or a typed justification, and at twice the cap the run stops as a
@@ -280,6 +287,7 @@ export const make = (options: {
     agentState: options.agentState ?? null,
     completionChallenged: !(options.auditCompletion ?? false),
     auditCompletion: options.auditCompletion ?? false,
+    requireRegressionEvidence: options.requireRegressionEvidence ?? false,
     readOnlyCap: options.readOnlyCap ?? 0,
     readOnlyFrames: 0,
     readOnlyGrace: 0,
@@ -660,6 +668,7 @@ const verifyCompletion = (options: {
   readonly executed: ReadonlySet<string>
   readonly verificationHistory: State["verificationHistory"]
   readonly mutationEpoch: number
+  readonly requireRegressionEvidence: boolean
   readonly ordinal: number
   readonly verification: Cell.Verification | undefined
   readonly engine: EngineLike.EngineLike
@@ -683,15 +692,24 @@ const verifyCompletion = (options: {
           `This run never called ${verification.flow} with that exact input, so the declared check cites work that was never done.`
       }
     }
-    const signature = callSignature(verification.flow, verification.input)
-    const failedOnBaseline = options.verificationHistory.some(
-      (entry) => entry.signature === signature && !entry.passed && entry.mutationEpoch === 0
-    )
-    if (options.mutationEpoch > 0 && !failedOnBaseline) {
-      return {
-        accepted: false,
-        detail:
-          "The identical check did not fail before the first write and cannot prove the bug changed. Run a targeted reproduction on the baseline, edit, then cite that exact command."
+    if (options.requireRegressionEvidence) {
+      const signature = callSignature(verification.flow, verification.input)
+      const failedOnBaseline = options.verificationHistory.some(
+        (entry) => entry.signature === signature && !entry.passed && entry.mutationEpoch === 0
+      )
+      if (!failedOnBaseline) {
+        return {
+          accepted: false,
+          detail:
+            "The identical check did not fail before the first write and cannot prove the bug changed. Run a targeted reproduction on the baseline, edit, then cite that exact command."
+        }
+      }
+      if (options.mutationEpoch === 0) {
+        return {
+          accepted: false,
+          detail:
+            "The check failed on the baseline, but this run made no declared write. A transient pass on an unchanged tree cannot prove the bug was fixed."
+        }
       }
     }
     const result = yield* callHandler(
@@ -1036,6 +1054,17 @@ const frame = (
     )
 
     if (transition._tag === "park") {
+      if (state.pendingReadOnlyDemand !== undefined) {
+        yield* emit(
+          new AgentEvent.ReadOnlyDemanded({
+            eventType: eventType.readOnlyDemanded,
+            streak: state.pendingReadOnlyDemand.streak,
+            cap: state.pendingReadOnlyDemand.cap,
+            nextFrame: state.frame,
+            nextAction: mutatingCalls > 0 ? "write" : "park"
+          })
+        )
+      }
       yield* emit(
         new AgentEvent.TurnClosed({
           eventType: eventType.turnClosed,
@@ -1119,6 +1148,7 @@ const frame = (
           executed: new Set(executedCalls),
           verificationHistory,
           mutationEpoch,
+          requireRegressionEvidence: state.requireRegressionEvidence,
           ordinal: observedCalls.length,
           verification: transition.verify,
           engine,
@@ -1314,6 +1344,7 @@ export const run = (
           new AgentEvent.DisciplineArmed({
             eventType: eventType.disciplineArmed,
             auditCompletion: current.auditCompletion,
+            requireRegressionEvidence: current.requireRegressionEvidence,
             readOnlyCap: current.readOnlyCap,
             maxFrames: current.maxFrames,
             ...limits

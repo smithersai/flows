@@ -156,6 +156,7 @@ export const trace = (
         eventType: "control.agent.discipline-armed",
         payload: {
           auditCompletion: event.auditCompletion,
+          requireRegressionEvidence: event.requireRegressionEvidence,
           readOnlyCap: event.readOnlyCap,
           maxFrames: event.maxFrames,
           calls: event.calls,
@@ -793,6 +794,7 @@ export const make = (
           // A task run's "done" is a claim about the world; audit it once,
           // and hold it to a rhythm of acting rather than only reading.
           auditCompletion: true,
+          requireRegressionEvidence: true,
           readOnlyCap: options.readOnlyCap ?? CellTurn.defaultReadOnlyFrames
         }).pipe(
           Stream.runForEach(record),

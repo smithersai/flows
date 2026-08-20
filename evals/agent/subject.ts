@@ -239,6 +239,14 @@ const probe = CoreFlow.make({
   effects: { reads: ["/**"], writes: [], mode: "hermetic", onConflict: "serialize", tier: "sealed" }
 })
 
+const edit = CoreFlow.make({
+  name: "edit",
+  description: "Apply one source edit.",
+  input: Schema.Struct({ path: Schema.String }),
+  output: Schema.Struct({ edited: Schema.Boolean }),
+  effects: { reads: [], writes: ["/**"], mode: "expected", onConflict: "serialize", tier: "irreversible" }
+})
+
 /**
  * The check a completing cell cites, recorded by the command it was given.
  *
@@ -249,14 +257,36 @@ const probe = CoreFlow.make({
  * @category constructors
  * @since 0.1.0
  */
-export const checkSource = (recorder: Recorder): FlowBinding.Source =>
-  FlowBinding.source("evals/agent/check", [
+export const checkSource = (
+  recorder: Recorder,
+  exitCodes: ReadonlyArray<number> = [0]
+): FlowBinding.Source => {
+  let calls = 0
+  return (
+    FlowBinding.source("evals/agent/check", [
+      FlowBinding.make({
+        flow: check,
+        handler: (input) =>
+          Effect.sync(() => {
+            recorder.flowCalls.push(`check:${input.command}`)
+            const exitCode = exitCodes[Math.min(calls, exitCodes.length - 1)] ?? 0
+            calls++
+            return { exitCode }
+          })
+      })
+    ])
+  )
+}
+
+/** A declared write used by the strict completion-evidence scenarios. */
+export const editSource = (recorder: Recorder): FlowBinding.Source =>
+  FlowBinding.source("evals/agent/edit", [
     FlowBinding.make({
-      flow: check,
+      flow: edit,
       handler: (input) =>
         Effect.sync(() => {
-          recorder.flowCalls.push(`check:${input.command}`)
-          return { exitCode: 0 }
+          recorder.flowCalls.push(`edit:${input.path}`)
+          return { edited: true }
         })
     })
   ])
