@@ -1,0 +1,531 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "5170b035bdf2d833b4acb4be7324ea335c388b5f",
+ "tree": "0a14e6bbb9b6a5e9607c84f0ce862b120ea7b00b",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 51,
+  "sectionCount": 83
+ },
+ "source": {
+  "commit": "d1e027c448e6573bd923201a1b335b528981367f",
+  "subject": "🐛 fix(run-store): honor the round-3 fold contract at runtime",
+  "priorCanonicalCommit": "16b531103a259eea1ce78d5ac3f3cda3ed2eefa4",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 39,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true,
+  "rebuild": {
+   "reason": "rebuilt onto the 13-commit split of canonical commit 2632c05da63099666add6437c743f4c5b3922f59",
+   "priorCanonicalCommit": "16b531103a259eea1ce78d5ac3f3cda3ed2eefa4",
+   "treePreserved": true,
+   "tree": "0a14e6bbb9b6a5e9607c84f0ce862b120ea7b00b"
+  }
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "engine-store",
+  "epicsTouched": [
+   {
+    "id": "engine-store",
+    "files": 3
+   },
+   {
+    "id": "storage",
+    "files": 2
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 889,
+  "globalCount": 921,
+  "purpose": "🐛 fix(run-store): honor the round-3 fold contract at runtime",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "ddeb2b53e020d6ffbaba1c4a4dce7fdeba7e4b85"
+  ],
+  "parent": "ddeb2b53e020d6ffbaba1c4a4dce7fdeba7e4b85",
+  "sourceImports": [
+   "229f2a2a62fbf8eb4f2df6c8c9204deee510e76d",
+   "45e3c1570fd6be09e9c529beaab1c8602d059998",
+   "cf89bd45358cb59d87d7077d99bbc04e932b4e18",
+   "c8bce393ea55d3257b21dbf5095fb2af8220a9d3",
+   "4390fe6159b47fbf5df3fcbcadcdc24e77d5ce8d",
+   "bf30564cff185becab3c94a5dbbd2833264ae9de",
+   "934a70097b819b70f9190e5b9a97a3aa36b0304a",
+   "eda3d9fa41d4dd7cdd5f0541dfa6e17bbc59247b",
+   "94f7c8bf4001f5fb8bb81bf239df5caa97fbbaec",
+   "1741fe3e11078585191eacc9cf2eccd8a3526c1d",
+   "c6c0d5170329c2c48b6f3ad7b1f39755c840387c",
+   "0cbeeb277d9929243737e789e6318cc45bd98bac",
+   "a3268b56e9da9bd3213f796ff44e6ac6e5ac5d43",
+   "d62c430a56c4fec9e9ccc2c81a1884c93ded9643"
+  ],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": [],
+  "sourceImportsRemapped": {
+   "reason": "prior canonical SHAs rewritten by the 13-commit split of 2632c05da63099666add6437c743f4c5b3922f59",
+   "priorSourceImports": [
+    "229f2a2a62fbf8eb4f2df6c8c9204deee510e76d",
+    "2632c05da63099666add6437c743f4c5b3922f59",
+    "cf89bd45358cb59d87d7077d99bbc04e932b4e18",
+    "c8bce393ea55d3257b21dbf5095fb2af8220a9d3",
+    "4390fe6159b47fbf5df3fcbcadcdc24e77d5ce8d",
+    "bf30564cff185becab3c94a5dbbd2833264ae9de",
+    "934a70097b819b70f9190e5b9a97a3aa36b0304a",
+    "eda3d9fa41d4dd7cdd5f0541dfa6e17bbc59247b",
+    "94f7c8bf4001f5fb8bb81bf239df5caa97fbbaec",
+    "1741fe3e11078585191eacc9cf2eccd8a3526c1d",
+    "c6c0d5170329c2c48b6f3ad7b1f39755c840387c",
+    "0cbeeb277d9929243737e789e6318cc45bd98bac",
+    "a3268b56e9da9bd3213f796ff44e6ac6e5ac5d43",
+    "d62c430a56c4fec9e9ccc2c81a1884c93ded9643"
+   ]
+  }
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "ddeb2b53e020d6ffbaba1c4a4dce7fdeba7e4b85",
+  "next": "d19cc2b6d2565928fb6a0fd972979d10515ddf1d",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "6fe6857b28247375ab46b0d79cba15e74754ebd6"
+ },
+ "size": {
+  "files": 8,
+  "added": 562,
+  "deleted": 77
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "d1e027c448e6573bd923201a1b335b528981367f"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "packages/engine-store/src/DurableEngineState.ts",
+   "mode": "100644",
+   "blob": "bed9bba6b85dd0831ca19597664492c24cde2dde",
+   "previousBlob": "cc1b6d52280b3a51b987d7946a252eb91ea359cd",
+   "added": 29,
+   "deleted": 27,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 17,
+     "oldLines": 1,
+     "newStart": 16,
+     "newLines": 0
+    },
+    {
+     "oldStart": 777,
+     "oldLines": 0,
+     "newStart": 777,
+     "newLines": 9
+    },
+    {
+     "oldStart": 780,
+     "oldLines": 1,
+     "newStart": 787,
+     "newLines": 0
+    },
+    {
+     "oldStart": 784,
+     "oldLines": 23,
+     "newStart": 791,
+     "newLines": 18
+    },
+    {
+     "oldStart": 1105,
+     "oldLines": 1,
+     "newStart": 1107,
+     "newLines": 1
+    },
+    {
+     "oldStart": 1132,
+     "oldLines": 1,
+     "newStart": 1134,
+     "newLines": 1
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/RunStateFoldWaiting.test.ts",
+   "mode": "100644",
+   "blob": "9619a123ea8d1b3ed4d42db19f3b6da2c933c060",
+   "previousBlob": "bf4d2ff16eeaac17d43db585e632adf6c533fda0",
+   "added": 53,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 125,
+     "oldLines": 0,
+     "newStart": 126,
+     "newLines": 8
+    },
+    {
+     "oldStart": 133,
+     "oldLines": 0,
+     "newStart": 142,
+     "newLines": 45
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": null
+  },
+  {
+   "change": "M",
+   "path": "packages/journal/src/SqlJournal.ts",
+   "mode": "100644",
+   "blob": "2aac823b0b758b76d7974069cb42525288b5c3f6",
+   "previousBlob": "6e10bd54d1c576e1bd3494cb29c02ed3d4799d93",
+   "added": 33,
+   "deleted": 4,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 74,
+     "oldLines": 0,
+     "newStart": 75,
+     "newLines": 13
+    },
+    {
+     "oldStart": 76,
+     "oldLines": 3,
+     "newStart": 89,
+     "newLines": 3
+    },
+    {
+     "oldStart": 86,
+     "oldLines": 0,
+     "newStart": 100,
+     "newLines": 1
+    },
+    {
+     "oldStart": 1537,
+     "oldLines": 0,
+     "newStart": 1552,
+     "newLines": 11
+    },
+    {
+     "oldStart": 1745,
+     "oldLines": 1,
+     "newStart": 1770,
+     "newLines": 4
+    },
+    {
+     "oldStart": 1762,
+     "oldLines": 0,
+     "newStart": 1791,
+     "newLines": 1
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/journal/test/JournalCompaction.test.ts",
+   "mode": "100644",
+   "blob": "792550ffca7dde509080469888c636bd9739a39f",
+   "previousBlob": "78bb3c3fea034806dcea97144f854174179f1308",
+   "added": 84,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 705,
+     "oldLines": 0,
+     "newStart": 706,
+     "newLines": 84
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/src/Fold.ts",
+   "mode": "100644",
+   "blob": "e220fbfe8b5785f6ffb4921374e9358b33c90c85",
+   "previousBlob": "6235c5d15ec344336be5e520c55ae0e0dc7973d6",
+   "added": 172,
+   "deleted": 7,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 10,
+     "oldLines": 1,
+     "newStart": 10,
+     "newLines": 1
+    },
+    {
+     "oldStart": 17,
+     "oldLines": 0,
+     "newStart": 18,
+     "newLines": 1
+    },
+    {
+     "oldStart": 232,
+     "oldLines": 1,
+     "newStart": 232,
+     "newLines": 0
+    },
+    {
+     "oldStart": 234,
+     "oldLines": 1,
+     "newStart": 233,
+     "newLines": 0
+    },
+    {
+     "oldStart": 236,
+     "oldLines": 1,
+     "newStart": 234,
+     "newLines": 0
+    },
+    {
+     "oldStart": 238,
+     "oldLines": 2,
+     "newStart": 235,
+     "newLines": 0
+    },
+    {
+     "oldStart": 241,
+     "oldLines": 1,
+     "newStart": 237,
+     "newLines": 9
+    },
+    {
+     "oldStart": 480,
+     "oldLines": 0,
+     "newStart": 485,
+     "newLines": 161
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": null
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/test/Fold.test.ts",
+   "mode": "100644",
+   "blob": "8a167594d86d743aa7618c84c33d1328bf8a9a15",
+   "previousBlob": "1d5e7a65debb73b590f32ed93fa1b3ca021a0b66",
+   "added": 148,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 11,
+     "oldLines": 1,
+     "newStart": 11,
+     "newLines": 1
+    },
+    {
+     "oldStart": 36,
+     "oldLines": 0,
+     "newStart": 37,
+     "newLines": 29
+    },
+    {
+     "oldStart": 574,
+     "oldLines": 0,
+     "newStart": 604,
+     "newLines": 118
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": null
+  },
+  {
+   "change": "M",
+   "path": "packages/time-travel/src/internal/Recovery.ts",
+   "mode": "100644",
+   "blob": "67ab803d467b067abd647f74ae84df5039754b54",
+   "previousBlob": "a65321f87399b68315b4e7b9d413b99088caf1d4",
+   "added": 14,
+   "deleted": 12,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 84,
+     "oldLines": 4,
+     "newStart": 84,
+     "newLines": 6
+    },
+    {
+     "oldStart": 118,
+     "oldLines": 1,
+     "newStart": 120,
+     "newLines": 1
+    },
+    {
+     "oldStart": 122,
+     "oldLines": 1,
+     "newStart": 124,
+     "newLines": 1
+    },
+    {
+     "oldStart": 128,
+     "oldLines": 1,
+     "newStart": 130,
+     "newLines": 1
+    },
+    {
+     "oldStart": 133,
+     "oldLines": 1,
+     "newStart": 135,
+     "newLines": 1
+    },
+    {
+     "oldStart": 137,
+     "oldLines": 1,
+     "newStart": 139,
+     "newLines": 1
+    },
+    {
+     "oldStart": 235,
+     "oldLines": 1,
+     "newStart": 237,
+     "newLines": 1
+    },
+    {
+     "oldStart": 255,
+     "oldLines": 1,
+     "newStart": 257,
+     "newLines": 1
+    },
+    {
+     "oldStart": 260,
+     "oldLines": 1,
+     "newStart": 262,
+     "newLines": 1
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/time-travel/src/internal/Rewind.ts",
+   "mode": "100644",
+   "blob": "cf22d7f8538a4ef248c6e0cbaa6b134bcb247bcc",
+   "previousBlob": "e6bd5b28bdb4c972cd8031a46bb85b9593316eaf",
+   "added": 29,
+   "deleted": 26,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 14,
+     "oldLines": 1,
+     "newStart": 13,
+     "newLines": 0
+    },
+    {
+     "oldStart": 346,
+     "oldLines": 14,
+     "newStart": 344,
+     "newLines": 0
+    },
+    {
+     "oldStart": 363,
+     "oldLines": 0,
+     "newStart": 349,
+     "newLines": 14
+    },
+    {
+     "oldStart": 392,
+     "oldLines": 1,
+     "newStart": 391,
+     "newLines": 4
+    },
+    {
+     "oldStart": 401,
+     "oldLines": 1,
+     "newStart": 403,
+     "newLines": 1
+    },
+    {
+     "oldStart": 406,
+     "oldLines": 1,
+     "newStart": 408,
+     "newLines": 1
+    },
+    {
+     "oldStart": 410,
+     "oldLines": 1,
+     "newStart": 412,
+     "newLines": 1
+    },
+    {
+     "oldStart": 714,
+     "oldLines": 1,
+     "newStart": 716,
+     "newLines": 4
+    },
+    {
+     "oldStart": 718,
+     "oldLines": 1,
+     "newStart": 723,
+     "newLines": 1
+    },
+    {
+     "oldStart": 750,
+     "oldLines": 1,
+     "newStart": 755,
+     "newLines": 1
+    },
+    {
+     "oldStart": 755,
+     "oldLines": 1,
+     "newStart": 760,
+     "newLines": 1
+    },
+    {
+     "oldStart": 760,
+     "oldLines": 3,
+     "newStart": 765,
+     "newLines": 1
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  }
+ ]
+}
