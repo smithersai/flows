@@ -22,6 +22,7 @@ import {
 } from "../scripts/stub-backends.ts";
 import { createChatUpstream, type ChatUpstream } from "./ChatUpstream.ts";
 import { createFront, type Front } from "./Front.ts";
+import type { GithubPersona } from "./Personas.ts";
 import type { Phase } from "./Suite.ts";
 
 /** wrangler.jsonc's `main` and `assets.directory` are relative to apps/server. */
@@ -65,6 +66,8 @@ export interface Stack {
 	readonly control: (target: StubName, path: string, init?: RequestInit) => Promise<Response>;
 	/** Mint a fresh session cookie ("stub_session=<uuid>"). Not allowlisted yet. */
 	readonly signIn: () => Promise<string>;
+	/** Apply one whole cross-seam persona, then mint and return its allowlisted session. */
+	readonly signInAs: (persona: GithubPersona) => Promise<string>;
 	/** Flip the identity double's global allowlist flag. */
 	readonly allowlist: () => Promise<void>;
 	/** Flip the identity double's global admin flag. */
@@ -257,6 +260,34 @@ export const startStack = async (options: StackOptions): Promise<Stack> => {
 
 	let memoizedCookie: Promise<string> | undefined;
 
+	const personaControl = async (target: "identity" | "billing" | "reco", body: unknown): Promise<void> => {
+		await control(target, "/stub/persona", {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify(body),
+		});
+	};
+
+	const signInAs = async (persona: GithubPersona): Promise<string> => {
+		await Promise.all([
+			personaControl("identity", {
+				login: persona.login,
+				history: persona.history,
+				allowlisted: true,
+			}),
+			personaControl("billing", { login: persona.login, ...persona.billing }),
+			personaControl("reco", {
+				login: persona.login,
+				candidates: persona.repositories,
+				watched: persona.reco.watched,
+				dismissals: persona.reco.dismissals,
+			}),
+		]);
+		const cookie = await signIn();
+		memoizedCookie = Promise.resolve(cookie);
+		return cookie;
+	};
+
 	return {
 		origin,
 		phase,
@@ -279,6 +310,7 @@ export const startStack = async (options: StackOptions): Promise<Stack> => {
 		chat,
 		control,
 		signIn,
+		signInAs,
 		allowlist: async () => void (await control("identity", "/stub/allowlist", { method: "POST" })),
 		makeAdmin: async () => void (await control("identity", "/stub/make-admin", { method: "POST" })),
 		signedInCookie: () => {

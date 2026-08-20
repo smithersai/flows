@@ -95,6 +95,9 @@ you tested. A row you could not reach is a finding, not a blank.
 - [ ] **3.3** No clone, install, or configure copy appears anywhere in the
       first run. `[auto A-4]`
 - [ ] **3.4** "$500 of usage on us" appears exactly once. `[auto A-5]`
+      The `fresh`/`established` persona path grades product behavior as
+      `verified-via-mock`; a live-GitHub first sign-in remains an optional,
+      separate check.
 - [ ] **3.5** The whole first run asks 3 questions or fewer. `[auto A-7]`
 - [ ] **3.6** The repo chooser (`repos.watch`) appears as the one onboarding
       question. Toggling, `repos.watch.all`, `repos.watch.none`, and confirm
@@ -105,9 +108,13 @@ you tested. A row you could not reach is a finding, not a blank.
 - [ ] **3.8** A flow that needs sign-in run signed-out defers the same way
       through `auth.sign-in`.
 - [ ] **3.9** An account with zero GitHub repos gets an honest empty state, not
-      an empty chooser with a confirm button.
+      an empty chooser with a confirm button. The `zeroRepos` persona grades
+      product behavior as `verified-via-mock`; optionally confirm the live
+      GitHub seam with a real zero-repository account.
 - [ ] **3.10** An account with 200+ repos: the chooser is usable, searchable
-      or scrollable, and does not lock the frame.
+      or scrollable, and does not lock the frame. The `manyRepos200` persona
+      grades product pagination as `verified-via-mock`; live GitHub remains a
+      separate optional check.
 
 ## §4 The chat turn loop
 
@@ -274,7 +281,10 @@ Run the flow, read the card, resize the window, switch theme, and reload.
 - [ ] **9.7** Feedback reaches `/api/reco/feedback` and shows up in
       `/admin.feedback`.
 - [ ] **9.8** A first-run recommendation appears for a fresh account
-      (`/api/reco/first-run`) and is about that account's repos.
+      (`/api/reco/first-run`) and is about that account's repos. The persona
+      path grades the never-chosen chooser/product behavior as
+      `verified-via-mock`; a live GitHub recommendation remains optional and
+      separate.
 
 ## §10 World surface
 
@@ -399,7 +409,9 @@ Run the flow, read the card, resize the window, switch theme, and reload.
 - [ ] **17.1** `/billing.balance` shows the $500 design-partner balance for a
       signed-in user. `[auto D-1]`
 - [ ] **17.2** The balance chip in the corner chrome is present, accurate, and
-      marked empty at $0.
+      marked empty at $0. The `zeroBalance` persona grades product behavior as
+      `verified-via-mock`; a live billing-account check remains optional and
+      separate.
 - [ ] **17.3** No card form appears anywhere in the product. `[auto A-6]`
 - [ ] **17.4** No top-up or checkout flow is exposed to MVP users.
       `[auto D-3]` Note that `/billing.upgrade` and `/billing.portal` are
@@ -407,7 +419,9 @@ Run the flow, read the card, resize the window, switch theme, and reload.
       that reaching them is intended.
 - [ ] **17.5** At $0, interactive chat keeps working; only non-complimentary
       work pauses. `[auto D-4]` Verify the pause message names what paused and
-      what to do.
+      what to do. The `zeroBalance` persona grades this product behavior as
+      `verified-via-mock`; a live billing-account check remains optional and
+      separate.
 - [ ] **17.6** `/api/billing/usage` numbers match what the user actually spent.
 - [ ] **17.7** `[auto E-1..E-3]` Admin grants: no token → 401, untimestamped →
       400, valid grant credits exactly once with an audit record.

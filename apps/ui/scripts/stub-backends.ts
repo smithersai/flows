@@ -109,12 +109,13 @@ const IDENTITY_SCOPES = {
 };
 
 export const createStubIdentity = (extraAllowedOrigins: ReadonlyArray<string> = []): StubHandle => {
-	// Stub state: the signed-in user is always "will" (a placeholder handle,
-	// never a real account). allowlisted flips via the /stub/allowlist control,
-	// admin via /stub/make-admin (as the real worker's ADMIN_LOGINS would).
+	// Stub state defaults to "will" (a placeholder handle, never a real
+	// account). Personas may replace it through the stub-only control.
 	const sessions = new Map<string, { login: string; admin: boolean }>();
 	let allowlisted = false;
 	let adminFlag = false;
+	let personaLogin = "will";
+	let personaHistory: "never" | "established" = "established";
 	// Wave 8: when armed, the OAuth routes answer exactly like the real identity
 	// worker with its GitHub credentials not installed (503 oauth_not_configured).
 	let oauthDown = false;
@@ -237,6 +238,24 @@ export const createStubIdentity = (extraAllowedOrigins: ReadonlyArray<string> = 
 				});
 			}
 			// Test controls: not part of the contract, unreachable through the product Worker.
+			if (url.pathname === "/stub/persona" && request.method === "POST") {
+				const body = (await request.json().catch(() => null)) as {
+					login?: unknown;
+					history?: unknown;
+					allowlisted?: unknown;
+				} | null;
+				if (
+					typeof body?.login !== "string" ||
+					!/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/.test(body.login) ||
+					(body.history !== "never" && body.history !== "established")
+				) {
+					return json(400, { status: "error", message: "valid login and history are required" });
+				}
+				personaLogin = body.login;
+				personaHistory = body.history;
+				allowlisted = body.allowlisted === true;
+				return json(200, { status: "ok", login: personaLogin, history: personaHistory, allowlisted });
+			}
 			if (url.pathname === "/stub/allowlist" && request.method === "POST") {
 				allowlisted = true;
 				return json(200, { status: "ok", allowlisted });
@@ -335,6 +354,8 @@ export const createStubIdentity = (extraAllowedOrigins: ReadonlyArray<string> = 
 				adminFlag = false;
 				oauthDown = false;
 				cloudIdentityMissing = false;
+				personaLogin = "will";
+				personaHistory = "established";
 				return json(200, { status: "ok" });
 			}
 			if (url.pathname === "/stub/requests" && request.method === "GET") {
@@ -438,7 +459,7 @@ export const createStubIdentity = (extraAllowedOrigins: ReadonlyArray<string> = 
 						handoff.message = handoffFailure;
 						handoffFailure = null;
 					} else {
-						sessions.set(token, { login: "will", admin: false });
+						sessions.set(token, { login: personaLogin, admin: false });
 						handoff.state = "ready";
 						handoff.token = token;
 					}
@@ -447,7 +468,7 @@ export const createStubIdentity = (extraAllowedOrigins: ReadonlyArray<string> = 
 						{ status: 200, headers: { "content-type": "text/html; charset=utf-8" } },
 					);
 				}
-				sessions.set(token, { login: "will", admin: false });
+				sessions.set(token, { login: personaLogin, admin: false });
 				return new Response(null, {
 					status: 302,
 					headers: { location: "/", "set-cookie": `stub_session=${token}; HttpOnly; Path=/; SameSite=Lax` },
@@ -564,12 +585,24 @@ export const createStubBilling = (extraAllowedOrigins: ReadonlyArray<string> = [
 		totalUsd: string;
 		chargeCount: number;
 	}
+	interface StubPersonaGrant {
+		id: string;
+		kind: "promotional" | "purchased";
+		amountUsd: string;
+	}
+	const launchGrant: StubPersonaGrant = {
+		id: "admin:launch-grant",
+		kind: "promotional",
+		amountUsd: "500",
+	};
 	const accounts = new Map<string, StubAccount>();
+	const accountGrants = new Map<string, ReadonlyArray<StubPersonaGrant>>();
 	const accountFor = (key: string): StubAccount => {
 		const existing = accounts.get(key);
 		if (existing !== undefined) return existing;
 		const created: StubAccount = { totalUsd: "500", chargeCount: 0 };
 		accounts.set(key, created);
+		accountGrants.set(key, [launchGrant]);
 		return created;
 	};
 	let lastChargeUsd = "0.05375";
@@ -604,6 +637,40 @@ export const createStubBilling = (extraAllowedOrigins: ReadonlyArray<string> = [
 				});
 			}
 			// Test controls.
+			if (url.pathname === "/stub/persona" && request.method === "POST") {
+				const body = (await request.json().catch(() => null)) as {
+					login?: unknown;
+					balanceUsd?: unknown;
+					chargeCount?: unknown;
+					grants?: unknown;
+				} | null;
+				const login = typeof body?.login === "string" ? body.login.toLowerCase() : "";
+				const validGrants =
+					Array.isArray(body?.grants) &&
+					body.grants.every(
+						(grant) =>
+							typeof grant === "object" &&
+							grant !== null &&
+							typeof (grant as { id?: unknown }).id === "string" &&
+							((grant as { kind?: unknown }).kind === "promotional" ||
+								(grant as { kind?: unknown }).kind === "purchased") &&
+							typeof (grant as { amountUsd?: unknown }).amountUsd === "string",
+					);
+				if (
+					!/^[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?$/.test(login) ||
+					typeof body?.balanceUsd !== "string" ||
+					!/^\d+(?:\.\d{1,5})?$/.test(body.balanceUsd) ||
+					typeof body.chargeCount !== "number" ||
+					!Number.isInteger(body.chargeCount) ||
+					body.chargeCount < 0 ||
+					!validGrants
+				) {
+					return json(400, { status: "error", message: "valid billing persona state is required" });
+				}
+				accounts.set(login, { totalUsd: body.balanceUsd, chargeCount: body.chargeCount });
+				accountGrants.set(login, body.grants as ReadonlyArray<StubPersonaGrant>);
+				return json(200, { status: "ok", login, balanceUsd: body.balanceUsd, chargeCount: body.chargeCount });
+			}
 			if (url.pathname === "/stub/drain" && request.method === "POST") {
 				for (const account of accounts.values()) account.totalUsd = "0";
 				return json(200, { status: "ok", totalUsd: "0" });
@@ -626,6 +693,7 @@ export const createStubBilling = (extraAllowedOrigins: ReadonlyArray<string> = [
 			// Return the double to its boot state so the next suite starts clean.
 			if (url.pathname === "/stub/reset" && request.method === "POST") {
 				accounts.clear();
+				accountGrants.clear();
 				grants.length = 0;
 				grantedIds.clear();
 				lastBalanceAuth = null;
@@ -700,6 +768,10 @@ export const createStubBilling = (extraAllowedOrigins: ReadonlyArray<string> = [
 				// A grant is only real once it moves the balance the product reads.
 				const credited = accountFor(userId.toLowerCase());
 				credited.totalUsd = usd(Number(credited.totalUsd) + amountUsd);
+				accountGrants.set(userId.toLowerCase(), [
+					...(accountGrants.get(userId.toLowerCase()) ?? []),
+					{ id: grantId, kind: "promotional", amountUsd: usd(amountUsd) },
+				]);
 				return json(201, grant);
 			}
 			/*
@@ -753,20 +825,18 @@ export const createStubBilling = (extraAllowedOrigins: ReadonlyArray<string> = [
 					allowedToStartWork: !empty,
 					credits: empty
 						? []
-						: [
-								{
-									id: "admin:launch-grant",
-									kind: "promotional",
-									grantedUsd: "500",
-									consumedUsd: chargeCount === 0 ? "0" : lastChargeUsd,
-									remainingUsd: totalUsd,
-									createdAt: new Date(0).toISOString(),
-									expiresAt: null,
-									source: "admin",
-									requestedBy: "will@tevm.tech",
-									requestedAt: new Date(0).toISOString(),
-								},
-							],
+						: (accountGrants.get(accountKey) ?? []).map((grant) => ({
+								id: grant.id,
+								kind: grant.kind,
+								grantedUsd: grant.amountUsd,
+								consumedUsd: chargeCount === 0 ? "0" : lastChargeUsd,
+								remainingUsd: totalUsd,
+								createdAt: new Date(0).toISOString(),
+								expiresAt: null,
+								source: grant.kind === "promotional" ? "admin" : "purchase",
+								requestedBy: grant.kind === "promotional" ? "will@tevm.tech" : null,
+								requestedAt: new Date(0).toISOString(),
+							})),
 					rateCardVersion: "stub-2026-08-08",
 					free: true,
 				});
@@ -1767,6 +1837,7 @@ export const createStubGateway = (): StubHandle => {
  */
 export const createStubReco = (extraAllowedOrigins: ReadonlyArray<string> = []): StubHandle => {
 	let degraded = false;
+	let personaLogin = "will";
 	const feedbackLog: Array<{ at: string; action: string; recommendationId: string; evidenceKey: string | null }> =
 		[];
 	/*
@@ -1791,11 +1862,18 @@ export const createStubReco = (extraAllowedOrigins: ReadonlyArray<string> = []):
 	 * a chosen set scopes the digest to exactly those repos.
 	 */
 	let watched: { selected: string[]; selectedAt: string; via: string } | null = null;
-	const candidates = [
+	interface StubRecoCandidate {
+		fullName: string;
+		private: boolean;
+		pushedAt: string | null;
+		openIssues: number;
+	}
+	const defaultCandidates = (): Array<StubRecoCandidate> => [
 		{ fullName: "will/flows", private: false, pushedAt: "2026-08-07T12:00:00.000Z", openIssues: 4 },
 		{ fullName: "will/smithers", private: false, pushedAt: "2026-08-06T09:00:00.000Z", openIssues: 2 },
 		{ fullName: "will/mvp", private: true, pushedAt: "2026-08-05T18:00:00.000Z", openIssues: 1 },
 	];
+	let candidates: Array<StubRecoCandidate> = defaultCandidates();
 
 	const grounded = (repos: ReadonlyArray<string>) => {
 		const considered = repos.length;
@@ -1811,7 +1889,7 @@ export const createStubReco = (extraAllowedOrigins: ReadonlyArray<string> = []):
 			cached: false,
 			watched: [...repos],
 			digest: {
-				login: "will",
+				login: personaLogin,
 				computedAt: "2026-08-08T09:00:00.000Z",
 				reposConsidered: considered,
 				openIssues: considered * 2,
@@ -1890,6 +1968,58 @@ export const createStubReco = (extraAllowedOrigins: ReadonlyArray<string> = []):
 				return json(200, { ok: true, identity: true, prewarm: false, admin: true, testMode: true });
 			}
 			// Test controls.
+			if (url.pathname === "/stub/persona" && request.method === "POST") {
+				const body = (await request.json().catch(() => null)) as {
+					login?: unknown;
+					candidates?: unknown;
+					watched?: unknown;
+					dismissals?: unknown;
+				} | null;
+				const parsedCandidates = Array.isArray(body?.candidates)
+					? body.candidates.filter(
+							(candidate): candidate is StubRecoCandidate =>
+								typeof candidate === "object" &&
+								candidate !== null &&
+								typeof (candidate as { fullName?: unknown }).fullName === "string" &&
+								typeof (candidate as { private?: unknown }).private === "boolean" &&
+								((candidate as { pushedAt?: unknown }).pushedAt === null ||
+									typeof (candidate as { pushedAt?: unknown }).pushedAt === "string") &&
+								typeof (candidate as { openIssues?: unknown }).openIssues === "number",
+						)
+					: [];
+				const watchedValid =
+					body?.watched === null ||
+					(Array.isArray(body?.watched) && body.watched.every((name) => typeof name === "string"));
+				const dismissalsValid =
+					Array.isArray(body?.dismissals) && body.dismissals.every((id) => typeof id === "string");
+				if (
+					typeof body?.login !== "string" ||
+					parsedCandidates.length !== (Array.isArray(body.candidates) ? body.candidates.length : -1) ||
+					!watchedValid ||
+					!dismissalsValid
+				) {
+					return json(400, { status: "error", message: "valid recommendation persona state is required" });
+				}
+				const selected = body.watched as ReadonlyArray<string> | null;
+				const unknown = (selected ?? []).filter(
+					(name) => !parsedCandidates.some((candidate) => candidate.fullName === name),
+				);
+				if (unknown.length > 0) return json(400, { status: "error", message: "unknown watched repositories", unknown });
+				personaLogin = body.login;
+				candidates = parsedCandidates;
+				watched =
+					selected === null
+						? null
+						: { selected: [...selected], selectedAt: new Date().toISOString(), via: "onboarding" };
+				dismissedAt.clear();
+				for (const id of body.dismissals as ReadonlyArray<string>) dismissedAt.set(id, stubNow());
+				return json(200, {
+					status: "ok",
+					login: personaLogin,
+					candidates: candidates.length,
+					watched: watched?.selected ?? null,
+				});
+			}
 			if (url.pathname === "/stub/degrade" && request.method === "POST") {
 				degraded = true;
 				return json(200, { status: "ok", degraded });
@@ -1940,6 +2070,8 @@ export const createStubReco = (extraAllowedOrigins: ReadonlyArray<string> = []):
 				suppressDismissed = false;
 				clockSkewMs = 0;
 				watched = null;
+				personaLogin = "will";
+				candidates = defaultCandidates();
 				return json(200, { status: "ok" });
 			}
 			// The admin surface: 404 — never 403 — without the admin token.
