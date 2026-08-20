@@ -501,6 +501,9 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter |
               const parentCount = yield* sql<{ readonly count: number }>`
             SELECT COUNT(*) AS count FROM flows_journal_events
             WHERE run_id = ${runId} AND seq > ${frame.seq}
+              AND event_type NOT LIKE 'flows.run.%'
+              AND event_type NOT LIKE 'flows.attempt.%'
+              AND event_type NOT LIKE 'flows.consensus.%'
           `
               let archived = Number(parentCount[0]!.count)
               yield* sql`
@@ -509,24 +512,43 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter |
                    event_type, payload_json, meta_json, ${nowMs}
             FROM flows_journal_events
             WHERE run_id = ${runId} AND seq > ${frame.seq}
+              AND event_type NOT LIKE 'flows.run.%'
+              AND event_type NOT LIKE 'flows.attempt.%'
+              AND event_type NOT LIKE 'flows.consensus.%'
           `
               yield* sql`
             DELETE FROM flows_journal_events
             WHERE run_id = ${runId} AND seq > ${frame.seq}
+              AND event_type NOT LIKE 'flows.run.%'
+              AND event_type NOT LIKE 'flows.attempt.%'
+              AND event_type NOT LIKE 'flows.consensus.%'
           `
               for (const childRunId of descendants.attachedRunIds) {
                 const count = yield* sql<{ readonly count: number }>`
               SELECT COUNT(*) AS count FROM flows_journal_events
               WHERE run_id = ${childRunId}
+                AND event_type NOT LIKE 'flows.run.%'
+                AND event_type NOT LIKE 'flows.attempt.%'
+                AND event_type NOT LIKE 'flows.consensus.%'
             `
                 archived += Number(count[0]!.count)
                 yield* sql`
               INSERT OR IGNORE INTO flows_time_travel_archive
               SELECT run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
-                     event_type, payload_json, meta_json, ${nowMs}
-              FROM flows_journal_events WHERE run_id = ${childRunId}
+                      event_type, payload_json, meta_json, ${nowMs}
+              FROM flows_journal_events
+              WHERE run_id = ${childRunId}
+                AND event_type NOT LIKE 'flows.run.%'
+                AND event_type NOT LIKE 'flows.attempt.%'
+                AND event_type NOT LIKE 'flows.consensus.%'
             `
-                yield* sql`DELETE FROM flows_journal_events WHERE run_id = ${childRunId}`
+                yield* sql`
+              DELETE FROM flows_journal_events
+              WHERE run_id = ${childRunId}
+                AND event_type NOT LIKE 'flows.run.%'
+                AND event_type NOT LIKE 'flows.attempt.%'
+                AND event_type NOT LIKE 'flows.consensus.%'
+            `
               }
               for (const edge of descendants.attached) {
                 yield* sql`DELETE FROM flows_time_travel_edges WHERE child_run_id = ${edge.childRunId}`
@@ -633,6 +655,9 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter |
                    event_type, payload_json, meta_json
             FROM flows_journal_events
             WHERE run_id = ${parentRunId} AND seq <= ${frame.seq}
+              AND event_type NOT LIKE 'flows.run.%'
+              AND event_type NOT LIKE 'flows.attempt.%'
+              AND event_type NOT LIKE 'flows.consensus.%'
           `
               /**
                * THE ATTEMPTS ARE FILTERED TO THE FRAME.

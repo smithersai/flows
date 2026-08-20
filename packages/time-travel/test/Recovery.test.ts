@@ -167,6 +167,50 @@ describe("Recovery", () => {
       ])
     }))
 
+  it.effect("treats materialization-only live suffix pages as already archived", () =>
+    Effect.gen(function*() {
+      const store = MemoryTimeTravelStore.make()
+      seed(store, audit("compensated"))
+      const runs = makeRuns()
+      const journal = Journal.makeNoop({
+        entries: (options) =>
+          Effect.succeed(
+            options.after === 0
+              ? {
+                entries: [{
+                  runId: "run" as JournalEvent.RunId,
+                  seq: 1 as JournalEvent.Seq,
+                  eventId: "fold-1",
+                  sourceId: "fold" as JournalEvent.SourceId,
+                  sourceSeq: 1 as JournalEvent.SourceSeq,
+                  emittedAtMs: 1,
+                  eventType: "flows.run.transitioned",
+                  payload: {},
+                  meta: {}
+                } as JournalEvent.Entry],
+                hasMore: true
+              }
+              : { entries: [], hasMore: false }
+          )
+      })
+      const outcomes = yield* Recovery.recover({ owner }).pipe(
+        Effect.provide(Layer.succeed(
+          TimeTravelStore,
+          TimeTravelStore.of({
+            ...store,
+            archivedAt: () => Effect.succeed(true)
+          })
+        )),
+        Effect.provide(Layer.succeed(RunStore.RunStore, runs)),
+        Effect.provide(Layer.succeed(Journal.Journal, journal)),
+        Effect.provide(Layer.succeed(Jj.Jj, Jj.makeNoop({ restore: () => Effect.void }))),
+        Effect.provide(Layer.succeed(EffectHandlerRegistry.EffectHandlerRegistry, EffectHandlerRegistry.makeNoop()))
+      )
+
+      expect(outcomes).toEqual([{ _tag: "Completed", auditId: "audit-compensated" }])
+      expect(runs.state()).toMatchObject({ status: "suspended", owner: null })
+    }))
+
   it.effect("restores jj and handler receipts when the archive transaction did not commit", () =>
     Effect.gen(function*() {
       const store = MemoryTimeTravelStore.make()

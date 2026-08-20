@@ -18,7 +18,7 @@ import { error, TimeTravelError, type TimeTravelError as TimeTravelFailure } fro
 import { type Audit, TimeTravelStore } from "../TimeTravelStore.ts"
 import * as Compensation from "./Compensation.ts"
 import type { EffectHandlerRegistry } from "./EffectHandlerRegistry.ts"
-import { AuditDetail } from "./Rewind.ts"
+import { AuditDetail, ownsReplayEntry } from "./Rewind.ts"
 
 /** Keeps recovery's administrative lease operations out of run history. */
 const unjournaled = <A, E>(
@@ -150,23 +150,26 @@ const archiveCommitted = (
     return Effect.succeed(true)
   }
   if (detail.suffixCount === 0) return Effect.succeed(false)
-  return journal.entries({
-    runId: audit.runId as JournalEvent.RunId,
-    after: audit.frame.seq as JournalEvent.Seq,
-    limit: 1
-  }).pipe(
-    Effect.mapError((cause) => error("unknown", `could not inspect archive commit for ${audit.id}`, cause)),
-    Effect.flatMap((page) => {
-      if (page.entries.length > 0) return Effect.succeed(false)
-      // An empty live suffix alone is not commit evidence: the suffix the
-      // audit recorded must actually be IN the archive. A journal missing
-      // rows on both sides is corruption, and recovery rolls it back rather
-      // than declaring an archive that never happened complete.
-      return detail.suffixTailSeq === undefined
-        ? Effect.succeed(false)
-        : store.archivedAt(audit.runId, detail.suffixTailSeq)
-    })
-  )
+  return Effect.gen(function*() {
+    let after = audit.frame.seq as JournalEvent.Seq
+    while (true) {
+      const page = yield* journal.entries({
+        runId: audit.runId as JournalEvent.RunId,
+        after,
+        limit: 100
+      }).pipe(
+        Effect.mapError((cause) => error("unknown", `could not inspect archive commit for ${audit.id}`, cause))
+      )
+      if (page.entries.some(ownsReplayEntry)) return false
+      if (!page.hasMore || page.entries.length === 0) break
+      after = page.entries.at(-1)!.seq
+    }
+    // An empty live suffix alone is not commit evidence: the suffix the audit
+    // recorded must actually be IN the archive. A journal missing rows on both
+    // sides is corruption, and recovery rolls it back rather than declaring an
+    // archive that never happened complete.
+    return detail.suffixTailSeq === undefined ? false : yield* store.archivedAt(audit.runId, detail.suffixTailSeq)
+  })
 }
 
 const toFailure = (cause: Cause.Cause<unknown>): TimeTravelFailure => {

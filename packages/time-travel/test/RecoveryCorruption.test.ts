@@ -17,10 +17,10 @@ import { TimeTravelStore } from "../src/TimeTravelStore.ts"
 const owner = { hostId: "recovery-corruption", pid: 0, nonce: "recovery-corruption" } as const
 
 const persistence = Layer.mergeAll(
-  SqlJournal.layer({ capacity: 32, overflow: "reject" }),
   RunStore.layer,
   SqlTimeTravelStore.layer
 ).pipe(
+  Layer.provideMerge(SqlJournal.layer({ capacity: 32, overflow: "reject" })),
   Layer.provideMerge(Layer.provideMerge(Migrations.layer, TestDatabase.layer))
 )
 

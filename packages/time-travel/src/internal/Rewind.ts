@@ -265,6 +265,7 @@ export const validate = (options: {
       let pageTail: JournalEvent.Seq | undefined
       for (const entry of page.entries) {
         if (pageTail === undefined || entry.seq > pageTail) pageTail = entry.seq
+        if (!ownsReplayEntry(entry)) continue
         if (tail === undefined || entry.seq > tail.seq) tail = entry
         if (entry.seq === options.frame.seq) {
           const lineage = lineageOf(entry)
@@ -326,7 +327,7 @@ const readSuffix = (
       }).pipe(
         Effect.mapError((cause) => error("unknown", `could not read suffix for ${runId}`, cause))
       )
-      entries.push(...page.entries)
+      entries.push(...page.entries.filter(ownsReplayEntry))
       if (!page.hasMore || page.entries.length === 0) return entries
       const next = page.entries.reduce((tail, entry) => entry.seq > tail ? entry.seq : tail, after)
       if (next <= after) {
@@ -354,6 +355,21 @@ const unjournaled = <A, E>(
   Effect.updateContext(
     effect,
     (context: Context.Context<Journal.Journal>) => Context.omit(Journal.Journal)(context)
+  )
+
+/**
+ * Time travel cuts replay history, not the run/attempt materialization or
+ * consensus namespaces that now share the same journal stream.
+ *
+ * @since 0.1.0
+ * @category predicates
+ */
+export const ownsReplayEntry = (entry: JournalEvent.Entry): boolean =>
+  typeof entry.eventType !== "string" ||
+  (
+    !entry.eventType.startsWith("flows.run.") &&
+    !entry.eventType.startsWith("flows.attempt.") &&
+    !entry.eventType.startsWith("flows.consensus.")
   )
 
 const claimRun = (
