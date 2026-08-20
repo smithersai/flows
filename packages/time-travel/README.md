@@ -30,16 +30,18 @@ the package `exports` map. Recovery is never a call: building `TimeTravel.layer`
 finishes or rolls back any rewind a crash interrupted.
 
 A rewind (and its crash recovery) fences the run through the ordinary
-`RunStore` ownership operations, but that fencing is administrative, not run
-history: it arbitrates through the consensus lease without appending
-`flows.consensus.*` ownership-transition events to the journal it is cutting
-(`docs/specs/Concepts/Journal Consensus.md`, rule R6). A rewind's own
-`claimed`/`activated` would land inside the very suffix it archives, its
-closing `released` would dangle past the restored frame, and recovery reads
-"no live entries after the frame" as archive-commit evidence. The audit row
-is the durable record of who drove a rewind. Ordinary drivers keep appending
-R6 events, and cancelling a detached child stays recorded in that child's
-journal — only the fencing on the run under the knife is silent.
+`RunStore` ownership operations, and that fencing is journaled: the run
+state fold makes a row write without its event impossible
+(`docs/specs/Concepts/Run State Fold.md`), so the surgery's own
+`claimed`/`activated` land inside the very suffix it archives — and are
+archived with it — and its post-restore transitions and closing `released`
+land past the restored frame and stay. Every consumer compensates by
+namespace, not suppression: replay excludes the `flows.run.*`,
+`flows.attempt.*`, and `flows.consensus.*` entries it does not own, and
+recovery's archive-commit evidence — "no live entries after the frame" —
+counts only entries replay owns. The audit row remains the durable record
+of who drove a rewind, and cancelling a detached child stays recorded in
+that child's surviving journal.
 
 ```ts
 import { TimeTravel } from "@smthrs/time-travel"

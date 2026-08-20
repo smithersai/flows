@@ -117,15 +117,21 @@ state — run state, attempt checkpoints, errors, outcomes — that is decoded
 and re-entered on resume, and redacting it would leave a run undrivable.
 Hygiene for values that must never persist stays the caller-schema
 `Redacted` rule, and export and display surfaces scrub at render time. And
-`compact` honors the fold's snapshot barrier: below-floor entries in
-`flows.run.*` and `flows.attempt.*` for a run are retained — by `compact`
-and by the automatic compaction policy driving it — until a
-`flows.run.snapshot` entry for that run exists at or after the checkpoint
-floor. `@smthrs/run-store` appends a run's snapshot set (the run snapshot
-plus one attempt snapshot per row) in a single transaction, so the run
-snapshot's presence certifies that every surviving row's folded state is
-captured. Without the barrier those namespaces simply do not compact;
-compaction never trades away rebuildability.
+`compact` honors the fold's snapshot barrier: when a run has below-floor
+entries in `flows.run.*` or `flows.attempt.*` and no `flows.run.snapshot`
+at or after the checkpoint floor, the call — manual or driven by the
+automatic compaction policy — refuses wholesale with a typed
+`reader_behind` and deletes nothing. Nothing is selectively retained: a
+partial truncation that skipped only the fold rows would advance the floor
+and hide them behind the read-side `compacted` guard. `@smthrs/run-store`'s
+`Fold` exports the snapshot operation that appends a run's snapshot set —
+one `flows.run.snapshot` first, then one attempt snapshot per row, in a
+single transaction, so a run snapshot at or after the floor certifies its
+attempt coverage — and the automatic `CompactionPolicy` carries a snapshot
+hook beside `capture` that the composing runtime wires to that operation:
+the policy checkpoints at the run's durable tail, runs the hook so the
+snapshot set sequences after the floor, then compacts. Compaction never
+trades away rebuildability.
 
 Fenced admission goes through the injected strategy.
 `emitDurable(input, owner)`, `checkpoint`, and `compact` keep their
