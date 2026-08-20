@@ -8,7 +8,7 @@
   "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
   "section": "post-bootstrap replay",
   "indexInSection": 15,
-  "sectionCount": 71
+  "sectionCount": 83
  },
  "source": {
   "commit": "54dbb67ebc163f1260555950da234400adb82220",
@@ -36,7 +36,7 @@
  },
  "atomic": {
   "globalIndex": 853,
-  "globalCount": 909,
+  "globalCount": 921,
   "purpose": "✅ test(e2e): script the chat double in the chain's own dialect",
   "merge": false
  },
@@ -55,7 +55,7 @@
   "next": "9ed473de0ce4393dd1d0ca7c61f484cdf5990014",
   "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
   "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
-  "sectionLast": "9f4db87e9b528812c207c1054f8c36a09a06c2c7"
+  "sectionLast": "6fe6857b28247375ab46b0d79cba15e74754ebd6"
  },
  "size": {
   "files": 1,
