@@ -119,7 +119,12 @@ export const admit = (state: State, notification: Notification, seq: number): Ad
   })
 }
 
-/** Applies the decision already committed in an admission journal event. */
+/**
+ * Applies the decision already committed in an admission journal event.
+ *
+ * @category operations
+ * @since 0.1.0
+ */
 export const applyAdmission = (
   state: State,
   notification: Notification,

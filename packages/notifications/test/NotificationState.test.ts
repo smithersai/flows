@@ -96,6 +96,35 @@ describe("NotificationState", () => {
     expect(rejected.state.items.map((item) => item.notification.id)).toEqual(["one", "two"])
   })
 
+  it("replays the recorded admission decision instead of recomputing capacity", () => {
+    const empty = NotificationState.empty(0)
+    const human = notification("human", "human-followup")
+    const admitted = NotificationState.applyAdmission(empty, human, 1, "admitted")
+    expect(admitted.items.map((item) => item.notification.id)).toEqual(["human"])
+    expect(NotificationState.applyAdmission(admitted, notification("rejected", "human-followup"), 2, "rejected-full"))
+      .toBe(admitted)
+
+    const unkeyed = NotificationState.applyAdmission(
+      admitted,
+      notification("unkeyed", "human-followup"),
+      2,
+      "coalesced"
+    )
+    const first = NotificationState.applyAdmission(
+      unkeyed,
+      notification("system-1", "system-event", "first", "progress"),
+      3,
+      "coalesced"
+    )
+    const replaced = NotificationState.applyAdmission(
+      first,
+      notification("system-2", "system-event", "second", "progress"),
+      4,
+      "coalesced"
+    )
+    expect(replaced.items.at(-1)).toMatchObject({ seq: 3, notification: { id: "system-2", payload: "second" } })
+  })
+
   it("removes durable promoted ids during replay", () => {
     let state = NotificationState.empty(3)
     state = NotificationState.admit(state, notification("one", "human-followup"), 1).state
