@@ -80,7 +80,12 @@ export class ModelDelta extends Schema.TaggedClass<ModelDelta>(
   delta: ModelEvent.ModelEvent
 }) {}
 
-/** A transport-only model retry taken before the sealed step settled. */
+/**
+ * A transport-only model retry taken before the sealed step settled.
+ *
+ * @category events
+ * @since 0.1.0
+ */
 export class ModelRetried extends Schema.TaggedClass<ModelRetried>(
   "flows/harness/AgentEvent/ModelRetried"
 )("model-retried", {
@@ -217,7 +222,12 @@ export class CompletionAudited extends Schema.TaggedClass<CompletionAudited>(
   detail: Schema.String
 }) {}
 
-/** The outcome of the frame immediately following a read-cap intervention. */
+/**
+ * The outcome of the frame immediately following a read-cap intervention.
+ *
+ * @category events
+ * @since 0.1.0
+ */
 export class ReadOnlyDemanded extends Schema.TaggedClass<ReadOnlyDemanded>(
   "flows/harness/AgentEvent/ReadOnlyDemanded"
 )("read-only-demanded", {

@@ -1002,15 +1002,17 @@ describe("CellTurn read-only cap", () => {
     })
   })
 
-  it.each([
-    ["read-only", `throw new Error("diagnostic failed")`, 2],
+  it.each(
     [
-      "write",
-      `await ctx.call("edit", { path: "a.py", text: "partial" })
+      ["read-only", `throw new Error("diagnostic failed")`, 2],
+      [
+        "write",
+        `await ctx.call("edit", { path: "a.py", text: "partial" })
        throw new Error("post-edit diagnostic failed")`,
-      3
-    ]
-  ] as const)("records a demanded frame that raises after a %s response", async (nextAction, response, calls) => {
+        3
+      ]
+    ] as const
+  )("records a demanded frame that raises after a %s response", async (nextAction, response, calls) => {
     const { events } = await run({
       state: capped(1, 3),
       flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] }), editor],
