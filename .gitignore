@@ -1,0 +1,85 @@
+node_modules/
+dist/
+/flows
+.smithers/
+.artifacts/
+*.log
+.DS_Store
+*.tsbuildinfo
+# packages/*/node_modules/
+packages/*/dist/
+packages/*/dist-chrome/
+packages/*/dist-firefox/
+packages/ai/src/providers/data/
+packages/ai/src/providers/.model-generation-*/
+*.cpuprofile
+
+# Environment
+.env
+
+# Editor files
+.vscode/
+.zed/
+.idea/
+.claude/
+*.swp
+*.swo
+*~
+
+# Package specific
+.pnpm-store/
+coverage/
+.nyc_output/
+.pi_config/
+tui-debug.log
+compaction-results/
+.opencode/
+syntax.jsonl
+out.jsonl
+pi-*.html
+out.html
+packages/coding-agent/binaries/
+todo.md
+plans/
+.pi/hf-sessions/
+.pi/hf-sessions-backup/
+collect.sh
+
+# Reference corpus — shallow clones read by agents, never committed.
+# Restore commands live in docs/specs/Research/Reference Corpus 2026-07-27.md
+reference/*
+!reference/electrobun-shell/
+
+# Cargo build output (crates/flows-jj and friends)
+/target
+
+# flows engine state (artifact CAS under .flows/objects, fork lanes under
+# .flows/forks) — derived and engine-owned. jj must not snapshot it: a restore
+# to a pre-publication change would delete CAS blobs live cache rows reference.
+.flows/
+
+# Smithers run store (ephemeral — never commit)
+smithers.db
+smithers.db-shm
+smithers.db-wal
+
+# Electrobun build output
+app/.electrobun/
+
+# agent review scratch
+REVIEW-*.md
+packages/*/REVIEW-*.md
+packages/*/.smithers/
+.smithers/bug-reports/
+.smithers/executions/
+.smithers/claude-mirror-subscriptions.json
+.smithers/logs/
+
+# Wrangler local dev-server state (miniflare sqlite, DO storage, traces)
+.wrangler/
+
+# Launch-checklist dry runs prove the runner, not the product: they touch no
+# origin, so they are never evidence and never belong in the tracked report
+# trail under apps/reports/launch-checklist/.
+apps/reports/launch-checklist/*-dry-run/
+.money-scratch/
