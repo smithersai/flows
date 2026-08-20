@@ -8,7 +8,7 @@
   "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
   "section": "post-bootstrap replay",
   "indexInSection": 30,
-  "sectionCount": 71
+  "sectionCount": 83
  },
  "source": {
   "commit": "a64add371ab6720e6133c395781340341f8a989a",
@@ -36,7 +36,7 @@
  },
  "atomic": {
   "globalIndex": 868,
-  "globalCount": 909,
+  "globalCount": 921,
   "purpose": "📝 docs(engine-store): promise the deferred/clock journal fold",
   "merge": false
  },
@@ -55,7 +55,7 @@
   "next": "d28d9e5cae9a0eda78ca58aefa289970de4ca149",
   "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
   "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
-  "sectionLast": "9f4db87e9b528812c207c1054f8c36a09a06c2c7"
+  "sectionLast": "6fe6857b28247375ab46b0d79cba15e74754ebd6"
  },
  "size": {
   "files": 1,
