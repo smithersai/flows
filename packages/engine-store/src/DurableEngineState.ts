@@ -707,10 +707,18 @@ const decodeClockRow = (input: unknown): Effect.Effect<ClockRow> =>
  * @category constructors
  * @slop
  */
-export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlClient> = Effect.gen(function*() {
+export const make: Effect.Effect<
+  Service,
+  never,
+  Journal | DurableWriter | SqlClient.SqlClient
+> = Effect.gen(function*() {
   const sql = yield* Effect.service(SqlClient.SqlClient)
   const writer = yield* DurableWriter
-  const journal = yield* Effect.serviceOption(Journal)
+  // The journal is a declared requirement, never an optional lookup:
+  // `park` and `wake` write fold-owned waiting columns, and a row write
+  // without its event is a hole in the fold contract
+  // (`docs/specs/Concepts/Run State Fold.md`).
+  const journal = yield* Journal
 
   // Engine-store-owned storage created outside the journal migration
   // (issues #40/#41/#79/#81). The statements, their rationale, and
@@ -751,18 +759,21 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
   const isJournalFenceLost = (cause: unknown): cause is JournalError =>
     Schema.is(JournalError)(cause) && cause.code === "fence_lost"
 
+  /**
+   * Runs a waiting-column write and the `flows.run.transitioned` append
+   * describing it inside ONE write transaction (`Journal.transact`). A
+   * `fence_lost` raised by a fenced `park`'s append reports the same
+   * outcome the row-level owner fence does; any other refused append fails
+   * the row write with it (`docs/specs/Concepts/Run State Fold.md`).
+   */
   const writeRunFold = <A extends ParkOutcome | WakeOutcome, E, R>(
     effect: Effect.Effect<A, E, R>,
     fenceLost: A
-  ): Effect.Effect<A, never, R> => {
-    const transacted: Effect.Effect<A, E | JournalError, R> = Option.isSome(journal)
-      ? journal.value.transact(effect)
-      : writer.write(effect)
-    return transacted.pipe(
+  ): Effect.Effect<A, never, R> =>
+    journal.transact(effect).pipe(
       Effect.catchIf(isJournalFenceLost, () => Effect.succeed(fenceLost)),
       Effect.orDie
     )
-  }
 
   const recordWaitingEvent = (
     runId: string,
@@ -770,9 +781,9 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
     waiting: WaitingRow | null,
     owner?: OwnerId | undefined
   ): Effect.Effect<void, unknown> =>
-    Option.isNone(journal) ? Effect.void : Effect.gen(function*() {
+    Effect.gen(function*() {
       const atMs = yield* Clock.currentTimeMillis
-      yield* journal.value.emitDurable(
+      yield* journal.emitDurable(
         new JournalEvent.Input({
           runId: runId as JournalEvent.RunId,
           sourceId: "flows/engine-store/waiting" as JournalEvent.SourceId,
@@ -1417,14 +1428,23 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
 /**
  * Provides database-backed durable engine state.
  *
+ * Requires `Journal` in context, exactly as the `RunStore` and
+ * `AttemptStore` SQL layers do: `park` and `wake` are fold writes — they
+ * append `flows.run.transitioned` with the waiting payload in the same
+ * transaction as the column update — and the requirement is declared in the
+ * layer type so a composition that would silently skip the append does not
+ * typecheck (`docs/specs/Concepts/Run State Fold.md`). The in-memory
+ * {@link layerMemory} composes without a journal.
+ *
  * @since 0.1.0
  * @category layers
  * @slop
  */
-export const layer: Layer.Layer<DurableEngineState, never, DurableWriter | SqlClient.SqlClient> = Layer.effect(
-  DurableEngineState,
-  make
-)
+export const layer: Layer.Layer<DurableEngineState, never, Journal | DurableWriter | SqlClient.SqlClient> = Layer
+  .effect(
+    DurableEngineState,
+    make
+  )
 
 /**
  * A run's ownership view as the in-memory implementation needs it for the

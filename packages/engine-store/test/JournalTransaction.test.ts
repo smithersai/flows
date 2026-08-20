@@ -45,8 +45,8 @@ const input = (
 
 const migratedDatabase = Layer.provideMerge(Migrations.layer, TestDatabase.layer)
 
-const stack = SqlJournal.layer({ capacity: 8, overflow: "reject" }).pipe(
-  Layer.merge(RunStore.layer),
+const stack = RunStore.layer.pipe(
+  Layer.provideMerge(SqlJournal.layer({ capacity: 8, overflow: "reject" })),
   Layer.provideMerge(migratedDatabase)
 )
 
@@ -83,7 +83,7 @@ describe("Journal.transact across the journal and run stores", () => {
         const row = yield* runs.get(run)
         const rows = yield* rowsOf(sql, run)
         expect(row.status).toBe("pending")
-        expect(rows.map((entry) => entry.event_type)).toEqual(["flows.engine.run-decision"])
+        expect(rows.map((entry) => entry.event_type)).toEqual(["flows.run.created", "flows.engine.run-decision"])
       }))
   )
 
@@ -155,8 +155,10 @@ describe("Journal.transact across the journal and run stores", () => {
         const rows = yield* rowsOf(sql, run)
         expect(row.status).toBe("running")
         expect(rows.map((entry) => entry.event_type)).toEqual([
+          "flows.run.created",
           "flows.consensus.claimed",
-          "flows.consensus.activated"
+          "flows.consensus.activated",
+          "flows.run.transitioned"
         ])
       }))
   )

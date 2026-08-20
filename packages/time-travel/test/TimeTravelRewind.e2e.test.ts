@@ -21,7 +21,18 @@ interface JournalRow {
 }
 
 const tailOf = (rows: ReadonlyArray<JournalRow>, runId: string): number =>
-  rows.filter((row) => row.run_id === runId).at(-1)!.seq
+  rows.filter((row) => row.run_id === runId && ownsReplayRow(row)).at(-1)!.seq
+
+const ownsReplayRow = (row: JournalRow): boolean =>
+  !row.event_type.startsWith("flows.run.") &&
+  !row.event_type.startsWith("flows.attempt.") &&
+  !row.event_type.startsWith("flows.consensus.")
+
+const replayAfter = (rows: ReadonlyArray<JournalRow>, runId: string, seq: number): number =>
+  rows.filter((row) => row.run_id === runId && row.seq > seq && ownsReplayRow(row)).length
+
+const replayCount = (rows: ReadonlyArray<JournalRow>, runId: string): number =>
+  rows.filter((row) => row.run_id === runId && ownsReplayRow(row)).length
 
 describe.skipIf(!jjInstalled)("real file-backed rewind", () => {
   // The finite budget covers real engine execution, jj child processes, and two complete SQLite/service lifetimes.
@@ -50,7 +61,8 @@ describe.skipIf(!jjInstalled)("real file-backed rewind", () => {
               ORDER BY run_id, seq
             `
                 const tailSeq = tailOf(initialRows, "tail-run")
-                const zeroTailSeq = tailOf(initialRows, "zero-run")
+                const tailReplayCount = replayCount(initialRows, "tail-run")
+                const zeroReplayAfterFrame = replayAfter(initialRows, "zero-run", 0)
                 const timeTravel = yield* TimeTravel
                 const beforeTail = yield* Effect.promise(() => readFile(note, "utf8"))
                 const tail = yield* timeTravel.rewind({
@@ -63,12 +75,12 @@ describe.skipIf(!jjInstalled)("real file-backed rewind", () => {
                   frame: { lineageId: "zero-run/root", seq: 0 }
                 })
                 const afterZero = yield* Effect.promise(() => readFile(note, "utf8"))
-                return { afterTail, afterZero, beforeTail, tail, tailSeq, zero, zeroTailSeq }
+                return { afterTail, afterZero, beforeTail, tail, tailReplayCount, tailSeq, zero, zeroReplayAfterFrame }
               })
             )
 
             expect(first.tail.archive.archived).toBe(0)
-            expect(first.zero.archive.archived).toBe(first.zeroTailSeq)
+            expect(first.zero.archive.archived).toBe(first.zeroReplayAfterFrame)
             expect(first.beforeTail).toBe("parent-stable\n")
             expect(first.afterTail).toBe("parent-stable\n")
             expect(first.afterZero).toBe("parent-stable\n")
@@ -85,6 +97,9 @@ describe.skipIf(!jjInstalled)("real file-backed rewind", () => {
               SELECT run_id, COUNT(*) AS count, MAX(seq) AS maximum
               FROM flows_journal_events
               WHERE run_id IN ('tail-run', 'zero-run')
+                AND event_type NOT LIKE 'flows.run.%'
+                AND event_type NOT LIKE 'flows.attempt.%'
+                AND event_type NOT LIKE 'flows.consensus.%'
               GROUP BY run_id ORDER BY run_id
             `
                 const archive = yield* sql<{ readonly count: number; readonly run_id: string }>`
@@ -114,10 +129,9 @@ describe.skipIf(!jjInstalled)("real file-backed rewind", () => {
             )
 
             expect(reopened.journal).toEqual([
-              { run_id: "tail-run", count: first.tailSeq + 1, maximum: first.tailSeq },
-              { run_id: "zero-run", count: 1, maximum: 0 }
+              { run_id: "tail-run", count: first.tailReplayCount, maximum: first.tailSeq }
             ])
-            expect(reopened.archive).toEqual([{ run_id: "zero-run", count: first.zeroTailSeq }])
+            expect(reopened.archive).toEqual([{ run_id: "zero-run", count: first.zeroReplayAfterFrame }])
             expect(reopened.audits).toEqual([
               { run_id: "tail-run", status: "completed" },
               { run_id: "zero-run", status: "completed" }

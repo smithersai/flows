@@ -1,10 +1,12 @@
 import { describe, expect, it } from "@effect/vitest"
+import { DurableWriter } from "@smthrs/database/DurableWriter"
 import { Journal } from "@smthrs/journal/Journal"
 import type * as JournalEvent from "@smthrs/journal/JournalEvent"
 import * as SqlJournal from "@smthrs/journal/SqlJournal"
 import * as Fold from "@smthrs/run-store/Fold"
 import type { OwnerId } from "@smthrs/run-store/Ownership"
-import { type RunRow, type RunSnapshot, RunStore } from "@smthrs/run-store/RunStore"
+import * as RunStore from "@smthrs/run-store/RunStore"
+import type { RunRow, RunSnapshot } from "@smthrs/run-store/RunStore"
 import { Effect, Layer } from "effect"
 import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
@@ -22,13 +24,19 @@ interface WaitingMaterialization {
 }
 
 const stack = Layer.mergeAll(
-  SqlJournal.layer({ capacity: 64, overflow: "reject" }),
   RunStore.layer,
   DurableEngineState.layer
-).pipe(Layer.provide(TestStores.database))
+).pipe(
+  Layer.provideMerge(SqlJournal.layer({ capacity: 64, overflow: "reject" })),
+  Layer.provideMerge(TestStores.database)
+)
 
 const withStack = <A, E>(
-  body: Effect.Effect<A, E, Journal | RunStore | DurableEngineState.DurableEngineState | SqlClient.SqlClient>
+  body: Effect.Effect<
+    A,
+    E,
+    DurableWriter | Journal | RunStore.RunStore | DurableEngineState.DurableEngineState | SqlClient.SqlClient
+  >
 ) => body.pipe(Effect.provide(stack), Effect.provide(TestClock.layer()), Effect.scoped)
 
 const snapshot = (row: RunRow): RunSnapshot => ({
@@ -56,9 +64,10 @@ const entriesFor = (runIds: ReadonlyArray<string>) =>
   Effect.gen(function*() {
     const journal = yield* Journal
     const pages = yield* Effect.forEach(runIds, (runId) =>
-      journal.entries({ runId: runId as JournalEvent.RunId, limit: 50 })
-    )
-    return pages.flatMap((page) => page.entries).filter((entry) =>
+      journal.entries({ runId: runId as JournalEvent.RunId, limit: 50 }))
+    return pages.flatMap((page) =>
+      page.entries
+    ).filter((entry) =>
       entry.eventType.startsWith("flows.run.") ||
       entry.eventType.startsWith("flows.consensus.")
     )
@@ -79,7 +88,7 @@ const foldWaiting = (state: Fold.State) =>
 describe("run state fold waiting materialization", () => {
   it.effect("rebuilds parked and woken waiting columns from journal transition events", () =>
     withStack(Effect.gen(function*() {
-      const runs = yield* RunStore
+      const runs = yield* RunStore.RunStore
       const state = yield* DurableEngineState.DurableEngineState
 
       yield* runs.create("waiting-parked", "{}")

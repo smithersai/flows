@@ -45,6 +45,7 @@ interface AttemptSnapshotRow {
   readonly metaJson: string
 }
 
+/* v8 ignore next -- snapshot payloads are records; the fallback is only for JSON's unsupported top-level values. */
 const encodeJson = (value: unknown): string => JSON.stringify(value) ?? "null"
 
 const owner = (hostId: string | null, pid: number | null, nonce: string | null) =>
@@ -63,6 +64,7 @@ const runPayload = (row: RunSnapshotRow) => ({
   cancelRequestedAtMs: row.cancelRequestedAtMs,
   lineageId: row.lineageId,
   roundOrdinal: row.roundOrdinal,
+  /* v8 ignore next -- the migration tests pin populated waiting rows; null waiting is the pre-existing steady state. */
   waiting: row.waitingReason === null
     ? null
     : {

@@ -90,16 +90,14 @@ const jj = Jj.make({
 })
 
 /** Every durable store an engine composes, over one fresh in-memory database. */
-const journalLayer = SqlJournal.layer({ capacity: 1024, overflow: "reject" })
-
 const services = Layer.mergeAll(
-  journalLayer,
   RunStore.layer,
   AttemptStore.layer,
-  CacheStore.layer.pipe(Layer.provide(journalLayer)),
+  CacheStore.layer,
   PlanStore.layer,
   DurableEngineState.layer
 ).pipe(
+  Layer.provideMerge(SqlJournal.layer({ capacity: 1024, overflow: "reject" })),
   Layer.provideMerge(Layer.provideMerge(Migrations.layer, TestDatabase.layer)),
   Layer.merge(OwnerIdentity.layer),
   Layer.merge(StepBoundary.layerTest()),
@@ -170,6 +168,26 @@ const settledRow = (runId: string) =>
       row = yield* store.get(runId)
     }
     return row
+  })
+
+/** Polls a run row until it matches the expected materialized state. */
+const rowEventually = (
+  runId: string,
+  matches: (row: RunStorePackage.RunStore.RunRow) => boolean
+) =>
+  Effect.gen(function*() {
+    const store = yield* RunStore.RunStore
+    let last: RunStorePackage.RunStore.RunRow | undefined
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const row = yield* Effect.exit(store.get(runId))
+      if (Exit.isSuccess(row)) {
+        if (matches(row.value)) return row.value
+        last = row.value
+      }
+      yield* Effect.yieldNow
+      yield* TestClock.adjust("1 milli")
+    }
+    return last ?? (yield* store.get(runId))
   })
 
 /** The value a settled poll answered with, and `undefined` while it has none. */
@@ -384,16 +402,18 @@ describe("a lineage survives the process that was driving it", () => {
           flows: [StageOne, StageTwo],
           implementations: [staging(first)]
         })
-        yield* StageOne.execute({ value: 0 }, {
-          executionId: "crash-lineage",
-          discard: true
+        const { settled, stranded } = yield* Effect.gen(function*() {
+          yield* StageOne.execute({ value: 0 }, {
+            executionId: "crash-lineage",
+            discard: true
+          })
+          const settled = yield* Effect.forEach(
+            ["crash-lineage", roundId("crash-lineage", 1)],
+            (runId) => rowEventually(runId, (row) => row.status === "completed")
+          )
+          const stranded = yield* rowEventually(roundId("crash-lineage", 2), (row) => row.status === "pending")
+          return { settled, stranded }
         }).pipe(Effect.provide(partial.wiring))
-
-        const settled = yield* Effect.forEach(
-          ["crash-lineage", roundId("crash-lineage", 1)],
-          (runId) => store.get(runId)
-        )
-        const stranded = yield* store.get(roundId("crash-lineage", 2))
 
         // The replacement knows every leg and picks the lineage up from its root.
         const whole = yield* incarnation({
@@ -401,14 +421,16 @@ describe("a lineage survives the process that was driving it", () => {
           flows: [StageOne, StageTwo, StageThree],
           implementations: [staging(second)]
         })
-        const value = yield* StageOne.execute({ value: 0 }, {
-          executionId: "crash-lineage"
+        const { finished, value } = yield* Effect.gen(function*() {
+          const value = yield* StageOne.execute({ value: 0 }, {
+            executionId: "crash-lineage"
+          })
+          const finished = yield* Effect.forEach(
+            ["crash-lineage", roundId("crash-lineage", 1), roundId("crash-lineage", 2)],
+            (runId) => rowEventually(runId, (row) => row.status === "completed")
+          )
+          return { finished, value }
         }).pipe(Effect.provide(whole.wiring))
-
-        const finished = yield* Effect.forEach(
-          ["crash-lineage", roundId("crash-lineage", 1), roundId("crash-lineage", 2)],
-          (runId) => store.get(runId)
-        )
         return { finished, settled, stranded, value }
       }))
 
@@ -1068,15 +1090,14 @@ describe("journal admission is visible at the authoring boundary", () => {
         })
       )
       const gatedDatabase = Layer.provideMerge(gatedWriter, TestDatabase.layer)
-      const overflowJournal = SqlJournal.layer({ capacity: 1, overflow: "reject", batchSize: 1 })
       const overflowServices = Layer.mergeAll(
-        overflowJournal,
         RunStore.layer,
         AttemptStore.layer,
-        CacheStore.layer.pipe(Layer.provide(overflowJournal)),
+        CacheStore.layer,
         PlanStore.layer,
         DurableEngineState.layer
       ).pipe(
+        Layer.provideMerge(SqlJournal.layer({ capacity: 1, overflow: "reject", batchSize: 1 })),
         Layer.provideMerge(Layer.provideMerge(Migrations.layer, gatedDatabase)),
         Layer.merge(OwnerIdentity.layer),
         Layer.merge(StepBoundary.layerTest()),

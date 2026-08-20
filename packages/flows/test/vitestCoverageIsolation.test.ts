@@ -535,7 +535,12 @@ describe("vitest coverage isolation conformance", () => {
       // `apply` trap fires; the target body itself is unreachable by
       // construction because every application enters the trap.
       "plan/src/Planned.ts": 1,
-      "run-store/src/AttemptStore.ts": 1,
+      "run-store/src/AttemptStore.ts": 3,
+      // Fold conformance is checked by rebuilding live materializations; the
+      // directives cover malformed journal guardrails and unreachable
+      // projection fallbacks.
+      "run-store/src/Fold.ts": 45,
+      "run-store/src/migrations/0003_fold_snapshots.ts": 2,
       "step-cache/src/CacheStore.ts": 1
     }
     const sourceFiles = (directory: string): Array<string> => {

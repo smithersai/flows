@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@effect/vitest"
 import { DurableWriter } from "@smthrs/database"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import * as SqlJournal from "@smthrs/journal/SqlJournal"
 import { type Ownership } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -23,6 +24,9 @@ const otherOwner: Ownership.OwnerId = {
 }
 
 const migratedDatabase = Layer.provideMerge(Migrations.layer, TestDatabase.layer)
+const journalDatabase = SqlJournal.layer({ capacity: 1024, overflow: "reject" }).pipe(
+  Layer.provideMerge(migratedDatabase)
+)
 
 const insertRunningRun = (runId: string, forOwner: Ownership.OwnerId = owner) =>
   Effect.gen(function*() {
@@ -48,6 +52,23 @@ const insertRunningRun = (runId: string, forOwner: Ownership.OwnerId = owner) =>
         '{}'
       )
     `
+    yield* sql`
+      INSERT INTO flows_consensus_leases (
+        run_id,
+        owner_host_id,
+        owner_pid,
+        owner_nonce,
+        granted_at_ms,
+        heartbeat_at_ms
+      ) VALUES (
+        ${runId},
+        ${forOwner.hostId},
+        ${forOwner.pid},
+        ${forOwner.nonce},
+        0,
+        0
+      )
+    `
   })
 
 describe("waiting-reason taxonomy", () => {
@@ -71,7 +92,7 @@ describe("waiting-reason taxonomy", () => {
             const afterWake = yield* restarted.waiting(runId)
 
             return { parked, afterRestart, woken, afterWake }
-          }).pipe(Effect.provide(migratedDatabase))
+          }).pipe(Effect.provide(journalDatabase))
         )
 
         expect(result.parked).toEqual({
@@ -104,7 +125,7 @@ describe("waiting-reason taxonomy", () => {
             waitingRuns: yield* state.waitingRuns(),
             woken: yield* state.wake(runId)
           }
-        }).pipe(Effect.provide(migratedDatabase))
+        }).pipe(Effect.provide(journalDatabase))
       )
 
       expect(Option.isNone(result.waiting)).toBe(true)
@@ -122,11 +143,34 @@ describe("waiting-reason taxonomy", () => {
           const attempt = yield* state.park(runId, { reason: "approval" }, otherOwner)
           const afterAttempt = yield* state.waiting(runId)
           return { attempt, afterAttempt }
-        }).pipe(Effect.provide(migratedDatabase))
+        }).pipe(Effect.provide(journalDatabase))
       )
 
       expect(result.attempt).toEqual({ _tag: "NotFound" })
       expect(Option.isNone(result.afterAttempt)).toBe(true)
+    }))
+
+  it.effect("rolls back a park when the journal fence is lost after the row fence passes", () =>
+    Effect.gen(function*() {
+      const result = yield* withCrypto(
+        Effect.gen(function*() {
+          const runId = "journal-fenced"
+          yield* insertRunningRun(runId, owner)
+          const sql = yield* Effect.service(SqlClient.SqlClient)
+          yield* sql`
+            UPDATE flows_consensus_leases
+            SET owner_nonce = 'stale-owner'
+            WHERE run_id = ${runId}
+          `
+          const state = yield* DurableEngineState.make
+          const parked = yield* state.park(runId, { reason: "approval" }, owner)
+          const waiting = yield* state.waiting(runId)
+          return { parked, waiting }
+        }).pipe(Effect.provide(journalDatabase))
+      )
+
+      expect(result.parked).toEqual({ _tag: "NotFound" })
+      expect(Option.isNone(result.waiting)).toBe(true)
     }))
 
   it.effect("reports NotFound when waking a run that does not exist", () =>
@@ -134,7 +178,7 @@ describe("waiting-reason taxonomy", () => {
       const result = yield* withCrypto(
         DurableEngineState.make.pipe(
           Effect.flatMap((state) => state.wake("does-not-exist")),
-          Effect.provide(migratedDatabase)
+          Effect.provide(journalDatabase)
         )
       )
 
@@ -150,7 +194,7 @@ describe("waiting-reason taxonomy", () => {
           const state = yield* DurableEngineState.make
           yield* state.park(runId, { reason: "event" }, owner)
           return Option.getOrThrow(yield* state.waiting(runId))
-        }).pipe(Effect.provide(migratedDatabase))
+        }).pipe(Effect.provide(journalDatabase))
       )
 
       expect(result).toEqual({ runId: "event-no-wake-at", reason: "event", wakeAt: null, token: null })
@@ -176,7 +220,7 @@ describe("waiting-reason taxonomy", () => {
             allQuotaRuns: yield* state.waitingRuns({ reason: "quota" }),
             allWaiting: yield* state.waitingRuns()
           }
-        }).pipe(Effect.provide(migratedDatabase))
+        }).pipe(Effect.provide(journalDatabase))
       )
 
       expect(result.dueQuotaRuns).toEqual([

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "@effect/vitest"
 import { DurableWriter } from "@smthrs/database"
+import * as DatabaseMigrations from "@smthrs/database/Migrations"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import { Journal, makeNoop as makeNoopJournal } from "@smthrs/journal/Journal"
+import * as JournalMigrations from "@smthrs/journal/Migrations"
+import * as SqlJournal from "@smthrs/journal/SqlJournal"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
@@ -10,6 +14,13 @@ import { AttemptStore } from "../src/AttemptStore.ts"
 import * as AttemptStoreLive from "../src/AttemptStore.ts"
 import * as Migrations from "../src/Migrations.ts"
 
+const migrationsLayer = Layer.effectDiscard(DatabaseMigrations.run([JournalMigrations.set, Migrations.set]))
+const databaseLayer = Layer.provideMerge(migrationsLayer, TestDatabase.layer)
+const storeLayer = AttemptStoreLive.layer.pipe(
+  Layer.provideMerge(SqlJournal.layer({ capacity: 1024, overflow: "reject" })),
+  Layer.provideMerge(databaseLayer)
+)
+
 const run = <A, E>(effect: Effect.Effect<A, E, never>) => effect
 
 const migrated = <A, E>(
@@ -17,9 +28,7 @@ const migrated = <A, E>(
 ) =>
   run(
     effect.pipe(
-      Effect.provide(AttemptStoreLive.layer),
-      Effect.provide(Migrations.layer),
-      Effect.provide(TestDatabase.layer)
+      Effect.provide(storeLayer)
     )
   )
 
@@ -48,6 +57,11 @@ const createRun = (runId = "run-1") =>
       INSERT INTO flows_runs (
         run_id, status, created_at_ms, owner_host_id, owner_pid, owner_nonce, heartbeat_at_ms, state_json
       ) VALUES (${runId}, 'running', 1, ${owner.hostId}, ${owner.pid}, ${owner.nonce}, 1, '{}')
+    `
+    yield* sql`
+      INSERT INTO flows_consensus_leases (
+        run_id, owner_host_id, owner_pid, owner_nonce, granted_at_ms, heartbeat_at_ms
+      ) VALUES (${runId}, ${owner.hostId}, ${owner.pid}, ${owner.nonce}, 1, 1)
     `
   })
 
@@ -653,6 +667,7 @@ describe("AttemptStore", () => {
               )).code
             }).pipe(
               Effect.provide(AttemptStoreLive.layer),
+              Effect.provideService(Journal, makeNoopJournal()),
               Effect.provide(failingDatabase(cause))
             )
         )

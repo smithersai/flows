@@ -2,7 +2,9 @@ import { describe, expect, it } from "@effect/vitest"
 import { DurableWriter } from "@smthrs/database"
 import * as DatabaseMigrations from "@smthrs/database/Migrations"
 import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
+import { Journal } from "@smthrs/journal/Journal"
 import * as JournalMigrations from "@smthrs/journal/Migrations"
+import * as SqlJournal from "@smthrs/journal/SqlJournal"
 import { Effect, Exit, Layer, Option } from "effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { mkdtemp, rm } from "node:fs/promises"
@@ -21,6 +23,17 @@ const withDatabase = <A, E>(
   filename: string,
   effect: Effect.Effect<A, E, SqlClient.SqlClient | DurableWriter.DurableWriter>
 ) => Effect.scoped(effect.pipe(Effect.provide(database(filename))))
+
+const withJournalDatabase = <A, E>(
+  filename: string,
+  effect: Effect.Effect<A, E, Journal | SqlClient.SqlClient | DurableWriter.DurableWriter>
+) =>
+  Effect.scoped(
+    effect.pipe(
+      Effect.provide(SqlJournal.layer({ capacity: 1024, overflow: "reject" })),
+      Effect.provide(database(filename))
+    )
+  )
 
 const initialSet: DatabaseMigrations.MigrationSet = {
   namespace: Migrations.set.namespace,
@@ -96,10 +109,14 @@ describe("run-store durable migration upgrade", () => {
           expect(beforeUpgrade.columns.map((column) => column.name)).not.toContain("lineage_id")
           expect(beforeUpgrade.applied.map((row) => row.migration_id)).toEqual([1001])
 
-          const upgraded = yield* withDatabase(
+          const applied = yield* withDatabase(
+            filename,
+            DatabaseMigrations.run([JournalMigrations.set, Migrations.set])
+          )
+
+          const upgraded = yield* withJournalDatabase(
             filename,
             Effect.gen(function*() {
-              const applied = yield* Migrations.run
               const sql = yield* Effect.service(SqlClient.SqlClient)
               const runs = yield* RunStore.make
               const attempts = yield* AttemptStore.make
@@ -154,7 +171,13 @@ describe("run-store durable migration upgrade", () => {
             })
           )
 
-          expect(upgraded.applied).toEqual([[1002, "run-store_lineage"], [1003, "run-store_fold_snapshots"]])
+          expect(upgraded.applied).toEqual([
+            [1, "journal_initial"],
+            [2, "journal_checkpoints"],
+            [3, "journal_consensus"],
+            [1002, "run-store_lineage"],
+            [1003, "run-store_fold_snapshots"]
+          ])
           expect(upgraded.columns.map((column) => column.name)).toEqual(expect.arrayContaining([
             "lineage_id",
             "round_ordinal"
@@ -224,7 +247,7 @@ describe("run-store durable migration upgrade", () => {
             })
           )
 
-          const rebuilt = yield* withDatabase(
+          const rebuilt = yield* withJournalDatabase(
             filename,
             Effect.gen(function*() {
               const applied = yield* DatabaseMigrations.run([JournalMigrations.set, Migrations.set])
@@ -247,7 +270,9 @@ describe("run-store durable migration upgrade", () => {
           )
 
           expect(rebuilt.applied).toEqual([[1003, "run-store_fold_snapshots"]])
-          expect(rebuilt.events.map((row) => row.eventType)).toEqual([
+          expect(rebuilt.events.map((row) =>
+            row.eventType
+          )).toEqual([
             "flows.run.snapshot",
             "flows.attempt.snapshot"
           ])
