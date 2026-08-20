@@ -64,7 +64,13 @@ export const createFailureController = (ctx: ControllerContext): FailureControll
 		if (ctx.toastRuns.get(key) !== run) return outcome;
 		// Resolve whatever is on screen for this key — including a toast an
 		// earlier (slower) run put up, or a failed one this run just retried.
-		if (!shown && ctx.store.collections.toasts.get(`toast-${key}`) === undefined) return outcome;
+		if (!shown && ctx.store.collections.toasts.get(`toast-${key}`) === undefined) {
+			// Settled with nothing ever shown: the run slot is terminal, so the
+			// counter entry leaves with it (the map otherwise grows one entry per
+			// flow key and never lets go).
+			ctx.toastRuns.delete(key);
+			return outcome;
+		}
 		// A string outcome is the honest failure line; anything else is success
 		// (true, or a value the caller consumes — e.g. the browser tool's read).
 		const ok = typeof outcome !== "string";
@@ -83,8 +89,18 @@ export const createFailureController = (ctx: ControllerContext): FailureControll
 			const dismiss = setTimeout(() => {
 				if (ctx.toastRuns.get(key) !== run) return;
 				ctx.store.dispatch({ type: "toast.dismissed", actor: "system", id: `toast-${key}` });
+				// The auto-dismiss is the slot's terminal act: the counter entry
+				// leaves once nothing stale can claim it. A newer run owns the key
+				// by then, and the equality guard above already returned for it.
+				ctx.toastRuns.delete(key);
 			}, ctx.toastAutoDismissMs);
 			ctx.unref(dismiss);
+		} else {
+			// A failure toast stays until dismissed, but the run that produced it
+			// is over — its counter entry is terminal and leaves now. The toast
+			// itself is keyed `toast-${key}` in the collection, so a later run of
+			// the same flow still resolves it through the line above.
+			ctx.toastRuns.delete(key);
 		}
 		return outcome;
 	};
