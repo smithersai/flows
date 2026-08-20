@@ -28,8 +28,8 @@
  *
  * @since 0.1.0
  */
-import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
 import * as Cause from "effect/Cause"
+import * as Crypto from "effect/Crypto"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -47,6 +47,17 @@ import { FlowBinding } from "../../packages/harness/src/index.ts"
 import { Model, ModelEvent, type ModelRequest, type Route } from "../../packages/model/src/index.ts"
 import { Node } from "../../packages/plan/src/index.ts"
 import { Registry } from "../../packages/registry/src/index.ts"
+
+const hostCrypto = Layer.succeed(
+  Crypto.Crypto,
+  Crypto.make({
+    randomBytes: (size) => globalThis.crypto.getRandomValues(new Uint8Array(size)),
+    digest: (algorithm, data) =>
+      Effect.promise(() => globalThis.crypto.subtle.digest(algorithm, data.slice().buffer)).pipe(
+        Effect.map((buffer) => new Uint8Array(buffer))
+      )
+  })
+)
 
 /**
  * What one scenario run reports, and the only thing the scorers read.
@@ -387,7 +398,7 @@ export const runAction = (options: ActionOptions): Effect.Effect<Observation> =>
         Layer.provideMerge(Layer.merge(Agent.layer, Agent.layerDefaults)),
         Layer.provideMerge(Action.layerImplementations),
         Layer.provideMerge(FlowEngine.layerMemory),
-        Layer.provideMerge(NodeCrypto.layer)
+        Layer.provideMerge(hostCrypto)
       )
     ),
     Effect.exit,
@@ -482,7 +493,7 @@ export const runAgent = (options: AgentOptions): Effect.Effect<Observation> =>
     const exit = yield* Deferred.await(settled)
     return observe(exit, options.recorder)
   }).pipe(
-    Effect.provide(Layer.merge(FlowEngine.layerMemory, NodeCrypto.layer)),
+    Effect.provide(Layer.merge(FlowEngine.layerMemory, hostCrypto)),
     Effect.scoped,
     Effect.orDie
   )
