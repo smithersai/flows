@@ -5,6 +5,21 @@ import type { BootSession } from "./BootSession";
 import { unavailableBootSession } from "./BootSession";
 
 const AUTH_FAILED_COOKIE = "smithers_auth_failed";
+const START_SESSION_HEADER = "x-smithers-start-session";
+
+export const decodeStartSessionHandoff = (envelope: string): Response => {
+	const parsed = JSON.parse(decodeURIComponent(envelope)) as { status?: unknown; body?: unknown };
+	if (
+		typeof parsed.status !== "number" ||
+		!Number.isInteger(parsed.status) ||
+		parsed.status < 200 ||
+		parsed.status > 599 ||
+		typeof parsed.body !== "string"
+	) {
+		throw new TypeError("Invalid Start session handoff.");
+	}
+	return new Response(parsed.body, { status: parsed.status });
+};
 
 const normalizeSession = async (response: Response, authFailed: boolean): Promise<BootSession> => {
 	if (response.status === 401 || response.status === 403) {
@@ -41,6 +56,14 @@ const fallbackSessionRequest = (request: Request): Promise<Response> => {
 	return fetch(url, { headers });
 };
 
+export const sessionResponseForRequest = async (
+	request: Request,
+	fallback: (request: Request) => Promise<Response> = fallbackSessionRequest,
+): Promise<Response> => {
+	const envelope = request.headers.get(START_SESSION_HEADER);
+	return envelope === null ? fallback(request) : decodeStartSessionHandoff(envelope);
+};
+
 const resolveCurrentRequest = async (): Promise<BootSession> => {
 	const request = getRequest();
 	const url = new URL(request.url);
@@ -59,7 +82,7 @@ const resolveCurrentRequest = async (): Promise<BootSession> => {
 	const authFailed = getCookie(AUTH_FAILED_COOKIE) === "1";
 	if (authFailed) deleteCookie(AUTH_FAILED_COOKIE, { path: "/" });
 	try {
-		const response = await fallbackSessionRequest(request);
+		const response = await sessionResponseForRequest(request);
 		return normalizeSession(response, authFailed);
 	} catch {
 		return unavailableBootSession(authFailed);
