@@ -2887,12 +2887,10 @@ export const createAppController = (
 	const openRepository = (repo: string): void => {
 		store.dispatch({ type: "repository.selected", actor: commandActor, repo });
 		store.dispatch({ type: "surface.changed", actor: commandActor, surface: "github" });
-		// Importing is an implementation detail (will, 2026-08-19, directive 5):
-		// the job runs, its readiness is kept, and NOTHING is rendered for it —
-		// the user is browsing GitHub, not watching a mirror job they never asked
-		// for. Reads retain their existing honest degradation meanwhile.
 		// Opening a repository is asking to see it: the section on screen reads
-		// itself rather than waiting for the user to press its own tab.
+		// itself rather than waiting for the user to press its own tab. The
+		// import that read may need runs alongside it and renders nothing (will,
+		// 2026-08-19, directive 5) — readWithImport owns both halves.
 		void readWithImport(repo, () => readRepositoryTab(store.session().repositoryTab, repo));
 	};
 
