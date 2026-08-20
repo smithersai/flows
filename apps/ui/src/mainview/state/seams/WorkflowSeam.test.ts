@@ -12,6 +12,7 @@ import type { StorageApi } from "@tanstack/db";
 import { createAppStore } from "../AppStore";
 import { createWorkflowSeam } from "./WorkflowSeam";
 import type { SeamContext } from "./SeamContext";
+import { isNotReadyYet, notReadyYet } from "./SeamContext";
 
 interface Call {
 	readonly url: string;
@@ -84,9 +85,17 @@ describe("the workspace seam issues the workflow requests", () => {
 		expect(waited).toEqual([5, 5]);
 	});
 
-	test("a repository with no cloud mirror gets a sentence, not a raw failure", async () => {
+	test("a repository with no cloud mirror gets the shared readiness sentinel", async () => {
+		/*
+		 * The same words the Files and Issues reads use. The controller's one
+		 * re-read after a silent import recognizes that sentence and nothing
+		 * else, so a bespoke sentence here left the Flows tab of a freshly
+		 * opened repository empty until the human poked it.
+		 */
 		const { seam } = await seamOf([{ status: 200, body: { status: "no-cloud-repo" } }]);
-		expect(await seam.provisionWorkspace("will/flows")).toContain("will/flows");
+		const outcome = await seam.provisionWorkspace("will/flows");
+		expect(outcome).toBe(notReadyYet("will/flows"));
+		expect(isNotReadyYet(outcome)).toBe(true);
 	});
 
 	test("a refused provision keeps the upstream's own message", async () => {

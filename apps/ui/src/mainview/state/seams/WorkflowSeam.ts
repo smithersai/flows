@@ -10,7 +10,7 @@
  * command targets, what the toast says. This seam owns the wire.
  */
 import type { SeamContext } from "./SeamContext";
-import { errorMessageOf } from "./SeamContext";
+import { errorMessageOf, notReadyYet } from "./SeamContext";
 
 export interface WorkflowSeamOptions {
 	/** The request-with-a-deadline the controller builds; provision can hang. */
@@ -59,12 +59,16 @@ export const createWorkflowSeam = (ctx: SeamContext, options: WorkflowSeamOption
 			if (body?.status === "ready") return true;
 			/*
 			 * Wave 12 §4 — the watched set is a GITHUB set; a gateway needs a
-			 * Smithers Cloud repository. When they don't coincide the honest
-			 * answer is that fact, not the provision seam's raw HTTP failure.
+			 * Smithers Cloud repository. That used to be stated to the human as
+			 * "Add it there and I'll pick it up", which directive 5 (will,
+			 * 2026-08-19) retired: the import is automatic and silent now, so
+			 * there is nothing for them to add and no reason to name the
+			 * mirror at all. It is the same readiness miss the Files and Issues
+			 * reads already answer, said by the gateway instead of the platform
+			 * — so it says it in the same words, which is also what arms the
+			 * controller's one re-read when the import lands.
 			 */
-			if (body?.status === "no-cloud-repo") {
-				return `${repo} isn't on Smithers Cloud yet, so there's no workspace to run this on. Add it there and I'll pick it up, or point me at a repo that is.`;
-			}
+			if (body?.status === "no-cloud-repo") return notReadyYet(repo);
 			if (body?.status === "provisioning") {
 				if (Date.now() > deadline) {
 					return `The workspace for ${repo} is still being prepared — try again in a moment.`;
