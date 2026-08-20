@@ -116,7 +116,13 @@ const SHELL_PROBE = `
 		const owner = hit === null ? "nothing" : (hit.closest("[class]") === null ? hit.tagName : hit.closest("[class]").className);
 		return [label + " <- " + owner];
 	});
-	const closeButton = pane === null ? null : pane.querySelector("[data-flow]");
+	/*
+	 * The close affordance BY ITS OWN identity, not by being the first bound
+	 * element in the pane: a header that grows an action ahead of it (the
+	 * World pane's New note) does not change which control closes the pane.
+	 */
+	const closeButton =
+		pane === null ? null : pane.querySelector('.surface-header [aria-label="Back to the conversation"]');
 	const shell = document.querySelector(".app-shell");
 	return {
 		innerWidth: window.innerWidth,

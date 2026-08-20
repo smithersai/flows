@@ -884,14 +884,22 @@ export default defineSuite({
 				!namesOut.includes(LOCAL_ROW),
 				`a browser build rendered the "${LOCAL_ROW}" row, which only the native picker can serve (rows: ${namesOut.join(", ")})`,
 			);
+			/*
+			 * Will, 2026-08-19: "import to smithers cloud button exists and it
+			 * shouldn't. importing to smithers cloud just happens in background —
+			 * it's an implementation detail. the user feels like they are on
+			 * github." The capability stays registered and the panes start it in
+			 * the background; what must not exist is a row that asks the human
+			 * for it.
+			 */
 			report.check(
-				namesOut.includes(CLOUD_ROW),
-				`the Connectors surface lost the "${CLOUD_ROW}" row (rows: ${namesOut.join(", ")})`,
+				!namesOut.includes(CLOUD_ROW),
+				`the connect store still offers the "${CLOUD_ROW}" row; importing is background work now (rows: ${namesOut.join(", ")})`,
 			);
 			report.equals(
-				(await storeRow(out, CLOUD_ROW))?.flow,
-				"repos.import",
-				"the Smithers Cloud row is not bound to the import command",
+				await countMatching(out, '[data-flow="repos.import"]'),
+				0,
+				"a visible affordance still asks the human to import a repository",
 			);
 			report.equals(
 				await countMatching(out, '[data-flow="connector.add"]'),

@@ -344,7 +344,9 @@ export default defineSuite({
 			"the World empty state is a dead end: it carries no create action",
 		);
 		report.equals(
-			(await subtreeTextOf(session, `.world-surface .surface-header-actions button:not([data-flow])`))?.trim() ??
+			// The create door names its flow like every other affordance now, so
+			// it is found BY that binding rather than by the absence of one.
+			(await subtreeTextOf(session, `.world-surface .surface-header-actions button[data-flow="world.new-note"]`))?.trim() ??
 				null,
 			HEADER_ACTION,
 			"the World header lost its create door",
