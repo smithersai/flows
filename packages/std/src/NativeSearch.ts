@@ -62,10 +62,18 @@ const textAt = (record: Record<string, unknown> | undefined, key: string): strin
   return typeof nested?.text === "string" ? nested.text : undefined
 }
 
+const malformedJson = (): StdError.StdError =>
+  new StdError.StdError({ code: "request_failed", message: "rg returned malformed JSON" })
+
 const resolveRoot = (
   root: string
 ): Effect.Effect<
-  { readonly cwd: string; readonly target: string; readonly absolute: (value: string) => string },
+  {
+    readonly cwd: string
+    readonly target: string
+    readonly explicitFile: boolean
+    readonly absolute: (value: string) => string
+  },
   StdError.StdError,
   FileSystem.FileSystem | Path.Path
 > =>
@@ -75,8 +83,16 @@ const resolveRoot = (
     const info = yield* fileSystem.stat(root).pipe(Effect.mapError(() => Contract.notFound(root)))
     const cwd = info.type === "File" ? path.dirname(root) : root
     const target = info.type === "File" ? path.basename(root) : "."
-    return { cwd, target, absolute: (value: string) => path.normalize(path.join(cwd, value.replace(/^\.\//, ""))) }
+    return {
+      cwd,
+      target,
+      explicitFile: info.type === "File",
+      absolute: (value: string) => path.normalize(path.join(cwd, value.replace(/^\.\//, "")))
+    }
   })
+
+const pathOrder = (left: Search.GrepLine, right: Search.GrepLine): number =>
+  left.file < right.file ? -1 : left.file > right.file ? 1 : left.line - right.line
 
 const grep = (
   input: Search.GrepInput
@@ -87,7 +103,16 @@ const grep = (
 > =>
   Effect.gen(function*() {
     const root = yield* resolveRoot(input.root)
-    const args: Array<string> = ["--json", "--stats", "--no-ignore", "--no-messages", "--sort", "path", "--no-unicode"]
+    const args: Array<string> = [
+      "--json",
+      "--stats",
+      "--no-ignore",
+      "--no-messages",
+      "--sort",
+      "path",
+      "--encoding=utf-8",
+      "--crlf"
+    ]
     if (input.hidden) args.push("--hidden")
     if (input.fixedStrings) args.push("--fixed-strings")
     if (input.ignoreCase) args.push("--ignore-case")
@@ -95,33 +120,67 @@ const grep = (
     if (input.beforeContext > 0) args.push("--before-context", String(input.beforeContext))
     if (input.afterContext > 0) args.push("--after-context", String(input.afterContext))
     if (input.maxCount !== undefined) args.push("--max-count", String(input.maxCount))
-    for (const glob of [...input.globs, ...(input.hidden ? [] : hiddenGlobs), ...skipGlobs]) args.push("--glob", glob)
+    const globs = [...input.globs, ...(input.hidden ? [] : hiddenGlobs), ...skipGlobs]
+    for (const glob of globs) args.push("--glob", glob)
     args.push("--", input.pattern, root.target)
     const result = yield* execute(root.cwd, args)
     if (result.exitCode > 1) {
       return yield* Effect.fail(
         new StdError.StdError({
-          code: "invalid_pattern",
-          message: result.stderr.trim() || "rg rejected the search"
+          code: "request_failed",
+          message: result.stderr.trim() || `rg exited with status ${result.exitCode}`
         })
       )
     }
+
+    const binaryArgs: Array<string> = [
+      "--files-with-matches",
+      "--text",
+      "--null",
+      "--no-ignore",
+      "--no-messages",
+      "--sort",
+      "path"
+    ]
+    if (input.hidden) binaryArgs.push("--hidden")
+    for (const glob of globs) binaryArgs.push("--glob", glob)
+    binaryArgs.push("--", "\\x00", root.target)
+    const binaryResult = yield* execute(root.cwd, binaryArgs)
+    if (binaryResult.exitCode > 1) {
+      return yield* Effect.fail(
+        new StdError.StdError({
+          code: "request_failed",
+          message: binaryResult.stderr.trim() || `rg binary scan exited with status ${binaryResult.exitCode}`
+        })
+      )
+    }
+    const binaryFiles = new Set(
+      binaryResult.stdout.split("\0").filter((value) => value.length > 0).map(root.absolute)
+    )
+    if (root.explicitFile && binaryFiles.size > 0) {
+      return yield* Effect.fail(
+        new StdError.StdError({
+          code: "binary_file",
+          message: `Cannot search binary file: ${input.root}`,
+          path: input.root
+        })
+      )
+    }
+
     const lines: Array<Search.GrepLine> = []
     const files = new Set<string>()
     let filesSearched = 0
-    let skippedBinary = 0
+    let sawSummary = false
     for (const encoded of result.stdout.split("\n")) {
       if (encoded.length === 0) continue
       let event: Record<string, unknown>
       try {
         const decoded = JSON.parse(encoded) as unknown
         const record = asRecord(decoded)
-        if (record === undefined) continue
+        if (record === undefined) return yield* Effect.fail(malformedJson())
         event = record
       } catch {
-        return yield* Effect.fail(
-          new StdError.StdError({ code: "request_failed", message: "rg returned invalid JSON" })
-        )
+        return yield* Effect.fail(malformedJson())
       }
       const type = event.type
       const data = asRecord(event.data)
@@ -129,25 +188,38 @@ const grep = (
         const file = textAt(data, "path")
         const text = textAt(data, "lines")
         const line = data?.line_number
-        if (file !== undefined && text !== undefined && typeof line === "number") {
-          const absolute = root.absolute(file)
-          files.add(absolute)
-          lines.push({ file: absolute, line, text: preview(text), kind: type })
+        if (file === undefined || text === undefined || typeof line !== "number") {
+          return yield* Effect.fail(malformedJson())
         }
+        const absolute = root.absolute(file)
+        files.add(absolute)
+        lines.push({ file: absolute, line, text: preview(text), kind: type })
+      } else if (type === "begin") {
+        if (textAt(data, "path") === undefined) return yield* Effect.fail(malformedJson())
       } else if (type === "end") {
-        if (typeof data?.binary_offset === "number") skippedBinary++
+        if (
+          textAt(data, "path") === undefined ||
+          (data?.binary_offset !== null && typeof data?.binary_offset !== "number")
+        ) return yield* Effect.fail(malformedJson())
       } else if (type === "summary") {
         const stats = asRecord(data?.stats)
-        if (typeof stats?.searches === "number") filesSearched = stats.searches
-      }
+        if (typeof stats?.searches !== "number") return yield* Effect.fail(malformedJson())
+        filesSearched = stats.searches
+        sawSummary = true
+      } else return yield* Effect.fail(malformedJson())
     }
-    const entries = input.filesWithMatches ? [...files].sort() : lines
+    if (!sawSummary) return yield* Effect.fail(malformedJson())
+    for (const file of binaryFiles) files.delete(file)
+    const visibleLines = lines.filter((line) => !binaryFiles.has(line.file)).sort(pathOrder)
+    const entries = input.filesWithMatches ? [...files].sort() : visibleLines
     const truncated = entries.length > input.limit
     return {
-      matches: input.filesWithMatches ? [] : lines.slice(0, input.limit),
+      matches: input.filesWithMatches ? [] : visibleLines.slice(0, input.limit),
       files: input.filesWithMatches ? [...files].sort().slice(0, input.limit) : [],
-      filesSearched,
-      skippedBinary,
+      // rg excludes NUL-bearing files from stats.searches; the shared
+      // contract counts every included file, including skipped binaries.
+      filesSearched: filesSearched + binaryFiles.size,
+      skippedBinary: binaryFiles.size,
       truncated,
       ...(truncated ? { notice: notice(input.filesWithMatches ? "files" : "lines", input.limit, entries.length) } : {})
     }
