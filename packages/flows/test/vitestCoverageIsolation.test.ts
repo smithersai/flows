@@ -290,6 +290,37 @@ describe("vitest coverage isolation conformance", () => {
         ""
       ].join("\n")
     )
+
+    // The allowBuilds roster is a supply-chain control, not formatting: each
+    // entry denies a dependency's postinstall build, and `playwright` is the
+    // clearest case — its postinstall downloads browsers, while the live-*
+    // checks run against an already-installed one. Denying a build removes
+    // ungated surface rather than adding it.
+    //
+    // This block is asserted on its own rather than as part of an exact match
+    // over the whole file. Pinning the entire file made every unrelated
+    // addition (`minimumReleaseAgeExclude`, for one) look like a failure here,
+    // which is what pressured an earlier change into dropping the roster from
+    // the assertion altogether. Flipping any entry to `true` must fail a gate.
+    const allowBuilds = workspace.match(/^allowBuilds:\n(?:  .+\n)+/m)?.[0]
+    expect(allowBuilds).toBe(
+      [
+        "allowBuilds:",
+        "  \"@journeyapps/wa-sqlite\": false",
+        "  dprint: false",
+        "  es5-ext: false",
+        "  esbuild: false",
+        "  msgpackr-extract: false",
+        "  playwright: false",
+        "  sharp: false",
+        "  unrs-resolver: false",
+        "  vue-demi: false",
+        "  workerd: false",
+        ""
+      ].join("\n")
+    )
+    expect(workspace).toMatch(/^linkWorkspacePackages: true$/m)
+    expect(workspace).toMatch(/^verifyDepsBeforeRun: false$/m)
   })
 
   it("pins the root aggregator scripts CI invokes (issue #166)", () => {
