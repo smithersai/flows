@@ -20,7 +20,7 @@ import * as ModelRequest from "@smthrs/model/ModelRequest"
 import * as Route from "@smthrs/model/Route"
 import { Node } from "@smthrs/plan"
 import * as PersistedPlan from "@smthrs/plan/Plan"
-import { Cause, Deferred, Effect, Exit, Layer, Option, Redacted, Result, Schema, Scope, Stream } from "effect"
+import { Cause, Deferred, Effect, Exit, Layer, Option, Redacted, Result, Schedule, Schema, Scope, Stream } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
 import * as FlowEngineLike from "../src/FlowEngineLike.ts"
@@ -259,6 +259,15 @@ describe("FlowEngineLike conversions", () => {
 })
 
 describe("FlowEngineLike.make", () => {
+  it("keeps pre-retry array records decodable for resumed sealed steps", () => {
+    const legacy = [
+      ModelEvent.ModelEvent.TextStart({ type: "text-start", id: "0" }),
+      ModelEvent.ModelEvent.Settle({ type: "settle", stopReason: "stop" })
+    ]
+
+    expect(Schema.decodeUnknownSync(FlowEngineLike.RecordedModelStep)(legacy)).toEqual(legacy)
+  })
+
   it("streams the model events of a sealed step and records them for replay", async () => {
     const calls: Array<string> = []
     const outcome = await drive(Effect.gen(function*() {
@@ -304,9 +313,14 @@ describe("FlowEngineLike.make", () => {
     expect(completed(outcome)).toBe(2)
   })
 
-  it("retries one transient model failure inside the sealed step", async () => {
+  it.each(
+    [
+      ["transport", "connection reset"],
+      ["provider_internal", "provider overloaded"]
+    ] as const
+  )("retries one transient %s model failure inside the sealed step", async (code, message) => {
     let attempts = 0
-    const transient = new ModelError({ code: "transport", message: "connection reset" })
+    const transient = new ModelError({ code, message })
     const model = Model.make({
       stream: () =>
         Stream.suspend(() => {
@@ -324,13 +338,64 @@ describe("FlowEngineLike.make", () => {
       const engine = yield* FlowEngineLike.make({
         model,
         route: staticRoute(),
-        children: countingChildren([])
+        children: countingChildren([]),
+        modelRetryPolicy: Schedule.recurs(2)
       })
-      return yield* Stream.runCollect(engine.sealStep(step("hello")))
+      return Array.from(yield* Stream.runCollect(engine.sealStep(step("hello"))))
     }))
 
-    expect((completed(outcome) as ReadonlyArray<unknown>).length).toBe(3)
+    expect(completed(outcome)).toMatchObject([
+      { type: "retry", attempt: 1, code },
+      { type: "text-start" },
+      { type: "text-delta" },
+      { type: "settle" }
+    ])
     expect(attempts).toBe(2)
+  })
+
+  it.each(["invalid_provider_output", "quota_exceeded"] as const)(
+    "does not retry terminal %s failures",
+    async (code) => {
+      let attempts = 0
+      const original = new ModelError({ code, message: `terminal ${code}` })
+      const outcome = await drive(Effect.gen(function*() {
+        const engine = yield* FlowEngineLike.make({
+          model: Model.make({
+            stream: () =>
+              Stream.suspend(() => {
+                attempts++
+                return Stream.fail(original)
+              })
+          }),
+          route: staticRoute(),
+          modelRetryPolicy: Schedule.recurs(2)
+        })
+        return yield* Stream.runCollect(engine.sealStep(step(code)))
+      }))
+      expect(failure(outcome)).toStrictEqual(original)
+      expect(attempts).toBe(1)
+    }
+  )
+
+  it("surfaces the original typed transport error after bounded retries are exhausted", async () => {
+    let attempts = 0
+    const original = new ModelError({ code: "transport", message: "destroyed HTTP/2 session" })
+    const outcome = await drive(Effect.gen(function*() {
+      const engine = yield* FlowEngineLike.make({
+        model: Model.make({
+          stream: () =>
+            Stream.suspend(() => {
+              attempts++
+              return Stream.fail(original)
+            })
+        }),
+        route: staticRoute(),
+        modelRetryPolicy: Schedule.recurs(2)
+      })
+      return yield* Stream.runCollect(engine.sealStep(step("exhausted")))
+    }))
+    expect(failure(outcome)).toStrictEqual(original)
+    expect(attempts).toBe(3)
   })
 
   it("surfaces an authentication failure without retrying or replacing it", async () => {

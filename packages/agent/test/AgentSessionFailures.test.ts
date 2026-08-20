@@ -177,7 +177,7 @@ const journalLayer = (
 ): Layer.Layer<Journal.Journal> =>
   Layer.succeed(Journal.Journal)(
     Journal.makeNoop({
-      emitDurable: (input) =>
+      emitDurableUnfenced: (input) =>
         Effect.sync(() => {
           record.journaled.push({ eventType: input.eventType, payload: input.payload })
           return accepted
@@ -352,7 +352,7 @@ describe("the executor's control-store seam", () => {
       journal: {
         // Only the approval request is refused. The status writes that follow
         // must still land, or the failure this case is about is invisible.
-        emitDurable: (input) =>
+        emitDurableUnfenced: (input) =>
           input.eventType === "control.approval.requested"
             ? Effect.fail(new Journal.JournalError({ code: "queue_overflow", message: "the journal is full" }))
             : Effect.sync(() => {
@@ -394,9 +394,38 @@ describe("the executor's control-store seam", () => {
 })
 
 describe("the executor's status fence", () => {
+  it("keeps an authoritative terminal status when lifecycle journaling fails", async () => {
+    const record = recorder()
+    const registered = Deferred.makeUnsafe<Fiber.Fiber<unknown, unknown>>()
+    const result = await withExecutor(
+      record,
+      {
+        runtime: {
+          registerFiber: (_runId, fiber) => Deferred.succeed(registered, fiber).pipe(Effect.asVoid)
+        },
+        journal: {
+          emitDurableUnfenced: () =>
+            Effect.fail(new Journal.JournalError({ code: "queue_overflow", message: "the journal is full" }))
+        },
+        engine: (engine) =>
+          ({ ...engine, execute: () => Effect.fail("engine admission failed") }) as unknown as EngineService
+      },
+      (executor) =>
+        Effect.gen(function*() {
+          const acceptance = yield* executor.launch(launchInput)
+          const fiber = yield* Deferred.await(registered)
+          yield* Fiber.await(fiber)
+          return { acceptance, status: record.statuses.at(-1) }
+        })
+    )
+
+    expect(result).toEqual({ acceptance: "accepted", status: "failed" })
+    expect(record.statuses).toEqual(["failed"])
+  })
+
   it("propagates a failed authoritative status write through the owned driver", async () => {
     const record = recorder()
-    const registered = Deferred.makeUnsafe<Fiber.Fiber<void, unknown>>()
+    const registered = Deferred.makeUnsafe<Fiber.Fiber<unknown, unknown>>()
     const result = await withExecutor(
       record,
       {
@@ -502,13 +531,47 @@ describe("the executor's registry seam", () => {
 })
 
 describe("the executor's driver admission fence", () => {
+  it("interrupts a driver that is cancelled before its flow body starts", async () => {
+    const record = recorder()
+    const registered = Deferred.makeUnsafe<Fiber.Fiber<unknown, unknown>>()
+    const executing = Deferred.makeUnsafe<void>()
+    const exit = await withExecutor(
+      record,
+      {
+        runtime: {
+          getRun: () => Effect.succeed({ ...launchInput.run, status: "running" }),
+          registerFiber: (_runId, fiber) => Deferred.succeed(registered, fiber).pipe(Effect.asVoid)
+        },
+        engine: (engine) =>
+          ({
+            ...engine,
+            execute: () => Effect.andThen(Deferred.succeed(executing, void 0), Effect.never)
+          }) as unknown as EngineService
+      },
+      (executor) =>
+        Effect.gen(function*() {
+          yield* executor.launch(launchInput)
+          const fiber = yield* Deferred.await(registered)
+          yield* Deferred.await(executing)
+          yield* Fiber.interrupt(fiber)
+          return yield* Fiber.await(fiber)
+        })
+    )
+
+    expect(exit._tag).toBe("Failure")
+    expect(record.statuses).toEqual([])
+  })
+
   it("never executes a driver when registration fails", async () => {
     const record = recorder()
     let executions = 0
     const failure = await withExecutor(
       record,
       {
-        runtime: { registerFiber: () => Effect.fail("registration refused") },
+        runtime: {
+          registerFiber: () =>
+            Effect.fail(new PersistenceError({ operation: "registerFiber", message: "registration refused" }))
+        },
         engine: (engine) =>
           ({
             ...engine,

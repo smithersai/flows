@@ -5,6 +5,7 @@
 ### Added
 
 - Added `webfetch`, `websearch`, and `lsp` flows with provider-neutral service boundaries.
+- Added one ripgrep-compatible search contract with native `rg` and in-process peer implementations, shared conformance coverage, context lines, case modes, globs, per-file match limits, hidden-file control, and files-with-matches output.
 
 ### Changed
 

@@ -252,6 +252,32 @@ describe("the store facade", () => {
 })
 
 describe("the projector's read failures", () => {
+  it.effect("fails a repeated continuation page instead of spinning", () =>
+    Effect.gen(function*() {
+      const repeated = {
+        runId: "run" as JournalEvent.RunId,
+        seq: 0 as JournalEvent.Seq,
+        eventId: "repeated",
+        sourceId: "test" as JournalEvent.SourceId,
+        sourceSeq: 0 as JournalEvent.SourceSeq,
+        emittedAtMs: 0,
+        eventType: "unrelated",
+        payload: {},
+        meta: { lineageId }
+      }
+      const failure = yield* Effect.flip(
+        SnapshotProjector.project("run").pipe(
+          Effect.provide(Layer.succeed(
+            Journal.Journal,
+            Journal.makeNoop({ entries: () => Effect.succeed({ entries: [repeated], hasMore: true }) })
+          )),
+          Effect.provideService(TimeTravelStore.TimeTravelStore, MemoryTimeTravelStore.make())
+        )
+      )
+
+      expect(failure).toMatchObject({ code: "invalid", message: "snapshot pagination did not advance for run" })
+    }))
+
   it.effect("surfaces a journal it cannot page as a typed failure", () =>
     Effect.gen(function*() {
       const failure = yield* (

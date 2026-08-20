@@ -68,7 +68,7 @@ describe("SqlJournal durable emission", () => {
       Effect.gen(function*() {
         const journal = yield* Journal
         const sql = yield* Effect.service(SqlClient.SqlClient)
-        const receipt = yield* journal.emitDurable(input(runId("run"), sourceId("s"), "created", { a: 1 }))
+        const receipt = yield* journal.emitDurableUnfenced(input(runId("run"), sourceId("s"), "created", { a: 1 }))
         expect(receipt._tag).toBe("Accepted")
         const rows = yield* seqsOf(sql, runId("run"))
         expect(rows.map((row) => row.seq)).toEqual([receipt.seq])
@@ -87,10 +87,10 @@ describe("SqlJournal durable emission", () => {
         const left = yield* build
         const right = yield* build
         const run = runId("shared")
-        yield* left.emitDurable(input(run, sourceId("left"), "l0", 0))
-        yield* right.emitDurable(input(run, sourceId("right"), "r0", 0))
-        yield* left.emitDurable(input(run, sourceId("left"), "l1", 1))
-        yield* right.emitDurable(input(run, sourceId("right"), "r1", 1))
+        yield* left.emitDurableUnfenced(input(run, sourceId("left"), "l0", 0))
+        yield* right.emitDurableUnfenced(input(run, sourceId("right"), "r0", 0))
+        yield* left.emitDurableUnfenced(input(run, sourceId("left"), "l1", 1))
+        yield* right.emitDurableUnfenced(input(run, sourceId("right"), "r1", 1))
         const rows = yield* seqsOf(sql, run)
         expect(rows.map((row) => row.seq)).toEqual([0, 1, 2, 3])
       }).pipe(Effect.provide(migratedDatabase))
@@ -112,7 +112,7 @@ describe("SqlJournal durable emission", () => {
           Effect.forkChild({ startImmediately: true })
         )
         yield* Effect.yieldNow
-        yield* writer.emitDurable(input(run, sourceId("peer"), "committed-elsewhere", 1))
+        yield* writer.emitDurableUnfenced(input(run, sourceId("peer"), "committed-elsewhere", 1))
         yield* TestClock.adjust("1 second")
         const entry = Option.getOrThrow(yield* Fiber.join(next))
         expect(entry.eventType).toBe("committed-elsewhere")
@@ -123,10 +123,10 @@ describe("SqlJournal durable emission", () => {
     withJournal(
       Effect.gen(function*() {
         const journal = yield* Journal
-        const first = yield* journal.emitDurable(
+        const first = yield* journal.emitDurableUnfenced(
           input(runId("run"), sourceId("s"), "created", { a: 1 }, sourceSeq(0))
         )
-        const second = yield* journal.emitDurable(
+        const second = yield* journal.emitDurableUnfenced(
           input(runId("run"), sourceId("s"), "created", { a: 1 }, sourceSeq(0))
         )
         expect(second).toEqual({ _tag: "Duplicate", seq: first.seq, sourceSeq: 0, status: "committed" })
@@ -137,9 +137,9 @@ describe("SqlJournal durable emission", () => {
     withJournal(
       Effect.gen(function*() {
         const journal = yield* Journal
-        yield* journal.emitDurable(input(runId("run"), sourceId("s"), "created", { a: 1 }, sourceSeq(0)))
+        yield* journal.emitDurableUnfenced(input(runId("run"), sourceId("s"), "created", { a: 1 }, sourceSeq(0)))
         const failure = yield* Effect.flip(
-          journal.emitDurable(input(runId("run"), sourceId("s"), "created", { a: 2 }, sourceSeq(0)))
+          journal.emitDurableUnfenced(input(runId("run"), sourceId("s"), "created", { a: 2 }, sourceSeq(0)))
         )
         expect(failure).toBeInstanceOf(JournalError)
         expect((failure as JournalError).code).toBe("idempotency_conflict")
@@ -150,7 +150,7 @@ describe("SqlJournal durable emission", () => {
     withJournal(
       Effect.gen(function*() {
         const journal = yield* Journal
-        yield* journal.emitDurable(input(runId("run"), sourceId("s"), "created", 1))
+        yield* journal.emitDurableUnfenced(input(runId("run"), sourceId("s"), "created", 1))
         const queued = yield* journal.emitLossy(input(runId("run"), sourceId("s"), "queued", 2))
         expect(queued.seq).toBe(1)
         yield* journal.flush
@@ -163,7 +163,7 @@ describe("SqlJournal durable emission", () => {
     withJournal(
       Effect.gen(function*() {
         const journal = yield* Journal
-        const failure = yield* Effect.flip(journal.emitDurable(input(runId(""), sourceId("s"), "x", 1)))
+        const failure = yield* Effect.flip(journal.emitDurableUnfenced(input(runId(""), sourceId("s"), "x", 1)))
         expect((failure as JournalError).code).toBe("invalid_event")
       })
     ))
@@ -173,7 +173,7 @@ describe("SqlJournal durable emission", () => {
       Effect.gen(function*() {
         const journal = yield* Journal
         const failure = yield* Effect.flip(
-          journal.emitDurable(
+          journal.emitDurableUnfenced(
             input(runId("run"), sourceId("s"), "x", 1, sourceSeq(Number.MAX_SAFE_INTEGER))
           )
         )
@@ -194,7 +194,7 @@ describe("SqlJournal durable emission", () => {
             'run', ${Number.MAX_SAFE_INTEGER - 1}, 'ceiling', 'other', 0, 0, 'x', '1', 'null'
           )
         `
-        const failure = yield* Effect.flip(journal.emitDurable(input(runId("run"), sourceId("s"), "x", 1)))
+        const failure = yield* Effect.flip(journal.emitDurableUnfenced(input(runId("run"), sourceId("s"), "x", 1)))
         expect((failure as JournalError).code).toBe("invalid_event")
       })
     ))
@@ -205,7 +205,7 @@ describe("SqlJournal durable emission", () => {
         const journal = yield* Journal
         const sql = yield* Effect.service(SqlClient.SqlClient)
         yield* sql`DROP TABLE flows_journal_events`
-        const failure = yield* Effect.flip(journal.emitDurable(input(runId("run"), sourceId("s"), "x", 1)))
+        const failure = yield* Effect.flip(journal.emitDurableUnfenced(input(runId("run"), sourceId("s"), "x", 1)))
         expect((failure as JournalError).code).toBe("sink_failed")
       })
     ))
@@ -238,7 +238,7 @@ describe("SqlJournal durable emission", () => {
         )
         const subscription = yield* journal.changes
         const run = runId("commit-failure")
-        yield* Effect.flip(journal.emitDurable(input(run, sourceId("s"), "created", 1)))
+        yield* Effect.flip(journal.emitDurableUnfenced(input(run, sourceId("s"), "created", 1)))
         expect(yield* PubSub.remaining(subscription)).toBe(0)
         const rows = yield* seqsOf(sql, run)
         expect(rows).toEqual([])
@@ -248,7 +248,7 @@ describe("SqlJournal durable emission", () => {
           Layer.build(SqlJournal.layer(options).pipe(Layer.provide(shared))),
           (context) => Context.get(context, Journal) as Service
         )
-        expect((yield* healthy.emitDurable(input(run, sourceId("s"), "created", 1))).seq).toBe(0)
+        expect((yield* healthy.emitDurableUnfenced(input(run, sourceId("s"), "created", 1))).seq).toBe(0)
       }).pipe(Effect.provide(migratedDatabase))
     ))
 
@@ -260,14 +260,16 @@ describe("SqlJournal durable emission", () => {
           (context) => Context.get(context, Journal) as Service
         )
       )
-      const failure = yield* Effect.flip(journal.emitDurable(input(runId("run"), sourceId("s"), "x", 1)))
+      const failure = yield* Effect.flip(journal.emitDurableUnfenced(input(runId("run"), sourceId("s"), "x", 1)))
       expect((failure as JournalError).code).toBe("journal_closed")
     }))
 
   effect("the noop journal reports emitDurable as unavailable", () =>
     Effect.gen(function*() {
       const journal = makeNoop()
-      const failure = yield* Effect.flip(journal.emitDurable(input(runId("run"), sourceId("s"), "x", 1)))
+      const failure = yield* Effect.flip(
+        journal.emitDurable(input(runId("run"), sourceId("s"), "x", 1), { hostId: "test", pid: 1, nonce: "test" })
+      )
       expect((failure as JournalError).code).toBe("journal_closed")
     }))
 })
@@ -319,7 +321,7 @@ describe("SqlJournal durable emission across connections", () => {
             const emit = (journal: Service, source: string) =>
               Effect.forEach(
                 Array.from({ length: writes }, (_, index) => index),
-                (index) => journal.emitDurable(input(run, sourceId(source), `${source}${index}`, index)),
+                (index) => journal.emitDurableUnfenced(input(run, sourceId(source), `${source}${index}`, index)),
                 { discard: true }
               )
             yield* Effect.all([emit(left, "left"), emit(right, "right")], { concurrency: 2, discard: true })
@@ -350,8 +352,8 @@ describe("SqlJournal durable emission across connections", () => {
           yield* Effect.scoped(
             Effect.gen(function*() {
               const journal = yield* connection(filename)
-              yield* journal.emitDurable(input(run, sourceId("s"), "first", 0))
-              yield* journal.emitDurable(input(run, sourceId("s"), "second", 1))
+              yield* journal.emitDurableUnfenced(input(run, sourceId("s"), "first", 0))
+              yield* journal.emitDurableUnfenced(input(run, sourceId("s"), "second", 1))
             })
           )
           // A cold process: the in-memory clock starts at zero and the SQL
@@ -359,7 +361,7 @@ describe("SqlJournal durable emission across connections", () => {
           yield* Effect.scoped(
             Effect.gen(function*() {
               const journal = yield* connection(filename)
-              const receipt = yield* journal.emitDurable(input(run, sourceId("s"), "third", 2))
+              const receipt = yield* journal.emitDurableUnfenced(input(run, sourceId("s"), "third", 2))
               expect(receipt.seq).toBe(2)
               expect(receipt.sourceSeq).toBe(2)
             })

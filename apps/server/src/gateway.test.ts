@@ -151,6 +151,28 @@ describe("wave 11 — provision-or-resume (§5)", () => {
 		});
 	});
 
+	test("a resolved Durable Object write failure cannot report the gateway ready", async () => {
+		await withRelay({}, async () => {
+			const outcome = await ensureGateway(
+				env({
+					GATEWAY_SESSIONS: {
+						idFromName: (name) => name,
+						get: () => ({
+							fetch: async (request) =>
+								request.method === "PUT"
+									? new Response("storage unavailable", { status: 500 })
+									: json(200, { record: null }),
+						}),
+					},
+				}),
+				"will",
+				"will/mvp",
+			);
+			expect(outcome.status).toBe("unavailable");
+			expect(outcome.status === "unavailable" && outcome.detail).toContain("HTTP 500");
+		});
+	});
+
 	test("a renew adopts a DIFFERENT gateway id, token and base url — nothing is assumed unchanged", async () => {
 		// §5 item 3: the reprovision path legitimately hands back a different
 		// gateway; every cached URL must be rebuilt from what came back.

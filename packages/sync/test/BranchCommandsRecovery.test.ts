@@ -21,8 +21,8 @@ describe("BranchCommands ambiguous commit recovery", () => {
           let loseResponse = true
           const responseLosingJournal = Journal.make({
             ...journal,
-            emitDurable: (input, owner) =>
-              journal.emitDurable(input, owner).pipe(
+            emitDurableUnfenced: (input) =>
+              journal.emitDurableUnfenced(input).pipe(
                 Effect.flatMap((receipt) => {
                   if (!loseResponse) return Effect.succeed(receipt)
                   loseResponse = false

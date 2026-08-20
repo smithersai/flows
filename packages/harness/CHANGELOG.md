@@ -23,19 +23,14 @@
 
 ### Added
 
-- Added the run-start `DisciplineArmed` event, recording the completion audit,
-  read-only and frame caps, and every effective sandbox limit before the first
-  frame runs.
+- Added the run-start `DisciplineArmed` event, recording the read-only and
+  frame caps and every effective sandbox limit before the first frame runs.
 
 - Added the opt-in read-only frame cap (`CellTurn.make({ readOnlyCap })`, default `CellTurn.defaultReadOnlyFrames` = 12 for task runs). A frame that made no call declaring a write extends the run's read-only streak; at the cap the controller demands a write or a typed `justification` on the next transition, and at twice the cap the run stops with `HarnessError` code `read_only_cap` instead of reporting work it never did. A justification is recorded and buys `readOnlyCap` quiet frames without resetting the counter. One benchmark instance read for all 100 frames, made 132 calls with zero edit attempts, and completed claiming the fix was implemented.
 
-- Made the completion audit machine-checked. A `complete` transition may declare `verify: { flow, input }`, and an audited run accepts a completion only after the controller re-runs that call itself, through the ordinary durable call boundary, and sees it pass — a missing declaration, a flow this run never called with that exact input, a failed call, or a non-zero `exitCode` is a refusal. The verdict and the real output are journaled as `completion-audited` / `control.agent.completion-audited`. A completion at the frame budget's wall is still accepted, and recorded with whatever evidence it had.
-
-- Added `Cell.Verification`, `Cell.Complete.verify`, and `Cell.Continue.justification` to the cell protocol, and taught both in the cell contract.
+- Added `Cell.Continue.justification` to the cell protocol, and taught it in the cell contract.
 
 - Added `AgentEvent.ModelSettled.durationMillis`: the wall-clock duration of one sealed model call, read from the injected clock, so a benchmark can measure latency per call rather than only per run.
-
-- Added the opt-in completion audit: a task run's first `complete` is answered with a demand for host-observable evidence, and only the second is accepted.
 
 - Exposed the previous frame's returned state to the cell as the frozen `ctx.state` binding in both sandbox bindings, and taught the contract to treat it as working memory.
 - Rendered large states in the system context as a key roster instead of full JSON; the full value lives in `ctx.state`.

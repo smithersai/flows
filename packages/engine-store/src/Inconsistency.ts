@@ -115,10 +115,11 @@ export interface MakeOptions {
   readonly journal: Journal.Service
   readonly verdict: InconsistencyVerdict
   /**
-   * When present, the conflict record is fenced to this owner: a reclaimed
-   * run cannot append hermeticity evidence it no longer owns.
+   * The owner the conflict record is fenced to: a reclaimed run cannot append
+   * hermeticity evidence it no longer owns. Required — every composer of this
+   * receiver is a run's owner.
    */
-  readonly owner?: Ownership.OwnerId | undefined
+  readonly owner: Ownership.OwnerId
 }
 
 /**
@@ -237,12 +238,13 @@ export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<Inconsi
  * @since 0.1.0
  * @slop
  */
-export const layerStrict: Layer.Layer<Inconsistency, never, Journal.Journal> = Layer.effect(Inconsistency)(
-  Effect.gen(function*() {
-    const journal = yield* Journal.Journal
-    return make({ journal, verdict: "fail" })
-  })
-)
+export const layerStrict = (owner: Ownership.OwnerId): Layer.Layer<Inconsistency, never, Journal.Journal> =>
+  Layer.effect(Inconsistency)(
+    Effect.gen(function*() {
+      const journal = yield* Journal.Journal
+      return make({ journal, verdict: "fail", owner })
+    })
+  )
 
 /**
  * Journals every cache conflict and continues, preserving the first-recorded
@@ -252,9 +254,10 @@ export const layerStrict: Layer.Layer<Inconsistency, never, Journal.Journal> = L
  * @since 0.1.0
  * @slop
  */
-export const layerTolerant: Layer.Layer<Inconsistency, never, Journal.Journal> = Layer.effect(Inconsistency)(
-  Effect.gen(function*() {
-    const journal = yield* Journal.Journal
-    return make({ journal, verdict: "tolerate" })
-  })
-)
+export const layerTolerant = (owner: Ownership.OwnerId): Layer.Layer<Inconsistency, never, Journal.Journal> =>
+  Layer.effect(Inconsistency)(
+    Effect.gen(function*() {
+      const journal = yield* Journal.Journal
+      return make({ journal, verdict: "tolerate", owner })
+    })
+  )

@@ -426,11 +426,13 @@ export type Compacted = typeof Compacted.Type
  *   overflow policies for telemetry, where `Dropped` receipts and
  *   `drop-oldest` evictions are acceptable.
  *
- * Passing an `owner` fences the write on the run's persisted ownership: the
- * durable insert only commits while `flows_runs` still records that owner, and
- * a reclaimed run fails the write with a `fence_lost` error. Ownerless writes
- * stay unfenced by design — external-trigger admissions such as deferred
- * completions are first-writer-wins regardless of who owns the run.
+ * `emitDurable` is fenced on the run's persisted ownership: the caller hands
+ * over its `OwnerId`, the durable insert only commits while `flows_runs`
+ * still records that owner, and a reclaimed run fails the write with a
+ * `fence_lost` error. The fence is mandatory on the lifecycle channel — a
+ * lifecycle write is what advances a run, and a zombie owner must not advance
+ * anything. The one escape is {@link Service.emitDurableUnfenced}, for the
+ * rare admission that is genuinely ownerless.
  *
  * @category models
  * @since 0.1.0
@@ -438,7 +440,21 @@ export type Compacted = typeof Compacted.Type
  */
 export interface Service {
   readonly emitLossy: (input: Input) => Effect.Effect<EmitReceipt, JournalError>
-  readonly emitDurable: (input: Input, owner?: OwnerId) => Effect.Effect<DurableReceipt, JournalError>
+  readonly emitDurable: (input: Input, owner: OwnerId) => Effect.Effect<DurableReceipt, JournalError>
+  /**
+   * The unfenced durable write: same durability and receipt contract as
+   * {@link Service.emitDurable}, with no ownership fence.
+   *
+   * This exists ONLY for admissions that are genuinely ownerless — writes
+   * whose correctness does not depend on who currently owns the run because
+   * they are first-writer-wins by design. The canonical case is the
+   * external-trigger admission: a deferred completion or clock-schedule
+   * record delivered by a sweeper that owns nothing, where the dedup index,
+   * not the fence, is the idempotency mechanism. A caller that holds an
+   * `OwnerId` must use `emitDurable`; reaching for this channel to dodge a
+   * `fence_lost` is exactly the zombie write the fence exists to reject.
+   */
+  readonly emitDurableUnfenced: (input: Input) => Effect.Effect<DurableReceipt, JournalError>
   /**
    * Runs `effect` — a state projection plus the `emitDurable` calls describing
    * it — inside ONE write transaction.
@@ -487,10 +503,12 @@ export interface Service {
    * otherwise the write fails with `checkpoint_invalid`. Re-checkpointing an
    * uncompacted `seq` replaces its state — last writer wins.
    *
-   * Passing an `owner` fences the write on the run's persisted ownership,
-   * exactly as `emitDurable` does: a reclaimed run fails with `fence_lost`.
+   * The write is fenced on the run's persisted ownership, exactly as
+   * `emitDurable` is: a reclaimed run fails with `fence_lost`. The fence is
+   * mandatory — a zombie owner must not replace replay state behind a live
+   * successor.
    */
-  readonly checkpoint: (options: CheckpointOptions, owner?: OwnerId) => Effect.Effect<Checkpoint, JournalError>
+  readonly checkpoint: (options: CheckpointOptions, owner: OwnerId) => Effect.Effect<Checkpoint, JournalError>
   /**
    * Reads the run's most recent checkpoint, compacted or not.
    *
@@ -506,13 +524,15 @@ export interface Service {
    * Refusals are typed: `checkpoint_invalid` when the run has no checkpoint
    * to truncate below, `reader_behind` when a live in-process stream still
    * needs a sequence the truncation would delete, and `fence_lost` when the
-   * supplied `owner` no longer holds the run. Readers this process cannot
+   * supplied `owner` no longer holds the run — the fence is mandatory, so a
+   * zombie owner can never truncate history behind a live successor. Readers
+   * this process cannot
    * see — pollers of `entries` and followers in other processes — are
    * protected by the read-side guard instead: any read whose cursor starts
    * below the floor fails with `compacted` and the floor to resync from,
    * never a silently shortened history.
    */
-  readonly compact: (options: CompactOptions, owner?: OwnerId) => Effect.Effect<Compacted, JournalError>
+  readonly compact: (options: CompactOptions, owner: OwnerId) => Effect.Effect<Compacted, JournalError>
 }
 
 /**
@@ -550,6 +570,9 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service => {
   const service: Service = {
     emitLossy: Effect.fn("Journal.emitLossy")(() => Effect.fail(unavailable("emitLossy"))),
     emitDurable: Effect.fn("Journal.emitDurable")(() => Effect.fail(unavailable("emitDurable"))),
+    emitDurableUnfenced: Effect.fn("Journal.emitDurableUnfenced")(() =>
+      Effect.fail(unavailable("emitDurableUnfenced"))
+    ),
     /**
      * The closed stub has no sink and therefore no transaction to open, so it
      * runs the effect directly — the same posture as

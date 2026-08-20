@@ -56,6 +56,7 @@ const makeJournal = (events: Array<string>) =>
       })
     return Journal.makeNoop({
       emitDurable: (input) => record(input, "emit"),
+      emitDurableUnfenced: (input) => record(input, "emit"),
       flush: Effect.sync(() => {
         events.push("flush")
       })
@@ -241,14 +242,14 @@ describe("DeferredPersistence", () => {
           const base = makeJournal(events)
           const journal = {
             ...base,
-            emitDurable: (input: JournalEvent.Input) =>
+            emitDurableUnfenced: (input: JournalEvent.Input) =>
               Effect.suspend(() => {
                 if (failuresRemaining > 0 && input.eventType === "flows.engine.deferred-completed") {
                   failuresRemaining--
                   fireFailures++
                   return Effect.die(new Error("transient journal failure"))
                 }
-                return base.emitDurable(input)
+                return base.emitDurableUnfenced(input)
               })
           }
           const clock = DurableClock.make({ name: "retry", duration: "10 seconds" })
@@ -297,13 +298,13 @@ describe("DeferredPersistence", () => {
           const base = makeJournal(events)
           const journal = {
             ...base,
-            emitDurable: (input: JournalEvent.Input) =>
+            emitDurableUnfenced: (input: JournalEvent.Input) =>
               Effect.suspend(() => {
                 if (failuresRemaining > 0 && input.eventType === "flows.engine.deferred-completed") {
                   failuresRemaining--
                   return Effect.die(new Error("transient journal failure"))
                 }
-                return base.emitDurable(input)
+                return base.emitDurableUnfenced(input)
               })
           }
           const clock = DurableClock.make({ name: "slow-retry", duration: "10 seconds" })

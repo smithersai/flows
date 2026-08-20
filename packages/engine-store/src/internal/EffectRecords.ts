@@ -105,6 +105,7 @@ export const boundary = (
     sourceSeq: 0 as JournalEvent.SourceSeq,
     eventType,
     payload: {
+      version: 1,
       effect: {
         id: descriptor.id,
         kind: descriptor.kind,

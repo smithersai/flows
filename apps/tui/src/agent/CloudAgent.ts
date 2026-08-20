@@ -1,13 +1,11 @@
-import { z } from "zod";
 import { composeAgentInstructions } from "smithers-shared/AgentContext";
-import { CardPatchSchema, CardSchema } from "smithers-shared/Cards";
-import { AgentTurnDoneReasonSchema } from "smithers-shared/NativeAgent";
 import type {
 	AgentTurnFrame,
 	FetchLike,
 	StartAgentTurnRequest,
 	StartAgentTurnResult,
 } from "smithers-shared/NativeAgent";
+import { AgentTurnFrameDecoder } from "../state/Transcript";
 
 // TODO(shared): move to a shared package (copied from apps/ui/src/bun/CloudAgent.ts)
 
@@ -22,32 +20,6 @@ export interface CloudAgentConfig {
 }
 
 type PublishFrame = (frame: AgentTurnFrame) => void;
-
-/** The upstream wire frame: an AgentTurnFrame without its runId (added on publish). */
-const WireAgentFrameSchema = z.discriminatedUnion("type", [
-	z.object({
-		type: z.literal("delta"),
-		kind: z.enum(["reasoning", "text"]),
-		text: z.string(),
-	}),
-	z.object({
-		type: z.literal("done"),
-		reason: AgentTurnDoneReasonSchema.optional(),
-		error: z.string().optional(),
-	}),
-	z.object({ type: z.literal("card"), card: CardSchema }),
-	z.object({ type: z.literal("card.update"), id: z.string(), patch: CardPatchSchema }),
-	z.object({
-		type: z.literal("tool_call"),
-		call_id: z.string(),
-		name: z.string(),
-		arguments: z.string(),
-	}),
-]);
-type WireAgentFrame = z.infer<typeof WireAgentFrameSchema>;
-
-const isFrame = (value: unknown): value is WireAgentFrame =>
-	WireAgentFrameSchema.safeParse(value).success;
 
 const responseError = async (response: Response): Promise<string> => {
 	const detail = (await response.text().catch(() => "")).trim().slice(0, MAX_ERROR_BYTES);
@@ -88,60 +60,36 @@ const streamTurn = async (
 
 	const reader = response.body.getReader();
 	const decoder = new TextDecoder();
-	let buffer = "";
 	let settled = false;
-	const readLine = (line: string): void => {
-		if (line.trim() === "") return;
-		let parsed: unknown;
-		try {
-			parsed = JSON.parse(line);
-		} catch {
-			return;
-		}
-		if (!isFrame(parsed)) return;
-		switch (parsed.type) {
-			case "delta":
-				publish({ runId: request.runId, type: "delta", kind: parsed.kind, text: parsed.text });
-				break;
-			case "card":
-				publish({ runId: request.runId, type: "card", card: parsed.card });
-				break;
-			case "card.update":
-				publish({ runId: request.runId, type: "card.update", id: parsed.id, patch: parsed.patch });
-				break;
-			case "tool_call":
-				publish({
-					runId: request.runId,
-					type: "tool_call",
-					call_id: parsed.call_id,
-					name: parsed.name,
-					arguments: parsed.arguments,
-				});
-				break;
-			case "done":
-				publish({
-					runId: request.runId,
-					type: "done",
-					// `reason` is how the client tells an ordinary stop from the
-					// upstream tool-call cap; dropping it turned an honest
-					// tool_limit into a bare "empty response".
-					...(parsed.reason === undefined ? {} : { reason: parsed.reason }),
-					...(parsed.error ? { error: parsed.error } : {}),
-				});
-				settled = true;
-				break;
-		}
-	};
+	const frames = new AgentTurnFrameDecoder(
+		(frame) => {
+			if (settled) return;
+			publish(frame);
+			if (frame.type === "done") settled = true;
+		},
+		request.runId,
+		true,
+	);
 
 	for (;;) {
 		const { value, done } = await reader.read();
-		buffer += decoder.decode(value, { stream: !done });
-		const lines = buffer.split("\n");
-		buffer = done ? "" : (lines.pop() ?? "");
-		for (const line of lines) readLine(line);
+		frames.push(decoder.decode(value, { stream: !done }));
+		if (done) frames.finish();
+		if (!settled && frames.invalidLines() > 0) {
+			await reader.cancel().catch(() => {});
+			throw new Error("Smithers Cloud returned a malformed stream frame.");
+		}
 		if (done || settled) break;
 	}
-	if (!settled) publish({ runId: request.runId, type: "done" });
+	if (settled) {
+		await reader.cancel().catch(() => {});
+	} else {
+		publish({
+			runId: request.runId,
+			type: "done",
+			error: "The response stream ended before Smithers Cloud finished the turn.",
+		});
+	}
 };
 
 export interface CloudAgent {

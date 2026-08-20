@@ -60,10 +60,21 @@ describe("trace", () => {
   it.each(
     [
       [
+        "model-retried",
+        new AgentEvent.ModelRetried({
+          eventType: "flows.harness.model-retried.v1",
+          attempt: 2,
+          code: "transport"
+        }),
+        {
+          eventType: "control.agent.model-retried",
+          payload: { attempt: 2, code: "transport" }
+        }
+      ],
+      [
         "discipline-armed",
         new AgentEvent.DisciplineArmed({
           eventType: "flows.harness.discipline-armed.v1",
-          auditCompletion: true,
           readOnlyCap: 12,
           maxFrames: 100,
           calls: 64,
@@ -76,7 +87,6 @@ describe("trace", () => {
         {
           eventType: "control.agent.discipline-armed",
           payload: {
-            auditCompletion: true,
             readOnlyCap: 12,
             maxFrames: 100,
             calls: 64,
@@ -86,6 +96,20 @@ describe("trace", () => {
             callMs: 120_000,
             totalMs: 900_000
           }
+        }
+      ],
+      [
+        "read-only-demanded",
+        new AgentEvent.ReadOnlyDemanded({
+          eventType: "flows.harness.read-only-demanded.v1",
+          streak: 12,
+          cap: 12,
+          nextFrame: 13,
+          nextAction: "write"
+        }),
+        {
+          eventType: "control.agent.read-only-demanded",
+          payload: { streak: 12, cap: 12, nextFrame: 13, nextAction: "write" }
         }
       ],
       [
@@ -165,41 +189,6 @@ describe("trace", () => {
           transition
         }),
         { eventType: "control.agent.transition-applied", payload: { transition } }
-      ],
-      [
-        "completion-audited",
-        new AgentEvent.CompletionAudited({
-          eventType: "flows.harness.completion-audited.v1",
-          verification: new Cell.Verification({ flow: "bash", input: { command: "pytest -q" } }),
-          accepted: false,
-          detail: "Re-running bash exited 1: {\"exitCode\":1}"
-        }),
-        {
-          // The declared check and what it really printed both land in the
-          // journal, so a grader reads the evidence instead of the claim.
-          eventType: "control.agent.completion-audited",
-          payload: {
-            accepted: false,
-            detail: "Re-running bash exited 1: {\"exitCode\":1}",
-            flowName: "bash",
-            input: { command: "pytest -q" }
-          }
-        }
-      ],
-      [
-        "completion-audited (nothing declared)",
-        new AgentEvent.CompletionAudited({
-          eventType: "flows.harness.completion-audited.v1",
-          accepted: false,
-          detail: "The completion declared no verify block, so nothing could be checked."
-        }),
-        {
-          eventType: "control.agent.completion-audited",
-          payload: {
-            accepted: false,
-            detail: "The completion declared no verify block, so nothing could be checked."
-          }
-        }
       ],
       [
         "suspended",

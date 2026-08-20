@@ -40,11 +40,26 @@ export * as Glob from "./Glob.ts"
  */
 export * as Grep from "./Grep.ts"
 
+/** @category services @since 0.1.0 */
+export * as Search from "./Search.ts"
+
+/** @category layers @since 0.1.0 */
+export * as PortableSearch from "./PortableSearch.ts"
+
+/** @category layers @since 0.1.0 */
+export * as NativeSearch from "./NativeSearch.ts"
+
 /**
  * @category flows
  * @since 0.1.0
  */
 export * as Bash from "./Bash.ts"
+
+/**
+ * @category classification
+ * @since 0.1.0
+ */
+export * as Probe from "./Probe.ts"
 
 /**
  * @category flows

@@ -314,7 +314,15 @@ export const make = (
       payload: unknown,
       sourceId = dependencies.journalSource
     ): Effect.Effect<void> =>
-      journal.emitDurable(
+      // Unfenced by design: a decision record commits in the SAME transaction
+      // as the store-level owner CAS that is its fence (`transitionOwned`,
+      // `activate`, `claim`/`steal` outcomes), and by then the run is often no
+      // longer `running` under this owner, which is the exact predicate the
+      // journal fence asserts. Several call sites (claim-lost,
+      // steal-refused-owner-alive, activation-lost) also record decisions for
+      // runs this driver never owned at all — first-writer-wins evidence,
+      // which is what the unfenced channel exists for.
+      journal.emitDurableUnfenced(
         JournalRecords.runDecision({
           runId,
           lineageId: FlowEngine.Lineage.root(runId),
@@ -662,11 +670,11 @@ export const make = (
             // can no longer land between them.
             yield* engineState.wake(runId).pipe(Effect.asVoid)
             // Durable channel (issue #10): the interruption record must survive
-            // the process exiting right after cancellation. Ownerless because the
+            // the process exiting right after cancellation. Unfenced because the
             // `cancelled` transition above has already released ownership; the
             // fence is the transition CAS itself, which now commits with this
             // record rather than before it.
-            yield* journal.emitDurable(
+            yield* journal.emitDurableUnfenced(
               JournalRecords.interrupted({
                 runId,
                 lineageId: FlowEngine.Lineage.root(runId),
@@ -726,6 +734,9 @@ export const make = (
           yield* encodeState(withoutResult(state)),
           { decision: "interrupt-released", owner: dependencies.owner }
         )
+        // The successful arm is the generator's terminal fallthrough; V8 emits
+        // no executable location for that synthetic branch.
+        /* v8 ignore else */
         if (transitioned._tag !== "Transitioned") {
           // Fence lost between park and release: the run is someone else's
           // (or already settled), so our reclaim marker is bogus. Clear it
@@ -1550,7 +1561,12 @@ export const make = (
                 // is boundary-shaped so the same assessment that classifies a
                 // sent webhook classifies an orphaned child, and it is emitted at
                 // `succeeded` because by this point the child run durably exists.
-                yield* journal.emitDurable(
+                // Unfenced: the creator of a detached child is not necessarily
+                // the parent's current owner (an external spawn admission
+                // creates child rows without holding the parent's fence), so
+                // this lineage-edge record is first-writer-wins evidence keyed
+                // by its spawn identity.
+                yield* journal.emitDurableUnfenced(
                   EffectRecords.boundary(
                     {
                       id: `${options.parent.executionId}:spawn:${options.executionId}`,

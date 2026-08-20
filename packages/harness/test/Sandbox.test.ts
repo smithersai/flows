@@ -256,7 +256,7 @@ for (const [name, binding] of bindings) {
 
       expect(outcome).toStrictEqual(
         new Cell.Settled({
-          transition: new Cell.Complete({ state: null, output: "1", reason: undefined, verify: undefined })
+          transition: new Cell.Complete({ state: null, output: "1", reason: undefined })
         })
       )
     })

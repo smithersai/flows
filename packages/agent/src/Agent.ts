@@ -52,6 +52,7 @@ import * as QuickJSSandbox from "@smthrs/harness/QuickJSSandbox"
 import type * as Sandbox from "@smthrs/harness/Sandbox"
 import * as Steering from "@smthrs/harness/Steering"
 import type * as MemorySource from "@smthrs/memory/Source"
+import type * as Model from "@smthrs/model/Model"
 import * as ModelRequest from "@smthrs/model/ModelRequest"
 import type { FlowsHooks, PluginInput } from "@smthrs/plugin"
 import type { FlowsConfig, ResolvedConfig } from "@smthrs/plugin/Config"
@@ -60,6 +61,7 @@ import type * as Plugins from "@smthrs/plugin/Plugins"
 import type * as Descriptor from "@smthrs/registry/Descriptor"
 import type * as Registry from "@smthrs/registry/Registry"
 import { Context, Effect, Layer, Option, Stream } from "effect"
+import type * as Schedule from "effect/Schedule"
 import * as CellPlugin from "./CellPlugin.ts"
 import * as FlowEngineLike from "./FlowEngineLike.ts"
 import * as Seat from "./Seat.ts"
@@ -78,6 +80,8 @@ import * as Seat from "./Seat.ts"
 export interface Options {
   /** The durable session or lineage every call identity is scoped to. */
   readonly session: string
+  /** Overrides the bounded transport retry schedule at the model boundary. */
+  readonly modelRetryPolicy?: Schedule.Schedule<unknown, Model.ModelFailure> | undefined
   /**
    * The resolved seat this run streams from.
    *
@@ -130,15 +134,13 @@ export interface Options {
   readonly capabilityEnvelope?: ReadonlyArray<Capability.CapabilityPattern> | undefined
   readonly placement?: Option.Option<Descriptor.Placement> | undefined
   readonly maxFrames?: number | undefined
-  /** Arms CellTurn's completion audit; see `CellTurn.make`. */
-  readonly auditCompletion?: boolean | undefined
   /**
    * Caps consecutive read-only frames; see `CellTurn.make`.
    *
-   * Armed the same way the audit is, and for the same reason: a task run's
-   * frames are supposed to change something, and a run that only reads is the
-   * failure mode a flat frame budget cannot see. A run that is meant to
-   * answer rather than act leaves it unset.
+   * Armed for task runs only: a task run's frames are supposed to change
+   * something, and a run that only reads is the failure mode a flat frame
+   * budget cannot see. A run that is meant to answer rather than act leaves it
+   * unset.
    */
   readonly readOnlyCap?: number | undefined
   readonly limits?: Sandbox.Limits | undefined
@@ -315,7 +317,8 @@ const runProduction: Service["run"] = (options) =>
               run: resolver.run
             },
             layers,
-            capabilities: { envelope }
+            capabilities: { envelope },
+            modelRetryPolicy: options.modelRetryPolicy
           })
           const state = CellTurn.make({
             session: options.session,
@@ -327,7 +330,6 @@ const runProduction: Service["run"] = (options) =>
             contextWindow: opening(options, flows),
             contextWindowTokens: options.seat.contextWindowTokens,
             maxFrames: options.maxFrames,
-            auditCompletion: options.auditCompletion,
             readOnlyCap: options.readOnlyCap
           })
           return CellTurn.run({ state, flows, limits: options.limits }).pipe(
@@ -388,7 +390,7 @@ export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<Agent> 
  * @category layers
  * @since 0.1.0
  */
-export const layerDefaults: Layer.Layer<Sandbox.Sandbox | Steering.Source> = Layer.merge(
+export const layerDefaults: Layer.Layer<Sandbox.Sandbox | Steering.Source, Sandbox.SandboxError> = Layer.merge(
   QuickJSSandbox.layer,
   Steering.layerNoop()
 )

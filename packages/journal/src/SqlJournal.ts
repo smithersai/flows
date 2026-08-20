@@ -39,6 +39,7 @@ import {
   type CheckpointOptions,
   type Compacted,
   type CompactOptions,
+  type DurableReceipt,
   type EmitReceipt,
   type EntriesPage,
   Journal,
@@ -809,17 +810,17 @@ export const layer = (
                 })
             )
             const historical = yield* readAvailable
-            const local = Stream.fromSubscription(wake).pipe(
-              Stream.mapEffect(() => readAvailable),
-              Stream.flattenIterable
-            )
             // PubSub is only a local fast path. Another journal process cannot
             // publish into it, so a bounded poll must recheck both the durable
             // tail and the compaction floor while the follower is otherwise idle.
-            const remote = Stream.fromEffectRepeat(
-              Effect.sleep("1 second").pipe(Effect.andThen(readAvailable))
+            // One raced wake keeps the live tail in the consumer fiber instead
+            // of merging two background streams, which also preserves a plain
+            // interruption cause when the consumer is cancelled.
+            const live = Stream.fromEffectRepeat(
+              Effect.raceFirst(PubSub.take(wake), Effect.sleep("1 second")).pipe(
+                Effect.andThen(readAvailable)
+              )
             ).pipe(Stream.flattenIterable)
-            const live = Stream.merge(local, remote)
             return Stream.concat(Stream.fromIterable(historical), live)
           })()
         )
@@ -1150,7 +1151,11 @@ export const layer = (
         Effect.flatMap(Effect.serviceOption(Settlements), (enclosing) => {
           const settlement = Effect.sync(() => rememberCommitted(queued, commit.entry.seq)).pipe(
             Effect.andThen(publish([commit])),
-            Effect.andThen(noteCommitted(queued.runId, commit.inserted ? 1 : 0))
+            // Indexing and subscriber publication are the mandatory
+            // post-COMMIT settlement. Automatic compaction may invoke an
+            // arbitrary capture effect and remains interruptible once those
+            // invariants are restored.
+            Effect.andThen(Effect.interruptible(noteCommitted(queued.runId, commit.inserted ? 1 : 0)))
           )
           return Option.isNone(enclosing)
             ? settlement
@@ -1197,10 +1202,10 @@ export const layer = (
           )
         })
 
-      const emitDurable: Service["emitDurable"] = Effect.fn("Journal.emitDurable")((
+      const writeDurable = (
         input: Input,
-        owner?: OwnerId
-      ) =>
+        owner: OwnerId | undefined
+      ): Effect.Effect<DurableReceipt, JournalError> =>
         Effect.annotateCurrentSpan({
           runId: input.runId,
           sourceId: input.sourceId,
@@ -1260,21 +1265,21 @@ export const layer = (
                 const commit = yield* insertOne(queued, owner)
                 return { commit, queued, sourceSeq }
               }))).pipe(
-              /**
-               * `writer.write` is a retrying transaction: its body replays on
-               * `SQLITE_BUSY(_SNAPSHOT)` and can still abort at COMMIT after the
-               * body succeeded. Cache mutation and publication therefore happen
-               * strictly after the transaction returns, so subscribers never
-               * observe a rolled-back entry and a replayed body never publishes
-               * twice. Mirrors the queued path, which publishes in a `.tap`
-               * outside `persistBatch`.
-               *
-               * Under `transact` "after the transaction returns" is not yet
-               * "after COMMIT" — this write is a savepoint of the caller's
-               * transaction — so `settle` parks both effects until the
-               * outermost transaction commits.
-               */
-              Effect.tap(({ commit, queued }) => settleCommit(queued, commit)),
+                /**
+                 * `writer.write` is a retrying transaction: its body replays on
+                 * `SQLITE_BUSY(_SNAPSHOT)` and can still abort at COMMIT after the
+                 * body succeeded. Cache mutation and publication therefore happen
+                 * strictly after the transaction returns, so subscribers never
+                 * observe a rolled-back entry and a replayed body never publishes
+                 * twice. Mirrors the queued path, which publishes in a `.tap`
+                 * outside `persistBatch`.
+                 *
+                 * Under `transact` "after the transaction returns" is not yet
+                 * "after COMMIT" — this write is a savepoint of the caller's
+                 * transaction — so `settle` parks both effects until the
+                 * outermost transaction commits.
+                 */
+                Effect.tap(({ commit, queued }) => settleCommit(queued, commit))
               )
             ).pipe(
               Effect.map(({ commit, sourceSeq }) =>
@@ -1289,14 +1294,24 @@ export const layer = (
                 isJournalError(cause) ? cause : error("sink_failed", "durable journal write failed", cause)
               )
             ))))))
+
+      const emitDurable: Service["emitDurable"] = Effect.fn("Journal.emitDurable")((
+        input: Input,
+        owner: OwnerId
+      ) =>
+        writeDurable(input, owner)
       )
+
+      const emitDurableUnfenced: Service["emitDurableUnfenced"] = Effect.fn("Journal.emitDurableUnfenced")((
+        input: Input
+      ) => writeDurable(input, undefined))
 
       const emitLossy: Service["emitLossy"] = queuedEmit
 
-      const checkpoint: Service["checkpoint"] = Effect.fn("Journal.checkpoint")((
+      const checkpointInternal = (
         checkpointOptions: CheckpointOptions,
-        owner?: OwnerId
-      ) =>
+        owner: OwnerId | undefined
+      ): Effect.Effect<Checkpoint, JournalError> =>
         Effect.gen(function*() {
           yield* Effect.annotateCurrentSpan({
             runId: checkpointOptions.runId,
@@ -1362,7 +1377,11 @@ export const layer = (
             )
           )
         })
-      )
+
+      const checkpoint: Service["checkpoint"] = Effect.fn("Journal.checkpoint")((
+        checkpointOptions: CheckpointOptions,
+        owner: OwnerId
+      ) => checkpointInternal(checkpointOptions, owner))
 
       const latestCheckpoint: Service["latestCheckpoint"] = Effect.fn("Journal.latestCheckpoint")((runId: RunId) =>
         Effect.gen(function*() {
@@ -1376,18 +1395,16 @@ export const layer = (
             WHERE run_id = ${runId}
             ORDER BY seq DESC
             LIMIT 1
-          `.pipe(Effect.mapError((cause) =>
-            error("unknown", "durable checkpoint read failed", cause)
-          ))
+          `.pipe(Effect.mapError((cause) => error("unknown", "durable checkpoint read failed", cause)))
           const row = rows[0]
           return row === undefined ? Option.none() : Option.some(yield* decodeCheckpointRow(row))
         })
       )
 
-      const compact: Service["compact"] = Effect.fn("Journal.compact")((
+      const compactInternal = (
         compactOptions: CompactOptions,
-        owner?: OwnerId
-      ) =>
+        owner: OwnerId | undefined
+      ): Effect.Effect<Compacted, JournalError> =>
         Effect.gen(function*() {
           yield* Effect.annotateCurrentSpan({
             runId: compactOptions.runId,
@@ -1475,7 +1492,11 @@ export const layer = (
             )
           )
         })
-      )
+
+      const compact: Service["compact"] = Effect.fn("Journal.compact")((
+        compactOptions: CompactOptions,
+        owner: OwnerId
+      ) => compactInternal(compactOptions, owner))
 
       const compactionPolicy = options.compaction
       const compactionCounts = new Map<RunId, number>()
@@ -1507,8 +1528,16 @@ export const layer = (
           }
           const upTo = Number(last) as Seq
           const captured = yield* policy.capture(runId, upTo)
-          yield* checkpoint({ runId, seq: upTo, state: captured })
-          yield* compact({ runId, upTo })
+          // The policy is the journal's OWN post-commit maintenance, not a
+          // caller's mutating entrypoint: it owns no run and holds no fence,
+          // so it drives the internal channel. The attempt only ever
+          // truncates below a tail the run's own commits produced, a retry is
+          // idempotent (a re-attempt after a reclaim compacts the same
+          // committed prefix the live owner also sees), and every failure is
+          // damped below — never surfaced to the emit that crossed the
+          // threshold.
+          yield* checkpointInternal({ runId, seq: upTo, state: captured }, undefined)
+          yield* compactInternal({ runId, upTo }, undefined)
           compactionCounts.set(runId, yield* countEntries(runId))
         }).pipe(
           Effect.catchCause((cause) =>
@@ -1599,10 +1628,9 @@ export const layer = (
       const failSink = (cause: JournalError, batch: ReadonlyArray<QueuedEntry>): void => {
         for (const queued of batch) {
           const identity = sourceEventKey(queued.runId, queued.sourceId, queued.sourceSeq)
-          const pending = state.sourceEvents.get(identity)
-          if (pending?.status === "pending" && pending.seq === queued.seq) {
-            state.sourceEvents.delete(identity)
-          }
+          // Allocation is serialized until this batch settles, so no newer
+          // admission can replace this exact identity before the deletion.
+          state.sourceEvents.delete(identity)
         }
         state.sinkFailure = cause
         state.lossEpoch += 1
@@ -1719,6 +1747,7 @@ export const layer = (
       return makeJournal({
         emitLossy,
         emitDurable,
+        emitDurableUnfenced,
         transact,
         stream,
         entries: readPage,

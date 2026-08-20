@@ -48,7 +48,7 @@ describe("SyncClient", () => {
           const client = yield* TestSync.connect(pair)
           const id = runId("client-round-trip")
 
-          yield* journal.emitDurable({
+          yield* journal.emitDurableUnfenced({
             runId: id,
             sourceId: sourceId("source"),
             eventType: "before",
@@ -60,7 +60,7 @@ describe("SyncClient", () => {
             client.subscribe({ scope: { _tag: "Run", runId: id }, cursors: [] }).pipe(Stream.take(2))
           ).pipe(Effect.forkChild({ startImmediately: true }))
 
-          yield* journal.emitDurable({
+          yield* journal.emitDurableUnfenced({
             runId: id,
             sourceId: sourceId("source"),
             eventType: "after",

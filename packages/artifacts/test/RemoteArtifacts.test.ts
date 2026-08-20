@@ -7,7 +7,9 @@ import { describe, expect, it } from "@effect/vitest"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
+import * as Fiber from "effect/Fiber"
 import * as Layer from "effect/Layer"
+import { TestClock } from "effect/testing"
 import * as HttpClient from "effect/unstable/http/HttpClient"
 import * as HttpClientError from "effect/unstable/http/HttpClientError"
 import * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"
@@ -161,8 +163,7 @@ describe("downloads", () => {
       expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
     }))
 
-  // Real elapsed time: `it.effect`'s TestClock would stall this.
-  it.live("fails a download that exceeds its deadline instead of waiting forever", () =>
+  it.effect("fails a download that exceeds its deadline instead of waiting forever", () =>
     Effect.gen(function*() {
       // Headers arrive but the body never does. The deadline covers the whole
       // exchange, so the read fails typed instead of parking forever on a tier
@@ -171,7 +172,15 @@ describe("downloads", () => {
         () => new Response(new ReadableStream({ start() {} })),
         { downloadTimeout: "50 millis" }
       )
-      const exit = yield* withCrypto(Effect.flatMap(tier.store, (store) => store.get(digest)).pipe(Effect.exit))
+      const request = yield* withCrypto(
+        Effect.flatMap(tier.store, (store) => store.get(digest)).pipe(
+          Effect.exit,
+          Effect.forkChild({ startImmediately: true })
+        )
+      )
+      yield* Effect.yieldNow
+      yield* TestClock.adjust("50 millis")
+      const exit = yield* Fiber.join(request)
       expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
     }))
 

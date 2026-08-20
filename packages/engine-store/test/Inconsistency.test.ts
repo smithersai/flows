@@ -104,7 +104,7 @@ describe("Inconsistency", () => {
             cached: yield* cache.get(keyDigest),
             conflicts: yield* conflictEvents("strict-run")
           }
-        }).pipe(Effect.provide(Layer.provideMerge(Inconsistency.layerStrict, base)), Effect.scoped)
+        }).pipe(Effect.provide(Layer.provideMerge(Inconsistency.layerStrict(owner), base)), Effect.scoped)
       )
 
       expect(result.error).toBeInstanceOf(ActionPersistence.CacheConflictDetected)
@@ -133,7 +133,7 @@ describe("Inconsistency", () => {
             cached: yield* cache.get(keyDigest),
             conflicts: yield* conflictEvents("tolerant-run")
           }
-        }).pipe(Effect.provide(Layer.provideMerge(Inconsistency.layerTolerant, base)), Effect.scoped)
+        }).pipe(Effect.provide(Layer.provideMerge(Inconsistency.layerTolerant(owner), base)), Effect.scoped)
       )
 
       expect(result.value).toBe("divergent")

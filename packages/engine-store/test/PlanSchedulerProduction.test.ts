@@ -62,7 +62,10 @@ const production = (root: string) => {
     Layer.provide(KernelWorkspace.layer(root)),
     Layer.provide(GrantStore.layerNoop)
   )
-  const artifacts = ArtifactStore.layerFileSystem({ directory: join(root, ".flows/objects") }).pipe(
+  const artifacts = ArtifactStore.layerFileSystem({
+    directory: join(root, ".flows/objects"),
+    durability: "best-effort"
+  }).pipe(
     Layer.provideMerge(workspaceFs)
   )
   return Layer.mergeAll(
@@ -83,7 +86,10 @@ const boundaryOnly = (root: string) => {
     Layer.provide(KernelWorkspace.layer(root)),
     Layer.provide(GrantStore.layerNoop)
   )
-  const artifacts = ArtifactStore.layerFileSystem({ directory: join(root, ".flows/objects") }).pipe(
+  const artifacts = ArtifactStore.layerFileSystem({
+    directory: join(root, ".flows/objects"),
+    durability: "best-effort"
+  }).pipe(
     Layer.provideMerge(workspaceFs)
   )
   return Layer.mergeAll(

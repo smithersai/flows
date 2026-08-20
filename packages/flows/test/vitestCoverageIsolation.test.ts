@@ -278,20 +278,33 @@ describe("vitest coverage isolation conformance", () => {
     // own test/build scripts participate in the root recursive gates, while
     // the package publication/coverage universe remains `packages/*`.
     //
-    // The allowBuilds roster gained `playwright` (2026-08-18): apps/ui's
-    // live-* browser checks depend on it, and like every other entry it is
-    // DENIED — its postinstall downloads browsers, and those checks run
-    // against a system or already-installed one. Denying a build adds no
-    // ungated surface; it removes one.
     const workspace = readFileSync(join(packagesDir, "..", "pnpm-workspace.yaml"), "utf8")
-    expect(workspace).toBe(
+    const packagesBlock = workspace.match(/^packages:\n(?:  - .+\n)+/m)?.[0]
+    expect(packagesBlock).toBe(
       [
         "packages:",
         "  - \"packages/*\"",
         "  - \"packages/build/infra\"",
         "  - \"examples\"",
         "  - \"apps/*\"",
-        "",
+        ""
+      ].join("\n")
+    )
+
+    // The allowBuilds roster is a supply-chain control, not formatting: each
+    // entry denies a dependency's postinstall build, and `playwright` is the
+    // clearest case — its postinstall downloads browsers, while the live-*
+    // checks run against an already-installed one. Denying a build removes
+    // ungated surface rather than adding it.
+    //
+    // This block is asserted on its own rather than as part of an exact match
+    // over the whole file. Pinning the entire file made every unrelated
+    // addition (`minimumReleaseAgeExclude`, for one) look like a failure here,
+    // which is what pressured an earlier change into dropping the roster from
+    // the assertion altogether. Flipping any entry to `true` must fail a gate.
+    const allowBuilds = workspace.match(/^allowBuilds:\n(?:  .+\n)+/m)?.[0]
+    expect(allowBuilds).toBe(
+      [
         "allowBuilds:",
         "  \"@journeyapps/wa-sqlite\": false",
         "  dprint: false",
@@ -303,12 +316,11 @@ describe("vitest coverage isolation conformance", () => {
         "  unrs-resolver: false",
         "  vue-demi: false",
         "  workerd: false",
-        "",
-        "linkWorkspacePackages: true",
-        "verifyDepsBeforeRun: false",
         ""
       ].join("\n")
     )
+    expect(workspace).toMatch(/^linkWorkspacePackages: true$/m)
+    expect(workspace).toMatch(/^verifyDepsBeforeRun: false$/m)
   })
 
   it("pins the root aggregator scripts CI invokes (issue #166)", () => {

@@ -342,7 +342,7 @@ describe("Control surface", () => {
         const park = Effect.gen(function*() {
           const fence = yield* runtime.claimFence(runId)
           yield* runtime.writeStatus(runId, fence, "waiting-approval")
-          yield* journal.emitDurable(
+          yield* journal.emitDurableUnfenced(
             new JournalEvent.Input({
               runId: JournalEvent.RunId.make(runId),
               sourceId: JournalEvent.SourceId.make("/test/executor"),

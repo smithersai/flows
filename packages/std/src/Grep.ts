@@ -1,35 +1,58 @@
 /**
- * The `grep` flow: content search over the workspace, with a deterministic
- * order and both a match count and a byte budget bounding the output.
+ * The `grep` flow and its Flows Ripgrep Subset v1 contract.
+ *
+ * Supported ripgrep semantics: Rust-style regular expressions restricted to
+ * Flows Ripgrep ASCII v1; `-F` (`fixedStrings`); `-i` (`ignoreCase`) and `-S`
+ * (`smartCase`); ordered `-g` include/exclude globs; `-A`, `-B`, and `-C`
+ * context; per-file `--max-count`; `--files-with-matches`; `--hidden`; and
+ * deterministic path/line ordering. Ignore files and file-type registries are
+ * outside v1: callers must use `noIgnore: true` (the default), and any `types`
+ * request is rejected. Patterns are capped at 4096 ASCII bytes and counted
+ * repetitions at 1000. Invalid UTF-8 is replacement-decoded; NUL-bearing
+ * files are skipped and counted, while an explicitly named binary file is a
+ * typed failure. Results are globally bounded by `limit` and disclose
+ * truncation through `notice`.
+ *
+ * `globs` accepts exactly the shapes `glob` accepts and reads them the same
+ * way: every pattern is matched against each candidate's path *relative to
+ * `root`*, a pattern without `/` matches the basename at any depth, and a
+ * leading `/` or `./` anchors at the root rather than naming a filesystem
+ * absolute path. A `root` that names one file is searched whatever the globs
+ * say. See `Glob` for the full statement of the rules. A search that matched
+ * nothing because a positive glob was unsatisfiable says so through `notice`
+ * instead of returning a silent empty result.
+ *
+ * `filesSearched` counts every file the globs admitted, including the binaries
+ * `skippedBinary` reports and any file the process could not open. A walk
+ * skips what it cannot read rather than failing the call.
+ *
+ * Native and in-process implementations are peers behind `Search.Search`.
+ * This module declares and validates the call; it performs no host access.
  *
  * @since 0.1.0
  */
 import * as Flow from "@smthrs/core/Flow"
-import * as Path from "@smthrs/kernel/Path"
-import * as Effect from "effect/Effect"
-import * as FileSystem from "effect/FileSystem"
-import * as Schema from "effect/Schema"
+import { Effect, Schema } from "effect"
 import { capability, envelope } from "./internal/Declaration.ts"
-import { MAX_GREP_MATCHES, notice, truncateBytes } from "./internal/Text.ts"
-import * as Walk from "./internal/Walk.ts"
+import * as Contract from "./internal/SearchContract.ts"
+import { MAX_GREP_MATCHES } from "./internal/Text.ts"
+import * as Search from "./Search.ts"
 import * as StdError from "./StdError.ts"
 
 /**
- * The registry name for the grep flow.
+ * The registry name for grep.
  *
  * @category identifiers
  * @since 0.1.0
  */
 export const name = "grep"
-
 /**
- * Searches file contents by regex below a root; binary files are skipped and counted rather than returned.
+ * The model-facing grep description.
  *
  * @category descriptions
  * @since 0.1.0
  */
-export const description =
-  "Search file contents by regex below a root; binary files are skipped and counted rather than returned."
+export const description = "Search file contents through the Flows Ripgrep Subset v1 contract."
 
 /**
  * Input accepted by {@link flow} and {@link run}.
@@ -38,16 +61,52 @@ export const description =
  * @since 0.1.0
  */
 export const Input = Schema.Struct({
-  pattern: Schema.String.annotate({ description: "Regular expression, or literal text when literal is true." }),
-  root: Schema.optional(Schema.String).annotate({ description: "Directory to search; defaults to /." }),
-  include: Schema.optional(Schema.String).annotate({ description: "Filename glob filter." }),
-  literal: Schema.optional(Schema.Boolean).annotate({ description: "Treat pattern as literal text." }),
+  pattern: Schema.String.annotate({ description: "Flows Ripgrep ASCII v1 expression." }),
+  root: Schema.optional(Schema.String).annotate({
+    description: "Search root the globs are relative to; defaults to /. Pass the project directory."
+  }),
+  fixedStrings: Schema.optional(Schema.Boolean).annotate({ description: "Ripgrep -F." }),
+  ignoreCase: Schema.optional(Schema.Boolean).annotate({ description: "Ripgrep -i." }),
+  smartCase: Schema.optional(Schema.Boolean).annotate({ description: "Ripgrep -S." }),
+  globs: Schema.optional(Schema.Array(Schema.String)).annotate({
+    description:
+      "Ordered ripgrep -g globs, matched against paths relative to root, never absolute paths: a glob without / matches any basename, a leading / anchors at root, and ** crosses directories. Prefix exclusions with !."
+  }),
+  beforeContext: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))).annotate({
+    description: "Ripgrep -B."
+  }),
+  afterContext: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))).annotate({
+    description: "Ripgrep -A."
+  }),
+  context: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))).annotate({ description: "Ripgrep -C." }),
+  maxCount: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(1))).annotate({
+    description: "Ripgrep --max-count, per file; at least 1."
+  }),
+  filesWithMatches: Schema.optional(Schema.Boolean).annotate({ description: "Ripgrep --files-with-matches." }),
+  hidden: Schema.optional(Schema.Boolean).annotate({ description: "Ripgrep --hidden." }),
+  noIgnore: Schema.optional(Schema.Boolean).annotate({
+    description: "Must be true in v1; ignore files are not consulted."
+  }),
+  types: Schema.optional(Schema.Array(Schema.String)).annotate({
+    description: "Reserved; file-type registries are not supported in v1."
+  }),
   limit: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))).annotate({
-    description: `Maximum matches to return, capped at ${MAX_GREP_MATCHES}.`
+    description: `Global result limit, capped at ${MAX_GREP_MATCHES}.`
   })
 })
 
-const Match = Schema.Struct({ file: Schema.String, line: Schema.Int, text: Schema.String })
+/**
+ * One matching or context line.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const Match = Schema.Struct({
+  file: Schema.String,
+  line: Schema.Int,
+  text: Schema.String,
+  kind: Schema.Literals(["match", "context"])
+})
 
 /**
  * Output produced by {@link run}.
@@ -57,6 +116,7 @@ const Match = Schema.Struct({ file: Schema.String, line: Schema.Int, text: Schem
  */
 export const Output = Schema.Struct({
   matches: Schema.Array(Match),
+  files: Schema.Array(Schema.String),
   filesSearched: Schema.Int,
   skippedBinary: Schema.Int,
   truncated: Schema.Boolean,
@@ -64,7 +124,6 @@ export const Output = Schema.Struct({
 })
 
 const rootSubtree = (root: string): string => root === "/" ? "/**" : `${root.replace(/\/+$/, "")}/**`
-
 /**
  * Conservative sealed declaration for all workspace files.
  *
@@ -72,7 +131,6 @@ const rootSubtree = (root: string): string => root === "/" ? "/**" : `${root.rep
  * @since 0.1.0
  */
 export const effects = envelope({ tier: "sealed", mode: "hermetic", reads: ["/**"], writes: [] })
-
 /**
  * Narrows the read declaration to the requested root subtree.
  *
@@ -81,137 +139,74 @@ export const effects = envelope({ tier: "sealed", mode: "hermetic", reads: ["/**
  */
 export const effectsFor = (input: { readonly root?: string | undefined }) =>
   envelope({ tier: "sealed", mode: "hermetic", reads: [rootSubtree(input.root ?? "/")], writes: [] })
-
 /**
- * Capability strings requested by this flow.
+ * Capability strings requested by grep.
  *
  * @category capabilities
  * @since 0.1.0
  */
 export const capabilities = [capability("fs:read", "/**")]
-
 /**
- * Declaration-only grep flow. Execute {@link run} through the builtin handler map.
+ * Declaration-only grep flow.
  *
  * @category flows
  * @since 0.1.0
  */
 export const flow = Flow.make({ name, description, input: Input, output: Output, capabilities, effects })
 
-const invalidPattern = (pattern: string): StdError.StdError =>
-  new StdError.StdError({ code: "invalid_pattern", message: `Invalid regular expression: ${pattern}` })
-
-const fileSystemError = (path: string): StdError.StdError =>
-  new StdError.StdError({ code: "not_found", message: `Path not found: ${path}`, path })
-
-const escapeRegularExpression = (value: string): string => value.replace(/[.*+^${}()|[\]\\]/g, "\\$&")
-
-const segmentExpression = (segment: string): RegExp => {
-  let expression = ""
-  for (const character of segment) {
-    expression += character === "*"
-      ? ".*"
-      : character === "?"
-      ? "."
-      : character.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&")
+const normalize = (input: typeof Input.Type): Search.GrepInput | StdError.StdError => {
+  if (input.noIgnore === false) {
+    return Contract.invalidInput("ignore-file handling is not supported; use noIgnore: true")
   }
-  return new RegExp(`^${expression}$`)
-}
-
-const includesFile = (pattern: string, relative: string, basename: string): boolean =>
-  segmentExpression(pattern).test(relative) || segmentExpression(pattern).test(basename)
-
-const walkFiles = (
-  fileSystem: FileSystem.FileSystem,
-  path: Path.Path,
-  root: string
-): Effect.Effect<ReadonlyArray<string>, StdError.StdError> =>
-  Effect.gen(function*() {
-    const rootInfo = yield* fileSystem.stat(root).pipe(Effect.mapError(() => fileSystemError(root)))
-    if (rootInfo.type === "File") return [path.normalize(root)]
-
-    const files: Array<string> = []
-    const directories: Array<string> = [root]
-    while (directories.length > 0) {
-      const directory = directories.pop()
-      if (directory === undefined) continue
-      const children = yield* fileSystem.readDirectory(directory).pipe(
-        Effect.mapError(() => fileSystemError(directory))
-      )
-      for (const child of [...children].sort().reverse()) {
-        if (Walk.skippedDirectories.has(child)) continue
-        const candidate = path.join(directory, child)
-        const info = yield* fileSystem.stat(candidate).pipe(Effect.mapError(() => fileSystemError(candidate)))
-        if (info.type === "Directory") directories.push(candidate)
-        else if (info.type === "File") files.push(path.normalize(candidate))
-      }
-    }
-    return files.sort()
-  })
-
-const preview = (line: string): string => {
-  const characters = Array.from(line)
-  const capped = characters.length > 500 ? characters.slice(0, 500).join("") : line
-  return truncateBytes(capped, 500, { keep: "head" }).text
+  if (input.types !== undefined && input.types.length > 0) {
+    return Contract.invalidInput("file type filters are not supported")
+  }
+  if (input.ignoreCase === true && input.smartCase === true) {
+    return Contract.invalidInput("-i and -S are mutually exclusive")
+  }
+  if (input.context !== undefined && (input.beforeContext !== undefined || input.afterContext !== undefined)) {
+    return Contract.invalidInput("-C cannot be combined with -A or -B")
+  }
+  // `rg --max-count 0` answers nothing at all, not even the summary the native
+  // peer parses, so a cap that admits no match is rejected rather than read
+  // differently by each peer.
+  if (input.maxCount !== undefined && input.maxCount < 1) {
+    return Contract.invalidInput("--max-count must be at least 1")
+  }
+  const fixedStrings = input.fixedStrings ?? false
+  const patternError = Contract.validatePattern(input.pattern, fixedStrings)
+  if (patternError !== undefined) return patternError
+  for (const glob of input.globs ?? []) {
+    const globError = Contract.validateGlob(glob)
+    if (globError !== undefined) return globError
+  }
+  return {
+    pattern: input.pattern,
+    root: input.root ?? "/",
+    fixedStrings,
+    ignoreCase: input.ignoreCase ?? false,
+    smartCase: input.smartCase ?? false,
+    globs: input.globs ?? [],
+    beforeContext: input.context ?? input.beforeContext ?? 0,
+    afterContext: input.context ?? input.afterContext ?? 0,
+    maxCount: input.maxCount,
+    filesWithMatches: input.filesWithMatches ?? false,
+    hidden: input.hidden ?? false,
+    limit: Math.min(input.limit ?? MAX_GREP_MATCHES, MAX_GREP_MATCHES)
+  }
 }
 
 /**
- * Searches text files with a portable regular expression using only kernel filesystem and path services.
+ * Runs one validated ripgrep-contract call through the selected peer implementation.
  *
  * @category handlers
  * @since 0.1.0
  */
 export const run = Effect.fn("Grep.run")(function*(
   input: typeof Input.Type
-): Effect.fn.Return<typeof Output.Type, StdError.StdError, FileSystem.FileSystem | Path.Path> {
-  const expression = yield* Effect.try({
-    try: () => new RegExp(input.literal === true ? escapeRegularExpression(input.pattern) : input.pattern),
-    catch: () => invalidPattern(input.pattern)
-  })
-  const path = yield* Path.Path
-  const root = path.normalize(input.root ?? "/")
-  const fileSystem = yield* FileSystem.FileSystem
-  const rootInfo = yield* fileSystem.stat(root).pipe(Effect.mapError(() => fileSystemError(root)))
-  const files = yield* walkFiles(fileSystem, path, root)
-  const limit = Math.min(input.limit ?? MAX_GREP_MATCHES, MAX_GREP_MATCHES)
-  const matches: Array<{ readonly file: string; readonly line: number; readonly text: string }> = []
-  let matchCount = 0
-  let filesSearched = 0
-  let skippedBinary = 0
-
-  for (const file of files) {
-    const relative = path.relative(root, file)
-    if (input.include !== undefined && !includesFile(input.include, relative, path.basename(file))) continue
-    const bytes = yield* fileSystem.readFile(file).pipe(Effect.mapError(() => fileSystemError(file)))
-    filesSearched++
-    if (bytes.includes(0)) {
-      if (rootInfo.type === "File" && file === root) {
-        return yield* Effect.fail(
-          new StdError.StdError({ code: "binary_file", message: `Cannot search binary file: ${file}`, path: file })
-        )
-      }
-      skippedBinary++
-      continue
-    }
-    const lines = new TextDecoder().decode(bytes).split(/\r?\n/)
-    for (let index = 0; index < lines.length; index++) {
-      const text = lines[index]
-      if (text === undefined) continue
-      expression.lastIndex = 0
-      if (!expression.test(text)) continue
-      matchCount++
-      // Retain one additional match before slicing so truncation is evidence-based.
-      if (matches.length <= limit) matches.push({ file, line: index + 1, text: preview(text) })
-    }
-  }
-
-  const truncated = matchCount > limit
-  const shown = matches.slice(0, limit)
-  return {
-    matches: shown,
-    filesSearched,
-    skippedBinary,
-    truncated,
-    ...(truncated ? { notice: notice("matches", shown.length, matchCount) } : {})
-  }
+): Effect.fn.Return<typeof Output.Type, StdError.StdError, Search.Search> {
+  const normalized = normalize(input)
+  if (normalized instanceof StdError.StdError) return yield* Effect.fail(normalized)
+  const search = yield* Search.Search
+  return yield* search.grep(normalized)
 })

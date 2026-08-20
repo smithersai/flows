@@ -20,7 +20,7 @@
  * inside an ordinary flow, with a declared output schema the answer must
  * satisfy. {@link runAgent} drives the `Agent` service directly inside a real
  * flow execution, which is how a scenario reaches an option `AgentAction` does
- * not forward, such as the completion audit.
+ * not forward, such as `readOnlyCap`.
  *
  * Imports reach the workspace packages by relative path because the repository
  * root does not depend on `@smthrs/agent`; pnpm resolves each package's
@@ -28,8 +28,8 @@
  *
  * @since 0.1.0
  */
-import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
 import * as Cause from "effect/Cause"
+import * as Crypto from "effect/Crypto"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -47,6 +47,17 @@ import { FlowBinding } from "../../packages/harness/src/index.ts"
 import { Model, ModelEvent, type ModelRequest, type Route } from "../../packages/model/src/index.ts"
 import { Node } from "../../packages/plan/src/index.ts"
 import { Registry } from "../../packages/registry/src/index.ts"
+
+const hostCrypto = Layer.succeed(
+  Crypto.Crypto,
+  Crypto.make({
+    randomBytes: (size) => globalThis.crypto.getRandomValues(new Uint8Array(size)),
+    digest: (algorithm, data) =>
+      Effect.promise(() => globalThis.crypto.subtle.digest(algorithm, data.slice().buffer)).pipe(
+        Effect.map((buffer) => new Uint8Array(buffer))
+      )
+  })
+)
 
 /**
  * What one scenario run reports, and the only thing the scorers read.
@@ -223,14 +234,6 @@ export const echoSource = (recorder: Recorder): FlowBinding.Source =>
     })
   ])
 
-const check = CoreFlow.make({
-  name: "check",
-  description: "Run the project's own check and report its exit code.",
-  input: Schema.Struct({ command: Schema.String }),
-  output: Schema.Struct({ exitCode: Schema.Number }),
-  effects: { reads: [], writes: [], mode: "expected", onConflict: "serialize", tier: "irreversible" }
-})
-
 const probe = CoreFlow.make({
   name: "probe",
   description: "Read something and report that it was read.",
@@ -238,28 +241,6 @@ const probe = CoreFlow.make({
   output: Schema.Struct({ read: Schema.Boolean }),
   effects: { reads: ["/**"], writes: [], mode: "hermetic", onConflict: "serialize", tier: "sealed" }
 })
-
-/**
- * The check a completing cell cites, recorded by the command it was given.
- *
- * The audit re-runs the cited call itself, so a scenario that completes with
- * evidence records the command twice: once from the cell, once from the
- * harness. A boundary that went back to accepting prose would record it once.
- *
- * @category constructors
- * @since 0.1.0
- */
-export const checkSource = (recorder: Recorder): FlowBinding.Source =>
-  FlowBinding.source("evals/agent/check", [
-    FlowBinding.make({
-      flow: check,
-      handler: (input) =>
-        Effect.sync(() => {
-          recorder.flowCalls.push(`check:${input.command}`)
-          return { exitCode: 0 }
-        })
-    })
-  ])
 
 /**
  * A read that declares no writes, so a frame spent on it is a read-only frame.
@@ -357,7 +338,7 @@ export const runAction = (options: ActionOptions): Effect.Effect<Observation> =>
         Layer.provideMerge(Layer.merge(Agent.layer, Agent.layerDefaults)),
         Layer.provideMerge(Action.layerImplementations),
         Layer.provideMerge(FlowEngine.layerMemory),
-        Layer.provideMerge(NodeCrypto.layer)
+        Layer.provideMerge(hostCrypto)
       )
     ),
     Effect.exit,
@@ -396,9 +377,7 @@ export interface AgentOptions {
   readonly recorder: Recorder
   readonly respond: Respond
   readonly maxFrames: number
-  /** Arms the completion audit, which `AgentAction` does not forward. */
-  readonly auditCompletion?: boolean | undefined
-  /** Caps consecutive read-only frames, the other task-run discipline. */
+  /** Caps consecutive read-only frames, the task-run discipline. */
   readonly readOnlyCap?: number | undefined
   /** Host executable flows the cell may call. */
   readonly flows?: ReadonlyArray<FlowBinding.Source> | undefined
@@ -432,7 +411,6 @@ export const runAgent = (options: AgentOptions): Effect.Effect<Observation> =>
         capabilityEnvelope: [],
         maxFrames: options.maxFrames,
         ...(options.flows === undefined ? {} : { flows: options.flows }),
-        ...(options.auditCompletion === undefined ? {} : { auditCompletion: options.auditCompletion }),
         ...(options.readOnlyCap === undefined ? {} : { readOnlyCap: options.readOnlyCap })
       }).pipe(
         Stream.runForEach((event) => Effect.sync(() => collected.push(event))),
@@ -452,7 +430,7 @@ export const runAgent = (options: AgentOptions): Effect.Effect<Observation> =>
     const exit = yield* Deferred.await(settled)
     return observe(exit, options.recorder)
   }).pipe(
-    Effect.provide(Layer.merge(FlowEngine.layerMemory, NodeCrypto.layer)),
+    Effect.provide(Layer.merge(FlowEngine.layerMemory, hostCrypto)),
     Effect.scoped,
     Effect.orDie
   )

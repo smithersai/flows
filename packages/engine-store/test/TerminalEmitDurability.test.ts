@@ -315,7 +315,7 @@ describe("the crash window itself is closed", () => {
         let crashed = false
         return {
           ...journal,
-          emitDurable: (input: JournalEvent.Input, journalOwner?: Ownership.OwnerId) =>
+          emitDurable: (input: JournalEvent.Input, journalOwner: Ownership.OwnerId) =>
             Effect.suspend(() => {
               if (!crashed && input.eventType === "flows.engine.attempt-finished") {
                 crashed = true

@@ -1,3 +1,8 @@
+/**
+ * In-process coordination for filesystem artifact publication and removal.
+ *
+ * @since 0.1.0
+ */
 import * as Effect from "effect/Effect"
 import type * as FileSystem from "effect/FileSystem"
 import * as Semaphore from "effect/Semaphore"
@@ -9,7 +14,12 @@ interface Entry {
 
 const locks = new WeakMap<FileSystem.FileSystem, Map<string, Entry>>()
 
-/** Coordinates publication, freshening, and sweep deletion for one digest. */
+/**
+ * Coordinates publication, freshening, and sweep deletion for one digest.
+ *
+ * @category combinators
+ * @since 0.1.0
+ */
 export const withDigest = <A, E, R>(
   fs: FileSystem.FileSystem,
   digest: string,

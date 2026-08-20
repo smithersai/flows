@@ -419,8 +419,27 @@ const readTurnBody = async (request: Request): Promise<unknown> => {
 	// Measured in bytes, not UTF-16 code units: a body of multi-byte characters
 	// encodes to up to 4x its string length, so a `.length` check would admit a
 	// body several times over the cap (and a chunked request declares no length).
-	const bytes = await request.arrayBuffer();
-	if (bytes.byteLength > MAX_BODY_BYTES) throw new BodyTooLargeError();
+	const reader = request.body?.getReader();
+	const chunks: Array<Uint8Array> = [];
+	let byteLength = 0;
+	if (reader !== undefined) {
+		for (;;) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			byteLength += value.byteLength;
+			if (byteLength > MAX_BODY_BYTES) {
+				await reader.cancel().catch(() => {});
+				throw new BodyTooLargeError();
+			}
+			chunks.push(value);
+		}
+	}
+	const bytes = new Uint8Array(byteLength);
+	let offset = 0;
+	for (const chunk of chunks) {
+		bytes.set(chunk, offset);
+		offset += chunk.byteLength;
+	}
 	try {
 		return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
 	} catch {
@@ -1286,14 +1305,20 @@ interface ValidatedIdentity {
 	readonly scopes: ReadonlyArray<string>;
 }
 
+type SessionValidation =
+	| { readonly status: "valid"; readonly identity: ValidatedIdentity }
+	| { readonly status: "invalid" }
+	| { readonly status: "unavailable"; readonly response: Response };
+
 /**
  * Validate the caller's session cookie against the identity worker's
  * service-token endpoint (the contract's trusted-proxy validation path).
- * Returns undefined when no cookie session validates.
+ * Keeps an invalid session distinct from an unavailable identity service so
+ * an outage can never be restated as "Sign in".
  */
-const validateSession = async (request: Request, env: WorkerEnv): Promise<ValidatedIdentity | undefined> => {
+const validateSession = async (request: Request, env: WorkerEnv): Promise<SessionValidation> => {
 	const upstream = env.IDENTITY_UPSTREAM_URL?.trim();
-	if (upstream === undefined || upstream === "") return undefined;
+	if (upstream === undefined || upstream === "") return { status: "invalid" };
 	const headers: Record<string, string> = { "content-type": "application/json" };
 	const cookie = request.headers.get("cookie");
 	if (cookie !== null) headers.cookie = cookie;
@@ -1302,30 +1327,58 @@ const validateSession = async (request: Request, env: WorkerEnv): Promise<Valida
 		headers["x-smithers-service-token"] = serviceToken;
 	}
 	try {
-		const response = await fetch(new URL("/api/identity/validate", upstream).toString(), {
-			method: "POST",
-			headers,
-			body: "{}",
-		});
+		const response = await withDeadline(
+			"The identity service",
+			(signal) =>
+				fetch(new URL("/api/identity/validate", upstream).toString(), {
+					method: "POST",
+					headers,
+					body: "{}",
+					signal,
+				}),
+			upstreamTimeoutMs(env),
+		);
 		if (!response.ok) {
 			await response.body?.cancel();
-			return undefined;
+			return response.status === 401
+				? { status: "invalid" }
+				: {
+						status: "unavailable",
+						response: json(502, { status: "error", message: `The identity service answered HTTP ${response.status}.` }),
+					};
 		}
-		const body = (await response.json()) as {
+		const body = (await response.json().catch(() => undefined)) as {
 			login?: unknown;
 			allowlisted?: unknown;
 			admin?: unknown;
 			scopes?: unknown;
-		};
-		if (typeof body.login !== "string" || body.login === "") return undefined;
+		} | undefined;
+		if (body === undefined || typeof body.login !== "string" || body.login === "") {
+			return {
+				status: "unavailable",
+				response: json(502, { status: "error", message: "The identity service returned a malformed session response." }),
+			};
+		}
 		return {
-			login: body.login,
-			allowlisted: body.allowlisted === true,
-			admin: body.admin === true,
-			scopes: Array.isArray(body.scopes) ? body.scopes.filter((s): s is string => typeof s === "string") : [],
+			status: "valid",
+			identity: {
+				login: body.login,
+				allowlisted: body.allowlisted === true,
+				admin: body.admin === true,
+				scopes: Array.isArray(body.scopes) ? body.scopes.filter((s): s is string => typeof s === "string") : [],
+			},
 		};
-	} catch {
-		return undefined;
+	} catch (error) {
+		return {
+			status: "unavailable",
+			response: json(error instanceof UpstreamTimeoutError ? 504 : 502, {
+				status: "error",
+				message:
+					error instanceof UpstreamTimeoutError
+						? `The identity service did not answer within ${Math.round(upstreamTimeoutMs(env) / 1000)}s.`
+						: "The identity service is unreachable.",
+			}),
+		};
 	}
 };
 
@@ -1346,10 +1399,12 @@ const requireTurnSession = async (
 ): Promise<Response | ValidatedIdentity | undefined> => {
 	const upstream = env.IDENTITY_UPSTREAM_URL?.trim();
 	if (upstream === undefined || upstream === "") return undefined;
-	const session = await validateSession(request, env);
-	if (session === undefined) {
+	const validation = await validateSession(request, env);
+	if (validation.status === "unavailable") return validation.response;
+	if (validation.status === "invalid") {
 		return json(401, { status: "error", message: "Sign in to run a Smithers turn." });
 	}
+	const session = validation.identity;
 	if (!session.allowlisted) {
 		return json(403, {
 			status: "error",
@@ -1386,8 +1441,10 @@ const proxyToBilling = async (request: Request, env: WorkerEnv): Promise<Respons
 	const headers = new Headers(request.headers);
 	for (const name of STRIPPED_IDENTITY_HEADERS) headers.delete(name);
 
-	const session = await validateSession(request, env);
-	if (session !== undefined) {
+	const validation = await validateSession(request, env);
+	if (validation.status === "unavailable") return validation.response;
+	if (validation.status === "valid") {
+		const session = validation.identity;
 		const serviceToken = env.BILLING_PRODUCT_SERVICE_TOKEN?.trim();
 		if (serviceToken === undefined || serviceToken === "") {
 			return notConfigured(
@@ -1666,8 +1723,11 @@ const parseAdminBody = async (request: Request): Promise<Record<string, unknown>
  * rather than trusting one upstream field.
  */
 const handleAdmin = async (request: Request, env: WorkerEnv, url: URL): Promise<Response> => {
-	const session = await validateSession(request, env);
-	if (session === undefined || !session.admin || !session.allowlisted) return notFound();
+	const validation = await validateSession(request, env);
+	if (validation.status === "unavailable") return validation.response;
+	if (validation.status === "invalid") return notFound();
+	const session = validation.identity;
+	if (!session.admin || !session.allowlisted) return notFound();
 
 	if (url.pathname === ADMIN_ALLOWLIST_PATH && request.method === "POST") {
 		const upstream = env.IDENTITY_UPSTREAM_URL?.trim();
@@ -1849,10 +1909,12 @@ const requireWorkflowSession = async (
 			"IDENTITY_UPSTREAM_URL is unset. The per-user gateway needs a validated session, and no identity service can provide one",
 		);
 	}
-	const session = await validateSession(request, env);
-	if (session === undefined) {
+	const validation = await validateSession(request, env);
+	if (validation.status === "unavailable") return validation.response;
+	if (validation.status === "invalid") {
 		return json(401, { status: "error", message: "Sign in to run workflows on your workspace." });
 	}
+	const session = validation.identity;
 	if (!session.allowlisted) {
 		return json(403, {
 			status: "error",
@@ -2429,6 +2491,18 @@ const handlePlatformProxy = async (request: Request, env: WorkerEnv, url: URL): 
 	return new Response(upstream.body, { status: upstream.status, headers: out });
 };
 
+const START_SESSION_HEADER = "x-smithers-start-session";
+
+/** Replace any client-supplied value with the session resolved for the Start branch. */
+export const withStartSessionHandoff = async (request: Request, sessionResponse: Response): Promise<Request> => {
+	const sessionEnvelope = encodeURIComponent(
+		JSON.stringify({ status: sessionResponse.status, body: await sessionResponse.text() }),
+	);
+	const startHeaders = new Headers(request.headers);
+	startHeaders.set(START_SESSION_HEADER, sessionEnvelope);
+	return new Request(request, { headers: startHeaders });
+};
+
 export default {
 	async fetch(request: Request, env: WorkerEnv): Promise<Response> {
 		const url = new URL(request.url);
@@ -2552,17 +2626,11 @@ export default {
 		 */
 		if (typeof __SMITHERS_START__ !== "undefined" && __SMITHERS_START__) {
 			const { default: start } = await import("@tanstack/react-start/server-entry");
-			// Start server functions run in a separate RPC context, so resolve the
-			// trusted session once at the Worker boundary and overwrite any client
-			// attempt to supply the internal handoff header.
+			// Resolve once at the trusted boundary; the server function reads this
+			// request header, and a client-supplied value is always overwritten here.
 			const sessionRequest = new Request(new URL(AUTH_SESSION_PATH, request.url), request);
 			const sessionResponse = await probeAuthSession(sessionRequest, env);
-			const sessionEnvelope = encodeURIComponent(
-				JSON.stringify({ status: sessionResponse.status, body: await sessionResponse.text() }),
-			);
-			const startHeaders = new Headers(request.headers);
-			startHeaders.set("x-smithers-start-session", sessionEnvelope);
-			const response = await start.fetch(new Request(request, { headers: startHeaders }));
+			const response = await start.fetch(await withStartSessionHandoff(request, sessionResponse));
 			return withIsolationHeaders(response);
 		}
 		return withIsolationHeaders(await env.ASSETS.fetch(request));

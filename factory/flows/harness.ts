@@ -18,6 +18,7 @@ import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import { spawn } from "node:child_process"
 import { execFileSync } from "node:child_process"
+import { randomUUID } from "node:crypto"
 import * as fs from "node:fs"
 import * as path from "node:path"
 import { FlowEngine } from "../../packages/engine/src/index.ts"
@@ -31,6 +32,7 @@ export const TaskResult = Schema.Struct({
   id: Schema.String,
   exitCode: Schema.Number,
   logPath: Schema.String,
+  manifestPath: Schema.String,
   tail: Schema.String
 })
 
@@ -68,10 +70,16 @@ const signalProcessTree = (pid: number | undefined, signal: NodeJS.Signals): voi
 /** Runs one owned process group and interrupts the whole group on timeout or scope closure. */
 export const runProcess = (spec: SpawnSpec): Effect.Effect<TaskResult> =>
   Effect.callback<TaskResult>((resume) => {
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(spec.id)) {
+      return Effect.die(new Error(`Unsafe process id: ${JSON.stringify(spec.id)}`))
+    }
     fs.mkdirSync(spec.logDir, { recursive: true })
-    const logPath = path.join(spec.logDir, `${spec.id}.log`)
-    const log = fs.createWriteStream(logPath, { flags: "a" })
-    log.write(`# ${new Date().toISOString()} ${spec.command} ${spec.args.join(" ")}\n`)
+    const startedAt = new Date().toISOString()
+    const artifactId = `${spec.id}-${randomUUID()}`
+    const logPath = path.join(spec.logDir, `${artifactId}.log`)
+    const manifestPath = path.join(spec.logDir, `${artifactId}.json`)
+    const log = fs.createWriteStream(logPath, { flags: "wx" })
+    log.write(`# ${startedAt} ${spec.command} ${spec.args.join(" ")}\n`)
     const child = spawn(spec.command, spec.args, {
       cwd: spec.cwd,
       env: spec.environment ?? process.env,
@@ -105,16 +113,27 @@ export const runProcess = (spec: SpawnSpec): Effect.Effect<TaskResult> =>
         exitCode === 0 && markerMissing ? -2 : exitCode === 0 && validationError ? -3 : exitCode
       if (markerMissing) log.write(`\n# MISSING COMPLETION MARKER: ${spec.completionMarker}\n`)
       if (validationError) log.write(`\n# CONFINEMENT VIOLATION: ${validationError}\n`)
-      log.end(() =>
+      log.end(() => {
+        fs.writeFileSync(manifestPath, `${JSON.stringify({
+          id: spec.id,
+          startedAt,
+          finishedAt: new Date().toISOString(),
+          command: spec.command,
+          args: spec.args,
+          cwd: spec.cwd,
+          exitCode: verifiedExitCode,
+          logPath
+        }, null, 2)}\n`)
         resume(
           Effect.succeed({
             id: spec.id,
             exitCode: verifiedExitCode,
             logPath,
+            manifestPath,
             tail: finalTail
           })
         )
-      )
+      })
     }
     let escalation: ReturnType<typeof setTimeout> | undefined
     const timer = setTimeout(() => {
@@ -353,3 +372,24 @@ export const listWorkspacePackages = (): Array<WorkspacePackage> =>
 
 /** Lists validated workspace package directory names. */
 export const listPackages = (): Array<string> => listWorkspacePackages().map((pkg) => pkg.dir)
+
+/** Parses an optional exact `--packages a,b` selection and rejects every ambiguous form. */
+export const selectPackages = (
+  args: ReadonlyArray<string>,
+  allPackages: ReadonlyArray<string>
+): Array<string> => {
+  const indexes = args.flatMap((arg, index) => arg === "--packages" ? [index] : [])
+  if (indexes.length === 0) return [...allPackages]
+  if (indexes.length > 1) throw new Error("--packages may be supplied only once")
+  const value = args[indexes[0]! + 1]
+  if (value === undefined || value.startsWith("--")) throw new Error("--packages requires a comma-separated value")
+  const selected = value.split(",").map((pkg) => pkg.trim())
+  if (selected.some((pkg) => pkg === "")) throw new Error("--packages contains an empty package name")
+  const duplicates = selected.filter((pkg, index) => selected.indexOf(pkg) !== index)
+  if (duplicates.length > 0) throw new Error(`--packages contains duplicates: ${[...new Set(duplicates)].join(", ")}`)
+  const unknown = selected.filter((pkg) => !allPackages.includes(pkg))
+  if (unknown.length > 0) {
+    throw new Error(`Unknown package(s): ${unknown.join(", ")}. Valid packages: ${allPackages.join(", ")}`)
+  }
+  return selected
+}

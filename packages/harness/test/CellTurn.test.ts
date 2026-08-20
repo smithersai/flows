@@ -89,7 +89,6 @@ const state = (
   overrides: {
     readonly maxFrames?: number
     readonly envelope?: ReadonlyArray<string>
-    readonly auditCompletion?: boolean
     readonly readOnlyCap?: number
   } = {}
 ) =>
@@ -108,7 +107,6 @@ const state = (
     placement: Option.none(),
     contextWindow: window,
     maxFrames: overrides.maxFrames ?? 4,
-    auditCompletion: overrides.auditCompletion ?? false,
     readOnlyCap: overrides.readOnlyCap ?? 0
   })
 
@@ -177,9 +175,25 @@ const of = <T extends AgentEvent.AgentEvent["_tag"]>(
   events.filter((event): event is Extract<AgentEvent.AgentEvent, { readonly _tag: T }> => event._tag === tag)
 
 describe("CellTurn", () => {
+  it("projects a model-boundary retry as its own control event", async () => {
+    const settled = emits(`return { intent: "complete", state: {}, output: "done" }`)
+    const { events } = await run({
+      script: [{
+        events: [
+          ModelEvent.ModelEvent.Retry({ type: "retry", attempt: 1, code: "transport" }),
+          ...settled.events
+        ]
+      }]
+    })
+
+    expect(of(events, "model-retried")).toEqual([
+      expect.objectContaining({ attempt: 1, code: "transport" })
+    ])
+  })
+
   it("records the armed discipline once before a run's first frame", async () => {
     const { events } = await run({
-      state: state({ maxFrames: 2, auditCompletion: true, readOnlyCap: 3 }),
+      state: state({ maxFrames: 2, readOnlyCap: 3 }),
       script: [
         emits(`return { intent: "continue", state: {}, context: [] }`),
         emits(`return { intent: "continue", state: {}, context: [] }`)
@@ -189,7 +203,6 @@ describe("CellTurn", () => {
     const armed = of(events, "discipline-armed")
     expect(armed).toEqual([
       expect.objectContaining({
-        auditCompletion: true,
         readOnlyCap: 3,
         maxFrames: 2,
         callMs: Sandbox.defaultLimits.callMs
@@ -474,7 +487,7 @@ describe("CellTurn", () => {
   })
 
   it("declares no provider tools and forbids the provider from inventing one", async () => {
-    const { model } = await run({
+    const { events, model } = await run({
       script: [emits(`return { intent: "complete", output: "done" }`)]
     })
 
@@ -664,224 +677,8 @@ const crowded = ContextWindow.make({
   ]
 })
 
-/** The check flow an audited completion cites, plus the run that may call it. */
+/** A command flow whose result a frame reads, plus the run that may call it. */
 const check = descriptor("bash", { capabilities: ["proc:spawn:*"], tier: "irreversible" })
-
-const audited = (overrides: { readonly maxFrames?: number } = {}) =>
-  state({
-    auditCompletion: true,
-    envelope: ["proc:spawn:*"],
-    ...(overrides.maxFrames === undefined ? {} : { maxFrames: overrides.maxFrames })
-  })
-
-describe("CellTurn completion audit", () => {
-  it("bounces the first completion, then re-runs the check the second declares", async () => {
-    const { engine, events, model } = await run({
-      state: audited(),
-      flows: [check],
-      script: [
-        emits(
-          `await ctx.call("bash", { command: "pytest -q" })
-           return { intent: "complete", state: { done: 1 }, output: "implemented the fix" }`
-        ),
-        emits(
-          `return {
-             intent: "complete",
-             state: { done: 1 },
-             output: "verified: tests pass",
-             verify: { flow: "bash", input: { command: "pytest -q" } }
-           }`
-        )
-      ],
-      calls: [
-        { _tag: "Success", value: { exitCode: 0, stdout: "2 passed" } },
-        { _tag: "Success", value: { exitCode: 0, stdout: "2 passed" } }
-      ]
-    })
-
-    // Two model turns: the first completion was answered with the audit, the
-    // second resolved. The audit frame's request carries the challenge, the
-    // claimed output, and the shape the evidence has to arrive in; the
-    // completing cell's state survived the bounce.
-    expect(model.recorder.requests).toHaveLength(2)
-    const demand = model.recorder.requests[1]
-    expect(JSON.stringify(demand?.messages)).toContain("Completion review")
-    expect(JSON.stringify(demand?.messages)).toContain("implemented the fix")
-    expect(JSON.stringify(demand?.messages)).toContain("verify")
-    expect(demand?.system.map((part) => part.text).join("\n")).toContain(`{"done":1}`)
-
-    // The harness ran the declared check itself, at the boundary a cell call
-    // uses, rather than believing the claim: two `bash` calls for one cell
-    // call. The second is the controller's.
-    expect(engine.recorder.calls.map((call) => call.flowName)).toEqual(["bash", "bash"])
-    expect(engine.recorder.calls[1]?.input).toEqual({ command: "pytest -q" })
-    expect(of(events, "completion-audited")[0]).toMatchObject({
-      accepted: true,
-      verification: { flow: "bash", input: { command: "pytest -q" } }
-    })
-    expect(of(events, "completion-audited")[0]?.detail).toContain("2 passed")
-    expect(of(events, "resolved")[0]?.message.content[0]).toMatchObject({ text: "verified: tests pass" })
-  })
-
-  it("refuses a completion whose declared check does not pass", async () => {
-    const { events, model } = await run({
-      state: audited(),
-      flows: [check],
-      script: [
-        emits(
-          `await ctx.call("bash", { command: "pytest -q" })
-           return { intent: "complete", state: {}, output: "fixed it" }`
-        ),
-        emits(
-          `return {
-             intent: "complete",
-             state: {},
-             output: "fixed it",
-             verify: { flow: "bash", input: { command: "pytest -q" } }
-           }`
-        ),
-        emits(`return { intent: "continue", state: {}, context: [] }`),
-        emits(`return { intent: "continue", state: {}, context: [] }`)
-      ],
-      calls: [
-        { _tag: "Success", value: { exitCode: 0, stdout: "2 passed" } },
-        { _tag: "Success", value: { exitCode: 1, stdout: "1 failed" } }
-      ]
-    })
-
-    // The completion was the run's first, so it paid the bounce; on the audit
-    // frame the controller re-ran the check, saw a non-zero exit, and refused.
-    expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: false })
-    expect(of(events, "completion-audited")[0]?.detail).toContain("exited 1")
-    // The run continued instead of resolving on the claim; what finally ended
-    // it was the frame budget, not the completion.
-    expect(JSON.stringify(model.recorder.requests[2]?.messages)).toContain("Completion refused")
-    expect(of(events, "resolved")[0]?.message.content[0]).toMatchObject({ text: expect.stringContaining("budget") })
-  })
-
-  it("refuses a completion citing a call the run never made", async () => {
-    const { engine, events } = await run({
-      state: audited(),
-      flows: [check],
-      script: [
-        emits(`return { intent: "complete", state: {}, output: "done" }`),
-        emits(
-          `return {
-             intent: "complete",
-             state: {},
-             output: "done",
-             verify: { flow: "bash", input: { command: "true" } }
-           }`
-        ),
-        emits(`return { intent: "continue", state: {}, context: [] }`),
-        emits(`return { intent: "continue", state: {}, context: [] }`)
-      ]
-    })
-
-    // Nothing was run: a cited command the run never issued is refused before
-    // the boundary opens, so the audit cannot be satisfied by inventing one.
-    expect(engine.recorder.calls).toHaveLength(0)
-    expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: false })
-    expect(of(events, "completion-audited")[0]?.detail).toContain("never called")
-    expect(of(events, "resolved")[0]?.message.content[0]).toMatchObject({ text: expect.stringContaining("budget") })
-  })
-
-  it("refuses a second completion that declares no check at all", async () => {
-    const { events, model } = await run({
-      state: audited(),
-      flows: [check],
-      script: [
-        emits(`return { intent: "complete", state: {}, output: "implemented the fix" }`),
-        emits(`return { intent: "complete", state: {}, output: "I already told you it is done" }`),
-        emits(`return { intent: "continue", state: {}, context: [] }`),
-        emits(`return { intent: "continue", state: {}, context: [] }`)
-      ]
-    })
-
-    expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: false })
-    expect(of(events, "completion-audited")[0]?.detail).toContain("no verify block")
-    expect(of(events, "resolved")[0]?.message.content[0]).toMatchObject({ text: expect.stringContaining("budget") })
-    expect(JSON.stringify(model.recorder.requests[2]?.messages)).toContain("Completion refused")
-  })
-
-  it("refuses a completion whose declared check could not be run at all", async () => {
-    const { events } = await run({
-      state: audited(),
-      flows: [check],
-      script: [
-        emits(
-          `await ctx.call("bash", { command: "pytest -q" })
-           return { intent: "complete", state: {}, output: "done" }`
-        ),
-        emits(
-          `return {
-             intent: "complete",
-             state: {},
-             output: "done",
-             verify: { flow: "bash", input: { command: "pytest -q" } }
-           }`
-        ),
-        emits(`return { intent: "continue", state: {}, context: [] }`),
-        emits(`return { intent: "continue", state: {}, context: [] }`)
-      ],
-      calls: [
-        { _tag: "Success", value: { exitCode: 0 } },
-        { _tag: "Failure", message: "the sandbox refused to spawn" }
-      ]
-    })
-
-    expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: false })
-    expect(of(events, "completion-audited")[0]?.detail).toContain("the sandbox refused to spawn")
-  })
-
-  it("refuses a check that names a flow this run cannot call", async () => {
-    const { events } = await run({
-      state: audited(),
-      flows: [check],
-      script: [
-        emits(`return { intent: "complete", state: {}, output: "done" }`),
-        emits(
-          `return {
-             intent: "complete",
-             state: {},
-             output: "done",
-             verify: { flow: "make", input: { target: "test" } }
-           }`
-        ),
-        emits(`return { intent: "continue", state: {}, context: [] }`),
-        emits(`return { intent: "continue", state: {}, context: [] }`)
-      ]
-    })
-
-    expect(of(events, "completion-audited")[0]?.detail).toContain("No flow named make")
-    expect(of(events, "resolved")[0]?.message.content[0]).toMatchObject({ text: expect.stringContaining("budget") })
-  })
-
-  it("accepts an unaudited completion on the first attempt", async () => {
-    const { events, model } = await run({
-      script: [emits(`return { intent: "complete", state: {}, output: "done" }`)]
-    })
-    expect(model.recorder.requests).toHaveLength(1)
-    expect(of(events, "completion-audited")).toHaveLength(0)
-    expect(of(events, "resolved")).toHaveLength(1)
-  })
-
-  it("fails a final-frame completion that has no verification evidence", async () => {
-    const { events, failure, model } = await run({
-      state: audited({ maxFrames: 1 }),
-      flows: [check],
-      script: [emits(`return { intent: "complete", state: {}, output: "done at the wall" }`)]
-    })
-    expect(model.recorder.requests).toHaveLength(1)
-    expect(of(events, "resolved")).toHaveLength(0)
-    expect(failure).toMatchObject({
-      code: "unverified_completion",
-      cause: { output: "done at the wall", detail: expect.stringContaining("no verify block") }
-    })
-    expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: false })
-    expect(of(events, "completion-audited")[0]?.detail).toContain("no verify block")
-  })
-})
 
 /** A flow whose declared write set is what makes it count as a mutation. */
 const editor = descriptor("edit", { capabilities: ["fs:write:**"], tier: "compensable", writes: ["/**"] })
@@ -902,9 +699,126 @@ const readCells = (count: number): ReadonlyArray<ScriptedModel.Step> =>
 const successes = (count: number): ReadonlyArray<ScriptedEngine.CallStep> =>
   Array.from({ length: count }, () => ({ _tag: "Success", value: ["alpha.md"] }) as const)
 
+describe("CellTurn invalid probes", () => {
+  const brokenCheck = {
+    _tag: "Success",
+    value: {
+      exitCode: 1,
+      stdout: "",
+      invalidProbe: {
+        reason: "unknown-test",
+        evidence: "AttributeError: type object 'Basic' has no attribute 'test_absent'",
+        message: "This command never ran a check: the test runner could not find the test that was named."
+      }
+    }
+  } as const
+
+  const probing = (summary: string) =>
+    emits(
+      `await ctx.call("bash", { command: "pytest -q tests/test_admin.py::Basic::test_absent" })
+       return { intent: "continue", state: {}, context: [{ role: "user", text: ${JSON.stringify(summary)} }] }`
+    )
+
+  it("contradicts a cell that read a broken probe as the bug reproducing", async () => {
+    // The cell chooses the context its successor sees, so a wrong reading
+    // travels forward unopposed unless the controller states the fact itself.
+    const { model } = await run({
+      state: state({ maxFrames: 3, envelope: ["proc:spawn:*"] }),
+      flows: [check],
+      script: [
+        probing("The test still fails, so the bug is unfixed."),
+        emits(`return { intent: "complete", state: {}, output: "done" }`)
+      ],
+      calls: [brokenCheck]
+    })
+
+    const next = JSON.stringify(model.recorder.requests[1]?.messages)
+    expect(next).toContain("The test still fails, so the bug is unfixed.")
+    expect(next).toContain("Invalid probe")
+    expect(next).toContain("unknown-test")
+    expect(next).toContain("reads identically on a broken tree and on a fixed one")
+  })
+
+  it("counts every broken probe in the frame, not just the first", async () => {
+    const { model } = await run({
+      state: state({ maxFrames: 3, envelope: ["proc:spawn:*"] }),
+      flows: [check],
+      script: [
+        emits(
+          `await ctx.call("bash", { command: "pytest -q tests/a.py::Basic::test_absent" })
+           await ctx.call("bash", { command: "pytest -q tests/b.py::Basic::test_absent" })
+           return { intent: "continue", state: {}, context: [{ role: "user", text: "both fail" }] }`
+        ),
+        emits(`return { intent: "complete", state: {}, output: "done" }`)
+      ],
+      calls: [brokenCheck, brokenCheck]
+    })
+
+    expect(JSON.stringify(model.recorder.requests[1]?.messages)).toContain("Invalid probe — 2 calls")
+  })
+
+  it("ignores a declaration that is not the shape the contract states", async () => {
+    // The key is a wire contract with whatever flow the host bound, so a
+    // result that carries something else under it is read as an ordinary
+    // result rather than trusted or refused.
+    const { model } = await run({
+      state: state({ maxFrames: 3, envelope: ["proc:spawn:*"] }),
+      flows: [check],
+      script: [
+        probing("ran the check"),
+        emits(
+          `await ctx.call("bash", { command: "pytest -q tests/test_admin.py::Basic::test_absent" })
+           return { intent: "continue", state: {}, context: [{ role: "user", text: "again" }] }`
+        ),
+        emits(`return { intent: "complete", state: {}, output: "done" }`)
+      ],
+      calls: [
+        { _tag: "Success", value: { exitCode: 1, invalidProbe: "unknown-test" } },
+        { _tag: "Success", value: { exitCode: 1, invalidProbe: { reason: "unknown-test", message: 7 } } }
+      ]
+    })
+
+    expect(JSON.stringify(model.recorder.requests[1]?.messages)).not.toContain("Invalid probe")
+    expect(JSON.stringify(model.recorder.requests[2]?.messages)).not.toContain("Invalid probe")
+  })
+
+  it("says nothing when the frame's failing check actually ran", async () => {
+    const { model } = await run({
+      state: state({ maxFrames: 3, envelope: ["proc:spawn:*"] }),
+      flows: [check],
+      script: [
+        probing("One test failed, as expected."),
+        emits(`return { intent: "complete", state: {}, output: "done" }`)
+      ],
+      calls: [{ _tag: "Success", value: { exitCode: 1, stdout: "1 failed" } }]
+    })
+
+    expect(JSON.stringify(model.recorder.requests[1]?.messages)).not.toContain("Invalid probe")
+  })
+
+  it("carries the notice out through a frame that threw before returning a transition", async () => {
+    const { model } = await run({
+      state: state({ maxFrames: 3, envelope: ["proc:spawn:*"] }),
+      flows: [check],
+      script: [
+        emits(
+          `await ctx.call("bash", { command: "pytest -q tests/test_admin.py::Basic::test_absent" })
+           throw new Error("half-written cell")`
+        ),
+        emits(`return { intent: "complete", state: {}, output: "done" }`)
+      ],
+      calls: [brokenCheck]
+    })
+
+    const next = JSON.stringify(model.recorder.requests[1]?.messages)
+    expect(next).toContain("half-written cell")
+    expect(next).toContain("Invalid probe")
+  })
+})
+
 describe("CellTurn read-only cap", () => {
   it("demands a write or a justification once the cap is reached", async () => {
-    const { model } = await run({
+    const { events, model } = await run({
       state: capped(2, 5),
       flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] }), editor],
       script: readCells(5),
@@ -917,6 +831,68 @@ describe("CellTurn read-only cap", () => {
     const demanded = JSON.stringify(model.recorder.requests[2]?.messages)
     expect(demanded).toContain("Read-only discipline")
     expect(demanded).toContain("justification")
+    expect(of(events, "read-only-demanded")[0]).toMatchObject({
+      streak: 2,
+      cap: 2,
+      nextFrame: 2,
+      nextAction: "read-only"
+    })
+  })
+
+  it("records a demanded frame that writes before continuing", async () => {
+    const { events } = await run({
+      state: capped(1, 3),
+      flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] }), editor],
+      script: [
+        ...readCells(1),
+        emits(
+          `await ctx.call("edit", { path: "a.py", text: "fixed" })
+           return { intent: "continue", state: {}, context: [] }`
+        ),
+        emits(`return { intent: "complete", state: {}, output: "done" }`)
+      ],
+      calls: successes(2)
+    })
+
+    expect(of(events, "read-only-demanded")[0]).toMatchObject({
+      streak: 1,
+      cap: 1,
+      nextFrame: 1,
+      nextAction: "write"
+    })
+  })
+
+  it.each(
+    [
+      ["read-only", `throw new Error("diagnostic failed")`, 2],
+      [
+        "write",
+        `await ctx.call("edit", { path: "a.py", text: "partial" })
+       throw new Error("post-edit diagnostic failed")`,
+        3
+      ]
+    ] as const
+  )("records a demanded frame that raises after a %s response", async (nextAction, response, calls) => {
+    const { events } = await run({
+      state: capped(1, 3),
+      flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] }), editor],
+      script: [
+        ...readCells(1),
+        emits(response),
+        emits(
+          `await ctx.call("edit", { path: "a.py", text: "recovered" })
+           return { intent: "complete", state: {}, output: "done" }`
+        )
+      ],
+      calls: successes(calls)
+    })
+
+    expect(of(events, "read-only-demanded")[0]).toMatchObject({
+      streak: 1,
+      cap: 1,
+      nextFrame: 1,
+      nextAction
+    })
   })
 
   it("clears the streak when a call declares a write", async () => {

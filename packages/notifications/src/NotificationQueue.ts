@@ -253,7 +253,10 @@ export const layer: Layer.Layer<NotificationQueue, never, Journal.Journal> = Lay
             notification,
             loaded.entries.at(-1)?.seq === undefined ? 0 : loaded.entries.at(-1)!.seq + 1
           )
-          const receipt = yield* journal.emitDurable(
+          // Unfenced: the queue is an external admission channel — the
+          // notifying process owns no run, and admissions are
+          // first-writer-wins on the notification id.
+          const receipt = yield* journal.emitDurableUnfenced(
             new JournalEvent.Input({
               runId,
               sourceId: admissionSource(notification.id),
@@ -307,7 +310,9 @@ export const layer: Layer.Layer<NotificationQueue, never, Journal.Journal> = Lay
             ? NotificationState.promoteQueued(steers.state, input.targetLineageId)
             : { state: steers.state, promoted: [] }
           const promoted = [...steers.promoted, ...queued.promoted].map((item) => item.notification)
-          yield* journal.emitDurable(
+          // Unfenced: a drain promotes notifications for a run the draining
+          // boundary does not own; the promotion record is first-writer-wins.
+          yield* journal.emitDurableUnfenced(
             new JournalEvent.Input({
               runId,
               sourceId: drainSource(input.boundary),

@@ -1,12 +1,12 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
 import { describe, expect, it } from "@effect/vitest"
-import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
+import { Action, Flow, FlowRuntime } from "@smthrs/flow"
 import { Node } from "@smthrs/plan"
-import { Cause, Effect, Exit, Layer, Result, Schedule, Schema, Scope } from "effect"
+import { Cause, Effect, Exit, Result, Schedule, Schema, Scope } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { FlowEngine } from "../src/index.ts"
-import { invocationKey as decodeInvocationKey, withCrypto } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
   it.effect(name, () => withCrypto(body()))
@@ -33,141 +33,129 @@ const provideHost = <A, E>(
     Effect.provide(FlowEngine.layerMemory)
   )
 
-const invocationKey = (runId: string, ordinal: number, parentScope?: string) =>
-  decodeInvocationKey({
-    runId,
-    ordinal,
-    tier: "unsealed",
-    ...(parentScope === undefined ? {} : { parentScope })
-  })
-
 describe("Action.idempotencyKey scoping", () => {
-  effect("allocates run-local ordinals and never folds the diagnostic name into identity", () => {
-    const flowActionDeclaration = Action.make("IdentityGaps/ordinals/action", {
-      payload: { id: Schema.String },
-      success: Schema.Array(Schema.String)
-    })
-    const flow = Flow.make("IdentityGaps/ordinals", {
-      payload: { id: Schema.String },
-      success: Schema.Array(Schema.String),
-      body: (payload) => flowActionDeclaration.call(payload)
-    })
-    const layer = Layer.mergeAll(
-      flowActionDeclaration.toLayer(() =>
-        Effect.gen(function*() {
-          const first = yield* Action.idempotencyKey("first-name")
-          const second = yield* Action.idempotencyKey("second-name")
-          return [first, second] as const
-        })
-      ),
-      Interpreter.layer(flow)
-    ).pipe(
-      Layer.provideMerge(Action.layerImplementations)
-    ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
-
+  effect("separates durable declarations by caller name within the same parent scope", () => {
+    const baselineInstance = FlowEngine.makeInstance(hostFlow, "run-names")
+    const replayInstance = FlowEngine.makeInstance(hostFlow, "run-names")
+    const isolatedFirstInstance = FlowEngine.makeInstance(hostFlow, "run-names")
+    const isolatedSecondInstance = FlowEngine.makeInstance(hostFlow, "run-names")
+    const otherRunInstance = FlowEngine.makeInstance(hostFlow, "other-run")
+    const parentScope = "queue:orders"
     return Effect.gen(function*() {
-      const [first, second] = yield* flow.execute({ id: "x" }, { executionId: "run-ordinals" })
+      const first = yield* Action.idempotencyKey("first-name", { parentScope }).pipe(
+        Effect.provideService(FlowRuntime.FlowInstance, baselineInstance)
+      )
+      const second = yield* Action.idempotencyKey("second-name", { parentScope }).pipe(
+        Effect.provideService(FlowRuntime.FlowInstance, baselineInstance)
+      )
+      const replaySecond = yield* Action.idempotencyKey("second-name", { parentScope }).pipe(
+        Effect.provideService(FlowRuntime.FlowInstance, replayInstance)
+      )
+      const replayFirst = yield* Action.idempotencyKey("first-name", { parentScope }).pipe(
+        Effect.provideService(FlowRuntime.FlowInstance, replayInstance)
+      )
+      const isolatedFirst = yield* Action.idempotencyKey("first-name", { parentScope }).pipe(
+        Effect.provideService(FlowRuntime.FlowInstance, isolatedFirstInstance)
+      )
+      const isolatedSecond = yield* Action.idempotencyKey("second-name", { parentScope }).pipe(
+        Effect.provideService(FlowRuntime.FlowInstance, isolatedSecondInstance)
+      )
+      const otherRunFirst = yield* Action.idempotencyKey("first-name", { parentScope }).pipe(
+        Effect.provideService(FlowRuntime.FlowInstance, otherRunInstance)
+      )
+
+      // Each declaration has an independent counter, so swapping arrival
+      // order during replay cannot transfer one declaration's ordinal to the
+      // other. Comparing each declaration's first allocation is the issue-#98
+      // regression guard: the old name-free scope gave both the same key.
       expect(first).not.toBe(second)
-      // the name is diagnostic only: identity is (runId, ordinal, tier)
-      expect(first).toBe(invocationKey("run-ordinals", 1))
-      expect(second).toBe(invocationKey("run-ordinals", 2))
-    }).pipe(Effect.provide(layer))
+      expect(isolatedFirst).not.toBe(isolatedSecond)
+      expect(first).toBe(isolatedFirst)
+      expect(second).toBe(isolatedSecond)
+      expect(replayFirst).toBe(first)
+      expect(replaySecond).toBe(second)
+      expect(otherRunFirst).not.toBe(first)
+    })
   })
 
   effect("scopes the key by the current attempt only when includeAttempt is set", () => {
-    const flowActionDeclaration = Action.make("IdentityGaps/include-attempt/action", {
-      payload: { id: Schema.String },
-      success: Schema.Array(Schema.String)
-    })
-    const flow = Flow.make("IdentityGaps/include-attempt", {
-      payload: { id: Schema.String },
-      success: Schema.Array(Schema.String),
-      body: (payload) => flowActionDeclaration.call(payload)
-    })
-    const layer = Layer.mergeAll(
-      flowActionDeclaration.toLayer(() =>
-        Effect.gen(function*() {
-          const plain = yield* Action.idempotencyKey("op")
-          const scoped = yield* Action.idempotencyKey("op", { includeAttempt: true })
-          const off = yield* Action.idempotencyKey("op", { includeAttempt: false })
-          return [plain, scoped, off] as const
-        }).pipe(Effect.provideService(Action.CurrentAttempt, 7))
-      ),
-      Interpreter.layer(flow)
-    ).pipe(
-      Layer.provideMerge(Action.layerImplementations)
-    ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
-
     return Effect.gen(function*() {
-      const [plain, scoped, off] = yield* flow.execute({ id: "x" }, { executionId: "run-attempt" })
-      expect(plain).toBe(invocationKey("run-attempt", 1))
-      // Each parent scope owns its own counter (issue #98), so the
-      // attempt-scoped allocation numbers from 1 within `attempt:7`.
-      expect(scoped).toBe(invocationKey("run-attempt", 1, "attempt:7"))
-      // includeAttempt: false is identical in shape to omitting the option
-      // and draws from the same unscoped counter as `plain`.
-      expect(off).toBe(invocationKey("run-attempt", 2))
-    }).pipe(Effect.provide(layer))
+      const plainAtOne = yield* Action.idempotencyKey("op").pipe(
+        Effect.provideService(Action.CurrentAttempt, 1),
+        Effect.provideService(FlowRuntime.FlowInstance, FlowEngine.makeInstance(hostFlow, "run-attempt"))
+      )
+      const plainAtSeven = yield* Action.idempotencyKey("op").pipe(
+        Effect.provideService(Action.CurrentAttempt, 7),
+        Effect.provideService(FlowRuntime.FlowInstance, FlowEngine.makeInstance(hostFlow, "run-attempt"))
+      )
+      const offAtSeven = yield* Action.idempotencyKey("op", { includeAttempt: false }).pipe(
+        Effect.provideService(Action.CurrentAttempt, 7),
+        Effect.provideService(FlowRuntime.FlowInstance, FlowEngine.makeInstance(hostFlow, "run-attempt"))
+      )
+      const scopedAtSeven = yield* Action.idempotencyKey("op", { includeAttempt: true }).pipe(
+        Effect.provideService(Action.CurrentAttempt, 7),
+        Effect.provideService(FlowRuntime.FlowInstance, FlowEngine.makeInstance(hostFlow, "run-attempt"))
+      )
+      const scopedAtEight = yield* Action.idempotencyKey("op", { includeAttempt: true }).pipe(
+        Effect.provideService(Action.CurrentAttempt, 8),
+        Effect.provideService(FlowRuntime.FlowInstance, FlowEngine.makeInstance(hostFlow, "run-attempt"))
+      )
+
+      expect(plainAtSeven).toBe(plainAtOne)
+      expect(offAtSeven).toBe(plainAtOne)
+      expect(scopedAtSeven).not.toBe(plainAtOne)
+      expect(scopedAtEight).not.toBe(scopedAtSeven)
+    })
   })
 
   effect("an explicit parentScope wins over includeAttempt", () => {
-    const flowActionDeclaration = Action.make("IdentityGaps/parent-scope/action", {
-      payload: { id: Schema.String },
-      success: Schema.String
-    })
-    const flow = Flow.make("IdentityGaps/parent-scope", {
-      payload: { id: Schema.String },
-      success: Schema.String,
-      body: (payload) => flowActionDeclaration.call(payload)
-    })
-    const layer = Layer.mergeAll(
-      flowActionDeclaration.toLayer(() =>
-        Action.idempotencyKey("op", { parentScope: "queue:orders", includeAttempt: true }).pipe(
-          Effect.provideService(Action.CurrentAttempt, 4)
-        )
-      ),
-      Interpreter.layer(flow)
-    ).pipe(
-      Layer.provideMerge(Action.layerImplementations)
-    ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
-
     return Effect.gen(function*() {
-      const key = yield* flow.execute({ id: "x" }, { executionId: "run-scope" })
-      expect(key).toBe(invocationKey("run-scope", 1, "queue:orders"))
-      expect(key).not.toBe(invocationKey("run-scope", 1, "attempt:4"))
-    }).pipe(Effect.provide(layer))
+      const withBoth = yield* Action.idempotencyKey("op", {
+        parentScope: "queue:orders",
+        includeAttempt: true
+      }).pipe(
+        Effect.provideService(Action.CurrentAttempt, 4),
+        Effect.provideService(FlowRuntime.FlowInstance, FlowEngine.makeInstance(hostFlow, "run-scope"))
+      )
+      const parentOnlyAtAnotherAttempt = yield* Action.idempotencyKey("op", {
+        parentScope: "queue:orders"
+      }).pipe(
+        Effect.provideService(Action.CurrentAttempt, 9),
+        Effect.provideService(FlowRuntime.FlowInstance, FlowEngine.makeInstance(hostFlow, "run-scope"))
+      )
+      const attemptOnly = yield* Action.idempotencyKey("op", { includeAttempt: true }).pipe(
+        Effect.provideService(Action.CurrentAttempt, 4),
+        Effect.provideService(FlowRuntime.FlowInstance, FlowEngine.makeInstance(hostFlow, "run-scope"))
+      )
+
+      expect(withBoth).toBe(parentOnlyAtAnotherAttempt)
+      expect(withBoth).not.toBe(attemptOnly)
+    })
   })
 
   effect("keys allocated under the same attempt scope stay distinct per ordinal", () => {
-    const flowActionDeclaration = Action.make("IdentityGaps/same-scope/action", {
-      payload: { id: Schema.String },
-      success: Schema.Array(Schema.String)
-    })
-    const flow = Flow.make("IdentityGaps/same-scope", {
-      payload: { id: Schema.String },
-      success: Schema.Array(Schema.String),
-      body: (payload) => flowActionDeclaration.call(payload)
-    })
-    const layer = Layer.mergeAll(
-      flowActionDeclaration.toLayer(() =>
-        Effect.gen(function*() {
-          const a = yield* Action.idempotencyKey("op", { includeAttempt: true })
-          const b = yield* Action.idempotencyKey("op", { includeAttempt: true })
-          return [a, b] as const
-        })
-      ),
-      Interpreter.layer(flow)
-    ).pipe(
-      Layer.provideMerge(Action.layerImplementations)
-    ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
-
+    const baselineInstance = FlowEngine.makeInstance(hostFlow, "run-same")
+    const replayInstance = FlowEngine.makeInstance(hostFlow, "run-same")
     return Effect.gen(function*() {
-      const [a, b] = yield* flow.execute({ id: "x" }, { executionId: "run-same" })
+      const baseline = yield* Effect.all([
+        Action.idempotencyKey("op", { includeAttempt: true }),
+        Action.idempotencyKey("op", { includeAttempt: true })
+      ], { concurrency: 1 }).pipe(
+        Effect.provideService(Action.CurrentAttempt, 3),
+        Effect.provideService(FlowRuntime.FlowInstance, baselineInstance)
+      )
+      const replay = yield* Effect.all([
+        Action.idempotencyKey("op", { includeAttempt: true }),
+        Action.idempotencyKey("op", { includeAttempt: true })
+      ], { concurrency: 1 }).pipe(
+        Effect.provideService(Action.CurrentAttempt, 3),
+        Effect.provideService(FlowRuntime.FlowInstance, replayInstance)
+      )
+      const [a, b] = baseline
+
       expect(a).not.toBe(b)
-      // CurrentAttempt defaults to 1 when nothing provides it
-      expect(a).toBe(invocationKey("run-same", 1, "attempt:1"))
-      expect(b).toBe(invocationKey("run-same", 2, "attempt:1"))
-    }).pipe(Effect.provide(layer))
+      expect(replay).toEqual(baseline)
+    })
   })
 
   effect("keys with distinct parent scopes survive a replay with reversed arrival order (issue #98)", () => {
@@ -178,46 +166,24 @@ describe("Action.idempotencyKey scoping", () => {
     // persisted queue had never seen, duplicating the work item and leaving
     // the original await watching a deferred nothing resolves. With the
     // counter scoped per declared parent, arrival order is immaterial.
-    const flowActionDeclaration = Action.make("IdentityGaps/arrival-order/action", {
-      payload: { order: Schema.Array(Schema.String) },
-      success: Schema.Record(Schema.String, Schema.String)
-    })
-    const flow = Flow.make("IdentityGaps/arrival-order", {
-      payload: { order: Schema.Array(Schema.String) },
-      success: Schema.Record(Schema.String, Schema.String),
-      body: (payload) => flowActionDeclaration.call(payload)
-    })
-    const layer = Layer.mergeAll(
-      flowActionDeclaration.toLayer(({ order }) =>
-        Effect.gen(function*() {
-          const keys: Record<string, string> = {}
-          for (const parent of order) {
-            keys[parent] = yield* Action.idempotencyKey("offer", { parentScope: parent })
-          }
-          return keys
-        })
-      ),
-      Interpreter.layer(flow)
-    ).pipe(
-      Layer.provideMerge(Action.layerImplementations)
-    ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
-
+    const allocate = (order: ReadonlyArray<string>) => {
+      const instance = FlowEngine.makeInstance(hostFlow, "run-arrival")
+      return Effect.gen(function*() {
+        const keys: Record<string, string> = {}
+        for (const parent of order) {
+          keys[parent] = yield* Action.idempotencyKey("offer", { parentScope: parent })
+        }
+        return keys
+      }).pipe(Effect.provideService(FlowRuntime.FlowInstance, instance))
+    }
     return Effect.gen(function*() {
-      const first = yield* flow.execute(
-        { order: ["payload:a", "payload:b"] },
-        { executionId: "run-arrival-1" }
-      )
-      const replay = yield* flow.execute(
-        { order: ["payload:b", "payload:a"] },
-        { executionId: "run-arrival-2" }
-      )
-      expect(first["payload:a"]).toBe(invocationKey("run-arrival-1", 1, "payload:a"))
-      expect(first["payload:b"]).toBe(invocationKey("run-arrival-1", 1, "payload:b"))
+      const first = yield* allocate(["payload:a", "payload:b"])
+      const replay = yield* allocate(["payload:b", "payload:a"])
       // Identity is a function of the declared parent alone, never of which
       // fiber happened to allocate first.
-      expect(replay["payload:a"]).toBe(invocationKey("run-arrival-2", 1, "payload:a"))
-      expect(replay["payload:b"]).toBe(invocationKey("run-arrival-2", 1, "payload:b"))
-    }).pipe(Effect.provide(layer))
+      expect(replay).toEqual(first)
+      expect(first["payload:a"]).not.toBe(first["payload:b"])
+    })
   })
 })
 

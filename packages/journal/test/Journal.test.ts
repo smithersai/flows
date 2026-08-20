@@ -851,7 +851,7 @@ describe("Journal", () => {
         const run = runId("huge-payload")
         const huge = "x".repeat(5 * 1024 * 1024)
 
-        const durable = yield* journal.emitDurable(input(run, sourceId("durable"), "big", { blob: huge }))
+        const durable = yield* journal.emitDurableUnfenced(input(run, sourceId("durable"), "big", { blob: huge }))
         expect(durable._tag).toBe("Accepted")
 
         const lossy = yield* journal.emitLossy(input(run, sourceId("lossy"), "big", { blob: huge }))
@@ -1049,7 +1049,7 @@ describe("Journal", () => {
 
       // The database recovers; the lossless lifecycle channel must recover too.
       database.repair()
-      const receipt = yield* journal.emitDurable(input(run, source, "lifecycle", {}))
+      const receipt = yield* journal.emitDurableUnfenced(input(run, source, "lifecycle", {}))
       expect(receipt._tag).toBe("Accepted")
       const page = yield* journal.entries({ runId: run, limit: 10 })
       expect(page.entries.map((entry) => entry.eventType)).toEqual(["lifecycle"])
@@ -1569,7 +1569,7 @@ describe("span attributes", () => {
   // Effect.fn does not auto-capture arguments, so each journal operation
   // annotates its own span. The capturing tracer follows
   // `reference/effect/packages/effect/test/unstable/http/HttpMiddleware.test.ts`.
-  effect("Journal.emitDurable annotates its span with the event identity", () => {
+  effect("Journal.emitDurableUnfenced annotates its span with the event identity", () => {
     const spans: Array<Tracer.NativeSpan> = []
     const tracer = Tracer.make({
       span(options) {
@@ -1581,12 +1581,14 @@ describe("span attributes", () => {
     return runJournal(
       Effect.gen(function*() {
         const journal = yield* Journal
-        yield* journal.emitDurable(input(runId("run-span"), sourceId("source-span"), "step.started", { ok: true }))
+        yield* journal.emitDurableUnfenced(
+          input(runId("run-span"), sourceId("source-span"), "step.started", { ok: true })
+        )
       })
     ).pipe(
       Effect.provideService(Tracer.Tracer, tracer),
       Effect.map(() => {
-        const span = spans.find((candidate) => candidate.name === "Journal.emitDurable")
+        const span = spans.find((candidate) => candidate.name === "Journal.emitDurableUnfenced")
         expect(span).toBeDefined()
         expect(span?.attributes.get("runId")).toBe("run-span")
         expect(span?.attributes.get("sourceId")).toBe("source-span")

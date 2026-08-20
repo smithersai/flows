@@ -5,6 +5,7 @@
  */
 import * as Journal from "@smthrs/journal/Journal"
 import type * as JournalEvent from "@smthrs/journal/JournalEvent"
+import { OwnerId } from "@smthrs/journal/OwnerId"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
@@ -101,8 +102,9 @@ export const Description = Schema.Struct({
   tier: EffectTier,
   runId: Schema.NonEmptyString,
   lineageId: Schema.NonEmptyString,
+  owner: OwnerId,
   sourceId: Schema.NonEmptyString,
-  sourceSeq: Schema.optionalKey(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
+  sourceSeq: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   input: Schema.optionalKey(Schema.Unknown),
   cacheKey: Schema.optionalKey(Schema.NonEmptyString),
   changeId: Schema.optionalKey(Schema.NonEmptyString),
@@ -176,20 +178,17 @@ const emit = (
   description: Description,
   status: EffectStatus,
   output?: unknown
-): Effect.Effect<void, TimeTravelError> => {
-  const sourceSeq = description.sourceSeq === undefined
-    ? undefined
-    : (description.sourceSeq + (status === "intended" ? 0 : 1)) as JournalEvent.SourceSeq
+): Effect.Effect<Journal.DurableReceipt, TimeTravelError> => {
+  const sourceSeq = (description.sourceSeq + (status === "intended" ? 0 : 1)) as JournalEvent.SourceSeq
   const input: JournalEvent.Input = {
     runId: description.runId as JournalEvent.RunId,
     sourceId: description.sourceId as JournalEvent.SourceId,
-    ...(sourceSeq === undefined ? {} : { sourceSeq }),
+    sourceSeq,
     eventType,
     payload: { version: 1, effect: record(description, status, output) },
     meta: metadata(description, status)
   }
-  return journal.emitDurable(input).pipe(
-    Effect.asVoid,
+  return journal.emitDurable(input, description.owner).pipe(
     Effect.mapError((cause) =>
       error("unknown", `could not record ${status} boundary for effect ${description.id}`, cause)
     )
@@ -212,16 +211,32 @@ export const guard = <A, E, R>(
   action: Effect.Effect<A, E, R>
 ): Effect.Effect<A, E | TimeTravelError, R | Journal.Journal> =>
   Effect.gen(function*() {
+    const validated = yield* Schema.decodeUnknownEffect(Description)(description).pipe(
+      Effect.mapError((cause) => error("invalid", "effect boundary description is invalid", cause))
+    )
+    if (validated.sourceSeq === Number.MAX_SAFE_INTEGER) {
+      return yield* Effect.fail(error("invalid", `effect ${validated.id} has no terminal source sequence`))
+    }
+    if (validated.tier === "irreversible" && validated.idempotencyKey === undefined) {
+      return yield* Effect.fail(
+        error("invalid", `irreversible effect ${validated.id} requires an idempotency key`)
+      )
+    }
     const journal = yield* Journal.Journal
     return yield* Effect.uninterruptibleMask((restore) =>
       Effect.gen(function*() {
-        yield* emit(journal, description, "intended")
+        const intended = yield* emit(journal, validated, "intended")
+        if (intended._tag === "Duplicate") {
+          return yield* Effect.fail(
+            error("busy", `effect ${validated.id} already crossed its durable boundary; refusing to execute it again`)
+          )
+        }
         const actionExit = yield* Effect.exit(restore(action))
         if (Exit.isSuccess(actionExit)) {
-          yield* emit(journal, description, "succeeded", actionExit.value)
+          yield* emit(journal, validated, "succeeded", actionExit.value)
           return actionExit.value
         }
-        yield* Effect.ignore(emit(journal, description, "unknown"))
+        yield* Effect.ignore(emit(journal, validated, "unknown"))
         return yield* Effect.failCause(actionExit.cause)
       })
     )
@@ -253,7 +268,7 @@ const BoundaryRecord = Schema.Struct({
   nonce: Schema.optionalKey(Schema.NonEmptyString)
 })
 const BoundaryPayload = Schema.Struct({
-  version: Schema.optionalKey(Schema.Literal(1)),
+  version: Schema.Literal(1),
   effect: BoundaryRecord
 })
 
@@ -281,7 +296,12 @@ export const fromEntry = (
   }
 }
 
-/** Decodes a known boundary event, failing closed when its durable payload is corrupt. */
+/**
+ * Decodes a known boundary event, failing closed when its durable payload is corrupt.
+ *
+ * @since 0.1.0
+ * @category decoders
+ */
 export const decodeEntry = (
   entry: JournalEvent.Entry
 ): Effect.Effect<EffectRecord | undefined, TimeTravelError> => {
