@@ -523,6 +523,30 @@ describe("FlowEngineLike.call", () => {
     })
   })
 
+  it("reports an input that decodes but cannot be canonically keyed as a typed harness failure", async () => {
+    const executed: Array<string> = []
+    // A lone surrogate is a perfectly ordinary JavaScript string, so the call
+    // decodes as JSON — and it has no UTF-8 form, so it has no canonical
+    // serialization and therefore no key. That is a second, distinct refusal
+    // from the `undefined` one above, and it must arrive typed rather than as
+    // a defect, because the cell boundary can only catch what is typed.
+    const outcome = await drive(Effect.gen(function*() {
+      const port = yield* FlowEngineLike.make({
+        model: cellModel([]),
+        route,
+        calls: counting(executed)
+      })
+      return yield* port.call(cellCall({ path: "\uD800" }))
+    }))
+
+    expect(outcome).toMatchObject({
+      _tag: "failed",
+      error: { code: "engine_failed", message: "Cell call fs/list #0 could not be keyed" }
+    })
+    // The boundary never opened, so the runner never ran.
+    expect(executed).toEqual([])
+  })
+
   it("keys placement into a sealed call and needs no authorize hook", async () => {
     const executed: Array<string> = []
     // A runner with no authorize hook: nothing to check before the boundary.

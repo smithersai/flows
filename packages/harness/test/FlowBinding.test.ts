@@ -107,6 +107,14 @@ describe("FlowBinding.descriptorOf", () => {
     expect(descriptor.input).toStrictEqual(new Descriptor.SchemaRefInline({ document: inputDocument }))
     expect(descriptor.output).toMatchObject({ _tag: "Module", field: "output" })
   })
+
+  it("names an unnamed declaration with the empty string a catalog then refuses", () => {
+    const descriptor = FlowBinding.descriptorOf({ capabilities: [], effects: undefined })
+
+    expect(descriptor.name).toBe("")
+    expect(descriptor.path).toBe("binding://")
+    expect(descriptor.body).toMatchObject({ path: "binding://" })
+  })
 })
 
 describe("FlowBinding.make", () => {
@@ -133,6 +141,23 @@ describe("FlowBinding.make", () => {
     })
 
     expect(binding.descriptor.input).toStrictEqual(new Descriptor.SchemaRefInline({ document: inputDocument }))
+  })
+
+  it("keeps an explicit output document, alone and beside an explicit input one", () => {
+    const outputDocument = { type: "object", properties: { total: { type: "number" } } } as const
+    const inputDocument = { type: "object", properties: { raw: { type: "string" } } } as const
+    const handler = (input: typeof Echo.Type) => Effect.succeed({ text: input.text, length: input.text.length })
+
+    const outputOnly = FlowBinding.make({ flow: echo, outputDocument, handler })
+    const both = FlowBinding.make({ flow: echo, inputDocument, outputDocument, handler })
+
+    expect(outputOnly.descriptor.output).toStrictEqual(new Descriptor.SchemaRefInline({ document: outputDocument }))
+    // The unspecified half is still projected from the declaration.
+    expect(outputOnly.descriptor.input).toStrictEqual(
+      new Descriptor.SchemaRefInline({ document: Schema.toJsonSchemaDocument(Echo) })
+    )
+    expect(both.descriptor.input).toStrictEqual(new Descriptor.SchemaRefInline({ document: inputDocument }))
+    expect(both.descriptor.output).toStrictEqual(new Descriptor.SchemaRefInline({ document: outputDocument }))
   })
 
   it("falls back to the module locator when an input schema cannot be projected", () => {
@@ -223,6 +248,38 @@ describe("FlowBinding.make", () => {
     )
   })
 
+  it("refuses a call input that is not an object at all", async () => {
+    let ran = false
+    const binding = FlowBinding.make({
+      flow: echo,
+      handler: (input) =>
+        Effect.sync(() => {
+          ran = true
+          return { text: input.text, length: 0 }
+        })
+    })
+    const rejection = Schema.decodeUnknownResult(Echo)("just a string")
+    const rejected = Result.isFailure(rejection) ? rejection.failure.message : ""
+
+    const exits = await Promise.all(
+      ["just a string", ["one"], null, 7].map((input) => run(binding.run(call("echo", input))))
+    )
+
+    // `withoutNulls` only strips top-level null values of a record; a string,
+    // an array, and null itself are returned untouched, so the retry reports
+    // the same rejection the first attempt did.
+    expect(ran).toBe(false)
+    expect(exits.map((exit) => Exit.isSuccess(exit) && exit.value.outcome)).toEqual([
+      "failure",
+      "failure",
+      "failure",
+      "failure"
+    ])
+    expect(Exit.isSuccess(exits[0]!) && exits[0]!.value.message).toBe(
+      `Flow echo rejected its input: ${rejected}. Re-read ctx.flows and reissue the call.`
+    )
+  })
+
   it("preserves null when the input schema accepts it", async () => {
     const Input = Schema.Struct({ env: Schema.NullOr(Schema.String) })
     let observed: unknown
@@ -269,6 +326,25 @@ describe("FlowBinding.make", () => {
       "Flow echo failed: plain refusal",
       "Flow echo failed: tagged refusal",
       "Flow echo failed: {\"code\":12}"
+    ])
+  })
+
+  it("renders a failure value with no message and no JSON form", async () => {
+    const undefinedFailure = FlowBinding.make({ flow: echo, handler: () => Effect.fail(undefined) })
+    const symbolFailure = FlowBinding.make({ flow: echo, handler: () => Effect.fail(Symbol("refused")) })
+
+    const rendered = await Promise.all(
+      [undefinedFailure, symbolFailure].map(async (binding) => {
+        const exit = await run(binding.run(call("echo", { text: "hi" })))
+        return Exit.isSuccess(exit) ? exit.value.message : undefined
+      })
+    )
+
+    // `JSON.stringify` answers `undefined` for both, so the text the next frame
+    // reads has to come from `String`.
+    expect(rendered).toEqual([
+      "Flow echo failed: undefined",
+      "Flow echo failed: Symbol(refused)"
     ])
   })
 
@@ -387,6 +463,50 @@ describe("FlowBinding.catalog", () => {
     expect(Result.isFailure(composed)).toBe(true)
     expect(Result.isFailure(composed) ? composed.failure.message : "").toContain(
       "Two executable bindings are named \"alpha\""
+    )
+  })
+
+  it("refuses a name two different sources both contribute", async () => {
+    const exit = await run(
+      FlowBinding.catalog([
+        FlowBinding.source("plugin", [binding("alpha")]),
+        FlowBinding.source("mcp", [binding("alpha")])
+      ])
+    )
+
+    expect(Exit.isFailure(exit) ? Cause.squash(exit.cause) : undefined).toMatchObject({
+      code: "assembly_failed",
+      message: expect.stringContaining("Two executable bindings are named \"alpha\"")
+    })
+  })
+
+  it("composes nothing from no sources and from a source contributing none", async () => {
+    const [none, empty, one] = await Effect.runPromise(
+      Effect.all([
+        FlowBinding.catalog([]),
+        FlowBinding.catalog([FlowBinding.source("silent", [])]),
+        FlowBinding.catalog([FlowBinding.source("single", [binding("alpha")])])
+      ])
+    )
+
+    expect(none.entries).toEqual([])
+    expect(none.descriptors).toEqual([])
+    expect(none.bindings.size).toBe(0)
+    expect(empty.entries).toEqual([])
+    expect(one.entries).toHaveLength(1)
+    expect([...one.bindings.keys()]).toEqual(["alpha"])
+  })
+
+  it("reports the missing name before the duplicate when a binding has neither", () => {
+    const anonymous = FlowBinding.make({
+      flow: Flow.make({ input: Schema.Struct({}), output: Schema.Struct({}) }),
+      handler: () => Effect.succeed({})
+    })
+
+    const composed = FlowBinding.catalogResult([anonymous, anonymous])
+
+    expect(Result.isFailure(composed) ? composed.failure.message : "").toContain(
+      "An executable binding has no flow name"
     )
   })
 
@@ -525,5 +645,60 @@ describe("FlowBinding.registry", () => {
 
     expect(Option.isNone(missing)).toBe(true)
     expect(Exit.isFailure(exit)).toBe(true)
+  })
+
+  it("never resolves a shadowed name to the binding when discovery cannot serve it", async () => {
+    // Discovery still owns "review" — `list()` says so — but its entry is not
+    // resolvable this instant. Falling back to the binding here would dispatch
+    // one declaration's disclosure to another declaration's implementation.
+    const racing = Registry.makeNoop({
+      list: () => Effect.succeed([discovered]),
+      visible: () => Effect.succeed([discovered]),
+      getOption: () => Effect.succeed(Option.none()),
+      warnings: () => Effect.succeed([])
+    })
+    const shadowed = FlowBinding.make({
+      flow: Flow.make({
+        name: "review",
+        description: "A bound review.",
+        input: Schema.Struct({}),
+        output: Schema.Struct({})
+      }),
+      handler: () => Effect.succeed({})
+    })
+    const registry = FlowBinding.registry(racing, Result.getOrThrow(FlowBinding.catalogResult([shadowed])))
+
+    const [resolved, exit] = await Effect.runPromise(
+      Effect.all([registry.getOption("review"), Effect.exit(registry.get("review"))])
+    )
+
+    expect(Option.isNone(resolved)).toBe(true)
+    expect(Exit.isFailure(exit)).toBe(true)
+  })
+
+  it("discloses every binding when discovery found nothing at all", async () => {
+    const catalog = Result.getOrThrow(FlowBinding.catalogResult([bound, hiddenBinding]))
+    const registry = FlowBinding.registry(base([]), catalog)
+
+    const [listed, visible, resolved, warnings] = await Effect.runPromise(
+      Effect.all([registry.list(), registry.visible(), registry.getOption("internal"), registry.warnings()])
+    )
+
+    expect(listed.map((entry) => entry.name)).toEqual(["read", "internal"])
+    expect(visible.map((entry) => entry.name)).toEqual(["read"])
+    expect(Option.getOrThrow(resolved).modelInvocable).toBe(false)
+    expect(warnings).toEqual([])
+  })
+
+  it("discloses nothing extra when the catalog is empty", async () => {
+    const registry = FlowBinding.registry(base([discovered]), FlowBinding.empty())
+
+    const [listed, visible, warnings] = await Effect.runPromise(
+      Effect.all([registry.list(), registry.visible(), registry.warnings()])
+    )
+
+    expect(listed.map((entry) => entry.name)).toEqual(["review"])
+    expect(visible.map((entry) => entry.name)).toEqual(["review"])
+    expect(warnings).toEqual([])
   })
 })

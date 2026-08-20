@@ -348,7 +348,6 @@ const agentFlow = Flow.make("agent/run", {
   payload: { runId: Schema.String, planId: Schema.String },
   success: Schema.Unknown,
   error: Schema.Unknown,
-  /* v8 ignore next -- the plan-time body is inert; register supplies the execute. */
   body: () => Node.succeed(undefined)
 })
 
@@ -531,7 +530,6 @@ export const make = (
         }
         const token = yield* runtime.registerApproval(target).pipe(
           Effect.mapError(
-            /* v8 ignore next 7 -- only a mid-run control-store failure reaches this. */
             (cause) =>
               new HarnessError.HarnessError({
                 code: "engine_failed",
@@ -553,7 +551,6 @@ export const make = (
           payload
         }).pipe(
           Effect.mapError(
-            /* v8 ignore next 7 -- only a mid-run journal failure reaches this. */
             (cause) =>
               new HarnessError.HarnessError({
                 code: "engine_failed",
@@ -594,7 +591,6 @@ export const make = (
           const identity = askIdentity(runId, input)
           const grants = yield* runtime.grants.pipe(
             Effect.mapError(
-              /* v8 ignore next 7 -- only a mid-run grant-store failure reaches this. */
               (cause) =>
                 new HarnessError.HarnessError({
                   code: "engine_failed",
@@ -629,7 +625,6 @@ export const make = (
         )
       }).pipe(
         Effect.catchCause(
-          /* v8 ignore next 6 -- reached only when a cancel raced the fence away. */
           (cause) =>
             Effect.annotateLogs(
               Effect.logWarning("An agent run status could not be written"),
@@ -675,11 +670,9 @@ export const make = (
         // guards a registry that changed between acceptance and execution.
         const seatId = yield* Effect.fromOption(
           descriptor.model,
-          /* v8 ignore next -- launch refuses a seatless flow before the body runs. */
           () => new Seat.SeatUnresolved({ seat: card.flowId, message: `Flow ${card.flowId} declares no model seat` })
         )
         const flowBody = yield* registry.loadBody(card.flowId)
-        /* v8 ignore next 8 -- launch leaves a module-bodied flow pending before the body runs. */
         if (flowBody._tag !== "Prompt") {
           return yield* Effect.fail(
             new Seat.SeatUnresolved({
@@ -814,7 +807,6 @@ export const make = (
         if (parked) yield* engine.resume(agentFlow, runId)
       }).pipe(
         Effect.catchCause(
-          /* v8 ignore next 6 -- reached only when the engine refuses the re-drive. */
           (cause) =>
             Effect.annotateLogs(
               Effect.logWarning("A parked agent run could not be resumed"),
@@ -838,7 +830,6 @@ export const make = (
       )
     }).pipe(
       Effect.catchCause(
-        /* v8 ignore next 6 -- reached only when the journal subscription itself fails. */
         (cause) =>
           Effect.annotateLogs(
             Effect.logError("The executor resume bridge stopped"),
@@ -871,7 +862,6 @@ export const make = (
         }
         const flowBody = yield* registry.loadBody(flowId).pipe(
           Effect.mapError(
-            /* v8 ignore next 6 -- reached only when a discovered body becomes unreadable. */
             (cause) =>
               new LaunchFailed({
                 runId: input.run.runId,
