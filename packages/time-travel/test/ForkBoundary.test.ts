@@ -437,6 +437,39 @@ describe("fork boundary assessment", () => {
 })
 
 describe("the compensation descriptor on a boundary record", () => {
+  it.effect("omits an absent idempotency key from sealed boundary records", () =>
+    Effect.gen(function*() {
+      const emitted: Array<JournalEvent.Input> = []
+      yield* EffectBoundary.guard({
+        id: "sealed-read-1",
+        kind: "storage/read",
+        tier: "sealed",
+        runId: "parent",
+        lineageId: frame.lineageId,
+        sourceId: "test",
+        sourceSeq: 0,
+        owner: { hostId: "test-host", pid: 1, nonce: "test-owner" }
+      }, Effect.succeed("value")).pipe(
+        Effect.provide(
+          Layer.succeed(
+            Journal.Journal,
+            Journal.makeNoop({
+              emitDurable: (input) =>
+                Effect.sync(() => {
+                  emitted.push(input)
+                  return { _tag: "Accepted", seq: emitted.length, sourceSeq: input.sourceSeq } as never
+                })
+            })
+          )
+        )
+      )
+
+      expect(emitted).toHaveLength(2)
+      for (const entry of emitted) {
+        expect((entry.payload as { effect: Record<string, unknown> }).effect).not.toHaveProperty("idempotencyKey")
+      }
+    }))
+
   it.effect("survives the round trip a rewind's handler preflight reads it through", () =>
     Effect.gen(function*() {
       const emitted: Array<JournalEvent.Input> = []

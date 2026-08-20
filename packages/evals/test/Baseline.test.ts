@@ -3,6 +3,29 @@ import { describe, expect, it } from "vitest"
 import * as Baseline from "../src/Baseline.ts"
 
 describe("Baseline", () => {
+  it("builds records only from successful score observations", async () => {
+    const baseline = await Effect.runPromise(Baseline.fromRun({
+      runId: "run",
+      suite: "suite",
+      cases: [],
+      observations: [
+        { case: "scored", scorer: "judge", stepKey: "step-1", kind: "score", score: 0.75, at: "now" },
+        {
+          case: "skipped",
+          scorer: "judge",
+          stepKey: "step-2",
+          kind: "inconclusive",
+          reason: "unavailable",
+          at: "now"
+        }
+      ]
+    }))
+
+    expect(baseline.records).toEqual([
+      { suite: "suite", case: "scored", scorer: "judge", stepKey: "step-1", score: 0.75 }
+    ])
+  })
+
   it("writes sorted canonical JSON and validates its version", async () => {
     const baseline = await Effect.runPromise(
       Baseline.load(

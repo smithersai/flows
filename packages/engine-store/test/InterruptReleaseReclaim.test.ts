@@ -74,6 +74,48 @@ const releaseMidAction = (executionId: string) =>
   })
 
 describe("interrupt-released runs are reclaimable (issue #39)", () => {
+  it.effect("clears its release marker when the ownership fence is lost", () =>
+    Effect.gen(function*() {
+      const result = yield* withCrypto(provideJournal(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        const state = yield* DurableEngineState.DurableEngineState
+        const fenceLost = RunStore.makeNoop({
+          ...store,
+          transitionOwned: (runId, claimant, status, stateJson, guard) =>
+            status === "suspended"
+              ? store.transitionOwned(
+                runId,
+                { hostId: "other-host", pid: 2, nonce: "other-owner" },
+                status,
+                stateJson,
+                guard
+              )
+              : store.transitionOwned(runId, claimant, status, stateJson, guard)
+        })
+        const driverScope = yield* Scope.make()
+        const driver = yield* makeDriver("owner-1").pipe(
+          Effect.provideService(RunStore.RunStore, fenceLost),
+          Scope.provide(driverScope)
+        )
+        const started = yield* Latch.make(false)
+        yield* driver.register(TestFlow, () => Latch.open(started).pipe(Effect.andThen(Effect.never)))
+        yield* driver.execute(TestFlow, {
+          executionId: "release-fence-lost",
+          payload: {},
+          discard: true
+        }).pipe(Effect.forkChild({ startImmediately: true }))
+        yield* Latch.await(started)
+        yield* Scope.close(driverScope, Exit.void)
+        return {
+          row: yield* store.get("release-fence-lost"),
+          waiting: yield* state.waiting("release-fence-lost")
+        }
+      })))
+
+      expect(result.row.status).toBe("running")
+      expect(Option.isNone(result.waiting)).toBe(true)
+    }))
+
   it.effect("parks the released run with a durable waiting reason", () =>
     Effect.gen(function*() {
       const result = yield* withCrypto(provideJournal(Effect.gen(function*() {
