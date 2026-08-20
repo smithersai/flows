@@ -67,6 +67,32 @@ const errorOf = (exit: Exit.Exit<unknown, unknown>): unknown => {
   return (reason as { readonly error: unknown }).error
 }
 
+describe("construction", () => {
+  it.effect.each([NaN, Infinity, -1, 1.5])(
+    "refuses invalid maxDownloadBytes %s",
+    (maxDownloadBytes) =>
+      Effect.gen(function*() {
+        const tier = remote(() => new Response(null, { status: 200 }), { maxDownloadBytes })
+        const exit = yield* tier.store.pipe(Effect.exit)
+        expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
+        expect(tier.calls).toEqual([])
+      })
+  )
+
+  it.effect.each(["not a duration", "Infinity", "0 millis", "-1 millis"])(
+    "refuses invalid downloadTimeout %s",
+    (downloadTimeout) =>
+      Effect.gen(function*() {
+        const tier = remote(() => new Response(null, { status: 200 }), {
+          downloadTimeout: downloadTimeout as never
+        })
+        const exit = yield* tier.store.pipe(Effect.exit)
+        expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
+        expect(tier.calls).toEqual([])
+      })
+  )
+})
+
 describe("uploads", () => {
   it.effect.each([
     "http://cache.example.com",

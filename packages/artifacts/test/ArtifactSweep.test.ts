@@ -15,6 +15,7 @@ import * as Fiber from "effect/Fiber"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import * as PlatformError from "effect/PlatformError"
 import { TestClock } from "effect/testing"
 import * as ArtifactStore from "../src/ArtifactStore.ts"
 import * as ArtifactSweep from "../src/ArtifactSweep.ts"
@@ -27,6 +28,9 @@ const blobPath = `.flows/objects/${digest.slice(0, 2)}/${digest}`
 const other = "second-sweepable-artifact"
 const otherDigest = sha256(bytes(other))
 const otherPath = `.flows/objects/${otherDigest.slice(0, 2)}/${otherDigest}`
+
+const systemError = (tag: PlatformError.SystemErrorTag, method: string): PlatformError.PlatformError =>
+  PlatformError.systemError({ _tag: tag, module: "FileSystem", method })
 
 /**
  * An in-memory host filesystem tracking per-path mtimes, so the sweep's age
@@ -113,24 +117,30 @@ const memoryFs = (options: {
         return Effect.void
       })) as never,
     writeFile: ((path: string, content: Uint8Array) =>
-      Effect.flatMap(Clock.currentTimeMillis, (now) => Effect.sync(() => {
-        writes.push(path)
-        files.set(path, content)
-        mtimes.set(path, now)
-      }))) as never,
+      Effect.flatMap(Clock.currentTimeMillis, (now) =>
+        Effect.sync(() => {
+          writes.push(path)
+          files.set(path, content)
+          mtimes.set(path, now)
+        }))) as never,
     rename: ((from: string, to: string) =>
       Effect.suspend(() => {
         const content = files.get(from)
-        if (content === undefined) return Effect.fail(new Error(`ENOENT: ${from}`))
-        return Effect.flatMap(Clock.currentTimeMillis, (now) => Effect.sync(() => {
-          files.set(to, content)
-          mtimes.set(to, now)
-          files.delete(from)
-        }))
+        if (content === undefined) {
+          return Effect.fail(new Error(`ENOENT: ${from}`))
+        }
+        return Effect.flatMap(Clock.currentTimeMillis, (now) =>
+          Effect.sync(() => {
+            files.set(to, content)
+            mtimes.set(to, now)
+            files.delete(from)
+          }))
       })) as never,
     remove: ((path: string) =>
       Effect.suspend(() => {
-        if (path === options.failRemoveOf) return Effect.fail(new Error(`EIO: ${path}`))
+        if (path === options.failRemoveOf) {
+          return Effect.fail(new Error(`EIO: ${path}`))
+        }
         const hook = hooks.beforeRemove === undefined ? Effect.void : hooks.beforeRemove(path)
         return hook.pipe(Effect.andThen(Effect.suspend(() =>
           files.delete(path)
@@ -173,9 +183,32 @@ describe("inventory", () => {
   it.effect("reports an empty inventory when the objects directory cannot be read", () =>
     Effect.gen(function*() {
       const failing = FileSystem.makeNoop({
-        readDirectory: (() => Effect.fail(new Error("ENOENT: no objects directory"))) as never
+        readDirectory: (() => Effect.fail(systemError("NotFound", "readDirectory"))) as never
       })
       expect(yield* withCrypto(ArtifactSweep.makeFileSystem(failing).inventory)).toEqual([])
+    }))
+
+  it.effect("fails inventory when the objects directory cannot be read for another reason", () =>
+    Effect.gen(function*() {
+      const failing = FileSystem.makeNoop({
+        readDirectory: (() => Effect.fail(systemError("PermissionDenied", "readDirectory"))) as never
+      })
+      const exit = yield* withCrypto(ArtifactSweep.makeFileSystem(failing).inventory.pipe(Effect.exit))
+      expect(Exit.isFailure(exit)).toBe(true)
+    }))
+
+  it.effect("excludes foreign files that are not lowercase SHA-256 addresses", () =>
+    Effect.gen(function*() {
+      const host = memoryFs({
+        seed: {
+          [blobPath]: artifact,
+          ".flows/objects/ab/abc": "foreign",
+          [`.flows/objects/${digest.slice(0, 2)}/${digest.toUpperCase()}`]: "foreign"
+        },
+        mtimes: { [blobPath]: 1_000 }
+      })
+      const listed = yield* withCrypto(ArtifactSweep.makeFileSystem(host.fs).inventory)
+      expect(listed.map((blob) => blob.digest)).toEqual([digest])
     }))
 
   it.effect("excludes a blob whose age the host cannot measure", () =>
@@ -236,8 +269,7 @@ describe("fenced removal", () => {
       const host = memoryFs({ seed: { [blobPath]: artifact }, mtimes: { [blobPath]: 1_000 } })
       const entered = yield* Deferred.make<void>()
       const release = yield* Deferred.make<void>()
-      host.hooks.beforeRemove = () =>
-        Deferred.succeed(entered, undefined).pipe(Effect.andThen(Deferred.await(release)))
+      host.hooks.beforeRemove = () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Deferred.await(release)))
       const sweep = ArtifactSweep.makeFileSystem(host.fs)
       const store = ArtifactStore.makeFileSystem(host.fs, { durability: "best-effort" })
 
@@ -293,18 +325,16 @@ describe("fenced removal", () => {
       expect(host.files.has(blobPath)).toBe(true)
     }))
 
-  it.effect("treats an unverifiable refusal as a completed deletion", () =>
+  it.effect("fails when a deletion refusal cannot be verified by an existence probe", () =>
     Effect.gen(function*() {
-      // The removal failed and the existence probe failed too: the sweep cannot
-      // prove bytes remain, and a false "removed" would double-count at worst,
-      // while a spurious failure would wedge every later collection.
       const host = memoryFs({
         seed: { [blobPath]: artifact },
         mtimes: { [blobPath]: 1_000 },
         failRemoveOf: blobPath,
         failExists: true
       })
-      expect(yield* withCrypto(ArtifactSweep.makeFileSystem(host.fs).remove(digest))).toBe(false)
+      const exit = yield* withCrypto(ArtifactSweep.makeFileSystem(host.fs).remove(digest).pipe(Effect.exit))
+      expect(Exit.isFailure(exit)).toBe(true)
     }))
 })
 
