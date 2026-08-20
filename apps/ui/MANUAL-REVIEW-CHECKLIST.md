@@ -311,13 +311,50 @@ Run the flow, read the card, resize the window, switch theme, and reload.
 - [ ] **11.6** Zero connectors renders an empty state that names the next step.
 - [ ] **11.7** A connector whose backing repo disappeared renders honestly.
 
+## §11a GitHub and Files panes
+
+> Added 2026-08-19 for will's directives 1 and 6. Both panes are embedded
+> surfaces: they render inside the chat shell at conversation width with the
+> transcript above and the composer below, exactly like §10 and §11.
+
+- [ ] **11a.1** `/github` opens the pane on the repository LIST, including on
+      an account that watches nothing. A pane that will not open is a failure,
+      not an empty state.
+- [ ] **11a.2** Each row states the account's repository the way the chooser
+      row does: full name, freshness, open-issue count. A repository the
+      catalog has not answered for shows its name and nothing invented.
+- [ ] **11a.3** An account with no repositories renders the empty list, not a
+      placeholder row.
+- [ ] **11a.4** Clicking a row opens the repo view with Files, Issues, Pull
+      Requests and Flows, and the way back to the list is one press.
+- [ ] **11a.5** Each tab renders the read behind it — files through the files
+      seam, issues through the issues seam, pull requests through landings,
+      flows through the repository's own flow list — or says honestly that
+      nothing has been read for that repository.
+- [ ] **11a.6** The pane header's back button returns to the conversation, and
+      the keyboard reaches every row and tab.
+- [ ] **11a.7** "Files" in the composer surfaces menu opens the SAME files
+      browser the repo view's Files tab renders. There is one component; if the
+      two disagree about anything, that is the finding.
+- [ ] **11a.8** Nothing in either pane offers to import a repository. Opening a
+      repository prepares it in the background, and reads degrade honestly
+      while preparation is still running.
+
 ## §12 Repos and the GitHub App
 
-- [ ] **12.1** `/repos.import` with and without an explicit `owner/repo`.
-- [ ] **12.2** Import a large repo: progress is legible and the card ends in a
-      terminal state.
-- [ ] **12.3** Import a repo you do not have access to: honest refusal.
-- [ ] **12.4** Import the same repo twice.
+> Revised 2026-08-19 (will's directive 5): the "Import to Smithers Cloud"
+> button and the connect-store row are gone, and `repos.import` is hidden from
+> the listed flows. Importing happens in the background when a repository is
+> opened. These rows grade that, not a button.
+
+- [ ] **12.1** No user-facing import affordance exists: not in the composer
+      connect menu, not in the connectors store list, not in the slash menu.
+- [ ] **12.2** Opening a repository in the GitHub pane starts its preparation
+      in the background; progress is legible on the repo-import card and it
+      ends in a terminal state.
+- [ ] **12.3** Opening a repo you do not have access to: honest refusal, and
+      no invented progress.
+- [ ] **12.4** Opening the same repo twice does not start a second job.
 - [ ] **12.5** `/repos.app` reports the GitHub App's real installation state
       and links to the fix when it is not installed.
 - [ ] **12.6** `/repos.watch <repo>` with an argument selects that repo.
