@@ -111,6 +111,22 @@ clock rows and `@smthrs/step-cache`'s cache rows stay separate materialized
 stores until their own fold stages land. See
 [implementation status](../../docs/architecture/implementation-status.md).
 
+Two consequences of carrying the fold follow. Entries in `flows.run.*` and
+`flows.attempt.*` bypass the write-path redactor: they carry executable
+state — run state, attempt checkpoints, errors, outcomes — that is decoded
+and re-entered on resume, and redacting it would leave a run undrivable.
+Hygiene for values that must never persist stays the caller-schema
+`Redacted` rule, and export and display surfaces scrub at render time. And
+`compact` honors the fold's snapshot barrier: below-floor entries in
+`flows.run.*` and `flows.attempt.*` for a run are retained — by `compact`
+and by the automatic compaction policy driving it — until a
+`flows.run.snapshot` entry for that run exists at or after the checkpoint
+floor. `@smthrs/run-store` appends a run's snapshot set (the run snapshot
+plus one attempt snapshot per row) in a single transaction, so the run
+snapshot's presence certifies that every surviving row's folded state is
+captured. Without the barrier those namespaces simply do not compact;
+compaction never trades away rebuildability.
+
 Fenced admission goes through the injected strategy.
 `emitDurable(input, owner)`, `checkpoint`, and `compact` keep their
 signatures; their admission check is a `Consensus.guard` call instead of a
