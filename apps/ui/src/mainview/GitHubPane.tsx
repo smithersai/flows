@@ -36,6 +36,41 @@ const tabs = [
 	["flows", "Flows"],
 ] as const;
 
+/* The card kinds each frame renders itself, by surface. */
+const GITHUB_FRAME_KINDS: ReadonlyArray<Card["kind"]> = ["issue-list", "pr-list", "workflow-list", "file-list", "file"];
+const FILES_FRAME_KINDS: ReadonlyArray<Card["kind"]> = ["file-list", "file"];
+
+/**
+ * The cards an open frame renders, so the transcript does not render them a
+ * second time as standalone entries.
+ *
+ * A frame is a VIEW of reads the store already holds — the cards stay in the
+ * collection, which is the authority, and come back to the transcript when the
+ * frame closes. Without this the same issues list appeared twice, above and
+ * inside the pane, and every tab the user visited left its list behind: a
+ * growing pile of duplicates instead of a browsing pane.
+ *
+ * The set is every matching card for the open repository, not just the newest
+ * one each tab shows. A frame that shows the newest issues list owns the older
+ * ones too — they are the same read, repeated — and leaving them in the
+ * transcript is the accumulation this fixes.
+ */
+export const paneOwnedCardIds = (
+	surface: Session["surface"],
+	repo: string | null,
+	cards: ReadonlyArray<Card>,
+): ReadonlySet<string> => {
+	const kinds =
+		surface === "github" ? GITHUB_FRAME_KINDS : surface === "files" ? FILES_FRAME_KINDS : undefined;
+	if (kinds === undefined || repo === null) return new Set<string>();
+	return new Set(
+		cards
+			.filter((card) => kinds.includes(card.kind))
+			.filter((card) => (card.payload as { repo?: unknown }).repo === repo)
+			.map((card) => card.id),
+	);
+};
+
 /** The one class the transcript-embedded frames wear; see styles/chat.css. */
 export const TRANSCRIPT_PANE_CLASS = "github-pane transcript-pane";
 
