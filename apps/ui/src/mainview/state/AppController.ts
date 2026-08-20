@@ -21,7 +21,7 @@ import {
 	RECO_REPOS_PATH,
 	RECO_WATCHED_PATH,
 	TOOLS_BROWSER_FETCH_PATH,
-	MODEL_STREAM_PATH,
+	TURN_PATH,
 	WORKFLOW_EVENTS_PATH,
 	WORKFLOW_PROVISION_PATH,
 	WORKFLOW_RPC_PATH,
@@ -2980,10 +2980,22 @@ export const createAppController = (
 	const runSweep = async (transcript: ReadonlyArray<AgentChatMessage>): Promise<SweepNote[] | undefined> => {
 		let response: Response;
 		try {
-			response = await http(`${baseUrl}${MODEL_STREAM_PATH}`, {
+			/*
+			 * The sweep reads NDJSON turn frames ({type:"delta",kind:"text"}), so
+			 * it posts to the TURN route that speaks them. Pointing it at the
+			 * model relay — which answers the provider's own SSE — meant the
+			 * parse below found nothing every time, and /clear answered "I
+			 * couldn't finish reviewing the conversation" on a healthy backend
+			 * while keeping the transcript it was asked to sweep.
+			 */
+			response = await http(`${baseUrl}${TURN_PATH}`, {
 				method: "POST",
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({
+					// The route identifies every turn, including this one: a body
+					// without a runId is refused with 400, which the parse below
+					// could only report as "nothing worth keeping".
+					runId: `sweep-${Date.now()}`,
 					messages: transcript,
 					instructions: SWEEP_INSTRUCTIONS,
 				}),
