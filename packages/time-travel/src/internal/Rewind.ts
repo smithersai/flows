@@ -660,7 +660,11 @@ export const rewind = (
               const archive = yield* store.archiveAndTruncate(
                 options.runId,
                 options.frame,
-                Compensation.toStoreReceipts(auditId, compensation)
+                Compensation.toStoreReceipts(auditId, compensation),
+                // The rewind claimed and activated the run with this owner;
+                // the store re-checks it at commit, so a superseded rewind
+                // never truncates behind the live owner.
+                options.owner
               )
               archiveCommitted = true
               detail = { ...detail, phase: "archive_committed" }

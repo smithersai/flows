@@ -14,6 +14,8 @@ interface Observation {
   readonly edges: ReadonlyArray<string>
 }
 
+const owner = { hostId: "host-a", pid: 1234, nonce: "nonce" } as const
+
 const records: ReadonlyArray<MemoryTimeTravelStore.JournalRecord> = [
   { runId: "parent", seq: 0, eventId: "parent-0", lineageId: "parent/root", payload: {} },
   { runId: "parent", seq: 2, eventId: "parent-2", lineageId: "parent/root", payload: {} },
@@ -31,7 +33,7 @@ const edges: ReadonlyArray<LineageEdge> = [
 
 const observeMemory = (seq: number) => {
   const store = MemoryTimeTravelStore.make({ records, edges })
-  return store.archiveAndTruncate("parent", { lineageId: "parent/root", seq }, []).pipe(
+  return store.archiveAndTruncate("parent", { lineageId: "parent/root", seq }, [], owner).pipe(
     Effect.map((archive) => {
       const state = store.state()
       return {
@@ -55,6 +57,16 @@ const observeSql = (seq: number) =>
           VALUES (${runId}, 'suspended', 0, '{}')
         `
     }
+    // The truncation is owner-fenced: the archive only commits while
+    // `flows_runs` records this owner for the run. The run table's CHECK
+    // keeps owner columns on `running` rows only.
+    yield* sql`
+        UPDATE flows_runs
+        SET status = 'running',
+          owner_host_id = ${owner.hostId}, owner_pid = ${owner.pid}, owner_nonce = ${owner.nonce},
+          heartbeat_at_ms = 0
+        WHERE run_id = 'parent'
+      `
     for (const record of records) {
       yield* sql`
           INSERT INTO flows_journal_events
@@ -76,7 +88,8 @@ const observeSql = (seq: number) =>
     const archive = yield* store.archiveAndTruncate(
       "parent",
       { lineageId: "parent/root", seq },
-      []
+      [],
+      owner
     )
     const remaining = yield* sql<{ readonly event_id: string }>`
         SELECT event_id FROM flows_journal_events ORDER BY event_id

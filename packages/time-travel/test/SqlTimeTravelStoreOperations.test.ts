@@ -81,6 +81,17 @@ const insertRunningRun = (sql: SqlClient.SqlClient, runId: string) =>
             'host-a', 1234, 'nonce', 0)
   `
 
+const owner = { hostId: "host-a", pid: 1234, nonce: "nonce" } as const
+
+/** A run row whose owner columns match {@link owner}, so the archive fence passes. */
+const insertOwnedRun = (sql: SqlClient.SqlClient, runId: string) =>
+  sql`
+    INSERT INTO flows_runs
+      (run_id, status, created_at_ms, state_json, owner_host_id, owner_pid, owner_nonce, heartbeat_at_ms)
+    VALUES (${runId}, 'running', 0, ${JSON.stringify({ version: 1, flowName: "Demo", payload: {} })},
+            ${owner.hostId}, ${owner.pid}, ${owner.nonce}, 0)
+  `
+
 describe("SqlTimeTravelStore.snapshotAt", () => {
   it.effect("returns the newest snapshot at or before the frame, scoped to one lineage", () =>
     Effect.gen(function*() {
@@ -442,7 +453,10 @@ describe("SqlTimeTravelStore persistence fault matrix", () => {
       {
         method: "archiveAndTruncate",
         table: "flows_time_travel_edges",
-        invoke: (store: TimeTravelStore.Service) => store.archiveAndTruncate("run", audit.frame, [])
+        // The fence guard reads `flows_runs` before the dropped table is
+        // touched, so the run must exist under the fence's owner first.
+        prepare: (sql: SqlClient.SqlClient) => insertOwnedRun(sql, "run"),
+        invoke: (store: TimeTravelStore.Service) => store.archiveAndTruncate("run", audit.frame, [], owner)
       },
       {
         method: "createFork",
@@ -461,6 +475,9 @@ describe("SqlTimeTravelStore persistence fault matrix", () => {
       Effect.gen(function*() {
         const failure = yield* run((store, sql) =>
           Effect.gen(function*() {
+            if ("prepare" in scenario) {
+              yield* scenario.prepare(sql)
+            }
             yield* sql.unsafe(`DROP TABLE ${scenario.table}`)
             return yield* Effect.flip(scenario.invoke(store))
           })
@@ -478,7 +495,7 @@ describe("SqlTimeTravelStore persistence fault matrix", () => {
     Effect.gen(function*() {
       const result = yield* run((store, sql) =>
         Effect.gen(function*() {
-          yield* insertRun(sql, "run")
+          yield* insertOwnedRun(sql, "run")
           for (const seq of [0, 2]) {
             yield* sql`
             INSERT INTO flows_journal_events
@@ -500,7 +517,7 @@ describe("SqlTimeTravelStore persistence fault matrix", () => {
               auditId: "audit",
               effectId: "new",
               receipt: { existing: false }
-            }])
+            }], owner)
           )
           const journal = yield* sql<{ readonly seq: number }>`
           SELECT seq FROM flows_journal_events WHERE run_id = 'run' ORDER BY seq
@@ -528,10 +545,10 @@ describe("SqlTimeTravelStore.recordReceipt", () => {
       const rows = yield* run((store, sql) =>
         Effect.gen(function*() {
           yield* store.recordReceipt({ id: "r1", auditId: "audit", effectId: "effect-a", receipt: { undone: true } })
-          yield* insertRun(sql, "run")
+          yield* insertOwnedRun(sql, "run")
           yield* store.archiveAndTruncate("run", { lineageId: "main", seq: 0 }, [
             { id: "r2", auditId: "audit", effectId: "effect-b", receipt: { undone: false } }
-          ])
+          ], owner)
           return yield* sql<
             { readonly id: string; readonly effect_id: string; readonly receipt_json: string }
           >`SELECT id, effect_id, receipt_json FROM flows_time_travel_receipts ORDER BY id`
