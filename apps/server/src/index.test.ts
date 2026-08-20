@@ -1023,6 +1023,152 @@ describe("billing seam", () => {
 		);
 	});
 
+	/*
+	 * Directive 8 (will, 2026-08-19): "it says I have $0 but I should have a lot
+	 * more than $0".
+	 *
+	 * The corner chip renders a dollar figure only for a well-formed answer;
+	 * anything malformed or failing renders "Balance unavailable" instead. So a
+	 * $0 chip means the wire really carried totalUsd "0", and the question this
+	 * layer has to answer is whether the product Worker could have produced that
+	 * zero itself — by converting units, or by reading the account under the
+	 * wrong key. It cannot, and these two rows are what keep it unable to.
+	 */
+	test("passes the billing answer through untouched — no unit conversion, no zeroing", async () => {
+		const upstreamBody = {
+			state: "empty",
+			allowedToStartWork: false,
+			balance: { totalUsd: "0", promotionalUsd: "0", purchasedUsd: "0" },
+		};
+		const env: WorkerEnv = {
+			...assetsEnv(),
+			BILLING_UPSTREAM_URL: "https://billing.test",
+			BILLING_AUTH_TOKEN: "cloud-bearer-123",
+			BILLING_PRODUCT_SERVICE_TOKEN: "product-service-token-123",
+			IDENTITY_UPSTREAM_URL: "https://identity.test",
+			IDENTITY_SERVICE_TOKEN: "service-token-123",
+		};
+		await withMockedFetch(
+			(request) => {
+				const url = new URL(request.url);
+				if (url.hostname === "identity.test") {
+					return new Response(JSON.stringify({ login: "will", allowlisted: true, admin: false }), {
+						status: 200,
+						headers: { "content-type": "application/json" },
+					});
+				}
+				if (url.hostname === "billing.test") {
+					return new Response(JSON.stringify(upstreamBody), {
+						status: 200,
+						headers: { "content-type": "application/json" },
+					});
+				}
+				return undefined;
+			},
+			async () => {
+				const response = await worker.fetch(
+					new Request("https://mvp.test/api/billing/balance", {
+						headers: { cookie: "smithers_session=abc" },
+					}),
+					env,
+				);
+				expect(response.status).toBe(200);
+				// Byte for byte: a $0 the user sees is the ledger's own answer, and
+				// a non-zero ledger cannot be rounded, re-based or truncated here.
+				expect(await response.json()).toEqual(upstreamBody);
+			},
+		);
+
+		// The same passthrough with a funded account: no scaling of any kind.
+		const funded = {
+			state: "ok",
+			allowedToStartWork: true,
+			balance: { totalUsd: "500.00", promotionalUsd: "500.00", purchasedUsd: "0" },
+		};
+		await withMockedFetch(
+			(request) => {
+				const url = new URL(request.url);
+				if (url.hostname === "identity.test") {
+					return new Response(JSON.stringify({ login: "will", allowlisted: true, admin: false }), {
+						status: 200,
+						headers: { "content-type": "application/json" },
+					});
+				}
+				if (url.hostname === "billing.test") {
+					return new Response(JSON.stringify(funded), {
+						status: 200,
+						headers: { "content-type": "application/json" },
+					});
+				}
+				return undefined;
+			},
+			async () => {
+				const response = await worker.fetch(
+					new Request("https://mvp.test/api/billing/balance", {
+						headers: { cookie: "smithers_session=abc" },
+					}),
+					env,
+				);
+				expect(await response.json()).toEqual(funded);
+			},
+		);
+	});
+
+	/*
+	 * The account key. Billing reads the account by the login this Worker
+	 * forwards, so a login-vs-id split, or any case drift introduced here, would
+	 * read a DIFFERENT account than the one the grant was written to — which is
+	 * the shape a "$0 for a funded user" bug takes when it is a code bug.
+	 * Identity normalizes the login before this Worker ever sees it; whatever it
+	 * answers is forwarded verbatim on both headers.
+	 */
+	test("keys the account by the identity-validated login, identically on both headers", async () => {
+		let balanceHeaders: Headers | undefined;
+		const env: WorkerEnv = {
+			...assetsEnv(),
+			BILLING_UPSTREAM_URL: "https://billing.test",
+			BILLING_AUTH_TOKEN: "cloud-bearer-123",
+			BILLING_PRODUCT_SERVICE_TOKEN: "product-service-token-123",
+			IDENTITY_UPSTREAM_URL: "https://identity.test",
+			IDENTITY_SERVICE_TOKEN: "service-token-123",
+		};
+		await withMockedFetch(
+			(request) => {
+				const url = new URL(request.url);
+				if (url.hostname === "identity.test") {
+					// Identity's own answer is the authority on the account key.
+					return new Response(JSON.stringify({ login: "WillCory", allowlisted: true, admin: false }), {
+						status: 200,
+						headers: { "content-type": "application/json" },
+					});
+				}
+				if (url.hostname === "billing.test") {
+					balanceHeaders = request.headers;
+					return new Response(JSON.stringify({ state: "ok", allowedToStartWork: true }), {
+						status: 200,
+						headers: { "content-type": "application/json" },
+					});
+				}
+				return undefined;
+			},
+			async () => {
+				const response = await worker.fetch(
+					new Request("https://mvp.test/api/billing/balance", {
+						headers: { cookie: "smithers_session=abc", "x-user-login": "someone-else" },
+					}),
+					env,
+				);
+				expect(response.status).toBe(200);
+				expect(balanceHeaders?.get("x-user-login")).toBe("WillCory");
+				// One account, one key: id and login must not diverge, or a grant
+				// written under one would be invisible to a read under the other.
+				expect(balanceHeaders?.get("x-user-id")).toBe(balanceHeaders?.get("x-user-login"));
+				// And nothing the client sent survives the strip.
+				expect(balanceHeaders?.get("x-user-login")).not.toBe("someone-else");
+			},
+		);
+	});
+
 	test("a signed-in request with no product service token 501s honestly — never silently bills the shared account", async () => {
 		const env: WorkerEnv = {
 			...assetsEnv(),
