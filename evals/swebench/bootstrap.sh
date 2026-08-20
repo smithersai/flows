@@ -18,17 +18,22 @@ VENV="$S/.venv-swb"
 DATASET="$S/swb-verified.json"
 SAMPLE="$S/sample.json"
 PY="${PYTHON:-python3}"
+SWEBENCH_VERSION="4.0.4"
 
 echo "== 1/4 evaluator venv"
-if [ -x "$VENV/bin/python" ] && "$VENV/bin/python" -c "import swebench" >/dev/null 2>&1; then
-  echo "   $VENV already has swebench"
+if [ -x "$VENV/bin/python" ] && "$VENV/bin/python" -c \
+  "from importlib.metadata import version; assert version('swebench') == '$SWEBENCH_VERSION'" \
+  >/dev/null 2>&1; then
+  echo "   $VENV already has swebench $SWEBENCH_VERSION"
 else
   command -v "$PY" >/dev/null 2>&1 || { echo "   no $PY on PATH"; exit 1; }
   "$PY" -m venv "$VENV" || exit 1
   "$VENV/bin/python" -m pip install --quiet --upgrade pip || exit 1
-  # `swebench` brings `datasets`, which step 2 uses to fetch the dataset.
-  "$VENV/bin/python" -m pip install --quiet swebench || exit 1
-  echo "   installed swebench into $VENV"
+  # 5.x rejects our `--cache_level env` invocation and the Verified dataset's
+  # committed schema; 4.0.4 is the evaluator that graded the recorded wave.
+  # `swebench` also brings `datasets`, which step 2 uses to fetch the dataset.
+  "$VENV/bin/python" -m pip install --quiet "swebench==$SWEBENCH_VERSION" || exit 1
+  echo "   installed swebench $SWEBENCH_VERSION into $VENV"
 fi
 
 echo "== 2/4 dataset"

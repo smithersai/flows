@@ -19,9 +19,8 @@
  * - USD from the committed price table in `prices.ts`.
  *
  * Per-call latency is reported when the journal carries it and reported as
- * unavailable when it does not. The journaled `model-settled` payload is
- * `{ text, usage }` today and a per-call duration field is being added to it;
- * this reads any of the plausible names and never requires one.
+ * unavailable when it does not. The current harness writes `durationMillis`;
+ * the older speculative names remain fallbacks for imported journals.
  *
  * Writes `scorecard.json` and `scorecard.md`, and compares every instance
  * against the committed codex baseline in `baseline/`.
@@ -36,6 +35,7 @@ import { dirname, join, resolve } from "node:path"
 import { DatabaseSync } from "node:sqlite"
 import { fileURLToPath } from "node:url"
 import type { ControlSchema } from "../../packages/control/src/index.ts"
+import type * as AgentEvent from "../../packages/harness/src/AgentEvent.ts"
 import * as Forensics from "../../packages/cli/src/Forensics.ts"
 import { usd } from "./prices.ts"
 
@@ -152,8 +152,9 @@ const readJournal = (workspace: string): ReadonlyArray<JournalRow> => {
 const asRecord = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {}
 
-/** Names a per-call duration could carry. None is required. */
-const durationKeys = ["durationMs", "elapsedMs", "latencyMs", "tookMs"]
+/** The canonical key is checked against the harness event; the rest preserve old imported journals. */
+const modelSettledDurationKey = "durationMillis" satisfies keyof AgentEvent.ModelSettled
+const durationKeys = [modelSettledDurationKey, "durationMs", "elapsedMs", "latencyMs", "tookMs"]
 
 const durationOf = (payload: Record<string, unknown>): number | undefined => {
   for (const source of [payload, asRecord(payload.usage)]) {

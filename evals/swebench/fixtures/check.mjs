@@ -57,6 +57,7 @@ for (const expected of mirror) {
 
   if (mode === "expect-latency") {
     if (row.speed.meanCallLatencyMs === undefined) failures.push(`${expected.id}: expected a per-call latency`)
+    check(`${expected.id} mean call latency`, row.speed.meanCallLatencyMs, Math.round(4000 + (expected.turns - 1) / 2))
     check(`${expected.id} latency availability`, row.speed.perCallLatency, "journaled")
   } else {
     if (row.speed.meanCallLatencyMs !== undefined) failures.push(`${expected.id}: expected no per-call latency`)

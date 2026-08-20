@@ -3,9 +3,9 @@
 #
 #   ./verify.sh
 #
-# Builds the fixture journal twice — without and with a per-call duration on the
-# journaled model settlement — scores both, and asserts every reported number
-# against `fixtures/mirror-results.json` and the committed codex baseline.
+# Builds the fixture journal twice — without and with the harness's exact
+# `ModelSettled.durationMillis` field — scores both, and asserts every reported
+# number against `fixtures/mirror-results.json` and the committed codex baseline.
 #
 # Spends no tokens, needs no docker, needs no dataset. Run it after touching
 # scorecard.ts, prices.ts, or the journal's event shapes.

@@ -82,6 +82,20 @@ The whole sample, one harness at a time:
 ./run-sample.sh codex 5
 ```
 
+## Wave arming gate
+
+Before spending tokens on the rest of a wave, run and grade its first flows
+instance, then inspect that workspace's journal for exactly one
+`control.agent.discipline-armed` event per run. Its payload is the positive
+record of the discipline configured at run start: `auditCompletion` must be
+`true`, `readOnlyCap` must be nonzero, and `maxFrames`, `callMs`, and `totalMs`
+must match the wave's intended budgets. Stop the wave if the event is absent or
+the values are wrong.
+
+Do not use `control.agent.completion-audited` as the arming gate. That event
+proves an armed audit was reached, not merely armed; a run that times out before
+attempting completion correctly has no such event.
+
 ## Evaluate
 
 Grading is the unmodified official harness, never our own judgement of a patch:
