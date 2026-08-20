@@ -230,7 +230,11 @@ export const makeConfinementValidator = (
 }
 
 export const agentTaskLayer = AgentTask.toLayer((payload) => {
-  const validateResult = makeConfinementValidator(payload.cwd, payload.allowedPaths)
+  const validateResult = makeConfinementValidator(payload.cwd, [...payload.allowedPaths, payload.logDir])
+  const writeRules = payload.allowedPaths.flatMap((candidate) => {
+    const absolute = path.resolve(candidate)
+    return [`Edit(${absolute})`, `Edit(${absolute}/**)`, `Write(${absolute})`, `Write(${absolute}/**)`]
+  })
   return runProcess({
     id: payload.id,
     command: "claude",
@@ -240,7 +244,10 @@ export const agentTaskLayer = AgentTask.toLayer((payload) => {
       "--model",
       payload.model,
       "--allowedTools",
-      "Read,Edit,Write,Glob,Grep"
+      "Read",
+      "Glob",
+      "Grep",
+      ...writeRules
     ],
     cwd: payload.cwd,
     timeoutMs: payload.timeoutMs,

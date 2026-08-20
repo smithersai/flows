@@ -81,7 +81,7 @@ for (let index = 0; index < waves.length; index++) {
               timeoutMs: TIMEOUT_MS,
               logDir,
               completionMarker: "DONE",
-              allowedPaths: [path.join(FLOWS_ROOT, "packages", pkg, "src"), logDir]
+              allowedPaths: [path.join(FLOWS_ROOT, "packages", pkg, "src")]
             })
           ])
         )
