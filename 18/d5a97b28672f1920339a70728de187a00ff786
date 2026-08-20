@@ -1,0 +1,109 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "18d5a97b28672f1920339a70728de187a00ff786",
+ "tree": "61e1d5b59ae683911e505241688c7aa71d523e5e",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 30,
+  "sectionCount": 71
+ },
+ "source": {
+  "commit": "a64add371ab6720e6133c395781340341f8a989a",
+  "subject": "📝 docs(engine-store): promise the deferred/clock journal fold",
+  "priorCanonicalCommit": "45a483358aef0cb9b8ca5cc73bec6c702f93796a",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 30,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "engine-store",
+  "epicsTouched": [
+   {
+    "id": "engine-store",
+    "files": 1
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 868,
+  "globalCount": 909,
+  "purpose": "📝 docs(engine-store): promise the deferred/clock journal fold",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "485585e660a2816f9227e33cf8301f8637912113"
+  ],
+  "parent": "485585e660a2816f9227e33cf8301f8637912113",
+  "sourceImports": [],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "485585e660a2816f9227e33cf8301f8637912113",
+  "next": "d28d9e5cae9a0eda78ca58aefa289970de4ca149",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "9f4db87e9b528812c207c1054f8c36a09a06c2c7"
+ },
+ "size": {
+  "files": 1,
+  "added": 50,
+  "deleted": 1
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "a64add371ab6720e6133c395781340341f8a989a"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "packages/engine-store/README.md",
+   "mode": "100644",
+   "blob": "e86adc3c97ee526a76ba9ba661884cd550355ee3",
+   "previousBlob": "fc8a310176ddacfc2ad72ee0853088523ea670ad",
+   "added": 50,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 34,
+     "oldLines": 0,
+     "newStart": 35,
+     "newLines": 1
+    },
+    {
+     "oldStart": 83,
+     "oldLines": 1,
+     "newStart": 84,
+     "newLines": 4
+    },
+    {
+     "oldStart": 94,
+     "oldLines": 0,
+     "newStart": 99,
+     "newLines": 45
+    }
+   ],
+   "role": "docs",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  }
+ ]
+}
