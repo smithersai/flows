@@ -209,11 +209,16 @@ export default defineSuite({
 			undefined,
 			"a toast about the expired account's balance outlived the account",
 		);
-		report.equals(
-			live.store.collections.billingAccounts.get("billing"),
-			undefined,
-			"the expired account's balance stayed on screen as if it were current",
-		);
+		/*
+		 * forgetAccountState RESETS the billing row to its boot shape rather
+		 * than deleting it — the chip reads this one row, and state "unknown"
+		 * renders nothing at all (App.tsx), where a missing row would leave a
+		 * stale shape behind. What matters here is that no FIGURE of the
+		 * expired account survives.
+		 */
+		const forgotten = live.store.collections.billingAccounts.get("billing");
+		report.equals(forgotten?.state, "unknown", "the expired account's balance stayed on screen as if it were current");
+		report.equals(forgotten?.totalUsd ?? null, null, "the expired account's dollar figure survived the sign-out");
 
 		// The signed-out re-probe re-reads the scope copy the chat's sign-in
 		// message renders; without it the message falls back to "may not work yet".

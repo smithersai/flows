@@ -12,7 +12,7 @@ import type { CommandRegistry } from "../flows/Commands";
 import type { NativeAgent } from "../native/NativeBridge";
 import type { AppStore } from "../state/AppStore";
 import { makeCollectionJournal } from "./CollectionJournal";
-import { commandEntries, disclosedEntries } from "./FlowCatalog";
+import { commandEntries, disclosedEntries, followUpEntries } from "./FlowCatalog";
 import { createChainPolicy } from "./Policy";
 import { layerAuthor } from "./StreamModel";
 import { worldviewEntries } from "./Worldview";
@@ -436,6 +436,10 @@ export const createChainRuntime = (options: ChainRuntimeOptions): NativeAgent =>
 			entries: [
 				...Catalog.system,
 				...disclosedEntries(options.commands),
+				// Directive 2 (will, 2026-08-19): the model proposes follow-ups
+				// through suggestions.propose after it answers; a turn prefix that
+				// never names the channel can never use it.
+				...followUpEntries(options.commands),
 				...surfaces,
 				...worldview,
 				...host,

@@ -2450,11 +2450,54 @@ export const createAppController = (
 				activeTurn.runLaunch = frame.name;
 			}
 			if (!CHAIN_SURFACE_CALLS.has(frame.name) && !frame.name.startsWith("sys/")) {
+				/*
+				 * The wire frame carries only name and verdict; the flow's
+				 * arguments and result live in the journaled CallSettled event the
+				 * tee appended BEFORE this frame was emitted. The act row's detail
+				 * states them (will, 2026-08-19), scrubbed and bounded like every
+				 * act detail.
+				 */
+				const journaled = [...store.collections.chainEvents.values()].find((row) => {
+					if (row.lineageId !== frame.runId) return false;
+					const event = row.event as {
+						readonly _tag?: unknown;
+						readonly link?: unknown;
+						readonly key?: { readonly ordinal?: unknown };
+					} | null;
+					return (
+						typeof event === "object" &&
+						event !== null &&
+						event._tag === "CallSettled" &&
+						event.link === frame.link &&
+						event.key?.ordinal === frame.ordinal
+					);
+				});
+				const settled = journaled?.event as
+					| { readonly payload?: unknown; readonly result?: unknown }
+					| undefined;
+				const payloadArgs =
+					typeof settled?.payload === "object" &&
+					settled.payload !== null &&
+					"args" in settled.payload &&
+					typeof (settled.payload as { readonly args?: unknown }).args === "string"
+						? (settled.payload as { readonly args: string }).args
+						: "";
+				const resultLine = (() => {
+					if (frame.resultDigest !== undefined && frame.resultDigest !== "") return frame.resultDigest;
+					if (settled === undefined || settled.result === undefined) return "";
+					try {
+						const rendered = JSON.stringify(settled.result);
+						return rendered === undefined ? "" : rendered;
+					} catch {
+						return "";
+					}
+				})();
 				const detail = actDetail([
 					`/${frame.name}`,
+					actDetailField(payloadArgs),
 					// The chain's own vocabulary for how the call resolved.
 					frame.verdict === "run" ? "" : frame.verdict === "hit" ? "answered from cache" : "replayed",
-					actDetailField(frame.resultDigest ?? ""),
+					actDetailField(resultLine),
 				]);
 				store.dispatch({
 					type: "message.tool.executed",

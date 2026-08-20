@@ -75,3 +75,16 @@ export const disclosedEntries = (commands: CommandRegistry): ReadonlyArray<Catal
 		.callable()
 		.filter((entry) => entry.metadata.hidden !== true)
 		.map((entry) => entryFor(commands, entry));
+
+/**
+ * The follow-up channel (will, 2026-08-19): hidden from the human listing, so
+ * `disclosedEntries` rightly drops it — but the MODEL must still be taught it,
+ * or the predicted-follow-up pills structurally never arrive on the chain
+ * backend. Exactly the one structured channel, never the id-scoped button
+ * mechanics the hidden set otherwise holds.
+ */
+export const followUpEntries = (commands: CommandRegistry): ReadonlyArray<Catalog.Entry> =>
+	commands
+		.callable()
+		.filter((entry) => entry.binding.descriptor.name === "suggestions.propose")
+		.map((entry) => entryFor(commands, entry));
