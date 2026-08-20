@@ -60,7 +60,7 @@ export const memoryFloor = 256 * 1024
  */
 export const defaultLimits: Required<Limits> = {
   memoryBytes: 64 * 1024 * 1024,
-  steps: 100_000
+  steps: 10_000
 }
 
 /**
