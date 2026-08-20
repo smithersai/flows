@@ -60,6 +60,27 @@ describe("trace", () => {
   it.each(
     [
       [
+        "discipline-armed",
+        new AgentEvent.DisciplineArmed({
+          eventType: "flows.harness.discipline-armed.v1",
+          auditCompletion: true,
+          readOnlyCap: 12,
+          maxFrames: 100,
+          callMs: 120_000,
+          totalMs: 900_000
+        }),
+        {
+          eventType: "control.agent.discipline-armed",
+          payload: {
+            auditCompletion: true,
+            readOnlyCap: 12,
+            maxFrames: 100,
+            callMs: 120_000,
+            totalMs: 900_000
+          }
+        }
+      ],
+      [
         "turn-opened",
         new AgentEvent.TurnOpened({
           eventType: "flows.harness.turn-opened.v1",

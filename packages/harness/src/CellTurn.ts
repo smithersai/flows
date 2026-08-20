@@ -76,6 +76,7 @@ const ContextWindowTokens = NonNegativeSafeInt.pipe(
 
 const eventType = {
   aborted: "flows.harness.aborted.v1",
+  disciplineArmed: "flows.harness.discipline-armed.v1",
   cellCallSettled: "flows.harness.cell-call-settled.v1",
   cellCallStarted: "flows.harness.cell-call-started.v1",
   cellProduced: "flows.harness.cell-produced.v1",
@@ -1186,6 +1187,22 @@ export const run = (
       const steering = yield* Steering.Source
 
       let current = input.state
+      // Once, and only on a run's own first frame: a resumed run replays its
+      // arming from the journal it already wrote, and a second record would
+      // make the gate count runs instead of arming decisions.
+      if (current.frame === 0) {
+        const limits = Sandbox.withDefaults(sandbox.capabilities, input.limits)
+        yield* emit(
+          new AgentEvent.DisciplineArmed({
+            eventType: eventType.disciplineArmed,
+            auditCompletion: current.auditCompletion,
+            readOnlyCap: current.readOnlyCap,
+            maxFrames: current.maxFrames,
+            callMs: limits.callMs ?? Sandbox.defaultLimits.callMs,
+            totalMs: limits.totalMs ?? Sandbox.defaultLimits.totalMs
+          })
+        )
+      }
       for (;;) {
         const step = yield* frame({ ...input, state: current }, engine, sandbox, steering, emit).pipe(
           Effect.catch((error) => {

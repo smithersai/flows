@@ -177,6 +177,27 @@ const of = <T extends AgentEvent.AgentEvent["_tag"]>(
   events.filter((event): event is Extract<AgentEvent.AgentEvent, { readonly _tag: T }> => event._tag === tag)
 
 describe("CellTurn", () => {
+  it("records the armed discipline once before a run's first frame", async () => {
+    const { events } = await run({
+      state: state({ maxFrames: 2, auditCompletion: true, readOnlyCap: 3 }),
+      script: [
+        emits(`return { intent: "continue", state: {}, context: [] }`),
+        emits(`return { intent: "continue", state: {}, context: [] }`)
+      ]
+    })
+
+    expect(of(events, "discipline-armed")).toEqual([
+      expect.objectContaining({
+        auditCompletion: true,
+        readOnlyCap: 3,
+        maxFrames: 2,
+        callMs: Sandbox.defaultLimits.callMs,
+        totalMs: Sandbox.defaultLimits.totalMs
+      })
+    ])
+    expect(events[0]?._tag).toBe("discipline-armed")
+  })
+
   it("runs two data-dependent calls in one frame and completes the returned transition", async () => {
     const { engine, events, model } = await run({
       script: [

@@ -11,6 +11,37 @@ import * as Cell from "./Cell.ts"
 import * as EngineLike from "./EngineLike.ts"
 
 /**
+ * The loop discipline a run was armed with, journaled once when it starts.
+ *
+ * Arming used to be observable only through the events a disciplined run
+ * *reaches*: `completion-audited` proves the audit was armed, and the read-cap
+ * failure proves the cap was. A run that times out before either fires proves
+ * nothing, so a grader could not tell "armed but never reached" from "never
+ * armed" — which is exactly what the 2026-08-19 SWE-bench wave could not
+ * decide about its django instance. This event is the positive record: it says
+ * what was armed, before anything has had a chance to fire.
+ *
+ * @category events
+ * @since 0.1.0
+ * @slop
+ */
+export class DisciplineArmed extends Schema.TaggedClass<DisciplineArmed>(
+  "flows/harness/AgentEvent/DisciplineArmed"
+)("discipline-armed", {
+  eventType: Schema.Literal("flows.harness.discipline-armed.v1"),
+  /** Whether the run's first `complete` is challenged for evidence. */
+  auditCompletion: Schema.Boolean,
+  /** Consecutive read-only frames allowed; zero means the cap is disarmed. */
+  readOnlyCap: Schema.Number,
+  /** The frame budget the run stops at. */
+  maxFrames: Schema.Number,
+  /** The per-call wall-clock budget one flow call runs under, in milliseconds. */
+  callMs: Schema.Number,
+  /** The whole-evaluation ceiling one cell runs under, in milliseconds. */
+  totalMs: Schema.Number
+}) {}
+
+/**
  * The serializable snapshot fixed when a turn opens.
  *
  * @category events
@@ -277,6 +308,7 @@ export class Resolved extends Schema.TaggedClass<Resolved>(
  * @slop
  */
 export const AgentEvent = Schema.Union([
+  DisciplineArmed,
   TurnOpened,
   ModelDelta,
   ModelSettled,
