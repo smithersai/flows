@@ -1,0 +1,177 @@
+# Persistence design: transactional UI store
+
+Ruling A asked for a real transactional UI store over the existing storage
+host, with one atomic commit point per logical transition, versioned envelopes
+with ordered migrations, boot recovery from interrupted commits, and explicit
+retention bounds. Ruling B asked for Effect below React where a synchronous UI
+contract allows it. This document records the choices and the exact boundaries
+of what was converted.
+
+## Backend choice: single-blob write-ahead over the StorageApi host
+
+Two candidate designs were considered.
+
+1. **A transactional backend.** The OPFS host already is one: wa-sqlite gives
+   each collection SQLite's WAL atomicity. But TanStack's persistence adapter
+   owns the transaction boundary internally and exposes no API that spans
+   collections, so "every projection changes or none does" cannot be built on
+   the adapter's public surface without replacing the adapter.
+2. **The smallest correct single-blob write-ahead pattern.** The localStorage
+   host has no transaction primitive at all: each of the 13 collections
+   persists as one host key, and a dispatch's `mutationFn` writes them with a
+   `Promise.all` — a crash mid-fan-out leaves a half-applied transition.
+
+Chosen: **design 2**, implemented as `TransactionalStorage`
+(`src/mainview/chain/TransactionalStorage.ts`), a `StorageApi` facade the
+localStorage backend's collections write through. The OPFS backend keeps
+SQLite's per-collection WAL atomicity; the boundary is recorded below.
+
+`TransactionalStorage` holds the whole persisted state as one versioned
+envelope (`smithers-mvp.store`): `{ version, entries }` where `entries` maps
+each TanStack collection key to the exact string the unwrapped host would have
+held. Reads are served from an in-memory mirror loaded once at open.
+
+### One atomic commit point per logical transition
+
+`AppStore.persist` (the dispatch `mutationFn`) wraps its fan-out in
+`storage.batch()`. Inside a batch, `setItem`/`removeItem` accumulate into a
+pending delta; reads see delta-over-base. The batch ends in one commit:
+
+1. **stage** — write the serialized envelope to `smithers-mvp.store.staged`.
+2. **commit** — write the same bytes to `smithers-mvp.store`. This single
+   write is the commit point: before it the old envelope is authoritative,
+   after it the new one is. localStorage `setItem` is atomic per key, so the
+   commit point cannot tear.
+3. **clear** — remove the staged key.
+
+A batch that fails before the commit point is discarded (`abortBatch`): no
+projection changed. A write outside any explicit batch commits its own
+three-step protocol immediately, so direct inserts (seed, boot
+reconciliation) keep their durability.
+
+### Boot recovery
+
+At open, before any collection reads:
+
+- No staged key: clean.
+- Staged key present and its bytes equal the live envelope: the crash happened
+  between commit and clear. **Complete** the commit by clearing the staged
+  key. The new state is already authoritative.
+- Staged key present and its bytes differ from the live envelope: the crash
+  happened between stage and commit. **Roll back**: delete the staged key and
+  keep the old envelope. No projection of the interrupted transition survives.
+
+`TransactionalStorage.test.ts` injects a crash at every stage of the protocol
+(stage write, commit write, clear, and a kill between stage and commit) and
+proves both recovery directions from each.
+
+### Versioned envelopes, ordered migrations, quarantine
+
+The envelope carries `version`. `ENVELOPE_MIGRATIONS` is an ordered list of
+pure steps, each migrating version *n* to *n+1*; open applies every step
+between the stored version and `ENVELOPE_VERSION` in order.
+
+- **Version 0** is the pre-envelope layout: the 13 collection keys living
+  directly on the host. Step `0 → 1` collects them into the envelope and
+  removes the legacy keys. It is also the adoption gate for unstamped rows:
+  every legacy row is schema-decoded against its collection's Zod schema
+  before adoption. A row that fails decode is **quarantined**
+  (`smithers-mvp-quarantine.row.<collection>.<key>`) and never adopted; a
+  collection key whose bytes do not parse is quarantined whole. Nothing is
+  adopted blind.
+- **A future version** (written by a newer build) is quarantined to
+  `smithers-mvp-quarantine.future.<version>.store` and the live envelope key
+  is removed so this build reseeds empty. The quarantine copy is never
+  deleted; a later boot leaves it in place.
+- **An unparseable envelope** is quarantined the same way.
+
+The app-level gate (`SchemaVersion.enforceSchemaVersion`, APP_SCHEMA_VERSION)
+still runs first and still owns the reset-vs-adopt decision for the app
+shape; the blob keys join its declared clear list so a bump quarantines the
+envelope too.
+
+### Retention and compaction
+
+Log collections grow unboundedly without a policy. Chosen bounds, enforced by
+compaction inside the same dispatch transaction that appends (so compaction
+is part of the atomic commit, never a separate sweep):
+
+- `app-transitions`: keep the newest **500** records (by revision).
+- `app-tool-calls`: keep the newest **250** records.
+- `app-chain-events`: keep the newest **1000** records.
+
+These cover a long session's debuggable history (the dev-tools journal fold,
+`/debug.chain`) while bounding the single-blob serialize cost of the
+localStorage fallback. Records beyond the bound are deleted oldest-first.
+
+## Ruling B boundaries
+
+### Converted
+
+- **CloudAgent** (`src/bun/CloudAgent.ts`): the `Map<runId, AbortController>`
+  transport is replaced by a scoped Effect transport. Each turn runs as a
+  fiber in one `FiberSet` owned by a `Scope` the agent acquires; `cancel`
+  interrupts the fiber. The fetch rides `Effect.tryPromise`'s interruption
+  signal, and the stream reader is released with `Effect.acquireRelease`, so
+  interrupting a turn cancels the in-flight read instead of leaking it. The
+  public call shape (`start`/`cancel` signatures and frame protocol) is
+  unchanged.
+- **boundedFetch** (`controller/context.ts`): the manual
+  `AbortController` + `setTimeout` deadline is an `Effect.timeoutFail` over
+  `Effect.tryPromise`; interruption aborts the request. Public shape and the
+  "seam timeout" failure are unchanged.
+- **Controller seam routing**: request/response HTTP seams (the domain seam
+  context and controller `ctx.http` call sites) route through `boundedFetch`,
+  so every non-streaming call carries the deadline. Streaming paths (the
+  agent turn, the workflow SSE pumps) deliberately carry no deadline.
+- **Controller disposal scope**: `ControllerContext` gains a disposal list
+  (`onDispose`/`dispose`). The agent subscription (`turns.ts`), the
+  cross-tab identity listeners and `BroadcastChannel` (`auth-billing.ts`),
+  and the workflow pumps are registered so everything a controller opens is
+  released when `AppController.dispose()` runs. Previously the unsubscribe
+  was discarded and the listeners/channel leaked for the page lifetime.
+
+### No-go: ambient `commandActor` invocation-context threading
+
+Not converted; the evidence:
+
+- Command invocation must stay synchronous: `runCommand`/`runCommandArgs`
+  (`AppController.ts:640-650`) check existence and return `boolean` before
+  the async work settles, so an async context cannot be installed by the
+  caller.
+- The actor is read at 20+ sites across six controller modules and every
+  domain seam (`actor: () => ctx.commandActor`, `AppController.ts:288`)
+  with no actor parameter on any controller method. Threading an invocation
+  context to every read means re-signaturing ~40 methods and every seam.
+- The renderer has no `AsyncLocalStorage`, so there is no implicit
+  concurrency-safe channel; the bun-side `AsyncLocalStorage` does not exist
+  in the webview.
+- The residual race is narrow and documented: a user command dispatched
+  while an agent command is suspended at an `await` reads `commandActor ===
+  "smithers"`. Both actors still record through the dispatcher; the
+  mis-attribution affects the recorded actor of that one transition, not
+  capability gating (user-only commands are excluded from the agent catalog
+  at the registry, not by the cell).
+
+### Boundary: OPFS cross-collection atomicity
+
+The wa-sqlite persistence adapter does not expose a transaction spanning
+collections, so on the OPFS backend each collection commits with SQLite WAL
+atomicity but a multi-collection dispatch is not one database transaction.
+Closing that means replacing the adapter, which is out of scope. The
+localStorage fallback — the host with no transaction primitive at all, and
+the host every test exercises — gets full cross-collection atomicity from
+`TransactionalStorage`.
+
+### Wall-clock sleeps in tests
+
+Verdict: partial, converted where the suite allows it. The majority of the
+remaining `await new Promise(r => setTimeout(r, N))` call sites are 0–1 ms
+promise-drain flushes, where fake timers are the wrong tool (there is no
+duration being waited out; advancing a clock changes nothing). The
+duration-dependent suites interleave real async I/O (TanStack persistence
+promises, stream readers) with the waited duration, and `jest.useFakeTimers`
+deadlocks those suites because the drained promise never resolves while the
+clock is frozen. `StartupWatchdog.test.ts` already uses fake timers, and the
+converted `boundedFetch` timeout is now clock-based (Effect `Clock`), which
+is the seam a future `TestClock` conversion should ride.
