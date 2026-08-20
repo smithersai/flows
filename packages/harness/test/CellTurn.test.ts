@@ -1,0 +1,1333 @@
+/**
+ * The cell-first controller, driven by a recorded model.
+ *
+ * These cases fix the loop's contract: continuation comes from the transition
+ * a cell returned, every flow call is its own boundary with its own identity,
+ * and an unusable cell is durable evidence rather than a crash.
+ */
+import { Capability, Permission } from "@smthrs/kernel"
+import { ModelEvent, ModelRequest } from "@smthrs/model"
+import { Descriptor } from "@smthrs/registry"
+import { Clock, Effect, Option, Result, Schema, Stream } from "effect"
+import { describe, expect, it } from "vitest"
+import * as AgentEvent from "../src/AgentEvent.ts"
+import type * as Cell from "../src/Cell.ts"
+import * as CellTurn from "../src/CellTurn.ts"
+import * as Compaction from "../src/Compaction.ts"
+import * as ContextWindow from "../src/ContextWindow.ts"
+import * as QuickJSSandbox from "../src/QuickJSSandbox.ts"
+import * as Sandbox from "../src/Sandbox.ts"
+import * as Steering from "../src/Steering.ts"
+import * as ScriptedEngine from "./fixtures/scriptedEngine.ts"
+import * as ScriptedModel from "./fixtures/scriptedModel.ts"
+
+const descriptor = (
+  name: string,
+  overrides: {
+    readonly tier?: Descriptor.EffectTier
+    readonly capabilities?: ReadonlyArray<string>
+    /** Declared write set, which is what makes a call count as a mutation. */
+    readonly writes?: ReadonlyArray<string>
+  } = {}
+): Descriptor.FlowDescriptor =>
+  new Descriptor.FlowDescriptor({
+    name,
+    description: `The ${name} flow.`,
+    body: new Descriptor.BodyRefModule({ path: `/flows/${name}/flow.ts` }),
+    input: new Descriptor.SchemaRefNone(),
+    output: new Descriptor.SchemaRefNone(),
+    model: Option.none(),
+    flows: [],
+    capabilities: overrides.capabilities ?? [],
+    effects: {
+      reads: [],
+      writes: overrides.writes ?? [],
+      mode: "hermetic",
+      onConflict: "serialize",
+      tier: overrides.tier ?? "sealed"
+    },
+    placement: Option.none(),
+    modelInvocable: true,
+    path: `/flows/${name}`,
+    frontmatter: {},
+    provenance: new Descriptor.Provenance({ source: "test", root: "/flows" })
+  })
+
+/** A recorded model frame whose text carries one fenced cell. */
+const emits = (cell: string): ScriptedModel.Step => ({
+  events: [
+    ModelEvent.ModelEvent.TextStart({ type: "text-start", id: "cell" }),
+    ModelEvent.ModelEvent.TextDelta({
+      type: "text-delta",
+      id: "cell",
+      text: "Here is the next step.\n\n```cell\n" + cell + "\n```"
+    }),
+    ModelEvent.ModelEvent.TextEnd({ type: "text-end", id: "cell" }),
+    ModelEvent.ModelEvent.Usage({ inputTokens: 8, outputTokens: 4 }),
+    ModelEvent.ModelEvent.Settle({ type: "settle", stopReason: "stop" })
+  ]
+})
+
+const prose = (text: string): ScriptedModel.Step => ({
+  events: [
+    ModelEvent.ModelEvent.TextStart({ type: "text-start", id: "prose" }),
+    ModelEvent.ModelEvent.TextDelta({ type: "text-delta", id: "prose", text }),
+    ModelEvent.ModelEvent.TextEnd({ type: "text-end", id: "prose" }),
+    ModelEvent.ModelEvent.Settle({ type: "settle", stopReason: "stop" })
+  ]
+})
+
+const window = ContextWindow.make({
+  modelId: "test-model",
+  segments: [
+    { kind: "system", zone: "prefix", content: [ModelRequest.SystemPart.make({ text: "cell contract" })] },
+    { kind: "transcript", zone: "tail", content: [ModelRequest.Message.user("start")] }
+  ]
+})
+
+const state = (
+  overrides: {
+    readonly maxFrames?: number
+    readonly envelope?: ReadonlyArray<string>
+    readonly auditCompletion?: boolean
+    readonly requireRegressionEvidence?: boolean
+    readonly readOnlyCap?: number
+  } = {}
+) =>
+  CellTurn.make({
+    session: "session-1",
+    seat: "anthropic:test-model",
+    modelParams: ModelRequest.GenerationParams.make(),
+    layers: ["layer-a"],
+    capabilityEnvelope: (overrides.envelope ?? ["fs:read:**"]).map((pattern) => {
+      const parsed = pattern.split(":")
+      return new Capability.CapabilityPattern({
+        action: `${parsed[0]}:${parsed[1]}` as Capability.PatternAction,
+        resource: parsed.slice(2).join(":")
+      })
+    }),
+    placement: Option.none(),
+    contextWindow: window,
+    maxFrames: overrides.maxFrames ?? 4,
+    auditCompletion: overrides.auditCompletion ?? false,
+    requireRegressionEvidence: overrides.requireRegressionEvidence ?? false,
+    readOnlyCap: overrides.readOnlyCap ?? 0
+  })
+
+/**
+ * A clock that advances a fixed step every time it is read.
+ *
+ * Durations are measured through the injected clock, so a test declares the
+ * elapsed time instead of racing the host's wall clock.
+ */
+const tickingClock = (stepMillis: number): Clock.Clock => {
+  let now = 0
+  const read = (): number => {
+    const current = now
+    now += stepMillis
+    return current
+  }
+  return {
+    currentTimeMillisUnsafe: read,
+    currentTimeMillis: Effect.sync(read),
+    currentTimeNanosUnsafe: () => BigInt(read()) * 1_000_000n,
+    currentTimeNanos: Effect.sync(() => BigInt(read()) * 1_000_000n),
+    monotonicTimeNanosUnsafe: () => BigInt(read()) * 1_000_000n,
+    monotonicTimeNanos: Effect.sync(() => BigInt(read()) * 1_000_000n),
+    sleep: () => Effect.void
+  }
+}
+
+interface Run {
+  readonly events: ReadonlyArray<AgentEvent.AgentEvent>
+  readonly engine: ScriptedEngine.Fixture
+  readonly model: ScriptedModel.Fixture
+  readonly failure?: unknown
+}
+
+const run = async (options: {
+  readonly script: ScriptedModel.Script
+  readonly calls?: ReadonlyArray<ScriptedEngine.CallStep>
+  readonly flows?: ReadonlyArray<Descriptor.FlowDescriptor>
+  readonly state?: CellTurn.State
+  readonly clock?: Clock.Clock
+}): Promise<Run> => {
+  const model = ScriptedModel.make(options.script)
+  const engine = ScriptedEngine.make(model.model, [], options.calls ?? [])
+  const events: Array<AgentEvent.AgentEvent> = []
+  // Collected event-by-event so a run that ends in a park or a failure is still
+  // observed through everything it published first.
+  const outcome = await CellTurn.run({
+    state: options.state ?? state(),
+    flows: options.flows ?? [descriptor("fs/list", { capabilities: ["fs:read:**"] })]
+  }).pipe(
+    Stream.runForEach((event) => Effect.sync(() => events.push(event))),
+    Effect.provide(engine.layer),
+    Effect.provide(Sandbox.layerRestricted),
+    Effect.provide(Steering.layerNoop()),
+    (effect) => options.clock === undefined ? effect : Effect.provideService(effect, Clock.Clock, options.clock),
+    Effect.result,
+    Effect.runPromise
+  )
+  return { events, engine, model, failure: outcome._tag === "Failure" ? outcome.failure : undefined }
+}
+
+const of = <T extends AgentEvent.AgentEvent["_tag"]>(
+  events: ReadonlyArray<AgentEvent.AgentEvent>,
+  tag: T
+): ReadonlyArray<Extract<AgentEvent.AgentEvent, { readonly _tag: T }>> =>
+  events.filter((event): event is Extract<AgentEvent.AgentEvent, { readonly _tag: T }> => event._tag === tag)
+
+describe("CellTurn", () => {
+  it("projects a model-boundary retry as its own control event", async () => {
+    const settled = emits(`return { intent: "complete", state: {}, output: "done" }`)
+    const { events } = await run({
+      script: [{
+        events: [
+          ModelEvent.ModelEvent.Retry({ type: "retry", attempt: 1, code: "transport" }),
+          ...settled.events
+        ]
+      }]
+    })
+
+    expect(of(events, "model-retried")).toEqual([
+      expect.objectContaining({ attempt: 1, code: "transport" })
+    ])
+  })
+
+  it("records the armed discipline once before a run's first frame", async () => {
+    const { events } = await run({
+      state: state({ maxFrames: 2, auditCompletion: true, readOnlyCap: 3 }),
+      script: [
+        emits(`return { intent: "continue", state: {}, context: [] }`),
+        emits(`return { intent: "continue", state: {}, context: [] }`)
+      ]
+    })
+
+    const armed = of(events, "discipline-armed")
+    expect(armed).toEqual([
+      expect.objectContaining({
+        auditCompletion: true,
+        readOnlyCap: 3,
+        maxFrames: 2,
+        callMs: Sandbox.defaultLimits.callMs
+      })
+    ])
+    expect(armed[0]).not.toHaveProperty("totalMs")
+    expect(events[0]?._tag).toBe("discipline-armed")
+  })
+
+  it("runs two data-dependent calls in one frame and completes the returned transition", async () => {
+    const { engine, events, model } = await run({
+      script: [
+        emits(
+          `const listed = await ctx.call("fs/list", { path: "." })
+           const detail = await ctx.call("fs/read", { path: listed[0] })
+           return { intent: "complete", state: { read: listed[0] }, output: detail }`
+        )
+      ],
+      flows: [
+        descriptor("fs/list", { capabilities: ["fs:read:**"] }),
+        descriptor("fs/read", { capabilities: ["fs:read:**"] })
+      ],
+      calls: [
+        { _tag: "Success", value: ["alpha.md", "beta.md"] },
+        { _tag: "Success", value: "the contents of alpha" }
+      ]
+    })
+
+    // One model round trip, two flow calls: the second call's input came from
+    // the first call's result without going back to the provider.
+    expect(model.recorder.requests).toHaveLength(1)
+    expect(engine.recorder.calls.map((call) => [call.flowName, call.input])).toEqual([
+      ["fs/list", { path: "." }],
+      ["fs/read", { path: "alpha.md" }]
+    ])
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      ModelRequest.TextPart.make({ text: "the contents of alpha" })
+    ])
+
+    // Two distinct call boundaries, and nothing that looks like an opaque
+    // whole-cell activity.
+    expect(of(events, "cell-call-started")).toHaveLength(2)
+    expect(of(events, "cell-call-settled")).toHaveLength(2)
+    expect(engine.recorder.splice).toHaveLength(0)
+  })
+
+  it("gives every call in a cell a distinct identity that cannot alias", async () => {
+    const { engine } = await run({
+      script: [
+        emits(
+          `await ctx.call("fs/list", { path: "." })
+           await ctx.call("fs/list", { path: "." })
+           return { intent: "continue", state: null, context: [{ role: "user", text: "again" }] }`
+        ),
+        emits(
+          `await ctx.call("fs/list", { path: "." })
+           return { intent: "complete", output: "done" }`
+        )
+      ],
+      calls: [
+        { _tag: "Success", value: [] },
+        { _tag: "Success", value: [] },
+        { _tag: "Success", value: [] }
+      ]
+    })
+
+    const identities = engine.recorder.calls.map((call) => call.identity)
+    // Identical arguments and declaration; only the position differs.
+    expect(identities.map((identity) => [identity.frame, identity.ordinal])).toEqual([[0, 0], [0, 1], [1, 0]])
+    expect(new Set(identities.map((identity) => identity.cell)).size).toBe(2)
+    expect(identities.every((identity) => identity.session === "session-1")).toBe(true)
+    expect(identities.every((identity) => identity.layers.length === 1)).toBe(true)
+    // The declaration digest is the flow's, so the same flow keys the same way.
+    expect(new Set(identities.map((identity) => identity.declaration)).size).toBe(1)
+  })
+
+  it("carries agent-selected state and the exact next context into the following frame", async () => {
+    const { events, model } = await run({
+      script: [
+        emits(
+          `return {
+             intent: "continue",
+             state: { plan: ["one", "two"] },
+             context: [
+               { role: "user", text: "the original goal" },
+               { role: "assistant", text: "I chose to keep only this." }
+             ]
+           }`
+        ),
+        emits(`return { intent: "complete", output: "done" }`)
+      ]
+    })
+
+    const second = model.recorder.requests[1]
+    expect(second?.messages).toEqual([
+      ModelRequest.Message.user("the original goal"),
+      ModelRequest.Message.assistant("I chose to keep only this.", { stopReason: "stop" })
+    ])
+    expect(second?.system.at(-1)?.text).toBe(
+      "Agent-owned durable state for this frame (JSON), also available in the cell as ctx.state:\n{\"plan\":[\"one\",\"two\"]}"
+    )
+    // The transition is on the record, so a replayed run rebuilds the same
+    // state and the same context.
+    const applied = of(events, "transition-applied")[0]
+    expect(applied?.transition).toMatchObject({ _tag: "continue", state: { plan: ["one", "two"] } })
+    const encoded = Schema.encodeUnknownSync(CellTurn.State)(
+      CellTurn.make({
+        session: "s",
+        seat: "a:b",
+        modelParams: ModelRequest.GenerationParams.make(),
+        layers: [],
+        capabilityEnvelope: [],
+        placement: Option.none(),
+        contextWindow: window,
+        agentState: { plan: ["one", "two"] }
+      })
+    )
+    expect(Schema.decodeUnknownSync(CellTurn.State)(encoded).agentState).toEqual({ plan: ["one", "two"] })
+  })
+
+  it("turns a malformed cell into an observation the next frame can correct", async () => {
+    const { engine, events, model } = await run({
+      script: [
+        prose("I will just describe the plan instead of writing a cell."),
+        emits(`return "not a transition"`),
+        emits(`throw new RangeError("off by one")`),
+        emits(`return { intent: "complete", output: "recovered" }`)
+      ]
+    })
+
+    const settled = of(events, "cell-settled")
+    expect(settled.map((event) => event.outcome._tag)).toEqual(["rejected", "rejected", "raised", "settled"])
+    expect((settled[0]?.outcome as Cell.Rejected).code).toBe("no_cell")
+    expect((settled[1]?.outcome as Cell.Rejected).code).toBe("invalid_transition")
+    expect((settled[2]?.outcome as Cell.Raised).name).toBe("RangeError")
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      ModelRequest.TextPart.make({ text: "recovered" })
+    ])
+    expect(engine.recorder.calls).toHaveLength(0)
+
+    // Each failure is on the transcript the next frame sees.
+    const observations = model.recorder.requests[3]?.messages.filter((message) => message.role === "user") ?? []
+    expect(observations.some((message) => message.content[0]?.text.includes("fenced ```cell block"))).toBe(true)
+    expect(observations.some((message) => message.content[0]?.text.includes("RangeError"))).toBe(true)
+  })
+
+  it("refuses a flow outside the catalog or outside the capability envelope, catchably", async () => {
+    const { engine, events } = await run({
+      script: [
+        emits(
+          `const notes = []
+           try { await ctx.call("net/fetch", {}) } catch (error) { notes.push(error.message) }
+           try { await ctx.call("shell/run", {}) } catch (error) { notes.push(error.message) }
+           return { intent: "complete", output: notes.join(" | ") }`
+        )
+      ],
+      flows: [
+        descriptor("fs/list", { capabilities: ["fs:read:**"] }),
+        descriptor("shell/run", { capabilities: ["proc:spawn:**"], tier: "irreversible" })
+      ]
+    })
+
+    const output = of(events, "resolved")[0]?.message.content[0]
+    expect(output?.type === "text" ? output.text : "").toBe(
+      "Unknown flow net/fetch. Only the flows in ctx.flows are callable."
+        + " | Flow shell/run needs proc:spawn:**, which is outside this run's capability envelope."
+    )
+    // Neither refusal reached the engine.
+    expect(engine.recorder.calls).toHaveLength(0)
+  })
+
+  it("refuses a malformed declared capability instead of treating it as authority-free", async () => {
+    const { engine, events } = await run({
+      script: [
+        emits(
+          `try { await ctx.call("broken", {}) } catch (error) {
+             return { intent: "complete", output: error.message }
+           }`
+        )
+      ],
+      flows: [descriptor("broken", { capabilities: ["not-a-capability"] })]
+    })
+
+    expect(engine.recorder.calls).toHaveLength(0)
+    const output = of(events, "resolved")[0]?.message.content[0]
+    expect(output?.type === "text" ? output.text : "").toContain("outside this run's capability envelope")
+  })
+
+  it("parks durably when a call needs a permission the run does not hold", async () => {
+    const request = new Permission.PermissionRequired({
+      requestId: "perm-1",
+      capability: Capability.make("proc:spawn", "**"),
+      tier: "irreversible",
+      meta: {}
+    })
+    const { engine, events } = await run({
+      script: [
+        emits(
+          `await ctx.call("fs/list", { path: "." })
+           await ctx.call("shell/run", { command: "ls" })
+           return { intent: "complete", output: "unreachable" }`
+        )
+      ],
+      flows: [
+        descriptor("fs/list", { capabilities: ["fs:read:**"] }),
+        descriptor("shell/run", { tier: "irreversible" })
+      ],
+      calls: [
+        { _tag: "Success", value: [] },
+        { _tag: "PermissionRequired", request }
+      ]
+    })
+
+    expect(of(events, "permission-required")[0]?.request.requestId).toBe("perm-1")
+    expect(of(events, "turn-closed").at(-1)?.outcome).toBe("suspended")
+    expect(of(events, "suspended")[0]?.reason.code).toBe("permission-required")
+    expect(engine.recorder.suspend.map((reason) => reason.code)).toEqual(["permission-required"])
+    // The first call settled before the park, so a resume replays it.
+    expect(engine.recorder.calls.map((call) => call.flowName)).toEqual(["fs/list", "shell/run"])
+  })
+
+  it("parks when the cell asks to, carrying the reason it chose", async () => {
+    const { engine, events } = await run({
+      script: [
+        emits(
+          `return { intent: "park", state: { waiting: true }, reason: "waiting-input", message: "which branch?" }`
+        )
+      ]
+    })
+
+    expect(of(events, "transition-applied")[0]?.transition).toMatchObject({ _tag: "park" })
+    expect(of(events, "suspended")[0]?.reason).toMatchObject({
+      code: "waiting-input",
+      message: "which branch?"
+    })
+    expect(engine.recorder.suspend).toEqual([
+      expect.objectContaining({ code: "waiting-input", message: "which branch?" })
+    ])
+  })
+
+  it("stops at the frame budget instead of continuing forever", async () => {
+    const { events, model } = await run({
+      script: [
+        emits(`return { intent: "continue", state: null, context: [{ role: "user", text: "again" }] }`),
+        emits(`return { intent: "continue", state: null, context: [{ role: "user", text: "again" }] }`),
+        emits(`return { intent: "continue", state: null, context: [{ role: "user", text: "again" }] }`)
+      ],
+      state: state({ maxFrames: 2 })
+    })
+
+    expect(model.recorder.requests).toHaveLength(2)
+    const resolved = of(events, "resolved")[0]?.message.content[0]
+    expect(resolved?.type === "text" ? resolved.text : "").toContain("frame budget of 2 is exhausted")
+  })
+
+  it("runs the same loop on the browser-capable QuickJS binding", async () => {
+    // The binding a browser host provides is the one proved here: same
+    // controller, same events, a genuinely separate realm underneath.
+    const model = ScriptedModel.make([
+      emits(
+        `const listed = await ctx.call("fs/list", { path: "." })
+         return { intent: "complete", output: listed.join(",") }`
+      )
+    ])
+    const engine = ScriptedEngine.make(model.model, [], [{ _tag: "Success", value: ["alpha", "beta"] }])
+    const events: Array<AgentEvent.AgentEvent> = []
+    await CellTurn.run({
+      state: state(),
+      flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] })]
+    }).pipe(
+      Stream.runForEach((event) => Effect.sync(() => events.push(event))),
+      Effect.provide(engine.layer),
+      Effect.provide(QuickJSSandbox.layer),
+      Effect.provide(Steering.layerNoop()),
+      Effect.runPromise
+    )
+
+    expect(of(events, "cell-call-settled")).toHaveLength(1)
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      ModelRequest.TextPart.make({ text: "alpha,beta" })
+    ])
+  })
+
+  it("declares no provider tools and forbids the provider from inventing one", async () => {
+    const { events, model } = await run({
+      script: [emits(`return { intent: "complete", output: "done" }`)]
+    })
+
+    expect(model.recorder.requests[0]?.tools).toEqual([])
+    expect(model.recorder.requests[0]?.toolChoice).toBe("none")
+  })
+
+  it("teaches one cell contract and the callable flows, and keeps teaching it across frames", async () => {
+    const flows = [
+      descriptor("fs/list", { capabilities: ["fs:read:**"] }),
+      descriptor("shell/run", { tier: "irreversible" })
+    ]
+    const taught = state()
+    const { model } = await run({
+      script: [
+        emits(`return { intent: "continue", state: null, context: [{ role: "user", text: "next" }] }`),
+        emits(`return { intent: "complete", output: "done" }`)
+      ],
+      flows,
+      state: CellTurn.make({
+        session: "session-1",
+        seat: taught.seat,
+        modelParams: taught.modelParams,
+        layers: taught.layers,
+        capabilityEnvelope: taught.capabilityEnvelope,
+        placement: taught.placement,
+        contextWindow: CellTurn.teach(taught.contextWindow, flows),
+        maxFrames: 4
+      })
+    })
+
+    const system = (index: number) => model.recorder.requests[index]?.system.map((part) => part.text).join("\n") ?? ""
+    expect(system(0)).toContain("```cell")
+    expect(system(0)).toContain("ctx.call")
+    expect(system(0)).toContain("- fs/list (sealed) capabilities=fs:read:**: The fs/list flow.")
+    expect(system(0)).toContain("- shell/run (irreversible): The shell/run flow.")
+    // Teaching is a prefix segment, so the cell's own projected context replaces
+    // the transcript without ever dropping the contract.
+    expect(system(1)).toBe(system(0))
+  })
+
+  it("appends steering after the cell's own context and applies seat changes to the next frame", async () => {
+    const model = ScriptedModel.make([
+      emits(`return { intent: "continue", state: null, context: [{ role: "user", text: "kept" }] }`),
+      emits(`return { intent: "complete", output: "done" }`)
+    ])
+    const engine = ScriptedEngine.make(model.model, [], [])
+    let drained = false
+    const steering = Steering.layer({
+      read: () => Effect.succeed(Steering.empty()),
+      drain: () =>
+        Effect.sync(() => {
+          if (drained) {
+            return {
+              inserts: [],
+              seatChanges: [],
+              activatedToolNames: [],
+              remaining: Steering.empty(),
+              queued: false
+            }
+          }
+          drained = true
+          return {
+            inserts: [ModelRequest.Message.user("steer: prefer the shorter route")],
+            seatChanges: [
+              { _tag: "SeatChange", delivery: "steer", admittedAt: 1, seat: "openai:other-model" },
+              { _tag: "ThinkingChange", delivery: "steer", admittedAt: 2, thinking: "high" }
+            ],
+            activatedToolNames: [],
+            remaining: Steering.empty(),
+            queued: false
+          }
+        })
+    })
+    const events: Array<AgentEvent.AgentEvent> = []
+    await CellTurn.run({ state: state(), flows: [] }).pipe(
+      Stream.runForEach((event) => Effect.sync(() => events.push(event))),
+      Effect.provide(engine.layer),
+      Effect.provide(Sandbox.layerRestricted),
+      Effect.provide(steering),
+      Effect.runPromise
+    )
+
+    expect(of(events, "steering-drained")[0]?.messages).toEqual([
+      ModelRequest.Message.user("steer: prefer the shorter route")
+    ])
+    const second = model.recorder.requests[1]
+    expect(second?.messages).toEqual([
+      ModelRequest.Message.user("kept"),
+      ModelRequest.Message.user("steer: prefer the shorter route")
+    ])
+    // The seat change applies only after the turn closes.
+    expect(model.recorder.requests[0]?.modelId).toBe("test-model")
+    expect(second?.modelId).toBe("other-model")
+    expect(second?.params.reasoningEffort).toBe("high")
+  })
+
+  it("journals the turn-boundary drain through the engine instead of reading the queue directly", async () => {
+    const model = ScriptedModel.make([
+      emits(`return { intent: "continue", state: null, context: [{ role: "user", text: "kept" }] }`),
+      emits(`return { intent: "complete", output: "done" }`)
+    ])
+    const engine = ScriptedEngine.make(model.model, [], [])
+    await CellTurn.run({ state: state(), flows: [] }).pipe(
+      Stream.runDrain,
+      Effect.provide(engine.layer),
+      Effect.provide(Sandbox.layerRestricted),
+      Effect.provide(Steering.layerNoop()),
+      Effect.runPromise
+    )
+
+    // The drain is a nondeterministic read, so it must reach the steering
+    // source through a journaled engine boundary — keyed on the frame and the
+    // cell digest — never through a bare `steering.drain` a replay would
+    // re-issue against an already-drained queue.
+    expect(engine.recorder.records.map((boundary) => boundary.name)).toEqual(["steering-drain"])
+    expect(engine.recorder.records[0]?.identity).toMatchObject({ session: "session-1", frame: 0 })
+    expect(engine.recorder.records[0]?.identity.boundary).toMatch(/^[a-f0-9]{64}$/)
+  })
+
+  it("reports a model step that never settles as a typed harness failure", async () => {
+    const { events, failure } = await run({
+      script: [{ events: [ModelEvent.ModelEvent.TextStart({ type: "text-start", id: "partial" })] }]
+    })
+
+    expect(failure).toMatchObject({ code: "model_failed" })
+    expect(of(events, "turn-opened")).toHaveLength(1)
+  })
+
+  it("stops at the budget even when the last frame produced no usable cell", async () => {
+    const { events } = await run({
+      script: [prose("no cell here either")],
+      state: state({ maxFrames: 1 })
+    })
+
+    expect(of(events, "cell-settled")[0]?.outcome._tag).toBe("rejected")
+    expect(of(events, "turn-closed").at(-1)?.outcome).toBe("resolved")
+    const resolved = of(events, "resolved")[0]?.message.content[0]
+    expect(resolved?.type === "text" ? resolved.text : "").toContain("frame budget of 1 is exhausted")
+  })
+
+  it("reports one abort when the run is interrupted", async () => {
+    const model = ScriptedModel.make([
+      emits(
+        `await ctx.call("fs/list", { path: "." })
+         return { intent: "complete", output: "unreachable" }`
+      )
+    ])
+    const engine = ScriptedEngine.make(model.model, [], [{ _tag: "Interrupt" }])
+    const events: Array<AgentEvent.AgentEvent> = []
+    const outcome = await CellTurn.run({
+      state: state(),
+      flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] })]
+    }).pipe(
+      Stream.runForEach((event) => Effect.sync(() => events.push(event))),
+      Effect.provide(engine.layer),
+      Effect.provide(Sandbox.layerRestricted),
+      Effect.provide(Steering.layerNoop()),
+      Effect.exit,
+      Effect.runPromise
+    )
+
+    // Interruption is forwarded, not laundered into a clean finish.
+    expect(outcome._tag).toBe("Failure")
+    expect(of(events, "aborted")).toHaveLength(1)
+    expect(of(events, "turn-closed").at(-1)?.outcome).toBe("aborted")
+  })
+})
+
+/** A transcript segment large enough to matter to the compaction policy. */
+const bulk = (label: string, size: number): ContextWindow.SegmentInput => ({
+  kind: "transcript",
+  zone: "tail",
+  content: [ModelRequest.Message.user(`${label}: ${"detail ".repeat(size)}`)]
+})
+
+const crowded = ContextWindow.make({
+  modelId: "test-model",
+  segments: [
+    { kind: "system", zone: "prefix", content: [ModelRequest.SystemPart.make({ text: "cell contract" })] },
+    bulk("one", 6_000),
+    bulk("two", 6_000),
+    bulk("three", 6_000),
+    bulk("four", 6_000),
+    bulk("five", 6_000),
+    bulk("six", 6_000)
+  ]
+})
+
+/** The check flow an audited completion cites, plus the run that may call it. */
+const check = descriptor("bash", { capabilities: ["proc:spawn:*"], tier: "irreversible" })
+const auditEditor = descriptor("edit", {
+  capabilities: ["fs:write:**"],
+  tier: "compensable",
+  writes: ["/**"]
+})
+
+const audited = (overrides: { readonly maxFrames?: number } = {}) =>
+  state({
+    auditCompletion: true,
+    envelope: ["proc:spawn:*", "fs:write:**"],
+    ...(overrides.maxFrames === undefined ? {} : { maxFrames: overrides.maxFrames })
+  })
+
+const regressionAudited = (overrides: { readonly maxFrames?: number } = {}) =>
+  state({
+    auditCompletion: true,
+    requireRegressionEvidence: true,
+    envelope: ["proc:spawn:*", "fs:write:**"],
+    ...(overrides.maxFrames === undefined ? {} : { maxFrames: overrides.maxFrames })
+  })
+
+describe("CellTurn completion audit", () => {
+  it("bounces the first completion, then re-runs the check the second declares", async () => {
+    const { engine, events, model } = await run({
+      state: regressionAudited(),
+      flows: [check, auditEditor],
+      script: [
+        emits(
+          `await ctx.call("bash", { command: "pytest -q" })
+           await ctx.call("edit", { path: "src/bug.py", text: "fixed" })
+           return { intent: "complete", state: { done: 1 }, output: "implemented the fix" }`
+        ),
+        emits(
+          `return {
+             intent: "complete",
+             state: { done: 1 },
+             output: "verified: tests pass",
+             verify: { flow: "bash", input: { command: "pytest -q" } }
+           }`
+        )
+      ],
+      calls: [
+        { _tag: "Success", value: { exitCode: 1, stdout: "1 failed" } },
+        { _tag: "Success", value: { edited: true } },
+        { _tag: "Success", value: { exitCode: 0, stdout: "2 passed" } }
+      ]
+    })
+
+    // Two model turns: the first completion was answered with the audit, the
+    // second resolved. The audit frame's request carries the challenge, the
+    // claimed output, and the shape the evidence has to arrive in; the
+    // completing cell's state survived the bounce.
+    expect(model.recorder.requests).toHaveLength(2)
+    const demand = model.recorder.requests[1]
+    expect(JSON.stringify(demand?.messages)).toContain("Completion review")
+    expect(JSON.stringify(demand?.messages)).toContain("implemented the fix")
+    expect(JSON.stringify(demand?.messages)).toContain("verify")
+    expect(demand?.system.map((part) => part.text).join("\n")).toContain(`{"done":1}`)
+
+    // The harness ran the declared check itself, at the boundary a cell call
+    // uses, rather than believing the claim: two `bash` calls for one cell
+    // call. The second is the controller's.
+    expect(engine.recorder.calls.map((call) => call.flowName)).toEqual(["bash", "edit", "bash"])
+    expect(engine.recorder.calls[2]?.input).toEqual({ command: "pytest -q" })
+    expect(of(events, "completion-audited")[0]).toMatchObject({
+      accepted: true,
+      verification: { flow: "bash", input: { command: "pytest -q" } }
+    })
+    expect(of(events, "completion-audited")[0]?.detail).toContain("2 passed")
+    expect(of(events, "resolved")[0]?.message.content[0]).toMatchObject({ text: "verified: tests pass" })
+  })
+
+  it("refuses a completion whose declared check does not pass", async () => {
+    const { events, model } = await run({
+      state: regressionAudited(),
+      flows: [check, auditEditor],
+      script: [
+        emits(
+          `await ctx.call("bash", { command: "pytest -q" })
+           await ctx.call("edit", { path: "src/bug.py", text: "broken" })
+           return { intent: "complete", state: {}, output: "fixed it" }`
+        ),
+        emits(
+          `return {
+             intent: "complete",
+             state: {},
+             output: "fixed it",
+             verify: { flow: "bash", input: { command: "pytest -q" } }
+           }`
+        ),
+        emits(`return { intent: "continue", state: {}, context: [] }`),
+        emits(`return { intent: "continue", state: {}, context: [] }`)
+      ],
+      calls: [
+        { _tag: "Success", value: { exitCode: 1, stdout: "1 failed" } },
+        { _tag: "Success", value: { edited: true } },
+        { _tag: "Success", value: { exitCode: 1, stdout: "1 failed" } }
+      ]
+    })
+
+    // The completion was the run's first, so it paid the bounce; on the audit
+    // frame the controller re-ran the check, saw a non-zero exit, and refused.
+    expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: false })
+    expect(of(events, "completion-audited")[0]?.detail).toContain("exited 1")
+    // The run continued instead of resolving on the claim; what finally ended
+    // it was the frame budget, not the completion.
+    expect(JSON.stringify(model.recorder.requests[2]?.messages)).toContain("Completion refused")
+    expect(of(events, "resolved")[0]?.message.content[0]).toMatchObject({ text: expect.stringContaining("budget") })
+  })
+
+  it("refuses green evidence whose only failure happened after the first write", async () => {
+    const { events } = await run({
+      state: regressionAudited(),
+      flows: [check, auditEditor],
+      script: [
+        emits(
+          `await ctx.call("edit", { path: "src/bug.py", text: "bad edit" })
+           await ctx.call("bash", { command: "pytest -q" })
+           return { intent: "complete", state: {}, output: "fixed" }`
+        ),
+        emits(
+          `return {
+             intent: "complete", state: {}, output: "reverted until green",
+             verify: { flow: "bash", input: { command: "pytest -q" } }
+           }`
+        ),
+        emits(`return { intent: "continue", state: {}, context: [] }`),
+        emits(`return { intent: "continue", state: {}, context: [] }`)
+      ],
+      calls: [
+        { _tag: "Success", value: { edited: true } },
+        { _tag: "Success", value: { exitCode: 1, stdout: "undefined name" } }
+      ]
+    })
+
+    expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: false })
+    expect(of(events, "completion-audited")[0]?.detail).toContain("did not fail before the first write")
+  })
+
+  it("refuses a transient baseline pass when the run made no write", async () => {
+    const { engine, events } = await run({
+      state: regressionAudited(),
+      flows: [check],
+      script: [
+        emits(
+          `await ctx.call("bash", { command: "pytest -q" })
+           return { intent: "complete", state: {}, output: "the unchanged tree is green" }`
+        ),
+        emits(
+          `return {
+             intent: "complete", state: {}, output: "done without an edit",
+             verify: { flow: "bash", input: { command: "pytest -q" } }
+           }`
+        ),
+        emits(`return { intent: "continue", state: {}, context: [] }`),
+        emits(`return { intent: "continue", state: {}, context: [] }`)
+      ],
+      calls: [{ _tag: "Success", value: { exitCode: 0, stdout: "2 passed" } }]
+    })
+
+    expect(engine.recorder.calls).toHaveLength(1)
+    expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: false })
+    expect(of(events, "completion-audited")[0]?.detail).toContain("did not fail before the first write")
+  })
+
+  it("refuses a flaky regression pass when no write separated it from the baseline failure", async () => {
+    const { engine, events } = await run({
+      state: regressionAudited(),
+      flows: [check],
+      script: [
+        emits(
+          `await ctx.call("bash", { command: "pytest -q" })
+           return { intent: "complete", state: {}, output: "the reproduction failed" }`
+        ),
+        emits(
+          `return {
+             intent: "complete", state: {}, output: "a retry would be green",
+             verify: { flow: "bash", input: { command: "pytest -q" } }
+           }`
+        ),
+        emits(`return { intent: "continue", state: {}, context: [] }`),
+        emits(`return { intent: "continue", state: {}, context: [] }`)
+      ],
+      calls: [{ _tag: "Success", value: { exitCode: 1, stdout: "1 failed" } }]
+    })
+
+    expect(engine.recorder.calls).toHaveLength(1)
+    expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: false })
+    expect(of(events, "completion-audited")[0]?.detail).toContain("made no declared write")
+  })
+
+  it("refuses a completion citing a call the run never made", async () => {
+    const { engine, events } = await run({
+      state: audited(),
+      flows: [check],
+      script: [
+        emits(`return { intent: "complete", state: {}, output: "done" }`),
+        emits(
+          `return {
+             intent: "complete",
+             state: {},
+             output: "done",
+             verify: { flow: "bash", input: { command: "true" } }
+           }`
+        ),
+        emits(`return { intent: "continue", state: {}, context: [] }`),
+        emits(`return { intent: "continue", state: {}, context: [] }`)
+      ]
+    })
+
+    // Nothing was run: a cited command the run never issued is refused before
+    // the boundary opens, so the audit cannot be satisfied by inventing one.
+    expect(engine.recorder.calls).toHaveLength(0)
+    expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: false })
+    expect(of(events, "completion-audited")[0]?.detail).toContain("never called")
+    expect(of(events, "resolved")[0]?.message.content[0]).toMatchObject({ text: expect.stringContaining("budget") })
+  })
+
+  it("refuses a second completion that declares no check at all", async () => {
+    const { events, model } = await run({
+      state: audited(),
+      flows: [check],
+      script: [
+        emits(`return { intent: "complete", state: {}, output: "implemented the fix" }`),
+        emits(`return { intent: "complete", state: {}, output: "I already told you it is done" }`),
+        emits(`return { intent: "continue", state: {}, context: [] }`),
+        emits(`return { intent: "continue", state: {}, context: [] }`)
+      ]
+    })
+
+    expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: false })
+    expect(of(events, "completion-audited")[0]?.detail).toContain("no verify block")
+    expect(of(events, "resolved")[0]?.message.content[0]).toMatchObject({ text: expect.stringContaining("budget") })
+    expect(JSON.stringify(model.recorder.requests[2]?.messages)).toContain("Completion refused")
+  })
+
+  it("refuses a completion whose declared check could not be run at all", async () => {
+    const { events } = await run({
+      state: audited(),
+      flows: [check],
+      script: [
+        emits(
+          `await ctx.call("bash", { command: "pytest -q" })
+           return { intent: "complete", state: {}, output: "done" }`
+        ),
+        emits(
+          `return {
+             intent: "complete",
+             state: {},
+             output: "done",
+             verify: { flow: "bash", input: { command: "pytest -q" } }
+           }`
+        ),
+        emits(`return { intent: "continue", state: {}, context: [] }`),
+        emits(`return { intent: "continue", state: {}, context: [] }`)
+      ],
+      calls: [
+        { _tag: "Success", value: { exitCode: 0 } },
+        { _tag: "Failure", message: "the sandbox refused to spawn" }
+      ]
+    })
+
+    expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: false })
+    expect(of(events, "completion-audited")[0]?.detail).toContain("the sandbox refused to spawn")
+  })
+
+  it("refuses a check that names a flow this run cannot call", async () => {
+    const { events } = await run({
+      state: audited(),
+      flows: [check],
+      script: [
+        emits(`return { intent: "complete", state: {}, output: "done" }`),
+        emits(
+          `return {
+             intent: "complete",
+             state: {},
+             output: "done",
+             verify: { flow: "make", input: { target: "test" } }
+           }`
+        ),
+        emits(`return { intent: "continue", state: {}, context: [] }`),
+        emits(`return { intent: "continue", state: {}, context: [] }`)
+      ]
+    })
+
+    expect(of(events, "completion-audited")[0]?.detail).toContain("No flow named make")
+    expect(of(events, "resolved")[0]?.message.content[0]).toMatchObject({ text: expect.stringContaining("budget") })
+  })
+
+  it("accepts an unaudited completion on the first attempt", async () => {
+    const { events, model } = await run({
+      script: [emits(`return { intent: "complete", state: {}, output: "done" }`)]
+    })
+    expect(model.recorder.requests).toHaveLength(1)
+    expect(of(events, "completion-audited")).toHaveLength(0)
+    expect(of(events, "resolved")).toHaveLength(1)
+  })
+
+  it("fails a final-frame completion that has no verification evidence", async () => {
+    const { events, failure, model } = await run({
+      state: audited({ maxFrames: 1 }),
+      flows: [check],
+      script: [emits(`return { intent: "complete", state: {}, output: "done at the wall" }`)]
+    })
+    expect(model.recorder.requests).toHaveLength(1)
+    expect(of(events, "resolved")).toHaveLength(0)
+    expect(failure).toMatchObject({
+      code: "unverified_completion",
+      cause: { output: "done at the wall", detail: expect.stringContaining("no verify block") }
+    })
+    expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: false })
+    expect(of(events, "completion-audited")[0]?.detail).toContain("no verify block")
+  })
+})
+
+/** A flow whose declared write set is what makes it count as a mutation. */
+const editor = descriptor("edit", { capabilities: ["fs:write:**"], tier: "compensable", writes: ["/**"] })
+
+const capped = (cap: number, maxFrames: number) =>
+  state({ readOnlyCap: cap, maxFrames, envelope: ["fs:read:**", "fs:write:**", "proc:spawn:*"] })
+
+const readCells = (count: number): ReadonlyArray<ScriptedModel.Step> =>
+  Array.from(
+    { length: count },
+    () =>
+      emits(
+        `await ctx.call("fs/list", { path: "." })
+         return { intent: "continue", state: {}, context: [{ role: "user", text: "still reading" }] }`
+      )
+  )
+
+const successes = (count: number): ReadonlyArray<ScriptedEngine.CallStep> =>
+  Array.from({ length: count }, () => ({ _tag: "Success", value: ["alpha.md"] }) as const)
+
+describe("CellTurn read-only cap", () => {
+  it("demands a write or a justification once the cap is reached", async () => {
+    const { events, model } = await run({
+      state: capped(2, 5),
+      flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] }), editor],
+      script: readCells(5),
+      calls: successes(5)
+    })
+
+    // Frames one and two read; the third frame is the one that carries the
+    // demand, and it names both ways out of it.
+    expect(JSON.stringify(model.recorder.requests[1]?.messages)).not.toContain("Read-only discipline")
+    const demanded = JSON.stringify(model.recorder.requests[2]?.messages)
+    expect(demanded).toContain("Read-only discipline")
+    expect(demanded).toContain("justification")
+    expect(of(events, "read-only-demanded")[0]).toMatchObject({
+      streak: 2,
+      cap: 2,
+      nextFrame: 2,
+      nextAction: "read-only"
+    })
+  })
+
+  it("records a demanded frame that writes before continuing", async () => {
+    const { events } = await run({
+      state: capped(1, 3),
+      flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] }), editor],
+      script: [
+        ...readCells(1),
+        emits(
+          `await ctx.call("edit", { path: "a.py", text: "fixed" })
+           return { intent: "continue", state: {}, context: [] }`
+        ),
+        emits(`return { intent: "complete", state: {}, output: "done" }`)
+      ],
+      calls: successes(2)
+    })
+
+    expect(of(events, "read-only-demanded")[0]).toMatchObject({
+      streak: 1,
+      cap: 1,
+      nextFrame: 1,
+      nextAction: "write"
+    })
+  })
+
+  it.each(
+    [
+      ["read-only", `throw new Error("diagnostic failed")`, 2],
+      [
+        "write",
+        `await ctx.call("edit", { path: "a.py", text: "partial" })
+       throw new Error("post-edit diagnostic failed")`,
+        3
+      ]
+    ] as const
+  )("records a demanded frame that raises after a %s response", async (nextAction, response, calls) => {
+    const { events } = await run({
+      state: capped(1, 3),
+      flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] }), editor],
+      script: [
+        ...readCells(1),
+        emits(response),
+        emits(
+          `await ctx.call("edit", { path: "a.py", text: "recovered" })
+           return { intent: "complete", state: {}, output: "done" }`
+        )
+      ],
+      calls: successes(calls)
+    })
+
+    expect(of(events, "read-only-demanded")[0]).toMatchObject({
+      streak: 1,
+      cap: 1,
+      nextFrame: 1,
+      nextAction
+    })
+  })
+
+  it("clears the streak when a call declares a write", async () => {
+    const { model } = await run({
+      state: capped(2, 5),
+      flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] }), editor],
+      script: [
+        ...readCells(1),
+        emits(
+          `await ctx.call("edit", { path: "a.py", text: "fixed" })
+           return { intent: "continue", state: {}, context: [{ role: "user", text: "edited" }] }`
+        ),
+        ...readCells(3)
+      ],
+      calls: successes(5)
+    })
+
+    // The edit reset the counter, so the frame that would have been demanded
+    // is not, and the next demand only arrives two read-only frames later.
+    expect(JSON.stringify(model.recorder.requests[2]?.messages)).not.toContain("Read-only discipline")
+    expect(JSON.stringify(model.recorder.requests[3]?.messages)).not.toContain("Read-only discipline")
+    expect(JSON.stringify(model.recorder.requests[4]?.messages)).toContain("Read-only discipline")
+  })
+
+  it("counts a call that declares its own writes, whatever the flow's registry envelope says", async () => {
+    const shell = descriptor("bash", { capabilities: ["proc:spawn:*"], tier: "irreversible" })
+    const { model } = await run({
+      state: capped(1, 4),
+      flows: [shell],
+      script: [
+        emits(
+          `await ctx.call("bash", { command: "sed -i s/a/b/ a.py", writes: ["a.py"] })
+           return { intent: "continue", state: {}, context: [{ role: "user", text: "patched" }] }`
+        ),
+        emits(
+          `await ctx.call("bash", { command: "pytest", writes: [] })
+           return { intent: "continue", state: {}, context: [{ role: "user", text: "ran tests" }] }`
+        ),
+        emits(`return { intent: "continue", state: {}, context: [] }`),
+        emits(`return { intent: "continue", state: {}, context: [] }`)
+      ],
+      calls: [
+        { _tag: "Success", value: { exitCode: 0 } },
+        { _tag: "Success", value: { exitCode: 0 } }
+      ]
+    })
+
+    // The registry-time envelope of a shell flow is the conservative empty
+    // set, so classification reads what the invocation declared: the frame
+    // that wrote a file cleared the streak, and the frame that only ran tests
+    // did not.
+    expect(JSON.stringify(model.recorder.requests[1]?.messages)).not.toContain("Read-only discipline")
+    expect(JSON.stringify(model.recorder.requests[2]?.messages)).toContain("Read-only discipline")
+  })
+
+  it("lets a justification buy quiet frames without stopping the run's clock", async () => {
+    const { failure, model } = await run({
+      state: capped(2, 12),
+      flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] })],
+      script: [
+        ...readCells(2),
+        emits(
+          `return {
+             intent: "continue",
+             state: {},
+             context: [{ role: "user", text: "still reading" }],
+             justification: "the failing test names a symbol I have not located yet"
+           }`
+        ),
+        ...readCells(9)
+      ],
+      calls: successes(12)
+    })
+
+    // The justified frame silences the demand for the next two frames, and
+    // the counter keeps running underneath it: the run still stops at twice
+    // the cap rather than reading forever on a rationale.
+    expect(JSON.stringify(model.recorder.requests[3]?.messages)).not.toContain("Read-only discipline")
+    expect(failure).toMatchObject({ code: "read_only_cap" })
+  })
+
+  it("stops the run at twice the cap instead of letting it read to the budget wall", async () => {
+    const { failure, model } = await run({
+      state: capped(1, 20),
+      flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] })],
+      script: readCells(20),
+      calls: successes(20)
+    })
+
+    expect(model.recorder.requests).toHaveLength(2)
+    expect(failure).toMatchObject({ code: "read_only_cap" })
+  })
+
+  it("refuses to let a run that never wrote anything complete past the hard cap", async () => {
+    const { events, failure } = await run({
+      state: capped(1, 20),
+      flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] })],
+      script: [
+        ...readCells(1),
+        emits(`return { intent: "complete", state: {}, output: "implemented the fix" }`)
+      ],
+      calls: successes(2)
+    })
+
+    expect(failure).toMatchObject({ code: "read_only_cap" })
+    expect(of(events, "resolved")).toHaveLength(0)
+  })
+
+  it("clears the streak from a frame that wrote something and then threw", async () => {
+    const { model } = await run({
+      state: capped(1, 4),
+      flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] }), editor],
+      script: [
+        emits(
+          `await ctx.call("edit", { path: "a.py", text: "fixed" })
+           throw new Error("lost the thread after editing")`
+        ),
+        emits(`return { intent: "continue", state: {}, context: [] }`),
+        emits(`return { intent: "continue", state: {}, context: [] }`),
+        emits(`return { intent: "continue", state: {}, context: [] }`)
+      ],
+      calls: successes(1)
+    })
+
+    // The edit landed before the throw, so the frame is not read-only even
+    // though it settled no transition, and the next frame is not demanded.
+    expect(JSON.stringify(model.recorder.requests[1]?.messages)).not.toContain("Read-only discipline")
+  })
+
+  it("leaves a run with no cap alone", async () => {
+    const { failure, model } = await run({
+      state: state({ maxFrames: 4 }),
+      script: readCells(4),
+      calls: successes(4)
+    })
+
+    // Nothing armed the cap, so reading is only bounded by the frame budget.
+    expect(model.recorder.requests).toHaveLength(4)
+    expect(JSON.stringify(model.recorder.requests)).not.toContain("Read-only discipline")
+    expect(failure).toBeUndefined()
+  })
+})
+
+describe("CellTurn call latency", () => {
+  it("journals the wall-clock duration of each sealed model call from the injected clock", async () => {
+    const { events } = await run({
+      state: state({ maxFrames: 2 }),
+      script: [
+        emits(`return { intent: "continue", state: {}, context: [{ role: "user", text: "on it" }] }`),
+        emits(`return { intent: "complete", state: {}, output: "done" }`)
+      ],
+      clock: tickingClock(250)
+    })
+
+    // One tick before the step and one after, on the clock the run was given
+    // rather than the host's wall time.
+    expect(of(events, "model-settled").map((event) => event.durationMillis)).toEqual([250, 250])
+  })
+})
+
+describe("CellTurn compaction", () => {
+  it("compacts through a sealed step, records the settlement, and asks the model on the compacted window", async () => {
+    const crowdedState = CellTurn.make({
+      session: "session-1",
+      seat: "anthropic:test-model",
+      modelParams: ModelRequest.GenerationParams.make(),
+      layers: ["layer-a"],
+      capabilityEnvelope: [],
+      placement: Option.none(),
+      contextWindow: crowded,
+      contextWindowTokens: 40_000,
+      maxFrames: 2
+    })
+    const { engine, events, model } = await run({
+      script: [prose("the compacted summary"), emits(`return { intent: "complete", output: "done" }`)],
+      state: crowdedState,
+      flows: []
+    })
+
+    const prefixLength = Compaction.selectPrefix(crowded)
+    expect(prefixLength).toBeGreaterThan(0)
+
+    // The summary was produced by its own sealed step, not by a request the
+    // controller quietly rewrote on its way out.
+    expect(engine.recorder.sealStep).toHaveLength(2)
+    expect(model.recorder.requests[0]?.system.map((part) => part.text)).toContain(
+      Compaction.summaryInstruction
+    )
+
+    // The settlement is on the record, keyed to exactly the prefix it replaced.
+    const settled = of(events, "compaction-settled")
+    expect(settled).toHaveLength(1)
+    expect(settled[0]?.replacedPrefixDigest).toBe(
+      Result.getOrThrow(ContextWindow.prefixDigest(crowded, prefixLength))
+    )
+    const summary = settled[0]?.summary
+    expect(summary?.role).toBe("assistant")
+
+    // Replay rebuilds the exact next model context: applying the recorded
+    // settlement to the original window reproduces what the second sealed step
+    // was actually asked.
+    const step = Effect.runSync(
+      Compaction.declare(crowded, prefixLength, {
+        identity: "flows/harness/CellTurn.compaction",
+        modelId: "test-model",
+        params: ModelRequest.GenerationParams.make()
+      })
+    )
+    const rebuilt = Effect.runSync(Compaction.apply(crowded, step, summary!))
+    expect(model.recorder.requests[1]?.messages).toEqual(ContextWindow.render(rebuilt).messages)
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      ModelRequest.TextPart.make({ text: "done" })
+    ])
+  })
+
+  it("leaves the window alone when the host declared no context budget", async () => {
+    const { engine, events } = await run({
+      script: [emits(`return { intent: "complete", output: "done" }`)],
+      state: CellTurn.make({
+        session: "session-1",
+        seat: "anthropic:test-model",
+        modelParams: ModelRequest.GenerationParams.make(),
+        layers: ["layer-a"],
+        capabilityEnvelope: [],
+        placement: Option.none(),
+        contextWindow: crowded,
+        maxFrames: 2
+      }),
+      flows: []
+    })
+
+    expect(engine.recorder.sealStep).toHaveLength(1)
+    expect(of(events, "compaction-settled")).toHaveLength(0)
+    expect(of(events, "resolved")).toHaveLength(1)
+  })
+})
