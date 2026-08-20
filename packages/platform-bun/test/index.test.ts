@@ -6,10 +6,10 @@
  * `HttpClient` — `@effect/platform-bun/BunHttpClient` — so the browser package
  * has no business in a Bun bundle, and the resolved module graph says so.
  */
-import { build } from "esbuild"
 import * as KernelFileSystem from "@smthrs/kernel/FileSystem"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
+import { build } from "esbuild"
 import { describe, expect, it } from "vitest"
 import * as BunFileSystem from "../src/BunFileSystem.ts"
 import * as BunHost from "../src/BunHost.ts"

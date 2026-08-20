@@ -179,7 +179,7 @@ describe("publications", () => {
       expect(tier.calls[0]!.method).toBe("PUT")
       expect(JSON.parse(tier.calls[0]!.body)).toEqual(entry)
       expect(tier.calls[0]!.body).toBe(
-        '{"createdAtMs":7,"keyDigest":"key-digest","meta":{"tier":"sealed"},"recordedEventSeq":3,"recordedRunId":"run-1","result":{"ok":true}}'
+        "{\"createdAtMs\":7,\"keyDigest\":\"key-digest\",\"meta\":{\"tier\":\"sealed\"},\"recordedEventSeq\":3,\"recordedRunId\":\"run-1\",\"result\":{\"ok\":true}}"
       )
     }))
 
