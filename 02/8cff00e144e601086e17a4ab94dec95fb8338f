@@ -63,7 +63,8 @@
  "size": {
   "files": 1,
   "added": 5415,
-  "deleted": 0
+  "deleted": 0,
+  "justification": "Single generated artifact: .smithers/evals/alpha-agent/baseline-report.json is a machine-produced eval baseline report whose JSON must parse as one document; it cannot be split into smaller coherent commits (generated exception)."
  },
  "provenance": {
   "strategy": "whole-file introduction from the epic source tree",
