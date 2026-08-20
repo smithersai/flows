@@ -16,11 +16,14 @@ import { Effect } from "effect"
 
 const Telemetry = Otlp.layerFetch({
   baseUrl: "http://localhost:4318",
-  serviceName: "my-harness", // defaults to "flows"
+  serviceName: "my-app", // defaults to "flows"
   serviceVersion: "1.2.3"
 })
 
+const program = Effect.log("telemetry online")
 const main = program.pipe(Effect.provide(Telemetry))
+
+Effect.runPromise(Effect.scoped(main))
 ```
 
 That is the whole wiring. Spans opened through `Effect.fn` and `Effect.withSpan` reach `/v1/traces`, `Metric` counters reach `/v1/metrics` on the export interval and on shutdown, and log lines reach `/v1/logs`. The layer's scope owns the export fibers, so closing the application scope flushes and stops them. There is no unsubscribe to remember.

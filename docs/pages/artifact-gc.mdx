@@ -4,7 +4,7 @@ description: "Explicit mark-and-sweep garbage collection for the content-address
 
 # Artifact GC
 
-Explicit mark/sweep garbage collection for the content-addressed artifact store. It ships in two halves: `@smthrs/engine-store` `ArtifactGc` computes the live set from the durable roots and drives the collection, and `@smthrs/artifacts` `ArtifactSweep` enumerates and deletes blobs on the host. Nothing runs automatically; `gc()` is a verb a caller invokes.
+Explicit mark-and-sweep garbage collection for the content-addressed artifact store. It ships in two halves: `@smthrs/engine-store` `ArtifactGc` computes the live set from the durable roots and drives the collection, and `@smthrs/artifacts` `ArtifactSweep` enumerates and deletes blobs on the host. Nothing runs automatically; `gc()` is a verb a caller invokes.
 
 ## Scope
 
@@ -27,7 +27,7 @@ Page through every `flows_step_cache` entry and every `flows_attempts` row, deco
 
 ### Sweep
 
-Enumerate the objects directory. A blob is deleted only when it is outside the live set AND older than the grace period, and the deletion itself is fenced on the blob's mtime (`ArtifactSweep.remove`'s `ifUnmodifiedSinceMs`), so a blob freshened after the mark survives.
+Enumerate the objects directory. A blob is deleted only when it is outside the live set and older than the grace period, and the deletion itself is fenced on the blob's mtime (`ArtifactSweep.remove`'s `ifUnmodifiedSinceMs`), so a blob freshened after the mark survives.
 
 ::::
 
@@ -67,6 +67,9 @@ Deletion is the irreversible direction. Run `gc({ dryRun: true })` first and rea
 `ArtifactGc.layerPolicy` installs an opt-in `ArtifactGcPolicy`: a default `graceMs` and a `pins` effect resolving digests that stay live regardless of reachability (an external index, an export a human wants kept). Explicit `gc()` options override the policy; the policy overrides the defaults. The policy configures collections; it never schedules one.
 
 ```ts
+import { ArtifactGc } from "@smthrs/engine-store"
+import * as Effect from "effect/Effect"
+
 const policy = ArtifactGc.layerPolicy({
   graceMs: 7 * 24 * 60 * 60 * 1000,
   pins: Effect.succeed(["<digest an external system still references>"])
@@ -75,10 +78,10 @@ const policy = ArtifactGc.layerPolicy({
 
 ## Failure semantics
 
-- **Fail-safe mark.** A root row whose boundary evidence cannot be decoded aborts the collection (`mark_failed`) instead of contributing nothing. Reading such a row as "references no artifacts" is exactly how a live blob would be collected. Metadata with no `boundary` key is the ordinary case and contributes nothing.
-- **Checkpoint roots.** Checkpoints are opaque JSON, so GC does not guess a product-specific schema. It keeps digest-shaped strings found anywhere in a live attempt checkpoint; this may retain an unrelated 64-hex string, but it cannot delete bytes a retry still needs.
-- **Crash mid-sweep.** The live set is computed before any deletion, and each deletion is an independent fenced remove, so an interrupted sweep has deleted only garbage. Re-running converges; a blob already gone reports a completed deletion rather than an error.
-- **Concurrent writers.** A blob published during the sweep carries a fresh mtime and is inside the grace bound. A blob re-referenced during the sweep is freshened by the dedupe `put` and fails the deletion fence. Neither needs a lock.
+- A root row whose boundary evidence cannot be decoded aborts the collection with `mark_failed` instead of contributing nothing. Reading such a row as "references no artifacts" is exactly how a live blob would be collected. Metadata with no `boundary` key is the ordinary case and contributes nothing.
+- Checkpoints are opaque JSON, so GC does not guess a product-specific schema. It keeps digest-shaped strings found anywhere in a live attempt checkpoint; this may retain an unrelated 64-hex string, but it cannot delete bytes a retry still needs.
+- The live set is computed before any deletion, and each deletion is an independent fenced remove. An interrupted sweep has deleted only garbage. Re-running converges; a blob already gone reports a completed deletion rather than an error.
+- A blob published during the sweep carries a fresh mtime and is inside the grace bound. A blob re-referenced during the sweep is freshened by the dedupe `put` and fails the deletion fence. Neither needs a lock.
 
 ## Limits
 

@@ -106,7 +106,7 @@ Cost: a release-candidate pin, exact at `4.0.0-rc.108` across every release-1 en
 
 The host surface has no `Pty` service and the engine has no interactive-session hijack. Smithers needs both because its underlying agents are the Claude Code and Codex CLIs: interactive terminal programs a human may take over mid-run, which requires a real pseudo-terminal between the gateway and the CLI. `flows` does not depend on those agent CLIs, so nothing in the core engine ever drives an interactive terminal.
 
-If a harness extension later wraps agent CLIs into workflows the way smithers does, the PTY adapter and the hijack handshake belong in that higher-level extension package, injected as a capability beside its gateway, not in the closed host list, where every platform bundle would have to carry or explicitly refuse it forever. Non-interactive process execution is already covered by Effect's `ChildProcessSpawner` behind the kernel's `proc:spawn` check.
+If an application extension later wraps agent CLIs into workflows the way smithers does, the PTY adapter and the hijack handshake belong in that higher-level extension package, injected as a capability beside its gateway, not in the closed host list, where every platform bundle would have to carry or explicitly refuse it forever. Non-interactive process execution is already covered by Effect's `ChildProcessSpawner` behind the kernel's `proc:spawn` check.
 
 The alternative was keeping the `@smthrs/pty` package that once shipped here. It was removed: its contract had no production consumer, and its Node implementation was piped stdio rather than a pseudo-terminal, so it could not honestly back the contract it named.
 
