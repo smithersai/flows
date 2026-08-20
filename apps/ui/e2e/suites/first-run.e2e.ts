@@ -2,6 +2,15 @@
  * Opt-in persona proofs for checklist states a live GitHub account cannot be
  * reset to. These grade product behaviour only; README policy requires their
  * evidence to be labelled verified-via-mock, never live verification.
+ *
+ * Claim map (manual checklist row → the E-id this suite prints): the chooser
+ * as the one onboarding question (§3.6 → E2.1), the welcome line exactly once
+ * (§3.4 → E2.2), the zero-repository honest state (§3.9 → E2.10), the 200+
+ * repository chooser (§3.10 → E2.11), the $0 chip and card (§17.2 → E6.1),
+ * and $0 pausing only non-complimentary work (§17.5 → E6.2). Every report.ok
+ * line leads with its id so the runner's anti-vacuous gate holds this suite to
+ * the rows it claims — a browser-less skip reports them unproven instead of
+ * passing silently.
  */
 import { waitUntil } from "../Assert.ts";
 import type { CdpSession } from "../Browser.ts";
@@ -14,6 +23,16 @@ import {
 } from "../../src/launch-checklist/Probes.ts";
 
 const count = (selector: string): string => `document.querySelectorAll(${JSON.stringify(selector)}).length`;
+
+/*
+ * Assertions read the element that owns the claim, never document.body:
+ * body innerText lets a balance line pass because the same words rendered in
+ * a toast, a chip, or a stale card.
+ */
+const textOf = (selector: string): string => `document.querySelector(${JSON.stringify(selector)})?.innerText ?? ""`;
+const TRANSCRIPT = ".smithers-transcript";
+const BALANCE_CARD = "section.smithers-card[data-kind='balance']";
+const CHOOSER_LIST = ".repo-chooser-list";
 
 export default defineSuite({
 	id: "persona-first-run",
@@ -57,10 +76,10 @@ export default defineSuite({
 			await waitUntil(
 				report,
 				"the balance card never opened",
-				async () => (await session.page.evaluate<number>(count("section.smithers-card[data-kind='balance']"))) === 1,
+				async () => (await session.page.evaluate<number>(count(BALANCE_CARD))) === 1,
 				15_000,
 			);
-			return session.page.text();
+			return session.page.evaluate<string>(textOf(BALANCE_CARD));
 		};
 
 		try {
@@ -78,18 +97,19 @@ export default defineSuite({
 			);
 			const freshBalance = await openBalance(fresh);
 			report.includes(freshBalance, INTRO_GRANT_LINE, "the chargeCount=0 welcome line");
-			report.ok("verified-via-mock: fresh renders the one repository chooser, not a recommendation, and the $500 welcome line.");
+			report.ok("E2.1 verified-via-mock: fresh renders the one repository chooser, not a recommendation.");
+			report.ok("E2.2 verified-via-mock: fresh's balance card carries the $500 welcome line.");
 
 			const established = await openPersona(PERSONAS.established);
 			const establishedBalance = await openBalance(established);
 			report.excludes(establishedBalance, "of usage on us", "the established account repeated the welcome grant line");
-			report.ok("verified-via-mock: established never repeats the first-charge welcome line.");
+			report.ok("E2.2 verified-via-mock: established never repeats the first-charge welcome line.");
 
 			const zeroRepos = await openPersona(PERSONAS.zeroRepos);
 			await waitUntil(
 				report,
 				"the zero-repository honest state never rendered",
-				async () => /watching no repositories/i.test(await zeroRepos.page.text()),
+				async () => /watching no repositories/i.test(await zeroRepos.page.evaluate<string>(textOf(TRANSCRIPT))),
 				30_000,
 			);
 			report.equals(
@@ -97,7 +117,7 @@ export default defineSuite({
 				0,
 				"zero repositories rendered an empty chooser with controls",
 			);
-			report.ok("verified-via-mock: zero repositories lands on an honest empty state, never an empty chooser.");
+			report.ok("E2.10 verified-via-mock: zero repositories lands on an honest empty state, never an empty chooser.");
 
 			const many = await openPersona(PERSONAS.manyRepos200);
 			await waitUntil(
@@ -121,8 +141,8 @@ export default defineSuite({
 					10_000,
 				);
 			}
-			report.includes(await many.page.text(), "many-repos-user/repository-205", "the last paginated repository");
-			report.ok("verified-via-mock: a 205-repository chooser incrementally paginates to the final row without locking the frame.");
+			report.includes(await many.page.evaluate<string>(textOf(CHOOSER_LIST)), "many-repos-user/repository-205", "the last paginated repository");
+			report.ok("E2.11 verified-via-mock: a 205-repository chooser incrementally paginates to the final row without locking the frame.");
 
 			const zeroBalance = await openPersona(PERSONAS.zeroBalance);
 			report.equals(
@@ -134,7 +154,7 @@ export default defineSuite({
 			);
 			const emptyBalance = await openBalance(zeroBalance);
 			report.includes(emptyBalance, "Balance is at $0", "the zero-balance card empty state");
-			report.ok("verified-via-mock: the $0 balance chip and card both render the empty state.");
+			report.ok("E6.1 verified-via-mock: the $0 balance chip and card both render the empty state.");
 
 			stack.chat.script({
 				frames: [
@@ -170,7 +190,7 @@ export default defineSuite({
 			await waitUntil(
 				report,
 				"the zero-balance workflow pause never rendered",
-				async () => ZERO_BALANCE_PAUSE_COPY.test(await zeroBalance.page.text()),
+				async () => ZERO_BALANCE_PAUSE_COPY.test(await zeroBalance.page.evaluate<string>(textOf(TRANSCRIPT))),
 				15_000,
 			);
 			stack.chat.script({
@@ -192,10 +212,10 @@ export default defineSuite({
 			await waitUntil(
 				report,
 				"chat did not remain available after the zero-balance pause",
-				async () => (await zeroBalance.page.text()).includes("Chat is still available."),
+				async () => (await zeroBalance.page.evaluate<string>(textOf(TRANSCRIPT))).includes("Chat is still available."),
 				15_000,
 			);
-			report.ok("verified-via-mock: $0 pauses non-complimentary workflow work with the U6 message while chat remains available.");
+			report.ok("E6.2 verified-via-mock: $0 pauses non-complimentary workflow work with the U6 message while chat remains available.");
 		} finally {
 			await closeActive();
 		}
