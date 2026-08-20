@@ -1,0 +1,117 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "37dbdbb66ad61221a02caf7d58a904708d47be26",
+ "tree": "e69fa9bef43e57fd43f6506716968200e7d76fb0",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 12,
+  "sectionCount": 71
+ },
+ "source": {
+  "commit": "0d116fdbe410675cb8841cf77da8865aeba2d28f",
+  "subject": "🐛 fix(server): let a plain wrangler bundle the Start-guarded fallback",
+  "priorCanonicalCommit": "a76463b195e02bcb22970f51d8e98d1a3e8d6e3e",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 12,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "server",
+  "epicsTouched": [
+   {
+    "id": "server",
+    "files": 1
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 850,
+  "globalCount": 909,
+  "purpose": "🐛 fix(server): let a plain wrangler bundle the Start-guarded fallback",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "48a4b77f8b5cffc7e2b75e0aa340f9c6f07dfb0a"
+  ],
+  "parent": "48a4b77f8b5cffc7e2b75e0aa340f9c6f07dfb0a",
+  "sourceImports": [],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "48a4b77f8b5cffc7e2b75e0aa340f9c6f07dfb0a",
+  "next": "dc6ba67374716dccdfa793a35fc9db9bf4b5b360",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "9f4db87e9b528812c207c1054f8c36a09a06c2c7"
+ },
+ "size": {
+  "files": 2,
+  "added": 22,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "0d116fdbe410675cb8841cf77da8865aeba2d28f"
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/server/src/start-entry-stub.ts",
+   "mode": "100644",
+   "blob": "c64335699d288f17258b0061b87104dbf2d9960a",
+   "previousBlob": null,
+   "added": 15,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 0,
+     "oldLines": 0,
+     "newStart": 1,
+     "newLines": 15
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": null
+  },
+  {
+   "change": "M",
+   "path": "apps/server/wrangler.jsonc",
+   "mode": "100644",
+   "blob": "4251550c94f7bccae8774f2509a5a0dd3f3464d2",
+   "previousBlob": "e3f92bcb23220d817a69ff382d50e468c286a017",
+   "added": 7,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 5,
+     "oldLines": 0,
+     "newStart": 6,
+     "newLines": 7
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 13,
+    "id": "server",
+    "name": "Shared application contracts and worker backend"
+   }
+  }
+ ]
+}
