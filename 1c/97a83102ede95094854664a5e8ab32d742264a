@@ -1,0 +1,182 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "1c97a83102ede95094854664a5e8ab32d742264a",
+ "tree": "7e6cf6718492cc68bda9cf802b7fd72f216614e4",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 7,
+  "sectionCount": 71
+ },
+ "source": {
+  "commit": "e3c95d6f6ad53ab8ee0d5669f73eec079f6bf611",
+  "subject": "🔥 fix(ui): drop the message timestamps nothing asked for",
+  "priorCanonicalCommit": "3acb25f344824f8d322d027954b629d55f810133",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 7,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "ui",
+  "epicsTouched": [
+   {
+    "id": "ui",
+    "files": 4
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 845,
+  "globalCount": 909,
+  "purpose": "🔥 fix(ui): drop the message timestamps nothing asked for",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "63440c74cf9f53ce8971e00e84fdfa32942042c8"
+  ],
+  "parent": "63440c74cf9f53ce8971e00e84fdfa32942042c8",
+  "sourceImports": [
+   "8c026ad28fd80bb1462799d80bf5ba76edf692dc",
+   "1b4c0c503bd86ec5e890a8be549758e0c60877bb",
+   "49f05ad33ae4477ca468fc044d7ccfd9cbfbacab",
+   "3b0c70f67ee7274e2c106e4cb4411598aed405ec",
+   "44b739c183d7508f003cbe31250f0a072c216002",
+   "51308f4793d76771c4129ad12325ce6ff071fbda"
+  ],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "63440c74cf9f53ce8971e00e84fdfa32942042c8",
+  "next": "44053b9f5f436d435ee9eeac6beba54dbfa3323b",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "9f4db87e9b528812c207c1054f8c36a09a06c2c7"
+ },
+ "size": {
+  "files": 4,
+  "added": 0,
+  "deleted": 88
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "e3c95d6f6ad53ab8ee0d5669f73eec079f6bf611"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "apps/ui/src/mainview/App.tsx",
+   "mode": "100644",
+   "blob": "7f75ec9963538209481c117b514e21fdc2229c21",
+   "previousBlob": "69847caf9c65dab47831b03d39e455dbcd687420",
+   "added": 0,
+   "deleted": 10,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 47,
+     "oldLines": 1,
+     "newStart": 46,
+     "newLines": 0
+    },
+    {
+     "oldStart": 1161,
+     "oldLines": 9,
+     "newStart": 1159,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/src/mainview/Timestamps.test.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "abce5e70467b9061681a9a0d6d132f7a93da841d",
+   "added": 0,
+   "deleted": 38,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 38,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/src/mainview/Timestamps.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "5d315051da36957bc40981ad91077d842b6f898c",
+   "added": 0,
+   "deleted": 31,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 31,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "M",
+   "path": "apps/ui/src/mainview/styles/chat.css",
+   "mode": "100644",
+   "blob": "96611ee36e7f67559f4d2cd6277f2a04a0c515c9",
+   "previousBlob": "6ae640790701a7678f7e57b1f2952be48e9d8535",
+   "added": 0,
+   "deleted": 9,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 305,
+     "oldLines": 9,
+     "newStart": 304,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  }
+ ]
+}
