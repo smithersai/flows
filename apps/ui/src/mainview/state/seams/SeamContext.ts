@@ -45,6 +45,32 @@ export const readErrorMessage = async (response: Response, fallback: string): Pr
 };
 
 /**
+ * The honest message out of a failed response, with the upstream's body kept.
+ *
+ * The stricter sibling of `readErrorMessage`: where that one drops a body it
+ * cannot read as product copy, this one appends a bounded slice of it. Used by
+ * the workspace seams, whose upstream is the gateway rather than the platform
+ * proxy and whose plain-text refusals are the only detail an operator gets.
+ */
+export const errorMessageOf = async (response: Response, fallback: string): Promise<string> => {
+	const body = (await response.text().catch(() => "")).trim();
+	try {
+		const parsed: unknown = JSON.parse(body);
+		if (
+			typeof parsed === "object" &&
+			parsed !== null &&
+			"message" in parsed &&
+			typeof parsed.message === "string"
+		) {
+			return parsed.message;
+		}
+	} catch {
+		// A non-JSON error body carries no better message than the fallback.
+	}
+	return body === "" ? fallback : `${fallback} (${body.slice(0, 200)})`;
+};
+
+/**
  * The one degradation a repository-scoped read has while its mirror does not
  * exist yet.
  *
