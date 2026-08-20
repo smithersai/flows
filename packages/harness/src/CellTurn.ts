@@ -358,7 +358,9 @@ const stateTeaching = (agentState: Schema.Json): string => {
   }
   const roster = agentState !== null && typeof agentState === "object" && !Array.isArray(agentState)
     ? Object.entries(agentState)
-      .map(([key, value]) => `- ${key} (${JSON.stringify(value)?.length ?? 4} bytes)`)
+      // `CanonicalJson.stringify` above already rejected every value
+      // `JSON.stringify` renders as `undefined`, so each member has a length.
+      .map(([key, value]) => `- ${key} (${JSON.stringify(value).length} bytes)`)
       .join("\n")
     : `(${rendered.length} bytes)`
   return `Agent-owned durable state for this frame is ${rendered.length} bytes and is available in the cell as ctx.state. Its keys:\n${roster}\nRead what you need from ctx.state instead of reconstructing it.`
@@ -660,9 +662,6 @@ const verifyCompletion = (options: {
     return { accepted: true, detail: `Re-ran ${verification.flow}: ${rendered}` }
   })
 
-const invalidStep = (error: Compaction.InvalidStep): HarnessError =>
-  new HarnessError({ code: "invalid_step", message: error.message, cause: error })
-
 /**
  * Compacts the frame's context before the model is asked anything.
  *
@@ -692,14 +691,18 @@ const compacted = (
     // Nothing compactable is not a failure: a window that is all prefix has
     // already given up everything it can, and the frame proceeds as declared.
     if (prefixLength === 0) return state
+    // `InvalidStep` is discharged as a defect, not surfaced as a typed failure.
+    // Every way to raise it is a prefix outside `[1, compactable.length]` or a
+    // digest that disagrees with the declaration, and all three calls below are
+    // handed the same immutable window plus `selectPrefix`'s own output on that
+    // window. Raising it would mean compaction's prefix arithmetic contradicts
+    // itself, which is a bug here rather than a condition a caller could act on.
     const step = yield* Compaction.declare(state.contextWindow, prefixLength, {
       identity: "flows/harness/CellTurn.compaction",
       modelId: modelIdFromSeat(state.seat),
       params: state.modelParams
-    }).pipe(Effect.catchTag("InvalidStep", (error) => Effect.fail(invalidStep(error))))
-    const summaryRequest = yield* Compaction.summaryRequest(state.contextWindow, step).pipe(
-      Effect.catchTag("InvalidStep", (error) => Effect.fail(invalidStep(error)))
-    )
+    }).pipe(Effect.orDie)
+    const summaryRequest = yield* Compaction.summaryRequest(state.contextWindow, step).pipe(Effect.orDie)
     const request = ModelRequest.ModelRequest.make({
       modelId: summaryRequest.modelId,
       system: summaryRequest.system,
@@ -728,9 +731,7 @@ const compacted = (
       })
     }
     const summary = ModelRequest.Message.assistant(text, { stopReason: settled.message.stopReason })
-    const contextWindow = yield* Compaction.apply(state.contextWindow, step, summary).pipe(
-      Effect.catchTag("InvalidStep", (error) => Effect.fail(invalidStep(error)))
-    )
+    const contextWindow = yield* Compaction.apply(state.contextWindow, step, summary).pipe(Effect.orDie)
     yield* emit(
       new AgentEvent.CompactionSettled({
         eventType: eventType.compactionSettled,

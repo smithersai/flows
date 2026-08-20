@@ -274,29 +274,34 @@ export const make = <
     ...(options.outputDocument === undefined ? { outputDocument: document(options.flow.output) } : {})
   })
   const decodeInput = Schema.decodeUnknownResult(options.flow.input)
+  // A cell is JavaScript, where `{ env: undefined }` and `{}` are the same
+  // object for an optional key — but the call crosses a JSON boundary, which
+  // has no `undefined`, so the omission arrives as an explicit `null` that an
+  // optional field rejects. That cost a whole frame per occurrence: the model
+  // reissued the identical call minus one key, learning the shape one rejection
+  // at a time. Retrying once without the nulls is exactly the JavaScript reading
+  // of the same value, and a schema that genuinely accepts `null` already
+  // decoded on the first attempt.
+  const decodeCall = (input: unknown): ReturnType<typeof decodeInput> => {
+    const first = decodeInput(input)
+    if (first._tag !== "Failure") return first
+    const retried = decodeInput(withoutNulls(input))
+    // When the retry fails too, the first attempt's failure is the one worth
+    // reporting: it names the key the caller actually wrote.
+    return retried._tag === "Failure" ? first : retried
+  }
   const encodeOutput = Schema.encodeUnknownResult(options.flow.output)
   const asJson = Schema.decodeUnknownResult(Schema.Json)
   return {
     descriptor,
     run: (call) =>
       Effect.gen(function*() {
-        const first = decodeInput(call.input)
-        // A cell is JavaScript, where `{ env: undefined }` and `{}` are the
-        // same object for an optional key — but the call crosses a JSON
-        // boundary, which has no `undefined`, so the omission arrives as an
-        // explicit `null` that an optional field rejects. That cost a whole
-        // frame per occurrence: the model reissued the identical call minus
-        // one key, learning the shape one rejection at a time. Retrying once
-        // without the nulls is exactly the JavaScript reading of the same
-        // value, and a schema that genuinely accepts `null` already decoded on
-        // the first attempt.
-        const decoded = first._tag === "Failure" ? decodeInput(withoutNulls(call.input)) : first
+        const decoded = decodeCall(call.input)
         if (decoded._tag === "Failure") {
-          // The first attempt's failure is the one worth reporting: it names
-          // the key the caller actually wrote.
-          const failure = first._tag === "Failure" ? first.failure : decoded.failure
           return refused(
-            `Flow ${descriptor.name} rejected its input: ${describe(failure)}. Re-read ctx.flows and reissue the call.`
+            `Flow ${descriptor.name} rejected its input: ${
+              describe(decoded.failure)
+            }. Re-read ctx.flows and reissue the call.`
           )
         }
         const produced = yield* Effect.result(options.handler(decoded.success, call))

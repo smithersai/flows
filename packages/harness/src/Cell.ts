@@ -532,9 +532,11 @@ export const extract = (text: string): Result.Result<Source, Rejected> => {
   let body: string | undefined
   fenced.lastIndex = 0
   for (const match of text.matchAll(fenced)) {
+    /* v8 ignore next -- `info` is a mandatory group of `fenced`, outside any alternation or quantifier, so it participates in every match; the default only discharges the optional type TypeScript gives `RegExpMatchArray.groups` */
     const candidate = languageOf(match.groups?.info ?? "")
     if (candidate === undefined) continue
     language = candidate
+    /* v8 ignore next -- `body` is likewise mandatory in `fenced`; a match that reached here already produced `info`, so `groups` is present and carries both */
     body = match.groups?.body ?? ""
   }
   if (language === undefined || body === undefined) {
