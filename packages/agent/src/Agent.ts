@@ -1,0 +1,402 @@
+/**
+ * The flows agent.
+ *
+ * This module is the production composition of the durable cell loop, and it is
+ * the one the whole package is named for. Everything the loop needs already
+ * existed as a separate piece — the controller in `@smthrs/harness/CellTurn`,
+ * registry-backed call resolution in `@smthrs/harness/CellCalls`, the sandbox in
+ * `@smthrs/harness/QuickJSSandbox`, the durable engine port in
+ * `./FlowEngineLike.ts` — and what did not exist was one place that wires them
+ * together. This is that place.
+ *
+ * One agent, one implementation, two ways to run it. {@link module:AgentSession}
+ * runs it as a whole control-plane run: the launch is a durable flow execution,
+ * the events go to the journal, an operator steers and approves it.
+ * {@link module:AgentAction} runs it as one typed step inside a larger flow:
+ * the same loop, bounded by a declared output schema, replayed like any other
+ * action. Neither adapter reimplements the loop, and a future agent that drives
+ * a foreign CLI is another implementation of {@link Service} rather than a
+ * second loop next to this one.
+ *
+ * What {@link Service.run} returns is the framework-neutral
+ * `Stream<AgentEvent>` the controller emits — no callbacks, no event emitter, no
+ * host-shaped result type. A caller renders it, journals it, or ignores it.
+ *
+ * Composition boundaries are deliberate:
+ *
+ * - The stream's requirements are `FlowEngine` and `FlowInstance` (a run must be
+ *   started inside a running flow body, because the port is per-execution) plus
+ *   `Sandbox` and `Steering.Source`, which the host supplies.
+ *   {@link layerDefaults} provides browser-safe defaults for the latter two.
+ * - Nothing here imports a Node built-in or a platform layer. The QuickJS
+ *   sandbox is the browser single-file build, so this composition is the same
+ *   in both environments; only the engine's storage layer differs.
+ * - The catalog shown to the model is `registry.visible()` narrowed to
+ *   model-invocable flows, and the *same* registry answers the calls, so the
+ *   declaration digest a cell was written against is the one checked at the
+ *   boundary.
+ *
+ * @since 0.1.0
+ */
+import * as Capability from "@smthrs/capability/Capability"
+import type { FlowRuntime } from "@smthrs/flow"
+import type * as AgentEvent from "@smthrs/harness/AgentEvent"
+import type * as Cell from "@smthrs/harness/Cell"
+import * as CellCalls from "@smthrs/harness/CellCalls"
+import * as CellTurn from "@smthrs/harness/CellTurn"
+import * as ContextWindow from "@smthrs/harness/ContextWindow"
+import * as EngineLike from "@smthrs/harness/EngineLike"
+import * as FlowBinding from "@smthrs/harness/FlowBinding"
+import { HarnessError } from "@smthrs/harness/HarnessError"
+import * as QuickJSSandbox from "@smthrs/harness/QuickJSSandbox"
+import type * as Sandbox from "@smthrs/harness/Sandbox"
+import * as Steering from "@smthrs/harness/Steering"
+import type * as MemorySource from "@smthrs/memory/Source"
+import type * as Model from "@smthrs/model/Model"
+import * as ModelRequest from "@smthrs/model/ModelRequest"
+import type { FlowsHooks, PluginInput } from "@smthrs/plugin"
+import type { FlowsConfig, ResolvedConfig } from "@smthrs/plugin/Config"
+import type { PluginError } from "@smthrs/plugin/PluginError"
+import type * as Plugins from "@smthrs/plugin/Plugins"
+import type * as Descriptor from "@smthrs/registry/Descriptor"
+import type * as Registry from "@smthrs/registry/Registry"
+import { Context, Effect, Layer, Option, Stream } from "effect"
+import type * as Schedule from "effect/Schedule"
+import * as CellPlugin from "./CellPlugin.ts"
+import * as FlowEngineLike from "./FlowEngineLike.ts"
+import * as Seat from "./Seat.ts"
+
+/**
+ * Everything one assembled cell run declares.
+ *
+ * The required half is the run itself — who is running, on what seat, against
+ * which registry and model. The optional half is authority and budget, and every
+ * default is the conservative one: no capabilities, no placement, no
+ * compaction, and a host that implements nothing until it says so.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface Options {
+  /** The durable session or lineage every call identity is scoped to. */
+  readonly session: string
+  /** Overrides the bounded transport retry schedule at the model boundary. */
+  readonly modelRetryPolicy?: Schedule.Schedule<unknown, Model.ModelFailure> | undefined
+  /**
+   * The resolved seat this run streams from.
+   *
+   * A `SeatResolver` produced it, so the model, the route, and the context
+   * window arrive together and the composition never parses a seat string or
+   * holds a credential of its own.
+   */
+  readonly seat: Seat.Seat
+  /** The task the run was admitted with. */
+  readonly prompt: string
+  /** Stable system teaching placed ahead of the cell contract. */
+  readonly system?: ReadonlyArray<string> | undefined
+  readonly registry: Registry.Registry
+  /** Shared-kernel plugins resolved for the harness target. */
+  readonly plugins?: PluginInput<FlowsHooks> | undefined
+  /** Raw config threaded through the plugin kernel's config waterfall. */
+  readonly config?: FlowsConfig | undefined
+  /**
+   * One explicitly selected memory snapshot.
+   *
+   * The host obtains this value from `memory/Source.declaredText`; omitting it
+   * injects no memory. The composition never reads a memory store or worldview
+   * on its own.
+   */
+  readonly memory?: MemorySource.DeclaredText | undefined
+  /**
+   * Ordered executable-flow sources composed into the run's catalog.
+   *
+   * This is how a capability becomes reachable from a cell: standard
+   * filesystem and shell flows, memory flows, a durable wait, an incoming MCP
+   * server, a child agent — each is a `FlowBinding.Source`, and each ends up as
+   * one more entry in `ctx.flows` invoked with `ctx.call`. Plugin `cellFlows`
+   * handlers run after these, in resolution order.
+   */
+  readonly flows?: ReadonlyArray<FlowBinding.Source> | undefined
+  /** Host implementations for module-backed flows, keyed by flow name. */
+  readonly implementations?: ReadonlyMap<string, CellCalls.Implementation> | undefined
+  /** Runs a rendered markdown flow. A host with none refuses them catchably. */
+  readonly promptRunner?: CellCalls.PromptRunner | undefined
+  /**
+   * Decides whether a call may proceed, before its durable boundary opens.
+   *
+   * Kept outside the activity on purpose: a permission requirement raised
+   * inside one would be journaled and replayed forever, and no later grant
+   * could unblock it.
+   */
+  readonly authorize?: ((call: Cell.Call) => Effect.Effect<void, HarnessError>) | undefined
+  readonly modelParams?: ModelRequest.GenerationParams | undefined
+  readonly layers?: ReadonlyArray<string> | undefined
+  readonly capabilityEnvelope?: ReadonlyArray<Capability.CapabilityPattern> | undefined
+  readonly placement?: Option.Option<Descriptor.Placement> | undefined
+  readonly maxFrames?: number | undefined
+  /** Arms CellTurn's completion audit; see `CellTurn.make`. */
+  readonly auditCompletion?: boolean | undefined
+  /** Requires an audited baseline-fail/write/pass regression proof. */
+  readonly requireRegressionEvidence?: boolean | undefined
+  /**
+   * Caps consecutive read-only frames; see `CellTurn.make`.
+   *
+   * Armed the same way the audit is, and for the same reason: a task run's
+   * frames are supposed to change something, and a run that only reads is the
+   * failure mode a flat frame budget cannot see. A run that is meant to
+   * answer rather than act leaves it unset.
+   */
+  readonly readOnlyCap?: number | undefined
+  readonly limits?: Sandbox.Limits | undefined
+}
+
+/**
+ * Assembles the initial context window for a run.
+ *
+ * The cell contract and the callable-flow catalog are added by
+ * `CellTurn.teach`, which puts both in prefix segments — so they survive every
+ * transition and a cell never has to re-project its own teaching.
+ */
+const opening = (
+  options: Options,
+  flows: ReadonlyArray<Descriptor.FlowDescriptor>
+): ContextWindow.ContextWindow => {
+  const declared: Array<ContextWindow.SegmentInput> = (options.system ?? []).map((text) => ({
+    kind: "system",
+    zone: "prefix",
+    content: [ModelRequest.SystemPart.make({ text })]
+  }))
+  if (options.memory !== undefined && options.memory.text.length > 0) {
+    declared.push({
+      kind: "instructions",
+      zone: "prefix",
+      declaredDigest: options.memory.digest,
+      content: [ModelRequest.SystemPart.make({ text: options.memory.text })]
+    })
+  }
+  return CellTurn.teach(
+    ContextWindow.make({
+      modelId: Seat.modelIdOf(options.seat.id),
+      segments: [
+        ...declared,
+        // The task itself is a PREFIX segment. The tail is rebuilt every
+        // frame from whatever the cell returns, so a task placed there is
+        // gone after frame one and the model works from its own summaries of
+        // its instructions — a benchmark run made the intended fix, forgot
+        // the environment teaching that lived only in the opening prompt,
+        // and parked asking a human for what the prompt had told it.
+        {
+          kind: "instructions",
+          zone: "prefix",
+          content: [ModelRequest.SystemPart.make({ text: `The task for this run:\n\n${options.prompt}` })]
+        },
+        {
+          kind: "transcript",
+          zone: "tail",
+          content: [
+            ModelRequest.Message.user(
+              "Begin. Your task and environment are in the system context above and remain visible every frame."
+            )
+          ]
+        }
+      ]
+    }),
+    flows
+  )
+}
+
+/**
+ * Resolves order-sensitive host composition material for durable keys.
+ *
+ * @category identity
+ * @since 0.1.0
+ */
+const compositionLayers = (
+  options: Options,
+  plugins: Plugins.Service<FlowsHooks>,
+  config: ResolvedConfig
+): Effect.Effect<ReadonlyArray<string>, PluginError> =>
+  CellPlugin.identity(options.layers ?? [], plugins, config).pipe(
+    Effect.map((identity) => [...(options.layers ?? []), identity])
+  )
+
+const withRequestPlugins = (
+  engine: EngineLike.EngineLike,
+  plugins: Plugins.Service<FlowsHooks>
+): EngineLike.EngineLike =>
+  EngineLike.make({
+    sealStep: (step) =>
+      Stream.unwrap(
+        CellPlugin.modelRequest(plugins, step.request).pipe(
+          Effect.mapError((cause) =>
+            new HarnessError({
+              code: "engine_failed",
+              message: "A cell model-request plugin failed",
+              cause
+            })
+          ),
+          Effect.map((request) =>
+            engine.sealStep({
+              request,
+              keyMaterial: {
+                ...step.keyMaterial,
+                body: { _tag: "ModelCall", request }
+              }
+            })
+          )
+        )
+      ),
+    splice: engine.splice,
+    call: engine.call,
+    record: engine.record,
+    suspend: engine.suspend
+  })
+
+/**
+ * The agent: one method that runs one whole agent loop.
+ *
+ * A run must be started from inside a running flow body. The engine port is
+ * built per execution, which is what makes `suspend` a real durable park rather
+ * than a failure, and it is why `FlowInstance` is in the stream's requirements
+ * rather than in the service's construction.
+ *
+ * @category services
+ * @since 0.1.0
+ */
+export interface Service {
+  readonly run: (
+    options: Options
+  ) => Stream.Stream<
+    AgentEvent.AgentEvent,
+    HarnessError | PluginError,
+    FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance | Sandbox.Sandbox | Steering.Source
+  >
+}
+
+/**
+ * The {@link Service} tag.
+ *
+ * @category services
+ * @since 0.1.0
+ */
+export class Agent extends Context.Service<Agent, Service>()("@smthrs/agent/Agent") {}
+
+const runProduction: Service["run"] = (options) =>
+  Stream.unwrap(
+    Effect.gen(function*() {
+      const kernel = yield* CellPlugin.make(options.plugins, options.config)
+      const layers = yield* compositionLayers(options, kernel.plugins, kernel.config)
+      return Stream.unwrap(
+        Effect.gen(function*() {
+          const discovered = yield* CellPlugin.registry(kernel.plugins, options.registry)
+          const composed = yield* FlowBinding.catalog(options.flows ?? [])
+          const contributed = yield* CellPlugin.flows(kernel.plugins, composed.entries)
+          const catalog = yield* Effect.fromResult(FlowBinding.catalogResult(contributed))
+          // One snapshot answers both questions. The registry the model is
+          // shown is the registry the boundary resolves against, so a
+          // declaration digest a cell was written against is the one checked
+          // when the call arrives.
+          const registry = FlowBinding.registry(discovered, catalog)
+          const visible = yield* registry.visible()
+          const flows = visible.filter((descriptor) => descriptor.modelInvocable)
+          const resolver = CellCalls.make({
+            registry,
+            catalog,
+            implementations: options.implementations,
+            prompt: options.promptRunner
+          })
+          // This composition is the one place that knows the run's whole
+          // authority, so it is the one place that may declare it (issue #75).
+          // The envelope is exactly what `CellTurn` runs under, and the
+          // default really is "nothing granted" — so an empty envelope is a
+          // true complete claim, not an unknown one, and sealed boundaries
+          // stay shareable across runs of one composition while two
+          // differently-authorized compositions can never alias.
+          const envelope = (options.capabilityEnvelope ?? []).map(Capability.format)
+          const port = yield* FlowEngineLike.make({
+            model: options.seat.model,
+            route: options.seat.route,
+            calls: {
+              ...(options.authorize === undefined ? {} : { authorize: options.authorize }),
+              run: resolver.run
+            },
+            layers,
+            capabilities: { envelope },
+            modelRetryPolicy: options.modelRetryPolicy
+          })
+          const state = CellTurn.make({
+            session: options.session,
+            seat: options.seat.id,
+            modelParams: options.modelParams ?? ModelRequest.GenerationParams.make(),
+            layers,
+            capabilityEnvelope: options.capabilityEnvelope ?? [],
+            placement: options.placement ?? Option.none(),
+            contextWindow: opening(options, flows),
+            contextWindowTokens: options.seat.contextWindowTokens,
+            maxFrames: options.maxFrames,
+            auditCompletion: options.auditCompletion,
+            requireRegressionEvidence: options.requireRegressionEvidence,
+            readOnlyCap: options.readOnlyCap
+          })
+          return CellTurn.run({ state, flows, limits: options.limits }).pipe(
+            Stream.provideService(EngineLike.EngineLike, withRequestPlugins(port, kernel.plugins))
+          )
+        })
+      ).pipe(
+        Stream.provide(kernel.layer)
+      )
+    })
+  )
+
+/**
+ * Builds a {@link Service} from an implementation of its one method.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const make = (implementation: Service): Service => Agent.of(implementation)
+
+/**
+ * A {@link Service} that emits nothing and runs no model.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const makeNoop = (overrides: Partial<Service> = {}): Service =>
+  make({
+    run: () => Stream.empty,
+    ...overrides
+  })
+
+/**
+ * Provides the production agent.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
+export const layer: Layer.Layer<Agent> = Layer.succeed(Agent)(make({ run: runProduction }))
+
+/**
+ * Provides {@link makeNoop}.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
+export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<Agent> =>
+  Layer.succeed(Agent)(makeNoop(overrides))
+
+/**
+ * The browser-safe defaults for the two services a run leaves to the host.
+ *
+ * The sandbox is the QuickJS single-file build, which runs unchanged in Node and
+ * in a browser. Steering defaults to an empty source: a host that accepts
+ * mid-run messages provides its own `Steering.layer` instead, and the loop
+ * drains it at exactly the same boundaries either way.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
+export const layerDefaults: Layer.Layer<Sandbox.Sandbox | Steering.Source, Sandbox.SandboxError> = Layer.merge(
+  QuickJSSandbox.layer,
+  Steering.layerNoop()
+)
