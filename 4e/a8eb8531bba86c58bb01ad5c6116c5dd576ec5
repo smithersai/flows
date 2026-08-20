@@ -1,0 +1,97 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "4ea8eb8531bba86c58bb01ad5c6116c5dd576ec5",
+ "tree": "e8e14bad79b155ad72fb01d5ab1e967c28b1ed83",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 41,
+  "sectionCount": 71
+ },
+ "source": {
+  "commit": "f920f98af68bf4d152b2ca27b688139f137ff04f",
+  "subject": "✅ test(flows): re-pin Fold.ts in the coverage-ignore inventory at 5",
+  "priorCanonicalCommit": "77914c564630de69e816995a271631f73c3f975c",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 41,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "engine-store",
+  "epicsTouched": [
+   {
+    "id": "engine-store",
+    "files": 1
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 879,
+  "globalCount": 909,
+  "purpose": "✅ test(flows): re-pin Fold.ts in the coverage-ignore inventory at 5",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "3f2d44bef8dbf5b14d94e352616edaef05965b47"
+  ],
+  "parent": "3f2d44bef8dbf5b14d94e352616edaef05965b47",
+  "sourceImports": [],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "3f2d44bef8dbf5b14d94e352616edaef05965b47",
+  "next": "72527b8e489f40e99ebbd71a8c58eac5d567f0cf",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "9f4db87e9b528812c207c1054f8c36a09a06c2c7"
+ },
+ "size": {
+  "files": 1,
+  "added": 6,
+  "deleted": 4
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "f920f98af68bf4d152b2ca27b688139f137ff04f"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "packages/flows/test/vitestCoverageIsolation.test.ts",
+   "mode": "100644",
+   "blob": "ecda2687cc8306aa49dd34bd758b7fa89e878c73",
+   "previousBlob": "25b405b6440cc69ddaaec3a6d0167c73a701ca4d",
+   "added": 6,
+   "deleted": 4,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 539,
+     "oldLines": 4,
+     "newStart": 539,
+     "newLines": 6
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  }
+ ]
+}
