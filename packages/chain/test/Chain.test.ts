@@ -307,6 +307,23 @@ describe("Chain", () => {
     expect(error.code).toBe("replay_divergence")
   })
 
+  it.each([
+    ["script digest", { scriptDigest: "tampered" }],
+    ["link", { link: 99 }]
+  ])("refuses to replay a call settled under a different %s", async (_label, keyPatch) => {
+    const { events } = await goldenRun()
+    const tampered = [...events.slice(0, 5)]
+    const settled = tampered[4] as Event.CallSettled
+    tampered[4] = { ...settled, key: { ...settled.key, ...keyPatch } }
+
+    const error = await failChain({
+      author: Author.layerMock([]),
+      initial: tampered
+    }) as { code: string; message: string }
+    expect(error.code).toBe("replay_divergence")
+    expect(error.message).toContain("different link or script")
+  })
+
   it("refuses to replay a call whose entry left the catalog", async () => {
     const { events } = await goldenRun()
     const error = await failChain({

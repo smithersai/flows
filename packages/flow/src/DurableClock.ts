@@ -10,6 +10,7 @@
  *
  * @since 4.0.0
  */
+import type * as Crypto from "effect/Crypto"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import type * as Schema from "effect/Schema"
@@ -76,7 +77,7 @@ export const sleep: (
 ) => Effect.Effect<
   void,
   never,
-  FlowRuntime | FlowInstance
+  Crypto.Crypto | FlowRuntime | FlowInstance
 > =
   // Untraced because durable sleeps are recursively resumed by the engine.
   Effect.fnUntraced(function*(options: {

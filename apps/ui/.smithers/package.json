@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "bun test --preload ./preload.ts --max-concurrency=1 ./tests/production-readiness-swarm.test.tsx ./tests/universal-flow-runtime-swarm.test.tsx",
+    "test": "bun test --preload ./preload.ts --max-concurrency=1 ./tests/production-readiness-swarm.test.tsx ./tests/universal-flow-runtime-swarm.test.tsx ./tests/security-guards.test.tsx",
     "typecheck": "tsc --noEmit",
     "typecheck:production-readiness": "tsc -p ./tsconfig.production-readiness.json --noEmit",
     "gateway": "bun ./gateway.ts",

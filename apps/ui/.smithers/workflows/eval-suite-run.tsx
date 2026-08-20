@@ -112,7 +112,7 @@ const { Workflow, Sequence, Parallel, Task, smithers, outputs, db } = createSmit
  * @param {unknown} error
  * @returns {string}
  */
-function formatCaseError(error) {
+function formatCaseError(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 

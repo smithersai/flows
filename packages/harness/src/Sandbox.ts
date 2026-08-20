@@ -178,6 +178,7 @@ export interface Capabilities {
  * @slop
  */
 export const defaultLimits = Object.freeze({
+  calls: 64,
   memoryBytes: 128 * 1024 * 1024,
   steps: 1000,
   timeMs: 30_000,
@@ -250,6 +251,7 @@ export const withDefaults = (
     ? { memoryBytes: defaultLimits.memoryBytes }
     : {}),
   ...(capabilities.steps && limits?.steps === undefined ? { steps: defaultLimits.steps } : {}),
+  ...(capabilities.calls && limits?.calls === undefined ? { calls: defaultLimits.calls } : {}),
   ...(capabilities.timeMs && limits?.timeMs === undefined ? { timeMs: defaultLimits.timeMs } : {}),
   ...(capabilities.timeMs && limits?.totalMs === undefined ? { totalMs: defaultLimits.totalMs } : {}),
   // Gated on `calls` rather than on `timeMs`: the per-call budget is enforced

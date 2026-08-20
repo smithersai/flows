@@ -17,14 +17,16 @@ const Smoke = Flow.make("factory/Smoke", {
     Node.all({
       a: ShellTask.call({
         id: "echo-a",
-        command: "echo smoke-a && sleep 1",
+        command: "bun",
+        args: ["-e", "console.log('smoke-a'); await Bun.sleep(1000)"],
         cwd: ".",
         timeoutMs: 30_000,
         logDir
       }),
       b: ShellTask.call({
         id: "echo-b",
-        command: "echo smoke-b",
+        command: "printf",
+        args: ["smoke-b\\n"],
         cwd: ".",
         timeoutMs: 30_000,
         logDir

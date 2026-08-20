@@ -7,7 +7,7 @@
 import { createSmithers, UI } from "smthrs";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, parse, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -264,6 +264,7 @@ const releaseApprovalBindingSchema = z.object({
 const executeReleasesSchema = z.object({
   released: z.array(z.object({ lane: z.string(), version: z.string(), tag: z.string().nullable() })).default([]),
   failed: z.array(z.object({ lane: z.string(), reason: z.string() })).default([]),
+  ledgerPath: z.string(),
   summary: z.string().default(""),
 });
 
@@ -279,6 +280,19 @@ const removalPrsSchema = z.object({
     )
     .default([]),
   summary: z.string().default(""),
+});
+
+const mergeApprovalBindingSchema = z.object({
+  prs: z.array(z.object({
+    lane: z.string(),
+    repo: z.string(),
+    prNumber: z.number().int().positive(),
+    baseRef: z.string(),
+    baseSha: z.string(),
+    headSha: z.string(),
+    checksSha256: z.string(),
+  })).default([]),
+  summary: z.string(),
 });
 
 const mergeRemovalPrsSchema = z.object({
@@ -336,6 +350,7 @@ const { Workflow, Task, Sequence, Parallel, Branch, Loop, Ralph, Approval, smith
   gatePublish: approvalSchema,
   executeReleases: executeReleasesSchema,
   removalPrs: removalPrsSchema,
+  mergeApprovalBinding: mergeApprovalBindingSchema,
   gateMerge: approvalSchema,
   mergeRemovalPrs: mergeRemovalPrsSchema,
   finalVerify: finalVerifySchema,
@@ -899,6 +914,22 @@ type ReleasePlan = {
   repos?: Array<{ lane?: string; version?: string; githubRelease?: boolean }>;
 };
 
+type ReleaseLedger = {
+  packages?: Record<string, unknown>;
+  repos?: Record<string, { version: string; tag: string; releaseUrl?: string }>;
+};
+
+function readReleaseLedger(ledgerPath: string): ReleaseLedger {
+  if (!existsSync(ledgerPath)) return { packages: {}, repos: {} };
+  return JSON.parse(readFileSync(ledgerPath, "utf8")) as ReleaseLedger;
+}
+
+function writeReleaseLedger(ledgerPath: string, ledger: ReleaseLedger): void {
+  const temporary = `${ledgerPath}.tmp-${process.pid}`;
+  writeFileSync(temporary, `${JSON.stringify(ledger, null, 2)}\n`, { flag: "wx" });
+  renameSync(temporary, ledgerPath);
+}
+
 function planVersionForLane(plan: ReleasePlan, lane: string): string {
   const pkg = (plan.packages ?? []).find(
     (p) => (p.repo ?? p.lane) === lane && typeof p.version === "string" && p.version,
@@ -913,7 +944,9 @@ function planVersionForLane(plan: ReleasePlan, lane: string): string {
 // publication NEVER calls `npm publish` once per repo root. Instead it invokes
 // the validated ROOT COORDINATOR (authored in the kernel clone, consuming the
 // release plan) which publishes every publishable package in DAG order, then
-// this creates a tag + GitHub release for EVERY repo. Failures throw.
+// this creates a tag + GitHub release for EVERY repo. Every irreversible step
+// is recorded in an atomic ledger so a retry resumes and verifies instead of
+// publishing from the beginning.
 function executeReleases(
   migrationRoot: string,
   githubOrg: string,
@@ -939,37 +972,70 @@ function executeReleases(
   if (!existsSync(planPath))
     throw new Error(`release plan ${planPath} does not exist — the inventory step must emit it`);
   const plan = JSON.parse(readFileSync(planPath, "utf8")) as ReleasePlan;
+  for (const pkg of plan.packages ?? []) {
+    if (pkg.publishTo === "npm" && (!pkg.name || !/^@?[a-z0-9][a-z0-9._/-]*$/.test(pkg.name))) {
+      throw new Error(`release plan contains an unsafe npm package name: ${JSON.stringify(pkg.name)}`);
+    }
+    if (pkg.publishTo === "npm" && (!pkg.version || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(pkg.version))) {
+      throw new Error(`release plan contains an unsafe package version for ${pkg.name ?? "(unnamed)"}`);
+    }
+  }
+  execFileSync("pnpm", ["whoami"], { cwd: kernelPath, encoding: "utf8" });
+  execFileSync("gh", ["auth", "status"], { cwd: kernelPath, encoding: "utf8" });
   const coordinator = join(kernelPath, "scripts", "federation-release.mjs");
   if (!existsSync(coordinator)) {
     throw new Error(
       `root release coordinator ${coordinator} does not exist — the kernel-strip step must author it (consumes the release plan).`,
     );
   }
-  // Invoke the validated coordinator: publishes every publishable package in
-  // every repo, in package-DAG order. Throws on any failure.
-  execFileSync("node", [coordinator, "--plan", planPath, "--execute"], {
-    cwd: kernelPath,
-    encoding: "utf8",
-    maxBuffer: 64 * 1024 * 1024,
-  });
+  const ledgerPath = join(rootPath, "artifacts", "release-ledger.json");
+  const failed: { lane: string; reason: string }[] = [];
+  try {
+    execFileSync("node", [coordinator, "--plan", planPath, "--execute", "--ledger", ledgerPath, "--resume"], {
+      cwd: kernelPath,
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    });
+  } catch (error) {
+    failed.push({ lane: "npm-packages", reason: String(error instanceof Error ? error.message : error).slice(0, 300) });
+    return {
+      released: [],
+      failed,
+      ledgerPath,
+      summary: `Package publication stopped with a durable ledger at ${ledgerPath}; retry will resume and verify completed artifacts.`,
+    };
+  }
   // Tags + GitHub releases for EVERY repo (including repos with zero npm
   // packages — e.g. examples/apps that only need a GitHub release).
   const released: { lane: string; version: string; tag: string | null }[] = [];
-  const failed: { lane: string; reason: string }[] = [];
   for (const lane of readDagOrder(migrationRoot)) {
     const path = laneDir(rootPath, lane);
     const fullName = `${githubOrg}/${lane}`;
     try {
       const version = planVersionForLane(plan, lane);
       const tag = `v${version}`;
+      const ledger = readReleaseLedger(ledgerPath);
+      const recorded = ledger.repos?.[lane];
+      if (recorded) {
+        if (recorded.version !== version || recorded.tag !== tag) {
+          throw new Error(`ledger drift: recorded ${recorded.tag}/${recorded.version}, requested ${tag}/${version}`);
+        }
+        if (!gitIn(path, ["ls-remote", "--tags", "origin", `refs/tags/${tag}`]).trim()) {
+          throw new Error(`ledger records ${tag}, but the remote tag is missing`);
+        }
+        execFileSync("gh", ["release", "view", tag, "--repo", fullName], { cwd: path, encoding: "utf8" });
+        released.push({ lane, version, tag });
+        continue;
+      }
       if (!gitIn(path, ["tag", "-l", tag]).trim()) {
         gitIn(path, ["tag", "-a", tag, "-m", `${lane} ${tag} (federation release)`]);
       }
       if (!gitIn(path, ["ls-remote", "--tags", "origin", tag]).trim()) {
         gitIn(path, ["push", "origin", tag]);
       }
+      let releaseUrl = "";
       try {
-        execFileSync(
+        releaseUrl = execFileSync(
           "gh",
           [
             "release",
@@ -983,26 +1049,26 @@ function executeReleases(
             `Federated release of ${lane} ${tag}, split out of the smithers monorepo.`,
           ],
           { cwd: path, encoding: "utf8" },
-        );
+        ).trim();
       } catch {
         // Already exists from an earlier attempt — verify it is really there.
-        execFileSync("gh", ["release", "view", tag, "--repo", fullName], { cwd: path, encoding: "utf8" });
+        releaseUrl = execFileSync("gh", ["release", "view", tag, "--repo", fullName, "--json", "url", "--jq", ".url"], { cwd: path, encoding: "utf8" }).trim();
       }
+      const updatedLedger = readReleaseLedger(ledgerPath);
+      updatedLedger.repos = { ...(updatedLedger.repos ?? {}), [lane]: { version, tag, releaseUrl } };
+      writeReleaseLedger(ledgerPath, updatedLedger);
       released.push({ lane, version, tag });
     } catch (err) {
       failed.push({ lane, reason: String(err instanceof Error ? err.message : err).slice(0, 300) });
     }
   }
-  if (failed.length > 0) {
-    throw new Error(
-      `executeReleases failed for ${failed.length} lane(s): ${failed.map((f) => `${f.lane} (${f.reason})`).join("; ")}. ` +
-        `Released so far: ${released.map((r) => r.lane).join(", ") || "none"}.`,
-    );
-  }
   return {
     released,
     failed,
-    summary: `Coordinator published all packages in DAG order; tagged + released ${released.length}/${NEW_REPO_LANES.length} repos on GitHub.`,
+    ledgerPath,
+    summary: failed.length > 0
+      ? `Release is partial: ${released.length}/${NEW_REPO_LANES.length} repositories complete; ${failed.length} failed. Resume from ${ledgerPath}.`
+      : `Coordinator published all packages in DAG order; tagged + released ${released.length}/${NEW_REPO_LANES.length} repos on GitHub; ledger ${ledgerPath}.`,
   };
 }
 
@@ -1073,12 +1139,50 @@ function removalPRs(
 
 // Merges stay behind the merge approval: explicit --repo everywhere, CI must
 // be green first, and this only runs after destination validation + publish.
-function mergeRemovalPRs(prs: Array<{ lane: string; repo: string | null; prNumber: number | null }>) {
+function captureMergeApprovalBinding(
+  prs: Array<{ lane: string; repo: string | null; prNumber: number | null }>,
+): z.infer<typeof mergeApprovalBindingSchema> {
+  const bound = prs.map((pr) => {
+    if (!pr.repo || pr.prNumber === null) throw new Error(`${pr.lane}: cannot bind a PR without repo and number`);
+    const raw = execFileSync("gh", [
+      "pr", "view", String(pr.prNumber), "--repo", pr.repo,
+      "--json", "baseRefName,baseRefOid,headRefOid,statusCheckRollup",
+    ], { encoding: "utf8" });
+    const view = JSON.parse(raw) as {
+      baseRefName?: string;
+      baseRefOid?: string;
+      headRefOid?: string;
+      statusCheckRollup?: unknown;
+    };
+    if (!view.baseRefName || !view.baseRefOid || !view.headRefOid) throw new Error(`${pr.repo}#${pr.prNumber}: incomplete PR revision metadata`);
+    return {
+      lane: pr.lane,
+      repo: pr.repo,
+      prNumber: pr.prNumber,
+      baseRef: view.baseRefName,
+      baseSha: view.baseRefOid,
+      headSha: view.headRefOid,
+      checksSha256: createHash("sha256").update(JSON.stringify(view.statusCheckRollup ?? [])).digest("hex"),
+    };
+  });
+  return { prs: bound, summary: `Bound ${bound.length} PR(s) to exact repository, number, base, head, and check-suite identities.` };
+}
+
+function mergeRemovalPRs(
+  prs: Array<{ lane: string; repo: string | null; prNumber: number | null }>,
+  approved: z.infer<typeof mergeApprovalBindingSchema>,
+) {
   const merged: { lane: string; prNumber: number | null }[] = [];
   const failed: { lane: string; reason: string }[] = [];
   for (const pr of prs) {
     if (pr.prNumber === null || !pr.repo) {
       failed.push({ lane: pr.lane, reason: "no PR number or repo recorded" });
+      continue;
+    }
+    const current = captureMergeApprovalBinding([pr]).prs[0];
+    const expected = approved.prs.find((item) => item.repo === pr.repo && item.prNumber === pr.prNumber);
+    if (!current || !expected || JSON.stringify(current) !== JSON.stringify(expected)) {
+      failed.push({ lane: pr.lane, reason: "PR head, base, repository, number, or checks drifted after approval" });
       continue;
     }
     try {
@@ -1209,6 +1313,7 @@ export default smithers((ctx) => {
   const publishApproved = gatePublish?.approved === true;
   const executeReleasesResult = ctx.outputMaybe(outputs.executeReleases, { nodeId: "executeReleases" });
   const removalPrsResult = ctx.outputMaybe(outputs.removalPrs, { nodeId: "removalPrs" });
+  const mergeApprovalBindingResult = ctx.outputMaybe(outputs.mergeApprovalBinding, { nodeId: "mergeApprovalBinding" });
   const gateMerge = ctx.outputMaybe(outputs.gateMerge, { nodeId: "gate-merge" });
   const mergeApproved = gateMerge?.approved === true;
   const mergeRemovalPrsResult = ctx.outputMaybe(outputs.mergeRemovalPrs, { nodeId: "mergeRemovalPrs" });
@@ -1538,28 +1643,43 @@ export default smithers((ctx) => {
                 </Task>
               ) : null}
 
-              {executeReleasesResult ? (
+              {executeReleasesResult?.failed.length === 0 && executeReleasesResult.released.length === NEW_REPO_LANES.length ? (
                 <Task id="removalPrs" output={outputs.removalPrs} timeoutMs={10 * 60_000}>
                   {() => removalPRs(migrationRoot, sourceRepo, updateSmithersResult, lanePushResults)}
                 </Task>
               ) : null}
 
               {removalPrsResult ? (
+                <Task id="mergeApprovalBinding" output={outputs.mergeApprovalBinding} timeoutMs={10 * 60_000}>
+                  {() => captureMergeApprovalBinding(removalPrsResult.prs)}
+                </Task>
+              ) : null}
+
+              {mergeApprovalBindingResult ? (
                 <Approval
                   id="gate-merge"
                   output={outputs.gateMerge}
+                  bind={ctx.prove(outputs.mergeApprovalBinding, { nodeId: "mergeApprovalBinding" })}
                   request={{
                     title: "Merge the removal/reference-update PRs?",
-                    summary: `${removalPrsResult.summary}\n\nApproving squash-merges the smithers kernel-strip PR and the multi/plue/awesome-smithers PRs — only where CI is verified green, with explicit --repo.`,
-                    metadata: { prCount: removalPrsResult.prs.length },
+                    summary: `${removalPrsResult?.summary ?? ""}\n${mergeApprovalBindingResult.summary}\n\nApproving squash-merges only these exact revisions after revalidation.`,
+                    metadata: { prs: mergeApprovalBindingResult.prs },
                   }}
                   onDeny="skip"
                 />
               ) : null}
 
-              {mergeApproved ? (
-                <Task id="mergeRemovalPrs" output={outputs.mergeRemovalPrs} timeoutMs={10 * 60_000}>
-                  {() => mergeRemovalPRs(removalPrsResult?.prs ?? [])}
+              {mergeApproved && mergeApprovalBindingResult ? (
+                <Task
+                  id="mergeRemovalPrs"
+                  output={outputs.mergeRemovalPrs}
+                  bind={[
+                    requireProofBinding(ctx.prove(outputs.gateMerge, { nodeId: "gate-merge" }), "gate-merge"),
+                    requireProofBinding(ctx.prove(outputs.mergeApprovalBinding, { nodeId: "mergeApprovalBinding" }), "mergeApprovalBinding"),
+                  ]}
+                  timeoutMs={10 * 60_000}
+                >
+                  {() => mergeRemovalPRs(removalPrsResult?.prs ?? [], mergeApprovalBindingResult)}
                 </Task>
               ) : null}
 

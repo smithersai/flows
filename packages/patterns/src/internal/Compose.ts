@@ -7,6 +7,7 @@
  */
 import { Effects, Flow, Node } from "@smthrs/core"
 import * as Schema from "effect/Schema"
+import { PatternError } from "../PatternError.ts"
 
 /**
  * @since 0.1.0
@@ -142,6 +143,15 @@ export const redeclare = (
 ): Flow.Any => {
   const expected = details(template)
   const actual = details(supplied)
+  if (
+    actual.effects !== undefined &&
+    (expected.effects === undefined || !Effects.narrow(expected.effects, actual.effects).ok)
+  ) {
+    throw new PatternError({
+      code: "envelope_conflict",
+      message: `Decorator "${name}" widens the wrapped flow's declared effect envelope`
+    })
+  }
   return Flow.make({
     name,
     description: actual.description,
@@ -150,11 +160,11 @@ export const redeclare = (
     capabilities: intersectCapabilities(expected.capabilities, actual.capabilities),
     effects: intersectEffects(expected.effects, actual.effects).declaration,
     flows: [supplied],
-    body: (input) =>
+    body: Node.capture({ name }, (input) =>
       Node.andThen(
         Node.succeed({ _tag: "Decorator", name }),
-        () => call(supplied, input)
-      )
+        Node.capture({ name }, () => call(supplied, input))
+      ))
   })
 }
 

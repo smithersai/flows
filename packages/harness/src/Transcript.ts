@@ -298,31 +298,6 @@ export const projectStateResult = (
 }
 
 /**
- * Projects journal events into their model-visible transcript state.
- *
- * A compaction event at sequence `N` replaces every prior model-visible event:
- * the projection starts with its recorded summary and then replays events with
- * sequence greater than `N`. Unknown and journal-only events are ignored.
- *
- * @category projections
- * @since 0.1.0
- * @slop
- */
-export const projectState = (entries: ReadonlyArray<JournalEvent.Entry>): ProjectedState =>
-  Result.getOrElse(projectStateResult(entries), () => ({
-    messages: [],
-    cell: {
-      produced: [],
-      callsStarted: [],
-      callsSettled: [],
-      settled: [],
-      transitions: [],
-      suspensions: [],
-      aborts: []
-    }
-  }))
-
-/**
  * Projects model-visible messages in canonical journal sequence order.
  *
  * @category projections

@@ -33,7 +33,6 @@ const changedFileSchema = z.object({
 const inputSchema = z.object({
   maxAgents: z.preprocess((value) => value ?? undefined, z.number().int().min(1).max(1).default(1)),
   maxRounds: z.preprocess((value) => value ?? undefined, z.number().int().min(1).max(100000).default(100000)),
-  implementationApproved: z.preprocess((value) => value ?? undefined, z.boolean().default(true)),
   requireImplementationApproval: z.preprocess((value) => value ?? undefined, z.boolean().default(false)),
   runImplementation: z.preprocess((value) => value ?? undefined, z.boolean().default(true)),
   metaTicket: z
@@ -534,10 +533,8 @@ export default smithers((ctx) => {
   // fallback). Only an explicit >=1 input overrides the long-running default.
   const maxRounds = resolveMaxIterations(ctx.input.maxRounds, runImplementation);
   const requireImplementationApproval = ctx.input.requireImplementationApproval === true;
-  const implementationApproved = ctx.input.implementationApproved !== false;
-  const approvalRequired = runImplementation && requireImplementationApproval && !implementationApproved;
-  const workApproved =
-    runImplementation && (implementationApproved || !requireImplementationApproval || approvalRequired);
+  const approvalRequired = runImplementation && requireImplementationApproval;
+  const workApproved = runImplementation;
 
   return (
     <Workflow name="docs-driven-development">

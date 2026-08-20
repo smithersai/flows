@@ -54,4 +54,17 @@ describe("Recursion", () => {
       )
     ).toThrow(PatternError)
   })
+
+  it("refuses a symbolic tree instead of silently planning one leaf", () => {
+    const recursive = Recursion.recurse({ child, fuel: 4, depth: 3, fanout: 2 })
+    const composed = Flow.make({
+      input: Schema.Unknown,
+      output: Schema.Unknown,
+      body: (input) => Node.andThen(Node.succeed(input), (value) => recursive(value))
+    })
+
+    expect(() => Graph.build(composed, { input: "root" })).toThrow(
+      "Recursion input must be a literal tree available while planning"
+    )
+  })
 })

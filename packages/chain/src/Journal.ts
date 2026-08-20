@@ -18,7 +18,7 @@ import type * as Event from "./Event.ts"
  * @slop
  */
 export class JournalError extends Schema.TaggedError<JournalError>()("/chain/JournalError", {
-  code: Schema.Literal("journal_unavailable").pipe(
+  code: Schema.Literals(["journal_conflict", "journal_unavailable"]).pipe(
     Schema.withConstructorDefault(Effect.succeed("journal_unavailable"))
   ),
   message: Schema.String
@@ -32,7 +32,7 @@ export class JournalError extends Schema.TaggedError<JournalError>()("/chain/Jou
  * @slop
  */
 export interface Service {
-  readonly append: (event: Event.Event) => Effect.Effect<void, JournalError>
+  readonly append: (event: Event.Event, expectedPosition: number) => Effect.Effect<void, JournalError>
   readonly read: Effect.Effect<ReadonlyArray<Event.Event>, JournalError>
 }
 
@@ -94,7 +94,20 @@ export const layerMemory = (initial: ReadonlyArray<Event.Event> = []): Layer.Lay
     Effect.gen(function*() {
       const ref = yield* Ref.make<ReadonlyArray<Event.Event>>(initial)
       return make({
-        append: Effect.fn("Journal.append")((event) => Ref.update(ref, (events) => [...events, event])),
+        append: Effect.fn("Journal.append")((event, expectedPosition) =>
+          Ref.modify(ref, (events) =>
+            events.length === expectedPosition
+              ? [undefined, [...events, event]] as const
+              : [
+                new JournalError({
+                  code: "journal_conflict",
+                  message: `append expected journal position ${expectedPosition}, found ${events.length}`
+                }),
+                events
+              ] as const).pipe(
+              Effect.flatMap((error) => error === undefined ? Effect.void : Effect.fail(error))
+            )
+        ),
         read: Ref.get(ref)
       })
     })

@@ -198,13 +198,13 @@ describe("MemoryStore", () => {
         tags: ["scope:project"],
         provenance: { runId: "run-1" }
       })
-      const duplicate = yield* store.putNote({
+      const duplicate = yield* Effect.flip(store.putNote({
         namespace,
         id: "old",
         text: "attempted mutation",
         tags: ["scope:secret"],
         provenance: { runId: "run-2" }
-      })
+      }))
       yield* store.putNote({
         namespace,
         id: "replacement",
@@ -224,9 +224,8 @@ describe("MemoryStore", () => {
     }))
 
     expect(result.duplicate).toMatchObject({
-      text: "old guidance",
-      tags: ["scope:project"],
-      provenance: { runId: "run-1" }
+      code: "supersede_conflict",
+      message: expect.stringContaining("different creation data")
     })
     expect(result.pending.map((note) => note.id)).toEqual(["old"])
     expect(result.accepted.map((note) => note.id)).toEqual(["replacement"])
@@ -235,6 +234,28 @@ describe("MemoryStore", () => {
       ["old", "old guidance"],
       ["replacement", "new guidance"]
     ])
+  })
+
+  it("rejects note id collisions and supersession edges across namespaces", async () => {
+    const failures = await run(Effect.gen(function*() {
+      const store = yield* MemoryStore.MemoryStore
+      yield* store.putNote({ namespace, id: "shared", text: "one", tags: [], provenance: {} })
+      const collision = yield* Effect.flip(
+        store.putNote({ namespace: other, id: "shared", text: "one", tags: [], provenance: {} })
+      )
+      yield* store.putNote({ namespace: other, id: "other", text: "two", tags: [], provenance: {} })
+      const edge = yield* Effect.flip(store.supersede({ supersederId: "shared", targetId: "other" }))
+      return { collision, edge }
+    }))
+
+    expect(failures.collision).toMatchObject({
+      code: "supersede_conflict",
+      message: expect.stringContaining("different creation data")
+    })
+    expect(failures.edge).toMatchObject({
+      code: "supersede_conflict",
+      message: expect.stringContaining("share a namespace")
+    })
   })
 
   it("writes standalone supersession edges idempotently and rejects invalid edges", async () => {
@@ -511,7 +532,7 @@ describe("MemoryStore", () => {
       const store = yield* MemoryStore.MemoryStore
       const bare = yield* store.createThread({ namespace })
       const fetched = yield* store.getThread(bare.id)
-      const duplicate = yield* store.createThread({ id: bare.id, namespace: other, title: "ignored" })
+      const duplicate = yield* Effect.flip(store.createThread({ id: bare.id, namespace: other, title: "ignored" }))
       const all = yield* store.listThreads()
       const scoped = yield* store.listThreads({ namespace: other })
       const ids = yield* store.listThreadIds
@@ -523,7 +544,10 @@ describe("MemoryStore", () => {
     expect(result.bare).not.toHaveProperty("title")
     expect(result.bare).not.toHaveProperty("metadata")
     expect(result.fetched).toEqual(result.bare)
-    expect(result.duplicate).toEqual(result.bare)
+    expect(result.duplicate).toMatchObject({
+      code: "store",
+      message: expect.stringContaining("different creation data")
+    })
     expect(result.all).toEqual([result.bare])
     expect(result.scoped).toEqual([])
     expect(result.ids).toEqual([result.bare.id])
@@ -850,7 +874,9 @@ describe("MemoryStore", () => {
     const messages = await Effect.runPromise(
       Effect.forEach(calls, ([name, effect]) => Effect.map(Effect.flip(effect), (error) => `${name}: ${error.message}`))
     )
-    const kept = await Effect.runPromise(Effect.all([overridden.getFact({ namespace, key: "k" }), overridden.listThreadIds]))
+    const kept = await Effect.runPromise(
+      Effect.all([overridden.getFact({ namespace, key: "k" }), overridden.listThreadIds])
+    )
     const stillUnavailable = await Effect.runPromise(
       Effect.flip(overridden.putFact({ namespace, key: "k", value: 1, provenance: {} }))
     )

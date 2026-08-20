@@ -5,8 +5,8 @@
  *
  * @since 0.1.0
  */
-import * as Flow from "@smthrs/core/Flow"
 import * as Digest from "@smthrs/core/Digest"
+import * as Flow from "@smthrs/core/Flow"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import { ScorerError } from "./ScorerError.ts"

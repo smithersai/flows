@@ -37,7 +37,9 @@ const marks: Array<string> = []
 const wired = (
   registration: Layer.Layer<never, never, FlowRuntime.FlowRuntime | Action.Implementations> = Layer.empty
 ): Layer.Layer<
-  Action.Requirement<"waitFor/mark"> | FlowRuntime.FlowRuntime | Action.Implementations
+  Action.Requirement<"waitFor/mark"> | FlowRuntime.FlowRuntime | Action.Implementations,
+  never,
+  Crypto.Crypto
 > =>
   Layer.mergeAll(
     WaitFor.layer,
@@ -60,7 +62,11 @@ const Host = Flow.make("waitFor/host", { payload: {}, body: () => Node.succeed(u
 const Other = Flow.make("waitFor/other", { payload: {}, body: () => Node.succeed(undefined) })
 
 const drive = <A, E>(
-  effect: Effect.Effect<A, E, FlowRuntime.FlowInstance | FlowRuntime.FlowRuntime | Action.Implementations>,
+  effect: Effect.Effect<
+    A,
+    E,
+    Crypto.Crypto | FlowRuntime.FlowInstance | FlowRuntime.FlowRuntime | Action.Implementations
+  >,
   instance: FlowRuntime.FlowInstance["Service"]
 ) =>
   withCrypto(

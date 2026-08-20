@@ -264,6 +264,20 @@ const stalling = `const seen = (ctx.state && ctx.state.seen ? ctx.state.seen : 0
 return { intent: "continue", state: { seen }, context: [{ role: "user", text: "again " + seen }] }`
 
 describe("AgentAction correction budgets", () => {
+  it("rejects non-finite, fractional, and negative budgets at declaration time", () => {
+    for (const corrections of [Number.NaN, Number.POSITIVE_INFINITY, -1, 1.5]) {
+      expect(() =>
+        AgentAction.make("agent/test/InvalidBudget", {
+          payload: { diff: Schema.String },
+          output: Review,
+          seat: "anthropic:test-model",
+          prompt: ({ diff }) => diff,
+          corrections
+        })
+      ).toThrow(AgentAction.InvalidCorrectionBudget)
+    }
+  })
+
   const Zero = AgentAction.make("agent/test/Zero", {
     payload: { diff: Schema.String },
     output: Review,

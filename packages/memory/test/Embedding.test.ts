@@ -111,6 +111,7 @@ describe("Embedding", () => {
     expect(magnitude(long.vector)).toBeCloseTo(1)
     expect(Embedding.inProcessVector("")).toEqual(Array.from({ length: 64 }, () => 0))
     expect(Embedding.inProcessVector("A")).toEqual(Embedding.inProcessVector("a"))
+    expect(Embedding.inProcessVector("I")).toEqual(Embedding.inProcessVector("i"))
     expect(Embedding.inProcessModel).toBe("flows-embedding/in-process-v1")
   })
 

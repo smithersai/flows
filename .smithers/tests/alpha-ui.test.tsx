@@ -42,8 +42,9 @@ test("frame 0 renders every lane pipeline, the land queue, the panel, and the ga
   expect(ids).toContain("panelCodex")
   expect(ids).toContain("panelFable")
   expect(ids).toContain("panelFix")
-  expect(ids).toContain("humanTasksDoc")
-  expect(ids).toContain("humanGate")
+  expect(ids).not.toContain("humanTasksDoc")
+  expect(ids).not.toContain("humanGate")
+  expect(ids).toContain("panelFailed")
 })
 
 test("lane pipeline order: impl before review before fix, land after the lane", async () => {
@@ -193,4 +194,9 @@ test("panel failures open the panel fix step; a passing panel keeps it skipped",
     ],
   })
   expect(taskOf(passing, "panelFix").skipIf).toBe(true)
+  expect(idsOf(passing)).toContain("humanTasksDoc")
+  expect(idsOf(passing)).toContain("humanGate")
+  expect(idsOf(passing)).not.toContain("panelFailed")
+  expect(idsOf(failing)).not.toContain("humanTasksDoc")
+  expect(idsOf(failing)).not.toContain("humanGate")
 })

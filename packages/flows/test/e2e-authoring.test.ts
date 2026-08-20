@@ -120,7 +120,7 @@ const durableTimed = <A, E, R>(body: Effect.Effect<A, E, R>) =>
   ) as Effect.Effect<A>
 
 /** The layer type an action implementation registers itself through. */
-type Implementation = Layer.Layer<never, never, Action.Implementations | FlowRuntime.FlowRuntime>
+type Implementation = Layer.Layer<never, never, Crypto.Crypto | Action.Implementations | FlowRuntime.FlowRuntime>
 
 const wiringFor = (
   engine: FlowRuntime.FlowRuntime["Service"],

@@ -1,4 +1,4 @@
-import { describe, it } from "@effect/vitest"
+import { describe, expectTypeOf, it } from "@effect/vitest"
 import { Effects, Flow, Graph, Node } from "@smthrs/core"
 import * as Schema from "effect/Schema"
 import { expect } from "vitest"
@@ -43,22 +43,7 @@ describe("WithCache", () => {
     expect(Graph.nodes(graph).filter((node) => node.kind === "Dynamic")).toHaveLength(1)
   })
 
-  it("rejects non-positive TTLs", () => {
-    const inner = Flow.make({
-      input: Schema.Void,
-      output: Schema.Void,
-      effects: Effects.make({
-        reads: [],
-        writes: [],
-        mode: "hermetic",
-        onConflict: "serialize",
-        tier: "sealed"
-      }),
-      body: () => Node.succeed(undefined)
-    })
-
-    expect(() => WithCache.withCache(inner, { ttl: 0 })).toThrow(PatternError)
-    expect(() => WithCache.withCache(inner, { ttl: "wat" as never })).toThrow(PatternError)
-    expect(() => WithCache.withCache(inner, { ttl: "1 hour" })).toThrow(PatternError)
+  it("does not expose an unsupported TTL option", () => {
+    expectTypeOf(WithCache.withCache).parameters.toEqualTypeOf<[inner: Flow.Any]>()
   })
 })

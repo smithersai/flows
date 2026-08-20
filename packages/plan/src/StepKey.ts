@@ -193,7 +193,8 @@ export const makeDigestMemo = (): DigestMemo => {
                 entries.delete(address)
               }
               yield* Deferred.done(pending, exit)
-            }))
+            })
+          )
         )
       })
   }
@@ -274,9 +275,18 @@ const normalizeEnvironment = (environment: EnvironmentIdentity) => ({
   ...(environment.runScope === undefined ? {} : { runScope: environment.runScope })
 })
 
-const compareCodeUnits = (left: string, right: string): number => left < right ? -1 : left > right ? 1 : 0
+const compareCodeUnits = (left: string, right: string): number => left < right ? -1 : 1
 
-const writeEntryKey = (entry: FileSet.Entry): string =>
+type NormalizedWriteEntry =
+  | string
+  | { readonly _tag: "TreeArtifact"; readonly path: string }
+  | {
+    readonly _tag: "Glob"
+    readonly include: ReadonlyArray<string>
+    readonly exclude?: ReadonlyArray<string> | undefined
+  }
+
+const writeEntryKey = (entry: NormalizedWriteEntry): string =>
   typeof entry === "string"
     ? JSON.stringify(["Path", entry])
     : entry._tag === "TreeArtifact"

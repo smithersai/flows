@@ -51,7 +51,8 @@ const accepted = (value: unknown): boolean =>
   )
 
 /**
- * Builds a bounded ladder that stops after the first accepted result.
+ * Builds the conservative bounded ladder topology, including every rung.
+ * Use {@link run} for runtime acceptance and short-circuiting.
  *
  * @category constructors
  * @since 0.1.0
@@ -65,7 +66,7 @@ export const make = (options: MakeOptions): Flow.Flow<typeof Schema.Unknown, typ
     input: Schema.Unknown,
     output: Schema.Unknown,
     flows: [...options.rungs, options.accept],
-    body: (input) => {
+    body: Node.capture({ rungs: options.rungs.length }, (input) => {
       const visit = (index: number): Node.Node<unknown, unknown> => {
         const rung = options.rungs[index]
         if (rung === undefined) {
@@ -73,15 +74,21 @@ export const make = (options: MakeOptions): Flow.Flow<typeof Schema.Unknown, typ
         }
         return Node.andThen(
           call(rung, input),
-          (result) =>
-            Node.andThen(call(options.accept, result), (decision) =>
-              accepted(decision)
-                ? Node.succeed(result)
-                : visit(index + 1))
+          Node.capture(
+            { rung: index },
+            (result) =>
+              Node.andThen(
+                call(options.accept, result),
+                Node.capture({ rung: index }, (decision) =>
+                  accepted(decision)
+                    ? Node.succeed(result)
+                    : visit(index + 1))
+              )
+          )
         )
       }
       return visit(0)
-    }
+    })
   })
 }
 

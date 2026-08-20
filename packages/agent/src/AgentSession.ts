@@ -73,7 +73,7 @@ import type { NotificationQueue } from "@smthrs/notifications"
 import { Node } from "@smthrs/plan"
 import * as Registry from "@smthrs/registry/Registry"
 import type { Crypto } from "effect"
-import { Cause, Clock, Duration, Effect, Exit, Fiber, Layer, Option, Schema, Scope, Stream } from "effect"
+import { Cause, Clock, Deferred, Duration, Effect, Exit, Fiber, Layer, Option, Schema, Scope, Stream } from "effect"
 import { Agent } from "./Agent.ts"
 import * as Seat from "./Seat.ts"
 import { SeatResolver } from "./SeatResolver.ts"
@@ -363,12 +363,29 @@ export const waitForRunning = (
   status: (runId: string) => Effect.Effect<RunStatus, unknown>,
   runId: string,
   attempts: number
-): Effect.Effect<void, unknown> =>
+): Effect.Effect<boolean, unknown> =>
   Effect.gen(function*() {
-    if ((yield* status(runId)) === "accepted" && attempts > 0) {
+    const current = yield* status(runId)
+    if (current === "running") {
+      // The running row is written inside ControlLive's admission transaction.
+      // Yield once more so that transaction can publish and commit before the
+      // engine opens its own durable transaction.
+      yield* Effect.yieldNow
+      return true
+    }
+    if (current === "accepted" && attempts > 0) {
       yield* Effect.yieldNow
       return yield* waitForRunning(status, runId, attempts - 1)
     }
+    if (current === "accepted") {
+      return yield* Effect.fail(
+        new LaunchFailed({
+          runId,
+          message: "The accepted run was not published as running before its driver admission budget expired"
+        })
+      )
+    }
+    return false
   })
 
 /**
@@ -428,12 +445,19 @@ export const registerDriver = (
  * @category helpers
  * @since 0.1.0
  */
-export const settleDriverFailure = (cause: Cause.Cause<unknown>, runId: string): Effect.Effect<void> =>
+export const settleDriverFailure = <E, R>(
+  cause: Cause.Cause<unknown>,
+  runId: string,
+  writeFailed: (detail: string) => Effect.Effect<void, E, R>
+): Effect.Effect<void, E, R> =>
   Cause.hasInterruptsOnly(cause)
     ? Effect.interrupt
-    : Effect.annotateLogs(
-      Effect.logError("An accepted agent run could not start on the engine"),
-      { runId, cause: Cause.pretty(cause) }
+    : Effect.andThen(
+      Effect.annotateLogs(
+        Effect.logError("An accepted agent run could not start on the engine"),
+        { runId, cause: Cause.pretty(cause) }
+      ),
+      writeFailed(Cause.pretty(cause))
     )
 
 /** Everything the executor captures at construction and re-provides per run. */
@@ -614,7 +638,7 @@ export const make = (
      * else, and the log line was long gone. The journal is the record a
      * `flows status` diagnosis reads, so the reason a run died belongs in it.
      */
-    const writeStatus = (runId: string, status: RunStatus, detail?: string): Effect.Effect<void> =>
+    const writeStatus = (runId: string, status: RunStatus, detail?: string) =>
       Effect.gen(function*() {
         const fence = yield* runtime.claimFence(runId)
         yield* runtime.writeStatus(runId, fence, status)
@@ -622,16 +646,15 @@ export const make = (
           runId,
           `control.run.${status}`,
           detail === undefined ? { runId, status } : { runId, status, cause: detail.slice(0, 4096) }
-        )
-      }).pipe(
-        Effect.catchCause(
-          (cause) =>
+        ).pipe(
+          Effect.catchCause((cause) =>
             Effect.annotateLogs(
-              Effect.logWarning("An agent run status could not be written"),
+              Effect.logWarning("An agent run lifecycle event could not be journaled"),
               { runId, status, cause: Cause.pretty(cause) }
             )
+          )
         )
-      )
+      })
 
     /**
      * Settles the control-plane status from one execution attempt's exit. A
@@ -643,7 +666,7 @@ export const make = (
       runId: string,
       suspended: boolean,
       exit: Exit.Exit<unknown, unknown>
-    ): Effect.Effect<void> =>
+    ) =>
       Exit.isSuccess(exit)
         ? writeStatus(runId, "completed")
         // Flow suspension deliberately interrupts the user body. Process
@@ -761,13 +784,14 @@ export const make = (
         return tags
       })
 
-    const driver = (runId: string, planId: string): Effect.Effect<void> =>
+    const driver = (runId: string, planId: string) =>
       Effect.gen(function*() {
-        yield* waitForRunning(
+        const admitted = yield* waitForRunning(
           (id) => runtime.getRun(id).pipe(Effect.orDie, Effect.map((run) => run.status)),
           runId,
           4000
         )
+        if (!admitted) return
         yield* engine.execute(agentFlow, {
           executionId: runId,
           payload: { runId, planId },
@@ -778,7 +802,9 @@ export const make = (
           Effect.onInterrupt(() => preserveDriverInterrupt(() => engine.interrupt(agentFlow, runId)))
         )
       }).pipe(
-        Effect.catchCause((cause) => settleDriverFailure(cause, runId))
+        Effect.catchCause((cause) =>
+          settleDriverFailure(cause, runId, (detail) => writeStatus(runId, "failed", detail))
+        )
       )
 
     const awaitParked = (runId: string, attempts: number): Effect.Effect<boolean, unknown> =>
@@ -882,11 +908,21 @@ export const make = (
             })
           )
         )
-        const fiber = yield* Effect.forkIn(driver(input.run.runId, input.plan.card.planId), scope)
+        const start = yield* Deferred.make<void>()
+        const fiber = yield* Effect.forkIn(
+          Deferred.await(start).pipe(
+            Effect.andThen(Effect.yieldNow),
+            Effect.andThen(driver(input.run.runId, input.plan.card.planId))
+          ),
+          scope
+        )
         yield* registerDriver(
           () => runtime.registerFiber(input.run.runId, fiber),
           input.run.runId
+        ).pipe(
+          Effect.onExit((exit) => Exit.isFailure(exit) ? Fiber.interrupt(fiber) : Effect.void)
         )
+        yield* Deferred.succeed(start, void 0)
         return "accepted" as const
       })
 

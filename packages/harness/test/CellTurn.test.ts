@@ -866,16 +866,19 @@ describe("CellTurn completion audit", () => {
     expect(of(events, "resolved")).toHaveLength(1)
   })
 
-  it("accepts a final-frame completion without bouncing into the budget wall, and records it unverified", async () => {
-    const { events, model } = await run({
+  it("fails a final-frame completion that has no verification evidence", async () => {
+    const { events, failure, model } = await run({
       state: audited({ maxFrames: 1 }),
       flows: [check],
       script: [emits(`return { intent: "complete", state: {}, output: "done at the wall" }`)]
     })
     expect(model.recorder.requests).toHaveLength(1)
-    expect(of(events, "resolved")[0]?.message.content[0]).toMatchObject({ text: "done at the wall" })
-    // Accepted because there was no frame left to produce better evidence in,
-    // and journaled with what the harness actually had: nothing.
+    expect(of(events, "resolved")).toHaveLength(0)
+    expect(failure).toMatchObject({
+      code: "unverified_completion",
+      cause: { output: "done at the wall", detail: expect.stringContaining("no verify block") }
+    })
+    expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: false })
     expect(of(events, "completion-audited")[0]?.detail).toContain("no verify block")
   })
 })

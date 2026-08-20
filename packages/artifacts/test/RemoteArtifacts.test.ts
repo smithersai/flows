@@ -66,6 +66,23 @@ const errorOf = (exit: Exit.Exit<unknown, unknown>): unknown => {
 }
 
 describe("uploads", () => {
+  it.effect.each([
+    "http://cache.example.com",
+    "https://user:secret@cache.example.com",
+    "https://cache.example.com?tenant=one",
+    "https://cache.example.com#fragment",
+    "not a URL"
+  ])("refuses unsafe endpoint %s before sending credentials", (endpoint) =>
+    Effect.gen(function*() {
+      const tier = remote(() => new Response(null, { status: 200 }), {
+        endpoint,
+        headers: { authorization: "Bearer secret" }
+      })
+      const exit = yield* tier.store.pipe(Effect.exit)
+      expect(Exit.isFailure(exit)).toBe(true)
+      expect(tier.calls).toEqual([])
+    }))
+
   it.effect("PUTs the bytes to /cas/{digest} and returns the measured address", () =>
     Effect.gen(function*() {
       const tier = remote(() => new Response(null, { status: 201 }))

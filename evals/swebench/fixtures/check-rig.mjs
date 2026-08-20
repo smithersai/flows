@@ -41,6 +41,19 @@ try {
   )
   assert.notEqual(missing.status, 0)
   assert.match(missing.stderr, /no test command given/)
+
+  const valid = spawnSync(process.execPath, [join(root, "lib/validate-instance.mjs"), dataset, "django__django-1"], {
+    encoding: "utf8"
+  })
+  assert.equal(valid.status, 0, valid.stderr)
+  assert.equal(valid.stdout, "abc123")
+
+  const traversal = spawnSync(join(root, "run-instance.sh"), ["../escape"], {
+    encoding: "utf8",
+    env: { ...process.env, SWB_DATASET: dataset }
+  })
+  assert.equal(traversal.status, 2)
+  assert.match(traversal.stderr, /instance id must match/)
 } finally {
   rmSync(temporary, { recursive: true, force: true })
 }

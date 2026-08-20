@@ -4,7 +4,7 @@
  * Launch line, from the repository root:
  *
  * ```bash
- * bun evals/agent/run.ts
+ * node evals/agent/run.ts
  * ```
  *
  * Add `--update` to rewrite `evals/agent/baseline.json` from this run. Do that
@@ -21,11 +21,6 @@
  * baseline: a score dropped, a score moved under an unchanged step key, or an
  * observation went missing. `5` means the gate could not decide, which is an
  * unusable harness rather than a result — repair it instead of reading the red.
- *
- * The suite runs under bun and only under bun. A scorer's identity is a digest
- * over its `score` function's source text, and a runtime that transpiles
- * TypeScript differently produces different keys, which turns every committed
- * record into a missing observation. The guard below refuses that run.
  *
  * @since 0.1.0
  */
@@ -44,14 +39,6 @@ import {
   Suite
 } from "../../packages/evals/src/index.ts"
 import * as AgentSuite from "./suite.ts"
-
-// `Bun` is read through `globalThis` so the check needs no bun type package.
-if (!("Bun" in globalThis)) {
-  process.stderr.write(
-    "evals/agent: run this suite with bun. The committed baseline keys every scorer by a digest of its transpiled source text, which only bun reproduces; another runtime reads the whole baseline as missing.\n"
-  )
-  process.exit(5)
-}
 
 const baselinePath = new URL("./baseline.json", import.meta.url)
 

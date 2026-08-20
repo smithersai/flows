@@ -280,7 +280,32 @@ describe("Replay", () => {
       )
 
       expect(pages).toBe(1)
-      expect(failure).toMatchObject({ code: "not_found" })
+      expect(failure).toMatchObject({ code: "invalid" })
+    }))
+
+  it.effect("fails a repeated non-empty continuation page instead of spinning", () =>
+    Effect.gen(function*() {
+      let pages = 0
+      const repeated = entry(0, "same")
+      const journal = Journal.makeNoop({
+        entries: () => Effect.sync(() => {
+          pages += 1
+          return { entries: [repeated], hasMore: true }
+        })
+      })
+      const failure = yield* Effect.flip(
+        Replay.rederive(
+          { lineageId: "run/root", seq: 0 },
+          { initial: 0, reduce: (count: number) => count + 1 },
+          { runId: "run" }
+        ).pipe(
+          Effect.provide(Layer.succeed(Journal.Journal, journal)),
+          Effect.provide(CacheStore.layerNoop())
+        )
+      )
+
+      expect(pages).toBe(2)
+      expect(failure).toMatchObject({ code: "invalid" })
     }))
 
   it.effect("preserves a projection defect without misclassifying it as a persistence failure", () =>

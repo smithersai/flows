@@ -20,7 +20,7 @@
  * @since 0.1.0
  */
 import variant from "@jitl/quickjs-singlefile-browser-release-sync"
-import { Effect, Layer, Option, Schema } from "effect"
+import { Context, Effect, Layer, Option, Schema } from "effect"
 import type { QuickJSContext, QuickJSHandle, QuickJSRuntime, QuickJSWASMModule } from "quickjs-emscripten-core"
 import { newQuickJSWASMModuleFromVariant } from "quickjs-emscripten-core"
 import * as Cell from "./Cell.ts"
@@ -169,12 +169,35 @@ const handleFromJson = (
  * Compiling QuickJS is expensive and the module holds no per-cell state — each
  * evaluation gets its own runtime and context out of it.
  */
-let loaded: Promise<QuickJSWASMModule> | undefined
-
-const wasmModule = (): Promise<QuickJSWASMModule> => {
-  loaded = loaded ?? newQuickJSWASMModuleFromVariant(variant)
-  return loaded
+/** Caches only a successful asynchronous load; a rejection may be retried. */
+export const cacheSuccessful = <A>(load: () => Promise<A>): () => Promise<A> => {
+  let loaded: Promise<A> | undefined
+  return () => {
+    if (loaded === undefined) {
+      const pending = load()
+      loaded = pending
+      void pending.catch(() => {
+        if (loaded === pending) loaded = undefined
+      })
+    }
+    return loaded
+  }
 }
+
+const wasmModule = cacheSuccessful(() => newQuickJSWASMModuleFromVariant(variant))
+
+/** Synchronous monotonic-enough clock required by QuickJS's interrupt callback. */
+export interface ComputeClockService {
+  readonly now: () => number
+}
+
+/** Synchronous monotonic-enough clock required by QuickJS's interrupt callback. */
+export class ComputeClock extends Context.Service<ComputeClock, ComputeClockService>()(
+  "flows/harness/QuickJSSandbox/ComputeClock"
+) {}
+
+/** Provides the browser-safe host clock behind the QuickJS clock seam. */
+export const layerClockLive: Layer.Layer<ComputeClock> = Layer.succeed(ComputeClock)({ now: () => Date.now() })
 
 const capabilities: Sandbox.Capabilities = {
   calls: true,
@@ -203,7 +226,8 @@ const totalMsOf = (evaluation: Sandbox.Evaluation): number => {
 
 const evaluate = (
   module: QuickJSWASMModule,
-  evaluation: Sandbox.Evaluation
+  evaluation: Sandbox.Evaluation,
+  clock: ComputeClockService
 ): Effect.Effect<Cell.Outcome, Sandbox.SandboxError | HarnessError> =>
   Effect.gen(function*() {
     const compiled = Sandbox.compile(evaluation.cell)
@@ -219,7 +243,7 @@ const evaluate = (
     // check after a long `ctx.call` read the whole call as elapsed compute
     // and rejected the frame — which taught agents that verifying their work
     // was fatal.
-    let clockBase = Date.now()
+    let clockBase = clock.now()
     let exhausted: Cell.Rejected | undefined
 
     const acquired = yield* Effect.acquireRelease(
@@ -232,7 +256,7 @@ const evaluate = (
         const stepBudget = limits.steps
         let steps = 0
         runtime.setInterruptHandler(() => {
-          if (Date.now() - clockBase >= timeMs) {
+          if (clock.now() - clockBase >= timeMs) {
             exhausted = exhausted ?? timeLimitExceeded(timeMs)
             return true
           }
@@ -401,11 +425,11 @@ const evaluate = (
       // Timed so the host call's duration is refunded to the compute clock.
       handler: (call) =>
         Effect.suspend(() => {
-          const pausedAt = Date.now()
+          const pausedAt = clock.now()
           return evaluation.call(call).pipe(
             Effect.onExit(() =>
               Effect.sync(() => {
-                clockBase += Date.now() - pausedAt
+                clockBase += clock.now() - pausedAt
               })
             )
           )
@@ -430,13 +454,28 @@ const evaluate = (
  * @since 0.1.0
  * @slop
  */
-export const make: Effect.Effect<Sandbox.Sandbox> = Effect.map(
-  Effect.promise(() => wasmModule()),
-  (module) =>
-    Sandbox.make({
-      capabilities,
-      evaluate: (evaluation) => evaluate(module, evaluation)
+export const makeWithClock: Effect.Effect<Sandbox.Sandbox, Sandbox.SandboxError, ComputeClock> = Effect.gen(
+  function*() {
+    const clock = yield* ComputeClock
+    const module = yield* Effect.tryPromise({
+      try: wasmModule,
+      catch: (cause) =>
+        new Sandbox.SandboxError({
+          code: "runtime_failed",
+          message: "QuickJS WebAssembly module could not be loaded",
+          cause
+        })
     })
+    return Sandbox.make({
+      capabilities,
+      evaluate: (evaluation) => evaluate(module, evaluation, clock)
+    })
+  }
+)
+
+/** Constructs the QuickJS sandbox with the live clock layer. */
+export const make: Effect.Effect<Sandbox.Sandbox, Sandbox.SandboxError> = makeWithClock.pipe(
+  Effect.provide(layerClockLive)
 )
 
 /**
@@ -446,4 +485,4 @@ export const make: Effect.Effect<Sandbox.Sandbox> = Effect.map(
  * @since 0.1.0
  * @slop
  */
-export const layer: Layer.Layer<Sandbox.Sandbox> = Layer.effect(Sandbox.Sandbox)(make)
+export const layer: Layer.Layer<Sandbox.Sandbox, Sandbox.SandboxError> = Layer.effect(Sandbox.Sandbox)(make)

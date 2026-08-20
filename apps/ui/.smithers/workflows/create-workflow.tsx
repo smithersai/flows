@@ -24,6 +24,11 @@ const UI_DIR = ".smithers/ui";
 const TESTS_DIR = ".smithers/tests";
 const PACK_PRELOAD = ".smithers/preload.ts";
 const PACK_PACKAGE_JSON = ".smithers/package.json";
+const workflowSlugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "must be a kebab-case identifier");
+
+export function safeWorkflowSlug(value: unknown): string {
+  return workflowSlugSchema.parse(value);
+}
 
 /**
  * Is the new workflow's test registered in the pack's `test` script? That
@@ -66,9 +71,7 @@ const inputSchema = z.object({
     .string()
     .default("Describe the workflow you want to build, in plain English.")
     .describe("Plain-English description of the workflow you want Smithers to build."),
-  name: z
-    .string()
-    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+  name: workflowSlugSchema
     .nullable()
     .default(null)
     .describe("Desired kebab-case workflow id. Null lets the clarify/design steps choose one."),
@@ -90,7 +93,7 @@ const clarifiedSpecSchema = z.looseObject({
     .describe(
       "Right-size the request BEFORE building anything. direct = a trivial edit the operator should just make; oneshot = one strong agent finishes it in one context window (route to `smithers oneshot`); workflow = the task genuinely needs ordered stages, durability, approvals, loops, or reuse. Only tier `workflow` proceeds to design.",
     ),
-  name: z.string().describe("Proposed kebab-case workflow id."),
+  name: workflowSlugSchema.describe("Proposed kebab-case workflow id."),
   goal: z.string().describe("One sentence: what the finished workflow accomplishes."),
   trigger: z
     .string()
@@ -149,7 +152,7 @@ const provisioningSchema = z.looseObject({
 
 // 3. The concrete design the scaffolder will turn into real files.
 const designSchema = z.looseObject({
-  workflowName: z.string(),
+  workflowName: workflowSlugSchema,
   summary: z.string(),
   inputs: z
     .array(z.object({ name: z.string(), type: z.string(), default: z.string().nullable().default(null) }))
@@ -172,7 +175,7 @@ const designSchema = z.looseObject({
     .string()
     .describe("How the JSX tree nests: Sequence/Parallel/Branch/Loop/Ralph/ReviewLoop, with gates and loops."),
   components: z.array(z.string()).default([]),
-  prompts: z.array(z.string()).default([]).describe(".mdx prompt files to author alongside the workflow."),
+  prompts: z.array(z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*(?:\.mdx)?$/, "prompt names must be safe relative filenames")).default([]).describe(".mdx prompt files to author alongside the workflow."),
   triggers: z.array(z.string()).default([]),
   humanGates: z.array(z.string()).default([]),
   ui: z
@@ -198,7 +201,7 @@ const approvalSchema = z.looseObject({
 // 5 & 6. Files written by the scaffold / fix agents.
 const scaffoldSchema = z.looseObject({
   summary: z.string(),
-  workflowName: z.string(),
+  workflowName: workflowSlugSchema,
   filesWritten: z
     .array(
       z.object({
@@ -314,8 +317,9 @@ export default smithers((ctx) => {
   const proceed = designed && approved;
 
   // The name we scaffold + verify against, resolved as soon as it is known.
-  const workflowName =
-    scaffold?.workflowName ?? design?.workflowName ?? clarify?.name ?? ctx.input.name ?? "new-workflow";
+  const workflowName = safeWorkflowSlug(
+    scaffold?.workflowName ?? design?.workflowName ?? clarify?.name ?? ctx.input.name ?? "new-workflow",
+  );
   const workflowFile = `${WORKFLOWS_DIR}/${workflowName}.tsx`;
   const uiFile = `${UI_DIR}/${workflowName}.tsx`;
   const testFile = `${TESTS_DIR}/${workflowName}.test.tsx`;
@@ -451,7 +455,7 @@ export default smithers((ctx) => {
               <Task id="verify" output={outputs.verify} dependsOn={shouldFix ? ["fix"] : []}>
                 {async () => {
                   const activeScaffold = ctx.latest(outputs.scaffold, "fix") ?? scaffold;
-                  const activeWorkflowName = activeScaffold?.workflowName ?? workflowName;
+                  const activeWorkflowName = safeWorkflowSlug(activeScaffold?.workflowName ?? workflowName);
                   const activeWorkflowFile = `${WORKFLOWS_DIR}/${activeWorkflowName}.tsx`;
                   const activeUiFile = `${UI_DIR}/${activeWorkflowName}.tsx`;
                   const bunx = process.env.SMITHERS_BUNX ?? "bunx";

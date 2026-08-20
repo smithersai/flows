@@ -76,7 +76,10 @@ const boundaryLayer = (fs: FileSystem.FileSystem, options?: BoundaryOptions) =>
     StepBoundary.StepBoundary,
     StepBoundary.makeFileSystem(
       fs,
-      ArtifactStore.makeFileSystem(fs, { directory: options?.objectsDirectory }),
+      ArtifactStore.makeFileSystem(fs, {
+        directory: options?.objectsDirectory,
+        durability: "best-effort"
+      }),
       options
     )
   )

@@ -57,6 +57,11 @@ ${JSON.stringify(props.lanePushResults, null, 2)}
      each repo's own release script in dry-run mode; exit non-zero on any
      failure.
    - `--execute`: actually publish every publishable package in DAG order by
+     package name and exact version. It MUST require `--ledger <path>` and
+     support `--resume`. After each successful publish, atomically persist the
+     package name, version, registry, tarball integrity, and publication result
+     before starting the next package. On resume, query the registry and verify
+     the exact recorded version/integrity before skipping it; fail on drift.
      invoking each repo's per-repo release script, failing fast and reporting
      exactly which package/repo failed.
 5. Update `README.md`, the Mintlify docs source under `docs/`, generated

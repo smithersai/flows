@@ -119,7 +119,7 @@ export interface Interpretation {
  *
  * @private
  */
-type Services = FlowRuntime | FlowInstance | Implementations
+type Services = Crypto.Crypto | FlowRuntime | FlowInstance | Implementations
 
 /**
  * Whether a value is a record to walk into. Everything a payload can carry
@@ -660,7 +660,7 @@ export const layer = <
         )) as (payload: Payload["Type"], executionId: string) => Effect.Effect<
           Success["Type"],
           Error["Type"],
-          Implementations
+          Crypto.Crypto | Implementations
         >
     )
   }))

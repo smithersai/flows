@@ -14,7 +14,14 @@ const Rec = Flow.make("factory/SmokeRecord", {
       Object.fromEntries(
         ["x", "y"].map((id) => [
           id,
-          ShellTask.call({ id, command: `echo ${id}`, cwd: ".", timeoutMs: 30_000, logDir })
+          ShellTask.call({
+            id,
+            command: "printf",
+            args: [`${id}\\n`],
+            cwd: ".",
+            timeoutMs: 30_000,
+            logDir
+          })
         ])
       )
     )

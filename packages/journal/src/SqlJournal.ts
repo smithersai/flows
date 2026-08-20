@@ -809,10 +809,17 @@ export const layer = (
                 })
             )
             const historical = yield* readAvailable
-            const live = Stream.fromSubscription(wake).pipe(
+            const local = Stream.fromSubscription(wake).pipe(
               Stream.mapEffect(() => readAvailable),
               Stream.flattenIterable
             )
+            // PubSub is only a local fast path. Another journal process cannot
+            // publish into it, so a bounded poll must recheck both the durable
+            // tail and the compaction floor while the follower is otherwise idle.
+            const remote = Stream.fromEffectRepeat(
+              Effect.sleep("1 second").pipe(Effect.andThen(readAvailable))
+            ).pipe(Stream.flattenIterable)
+            const live = Stream.merge(local, remote)
             return Stream.concat(Stream.fromIterable(historical), live)
           })()
         )
@@ -1178,13 +1185,15 @@ export const layer = (
             return write(effect)
           }
           const settlements: Array<Effect.Effect<void>> = []
-          return write(
-            Effect.suspend(() => {
-              settlements.length = 0
-              return Effect.provideService(effect, Settlements, settlements)
-            })
-          ).pipe(
-            Effect.tap(() => Effect.forEach(settlements, (settlement) => settlement, { discard: true }))
+          return Effect.uninterruptibleMask((restore) =>
+            restore(write(
+              Effect.suspend(() => {
+                settlements.length = 0
+                return Effect.provideService(effect, Settlements, settlements)
+              })
+            )).pipe(
+              Effect.tap(() => Effect.forEach(settlements, (settlement) => settlement, { discard: true }))
+            )
           )
         })
 
@@ -1198,8 +1207,8 @@ export const layer = (
           eventType: input.eventType
         }).pipe(Effect.andThen(allocation.withPermit(Effect.flatMap(Clock.currentTimeMillis, (emittedAtMs) =>
           Effect.flatMap(Effect.fromResult(prepare(input, emittedAtMs)), ({ metaJson, payloadJson, validated }) =>
-            writer.write(
-              Effect.gen(function*() {
+            Effect.uninterruptibleMask((restore) =>
+              restore(writer.write(Effect.gen(function*() {
                 const key = sourceKey(validated.runId, validated.sourceId)
                 const sourceSeq: SourceSeq = validated.sourceSeq ??
                   (Math.max(
@@ -1250,8 +1259,7 @@ export const layer = (
                 }
                 const commit = yield* insertOne(queued, owner)
                 return { commit, queued, sourceSeq }
-              })
-            ).pipe(
+              }))).pipe(
               /**
                * `writer.write` is a retrying transaction: its body replays on
                * `SQLITE_BUSY(_SNAPSHOT)` and can still abort at COMMIT after the
@@ -1267,6 +1275,8 @@ export const layer = (
                * outermost transaction commits.
                */
               Effect.tap(({ commit, queued }) => settleCommit(queued, commit)),
+              )
+            ).pipe(
               Effect.map(({ commit, sourceSeq }) =>
                 commit.inserted
                   ? { _tag: "Accepted", seq: commit.entry.seq, sourceSeq } as const
@@ -1586,10 +1596,17 @@ export const layer = (
       // survives a failed batch, so only that batch leaves the pending set;
       // entries queued behind it are still undrained and a later flush must
       // keep waiting for them rather than vouch for unpersisted work.
-      const failSink = (cause: JournalError, lost: number): void => {
+      const failSink = (cause: JournalError, batch: ReadonlyArray<QueuedEntry>): void => {
+        for (const queued of batch) {
+          const identity = sourceEventKey(queued.runId, queued.sourceId, queued.sourceSeq)
+          const pending = state.sourceEvents.get(identity)
+          if (pending?.status === "pending" && pending.seq === queued.seq) {
+            state.sourceEvents.delete(identity)
+          }
+        }
         state.sinkFailure = cause
         state.lossEpoch += 1
-        state.pending = Math.max(0, state.pending - lost)
+        state.pending = Math.max(0, state.pending - batch.length)
         // A waiter that is already registered is the flush the loss belongs
         // to, so reporting it there spends the report; only a loss nobody was
         // waiting on is left for the next flush to pick up.
@@ -1629,14 +1646,14 @@ export const layer = (
               })
             }),
             Effect.tap(() => Effect.sync(() => settle(batch.length))),
-            Effect.catch((cause) => Effect.sync(() => failSink(cause, batch.length))),
+            Effect.catch((cause) => Effect.sync(() => failSink(cause, batch))),
             // Defects only: an interruption is scope closure, and it must end
             // the writer rather than be reported as a lost batch.
             Effect.catchDefect((defect) =>
               Effect.sync(() =>
                 failSink(
                   error("sink_failed", "journal writer failed", Cause.die(defect)),
-                  batch.length
+                  batch
                 )
               )
             )

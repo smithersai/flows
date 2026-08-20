@@ -5,7 +5,7 @@
  *
  * @since 0.1.0
  */
-import { Flow } from "@smthrs/core"
+import { Flow, Node } from "@smthrs/core"
 import * as Effect from "effect/Effect"
 import * as Schedule from "effect/Schedule"
 import * as Compose from "./internal/Compose.ts"
@@ -35,14 +35,14 @@ const declaration = <const Attempts extends number>(
   }
   const details = Compose.details(inner)
   return Flow.make({
-    name: `withRetry(${Compose.displayName(inner)})`,
+    name: `withRetry(${Compose.displayName(inner)}, attempts=${options.attempts})`,
     description: details.description,
     input: details.input,
     output: details.output,
     capabilities: details.capabilities,
     effects: details.effects,
     flows: [inner],
-    body: (input) => Compose.call(inner, input)
+    body: Node.capture({ attempts: options.attempts }, (input) => Compose.call(inner, input))
   })
 }
 

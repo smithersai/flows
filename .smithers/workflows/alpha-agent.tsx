@@ -510,14 +510,13 @@ never batch, never wait for other lanes.
 LANE: ${lane.title}
 WORKTREE: ${wtPath(lane.key)} (branch alpha/${lane.key})
 REVIEW VERDICT: ${col(reviewRow(lane.key), "verdict") ?? "(pending)"}
-REVIEW FINDINGS TO APPLY FIRST:
+APPROVED REVIEW FINDINGS:
 ${col(reviewRow(lane.key), "findings") ?? "(pending)"}
 ${RULES}
 WHAT TO DO:
 1. cd ${wtPath(lane.key)}. Preflight per the rules.
-2. If the review verdict is FIX, apply every finding as additional commits on
-   the branch (explicit pathspecs, emoji conventional commits). If APPROVE with
-   findings "none", proceed directly.
+2. Refuse to continue unless the review verdict is APPROVE. A FIX verdict is
+   handled by the bounded correction/re-review loop before this node mounts.
 ${LAND_PROTOCOL}
 Report: laneKey exactly "${lane.key}"; landed; landedShas (exact shas now on
 origin/main, or "none"); gatesRun (exact commands); gatesGreen; notes (what

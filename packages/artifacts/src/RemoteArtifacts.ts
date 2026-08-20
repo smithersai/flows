@@ -127,10 +127,23 @@ const isOk = (response: HttpClientResponse.HttpClientResponse): boolean =>
  */
 export const make = (
   options: Options
-): Effect.Effect<ArtifactStore.Service, never, HttpClient.HttpClient> =>
+): Effect.Effect<ArtifactStore.Service, ArtifactStore.ArtifactStoreError, HttpClient.HttpClient> =>
   Effect.gen(function*() {
     const client = yield* HttpClient.HttpClient
-    const base = options.endpoint.replace(/\/+$/, "")
+    const endpoint = yield* Effect.try({
+      try: () => new URL(options.endpoint),
+      catch: (cause) => transportFailure("an invalid endpoint", cause)
+    })
+    if (endpoint.protocol !== "https:") {
+      return yield* Effect.fail(transportFailure("a non-HTTPS endpoint", options.endpoint))
+    }
+    if (endpoint.username !== "" || endpoint.password !== "" || endpoint.search !== "" || endpoint.hash !== "") {
+      return yield* Effect.fail(
+        transportFailure("an endpoint containing credentials, a query, or a fragment", options.endpoint)
+      )
+    }
+    endpoint.pathname = endpoint.pathname.replace(/\/+$/, "")
+    const base = endpoint.toString().replace(/\/+$/, "")
     const headers = options.headers
     const authorize = (request: HttpClientRequest.HttpClientRequest): HttpClientRequest.HttpClientRequest =>
       headers === undefined ? request : HttpClientRequest.setHeaders(request, headers)
@@ -314,5 +327,5 @@ export const make = (
  */
 export const layer = (
   options: Options
-): Layer.Layer<ArtifactStore.ArtifactStore, never, HttpClient.HttpClient> =>
+): Layer.Layer<ArtifactStore.ArtifactStore, ArtifactStore.ArtifactStoreError, HttpClient.HttpClient> =>
   Layer.effect(ArtifactStore.ArtifactStore)(make(options))

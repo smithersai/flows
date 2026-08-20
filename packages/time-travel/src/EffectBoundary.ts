@@ -185,7 +185,7 @@ const emit = (
     sourceId: description.sourceId as JournalEvent.SourceId,
     ...(sourceSeq === undefined ? {} : { sourceSeq }),
     eventType,
-    payload: { effect: record(description, status, output) },
+    payload: { version: 1, effect: record(description, status, output) },
     meta: metadata(description, status)
   }
   return journal.emitDurable(input).pipe(
@@ -252,7 +252,10 @@ const BoundaryRecord = Schema.Struct({
   attempt: Schema.optionalKey(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
   nonce: Schema.optionalKey(Schema.NonEmptyString)
 })
-const BoundaryPayload = Schema.Struct({ effect: BoundaryRecord })
+const BoundaryPayload = Schema.Struct({
+  version: Schema.optionalKey(Schema.Literal(1)),
+  effect: BoundaryRecord
+})
 
 /**
  * Decodes one boundary record from a journal entry.
@@ -278,6 +281,24 @@ export const fromEntry = (
   }
 }
 
+/** Decodes a known boundary event, failing closed when its durable payload is corrupt. */
+export const decodeEntry = (
+  entry: JournalEvent.Entry
+): Effect.Effect<EffectRecord | undefined, TimeTravelError> => {
+  if (entry.eventType !== eventType) return Effect.succeed(undefined)
+  return Schema.decodeUnknownEffect(BoundaryPayload)(entry.payload).pipe(
+    Effect.map(({ effect }) => ({
+      ...effect,
+      seq: entry.seq,
+      durableBoundary: effect.durableBoundary !== false,
+      providerStream: effect.providerStream === true
+    })),
+    Effect.mapError((cause) =>
+      error("invalid", `boundary event ${entry.eventId} has an invalid or unsupported payload`, cause)
+    )
+  )
+}
+
 /**
  * Folds boundary entries to the latest monotonic status for each effect while
  * retaining the sequence of the effect's last boundary record.
@@ -287,11 +308,12 @@ export const fromEntry = (
  */
 export const fromEntries = (
   entries: ReadonlyArray<JournalEvent.Entry>
-): ReadonlyArray<EffectRecord> => {
-  const effects = new Map<string, EffectRecord>()
-  for (const entry of entries) {
-    const decoded = fromEntry(entry)
-    if (decoded !== undefined) effects.set(decoded.id, decoded)
-  }
-  return Array.from(effects.values()).sort((left, right) => left.seq - right.seq)
-}
+): Effect.Effect<ReadonlyArray<EffectRecord>, TimeTravelError> =>
+  Effect.gen(function*() {
+    const effects = new Map<string, EffectRecord>()
+    for (const entry of entries) {
+      const decoded = yield* decodeEntry(entry)
+      if (decoded !== undefined) effects.set(decoded.id, decoded)
+    }
+    return Array.from(effects.values()).sort((left, right) => left.seq - right.seq)
+  })

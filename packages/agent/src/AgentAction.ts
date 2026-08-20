@@ -196,6 +196,21 @@ export interface Options<
 }
 
 /**
+ * Raised synchronously when an action declaration has an unbounded correction
+ * budget.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
+export class InvalidCorrectionBudget extends Schema.TaggedError<InvalidCorrectionBudget>()(
+  "flows/agent/InvalidCorrectionBudget",
+  {
+    corrections: Schema.Number,
+    message: Schema.String
+  }
+) {}
+
+/**
  * A declared model-backed action, plus the layer that implements it.
  *
  * The declaration half is an ordinary `Action.Declared`: `.call()` records the
@@ -276,14 +291,19 @@ export const make = <
   tag: Tag,
   options: Options<Payload, Output>
 ): AgentAction<Tag, PayloadSchemaOf<Payload>, Output> => {
+  const limit = options.corrections ?? 1
+  if (!Number.isSafeInteger(limit) || limit < 0) {
+    throw new InvalidCorrectionBudget({
+      corrections: limit,
+      message: "AgentAction corrections must be a non-negative safe integer"
+    })
+  }
   type PayloadSchema = PayloadSchemaOf<Payload>
   const declared = Action.make(tag, {
     payload: options.payload,
     success: options.output,
     error: AgentFailure
   }) as unknown as Action.Declared<Tag, PayloadSchema, Output, typeof AgentFailure>
-
-  const limit = options.corrections ?? 1
 
   const execute = (payload: PayloadSchema["Type"]) =>
     Effect.gen(function*() {

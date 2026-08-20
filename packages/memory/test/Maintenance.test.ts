@@ -271,7 +271,7 @@ describe("Maintenance", () => {
       ["assistant", "text-1"],
       ["user", "text-2"]
     ])
-    expect(result.afterSingle[0]?.id).toMatch(/^summary-/)
+    expect(result.afterSingle[0]?.id).toMatch(/^summary-[0-9a-f]{64}$/)
     expect(result.all).toEqual({ compactedThreads: 1, deletedMessages: 2 })
     expect(result.afterAll.map((message) => [message.role, message.text])).toEqual([
       ["system", "summary of 2"]

@@ -24,6 +24,7 @@ import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as ArtifactStore from "./ArtifactStore.ts"
+import * as ArtifactLocks from "./internal/ArtifactLocks.ts"
 
 /**
  * One enumerated blob: its content address, when it was last written or
@@ -168,27 +169,29 @@ export const makeFileSystem = (
     Effect.gen(function*() {
       yield* Effect.annotateCurrentSpan({ digest })
       yield* ArtifactStore.validateDigest(digest)
-      const path = blobPath(digest)
-      const bound = removeOptions?.ifUnmodifiedSinceMs
-      if (bound !== undefined) {
-        const info = yield* fs.stat(path).pipe(Effect.option)
-        // Already gone is a completed deletion, and an unmeasurable mtime is
-        // no proof of age: both refuse rather than delete.
-        if (Option.isNone(info)) return false
-        const mtime = Option.getOrUndefined(info.value.mtime)
-        if (mtime === undefined || mtime.getTime() > bound) return false
-      }
-      return yield* fs.remove(path).pipe(
-        Effect.as(true),
-        // The blob may have been removed between the fence and here; only a
-        // refusal over bytes that still exist is a host failure.
-        Effect.catch((cause) =>
-          fs.exists(path).pipe(
-            Effect.catch(() => Effect.succeed(false)),
-            Effect.flatMap((present) => present ? Effect.fail(hostFailure(cause)) : Effect.succeed(false))
+      return yield* ArtifactLocks.withDigest(fs, digest, Effect.gen(function*() {
+        const path = blobPath(digest)
+        const bound = removeOptions?.ifUnmodifiedSinceMs
+        if (bound !== undefined) {
+          const info = yield* fs.stat(path).pipe(Effect.option)
+          // Already gone is a completed deletion, and an unmeasurable mtime is
+          // no proof of age: both refuse rather than delete.
+          if (Option.isNone(info)) return false
+          const mtime = Option.getOrUndefined(info.value.mtime)
+          if (mtime === undefined || mtime.getTime() > bound) return false
+        }
+        return yield* fs.remove(path).pipe(
+          Effect.as(true),
+          // The blob may have been removed between the fence and here; only a
+          // refusal over bytes that still exist is a host failure.
+          Effect.catch((cause) =>
+            fs.exists(path).pipe(
+              Effect.catch(() => Effect.succeed(false)),
+              Effect.flatMap((present) => present ? Effect.fail(hostFailure(cause)) : Effect.succeed(false))
+            )
           )
         )
-      )
+      }))
     })
   )
 

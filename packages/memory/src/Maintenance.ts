@@ -3,6 +3,7 @@
  *
  * @since 0.1.0
  */
+import * as Digest from "@smthrs/core/Digest"
 import * as Effect from "effect/Effect"
 import { MemoryError } from "./MemoryError.ts"
 import { MemoryStore, type Message } from "./MemoryStore.ts"
@@ -194,7 +195,8 @@ export const compact = <E, R>(
         messages: oldMessages,
         rendered: render(oldMessages)
       })
-      const summaryId = options.makeSummaryId?.(threadId, oldMessages) ?? `summary-${crypto.randomUUID()}`
+      const summaryId = options.makeSummaryId?.(threadId, oldMessages) ??
+        `summary-${Digest.digest(Digest.canonical({ threadId, messageIds: oldMessages.map((message) => message.id) }))}`
       const deleted = yield* store.compactMessages({
         threadId,
         summary: {

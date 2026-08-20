@@ -151,7 +151,9 @@ export const run = (options: Options): Effect.Effect<Outcome.Terminal, RunError,
     const append = (event: Event.Event): Effect.Effect<void, Journal.JournalError> =>
       Effect.gen(function*() {
         const scoped = chainId === "" ? event : { ...event, chain: chainId }
-        yield* journal.append(scoped)
+        const latest = yield* journal.read
+        events.splice(0, events.length, ...latest)
+        yield* journal.append(scoped, events.length)
         events.push(scoped)
       })
 
@@ -216,7 +218,14 @@ export const run = (options: Options): Effect.Effect<Outcome.Terminal, RunError,
               return yield* new LinkAborted({ observation: priorRejection.observation })
             }
             const prior = settledPrior.get(ordinal)
+            const scriptDigest = origin === "script" ? linkDigest : CallKey.harnessDigest
             if (prior !== undefined) {
+              if (prior.key.link !== link || prior.key.scriptDigest !== scriptDigest) {
+                return yield* new ChainError({
+                  code: "replay_divergence",
+                  message: `link ${link} call ${ordinal} settled under a different link or script than the current call`
+                })
+              }
               if (prior.name !== name) {
                 return yield* new ChainError({
                   code: "replay_divergence",
@@ -248,7 +257,6 @@ export const run = (options: Options): Effect.Effect<Outcome.Terminal, RunError,
                 Observation.make("fuel", `link ${link} exceeded its budget of ${maxCalls} calls`)
               )
             }
-            const scriptDigest = origin === "script" ? linkDigest : CallKey.harnessDigest
             if (name === authorName) {
               if (Option.isSome(authorize)) {
                 // The model seat is inside the envelope too: a deny-all

@@ -101,6 +101,13 @@ export class FlowInstance extends Context.Service<
      */
     cause: Cause.Cause<never> | undefined
 
+    /**
+     * Deferred names registered before their result read. Runtimes use this
+     * set to preempt a suspension when completion lands in the read-to-park
+     * window. Older runtime implementations may initialize it lazily.
+     */
+    awaitedDeferreds?: Set<string> | undefined
+
     readonly actionState: {
       count: number
       readonly latch: Latch.Latch

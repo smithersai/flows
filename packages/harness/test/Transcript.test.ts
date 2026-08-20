@@ -115,7 +115,7 @@ describe("Transcript", () => {
   it("renders a compaction summary plus suffix without changing journal entries", () => {
     const entries = journal()
     const before = entries.map((entry) => entry.seq)
-    const state = Transcript.projectState(entries)
+    const state = Result.getOrThrow(Transcript.projectStateResult(entries))
     expect(state.replaced).toBe("prefix-digest")
     expect(state.messages.map(({ kind }) => kind)).toEqual([
       "summary",
@@ -253,7 +253,7 @@ describe("Transcript", () => {
   })
 
   it("projects an empty journal as an empty transcript", () => {
-    const state = Transcript.projectState([])
+    const state = Result.getOrThrow(Transcript.projectStateResult([]))
 
     expect(state.messages).toEqual([])
     expect(state.replaced).toBeUndefined()
@@ -281,18 +281,14 @@ describe("Transcript", () => {
     )
   })
 
-  it("falls back to an empty projection when a payload cannot be decoded", () => {
-    // `projectState` is the total form: a caller that cannot handle a failure
-    // sees an empty transcript instead of a thrown parse error.
-    const state = Transcript.projectState([
+  it("returns a typed failure when a payload cannot be decoded", () => {
+    const state = Transcript.projectStateResult([
       entry(1, "flows.harness.model-settled.v1", { message: "bad" }),
       entry(2, "flows.harness.compaction-settled.v1", { replacedPrefixDigest: "prefix", summary: "bad" })
     ])
 
-    expect(state.messages).toEqual([])
-    expect(state.replaced).toBeUndefined()
-    expect(state.agentState).toBeUndefined()
-    expect(state.cell.produced).toEqual([])
+    expect(Result.isFailure(state)).toBe(true)
+    if (Result.isFailure(state)) expect(state.failure.code).toBe("projection_failed")
   })
 
   it("keeps only the last compaction and everything sequenced after it", () => {
@@ -317,13 +313,13 @@ describe("Transcript", () => {
         })
       )
 
-    const state = Transcript.projectState([
+    const state = Result.getOrThrow(Transcript.projectStateResult([
       settled(1, "before the first"),
       compaction(2, "first-prefix", "first summary"),
       settled(3, "between"),
       compaction(4, "second-prefix", "second summary"),
       settled(5, "after the second")
-    ])
+    ]))
 
     expect(state.replaced).toBe("second-prefix")
     expect(state.messages).toEqual([
@@ -337,7 +333,7 @@ describe("Transcript", () => {
       ...journal().filter((item) => item.seq <= 8)
     ]
 
-    const state = Transcript.projectState(entries)
+    const state = Result.getOrThrow(Transcript.projectStateResult(entries))
 
     expect(state.messages).toEqual([
       { kind: "summary", message: ModelRequest.Message.user("First turn summary") }
@@ -416,7 +412,7 @@ describe("Transcript", () => {
       outcome: new Cell.Settled({ transition: new Cell.Complete({ state: null, output: "done" }) })
     })
 
-    const state = Transcript.projectState([entry(1, settled.eventType, settled)])
+    const state = Result.getOrThrow(Transcript.projectStateResult([entry(1, settled.eventType, settled)]))
 
     expect(state.messages).toEqual([])
     expect(state.cell.settled).toHaveLength(1)

@@ -81,7 +81,7 @@ describe("Pattern", () => {
         input: inner.input,
         output: inner.output,
         capabilities: ["fs:read", "audit:write"],
-        effects: effect(["workspace/file", "secret/audit"]),
+        effects: effect(["workspace/file"]),
         body: (input) => call(inner, input)
       })
     const withTrace: Pattern.Decorator = (inner) =>
@@ -101,7 +101,7 @@ describe("Pattern", () => {
     expect(details(decorated).effects?.reads).toEqual(["workspace/file"])
   })
 
-  it("reports clipping and never widens a template envelope", () => {
+  it("reports clipping and refuses to launder a wider effect envelope", () => {
     const template = Flow.make({
       input: Schema.String,
       output: Schema.String,
@@ -123,7 +123,6 @@ describe("Pattern", () => {
       body: (input) => Node.succeed(input)
     })
     const report = Pattern.clipped(template, supplied)
-    const decorated = Pattern.decorate(template, () => supplied)
 
     expect(report).toEqual({
       capabilities: ["net:admin"],
@@ -132,13 +131,6 @@ describe("Pattern", () => {
       mode: true,
       tier: true
     })
-    expect(details(decorated).capabilities).toEqual(["fs:read"])
-    expect(details(decorated).effects).toMatchObject({
-      reads: ["workspace/item"],
-      writes: [],
-      mode: "hermetic",
-      tier: "sealed"
-    })
-    expect(Effects.narrow(details(template).effects!, details(decorated).effects!).ok).toBe(true)
+    expect(() => Pattern.decorate(template, () => supplied)).toThrow(PatternError)
   })
 })

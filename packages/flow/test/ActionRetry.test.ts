@@ -31,7 +31,7 @@ const Host = Flow.make("Retry/Host", {
 })
 
 const run = (
-  body: Effect.Effect<number, never, FlowRuntime.FlowInstance | FlowRuntime.FlowRuntime>,
+  body: Effect.Effect<number, never, Crypto.Crypto | FlowRuntime.FlowInstance | FlowRuntime.FlowRuntime>,
   id: string
 ): Effect.Effect<number, never, Crypto.Crypto> =>
   Host.execute({ id }, { executionId: id }).pipe(

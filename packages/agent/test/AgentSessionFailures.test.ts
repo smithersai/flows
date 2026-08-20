@@ -33,7 +33,7 @@ import { Node } from "@smthrs/plan"
 import * as Descriptor from "@smthrs/registry/Descriptor"
 import * as Registry from "@smthrs/registry/Registry"
 import { RegistryError } from "@smthrs/registry/RegistryError"
-import { Deferred, Duration, Effect, Layer, Option, PubSub, Stream } from "effect"
+import { Deferred, Duration, Effect, Fiber, Layer, Option, PubSub, Stream } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Agent from "../src/Agent.ts"
 import * as AgentSession from "../src/AgentSession.ts"
@@ -394,23 +394,29 @@ describe("the executor's control-store seam", () => {
 })
 
 describe("the executor's status fence", () => {
-  it("keeps a run alive when the fence it would write under was already claimed away", async () => {
+  it("propagates a failed authoritative status write through the owned driver", async () => {
     const record = recorder()
-    const statuses = await withExecutor(
+    const registered = Deferred.makeUnsafe<Fiber.Fiber<void, unknown>>()
+    const result = await withExecutor(
       record,
-      { runtime: { claimFence: () => Effect.die("the fence was claimed away") } },
+      {
+        runtime: {
+          claimFence: () => Effect.die("the fence was claimed away"),
+          registerFiber: (_runId, fiber) => Deferred.succeed(registered, fiber).pipe(Effect.asVoid)
+        },
+        engine: (engine) =>
+          ({ ...engine, execute: () => Effect.fail("engine admission failed") }) as unknown as EngineService
+      },
       (executor) =>
         Effect.gen(function*() {
           yield* executor.launch(launchInput)
-          // Nothing settles the deferred here: the status write is swallowed,
-          // so the observable is that the driver finished without failing and
-          // wrote no status and no run-lifecycle journal entry.
-          yield* Effect.sleep(Duration.millis(250))
-          return record.statuses
+          const fiber = yield* Deferred.await(registered)
+          return yield* Fiber.await(fiber)
         })
     )
 
-    expect(statuses).toEqual([])
+    expect(result._tag).toBe("Failure")
+    expect(record.statuses).toEqual([])
     expect(record.journaled.filter((entry) => entry.eventType.startsWith("control.run."))).toEqual([])
   })
 })
@@ -495,6 +501,75 @@ describe("the executor's registry seam", () => {
   })
 })
 
+describe("the executor's driver admission fence", () => {
+  it("never executes a driver when registration fails", async () => {
+    const record = recorder()
+    let executions = 0
+    const failure = await withExecutor(
+      record,
+      {
+        runtime: { registerFiber: () => Effect.fail("registration refused") },
+        engine: (engine) =>
+          ({
+            ...engine,
+            execute: (...args: ReadonlyArray<unknown>) => {
+              executions += 1
+              return (engine.execute as unknown as (...values: ReadonlyArray<unknown>) => Effect.Effect<unknown>)(
+                ...args
+              )
+            }
+          }) as unknown as EngineService
+      },
+      (executor) => Effect.flip(executor.launch(launchInput))
+    )
+
+    expect(failure).toMatchObject({ code: "launch_failed", runId })
+    expect(executions).toBe(0)
+  })
+
+  it("treats a terminal control row as a stop signal, not start permission", async () => {
+    const record = recorder()
+    const checked = Deferred.makeUnsafe<void>()
+    let executions = 0
+    const acceptance = await withExecutor(
+      record,
+      {
+        runtime: {
+          getRun: () =>
+            Effect.sync(() => {
+              Deferred.doneUnsafe(checked, Effect.void)
+              return { ...launchInput.run, status: "cancelled" as const }
+            })
+        },
+        engine: (engine) =>
+          ({
+            ...engine,
+            execute: () => Effect.sync(() => void (executions += 1))
+          }) as unknown as EngineService
+      },
+      (executor) =>
+        Effect.gen(function*() {
+          const result = yield* executor.launch(launchInput)
+          yield* Deferred.await(checked)
+          return result
+        })
+    )
+
+    expect(acceptance).toBe("accepted")
+    expect(executions).toBe(0)
+  })
+
+  it("writes failed when the engine rejects before entering the registered body", async () => {
+    const record = recorder()
+    const result = await launched(record, {
+      engine: (engine) =>
+        ({ ...engine, execute: () => Effect.fail("engine admission failed") }) as unknown as EngineService
+    })
+
+    expect(result).toEqual({ acceptance: "accepted", status: "failed" })
+  })
+})
+
 describe("the executor's resume bridge", () => {
   const entry = (runId: string, eventType: string): JournalEvent.Entry =>
     new JournalEvent.Entry({
@@ -512,6 +587,7 @@ describe("the executor's resume bridge", () => {
   it("keeps following the journal after the engine refuses one re-drive", async () => {
     const record = recorder()
     const resumed: Array<string> = []
+    const bothResumed = Deferred.makeUnsafe<void>()
     const hub = await Effect.runPromise(PubSub.unbounded<JournalEvent.Entry>())
     const attempted = await withExecutor(
       record,
@@ -526,6 +602,7 @@ describe("the executor's resume bridge", () => {
             resume: (_flow: unknown, executionId: string) =>
               Effect.suspend(() => {
                 resumed.push(executionId)
+                if (resumed.length === 2) Deferred.doneUnsafe(bothResumed, Effect.void)
                 // The first re-drive dies. The bridge has to survive it and
                 // still be following the journal when the next event lands.
                 return resumed.length === 1 ? Effect.die("the engine refused the re-drive") : Effect.void
@@ -537,7 +614,7 @@ describe("the executor's resume bridge", () => {
           yield* Deferred.await(record.subscribed)
           yield* PubSub.publish(hub, entry("run-refused", "control.run.resume"))
           yield* PubSub.publish(hub, entry("run-accepted", "control.run.resumed"))
-          yield* Effect.sleep(Duration.millis(300))
+          yield* Deferred.await(bothResumed)
           return resumed
         })
     )
@@ -550,6 +627,7 @@ describe("the executor's resume bridge", () => {
   it("ignores a journal entry that is not a resume event", async () => {
     const record = recorder()
     const resumed: Array<string> = []
+    const resumedOnce = Deferred.makeUnsafe<void>()
     const hub = await Effect.runPromise(PubSub.unbounded<JournalEvent.Entry>())
     const attempted = await withExecutor(
       record,
@@ -561,7 +639,11 @@ describe("the executor's resume bridge", () => {
           ({
             ...engine,
             poll: () => Effect.succeed(Option.some({ _tag: "Suspended" })),
-            resume: (_flow: unknown, executionId: string) => Effect.sync(() => void resumed.push(executionId))
+            resume: (_flow: unknown, executionId: string) =>
+              Effect.sync(() => {
+                resumed.push(executionId)
+                Deferred.doneUnsafe(resumedOnce, Effect.void)
+              })
           }) as unknown as EngineService
       },
       () =>
@@ -569,7 +651,7 @@ describe("the executor's resume bridge", () => {
           yield* Deferred.await(record.subscribed)
           yield* PubSub.publish(hub, entry("run-other", "control.run.completed"))
           yield* PubSub.publish(hub, entry("run-resumed", "control.run.resumed"))
-          yield* Effect.sleep(Duration.millis(300))
+          yield* Deferred.await(resumedOnce)
           return resumed
         })
     )
@@ -580,6 +662,7 @@ describe("the executor's resume bridge", () => {
   it("does not re-drive an execution that never parked", async () => {
     const record = recorder()
     const resumed: Array<string> = []
+    const polled = Deferred.makeUnsafe<void>()
     const hub = await Effect.runPromise(PubSub.unbounded<JournalEvent.Entry>())
     const attempted = await withExecutor(
       record,
@@ -590,7 +673,7 @@ describe("the executor's resume bridge", () => {
         engine: (engine) =>
           ({
             ...engine,
-            poll: () => Effect.succeed(Option.some({ _tag: "Completed" })),
+            poll: () => Deferred.succeed(polled, void 0).pipe(Effect.as(Option.some({ _tag: "Completed" }))),
             resume: (_flow: unknown, executionId: string) => Effect.sync(() => void resumed.push(executionId))
           }) as unknown as EngineService
       },
@@ -598,7 +681,7 @@ describe("the executor's resume bridge", () => {
         Effect.gen(function*() {
           yield* Deferred.await(record.subscribed)
           yield* PubSub.publish(hub, entry("run-settled", "control.run.resume"))
-          yield* Effect.sleep(Duration.millis(300))
+          yield* Deferred.await(polled)
           return resumed
         })
     )

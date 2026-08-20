@@ -64,15 +64,15 @@ const declaration = (inner: Flow.Any, options: Options): Flow.Any => {
     capabilities: details.capabilities,
     effects: details.effects,
     flows: [approval, inner],
-    body: (input) =>
+    body: Node.capture({ reason: options.reason }, (input) =>
       Node.andThen(
         Compose.call(approval, {
           input,
           reason: options.reason,
           scope: "run"
         }),
-        () => Compose.call(inner, input)
-      )
+        Node.capture({ reason: options.reason }, () => Compose.call(inner, input))
+      ))
   })
 }
 

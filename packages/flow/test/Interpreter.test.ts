@@ -7,6 +7,7 @@ import { describe, expect, expectTypeOf, it } from "@effect/vitest"
 import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
 import { Node, Planned } from "@smthrs/plan"
 import { Context, Effect, Exit, Layer, Schema } from "effect"
+import type * as Crypto from "effect/Crypto"
 import { withCrypto } from "./Crypto.ts"
 import { layerMemory, makeInstance } from "./MemoryFlowRuntime.ts"
 
@@ -72,7 +73,11 @@ const wired = (
 
 /** A bare interpretation, outside any registered flow execution. */
 const drive = <A, E>(
-  effect: Effect.Effect<A, E, FlowRuntime.FlowInstance | FlowRuntime.FlowRuntime | Action.Implementations>,
+  effect: Effect.Effect<
+    A,
+    E,
+    Crypto.Crypto | FlowRuntime.FlowInstance | FlowRuntime.FlowRuntime | Action.Implementations
+  >,
   layer: Layer.Layer<
     FlowRuntime.FlowRuntime | Action.Implementations,
     never,
@@ -102,7 +107,7 @@ const refusal = (
   effect: Effect.Effect<
     unknown,
     unknown,
-    FlowRuntime.FlowInstance | FlowRuntime.FlowRuntime | Action.Implementations
+    Crypto.Crypto | FlowRuntime.FlowInstance | FlowRuntime.FlowRuntime | Action.Implementations
   >
 ) =>
   Effect.gen(function*() {
@@ -651,7 +656,11 @@ describe("Interpreter concurrency", () => {
 
   const driveWith = <A, E>(
     layer: Wiring,
-    effect: Effect.Effect<A, E, FlowRuntime.FlowInstance | FlowRuntime.FlowRuntime | Action.Implementations>
+    effect: Effect.Effect<
+      A,
+      E,
+      Crypto.Crypto | FlowRuntime.FlowInstance | FlowRuntime.FlowRuntime | Action.Implementations
+    >
   ) =>
     drive(
       effect,

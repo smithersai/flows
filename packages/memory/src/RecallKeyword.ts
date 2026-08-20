@@ -32,10 +32,12 @@ export interface Row {
 }
 
 const normalize = (value: string): ReadonlyArray<string> =>
-  value.normalize("NFKC").toLocaleLowerCase().split(/[^\p{L}\p{N}_-]+/u).filter(Boolean)
+  value.normalize("NFKC").toLowerCase().split(/[^\p{L}\p{N}_-]+/u).filter(Boolean)
+
+const compareText = (left: string, right: string): number => left < right ? -1 : left > right ? 1 : 0
 
 const score = (query: ReadonlyArray<string>, row: Row): number => {
-  const haystack = `${row.key} ${row.text}`.normalize("NFKC").toLocaleLowerCase()
+  const haystack = `${row.key} ${row.text}`.normalize("NFKC").toLowerCase()
   return query.reduce((total, term) => total + (haystack.includes(term) ? 1 : 0), 0)
 }
 
@@ -73,7 +75,7 @@ const run = (input: Recall.Input): Effect.Effect<Recall.Output, MemoryError.Memo
         .filter((row) => row.score > 0)
     )
     ranked.sort((left, right) =>
-      right.score - left.score || right.updatedAtMs - left.updatedAtMs || left.key.localeCompare(right.key)
+      right.score - left.score || right.updatedAtMs - left.updatedAtMs || compareText(left.key, right.key)
     )
     return Recall.capRecallResults(ranked, input.maxTokens ?? 2048)
   })

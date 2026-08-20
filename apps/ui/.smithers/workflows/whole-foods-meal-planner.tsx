@@ -364,6 +364,15 @@ export async function assertPublicWebhookDestination(
   return url;
 }
 
+/** Credentialed webhooks must use a public IP literal so fetch cannot re-resolve an attacker-controlled DNS name. */
+export async function assertTokenSafeWebhookDestination(rawUrl: string, token: string | undefined): Promise<URL> {
+  const parsed = new URL(rawUrl);
+  if (token && isIP(parsed.hostname.replace(/^\[|\]$/g, "")) === 0) {
+    throw new Error("Credentialed order webhooks require a public IP-literal HTTPS endpoint or a network-layer pinned connector.");
+  }
+  return assertPublicWebhookDestination(rawUrl);
+}
+
 function buildCheckoutLinks(items: Array<{ name: string }>, zipCode: string) {
   return items.map((item) => ({
     name: item.name,
@@ -760,14 +769,13 @@ export default smithers((ctx) => {
                   zipCode: normalized?.constraints.zipCode ?? "",
                   planReference: "plan-meals",
                 };
-                const headers: Record<string, string> = { "content-type": "application/json" };
-                if (process.env.WHOLE_FOODS_ORDER_TOKEN) {
-                  headers.authorization = `Bearer ${process.env.WHOLE_FOODS_ORDER_TOKEN}`;
-                }
                 try {
                   const endpoint = orderWebhook.endpoint;
                   if (!endpoint) throw new Error("Server-configured order webhook is unavailable.");
-                  await assertPublicWebhookDestination(endpoint);
+                  const token = process.env.WHOLE_FOODS_ORDER_TOKEN;
+                  await assertTokenSafeWebhookDestination(endpoint, token);
+                  const headers: Record<string, string> = { "content-type": "application/json" };
+                  if (token) headers.authorization = `Bearer ${token}`;
                   const res = await fetch(endpoint, {
                     method: "POST",
                     headers,

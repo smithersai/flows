@@ -14,7 +14,7 @@
  */
 import variant from "@jitl/quickjs-singlefile-browser-release-sync"
 import { Effect, Layer } from "effect"
-import type { QuickJSContext, QuickJSRuntime, QuickJSWASMModule } from "quickjs-emscripten-core"
+import type { QuickJSContext, QuickJSDeferredPromise, QuickJSRuntime, QuickJSWASMModule } from "quickjs-emscripten-core"
 import { newQuickJSWASMModuleFromVariant } from "quickjs-emscripten-core"
 import type * as Outcome from "./Outcome.ts"
 import type * as Script from "./Script.ts"
@@ -49,6 +49,19 @@ export interface Limits {
  * @slop
  */
 export const memoryFloor = 256 * 1024
+
+/**
+ * Production-safe runner limits. Passing an explicit `undefined` for either
+ * field opts out of that limit.
+ *
+ * @category constants
+ * @since 0.1.0
+ * @slop
+ */
+export const defaultLimits: Required<Limits> = {
+  memoryBytes: 64 * 1024 * 1024,
+  steps: 100_000
+}
 
 /**
  * The prelude evaluated before every script. It installs `ctx.call`,
@@ -177,16 +190,28 @@ const evaluate = <E>(
     const { context, runtime } = acquired
 
     const pending: Array<Pending> = []
+    const deferreds = new Set<QuickJSDeferredPromise>()
+    yield* Effect.addFinalizer(() =>
+      Effect.sync(() => {
+        for (const deferred of deferreds) deferred.dispose()
+        deferreds.clear()
+      })
+    )
 
     const bridge = context.newFunction("__call", (nameHandle, inputHandle) => {
       const name = context.getString(nameHandle)
       const encoded = context.getString(inputHandle)
       const deferred = context.newPromise()
+      deferreds.add(deferred)
       const settle = (payload: unknown): void => {
-        const handle = context.newString(JSON.stringify(payload))
-        deferred.resolve(handle)
-        handle.dispose()
-        deferred.dispose()
+        try {
+          const handle = context.newString(JSON.stringify(payload))
+          deferred.resolve(handle)
+          handle.dispose()
+        } finally {
+          deferred.dispose()
+          deferreds.delete(deferred)
+        }
       }
       pending.push({ name, payload: JSON.parse(encoded), settle })
       return deferred.handle
@@ -322,7 +347,7 @@ export const make = (
     }),
     (module) =>
       ScriptRunner.make({
-        run: (script, handler) => evaluate(module, limits, script, handler)
+        run: (script, handler) => evaluate(module, { ...defaultLimits, ...limits }, script, handler)
       })
   )
 

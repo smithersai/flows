@@ -96,7 +96,7 @@ describe("persisted evidence stays bounded through the real boundary (issue #125
         StepBoundary.StepBoundary,
         StepBoundary.makeFileSystem(
           host.fs,
-          ArtifactStore.makeFileSystem(host.fs, { directory: ".objects" }),
+          ArtifactStore.makeFileSystem(host.fs, { directory: ".objects", durability: "best-effort" }),
           { maxInlineBytes: 16 }
         )
       )
