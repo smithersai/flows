@@ -1,14 +1,20 @@
 /**
  * Writes the fix flow the built-in harness runs on one instance.
  *
- *   node lib/write-flow.mjs <dataset.json> <instance_id> <seat> <container>
+ *   node lib/write-flow.mjs <dataset.json> <instance_id> <seat> <container> <test-command>
  *
- * Ported from the 2026-08 benchmark rig; the only change is that the dataset is
- * addressed by path instead of by a flat scratch directory.
+ * Ported from the 2026-08 benchmark rig; the dataset is addressed by path
+ * instead of by a flat scratch directory, and the repository's test command is
+ * supplied by the caller (see lib/test-command.py) instead of assumed to be
+ * pytest.
  */
 import { readFileSync } from "node:fs"
 
-const [, , datasetPath, instanceId, seat, container] = process.argv
+const [, , datasetPath, instanceId, seat, container, testCommand] = process.argv
+if (testCommand === undefined || testCommand.trim() === "") {
+  console.error("write-flow.mjs: no test command given; see lib/test-command.py")
+  process.exit(1)
+}
 const all = JSON.parse(readFileSync(datasetPath, "utf8"))
 const instance = all.find((row) => row.instance_id === instanceId)
 if (instance === undefined) {
@@ -38,11 +44,19 @@ immediately, and vice versa.
 - Run anything that touches the project — imports, scripts, tests — inside the
   container:
 
-      docker exec ${container} bash -lc 'cd /testbed && python -m pytest <path> -x -q'
+      docker exec ${container} bash -lc 'cd /testbed && <command>'
 
   GNU grep, GNU sed, and the project's dependencies are all available there.
   \`sed -i\` on the host is BSD sed and will not behave like GNU sed; run it
   through docker exec, or avoid it.
+- This repository runs its tests with \`${testCommand}\`, which takes the test
+  paths to run as trailing arguments. It is the runner this project actually
+  uses: other runners are not necessarily installed here.
+- This checkout is colocated with Jujutsu, which snapshots the working copy, so
+  a plain \`git diff\` prints nothing even when your edits are on disk. To see
+  your own changes, diff against the base commit:
+
+      git diff ${instance.base_commit}
 - To change a file, prefer the \`write\` flow: read the file, and write back the
   complete new contents. That is the most reliable edit available to you.
 - \`read\` and \`write\` act on this directory directly and need no container.
