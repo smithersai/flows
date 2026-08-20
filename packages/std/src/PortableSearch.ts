@@ -7,7 +7,7 @@ import * as Path from "@smthrs/kernel/Path"
 import { type Context, Effect, Layer } from "effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Contract from "./internal/SearchContract.ts"
-import { MAX_ENTRIES, notice, truncateBytes } from "./internal/Text.ts"
+import { notice, truncateBytes } from "./internal/Text.ts"
 import * as Walk from "./internal/Walk.ts"
 import * as Search from "./Search.ts"
 import * as StdError from "./StdError.ts"
@@ -42,30 +42,55 @@ const symbolicLinks = (
     { concurrency }
   )
 
+/**
+ * One walk: the files under the root, and whether the root was one file.
+ */
+interface Walked {
+  readonly explicitFile: boolean
+  readonly files: ReadonlyArray<string>
+}
+
+/**
+ * Lists the files a search under `root` reaches.
+ *
+ * Only the root the caller named is allowed to fail the walk. Every entry
+ * below it that the process cannot inspect — a dangling symlink, a symlink
+ * loop, a directory it may not list — is skipped and the walk continues, which
+ * is what `rg --no-messages` does with the same tree. Turning one of those into
+ * a typed failure would make a whole repository unsearchable because of one
+ * link, and would answer differently from the native peer.
+ */
 const walkFiles = (
   fileSystem: FileSystem.FileSystem,
   path: Path.Path,
   root: string,
   hidden: boolean
-): Effect.Effect<ReadonlyArray<string>, StdError.StdError> =>
+): Effect.Effect<Walked, StdError.StdError> =>
   Effect.gen(function*() {
     const info = yield* fileSystem.stat(root).pipe(Effect.mapError(() => Contract.notFound(root)))
-    if (info.type === "File") return [path.normalize(root)]
+    if (info.type === "File") return { explicitFile: true, files: [path.normalize(root)] }
     const files: Array<string> = []
     const directories: Array<string> = [root]
     while (directories.length > 0) {
       const directory = directories.pop()
       if (directory === undefined) continue
-      const children = yield* fileSystem.readDirectory(directory).pipe(
-        Effect.mapError(() => Contract.notFound(directory))
+      const children: ReadonlyArray<string> = yield* fileSystem.readDirectory(directory).pipe(
+        Effect.catch(() =>
+          directory === root
+            ? Effect.fail(Contract.notFound(directory))
+            : Effect.succeed<ReadonlyArray<string>>([])
+        )
       )
       const candidates = children
         .filter((child) => !Walk.skippedDirectories.has(child) && (hidden || !child.startsWith(".")))
         .map((child) => path.join(directory, child))
       const entries = yield* Effect.forEach(candidates, (candidate) =>
         fileSystem.stat(candidate).pipe(
-          Effect.map((candidateInfo) => ({ candidate, type: candidateInfo.type })),
-          Effect.mapError(() => Contract.notFound(candidate))
+          Effect.map((candidateInfo): { readonly candidate: string; readonly type: string | undefined } => ({
+            candidate,
+            type: candidateInfo.type
+          })),
+          Effect.orElseSucceed(() => ({ candidate, type: undefined }))
         ), { concurrency })
       const nested: Array<string> = []
       for (const entry of entries) {
@@ -78,7 +103,31 @@ const walkFiles = (
         if (candidate !== undefined && links[index] !== true) directories.push(candidate)
       }
     }
-    return files.sort()
+    return { explicitFile: false, files: files.sort() }
+  })
+
+/**
+ * Narrows a walk to the files a search reports.
+ *
+ * A root that names one file is that file: `rg` searches a path given on the
+ * command line whatever `-g` says, and follows it even when it is a symlink.
+ * Everything a walk found is filtered by the globs first and probed for
+ * symlinks second, so the probe runs over the far smaller included set.
+ */
+const candidates = (
+  fileSystem: FileSystem.FileSystem,
+  path: Path.Path,
+  walked: Walked,
+  root: string,
+  globs: ReadonlyArray<string>
+): Effect.Effect<ReadonlyArray<string>> =>
+  Effect.gen(function*() {
+    if (walked.explicitFile) return walked.files
+    const included = walked.files.filter((file) =>
+      Contract.includedByGlobs(globs, path.relative(root, file), path.basename(file))
+    )
+    const links = yield* symbolicLinks(fileSystem, included)
+    return included.filter((_, index) => links[index] !== true)
   })
 
 const preview = (line: string): string => {
@@ -92,8 +141,7 @@ const grep = (
   Effect.gen(function*() {
     const fileSystem = yield* FileSystem.FileSystem
     const path = yield* Path.Path
-    const rootInfo = yield* fileSystem.stat(input.root).pipe(Effect.mapError(() => Contract.notFound(input.root)))
-    const files = yield* walkFiles(fileSystem, path, input.root, input.hidden)
+    const walked = yield* walkFiles(fileSystem, path, input.root, input.hidden)
     const insensitive = input.ignoreCase || (input.smartCase && !/[A-Z]/.test(input.pattern))
     const regex = Contract.expression(input.pattern, input.fixedStrings, insensitive)
     const output: Array<Search.GrepLine> = []
@@ -101,16 +149,16 @@ const grep = (
     let filesSearched = 0
     let skippedBinary = 0
 
-    const included = files.filter((file) =>
-      Contract.includedByGlobs(input.globs, path.relative(input.root, file), path.basename(file))
-    )
-    const includedLinks = yield* symbolicLinks(fileSystem, included)
-    for (const [index, file] of included.entries()) {
-      if (includedLinks[index] === true) continue
-      const bytes = yield* fileSystem.readFile(file).pipe(Effect.mapError(() => Contract.notFound(file)))
+    const included = yield* candidates(fileSystem, path, walked, input.root, input.globs)
+    for (const file of included) {
+      // `rg --files` counts a file it cannot open among the files it would
+      // search, and so does this walk: the count is what the globs admitted,
+      // not what the reads happened to return.
       filesSearched++
+      const bytes = yield* Effect.orElseSucceed(fileSystem.readFile(file), () => undefined)
+      if (bytes === undefined) continue
       if (bytes.includes(0)) {
-        if (rootInfo.type === "File") {
+        if (walked.explicitFile) {
           return yield* Effect.fail(
             new StdError.StdError({
               code: "binary_file",
@@ -183,14 +231,10 @@ const glob = (
   Effect.gen(function*() {
     const fileSystem = yield* FileSystem.FileSystem
     const path = yield* Path.Path
-    const files = yield* walkFiles(fileSystem, path, input.root, input.hidden)
-    const included = files.filter((file) =>
-      Contract.includedByGlobs([input.pattern], path.relative(input.root, file), path.basename(file))
-    )
-    const includedLinks = yield* symbolicLinks(fileSystem, included)
-    const matching = included.filter((_, index) => includedLinks[index] !== true).sort()
-    const limit = Math.min(input.limit, MAX_ENTRIES)
-    const paths = matching.slice(0, limit)
+    const walked = yield* walkFiles(fileSystem, path, input.root, input.hidden)
+    const included = yield* candidates(fileSystem, path, walked, input.root, [input.pattern])
+    const matching = [...included].sort()
+    const paths = matching.slice(0, input.limit)
     const unsatisfiable = matching.length > 0 ? undefined : yield* Contract.unsatisfiableNotice({
       fileSystem,
       path,
@@ -201,8 +245,8 @@ const glob = (
     return {
       paths,
       total: matching.length,
-      truncated: matching.length > limit,
-      ...(matching.length > limit ? { notice: notice("entries", paths.length, matching.length) } : {}),
+      truncated: matching.length > input.limit,
+      ...(matching.length > input.limit ? { notice: notice("entries", paths.length, matching.length) } : {}),
       ...(unsatisfiable === undefined ? {} : { notice: unsatisfiable })
     }
   })
