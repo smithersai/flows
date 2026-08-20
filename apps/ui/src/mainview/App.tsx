@@ -36,6 +36,8 @@ import type { KeyboardEvent, ReactNode, RefObject } from "react";
 import { useLiveQuery } from "@tanstack/react-db";
 import { CardView } from "./ChatCards";
 import { ConnectorsSurface } from "./ConnectorsSurface";
+import { GitHubPane } from "./GitHubPane";
+import { RepoFilesBrowser } from "./RepoFilesBrowser";
 import { DevtoolsPanel } from "./DevtoolsPanel";
 import { ConfirmDialog, SurfaceHeader } from "./SurfaceChrome";
 import { ToastStack } from "./ToastStack";
@@ -108,7 +110,7 @@ function ComposerMenu({
 	triggerRef,
 }: {
 	readonly controller: AppController;
-	readonly surface: "chat" | "world" | "connectors";
+	readonly surface: "chat" | "world" | "connectors" | "github" | "files";
 	readonly open: boolean;
 	/*
 	 * The trigger is owned here but refocused from two places — this menu's own
@@ -160,6 +162,12 @@ function ComposerMenu({
 			label: WORLD_DISPLAY_NAME,
 			icon: <BookOpen size={14} aria-hidden="true" />,
 			active: surface === "world",
+		},
+		{
+			flow: "files",
+			label: "Files",
+			icon: <FolderGit2 size={14} aria-hidden="true" />,
+			active: surface === "files",
 		},
 	] as const;
 
@@ -509,7 +517,7 @@ function Composer({
 }: {
 	readonly controller: AppController;
 	readonly typing: boolean;
-	readonly surface: "chat" | "world" | "connectors";
+	readonly surface: "chat" | "world" | "connectors" | "github" | "files";
 	readonly surfacesMenuOpen: boolean;
 	readonly connectMenuOpen: boolean;
 	readonly surfacesTriggerRef: RefObject<HTMLButtonElement | null>;
@@ -685,6 +693,8 @@ function App({ controller }: { readonly controller: AppController }) {
 			theme: session.theme,
 			surface: session.surface,
 			selectedWorldDocumentId: session.selectedWorldDocumentId,
+			selectedRepository: session.selectedRepository,
+			repositoryTab: session.repositoryTab,
 			maximizedCardId: session.maximizedCardId,
 			devtoolsOpen: session.devtoolsOpen,
 			surfacesMenuOpen: session.surfacesMenuOpen,
@@ -1287,6 +1297,13 @@ function App({ controller }: { readonly controller: AppController }) {
 					</section>
 				) : session.surface === "connectors" ? (
 					<ConnectorsSurface controller={controller} />
+				) : session.surface === "github" ? (
+					<GitHubPane controller={controller} session={session} watched={watchedRows[0]?.selected ?? []} cards={cardRows} />
+				) : session.surface === "files" ? (
+					<section className="github-pane embedded-pane" aria-label="Repository files">
+						<SurfaceHeader icon={<FolderGit2 size={17} aria-hidden="true" />} title="Files" subtitle={session.selectedRepository ?? "Repository"} closeCommand="chat" onClose={() => controller.runCommand("chat")} />
+						<RepoFilesBrowser repo={session.selectedRepository} cards={cardRows} onRunCommand={controller.runCommandArgs} />
+					</section>
 				) : null}
 
 				{/* Admin-only: the panel is absent — not hidden — for everyone else. */}

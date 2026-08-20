@@ -27,7 +27,7 @@ export const repoImportPolling = {
 
 /** The honest sign-off when polling can no longer see the job. */
 export const REPO_IMPORT_LOST_STREAM_DETAIL =
-	"lost the import stream — run /repos.import again to re-check";
+	"lost the import stream — it will retry when the repository is opened again";
 
 type ImportPhase = "starting" | "running" | "done" | "failed";
 
@@ -151,6 +151,10 @@ export const createRepoImportSeam = (ctx: SeamContext): RepoImportSeam => {
 		const resolved = resolveTargetRepo(ctx.store, explicit);
 		if ("error" in resolved) return resolved.error;
 		const repo = resolved.repo;
+		const existing = ctx.store.collections.cards.get(`repo-import-${repo}`);
+		if (existing?.kind === "repo-import" && (existing.payload.phase === "starting" || existing.payload.phase === "running" || existing.payload.phase === "done")) {
+			return undefined;
+		}
 		const [owner, name] = repo.split("/") as [string, string];
 
 		const ordinal = ctx.nextOrdinal();

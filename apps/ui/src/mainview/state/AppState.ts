@@ -112,7 +112,10 @@ export const SessionSchema = z.object({
 	 */
 	palette: z.enum(PALETTES).optional(),
 	composerOwner: z.enum(["user", "smithers"]),
-	surface: z.enum(["chat", "world", "connectors"]),
+	surface: z.enum(["chat", "world", "connectors", "github", "files"]),
+	/** The repository currently projected by the GitHub and Files frames. */
+	selectedRepository: z.string().nullable(),
+	repositoryTab: z.enum(["files", "issues", "pulls", "flows"]),
 	selectedWorldDocumentId: z.string().nullable(),
 	/** The card currently maximized (a presentation transition; null = embedded). */
 	maximizedCardId: z.string().nullable(),
@@ -469,9 +472,19 @@ export type AppTransition =
 			draft?: string;
 	  }
 	| {
-			type: "surface.changed";
+			 type: "surface.changed";
 			actor: Actor;
 			surface: Session["surface"];
+	  }
+	| {
+			type: "repository.selected";
+			actor: Actor;
+			repo: string;
+	  }
+	| {
+			type: "repository.tab.changed";
+			actor: Actor;
+			tab: Session["repositoryTab"];
 	  }
 	| {
 			type: "world.document.selected";
@@ -687,6 +700,8 @@ export const initialSession = (theme: Session["theme"]): Session => ({
 	palette: DEFAULT_PALETTE,
 	composerOwner: "user",
 	surface: "chat",
+	selectedRepository: null,
+	repositoryTab: "files",
 	selectedWorldDocumentId: "world-home",
 	maximizedCardId: null,
 	devtoolsOpen: false,

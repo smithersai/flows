@@ -172,6 +172,20 @@ export const baseFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> => 
 		handler: () => actions.showWorld(),
 	}),
 	flow({
+		name: "github",
+		summary: "Browse GitHub repositories",
+		requires: ["signed-in"],
+		input: NoPayload,
+		handler: () => actions.showGithub(),
+	}),
+	flow({
+		name: "files",
+		summary: "Browse repository files",
+		requires: ["signed-in"],
+		input: NoPayload,
+		handler: () => actions.showFiles(),
+	}),
+	flow({
 		/*
 		 * The color theme, the axis orthogonal to light/dark (dark-mode below):
 		 * `/theme <key>` wears a palette, bare `/theme` answers with the list and

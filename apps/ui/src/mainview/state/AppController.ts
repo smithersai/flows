@@ -112,6 +112,10 @@ export interface AppController {
 	readonly showChat: () => void;
 	readonly showWorld: () => void;
 	readonly showConnectors: () => void;
+	readonly showGithub: () => void;
+	readonly showFiles: () => void;
+	readonly openRepository: (repo: string) => void;
+	readonly selectRepositoryTab: (tab: "files" | "issues" | "pulls" | "flows") => void;
 	readonly runCommand: (name: string) => boolean;
 	readonly runCommandArgs: (name: string, args: string) => boolean;
 	readonly connectLocalRepository: (access: RepositoryAccess) => Promise<void>;
@@ -2631,6 +2635,38 @@ export const createAppController = (
 		});
 	};
 
+	const openRepository = (repo: string): void => {
+		store.dispatch({ type: "repository.selected", actor: commandActor, repo });
+		store.dispatch({ type: "surface.changed", actor: commandActor, surface: "github" });
+		// Importing is an implementation detail. Reads retain their existing honest
+		// degradation while this background job is still becoming ready.
+		void repoImportSeam.importRepository(repo);
+	};
+	const selectRepositoryTab = (tab: "files" | "issues" | "pulls" | "flows"): void => {
+		store.dispatch({ type: "repository.tab.changed", actor: commandActor, tab });
+		const repo = store.session().selectedRepository;
+		if (repo === null) return;
+		if (tab === "files") void filesSeam.listFiles("", repo);
+		if (tab === "issues") void issuesSeam.listIssues("open", repo);
+		if (tab === "pulls") void landingsSeam.listLandings(repo);
+		if (tab === "flows") void listWorkspaceWorkflows();
+	};
+
+	const showGithub = (): void => {
+		const repo = store.session().selectedRepository ?? store.collections.watchedRepos.get("watched")?.selected?.[0];
+		if (repo === undefined || repo === null) return;
+		openRepository(repo);
+	};
+
+	const showFiles = (): void => {
+		const repo = store.session().selectedRepository ?? store.collections.watchedRepos.get("watched")?.selected?.[0];
+		if (repo === undefined || repo === null) return;
+		store.dispatch({ type: "repository.selected", actor: commandActor, repo });
+		store.dispatch({ type: "surface.changed", actor: commandActor, surface: "files" });
+		void repoImportSeam.importRepository(repo);
+		void filesSeam.listFiles("", repo);
+	};
+
 	const maximizeCard = (id: string): string | void => {
 		if (store.collections.cards.get(id) === undefined) return `There is no card with id ${id}.`;
 		store.dispatch({ type: "card.maximized", actor: "user", id });
@@ -4501,6 +4537,10 @@ export const createAppController = (
 		showChat,
 		showWorld,
 		showConnectors,
+		showGithub,
+		showFiles,
+		openRepository,
+		selectRepositoryTab,
 		connectLocalRepository,
 		makeConnectorReadOnly,
 		removeConnector,
@@ -4691,6 +4731,10 @@ export const createAppController = (
 		showChat,
 		showWorld,
 		showConnectors,
+		showGithub,
+		showFiles,
+		openRepository,
+		selectRepositoryTab,
 		runCommand,
 		runCommandArgs,
 		connectLocalRepository,

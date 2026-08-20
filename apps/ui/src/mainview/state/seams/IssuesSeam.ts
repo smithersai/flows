@@ -149,7 +149,7 @@ export const createIssuesSeam = (ctx: SeamContext): IssuesSeam => {
 	};
 
 	const notImported = (repo: string): string =>
-		`${repo} isn't imported yet — run /repos.import ${repo} first`;
+		`${repo} isn't ready yet — try again shortly`;
 
 	const upsert = (card: Card): void => {
 		ctx.dispatch({ type: "card.upsert", actor: ctx.actor(), card });
@@ -184,7 +184,7 @@ export const createIssuesSeam = (ctx: SeamContext): IssuesSeam => {
 			id: `issues-${repo}`,
 			kind: "issue-list",
 			title: `Issues · ${repo}`,
-			body: `Read from GitHub — import for full features: /repos.import ${repo}`,
+			body: "Read from GitHub while repository preparation completes.",
 			status: "active",
 			createdAt: Date.now(),
 			ordinal: ctx.nextOrdinal(),
@@ -208,7 +208,7 @@ export const createIssuesSeam = (ctx: SeamContext): IssuesSeam => {
 				return (
 					`Issue #${number} in ${repo} answered 404. If ${repo} isn't imported, ` +
 					`only the issue list can read from GitHub — issue detail needs the ` +
-					`import: run /repos.import ${repo}`
+					"repository preparation is still running"
 				);
 			}
 			return readErrorMessage(

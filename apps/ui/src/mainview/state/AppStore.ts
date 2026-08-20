@@ -1126,6 +1126,19 @@ export const createAppStore = async (
 					});
 					break;
 
+				case "repository.selected":
+					collections.sessions.update(SESSION_ID, (draft) => {
+						draft.selectedRepository = transition.repo;
+						draft.revision = revision;
+					});
+					break;
+				case "repository.tab.changed":
+					collections.sessions.update(SESSION_ID, (draft) => {
+						draft.repositoryTab = transition.tab;
+						draft.revision = revision;
+					});
+					break;
+
 				case "world.document.selected":
 					if (collections.worldDocuments.get(transition.id) === undefined) return;
 					collections.sessions.update(SESSION_ID, (draft) => {
