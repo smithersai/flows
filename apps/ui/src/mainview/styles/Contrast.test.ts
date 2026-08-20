@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { PALETTES } from "../state/AppState";
 
 /*
  * §20.6 — every palette's text tokens clear WCAG AA where they are read.
@@ -23,18 +24,12 @@ const tokens = readFileSync(fileURLToPath(new URL("./tokens.css", import.meta.ur
 /** Comments carry braces and colour-looking text, so the block scan reads the code alone. */
 const code = tokens.replace(/\/\*[\s\S]*?\*\//g, "");
 
-/** Every palette key tokens.css declares, in the order it declares them. */
-const PALETTES = [
-	"night-owl",
-	"paper",
-	"fucory",
-	"one",
-	"github",
-	"catppuccin",
-	"solarized",
-	"gruvbox",
-	"rose-pine",
-] as const;
+/*
+ * The palette keys come from the one typed authority (state/AppState.ts's
+ * PALETTE_METADATA): every palette the product offers must have its tokens.css
+ * blocks contrast-checked here, and a second hand-copied list is exactly how a
+ * palette would ship unchecked.
+ */
 
 /**
  * WCAG 1.4.3 for body-size text. The tokens under test are read at 9px–13px,

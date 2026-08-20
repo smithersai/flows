@@ -76,22 +76,28 @@ export interface Suggestion {
 /*
  * The color themes (/theme), the axis ORTHOGONAL to light/dark (/dark-mode):
  * a palette names a set of semantic color values, and each one ships both a
- * light and a dark variant in styles/tokens.css. The list is the contract —
- * the command's argument spec, the store's validation, and the CSS blocks all
- * read it, so adding a palette is one entry here plus its two CSS blocks.
+ * light and a dark variant in styles/tokens.css. This table is the one typed
+ * authority for the keys and labels — the store's validation, the command's
+ * argument spec, the /theme picker's swatch list, and the contrast gate all
+ * derive from it, so adding a palette is one entry here plus its two CSS
+ * blocks (and its swatch preview in cards/ThemePickerCard.tsx).
  */
-export const PALETTES = [
-	"night-owl",
-	"paper",
-	"fucory",
-	"one",
-	"github",
-	"catppuccin",
-	"solarized",
-	"gruvbox",
-	"rose-pine",
+export const PALETTE_METADATA = [
+	{ key: "night-owl", label: "Night Owl" },
+	{ key: "paper", label: "Paper" },
+	{ key: "fucory", label: "Fucory" },
+	{ key: "one", label: "One" },
+	{ key: "github", label: "GitHub" },
+	{ key: "catppuccin", label: "Catppuccin" },
+	{ key: "solarized", label: "Solarized" },
+	{ key: "gruvbox", label: "Gruvbox" },
+	{ key: "rose-pine", label: "Rosé Pine" },
 ] as const;
-export type Palette = (typeof PALETTES)[number];
+export type Palette = (typeof PALETTE_METADATA)[number]["key"];
+export const PALETTES = PALETTE_METADATA.map((entry) => entry.key) as unknown as readonly [
+	Palette,
+	...Array<Palette>,
+];
 /** The palette a session that has never chosen one gets (and the CSS default). */
 export const DEFAULT_PALETTE: Palette = "night-owl";
 
