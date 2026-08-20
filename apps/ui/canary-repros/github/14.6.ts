@@ -59,6 +59,14 @@ const repoBefore = JSON.parse(repoResponse.body) as {
 	landing_queue_required_checks?: string[];
 };
 const previousChecks = repoBefore.landing_queue_required_checks ?? [];
+const statusResponse = await api(`/api/repos/${REPO}/commits/${CHANGE}/statuses?limit=100`);
+if (statusResponse.status !== 200) throw new Error(`fixture statuses could not be read: HTTP ${statusResponse.status}`);
+const previousStatus = (JSON.parse(statusResponse.body) as Array<{ context?: string; status?: string; description?: string }>).find(
+	(row) => row.context === CHECK,
+);
+if (typeof previousStatus?.status !== "string") {
+	throw new Error(`fixture must already have a restorable ${CHECK} status before this canary mutates it`);
+}
 const failures: Array<string> = [];
 await withVerifiedRestoration(
 	async () => {
@@ -99,6 +107,14 @@ await withVerifiedRestoration(
 		}
 	},
 	async () => {
+		const restoredStatus = await api(`/api/repos/${REPO}/statuses/${CHANGE}`, "POST", {
+			context: CHECK,
+			status: previousStatus.status,
+			description: previousStatus.description ?? "restored by uicanaries 14.6",
+		});
+		if (restoredStatus.status < 200 || restoredStatus.status >= 300) {
+			throw new Error(`status restore answered HTTP ${restoredStatus.status}`);
+		}
 		const restored = await api(`/api/repos/${REPO}`, "PATCH", { landing_queue_required_checks: previousChecks });
 		if (restored.status < 200 || restored.status >= 300) throw new Error(`restore PATCH answered HTTP ${restored.status}`);
 	},
@@ -108,6 +124,14 @@ await withVerifiedRestoration(
 		const checks = (JSON.parse(restored.body) as { landing_queue_required_checks?: string[] }).landing_queue_required_checks ?? [];
 		if (JSON.stringify(checks) !== JSON.stringify(previousChecks)) {
 			throw new Error(`required checks are ${JSON.stringify(checks)}, expected ${JSON.stringify(previousChecks)}`);
+		}
+		const statuses = await api(`/api/repos/${REPO}/commits/${CHANGE}/statuses?limit=100`);
+		if (statuses.status !== 200) throw new Error(`restored statuses could not be read: HTTP ${statuses.status}`);
+		const current = (JSON.parse(statuses.body) as Array<{ context?: string; status?: string }>).find(
+			(row) => row.context === CHECK,
+		);
+		if (current?.status !== previousStatus.status) {
+			throw new Error(`${CHECK} status is ${String(current?.status)}, expected ${previousStatus.status}`);
 		}
 	},
 	`restore landing_queue_required_checks on ${REPO} to ${JSON.stringify(previousChecks)}`,
