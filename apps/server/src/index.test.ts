@@ -66,6 +66,29 @@ describe("smithers mvp worker", () => {
 		expect(response.status).toBe(413);
 	});
 
+	test("stops reading a chunked turn body as soon as it crosses the cap", async () => {
+		let cancelled = false;
+		const body = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(new Uint8Array(700 * 1024));
+				controller.enqueue(new Uint8Array(700 * 1024));
+			},
+			cancel() {
+				cancelled = true;
+			},
+		});
+		const response = await worker.fetch(
+			new Request("https://mvp.test/api/agent/turn", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body,
+			}),
+			assetsEnv(),
+		);
+		expect(response.status).toBe(413);
+		expect(cancelled).toBe(true);
+	});
+
 	/**
 	 * The cap is a byte cap: a body of multi-byte characters encodes to up to 4x its
 	 * string length, so a UTF-16 `.length` check would wave a 2 MB body through.
@@ -384,7 +407,7 @@ describe("smithers mvp worker", () => {
 });
 
 const withMockedFetch = async (
-	handler: (request: Request) => Response | undefined,
+	handler: (request: Request) => Response | Promise<Response> | undefined,
 	run: () => Promise<void>,
 ): Promise<void> => {
 	const originalFetch = globalThis.fetch;
@@ -738,6 +761,38 @@ describe("turn seam session gate", () => {
 			},
 		);
 		expect(upstreamCalls).toBe(0);
+	});
+
+	test("maps an identity outage to 502 instead of a false sign-in 401", async () => {
+		await withMockedFetch(
+			(request) => {
+				if (new URL(request.url).hostname === "identity.test") throw new Error("connection reset");
+				return undefined;
+			},
+			async () => {
+				const response = await worker.fetch(post("/api/agent/turn", turnBody), identityEnv);
+				expect(response.status).toBe(502);
+				expect(((await response.json()) as { message: string }).message).toContain("unreachable");
+			},
+		);
+	});
+
+	test("maps an identity deadline to 504 instead of a false sign-in 401", async () => {
+		await withMockedFetch(
+			(request) => {
+				if (new URL(request.url).hostname !== "identity.test") return undefined;
+				return new Promise<Response>((_resolve, reject) => {
+					request.signal.addEventListener("abort", () => reject(request.signal.reason), { once: true });
+				});
+			},
+			async () => {
+				const response = await worker.fetch(post("/api/agent/turn", turnBody), {
+					...identityEnv,
+					UPSTREAM_TIMEOUT_MS: "1",
+				});
+				expect(response.status).toBe(504);
+			},
+		);
 	});
 
 	test("refuses a signed-in but non-allowlisted account with 403", async () => {

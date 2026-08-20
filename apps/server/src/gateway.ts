@@ -191,23 +191,51 @@ const readRecord = async (env: GatewayEnv, login: string, repo: string): Promise
 	}
 };
 
-const writeRecord = async (env: GatewayEnv, login: string, repo: string, record: GatewayRecord): Promise<void> => {
+const readBoundedResponseText = async (response: Response, limit = 240): Promise<string> => {
+	const reader = response.body?.getReader();
+	if (reader === undefined) return "";
+	const decoder = new TextDecoder();
+	let detail = "";
+	for (;;) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		detail += decoder.decode(value, { stream: true });
+		if (detail.length >= limit) {
+			await reader.cancel().catch(() => {});
+			break;
+		}
+	}
+	return detail.slice(0, limit).trim();
+};
+
+const writeRecord = async (
+	env: GatewayEnv,
+	login: string,
+	repo: string,
+	record: GatewayRecord,
+): Promise<string | undefined> => {
 	const namespace = env.GATEWAY_SESSIONS;
 	if (namespace === undefined) {
 		memoryRecords.set(recordKey(login, repo), record);
-		return;
+		return undefined;
 	}
 	try {
 		const stub = namespace.get(namespace.idFromName(login));
-		await stub.fetch(
+		const response = await stub.fetch(
 			new Request("https://gateway-sessions.internal/record", {
 				method: "PUT",
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({ repo, record }),
 			}),
 		);
-	} catch {
-		// A lost write only costs a re-provision on the next call — idempotent by contract.
+		if (response.ok) {
+			await response.body?.cancel();
+			return undefined;
+		}
+		const detail = await readBoundedResponseText(response);
+		return `The gateway session store answered HTTP ${response.status}${detail === "" ? "." : `: ${detail}`}`;
+	} catch (error) {
+		return `The gateway session store is unavailable: ${error instanceof Error ? error.message : "unknown error"}`;
 	}
 };
 
@@ -299,7 +327,7 @@ export type ProvisionOutcome =
 	| { readonly status: "no_cloud_repo"; readonly detail: string };
 
 const readProvisionError = async (response: Response): Promise<string> =>
-	(await response.text().catch(() => "")).trim().slice(0, 240);
+	readBoundedResponseText(response).catch(() => "");
 
 /**
  * Provision-or-resume (§5): POST {cloud}/api/repos/{owner}/{repo}/gateway with
@@ -419,7 +447,8 @@ const provisionGateway = async (
 		renewAfter: Number.isFinite(expiresAt) ? now + Math.max((expiresAt - now) / 2, 60 * 1000) : now + 30 * 60 * 1000,
 		provisionedAt: now,
 	};
-	await writeRecord(env, login, repo, record);
+	const persistenceError = await writeRecord(env, login, repo, record);
+	if (persistenceError !== undefined) return { status: "unavailable", detail: persistenceError };
 	return { status: "ready", record };
 };
 
