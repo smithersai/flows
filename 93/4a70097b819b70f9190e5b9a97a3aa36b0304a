@@ -8,7 +8,7 @@
   "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
   "section": "post-bootstrap replay",
   "indexInSection": 35,
-  "sectionCount": 71
+  "sectionCount": 83
  },
  "source": {
   "commit": "0cf4984d029443f2d08097c890734fa47878687a",
@@ -40,7 +40,7 @@
  },
  "atomic": {
   "globalIndex": 873,
-  "globalCount": 909,
+  "globalCount": 921,
   "purpose": "✨ feat(run-store): fold run and attempt state into the journal",
   "merge": false
  },
@@ -68,7 +68,7 @@
   "next": "10d114ff64cbedb046a690c985525246cc4d9117",
   "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
   "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
-  "sectionLast": "9f4db87e9b528812c207c1054f8c36a09a06c2c7"
+  "sectionLast": "6fe6857b28247375ab46b0d79cba15e74754ebd6"
  },
  "size": {
   "files": 16,
