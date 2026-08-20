@@ -443,6 +443,28 @@ describe("ChainRuntime behind the NativeAgent seam", () => {
 	});
 
 	test("a background sub-agent works after the turn and its result arrives as a note", async () => {
+		/*
+		 * The gate makes "after the turn" a fact instead of a race. A background
+		 * lineage starts while its parent turn is still running, so whether its
+		 * note steers the live turn or waits in pendingNotes would otherwise be
+		 * decided by how many ticks the runner happens to spend on the parent.
+		 * Holding the background at this entry until the parent's done frame
+		 * lands pins the case this test is about: the note arrives with no turn
+		 * to steer, so the NEXT turn's context carries it.
+		 */
+		let releaseBackground!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			releaseBackground = resolve;
+		});
+		const waitEntry: Catalog.Entry = {
+			name: "test.wait",
+			description: "test gate",
+			handler: () =>
+				Effect.promise(async () => {
+					await gate;
+					return { released: true };
+				}),
+		};
 		const contexts: Array<ReadonlyArray<string>> = [];
 		let authored = 0;
 		const author = Author.layerFn((input) => {
@@ -456,16 +478,21 @@ describe("ChainRuntime behind the NativeAgent seam", () => {
 				);
 			}
 			if (authored === 2) {
-				return flow(`await ctx.call("world.new-note", {})`, `return done({ counted: 42 })`);
+				return flow(
+					`await ctx.call("test.wait", {})`,
+					`await ctx.call("world.new-note", {})`,
+					`return done({ counted: 42 })`,
+				);
 			}
 			return flow(`await ctx.call("say", { text: "Caught up." })`, `return done({})`);
 		});
-		const h = await harness({ author });
+		const h = await harness({ author, entries: [waitEntry] });
 		const worldBefore = h.store.collections.worldDocuments.size;
 		const done = h.waitForDone();
 		h.controller.send("count the stars in the background");
 		const terminal = await done;
 		expect("error" in terminal ? terminal.error : undefined).toBeUndefined();
+		releaseBackground();
 
 		// The background lineage completes after the turn: real effect, honest note.
 		const finished = async (): Promise<boolean> =>
