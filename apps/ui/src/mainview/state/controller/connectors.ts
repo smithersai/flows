@@ -31,7 +31,7 @@ export const createConnectorController = (
 	promptSignIn: () => void,
 ): ConnectorController => {
 	const { store, repositories, baseUrl } = ctx;
-	const http = ctx.http;
+	const http = ctx.boundedFetch;
 	const errorMessageOf = ctx.errorMessageOf;
 	const withToast = ctx.withToast;
 	const resumeDeferredCommand = (): void => ctx.resumeDeferredCommand();
