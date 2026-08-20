@@ -300,11 +300,21 @@ const seat = (model: Model.Model): SeatResolver.Service["resolve"] => (id) =>
     })
   )
 
+/**
+ * Waits for a run to reach a status by yielding, bounded by a count of turns.
+ *
+ * The bound is a hang detector, not a schedule: every attempt is one in-memory
+ * read plus a microtask, so a generous count still fails a genuinely stuck run
+ * in milliseconds. Five hundred was not generous enough — the two-run failure
+ * case below needs roughly four times that on an unloaded machine and had been
+ * failing outright — and a poll budget that a correct run can exhaust reports a
+ * red the code did not earn.
+ */
 const awaitStatus = (
   runtime: ControlRuntime.Service,
   runId: string,
   status: ControlSchema.RunStatus,
-  attempts = 500
+  attempts = 20_000
 ): Effect.Effect<void, unknown> =>
   Effect.gen(function*() {
     const run = yield* runtime.getRun(runId)

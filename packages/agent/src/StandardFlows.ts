@@ -26,7 +26,10 @@
  *   channel where the cell can neither see nor swallow it.
  * - {@link clock} needs the durable engine, so it is the one helper here whose
  *   context is `FlowEngine`. It is not part of the browser-safe core, and
- *   nothing in `Agent` imports it.
+ *   nothing in `Agent` imports it. A durable sleep past the in-memory
+ *   threshold awaits a `DurableDeferred`, whose key is hashed, so the host
+ *   supplies `Crypto` alongside the runtime — the same three services
+ *   `FlowEngineLike.make` captures from the flow it is built inside.
  *
  * @since 0.1.0
  */
@@ -45,12 +48,13 @@ import * as Bash from "@smthrs/std/Bash"
 import * as Edit from "@smthrs/std/Edit"
 import * as Glob from "@smthrs/std/Glob"
 import * as Grep from "@smthrs/std/Grep"
-import * as PortableSearch from "@smthrs/std/PortableSearch"
-import * as Search from "@smthrs/std/Search"
 import * as Ls from "@smthrs/std/Ls"
+import * as PortableSearch from "@smthrs/std/PortableSearch"
 import * as Read from "@smthrs/std/Read"
+import * as Search from "@smthrs/std/Search"
 import * as Write from "@smthrs/std/Write"
 import { Context, Duration, Effect, Schema } from "effect"
+import type * as Crypto from "effect/Crypto"
 import type * as FileSystem from "effect/FileSystem"
 
 /**
@@ -179,7 +183,7 @@ export const waitFlow = Flow.make({
  * @since 0.1.0
  */
 export const clock = (
-  services: Context.Context<FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance>
+  services: Context.Context<Crypto.Crypto | FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance>
 ): FlowBinding.Source =>
   FlowBinding.source("engine/clock", [
     FlowBinding.provide(
