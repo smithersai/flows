@@ -65,7 +65,8 @@
  "size": {
   "files": 1,
   "added": 5060,
-  "deleted": 0
+  "deleted": 0,
+  "justification": "Single new source file: apps/ui/src/mainview/state/AppController.ts is one cohesive controller module; a partial-file intermediate commit would not typecheck and has no independently reviewable meaning, so the file is introduced whole."
  },
  "provenance": {
   "strategy": "whole-file introduction from the epic source tree",
