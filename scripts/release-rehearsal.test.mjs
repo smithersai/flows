@@ -82,6 +82,11 @@ test("parseWorkflow reads scalar flow sequences and rejects unsupported flow col
   )
 })
 
+test("parseWorkflow fails closed on duplicate keys and unconsumed syntax", () => {
+  assert.throws(() => parseWorkflow("name: one\nname: two\n"), /duplicate mapping key: name/)
+  assert.throws(() => parseWorkflow("name: one\nunsupported syntax\njobs: {}\n"), /unsupported workflow syntax at line 2/)
+})
+
 test("stripComment leaves a hash inside quotes alone", () => {
   assert.equal(stripComment("value # trailing"), "value")
   assert.equal(stripComment("\"a # b\" # trailing"), "\"a # b\"")
