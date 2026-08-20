@@ -152,13 +152,15 @@ export const layer: Layer.Layer<
           }
           return receipt
         })).pipe(
-          Effect.mapError((cause) => cause instanceof Journal.JournalError
-            ? new PersistenceError({
-              operation: `${operation}.idempotency`,
-              message: `Failed to commit ${operation} and its idempotency receipt atomically`,
-              cause
-            })
-            : cause)
+          Effect.mapError((cause) =>
+            cause instanceof Journal.JournalError
+              ? new PersistenceError({
+                operation: `${operation}.idempotency`,
+                message: `Failed to commit ${operation} and its idempotency receipt atomically`,
+                cause
+              })
+              : cause
+          )
         )
       )
 

@@ -24,6 +24,7 @@ type Requirements =
   | BranchShare.BranchShare
   | BranchCommands.BranchCommands
   | BranchIds.BranchIds
+  | SyncAuth
   | Scope.Scope
 
 const base = Layer.mergeAll(

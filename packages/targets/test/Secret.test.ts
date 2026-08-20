@@ -307,7 +307,7 @@ describe("SecretProxy server", () => {
         socket.once("data", resolve)
         socket.once("error", reject)
       })
-      expect(response).toStartWith("HTTP/1.1 400 Bad Request")
+      expect(response.startsWith("HTTP/1.1 400 Bad Request")).toBe(true)
     } finally {
       await proxy.close()
     }

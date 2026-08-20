@@ -141,8 +141,7 @@ jobs:
         run: pnpm exec smthrs lint '//crates/flows-jj'
 `
 
-const attrsOf = (input: unknown): never =>
-  GithubCiGen(input as typeof goldenAttrs)[Target.TargetTypeId].attrs as never
+const attrsOf = (input: unknown): never => GithubCiGen(input as typeof goldenAttrs)[Target.TargetTypeId].attrs as never
 
 /** Every field name reachable from a schema, following struct and union shapes. */
 const fieldNames = (schema: unknown, seen = new Set<unknown>()): ReadonlyArray<string> => {
@@ -157,7 +156,7 @@ const fieldNames = (schema: unknown, seen = new Set<unknown>()): ReadonlyArray<s
   }
   for (const key of ["members", "schema", "from", "to", "item"]) {
     const nested = (schema as Record<string, unknown>)[key]
-    if (Array.isArray(nested)) for (const member of nested) names.push(...fieldNames(member, seen))
+    if (Array.isArray(nested)) { for (const member of nested) names.push(...fieldNames(member, seen)) }
     else if (nested !== undefined) names.push(...fieldNames(nested, seen))
   }
   return names
@@ -176,10 +175,12 @@ describe("the declaration surface", () => {
    */
   it("admits no free-form command anywhere in the attrs", () => {
     const names = new Set(fieldNames(Attrs))
-    expect([...names].filter((name) =>
-      ["run", "uses", "command", "commands", "script", "shell", "args", "argv", "install", "entrypoint"]
-        .includes(name)
-    )).toEqual([])
+    expect(
+      [...names].filter((name) =>
+        ["run", "uses", "command", "commands", "script", "shell", "args", "argv", "install", "entrypoint"]
+          .includes(name)
+      )
+    ).toEqual([])
     // The two things a step CAN say, and nothing else.
     expect(Object.keys(TargetStep.fields).sort()).toEqual(["name", "parallelism", "pattern", "verb"])
     // A gate is a target invocation too, not a command to match in the text.

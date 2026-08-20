@@ -644,16 +644,16 @@ export const toolchainSteps = (attrs: Attrs, job: Job): ReadonlyArray<RenderedSt
  * @since 0.1.0
  */
 export const artifactSteps = (upload: CiToolchain.ArtifactUpload): ReadonlyArray<RenderedStep> => {
-  const artifact = path(upload.artifact, "artifact name")
+  const artifact = CiToolchain.validatePath(upload.artifact, "artifact name")
   const root = `"$RUNNER_TEMP/${artifact}"`
   const copies = upload.sources.map((source) => {
-    const from = path(source.from, "artifact source")
+    const from = CiToolchain.validatePath(source.from, "artifact source")
       .split("*")
       .map((part) => `'${part}'`)
       .join("*")
     const destination = source.as === undefined
       ? root
-      : `"$RUNNER_TEMP/${artifact}/${path(source.as, "artifact destination")}"`
+      : `"$RUNNER_TEMP/${artifact}/${CiToolchain.validatePath(source.as, "artifact destination")}"`
     return `cp -R -- ${from} ${destination}`
   })
   return [
