@@ -1,0 +1,131 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "72f26b9a3bc0905b20ab3cbdc5beee329363e160",
+ "tree": "1f26714dc34b0c9b0064f8391db26b60dc869b7a",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 70,
+  "sectionCount": 83
+ },
+ "source": {
+  "commit": "e47f6458a83cbc931d5a3b1326e0fa4bfc8cfbbb",
+  "subject": "🔥 fix(ui): take the copy off the pre-hydration shell",
+  "priorCanonicalCommit": "48bc008d5868c0041fe1b0288945634134cb54cc",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 58,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true,
+  "rebuild": {
+   "reason": "rebuilt onto the 13-commit split of canonical commit 2632c05da63099666add6437c743f4c5b3922f59",
+   "priorCanonicalCommit": "48bc008d5868c0041fe1b0288945634134cb54cc",
+   "treePreserved": true,
+   "tree": "1f26714dc34b0c9b0064f8391db26b60dc869b7a"
+  }
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "ui",
+  "epicsTouched": [
+   {
+    "id": "ui",
+    "files": 1
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 908,
+  "globalCount": 921,
+  "purpose": "🔥 fix(ui): take the copy off the pre-hydration shell",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "e0887f5b8e27d2f20770f8783d3d873322ea454a"
+  ],
+  "parent": "e0887f5b8e27d2f20770f8783d3d873322ea454a",
+  "sourceImports": [
+   "49f05ad33ae4477ca468fc044d7ccfd9cbfbacab"
+  ],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "e0887f5b8e27d2f20770f8783d3d873322ea454a",
+  "next": "2de79a3cac95c21794f985f336c83768b0d40676",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "6fe6857b28247375ab46b0d79cba15e74754ebd6"
+ },
+ "size": {
+  "files": 2,
+  "added": 76,
+  "deleted": 17
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "e47f6458a83cbc931d5a3b1326e0fa4bfc8cfbbb"
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/SessionShell.test.tsx",
+   "mode": "100644",
+   "blob": "0666c1e1d9c46cebde35092758a39ed78db98fcd",
+   "previousBlob": null,
+   "added": 59,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 0,
+     "oldLines": 0,
+     "newStart": 1,
+     "newLines": 59
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": null
+  },
+  {
+   "change": "M",
+   "path": "apps/ui/src/mainview/SessionShell.tsx",
+   "mode": "100644",
+   "blob": "76f7c6c927f39ab93448463b253ca74162d81783",
+   "previousBlob": "210a5a83edf9b3c7a6997dd54c139d0bbad027bf",
+   "added": 17,
+   "deleted": 17,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 3,
+     "oldLines": 1,
+     "newStart": 3,
+     "newLines": 16
+    },
+    {
+     "oldStart": 5,
+     "oldLines": 16,
+     "newStart": 20,
+     "newLines": 1
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  }
+ ]
+}
