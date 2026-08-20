@@ -349,14 +349,35 @@ const settled = (css: string, rules: ReadonlyArray<string>): { readonly backgrou
 	return { ...(background === undefined ? {} : { background }), ...(color === undefined ? {} : { color }) };
 };
 
-/** Every fill that paints text on a non-transparent background of its own, with the rules it matches. */
-const FILLS: ReadonlyArray<{ readonly what: string; readonly css: string; readonly rules: ReadonlyArray<string> }> = [
+/**
+ * Every fill that paints text on a non-transparent background of its own.
+ *
+ * `rules` settles the fill and the foreground the row itself states. `carries`
+ * is the text that sits ON that fill and takes its colour from a rule of its
+ * own — the chooser row's freshness and issue-count columns are the reason
+ * this exists: they are 13px `--muted-foreground`, they are what a person
+ * actually reads off a highlighted row, and measuring only the row's own
+ * `--text` let a 16% tint ship at 3.71:1 under them.
+ */
+const FILLS: ReadonlyArray<{
+	readonly what: string;
+	readonly css: string;
+	readonly rules: ReadonlyArray<string>;
+	readonly carries?: ReadonlyArray<{ readonly what: string; readonly rule: string }>;
+}> = [
 	{
 		what: "the repo-chooser's selected row",
 		css: cardsCss,
 		rules: [".repo-chooser-row", '.repo-chooser-row[data-highlighted="true"]'],
+		carries: [
+			{
+				what: "its 13px freshness and issue-count columns",
+				rule: ".repo-chooser-freshness, .repo-chooser-issues",
+			},
+		],
 	},
 	{
+		// The row is the repository name and nothing else: no metadata column.
 		what: "the workflow picker's selected row",
 		css: cardsCss,
 		rules: [".workflow-repo-row", '.workflow-repo-row[data-highlighted="true"]'],
@@ -365,6 +386,7 @@ const FILLS: ReadonlyArray<{ readonly what: string; readonly css: string; readon
 		what: "the slash menu's highlighted row",
 		css: cardsCss,
 		rules: [".slash-menu-item", '.slash-menu-item[data-highlighted="true"]'],
+		carries: [{ what: "its description column", rule: ".slash-menu-description" }],
 	},
 	{ what: "the dev-tools payload block", css: chatCss, rules: [".devtools-toolcalls pre, .devtools-json"] },
 ];
@@ -372,18 +394,26 @@ const FILLS: ReadonlyArray<{ readonly what: string; readonly css: string; readon
 /**
  * The floor, in two parts.
  *
- * ABSOLUTE — 3.5:1, AA for the 600-weight name these rows lead with. No fill
- * may fall under it in any palette.
+ * ABSOLUTE — 4.5:1, WCAG AA for normal-size text, which is what every one of
+ * these is: the rows lead with a 600-weight name at 14px and carry 13px
+ * metadata beside it, and neither is large-scale text. This used to be 3.5,
+ * argued from the name's weight alone, and that let the replacement tint ship
+ * at 3.86:1 in solarized dark and 3.71:1 under rose-pine dark's metadata — a
+ * fix for will's unreadable row that was still unreadable, with a green test
+ * over it.
+ *
+ * The palette with the least headroom sets the ceiling for the fill, not the
+ * other way round: solarized dark's own body text sits at 4.86:1 on its own
+ * surface, so a fill there may spend almost nothing. That is why the shipped
+ * `--brand-row-tint` is 5% rather than 16% — the strongest mix that keeps all
+ * 18 variants at or above this floor, for the name and the metadata both.
  *
  * RELATIVE — a fill may not spend more than 35% of the contrast the same
- * foreground already has on the palette's own `--surface`. This is the part
- * that catches the actual bug: `--accent` kept only 20–25% of it. Two palettes
- * (solarized, whose own body text sits at 5.20:1 light and 4.86:1 dark) have no
- * headroom for a 4.5:1 fill from anyone, so an absolute 4.5 would be a floor
- * the palette itself cannot clear; the relative rule holds the fill to the
- * palette it is in.
+ * foreground already has on the palette's own `--surface`. It catches a fill
+ * that clears the absolute floor only because the palette started far above
+ * it, which is how `--accent` (20–25% retained) read as merely "dark-ish".
  */
-const ABSOLUTE_FLOOR = 3.5;
+const ABSOLUTE_FLOOR = 4.5;
 const RETAINED_FLOOR = 0.65;
 
 describe("a fill never costs a palette its readability", () => {
@@ -419,21 +449,77 @@ describe("a fill never costs a palette its readability", () => {
 		expect(readable).toEqual([]);
 	});
 
+	test("the slash menu's flow name is brand-as-text, and the tint is not what costs it", () => {
+		/*
+		 * `.slash-menu-name` paints the flow id in `var(--brand)` at 11px. In
+		 * five light palettes that is under AA on the palette's OWN surface —
+		 * 3.05:1 in solarized, 3.43:1 in gruvbox — highlighted or not. It is a
+		 * brand-as-text question, not a fill question, and neither will's
+		 * directive nor this file's subject is the brand's own legibility, so
+		 * it is recorded here rather than silently dropped from the sweep.
+		 *
+		 * What the fill IS answerable for is how much it takes: the relative
+		 * floor applies to this layer exactly as it does to the others.
+		 */
+		const belowAaOnSurface: Array<string> = [];
+		const spentByTheFill: Array<string> = [];
+		for (const { palette, theme } of VARIANTS) {
+			const scope = scopeFor(palette, theme);
+			const foreground = resolveColor(scope, declaredBy(cardsCss, ".slash-menu-name", "color") ?? "var(--brand)");
+			const baseline = contrast(foreground, resolveColor(scope, "var(--surface)"));
+			const tinted = contrast(foreground, resolveColor(scope, "var(--brand-row-tint)"));
+			if (baseline < ABSOLUTE_FLOOR) belowAaOnSurface.push(`${palette}/${theme}`);
+			if (tinted / baseline < RETAINED_FLOOR) spentByTheFill.push(`${palette}/${theme}`);
+		}
+		expect(belowAaOnSurface).toEqual([
+			"one/dark",
+			"solarized/light",
+			"solarized/dark",
+			"gruvbox/light",
+			"rose-pine/light",
+		]);
+		expect(spentByTheFill).toEqual([]);
+	});
+
+	test("every fill states a foreground for the text it carries", () => {
+		// A guard on the guard: a metadata rule that stopped declaring a colour
+		// would drop silently out of the sweep below and take its palette
+		// numbers with it.
+		const bare: Array<string> = [];
+		for (const fill of FILLS) {
+			for (const layer of fill.carries ?? []) {
+				if (declaredBy(fill.css, layer.rule, "color") === undefined) bare.push(`${fill.what}: ${layer.what}`);
+			}
+		}
+		expect(bare).toEqual([]);
+	});
+
 	test("every fill clears the floor in all nine palettes, light and dark", () => {
 		const failures: Array<string> = [];
 		for (const fill of FILLS) {
 			const rule = settled(fill.css, fill.rules);
+			const layers = [
+				{ what: "its own text", color: rule.color ?? "var(--text)" },
+				...(fill.carries ?? []).map((layer) => ({
+					what: layer.what,
+					color: declaredBy(fill.css, layer.rule, "color") ?? rule.color ?? "var(--text)",
+				})),
+			];
 			for (const { palette, theme } of VARIANTS) {
 				const scope = scopeFor(palette, theme);
-				const foreground = resolveColor(scope, rule.color ?? "var(--text)");
-				const ratio = contrast(foreground, resolveColor(scope, rule.background ?? "var(--surface)"));
-				const baseline = contrast(foreground, resolveColor(scope, "var(--surface)"));
-				const where = `${fill.what} on ${palette}/${theme}`;
-				if (ratio < ABSOLUTE_FLOOR) failures.push(`${where}: ${ratio.toFixed(2)}:1 is under ${ABSOLUTE_FLOOR}:1`);
-				if (ratio / baseline < RETAINED_FLOOR) {
-					failures.push(
-						`${where}: keeps ${Math.round((ratio / baseline) * 100)}% of the ${baseline.toFixed(2)}:1 it has on --surface`,
-					);
+				for (const layer of layers) {
+					const foreground = resolveColor(scope, layer.color);
+					const ratio = contrast(foreground, resolveColor(scope, rule.background ?? "var(--surface)"));
+					const baseline = contrast(foreground, resolveColor(scope, "var(--surface)"));
+					const where = `${fill.what} — ${layer.what} — on ${palette}/${theme}`;
+					if (ratio < ABSOLUTE_FLOOR) {
+						failures.push(`${where}: ${ratio.toFixed(2)}:1 is under ${ABSOLUTE_FLOOR}:1`);
+					}
+					if (ratio / baseline < RETAINED_FLOOR) {
+						failures.push(
+							`${where}: keeps ${Math.round((ratio / baseline) * 100)}% of the ${baseline.toFixed(2)}:1 it has on --surface`,
+						);
+					}
 				}
 			}
 		}

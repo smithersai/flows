@@ -118,6 +118,18 @@
 	/* ── @smthrs/ui bridge: tints (self-adapting color-mix) ──── */
 	--brand-soft: color-mix(in srgb, var(--brand) 10%, var(--surface));
 	--brand-soft-strong: color-mix(in srgb, var(--brand) 16%, var(--surface));
+	/*
+	 * The fill a row wears while it carries TEXT — the keyboard cursor on the
+	 * repo chooser, the workflow picker and the slash menu. It is much lighter
+	 * than --brand-soft-strong on purpose: a fill under 13px metadata has to
+	 * leave AA's 4.5:1 intact in every palette, and the palette with the least
+	 * headroom (solarized dark, whose own body text sits at 4.86:1 on its own
+	 * surface) sets the ceiling for all of them. 5% is the strongest mix that
+	 * keeps all 18 palette variants at or above 4.5:1 for both the row name and
+	 * its muted metadata; state/Palette.test.ts measures it and fails with the
+	 * per-palette numbers.
+	 */
+	--brand-row-tint: color-mix(in srgb, var(--brand) 5%, var(--surface));
 	--brand-border: color-mix(in srgb, var(--brand) 40%, transparent);
 	--success-soft: color-mix(in srgb, var(--success) 12%, var(--surface));
 	--success-border: color-mix(in srgb, var(--success) 40%, transparent);
@@ -584,7 +596,14 @@
 	--danger: #c32e2b;
 	--info: #268bd2;
 	--code-bg: #eee8d5;
-	--code-text: #586e75;
+	/*
+	 * base02, not base01. Solarized's body ink on its own base2 code fill
+	 * measures 4.39:1 — the one palette variant where a payload block missed
+	 * AA once the dev-tools blocks stopped painting themselves with the raw
+	 * brand (will, 2026-08-19). base02 is the palette's own darker ink, the
+	 * same value its dark variant uses as a surface, and reads at 10.61:1.
+	 */
+	--code-text: #073642;
 	--inline-code-bg: rgb(88 110 117 / 6%);
 	--shadow-rgb: 88 110 117;
 }
