@@ -75,6 +75,23 @@ process.stdout.write(all.find(r=>r.instance_id===process.argv[2]).base_commit);
 
 node "$S/lib/write-prompt-codex.mjs" "$DATASET" "$INSTANCE" "$CONTAINER" > "$S/logs-codex/$INSTANCE.prompt.md"
 
+# Network access is a benchmark condition, not a detail. SWB_CODEX_NETWORK=off
+# runs codex under its workspace-write sandbox, which denies network egress;
+# anything else keeps the bypass that grants it.
+#
+# It matters because on 2026-08-19 the pytest-dev__pytest-6197 trace showed
+# codex resolving that instance by fetching the upstream fix and the upstream
+# testing/test_collection.py at tag 5.2.4 from GitHub — the release that fixed
+# the bug, and the file holding the graded tests. Our harness made no network
+# call on the same instance. A comparison where one side may read the answer
+# and the other does not is not measuring the same thing, so the condition is
+# now explicit and recorded in the run's timings.
+if [ "${SWB_CODEX_NETWORK:-on}" = "off" ]; then
+  CODEX_SANDBOX_ARGS="--sandbox workspace-write"
+else
+  CODEX_SANDBOX_ARGS="--dangerously-bypass-approvals-and-sandbox"
+fi
+
 echo "[$INSTANCE] codex start ($MODEL, ${BUDGET}s)"
 START=$(date +%s)
 # Isolated CODEX_HOME: API-key auth (the same key the flows runs billed), no
@@ -85,7 +102,7 @@ timeout "$BUDGET" codex exec \
   -C "$WORK" \
   -m "$MODEL" \
   -c model_reasoning_effort="medium" \
-  --dangerously-bypass-approvals-and-sandbox \
+  ${CODEX_SANDBOX_ARGS} \
   --skip-git-repo-check \
   --ephemeral \
   --color never \
@@ -96,8 +113,8 @@ CODE=$?
 END=$(date +%s)
 echo "[$INSTANCE] codex done in $((END-START))s (exit $CODE)"
 
-printf '{\n  "instance_id": "%s",\n  "model": "%s",\n  "budgetSeconds": %s,\n  "exitCode": %s,\n  "startedAt": %s,\n  "endedAt": %s,\n  "wallClockSeconds": %s\n}\n' \
-  "$INSTANCE" "$MODEL" "$BUDGET" "$CODE" "$((START*1000))" "$((END*1000))" "$((END-START))" \
+printf '{\n  "instance_id": "%s",\n  "model": "%s",\n  "budgetSeconds": %s,\n  "network": "%s",\n  "exitCode": %s,\n  "startedAt": %s,\n  "endedAt": %s,\n  "wallClockSeconds": %s\n}\n' \
+  "$INSTANCE" "$MODEL" "$BUDGET" "${SWB_CODEX_NETWORK:-on}" "$CODE" "$((START*1000))" "$((END*1000))" "$((END-START))" \
   > "$S/timings-codex/$INSTANCE.json"
 
 ( cd "$WORK" && git -c core.fileMode=false --no-pager diff "$BASE" -- \
