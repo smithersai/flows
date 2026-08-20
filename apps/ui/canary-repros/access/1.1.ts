@@ -31,7 +31,8 @@ const context = await chromium.launchPersistentContext(PROFILE, { headless: true
 const page = context.pages()[0] ?? (await context.newPage());
 await resetOrigin(context, page, { signOut: true });
 await page.goto(BASE, { waitUntil: "domcontentloaded" });
-await page.waitForTimeout(6000);
+/* The shell's rendered flows are the load-complete signal — never a blind sleep. */
+await page.locator("[data-flow]").first().waitFor({ timeout: 30_000 });
 
 const identity = await session(page);
 console.log("session:", JSON.stringify(identity));
@@ -50,7 +51,8 @@ if (unexpected.length > 0) {
 }
 
 await page.locator('[data-flow="connect"]').first().click();
-await page.waitForTimeout(2000);
+/* The open menu is the signal that the click landed; a fixed wait raced a slow canary. */
+await page.locator('[role="menu"]').first().waitFor({ timeout: 10_000 });
 const menuText = await page.locator("body").innerText();
 for (const item of ["Import to Smithers Cloud", "Open connectors", "Connected repositories"]) {
 	if (menuText.includes(item)) failures.push(`the signed-out connect menu presents "${item}" as available`);
