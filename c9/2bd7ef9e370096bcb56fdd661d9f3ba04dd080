@@ -1,0 +1,134 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "c92bd7ef9e370096bcb56fdd661d9f3ba04dd080",
+ "tree": "4e6bc161d29313e09ac8318e2907455f4495181e",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 48,
+  "sectionCount": 83
+ },
+ "source": {
+  "commit": "bdd707bfcf264bb5dad763ed13108ee81323899e",
+  "subject": "🐛 fix(run-store): make run state fold durable",
+  "priorCanonicalCommit": "2632c05da63099666add6437c743f4c5b3922f59",
+  "treeEqualToSource": false,
+  "indexOnSourceLine": 37,
+  "sourceLineCount": 71,
+  "subjectRewritten": true,
+  "rewriteReason": "the source commit landed 13 separable concerns under one subject; this commit carries one of them and states it, while the last commit of the split keeps the source subject verbatim and reproduces the source tree exactly",
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true,
+  "split": {
+   "of": "2632c05da63099666add6437c743f4c5b3922f59",
+   "index": 12,
+   "count": 13,
+   "granularity": "whole-path",
+   "rationale": "path-partitioned split of prior canonical commit 2632c05da63099666add6437c743f4c5b3922f59 (85 files, 2647 changed lines) into 13 dependency-ordered atomic commits; the partition is by whole path, no hunk is divided, and the union of the 13 path sets is exactly the prior commit's path set, so the last split commit's tree is byte-identical to the prior canonical tree and to the source commit's tree",
+   "members": [
+    "35e8bb5ee63f687e4c5d505c0eeb2a0dc4852912",
+    "f2a7988d68204605a0893d95d2e72986c5324607",
+    "0db9b9e56057fdb635498531007046b455f59f17",
+    "93a03795321b1c8eb6b0549f7e9c077983b2a4de",
+    "4b74f1869551d52856c373d3c00176b5239f6d70",
+    "10e7bcaae6ead421319a8d67cc58759ba7fcea9b",
+    "92af181d2eb89f8f5c08e2bb547c02e96afc8955",
+    "6ba1f1e4bbfdb4e9948794207954c551fa325b2e",
+    "83bb9a5cb7fd6687b99a75a8be32bcb4e79bf977",
+    "1c4f303b40917cb36087ef46817a11f2cb9e0d29",
+    "ceccf909f0e096f82af297262f7e60620400663f",
+    "c92bd7ef9e370096bcb56fdd661d9f3ba04dd080",
+    "45e3c1570fd6be09e9c529beaab1c8602d059998"
+   ],
+   "priorSize": {
+    "files": 85,
+    "added": 1940,
+    "deleted": 707,
+    "changed": 2647
+   }
+  }
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "agent",
+  "epicsTouched": [
+   {
+    "id": "agent",
+    "files": 1
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 886,
+  "globalCount": 921,
+  "purpose": "♻️ refactor(cli): provide the journal into the durable control plane's run store",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "ceccf909f0e096f82af297262f7e60620400663f"
+  ],
+  "parent": "ceccf909f0e096f82af297262f7e60620400663f",
+  "sourceImports": [
+   "38d4d52ca52f0442023133d1c458a08080e2edf9",
+   "486c60eee09160c8f2c90abe7f434a6606cc8d4a",
+   "918016d734938ee85ce0f2a709807d78cedd937f",
+   "b8f28c7744a64c21bc1dabcd26df3f4dd3918860",
+   "bef8dae787e0b91df1aea3109425c3cba19dc0f4",
+   "f2593e80a73414263ea6c01969ff5ca604d53161"
+  ],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "ceccf909f0e096f82af297262f7e60620400663f",
+  "next": "45e3c1570fd6be09e9c529beaab1c8602d059998",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "6fe6857b28247375ab46b0d79cba15e74754ebd6"
+ },
+ "size": {
+  "files": 1,
+  "added": 2,
+  "deleted": 1
+ },
+ "provenance": {
+  "strategy": "path-partitioned split of the source commit's tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": false,
+  "sourceCommit": "bdd707bfcf264bb5dad763ed13108ee81323899e",
+  "splitOf": "2632c05da63099666add6437c743f4c5b3922f59"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "packages/cli/src/NodeControl.ts",
+   "mode": "100644",
+   "blob": "41334408427ca73a17bf5246f0746d5c250b2079",
+   "previousBlob": "b8c4c5cc391bafc6a6a69fbd62971bc4bde1f3a6",
+   "added": 2,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 287,
+     "oldLines": 1,
+     "newStart": 287,
+     "newLines": 2
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 9,
+    "id": "agent",
+    "name": "Harness, chain, tools and CLI"
+   }
+  }
+ ],
+ "sizeJustification": "split from prior canonical commit 2632c05da63099666add6437c743f4c5b3922f59; 3 changed lines across 1 files, below the 2000-line large-commit threshold"
+}
