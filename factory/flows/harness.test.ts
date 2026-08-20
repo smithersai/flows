@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { listWorkspacePackages, makeConfinementValidator, runProcess } from "./harness.ts"
+import { listWorkspacePackages, makeConfinementValidator, runProcess, selectPackages } from "./harness.ts"
 
 const temporaryRoots: string[] = []
 afterEach(() => {
@@ -51,7 +51,33 @@ describe("factory harness guards", () => {
       })
     )
     expect(result.exitCode).toBe(-2)
+    expect(JSON.parse(readFileSync(result.manifestPath, "utf8"))).toMatchObject({
+      id: "marker",
+      exitCode: -2,
+      logPath: result.logPath
+    })
   }, 15_000)
+
+  test("each invocation owns fresh log and manifest artifacts", async () => {
+    const root = mkdtempSync(join(tmpdir(), "factory-artifacts-"))
+    temporaryRoots.push(root)
+    const spec = { id: "fresh", command: "printf", args: ["current"], cwd: root, timeoutMs: 10_000, logDir: root }
+    const first = await Effect.runPromise(runProcess(spec))
+    const second = await Effect.runPromise(runProcess(spec))
+    expect(first.logPath).not.toBe(second.logPath)
+    expect(readFileSync(first.logPath, "utf8")).toContain("current")
+    expect(readFileSync(second.logPath, "utf8")).toContain("current")
+  })
+
+  test("package selection rejects missing, empty, duplicate, and unknown names", () => {
+    const all = ["agent", "flow", "std"]
+    expect(selectPackages([], all)).toEqual(all)
+    expect(selectPackages(["--packages", "flow,std"], all)).toEqual(["flow", "std"])
+    expect(() => selectPackages(["--packages"], all)).toThrow("requires")
+    expect(() => selectPackages(["--packages", "flow,"], all)).toThrow("empty")
+    expect(() => selectPackages(["--packages", "flow,flow"], all)).toThrow("duplicates")
+    expect(() => selectPackages(["--packages", "missing"], all)).toThrow("Valid packages")
+  })
 
   test("post-run confinement rejects writes outside declared roots", () => {
     const root = mkdtempSync(join(tmpdir(), "factory-confinement-"))
