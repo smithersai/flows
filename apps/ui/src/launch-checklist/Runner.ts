@@ -27,6 +27,7 @@ const result = (
 	reasons: ReadonlyArray<string>,
 	evidence: ReadonlyArray<string>,
 	durationMs: number,
+	undecidedInProbe = false,
 ): RowResult => ({
 	id: row.id,
 	section: row.section,
@@ -36,6 +37,7 @@ const result = (
 	evidence,
 	durationMs,
 	tests: [`[${row.id}] ${row.title} [${status === "pass" ? "passed" : status === "fail" ? "failed" : status}]`],
+	...(undecidedInProbe ? { undecidedInProbe: true } : {}),
 });
 
 export const runChecklist = async ({ rows, mode, context }: RunOptions): Promise<ReadonlyArray<RowResult>> => {
@@ -89,6 +91,7 @@ export const runChecklist = async ({ rows, mode, context }: RunOptions): Promise
 					probeResult.status === "pass" ? [] : [probeResult.detail],
 					[...prepared, probeResult.detail],
 					context.now() - start,
+					probeResult.status === "not-testable-yet",
 				),
 			);
 		} catch (error) {
@@ -110,6 +113,7 @@ export const totalsOf = (rows: ReadonlyArray<RowResult>): Totals => ({
 	pass: rows.filter((row) => row.status === "pass").length,
 	fail: rows.filter((row) => row.status === "fail").length,
 	notTestableYet: rows.filter((row) => row.status === "not-testable-yet").length,
+	probeUndecided: rows.filter((row) => row.undecidedInProbe === true).length,
 	skippedDryRun: rows.filter((row) => row.status === "skipped-dry-run").length,
 });
 
@@ -126,8 +130,17 @@ export const buildReport = (
 	rows,
 });
 
-/** Only a real `fail` fails the command; not-testable-yet and dry runs do not. */
-export const exitCodeFor = (totals: Totals): number => (totals.fail > 0 ? 1 : 0);
+/**
+ * A real `fail` fails the command. In a run (not a dry run), a row whose probe
+ * ran and STILL decided nothing exits 2: the checklist claimed a check it did
+ * not perform, and a green report would launder the gap. Missing env and a
+ * missing browser stay green — those are capability gaps, not punt answers.
+ */
+export const exitCodeFor = (totals: Totals, mode: "dry-run" | "run" = "run"): number => {
+	if (totals.fail > 0) return 1;
+	if (mode === "run" && totals.probeUndecided > 0) return 2;
+	return 0;
+};
 
 export const renderMarkdown = (report: ChecklistReport): string =>
 	[
@@ -136,7 +149,7 @@ export const renderMarkdown = (report: ChecklistReport): string =>
 		`- Mode: ${report.mode}`,
 		`- Target: ${report.target ?? "(none — dry run)"}`,
 		`- Generated: ${report.generatedAt}`,
-		`- Totals: **${report.totals.fail} fail** · ${report.totals.pass} pass · ${report.totals.notTestableYet} not-testable-yet · ${report.totals.skippedDryRun} skipped-dry-run`,
+		`- Totals: **${report.totals.fail} fail** · ${report.totals.pass} pass · ${report.totals.notTestableYet} not-testable-yet (${report.totals.probeUndecided} probe-undecided) · ${report.totals.skippedDryRun} skipped-dry-run`,
 		"",
 		"## Rows",
 		"",

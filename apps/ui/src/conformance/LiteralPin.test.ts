@@ -110,9 +110,14 @@ const RESOLVES_ELSEWHERE: ReadonlyArray<Excuse> = [
 		reason: "the Submit union's kind (registry.ts `Submit`), compared against a `.kind` that is not a card's",
 	},
 	{
-		literal: "data-card-kind",
-		file: "e2e/suites/cards-copy.e2e.ts",
-		reason: "the subject of the assertion: this suite proves Probes.CARD_LEADS' selector matches nothing the app renders",
+		literal: "promotional",
+		file: "scripts/stub-backends.ts",
+		reason: "a billing grant's kind, compared against the grant union rather than a card",
+	},
+	{
+		literal: "purchased",
+		file: "scripts/stub-backends.ts",
+		reason: "a billing grant's kind, compared against the grant union rather than a card",
 	},
 	{
 		literal: "reco.ghost",
@@ -135,25 +140,7 @@ const RESOLVES_ELSEWHERE: ReadonlyArray<Excuse> = [
  * below: the moment the product emits the attribute (or the probe stops asking
  * for it), the entry stops matching and this suite fails until it is deleted.
  */
-const KNOWN_ORPHANS: ReadonlyArray<Excuse> = [
-	{
-		literal: "data-card-kind",
-		file: "src/launch-checklist/Probes.ts",
-		reason:
-			"CARD_LEADS reads [data-card-kind]; the app renders .smithers-card[data-kind]. Live row B-4 is undecidable until the selector is corrected",
-	},
-	{
-		literal: "data-run-id",
-		file: "src/launch-checklist/Rows.ts",
-		reason:
-			"row D-5 looks for [data-run-id] to address an in-flight run; nothing renders it, and the row's own detail already says so",
-	},
-	{
-		literal: "data-suggestion",
-		file: "src/launch-checklist/Rows.ts",
-		reason: "row E-1 reads [data-suggestion] for the suggestion strip; the app marks those elements with data-flow only",
-	},
-];
+const KNOWN_ORPHANS: ReadonlyArray<Excuse> = [];
 
 const ALLOWLIST: ReadonlyArray<Excuse> = [...RESOLVES_ELSEWHERE, ...KNOWN_ORPHANS];
 
@@ -186,6 +173,19 @@ describe("the vocabularies are derived from the app and are never empty", () => 
 		// 126 files today. A corpus that collapses below half the app is a
 		// broken path, not a smaller app.
 		expect(productSourceFiles().length).toBeGreaterThan(60);
+	});
+
+	test("the discovery includes the app's own test files", () => {
+		/*
+		 * The corpus is derivation, not hand-listing: sourceFiles takes every
+		 * .ts/.tsx under src, tests included, and a filter that quietly
+		 * dropped them would shrink the vocabulary without failing any floor.
+		 * A name only a test asserts is still product vocabulary, so the
+		 * corpus must contain them.
+		 */
+		expect(
+			productSourceFiles().some((file) => file.endsWith(".test.ts") || file.endsWith(".test.tsx")),
+		).toBe(true);
 	});
 
 	test("every card kind the wire model declares is derived", () => {
