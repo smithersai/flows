@@ -14,7 +14,14 @@
  */
 import { open, run, body } from "./_lib";
 
-const STAMP = /\b\d{1,2}:\d{2}\s?(?:AM|PM)\b/g;
+/*
+ * Two stamps, never one: a /g regex for matchAll (which requires it) and a
+ * flagless one for .test(). A shared /g regex makes .test() stateful — its
+ * lastIndex survives across calls, so the same line alternates match/no-match
+ * and the day-qualifier probe below judged lines by parity, not content.
+ */
+const STAMP = /\b\d{1,2}:\d{2}\s?(?:AM|PM)\b/;
+const STAMP_GLOBAL = new RegExp(STAMP.source, "g");
 const DAY_QUALIFIER = /\b(Yesterday|yesterday|Today|today|\d{4}-\d{2}-\d{2}|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/;
 
 const { context, page } = await open();
@@ -22,7 +29,7 @@ await run(page, "/billing.balance", 6000);
 
 const homeZone = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
 const before = await body(page);
-const stampsBefore = [...before.matchAll(STAMP)].map((m) => m[0]);
+const stampsBefore = [...before.matchAll(STAMP_GLOBAL)].map((m) => m[0]);
 console.log("browser timezone:", homeZone);
 console.log("stamps as sent  :", JSON.stringify([...new Set(stampsBefore)].slice(0, 6)));
 
@@ -36,7 +43,7 @@ const after = await body(page);
 const transcript = await page.evaluate(() =>
 	Array.from(document.querySelectorAll("[data-role]")).map((m) => (m as HTMLElement).innerText.trim().slice(-40)).slice(0, 8),
 );
-const stampsAfter = [...after.matchAll(STAMP)].map((m) => m[0]);
+const stampsAfter = [...after.matchAll(STAMP_GLOBAL)].map((m) => m[0]);
 console.log("stamps under UTC+14:", JSON.stringify([...new Set(stampsAfter)].slice(0, 6)));
 console.log("transcript tails   :", JSON.stringify(transcript));
 console.log("any day qualifier on a stamp:", DAY_QUALIFIER.test(after.split("\n").filter((l) => STAMP.test(l)).join(" ")));
