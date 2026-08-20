@@ -1,12 +1,12 @@
-import * as Capability from "@smthrs/capability-next/Capability"
-import { PermissionRequired } from "@smthrs/capability-next/Permission"
-import { Journal } from "@smthrs/journal-next/Journal"
-import * as JournalModule from "@smthrs/journal-next/Journal"
-import { Input, type RunId, type SourceId } from "@smthrs/journal-next/JournalEvent"
-import * as TestJournal from "@smthrs/journal-next/test/TestJournal"
+import { describe, expect, it } from "@effect/vitest"
+import * as Capability from "@smthrs/capability/Capability"
+import { PermissionRequired } from "@smthrs/capability/Permission"
+import { Journal } from "@smthrs/journal/Journal"
+import * as JournalModule from "@smthrs/journal/Journal"
+import { Input, type RunId, type SourceId } from "@smthrs/journal/JournalEvent"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Effect, Fiber } from "effect"
 import type * as Scope from "effect/Scope"
-import { describe, expect, it } from "vitest"
 import * as GrantEvent from "../src/GrantEvent.ts"
 import * as JournalGrantStore from "../src/JournalGrantStore.ts"
 import * as Workspace from "../src/Workspace.ts"
@@ -32,7 +32,7 @@ const run = <A, E>(effect: Effect.Effect<A, E, Journal | Scope.Scope | Workspace
   )
 
 const itEffect = <A, E>(name: string, body: () => Effect.Effect<A, E>): void => {
-  it(name, () => Effect.runPromise(body()))
+  it.effect(name, () => body())
 }
 
 const remembered = () =>

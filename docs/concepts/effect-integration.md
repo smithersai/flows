@@ -7,7 +7,7 @@ This page explains how Smithers Flows uses Effect services, layers, schemas, typ
 Flow handlers and actions are ordinary `Effect` programs. Required services remain visible in the environment type, and `Layer` values select implementations at the application boundary:
 
 ```ts
-import { Action } from "@smthrs/flow-next"
+import { Action } from "@smthrs/flow"
 import { Context, Effect, Schema } from "effect"
 
 interface SourceFiles {
@@ -48,7 +48,7 @@ The runtime distinguishes these cases:
 `Action.InfraInterrupt` is deliberately narrower than cancellation. An exhausted infrastructure retry schedule becomes a defect:
 
 ```ts
-import { Action } from "@smthrs/flow-next"
+import { Action } from "@smthrs/flow"
 import { Effect, Schedule, Schema } from "effect"
 
 const FetchInput = Action.make({
@@ -67,6 +67,6 @@ const FetchInput = Action.make({
 
 ## Host effects and permission effects
 
-The `@smthrs/platform-*` packages provide raw platform capabilities. `@smthrs/kernel-next` owns the closed list of ports and provides decorated services that check an exact capability through `GrantStore` before delegating. Applications should expose the kernel service to untrusted flow code and keep the raw service at the composition boundary.
+The `@smthrs/platform-*` packages provide raw platform capabilities. `@smthrs/kernel` owns the closed list of ports and provides decorated services that check an exact capability through `GrantStore` before delegating. Applications should expose the kernel service to untrusted flow code and keep the raw service at the composition boundary.
 
-See [Hosts and capabilities](hosts-and-capabilities.md), [Failure and retry](failure-and-retry.md), and the [`@smthrs/flow-next` reference](../reference/flow.md).
+See [Hosts and capabilities](hosts-and-capabilities.md), [Failure and retry](failure-and-retry.md), and the [`@smthrs/flow` reference](../reference/flow.md).

@@ -1,18 +1,25 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Action, DurableDeferred, Flow, FlowRuntime, Interpreter, RetryPolicy } from "@smthrs/flow-next"
-import { Node } from "@smthrs/plan-next"
+import { describe, expect, it } from "@effect/vitest"
+import { Action, DurableDeferred, Flow, FlowRuntime, Interpreter, RetryPolicy } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Effect, Exit, Fiber, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
-import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it(name, () => runPromise(body()))
+  it.effect(name, () => withCrypto(body()))
+
+/**
+ * The same wiring on the live clock, for cases that wait on the real elapsed
+ * time a retry or resume policy schedules rather than driving `TestClock`.
+ */
+const liveEffect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
+  it.live(name, () => withCrypto(body()))
 
 const pollUntil = <A, E, R>(
-  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>,
+  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, FlowRuntime.FlowExecutionNotFound, R>,
   predicate: (result: Flow.Result<A, E>) => boolean
 ) =>
   Effect.gen(function*() {
@@ -108,8 +115,10 @@ describe("child flow suspension and interruption", () => {
     // UNDER the parent's rather than beside it: that is what answers the child
     // flow's requirement where the parent's implementation asks for it.
     const layer = Layer.mergeAll(
+      // The literal child payload always satisfies its schema, so the typed
+      // SchemaError on execute cannot occur and is disposed of as a defect.
       parentActionDeclaration.toLayer(() =>
-        Effect.map(child.execute({ n: 1 }, { executionId: "child-gated" }), (n) => n + 1)
+        Effect.map(Effect.orDie(child.execute({ n: 1 }, { executionId: "child-gated" })), (n) => n + 1)
       ),
       Interpreter.layer(parent)
     ).pipe(
@@ -163,12 +172,12 @@ describe("child flow suspension and interruption", () => {
       const child = Flow.make("Child/matrix-child", {
         payload: { n: Schema.Number },
         success: Schema.Number,
-        body: () => Node.succeed(undefined)
+        body: () => Node.succeed(0)
       })
       const parentFlow = Flow.make("Child/matrix-parent", {
         payload: { id: Schema.String },
         success: Schema.Number,
-        body: () => Node.succeed(undefined)
+        body: () => Node.succeed(0)
       })
       const scripted = FlowEngine.makeUnsafe({
         register: () => Effect.void,
@@ -233,7 +242,7 @@ describe("child flow suspension and interruption", () => {
     // UNDER the parent's rather than beside it: that is what answers the child
     // flow's requirement where the parent's implementation asks for it.
     const layer = Layer.mergeAll(
-      parentActionDeclaration.toLayer(() => child.execute({ n: 5 }, { executionId: "child-quick" })),
+      parentActionDeclaration.toLayer(() => Effect.orDie(child.execute({ n: 5 }, { executionId: "child-quick" }))),
       Interpreter.layer(parent)
     ).pipe(
       Layer.provideMerge(Action.layerImplementations),
@@ -272,7 +281,7 @@ describe("resumeSignal", () => {
         factor: 1,
         maxMs: 3_600_000
       }),
-      body: () => Node.succeed(undefined)
+      body: () => Node.succeed("ready")
     })
     let executions = 0
     let signals = 0
@@ -303,12 +312,12 @@ describe("resumeSignal", () => {
     }).pipe(Effect.provide(Layer.succeed(FlowRuntime.FlowRuntime)(scripted)))
   })
 
-  effect("without a resumeSignal the engine falls back to the policy delay", () => {
+  liveEffect("without a resumeSignal the engine falls back to the policy delay", () => {
     const flow = Flow.make("Signal/no-waker", {
       payload: { id: Schema.String },
       success: Schema.String,
       suspendedRetryPolicy: RetryPolicy.make({ initialMs: 1, factor: 1, maxMs: 1 }),
-      body: () => Node.succeed(undefined)
+      body: () => Node.succeed("ready")
     })
     let executions = 0
     const scripted = FlowEngine.makeUnsafe({

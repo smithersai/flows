@@ -2,10 +2,10 @@
  * The key-material contract: what a planner hands the step-key compiler.
  *
  * Revived from the module deleted at `f5f3dda` (then
- * `packages/keys/src/KeyMaterial.ts`). It does NOT return to `@smthrs/keys-next` —
+ * `packages/keys/src/KeyMaterial.ts`). It does NOT return to `@smthrs/keys` —
  * that package's reduction to the single `Key` transformation was deliberate,
  * and material is a *plan-shaped* concept, not a hashing primitive. It lives
- * here, above `@smthrs/keys-next`, so the hashing package stays a leaf.
+ * here, above `@smthrs/keys`, so the hashing package stays a leaf.
  *
  * Governing contracts: `docs/specs/Concepts/Step Keys.md`,
  * `docs/specs/Concepts/Build Phases.md` (material is computed with no I/O),
@@ -26,6 +26,7 @@ import * as Schema from "effect/Schema"
  *
  * @since 0.1.0
  * @category schemas
+ * @slop
  */
 export const InputRef = Schema.Union([
   Schema.TaggedStruct("Literal", { value: Schema.Unknown }),
@@ -38,6 +39,7 @@ export const InputRef = Schema.Union([
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type InputRef = typeof InputRef.Type
 
@@ -47,6 +49,7 @@ export type InputRef = typeof InputRef.Type
  *
  * @since 0.1.0
  * @category constants
+ * @slop
  */
 export const version = "flows/key-material/v1"
 
@@ -59,10 +62,13 @@ export const version = "flows/key-material/v1"
  *
  * @since 0.1.0
  * @category schemas
+ * @slop
  */
 export const KeyMaterial = Schema.Struct({
   version: Schema.Literal(version),
   kind: Schema.Literals(["sealed", "compensable", "irreversible"]),
+  // Absence claims determinism; only the explicit declaration changes identity.
+  nondeterministic: Schema.optional(Schema.Literal(true)),
   body: Schema.Unknown,
   inputs: Schema.Array(InputRef),
   layers: Schema.Array(Schema.String),
@@ -76,6 +82,7 @@ export const KeyMaterial = Schema.Struct({
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type KeyMaterial = typeof KeyMaterial.Type
 
@@ -87,6 +94,7 @@ export type KeyMaterial = typeof KeyMaterial.Type
  *
  * @since 0.1.0
  * @category accessors
+ * @slop
  */
 export const dependencies = (material: KeyMaterial): ReadonlyArray<string> => {
   const seen = new Set<string>()

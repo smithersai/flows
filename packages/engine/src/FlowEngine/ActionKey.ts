@@ -6,8 +6,8 @@
  * @private
  * @since 0.1.0
  */
-import { Action, Flow, StepIdentity } from "@smthrs/flow-next"
-import { Key, type Key as KeyType } from "@smthrs/keys-next"
+import { Action, Flow, StepIdentity } from "@smthrs/flow"
+import { Key, type Key as KeyType } from "@smthrs/keys"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -34,8 +34,8 @@ const fileBoundary = (
 
 /**
  * The ordinal allocation scope of an action dispatch — its stable
- * declaration identity (issue #85), derived by the one canonical path in
- * `StepIdentity` (issue #101).
+ * declaration identity and optional structural interpreter site (issue #85),
+ * derived by the one canonical path in `StepIdentity` (issue #101).
  *
  * The action name always contributes (issue #73), and a declared
  * `idempotencyKey` refines the scope further — the string form and the
@@ -45,20 +45,26 @@ const fileBoundary = (
  * that reverses fiber-arrival order can never hand one invocation the
  * other's recorded outcome. Refining only the string form left object-keyed
  * actions on the name-only counter and exposed to exactly that swap.
- * Without a declared key, invocations of one name share a counter and
- * remain allocation-ordered — indistinguishable declarations have no
- * material to order them by.
+ * A structural interpreter site refines the scope again, so distinct graph
+ * nodes calling one declaration each own a counter even without a declared
+ * key. Without a site or a declared key, invocations of one name share a
+ * counter and remain allocation-ordered — indistinguishable dispatches have
+ * no material to order them by. Omitting the site preserves the prior scope
+ * encoding byte for byte.
  *
  * @private
  * @since 0.1.0
+ * @slop
  */
 export const ordinalScope = (
-  action: Action.Any
+  action: Action.Any,
+  site?: string | undefined
 ): Effect.Effect<string, Schema.SchemaError, Crypto.Crypto> =>
   StepIdentity.allocationScope({
     kind: "action",
     name: action.name,
-    idempotency: action.idempotencyKey
+    idempotency: action.idempotencyKey,
+    site
   })
 
 /**
@@ -72,6 +78,7 @@ export const ordinalScope = (
  *
  * @private
  * @since 0.1.0
+ * @slop
  */
 export const uncanonicalKey = (
   actionName: string,
@@ -106,6 +113,7 @@ const declarationDigest = (action: Action.AnyWithProps): Schema.JsonObject => ({
  *
  * @private
  * @since 0.1.0
+ * @slop
  */
 export const actionKey = Effect.fn("FlowEngine.actionKey")(function*(
   action: Action.AnyWithProps,
@@ -159,11 +167,16 @@ export const actionKey = Effect.fn("FlowEngine.actionKey")(function*(
     // The caller-owned object can carry material canonicalization
     // rejects; the typed `SchemaError` propagates to the dispatch site
     // (issue #151) instead of being discarded through `Result.getOrThrow`.
+    // A declared nondeterministic result is also key material. Otherwise a
+    // tolerant declaration could consume a strict row (or the reverse) under
+    // an identity whose conflict policy was never part of the claim. Omitting
+    // it emits no field and preserves every deterministic key byte-for-byte.
     return yield* Schema.decodeUnknownEffect(Key)({
       kind: environment === undefined ? "run" : "cache",
       form,
       input,
       ...(environment === undefined ? { runId: executionId } : { environment }),
+      ...(action.nondeterministic === undefined ? {} : { nondeterministic: action.nondeterministic }),
       ...(boundary === undefined ? {} : { boundary })
     })
   }
@@ -175,9 +188,9 @@ export const actionKey = Effect.fn("FlowEngine.actionKey")(function*(
   // concurrency a replay could hand `chargeCard` the ordinal `sendEmail`
   // recorded and replay the wrong attempt rows, checkpoint, and outcome.
   // Per-identity counters are stable under any interleaving of distinct
-  // declarations — distinct names, or one name with distinct declared
-  // idempotency keys; the scope also keeps two identities from sharing the
-  // number 1.
+  // declarations or structural dispatch sites — distinct names, one name
+  // with distinct declared idempotency keys, or distinct interpreter graph
+  // nodes; the scope also keeps two identities from sharing the number 1.
   return yield* StepIdentity.invocationKey({
     runId: executionId,
     parentScope: scope,

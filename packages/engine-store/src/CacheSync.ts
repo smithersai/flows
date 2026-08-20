@@ -31,7 +31,7 @@
  *
  * @since 0.1.0
  */
-import type { CacheStore } from "@smthrs/step-cache-next"
+import type { CacheStore } from "@smthrs/step-cache"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -47,6 +47,7 @@ import * as Option from "effect/Option"
  *
  * @since 0.1.0
  * @category services
+ * @slop
  */
 export interface Service {
   /**
@@ -66,13 +67,11 @@ export interface Service {
 /**
  * Service tag for the shared step-result publication seam.
  *
- * The identity string is a new one, so it equals this module's path — unlike
- * the three deliberately frozen `flows/journal/…` store ids.
- *
  * @since 0.1.0
  * @category services
+ * @slop
  */
-export class CacheSync extends Context.Service<CacheSync, Service>()("flows/engine-store/CacheSync") {}
+export class CacheSync extends Context.Service<CacheSync, Service>()("@smthrs/engine-store/CacheSync") {}
 
 /**
  * The single-tier implementation: there is no shared step-result tier, so a
@@ -84,6 +83,7 @@ export class CacheSync extends Context.Service<CacheSync, Service>()("flows/engi
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const makeLocal = (): Service => ({
   publishEntry: Effect.fn("CacheSync.publishEntry")(() => Effect.succeed(Option.none()))
@@ -94,6 +94,7 @@ export const makeLocal = (): Service => ({
  *
  * @since 0.1.0
  * @category layers
+ * @slop
  */
 export const layerLocal: Layer.Layer<CacheSync> = Layer.succeed(CacheSync)(makeLocal())
 
@@ -103,6 +104,7 @@ export const layerLocal: Layer.Layer<CacheSync> = Layer.succeed(CacheSync)(makeL
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const make = (options: { readonly remote: CacheStore.Service }): Service => ({
   publishEntry: Effect.fn("CacheSync.publishEntry")((entry: CacheStore.CacheEntry) =>
@@ -127,6 +129,7 @@ export const make = (options: { readonly remote: CacheStore.Service }): Service 
  *
  * @since 0.1.0
  * @category layers
+ * @slop
  */
 export const layer = <E, R>(
   remote: Effect.Effect<CacheStore.Service, E, R>

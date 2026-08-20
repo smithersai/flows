@@ -1,0 +1,12 @@
+import { open, api, text, run } from "./drv.ts";
+const { context, page, errors } = await open({ reset: true });
+await page.waitForTimeout(5000);
+const before = await text(page);
+console.log("BEFORE tail>>>", before.slice(-1200));
+await run(page, "/reco.refresh", 9000);
+const after = await text(page);
+console.log("AFTER tail>>>", after.slice(-2000));
+console.log("changed:", before !== after);
+await page.screenshot({ path: "/tmp/surfaces/9.6.png" });
+console.log("ERRORS", JSON.stringify(errors.slice(0,5)));
+await context.close();

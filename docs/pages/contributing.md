@@ -1,3 +1,7 @@
+---
+description: "Gates, commit conventions, and the epic plan, for people changing the repository rather than using it."
+---
+
 # Contributor plan
 
 For people changing the repository rather than using it. Read [Internal details](/internals) for the invariants the durable driver enforces and [Public API tests](/api-tests) for which suite owns which behavior. This page covers the gates, the commit conventions, and the epic plan.
@@ -12,13 +16,14 @@ Node.js 22.19 or later. `pnpm install` at the root installs every workspace.
 | tests | `pnpm test` | every package suite at 100% coverage over `src/**` |
 | lint | `pnpm run lint` | formatting and lint rules |
 | cycles | `pnpm run circular` | no import cycle inside or across packages |
-| entry contract | `pnpm run browser` | ten entry points bundle for the browser and the Node-only ones still do not |
+| entry contract | `pnpm run browser` | every entry in `scripts/browser-check.mjs`'s `BROWSER_SAFE` list bundles for the browser, and every `NODE_ONLY` entry still fails |
 | examples | `pnpm run test:examples` | every documented example runs against the real packages |
+| launch checklist | `pnpm run checklist` | runs the UI workspace's operator launch checklist |
 | docs | `pnpm exec vocs build` | the site builds and no page links to a dead route |
 
 `pnpm exec vocs dev` serves the site locally.
 
-All seven run before a pull request. Coverage thresholds are absolute, so a new branch in `src` without a new case fails the gate rather than passing quietly.
+The first seven run before a pull request. `pnpm run checklist` is the root alias for the UI workspace's operator-facing launch check. Coverage thresholds are absolute, so a new branch in `src` without a new case fails the gate rather than passing quietly.
 
 ## Where code goes
 
@@ -36,7 +41,7 @@ Six things do not appear in these pages. The em dash character, replaced by a co
 
 ## Commit conventions
 
-Small atomic emoji conventional commits, grouped by epic. One docs page per commit. One example plus its test wiring per commit. Package-manifest changes carry their lockfile change in the same commit.
+Use small atomic emoji conventional commits, grouped by epic. Every subject carries its type's emoji: 📝 docs, ✨ feat, 🐛 fix, ✅ test, ♻️ refactor. Use one docs page per commit. Use one example plus its test wiring per commit. Package-manifest changes carry their lockfile change in the same commit.
 
 Every commit body carries a `Docs:` trailer naming the docs files it touches or is documented by. Every commit except the first of a series carries `Depends-on:` with the short SHAs of the prior commits in that series.
 
@@ -47,7 +52,11 @@ Docs: docs/pages/architecture.md
 Depends-on: 5973042, 8534b67
 ```
 
-Use explicit pathspecs for every commit. Do not use `git add -A`, `git commit -a`, `git stash`, or `git commit --amend` on someone else's work. If your own earlier commit in the current series is wrong, rewrite or squash the fix into it rather than appending a follow-up.
+:::danger[Commit only your own paths]
+Use explicit pathspecs for every commit. Do not use `git add -A`, `git commit -a`, `git stash`, or `git commit --amend` on someone else's work.
+:::
+
+If your own earlier commit in the current series is wrong, rewrite or squash the fix into it rather than appending a follow-up.
 
 ## Epic plan
 
@@ -56,7 +65,7 @@ Use explicit pathspecs for every commit. Do not use `git add -A`, `git commit -a
 | Epic | Commits | Depends on |
 | --- | --- | --- |
 | `vocs-scaffold` | the Vocs devDependency and `vocs.config.ts`; the sidebar in reading order; the package barrel export docs | nothing |
-| `api-reference` | one commit per package page, in sidebar order: host, journal, database, kernel, keys, engine, engine-store, sync, time-travel, then the `@smthrs/flows-next` barrel | `vocs-scaffold` |
+| `api-reference` | one commit per package page, in sidebar order: host, journal, database, kernel, keys, engine, engine-store, sync, time-travel, then the `@smthrs/flows` barrel | `vocs-scaffold` |
 | `internals` | the public API test inventory; observability; internal details; data structures | `api-reference` |
 | `architecture` | the mermaid devDependency; the architecture page; package structure | `internals` |
 | `narrative` | examples; design decisions; external; this page; the introduction | `architecture` |
@@ -65,13 +74,13 @@ Use explicit pathspecs for every commit. Do not use `git add -A`, `git commit -a
 
 ### Planned
 
-Each of these closes a gap named in [External](/external). They are listed in dependency order, and none of them has landed.
+Each of these closes a gap named in [External](/external). They are listed in dependency order. None has landed in full; `production-layer` has landed in part, as noted in its row.
 
 | Epic | Intended commits | Depends on |
 | --- | --- | --- |
-| `production-layer` | a `@smthrs/flows-next` layer composing database, migrations, journal stores, durable deferred and clock state, kernel, a platform bundle, and engine; a durable getting-started example that survives a restart; the manifest and gate updates | nothing |
+| `production-layer` | a `@smthrs/flows` layer composing database, migrations, journal stores, durable deferred and clock state, kernel, a platform bundle, and engine; a durable getting-started example that survives a restart; the manifest and gate updates. Partly landed: the `NodeRuntime` subpath packages the storage and engine composition and the durable example builds on it; the package-level real-SQLite gate is also landed. Still open are the kernel and platform-bundle half: `NodeRuntime` installs neither `NodeHost.layer` nor the guarded `HostServices` kernel | nothing |
 | `injectable-seams` | put a service or a defaulted option in front of `resolveRetry`, then `classifyError`, then `resolveShareability`, then `waitStart` and `wake`, one seam per commit with a suite proving a provided `Layer` changes engine behavior | `production-layer` |
-| `supervisor` | `Supervisor.layer` scanning expired leases, due wakes, and `released` rows; a fault case for each scan class | `production-layer` |
+| ~~`supervisor`~~ | Withdrawn. The run driver's heartbeat-cadence sweep handles `released` and cancel-requested parked rows plus stale `running` rows; no separate `Supervisor.layer` is planned; see [gap 8](https://github.com/smithersai/flows/blob/main/docs/architecture/smithers-replacement-gaps.md#8-supervisor-sweep--closed-inside-the-run-driver). Durable clocks are instead re-armed by `DeferredPersistence.sweepDue` during flow registration and fire through per-clock timer fibers. A gateway supervisor that launches a process for an abandoned run is a distinct, still-unplanned piece of work | nothing |
 | `run-control` | a `RunControl` service journalling attributed pause, cancel, and hijack with actor and reason; the run-row columns; hijack as an alternative `RunControl` implementation | `injectable-seams` |
 | `quota-park` | an error-classification service that recognizes provider quota errors, parks with a wake time, and wakes through the durable clock | `injectable-seams` |
 | `pg-parity` | a `PgDatabase` layer; a `PGliteDatabase` layer; a dialect parameter on `Migrations.run`; the out-of-ladder statements ported; the journal and engine-store suites run against PGlite in CI | nothing |

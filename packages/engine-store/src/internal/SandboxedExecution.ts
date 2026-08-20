@@ -10,8 +10,8 @@
  *
  * @since 0.1.0
  */
-import { Sha256 } from "@smthrs/crypto-next"
-import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
+import { Sha256 } from "@smthrs/crypto"
+import type { FileBoundary } from "@smthrs/flow/FileBoundary"
 import * as Cause from "effect/Cause"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
@@ -27,6 +27,7 @@ import * as WorkspaceSandbox from "../WorkspaceSandbox.ts"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Settlement {
   readonly result: unknown
@@ -59,6 +60,7 @@ export interface Settlement {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const defaultMaxRebases = 3
 
@@ -89,6 +91,7 @@ const conflicted = (cause: Cause.Cause<unknown>): boolean =>
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const execute = (options: {
   readonly sandbox: WorkspaceSandbox.Service

@@ -4,20 +4,23 @@
  *
  * @since 0.1.0
  */
-import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
-import { Sha256 } from "@smthrs/crypto-next"
-import { FileBoundary } from "@smthrs/flow-next/FileBoundary"
-import { FileInput } from "@smthrs/flow-next/FileInput"
-import { Key } from "@smthrs/keys-next"
-import * as FileSet from "@smthrs/plan-next/FileSet"
+import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
+import { Sha256 } from "@smthrs/crypto"
+import { FileBoundary } from "@smthrs/flow/FileBoundary"
+import { FileInput } from "@smthrs/flow/FileInput"
+import { Key } from "@smthrs/keys"
+import * as FileSet from "@smthrs/plan/FileSet"
+import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Encoding from "effect/Encoding"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
+import * as FileEnumeration from "./internal/FileEnumeration.ts"
 
 /**
  * A file boundary that has been measured but not yet run: the caller's
@@ -29,6 +32,7 @@ import * as Schema from "effect/Schema"
  *
  * @since 0.1.0
  * @category schemas
+ * @slop
  */
 export const PreparedBoundary = Schema.Struct({
   descriptor: FileBoundary,
@@ -46,6 +50,7 @@ export const PreparedBoundary = Schema.Struct({
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type PreparedBoundary = typeof PreparedBoundary.Type
 
@@ -54,6 +59,7 @@ export type PreparedBoundary = typeof PreparedBoundary.Type
  *
  * @category accessors
  * @since 0.1.0
+ * @slop
  */
 export const exactReads = (descriptor: FileBoundary): ReadonlyArray<FileInput> =>
   descriptor.readSet.filter((entry): entry is FileInput => !FileSet.isGlob(entry))
@@ -68,6 +74,7 @@ export const exactReads = (descriptor: FileBoundary): ReadonlyArray<FileInput> =
  *
  * @since 0.1.0
  * @category predicates
+ * @slop
  */
 export const readSetMatches = (prepared: PreparedBoundary): boolean =>
   prepared.descriptor.readSet.every((entry) =>
@@ -86,6 +93,7 @@ export const readSetMatches = (prepared: PreparedBoundary): boolean =>
  *
  * @since 0.1.0
  * @category schemas
+ * @slop
  */
 export const ExpectedSetDeviation = Schema.TaggedStruct("ExpectedSetDeviation", {
   paths: Schema.Array(Schema.String),
@@ -109,8 +117,28 @@ export const ExpectedSetDeviation = Schema.TaggedStruct("ExpectedSetDeviation", 
  *
  * @since 0.1.0
  * @category schemas
+ * @slop
  */
 export const MissingOutputDeviation = Schema.TaggedStruct("MissingDeclaredOutput", {
+  paths: Schema.Array(Schema.String),
+  diffIdentity: Schema.NonEmptyString
+})
+
+/**
+ * Declared removals an expected-mode step left in place.
+ *
+ * The dual of {@link MissingOutputDeviation}: a removal is a promise about the
+ * post-state exactly as a write is. A path that was promised absent but is
+ * still present — possibly mutated — must not settle as valid evidence, or
+ * the mutation is cached under a declaration that disclaimed it and replay
+ * materializes it everywhere. A hard-mode boundary raises
+ * {@link SurvivingDeclaredRemoval} for the same observation.
+ *
+ * @since 0.1.0
+ * @category schemas
+ * @slop
+ */
+export const SurvivingRemovalDeviation = Schema.TaggedStruct("SurvivingDeclaredRemoval", {
   paths: Schema.Array(Schema.String),
   diffIdentity: Schema.NonEmptyString
 })
@@ -120,14 +148,16 @@ export const MissingOutputDeviation = Schema.TaggedStruct("MissingDeclaredOutput
  *
  * @since 0.1.0
  * @category schemas
+ * @slop
  */
-export const BoundaryDeviation = Schema.Union([ExpectedSetDeviation, MissingOutputDeviation])
+export const BoundaryDeviation = Schema.Union([ExpectedSetDeviation, MissingOutputDeviation, SurvivingRemovalDeviation])
 
 /**
  * The value form of {@link BoundaryDeviation}.
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type BoundaryDeviation = typeof BoundaryDeviation.Type
 
@@ -144,6 +174,7 @@ export type BoundaryDeviation = typeof BoundaryDeviation.Type
  *
  * @since 0.1.0
  * @category schemas
+ * @slop
  */
 export const BoundaryEvidence = Schema.Struct({
   declaredOutputs: Schema.Unknown,
@@ -165,6 +196,7 @@ export const BoundaryEvidence = Schema.Struct({
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type BoundaryEvidence = typeof BoundaryEvidence.Type
 
@@ -178,9 +210,10 @@ export type BoundaryEvidence = typeof BoundaryEvidence.Type
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export class UndeclaredWrite extends Schema.TaggedError<UndeclaredWrite>()(
-  "flows/engine-store/UndeclaredWrite",
+  "@smthrs/engine-store/UndeclaredWrite",
   {
     code: Schema.Literal("undeclared_write"),
     paths: Schema.Array(Schema.String),
@@ -204,11 +237,33 @@ export class UndeclaredWrite extends Schema.TaggedError<UndeclaredWrite>()(
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export class MissingDeclaredOutput extends Schema.TaggedError<MissingDeclaredOutput>()(
-  "flows/engine-store/MissingDeclaredOutput",
+  "@smthrs/engine-store/MissingDeclaredOutput",
   {
     code: Schema.Literal("missing_declared_output"),
+    paths: Schema.Array(Schema.String),
+    diffIdentity: Schema.NonEmptyString
+  }
+) {}
+
+/**
+ * A hard-mode step left a declared removal in place.
+ *
+ * The dual of {@link MissingDeclaredOutput}: `removes` promises the path is
+ * absent afterwards, and a path that survived — or was quietly rewritten —
+ * is a post-state the declaration disclaimed. Settling it as evidence would
+ * cache the surviving bytes under a removal and hand them to every replay.
+ *
+ * @since 0.1.0
+ * @category errors
+ * @slop
+ */
+export class SurvivingDeclaredRemoval extends Schema.TaggedError<SurvivingDeclaredRemoval>()(
+  "@smthrs/engine-store/SurvivingDeclaredRemoval",
+  {
+    code: Schema.Literal("surviving_declared_removal"),
     paths: Schema.Array(Schema.String),
     diffIdentity: Schema.NonEmptyString
   }
@@ -225,12 +280,19 @@ export class MissingDeclaredOutput extends Schema.TaggedError<MissingDeclaredOut
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export class UnsupportedBoundary extends Schema.TaggedError<UnsupportedBoundary>()(
-  "flows/engine-store/UnsupportedBoundary",
+  "@smthrs/engine-store/UnsupportedBoundary",
   {
     code: Schema.Literal("unsupported_boundary"),
-    message: Schema.String
+    message: Schema.String,
+    /**
+     * The refusing host or artifact-store failure, carried whole rather than
+     * flattened into the message (`PlatformError`'s own convention), so the
+     * journal record and a live debugger both see the original error.
+     */
+    cause: Schema.optional(Schema.Defect())
   }
 ) {}
 
@@ -243,9 +305,10 @@ export class UnsupportedBoundary extends Schema.TaggedError<UnsupportedBoundary>
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export class BoundaryCorruption extends Schema.TaggedError<BoundaryCorruption>()(
-  "flows/engine-store/BoundaryCorruption",
+  "@smthrs/engine-store/BoundaryCorruption",
   {
     code: Schema.Literal("boundary_corruption"),
     path: Schema.String,
@@ -264,9 +327,10 @@ export class BoundaryCorruption extends Schema.TaggedError<BoundaryCorruption>()
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export class MissingArtifact extends Schema.TaggedError<MissingArtifact>()(
-  "flows/engine-store/MissingArtifact",
+  "@smthrs/engine-store/MissingArtifact",
   {
     code: Schema.Literal("missing_artifact"),
     path: Schema.String,
@@ -285,6 +349,7 @@ export class MissingArtifact extends Schema.TaggedError<MissingArtifact>()(
  *
  * @since 0.1.0
  * @category services
+ * @slop
  */
 export interface Service {
   readonly prepare: (
@@ -292,7 +357,11 @@ export interface Service {
   ) => Effect.Effect<PreparedBoundary, UnsupportedBoundary, Crypto.Crypto>
   readonly settle: (
     prepared: PreparedBoundary
-  ) => Effect.Effect<BoundaryEvidence, UndeclaredWrite | MissingDeclaredOutput | UnsupportedBoundary, Crypto.Crypto>
+  ) => Effect.Effect<
+    BoundaryEvidence,
+    UndeclaredWrite | MissingDeclaredOutput | SurvivingDeclaredRemoval | UnsupportedBoundary,
+    Crypto.Crypto
+  >
   readonly replayOutputs: (
     evidence: BoundaryEvidence
   ) => Effect.Effect<void, UnsupportedBoundary | BoundaryCorruption | MissingArtifact, Crypto.Crypto>
@@ -304,9 +373,10 @@ export interface Service {
  *
  * @since 0.1.0
  * @category services
+ * @slop
  */
 export const StepBoundary: Context.Service<Service, Service> = Context.Service<Service>(
-  "flows/engine-store/StepBoundary"
+  "@smthrs/engine-store/StepBoundary"
 )
 
 /**
@@ -316,6 +386,7 @@ export const StepBoundary: Context.Service<Service, Service> = Context.Service<S
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const make = (service: Service): Service => StepBoundary.of(service)
 
@@ -407,7 +478,8 @@ const fromLegacyOutput = Effect.fn("StepBoundary.fromLegacyOutput")(function*(
 const hostFailure = (cause: unknown): UnsupportedBoundary =>
   new UnsupportedBoundary({
     code: "unsupported_boundary",
-    message: `the host filesystem could not enforce the step boundary: ${String(cause)}`
+    message: "the host filesystem could not enforce the step boundary",
+    cause
   })
 
 /**
@@ -419,7 +491,8 @@ const hostFailure = (cause: unknown): UnsupportedBoundary =>
 const artifactFailure = (cause: ArtifactStore.ArtifactStoreError): UnsupportedBoundary =>
   new UnsupportedBoundary({
     code: "unsupported_boundary",
-    message: `the artifact store could not serve the step boundary: ${cause.message}`
+    message: `the artifact store could not serve the step boundary: ${cause.message}`,
+    cause
   })
 
 /**
@@ -447,6 +520,7 @@ const inlineCorruption = (path: string, recordedDigest: string): BoundaryCorrupt
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface FileSystemOptions {
   /**
@@ -465,10 +539,40 @@ export interface FileSystemOptions {
    * {@link maxInlineBytes}. Defaults to 8 MiB.
    */
   readonly maxTotalInlineBytes?: number | undefined
+  /**
+   * Maximum file digests retained by this boundary service's stat-keyed LRU
+   * memo. Set to zero to disable retention. Defaults to 4096 entries.
+   */
+  readonly maxDigestMemoEntries?: number | undefined
 }
 
 const defaultMaxInlineBytes = 1024 * 1024
 const defaultMaxTotalInlineBytes = 8 * 1024 * 1024
+const defaultMaxDigestMemoEntries = 4096
+
+/**
+ * Files this recent are always re-hashed. A filesystem may expose timestamps
+ * too coarse to distinguish same-size rewrites within one tick; retaining a
+ * digest inside that granularity window would turn unchanged stat metadata
+ * into false content evidence.
+ */
+const digestMemoRecencyWindowMs = 2_000
+
+interface StatIdentity {
+  readonly key: string
+  readonly mtimeMs: number | undefined
+}
+
+interface DigestMemoEntry {
+  readonly identity: StatIdentity
+  readonly digest: string
+}
+
+interface MeasuredDigest {
+  readonly digest: string
+  /** Present when this call had to read the file, so capture can reuse it. */
+  readonly bytes?: Uint8Array | undefined
+}
 
 type MaterializedOutput = typeof DigestReferencedOutput.Type
 
@@ -484,6 +588,7 @@ type MaterializedOutput = typeof DigestReferencedOutput.Type
  *
  * @since 0.1.0
  * @category accessors
+ * @slop
  */
 export const referencedDigests = (evidence: BoundaryEvidence): ReadonlyArray<string> => {
   const decoded = Schema.decodeUnknownResult(MaterializedOutputs)(evidence.declaredOutputs)
@@ -504,13 +609,14 @@ export const referencedDigests = (evidence: BoundaryEvidence): ReadonlyArray<str
  *
  * The blob mechanics — content addressing, atomic publication, digest
  * verification, dedupe — belong to `artifacts` and were extracted into
- * `@smthrs/artifacts-next` (`docs/specs/Concepts/Remote Cache.md`). What stays here
+ * `@smthrs/artifacts` (`docs/specs/Concepts/Remote Cache.md`). What stays here
  * is the *policy* that decides which outputs become blobs at all: the
  * inline-versus-spill budgets are a property of how large an evidence row may
  * get, not of how bytes are stored.
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const makeFileSystem = (
   fs: FileSystem.FileSystem,
@@ -519,44 +625,87 @@ export const makeFileSystem = (
 ): Service => {
   const maxInlineBytes = options.maxInlineBytes ?? defaultMaxInlineBytes
   const maxTotalInlineBytes = options.maxTotalInlineBytes ?? defaultMaxTotalInlineBytes
+  const maxDigestMemoEntries = Math.max(
+    0,
+    Math.floor(options.maxDigestMemoEntries ?? defaultMaxDigestMemoEntries)
+  )
+  const digestMemo = new Map<string, DigestMemoEntry>()
+  const statIdentity = (info: FileSystem.File.Info): StatIdentity => {
+    const mtimeMs = Option.getOrUndefined(info.mtime)?.getTime()
+    const ino = Option.getOrUndefined(info.ino)
+    // Effect v4 exposes no ctime. Path (the outer Map key), size, mtime,
+    // device, and optional inode are the complete Bazel-style content
+    // discriminators its File.Info contract makes available.
+    return {
+      key: `${info.size}:${mtimeMs ?? "none"}:${info.dev}:${ino ?? "none"}`,
+      mtimeMs
+    }
+  }
+  const rememberDigest = (path: string, identity: StatIdentity, digest: string) => {
+    // Map insertion order is the LRU list: refreshing a path moves it to the
+    // tail, and the head is evicted when the configured cap is exceeded.
+    digestMemo.delete(path)
+    digestMemo.set(path, { identity, digest })
+    if (digestMemo.size > maxDigestMemoEntries) {
+      digestMemo.delete(digestMemo.keys().next().value!)
+    }
+  }
+  const readDigest = Effect.fn("StepBoundary.readDigest")(function*(path: string) {
+    const bytes = yield* fs.readFile(path)
+    const digest = yield* Schema.decodeUnknownEffect(Sha256)(bytes).pipe(Effect.orDie)
+    return { digest, bytes } satisfies MeasuredDigest
+  })
+  const digestOf = Effect.fn("StepBoundary.digestOf")(function*(path: string) {
+    const status = yield* fs.stat(path).pipe(Effect.option)
+    // A host without usable stat support keeps the old read+hash behavior and
+    // contributes no memo entry. Callers retain their existing host-failure
+    // translation if the fallback read itself is refused.
+    if (Option.isNone(status)) return yield* readDigest(path)
+    const identity = statIdentity(status.value)
+    const cached = digestMemo.get(path)
+    if (
+      cached !== undefined &&
+      cached.identity.key === identity.key &&
+      identity.mtimeMs !== undefined
+    ) {
+      const nowMs = yield* Clock.currentTimeMillis
+      if (identity.mtimeMs < nowMs - digestMemoRecencyWindowMs) {
+        digestMemo.delete(path)
+        digestMemo.set(path, cached)
+        return { digest: cached.digest, bytes: undefined } satisfies MeasuredDigest
+      }
+    }
+    const measured = yield* readDigest(path)
+    rememberDigest(path, identity, measured.digest)
+    return measured
+  })
   const measure = (path: string): Effect.Effect<string, UnsupportedBoundary, Crypto.Crypto> =>
     fs.exists(path).pipe(
       Effect.flatMap((present) =>
         present
-          ? Effect.flatMap(fs.readFile(path), (bytes) => Schema.decodeUnknownEffect(Sha256)(bytes).pipe(Effect.orDie))
+          ? Effect.map(digestOf(path), (measured) => measured.digest)
           : Effect.succeed(absentDigest)
       ),
       Effect.mapError(hostFailure)
     )
+  // Both expansions enumerate through `FileEnumeration`, never the host
+  // `glob`: host results are absolute under the kernel FileSystem and skip
+  // dotfiles under Node's matcher, so trusting them silently emptied every
+  // workspace-relative expansion and let a tree replay delete dotfiles the
+  // producer wrote.
   const expandGlob = Effect.fn("StepBoundary.expandGlob")(function*(glob: FileSet.Glob) {
-    const matched = new Set<string>()
-    for (const include of glob.include) {
-      const paths = yield* fs.glob(include, { exclude: glob.exclude ?? [] }).pipe(Effect.mapError(hostFailure))
-      for (const path of paths) {
-        const info = yield* fs.stat(path).pipe(Effect.mapError(hostFailure))
-        /* v8 ignore else -- non-file glob matches are intentionally discarded */
-        if (info.type === "File" && FileSet.matchesGlob(glob, path)) matched.add(path)
-      }
-    }
-    return [...matched].sort()
+    return yield* FileEnumeration.expandGlob(fs, glob).pipe(Effect.mapError(hostFailure))
   })
-  const treeFiles = Effect.fn("StepBoundary.treeFiles")(function*(path: string) {
-    const present = yield* fs.exists(path).pipe(Effect.mapError(hostFailure))
-    if (!present) return []
-    const paths = yield* fs.glob(`${path}/**/*`).pipe(Effect.mapError(hostFailure))
-    const files: Array<string> = []
-    for (const candidate of paths) {
-      const info = yield* fs.stat(candidate).pipe(Effect.mapError(hostFailure))
-      /* v8 ignore else -- nested directories are traversal scaffolding, not tree-artifact leaves */
-      if (info.type === "File") files.push(candidate)
-    }
-    return files.sort()
+  const treeEntries = Effect.fn("StepBoundary.treeEntries")(function*(path: string) {
+    return yield* FileEnumeration.entriesUnder(fs, path).pipe(Effect.mapError(hostFailure))
   })
   const capture = Effect.fn("StepBoundary.capture")(function*(path: string, inlineBudget: number) {
+    yield* Effect.annotateCurrentSpan({ path })
     const present = yield* fs.exists(path).pipe(Effect.mapError(hostFailure))
     if (!present) return { output: { path, digest: null } satisfies MaterializedOutput, inlinedBytes: 0 }
-    const bytes = yield* fs.readFile(path).pipe(Effect.mapError(hostFailure))
-    const digest = yield* Schema.decodeUnknownEffect(Sha256)(bytes).pipe(Effect.orDie)
+    const measured = yield* digestOf(path).pipe(Effect.mapError(hostFailure))
+    const bytes = measured.bytes ?? (yield* fs.readFile(path).pipe(Effect.mapError(hostFailure)))
+    const digest = measured.digest
     // Inline only while both bounds hold (issue #122): the per-output bound
     // and the settle-wide aggregate budget the caller threads through.
     if (bytes.length <= maxInlineBytes && bytes.length <= inlineBudget) {
@@ -574,11 +723,21 @@ export const makeFileSystem = (
     // artifact store and the persisted row carries only the reference. Every
     // property that used to live here — atomic publication, verify-once
     // dedupe, healing rewrite of a corrupt address — is now the store's, and
-    // is tested there (`@smthrs/artifacts-next`).
+    // is tested there (`@smthrs/artifacts`).
     yield* artifacts.put(bytes).pipe(Effect.mapError(artifactFailure))
     return { output: { path, digest, sizeBytes: bytes.length } satisfies MaterializedOutput, inlinedBytes: 0 }
   })
   const materialize = Effect.fn("StepBoundary.materialize")(function*(output: MaterializedOutput) {
+    yield* Effect.annotateCurrentSpan({ path: output.path })
+    // The filesystem is the cheapest source of truth for a warm workspace.
+    // Probe before decoding inline bytes or consulting the artifact store; a
+    // transient probe refusal merely forfeits the optimization and the
+    // ordinary materialization path retains its existing typed failures.
+    const current = yield* measure(output.path).pipe(
+      Effect.map((digest) => digest !== absentDigest && digest === output.digest),
+      Effect.catch(() => Effect.succeed(false))
+    )
+    if (current) return
     let bytes: Uint8Array
     if (output.content !== undefined) {
       const decoded = Encoding.decodeBase64(output.content)
@@ -612,14 +771,14 @@ export const makeFileSystem = (
           // shared artifact tier may still hold it, so the caller gets a
           // typed, repairable failure and fetches before falling back to a
           // real execution (issue #172).
-          "@smthrs/artifacts-next/ArtifactMissing": (missing) =>
+          "@smthrs/artifacts/ArtifactMissing": (missing) =>
             Effect.fail(
               new MissingArtifact({ code: "missing_artifact", path: output.path, digest: missing.digest })
             ),
           // Corruption is a distinct typed failure from a transient host
           // error (issue #150): the caller routes it to the Inconsistency
           // receiver instead of treating it as an ordinary retryable refusal.
-          "@smthrs/artifacts-next/ArtifactCorruption": (corrupt) =>
+          "@smthrs/artifacts/ArtifactCorruption": (corrupt) =>
             Effect.fail(
               new BoundaryCorruption({
                 code: "boundary_corruption",
@@ -628,7 +787,7 @@ export const makeFileSystem = (
                 measuredDigest: corrupt.measuredDigest
               })
             ),
-          "@smthrs/artifacts-next/ArtifactStoreError": (failure) => Effect.fail(artifactFailure(failure))
+          "@smthrs/artifacts/ArtifactStoreError": (failure) => Effect.fail(artifactFailure(failure))
         })
       )
     }
@@ -643,6 +802,10 @@ export const makeFileSystem = (
   })
   return make({
     prepare: Effect.fn("StepBoundary.prepare")(function*(descriptor) {
+      yield* Effect.annotateCurrentSpan({
+        reads: descriptor.readSet.length,
+        boundaryMode: descriptor.boundaryMode
+      })
       // The dirty check's evidence (issue #90): what the host actually
       // measured for every declared read, never the declaration itself —
       // defaulting the snapshot to the declaration made `readSetMatches`
@@ -658,6 +821,10 @@ export const makeFileSystem = (
       return { descriptor, readSnapshot }
     }),
     settle: Effect.fn("StepBoundary.settle")(function*(prepared) {
+      yield* Effect.annotateCurrentSpan({
+        writes: prepared.descriptor.writeSet.length,
+        boundaryMode: prepared.descriptor.boundaryMode
+      })
       // Undeclared-write detection is scoped to the declared read set: a
       // declared read whose content moved during the body and is not also a
       // declared write was mutated outside the contract. Whole-tree change
@@ -684,6 +851,7 @@ export const makeFileSystem = (
       // `digest: null` semantics they have always had — the difference is that
       // here the absence was declared, so it is evidence rather than a defect.
       const missing: Array<string> = []
+      const surviving: Array<string> = []
       let inlinedBytes = 0
       const outputPaths: Array<string> = []
       const trees: Array<{ readonly path: string; readonly identity: string }> = []
@@ -691,7 +859,7 @@ export const makeFileSystem = (
         if (typeof entry === "string") outputPaths.push(entry)
         else if (entry._tag === "Glob") outputPaths.push(...yield* expandGlob(entry))
         else {
-          const files = yield* treeFiles(entry.path)
+          const files = (yield* treeEntries(entry.path)).files
           outputPaths.push(...files)
           const pairs: Array<readonly [string, string]> = []
           for (const path of files) pairs.push([path.slice(entry.path.length + 1), yield* measure(path)])
@@ -714,6 +882,10 @@ export const makeFileSystem = (
           !removes.includes(path) &&
           prepared.descriptor.writeSet.some((entry) => typeof entry === "string" && entry === path)
         ) missing.push(path)
+        // The dual check: a removal promised the path absent, and it is still
+        // here — possibly rewritten. Settling it would cache the surviving
+        // bytes under a declaration that disclaimed them.
+        if (captured.output.digest !== null && removes.includes(path)) surviving.push(path)
       }
       // Through `Key` — the repo's one hashing chokepoint — so the identity is
       // a digest of the RFC 8785 canonical form rather than of whatever
@@ -723,6 +895,7 @@ export const makeFileSystem = (
         outputs: outputs.map((output) => [output.path, output.digest]),
         trees
       }).pipe(Effect.orDie)
+      yield* Effect.annotateCurrentSpan({ diffIdentity })
       if (prepared.descriptor.boundaryMode === "hard") {
         if (undeclared.length > 0) {
           return yield* Effect.fail(
@@ -737,6 +910,11 @@ export const makeFileSystem = (
             new MissingDeclaredOutput({ code: "missing_declared_output", paths: missing, diffIdentity })
           )
         }
+        if (surviving.length > 0) {
+          return yield* Effect.fail(
+            new SurvivingDeclaredRemoval({ code: "surviving_declared_removal", paths: surviving, diffIdentity })
+          )
+        }
       }
       return {
         declaredOutputs: { outputs, ...(trees.length === 0 ? {} : { trees }) },
@@ -745,17 +923,21 @@ export const makeFileSystem = (
         // the tree. Omission is deliberate: ActionPersistence treats the
         // result as run-local and will not publish it to the shared cache.
         //
-        // An undeclared write is reported ahead of a missing output: it is the
-        // stronger claim about the same execution, and either variant bars the
-        // evidence from the shared cache identically.
+        // An undeclared write is reported ahead of a missing output, and a
+        // missing output ahead of a surviving removal: each is the stronger
+        // claim about the same execution, and every variant bars the evidence
+        // from the shared cache identically.
         ...(undeclared.length > 0
           ? { deviation: { _tag: "ExpectedSetDeviation" as const, paths: undeclared, diffIdentity } }
           : missing.length > 0
           ? { deviation: { _tag: "MissingDeclaredOutput" as const, paths: missing, diffIdentity } }
+          : surviving.length > 0
+          ? { deviation: { _tag: "SurvivingDeclaredRemoval" as const, paths: surviving, diffIdentity } }
           : {})
       }
     }),
     replayOutputs: Effect.fn("StepBoundary.replayOutputs")(function*(evidence) {
+      yield* Effect.annotateCurrentSpan({ diffIdentity: evidence.diffIdentity })
       const decoded = Schema.decodeUnknownResult(MaterializedOutputs)(evidence.declaredOutputs)
       if (decoded._tag === "Failure") {
         // Evidence recorded by a different boundary implementation carries
@@ -768,8 +950,36 @@ export const makeFileSystem = (
           })
         )
       }
+      // Replay writes and DELETES whatever the evidence names, so a path is
+      // honored only in the coordinate system declarations are written in.
+      // Evidence can arrive from a foreign producer through cache sync; an
+      // absolute or upward spelling is an eraser aimed outside the workspace,
+      // and refusing it here is what keeps that a refusal instead of a wipe.
+      const foreign = [
+        ...(decoded.success.trees ?? []).map((tree) => tree.path),
+        ...decoded.success.outputs.map((output) => output.path)
+      ].filter((path) => !FileSet.workspaceRelative(path))
+      if (foreign.length > 0) {
+        return yield* Effect.fail(
+          new UnsupportedBoundary({
+            code: "unsupported_boundary",
+            message: `the recorded boundary evidence names paths outside the workspace: ${foreign.join(", ")}`
+          })
+        )
+      }
+      const emptyDirectoryCandidates = new Set<string>()
       for (const tree of decoded.success.trees ?? []) {
-        yield* fs.remove(tree.path, { recursive: true, force: true }).pipe(Effect.mapError(hostFailure))
+        const prefix = `${tree.path}/`.replace(/\/{2,}$/g, "/")
+        const recorded = new Set(
+          decoded.success.outputs
+            .map((output) => output.path)
+            .filter((path) => path.startsWith(prefix))
+        )
+        const entries = yield* treeEntries(tree.path)
+        for (const path of entries.files) {
+          if (!recorded.has(path)) yield* fs.remove(path).pipe(Effect.mapError(hostFailure))
+        }
+        for (const directory of entries.directories) emptyDirectoryCandidates.add(directory)
       }
       for (const recorded of decoded.success.outputs) {
         const output = "digest" in recorded ? recorded : yield* fromLegacyOutput(recorded)
@@ -779,6 +989,14 @@ export const makeFileSystem = (
         } else {
           yield* materialize(output)
         }
+      }
+      // Remove only directories proven empty after pruning and
+      // materialization. Deepest-first preserves every directory that still
+      // contains a recorded child while clearing stale empty scaffolding.
+      const directories = [...emptyDirectoryCandidates].sort((left, right) => right.length - left.length)
+      for (const directory of directories) {
+        const entries = yield* fs.readDirectory(directory).pipe(Effect.mapError(hostFailure))
+        if (entries.length === 0) yield* fs.remove(directory).pipe(Effect.mapError(hostFailure))
       }
     })
   })
@@ -793,11 +1011,12 @@ export const makeFileSystem = (
  * Host access arrives through Effect's `FileSystem` tag, which the capability
  * kernel decorates in place — the same seam every host implementation (node,
  * bun, browser, sandbox) already provides. Blob storage arrives through
- * `@smthrs/artifacts-next`, so the same boundary runs over a purely local store or
+ * `@smthrs/artifacts`, so the same boundary runs over a purely local store or
  * over a local-plus-shared composition without knowing which it got.
  *
  * @since 0.1.0
  * @category layers
+ * @slop
  */
 export const layer: Layer.Layer<Service, never, FileSystem.FileSystem | ArtifactStore.ArtifactStore> = Layer.effect(
   StepBoundary,
@@ -818,6 +1037,7 @@ export const layer: Layer.Layer<Service, never, FileSystem.FileSystem | Artifact
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface TestOptions {
   /** The paths `settle` reports as written. Defaults to none. */
@@ -829,6 +1049,12 @@ export interface TestOptions {
    * legitimate. Defaults to none.
    */
   readonly missingOutputs?: ReadonlyArray<string> | undefined
+  /**
+   * Declared removals `settle` reports as still present — the dual of
+   * `missingOutputs`. Paths not declared in `removes` are ignored. Defaults
+   * to none.
+   */
+  readonly survivingRemovals?: ReadonlyArray<string> | undefined
   /**
    * What `prepare` reports as measured for the declared read set. Defaults
    * to the declaration itself; a test supplies a different snapshot to stand
@@ -860,13 +1086,16 @@ const unsupported = (): UnsupportedBoundary =>
  * Deterministic in-memory boundary suitable only for tests. Production
  * wiring uses {@link layer}, the filesystem-backed implementation.
  *
- * TODO(piece-6): whole-tree change detection (writes outside the declared
- * read and write sets) needs structured changed-path reporting from the jj
- * surface or sandbox bind mounts; {@link layer} detects mutations within
- * the declared read set only.
+ * Whole-tree change detection is supplied by sandboxed settlement, not by any
+ * boundary layer: an isolated execution's transaction IS the tree, so
+ * `ActionPersistence` compares its diff against the declared sets and sets
+ * `wholeTreeWritesVerified` structurally (the retired piece-6 limitation).
+ * {@link layer} still detects mutations within the declared read set only,
+ * which is why unsandboxed evidence stays run-local.
  *
  * @since 0.1.0
  * @category layers
+ * @slop
  */
 export const layerTest = (options: TestOptions = {}): Layer.Layer<Service> => {
   const changedPaths = options.changedPaths ?? []
@@ -896,6 +1125,10 @@ export const layerTest = (options: TestOptions = {}): Layer.Layer<Service> => {
       // so the test boundary can exercise the same rule the real one enforces
       // rather than pretending every declaration was honoured.
       const missing = (options.missingOutputs ?? []).filter((path) => !removes.includes(path))
+      // Stated explicitly rather than inferred from `changedPaths`: a
+      // correctly-deleted removal is a changed path too, so presence has to be
+      // the fixture's own claim.
+      const surviving = (options.survivingRemovals ?? []).filter((path) => removes.includes(path))
       if (prepared.descriptor.boundaryMode === "hard") {
         if (undeclared.length > 0) {
           return yield* Effect.fail(new UndeclaredWrite({ code: "undeclared_write", paths: undeclared, diffIdentity }))
@@ -903,6 +1136,11 @@ export const layerTest = (options: TestOptions = {}): Layer.Layer<Service> => {
         if (missing.length > 0) {
           return yield* Effect.fail(
             new MissingDeclaredOutput({ code: "missing_declared_output", paths: missing, diffIdentity })
+          )
+        }
+        if (surviving.length > 0) {
+          return yield* Effect.fail(
+            new SurvivingDeclaredRemoval({ code: "surviving_declared_removal", paths: surviving, diffIdentity })
           )
         }
       }
@@ -915,6 +1153,8 @@ export const layerTest = (options: TestOptions = {}): Layer.Layer<Service> => {
           ? { deviation: { _tag: "ExpectedSetDeviation" as const, paths: undeclared, diffIdentity } }
           : missing.length > 0
           ? { deviation: { _tag: "MissingDeclaredOutput" as const, paths: missing, diffIdentity } }
+          : surviving.length > 0
+          ? { deviation: { _tag: "SurvivingDeclaredRemoval" as const, paths: surviving, diffIdentity } }
           : {})
       }
     }),

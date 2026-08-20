@@ -10,10 +10,11 @@
  *
  * @since 0.1.0
  */
-import { Journal, JournalEvent } from "@smthrs/journal-next"
+import { describe, expect, it } from "@effect/vitest"
+import { Journal, JournalEvent } from "@smthrs/journal"
 import { Effect, Layer, Stream } from "effect"
-import { describe, expect, it } from "vitest"
 import * as RunCatalog from "../src/RunCatalog.ts"
+import * as SyncPrincipal from "../src/SyncPrincipal.ts"
 import * as SyncServer from "../src/SyncServer.ts"
 
 const runId = (value: string) => value as JournalEvent.RunId
@@ -84,95 +85,110 @@ const workspace = (runs: number, perRun: number) => {
 // Every soak is bounded by cycle count; a wall-clock limit only measures
 // machine load, which the package-wide `testTimeout` budgets for.
 describe("SyncServer fan-out budgets", () => {
-  it("delivers the identical frame sequence to every concurrent subscriber", async () => {
-    const { byRun, ids } = workspace(3, 4)
-    const tracker: Tracker = { open: 0, opened: 0, peak: 0 }
-    const collected = await Effect.runPromise(
-      Effect.gen(function*() {
-        const server = yield* SyncServer.makeLive
-        return yield* Effect.all(
-          Array.from({ length: 5 }, () =>
-            Stream.runCollect(
-              server.subscribe({ scope: { _tag: "Workspace" }, cursors: [], credit: 12 })
-            )),
-          { concurrency: "unbounded" }
-        )
-      }).pipe(
-        Effect.provide(Layer.mergeAll(trackedJournal(byRun, tracker), RunCatalog.layerStatic(ids))),
-        Effect.scoped
-      )
-    )
-
-    const shapes = collected.map((frames) =>
-      Array.from(frames)
-        .map((frame) => frame._tag === "Entries" ? `${frame.runId}:${frame.toSeq}` : frame._tag)
-        .sort()
-    )
-    // Every subscriber sees the whole workspace, and sees exactly the same
-    // thing: no subscriber may be starved or served a divergent view.
-    expect(shapes[0]).toHaveLength(12)
-    for (const shape of shapes) {
-      expect(shape).toEqual(shapes[0])
-    }
-    // Five subscribers really did hold five independent fan-outs open.
-    expect(tracker.peak).toBeGreaterThanOrEqual(5)
-  })
-
-  it("releases every per-subscriber journal stream when its subscription ends", async () => {
-    const { byRun, ids } = workspace(4, 3)
-    const tracker: Tracker = { open: 0, opened: 0, peak: 0 }
-    await Effect.runPromise(
-      Effect.gen(function*() {
-        const server = yield* SyncServer.makeLive
-        // Two hundred subscribe/complete cycles: any per-subscription state
-        // that is never released shows up as a monotonically rising `open`.
-        for (let cycle = 0; cycle < 200; cycle++) {
-          yield* Stream.runDrain(
-            server.subscribe({ scope: { _tag: "Workspace" }, cursors: [], credit: 6 })
-          )
-        }
-      }).pipe(
-        Effect.provide(Layer.mergeAll(trackedJournal(byRun, tracker), RunCatalog.layerStatic(ids))),
-        Effect.scoped
-      )
-    )
-
-    expect(tracker.opened).toBeGreaterThanOrEqual(200)
-    expect(tracker.open).toBe(0)
-    expect(tracker.peak).toBeLessThanOrEqual(2 * ids.length)
-  })
-
-  it("keeps retained heap bounded across a subscriber soak", async () => {
-    const { byRun, ids } = workspace(4, 25)
-    const tracker: Tracker = { open: 0, opened: 0, peak: 0 }
-    const layers = Layer.mergeAll(trackedJournal(byRun, tracker), RunCatalog.layerStatic(ids))
-    const soak = (cycles: number) =>
-      Effect.gen(function*() {
-        const server = yield* SyncServer.makeLive
-        for (let cycle = 0; cycle < cycles; cycle++) {
-          yield* Effect.all(
+  it.effect("delivers the identical frame sequence to every concurrent subscriber", () =>
+    Effect.gen(function*() {
+      const { byRun, ids } = workspace(3, 4)
+      const tracker: Tracker = { open: 0, opened: 0, peak: 0 }
+      const collected = yield* (
+        Effect.gen(function*() {
+          const server = yield* SyncServer.makeLive
+          return yield* Effect.all(
             Array.from({ length: 5 }, () =>
-              Stream.runDrain(
-                server.subscribe({ scope: { _tag: "Workspace" }, cursors: [], credit: 40 })
+              Stream.runCollect(
+                server.subscribe({ scope: { _tag: "Workspace" }, cursors: [], credit: 12 })
               )),
             { concurrency: "unbounded" }
           )
-        }
-      }).pipe(Effect.provide(layers), Effect.scoped)
+        }).pipe(
+          Effect.provide(Layer.mergeAll(
+            trackedJournal(byRun, tracker),
+            RunCatalog.layerStatic(ids),
+            SyncPrincipal.layerWorkspace("soak-suite")
+          )),
+          Effect.scoped
+        )
+      )
 
-    // Warm up first so the measurement excludes one-time allocation.
-    await Effect.runPromise(soak(20))
-    const gc = (globalThis as { gc?: () => void }).gc
-    gc?.()
-    const before = process.memoryUsage().heapUsed
-    await Effect.runPromise(soak(200))
-    gc?.()
-    const after = process.memoryUsage().heapUsed
+      const shapes = collected.map((frames) =>
+        Array.from(frames)
+          .map((frame) => frame._tag === "Entries" ? `${frame.runId}:${frame.toSeq}` : frame._tag)
+          .sort()
+      )
+      // Every subscriber sees the whole workspace, and sees exactly the same
+      // thing: no subscriber may be starved or served a divergent view.
+      expect(shapes[0]).toHaveLength(12)
+      for (const shape of shapes) {
+        expect(shape).toEqual(shapes[0])
+      }
+      // Five subscribers really did hold five independent fan-outs open.
+      expect(tracker.peak).toBeGreaterThanOrEqual(5)
+    }))
 
-    // 200 cycles x 5 subscribers x 4 runs x 25 entries: per-subscriber state
-    // that is retained rather than released grows this by tens of megabytes.
-    // The budget is deliberately loose — it fails on a leak, not on noise.
-    expect(after - before).toBeLessThan(64 * 1024 * 1024)
-    expect(tracker.open).toBe(0)
-  })
+  it.effect("releases every per-subscriber journal stream when its subscription ends", () =>
+    Effect.gen(function*() {
+      const { byRun, ids } = workspace(4, 3)
+      const tracker: Tracker = { open: 0, opened: 0, peak: 0 }
+      yield* (
+        Effect.gen(function*() {
+          const server = yield* SyncServer.makeLive
+          // Two hundred subscribe/complete cycles: any per-subscription state
+          // that is never released shows up as a monotonically rising `open`.
+          for (let cycle = 0; cycle < 200; cycle++) {
+            yield* Stream.runDrain(
+              server.subscribe({ scope: { _tag: "Workspace" }, cursors: [], credit: 6 })
+            )
+          }
+        }).pipe(
+          Effect.provide(Layer.mergeAll(
+            trackedJournal(byRun, tracker),
+            RunCatalog.layerStatic(ids),
+            SyncPrincipal.layerWorkspace("soak-suite")
+          )),
+          Effect.scoped
+        )
+      )
+
+      expect(tracker.opened).toBeGreaterThanOrEqual(200)
+      expect(tracker.open).toBe(0)
+      expect(tracker.peak).toBeLessThanOrEqual(2 * ids.length)
+    }))
+
+  it.effect("keeps retained heap bounded across a subscriber soak", () =>
+    Effect.gen(function*() {
+      const { byRun, ids } = workspace(4, 25)
+      const tracker: Tracker = { open: 0, opened: 0, peak: 0 }
+      const layers = Layer.mergeAll(
+        trackedJournal(byRun, tracker),
+        RunCatalog.layerStatic(ids),
+        SyncPrincipal.layerWorkspace("soak-suite")
+      )
+      const soak = (cycles: number) =>
+        Effect.gen(function*() {
+          const server = yield* SyncServer.makeLive
+          for (let cycle = 0; cycle < cycles; cycle++) {
+            yield* Effect.all(
+              Array.from({ length: 5 }, () =>
+                Stream.runDrain(
+                  server.subscribe({ scope: { _tag: "Workspace" }, cursors: [], credit: 40 })
+                )),
+              { concurrency: "unbounded" }
+            )
+          }
+        }).pipe(Effect.provide(layers), Effect.scoped)
+
+      // Warm up first so the measurement excludes one-time allocation.
+      yield* (soak(20))
+      const gc = (globalThis as { gc?: () => void }).gc
+      gc?.()
+      const before = process.memoryUsage().heapUsed
+      yield* (soak(200))
+      gc?.()
+      const after = process.memoryUsage().heapUsed
+
+      // 200 cycles x 5 subscribers x 4 runs x 25 entries: per-subscriber state
+      // that is retained rather than released grows this by tens of megabytes.
+      // The budget is deliberately loose — it fails on a leak, not on noise.
+      expect(after - before).toBeLessThan(64 * 1024 * 1024)
+      expect(tracker.open).toBe(0)
+    }))
 })

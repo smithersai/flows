@@ -5,7 +5,7 @@
  * `ClusterMetrics`. `DurableWriter`'s retry policy updates them, so every
  * store that writes through the boundary — journal, run store, step cache,
  * engine state — lands in the same counter. No exporter ships in this
- * package; provide one — for example `@smthrs/observability-next` — and the
+ * package; provide one — for example `@smthrs/observability` — and the
  * counter appears in it.
  *
  * @since 0.1.0
@@ -21,6 +21,7 @@ import * as Metric from "effect/Metric"
  *
  * @category metrics
  * @since 0.1.0
+ * @slop
  */
 export const writeRetries = Metric.counter("flows_db_write_retries", {
   description: "Durable write transaction replays after transient conflicts"

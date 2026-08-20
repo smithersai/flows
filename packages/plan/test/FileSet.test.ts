@@ -1,4 +1,4 @@
-import * as FileSet from "@smthrs/plan-next/FileSet"
+import * as FileSet from "@smthrs/plan/FileSet"
 import * as Schema from "effect/Schema"
 import { describe, expect, it } from "vitest"
 
@@ -43,6 +43,22 @@ describe("FileSet", () => {
     expect(FileSet.matchesGlob({ _tag: "Glob", include: ["*.ts"] }, "a.ts")).toBe(true)
   })
 
+  it("compares exact paths in canonical separator form", () => {
+    // `workspaceRelative` accepts a backslash as a separator, so the two
+    // spellings below name one workspace path and must overlap.
+    expect(FileSet.canonical("dist\\same.js")).toBe("dist/same.js")
+    expect(FileSet.overlaps("dist\\same.js", "dist/same.js")).toBe(true)
+    expect(FileSet.overlaps("dist/same.js", "dist\\same.js")).toBe(true)
+    expect(FileSet.overlaps("dist\\other.js", "dist/same.js")).toBe(false)
+    expect(FileSet.overlaps({ _tag: "TreeArtifact", path: "dist\\nested" }, "dist/nested/a.js")).toBe(true)
+    expect(FileSet.overlaps("dist\\same.js", { _tag: "Glob", include: ["dist/*.js"] })).toBe(true)
+    expect(FileSet.overlaps({ _tag: "Glob", include: ["dist/*.js"] }, "dist\\same.js")).toBe(true)
+    expect(FileSet.overlaps(
+      { _tag: "TreeArtifact", path: "dist" },
+      { _tag: "TreeArtifact", path: "dist\\nested" }
+    )).toBe(true)
+  })
+
   it("uses the conservative overlap matrix", () => {
     const all: FileSet.Glob = { _tag: "Glob", include: ["**/*.ts"] }
     expect(FileSet.overlaps("a", "a")).toBe(true)
@@ -56,5 +72,28 @@ describe("FileSet", () => {
     expect(FileSet.overlaps(tree, { _tag: "TreeArtifact", path: "other" })).toBe(false)
     expect(FileSet.overlaps(tree, glob)).toBe(true)
     expect(FileSet.overlaps(glob, tree)).toBe(true)
+  })
+})
+
+describe("FileSet.workspaceRelative", () => {
+  it("admits ordinary relative paths and patterns", () => {
+    for (const path of ["a.txt", "src/deep/b.ts", "src/**/*.ts", ".env", "a*b/c"]) {
+      expect(FileSet.workspaceRelative(path)).toBe(true)
+    }
+  })
+
+  it("refuses absolute, upward, and aliasing spellings", () => {
+    // Aliasing forms matter as much as escapes: `./a.txt` and `a.txt` name
+    // one file with two spellings, which defeats exact-string overlap.
+    for (const path of ["/abs", "../up", "a/../b", "./a.txt", "a//b", "a/", "C:/win"]) {
+      expect(FileSet.workspaceRelative(path)).toBe(false)
+    }
+  })
+
+  it("is the Pattern schema's own filter", () => {
+    expect(Schema.decodeUnknownResult(FileSet.Pattern)("./aliased.txt")._tag).toBe("Failure")
+    expect(Schema.decodeUnknownResult(FileSet.Entry)("../escape")._tag).toBe("Failure")
+    expect(Schema.decodeUnknownResult(FileSet.ReadEntry)("/absolute")._tag).toBe("Failure")
+    expect(Schema.decodeUnknownResult(FileSet.Entry)("src/ok.ts")._tag).toBe("Success")
   })
 })

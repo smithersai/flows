@@ -48,6 +48,7 @@ import type { SyncDirentLike, SyncFsLike, SyncStatsLike } from "./WasiFs.ts"
  *
  * @category constants
  * @since 0.1.0
+ * @slop
  */
 export const Errno = {
   success: 0,
@@ -87,6 +88,7 @@ export const Errno = {
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class WasiExitError extends Error {
   readonly exitCode: number
@@ -198,6 +200,7 @@ const zeroStats = { size: 0, atimeMs: 0, mtimeMs: 0, ctimeMs: 0 }
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface WasiPreview1Options {
   /** The synchronous filesystem the module's WASI namespace is served from. */
@@ -224,6 +227,7 @@ export interface WasiPreview1Options {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface WasiPreview1 {
   /**
@@ -247,6 +251,7 @@ export interface WasiPreview1 {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (options: WasiPreview1Options): WasiPreview1 => {
   const fs = options.fs

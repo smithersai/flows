@@ -29,13 +29,8 @@
  * @since 0.1.0
  */
 
-import { type Capability, make as makeCapability } from "@smthrs/capability-next/Capability"
-import {
-  formatError,
-  isPermissionError,
-  PermissionDenied,
-  type PermissionError
-} from "@smthrs/capability-next/Permission"
+import { type Capability, make as makeCapability } from "@smthrs/capability/Capability"
+import { formatError, isPermissionError, PermissionDenied, type PermissionError } from "@smthrs/capability/Permission"
 import { Context, Effect, Layer, Option } from "effect"
 import * as EffectHttpClient from "effect/unstable/http/HttpClient"
 import * as HttpClientError from "effect/unstable/http/HttpClientError"
@@ -72,9 +67,10 @@ export { make } from "effect/unstable/http/HttpClient"
  *
  * @category references
  * @since 0.1.0
+ * @slop
  */
 export const ModelCall: Context.Reference<string | undefined> = Context.Reference<string | undefined>(
-  "@smthrs/kernel-next/HttpClient/ModelCall",
+  "@smthrs/kernel/HttpClient/ModelCall",
   { defaultValue: (): string | undefined => undefined }
 )
 
@@ -84,6 +80,7 @@ export const ModelCall: Context.Reference<string | undefined> = Context.Referenc
  *
  * @category references
  * @since 0.1.0
+ * @slop
  */
 export const withModelCall = (modelId: string) => <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
   Effect.provideService(effect, ModelCall, modelId)
@@ -101,6 +98,7 @@ export const withModelCall = (modelId: string) => <A, E, R>(effect: Effect.Effec
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const toHttpClientError = (options: {
   readonly request: HttpClientRequest.HttpClientRequest
@@ -121,6 +119,7 @@ export const toHttpClientError = (options: {
  *
  * @category refinements
  * @since 0.1.0
+ * @slop
  */
 export const fromHttpClientError = (
   error: HttpClientError.HttpClientError
@@ -137,6 +136,7 @@ export const fromHttpClientError = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (): EffectHttpClient.HttpClient =>
   EffectHttpClient.make((request) =>
@@ -155,6 +155,7 @@ export const makeNoop = (): EffectHttpClient.HttpClient =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop = (): Layer.Layer<EffectHttpClient.HttpClient> =>
   Layer.succeed(EffectHttpClient.HttpClient)(makeNoop())
@@ -202,6 +203,7 @@ const capabilityFor = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer: Layer.Layer<
   EffectHttpClient.HttpClient,

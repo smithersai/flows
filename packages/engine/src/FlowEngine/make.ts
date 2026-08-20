@@ -2,11 +2,19 @@
 
 /**
  * Adapts a low-level `Encoded` implementation into the typed `FlowRuntime`
- * port `@smthrs/flow-next` declares.
+ * port `@smthrs/flow` declares.
  *
  * @since 4.0.0
  */
-import { Action, type DurableDeferred, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow-next"
+import {
+  Action,
+  type DurableClock,
+  type DurableDeferred,
+  Flow,
+  FlowRuntime,
+  RetryPolicy,
+  StepIdentity
+} from "@smthrs/flow"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
@@ -23,6 +31,18 @@ import { SnapshotBoundary, type SnapshotBoundaryOptions } from "./SnapshotBounda
 const toJsonExit = Exit.map((value: any) => value ?? null)
 
 /**
+ * The allocation scope derived once by the dispatch wrapper and consumed by
+ * the ordinal allocator inside it. Keeping one value in context makes the
+ * concurrent guard and allocation path incapable of checking different
+ * identities.
+ *
+ * @private
+ */
+const ActionOrdinalScope = Context.Service<never, string>(
+  "@smthrs/engine/FlowEngine/ActionOrdinalScope"
+)
+
+/**
  * Builds a typed `FlowRuntime` service from a low-level encoded
  * implementation.
  *
@@ -37,6 +57,7 @@ const toJsonExit = Exit.map((value: any) => value ?? null)
  *
  * @category constructors
  * @since 4.0.0
+ * @slop
  */
 export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"] => {
   /**
@@ -61,12 +82,29 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
           if (entries.length === 0) declarations.delete(flow._tag)
         })
       )
-      yield* options.register(flow, (payload, executionId) =>
-        Effect.suspend(() => execute(payload, executionId)).pipe(
-          Effect.updateContext(
-            (input) => Context.merge(services, input) as Context.Context<any>
+      yield* options.register(
+        flow,
+        (payload, executionId) =>
+          Effect.matchEffect(Effect.suspend(() => execute(payload, executionId)), {
+            onFailure: (error) =>
+              Effect.flatMap(
+                Effect.orDie(flow.errorSchema.makeEffect(error)),
+                () => Effect.fail(error)
+              ),
+            onSuccess: (value) =>
+              Effect.flatMap(FlowRuntime.FlowInstance, (instance) =>
+                // A handoff has no success value for this round. Its handler
+                // returns `undefined` only to leave through `Flow.intoResult`,
+                // which replaces that value with the recorded handoff.
+                instance.handoff === undefined
+                  ? Effect.as(Effect.orDie(flow.successSchema.makeEffect(value)), value)
+                  : Effect.succeed(value))
+          }).pipe(
+            Effect.updateContext(
+              (input) => Context.merge(services, input) as Context.Context<any>
+            )
           )
-        ))
+      )
     }),
     // Untraced because flow execution recursively invokes child flows.
     execute: Effect.fnUntraced(function*<
@@ -105,7 +143,21 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
           if (!instance.interrupted || (Option.isSome(result) && result.value._tag === "Complete")) {
             return Effect.void
           }
-          return options.interrupt(roundFlow, roundExecutionId)
+          // A finalizer cannot report, so a durable engine's
+          // `CancelRequestFailed` is logged rather than swallowed silently.
+          // The child is not orphaned by it: the parent's own cancellation is
+          // already durable, and a durable engine cascades cancellation over
+          // the persisted parent-edge table independently of this in-process
+          // link (`RunDriver.cancelOwned`), so this path is the prompt
+          // delivery and not the guarantee.
+          return options.interrupt(roundFlow, roundExecutionId).pipe(
+            Effect.catch((error) =>
+              Effect.logWarning(
+                `engine: could not record the linked cancellation of child execution ${roundExecutionId}`,
+                error
+              )
+            )
+          )
         })
       }
       const runRound = (
@@ -250,6 +302,7 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
       R
     >(action: Action.Action<Success, Error, R>, attempt: number) {
       const instance = yield* FlowRuntime.FlowInstance
+      const scope = yield* ActionOrdinalScope
       // `Action.retry` hands down an empty slot map rather than a number:
       // the ordinal can only be allocated here, where the action — and so
       // its allocation scope — is known (issue #73). The slot is keyed by
@@ -260,11 +313,6 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
       // declaration several times, and each dispatch owns its own identity —
       // allocated on the attempt that first reaches it, replayed by position
       // on every later attempt.
-      const scopeResult = yield* Effect.result(ordinalScope(action))
-      if (Result.isFailure(scopeResult)) {
-        return uncanonicalKey(action.name, scopeResult.failure)
-      }
-      const scope = scopeResult.success
       const slot = yield* Action.CurrentOrdinal
       let ordinal: number
       if (slot === undefined) {
@@ -360,6 +408,7 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
           attempt: currentAttempt,
           key,
           tier: action.tier,
+          ...(action.nondeterministic === undefined ? {} : { nondeterministic: action.nondeterministic }),
           metadata: action.metadata
         }
         let result: Flow.Result<unknown, unknown>
@@ -462,7 +511,21 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
           }
         }
         const exit = yield* Effect.orDie(
-          Schema.decodeEffect(action.exitSchemaPartial)(toJsonExit(result.exit))
+          Schema.decodeEffect(action.exitSchemaPartial)(toJsonExit(result.exit)).pipe(
+            // An action whose recorded outcome does not match its declared
+            // schemas is a defect either way, but `orDie` alone reports only
+            // the schema mismatch — "Expected /harness/HarnessError at
+            // [cause][failures][0][error][_tag]" — and never the error that
+            // actually occurred, which can leave a real failure (a refused
+            // step boundary, say) undiagnosable. Naming the action and its
+            // recorded exit turns that into one legible log line.
+            Effect.tapError(() =>
+              Effect.annotateLogs(
+                Effect.logError("A recorded action outcome does not match the action's declared schemas"),
+                { action: action.name, exit: JSON.stringify(toJsonExit(result.exit)).slice(0, 4096) }
+              )
+            )
+          )
         )
         return new Flow.Complete({ exit })
       }
@@ -472,11 +535,13 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
       // the step keys, attempt rows, and recorded outcomes — would be
       // assigned by fiber arrival order, and a crash-resume replaying the
       // fibers in the opposite order would silently hand one invocation the
-      // other's recorded outcome (issue #111). There is no engine-visible
-      // input material to order them by (inputs live in the execute
-      // closure), so the hazard is refused up front — Temporal's
-      // nondeterminism error, moved to the first run — and a declared
-      // idempotencyKey *distinguishing the invocations* is the way out.
+      // other's recorded outcome (issue #111). Interpreter graph nodes carry
+      // replay-stable structural sites, so distinct nodes refine the scope
+      // and may overlap. Indistinguishable dispatches — the same site, or
+      // handler-driven calls with no site — still have no engine-visible
+      // material to order them by (inputs live in the execute closure), so
+      // the hazard is refused up front. A declared idempotencyKey also
+      // distinguishes invocations when its values differ.
       // Only a sealed action with a key escapes the refusal: it takes a
       // pure cache key with no ordinal at all. A keyed action at any
       // other tier still resolves to an invocation key whose scope folds the
@@ -486,10 +551,17 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
       // would even hand both dispatches the same pinned ordinal (issue
       // #130). Distinct keys are distinct scopes and overlap freely.
       Effect.gen(function*() {
-        if (action.tier === "sealed" && action.idempotencyKey !== undefined) return yield* body
+        const dispatchSite = yield* Effect.serviceOption(StepIdentity.DispatchSite)
+        const site = Option.getOrUndefined(dispatchSite)
+        const scopeResult = yield* Effect.result(ordinalScope(action, site))
+        if (Result.isFailure(scopeResult)) {
+          return uncanonicalKey(action.name, scopeResult.failure)
+        }
+        const scope = scopeResult.success
+        const scopedBody = body.pipe(Effect.provideService(ActionOrdinalScope, scope))
+        if (action.tier === "sealed" && action.idempotencyKey !== undefined) return yield* scopedBody
         const instance = yield* FlowRuntime.FlowInstance
         const inFlight = instance.actionState.keylessInFlight
-        const scope = yield* ordinalScope(action).pipe(Effect.orDie)
         // The acquire and its release live in one uninterruptible region
         // (issue #139): a bare `add` followed by `Effect.ensuring` left a
         // one-op window — after the add, before the finalizer registered —
@@ -504,7 +576,7 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
           }),
           (acquired) =>
             acquired
-              ? body
+              ? scopedBody
               : Effect.die(
                 new Action.ConcurrentKeylessDispatch({ actionName: action.name })
               ),
@@ -571,20 +643,20 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
         { captureStackTrace: false }
       )
     ),
-    scheduleClock: Effect.fn("FlowEngine.scheduleClock")((flow, opts) =>
-      options.scheduleClock(flow, opts).pipe(
-        Effect.withSpan(
-          "FlowEngine.scheduleClock",
-          {
-            attributes: {
-              executionId: opts.executionId,
-              name: opts.clock.name
-            }
-          },
-          {
-            captureStackTrace: false
-          }
-        )
+    // Untraced because the explicit span below carries clock attributes.
+    scheduleClock: Effect.fnUntraced(
+      function*(
+        flow: Flow.Any,
+        opts: { readonly executionId: string; readonly clock: DurableClock.DurableClock }
+      ) {
+        return yield* options.scheduleClock(flow, opts)
+      },
+      Effect.withSpan(
+        "FlowEngine.scheduleClock",
+        (_, opts) => ({
+          attributes: { executionId: opts.executionId, name: opts.clock.name }
+        }),
+        { captureStackTrace: false }
       )
     )
   })

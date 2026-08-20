@@ -21,8 +21,8 @@
  *
  * @since 0.1.0
  */
-import { make as makeCapability } from "@smthrs/capability-next/Capability"
-import { toPlatformError } from "@smthrs/capability-next/Permission"
+import { make as makeCapability } from "@smthrs/capability/Capability"
+import { toPlatformError } from "@smthrs/capability/Permission"
 import { Effect, Layer } from "effect"
 import { systemError } from "effect/PlatformError"
 import type * as ChildProcess from "effect/unstable/process/ChildProcess"
@@ -58,6 +58,7 @@ export { make } from "effect/unstable/process/ChildProcessSpawner"
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (
   overrides: Partial<ChildProcessSpawner["Service"]> = {}
@@ -80,6 +81,7 @@ export const makeNoop = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop = (
   overrides: Partial<ChildProcessSpawner["Service"]> = {}
@@ -102,6 +104,7 @@ export const layerNoop = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer: Layer.Layer<ChildProcessSpawner, never, ChildProcessSpawner | GrantStore> = Layer.effect(
   ChildProcessSpawner,

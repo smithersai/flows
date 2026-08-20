@@ -11,10 +11,11 @@ import {
   type Capability,
   CapabilityPattern,
   type EffectTier,
+  format,
   matches,
   subsumes,
   tierOf
-} from "@smthrs/capability-next/Capability"
+} from "@smthrs/capability/Capability"
 import {
   evaluate,
   GrantStoreError,
@@ -23,7 +24,7 @@ import {
   type PermissionRequired,
   permissionRequired,
   Rule
-} from "@smthrs/capability-next/Permission"
+} from "@smthrs/capability/Permission"
 import { Context, Deferred, Effect, Layer, type Scope, Semaphore } from "effect"
 import { allows, type CapabilitySet, current } from "./CapabilitySet.ts"
 import { DeniedGrant, EnvelopeGrant, type GrantEvent, OnceGrant, RememberedGrant, RunGrant } from "./GrantEvent.ts"
@@ -34,6 +35,7 @@ import { Workspace } from "./Workspace.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface PendingRequest {
   readonly requestId: string
@@ -47,6 +49,7 @@ export interface PendingRequest {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Resolution = "once" | "run" | "remembered" | "deny"
 
@@ -55,6 +58,7 @@ export type Resolution = "once" | "run" | "remembered" | "deny"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface EnvelopeGrantOptions {
   readonly planDigest: string
@@ -67,6 +71,7 @@ export interface EnvelopeGrantOptions {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Service {
   readonly check: (
@@ -87,14 +92,16 @@ export interface Service {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
-export class GrantStore extends Context.Service<GrantStore, Service>()("@smthrs/kernel-next/GrantStore") {}
+export class GrantStore extends Context.Service<GrantStore, Service>()("@smthrs/kernel/GrantStore") {}
 
 /**
  * A hook that durably records a grant decision before it becomes active.
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Persist = (event: GrantEvent) => Effect.Effect<void, GrantStoreError>
 
@@ -107,12 +114,20 @@ export type Persist = (event: GrantEvent) => Effect.Effect<void, GrantStoreError
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface MakeOptions {
   readonly attended?: boolean | undefined
   readonly rules?: ReadonlyArray<Rule> | ReadonlyArray<ReadonlyArray<Rule>> | undefined
   readonly runRules?: ReadonlyArray<Rule> | undefined
   readonly envelope?: EnvelopeGrantOptions | undefined
+  /**
+   * {@link envelopeSignature} values of envelopes that are already durable —
+   * typically replayed from a journal. A construction or runtime envelope
+   * matching a seeded signature still activates its rules but is not
+   * persisted again.
+   */
+  readonly envelopeSignatures?: ReadonlyArray<string> | undefined
   readonly runId?: string | undefined
   readonly planDigest?: string | undefined
   readonly persist?: Persist | undefined
@@ -131,12 +146,73 @@ const exactPattern = (capability: Capability): CapabilityPattern =>
 
 const hasResourceWildcard = (resource: string): boolean => resource.includes("*") || resource.includes("?")
 
+const isResolution = (value: string): value is Resolution =>
+  value === "once" || value === "run" || value === "remembered" || value === "deny"
+
+const isEnvelopeScope = (value: string): value is "run" | "remembered" => value === "run" || value === "remembered"
+
+/**
+ * Canonicalizes an envelope pattern list: duplicate predicates collapse to
+ * their first occurrence and the survivors sort by their formatted identity.
+ *
+ * An envelope is a *set* of predicates, so two envelopes listing the same
+ * predicates in a different order or multiplicity are the same approval. Every
+ * envelope is canonicalized before it is persisted or compared, which makes
+ * envelope idempotency structural rather than dependent on caller discipline.
+ *
+ * The ordering is the code-unit sort of `format(pattern)` — the one renderer
+ * for capability identity. RFC 8785 canonical JSON (`@smthrs/canonical`)
+ * was considered and does not fit: it canonicalizes object keys but preserves
+ * array order as semantic, and the ordering that matters here is exactly the
+ * pattern-array order.
+ *
+ * @category validation
+ * @since 0.1.0
+ * @slop
+ */
+export const canonicalEnvelopePatterns = (
+  patterns: ReadonlyArray<CapabilityPattern>
+): Array<CapabilityPattern> => {
+  const byIdentity = new Map<string, CapabilityPattern>()
+  for (const pattern of patterns) {
+    const identity = format(pattern)
+    if (!byIdentity.has(identity)) {
+      byIdentity.set(identity, pattern)
+    }
+  }
+  return [...byIdentity.keys()].sort().map((identity) => byIdentity.get(identity)!)
+}
+
+/**
+ * Computes the canonical identity of an envelope approval.
+ *
+ * Two envelopes with the same plan digest, scope, and predicate set produce
+ * the same signature regardless of pattern order or repetition. The signature
+ * is how the store, and journal replay above it, recognise an envelope that
+ * is already durable.
+ *
+ * @category validation
+ * @since 0.1.0
+ * @slop
+ */
+export const envelopeSignature = (
+  planDigest: string,
+  scope: "run" | "remembered",
+  patterns: ReadonlyArray<CapabilityPattern>
+): string =>
+  JSON.stringify({
+    planDigest,
+    scope,
+    patterns: canonicalEnvelopePatterns(patterns).map(format)
+  })
+
 /**
  * Checks that a request-scoped grant cannot authorize a different action or a
  * more dangerous effect tier than the request displayed to the user.
  *
  * @category validation
  * @since 0.1.0
+ * @slop
  */
 export const isValidGrantPattern = (
   pattern: CapabilityPattern,
@@ -169,6 +245,7 @@ export const isValidGrantPattern = (
  *
  * @category validation
  * @since 0.1.0
+ * @slop
  */
 export const isValidEnvelopePattern = (
   pattern: CapabilityPattern,
@@ -219,6 +296,7 @@ const normalizeRules = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (
   options: MakeOptions = {}
@@ -237,6 +315,7 @@ export const make = (
     const rememberedRules = initial.remembered
     const pending = new Map<string, PendingEntry>()
     const persist = options.persist ?? (() => Effect.void)
+    const grantedEnvelopes = new Set<string>(options.envelopeSignatures ?? [])
     let nextRequestId = 1
     let closed = false
     const mutation = yield* Semaphore.make(1)
@@ -249,25 +328,32 @@ export const make = (
     }
 
     if (options.envelope !== undefined && options.envelope.patterns.length > 0) {
+      const scope = options.envelope.scope ?? "run"
       if (
-        options.planDigest === undefined
+        !isEnvelopeScope(scope)
+        || options.planDigest === undefined
         || options.envelope.planDigest !== options.planDigest
         || options.envelope.planDigest.length === 0
         || options.envelope.patterns.some((pattern) => !isValidEnvelopePattern(pattern, workspaceRoot))
       ) {
         return yield* Effect.fail(new GrantStoreError({ code: "invalid_resolution" }))
       }
-      yield* persist(
-        new EnvelopeGrant({
-          eventType: "flows.kernel.grant.envelope.v1",
-          runId: options.runId ?? "",
-          planDigest: options.envelope.planDigest,
-          patterns: [...options.envelope.patterns],
-          scope: options.envelope.scope ?? "run"
-        })
-      )
-      const destination = options.envelope.scope === "remembered" ? rememberedRules : envelopeRules
-      for (const pattern of options.envelope.patterns) {
+      const patterns = canonicalEnvelopePatterns(options.envelope.patterns)
+      const signature = envelopeSignature(options.envelope.planDigest, scope, patterns)
+      if (!grantedEnvelopes.has(signature)) {
+        yield* persist(
+          new EnvelopeGrant({
+            eventType: "flows.kernel.grant.envelope.v1",
+            runId: options.runId ?? "",
+            planDigest: options.envelope.planDigest,
+            patterns,
+            scope
+          })
+        )
+        grantedEnvelopes.add(signature)
+      }
+      const destination = scope === "remembered" ? rememberedRules : envelopeRules
+      for (const pattern of patterns) {
         destination.push(new Rule({ effect: "allow", pattern }))
       }
     }
@@ -323,7 +409,7 @@ export const make = (
 
     const nextUnattendedRequestId = Effect.sync(() => `permission-${nextRequestId++}`)
 
-    const check: Service["check"] = Effect.fn("flows/kernel/GrantStore.check")((capability, meta = {}) =>
+    const check: Service["check"] = Effect.fn("GrantStore.check")((capability, meta = {}) =>
       Effect.uninterruptibleMask((restore) =>
         Effect.gen(function*() {
           const entry = yield* mutation.withPermit(
@@ -399,7 +485,7 @@ export const make = (
       ).pipe(Effect.asVoid)
     )
 
-    const reply: Service["reply"] = Effect.fn("flows/kernel/GrantStore.reply")((
+    const reply: Service["reply"] = Effect.fn("GrantStore.reply")((
       requestId,
       resolution,
       suppliedPattern
@@ -409,6 +495,18 @@ export const make = (
           Effect.gen(function*() {
             if (closed) {
               return yield* Effect.fail(new GrantStoreError({ code: "store_closed" }))
+            }
+            if (!isResolution(resolution)) {
+              // A runtime-invalid resolution must fail the reply, not fall
+              // through the switch below: silently succeeding would strand
+              // the request's waiter on its Deferred forever. The request
+              // stays pending so the caller can still answer it.
+              return yield* Effect.fail(
+                new GrantStoreError({
+                  code: "invalid_resolution",
+                  message: "unknown grant resolution"
+                })
+              )
             }
             const entry = pending.get(requestId)
             if (entry === undefined) {
@@ -512,7 +610,7 @@ export const make = (
       )
     )
 
-    const list: Service["list"] = Effect.fn("flows/kernel/GrantStore.list")(() =>
+    const list: Service["list"] = Effect.fn("GrantStore.list")(() =>
       mutation.withPermit(
         Effect.sync(() =>
           Array.from(
@@ -528,7 +626,7 @@ export const make = (
       )
     )()
 
-    const grantEnvelope: Service["grantEnvelope"] = Effect.fn("flows/kernel/GrantStore.grantEnvelope")((
+    const grantEnvelope: Service["grantEnvelope"] = Effect.fn("GrantStore.grantEnvelope")((
       { patterns, planDigest, scope = "run" }
     ) =>
       Effect.uninterruptible(
@@ -538,14 +636,26 @@ export const make = (
               return yield* Effect.fail(new GrantStoreError({ code: "store_closed" }))
             }
             if (
-              options.planDigest === undefined
+              !isEnvelopeScope(scope)
+              || options.planDigest === undefined
               || planDigest !== options.planDigest
               || planDigest.length === 0
               || patterns.some((pattern) => !isValidEnvelopePattern(pattern, workspaceRoot))
             ) {
+              // A runtime-invalid scope is caller input, not a defect: it must
+              // surface as a typed store error before it can reach the event
+              // schema constructor.
               return yield* Effect.fail(new GrantStoreError({ code: "invalid_resolution" }))
             }
             if (patterns.length === 0) {
+              return
+            }
+            const canonical = canonicalEnvelopePatterns(patterns)
+            const signature = envelopeSignature(planDigest, scope, canonical)
+            if (grantedEnvelopes.has(signature)) {
+              // The same approval was already activated and persisted —
+              // repeating or reordering its predicates is a no-op, not new
+              // durable evidence.
               return
             }
             yield* persist(
@@ -553,12 +663,13 @@ export const make = (
                 eventType: "flows.kernel.grant.envelope.v1",
                 runId: options.runId ?? "",
                 planDigest,
-                patterns: [...patterns],
+                patterns: canonical,
                 scope
               })
             )
+            grantedEnvelopes.add(signature)
             const destination = scope === "remembered" ? rememberedRules : envelopeRules
-            for (const pattern of patterns) {
+            for (const pattern of canonical) {
               destination.push(new Rule({ effect: "allow", pattern }))
             }
             yield* resolveCovered
@@ -575,6 +686,7 @@ export const make = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (
   options: MakeOptions = {}
@@ -585,12 +697,13 @@ export const layer = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop: Service = GrantStore.of({
-  check: Effect.fn("flows/kernel/GrantStore.check")(() => Effect.void),
-  reply: Effect.fn("flows/kernel/GrantStore.reply")(() => Effect.void),
-  list: Effect.fn("flows/kernel/GrantStore.list")(() => Effect.succeed([]))(),
-  grantEnvelope: Effect.fn("flows/kernel/GrantStore.grantEnvelope")(() => Effect.void)
+  check: Effect.fn("GrantStore.check")(() => Effect.void),
+  reply: Effect.fn("GrantStore.reply")(() => Effect.void),
+  list: Effect.fn("GrantStore.list")(() => Effect.succeed([]))(),
+  grantEnvelope: Effect.fn("GrantStore.grantEnvelope")(() => Effect.void)
 })
 
 /**
@@ -598,5 +711,6 @@ export const makeNoop: Service = GrantStore.of({
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop: Layer.Layer<GrantStore> = Layer.succeed(GrantStore)(makeNoop)

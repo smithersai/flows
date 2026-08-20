@@ -1,5 +1,5 @@
 /**
- * Durable `FlowEngine.Encoded` composition over `@smthrs/journal-next`.
+ * Durable `FlowEngine.Encoded` composition over `@smthrs/journal`.
  *
  * Governing designs: `docs/specs/Concepts/Run Ownership.md`,
  * `docs/specs/Concepts/Step Keys.md`, and
@@ -7,14 +7,14 @@
  *
  * @since 0.1.0
  */
-import { Sha256 } from "@smthrs/crypto-next"
-import { FlowEngine } from "@smthrs/engine-next"
-import { type Action, Flow, FlowRuntime } from "@smthrs/flow-next"
-import { FileBoundary } from "@smthrs/flow-next/FileBoundary"
-import { Journal } from "@smthrs/journal-next"
-import { Jj } from "@smthrs/kernel-next"
-import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store-next"
-import { CacheStore } from "@smthrs/step-cache-next"
+import { Sha256 } from "@smthrs/crypto"
+import { FlowEngine } from "@smthrs/engine"
+import { type Action, Flow, FlowRuntime } from "@smthrs/flow"
+import { FileBoundary } from "@smthrs/flow/FileBoundary"
+import { Journal } from "@smthrs/journal"
+import { Jj } from "@smthrs/kernel"
+import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import type * as Crypto from "effect/Crypto"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
@@ -40,6 +40,7 @@ import * as WorkspaceSandbox from "./WorkspaceSandbox.ts"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Options {
   readonly owner: {
@@ -78,25 +79,6 @@ type Requirements =
   | Scope.Scope
   | StepBoundary.Service
 
-/**
- * A caller reached for the engine composition before one was built.
- *
- * It is the single `engine_not_composed` refusal rather than a null service:
- * the composition is assembled once at startup, so hitting this always means a
- * wiring mistake, and a named error says so at the call site instead of
- * failing later inside an unrelated operation.
- *
- * @since 0.1.0
- * @category errors
- */
-export class EngineCompositionError extends Schema.TaggedError<EngineCompositionError>()(
-  "flows/engine-store/EngineCompositionError",
-  {
-    code: Schema.Literal("engine_not_composed"),
-    message: Schema.String
-  }
-) {}
-
 const isBoundaryMetadata = Schema.is(FileBoundary)
 
 /**
@@ -108,6 +90,7 @@ const isBoundaryMetadata = Schema.is(FileBoundary)
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const make = (
   options: Options
@@ -162,18 +145,20 @@ export const make = (
     const deferred = yield* DeferredPersistence.make({
       owner,
       journalSource: options.journalSource,
-      scheduleResume: (flowName, executionId, reason) => driver.scheduleResume(flowName, executionId, reason),
+      scheduleResume: (flowName, executionId, reason, sourceId) =>
+        driver.scheduleResume(flowName, executionId, reason, sourceId),
       fireRetryPolicy: options.clockFireRetryPolicy
     })
 
-    const actionExecute = Effect.fn("FlowEngine.actionExecute")(function*(input: {
-      readonly action: Action.Any
-      readonly attempt: number
-      readonly key: string
-      readonly tier: Action.Tier
-      readonly metadata: unknown
-    }) {
+    const actionExecute = Effect.fn("FlowEngine.actionExecute")(function*(input: FlowEngine.ActionExecuteOptions) {
       const parent = yield* FlowRuntime.FlowInstance
+      yield* Effect.annotateCurrentSpan({
+        runId: parent.executionId,
+        action: input.action.name,
+        key: input.key,
+        attempt: input.attempt,
+        tier: input.tier
+      })
       const instance = FlowEngine.makeInstance(
         parent.flow,
         parent.executionId
@@ -192,7 +177,15 @@ export const make = (
       // on a settled wait travels out the same way (issue #42).
       const waitingBefore = parent.waiting
       instance.waiting = waitingBefore
-      return yield* ActionPersistence.make({
+      const logContext = {
+        runId: parent.executionId,
+        action: input.action.name,
+        key: input.key,
+        attempt: input.attempt,
+        tier: input.tier
+      }
+      yield* Effect.logTrace("action dispatch started", logContext)
+      const result = yield* ActionPersistence.make({
         runId: parent.executionId,
         owner,
         sourceId: options.journalSource,
@@ -206,6 +199,7 @@ export const make = (
         attempt: input.attempt,
         key: input.key,
         tier: input.tier,
+        ...(input.nondeterministic === undefined ? {} : { nondeterministic: input.nondeterministic }),
         ...(isBoundaryMetadata(input.metadata)
           ? { metadata: input.metadata }
           : {})
@@ -238,14 +232,22 @@ export const make = (
           if (parent.waiting === waitingBefore) parent.waiting = instance.waiting
         }))
       )
+      const outcome = result._tag === "Complete"
+        ? result.exit._tag === "Success" ? "success" : "failure"
+        : result._tag.toLowerCase()
+      yield* Effect.annotateCurrentSpan({ outcome })
+      yield* Effect.logTrace("action dispatch settled", { ...logContext, outcome })
+      return result
     })
 
     const encoded: FlowEngine.Encoded = {
-      register: Effect.fn("FlowEngine.register")((flow, execute) =>
+      // Unspanned here: `driver.register` already opens the
+      // `FlowEngine.register` span, and a second identical wrapper would nest
+      // two same-name spans around one operation.
+      register: (flow, execute) =>
         driver.register(flow, execute).pipe(
           Effect.tap(() => deferred.sweepDue(flow._tag))
-        )
-      ),
+        ),
       execute: driver.execute,
       poll: driver.poll,
       interrupt: driver.interrupt,
@@ -311,6 +313,7 @@ export const make = (
  *
  * @since 0.1.0
  * @category layers
+ * @slop
  */
 export const layer = (
   options: Options
@@ -324,14 +327,21 @@ export const layer = (
     Effect.map(Jj.Jj, (jj) =>
       FlowEngine.SnapshotBoundary.of({
         snapshot: Effect.fn("SnapshotBoundary.snapshot")(({ key, attempt }) =>
-          jj.snapshot(`flows action ${key} attempt ${attempt}`).pipe(
+          Effect.annotateCurrentSpan({ key, attempt }).pipe(
+            Effect.andThen(jj.snapshot(`flows action ${key} attempt ${attempt}`)),
             Effect.orDie,
             Effect.map((snapshot) => snapshot.changeId)
           )
         ),
-        restore: Effect.fn("SnapshotBoundary.restore")((snapshot) => jj.restore(snapshot as never).pipe(Effect.orDie)),
+        restore: Effect.fn("SnapshotBoundary.restore")((snapshot) =>
+          Effect.annotateCurrentSpan({ snapshot: String(snapshot) }).pipe(
+            Effect.andThen(jj.restore(snapshot as never)),
+            Effect.orDie
+          )
+        ),
         diff: Effect.fn("SnapshotBoundary.diff")((snapshot, { key, attempt }) =>
-          jj.snapshot(`flows action ${key} attempt ${attempt} settled`).pipe(
+          Effect.annotateCurrentSpan({ key, attempt }).pipe(
+            Effect.andThen(jj.snapshot(`flows action ${key} attempt ${attempt} settled`)),
             Effect.orDie,
             Effect.flatMap((current) => jj.diff(snapshot as never, current.changeId).pipe(Effect.orDie))
           )

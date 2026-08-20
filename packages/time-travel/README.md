@@ -1,18 +1,18 @@
-# @smthrs/time-travel-next
+# @smthrs/time-travel
 
 One injectable `TimeTravel` service — inspect, fork, rewind — over the journal
 and engine-store contracts. It owns both in-memory and SQL state stores and
 records effect-boundary evidence used to make time-travel decisions.
 
 ```sh
-pnpm add @smthrs/time-travel-next
+pnpm add @smthrs/time-travel
 ```
 
 ## Public API
 
 Time travel is ONE injectable service. `TimeTravel` is exported flat — the
 service key is the door — beside the namespaces you inject or integrate with,
-also available from matching `@smthrs/time-travel-next/*` subpaths.
+also available from matching `@smthrs/time-travel/*` subpaths.
 
 | Export                  | Public surface                                                                                                                                                                                                                                                                                       |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -29,8 +29,20 @@ also available from matching `@smthrs/time-travel-next/*` subpaths.
 the package `exports` map. Recovery is never a call: building `TimeTravel.layer`
 finishes or rolls back any rewind a crash interrupted.
 
+A rewind (and its crash recovery) fences the run through the ordinary
+`RunStore` ownership operations, but that fencing is administrative, not run
+history: it arbitrates through the consensus lease without appending
+`flows.consensus.*` ownership-transition events to the journal it is cutting
+(`docs/specs/Concepts/Journal Consensus.md`, rule R6). A rewind's own
+`claimed`/`activated` would land inside the very suffix it archives, its
+closing `released` would dangle past the restored frame, and recovery reads
+"no live entries after the frame" as archive-commit evidence. The audit row
+is the durable record of who drove a rewind. Ordinary drivers keep appending
+R6 events, and cancelling a detached child stays recorded in that child's
+journal — only the fencing on the run under the knife is silent.
+
 ```ts
-import { TimeTravel } from "@smthrs/time-travel-next"
+import { TimeTravel } from "@smthrs/time-travel"
 import { Effect } from "effect"
 
 const rewound = Effect.gen(function*() {

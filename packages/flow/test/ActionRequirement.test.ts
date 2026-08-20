@@ -13,11 +13,12 @@
  * `tsc -p tsconfig.test.json` in `pnpm run check`, so a red type assertion
  * fails the gate whether or not the suite is run.
  */
-import { Action, Flow, FlowRuntime, Graph, Interpreter, Sleep, WaitFor } from "@smthrs/flow-next"
-import { Node } from "@smthrs/plan-next"
-import { Effect, Layer, Option, Schema } from "effect"
-import { describe, expect, expectTypeOf, it } from "vitest"
-import { runPromise } from "./Crypto.ts"
+import { describe, expect, expectTypeOf, it } from "@effect/vitest"
+import { Action, Flow, FlowRuntime, Graph, Interpreter, Sleep, WaitFor } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
+import { Effect, Exit, Layer, Option, Schema, Scope } from "effect"
+import type * as Crypto from "effect/Crypto"
+import { withCrypto } from "./Crypto.ts"
 import { layerMemory } from "./MemoryFlowRuntime.ts"
 
 const Charge = Action.make("requirement/charge", {
@@ -124,7 +125,10 @@ describe("a flow carries what its body requires", () => {
   it("puts it in execute, and nowhere a plan is only being described", () => {
     expectTypeOf<Flow.Requirements<typeof Paying>>().toEqualTypeOf<ChargeNeeded>()
     expectTypeOf<Effect.Services<ReturnType<typeof Paying.execute>>>().toEqualTypeOf<
-      FlowRuntime.FlowRuntime | ChargeNeeded
+      Crypto.Crypto | FlowRuntime.FlowRuntime | ChargeNeeded
+    >()
+    expectTypeOf<Effect.Error<ReturnType<typeof Paying.execute>>>().toEqualTypeOf<
+      Schema.SchemaError | FlowRuntime.FlowCycleDetected | string
     >()
 
     // Neither reading an execution's state nor cancelling one drives a body,
@@ -148,29 +152,26 @@ describe("a flow carries what its body requires", () => {
 
     // Never invoked: the assertion is that this expression does not compile.
     const unimplemented = () =>
-      Effect.runPromise(
-        // @ts-expect-error -- the plan names `requirement/charge`, and nothing
-        // in this composition implements it.
-        Paying.execute({ cents: 100 }, { executionId: "unimplemented" }).pipe(
-          Effect.provide(engineOnly)
-        )
+      Paying.execute({ cents: 100 }, { executionId: "unimplemented" }).pipe(
+        Effect.provide(engineOnly)
       )
 
     expectTypeOf(unimplemented).toBeFunction()
   })
 
-  it("has the requirement erased by the action's own layer", async () => {
-    const wired = Layer.mergeAll(charges, Interpreter.layer(Paying)).pipe(
-      Layer.provideMerge(Action.layerImplementations),
-      Layer.provideMerge(layerMemory)
-    )
-    const run = Paying.execute({ cents: 100 }, { executionId: "implemented" }).pipe(
-      Effect.provide(wired)
-    )
+  it.effect("has the requirement erased by the action's own layer", () =>
+    Effect.gen(function*() {
+      const wired = Layer.mergeAll(charges, Interpreter.layer(Paying)).pipe(
+        Layer.provideMerge(Action.layerImplementations),
+        Layer.provideMerge(layerMemory)
+      )
+      const run = Paying.execute({ cents: 100 }, { executionId: "implemented" }).pipe(
+        Effect.provide(wired)
+      )
 
-    expectTypeOf<Effect.Services<typeof run>>().toEqualTypeOf<never>()
-    expect(await runPromise(run)).toBe(100)
-  })
+      expectTypeOf<Effect.Services<typeof run>>().toEqualTypeOf<Crypto.Crypto>()
+      expect(yield* withCrypto(run)).toBe(100)
+    }))
 })
 
 describe("requirements travel the way the plan does", () => {
@@ -183,7 +184,7 @@ describe("requirements travel the way the plan does", () => {
 
   const Middle = Flow.make("requirement/middle", {
     payload: { cents: Schema.Number },
-    success: Schema.Number,
+    success: Schema.String,
     error: Schema.String,
     body: ({ cents }) => Inner.call({ cents }).pipe(Node.andThen(() => Audit.call({ note: "ok" })))
   })
@@ -200,7 +201,7 @@ describe("requirements travel the way the plan does", () => {
 
     const Boundary = Flow.make("requirement/boundary", {
       payload: { cents: Schema.Number },
-      success: Schema.Number,
+      success: Schema.String,
       error: Schema.String,
       body: ({ cents }) => Middle.child({ cents })
     })
@@ -216,13 +217,14 @@ describe("requirements travel the way the plan does", () => {
       "requirement/self",
       Schema.Struct<{ value: typeof Schema.Number; target: typeof Schema.Number }>,
       typeof Schema.Number,
-      typeof Schema.Never,
+      typeof Schema.String,
       ChargeNeeded
     >
 
     const Self: SelfFlow = Flow.make("requirement/self", {
       payload: { value: Schema.Number, target: Schema.Number },
       success: Schema.Number,
+      error: Schema.String,
       body: ({ target, value }: { readonly value: number; readonly target: number }) =>
         Charge.call({ cents: value }).pipe(
           Node.branch({
@@ -235,7 +237,7 @@ describe("requirements travel the way the plan does", () => {
 
     expectTypeOf<Flow.Requirements<typeof Self>>().toEqualTypeOf<ChargeNeeded>()
     expectTypeOf<Effect.Services<ReturnType<typeof Self.execute>>>().toEqualTypeOf<
-      FlowRuntime.FlowRuntime | ChargeNeeded
+      Crypto.Crypto | FlowRuntime.FlowRuntime | ChargeNeeded
     >()
   })
 })
@@ -248,6 +250,7 @@ describe("system actions require nothing of a caller", () => {
     const Waiting = Flow.make("requirement/waiting", {
       payload: { millis: Schema.Number },
       success: Schema.Unknown,
+      error: Schema.Union([Sleep.SleepRequestInvalid, WaitFor.WaitForRequestInvalid]),
       body: ({ millis }) =>
         Sleep.action.call({ millis }).pipe(
           Node.andThen(() => WaitFor.action.call({ name: "approval" }))
@@ -261,33 +264,100 @@ describe("system actions require nothing of a caller", () => {
 })
 
 describe("toLayer provides the requirement it mints", () => {
-  it("answers with the same implementation the name-keyed table holds", async () => {
-    const both = Layer.mergeAll(charges, refunds).pipe(
-      Layer.provideMerge(Action.layerImplementations),
-      Layer.provideMerge(layerMemory)
-    )
+  // A nested provision reuses the enclosing table through layer memoization,
+  // so its same-tag registration must shadow for its own lifetime and restore
+  // the enclosing entry when its scope closes, never leak the replacement.
+  it.effect("confines a duplicate tag replacement to its nested implementation table", () =>
+    Effect.gen(function*() {
+      const Duplicate = Action.make("requirement/duplicate", {
+        payload: { value: Schema.Number },
+        success: Schema.Number
+      })
+      const outer = Duplicate.toLayer(({ value }) => Effect.succeed(value + 1)).pipe(
+        Layer.provideMerge(Action.layerImplementations),
+        Layer.provideMerge(layerMemory)
+      )
+      const inner = Duplicate.toLayer(({ value }) => Effect.succeed(value + 2)).pipe(
+        Layer.provideMerge(Action.layerImplementations),
+        Layer.provideMerge(layerMemory)
+      )
 
-    const observed = await runPromise(
-      Effect.gen(function*() {
-        const charge = yield* Charge.requirement
-        const table = yield* Action.Implementations
-        const filed = yield* table.get("requirement/charge")
-        return {
-          provided: charge.name,
-          filed: Option.isSome(filed) ? filed.value.name : undefined,
-          same: Option.isSome(filed) && filed.value === charge,
-          refund: (yield* Refund.requirement).name
-        }
-      }).pipe(Effect.provide(both))
-    )
+      const observed = yield* withCrypto(
+        Effect.gen(function*() {
+          const outerTable = yield* Action.Implementations
+          const before = yield* outerTable.get(Duplicate.name)
+          const nested = yield* Effect.gen(function*() {
+            const innerTable = yield* Action.Implementations
+            return yield* innerTable.get(Duplicate.name)
+          }).pipe(Effect.provide(inner))
+          const after = yield* outerTable.get(Duplicate.name)
+          return { before, nested, after }
+        }).pipe(Effect.provide(outer))
+      )
 
-    expect(observed).toEqual({
-      provided: "requirement/charge",
-      filed: "requirement/charge",
-      same: true,
-      refund: "requirement/refund"
-    })
-  })
+      expect(Option.isSome(observed.before)).toBe(true)
+      expect(Option.isSome(observed.nested)).toBe(true)
+      expect(Option.isSome(observed.after)).toBe(true)
+      if (Option.isSome(observed.before) && Option.isSome(observed.nested) && Option.isSome(observed.after)) {
+        expect(observed.after.value).toBe(observed.before.value)
+        expect(observed.nested.value).not.toBe(observed.before.value)
+      }
+    }))
+
+  it.effect("leaves a successor registration in place when an earlier sibling scope closes first", () =>
+    Effect.gen(function*() {
+      // Scoped restoration unwinds LIFO through finalizers. When scopes close
+      // OUT of order, an earlier registration must not clobber the successor
+      // that replaced it: only the filed implementation restores what it
+      // itself replaced.
+      const table = yield* Action.Implementations
+      const older: Action.Implementation = { name: "requirement/sibling", action: () => Effect.succeed(1) }
+      const newer: Action.Implementation = { name: "requirement/sibling", action: () => Effect.succeed(2) }
+      const olderScope = yield* Scope.make()
+      const newerScope = yield* Scope.make()
+      yield* table.add(older).pipe(Scope.provide(olderScope))
+      yield* table.add(newer).pipe(Scope.provide(newerScope))
+
+      yield* Scope.close(olderScope, Exit.void)
+      const surviving = yield* table.get("requirement/sibling")
+      yield* Scope.close(newerScope, Exit.void)
+      const unwound = yield* table.get("requirement/sibling")
+
+      expect(Option.isSome(surviving) && surviving.value).toBe(newer)
+      // The newer registration's finalizer restores what IT replaced. The
+      // restoration is structural — the table maps names to implementations
+      // and does not track a restored entry's own lifetime.
+      expect(Option.isSome(unwound) && unwound.value).toBe(older)
+    }).pipe(Effect.provide(Action.layerImplementations)))
+
+  it.effect("answers with the same implementation the name-keyed table holds", () =>
+    Effect.gen(function*() {
+      const both = Layer.mergeAll(charges, refunds).pipe(
+        Layer.provideMerge(Action.layerImplementations),
+        Layer.provideMerge(layerMemory)
+      )
+
+      const observed = yield* withCrypto(
+        Effect.gen(function*() {
+          const charge = yield* Charge.requirement
+          const table = yield* Action.Implementations
+          const filed = yield* table.get("requirement/charge")
+          return {
+            provided: charge.name,
+            filed: Option.isSome(filed) ? filed.value.name : undefined,
+            same: Option.isSome(filed) && filed.value === charge,
+            refund: (yield* Refund.requirement).name
+          }
+        }).pipe(Effect.provide(both))
+      )
+
+      expect(observed).toEqual({
+        provided: "requirement/charge",
+        filed: "requirement/charge",
+        same: true,
+        refund: "requirement/refund"
+      })
+    }))
 
   it("keys the requirement by the action tag, so two declarations name one slot", () => {
     const again = Action.make("requirement/charge", {
@@ -297,37 +367,39 @@ describe("toLayer provides the requirement it mints", () => {
     })
 
     expect(again.requirement.key).toBe(Charge.requirement.key)
-    expect(Charge.requirement.key).toBe("@smthrs/flow-next/Action/Requirement/requirement/charge")
+    expect(Charge.requirement.key).toBe("@smthrs/flow/Action/Requirement/requirement/charge")
     // An annotated copy is still the same declaration, and names the same slot.
     expect(Charge.annotate(Action.CurrentAttempt, 1).requirement.key).toBe(Charge.requirement.key)
   })
 
-  it("still files into the table when no requirement is being collected", async () => {
-    // The direct path: a composition that never asks for the tag. Filing is
-    // what a driver expanding a persisted plan resolves through, so it happens
-    // whether or not the type channel was consulted.
-    const audited = audits.pipe(
-      Layer.provideMerge(Action.layerImplementations),
-      Layer.provideMerge(layerMemory)
-    )
+  it.effect("still files into the table when no requirement is being collected", () =>
+    Effect.gen(function*() {
+      // The direct path: a composition that never asks for the tag. Filing is
+      // what a driver expanding a persisted plan resolves through, so it happens
+      // whether or not the type channel was consulted.
+      const audited = audits.pipe(
+        Layer.provideMerge(Action.layerImplementations),
+        Layer.provideMerge(layerMemory)
+      )
 
-    const filed = await runPromise(
-      Effect.gen(function*() {
-        const table = yield* Action.Implementations
-        return yield* table.get("requirement/audit")
-      }).pipe(Effect.provide(audited))
-    )
+      const filed = yield* withCrypto(
+        Effect.gen(function*() {
+          const table = yield* Action.Implementations
+          return yield* table.get("requirement/audit")
+        }).pipe(Effect.provide(audited))
+      )
 
-    expect(Option.isSome(filed) && filed.value.name).toBe("requirement/audit")
-  })
+      expect(Option.isSome(filed) && filed.value.name).toBe("requirement/audit")
+    }))
 
-  it("skips filing when a composition wired no table, and still provides the tag", async () => {
-    const untabled = audits.pipe(Layer.provideMerge(layerMemory))
+  it.effect("skips filing when a composition wired no table, and still provides the tag", () =>
+    Effect.gen(function*() {
+      const untabled = audits.pipe(Layer.provideMerge(layerMemory))
 
-    const provided = await runPromise(
-      Audit.requirement.pipe(Effect.provide(untabled))
-    )
+      const provided = yield* withCrypto(
+        Audit.requirement.pipe(Effect.provide(untabled))
+      )
 
-    expect(provided.name).toBe("requirement/audit")
-  })
+      expect(provided.name).toBe("requirement/audit")
+    }))
 })

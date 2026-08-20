@@ -2,23 +2,26 @@
  * The branch document projection: journal entries folded into what two people
  * looking at the same branch must agree on.
  *
- * The fold is a pure function of the canonical `(runId, seq)` order, which is
- * what makes convergence a property rather than a hope: any two clients that
- * have applied the same prefix hold the same state, regardless of the order
- * their transports delivered frames in or how many times a frame arrived.
+ * The fold is order-independent over the canonical entry set, which is what
+ * makes convergence a property rather than a hope: any two clients that have
+ * applied the same set of entries hold the same state, regardless of the
+ * order their transports delivered frames in or how many times a frame
+ * arrived.
  *
  * Three guards do all the work, and each is a production invariant:
  *
  * - entries from another branch's run are ignored, so a mis-routed frame can
  *   never leak into a projection;
- * - entries at or below the applied sequence are ignored, so re-reading after
- *   a reconnect replays no side effects;
- * - a command id already applied is ignored, so an at-least-once transport
- *   cannot double-apply a user action.
+ * - an entry already folded — the cursor tip redelivered, or a command id
+ *   already applied — is ignored, so an at-least-once transport cannot
+ *   double-apply a user action and a reconnect replays no side effects;
+ * - an entry below the cursor whose command was never applied is folded into
+ *   its canonical `seq` position, so out-of-order delivery converges on the
+ *   same document instead of permanently dropping the late entry.
  *
  * @since 0.1.0
  */
-import * as JournalEvent from "@smthrs/journal-next/JournalEvent"
+import * as JournalEvent from "@smthrs/journal/JournalEvent"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import {
@@ -151,14 +154,34 @@ export const resolveField = (existing: Field | undefined, candidate: Field): Fie
 }
 
 /**
+ * Inserts one item into a sequence-ordered array at its canonical position.
+ *
+ * Canonical sequences are unique within a run, so an equal-sequence collision
+ * is unrepresentable here: dedup happens before insertion.
+ */
+const insertBySeq = <Item extends { readonly seq: JournalEvent.Seq }>(
+  items: ReadonlyArray<Item>,
+  item: Item
+): Array<Item> => {
+  const index = items.findIndex((existing) => existing.seq > item.seq)
+  return index === -1 ? [...items, item] : [...items.slice(0, index), item, ...items.slice(index)]
+}
+
+/**
  * Folds one journal entry into a branch projection.
+ *
+ * Redelivery and out-of-order delivery are told apart by identity, not by
+ * position: the cursor tip redelivered and a command id already applied are
+ * no-ops, while a below-cursor entry never applied is folded into canonical
+ * order. Non-command entries only raise the cursor, so re-applying one is
+ * idempotent by construction.
  *
  * @category combinators
  * @since 0.1.0
  */
 export const apply = (state: State, entry: JournalEvent.Entry): State => {
-  if (entry.runId !== branchRunId(state.branchId) || entry.seq <= state.seq) return state
-  const advanced = { ...state, seq: entry.seq }
+  if (entry.runId !== branchRunId(state.branchId) || entry.seq === state.seq) return state
+  const advanced = entry.seq < state.seq ? state : { ...state, seq: entry.seq }
   if (entry.eventType !== CommandEvent) return advanced
   const decoded = Schema.decodeUnknownOption(CommandEventPayload)(entry.payload)
   if (Option.isNone(decoded)) return advanced
@@ -166,12 +189,12 @@ export const apply = (state: State, entry: JournalEvent.Entry): State => {
   if (state.commands.some((command) => command.commandId === commandSubmission.commandId)) return advanced
   const command: AppliedCommand = { ...commandSubmission, seq: entry.seq }
   const messages = commandSubmission.name === SayCommand
-    ? [...state.messages, {
+    ? insertBySeq(state.messages, {
       seq: entry.seq,
       commandId: commandSubmission.commandId,
       participantId: commandSubmission.participantId,
       text: commandSubmission.args
-    }]
+    })
     : state.messages
   const fields = commandSubmission.target === ""
     ? state.fields
@@ -189,7 +212,7 @@ export const apply = (state: State, entry: JournalEvent.Entry): State => {
       return [...state.fields.filter((field) => field.target !== commandSubmission.target), winner]
         .sort((left, right) => left.target < right.target ? -1 : 1)
     })()
-  return { ...advanced, messages, commands: [...state.commands, command], fields }
+  return { ...advanced, messages, commands: insertBySeq(state.commands, command), fields }
 }
 
 /**

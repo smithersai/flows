@@ -27,6 +27,7 @@ const PositiveSafeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(1))
  *
  * @since 0.1.0
  * @category schemas
+ * @slop
  */
 export const RunState = Schema.Struct({
   version: Schema.Literal(1),
@@ -45,5 +46,6 @@ export const RunState = Schema.Struct({
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type RunState = typeof RunState.Type

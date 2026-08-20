@@ -3,10 +3,10 @@
  *
  * @since 0.1.0
  */
-import { FlowEngine } from "@smthrs/engine-next"
-import { type DurableClock, type DurableDeferred, type Flow, FlowRuntime } from "@smthrs/flow-next"
-import { Journal } from "@smthrs/journal-next"
-import type { Ownership } from "@smthrs/run-store-next"
+import { FlowEngine } from "@smthrs/engine"
+import { type DurableClock, type DurableDeferred, type Flow, FlowRuntime } from "@smthrs/flow"
+import { Journal } from "@smthrs/journal"
+import type { Ownership } from "@smthrs/run-store"
 import * as Clock from "effect/Clock"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
@@ -23,6 +23,7 @@ import * as JournalRecords from "./JournalRecords.ts"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type ResumeReason = "deferred" | "clock"
 
@@ -34,6 +35,7 @@ export type ResumeReason = "deferred" | "clock"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Dependencies {
   readonly owner: Ownership.OwnerId
@@ -41,7 +43,8 @@ export interface Dependencies {
   readonly scheduleResume: (
     flowName: string,
     executionId: string,
-    reason: ResumeReason
+    reason: ResumeReason,
+    sourceId?: string | undefined
   ) => Effect.Effect<void>
   /**
    * Redispatch policy for a durable clock whose fire failed. Defaults to
@@ -57,6 +60,7 @@ export interface Dependencies {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface DeferredDoneOptions {
   readonly flowName: string
@@ -71,6 +75,7 @@ export interface DeferredDoneOptions {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Service {
   readonly deferredResult: (
@@ -100,6 +105,7 @@ const clockKey = (row: DurableEngineState.ClockAddress): string =>
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type FireRetryPolicy = Schedule.Schedule<unknown, unknown>
 
@@ -116,6 +122,7 @@ export type FireRetryPolicy = Schedule.Schedule<unknown, unknown>
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const defaultFireRetryPolicy: FireRetryPolicy = Schedule.min([
   Schedule.exponential("100 millis"),
@@ -130,6 +137,7 @@ export const defaultFireRetryPolicy: FireRetryPolicy = Schedule.min([
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const make = (
   dependencies: Dependencies
@@ -325,7 +333,12 @@ export const make = (
               dependencies.scheduleResume(
                 address.flowName,
                 address.executionId,
-                "deferred"
+                "deferred",
+                `${dependencies.journalSource}:wake:${JSON.stringify([
+                  address.flowName,
+                  address.executionId,
+                  address.deferredName
+                ])}`
               ),
             { discard: true }
           )

@@ -24,7 +24,7 @@
  *
  * @since 0.1.0
  */
-import { Sha256 } from "@smthrs/crypto-next"
+import { Sha256 } from "@smthrs/crypto"
 import type * as Crypto from "effect/Crypto"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
@@ -41,6 +41,7 @@ import * as ArtifactStore from "./ArtifactStore.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Options {
   /**
@@ -122,13 +123,27 @@ const isOk = (response: HttpClientResponse.HttpClientResponse): boolean =>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (
   options: Options
-): Effect.Effect<ArtifactStore.Service, never, HttpClient.HttpClient> =>
+): Effect.Effect<ArtifactStore.Service, ArtifactStore.ArtifactStoreError, HttpClient.HttpClient> =>
   Effect.gen(function*() {
     const client = yield* HttpClient.HttpClient
-    const base = options.endpoint.replace(/\/+$/, "")
+    const endpoint = yield* Effect.try({
+      try: () => new URL(options.endpoint),
+      catch: (cause) => transportFailure("an invalid endpoint", cause)
+    })
+    if (endpoint.protocol !== "https:") {
+      return yield* Effect.fail(transportFailure("a non-HTTPS endpoint", options.endpoint))
+    }
+    if (endpoint.username !== "" || endpoint.password !== "" || endpoint.search !== "" || endpoint.hash !== "") {
+      return yield* Effect.fail(
+        transportFailure("an endpoint containing credentials, a query, or a fragment", options.endpoint)
+      )
+    }
+    endpoint.pathname = endpoint.pathname.replace(/\/+$/, "")
+    const base = endpoint.toString().replace(/\/+$/, "")
     const headers = options.headers
     const authorize = (request: HttpClientRequest.HttpClientRequest): HttpClientRequest.HttpClientRequest =>
       headers === undefined ? request : HttpClientRequest.setHeaders(request, headers)
@@ -208,6 +223,7 @@ export const make = (
     const put: ArtifactStore.Service["put"] = Effect.fn("RemoteArtifacts.put")((bytes: Uint8Array) =>
       Effect.gen(function*() {
         const digest = yield* measure(bytes)
+        yield* Effect.annotateCurrentSpan({ digest })
         const response = yield* send(
           "an upload",
           HttpClientRequest.put(casUrl(digest)).pipe(
@@ -221,6 +237,7 @@ export const make = (
 
     const get: ArtifactStore.Service["get"] = Effect.fn("RemoteArtifacts.get")((digest: string) =>
       Effect.gen(function*() {
+        yield* Effect.annotateCurrentSpan({ digest })
         yield* ArtifactStore.validateDigest(digest)
         // The deadline covers the whole exchange — request, headers, body —
         // because a tier that stalls mid-body is exactly as unanswering as
@@ -249,6 +266,7 @@ export const make = (
 
     const has: ArtifactStore.Service["has"] = Effect.fn("RemoteArtifacts.has")((digest: string) =>
       Effect.gen(function*() {
+        yield* Effect.annotateCurrentSpan({ digest })
         yield* ArtifactStore.validateDigest(digest)
         const response = yield* send("an existence probe", HttpClientRequest.head(casUrl(digest)))
         if (response.status === 404) return false
@@ -261,6 +279,7 @@ export const make = (
       (digests: Iterable<string>) =>
         Effect.gen(function*() {
           const requested = [...new Set(digests)]
+          yield* Effect.annotateCurrentSpan({ count: requested.length })
           if (requested.length === 0) return []
           // The batch travels in a JSON body rather than a path, but an
           // unusable address is still an unusable address, and the local tier
@@ -304,8 +323,9 @@ export const make = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (
   options: Options
-): Layer.Layer<ArtifactStore.ArtifactStore, never, HttpClient.HttpClient> =>
+): Layer.Layer<ArtifactStore.ArtifactStore, ArtifactStore.ArtifactStoreError, HttpClient.HttpClient> =>
   Layer.effect(ArtifactStore.ArtifactStore)(make(options))

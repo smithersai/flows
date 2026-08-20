@@ -1,6 +1,6 @@
 # Assembling a durable engine
 
-This guide describes the services required by `@smthrs/engine-store-next` and gives a local SQL-backed composition pattern. It also identifies which services must be replaced before a multi-process deployment is durable.
+This guide describes the services required by `@smthrs/engine-store` and gives a local SQL-backed composition pattern. It also identifies which services must be replaced before a multi-process deployment is durable.
 
 ## Required services
 
@@ -15,9 +15,9 @@ This guide describes the services required by `@smthrs/engine-store-next` and gi
 `TestStores.layer()` supplies the four SQL services — journal, run, attempt, and cache — over ONE in-memory SQLite database. It is useful for integration tests, not restart durability:
 
 ```ts
-import { DurableEngineState, EngineStore, StepBoundary } from "@smthrs/engine-store-next"
-import * as TestStores from "@smthrs/engine-store-next/test/TestStores"
-import { Jj } from "@smthrs/kernel-next"
+import { DurableEngineState, EngineStore, StepBoundary } from "@smthrs/engine-store"
+import * as TestStores from "@smthrs/engine-store/test/TestStores"
+import { Jj } from "@smthrs/kernel"
 import { Effect, Layer } from "effect"
 
 const jj = Jj.make({
@@ -82,4 +82,21 @@ Give each worker a stable `hostId`; the engine adds process identity and a rando
 
 Deferred and clock completion schedule a resume. A committed journal-driven `resumeSignal` is not implemented, so suspended execution can also rely on the flow engine’s polling schedule.
 
-See the [`@smthrs/engine-store-next` reference](../reference/engine-store.md), [Journal](../concepts/journal.md), and [Implementation status](../architecture/implementation-status.md).
+## Abandoned runs are not auto-resumed
+
+**Nothing in this release watches for runs whose owner died and starts a process to pick them up.** `@smthrs/gateway`'s `SuperviseRuntime` declares the `scan`/`resume` supervision contract but ships only `make`, `makeNoop`, and `layerNoop` (`packages/gateway/src/SuperviseRuntime.ts:121,129,142`) plus a test double; there is no production implementation, and `@smthrs/gateway` is an agent-group package that the engine release train does not pack.
+
+Recovery is scoped to a process that is already running the engine and has the flow registered. Each engine driver sweeps on the one-second heartbeat cadence (`packages/run-store/src/Heartbeat.ts:24`): it delivers pending cancels to parked runs, and it enumerates `running` rows whose heartbeat is older than the 30-second stale cutoff (`Heartbeat.ts:33`), re-driving up to 64 per tick through the ordinary claim/steal path (`packages/engine-store/src/internal/RunDriver.ts:160,1412`). That is what reclaims a SIGKILLed or OOM-killed owner's run. A wake for a flow the sweeping process has not registered logs a once-per-run warning and leaves the row parked for a worker that does register it (`RunDriver.ts:1074`).
+
+To resume abandoned runs manually:
+
+1. Start or restart a host process composed through `@smthrs/flows/NodeRuntime`, pointed at the same SQLite `filename`.
+2. Pass a `registerFlows` layer that registers every flow with stored runs. It is the composition's final startup phase, so nothing resumes before its flow exists in the process.
+3. Supply an `Options.isAlive` that reports the dead owner as not alive. Steal is gated on that answer; while it says the previous owner lives, its runs are not taken over.
+4. Wait out the stale window. There is no command to invoke.
+
+The 30-second cutoff is when a row becomes *eligible*, not when it is reclaimed. The steal predicate is strict (`heartbeat_at_ms < now - 30s`, `packages/run-store/src/RunStore.ts:1184`), the sweep that acts on it runs once per second, and one tick wakes at most 64 stale rows, oldest heartbeat first. So the earliest re-drive is the first tick after the heartbeat passes 30 seconds, and a run sitting behind a backlog of more than 64 stale rows waits for a later tick. `isAlive` gates the steal on top of that. Do not treat 30 seconds as an upper bound on recovery.
+
+A run with no such process running stays put. Its state is durable and it does not advance.
+
+See the [`@smthrs/engine-store` reference](../reference/engine-store.md), [Journal](../concepts/journal.md), and [Implementation status](../architecture/implementation-status.md).

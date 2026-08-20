@@ -3,8 +3,8 @@
  *
  * @since 0.1.0
  */
-import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
-import * as KernelWorkspace from "@smthrs/kernel-next/Workspace"
+import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
+import * as KernelWorkspace from "@smthrs/kernel/Workspace"
 import * as Context from "effect/Context"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
@@ -19,9 +19,10 @@ import * as WorkspaceSandbox from "./WorkspaceSandbox.ts"
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class UndeclaredRead extends Schema.TaggedError<UndeclaredRead>()(
-  "flows/engine-store/UndeclaredRead",
+  "@smthrs/engine-store/UndeclaredRead",
   {
     code: Schema.Literal("undeclared_read"),
     paths: Schema.Array(Schema.String),
@@ -34,6 +35,7 @@ export class UndeclaredRead extends Schema.TaggedError<UndeclaredRead>()(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Service {
   readonly open: Effect.Effect<WorkspaceSandbox.Service, StepBoundary.UnsupportedBoundary>
@@ -44,9 +46,10 @@ export interface Service {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export const StepSandbox: Context.Service<Service, Service> = Context.Service<Service>(
-  "flows/engine-store/StepSandbox"
+  "@smthrs/engine-store/StepSandbox"
 )
 
 /**
@@ -54,6 +57,7 @@ export const StepSandbox: Context.Service<Service, Service> = Context.Service<Se
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (workspace: WorkspaceSandbox.Service): Service =>
   StepSandbox.of({
@@ -67,6 +71,7 @@ export const make = (workspace: WorkspaceSandbox.Service): Service =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer: Layer.Layer<
   Service,
@@ -87,6 +92,7 @@ export const layer: Layer.Layer<
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerTest = (
   initialFiles: WorkspaceSandbox.InitialFiles = {}
@@ -103,6 +109,7 @@ const unsupported = new StepBoundary.UnsupportedBoundary({
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop: Layer.Layer<Service> = Layer.succeed(
   StepSandbox,

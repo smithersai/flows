@@ -1,8 +1,8 @@
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
-import { Cause, Deferred, Effect, Exit, Fiber, Layer, Result, Stream } from "effect"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "@effect/vitest"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import { Cause, Deferred, Effect, Exit, Fiber, Layer, Stream } from "effect"
 import { Journal } from "../src/Journal.ts"
-import { Input, type RunId, type SourceId } from "../src/JournalEvent.ts"
+import { Input, type RunId, type Seq, type SourceId } from "../src/JournalEvent.ts"
 import * as Migrations from "../src/Migrations.ts"
 import * as Projection from "../src/Projection.ts"
 import * as SqlJournal from "../src/SqlJournal.ts"
@@ -10,7 +10,7 @@ import * as SqlJournal from "../src/SqlJournal.ts"
 const runId = (value: string): RunId => value as RunId
 const sourceId = (value: string): SourceId => value as SourceId
 
-const effect = <E>(name: string, body: () => Effect.Effect<void, E>) => it(name, () => Effect.runPromise(body()))
+const effect = <E>(name: string, body: () => Effect.Effect<void, E>) => it.effect(name, () => body())
 
 const input = (
   run: RunId,
@@ -73,6 +73,13 @@ describe("Projection", () => {
         const second = yield* replay()
         expect(first).toEqual([0, 1, 3, 6])
         expect(second).toEqual(first)
+
+        // Resuming from a cursor folds only the entries after it.
+        const resumed = yield* journal.project(sumProjection, { runId: run, afterSequence: 1 as Seq }).pipe(
+          Stream.take(2),
+          Stream.runCollect
+        )
+        expect(resumed).toEqual([0, 3])
       })
     )
   })
@@ -156,8 +163,7 @@ describe("Projection", () => {
         const exit = yield* Fiber.await(consumer)
         expect(Exit.isFailure(exit)).toBe(true)
         if (Exit.isFailure(exit)) {
-          const failure = Cause.findError(exit.cause)
-          expect(Result.isSuccess(failure) && Cause.isDone(failure.success)).toBe(true)
+          expect(Cause.hasInterruptsOnly(exit.cause)).toBe(true)
         }
       })
     )

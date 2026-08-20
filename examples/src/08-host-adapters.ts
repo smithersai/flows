@@ -18,11 +18,11 @@
  * a real process.
  *
  * Browser and Bun bundles implement the same tags and live at
- * `@smthrs/platform-browser-next`'s `BrowserHost` and `@smthrs/platform-bun-next`'s
+ * `@smthrs/platform-browser`'s `BrowserHost` and `@smthrs/platform-bun`'s
  * `BunHost`.
  */
-import * as TestHost from "@smthrs/kernel-next/test/TestHost"
-import * as NodeHost from "@smthrs/platform-node-next/NodeHost"
+import * as TestHost from "@smthrs/kernel/test/TestHost"
+import * as NodeHost from "@smthrs/platform-node/NodeHost"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"

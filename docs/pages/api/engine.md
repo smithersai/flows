@@ -1,10 +1,14 @@
-# @smthrs/engine-next
+---
+description: "The runtime that executes flows: the encoded seam, the in-memory engine, and the RPC and HTTP facades."
+---
 
-The runtime that executes flows: the low-level encoded engine contract, its typed adapter onto `@smthrs/flow-next`'s `FlowRuntime` port, execution-instance state, the in-memory implementation, and the generated RPC/HTTP flow façades.
+# @smthrs/engine
+
+The runtime that executes flows: the low-level encoded engine contract, its typed adapter onto `@smthrs/flow`'s `FlowRuntime` port, execution-instance state, the in-memory implementation, and the generated RPC/HTTP flow façades.
 
 ```ts
-import { FlowEngine } from "@smthrs/engine-next"
-import { Action, Flow, Interpreter } from "@smthrs/flow-next"
+import { FlowEngine } from "@smthrs/engine"
+import { Action, Flow, Interpreter } from "@smthrs/flow"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
@@ -31,13 +35,13 @@ const layer = Layer.mergeAll(
 
 | Import | Source | Platform |
 | --- | --- | --- |
-| `@smthrs/engine-next` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/engine/src/index.ts) | any |
+| `@smthrs/engine` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/engine/src/index.ts) | any |
 
 ## FlowEngine
 
 [src/FlowEngine](https://github.com/smithersai/flows/tree/main/packages/engine/src/FlowEngine)
 
-The engine implements `FlowRuntime`, the port `@smthrs/flow-next` declares. The service tag, `FlowInstance`, `annotateWaiting`, and `FlowCycleDetected` live there; what this namespace owns is the implementation.
+The engine implements `FlowRuntime`, the port `@smthrs/flow` declares. The service tag, `FlowInstance`, `annotateWaiting`, and `FlowCycleDetected` live there; what this namespace owns is the implementation.
 
 | Export | Kind | Notes |
 | --- | --- | --- |

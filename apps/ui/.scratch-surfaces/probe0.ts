@@ -1,0 +1,11 @@
+import { open, api, text } from "./drv.ts";
+const { context, page, errors } = await open();
+const s = await api(page, "/api/auth/session");
+console.log("SESSION", s.status, s.body.slice(0, 400));
+const w = await api(page, "/api/reco/watched");
+console.log("WATCHED", w.status, w.body.slice(0, 400));
+const t = await text(page);
+console.log("BODYTEXT>>>", t.slice(0, 2500));
+console.log("FLOWS-ATTR>>>", await page.locator("[data-flows]").first().getAttribute("data-flows").catch(() => null));
+console.log("ERRORS", JSON.stringify(errors.slice(0, 5)));
+await context.close();

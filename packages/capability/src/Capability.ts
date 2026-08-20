@@ -15,6 +15,7 @@ import { Option, Schema } from "effect"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type Action =
   | "fs:read"
@@ -67,8 +68,9 @@ const actions: ReadonlySet<string> = new Set([
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
-export class Capability extends Schema.Class<Capability>("@smthrs/capability-next/Capability")({
+export class Capability extends Schema.Class<Capability>("@smthrs/capability/Capability")({
   action: Action,
   resource: Schema.String
 }) {}
@@ -78,6 +80,7 @@ export class Capability extends Schema.Class<Capability>("@smthrs/capability-nex
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const make = (action: Action, resource: string): Capability => new Capability({ action, resource })
 
@@ -89,13 +92,14 @@ export const make = (action: Action, resource: string): Capability => new Capabi
  * structurally identical `{action, resource}` records and rendered by
  * byte-identical bodies, so `format` and a separate `formatPattern` were two
  * names for one function — and a third, inline copy in
- * `@smthrs/kernel-next`'s `JournalGrantStore` was the one actually writing patterns
+ * `@smthrs/kernel`'s `JournalGrantStore` was the one actually writing patterns
  * into durable journal payloads. Security-relevant strings get exactly one
  * renderer; folding them together is what keeps the bytes identical after the
  * next edit.
  *
  * @since 0.1.0
  * @category formatting
+ * @slop
  */
 export const format = (capability: {
   readonly action: string
@@ -108,6 +112,7 @@ export const format = (capability: {
  *
  * @since 0.1.0
  * @category parsing
+ * @slop
  */
 export const parse = (input: string): Option.Option<Capability> => {
   const components = input.split(":")
@@ -127,6 +132,7 @@ export const parse = (input: string): Option.Option<Capability> => {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type PatternAction = Action | "fs:*" | "net:*" | "model:*" | "proc:*" | "jj:*" | "*"
 
@@ -165,8 +171,9 @@ const PatternAction = Schema.Literals(
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
-export class CapabilityPattern extends Schema.Class<CapabilityPattern>("@smthrs/capability-next/CapabilityPattern")({
+export class CapabilityPattern extends Schema.Class<CapabilityPattern>("@smthrs/capability/CapabilityPattern")({
   action: PatternAction,
   resource: Schema.String
 }) {}
@@ -176,18 +183,76 @@ const normalizeSlashes = (value: string): string => value.replaceAll("\\", "/")
 const matchesAction = (pattern: PatternAction, action: Action): boolean =>
   pattern === "*" || pattern === action || (pattern.endsWith(":*") && action.startsWith(pattern.slice(0, -1)))
 
+/**
+ * ECMA-262 non-Unicode `i`-flag canonicalization, applied per UTF-16 code
+ * unit: uppercase the unit, but keep the original when uppercasing changes
+ * its length or maps a non-ASCII unit onto ASCII. Matching the earlier
+ * RegExp-based matcher's `i` flag exactly keeps Windows-path matching
+ * byte-for-byte compatible with every stored grant.
+ */
+const canonicalUnit = (unit: string): string => {
+  const upper = unit.toUpperCase()
+  if (upper.length !== 1) {
+    return unit
+  }
+  return unit.charCodeAt(0) >= 128 && upper.charCodeAt(0) < 128 ? unit : upper
+}
+
+const unitsEqual = (left: string, right: string, foldCase: boolean): boolean =>
+  left === right || (foldCase && canonicalUnit(left) === canonicalUnit(right))
+
+/**
+ * Iterative glob matcher over UTF-16 code units: `*` matches any run of
+ * units (path separators and newlines included), `?` matches exactly one
+ * unit, and everything else is literal.
+ *
+ * Grant patterns are attacker-influenced input on the authorization path, so
+ * the matcher must not be built on RegExp backtracking: a pattern such as
+ * `a*a*a*a*b` against a long non-matching resource made the old
+ * `.*`-compiled RegExp exponential. This two-pointer form remembers only the
+ * most recent `*` and re-anchors it one unit at a time, which bounds the
+ * whole match at O(pattern × resource) with constant memory — the standard
+ * linear-scan wildcard algorithm.
+ */
+const matchGlob = (pattern: string, resource: string, foldCase: boolean): boolean => {
+  let patternIndex = 0
+  let resourceIndex = 0
+  let starIndex = -1
+  let starResourceIndex = 0
+  while (resourceIndex < resource.length) {
+    const unit = pattern[patternIndex]
+    if (unit === "*") {
+      starIndex = patternIndex
+      starResourceIndex = resourceIndex
+      patternIndex += 1
+    } else if (unit !== undefined && (unit === "?" || unitsEqual(unit, resource[resourceIndex]!, foldCase))) {
+      patternIndex += 1
+      resourceIndex += 1
+    } else if (starIndex >= 0) {
+      patternIndex = starIndex + 1
+      starResourceIndex += 1
+      resourceIndex = starResourceIndex
+    } else {
+      return false
+    }
+  }
+  while (pattern[patternIndex] === "*") {
+    patternIndex += 1
+  }
+  return patternIndex === pattern.length
+}
+
 const matchesResource = (pattern: string, resource: string): boolean => {
   const normalizedPattern = normalizeSlashes(pattern)
   const normalizedResource = normalizeSlashes(resource)
-  let expression = normalizedPattern
-    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
-    .replaceAll("*", ".*")
-    .replaceAll("?", ".")
-  if (expression.endsWith(" .*")) {
-    expression = `${expression.slice(0, -3)}( .*)?`
+  const foldCase = /^[A-Za-z]:\//.test(normalizedPattern) || /^[A-Za-z]:\//.test(normalizedResource)
+  // A pattern ending in ` *` (`proc:spawn` command grants such as `npm *`)
+  // additionally matches the bare resource without its trailing argument
+  // text, exactly as the old `( .*)?` compilation did.
+  if (normalizedPattern.endsWith(" *") && matchGlob(normalizedPattern.slice(0, -2), normalizedResource, foldCase)) {
+    return true
   }
-  const windowsPath = /^[A-Za-z]:\//.test(normalizedPattern) || /^[A-Za-z]:\//.test(normalizedResource)
-  return new RegExp(`^${expression}$`, windowsPath ? "is" : "s").test(normalizedResource)
+  return matchGlob(normalizedPattern, normalizedResource, foldCase)
 }
 
 /**
@@ -195,6 +260,7 @@ const matchesResource = (pattern: string, resource: string): boolean => {
  *
  * @since 0.1.0
  * @category predicates
+ * @slop
  */
 export const matches = (pattern: CapabilityPattern, capability: Capability): boolean =>
   matchesAction(pattern.action, capability.action) && matchesResource(pattern.resource, capability.resource)
@@ -226,6 +292,7 @@ const resourceSubsumes = (left: string, right: string): boolean => {
  *
  * @since 0.1.0
  * @category predicates
+ * @slop
  */
 export const subsumes = (left: CapabilityPattern, right: CapabilityPattern): boolean =>
   actionSubsumes(left.action, right.action) && resourceSubsumes(left.resource, right.resource)
@@ -235,6 +302,7 @@ export const subsumes = (left: CapabilityPattern, right: CapabilityPattern): boo
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type EffectTier = "sealed" | "compensable" | "irreversible"
 
@@ -290,6 +358,7 @@ const isInsideWorkspace = (resource: string, workspaceRoot: string): boolean => 
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface TierOptions {
   readonly workspaceRoot: string
@@ -300,6 +369,7 @@ export interface TierOptions {
  *
  * @since 0.1.0
  * @category predicates
+ * @slop
  */
 export const tierOf = (capability: Capability, options: TierOptions): EffectTier => {
   switch (capability.action) {
@@ -327,5 +397,6 @@ export const tierOf = (capability: Capability, options: TierOptions): EffectTier
  *
  * @since 0.1.0
  * @category predicates
+ * @slop
  */
 export const requiresIdempotencyKey = (tier: EffectTier): boolean => tier === "irreversible"

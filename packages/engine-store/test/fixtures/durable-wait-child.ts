@@ -1,12 +1,12 @@
-import { DurableWriter } from "@smthrs/database-next"
-import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
-import { DurableEngineState, EngineStore, StepBoundary } from "@smthrs/engine-store-next"
-import { DurableClock, DurableDeferred, Flow } from "@smthrs/flow-next"
-import { SqlJournal } from "@smthrs/journal-next"
-import { Jj } from "@smthrs/kernel-next"
-import { Node } from "@smthrs/plan-next"
-import { AttemptStore, RunStore } from "@smthrs/run-store-next"
-import { CacheStore } from "@smthrs/step-cache-next"
+import { DurableWriter } from "@smthrs/database"
+import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
+import { DurableEngineState, EngineStore, StepBoundary } from "@smthrs/engine-store"
+import { DurableClock, DurableDeferred, Flow } from "@smthrs/flow"
+import { SqlJournal } from "@smthrs/journal"
+import { Jj } from "@smthrs/kernel"
+import { Node } from "@smthrs/plan"
+import { AttemptStore, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
@@ -15,7 +15,7 @@ import * as Schema from "effect/Schema"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as Migrations from "../../src/Migrations.ts"
 import * as OwnerIdentity from "../../src/OwnerIdentity.ts"
-import { runPromise } from "../Sha256.ts"
+import { withCrypto } from "../Sha256.ts"
 import { opaqueHandlerBody } from "./OpaqueHandlerBody.ts"
 
 const mode = process.argv[2]
@@ -198,10 +198,13 @@ const engineProgram = Effect.scoped(
   }).pipe(Effect.provide(requirements))
 )
 
-await runPromise(
-  mode === "state-complete"
-    ? stateCompletion
-    : mode === "state-init"
-    ? stateInitialization
-    : engineProgram
+// A process entrypoint: running the Effect here is the intended boundary.
+await Effect.runPromise(
+  withCrypto(
+    mode === "state-complete"
+      ? stateCompletion
+      : mode === "state-init"
+      ? stateInitialization
+      : engineProgram
+  )
 )

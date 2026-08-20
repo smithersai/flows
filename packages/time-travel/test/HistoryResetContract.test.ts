@@ -1,8 +1,8 @@
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
-import * as Migrations from "@smthrs/engine-store-next/Migrations"
+import { describe, expect, it } from "@effect/vitest"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import * as Migrations from "@smthrs/engine-store/Migrations"
 import * as Effect from "effect/Effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
-import { describe, expect, it } from "vitest"
 import type { LineageEdge } from "../src/Frame.ts"
 import * as MemoryTimeTravelStore from "../src/MemoryTimeTravelStore.ts"
 import * as SqlTimeTravelStore from "../src/SqlTimeTravelStore.ts"
@@ -29,72 +29,68 @@ const edges: ReadonlyArray<LineageEdge> = [
   { parentRunId: "parent", parentSeq: 4, childRunId: "detached", kind: "fork", attached: false }
 ]
 
-const observeMemory = (seq: number): Promise<Observation> => {
+const observeMemory = (seq: number) => {
   const store = MemoryTimeTravelStore.make({ records, edges })
-  return Effect.runPromise(
-    store.archiveAndTruncate("parent", { lineageId: "parent/root", seq }, []).pipe(
-      Effect.map((archive) => {
-        const state = store.state()
-        return {
-          archived: archive.archived,
-          orphaned: archive.orphaned.map((edge) => edge.childRunId).sort(),
-          remaining: state.records.map((record) => record.eventId).sort(),
-          edges: state.edges.map((edge) => edge.childRunId).sort()
-        }
-      })
-    )
+  return store.archiveAndTruncate("parent", { lineageId: "parent/root", seq }, []).pipe(
+    Effect.map((archive) => {
+      const state = store.state()
+      return {
+        archived: archive.archived,
+        orphaned: archive.orphaned.map((edge) => edge.childRunId).sort(),
+        remaining: state.records.map((record) => record.eventId).sort(),
+        edges: state.edges.map((edge) => edge.childRunId).sort()
+      }
+    })
   )
 }
 
-const observeSql = (seq: number): Promise<Observation> =>
-  Effect.runPromise(
-    Effect.gen(function*() {
-      yield* Migrations.run
-      const sql = yield* Effect.service(SqlClient.SqlClient)
-      const store = yield* SqlTimeTravelStore.make
-      for (const runId of ["parent", "at-boundary", "after-boundary", "detached"]) {
-        yield* sql`
+const observeSql = (seq: number) =>
+  Effect.gen(function*() {
+    yield* Migrations.run
+    const sql = yield* Effect.service(SqlClient.SqlClient)
+    const store = yield* SqlTimeTravelStore.make
+    for (const runId of ["parent", "at-boundary", "after-boundary", "detached"]) {
+      yield* sql`
           INSERT INTO flows_runs (run_id, status, created_at_ms, state_json)
           VALUES (${runId}, 'suspended', 0, '{}')
         `
-      }
-      for (const record of records) {
-        yield* sql`
+    }
+    for (const record of records) {
+      yield* sql`
           INSERT INTO flows_journal_events
             (run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
              event_type, payload_json, meta_json)
           VALUES (${record.runId}, ${record.seq}, ${record.eventId}, 'reset-contract',
                   ${record.seq}, 0, 'test', '{}', '{}')
         `
-      }
-      for (const edge of edges) {
-        yield* sql`
+    }
+    for (const edge of edges) {
+      yield* sql`
           INSERT INTO flows_time_travel_edges
             (parent_run_id, parent_seq, child_run_id, kind, attached)
           VALUES (${edge.parentRunId}, ${edge.parentSeq}, ${edge.childRunId}, ${edge.kind},
                   ${edge.attached ? 1 : 0})
         `
-      }
+    }
 
-      const archive = yield* store.archiveAndTruncate(
-        "parent",
-        { lineageId: "parent/root", seq },
-        []
-      )
-      const remaining = yield* sql<{ readonly event_id: string }>`
+    const archive = yield* store.archiveAndTruncate(
+      "parent",
+      { lineageId: "parent/root", seq },
+      []
+    )
+    const remaining = yield* sql<{ readonly event_id: string }>`
         SELECT event_id FROM flows_journal_events ORDER BY event_id
       `
-      const remainingEdges = yield* sql<{ readonly child_run_id: string }>`
+    const remainingEdges = yield* sql<{ readonly child_run_id: string }>`
         SELECT child_run_id FROM flows_time_travel_edges ORDER BY child_run_id
       `
-      return {
-        archived: archive.archived,
-        orphaned: archive.orphaned.map((edge) => edge.childRunId).sort(),
-        remaining: remaining.map((row) => row.event_id),
-        edges: remainingEdges.map((row) => row.child_run_id)
-      }
-    }).pipe(Effect.provide(TestDatabase.layer))
-  )
+    return {
+      archived: archive.archived,
+      orphaned: archive.orphaned.map((edge) => edge.childRunId).sort(),
+      remaining: remaining.map((row) => row.event_id),
+      edges: remainingEdges.map((row) => row.child_run_id)
+    }
+  }).pipe(Effect.provide(TestDatabase.layer))
 
 const boundaries = [
   {
@@ -142,9 +138,10 @@ describe.each(
     ["SQL", observeSql]
   ] as const
 )("%s time-travel store history reset contract", (_name, observe) => {
-  it.each(boundaries)("keeps the reset frame inclusive at $name", async ({ expected, seq }) => {
-    // Temporal-style reset history includes the selected LCA event and any
-    // child branch created exactly there; only strictly later history moves.
-    expect(await observe(seq)).toEqual(expected)
-  })
+  it.effect.each(boundaries)("keeps the reset frame inclusive at $name", ({ expected, seq }) =>
+    Effect.gen(function*() {
+      // Temporal-style reset history includes the selected LCA event and any
+      // child branch created exactly there; only strictly later history moves.
+      expect(yield* observe(seq)).toEqual(expected)
+    }))
 })

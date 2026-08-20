@@ -1,9 +1,12 @@
 {
-  "name": "@smthrs/observability-next",
+  "name": "@smthrs/observability",
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
-  "description": "Default OTLP export wiring for flows telemetry",
+  "smthrs": {
+    "group": "engine"
+  },
+  "description": "Observability for flows: default OTLP export wiring plus Effect-native logger, metric, and OpenTelemetry SDK layers",
   "homepage": "https://github.com/smithersai/flows",
   "repository": {
     "type": "git",
@@ -67,10 +70,22 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
+    "@effect/opentelemetry": "4.0.0-rc.108",
+    "@opentelemetry/api": "1.9.0",
+    "@opentelemetry/exporter-logs-otlp-http": "0.220.0",
+    "@opentelemetry/exporter-metrics-otlp-http": "0.220.0",
+    "@opentelemetry/exporter-trace-otlp-http": "0.220.0",
+    "@opentelemetry/sdk-logs": "0.220.0",
+    "@opentelemetry/sdk-metrics": "2.9.0",
+    "@opentelemetry/sdk-trace-base": "2.9.0",
+    "@opentelemetry/sdk-trace-node": "2.9.0",
+    "@opentelemetry/sdk-trace-web": "2.9.0",
+    "@smthrs/journal": "0.1.0",
     "effect": "4.0.0-rc.108"
   },
   "devDependencies": {
     "@effect/language-service": "0.87.1",
+    "@effect/vitest": "4.0.0-rc.108",
     "@eslint/js": "9.39.1",
     "@types/node": "25.9.5",
     "@vitest/coverage-v8": "4.1.9",

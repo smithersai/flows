@@ -3,6 +3,7 @@
  *
  * @since 0.1.0
  */
+import * as Cause from "effect/Cause"
 import type * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import type { HealthState } from "./HealthState.ts"
@@ -23,7 +24,10 @@ const defaultDeadline: Duration.Input = "5 seconds"
  * Runs one ping under a deadline and reports a typed health state.
  *
  * A failed ping becomes `Unhealthy(reason: "ping_failed")`; a ping that
- * outlives the deadline becomes `Unhealthy(reason: "unresponsive")`.
+ * outlives the deadline becomes `Unhealthy(reason: "unresponsive")`. The
+ * probe opens a `SandboxHealth.probe` span annotated with the outcome, and a
+ * failed ping's full cause is logged at debug level — the flattened `message`
+ * on the reported state is a summary, not the only record of the failure.
  *
  * @category constructors
  * @since 0.1.0
@@ -33,14 +37,18 @@ export const probe = (
   options?: ProbeOptions
 ): Effect.Effect<HealthState> =>
   Effect.timeoutOrElse(
-    Effect.match(provider.ping, {
-      onSuccess: (): HealthState => new Healthy(),
-      onFailure: (error): HealthState =>
-        new Unhealthy({
-          component: "sandbox",
-          reason: "ping_failed",
-          message: error.message
-        })
+    Effect.matchEffect(provider.ping, {
+      onSuccess: (): Effect.Effect<HealthState> => Effect.succeed(new Healthy()),
+      onFailure: (error): Effect.Effect<HealthState> =>
+        Effect.logDebug("sandbox ping failed", Cause.fail(error)).pipe(
+          Effect.as(
+            new Unhealthy({
+              component: "sandbox",
+              reason: "ping_failed",
+              message: error.message
+            })
+          )
+        )
     }),
     {
       duration: options?.deadline ?? defaultDeadline,
@@ -53,4 +61,7 @@ export const probe = (
           })
         )
     }
+  ).pipe(
+    Effect.tap((state) => Effect.annotateCurrentSpan({ outcome: state._tag === "Healthy" ? "healthy" : state.reason })),
+    Effect.withSpan("SandboxHealth.probe", {}, { captureStackTrace: false })
   )

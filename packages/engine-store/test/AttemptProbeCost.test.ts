@@ -7,26 +7,26 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * counting store below sees only the executor's own row lookups — a scan
  * regression reappears as dozens of gets and fails the bound.
  */
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
-import { Action, Flow, RetryPolicy } from "@smthrs/flow-next"
-import { SqlJournal } from "@smthrs/journal-next"
-import { Jj } from "@smthrs/kernel-next"
-import { Node } from "@smthrs/plan-next"
-import { AttemptStore, RunStore } from "@smthrs/run-store-next"
-import { CacheStore } from "@smthrs/step-cache-next"
+import { describe, expect, it } from "@effect/vitest"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import { Action, Flow, RetryPolicy } from "@smthrs/flow"
+import { SqlJournal } from "@smthrs/journal"
+import { Jj } from "@smthrs/kernel"
+import { Node } from "@smthrs/plan"
+import { AttemptStore, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import { TestClock } from "effect/testing"
-import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as Migrations from "../src/Migrations.ts"
 import * as OwnerIdentity from "../src/OwnerIdentity.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
-import { runPromise } from "./Sha256.ts"
+import { withCrypto } from "./Sha256.ts"
 
 const ProbeFlow = Flow.make("AttemptProbeCost/Flow", {
   payload: {},
@@ -44,76 +44,77 @@ const jj = Jj.make({
 })
 
 describe("attempt probe cost over SQL durable state (issue #77)", () => {
-  it("a fresh action with an expirationMs policy dispatches without per-attempt point-read scans", async () => {
-    let dispatches = 0
-    const steady = Action.make({
-      name: "steady",
-      success: Schema.String,
-      error: Schema.String,
-      tier: "sealed",
-      retryPolicy: RetryPolicy.make({
-        initialMs: 10,
-        factor: 1,
-        maxMs: 10,
-        expirationMs: 100_000,
-        maxAttempts: 3
-      }),
-      execute: Effect.suspend(() => {
-        dispatches++
-        return Effect.succeed("ok")
+  it.effect("a fresh action with an expirationMs policy dispatches without per-attempt point-read scans", () =>
+    Effect.gen(function*() {
+      let dispatches = 0
+      const steady = Action.make({
+        name: "steady",
+        success: Schema.String,
+        error: Schema.String,
+        tier: "sealed",
+        retryPolicy: RetryPolicy.make({
+          initialMs: 10,
+          factor: 1,
+          maxMs: 10,
+          expirationMs: 100_000,
+          maxAttempts: 3
+        }),
+        execute: Effect.suspend(() => {
+          dispatches++
+          return Effect.succeed("ok")
+        })
       })
-    })
 
-    const stores = Layer.mergeAll(
-      SqlJournal.layer({ capacity: 1024, overflow: "reject" }),
-      RunStore.layer,
-      AttemptStore.layer,
-      CacheStore.layer,
-      DurableEngineState.layer
-    ).pipe(
-      Layer.provideMerge(Layer.provideMerge(Migrations.layer, TestDatabase.layer)),
-      Layer.merge(OwnerIdentity.layer)
-    )
+      const stores = Layer.mergeAll(
+        SqlJournal.layer({ capacity: 1024, overflow: "reject" }),
+        RunStore.layer,
+        AttemptStore.layer,
+        CacheStore.layer,
+        DurableEngineState.layer
+      ).pipe(
+        Layer.provideMerge(Layer.provideMerge(Migrations.layer, TestDatabase.layer)),
+        Layer.merge(OwnerIdentity.layer)
+      )
 
-    let gets = 0
-    const result = await runPromise(
-      Effect.gen(function*() {
-        // Decorate the real store so every point read the engine issues for
-        // this run is counted — the probe scan used to issue up to 64 here.
-        const base = yield* AttemptStore.AttemptStore
-        const counting: AttemptStore.Service = {
-          ...base,
-          get: (id) => Effect.suspend(() => (gets++, base.get(id)))
-        }
-        yield* Effect.scoped(Effect.gen(function*() {
-          const engine = yield* EngineStore.make({
-            owner: { hostId: "probe-cost-host" },
-            journalSource: "probe-cost-test",
-            isAlive: () => Effect.succeed(false)
-          }).pipe(Effect.updateContext(Context.add(AttemptStore.AttemptStore, counting)))
-          yield* engine.register(ProbeFlow, () => steady as never)
-          const fiber = yield* engine.execute(ProbeFlow, {
-            executionId: "probe-cost",
-            payload: {},
-            discard: true
-          }).pipe(Effect.forkChild({ startImmediately: true }))
-          yield* TestClock.adjust("1 seconds")
-          yield* Fiber.await(fiber)
-        }))
-        const store = yield* RunStore.RunStore
-        return { row: yield* store.get("probe-cost") }
-      }).pipe(
-        Effect.provideService(Jj.Jj, jj),
-        Effect.provide(StepBoundary.layerTest()),
-        Effect.provide(stores),
-        Effect.provide(TestClock.layer())
-      ) as unknown as Effect.Effect<{ row: { status: string } }>
-    )
+      let gets = 0
+      const result = yield* withCrypto(
+        Effect.gen(function*() {
+          // Decorate the real store so every point read the engine issues for
+          // this run is counted — the probe scan used to issue up to 64 here.
+          const base = yield* AttemptStore.AttemptStore
+          const counting: AttemptStore.Service = {
+            ...base,
+            get: (id) => Effect.suspend(() => (gets++, base.get(id)))
+          }
+          yield* Effect.scoped(Effect.gen(function*() {
+            const engine = yield* EngineStore.make({
+              owner: { hostId: "probe-cost-host" },
+              journalSource: "probe-cost-test",
+              isAlive: () => Effect.succeed(false)
+            }).pipe(Effect.updateContext(Context.add(AttemptStore.AttemptStore, counting)))
+            yield* engine.register(ProbeFlow, () => steady as never)
+            const fiber = yield* engine.execute(ProbeFlow, {
+              executionId: "probe-cost",
+              payload: {},
+              discard: true
+            }).pipe(Effect.forkChild({ startImmediately: true }))
+            yield* TestClock.adjust("1 seconds")
+            yield* Fiber.await(fiber)
+          }))
+          const store = yield* RunStore.RunStore
+          return { row: yield* store.get("probe-cost") }
+        }).pipe(
+          Effect.provideService(Jj.Jj, jj),
+          Effect.provide(StepBoundary.layerTest()),
+          Effect.provide(stores),
+          Effect.provide(TestClock.layer())
+        ) as unknown as Effect.Effect<{ row: { status: string } }>
+      )
 
-    expect(dispatches).toBe(1)
-    expect(result.row.status).toBe("completed")
-    // The executor's own persisted-row lookup remains; the probe's 32-read
-    // fresh-key scan (and its expirationMs double) must not.
-    expect(gets).toBeLessThan(5)
-  })
+      expect(dispatches).toBe(1)
+      expect(result.row.status).toBe("completed")
+      // The executor's own persisted-row lookup remains; the probe's 32-read
+      // fresh-key scan (and its expirationMs double) must not.
+      expect(gets).toBeLessThan(5)
+    }))
 })

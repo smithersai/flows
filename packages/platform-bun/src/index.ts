@@ -1,7 +1,7 @@
 /**
  * @since 0.1.0
  *
- * `@smthrs/platform-bun-next` — the Bun Host bundle.
+ * `@smthrs/platform-bun` — the Bun Host bundle.
  *
  * Bun runs the `@effect/platform-node` adapters unchanged for the filesystem
  * and the child-process spawner, and Effect's own fetch-backed `HttpClient`
@@ -10,7 +10,7 @@
  * Host surface.
  *
  * ```ts
- * import { BunHost } from "@smthrs/platform-bun-next"
+ * import { BunHost } from "@smthrs/platform-bun"
  * ```
  *
  * **Node-only by construction.** The bundle falls back to the
@@ -18,8 +18,14 @@
  * `scripts/browser-check.mjs` at the repository root pins that.
  */
 
-/** Bun's `FileSystem`, which is Effect's Node implementation. */
+/**
+ * Bun's `FileSystem`, which is Effect's Node implementation.
+ * @slop
+ */
 export * as BunFileSystem from "./BunFileSystem.ts"
 
-/** The complete closed Host bundle for Bun. */
+/**
+ * The complete closed Host bundle for Bun.
+ * @slop
+ */
 export * as BunHost from "./BunHost.ts"

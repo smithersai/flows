@@ -1,15 +1,15 @@
 /**
  * Executable state must survive the durable round trip verbatim: journal
  * payloads are redacted, but the stores that hold resumable state are not.
- * Split out of `@smthrs/journal-next`'s redaction suite when the stores moved into
+ * Split out of `@smthrs/journal`'s redaction suite when the stores moved into
  * their own packages — see `docs/specs/Concepts/Journal Split.md`.
  */
-import { DurableWriter } from "@smthrs/database-next/DurableWriter"
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
+import { describe, expect, it } from "@effect/vitest"
+import { DurableWriter } from "@smthrs/database/DurableWriter"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Effect, Layer, Option } from "effect"
 import { TestClock } from "effect/testing"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"
-import { describe, expect, it } from "vitest"
 import * as CacheStore from "../src/CacheStore.ts"
 import * as Migrations from "../src/Migrations.ts"
 
@@ -29,22 +29,23 @@ describe("cached step result redaction", () => {
 
   const withStores = <A, E>(
     body: Effect.Effect<A, E, CacheStore.CacheStore | DurableWriter | SqlClient.SqlClient>
-  ) => Effect.runPromise(body.pipe(Effect.provide(storeLayers), Effect.provide(TestClock.layer())))
+  ) => body.pipe(Effect.provide(storeLayers), Effect.provide(TestClock.layer()))
 
-  it("round-trips a cached step result verbatim", async () => {
-    const entry = await withStores(Effect.gen(function*() {
-      const store = yield* CacheStore.CacheStore
-      yield* store.put({
-        keyDigest: "digest-cache",
-        result: executable,
-        meta: executable,
-        createdAtMs: 1,
-        recordedRunId: "run-cache",
-        recordedEventSeq: 0
-      })
-      return yield* store.get("digest-cache")
+  it.effect("round-trips a cached step result verbatim", () =>
+    Effect.gen(function*() {
+      const entry = yield* withStores(Effect.gen(function*() {
+        const store = yield* CacheStore.CacheStore
+        yield* store.put({
+          keyDigest: "digest-cache",
+          result: executable,
+          meta: executable,
+          createdAtMs: 1,
+          recordedRunId: "run-cache",
+          recordedEventSeq: 0
+        })
+        return yield* store.get("digest-cache")
+      }))
+
+      expect(Option.getOrThrow(entry)).toMatchObject({ result: executable, meta: executable })
     }))
-
-    expect(Option.getOrThrow(entry)).toMatchObject({ result: executable, meta: executable })
-  })
 })

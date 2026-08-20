@@ -7,11 +7,11 @@
  * write. These cases pin the fold, its carried-pointer resolution, and the
  * store contract both implementations answer.
  */
-import * as Journal from "@smthrs/journal-next/Journal"
-import type * as JournalEvent from "@smthrs/journal-next/JournalEvent"
+import { describe, expect, it } from "@effect/vitest"
+import * as Journal from "@smthrs/journal/Journal"
+import type * as JournalEvent from "@smthrs/journal/JournalEvent"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
-import { describe, expect, it } from "vitest"
 import * as SnapshotProjector from "../src/internal/SnapshotProjector.ts"
 import * as MemoryTimeTravelStore from "../src/MemoryTimeTravelStore.ts"
 import * as TimeTravelStore from "../src/TimeTravelStore.ts"
@@ -59,69 +59,78 @@ const projectInto = (
   options: { readonly pageSize?: number } = {}
 ) => {
   const store = MemoryTimeTravelStore.make()
-  return Effect.runPromise(
-    SnapshotProjector.project("run", 2).pipe(
-      Effect.provide(pagingJournal(fixtures, options.pageSize ?? 2)),
-      Effect.provideService(TimeTravelStore.TimeTravelStore, store),
-      Effect.map((state) => ({ state, snapshots: store.state().snapshots }))
-    ) as Effect.Effect<
-      { readonly state: SnapshotProjector.State; readonly snapshots: ReadonlyArray<TimeTravelStore.Snapshot> },
-      unknown
-    >
-  )
+  return SnapshotProjector.project("run", 2).pipe(
+    Effect.provide(pagingJournal(fixtures, options.pageSize ?? 2)),
+    Effect.provideService(TimeTravelStore.TimeTravelStore, store),
+    Effect.map((state) => ({ state, snapshots: store.state().snapshots }))
+  ) as Effect.Effect<
+    { readonly state: SnapshotProjector.State; readonly snapshots: ReadonlyArray<TimeTravelStore.Snapshot> },
+    unknown
+  >
 }
 
 describe("the snapshot projector", () => {
-  it("resolves a carried anchor to the last real pointer, and stamps the plan digest in force", async () => {
-    const result = await projectInto([
-      // No pointer yet: a carried anchor before any snapshot has nothing to
-      // carry, and inventing one would be worse than recording none.
-      { seq: 0, eventType: "flows.engine.snapshot-identified", payload: { carried: true } },
-      { seq: 1, eventType: "flows.engine.plan-recorded", payload: { digest: "plan-a" } },
-      { seq: 2, eventType: "flows.engine.snapshot-identified", payload: { snapshotId: "change-1" } },
-      { seq: 3, eventType: "flows.engine.snapshot-identified", payload: { carried: true } },
-      { seq: 4, eventType: "flows.engine.subgraph-appended", payload: { digest: "plan-b" } },
-      { seq: 5, eventType: "flows.engine.snapshot-identified", payload: { carried: true } },
-      // Records the fold has no business in.
-      { seq: 6, eventType: "flows.engine.attempt-finished", payload: {} }
-    ])
+  it.effect("resolves a carried anchor to the last real pointer, and stamps the plan digest in force", () =>
+    Effect.gen(function*() {
+      const result = yield* projectInto([
+        // No pointer yet: a carried anchor before any snapshot has nothing to
+        // carry, and inventing one would be worse than recording none.
+        { seq: 0, eventType: "flows.engine.snapshot-identified", payload: { carried: true } },
+        { seq: 1, eventType: "flows.engine.plan-recorded", payload: { digest: "plan-a" } },
+        { seq: 2, eventType: "flows.engine.snapshot-identified", payload: { snapshotId: "change-1" } },
+        { seq: 3, eventType: "flows.engine.snapshot-identified", payload: { carried: true } },
+        { seq: 4, eventType: "flows.engine.subgraph-appended", payload: { digest: "plan-b" } },
+        { seq: 5, eventType: "flows.engine.snapshot-identified", payload: { carried: true } },
+        // Records the fold has no business in.
+        { seq: 6, eventType: "flows.engine.attempt-finished", payload: {} }
+      ])
 
-    expect(result.state).toEqual({ changeId: "change-1", planDigest: "plan-b", anchors: 3 })
-    expect(result.snapshots).toEqual([
-      { runId: "run", frame: { lineageId, seq: 2 }, changeId: "change-1", planDigest: "plan-a" },
-      { runId: "run", frame: { lineageId, seq: 3 }, changeId: "change-1", planDigest: "plan-a" },
-      { runId: "run", frame: { lineageId, seq: 5 }, changeId: "change-1", planDigest: "plan-b" }
-    ])
-  })
+      expect(result.state).toEqual({ changeId: "change-1", planDigest: "plan-b", anchors: 3 })
+      expect(result.snapshots).toEqual([
+        { runId: "run", frame: { lineageId, seq: 2 }, changeId: "change-1", planDigest: "plan-a" },
+        { runId: "run", frame: { lineageId, seq: 3 }, changeId: "change-1", planDigest: "plan-a" },
+        { runId: "run", frame: { lineageId, seq: 5 }, changeId: "change-1", planDigest: "plan-b" }
+      ])
+    }))
 
-  it("skips what it cannot address or decode", async () => {
-    const result = await projectInto([
-      // No lineage: an anchor with no frame address is not an anchor.
-      { seq: 0, eventType: "flows.engine.snapshot-identified", payload: { snapshotId: "x" }, lineageId: undefined },
-      // Undecodable payloads on both channels.
-      { seq: 1, eventType: "flows.engine.plan-recorded", payload: { digest: 42 } },
-      { seq: 2, eventType: "flows.engine.snapshot-identified", payload: { snapshotId: 7 } }
-    ])
+  it.effect("ignores unrelated events but fails closed on malformed known events", () =>
+    Effect.gen(function*() {
+      const unrelated = yield* projectInto([
+        { seq: 0, eventType: "another.package.event", payload: { digest: 42 } }
+      ])
+      expect(unrelated.state).toEqual({ changeId: undefined, planDigest: undefined, anchors: 0 })
 
-    expect(result.state).toEqual({ changeId: undefined, planDigest: undefined, anchors: 0 })
-    expect(result.snapshots).toEqual([])
-  })
+      const malformed = [
+        [{ seq: 0, eventType: "flows.engine.snapshot-identified", payload: { snapshotId: "x" }, lineageId: undefined }],
+        [{ seq: 0, eventType: "flows.engine.plan-recorded", payload: { digest: 42 } }],
+        [{ seq: 0, eventType: "flows.engine.snapshot-identified", payload: { snapshotId: 7 } }],
+        [{ seq: 0, eventType: "flows.engine.plan-recorded", payload: { version: 2, digest: "future" } }]
+      ] satisfies ReadonlyArray<ReadonlyArray<Fixture>>
+      const failures = yield* Effect.forEach(malformed, (fixtures) => Effect.flip(projectInto(fixtures)))
+      expect(failures.map((failure) => (failure as { readonly code: string }).code)).toEqual([
+        "invalid",
+        "invalid",
+        "invalid",
+        "invalid"
+      ])
+    }))
 
-  it("is idempotent: the same journal folded twice leaves one anchor per frame", async () => {
-    const store = MemoryTimeTravelStore.make()
-    const fixtures: ReadonlyArray<Fixture> = [
-      { seq: 0, eventType: "flows.engine.snapshot-identified", payload: { snapshotId: "change-1" } }
-    ]
-    await Effect.runPromise(
-      SnapshotProjector.project("run").pipe(
-        Effect.andThen(SnapshotProjector.project("run")),
-        Effect.provide(pagingJournal(fixtures, 10)),
-        Effect.provideService(TimeTravelStore.TimeTravelStore, store)
-      ) as Effect.Effect<unknown, unknown>
-    )
+  it.effect("is idempotent: the same journal folded twice leaves one anchor per frame", () =>
+    Effect.gen(function*() {
+      const store = MemoryTimeTravelStore.make()
+      const fixtures: ReadonlyArray<Fixture> = [
+        { seq: 0, eventType: "flows.engine.snapshot-identified", payload: { snapshotId: "change-1" } }
+      ]
+      yield* (
+        SnapshotProjector.project("run").pipe(
+          Effect.andThen(SnapshotProjector.project("run")),
+          Effect.provide(pagingJournal(fixtures, 10)),
+          Effect.provideService(TimeTravelStore.TimeTravelStore, store)
+        ) as Effect.Effect<unknown, unknown>
+      )
 
-    expect(store.state().snapshots).toHaveLength(1)
-  })
+      expect(store.state().snapshots).toHaveLength(1)
+    }))
 })
 
 describe("the memory store's derived reads", () => {
@@ -187,66 +196,97 @@ describe("the memory store's derived reads", () => {
     ]
   })
 
-  it("rebuilds state at a frame from the decisions up to it", async () => {
-    expect(await Effect.runPromise(store.stateAt("run", { lineageId, seq: 4 }))).toBe(
-      JSON.stringify({ version: 1, flowName: "Demo", payload: { seed: 1 } })
-    )
-    // Before the `created` decision there is nothing to rebuild.
-    expect(await Effect.runPromise(store.stateAt("run", { lineageId, seq: 0 }))).toBeDefined()
-    expect(await Effect.runPromise(store.stateAt("other", { lineageId, seq: 9 }))).toBeUndefined()
-  })
+  it.effect("rebuilds state at a frame from the decisions up to it", () =>
+    Effect.gen(function*() {
+      expect(yield* (store.stateAt("run", { lineageId, seq: 4 }))).toBe(
+        JSON.stringify({ version: 1, flowName: "Demo", payload: { seed: 1 } })
+      )
+      // Before the `created` decision there is nothing to rebuild.
+      expect(yield* (store.stateAt("run", { lineageId, seq: 0 }))).toBeDefined()
+      expect(yield* (store.stateAt("other", { lineageId, seq: 9 }))).toBeUndefined()
+    }))
 
-  it("collects the attempts admitted at a frame, deduplicated and lineage-filtered", async () => {
-    expect(await Effect.runPromise(store.attemptsAt("run", { lineageId, seq: 4 }))).toEqual([
-      { stepKeyDigest: "a", attempt: 1 }
-    ])
-    expect(await Effect.runPromise(store.attemptsAt("run", { lineageId, seq: 5 }))).toEqual([
-      { stepKeyDigest: "a", attempt: 1 },
-      { stepKeyDigest: "b", attempt: 1 }
-    ])
-  })
+  it.effect("collects the attempts admitted at a frame, deduplicated and lineage-filtered", () =>
+    Effect.gen(function*() {
+      expect(yield* (store.attemptsAt("run", { lineageId, seq: 4 }))).toEqual([
+        { stepKeyDigest: "a", attempt: 1 }
+      ])
+      expect(yield* (store.attemptsAt("run", { lineageId, seq: 5 }))).toEqual([
+        { stepKeyDigest: "a", attempt: 1 },
+        { stepKeyDigest: "b", attempt: 1 }
+      ])
+    }))
 
-  it("upserts an anchor and rolls the write back on an injected failure", async () => {
-    const writable = MemoryTimeTravelStore.make()
-    const anchor: TimeTravelStore.Snapshot = { runId: "run", frame: { lineageId, seq: 1 }, changeId: "c1" }
-    await Effect.runPromise(writable.recordSnapshot(anchor))
-    await Effect.runPromise(writable.recordSnapshot({ ...anchor, changeId: "c2" }))
-    expect(writable.state().snapshots).toEqual([{ ...anchor, changeId: "c2" }])
+  it.effect("upserts an anchor and rolls the write back on an injected failure", () =>
+    Effect.gen(function*() {
+      const writable = MemoryTimeTravelStore.make()
+      const anchor: TimeTravelStore.Snapshot = { runId: "run", frame: { lineageId, seq: 1 }, changeId: "c1" }
+      yield* (writable.recordSnapshot(anchor))
+      yield* (writable.recordSnapshot({ ...anchor, changeId: "c2" }))
+      expect(writable.state().snapshots).toEqual([{ ...anchor, changeId: "c2" }])
 
-    const failing = MemoryTimeTravelStore.make({ failAt: "recordSnapshot" })
-    const failure = await Effect.runPromise(Effect.flip(failing.recordSnapshot(anchor)))
-    expect(failure).toMatchObject({ code: "unknown" })
-    expect(failing.state().snapshots).toEqual([])
-  })
+      const failing = MemoryTimeTravelStore.make({ failAt: "recordSnapshot" })
+      const failure = yield* (Effect.flip(failing.recordSnapshot(anchor)))
+      expect(failure).toMatchObject({ code: "unknown" })
+      expect(failing.state().snapshots).toEqual([])
+    }))
 })
 
 describe("the store facade", () => {
-  it("reports every derived read as unavailable until an implementation supplies it", async () => {
-    const noop = TimeTravelStore.makeNoop()
-    const failures = await Effect.runPromise(
-      Effect.all([
-        Effect.flip(noop.recordSnapshot({ runId: "run", frame: { lineageId, seq: 0 }, changeId: "c" })),
-        Effect.flip(noop.stateAt("run", { lineageId, seq: 0 })),
-        Effect.flip(noop.attemptsAt("run", { lineageId, seq: 0 }))
+  it.effect("reports every derived read as unavailable until an implementation supplies it", () =>
+    Effect.gen(function*() {
+      const noop = TimeTravelStore.makeNoop()
+      const failures = yield* (
+        Effect.all([
+          Effect.flip(noop.recordSnapshot({ runId: "run", frame: { lineageId, seq: 0 }, changeId: "c" })),
+          Effect.flip(noop.stateAt("run", { lineageId, seq: 0 })),
+          Effect.flip(noop.attemptsAt("run", { lineageId, seq: 0 }))
+        ])
+      )
+      expect(failures.map((failure) => failure.message)).toEqual([
+        "recordSnapshot is unavailable",
+        "stateAt is unavailable",
+        "attemptsAt is unavailable"
       ])
-    )
-    expect(failures.map((failure) => failure.message)).toEqual([
-      "recordSnapshot is unavailable",
-      "stateAt is unavailable",
-      "attemptsAt is unavailable"
-    ])
-  })
+    }))
 })
 
 describe("the projector's read failures", () => {
-  it("surfaces a journal it cannot page as a typed failure", async () => {
-    const failure = await Effect.runPromise(
-      Effect.flip(SnapshotProjector.project("run")).pipe(
-        Effect.provide(Layer.succeed(Journal.Journal, Journal.makeNoop())),
-        Effect.provideService(TimeTravelStore.TimeTravelStore, MemoryTimeTravelStore.make())
-      ) as unknown as Effect.Effect<{ readonly code: string; readonly message: string }, never>
-    )
+  it.effect("fails a repeated continuation page instead of spinning", () =>
+    Effect.gen(function*() {
+      const repeated = {
+        runId: "run" as JournalEvent.RunId,
+        seq: 0 as JournalEvent.Seq,
+        eventId: "repeated",
+        sourceId: "test" as JournalEvent.SourceId,
+        sourceSeq: 0 as JournalEvent.SourceSeq,
+        emittedAtMs: 0,
+        eventType: "unrelated",
+        payload: {},
+        meta: { lineageId }
+      }
+      const failure = yield* Effect.flip(
+        SnapshotProjector.project("run").pipe(
+          Effect.provide(Layer.succeed(
+            Journal.Journal,
+            Journal.makeNoop({ entries: () => Effect.succeed({ entries: [repeated], hasMore: true }) })
+          )),
+          Effect.provideService(TimeTravelStore.TimeTravelStore, MemoryTimeTravelStore.make())
+        )
+      )
 
-    expect(failure).toMatchObject({ code: "unknown", message: "could not read run for anchoring" })
-  })
+      expect(failure).toMatchObject({ code: "invalid", message: "snapshot pagination did not advance for run" })
+    }))
+
+  it.effect("surfaces a journal it cannot page as a typed failure", () =>
+    Effect.gen(function*() {
+      const failure = yield* (
+        Effect.flip(SnapshotProjector.project("run")).pipe(
+          Effect.provide(Layer.succeed(Journal.Journal, Journal.makeNoop())),
+          Effect.provideService(TimeTravelStore.TimeTravelStore, MemoryTimeTravelStore.make())
+        ) as unknown as Effect.Effect<{ readonly code: string; readonly message: string }, never>
+      )
+
+      expect(failure).toMatchObject({ code: "unknown", message: "could not read run for anchoring" })
+    }))
 })

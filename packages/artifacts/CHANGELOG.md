@@ -1,11 +1,11 @@
-# @smthrs/artifacts-next
+# @smthrs/artifacts
 
 ## [Unreleased]
 
 ### Added
 
 - New package. The content-addressed artifact store extracted out of
-  `@smthrs/engine-store-next`'s `StepBoundary`: `ArtifactStore` (contract,
+  `@smthrs/engine-store`'s `StepBoundary`: `ArtifactStore` (contract,
   filesystem, memory, and no-op implementations), `RemoteArtifacts` (the
   dumb-HTTP CAS client), and `CombinedArtifacts` (local-first, remote-second
   read-through with local write-back). See

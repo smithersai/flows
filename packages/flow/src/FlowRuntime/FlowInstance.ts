@@ -25,11 +25,12 @@ import type { WaitingAnnotation } from "./WaitingAnnotation.ts"
  *
  * The service stores the execution ID, flow definition, long-lived scope,
  * suspension and interruption flags, the stored failure cause, and action
- * coordination state for a single flow run. `@smthrs/flow-next` declares the
- * contract; a runtime — `@smthrs/engine-next` — constructs the value.
+ * coordination state for a single flow run. `@smthrs/flow` declares the
+ * contract; a runtime — `@smthrs/engine` — constructs the value.
  *
  * @category services
  * @since 4.0.0
+ * @slop
  */
 export class FlowInstance extends Context.Service<
   FlowInstance,
@@ -100,6 +101,13 @@ export class FlowInstance extends Context.Service<
      */
     cause: Cause.Cause<never> | undefined
 
+    /**
+     * Deferred names registered before their result read. Runtimes use this
+     * set to preempt a suspension when completion lands in the read-to-park
+     * window. Older runtime implementations may initialize it lazily.
+     */
+    awaitedDeferreds?: Set<string> | undefined
+
     readonly actionState: {
       count: number
       readonly latch: Latch.Latch
@@ -107,13 +115,14 @@ export class FlowInstance extends Context.Service<
       readonly snapshots: Map<string, unknown>
       /**
        * Allocation scopes with a keyless dispatch currently in flight
-       * (issue #111). Keyless invocations of one declaration are
+       * (issue #111). Indistinguishable invocations of one declaration are
        * allocation-ordered, so two in flight at once would take their
        * ordinals from the fiber schedule and a replay could swap their
        * recorded outcomes undetected; the engine refuses the second dispatch
-       * instead.
+       * instead. Distinct interpreter graph sites refine the scope and do not
+       * contend here.
        */
       readonly keylessInFlight: Set<string>
     }
   }
->()("effect/flow/FlowEngine/FlowInstance") {}
+>()("@smthrs/flow/FlowRuntime/FlowInstance") {}

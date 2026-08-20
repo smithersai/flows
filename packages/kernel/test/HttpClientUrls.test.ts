@@ -1,10 +1,10 @@
-import type * as Capability from "@smthrs/capability-next/Capability"
-import { PermissionDenied } from "@smthrs/capability-next/Permission"
+import { describe, expect, it } from "@effect/vitest"
+import type * as Capability from "@smthrs/capability/Capability"
+import { PermissionDenied } from "@smthrs/capability/Permission"
 import { Effect, Option } from "effect"
 import * as EffectHttpClient from "effect/unstable/http/HttpClient"
 import type * as EffectHttpClientError from "effect/unstable/http/HttpClientError"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
-import { describe, expect, it } from "vitest"
 import { GrantStore } from "../src/GrantStore.ts"
 import * as HttpClient from "../src/HttpClient.ts"
 
@@ -19,7 +19,7 @@ import * as HttpClient from "../src/HttpClient.ts"
  * the way `Permission.fromPlatformError` recovers a filesystem denial.
  */
 
-const itEffect = <E>(name: string, effect: () => Effect.Effect<void, E>) => it(name, () => Effect.runPromise(effect()))
+const itEffect = <E>(name: string, effect: () => Effect.Effect<void, E>) => it.effect(name, () => effect())
 
 const store = (checks: Array<Capability.Capability>) =>
   GrantStore.of({

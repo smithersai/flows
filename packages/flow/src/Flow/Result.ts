@@ -22,6 +22,7 @@ const ResultTypeId = "~effect/flow/Flow/Result"
  *
  * @category results
  * @since 4.0.0
+ * @slop
  */
 export const isResult = <A = unknown, E = unknown>(
   u: unknown
@@ -33,6 +34,7 @@ export const isResult = <A = unknown, E = unknown>(
  *
  * @category results
  * @since 4.0.0
+ * @slop
  */
 export type Result<A, E> = Complete<A, E> | Suspended | Handoff
 
@@ -41,6 +43,7 @@ export type Result<A, E> = Complete<A, E> | Suspended | Handoff
  *
  * @category results
  * @since 4.0.0
+ * @slop
  */
 export type ResultEncoded<A, E> =
   | CompleteEncoded<A, E>
@@ -53,6 +56,7 @@ export type ResultEncoded<A, E> =
  *
  * @category results
  * @since 4.0.0
+ * @slop
  */
 export interface CompleteEncoded<A, E> {
   readonly _tag: "Complete"
@@ -65,6 +69,7 @@ export interface CompleteEncoded<A, E> {
  *
  * @category schemas
  * @since 4.0.0
+ * @slop
  */
 export interface CompleteSchema<
   Success extends Schema.Constraint,
@@ -85,6 +90,7 @@ export interface CompleteSchema<
  *
  * @category results
  * @since 4.0.0
+ * @slop
  */
 export class Complete<A, E> extends Data.TaggedClass("Complete")<{
   readonly exit: Exit.Exit<A, E>
@@ -162,9 +168,10 @@ export class Complete<A, E> extends Data.TaggedClass("Complete")<{
  *
  * @category results
  * @since 4.0.0
+ * @slop
  */
 export class Suspended extends Schema.Class<Suspended>(
-  "effect/flow/Flow/Suspended"
+  "@smthrs/flow/Flow/Suspended"
 )({
   _tag: Schema.tag("Suspended"),
   cause: Schema.optional(Schema.Cause(Schema.Never, Schema.Defect()))
@@ -200,9 +207,10 @@ export class Suspended extends Schema.Class<Suspended>(
  *
  * @category results
  * @since 0.1.0
+ * @slop
  */
 export class Handoff extends Schema.Class<Handoff>(
-  "effect/flow/Flow/Handoff"
+  "@smthrs/flow/Flow/Handoff"
 )({
   _tag: Schema.tag("Handoff"),
   flow: Schema.NonEmptyString,
@@ -222,6 +230,7 @@ export class Handoff extends Schema.Class<Handoff>(
  *
  * @category results
  * @since 4.0.0
+ * @slop
  */
 export const Result = <
   Success extends Schema.Constraint,
@@ -238,6 +247,7 @@ const AnyOrVoid = Schema.Union([Schema.Any, Schema.Void])
  *
  * @category results
  * @since 4.0.0
+ * @slop
  */
 export const ResultEncoded: Schema.Codec<ResultEncoded<any, any>> = Schema.toEncoded(
   Schema.toCodecJson(

@@ -11,10 +11,11 @@ references come from the audit's partial reads (`engine.js` resume/claim
 ~3514, attempts ~2252–2340) and are directional, not pinned.
 
 Companion pages: [implementation-status](implementation-status.md) for the
-authoritative per-area status table. Sections below that route work to a
-"plugin" predate the deletion of `@smthrs/plugin`; the seam they name is now
-an injected service or a constructor option — see
-[design decisions](design-decisions.md).
+authoritative per-area status table. Sections below that route engine policy
+to a "plugin" predate the bounded `@smthrs/plugin` cell-host kernel. That
+kernel dispatches configuration and the hooks owned by `@smthrs/agent`;
+it does not provide engine-wide lifecycle seams. Those remain injected services
+or constructor options — see [design decisions](design-decisions.md).
 
 ## Ledger re-verification
 
@@ -25,7 +26,7 @@ an injected service or a constructor option — see
 | 3 | Journal append fencing | missing | **closed** |
 | 4 | Pause / cancel / hijack with attribution | missing | **partial** — cancel closed, pause = park, hijack + attribution missing |
 | 5 | Continue-as-new lineage | missing | **partial** — lineage edge closed, `Continued` terminal missing |
-| 6 | Checkpoints / worktree lanes | partial | **still missing** (hook seam exists) |
+| 6 | Checkpoints / worktree lanes | partial | **still missing** (storage primitives exist; the host capability and trigger seam do not) |
 | 7 | Quota park / wake | missing | **partial** — store side closed, wake driver missing |
 | 8 | Supervisor sweep | missing | **closed** — shipped inside engine-store's run driver; no separate `Supervisor` layer is planned |
 | 9 | Fault-suite harness | partial | **closed as harness**; case parity accretes with features |
@@ -90,9 +91,10 @@ all; flows is now strictly ahead here.
 - **Pause: effectively available** as `park(reason)` over §1's taxonomy, but
   there is no user-facing pause verb and, critically, **no attribution** —
   no actor/why fields on the park or the control event.
-- **Hijack: missing**, by design deferred to an injected seam. The deleted
-  hook catalog named a `runControl` hook, so the seam has a name; no service
-  owns it yet.
+- **Hijack: missing**, by design deferred to an injected seam. A former,
+  speculative engine lifecycle catalog named `runControl`, but that hook was
+  removed and the blessed cell-host catalog neither exposes nor dispatches it.
+  No service owns this policy yet.
 
 Done = a small `RunControl` service that journals an attributed control event
 (actor, reason) and flips `DurableEngineState`, with hijack shipping as an
@@ -109,18 +111,21 @@ run, and automatic lineage recording from ordinary engine execution (listed
 under planned integration). Done = `Continued` terminal + a restart-lineage
 fault case, matching smithers' continue-as-new and fork fault pins.
 
-### 6. Checkpoints and worktree lanes — still missing
+### 6. Host checkpoints and worktree lanes — still missing
 
 The largest remaining functional gap versus smithers' Tier-1 durability
 snapshots (`snapshot-hook`), restore/revert/rewind, and `smithers worktree`
-lanes. What exists on our side: the `checkpoint` hook (sequential) in the
-catalog, the time-travel package's fork/rewind/replay over stored state, and
-`Jj` in `@smthrs/jj-next`. What is missing: a `Checkpoint` host capability (layer-gated,
-`makeNoop` for browser) that actually snapshots agent-session/worktree state at
-step boundaries, and any worktree-lane lifecycle. `StepBoundary` now ships a
-filesystem-backed production layer (read-set measurement, output
-materialization); whole-tree change detection still needs jj. Done = the Checkpoint capability
-invoked only via the `checkpoint` hook, never inline in the loop.
+lanes. What exists on our side: the time-travel package's fork/rewind/replay
+over stored state, `Jj` in `@smthrs/jj`, and `StepBoundary`'s
+filesystem-backed production layer for read-set measurement and output
+materialization. The former speculative `checkpoint` hook was removed with the
+unowned engine lifecycle catalog; the blessed cell-host plugin catalog does not
+expose or dispatch it. What is missing: a layer-gated `Checkpoint` host
+capability (`makeNoop` for browser) that actually snapshots
+agent-session/worktree state at step boundaries, an injected trigger policy,
+whole-tree change detection with jj, and any worktree-lane lifecycle. Done =
+the owning runtime invokes that capability at step boundaries through its
+explicit injected policy, not through an engine-wide plugin hook.
 
 ### 7. Quota park / wake — partial
 
@@ -169,7 +174,7 @@ the audit's explicit rejection of a separate CLI app stands.
 ### 9. Fault-suite harness — closed as harness
 
 The P0 harness the audit demanded exists: `Notifying.wrap`/`layer`
-(`@smthrs/journal-next/test/Notifying`)
+(`@smthrs/journal/test/Notifying`)
 injects interstitial crashes and fence loss around any Effect service, and
 `FaultMatrix.test.ts` (9 it-blocks: 7 fault injections — 3 interstitial
 crashes, 4 fence losses — plus 2 tests of the `Notifying` wrapper itself)
@@ -185,30 +190,46 @@ case 16's N-subscriber bounded-memory/consistency assertions ship in
 `packages/sync/test/ServerSoak.test.ts` (identical frames to every concurrent
 subscriber, per-subscriber stream release, bounded retained heap). And
 the sandbox health taxonomy (case 02, issue #49) now ships as a host
-primitive (`@smthrs/sandbox-next`'s `SandboxHealth` probe) but has no engine-level fault case yet. Cases
+primitive (`@smthrs/sandbox`'s `SandboxHealth` probe) but has no engine-level fault case yet. Cases
 accrete as §§4–7 and those issues land; the harness itself is no longer a
 gap.
 
 ## New gaps the audit did not list
 
-1. **The hook catalog was never dispatched, and is now gone.** The
-   `@smthrs/plugin` kernel shipped (`985adb5`) with the full catalog, but no
-   engine call site ever dispatched a hook from it, so it was deleted rather
-   than wired. Pause attribution, hijack, quota, and checkpoints still need
-   seams — as injected services and constructor options at the sites that own
-   them, not as a registry.
-2. **No packaged production layer.** Nothing composes database + migrations +
-   journal + engine-store + kernel + Host + engine into one importable layer.
-   Smithers cannot adopt the engine as a dependency until this exists — it is
-   the literal cutover artifact.
+1. **The engine-wide lifecycle hook catalog was never dispatched, and is now
+   gone; the bounded cell-host plugin kernel remains.** `@smthrs/plugin`
+   originally shipped (`985adb5`) with a speculative full catalog, but no
+   engine call site dispatched its run, step, retry, cache, wait, checkpoint,
+   or journal hooks, so those declarations were removed rather than advertised.
+   The package now resolves the configuration lifecycle and only the additional
+   hooks a host owns and dispatches; `@smthrs/agent` supplies
+   `cellRegistry`, `cellFlows`, and `cellModelRequest`. Pause attribution,
+   hijack, quota, and checkpoints still need seams as injected services and
+   constructor options at the sites that own them, not as a lifecycle registry.
+2. **No packaged production layer — half closed.** `@smthrs/flows/NodeRuntime`
+   composes database + migrations + journal + run/attempt/cache stores +
+   durable engine state + workspace + artifact store + engine into one
+   importable layer, with `registerFlows` as the final startup phase
+   (`packages/flows/src/NodeRuntime.ts`). That is the storage-and-engine half
+   of the cutover artifact. The host half is not in it: the module installs
+   neither `NodeHost.layer` nor the guarded `HostServices` kernel, so `Jj`,
+   Effect `FileSystem`, and Effect `Crypto` remain requirements the embedder
+   supplies, and `StepBoundary` and `WorkspaceSandbox` are passed in as
+   arguments (`NodeRuntime.ts:105-121,128-131`). It also installs no signal
+   handlers. Smithers can adopt the storage and engine wiring as a dependency;
+   it still writes its own host and kernel composition. Its application-source
+   consumers in this repository are `examples/src/durable-layer.ts` and the
+   production control executor in `packages/cli/src/NodeControl.ts`, and
+   `packages/flows/test/NodeRuntime.test.ts` directly gates the module over a
+   real SQLite file.
 3. **Handler re-registration on restart.** Flow registrations are in-memory; a
    restarted process must re-register before driving stored runs. Smithers'
    resume path assumes the engine can pick up any persisted run; the cutover
    shim must guarantee registration-before-resume.
-4. **SQLite-only dialect parity (accepted gap, issue #78).** flows ships two
-   `SqlClient` backends behind `DurableWriter` and both are SQLite:
-   `NodeDatabase` over `@effect/sql-sqlite-node`, and the browser counterpart
-   over Effect's sqlite-wasm OPFS worker. Every package's migration set
+4. **SQLite-only dialect parity (accepted gap, issue #78).** flows ships one
+   `SqlClient` backend behind `DurableWriter`: `NodeDatabase` over
+   `@effect/sql-sqlite-node`. Browser package roots expose the driver-neutral
+   contract, but no browser SQL client layer ships here. Every package's migration set
    (`packages/{journal,run-store,step-cache,engine-store}/src/Migrations.ts`)
    is SQLite-flavoured DDL. Smithers,
    however, supports PGlite and Postgres (`packages/db/src/ensure.js` and
@@ -265,9 +286,11 @@ existing smithers CLI unchanged.
    migration for live runs.
 2. **Engine loop for new runs only (shim: dual-engine routing).** New runs
    execute on `Engine.FlowEngine` + `DurableEngineState`; existing runs finish
-   on the old loop. Requires the packaged production layer and the
-   registration-before-resume guarantee. Waiting states route through the
-   taxonomy instead of `engine.js`'s inline cases.
+   on the old loop. The storage-and-engine half of the packaged production
+   layer this needs now exists (`@smthrs/flows/NodeRuntime`), and the
+   registration-before-resume guarantee is that layer's `registerFlows` phase;
+   Smithers still supplies the host services and kernel around it. Waiting
+   states route through the taxonomy instead of `engine.js`'s inline cases.
 3. **RunControl (retire `supervisor.js`, `pause`, `cancel` paths).** The
    claim-by-proxy process is already replaced by the run driver's own sweep
    (§8), so this stage is `RunControl`: pause/cancel with attribution. The
@@ -279,8 +302,9 @@ existing smithers CLI unchanged.
 
 ## (b) Gaps that belong at an injected seam, not in core
 
-These stay out of the executor. Each names a hook from the deleted catalog;
-read each as the service or constructor option that now owns that decision:
+These stay out of the executor. Some had names in the removed engine lifecycle
+catalog, but they are not hooks callers can register today. Read each as the
+service or constructor option that must own that decision:
 
 - **Hijack** — an alternative `RunControl` implementation (§4).
 - **Quota park/wake** — an injected error classifier at the wait/wake seam,

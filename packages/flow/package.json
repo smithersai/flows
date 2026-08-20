@@ -1,8 +1,11 @@
 {
-  "name": "@smthrs/flow-next",
+  "name": "@smthrs/flow",
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
+  "smthrs": {
+    "group": "engine"
+  },
   "description": "The flow authoring model: flows, actions, durable waits, retry policy, and the runtime port they execute against",
   "homepage": "https://github.com/smithersai/flows",
   "repository": {
@@ -125,14 +128,15 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@smthrs/crypto-next": "0.1.0",
-    "@smthrs/keys-next": "0.1.0",
-    "@smthrs/plan-next": "0.1.0",
+    "@smthrs/crypto": "0.1.0",
+    "@smthrs/keys": "0.1.0",
+    "@smthrs/plan": "0.1.0",
     "effect": "4.0.0-rc.108"
   },
   "devDependencies": {
     "@effect/language-service": "0.87.1",
     "@effect/platform-node": "4.0.0-rc.108",
+    "@effect/vitest": "4.0.0-rc.108",
     "@eslint/js": "9.39.1",
     "@types/node": "25.9.5",
     "@vitest/coverage-v8": "4.1.9",

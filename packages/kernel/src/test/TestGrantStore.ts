@@ -3,7 +3,7 @@
  *
  * @since 0.1.0
  */
-import { GrantStoreError, permissionDenied } from "@smthrs/capability-next/Permission"
+import { GrantStoreError, permissionDenied } from "@smthrs/capability/Permission"
 import { Effect, Layer } from "effect"
 import { GrantStore, layerNoop, type Resolution, type Service } from "../GrantStore.ts"
 

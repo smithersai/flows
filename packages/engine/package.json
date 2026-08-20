@@ -1,9 +1,12 @@
 {
-  "name": "@smthrs/engine-next",
+  "name": "@smthrs/engine",
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
-  "description": "The runtime that executes @smthrs/flow-next flows, plus HTTP and RPC transport projections",
+  "smthrs": {
+    "group": "engine"
+  },
+  "description": "The runtime that executes @smthrs/flow flows, plus HTTP and RPC transport projections",
   "homepage": "https://github.com/smithersai/flows",
   "repository": {
     "type": "git",
@@ -86,14 +89,17 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@smthrs/flow-next": "0.1.0",
-    "@smthrs/keys-next": "0.1.0",
+    "@smthrs/crypto": "0.1.0",
+    "@smthrs/flow": "0.1.0",
+    "@smthrs/keys": "0.1.0",
     "effect": "4.0.0-rc.108"
   },
   "devDependencies": {
     "@effect/language-service": "0.87.1",
     "@effect/platform-node": "4.0.0-rc.108",
+    "@effect/vitest": "4.0.0-rc.108",
     "@eslint/js": "9.39.1",
+    "@smthrs/plan": "0.1.0",
     "@types/node": "25.9.5",
     "@vitest/coverage-v8": "4.1.9",
     "dprint": "0.55.2",
@@ -103,6 +109,7 @@
     "eslint-plugin-import": "2.32.0",
     "eslint-plugin-jsdoc": "64.1.0",
     "eslint-plugin-unicorn": "61.0.2",
+    "knip": "6.32.2",
     "madge": "8.0.0",
     "typescript": "6.0.3",
     "typescript-eslint": "8.65.0",

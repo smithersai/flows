@@ -21,6 +21,7 @@ import type * as SqlClient from "effect/unstable/sql/SqlClient"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface NodeDatabaseOptions {
   /** SQLite database filename. */
@@ -52,10 +53,12 @@ interface OpenFailure {
  * not by workload, so a caller has nothing to say about them.
  */
 const openSchedule = Schedule.exponential(Duration.millis(openBaseDelayMs)).pipe(
+  // Jitter before the cap, as `WriteRetry` does, so `openMaxDelayMs` bounds
+  // the delay that is actually slept.
+  Schedule.jittered,
   Schedule.modifyDelay(({ duration }) =>
     Effect.succeed(Duration.millis(Math.min(openMaxDelayMs, Duration.toMillis(duration))))
   ),
-  Schedule.jittered,
   Schedule.upTo({ times: openAttempts - 1 })
 )
 
@@ -101,6 +104,7 @@ const retryLockedOpen = <A>(self: Layer.Layer<A>): Layer.Layer<A> =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (options: NodeDatabaseOptions): Layer.Layer<SqlClient.SqlClient> =>
   retryLockedOpen(SqliteClient.layer({

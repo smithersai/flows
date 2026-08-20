@@ -1,11 +1,11 @@
-import { DatabaseError, DurableWriter, type Service as WriterService } from "@smthrs/database-next/DurableWriter"
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
-import { Deferred, Effect, Fiber, Layer, PubSub, Stream } from "effect"
+import { describe, expect, it } from "@effect/vitest"
+import { DatabaseError, DurableWriter, type Service as WriterService } from "@smthrs/database/DurableWriter"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import { Deferred, Effect, Fiber, Layer, PubSub, Stream, Tracer } from "effect"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import type * as Statement from "effect/unstable/sql/Statement"
-import { describe, expect, it } from "vitest"
 import { Journal, JournalError } from "../src/Journal.ts"
 import { Input, makeEventId, type RunId, type Seq, type SourceId, type SourceSeq } from "../src/JournalEvent.ts"
 import * as Migrations from "../src/Migrations.ts"
@@ -16,7 +16,7 @@ const sourceId = (value: string): SourceId => value as SourceId
 const sourceSeq = (value: number): SourceSeq => value as SourceSeq
 
 const effect = <E>(name: string, body: () => Effect.Effect<void, E>) =>
-  it(name, () => Effect.runPromise(body().pipe(Effect.provide(TestClock.layer()))))
+  it.effect(name, () => body().pipe(Effect.provide(TestClock.layer())))
 
 const input = (
   run: RunId,
@@ -770,6 +770,102 @@ describe("Journal", () => {
       { discard: true }
     ))
 
+  effect("readmits an overflowed source event once the queue drains, leaving its sequence a gap", () =>
+    Effect.forEach(
+      ["reject", "drop-newest"] as const,
+      (policy) => {
+        const gate = Deferred.makeUnsafe<void>()
+        const run = runId(`overflow-retry-${policy}`)
+        const source = sourceId("producer")
+        // The exact input the producer will retry, explicitly sequenced so the
+        // retry is byte-for-byte the same admission request.
+        const overflowed = input(run, source, "event", { value: 2 }, sourceSeq(2))
+        return Effect.gen(function*() {
+          const journal = yield* Journal
+          yield* journal.emitLossy(input(run, source, "event", { value: 0 }, sourceSeq(0)))
+          yield* Effect.yieldNow
+          yield* journal.emitLossy(input(run, source, "event", { value: 1 }, sourceSeq(1)))
+
+          // The queue is full; the third admission is refused.
+          if (policy === "reject") {
+            const failure = yield* Effect.flip(journal.emitLossy(overflowed))
+            expect(failure.code).toBe("queue_overflow")
+          } else {
+            expect(yield* journal.emitLossy(overflowed)).toMatchObject({
+              _tag: "Dropped",
+              seq: 2,
+              sourceSeq: 2,
+              policy: "drop-newest"
+            })
+          }
+
+          yield* Deferred.succeed(gate, undefined)
+          yield* journal.flush
+
+          // The retry is a fresh admission, not a replay of a receipt the
+          // journal never issued: a refused emit is never retained in the
+          // source-event index, so the producer must not be told `Duplicate`
+          // for an event that was never queued or committed.
+          const retried = yield* journal.emitLossy(overflowed)
+          expect(retried._tag).toBe("Accepted")
+          // Canonical sequence 2 was allocated by the refused emit and is never
+          // reused: the retry takes 3. Allocation is `MAX(seq) + 1` and replay
+          // is `ORDER BY seq`, so the gap is inert — but it is the documented
+          // consequence of refusing after allocation, and it is pinned here.
+          expect(retried.seq).toBe(3)
+          expect(retried.sourceSeq).toBe(2)
+
+          yield* journal.flush
+          const page = yield* journal.entries({ runId: run, limit: 10 })
+          expect(page.entries.map((entry) => entry.seq)).toEqual([0, 1, 3])
+          // Exactly one durable row carries the retried producer sequence.
+          expect(page.entries.filter((entry) => entry.sourceSeq === 2)).toHaveLength(1)
+          expect(page.entries.map((entry) => entry.payload)).toEqual([
+            { value: 0 },
+            { value: 1 },
+            { value: 2 }
+          ])
+        }).pipe(
+          Effect.ensuring(Deferred.succeed(gate, undefined)),
+          Effect.provide(journalLayer({ capacity: 1, overflow: policy, batchSize: 1 }, gatedDatabase(gate))),
+          Effect.scoped
+        )
+      },
+      { discard: true }
+    ))
+
+  effect("accepts a multi-megabyte payload on both channels: there is no byte cap", () =>
+    runJournal(
+      Effect.gen(function*() {
+        // `capacity` bounds the *number* of queued events, never their size, and
+        // neither `prepare` nor `encodeJson` imposes a byte limit. One event can
+        // therefore be arbitrarily large. This case pins that behaviour as it is
+        // today — accepted and round-tripped verbatim — rather than asserting a
+        // limit that does not exist.
+        //
+        // Whether the journal should cap payload bytes is an open contract
+        // question for the maintainers: a row this size is replayed to every
+        // sync subscriber and time-travel consumer, so the cost is paid on every
+        // read, not just the write. See the audit's `SqlJournal.ts` P1 finding.
+        const journal = yield* Journal
+        const run = runId("huge-payload")
+        const huge = "x".repeat(5 * 1024 * 1024)
+
+        const durable = yield* journal.emitDurable(input(run, sourceId("durable"), "big", { blob: huge }))
+        expect(durable._tag).toBe("Accepted")
+
+        const lossy = yield* journal.emitLossy(input(run, sourceId("lossy"), "big", { blob: huge }))
+        expect(lossy._tag).toBe("Accepted")
+        yield* journal.flush
+
+        const page = yield* journal.entries({ runId: run, limit: 10 })
+        expect(page.entries).toHaveLength(2)
+        for (const entry of page.entries) {
+          expect((entry.payload as { readonly blob: string }).blob).toHaveLength(huge.length)
+        }
+      })
+    ))
+
   effect("persists telemetry events through the same queue and changes subscription", () => {
     const run = runId("telemetry")
 
@@ -1018,6 +1114,30 @@ describe("Journal", () => {
       Effect.provide(
         journalLayer({ capacity: 4, overflow: "reject" }, database.layer)
       ),
+      Effect.scoped
+    )
+  })
+
+  effect("re-admits the exact producer identity after its failed batch was lost", () => {
+    const run = runId("sink-failure-retry-identity")
+    const source = sourceId("producer")
+    const database = transientlyFailingDatabase()
+
+    return Effect.gen(function*() {
+      const journal = yield* Journal
+      const retried = input(run, source, "event", { value: 1 }, sourceSeq(7))
+      expect((yield* journal.emitLossy(retried))._tag).toBe("Accepted")
+      expect((yield* Effect.flip(journal.flush)).code).toBe("sink_failed")
+
+      database.repair()
+      const accepted = yield* journal.emitLossy(retried)
+      expect(accepted._tag).toBe("Accepted")
+      yield* journal.flush
+      const page = yield* journal.entries({ runId: run, limit: 10 })
+      expect(page.entries).toHaveLength(1)
+      expect(page.entries[0]).toMatchObject({ sourceSeq: 7, eventType: "event" })
+    }).pipe(
+      Effect.provide(journalLayer({ capacity: 4, overflow: "reject" }, database.layer)),
       Effect.scoped
     )
   })
@@ -1442,5 +1562,36 @@ describe("makeEventId injectivity (D5)", () => {
 
   it("is a pure function of the triple", () => {
     expect(id("run", "source", 3)).toBe(id("run", "source", 3))
+  })
+})
+
+describe("span attributes", () => {
+  // Effect.fn does not auto-capture arguments, so each journal operation
+  // annotates its own span. The capturing tracer follows
+  // `reference/effect/packages/effect/test/unstable/http/HttpMiddleware.test.ts`.
+  effect("Journal.emitDurable annotates its span with the event identity", () => {
+    const spans: Array<Tracer.NativeSpan> = []
+    const tracer = Tracer.make({
+      span(options) {
+        const span = new Tracer.NativeSpan(options)
+        spans.push(span)
+        return span
+      }
+    })
+    return runJournal(
+      Effect.gen(function*() {
+        const journal = yield* Journal
+        yield* journal.emitDurable(input(runId("run-span"), sourceId("source-span"), "step.started", { ok: true }))
+      })
+    ).pipe(
+      Effect.provideService(Tracer.Tracer, tracer),
+      Effect.map(() => {
+        const span = spans.find((candidate) => candidate.name === "Journal.emitDurable")
+        expect(span).toBeDefined()
+        expect(span?.attributes.get("runId")).toBe("run-span")
+        expect(span?.attributes.get("sourceId")).toBe("source-span")
+        expect(span?.attributes.get("eventType")).toBe("step.started")
+      })
+    )
   })
 })

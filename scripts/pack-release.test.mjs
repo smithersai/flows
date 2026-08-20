@@ -1,4 +1,5 @@
 import assert from "node:assert/strict"
+import { execFileSync } from "node:child_process"
 import { existsSync, readFileSync, readdirSync } from "node:fs"
 import { dirname, join, resolve } from "node:path"
 import test from "node:test"
@@ -8,6 +9,7 @@ import {
   packResultFilename,
   publicationManifest,
   readWorkspaceManifests,
+  releaseGroup,
   workspaceDependencies,
   workspaces
 } from "./pack-release.mjs"
@@ -86,17 +88,38 @@ test("publicationManifest rejects a package without publication exports", () => 
   )
 })
 
-test("workspaces covers every non-private package under packages/", () => {
+test("workspaces covers every non-private engine package under packages/", () => {
   // Recomputed here rather than imported, so a change to the derivation in
   // pack-release.mjs has to agree with an independent reading of packages/.
   const packagesRoot = join(repoRoot, "packages")
-  const published = readdirSync(packagesRoot, { withFileTypes: true })
+  const manifests = readdirSync(packagesRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .filter((name) => existsSync(join(packagesRoot, name, "package.json")))
-    .filter((name) => !JSON.parse(readFileSync(join(packagesRoot, name, "package.json"), "utf8")).private)
+    .map((name) => [name, JSON.parse(readFileSync(join(packagesRoot, name, "package.json"), "utf8"))])
+  const published = manifests
+    .filter(([, manifest]) => !manifest.private && manifest.smthrs?.group === "engine")
+    .map(([name]) => name)
 
+  assert.equal(releaseGroup, "engine")
   assert.deepEqual([...workspaces].sort(), published.sort())
+  assert.ok(manifests.some(([, manifest]) => !manifest.private && manifest.smthrs?.group === "agent"))
+  assert.ok(manifests.some(([, manifest]) => manifest.smthrs?.group === "tooling"))
+})
+
+test("pack-release lists workspace directories and package names in publication order", () => {
+  const list = execFileSync(process.execPath, ["scripts/pack-release.mjs", "--list"], {
+    cwd: repoRoot,
+    encoding: "utf8"
+  })
+  const names = execFileSync(process.execPath, ["scripts/pack-release.mjs", "--names"], {
+    cwd: repoRoot,
+    encoding: "utf8"
+  })
+  const manifests = readWorkspaceManifests()
+
+  assert.deepEqual(list.trim().split("\n"), workspaces)
+  assert.deepEqual(names.trim().split("\n"), workspaces.map((directory) => manifests.get(directory).name))
 })
 
 test("pack-release order is a topological order of the workspace dependency graph", () => {
@@ -109,8 +132,8 @@ test("pack-release order is a topological order of the workspace dependency grap
     }
   }
 
-  // @smthrs/kernel-next publishes kernel/test/TestHost, which imports
-  // @smthrs/platform-browser-next, and platform-browser imports @smthrs/kernel-next
+  // @smthrs/kernel publishes kernel/test/TestHost, which imports
+  // @smthrs/platform-browser, and platform-browser imports @smthrs/kernel
   // back. That cycle is the one edge publication order cannot respect. A
   // second entry here is a new cycle, and a new release-ordering hazard.
   assert.deepEqual(unordered.sort(), ["kernel -> platform-browser"])

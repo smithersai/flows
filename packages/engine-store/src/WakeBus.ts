@@ -38,6 +38,7 @@ import * as Layer from "effect/Layer"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Service {
   /**
@@ -69,8 +70,9 @@ export interface Service {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
-export class WakeBus extends Context.Service<WakeBus, Service>()("flows/engine-store/WakeBus") {}
+export class WakeBus extends Context.Service<WakeBus, Service>()("@smthrs/engine-store/WakeBus") {}
 
 /**
  * Constructs a wake bus. Registration and delivery are plain in-memory
@@ -78,6 +80,7 @@ export class WakeBus extends Context.Service<WakeBus, Service>()("flows/engine-s
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeUnsafe = (): Service => {
   const parked = new Map<string, Set<Deferred.Deferred<void>>>()
@@ -126,6 +129,7 @@ export const makeUnsafe = (): Service => {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make: Effect.Effect<Service> = Effect.sync(makeUnsafe)
 
@@ -136,6 +140,7 @@ export const make: Effect.Effect<Service> = Effect.sync(makeUnsafe)
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (overrides?: Partial<Service>): Service =>
   WakeBus.of({
@@ -153,6 +158,7 @@ export const makeNoop = (overrides?: Partial<Service>): Service =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer: Layer.Layer<WakeBus> = Layer.sync(WakeBus)(makeUnsafe)
 
@@ -161,6 +167,7 @@ export const layer: Layer.Layer<WakeBus> = Layer.sync(WakeBus)(makeUnsafe)
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop = (overrides?: Partial<Service>): Layer.Layer<WakeBus> =>
   Layer.sync(WakeBus)(() => makeNoop(overrides))

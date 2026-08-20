@@ -5,9 +5,10 @@
  *
  * @since 4.0.0
  */
-import type * as Node from "@smthrs/plan-next/Node"
-import type * as Planned from "@smthrs/plan-next/Planned"
+import type * as Node from "@smthrs/plan/Node"
+import type * as Planned from "@smthrs/plan/Planned"
 import type * as Context from "effect/Context"
+import type * as Crypto from "effect/Crypto"
 import type * as Effect from "effect/Effect"
 import type * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
@@ -23,6 +24,7 @@ import type { TypeId } from "./TypeId.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const Tier = Schema.Literals(["sealed", "compensable", "irreversible"])
 
@@ -31,6 +33,7 @@ export const Tier = Schema.Literals(["sealed", "compensable", "irreversible"])
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Tier = typeof Tier.Type
 
@@ -39,6 +42,7 @@ export type Tier = typeof Tier.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const IdempotencyKey = Schema.Union([
   Schema.String,
@@ -54,6 +58,7 @@ export const IdempotencyKey = Schema.Union([
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type IdempotencyKey = typeof IdempotencyKey.Type
 
@@ -63,6 +68,7 @@ export type IdempotencyKey = typeof IdempotencyKey.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type PlannedPayload<T> =
   | Planned.Planned<T>
@@ -84,6 +90,7 @@ export type PlannedPayload<T> =
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Requirement<Tag extends string> {
   readonly _: unique symbol
@@ -101,6 +108,7 @@ export interface Requirement<Tag extends string> {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Declared<
   Tag extends string,
@@ -116,6 +124,8 @@ export interface Declared<
   readonly errorSchema: Error
   readonly tier: Tier
   readonly idempotencyKey: IdempotencyKey | undefined
+  /** Allows multiple legitimate sealed results to race under one cache key. */
+  readonly nondeterministic: true | undefined
   readonly annotations: Context.Context<never>
   /**
    * The context key this declaration's implementation is provided under, and
@@ -155,6 +165,7 @@ export interface Declared<
  *
  * @category models
  * @since 4.0.0
+ * @slop
  */
 export interface Action<
   Success extends Schema.Constraint = Schema.Void,
@@ -167,6 +178,7 @@ export interface Action<
     | Success["DecodingServices"]
     | Error["DecodingServices"]
     | R
+    | Crypto.Crypto
     | FlowRuntime
     | FlowInstance
   >
@@ -180,6 +192,8 @@ export interface Action<
   readonly annotations: Context.Context<never>
   readonly tier: Tier
   readonly idempotencyKey: IdempotencyKey | undefined
+  /** Allows multiple legitimate sealed results to race under one cache key. */
+  readonly nondeterministic: true | undefined
   readonly metadata: unknown
   readonly retryPolicy: RetryPolicy.RetryPolicy | undefined
   annotate<I, S>(
@@ -197,6 +211,7 @@ export interface Action<
     | Error["DecodingServices"]
     | Error["EncodingServices"]
     | R
+    | Crypto.Crypto
     | Scope
     | FlowRuntime
     | FlowInstance
@@ -209,6 +224,7 @@ export interface Action<
     | Error["DecodingServices"]
     | Error["EncodingServices"]
     | R
+    | Crypto.Crypto
     | Scope
     | FlowRuntime
     | FlowInstance
@@ -221,6 +237,7 @@ export interface Action<
  *
  * @category models
  * @since 4.0.0
+ * @slop
  */
 export interface Any {
   readonly [TypeId]: typeof TypeId
@@ -229,6 +246,7 @@ export interface Any {
   readonly annotations: Context.Context<never>
   readonly tier: Tier
   readonly idempotencyKey: IdempotencyKey | undefined
+  readonly nondeterministic: true | undefined
   readonly metadata: unknown
   readonly retryPolicy: RetryPolicy.RetryPolicy | undefined
 }
@@ -239,6 +257,7 @@ export interface Any {
  *
  * @category models
  * @since 4.0.0
+ * @slop
  */
 export interface AnyWithProps {
   readonly [TypeId]: typeof TypeId
@@ -248,6 +267,7 @@ export interface AnyWithProps {
   readonly executeEncoded: Effect.Effect<any, any, any>
   readonly tier: Tier
   readonly idempotencyKey: IdempotencyKey | undefined
+  readonly nondeterministic: true | undefined
   readonly metadata: unknown
   readonly retryPolicy: RetryPolicy.RetryPolicy | undefined
 }

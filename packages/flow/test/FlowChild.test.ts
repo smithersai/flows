@@ -7,11 +7,11 @@
  * the boundary loudly at build time: a recursive `.call()`, and a placement the
  * caller cannot satisfy. Both refusals and the boundary they point at are here.
  */
-import { Action, DurableDeferred, Flow, FlowRuntime, Graph, Interpreter } from "@smthrs/flow-next"
-import { Node } from "@smthrs/plan-next"
+import { describe, expect, it } from "@effect/vitest"
+import { Action, DurableDeferred, Flow, FlowRuntime, Graph, Interpreter } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Effect, Exit, Layer, Option, Schema } from "effect"
-import { describe, expect, it } from "vitest"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 import { layerMemory, makeInstance } from "./MemoryFlowRuntime.ts"
 
 const Bump = Action.make("child/bump", {
@@ -58,7 +58,7 @@ const wired = (
   )
 
 const pollUntil = <A, E, R>(
-  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>,
+  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, FlowRuntime.FlowExecutionNotFound, R>,
   predicate: (result: Flow.Result<A, E>) => boolean
 ) =>
   Effect.gen(function*() {
@@ -158,7 +158,7 @@ describe("Graph.build placement refusal", () => {
     }).annotate(Flow.Placement, { host: "worker" })
 
     expect(() => Graph.build(Local, {})).toThrowError(expect.objectContaining({
-      _tag: "flows/plan/GraphBuildError",
+      _tag: "@smthrs/plan/GraphBuildError",
       code: "placement_requires_boundary",
       node: "root.flow",
       path: [],
@@ -231,129 +231,133 @@ describe("Graph.build placement refusal", () => {
 })
 
 describe("the interpreter drives a child boundary as a real execution", () => {
-  it("runs the callee under a derived execution id and settles the node with its success", async () => {
-    calls.length = 0
-    const layer = wired(Layer.mergeAll(Interpreter.layer(Parent), Interpreter.layer(Child)))
+  it.effect("runs the callee under a derived execution id and settles the node with its success", () =>
+    Effect.gen(function*() {
+      calls.length = 0
+      const layer = wired(Layer.mergeAll(Interpreter.layer(Parent), Interpreter.layer(Child)))
 
-    const settled = await runPromise(
-      Effect.gen(function*() {
-        const value = yield* Parent.execute({ value: 4 }, { executionId: "child-parent-1" })
-        const childId = yield* Interpreter.childExecutionId("child-parent-1", boundaryNode, Child._tag, { value: 4 })
-        const childResult = yield* Child.poll(childId)
-        return { childResult, value }
-      }).pipe(Effect.provide(layer))
-    )
-
-    expect(settled.value).toBe(50)
-    expect(calls).toEqual(["bump:4"])
-    // The child is its own execution with its own result, not a step of the
-    // parent's: polling the derived id answers with the child's own settlement.
-    expect(Option.isSome(settled.childResult)).toBe(true)
-    expect(
-      Option.isSome(settled.childResult) && settled.childResult.value._tag === "Complete" &&
-        Exit.isSuccess(settled.childResult.value.exit) && settled.childResult.value.exit.value
-    ).toBe(5)
-  })
-
-  it("does not rerun a settled child when the parent body is replayed", async () => {
-    calls.length = 0
-    const layer = wired(Interpreter.layer(Child))
-
-    const replay = await runPromise(
-      Effect.gen(function*() {
-        // Re-driving the BODY under one instance is what a replay is, and it is
-        // the only shape that reaches the boundary node twice: asking the
-        // runtime for the same parent execution id instead answers from the
-        // settled parent without planning anything, so a minted child id would
-        // pass that test unnoticed.
-        const instance = makeInstance(Parent, "child-parent-replay")
-        const drive = Interpreter.interpret(Parent, { value: 4 }).pipe(
-          Effect.provideService(FlowRuntime.FlowInstance, instance)
-        )
-        const first = yield* drive
-        const second = yield* drive
-        return [first.value, second.value]
-      }).pipe(Effect.scoped, Effect.provide(layer))
-    )
-
-    // The derived id is the whole mechanism: the second drive re-derives it and
-    // lands on the child execution that already exists rather than opening a
-    // second copy of it, so the callee's one action ran once.
-    expect(replay).toEqual([50, 50])
-    expect(calls).toEqual(["bump:4"])
-  })
-
-  it("suspends the parent while the child is suspended, and completes it when the child does", async () => {
-    const Gate = DurableDeferred.make("child/gate", { success: Schema.Number })
-    const Await = Action.make("child/await", { payload: {}, success: Schema.Number })
-    const Gated = Flow.make("child/gated", {
-      payload: {},
-      success: Schema.Number,
-      body: () => Await.call({})
-    })
-    const Waiting = Flow.make("child/waiting", {
-      payload: {},
-      success: Schema.Number,
-      body: () => Gated.child({}).pipe(Node.map((settled) => settled + 1))
-    })
-    const layer = Layer.mergeAll(
-      Await.toLayer(() => DurableDeferred.await(Gate)),
-      Interpreter.layer(Gated),
-      Interpreter.layer(Waiting)
-    ).pipe(
-      Layer.provideMerge(Action.layerImplementations),
-      Layer.provideMerge(layerMemory)
-    )
-    const settled = await runPromise(
-      Effect.gen(function*() {
-        const childId = yield* Interpreter.childExecutionId("child-waiting", "root.flow.map", Gated._tag, {})
-        yield* Waiting.execute({}, { executionId: "child-waiting", discard: true })
-        const parked = yield* pollUntil(Waiting.poll("child-waiting"), isSuspended)
-        const childParked = yield* pollUntil(Gated.poll(childId), isSuspended)
-
-        yield* DurableDeferred.succeed(Gate, {
-          token: DurableDeferred.tokenFromExecutionId(Gate, { flow: Gated, executionId: childId }),
-          value: 41
-        })
-        const done = yield* pollUntil(Waiting.poll("child-waiting"), isComplete)
-        return { childParked, done, parked }
-      }).pipe(Effect.provide(layer))
-    )
-
-    // The child's suspension travelled: the parent is parked, not failed.
-    expect(Option.isSome(settled.parked)).toBe(true)
-    expect(Option.isSome(settled.childParked)).toBe(true)
-    expect(
-      Option.isSome(settled.done) && settled.done.value._tag === "Complete" &&
-        Exit.isSuccess(settled.done.value.exit) && settled.done.value.exit.value
-    ).toBe(42)
-  })
-
-  it("refuses a boundary whose declaration did not survive serialization", async () => {
-    const authored: Node.Node<number> = Node.flowCall(Child, "child/child", "boundary", { value: 1 })
-    const lost: Node.Node<number> = {
-      ...authored,
-      ast: JSON.parse(JSON.stringify(authored.ast)) as Node.Ast
-    }
-
-    const exit = await runPromise(
-      Effect.exit(Interpreter.interpret(lost)).pipe(
-        Effect.provideService(
-          FlowRuntime.FlowInstance,
-          makeInstance(Flow.make("child/host", { payload: {}, body: () => Node.succeed(undefined) }), "child-host")
-        ),
-        Effect.provide(wired(Layer.empty))
+      const settled = yield* withCrypto(
+        Effect.gen(function*() {
+          const value = yield* Parent.execute({ value: 4 }, { executionId: "child-parent-1" })
+          const childId = yield* Interpreter.childExecutionId("child-parent-1", boundaryNode, Child._tag, { value: 4 })
+          const childResult = yield* Child.poll(childId)
+          return { childResult, value }
+        }).pipe(Effect.provide(layer))
       )
-    )
 
-    expect(Exit.isFailure(exit)).toBe(true)
-    expect(Exit.isFailure(exit) && exit.cause.reasons[0]).toMatchObject({
-      error: {
-        _tag: "@smthrs/flow-next/InterpreterError",
-        code: "unsupported_call",
-        node: "root",
-        message: expect.stringContaining("lost its declaration")
+      expect(settled.value).toBe(50)
+      expect(calls).toEqual(["bump:4"])
+      // The child is its own execution with its own result, not a step of the
+      // parent's: polling the derived id answers with the child's own settlement.
+      expect(Option.isSome(settled.childResult)).toBe(true)
+      expect(
+        Option.isSome(settled.childResult) && settled.childResult.value._tag === "Complete" &&
+          Exit.isSuccess(settled.childResult.value.exit) && settled.childResult.value.exit.value
+      ).toBe(5)
+    }))
+
+  it.effect("does not rerun a settled child when the parent body is replayed", () =>
+    Effect.gen(function*() {
+      calls.length = 0
+      const layer = wired(Interpreter.layer(Child))
+
+      const replay = yield* withCrypto(
+        Effect.gen(function*() {
+          // Re-driving the BODY under one instance is what a replay is, and it is
+          // the only shape that reaches the boundary node twice: asking the
+          // runtime for the same parent execution id instead answers from the
+          // settled parent without planning anything, so a minted child id would
+          // pass that test unnoticed.
+          const instance = makeInstance(Parent, "child-parent-replay")
+          const drive = Interpreter.interpret(Parent, { value: 4 }).pipe(
+            Effect.provideService(FlowRuntime.FlowInstance, instance)
+          )
+          const first = yield* drive
+          const second = yield* drive
+          return [first.value, second.value]
+        }).pipe(Effect.scoped, Effect.provide(layer))
+      )
+
+      // The derived id is the whole mechanism: the second drive re-derives it and
+      // lands on the child execution that already exists rather than opening a
+      // second copy of it, so the callee's one action ran once.
+      expect(replay).toEqual([50, 50])
+      expect(calls).toEqual(["bump:4"])
+    }))
+
+  it.effect("suspends the parent while the child is suspended, and completes it when the child does", () =>
+    Effect.gen(function*() {
+      const Gate = DurableDeferred.make("child/gate", { success: Schema.Number })
+      const Await = Action.make("child/await", { payload: {}, success: Schema.Number })
+      const Gated = Flow.make("child/gated", {
+        payload: {},
+        success: Schema.Number,
+        body: () => Await.call({})
+      })
+      const Waiting = Flow.make("child/waiting", {
+        payload: {},
+        success: Schema.Number,
+        body: () => Gated.child({}).pipe(Node.map((settled) => settled + 1))
+      })
+      const layer = Layer.mergeAll(
+        Await.toLayer(() => DurableDeferred.await(Gate)),
+        Interpreter.layer(Gated),
+        Interpreter.layer(Waiting)
+      ).pipe(
+        Layer.provideMerge(Action.layerImplementations),
+        Layer.provideMerge(layerMemory)
+      )
+      const settled = yield* withCrypto(
+        Effect.gen(function*() {
+          const childId = yield* Interpreter.childExecutionId("child-waiting", "root.flow.map", Gated._tag, {})
+          yield* Waiting.execute({}, { executionId: "child-waiting", discard: true })
+          const parked = yield* pollUntil(Waiting.poll("child-waiting"), isSuspended)
+          const childParked = yield* pollUntil(Gated.poll(childId), isSuspended)
+
+          yield* DurableDeferred.succeed(Gate, {
+            token: DurableDeferred.tokenFromExecutionId(Gate, { flow: Gated, executionId: childId }),
+            value: 41
+          })
+          const done = yield* pollUntil(Waiting.poll("child-waiting"), isComplete)
+          return { childParked, done, parked }
+        }).pipe(Effect.provide(layer))
+      )
+
+      // The child's suspension travelled: the parent is parked, not failed.
+      expect(Option.isSome(settled.parked)).toBe(true)
+      expect(Option.isSome(settled.childParked)).toBe(true)
+      expect(
+        Option.isSome(settled.done) && settled.done.value._tag === "Complete" &&
+          Exit.isSuccess(settled.done.value.exit) && settled.done.value.exit.value
+      ).toBe(42)
+    }))
+
+  it.effect("refuses a boundary whose declaration did not survive serialization", () =>
+    Effect.gen(function*() {
+      const authored: Node.Node<number> = Node.flowCall(Child, "child/child", "boundary", { value: 1 })
+      const lost: Node.Node<number> = {
+        ...authored,
+        ast: JSON.parse(JSON.stringify(authored.ast)) as Node.Ast
       }
-    })
-  })
+
+      const exit = yield* withCrypto(
+        Effect.exit(Interpreter.interpret(lost)).pipe(
+          Effect.provideService(
+            FlowRuntime.FlowInstance,
+            makeInstance(Flow.make("child/host", { payload: {}, body: () => Node.succeed(undefined) }), "child-host")
+          ),
+          Effect.provide(wired(Layer.empty))
+        )
+      )
+
+      expect(Exit.isFailure(exit)).toBe(true)
+      expect(Exit.isFailure(exit) && exit.cause.reasons[0]).toMatchObject({
+        error: {
+          _tag: "@smthrs/flow/InterpreterError",
+          code: "unsupported_call",
+          node: "root",
+          message: expect.stringContaining("lost its declaration")
+        }
+      })
+    }))
 })

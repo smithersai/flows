@@ -2,17 +2,18 @@
  * A minimal in-memory implementation of the `FlowRuntime` port, used to
  * exercise the authoring APIs this package owns.
  *
- * `@smthrs/flow-next` deliberately does not depend on anything that executes
- * flows, so its suite cannot reach for `@smthrs/engine-next`'s `layerMemory`. This
+ * `@smthrs/flow` deliberately does not depend on anything that executes
+ * flows, so its suite cannot reach for `@smthrs/engine`'s `layerMemory`. This
  * fixture is the smallest runtime the authoring surface needs: it registers
  * handlers, drives suspension and resumption, memoizes action outcomes per
  * (identity, attempt), and records durable deferred results. Everything the
  * real engine adds on top — step-key derivation, ordinal pinning, retry
- * policy decisions, snapshot boundaries — is tested in `@smthrs/engine-next`,
+ * policy decisions, snapshot boundaries — is tested in `@smthrs/engine`,
  * against the engine that owns it.
  */
-import { Action, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow-next"
+import { Action, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
 import * as Context from "effect/Context"
+import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Fiber from "effect/Fiber"
@@ -195,7 +196,12 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
       poll: ((_flow: any, executionId: string) =>
         Effect.suspend(() => {
           const state = executions.get(executionId)
-          const exit = state?.fiber?.pollUnsafe()
+          if (!state) {
+            return Effect.fail(
+              new FlowRuntime.FlowExecutionNotFound({ code: "execution_not_found", executionId })
+            )
+          }
+          const exit = state.fiber?.pollUnsafe()
           if (!exit) return Effect.succeedNone
           return exit._tag === "Success" ? Effect.succeedSome(exit.value) : Effect.die(exit.cause)
         })) as any,
@@ -253,7 +259,7 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
         // A dispatch gets an instance of its own — here to keep attempt state
         // apart, in the real engine to keep the dispatch's persistence apart —
         // so the waiting classification is threaded in and back out rather than
-        // lost, exactly as `@smthrs/engine-next`'s drivers thread it. An
+        // lost, exactly as `@smthrs/engine`'s drivers thread it. An
         // implementation that declares one (`annotateWaiting`) has it travel to
         // the flow, one whose wait already has a persisted result clears it
         // (`deferredResult`), and one that touches neither leaves whatever the
@@ -329,8 +335,8 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
  * the interpreter reads.
  */
 export const layerWired = <Implemented = never>(
-  registrations: Layer.Layer<Implemented, never, FlowRuntime.FlowRuntime | Action.Implementations>
-): Layer.Layer<Implemented | FlowRuntime.FlowRuntime | Action.Implementations> =>
+  registrations: Layer.Layer<Implemented, never, Crypto.Crypto | FlowRuntime.FlowRuntime | Action.Implementations>
+): Layer.Layer<Implemented | FlowRuntime.FlowRuntime | Action.Implementations, never, Crypto.Crypto> =>
   registrations.pipe(
     Layer.provideMerge(Action.layerImplementations),
     Layer.provideMerge(layerMemory)

@@ -26,6 +26,7 @@
  * @since 0.1.0
  */
 import * as Clock from "effect/Clock"
+import type * as Crypto from "effect/Crypto"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import type * as Layer from "effect/Layer"
@@ -46,9 +47,10 @@ import { annotateWaiting } from "./FlowRuntime/WaitingAnnotation.ts"
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class SleepRequestInvalid extends Schema.TaggedError<SleepRequestInvalid>()(
-  "@smthrs/flow-next/SleepRequestInvalid",
+  "@smthrs/flow/SleepRequestInvalid",
   {
     code: Schema.Literals(["missing_deadline", "ambiguous_deadline"]),
     message: Schema.String
@@ -60,6 +62,7 @@ export class SleepRequestInvalid extends Schema.TaggedError<SleepRequestInvalid>
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const tag = "system/sleep"
 
@@ -80,6 +83,7 @@ export const tag = "system/sleep"
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const action: Action.Declared<
   typeof tag,
@@ -183,8 +187,9 @@ const clockName: Effect.Effect<string> = Effect.gen(function*() {
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
-export const layer: Layer.Layer<never, never, FlowRuntime> = action.toLayer((payload) =>
+export const layer: Layer.Layer<never, never, Crypto.Crypto | FlowRuntime> = action.toLayer((payload) =>
   Effect.gen(function*() {
     const now = yield* Clock.currentTimeMillis
     const wakeAt = yield* deadlineOf(payload, now)

@@ -15,8 +15,8 @@
  * process.
  */
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
-import { FlowEngine } from "@smthrs/engine-next"
-import { Action, Flow, Interpreter } from "@smthrs/flow-next"
+import { FlowEngine } from "@smthrs/engine"
+import { Action, Flow, Interpreter } from "@smthrs/flow"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
@@ -51,4 +51,10 @@ const GreetingLayer = Layer.mergeAll(
 export const main: Effect.Effect<string> = Greeting.execute(
   { name: "Ada" },
   { executionId: "greeting-ada-1" }
-).pipe(Effect.provide(GreetingLayer))
+).pipe(
+  // `execute` fails typed when a payload does not satisfy the flow's schema.
+  // This example constructs a statically valid payload, so a refusal here
+  // would be a defect in the example, not an error a caller handles.
+  Effect.orDie,
+  Effect.provide(GreetingLayer)
+)

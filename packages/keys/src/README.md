@@ -1,4 +1,4 @@
-# `@smthrs/keys-next`
+# `@smthrs/keys`
 
 Turns canonical JSON into a validated flow key.
 

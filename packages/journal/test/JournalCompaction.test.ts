@@ -15,14 +15,14 @@
  * `CurrentBranchChanged` rather than observing gaps
  * (`reference/temporal/common/persistence/history_manager.go`).
  */
-import { DurableWriter } from "@smthrs/database-next/DurableWriter"
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
+import { describe, expect, it } from "@effect/vitest"
+import { DurableWriter } from "@smthrs/database/DurableWriter"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Cause, Deferred, Effect, Exit, Fiber, Layer, Option } from "effect"
 import * as Stream from "effect/Stream"
 import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import type * as Statement from "effect/unstable/sql/Statement"
-import { describe, expect, it } from "vitest"
 import { Journal, JournalError, type Service } from "../src/Journal.ts"
 import { type Entry, Input, type RunId, type Seq, type SourceId, type SourceSeq } from "../src/JournalEvent.ts"
 import * as Migrations from "../src/Migrations.ts"
@@ -49,12 +49,10 @@ const effect = <E>(
   name: string,
   body: () => Effect.Effect<void, E, DurableWriter | SqlClient.SqlClient>
 ) =>
-  it(name, () =>
-    Effect.runPromise(
-      body().pipe(
-        Effect.provide(Layer.provideMerge(Migrations.layer, TestDatabase.layer)),
-        Effect.provide(TestClock.layer())
-      )
+  it.effect(name, () =>
+    body().pipe(
+      Effect.provide(Layer.provideMerge(Migrations.layer, TestDatabase.layer)),
+      Effect.provide(TestClock.layer())
     ))
 
 /** A database decorator: reshapes the enclosing client/writer pair in place. */
@@ -503,22 +501,14 @@ describe("followers across compaction", () => {
 describe("fencing across compaction", () => {
   const owner: OwnerId = { hostId: "host-a", pid: 42, nonce: "nonce-a" }
 
-  const fenceTable = Effect.gen(function*() {
-    const sql = yield* Effect.service(SqlClient.SqlClient)
-    yield* sql`CREATE TABLE flows_runs (
-      run_id TEXT PRIMARY KEY,
-      status TEXT NOT NULL,
-      owner_host_id TEXT,
-      owner_pid INTEGER,
-      owner_nonce TEXT
-    )`
-  })
-
+  // The fence reads the `SqlConsensus` lease — the strategy-owned table the
+  // journal's own migrations create — so a takeover is simulated by moving
+  // the lease's owner tuple.
   const claim = (holder: OwnerId) =>
     Effect.gen(function*() {
       const sql = yield* Effect.service(SqlClient.SqlClient)
-      yield* sql`INSERT INTO flows_runs (run_id, status, owner_host_id, owner_pid, owner_nonce)
-        VALUES (${run}, 'running', ${holder.hostId}, ${holder.pid}, ${holder.nonce})
+      yield* sql`INSERT INTO flows_consensus_leases (run_id, owner_host_id, owner_pid, owner_nonce, granted_at_ms, heartbeat_at_ms)
+        VALUES (${run}, ${holder.hostId}, ${holder.pid}, ${holder.nonce}, 0, 0)
         ON CONFLICT (run_id) DO UPDATE SET
           owner_host_id = excluded.owner_host_id,
           owner_pid = excluded.owner_pid,
@@ -527,7 +517,6 @@ describe("fencing across compaction", () => {
 
   effect("a fenced checkpoint and compaction commit while the owner holds the run", () =>
     Effect.gen(function*() {
-      yield* fenceTable
       yield* claim(owner)
       const service = yield* Journal
       yield* emitMany(service, 0, 4)
@@ -539,7 +528,6 @@ describe("fencing across compaction", () => {
 
   effect("a reclaimed owner can neither checkpoint nor compact, and deletes nothing", () =>
     Effect.gen(function*() {
-      yield* fenceTable
       yield* claim(owner)
       const service = yield* Journal
       yield* emitMany(service, 0, 4)

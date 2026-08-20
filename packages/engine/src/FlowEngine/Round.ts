@@ -18,8 +18,8 @@
  *
  * @since 0.1.0
  */
-import { Sha256 } from "@smthrs/crypto-next"
-import { Flow } from "@smthrs/flow-next"
+import { Sha256 } from "@smthrs/crypto"
+import { Flow } from "@smthrs/flow"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
@@ -30,6 +30,7 @@ import * as Schema from "effect/Schema"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Round {
   readonly lineageId: string
@@ -42,6 +43,7 @@ export interface Round {
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const initial = (executionId: string): Round => ({
   lineageId: executionId,
@@ -56,6 +58,7 @@ export const initial = (executionId: string): Round => ({
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const executionId = (round: Round): Effect.Effect<string, never, Crypto.Crypto> =>
   Schema.decodeUnknownEffect(Sha256)(
@@ -77,6 +80,7 @@ export const executionId = (round: Round): Effect.Effect<string, never, Crypto.C
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const next = (round: Round, options: {
   readonly flowName: string

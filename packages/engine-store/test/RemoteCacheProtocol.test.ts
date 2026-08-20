@@ -15,21 +15,21 @@
  *   first answer. The dispatch fetches, retries the replay ONCE, and otherwise
  *   falls through to a real execution rather than looping.
  */
-import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
-import { Journal } from "@smthrs/journal-next"
-import { Jj } from "@smthrs/kernel-next"
-import { type Ownership, RunStore } from "@smthrs/run-store-next"
-import { CacheStore } from "@smthrs/step-cache-next"
+import { describe, expect, it } from "@effect/vitest"
+import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
+import { Journal } from "@smthrs/journal"
+import { Jj } from "@smthrs/kernel"
+import { type Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
-import { describe, expect, it } from "vitest"
 import * as ArtifactSync from "../src/ArtifactSync.ts"
 import * as CacheSync from "../src/CacheSync.ts"
 import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
-import { runPromise, sha256 } from "./Sha256.ts"
+import { sha256, withCrypto } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "remote-cache-host", pid: 42, nonce: "remote-cache-process" }
 
@@ -118,312 +118,321 @@ const unpublishedRecords = (runId: string) =>
   })
 
 describe("blobs before metadata", () => {
-  it("publishes every referenced artifact before the entry is recorded", async () => {
-    const key = "remote-cache/publish"
-    const local = ArtifactStore.makeMemory()
-    const remote = ArtifactStore.makeMemory()
-    const outcome = await runPromise(
-      Effect.gen(function*() {
-        const cache = yield* CacheStore.CacheStore
-        yield* local.put(payload)
-        yield* activate("publish-run")
-        yield* dispatch("publish-run", key, () => Effect.succeed("recorded")).pipe(
-          Effect.provide(boundaryLayer(() => Effect.void))
+  it.effect("publishes every referenced artifact before the entry is recorded", () =>
+    Effect.gen(function*() {
+      const key = "remote-cache/publish"
+      const local = ArtifactStore.makeMemory()
+      const remote = ArtifactStore.makeMemory()
+      const outcome = yield* withCrypto(
+        Effect.gen(function*() {
+          const cache = yield* CacheStore.CacheStore
+          yield* local.put(payload)
+          yield* activate("publish-run")
+          yield* dispatch("publish-run", key, () => Effect.succeed("recorded")).pipe(
+            Effect.provide(boundaryLayer(() => Effect.void))
+          )
+          return {
+            entry: yield* cache.get(sha256(key)),
+            published: yield* remote.has(digest)
+          }
+        }).pipe(
+          Effect.provideService(ArtifactSync.ArtifactSync, ArtifactSync.make({ local, remote })),
+          Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)),
+          Effect.scoped
         )
-        return {
-          entry: yield* cache.get(sha256(key)),
-          published: yield* remote.has(digest)
-        }
-      }).pipe(
-        Effect.provideService(ArtifactSync.ArtifactSync, ArtifactSync.make({ local, remote })),
-        Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)),
-        Effect.scoped
       )
-    )
-    expect(Option.isSome(outcome.entry)).toBe(true)
-    expect(outcome.published).toBe(true)
-  })
+      expect(Option.isSome(outcome.entry)).toBe(true)
+      expect(outcome.published).toBe(true)
+    }))
 
-  it("publishes the entry to the shared tier only after its artifacts, and only outside the transaction", async () => {
-    const key = "remote-cache/publish-entry"
-    const local = ArtifactStore.makeMemory()
-    const remote = ArtifactStore.makeMemory()
-    const order: Array<string> = []
-    const sharedRows = new Map<string, CacheStore.CacheEntry>()
-    const sharedCache: CacheStore.Service = {
-      get: (keyDigest) =>
-        Effect.sync(() => {
-          const row = sharedRows.get(keyDigest)
-          return row === undefined ? Option.none() : Option.some(row)
-        }),
-      put: (entry) =>
-        Effect.sync(() => {
-          order.push("entry")
-          sharedRows.set(entry.keyDigest, entry)
-          return { _tag: "Inserted" } as const
-        }),
-      evict: () => Effect.succeed(false)
-    }
-    await runPromise(
-      Effect.gen(function*() {
-        yield* local.put(payload)
-        yield* activate("publish-entry-run")
-        yield* dispatch("publish-entry-run", key, () => Effect.succeed("recorded")).pipe(
-          Effect.provide(boundaryLayer(() => Effect.void))
+  it.effect("publishes the entry to the shared tier only after its artifacts, and only outside the transaction", () =>
+    Effect.gen(function*() {
+      const key = "remote-cache/publish-entry"
+      const local = ArtifactStore.makeMemory()
+      const remote = ArtifactStore.makeMemory()
+      const order: Array<string> = []
+      const sharedRows = new Map<string, CacheStore.CacheEntry>()
+      const sharedCache: CacheStore.Service = {
+        get: (keyDigest) =>
+          Effect.sync(() => {
+            const row = sharedRows.get(keyDigest)
+            return row === undefined ? Option.none() : Option.some(row)
+          }),
+        put: (entry) =>
+          Effect.sync(() => {
+            order.push("entry")
+            sharedRows.set(entry.keyDigest, entry)
+            return { _tag: "Inserted" } as const
+          }),
+        evict: () => Effect.succeed(false)
+      }
+      yield* withCrypto(
+        Effect.gen(function*() {
+          yield* local.put(payload)
+          yield* activate("publish-entry-run")
+          yield* dispatch("publish-entry-run", key, () => Effect.succeed("recorded")).pipe(
+            Effect.provide(boundaryLayer(() => Effect.void))
+          )
+        }).pipe(
+          Effect.provideService(
+            ArtifactSync.ArtifactSync,
+            ArtifactSync.make({
+              local,
+              remote: {
+                ...remote,
+                put: (bytes) => Effect.tap(remote.put(bytes), () => Effect.sync(() => order.push("blob")))
+              }
+            })
+          ),
+          Effect.provideService(CacheSync.CacheSync, CacheSync.make({ remote: sharedCache })),
+          Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)),
+          Effect.scoped
         )
-      }).pipe(
-        Effect.provideService(
-          ArtifactSync.ArtifactSync,
-          ArtifactSync.make({
-            local,
-            remote: {
-              ...remote,
-              put: (bytes) => Effect.tap(remote.put(bytes), () => Effect.sync(() => order.push("blob")))
-            }
-          })
-        ),
-        Effect.provideService(CacheSync.CacheSync, CacheSync.make({ remote: sharedCache })),
-        Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)),
-        Effect.scoped
       )
-    )
-    // Bazel's ordering, end to end: every blob lands before the action result.
-    expect(order).toEqual(["blob", "entry"])
-    expect(sharedRows.get(sha256(key))?.result).toBe("recorded")
-  })
+      // Bazel's ordering, end to end: every blob lands before the action result.
+      expect(order).toEqual(["blob", "entry"])
+      expect(sharedRows.get(sha256(key))?.result).toBe("recorded")
+    }))
 
-  it("withholds the shared entry — but not the local row, and not the run — when an artifact cannot be published", async () => {
-    // The entry must never become observable while an artifact it references
-    // is missing: a sibling machine would get a hit it cannot materialize. That
-    // is a reason to withhold the SHARED entry, never a reason to throw away a
-    // completed run's durable result because an optional accelerator is down.
-    const key = "remote-cache/publish-refused"
-    const shared: Array<string> = []
-    const outcome = await runPromise(
-      Effect.gen(function*() {
-        const cache = yield* CacheStore.CacheStore
-        yield* activate("publish-refused-run")
-        const result = yield* dispatch("publish-refused-run", key, () => Effect.succeed("recorded")).pipe(
-          Effect.provide(boundaryLayer(() => Effect.void))
+  it.effect("withholds the shared entry — but not the local row, and not the run — when an artifact cannot be published", () =>
+    Effect.gen(function*() {
+      // The entry must never become observable while an artifact it references
+      // is missing: a sibling machine would get a hit it cannot materialize. That
+      // is a reason to withhold the SHARED entry, never a reason to throw away a
+      // completed run's durable result because an optional accelerator is down.
+      const key = "remote-cache/publish-refused"
+      const shared: Array<string> = []
+      const outcome = yield* withCrypto(
+        Effect.gen(function*() {
+          const cache = yield* CacheStore.CacheStore
+          yield* activate("publish-refused-run")
+          const result = yield* dispatch("publish-refused-run", key, () => Effect.succeed("recorded")).pipe(
+            Effect.provide(boundaryLayer(() => Effect.void))
+          )
+          return {
+            result,
+            entry: yield* cache.get(sha256(key)),
+            unpublished: yield* unpublishedRecords("publish-refused-run")
+          }
+        }).pipe(
+          Effect.provideService(
+            ArtifactSync.ArtifactSync,
+            // The local tier holds nothing, so the artifact this host claims to
+            // have recorded cannot be read back and publication refuses.
+            ArtifactSync.make({ local: ArtifactStore.makeMemory(), remote: ArtifactStore.makeMemory() })
+          ),
+          Effect.provideService(
+            CacheSync.CacheSync,
+            CacheSync.make({
+              remote: {
+                get: () => Effect.succeed(Option.none()),
+                put: (entry) => Effect.sync(() => (shared.push(entry.keyDigest), { _tag: "Inserted" } as const)),
+                evict: () => Effect.succeed(false)
+              }
+            })
+          ),
+          Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)),
+          Effect.scoped
         )
-        return {
-          result,
-          entry: yield* cache.get(sha256(key)),
-          unpublished: yield* unpublishedRecords("publish-refused-run")
-        }
-      }).pipe(
-        Effect.provideService(
-          ArtifactSync.ArtifactSync,
-          // The local tier holds nothing, so the artifact this host claims to
-          // have recorded cannot be read back and publication refuses.
-          ArtifactSync.make({ local: ArtifactStore.makeMemory(), remote: ArtifactStore.makeMemory() })
-        ),
-        Effect.provideService(
-          CacheSync.CacheSync,
-          CacheSync.make({
-            remote: {
-              get: () => Effect.succeed(Option.none()),
-              put: (entry) => Effect.sync(() => (shared.push(entry.keyDigest), { _tag: "Inserted" } as const)),
-              evict: () => Effect.succeed(false)
-            }
-          })
-        ),
-        Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)),
-        Effect.scoped
       )
-    )
-    expect(outcome.result).toBe("recorded")
-    // Local row: recorded. Shared entry: withheld, because its blob is not
-    // durable in the shared tier.
-    expect(Option.isSome(outcome.entry)).toBe(true)
-    expect(shared).toEqual([])
-    // Visible, not silent: the missing shared entry is explainable from the
-    // journal rather than inferred from its absence.
-    expect(outcome.unpublished.map((record) => record.stage)).toEqual(["artifacts"])
-  })
+      expect(outcome.result).toBe("recorded")
+      // Local row: recorded. Shared entry: withheld, because its blob is not
+      // durable in the shared tier.
+      expect(Option.isSome(outcome.entry)).toBe(true)
+      expect(shared).toEqual([])
+      // Visible, not silent: the missing shared entry is explainable from the
+      // journal rather than inferred from its absence.
+      expect(outcome.unpublished.map((record) => record.stage)).toEqual(["artifacts"])
+    }))
 
-  it("journals a shared tier that refuses the entry itself, and still returns the result", async () => {
-    const key = "remote-cache/entry-refused"
-    const local = ArtifactStore.makeMemory()
-    const outcome = await runPromise(
-      Effect.gen(function*() {
-        const cache = yield* CacheStore.CacheStore
-        yield* local.put(payload)
-        yield* activate("entry-refused-run")
-        const result = yield* dispatch("entry-refused-run", key, () => Effect.succeed("recorded")).pipe(
-          Effect.provide(boundaryLayer(() => Effect.void))
+  it.effect("journals a shared tier that refuses the entry itself, and still returns the result", () =>
+    Effect.gen(function*() {
+      const key = "remote-cache/entry-refused"
+      const local = ArtifactStore.makeMemory()
+      const outcome = yield* withCrypto(
+        Effect.gen(function*() {
+          const cache = yield* CacheStore.CacheStore
+          yield* local.put(payload)
+          yield* activate("entry-refused-run")
+          const result = yield* dispatch("entry-refused-run", key, () => Effect.succeed("recorded")).pipe(
+            Effect.provide(boundaryLayer(() => Effect.void))
+          )
+          return {
+            result,
+            entry: yield* cache.get(sha256(key)),
+            unpublished: yield* unpublishedRecords("entry-refused-run")
+          }
+        }).pipe(
+          Effect.provideService(
+            ArtifactSync.ArtifactSync,
+            ArtifactSync.make({ local, remote: ArtifactStore.makeMemory() })
+          ),
+          Effect.provideService(
+            CacheSync.CacheSync,
+            CacheSync.make({
+              remote: {
+                get: () => Effect.succeed(Option.none()),
+                put: () =>
+                  Effect.fail(
+                    new CacheStore.CacheStoreError({ code: "persistence_failed", message: "the shared tier is down" })
+                  ),
+                evict: () => Effect.succeed(false)
+              }
+            })
+          ),
+          Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)),
+          Effect.scoped
         )
-        return {
-          result,
-          entry: yield* cache.get(sha256(key)),
-          unpublished: yield* unpublishedRecords("entry-refused-run")
-        }
-      }).pipe(
-        Effect.provideService(
-          ArtifactSync.ArtifactSync,
-          ArtifactSync.make({ local, remote: ArtifactStore.makeMemory() })
-        ),
-        Effect.provideService(
-          CacheSync.CacheSync,
-          CacheSync.make({
-            remote: {
-              get: () => Effect.succeed(Option.none()),
-              put: () =>
-                Effect.fail(
-                  new CacheStore.CacheStoreError({ code: "persistence_failed", message: "the shared tier is down" })
-                ),
-              evict: () => Effect.succeed(false)
-            }
-          })
-        ),
-        Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)),
-        Effect.scoped
       )
-    )
-    expect(outcome.result).toBe("recorded")
-    expect(Option.isSome(outcome.entry)).toBe(true)
-    expect(outcome.unpublished.map((record) => record.stage)).toEqual(["entry"])
-    expect(outcome.unpublished[0]!.message).toContain("the shared tier is down")
-  })
+      expect(outcome.result).toBe("recorded")
+      expect(Option.isSome(outcome.entry)).toBe(true)
+      expect(outcome.unpublished.map((record) => record.stage)).toEqual(["entry"])
+      expect(outcome.unpublished[0]!.message).toContain("the shared tier is down")
+    }))
 })
 
 describe("the single-tier default", () => {
-  it("publishes nothing and journals nothing when no shared step-result tier is configured", async () => {
-    // A purely local composition must not pay for — or notice — any of this.
-    const refusal = await runPromise(
-      CacheSync.makeLocal().publishEntry({
-        keyDigest: "irrelevant",
-        result: null,
-        meta: null,
-        createdAtMs: 0,
-        recordedRunId: "run",
-        recordedEventSeq: 0
-      })
-    )
-    expect(Option.isNone(refusal)).toBe(true)
-  })
-
-  it("provides that default as a layer", async () => {
-    const service = await runPromise(
-      Effect.flatMap(CacheSync.CacheSync, (sync) => Effect.succeed(sync)).pipe(
-        Effect.provide(CacheSync.layerLocal)
-      )
-    )
-    expect(typeof service.publishEntry).toBe("function")
-  })
-
-  it("builds the shared publisher from an effect", async () => {
-    const rows: Array<string> = []
-    const published = await runPromise(
-      Effect.flatMap(CacheSync.CacheSync, (sync) =>
-        sync.publishEntry({
-          keyDigest: "layer-key",
+  it.effect("publishes nothing and journals nothing when no shared step-result tier is configured", () =>
+    Effect.gen(function*() {
+      // A purely local composition must not pay for — or notice — any of this.
+      const refusal = yield* withCrypto(
+        CacheSync.makeLocal().publishEntry({
+          keyDigest: "irrelevant",
           result: null,
           meta: null,
           createdAtMs: 0,
           recordedRunId: "run",
           recordedEventSeq: 0
-        })).pipe(
-          Effect.provide(
-            CacheSync.layer(
-              Effect.succeed<CacheStore.Service>({
-                get: () => Effect.succeed(Option.none()),
-                put: (entry) => Effect.sync(() => (rows.push(entry.keyDigest), { _tag: "Inserted" } as const)),
-                evict: () => Effect.succeed(false)
-              })
+        })
+      )
+      expect(Option.isNone(refusal)).toBe(true)
+    }))
+
+  it.effect("provides that default as a layer", () =>
+    Effect.gen(function*() {
+      const service = yield* withCrypto(
+        Effect.flatMap(CacheSync.CacheSync, (sync) => Effect.succeed(sync)).pipe(
+          Effect.provide(CacheSync.layerLocal)
+        )
+      )
+      expect(typeof service.publishEntry).toBe("function")
+    }))
+
+  it.effect("builds the shared publisher from an effect", () =>
+    Effect.gen(function*() {
+      const rows: Array<string> = []
+      const published = yield* withCrypto(
+        Effect.flatMap(CacheSync.CacheSync, (sync) =>
+          sync.publishEntry({
+            keyDigest: "layer-key",
+            result: null,
+            meta: null,
+            createdAtMs: 0,
+            recordedRunId: "run",
+            recordedEventSeq: 0
+          })).pipe(
+            Effect.provide(
+              CacheSync.layer(
+                Effect.succeed<CacheStore.Service>({
+                  get: () => Effect.succeed(Option.none()),
+                  put: (entry) => Effect.sync(() => (rows.push(entry.keyDigest), { _tag: "Inserted" } as const)),
+                  evict: () => Effect.succeed(false)
+                })
+              )
             )
           )
-        )
-    )
-    expect(Option.isNone(published)).toBe(true)
-    expect(rows).toEqual(["layer-key"])
-  })
+      )
+      expect(Option.isNone(published)).toBe(true)
+      expect(rows).toEqual(["layer-key"])
+    }))
 })
 
 describe("lazy download", () => {
-  it("fetches a locally-missing artifact and retries the replay once", async () => {
-    const key = "remote-cache/hydrate"
-    const local = ArtifactStore.makeMemory()
-    const remote = ArtifactStore.makeMemory()
-    let executions = 0
-    let replays = 0
-    const body = () =>
-      Effect.sync(() => {
-        executions++
-        return "recorded"
-      })
-    const outcome = await runPromise(
-      Effect.gen(function*() {
-        yield* local.put(payload)
-        // The recording run publishes the artifact into the shared tier.
-        yield* activate("hydrate-producer")
-        yield* dispatch("hydrate-producer", key, body).pipe(Effect.provide(boundaryLayer(() => Effect.void)))
-        // The consuming run's host has never seen the artifact: the first
-        // replay refuses, hydration fetches it, and the retry succeeds.
-        yield* activate("hydrate-consumer")
-        const result = yield* dispatch("hydrate-consumer", key, body).pipe(
-          Effect.provide(
-            boundaryLayer(() =>
-              Effect.suspend(() => {
-                replays++
-                return replays === 1 ? missingArtifact : Effect.void
-              })
+  it.effect("fetches a locally-missing artifact and retries the replay once", () =>
+    Effect.gen(function*() {
+      const key = "remote-cache/hydrate"
+      const local = ArtifactStore.makeMemory()
+      const remote = ArtifactStore.makeMemory()
+      let executions = 0
+      let replays = 0
+      const body = () =>
+        Effect.sync(() => {
+          executions++
+          return "recorded"
+        })
+      const outcome = yield* withCrypto(
+        Effect.gen(function*() {
+          yield* local.put(payload)
+          // The recording run publishes the artifact into the shared tier.
+          yield* activate("hydrate-producer")
+          yield* dispatch("hydrate-producer", key, body).pipe(Effect.provide(boundaryLayer(() => Effect.void)))
+          // The consuming run's host has never seen the artifact: the first
+          // replay refuses, hydration fetches it, and the retry succeeds.
+          yield* activate("hydrate-consumer")
+          const result = yield* dispatch("hydrate-consumer", key, body).pipe(
+            Effect.provide(
+              boundaryLayer(() =>
+                Effect.suspend(() => {
+                  replays++
+                  return replays === 1 ? missingArtifact : Effect.void
+                })
+              )
             )
           )
+          return result
+        }).pipe(
+          Effect.provideService(ArtifactSync.ArtifactSync, ArtifactSync.make({ local, remote })),
+          Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)),
+          Effect.scoped
         )
-        return result
-      }).pipe(
-        Effect.provideService(ArtifactSync.ArtifactSync, ArtifactSync.make({ local, remote })),
-        Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)),
-        Effect.scoped
       )
-    )
-    expect(outcome).toBe("recorded")
-    // The consuming run was a cache hit: its body never ran.
-    expect(executions).toBe(1)
-    expect(replays).toBe(2)
-  })
+      expect(outcome).toBe("recorded")
+      // The consuming run was a cache hit: its body never ran.
+      expect(executions).toBe(1)
+      expect(replays).toBe(2)
+    }))
 
-  it("falls through to a real execution when the shared tier cannot serve the artifact either", async () => {
-    const key = "remote-cache/hydrate-exhausted"
-    let executions = 0
-    let replays = 0
-    const body = () =>
-      Effect.sync(() => {
-        executions++
-        return "recorded"
-      })
-    // A shared tier that already holds the artifact — so publication is
-    // trivially satisfied — but cannot serve it back.
-    const remote = ArtifactStore.makeNoop({ findMissing: () => Effect.succeed([]) })
-    await runPromise(
-      Effect.gen(function*() {
-        yield* activate("exhausted-producer")
-        yield* dispatch("exhausted-producer", key, body).pipe(Effect.provide(boundaryLayer(() => Effect.void)))
-        yield* activate("exhausted-consumer")
-        yield* dispatch("exhausted-consumer", key, body).pipe(
-          Effect.provide(
-            boundaryLayer(() =>
-              Effect.suspend(() => {
-                replays++
-                return missingArtifact
-              })
+  it.effect("falls through to a real execution when the shared tier cannot serve the artifact either", () =>
+    Effect.gen(function*() {
+      const key = "remote-cache/hydrate-exhausted"
+      let executions = 0
+      let replays = 0
+      const body = () =>
+        Effect.sync(() => {
+          executions++
+          return "recorded"
+        })
+      // A shared tier that already holds the artifact — so publication is
+      // trivially satisfied — but cannot serve it back.
+      const remote = ArtifactStore.makeNoop({ findMissing: () => Effect.succeed([]) })
+      yield* withCrypto(
+        Effect.gen(function*() {
+          yield* activate("exhausted-producer")
+          yield* dispatch("exhausted-producer", key, body).pipe(Effect.provide(boundaryLayer(() => Effect.void)))
+          yield* activate("exhausted-consumer")
+          yield* dispatch("exhausted-consumer", key, body).pipe(
+            Effect.provide(
+              boundaryLayer(() =>
+                Effect.suspend(() => {
+                  replays++
+                  return missingArtifact
+                })
+              )
             )
           )
+        }).pipe(
+          Effect.provideService(
+            ArtifactSync.ArtifactSync,
+            // Hydration reports failure rather than failing the run, and the
+            // dispatch does the work for real.
+            ArtifactSync.make({ local: ArtifactStore.makeMemory(), remote })
+          ),
+          Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)),
+          Effect.scoped
         )
-      }).pipe(
-        Effect.provideService(
-          ArtifactSync.ArtifactSync,
-          // Hydration reports failure rather than failing the run, and the
-          // dispatch does the work for real.
-          ArtifactSync.make({ local: ArtifactStore.makeMemory(), remote })
-        ),
-        Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)),
-        Effect.scoped
       )
-    )
-    expect(executions).toBe(2)
-    // Exactly one refusal: hydration failed, so the replay is never retried.
-    expect(replays).toBe(1)
-  })
+      expect(executions).toBe(2)
+      // Exactly one refusal: hydration failed, so the replay is never retried.
+      expect(replays).toBe(1)
+    }))
 })

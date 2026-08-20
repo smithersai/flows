@@ -113,7 +113,7 @@ export interface Service {
  * @category services
  */
 export class EffectHandlerRegistry extends Context.Service<EffectHandlerRegistry, Service>()(
-  "flows/time-travel/EffectHandlerRegistry"
+  "@smthrs/time-travel/EffectHandlerRegistry"
 ) {}
 
 const duplicate = (kind: string): TimeTravelError => error("unknown", `effect handler ${kind} is already registered`)

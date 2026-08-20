@@ -3,16 +3,17 @@
  *
  * @since 0.1.0
  */
-import type { Jj } from "@smthrs/jj-next"
-import * as Journal from "@smthrs/journal-next/Journal"
-import type * as JournalEvent from "@smthrs/journal-next/JournalEvent"
-import type { LivenessEvidence, OwnerId } from "@smthrs/run-store-next/Ownership"
-import * as RunStore from "@smthrs/run-store-next/RunStore"
-import type * as CacheStore from "@smthrs/step-cache-next/CacheStore"
+import type { Jj } from "@smthrs/jj"
+import * as Journal from "@smthrs/journal/Journal"
+import type * as JournalEvent from "@smthrs/journal/JournalEvent"
+import type { LivenessEvidence, OwnerId } from "@smthrs/run-store/Ownership"
+import * as RunStore from "@smthrs/run-store/RunStore"
+import type * as CacheStore from "@smthrs/step-cache/CacheStore"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
+import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as EffectBoundary from "../EffectBoundary.ts"
 import { Frame, type LineageEdge } from "../Frame.ts"
@@ -207,6 +208,106 @@ const runStoreFailure = (
     cause
   )
 
+/** The lineage a validation scan reads off a journal entry's open metadata. */
+const LineageMetadata = Schema.Struct({ lineageId: Schema.NonEmptyString })
+
+const lineageOf = (entry: JournalEvent.Entry): string | undefined =>
+  Option.getOrUndefined(Schema.decodeUnknownOption(LineageMetadata)(entry.meta))?.lineageId
+
+/**
+ * The validation phase of the rewind protocol: every caller-supplied input and
+ * every frame-lineage claim is checked BEFORE the first durable or workspace
+ * mutation — before the ownership claim, before the audit row, before any
+ * store write.
+ *
+ * The public `TimeTravel.rewind` runs this ahead of {@link rewind}'s claim
+ * phase, so a refused position leaves no trace: no claim was taken, no audit
+ * was opened, no journal page was read for a malformed page size.
+ *
+ * A frame is refused `not_found` unless it addresses the run's history:
+ * the coordinate must not lie past the journal tail, the run's tail must be on
+ * the requested lineage (a sibling lineage's coordinate is not a point this
+ * run can be truncated back to), and — frame zero excepted, the one frame that
+ * is always addressable — a record of the requested lineage must exist at the
+ * exact coordinate. Records that carry no lineage are compatible with every
+ * frame: they predate lineage minting yet are still evidence of the run.
+ *
+ * @since 0.1.0
+ * @category validators
+ */
+export const validate = (options: {
+  readonly runId: string
+  readonly frame: Frame
+  readonly pageSize?: number | undefined
+}): Effect.Effect<void, TimeTravelFailure, Journal.Journal> =>
+  Effect.gen(function*() {
+    if (options.pageSize !== undefined && (!Number.isSafeInteger(options.pageSize) || options.pageSize < 1)) {
+      return yield* Effect.fail(
+        error("invalid", `rewind pageSize must be a positive integer, not ${String(options.pageSize)}`)
+      )
+    }
+    const journal = yield* Journal.Journal
+    const coordinate = `${options.frame.lineageId}@${options.frame.seq}`
+    let after: JournalEvent.Seq | undefined
+    let tail: JournalEvent.Entry | undefined
+    let atFrame = false
+    while (true) {
+      const page = yield* journal.entries({
+        runId: options.runId as JournalEvent.RunId,
+        ...(after === undefined ? {} : { after }),
+        limit: options.pageSize ?? 100
+      }).pipe(
+        Effect.mapError((cause) =>
+          error("unknown", `could not validate frame ${coordinate} for ${options.runId}`, cause)
+        )
+      )
+      let pageTail: JournalEvent.Seq | undefined
+      for (const entry of page.entries) {
+        if (pageTail === undefined || entry.seq > pageTail) pageTail = entry.seq
+        if (tail === undefined || entry.seq > tail.seq) tail = entry
+        if (entry.seq === options.frame.seq) {
+          const lineage = lineageOf(entry)
+          if (lineage === undefined || lineage === options.frame.lineageId) atFrame = true
+        }
+      }
+      if (!page.hasMore || page.entries.length === 0) break
+      const previous = after ?? -1
+      if (pageTail === undefined || pageTail <= previous) {
+        return yield* Effect.fail(
+          error("invalid", `journal validation pagination did not advance for ${options.runId}`)
+        )
+      }
+      after = pageTail
+    }
+    if (tail === undefined) {
+      // Frame zero is the state before the run wrote anything, so it is the
+      // one frame an empty journal can still address.
+      if (options.frame.seq === 0) return
+      return yield* Effect.fail(
+        error("not_found", `frame ${coordinate} is beyond the journal tail of ${options.runId}`)
+      )
+    }
+    if (options.frame.seq > tail.seq) {
+      return yield* Effect.fail(
+        error("not_found", `frame ${coordinate} is beyond the journal tail of ${options.runId}`)
+      )
+    }
+    const tailLineage = lineageOf(tail)
+    if (tailLineage !== undefined && tailLineage !== options.frame.lineageId) {
+      return yield* Effect.fail(
+        error("not_found", `run ${options.runId} is on lineage ${tailLineage}, not ${options.frame.lineageId}`)
+      )
+    }
+    if (options.frame.seq > 0 && !atFrame) {
+      return yield* Effect.fail(
+        error(
+          "not_found",
+          `no record of lineage ${options.frame.lineageId} exists at seq ${options.frame.seq} in ${options.runId}`
+        )
+      )
+    }
+  })
+
 const readSuffix = (
   journal: Journal.Service,
   runId: string,
@@ -226,7 +327,11 @@ const readSuffix = (
       )
       entries.push(...page.entries)
       if (!page.hasMore || page.entries.length === 0) return entries
-      after = page.entries.at(-1)!.seq
+      const next = page.entries.reduce((tail, entry) => entry.seq > tail ? entry.seq : tail, after)
+      if (next <= after) {
+        return yield* Effect.fail(error("invalid", `journal suffix pagination did not advance for ${runId}`))
+      }
+      after = next
     }
   })
 
@@ -449,6 +554,11 @@ export const rewind = (
 > =>
   Effect.fn("Rewind.rewind")(() =>
     Effect.gen(function*() {
+      yield* Effect.annotateCurrentSpan({
+        runId: options.runId,
+        lineageId: options.frame.lineageId,
+        seq: options.frame.seq
+      })
       const runs = yield* RunStore.RunStore
       const journal = yield* Journal.Journal
       const store = yield* TimeTravelStore
@@ -504,7 +614,7 @@ export const rewind = (
                 options.frame,
                 options.pageSize ?? 100
               )
-              const effects = EffectBoundary.fromEntries(suffix)
+              const effects = yield* EffectBoundary.fromEntries(suffix)
               yield* runHook(options, "load-suffix")
 
               const childAssessment = yield* assessChildren(
@@ -532,25 +642,6 @@ export const rewind = (
               yield* store.updateAudit(auditId, { detail })
               yield* runHook(options, "assess-boundary")
 
-              /**
-               * Cancelling a detached child is terminal and happens before the
-               * archive commit point, so it is the one rewind mutation a
-               * rollback cannot undo. Each cancellation is therefore recorded
-               * on the audit as it happens: the rollback path spreads the
-               * current `detail`, and an undisclosed irreversible side effect
-               * is worse than a slower protocol.
-               */
-              for (
-                const child of [...childAssessment.cancellable].sort(
-                  (left, right) => right.edge.parentSeq - left.edge.parentSeq
-                )
-              ) {
-                yield* cancelChild(runs, options, child)
-                cancelledChildren.push(child.edge.childRunId)
-                detail = { ...detail, cancelledChildren: [...cancelledChildren] }
-                yield* store.updateAudit(auditId, { detail })
-              }
-
               const handlerReceipts = yield* Compensation.compensate(plan)
               compensation = { handlerReceipts }
               yield* runHook(options, "compensate-effects")
@@ -574,6 +665,20 @@ export const rewind = (
               archiveCommitted = true
               detail = { ...detail, phase: "archive_committed" }
               yield* store.updateAudit(auditId, { detail })
+
+              // Detached-child cancellation is terminal and has no inverse.
+              // It therefore happens only after the archive commit point: a
+              // failed pre-commit rewind leaves every child exactly as it was.
+              for (
+                const child of [...childAssessment.cancellable].sort(
+                  (left, right) => right.edge.parentSeq - left.edge.parentSeq
+                )
+              ) {
+                yield* cancelChild(runs, options, child)
+                cancelledChildren.push(child.edge.childRunId)
+                detail = { ...detail, cancelledChildren: [...cancelledChildren] }
+                yield* store.updateAudit(auditId, { detail })
+              }
 
               const suspended = yield* runs.transitionOwned(
                 options.runId,
@@ -627,14 +732,9 @@ export const rewind = (
             if (detail !== undefined) {
               const currentDetail = detail
               const rollbackFailure = Exit.isFailure(rollbackExit) ? Cause.squash(rollbackExit.cause) : undefined
-              // Child cancellation has no inverse, so a "rolled back" rewind
-              // still owns that residue and has to name it.
-              const residue = cancelledChildren.length === 0
-                ? ""
-                : `; ${cancelledChildren.length} detached child run(s) stay cancelled: ${cancelledChildren.join(", ")}`
-              const failureMessage = (rollbackFailure === undefined
+              const failureMessage = rollbackFailure === undefined
                 ? failure.message
-                : `${failure.message}; rollback failed: ${String(rollbackFailure)}`) + residue
+                : `${failure.message}; rollback failed: ${String(rollbackFailure)}`
               const { compensation: _, ...rolledBack } = currentDetail
               detail = {
                 ...rolledBack,

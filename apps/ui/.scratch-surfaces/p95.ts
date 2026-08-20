@@ -1,0 +1,12 @@
+import { open, text } from "./drv.ts";
+const { context, page, errors } = await open();
+await page.waitForTimeout(4000);
+const c = page.locator('textarea[aria-label="Chat message"]');
+console.log("composer before edit:", JSON.stringify(await c.inputValue()));
+await page.locator('[data-flow="reco.edit"]').first().click({ force: true });
+await page.waitForTimeout(2500);
+console.log("composer AFTER edit:", JSON.stringify(await c.inputValue()));
+console.log("focused:", await page.evaluate(() => document.activeElement?.tagName + "/" + (document.activeElement as any)?.getAttribute?.("aria-label")));
+await page.screenshot({ path: "/tmp/surfaces/9.5a.png" });
+console.log("TAIL>>>", (await text(page)).slice(-1200));
+await context.close();

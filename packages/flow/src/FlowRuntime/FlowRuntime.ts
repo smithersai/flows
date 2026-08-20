@@ -5,8 +5,8 @@
  *
  * `FlowRuntime` is the port: the smallest service a `Flow`, an `Action`, a
  * `DurableDeferred`, or a `DurableClock` needs in order to be executed,
- * polled, suspended, and resumed. `@smthrs/flow-next` declares it and depends on
- * nothing that implements it; `@smthrs/engine-next` supplies the implementation,
+ * polled, suspended, and resumed. `@smthrs/flow` declares it and depends on
+ * nothing that implements it; `@smthrs/engine` supplies the implementation,
  * so the dependency runs one way only.
  *
  * Every method here takes a flow whatever its requirement channel says, and
@@ -33,7 +33,9 @@ import type { DurableClock } from "../DurableClock.ts"
 import type * as DurableDeferred from "../DurableDeferred.ts"
 import type * as Flow from "../Flow/index.ts"
 import type * as RetryPolicy from "../RetryPolicy.ts"
+import type { CancelRequestFailed } from "./CancelRequestFailed.ts"
 import type { FlowCycleDetected } from "./FlowCycleDetected.ts"
+import type { FlowExecutionNotFound } from "./FlowExecutionNotFound.ts"
 import type { FlowInstance } from "./FlowInstance.ts"
 
 /**
@@ -43,6 +45,7 @@ import type { FlowInstance } from "./FlowInstance.ts"
  *
  * @category services
  * @since 4.0.0
+ * @slop
  */
 export class FlowRuntime extends Context.Service<
   FlowRuntime,
@@ -110,6 +113,11 @@ export class FlowRuntime extends Context.Service<
 
     /**
      * Poll the current status of a registered flow execution.
+     *
+     * `Option.none` means the execution is known and has not settled;
+     * {@link FlowExecutionNotFound} means the runtime has no record of the
+     * execution id at all. Folding the two together would leave a caller
+     * unable to tell a run still in flight from an id that names nothing.
      */
     readonly poll: <
       Name extends string,
@@ -121,7 +129,7 @@ export class FlowRuntime extends Context.Service<
       executionId: string
     ) => Effect.Effect<
       Option.Option<Flow.Result<Success["Type"], Error["Type"]>>,
-      never,
+      FlowExecutionNotFound,
       Success["DecodingServices"] | Error["DecodingServices"]
     >
 
@@ -129,21 +137,31 @@ export class FlowRuntime extends Context.Service<
      * Requests cancellation of a registered execution while preserving normal
      * cleanup, compensation, and child-flow handling. This is not a pause, and
      * a later `resume` does not undo the cancellation request.
+     *
+     * A durable runtime records the request before it interrupts anything, and
+     * reports {@link CancelRequestFailed} when that record could not be
+     * written: the execution is then still running and still cancellable, so
+     * the caller must see the failure rather than a false success. An
+     * in-memory runtime has nothing to record and never raises it.
      */
     readonly interrupt: (
       flow: Flow.Any,
       executionId: string
-    ) => Effect.Effect<void>
+    ) => Effect.Effect<void, CancelRequestFailed>
 
     /**
      * Immediately cancels a registered execution, potentially ignoring
      * compensation finalizers and orphaning child flows. This unsafe operation
      * is intended for forced shutdown, not ordinary cancellation or pausing.
+     *
+     * It reports {@link CancelRequestFailed} on the same terms as
+     * `interrupt`: forcing cancellation without a durable record would leave a
+     * run that nothing later re-cancels.
      */
     readonly interruptUnsafe: (
       flow: Flow.Any,
       executionId: string
-    ) => Effect.Effect<void>
+    ) => Effect.Effect<void, CancelRequestFailed>
 
     /**
      * Re-drives a registered execution that returned `Suspended`, allowing it
@@ -221,4 +239,4 @@ export class FlowRuntime extends Context.Service<
       }
     ) => Effect.Effect<void>
   }
->()("effect/flow/FlowEngine") {}
+>()("@smthrs/flow/FlowRuntime/FlowRuntime") {}

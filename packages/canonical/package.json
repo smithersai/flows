@@ -1,8 +1,11 @@
 {
-  "name": "@smthrs/canonical-next",
+  "name": "@smthrs/canonical",
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
+  "smthrs": {
+    "group": "engine"
+  },
   "description": "Effect wrapper for RFC 8785 JSON canonicalization",
   "homepage": "https://github.com/smithersai/flows",
   "repository": {
@@ -56,6 +59,7 @@
   },
   "devDependencies": {
     "@effect/language-service": "0.87.1",
+    "@effect/vitest": "4.0.0-rc.108",
     "@eslint/js": "9.39.1",
     "@types/node": "25.9.5",
     "dprint": "0.55.2",

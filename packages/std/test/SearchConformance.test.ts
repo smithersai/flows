@@ -1,0 +1,328 @@
+import { NodeFileSystem, NodeServices } from "@effect/platform-node"
+import * as ChildProcessSpawner from "@smthrs/kernel/ChildProcessSpawner"
+import { Cause, Effect, Exit, Layer, Sink, Stream } from "effect"
+import * as Path from "effect/Path"
+import type * as ChildProcess from "effect/unstable/process/ChildProcess"
+import { ExitCode, makeHandle, ProcessId } from "effect/unstable/process/ChildProcessSpawner"
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { dirname, join } from "node:path"
+import { afterAll, beforeAll, describe, expect, it } from "vitest"
+import * as Glob from "../src/Glob.ts"
+import * as Grep from "../src/Grep.ts"
+import * as NativeSearch from "../src/NativeSearch.ts"
+import * as PortableSearch from "../src/PortableSearch.ts"
+
+const root = mkdtempSync(join(tmpdir(), "flows-search-conformance-"))
+const file = (relative: string, content: string | Uint8Array): void => {
+  const target = join(root, relative)
+  mkdirSync(dirname(target), { recursive: true })
+  writeFileSync(target, content)
+}
+
+beforeAll(() => {
+  file("src/a.ts", "intro\nNeedle one\ncontext after\nneedle two\nend")
+  file("src/nested/b.ts", "needle b\nmore")
+  file("src/nested/excluded.ts", "needle excluded")
+  file("src/z.js", "needle javascript")
+  file("src/.secret.ts", "needle secret")
+  file("src/.git/objects/object.ts", "needle git")
+  file("src/node_modules/pkg/index.ts", "needle dependency")
+  file("src/.gitignore", "nested/b.ts\n")
+  file("edge/crlf.txt", "foo\r\nbar\r\n")
+  file("edge/unicode.txt", "é\n😀\n")
+  file("edge/invalid-utf8.txt", new Uint8Array([110, 101, 101, 100, 108, 101, 32, 0xff, 10]))
+  file("edge/binary/binary.bin", "needle before\n\0needle after\n")
+  file("edge/binary/text.txt", "needle text\n")
+  file("edge/long.txt", "x".repeat(600))
+  file("edge/symlink-target.txt", "needle symlink target\n")
+  symlinkSync(join(root, "edge/symlink-target.txt"), join(root, "edge/symlink.txt"))
+  file("globs/a.ts", "")
+  file("globs/nested/a.ts", "")
+  file("globs/é.ts", "")
+  file("globs/😀.ts", "")
+})
+
+afterAll(() => rmSync(root, { recursive: true, force: true }))
+
+const peers = [
+  ["portable", PortableSearch.layer.pipe(Layer.provide(NodeServices.layer))],
+  ["native", NativeSearch.layer.pipe(Layer.provide(NodeServices.layer))]
+] as const
+const portableHost = Layer.merge(NodeFileSystem.layer, Path.layer)
+
+const scriptedNative = (options: {
+  readonly stdout?: string
+  readonly stderr?: string
+  readonly exitCode?: number
+  readonly commands?: Array<ChildProcess.StandardCommand>
+}) => {
+  const spawner = ChildProcessSpawner.makeNoop({
+    spawn: (command) =>
+      Effect.sync(() => {
+        options.commands?.push(command as ChildProcess.StandardCommand)
+        const stdout = Stream.make(new TextEncoder().encode(options.stdout ?? ""))
+        const stderr = Stream.make(new TextEncoder().encode(options.stderr ?? ""))
+        return makeHandle({
+          pid: ProcessId(1),
+          exitCode: Effect.succeed(ExitCode(options.exitCode ?? 0)),
+          isRunning: Effect.succeed(false),
+          kill: () => Effect.void,
+          stdin: Sink.drain,
+          stdout,
+          stderr,
+          all: Stream.concat(stdout, stderr),
+          getInputFd: () => Sink.drain,
+          getOutputFd: () => Stream.empty,
+          unref: Effect.succeed(Effect.void)
+        })
+      })
+  })
+  return NativeSearch.layer.pipe(Layer.provide(Layer.mergeAll(
+    NodeFileSystem.layer,
+    Path.layer,
+    Layer.succeed(ChildProcessSpawner.ChildProcessSpawner)(spawner)
+  )))
+}
+
+const failure = <A>(exit: Exit.Exit<A, unknown>): { readonly code: unknown; readonly message: unknown } | undefined => {
+  if (!Exit.isFailure(exit)) return undefined
+  const reason = exit.cause.reasons.find(Cause.isFailReason)
+  if (reason === undefined || typeof reason.error !== "object" || reason.error === null) return undefined
+  const record = reason.error as { readonly code?: unknown; readonly message?: unknown }
+  return { code: record.code, message: record.message }
+}
+
+for (const [peer, implementation] of peers) {
+  describe(`Search conformance (${peer})`, () => {
+    const grep = (input: typeof Grep.Input.Type) => Effect.runPromise(Effect.provide(Grep.run(input), implementation))
+    const glob = (input: typeof Glob.Input.Type) => Effect.runPromise(Effect.provide(Glob.run(input), implementation))
+
+    it("matches with smart case, ordered include/exclude globs, context, and per-file max-count", async () => {
+      const result = await grep({
+        pattern: "needle",
+        root: join(root, "src"),
+        smartCase: true,
+        globs: ["*.ts", "!excluded.ts"],
+        context: 1,
+        maxCount: 1
+      })
+      expect(result).toEqual({
+        matches: [
+          { file: join(root, "src/a.ts"), line: 1, text: "intro", kind: "context" },
+          { file: join(root, "src/a.ts"), line: 2, text: "Needle one", kind: "match" },
+          { file: join(root, "src/a.ts"), line: 3, text: "context after", kind: "context" },
+          { file: join(root, "src/nested/b.ts"), line: 1, text: "needle b", kind: "match" },
+          { file: join(root, "src/nested/b.ts"), line: 2, text: "more", kind: "context" }
+        ],
+        files: [],
+        filesSearched: 2,
+        skippedBinary: 0,
+        truncated: false
+      })
+    })
+
+    it("returns sorted files for --files-with-matches and applies -i", async () => {
+      const result = await grep({
+        pattern: "NEEDLE",
+        root: join(root, "src"),
+        ignoreCase: true,
+        globs: ["*.ts", "!excluded.ts"],
+        filesWithMatches: true
+      })
+      expect(result.files).toEqual([join(root, "src/a.ts"), join(root, "src/nested/b.ts")])
+      expect(result.matches).toEqual([])
+    })
+
+    it("keeps fixed strings distinct from the accepted ASCII regex dialect", async () => {
+      file("edge/dialect.txt", "abc\na.c\nabbbc\n")
+      const literal = await grep({ pattern: "a.c", root: join(root, "edge/dialect.txt"), fixedStrings: true })
+      const regex = await grep({ pattern: "^(a.c|ab{3}c)$", root: join(root, "edge/dialect.txt") })
+      expect(literal.matches.map((match) => match.line)).toEqual([2])
+      expect(regex.matches.map((match) => match.line)).toEqual([1, 2, 3])
+    })
+
+    it("aligns CRLF anchors, Unicode scalars, and replacement-decoded non-UTF8 bytes", async () => {
+      const crlf = await grep({ pattern: "foo$", root: join(root, "edge/crlf.txt") })
+      const unicode = await grep({ pattern: "^.$", root: join(root, "edge/unicode.txt") })
+      const invalidUtf8 = await grep({ pattern: "needle", root: join(root, "edge/invalid-utf8.txt") })
+      expect(crlf.matches).toEqual([
+        { file: join(root, "edge/crlf.txt"), line: 1, text: "foo", kind: "match" }
+      ])
+      expect(unicode.matches.map(({ line, text }) => ({ line, text }))).toEqual([
+        { line: 1, text: "é" },
+        { line: 2, text: "😀" }
+      ])
+      expect(invalidUtf8.matches).toEqual([
+        { file: join(root, "edge/invalid-utf8.txt"), line: 1, text: "needle �", kind: "match" }
+      ])
+    })
+
+    it("skips and counts NUL-bearing files and rejects an explicitly named binary root", async () => {
+      const directory = await grep({ pattern: "needle", root: join(root, "edge/binary") })
+      const explicit = await Effect.runPromise(Effect.exit(Effect.provide(
+        Grep.run({ pattern: "absent", root: join(root, "edge/binary/binary.bin") }),
+        implementation
+      )))
+      expect(directory).toEqual({
+        matches: [
+          { file: join(root, "edge/binary/text.txt"), line: 1, text: "needle text", kind: "match" }
+        ],
+        files: [],
+        filesSearched: 2,
+        skippedBinary: 1,
+        truncated: false
+      })
+      expect(failure(explicit)?.code).toBe("binary_file")
+    })
+
+    it("caps very long lines and does not follow symlinks", async () => {
+      const long = await grep({ pattern: "x", root: join(root, "edge/long.txt") })
+      const symlink = await grep({ pattern: "needle", root: join(root, "edge"), filesWithMatches: true })
+      expect(long.matches[0]?.text.length).toBeLessThanOrEqual(500)
+      expect(symlink.files).toContain(join(root, "edge/symlink-target.txt"))
+      expect(symlink.files).not.toContain(join(root, "edge/symlink.txt"))
+    })
+
+    it("discloses global truncation and notice semantics", async () => {
+      const result = await grep({ pattern: "needle", root: join(root, "src"), globs: ["*.ts"], limit: 1 })
+      expect(result).toMatchObject({ truncated: true })
+      expect(result.matches).toHaveLength(1)
+      expect(result.notice).toBe("Showing 1 of 3 lines; output was truncated.")
+    })
+
+    it("keeps hidden search opt-in and fixed skip roots explicit", async () => {
+      const hidden = await grep({
+        pattern: "needle",
+        root: join(root, "src"),
+        globs: ["*.ts"],
+        hidden: true,
+        filesWithMatches: true
+      })
+      const explicit = await grep({
+        pattern: "needle",
+        root: join(root, "src/.git"),
+        globs: ["*.ts"],
+        filesWithMatches: true
+      })
+      expect(hidden.files).toContain(join(root, "src/.secret.ts"))
+      expect(hidden.files).not.toContain(join(root, "src/.git/objects/object.ts"))
+      expect(explicit.files).toEqual([join(root, "src/.git/objects/object.ts")])
+    })
+
+    it("implements rg --files globs with ordering, braces, hidden, and skip rules", async () => {
+      const regular = await glob({ pattern: "**/*.{ts,js}", root: join(root, "src") })
+      const hidden = await glob({ pattern: "**/*.ts", root: join(root, "src"), hidden: true })
+      const explicit = await glob({ pattern: "**/*.ts", root: join(root, "src/node_modules") })
+      expect(regular.paths).toEqual([
+        join(root, "src/a.ts"),
+        join(root, "src/nested/b.ts"),
+        join(root, "src/nested/excluded.ts"),
+        join(root, "src/z.js")
+      ])
+      expect(hidden.paths).toContain(join(root, "src/.secret.ts"))
+      expect(hidden.paths).not.toContain(join(root, "src/.git/objects/object.ts"))
+      expect(explicit.paths).toEqual([join(root, "src/node_modules/pkg/index.ts")])
+    })
+
+    it("implements root-anchored globs and ripgrep's UTF-8 byte width for ?", async () => {
+      const anchored = await glob({ pattern: "/a.ts", root: join(root, "globs") })
+      const oneByte = await glob({ pattern: "?.ts", root: join(root, "globs") })
+      expect(anchored.paths).toEqual([join(root, "globs/a.ts")])
+      expect(oneByte.paths).toEqual([
+        join(root, "globs/a.ts"),
+        join(root, "globs/nested/a.ts")
+      ])
+    })
+
+    it("returns clean empty results and a typed missing-root failure", async () => {
+      const empty = await grep({ pattern: "definitely absent", root: join(root, "src") })
+      const missing = await Effect.runPromise(Effect.exit(Effect.provide(
+        Grep.run({ pattern: "needle", root: join(root, "missing") }),
+        implementation
+      )))
+      expect(empty).toMatchObject({ matches: [], files: [], truncated: false })
+      expect(failure(missing)?.code).toBe("not_found")
+    })
+
+    it("rejects every option outside the declared subset with typed errors", async () => {
+      const unsupported = await Effect.runPromise(Effect.exit(Effect.provide(
+        Grep.run({ pattern: "(?=needle)", root }),
+        implementation
+      )))
+      const ignoreFiles = await Effect.runPromise(Effect.exit(Effect.provide(
+        Grep.run({ pattern: "needle", root, noIgnore: false }),
+        implementation
+      )))
+      const emptyExclusion = await Effect.runPromise(Effect.exit(Effect.provide(
+        Glob.run({ pattern: "!", root }),
+        implementation
+      )))
+      const oversizedRepetition = await Effect.runPromise(Effect.exit(Effect.provide(
+        Grep.run({ pattern: "a{10000000}", root }),
+        implementation
+      )))
+      expect(failure(unsupported)).toEqual({
+        code: "invalid_pattern",
+        message: "Unsupported ripgrep pattern \"(?=needle)\": special groups and lookaround are not supported"
+      })
+      expect(failure(ignoreFiles)?.code).toBe("invalid_input")
+      expect(failure(emptyExclusion)?.code).toBe("invalid_pattern")
+      expect(failure(oversizedRepetition)?.code).toBe("invalid_pattern")
+    })
+  })
+}
+
+it("the in-process peer answers without an rg process service", async () => {
+  const result = await Effect.runPromise(Effect.provide(
+    Grep.run({ pattern: "needle", root: join(root, "src"), fixedStrings: true, globs: ["*.ts"] }),
+    PortableSearch.layer.pipe(Layer.provide(portableHost))
+  ))
+  expect(result.matches.length).toBeGreaterThan(0)
+})
+
+it("both peers reject unsupported regex syntax identically", async () => {
+  const exits = await Promise.all(
+    peers.map(([, implementation]) =>
+      Effect.runPromise(Effect.exit(Effect.provide(Grep.run({ pattern: "(a)\\1", root }), implementation)))
+    )
+  )
+  const portable = exits[0]
+  const native = exits[1]
+  expect(portable).toBeDefined()
+  expect(native).toBeDefined()
+  if (portable === undefined || native === undefined) return
+  expect(failure(portable)).toEqual(failure(native))
+})
+
+it("the native peer turns absence, non-zero exits, and malformed JSON into typed failures", async () => {
+  const unavailable = NativeSearch.layer.pipe(Layer.provide(Layer.mergeAll(
+    NodeFileSystem.layer,
+    Path.layer,
+    ChildProcessSpawner.layerNoop()
+  )))
+  const cases = [
+    [unavailable, "provider_unavailable"],
+    [scriptedNative({ stderr: "killed", exitCode: 137 }), "request_failed"],
+    [scriptedNative({ stdout: "{}\n" }), "request_failed"]
+  ] as const
+  for (const [implementation, code] of cases) {
+    const exit = await Effect.runPromise(Effect.exit(Effect.provide(
+      Grep.run({ pattern: "needle", root: join(root, "src") }),
+      implementation
+    )))
+    expect(failure(exit)?.code).toBe(code)
+  }
+})
+
+it("the native peer launches only cwd-rooted rg processes through the injected process layer", async () => {
+  const commands: Array<ChildProcess.StandardCommand> = []
+  const summary = JSON.stringify({ type: "summary", data: { stats: { searches: 0 } } })
+  await Effect.runPromise(Effect.provide(
+    Grep.run({ pattern: "absent", root: join(root, "src") }),
+    scriptedNative({ stdout: `${summary}\n`, commands })
+  ))
+  expect(commands).toHaveLength(2)
+  expect(commands.every((command) => command.command === "rg")).toBe(true)
+  expect(commands.every((command) => command.options.cwd === join(root, "src"))).toBe(true)
+})

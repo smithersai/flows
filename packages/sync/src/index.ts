@@ -68,6 +68,24 @@ export * as BranchShare from "./BranchShare.ts"
  * @category services
  * @since 0.1.0
  */
+export * as WorkspaceShare from "./WorkspaceShare.ts"
+
+/**
+ * @category services
+ * @since 0.1.0
+ */
+export * as SyncPrincipal from "./SyncPrincipal.ts"
+
+/**
+ * @category rpc
+ * @since 0.1.0
+ */
+export * as SyncAuth from "./SyncAuth.ts"
+
+/**
+ * @category services
+ * @since 0.1.0
+ */
 export * as BranchPresence from "./BranchPresence.ts"
 
 /**

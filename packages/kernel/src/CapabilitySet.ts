@@ -8,10 +8,10 @@
  *
  * @since 0.1.0
  */
-import { type Capability, type CapabilityPattern, matches } from "@smthrs/capability-next/Capability"
+import { type Capability, type CapabilityPattern, matches } from "@smthrs/capability/Capability"
 import { Context, Effect } from "effect"
 
-const CapabilitySetTypeId: unique symbol = Symbol.for("@smthrs/kernel-next/CapabilitySet")
+const CapabilitySetTypeId: unique symbol = Symbol.for("@smthrs/kernel/CapabilitySet")
 
 /**
  * A normalized conjunction of any-of capability-pattern groups.
@@ -21,6 +21,7 @@ const CapabilitySetTypeId: unique symbol = Symbol.for("@smthrs/kernel-next/Capab
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface CapabilitySet {
   readonly [CapabilitySetTypeId]: typeof CapabilitySetTypeId
@@ -99,6 +100,7 @@ const make = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const fromPatterns = (
   patterns: ReadonlyArray<CapabilityPattern>
@@ -111,6 +113,7 @@ const unrestricted: CapabilitySet = make([])
  *
  * @category defaults
  * @since 0.1.0
+ * @slop
  */
 export const none: CapabilitySet = make([[]])
 
@@ -119,6 +122,7 @@ export const none: CapabilitySet = make([[]])
  *
  * @category predicates
  * @since 0.1.0
+ * @slop
  */
 export const allows = (
   set: CapabilitySet,
@@ -130,6 +134,7 @@ export const allows = (
  *
  * @category combinators
  * @since 0.1.0
+ * @slop
  */
 export const intersect = (
   left: CapabilitySet,
@@ -141,6 +146,7 @@ export const intersect = (
  *
  * @category equivalence
  * @since 0.1.0
+ * @slop
  */
 export const equals = (
   left: CapabilitySet,
@@ -177,7 +183,7 @@ export const equals = (
  * ceiling's job is to bound what a *scoped* fiber may ask for.
  */
 const CurrentCapabilities: Context.Reference<CapabilitySet> = Context.Reference<CapabilitySet>(
-  "@smthrs/kernel-next/CurrentCapabilities",
+  "@smthrs/kernel/CurrentCapabilities",
   { defaultValue: () => unrestricted }
 )
 
@@ -190,6 +196,7 @@ const CurrentCapabilities: Context.Reference<CapabilitySet> = Context.Reference<
  *
  * @category accessors
  * @since 0.1.0
+ * @slop
  */
 export const current: Effect.Effect<CapabilitySet> = CurrentCapabilities
 
@@ -198,6 +205,7 @@ export const current: Effect.Effect<CapabilitySet> = CurrentCapabilities
  *
  * @category combinators
  * @since 0.1.0
+ * @slop
  */
 export const attenuate = (
   patterns: ReadonlyArray<CapabilityPattern>

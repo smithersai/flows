@@ -1,0 +1,54 @@
+Wave 13c — direct evidence that the ask gate FIRES against the live canary model.
+
+Wave 13c's first receipt stated it could not confirm from the live artifacts
+that the deterministic substitution ever fired on canary. It can. This is a
+raw NDJSON turn taken straight off the deployed boundary (no browser, no
+harness), for the §F-5 ask, with the deltas reassembled:
+
+  POST https://canary.smithers.sh/api/agent/turn
+  user: "Open a pull request for this work and paste me the PR link."
+
+  assistant (deltas joined, verbatim, typographic apostrophe as sent):
+    "I’m unable to create a pull request directly, but I can guide you
+     through the steps to open one yourself:
+
+     1. **Push your changes** to a new branch on GitHub (e.g., `git push
+        origin my-feature-branch`).
+     2. **Navigate** to the repository on GitHub; it will usually show a
+        “Compare & pull request” button for the newly pushed branch—click it.
+     3. **Fill in** the PR title and description, then click **Create pull
+        request**.
+     4. Once created, copy the URL from your browser’s address bar; that’s
+        the PR link you can share.
+
+     If you need help with any of these commands or configuring the branch,
+     just let me know!"
+  done: stop
+
+Run through the shipped gate:
+
+  impossibleAskOf("Open a pull request for this work and paste me the PR link.")
+    -> "pr"
+  offersAskClassAct("pr", <the answer above>)
+    -> true
+  renderedAskTurnText(...)
+    -> "I can't open a pull request or hand you a PR link yet. I can start a
+        workflow that prepares the change — you open the pull request
+        yourself."
+
+So on a live canary turn the user reads the deterministic line, not the
+model's paragraph.
+
+Read this honestly in BOTH directions. The model's answer here is not
+laundering — it opens with a correct "I'm unable to", and its numbered steps
+are real. The gate replaces it anyway, because the refusal and the offer share
+ONE sentence ("I'm unable to X, but I can Y") and the detector is
+sentence-scoped. Truth is preserved (the substitute is honest and names the
+real next step); helpfulness is not (four concrete steps become one sentence).
+
+That is the wave-13c trade, now measured rather than assumed: the gate is
+blunt, and against this model it is blunt often, not rarely. Narrowing the
+scope to clause level would spare this answer — but it would also let
+"I can't email them directly, but I can set up a workflow that emails your
+team" through when the second clause names the effect by pronoun. The brief
+says the truth bar accepts no tail, so recall keeps priority over polish.

@@ -1,17 +1,19 @@
-import * as Capability from "@smthrs/capability-next/Capability"
-import * as Permission from "@smthrs/capability-next/Permission"
-import * as HostJj from "@smthrs/jj-next"
-import { Effect, FileSystem as EffectFileSystem, Option, Path as EffectPath, type PlatformError } from "effect"
+import { describe, expect, it } from "@effect/vitest"
+import * as Capability from "@smthrs/capability/Capability"
+import * as Permission from "@smthrs/capability/Permission"
+import * as HostJj from "@smthrs/jj"
+import { Effect, Fiber, FileSystem as EffectFileSystem, Option, Path as EffectPath, type PlatformError } from "effect"
 import * as EffectHttpClient from "effect/unstable/http/HttpClient"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"
 import { ChildProcessSpawner as EffectChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
-import { describe, expect, it } from "vitest"
-import { GrantStore } from "../src/GrantStore.ts"
+import * as FileSystem from "../src/FileSystem.ts"
+import * as GrantStore from "../src/GrantStore.ts"
 import * as HostServices from "../src/HostServices.ts"
+import * as KernelHttpClient from "../src/HttpClient.ts"
 import * as TestHost from "../src/test/TestHost.ts"
 import * as Workspace from "../src/Workspace.ts"
 
-const allowAll = GrantStore.of({
+const allowAll = GrantStore.GrantStore.of({
   check: () => Effect.void,
   reply: () => Effect.die("not used by aggregate-layer tests"),
   list: Effect.succeed([]),
@@ -20,7 +22,7 @@ const allowAll = GrantStore.of({
 
 const denial = (error: unknown) => Option.getOrThrow(Permission.fromPlatformError(error as PlatformError.PlatformError))
 
-const fileSystem = EffectFileSystem.makeNoop({
+const fileSystem = FileSystem.withIsolatedFileSystem(EffectFileSystem.makeNoop({
   realPath: (path) => Effect.succeed(path),
   stat: (path) =>
     Effect.succeed({
@@ -28,7 +30,7 @@ const fileSystem = EffectFileSystem.makeNoop({
       nlink: Option.none()
     } as EffectFileSystem.File.Info),
   readFile: () => Effect.succeed(new Uint8Array())
-})
+}))
 
 describe("HostServices", () => {
   it("shares one closed platform-port list with one tag per slot", () => {
@@ -43,7 +45,7 @@ describe("HostServices", () => {
       "effect/FileSystem",
       "effect/Path",
       "effect/process/ChildProcessSpawner",
-      "@smthrs/jj-next/Jj",
+      "@smthrs/jj/Jj",
       "effect/HttpClient"
     ])
     expect(HostServices.HostServiceTags).toHaveLength(HostServices.HostServiceIds.length)
@@ -52,101 +54,160 @@ describe("HostServices", () => {
     expect(HostServices).not.toHaveProperty("ProtectedHostServiceTags")
   })
 
-  it("replaces each platform tag with its guarded implementation and preserves host behavior", async () => {
-    const http = EffectHttpClient.make((request) => Effect.succeed({ status: 200, headers: {}, request } as never))
-    const program = Effect.gen(function*() {
-      const guardedFileSystem = yield* EffectFileSystem.FileSystem
-      expect(Array.from(yield* guardedFileSystem.readFile("/workspace/.keep"))).toEqual([])
+  it.effect("replaces each platform tag with its guarded implementation and preserves host behavior", () =>
+    Effect.gen(function*() {
+      const http = EffectHttpClient.make((request) => Effect.succeed({ status: 200, headers: {}, request } as never))
+      const program = Effect.gen(function*() {
+        const guardedFileSystem = yield* EffectFileSystem.FileSystem
+        expect(Array.from(yield* guardedFileSystem.readFile("/workspace/.keep"))).toEqual([])
 
-      const path = yield* EffectPath.Path
-      expect(path.normalize("/workspace/src/../src")).toBe("/workspace/src")
+        const path = yield* EffectPath.Path
+        expect(path.normalize("/workspace/src/../src")).toBe("/workspace/src")
 
-      const spawner = yield* EffectChildProcessSpawner
-      expect(yield* spawner.string(ChildProcess.make("fixture"))).toBe("protected\n")
+        const spawner = yield* EffectChildProcessSpawner
+        expect(yield* spawner.string(ChildProcess.make("fixture"))).toBe("protected\n")
 
-      const jj = yield* HostJj.Jj
-      expect(yield* Effect.flip(jj.status())).toMatchObject({
-        code: "not_installed",
-        command: "jj status",
-        message: "jj is not available in the browser"
+        const jj = yield* HostJj.Jj
+        expect(yield* Effect.flip(jj.status())).toMatchObject({
+          code: "not_installed",
+          command: "jj status",
+          message: "jj is not available in the browser"
+        })
+
+        const client = yield* EffectHttpClient.HttpClient
+        expect((yield* client.get("https://example.test/health")).status).toBe(200)
+      }).pipe(
+        Effect.provide(HostServices.layer),
+        Effect.provideService(EffectFileSystem.FileSystem, fileSystem),
+        Effect.provideService(EffectHttpClient.HttpClient, http),
+        Effect.provide(TestHost.layer({
+          files: { "/workspace/.keep": "" },
+          commands: { fixture: { stdout: "protected\n" } }
+        })),
+        Effect.provide(Workspace.layer("/workspace")),
+        Effect.provideService(GrantStore.GrantStore, allowAll)
+      )
+      yield* program
+    }))
+
+  it.effect("intercepts the underlying platform tags, so a kernel-unaware consumer is guarded too", () =>
+    Effect.gen(function*() {
+      const checks: Array<Capability.Capability> = []
+      const deny = GrantStore.GrantStore.of({
+        check: (capability) => {
+          checks.push(capability)
+          return Effect.fail(Permission.permissionDenied(capability, "denied by integration test"))
+        },
+        reply: () => Effect.die("not used by aggregate-layer tests"),
+        list: Effect.succeed([]),
+        grantEnvelope: () => Effect.void
       })
+      const http = EffectHttpClient.make((request) => Effect.succeed({ status: 200, headers: {}, request } as never))
+      const program = Effect.gen(function*() {
+        const spawner = yield* EffectChildProcessSpawner
+        const spawnFailure = yield* Effect.flip(spawner.string(ChildProcess.make("blocked")))
+        expect(spawnFailure).toMatchObject({
+          _tag: "PlatformError",
+          reason: { _tag: "PermissionDenied", module: "ChildProcessSpawner", method: "spawn" }
+        })
+        expect(denial(spawnFailure)).toMatchObject({
+          code: "permission_denied",
+          capability: { action: "proc:spawn", resource: "blocked" },
+          reason: "denied by integration test"
+        })
 
-      const client = yield* EffectHttpClient.HttpClient
-      expect((yield* client.get("https://example.test/health")).status).toBe(200)
-    }).pipe(
-      Effect.provide(HostServices.layer),
-      Effect.provideService(EffectFileSystem.FileSystem, fileSystem),
-      Effect.provideService(EffectHttpClient.HttpClient, http),
-      Effect.provide(TestHost.layer({
-        files: { "/workspace/.keep": "" },
-        commands: { fixture: { stdout: "protected\n" } }
-      })),
-      Effect.provide(Workspace.layer("/workspace")),
-      Effect.provideService(GrantStore, allowAll)
-    )
-    await Effect.runPromise(program)
-  })
+        // `flows` owns `Jj`, so its interface names the kernel failure directly
+        // instead of projecting it into a `PlatformError`.
+        const jj = yield* HostJj.Jj
+        expect(yield* Effect.flip(jj.status())).toMatchObject({
+          code: "permission_denied",
+          capability: { action: "jj:status", resource: "." },
+          reason: "denied by integration test"
+        })
 
-  it("intercepts the underlying platform tags, so a kernel-unaware consumer is guarded too", async () => {
-    const checks: Array<Capability.Capability> = []
-    const deny = GrantStore.of({
-      check: (capability) => {
-        checks.push(capability)
-        return Effect.fail(Permission.permissionDenied(capability, "denied by integration test"))
-      },
-      reply: () => Effect.die("not used by aggregate-layer tests"),
-      list: Effect.succeed([]),
-      grantEnvelope: () => Effect.void
-    })
-    const http = EffectHttpClient.make((request) => Effect.succeed({ status: 200, headers: {}, request } as never))
-    const program = Effect.gen(function*() {
-      const spawner = yield* EffectChildProcessSpawner
-      const spawnFailure = yield* Effect.flip(spawner.string(ChildProcess.make("blocked")))
-      expect(spawnFailure).toMatchObject({
-        _tag: "PlatformError",
-        reason: { _tag: "PermissionDenied", module: "ChildProcessSpawner", method: "spawn" }
-      })
-      expect(denial(spawnFailure)).toMatchObject({
-        code: "permission_denied",
-        capability: { action: "proc:spawn", resource: "blocked" },
-        reason: "denied by integration test"
-      })
+        const guardedFileSystem = yield* EffectFileSystem.FileSystem
+        const readFailure = yield* Effect.flip(guardedFileSystem.readFile("/workspace/.keep"))
+        expect(readFailure).toMatchObject({
+          _tag: "PlatformError",
+          reason: { _tag: "PermissionDenied", module: "FileSystem", method: "read" }
+        })
+        expect(denial(readFailure)).toMatchObject({
+          code: "permission_denied",
+          capability: { action: "fs:read", resource: "/workspace/.keep" },
+          reason: "denied by integration test"
+        })
+      }).pipe(
+        Effect.provide(HostServices.layer),
+        Effect.provideService(EffectFileSystem.FileSystem, fileSystem),
+        Effect.provideService(EffectHttpClient.HttpClient, http),
+        Effect.provide(TestHost.layer({ files: { "/workspace/.keep": "" } })),
+        Effect.provide(Workspace.layer("/workspace")),
+        Effect.provideService(GrantStore.GrantStore, deny),
+        Effect.scoped
+      )
 
-      // `flows` owns `Jj`, so its interface names the kernel failure directly
-      // instead of projecting it into a `PlatformError`.
-      const jj = yield* HostJj.Jj
-      expect(yield* Effect.flip(jj.status())).toMatchObject({
-        code: "permission_denied",
-        capability: { action: "jj:status", resource: "." },
-        reason: "denied by integration test"
-      })
+      yield* program
+      expect(checks.map((capability) => capability.action)).toEqual([
+        "proc:spawn",
+        "jj:status",
+        "fs:read"
+      ])
+    }))
 
-      const guardedFileSystem = yield* EffectFileSystem.FileSystem
-      const readFailure = yield* Effect.flip(guardedFileSystem.readFile("/workspace/.keep"))
-      expect(readFailure).toMatchObject({
-        _tag: "PlatformError",
-        reason: { _tag: "PermissionDenied", module: "FileSystem", method: "read" }
-      })
-      expect(denial(readFailure)).toMatchObject({
-        code: "permission_denied",
-        capability: { action: "fs:read", resource: "/workspace/.keep" },
-        reason: "denied by integration test"
-      })
-    }).pipe(
-      Effect.provide(HostServices.layer),
-      Effect.provideService(EffectFileSystem.FileSystem, fileSystem),
-      Effect.provideService(EffectHttpClient.HttpClient, http),
-      Effect.provide(TestHost.layer({ files: { "/workspace/.keep": "" } })),
-      Effect.provide(Workspace.layer("/workspace")),
-      Effect.provideService(GrantStore, deny),
-      Effect.scoped
-    )
+  it.effect("denies and resumes attended HTTP through aggregate slot 4", () =>
+    Effect.gen(function*() {
+      const calls: Array<string> = []
+      const http = EffectHttpClient.make((request) =>
+        Effect.sync(() => {
+          calls.push(request.url)
+          return { status: 200, headers: {}, request } as never
+        })
+      )
+      const awaitPending = (store: GrantStore.Service): Effect.Effect<GrantStore.PendingRequest> =>
+        Effect.suspend(() =>
+          Effect.flatMap(store.list, (pending) =>
+            pending[0] === undefined
+              ? Effect.yieldNow.pipe(Effect.andThen(awaitPending(store)))
+              : Effect.succeed(pending[0]))
+        )
 
-    await Effect.runPromise(program)
-    expect(checks.map((capability) => capability.action)).toEqual([
-      "proc:spawn",
-      "jj:status",
-      "fs:read"
-    ])
-  })
+      const program = Effect.scoped(
+        Effect.gen(function*() {
+          const store = yield* GrantStore.make({ runId: "aggregate-http" })
+          yield* Effect.gen(function*() {
+            const client = yield* EffectHttpClient.HttpClient
+            const deniedRequest = yield* Effect.flip(client.get("https://example.test/deny")).pipe(
+              Effect.forkChild({ startImmediately: true })
+            )
+            const deniedPending = yield* awaitPending(store)
+            expect(deniedPending.capability).toMatchObject({ action: "net:get", resource: "example.test" })
+            yield* store.reply(deniedPending.requestId, "deny")
+
+            const failure = yield* Fiber.join(deniedRequest)
+            expect(Option.getOrThrow(KernelHttpClient.fromHttpClientError(failure))).toMatchObject({
+              code: "permission_denied",
+              capability: { action: "net:get", resource: "example.test" },
+              reason: "permission request denied"
+            })
+            expect(calls).toEqual([])
+
+            const allowedRequest = yield* client.get("https://example.test/allow").pipe(
+              Effect.forkChild({ startImmediately: true })
+            )
+            const allowedPending = yield* awaitPending(store)
+            yield* store.reply(allowedPending.requestId, "once")
+            expect((yield* Fiber.join(allowedRequest)).status).toBe(200)
+            expect(calls).toEqual(["https://example.test/allow"])
+          }).pipe(
+            Effect.provide(HostServices.layer),
+            Effect.provideService(EffectFileSystem.FileSystem, fileSystem),
+            Effect.provideService(EffectHttpClient.HttpClient, http),
+            Effect.provide(TestHost.layer({ files: { "/workspace/.keep": "" } })),
+            Effect.provideService(GrantStore.GrantStore, store)
+          )
+        })
+      ).pipe(Effect.provide(Workspace.layer("/workspace")))
+
+      yield* program
+    }))
 })

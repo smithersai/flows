@@ -1,7 +1,13 @@
 /**
- * API review targets. Every target in this file is a non-executing catalog
- * stub. This file shows the bare StandardPackage form.
+ * Standard package targets in the bare `StandardPackage` form.
+ *
+ * `cwd` anchors every emitted tool run in this package directory.
  */
-import { StandardPackage } from "tsflows-rules"
+import { Smithers } from "@smthrs/targets"
+import { packageManager } from "../../BUILD.ts"
 
-export const { lib, test, lint } = StandardPackage({ deps: [] })
+export const { check, circular, docs, fmt, lib, lint, test } = Smithers.StandardPackage({
+  packageManager,
+  deps: [],
+  cwd: "packages/plan"
+})

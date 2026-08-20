@@ -1,0 +1,13 @@
+# Production Readiness Swarm — production-merge
+
+Integrate completed isolated slices to the workflow branch with serial handling for risky operations. Never force-push, land, or touch main.
+
+Declared upstream receipts and run-scoped VCS targets:
+{props.context}
+
+Before integration, switch this checkout to the exact declared candidate branch and assert it. Integrate only typed implementation-receipt commit SHAs in the supervisor order; never merge from detached HEAD, mutable target `HEAD`, or an unrecorded branch.
+
+Work only from the fresh versioned evidence snapshot and declared upstream receipts. Record command outputs and artifact locations. Do not claim success without deterministic evidence. Treat inferred worldview data as provisional with provenance. Never force-push or land on main.
+
+REQUIRED OUTPUT:
+{props.schema}

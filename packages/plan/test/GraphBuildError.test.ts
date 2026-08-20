@@ -10,7 +10,7 @@ describe("GraphBuildError", () => {
       message: "A flow cannot call itself inline. Use .to() to hand off, or .child() for a boundary."
     })
     expect(error).toBeInstanceOf(Error)
-    expect(error._tag).toBe("flows/plan/GraphBuildError")
+    expect(error._tag).toBe("@smthrs/plan/GraphBuildError")
     expect(error.code).toBe("recursion_requires_boundary")
     expect(error.node).toBe("counter/count-to-100")
   })
@@ -21,7 +21,10 @@ describe("GraphBuildError", () => {
       "invalid_all_member",
       "invalid_continuation",
       "recursion_requires_boundary",
-      "placement_requires_boundary"
+      "placement_requires_boundary",
+      "cyclic_payload",
+      "payload_too_deep",
+      "graph_too_deep"
     ])
   })
 })

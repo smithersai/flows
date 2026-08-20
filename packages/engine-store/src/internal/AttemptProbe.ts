@@ -10,7 +10,7 @@
  *
  * @since 0.1.0
  */
-import type { AttemptStore } from "@smthrs/run-store-next"
+import type { AttemptStore } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import type * as DurableEngineState from "../DurableEngineState.ts"
@@ -32,6 +32,7 @@ import type * as DurableEngineState from "../DurableEngineState.ts"
  *
  * @since 0.1.0
  * @category constants
+ * @slop
  */
 export const prunedPrefixScanLimit = 32
 
@@ -50,6 +51,7 @@ export const prunedPrefixScanLimit = 32
  *
  * @since 0.1.0
  * @category combinators
+ * @slop
  */
 export const probeAttempts = (
   attemptStore: AttemptStore.Service,

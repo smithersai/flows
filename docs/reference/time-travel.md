@@ -1,4 +1,4 @@
-# `@smthrs/time-travel-next`
+# `@smthrs/time-travel`
 
 This page is the public API reference for the `TimeTravel` service and the stores it reads through. The service is not part of every engine composition, but its evidence is: an ordinary `EngineStore` run stamps `meta.lineageId` on every record, journals a tier-2 anchor per attempt, and writes effect-boundary records, so a journal is inspectable, forkable, and rewindable without the application emitting anything by hand.
 
@@ -40,6 +40,8 @@ derived from the position. `RewindOptions` carries `detachedChildren` and
 returns audit, archive, assessments, warnings, and cancelled children.
 
 Cancelling a detached child under `detachedChildren: "cancel"` is terminal and happens *before* the archive commit point, so it is the one rewind mutation rollback cannot undo. Each cancellation is written to the audit detail as it happens, and a rewind that later rolls back keeps the full `cancelledChildren` list and names the surviving cancellations in `detail.failure`. A `rolled_back` audit therefore never understates what the attempt left behind.
+
+Startup recovery uses archive evidence, not the engine-store replay classifier. An audit at `archive_committed` or `completed` is completed. Otherwise recovery requires the recorded suffix tail to be absent from the live journal and present in the archive. Missing or partial suffix evidence, or missing archive evidence, rolls back the compensation and restores the run's original state; it does not declare the rewind complete.
 
 ## External-effect records
 

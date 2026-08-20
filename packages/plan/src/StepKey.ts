@@ -4,10 +4,10 @@
  * Revived from the module deleted at `f5f3dda` (then
  * `packages/keys/src/StepKey.ts`). Two deliberate deviations from the original:
  *
- * 1. **It lives here, not in `@smthrs/keys-next`.** That package was reduced to the
+ * 1. **It lives here, not in `@smthrs/keys`.** That package was reduced to the
  *    single `Key` transformation on purpose; a compiler that understands plan
  *    material belongs above it.
- * 2. **It produces `@smthrs/keys-next` `Key` values, not a second `sk1_` digest
+ * 2. **It produces `@smthrs/keys` `Key` values, not a second `sk1_` digest
  *    format.** The original minted its own prefix over a private `Digest`
  *    module. The engine dispatches under `Key` (`FlowEngine/ActionKey.ts`),
  *    so a plan whose node keys were a *different* string format could never be
@@ -25,9 +25,11 @@
  *
  * @since 0.1.0
  */
-import { Key } from "@smthrs/keys-next"
+import { Key } from "@smthrs/keys"
 import type * as Crypto from "effect/Crypto"
+import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
 import * as Schema from "effect/Schema"
 import type * as FileSet from "./FileSet.ts"
 import type * as KeyMaterial from "./KeyMaterial.ts"
@@ -38,6 +40,7 @@ import type * as KeyMaterial from "./KeyMaterial.ts"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type StepKey = Key
 
@@ -52,13 +55,14 @@ export type StepKey = Key
  * @since 0.1.0
  * @category symbols
  */
-const DigestInputTypeId: unique symbol = Symbol.for("@smthrs/plan-next/StepKey/DigestInput")
+const DigestInputTypeId: unique symbol = Symbol.for("@smthrs/plan/StepKey/DigestInput")
 
 /**
  * A precomputed digest supplied as a step input rather than a literal value.
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface DigestInput {
   readonly [DigestInputTypeId]: typeof DigestInputTypeId
@@ -85,6 +89,7 @@ export interface DigestInput {
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const digestInput = (
   digest: string,
@@ -104,6 +109,7 @@ export const digestInput = (
  *
  * @since 0.1.0
  * @category guards
+ * @slop
  */
 export const isDigestInput = (value: unknown): value is DigestInput =>
   typeof value === "object" && value !== null && DigestInputTypeId in value &&
@@ -132,6 +138,7 @@ export const isDigestInput = (value: unknown): value is DigestInput =>
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface EnvironmentIdentity {
   readonly declared: boolean
@@ -141,10 +148,64 @@ export interface EnvironmentIdentity {
 }
 
 /**
+ * Caller-owned memoization context for projected dependency-value digests.
+ *
+ * This is the flows counterpart of Bazel's `ActionKeyContext`: one context is
+ * passed through related key computations so shared input material is hashed
+ * once. Concurrent requests for the same projection share the in-flight
+ * digest. Entries are sound only while each settled `from` value is immutable;
+ * callers must create a fresh memo when those values can change.
+ *
+ * @since 0.1.0
+ * @category models
+ * @slop
+ */
+export interface DigestMemo {
+  readonly digest: (
+    from: string,
+    path: ReadonlyArray<string>,
+    compute: Effect.Effect<StepKey, Schema.SchemaError, Crypto.Crypto>
+  ) => Effect.Effect<StepKey, Schema.SchemaError, Crypto.Crypto>
+}
+
+/**
+ * Creates an empty projected-value digest memo. Projection addresses are
+ * JSON-encoded `[from, path]` tuples so segment boundaries are unambiguous.
+ *
+ * @since 0.1.0
+ * @category constructors
+ * @slop
+ */
+export const makeDigestMemo = (): DigestMemo => {
+  const entries = new Map<string, Deferred.Deferred<StepKey, Schema.SchemaError>>()
+  return {
+    digest: (from, path, compute) =>
+      Effect.suspend(() => {
+        const address = JSON.stringify([from, path])
+        const existing = entries.get(address)
+        if (existing !== undefined) return Deferred.await(existing)
+        const pending = Deferred.makeUnsafe<StepKey, Schema.SchemaError>()
+        entries.set(address, pending)
+        return compute.pipe(
+          Effect.onExit((exit) =>
+            Effect.gen(function*() {
+              if (Exit.isFailure(exit) && entries.get(address) === pending) {
+                entries.delete(address)
+              }
+              yield* Deferred.done(pending, exit)
+            })
+          )
+        )
+      })
+  }
+}
+
+/**
  * Material describing a sealed or hermetic content-addressed step.
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface ContentIdentity {
   readonly body: unknown
@@ -165,6 +226,7 @@ export interface ContentIdentity {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface OrdinalIdentity {
   readonly runId: string
@@ -178,8 +240,9 @@ export interface OrdinalIdentity {
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
-export class KeyMaterialError extends Schema.TaggedError<KeyMaterialError>()("flows/plan/KeyMaterialError", {
+export class KeyMaterialError extends Schema.TaggedError<KeyMaterialError>()("@smthrs/plan/KeyMaterialError", {
   code: Schema.Literals(["missing_dependency", "non_content_material"]),
   message: Schema.String
 }) {}
@@ -212,6 +275,24 @@ const normalizeEnvironment = (environment: EnvironmentIdentity) => ({
   ...(environment.runScope === undefined ? {} : { runScope: environment.runScope })
 })
 
+const compareCodeUnits = (left: string, right: string): number => left < right ? -1 : 1
+
+type NormalizedWriteEntry =
+  | string
+  | { readonly _tag: "TreeArtifact"; readonly path: string }
+  | {
+    readonly _tag: "Glob"
+    readonly include: ReadonlyArray<string>
+    readonly exclude?: ReadonlyArray<string> | undefined
+  }
+
+const writeEntryKey = (entry: NormalizedWriteEntry): string =>
+  typeof entry === "string"
+    ? JSON.stringify(["Path", entry])
+    : entry._tag === "TreeArtifact"
+    ? JSON.stringify([entry._tag, entry.path])
+    : JSON.stringify([entry._tag, entry.include, entry.exclude ?? null])
+
 const normalizeHermetic = (hermetic: NonNullable<ContentIdentity["hermetic"]>) => {
   const readSet = [...hermetic.readSet]
     .map((entry) => ({ path: entry.path.normalize("NFC"), digest: entry.digest }))
@@ -231,8 +312,9 @@ const normalizeHermetic = (hermetic: NonNullable<ContentIdentity["hermetic"]>) =
       ...(entry.exclude === undefined ? {} : { exclude: sortStrings(entry.exclude) })
     }
   })
-  const writeSet = [...new Map(normalizedWrites.map((entry) => [JSON.stringify(entry), entry])).values()]
-    .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)))
+  const writeSet = [...new Map(normalizedWrites.map((entry) => [writeEntryKey(entry), entry])).entries()]
+    .sort(([left], [right]) => compareCodeUnits(left, right))
+    .map(([, entry]) => entry)
   return {
     readSet,
     writeSet,
@@ -250,6 +332,7 @@ const decodeKey = Schema.decodeUnknownEffect(Key)
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const content = (
   identity: ContentIdentity
@@ -270,6 +353,7 @@ export const content = (
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const ordinal = (
   identity: OrdinalIdentity
@@ -288,6 +372,7 @@ export const ordinal = (
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const fromKeyMaterial = (
   material: KeyMaterial.KeyMaterial,
@@ -343,6 +428,7 @@ export const fromKeyMaterial = (
 const materialBody = (material: KeyMaterial.KeyMaterial) => ({
   version: material.version,
   declaration: material.body,
+  ...(material.nondeterministic === undefined ? {} : { nondeterministic: material.nondeterministic }),
   ...(material.effects === undefined ? {} : { effects: material.effects }),
   ...(material.placement === undefined ? {} : { placement: material.placement })
 })
@@ -373,6 +459,7 @@ const orderingOnly = "ordering-only"
  *
  * @since 0.1.0
  * @category utilities
+ * @slop
  */
 export const project = (value: unknown, path: ReadonlyArray<string>): unknown => {
   let current = value
@@ -407,12 +494,17 @@ export const project = (value: unknown, path: ReadonlyArray<string>): unknown =>
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const dispatchIdentity = (options: {
   readonly material: KeyMaterial.KeyMaterial
   /** The settled output value of each dependency, by node id. */
   readonly results: Readonly<Record<string, unknown>>
   readonly hermetic: NonNullable<ContentIdentity["hermetic"]>
+  /** The engine-resolved execution environment this dispatch runs under. */
+  readonly environment?: EnvironmentIdentity | undefined
+  /** Reuses projected-value digests while the corresponding settled values remain immutable. */
+  readonly digestMemo?: DigestMemo | undefined
 }): Effect.Effect<StepKey, KeyMaterialError | Schema.SchemaError, Crypto.Crypto> =>
   Effect.gen(function*() {
     const material = options.material
@@ -439,7 +531,10 @@ export const dispatchIdentity = (options: {
           message: `Missing settled result for graph dependency ${input.from}`
         })
       }
-      const digest = yield* decodeKey({ kind: "input-value", value: project(options.results[input.from], input.path) })
+      const compute = decodeKey({ kind: "input-value", value: project(options.results[input.from], input.path) })
+      const digest = yield* (
+        options.digestMemo === undefined ? compute : options.digestMemo.digest(input.from, input.path, compute)
+      )
       inputs[String(index)] = input.path.length > 0
         ? digestInput(digest, { reference: "ref-projected", path: input.path })
         : digestInput(digest, { reference: "ref" })
@@ -449,6 +544,7 @@ export const dispatchIdentity = (options: {
       inputs,
       layers: material.layers,
       capabilities: { declared: material.capabilities },
+      environment: options.environment,
       hermetic: options.hermetic
     })
   })

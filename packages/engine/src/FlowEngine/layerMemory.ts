@@ -5,7 +5,7 @@
  *
  * @since 4.0.0
  */
-import { Flow, FlowRuntime } from "@smthrs/flow-next"
+import { Flow, FlowRuntime } from "@smthrs/flow"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Fiber from "effect/Fiber"
@@ -31,31 +31,76 @@ import { makeUnsafe } from "./make.ts"
  *
  * @category layers
  * @since 4.0.0
+ * @slop
  */
 export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(FlowRuntime.FlowRuntime)(
   Effect.gen(function*() {
     const scope = yield* Effect.scope
 
-    const flows = new Map<string, {
+    type Registration = {
       readonly flow: Flow.Any
       readonly execute: (
         payload: object,
         executionId: string
       ) => Effect.Effect<unknown, unknown, FlowRuntime.FlowInstance | FlowRuntime.FlowRuntime>
       readonly scope: Scope.Scope
-    }>()
+    }
+    // Registrations of one tag stack: the last still-open one serves, and a
+    // closed inner registration is spliced back out so the outer one serves
+    // again — the same restore `make.register`'s declaration table performs.
+    const flows = new Map<string, Array<Registration>>()
 
     type ExecutionState = {
       readonly payload: object
-      readonly execute: (
-        payload: object,
-        executionId: string
-      ) => Effect.Effect<unknown, unknown, FlowRuntime.FlowInstance | FlowRuntime.FlowRuntime>
       readonly parent: string | undefined
       instance: FlowRuntime.FlowInstance["Service"]
       fiber: Fiber.Fiber<Flow.Result<unknown, unknown>> | undefined
+      /**
+       * The fiber the flow body actually runs in: `Flow.intoResult` forks the
+       * body as a child of the round fiber, and a normal `interrupt` targets
+       * this child so the round fiber survives to CONVERT the interruption
+       * into the recorded cancellation instead of dying on it.
+       */
+      bodyFiber: Fiber.Fiber<unknown, unknown> | undefined
     }
     const executions = new Map<string, ExecutionState>()
+
+    // Every child execution request records an edge, including a fan-in that
+    // joins an existing execution. This mirrors the durable engine's edge
+    // table: keeping only ExecutionState.parent would miss second-parent
+    // cycles and let the participants join one another forever.
+    const parents = new Map<string, Set<string>>()
+    const recordParent = (
+      child: string,
+      parent: string
+    ): Effect.Effect<void, FlowRuntime.FlowCycleDetected> =>
+      Effect.suspend(() => {
+        const pending: Array<readonly [string, ReadonlyArray<string>]> = [[parent, [parent]]]
+        const visited = new Set<string>()
+        while (pending.length > 0) {
+          const [current, path] = pending.shift()!
+          if (current === child) {
+            return Effect.fail(
+              new FlowRuntime.FlowCycleDetected({
+                code: "flow_cycle_detected",
+                path: [...path].reverse()
+              })
+            )
+          }
+          if (visited.has(current)) continue
+          visited.add(current)
+          for (const ancestor of parents.get(current) ?? []) {
+            pending.push([ancestor, [...path, ancestor]])
+          }
+        }
+        const existing = parents.get(child)
+        if (existing === undefined) {
+          parents.set(child, new Set([parent]))
+        } else {
+          existing.add(parent)
+        }
+        return Effect.void
+      })
 
     type ActionState = {
       exit: Exit.Exit<Flow.Result<unknown, unknown>> | undefined
@@ -76,11 +121,30 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
         return
       }
 
-      const entry = flows.get(state.instance.flow._tag)!
+      // The latest still-open registration serves every drive, so a re-drive
+      // after an inner scoped registration of the tag closed follows the
+      // outer registration exactly as `make.register`'s declaration table
+      // does. With every registration closed the execution stays parked for
+      // a process that registers the flow again — the durable driver takes
+      // the same posture for a run that wakes where its flow is unknown.
+      const entry = flows.get(state.instance.flow._tag)?.at(-1)
+      if (entry === undefined) return
       const instance = makeInstance(state.instance.flow, state.instance.executionId)
       instance.interrupted = state.instance.interrupted
       state.instance = instance
-      state.fiber = yield* state.execute(state.payload, state.instance.executionId).pipe(
+      state.fiber = yield* entry.execute(state.payload, state.instance.executionId).pipe(
+        // Runs as the forked body fiber's first instruction: it hands
+        // `interrupt` the fiber the body runs in, and it answers a
+        // cancellation that landed BEFORE the body started — the flag is
+        // already set, so the body self-interrupts instead of dispatching
+        // work whose cancellation was requested.
+        (body) =>
+          Effect.withFiber<unknown, unknown, FlowRuntime.FlowInstance | FlowRuntime.FlowRuntime>(
+            (fiber) => {
+              state.bodyFiber = fiber
+              return instance.interrupted ? Effect.interrupt : body
+            }
+          ),
         Effect.onExit(() => {
           if (!instance.interrupted) {
             return Effect.void
@@ -108,26 +172,53 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
     const engine = makeUnsafe({
       // Untraced because registration feeds back into the in-memory engine.
       register: Effect.fnUntraced(function*(flow, execute) {
-        flows.set(flow._tag, {
+        const registration: Registration = {
           flow,
           execute,
           scope: yield* Effect.scope
-        })
+        }
+        const existing = flows.get(flow._tag)
+        const entries = existing ?? []
+        if (existing === undefined) flows.set(flow._tag, entries)
+        entries.push(registration)
+        yield* Effect.addFinalizer(() =>
+          Effect.sync(() => {
+            entries.splice(entries.indexOf(registration), 1)
+            if (entries.length === 0) flows.delete(flow._tag)
+          })
+        )
       }),
       // Untraced because execution recursively invokes child flows.
       execute: Effect.fnUntraced(function*(flow, options) {
-        const entry = flows.get(flow._tag)
+        const entry = flows.get(flow._tag)?.at(-1)
         if (!entry) {
           return yield* Effect.orDie(Effect.fail(`Flow ${flow._tag} is not registered`))
         }
 
         let state = executions.get(options.executionId)
+        // An execution id names one run of ONE flow declaration. Joining
+        // another declaration's fiber would answer that flow's result under
+        // this flow's declared schemas — cross-flow result leakage — so the
+        // identity clash is refused, exactly as the durable driver's
+        // `ensureCreatedRun` refuses a row that belongs to a different flow
+        // tag. Payload identity stays the caller's contract: a reused id
+        // under the SAME declaration joins the first run.
+        if (state !== undefined && state.instance.flow._tag !== flow._tag) {
+          return yield* Effect.die(
+            new Error(
+              `execution ${options.executionId} already belongs to flow ${state.instance.flow._tag}; it cannot be reused for flow ${flow._tag}`
+            )
+          )
+        }
+        if (options.parent !== undefined) {
+          yield* recordParent(options.executionId, options.parent.executionId)
+        }
         if (!state) {
           state = {
             payload: options.payload,
-            execute: entry.execute,
             instance: makeInstance(flow, options.executionId),
             fiber: undefined,
+            bodyFiber: undefined,
             parent: options.parent?.executionId
           }
           executions.set(options.executionId, state)
@@ -141,6 +232,27 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
         const state = executions.get(executionId)
         if (!state) return
         state.instance.interrupted = true
+        // `execute` installs the state and synchronously starts `resume`
+        // before it can return its execution id, so every publicly
+        // observable execution has a round fiber to inspect.
+        const exit = state.fiber!.pollUnsafe()
+        if (exit === undefined) {
+          // The round is LIVE. The interruption is delivered to the body
+          // fiber rather than the round fiber: the round fiber then converts
+          // it into the recorded cancellation — `Complete` with an interrupt
+          // cause, after the body's finalizers ran — where interrupting the
+          // round fiber itself would leave `poll` dying on a bare interrupt
+          // exit. Delivery is a send, not an await: the contract is a
+          // cancellation REQUEST, and a body pinned in an uninterruptible
+          // region settles on its own time with the request already
+          // recorded. A round fiber that has not started yet has no body
+          // fiber; its body observes the flag and self-interrupts on start.
+          if (state.bodyFiber !== undefined) {
+            const bodyFiber = state.bodyFiber
+            yield* Effect.withFiber((fiber) => Effect.sync(() => bodyFiber.interruptUnsafe(fiber.id)))
+          }
+          return
+        }
         yield* resume(executionId)
       }),
       // Untraced because interruption is coordinated from recursive execution.
@@ -204,7 +316,14 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
         Effect.suspend(() => {
           const state = executions.get(executionId)
           if (!state) {
-            return Effect.succeedNone
+            // An unknown execution is a typed failure, not `Option.none`:
+            // `none` is reserved for a known run that has not settled yet.
+            return Effect.fail(
+              new FlowRuntime.FlowExecutionNotFound({
+                code: "execution_not_found",
+                executionId
+              })
+            )
           }
           const exit = state.fiber?.pollUnsafe()
           if (!exit) {

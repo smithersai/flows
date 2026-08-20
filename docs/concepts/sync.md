@@ -1,13 +1,13 @@
 # Journal synchronization
 
-This page defines the current journal replication protocol in `@smthrs/sync-next`: cursor-based reads and credit-bounded subscriptions over Effect RPC. It does not describe bidirectional event writes.
+This page defines the current journal replication protocol in `@smthrs/sync`: cursor-based reads and credit-bounded subscriptions over Effect RPC. It does not describe bidirectional event writes.
 
 ## Scopes and cursors
 
 A client reads either one run or every run in a workspace:
 
 ```ts
-import { SyncProtocol } from "@smthrs/sync-next"
+import { SyncProtocol } from "@smthrs/sync"
 import { Schema } from "effect"
 
 const scope = Schema.decodeUnknownSync(SyncProtocol.RunScope)({
@@ -42,10 +42,10 @@ The request includes a credit count. Credit is a hard limit on frames emitted by
 
 ## Authentication
 
-`SyncAuth` is an Effect RPC middleware service. A deployment must provide its implementation at the transport boundary. The library defines the typed `SyncError`; it does not select an authentication scheme.
+`SyncAuth` is an Effect RPC middleware service, and the package ships its production implementation: `SyncAuth.layer` verifies a `WorkspaceShare` capability — the branch share scheme extended with a signed `kid` for key rotation — presented in the `flows-sync-workspace` request header, and installs the resulting `SyncPrincipal` for the request. The principal defaults to anonymous, and the server refuses anonymous access to every non-branch run and to workspace listings, so an unauthenticated connection can read only branch runs it holds a branch share capability for. Signing secrets are provisioned as `Redacted` values through `WorkspaceShare.layerHmac` (explicit keyring) or `WorkspaceShare.layerConfig` (`FLOWS_SYNC_SECRET`, `FLOWS_SYNC_KEY_ID`); there is no default secret. A deployment may substitute its own `SyncAuth` implementation at the transport boundary.
 
 ## Directionality
 
 Current RPCs are read-only: `Read` and `Subscribe`. Client-to-server event submission, bidirectional reconciliation, acknowledgement windows, and resumable transport sessions are **Planned**.
 
-See [Journal](journal.md) and the [`@smthrs/sync-next` reference](../reference/sync.md).
+See [Journal](journal.md) and the [`@smthrs/sync` reference](../reference/sync.md).

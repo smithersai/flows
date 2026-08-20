@@ -1,5 +1,6 @@
-import * as Journal from "@smthrs/journal-next/Journal"
-import type * as JournalEvent from "@smthrs/journal-next/JournalEvent"
+import { describe, expect, it } from "@effect/vitest"
+import * as Journal from "@smthrs/journal/Journal"
+import type * as JournalEvent from "@smthrs/journal/JournalEvent"
 import * as Cause from "effect/Cause"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
@@ -8,11 +9,16 @@ import * as Fiber from "effect/Fiber"
 import * as HashMap from "effect/HashMap"
 import * as Layer from "effect/Layer"
 import * as Result from "effect/Result"
-import { describe, expect, it } from "vitest"
 import * as EffectBoundary from "../src/EffectBoundary.ts"
 import type { EffectRecord } from "../src/EffectBoundary.ts"
 import * as EffectHandlerRegistry from "../src/internal/EffectHandlerRegistry.ts"
 import { error } from "../src/TimeTravelError.ts"
+
+const boundaryAuthority = {
+  owner: { hostId: "test-host", pid: 1, nonce: "test-owner" },
+  sourceSeq: 0,
+  idempotencyKey: "test-idempotency-key"
+} as const
 
 const crossed = (
   status: EffectRecord["status"] = "succeeded"
@@ -49,29 +55,31 @@ const handler = (
 })
 
 describe("EffectHandlerRegistry", () => {
-  it("preserves the original action failure when recording its intended boundary fails", async () => {
-    const journal = Journal.makeNoop({
-      emitDurable: () => Effect.fail(new Journal.JournalError({ code: "unknown", message: "journal offline" }))
-    })
-    const failure = await Effect.runPromise(
-      Effect.flip(
-        EffectBoundary.guard({
-          id: "emit-failure",
-          kind: "mail.send",
-          tier: "irreversible",
-          runId: "run",
-          lineageId: "run/root",
-          sourceId: "adapter",
-          metadata: "legacy metadata"
-        }, Effect.succeed("never")).pipe(Effect.provide(Layer.succeed(Journal.Journal, journal)))
+  it.effect("preserves the original action failure when recording its intended boundary fails", () =>
+    Effect.gen(function*() {
+      const journal = Journal.makeNoop({
+        emitDurable: () => Effect.fail(new Journal.JournalError({ code: "unknown", message: "journal offline" }))
+      })
+      const failure = yield* (
+        Effect.flip(
+          EffectBoundary.guard({
+            id: "emit-failure",
+            kind: "mail.send",
+            tier: "irreversible",
+            runId: "run",
+            lineageId: "run/root",
+            sourceId: "adapter",
+            ...boundaryAuthority,
+            metadata: "legacy metadata"
+          }, Effect.succeed("never")).pipe(Effect.provide(Layer.succeed(Journal.Journal, journal)))
+        )
       )
-    )
 
-    expect(failure).toMatchObject({
-      code: "unknown",
-      message: "could not record intended boundary for effect emit-failure"
-    })
-  })
+      expect(failure).toMatchObject({
+        code: "unknown",
+        message: "could not record intended boundary for effect emit-failure"
+      })
+    }))
 
   it("decodes only complete boundary records and retains every supported optional field", () => {
     const valid = (overrides: Record<string, unknown> = {}): JournalEvent.Entry => ({
@@ -83,6 +91,7 @@ describe("EffectHandlerRegistry", () => {
       emittedAtMs: 0,
       eventType: EffectBoundary.eventType,
       payload: {
+        version: 1,
         effect: {
           id: "effect",
           kind: "mail.send",
@@ -151,7 +160,10 @@ describe("EffectHandlerRegistry", () => {
       sourceSeq: seq as JournalEvent.SourceSeq,
       emittedAtMs: 0,
       eventType: EffectBoundary.eventType,
-      payload: { effect: { id, kind: "kind", tier: "sealed", status, runId: "run", lineageId: "run/root" } },
+      payload: {
+        version: 1,
+        effect: { id, kind: "kind", tier: "sealed", status, runId: "run", lineageId: "run/root" }
+      },
       meta: {}
     })
     expect(EffectBoundary.fromEntry(entry(1, "a", "intended"))).toMatchObject({
@@ -159,17 +171,33 @@ describe("EffectHandlerRegistry", () => {
       providerStream: false
     })
     expect(
-      EffectBoundary.fromEntries([
+      Effect.runSync(EffectBoundary.fromEntries([
         { ...entry(1, "ignored", "intended"), eventType: "other" },
         entry(3, "a", "unknown"),
         entry(2, "b", "succeeded"),
         entry(4, "a", "succeeded")
-      ])
+      ]))
     )
       .toEqual([
         expect.objectContaining({ id: "b", seq: 2 }),
         expect.objectContaining({ id: "a", seq: 4, status: "succeeded" })
       ])
+  })
+
+  it("fails closed on a malformed known boundary event", () => {
+    const failure = Effect.runSync(Effect.flip(EffectBoundary.fromEntries([{
+      runId: "run" as JournalEvent.RunId,
+      seq: 1 as JournalEvent.Seq,
+      eventId: "corrupt",
+      sourceId: "source" as JournalEvent.SourceId,
+      sourceSeq: 1 as JournalEvent.SourceSeq,
+      emittedAtMs: 0,
+      eventType: EffectBoundary.eventType,
+      payload: { version: 2, effect: {} },
+      meta: {}
+    }])))
+
+    expect(failure).toMatchObject({ code: "invalid" })
   })
   it("rejects duplicate stable effect kinds before exposing a registry", () => {
     const failure = Effect.runSync(
@@ -358,264 +386,350 @@ describe("EffectHandlerRegistry", () => {
     ])
   })
 
-  it("provides tier and idempotency metadata through a Layer", async () => {
-    const resolved = await Effect.runPromise(
-      Effect.gen(function*() {
-        const registry = yield* EffectHandlerRegistry.EffectHandlerRegistry
-        return registry.resolve("mail.send")
-      }).pipe(
-        Effect.provide(EffectHandlerRegistry.layer([handler()]))
+  it.effect("provides tier and idempotency metadata through a Layer", () =>
+    Effect.gen(function*() {
+      const resolved = yield* (
+        Effect.gen(function*() {
+          const registry = yield* EffectHandlerRegistry.EffectHandlerRegistry
+          return registry.resolve("mail.send")
+        }).pipe(
+          Effect.provide(EffectHandlerRegistry.layer([handler()]))
+        )
       )
-    )
 
-    expect(resolved).toMatchObject({
-      kind: "mail.send",
-      tier: "irreversible",
-      requiresIdempotencyKey: true
-    })
-  })
-
-  it("records intended and succeeded boundary states with additive metadata", async () => {
-    const emitted: Array<JournalEvent.Input> = []
-    const journal = Journal.makeNoop({
-      emitDurable: (input) =>
-        Effect.sync(() => {
-          emitted.push(input)
-          return {
-            _tag: "Accepted" as const,
-            seq: emitted.length as JournalEvent.Seq,
-            sourceSeq: emitted.length as JournalEvent.SourceSeq
-          }
-        })
-    })
-    const result = await Effect.runPromise(
-      EffectBoundary.guard({
-        id: "effect-boundary",
+      expect(resolved).toMatchObject({
         kind: "mail.send",
         tier: "irreversible",
-        runId: "run",
-        lineageId: "run/root",
-        sourceId: "adapter",
-        sourceSeq: 10,
-        input: { recipient: "person@example.com" },
-        cacheKey: "mail-cache-key",
-        changeId: "change-1",
-        idempotencyKey: "send-1",
-        residue: "message sent",
-        durableBoundary: false,
-        providerStream: true,
-        attempt: 1,
-        nonce: "nonce-1",
-        metadata: { adapter: "mail" }
-      }, Effect.succeed("sent")).pipe(
-        Effect.provide(Layer.succeed(Journal.Journal, journal))
-      )
-    )
+        requiresIdempotencyKey: true
+      })
+    }))
 
-    expect(result).toBe("sent")
-    expect(emitted.map((input) =>
-      (input.payload as {
-        readonly effect: { readonly status: string }
-      }).effect.status
-    )).toEqual(["intended", "succeeded"])
-    expect(emitted.map((input) => input.sourceSeq)).toEqual([10, 11])
-    expect(emitted[1]?.payload).toMatchObject({
-      effect: {
-        id: "effect-boundary",
-        output: "sent",
-        durableBoundary: false,
-        providerStream: true
-      }
-    })
-    expect(emitted[1]?.meta).toMatchObject({
-      adapter: "mail",
-      lineageId: "run/root",
-      cacheKey: "mail-cache-key",
-      timeTravel: {
-        effectId: "effect-boundary",
-        status: "succeeded"
-      }
-    })
-  })
-
-  it("reports a succeeded-boundary persistence failure after the action has completed", async () => {
-    let actionRuns = 0
-    let emits = 0
-    const journal = Journal.makeNoop({
-      emitDurable: () =>
-        Effect.suspend(() => {
-          emits += 1
-          return emits === 1
-            ? Effect.succeed({
+  it.effect("records intended and succeeded boundary states with additive metadata", () =>
+    Effect.gen(function*() {
+      const emitted: Array<JournalEvent.Input> = []
+      const journal = Journal.makeNoop({
+        emitDurable: (input) =>
+          Effect.sync(() => {
+            emitted.push(input)
+            return {
               _tag: "Accepted" as const,
-              seq: 1 as JournalEvent.Seq,
-              sourceSeq: 1 as JournalEvent.SourceSeq
-            })
-            : Effect.fail(new Journal.JournalError({ code: "unknown", message: "terminal journal failure" }))
-        })
-    })
-
-    const failure = await Effect.runPromise(
-      Effect.flip(
+              seq: emitted.length as JournalEvent.Seq,
+              sourceSeq: emitted.length as JournalEvent.SourceSeq
+            }
+          })
+      })
+      const result = yield* (
         EffectBoundary.guard({
-          id: "terminal-success-failure",
+          id: "effect-boundary",
           kind: "mail.send",
           tier: "irreversible",
           runId: "run",
           lineageId: "run/root",
-          sourceId: "adapter"
+          sourceId: "adapter",
+          ...boundaryAuthority,
+          sourceSeq: 10,
+          input: { recipient: "person@example.com" },
+          cacheKey: "mail-cache-key",
+          changeId: "change-1",
+          idempotencyKey: "send-1",
+          residue: "message sent",
+          durableBoundary: false,
+          providerStream: true,
+          attempt: 1,
+          nonce: "nonce-1",
+          metadata: { adapter: "mail" }
+        }, Effect.succeed("sent")).pipe(
+          Effect.provide(Layer.succeed(Journal.Journal, journal))
+        )
+      )
+
+      expect(result).toBe("sent")
+      expect(emitted.map((input) =>
+        (input.payload as {
+          readonly effect: { readonly status: string }
+        }).effect.status
+      )).toEqual(["intended", "succeeded"])
+      expect(emitted.map((input) => input.sourceSeq)).toEqual([10, 11])
+      expect(emitted[1]?.payload).toMatchObject({
+        effect: {
+          id: "effect-boundary",
+          output: "sent",
+          durableBoundary: false,
+          providerStream: true
+        }
+      })
+      expect(emitted[1]?.meta).toMatchObject({
+        adapter: "mail",
+        lineageId: "run/root",
+        cacheKey: "mail-cache-key",
+        timeTravel: {
+          effectId: "effect-boundary",
+          status: "succeeded"
+        }
+      })
+    }))
+
+  it.effect("fences the intended append and refuses to re-execute a duplicate boundary", () =>
+    Effect.gen(function*() {
+      let actionRuns = 0
+      const owners: Array<unknown> = []
+      const journal = Journal.makeNoop({
+        emitDurable: (_input, owner) =>
+          Effect.sync(() => {
+            owners.push(owner)
+            return {
+              _tag: "Duplicate" as const,
+              seq: 1 as JournalEvent.Seq,
+              sourceSeq: 0 as JournalEvent.SourceSeq,
+              status: "committed" as const
+            }
+          })
+      })
+
+      const failure = yield* Effect.flip(
+        EffectBoundary.guard({
+          id: "duplicate-boundary",
+          kind: "mail.send",
+          tier: "irreversible",
+          runId: "run",
+          lineageId: "run/root",
+          sourceId: "adapter",
+          ...boundaryAuthority
         }, Effect.sync(() => ++actionRuns)).pipe(
           Effect.provide(Layer.succeed(Journal.Journal, journal))
         )
       )
-    )
 
-    expect(actionRuns).toBe(1)
-    expect(emits).toBe(2)
-    expect(failure).toMatchObject({
-      code: "unknown",
-      message: "could not record succeeded boundary for effect terminal-success-failure"
-    })
-  })
+      expect(failure).toMatchObject({ code: "busy" })
+      expect(actionRuns).toBe(0)
+      expect(owners).toEqual([boundaryAuthority.owner])
+    }))
 
-  it("records unknown and preserves the original action failure", async () => {
-    const emitted: Array<JournalEvent.Input> = []
-    const journal = Journal.makeNoop({
-      emitDurable: (input) =>
-        Effect.sync(() => {
-          emitted.push(input)
-          return {
-            _tag: "Accepted" as const,
-            seq: emitted.length as JournalEvent.Seq,
-            sourceSeq: emitted.length as JournalEvent.SourceSeq
-          }
-        })
-    })
-    const failure = await Effect.runPromise(
-      Effect.flip(
-        EffectBoundary.guard({
-          id: "effect-failed",
-          kind: "mail.send",
-          tier: "irreversible",
-          runId: "run",
-          lineageId: "run/root",
-          sourceId: "adapter"
-        }, Effect.fail("action-failed")).pipe(
-          Effect.provide(Layer.succeed(Journal.Journal, journal))
-        )
-      )
-    )
-
-    expect(failure).toBe("action-failed")
-    expect(emitted.map((input) =>
-      (input.payload as {
-        readonly effect: { readonly status: string }
-      }).effect.status
-    )).toEqual(["intended", "unknown"])
-  })
-
-  it("records unknown and preserves an action defect as a defect", async () => {
-    const emitted: Array<string> = []
-    const journal = Journal.makeNoop({
-      emitDurable: (input) =>
-        Effect.sync(() => {
-          emitted.push((input.payload as { readonly effect: { readonly status: string } }).effect.status)
-          return {
-            _tag: "Accepted" as const,
-            seq: emitted.length as JournalEvent.Seq,
-            sourceSeq: emitted.length as JournalEvent.SourceSeq
-          }
-        })
-    })
-
-    const exit = await Effect.runPromise(
-      Effect.exit(
-        EffectBoundary.guard({
-          id: "effect-defect",
-          kind: "mail.send",
-          tier: "irreversible",
-          runId: "run",
-          lineageId: "run/root",
-          sourceId: "adapter"
-        }, Effect.die("action-defect")).pipe(
-          Effect.provide(Layer.succeed(Journal.Journal, journal))
-        )
-      )
-    )
-
-    expect(Exit.isFailure(exit)).toBe(true)
-    if (Exit.isFailure(exit)) {
-      const defect = Cause.findDefect(exit.cause)
-      expect(Result.isSuccess(defect) ? defect.success : undefined).toBe("action-defect")
-    }
-    expect(emitted).toEqual(["intended", "unknown"])
-  })
-
-  it("preserves an action failure when recording its unknown boundary also fails", async () => {
-    let emits = 0
-    const journal = Journal.makeNoop({
-      emitDurable: () =>
-        Effect.suspend(() => {
-          emits += 1
-          return emits === 2
-            ? Effect.fail(new Journal.JournalError({ code: "unknown", message: "terminal journal failure" }))
-            : Effect.succeed({
-              _tag: "Accepted" as const,
-              seq: emits as JournalEvent.Seq,
-              sourceSeq: emits as JournalEvent.SourceSeq
-            })
-        })
-    })
-
-    const failure = await Effect.runPromise(
-      Effect.flip(
-        EffectBoundary.guard({
-          id: "terminal-emit-failure",
-          kind: "mail.send",
-          tier: "irreversible",
-          runId: "run",
-          lineageId: "run/root",
-          sourceId: "adapter"
-        }, Effect.fail("action-failed")).pipe(Effect.provide(Layer.succeed(Journal.Journal, journal)))
-      )
-    )
-
-    expect(failure).toBe("action-failed")
-    expect(emits).toBe(2)
-  })
-
-  it("settles an interrupted action as unknown before the fiber exits", async () => {
-    const emitted: Array<string> = []
-    const entered = Effect.runSync(Deferred.make<void>())
-    const journal = Journal.makeNoop({
-      emitDurable: (input) =>
-        Effect.sync(() => {
-          emitted.push((input.payload as { readonly effect: { readonly status: string } }).effect.status)
-          return {
-            _tag: "Accepted" as const,
-            seq: emitted.length as JournalEvent.Seq,
-            sourceSeq: emitted.length as JournalEvent.SourceSeq
-          }
-        })
-    })
-    const fiber = Effect.runFork(
-      EffectBoundary.guard({
-        id: "interrupted",
+  it.effect("rejects invalid and unfenceable boundary descriptions before resolving the journal", () =>
+    Effect.gen(function*() {
+      const base = {
+        id: "invalid-boundary",
         kind: "mail.send",
-        tier: "irreversible",
+        tier: "sealed" as const,
         runId: "run",
         lineageId: "run/root",
-        sourceId: "adapter"
-      }, Deferred.succeed(entered, undefined).pipe(Effect.andThen(Effect.never))).pipe(
-        Effect.provide(Layer.succeed(Journal.Journal, journal))
+        sourceId: "adapter",
+        owner: boundaryAuthority.owner,
+        sourceSeq: boundaryAuthority.sourceSeq
+      }
+
+      const malformed = yield* Effect.flip(
+        EffectBoundary.guard({ ...base, sourceSeq: -1 }, Effect.void)
       )
-    )
+      const exhausted = yield* Effect.flip(
+        EffectBoundary.guard({ ...base, sourceSeq: Number.MAX_SAFE_INTEGER }, Effect.void)
+      )
+      const irreversible = yield* Effect.flip(
+        EffectBoundary.guard({
+          ...base,
+          tier: "irreversible"
+        }, Effect.void)
+      )
 
-    await Effect.runPromise(Deferred.await(entered))
-    await Effect.runPromise(Fiber.interrupt(fiber))
-    const exit = await Effect.runPromise(Fiber.await(fiber))
+      expect(malformed).toMatchObject({ code: "invalid", message: "effect boundary description is invalid" })
+      expect(exhausted).toMatchObject({
+        code: "invalid",
+        message: "effect invalid-boundary has no terminal source sequence"
+      })
+      expect(irreversible).toMatchObject({
+        code: "invalid",
+        message: "irreversible effect invalid-boundary requires an idempotency key"
+      })
+    }).pipe(Effect.provideService(Journal.Journal, Journal.makeNoop())))
 
-    expect(exit._tag).toBe("Failure")
-    expect(emitted).toEqual(["intended", "unknown"])
-  })
+  it.effect("reports a succeeded-boundary persistence failure after the action has completed", () =>
+    Effect.gen(function*() {
+      let actionRuns = 0
+      let emits = 0
+      const journal = Journal.makeNoop({
+        emitDurable: () =>
+          Effect.suspend(() => {
+            emits += 1
+            return emits === 1
+              ? Effect.succeed({
+                _tag: "Accepted" as const,
+                seq: 1 as JournalEvent.Seq,
+                sourceSeq: 1 as JournalEvent.SourceSeq
+              })
+              : Effect.fail(new Journal.JournalError({ code: "unknown", message: "terminal journal failure" }))
+          })
+      })
+
+      const failure = yield* (
+        Effect.flip(
+          EffectBoundary.guard({
+            id: "terminal-success-failure",
+            kind: "mail.send",
+            tier: "irreversible",
+            runId: "run",
+            lineageId: "run/root",
+            sourceId: "adapter",
+            ...boundaryAuthority
+          }, Effect.sync(() => ++actionRuns)).pipe(
+            Effect.provide(Layer.succeed(Journal.Journal, journal))
+          )
+        )
+      )
+
+      expect(actionRuns).toBe(1)
+      expect(emits).toBe(2)
+      expect(failure).toMatchObject({
+        code: "unknown",
+        message: "could not record succeeded boundary for effect terminal-success-failure"
+      })
+    }))
+
+  it.effect("records unknown and preserves the original action failure", () =>
+    Effect.gen(function*() {
+      const emitted: Array<JournalEvent.Input> = []
+      const journal = Journal.makeNoop({
+        emitDurable: (input) =>
+          Effect.sync(() => {
+            emitted.push(input)
+            return {
+              _tag: "Accepted" as const,
+              seq: emitted.length as JournalEvent.Seq,
+              sourceSeq: emitted.length as JournalEvent.SourceSeq
+            }
+          })
+      })
+      const failure = yield* (
+        Effect.flip(
+          EffectBoundary.guard({
+            id: "effect-failed",
+            kind: "mail.send",
+            tier: "irreversible",
+            runId: "run",
+            lineageId: "run/root",
+            sourceId: "adapter",
+            ...boundaryAuthority
+          }, Effect.fail("action-failed")).pipe(
+            Effect.provide(Layer.succeed(Journal.Journal, journal))
+          )
+        )
+      )
+
+      expect(failure).toBe("action-failed")
+      expect(emitted.map((input) =>
+        (input.payload as {
+          readonly effect: { readonly status: string }
+        }).effect.status
+      )).toEqual(["intended", "unknown"])
+    }))
+
+  it.effect("records unknown and preserves an action defect as a defect", () =>
+    Effect.gen(function*() {
+      const emitted: Array<string> = []
+      const journal = Journal.makeNoop({
+        emitDurable: (input) =>
+          Effect.sync(() => {
+            emitted.push((input.payload as { readonly effect: { readonly status: string } }).effect.status)
+            return {
+              _tag: "Accepted" as const,
+              seq: emitted.length as JournalEvent.Seq,
+              sourceSeq: emitted.length as JournalEvent.SourceSeq
+            }
+          })
+      })
+
+      const exit = yield* (
+        Effect.exit(
+          EffectBoundary.guard({
+            id: "effect-defect",
+            kind: "mail.send",
+            tier: "irreversible",
+            runId: "run",
+            lineageId: "run/root",
+            sourceId: "adapter",
+            ...boundaryAuthority
+          }, Effect.die("action-defect")).pipe(
+            Effect.provide(Layer.succeed(Journal.Journal, journal))
+          )
+        )
+      )
+
+      expect(Exit.isFailure(exit)).toBe(true)
+      if (Exit.isFailure(exit)) {
+        const defect = Cause.findDefect(exit.cause)
+        expect(Result.isSuccess(defect) ? defect.success : undefined).toBe("action-defect")
+      }
+      expect(emitted).toEqual(["intended", "unknown"])
+    }))
+
+  it.effect("preserves an action failure when recording its unknown boundary also fails", () =>
+    Effect.gen(function*() {
+      let emits = 0
+      const journal = Journal.makeNoop({
+        emitDurable: () =>
+          Effect.suspend(() => {
+            emits += 1
+            return emits === 2
+              ? Effect.fail(new Journal.JournalError({ code: "unknown", message: "terminal journal failure" }))
+              : Effect.succeed({
+                _tag: "Accepted" as const,
+                seq: emits as JournalEvent.Seq,
+                sourceSeq: emits as JournalEvent.SourceSeq
+              })
+          })
+      })
+
+      const failure = yield* (
+        Effect.flip(
+          EffectBoundary.guard({
+            id: "terminal-emit-failure",
+            kind: "mail.send",
+            tier: "irreversible",
+            runId: "run",
+            lineageId: "run/root",
+            sourceId: "adapter",
+            ...boundaryAuthority
+          }, Effect.fail("action-failed")).pipe(Effect.provide(Layer.succeed(Journal.Journal, journal)))
+        )
+      )
+
+      expect(failure).toBe("action-failed")
+      expect(emits).toBe(2)
+    }))
+
+  it.effect("settles an interrupted action as unknown before the fiber exits", () =>
+    Effect.gen(function*() {
+      const emitted: Array<string> = []
+      const entered = Effect.runSync(Deferred.make<void>())
+      const journal = Journal.makeNoop({
+        emitDurable: (input) =>
+          Effect.sync(() => {
+            emitted.push((input.payload as { readonly effect: { readonly status: string } }).effect.status)
+            return {
+              _tag: "Accepted" as const,
+              seq: emitted.length as JournalEvent.Seq,
+              sourceSeq: emitted.length as JournalEvent.SourceSeq
+            }
+          })
+      })
+      const fiber = Effect.runFork(
+        EffectBoundary.guard({
+          id: "interrupted",
+          kind: "mail.send",
+          tier: "irreversible",
+          runId: "run",
+          lineageId: "run/root",
+          sourceId: "adapter",
+          ...boundaryAuthority
+        }, Deferred.succeed(entered, undefined).pipe(Effect.andThen(Effect.never))).pipe(
+          Effect.provide(Layer.succeed(Journal.Journal, journal))
+        )
+      )
+
+      yield* (Deferred.await(entered))
+      yield* (Fiber.interrupt(fiber))
+      const exit = yield* (Fiber.await(fiber))
+
+      expect(exit._tag).toBe("Failure")
+      expect(emitted).toEqual(["intended", "unknown"])
+    }))
 })

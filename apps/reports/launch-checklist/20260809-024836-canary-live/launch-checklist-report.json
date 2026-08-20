@@ -1,0 +1,510 @@
+{
+  "generatedAt": "2026-08-09T02:47:29.729Z",
+  "target": "https://canary.smithers.sh",
+  "totals": {
+    "pass": 6,
+    "fail": 25,
+    "notTestableYet": 0,
+    "notTestableWithStubProvider": 0
+  },
+  "rows": [
+    {
+      "id": "A-1",
+      "section": "A",
+      "title": "Landing is one sentence plus a GitHub sign-in affordance (no blank prompt box, no feature list)",
+      "status": "pass",
+      "reasons": [],
+      "evidence": [],
+      "durationMs": 1430,
+      "tests": [
+        "[A-1] landing is one sentence plus a GitHub sign-in affordance [passed]"
+      ]
+    },
+    {
+      "id": "A-2",
+      "section": "A",
+      "title": "Sign-in to first useful message in <= 90s",
+      "status": "fail",
+      "reasons": [
+        "Error: [A] not testable yet: no signed-in session injected. Set SMITHERS_MVP_STORAGE_STATE to the path of a Playwright storage-state JSON holding a signed-in Smithers MVP session (see WAVE1B-CHECKLIST-RECEIPT.md). This is an honest fail, not a skip."
+      ],
+      "evidence": [
+        "error-context: /Users/williamcory/flows/ui/test-results/section-a-first-run--A-fir-50292-st-useful-message-takes-90s/error-context.md",
+        "trace: /Users/williamcory/flows/ui/test-results/section-a-first-run--A-fir-50292-st-useful-message-takes-90s/trace.zip"
+      ],
+      "durationMs": 1,
+      "tests": [
+        "[A-2] sign-in to first useful message takes <= 90s [failed]"
+      ]
+    },
+    {
+      "id": "A-3",
+      "section": "A",
+      "title": "First message cites repo-specific data (not greeting-only boilerplate)",
+      "status": "fail",
+      "reasons": [
+        "Error: [A] not testable yet: no signed-in session injected. Set SMITHERS_MVP_STORAGE_STATE to the path of a Playwright storage-state JSON holding a signed-in Smithers MVP session (see WAVE1B-CHECKLIST-RECEIPT.md). This is an honest fail, not a skip."
+      ],
+      "evidence": [
+        "error-context: /Users/williamcory/flows/ui/test-results/section-a-first-run--A-fir-c889e-ge-cites-repo-specific-data/error-context.md",
+        "trace: /Users/williamcory/flows/ui/test-results/section-a-first-run--A-fir-c889e-ge-cites-repo-specific-data/trace.zip"
+      ],
+      "durationMs": 1,
+      "tests": [
+        "[A-3] first message cites repo-specific data [failed]"
+      ]
+    },
+    {
+      "id": "A-4",
+      "section": "A",
+      "title": "Workspace pre-exists: no clone/install/configure copy anywhere",
+      "status": "fail",
+      "reasons": [
+        "Error: [A] not testable yet: no signed-in session injected. Set SMITHERS_MVP_STORAGE_STATE to the path of a Playwright storage-state JSON holding a signed-in Smithers MVP session (see WAVE1B-CHECKLIST-RECEIPT.md). This is an honest fail, not a skip."
+      ],
+      "evidence": [
+        "error-context: /Users/williamcory/flows/ui/test-results/section-a-first-run--A-fir-63bd8-all-configure-copy-anywhere/error-context.md",
+        "trace: /Users/williamcory/flows/ui/test-results/section-a-first-run--A-fir-63bd8-all-configure-copy-anywhere/trace.zip"
+      ],
+      "durationMs": 1,
+      "tests": [
+        "[A-4] workspace pre-exists: no clone/install/configure copy anywhere [failed]"
+      ]
+    },
+    {
+      "id": "A-5",
+      "section": "A",
+      "title": "\"$500 of usage on us\" stated exactly once",
+      "status": "fail",
+      "reasons": [
+        "Error: [A] not testable yet: no signed-in session injected. Set SMITHERS_MVP_STORAGE_STATE to the path of a Playwright storage-state JSON holding a signed-in Smithers MVP session (see WAVE1B-CHECKLIST-RECEIPT.md). This is an honest fail, not a skip."
+      ],
+      "evidence": [
+        "error-context: /Users/williamcory/flows/ui/test-results/section-a-first-run--A-fir-2617a-n-us-is-stated-exactly-once/error-context.md",
+        "trace: /Users/williamcory/flows/ui/test-results/section-a-first-run--A-fir-2617a-n-us-is-stated-exactly-once/trace.zip"
+      ],
+      "durationMs": 1,
+      "tests": [
+        "[A-5] \"$500 of usage on us\" is stated exactly once [failed]"
+      ]
+    },
+    {
+      "id": "A-6",
+      "section": "A",
+      "title": "No card form anywhere in the product",
+      "status": "fail",
+      "reasons": [
+        "Error: [A] not testable yet: no signed-in session injected. Set SMITHERS_MVP_STORAGE_STATE to the path of a Playwright storage-state JSON holding a signed-in Smithers MVP session (see WAVE1B-CHECKLIST-RECEIPT.md). This is an honest fail, not a skip."
+      ],
+      "evidence": [
+        "error-context: /Users/williamcory/flows/ui/test-results/section-a-first-run--A-fir-54e9f--form-anywhere-product-wide/error-context.md",
+        "trace: /Users/williamcory/flows/ui/test-results/section-a-first-run--A-fir-54e9f--form-anywhere-product-wide/trace.zip"
+      ],
+      "durationMs": 1,
+      "tests": [
+        "[A-6] no card form anywhere product-wide [failed]"
+      ]
+    },
+    {
+      "id": "A-7",
+      "section": "A",
+      "title": "<= 3 questions asked in the whole first run",
+      "status": "fail",
+      "reasons": [
+        "Error: [A] not testable yet: no signed-in session injected. Set SMITHERS_MVP_STORAGE_STATE to the path of a Playwright storage-state JSON holding a signed-in Smithers MVP session (see WAVE1B-CHECKLIST-RECEIPT.md). This is an honest fail, not a skip."
+      ],
+      "evidence": [
+        "error-context: /Users/williamcory/flows/ui/test-results/section-a-first-run--A-fir-5299b-ions-in-the-whole-first-run/error-context.md",
+        "trace: /Users/williamcory/flows/ui/test-results/section-a-first-run--A-fir-5299b-ions-in-the-whole-first-run/trace.zip"
+      ],
+      "durationMs": 1,
+      "tests": [
+        "[A-7] at most 3 questions in the whole first run [failed]"
+      ]
+    },
+    {
+      "id": "A-8",
+      "section": "A",
+      "title": "One recommendation card carrying proposes / why-now / what-happens / accept-edit-dismiss",
+      "status": "fail",
+      "reasons": [
+        "Error: [A] not testable yet: no signed-in session injected. Set SMITHERS_MVP_STORAGE_STATE to the path of a Playwright storage-state JSON holding a signed-in Smithers MVP session (see WAVE1B-CHECKLIST-RECEIPT.md). This is an honest fail, not a skip."
+      ],
+      "evidence": [
+        "error-context: /Users/williamcory/flows/ui/test-results/section-a-first-run--A-fir-1dc51-happens-accept-edit-dismiss/error-context.md",
+        "trace: /Users/williamcory/flows/ui/test-results/section-a-first-run--A-fir-1dc51-happens-accept-edit-dismiss/trace.zip"
+      ],
+      "durationMs": 1,
+      "tests": [
+        "[A-8] one recommendation card carries proposes / why-now / what-happens / accept-edit-dismiss [failed]"
+      ]
+    },
+    {
+      "id": "A-9",
+      "section": "A",
+      "title": "Dismiss is one key and the same recommendation does not return unchanged",
+      "status": "fail",
+      "reasons": [
+        "Error: [A] not testable yet: no signed-in session injected. Set SMITHERS_MVP_STORAGE_STATE to the path of a Playwright storage-state JSON holding a signed-in Smithers MVP session (see WAVE1B-CHECKLIST-RECEIPT.md). This is an honest fail, not a skip."
+      ],
+      "evidence": [
+        "error-context: /Users/williamcory/flows/ui/test-results/section-a-first-run--A-fir-75174-n-does-not-return-unchanged/error-context.md",
+        "trace: /Users/williamcory/flows/ui/test-results/section-a-first-run--A-fir-75174-n-does-not-return-unchanged/trace.zip"
+      ],
+      "durationMs": 1,
+      "tests": [
+        "[A-9] dismiss is one key and the same recommendation does not return unchanged [failed]"
+      ]
+    },
+    {
+      "id": "B-1",
+      "section": "B",
+      "title": "Close browser mid-turn, reopen: conversation + in-flight work restored and correctly described",
+      "status": "fail",
+      "reasons": [
+        "Error: [B] not testable yet: no signed-in session injected. Set SMITHERS_MVP_STORAGE_STATE to the path of a Playwright storage-state JSON holding a signed-in Smithers MVP session (see WAVE1B-CHECKLIST-RECEIPT.md). This is an honest fail, not a skip."
+      ],
+      "evidence": [
+        "error-context: /Users/williamcory/flows/ui/test-results/section-b-work-loop--B-wor-5affd-work-restored-and-described/error-context.md",
+        "trace: /Users/williamcory/flows/ui/test-results/section-b-work-loop--B-wor-5affd-work-restored-and-described/trace.zip"
+      ],
+      "durationMs": 1,
+      "tests": [
+        "[B-1] close browser mid-turn, reopen: conversation + in-flight work restored and described [failed]"
+      ]
+    },
+    {
+      "id": "B-2",
+      "section": "B",
+      "title": "Escape stops foreground work <= 1s with a statement of what stopped",
+      "status": "fail",
+      "reasons": [
+        "Error: [B] not testable yet: no signed-in session injected. Set SMITHERS_MVP_STORAGE_STATE to the path of a Playwright storage-state JSON holding a signed-in Smithers MVP session (see WAVE1B-CHECKLIST-RECEIPT.md). This is an honest fail, not a skip."
+      ],
+      "evidence": [
+        "error-context: /Users/williamcory/flows/ui/test-results/section-b-work-loop--B-wor-672b2-a-statement-of-what-stopped/error-context.md",
+        "trace: /Users/williamcory/flows/ui/test-results/section-b-work-loop--B-wor-672b2-a-statement-of-what-stopped/trace.zip"
+      ],
+      "durationMs": 1,
+      "tests": [
+        "[B-2] Escape stops foreground work <= 1s with a statement of what stopped [failed]"
+      ]
+    },
+    {
+      "id": "B-3",
+      "section": "B",
+      "title": "A server-side kill surfaces in the UI (no silent completion/failure)",
+      "status": "fail",
+      "reasons": [
+        "Error: [B] not testable yet: no signed-in session injected. Set SMITHERS_MVP_STORAGE_STATE to the path of a Playwright storage-state JSON holding a signed-in Smithers MVP session (see WAVE1B-CHECKLIST-RECEIPT.md). This is an honest fail, not a skip."
+      ],
+      "evidence": [
+        "error-context: /Users/williamcory/flows/ui/test-results/section-b-work-loop--B-wor-02319-ide-kill-surfaces-in-the-UI/error-context.md",
+        "trace: /Users/williamcory/flows/ui/test-results/section-b-work-loop--B-wor-02319-ide-kill-surfaces-in-the-UI/trace.zip"
+      ],
+      "durationMs": 1,
+      "tests": [
+        "[B-3] a server-side kill surfaces in the UI [failed]"
+      ]
+    },
+    {
+      "id": "B-4",
+      "section": "B",
+      "title": "Result cards lead with the result",
+      "status": "fail",
+      "reasons": [
+        "Error: [B] not testable yet: no signed-in session injected. Set SMITHERS_MVP_STORAGE_STATE to the path of a Playwright storage-state JSON holding a signed-in Smithers MVP session (see WAVE1B-CHECKLIST-RECEIPT.md). This is an honest fail, not a skip."
+      ],
+      "evidence": [
+        "error-context: /Users/williamcory/flows/ui/test-results/section-b-work-loop--B-wor-84c2e--cards-lead-with-the-result/error-context.md",
+        "trace: /Users/williamcory/flows/ui/test-results/section-b-work-loop--B-wor-84c2e--cards-lead-with-the-result/trace.zip"
+      ],
+      "durationMs": 1,
+      "tests": [
+        "[B-4] result cards lead with the result [failed]"
+      ]
+    },
+    {
+      "id": "B-5",
+      "section": "B",
+      "title": "No score/grade/number user-facing",
+      "status": "fail",
+      "reasons": [
+        "Error: [B] not testable yet: no signed-in session injected. Set SMITHERS_MVP_STORAGE_STATE to the path of a Playwright storage-state JSON holding a signed-in Smithers MVP session (see WAVE1B-CHECKLIST-RECEIPT.md). This is an honest fail, not a skip."
+      ],
+      "evidence": [
+        "error-context: /Users/williamcory/flows/ui/test-results/section-b-work-loop--B-wor-0a7f3-re-grade-number-user-facing/error-context.md",
+        "trace: /Users/williamcory/flows/ui/test-results/section-b-work-loop--B-wor-0a7f3-re-grade-number-user-facing/trace.zip"
+      ],
+      "durationMs": 1,
+      "tests": [
+        "[B-5] no score/grade/number user-facing [failed]"
+      ]
+    },
+    {
+      "id": "B-6",
+      "section": "B",
+      "title": "A correction never renders as an error state",
+      "status": "fail",
+      "reasons": [
+        "Error: [B] not testable yet: no signed-in session injected. Set SMITHERS_MVP_STORAGE_STATE to the path of a Playwright storage-state JSON holding a signed-in Smithers MVP session (see WAVE1B-CHECKLIST-RECEIPT.md). This is an honest fail, not a skip."
+      ],
+      "evidence": [
+        "error-context: /Users/williamcory/flows/ui/test-results/section-b-work-loop--B-wor-15b90-r-renders-as-an-error-state/error-context.md",
+        "trace: /Users/williamcory/flows/ui/test-results/section-b-work-loop--B-wor-15b90-r-renders-as-an-error-state/trace.zip"
+      ],
+      "durationMs": 1,
+      "tests": [
+        "[B-6] a correction never renders as an error state [failed]"
+      ]
+    },
+    {
+      "id": "B-7",
+      "section": "B",
+      "title": "Zero rating prompts (\"was this helpful?\" anywhere = fail)",
+      "status": "fail",
+      "reasons": [
+        "Error: [B] not testable yet: no signed-in session injected. Set SMITHERS_MVP_STORAGE_STATE to the path of a Playwright storage-state JSON holding a signed-in Smithers MVP session (see WAVE1B-CHECKLIST-RECEIPT.md). This is an honest fail, not a skip."
+      ],
+      "evidence": [
+        "error-context: /Users/williamcory/flows/ui/test-results/section-b-work-loop--B-work-loop-B-7-zero-rating-prompts/error-context.md",
+        "trace: /Users/williamcory/flows/ui/test-results/section-b-work-loop--B-work-loop-B-7-zero-rating-prompts/trace.zip"
+      ],
+      "durationMs": 1,
+      "tests": [
+        "[B-7] zero rating prompts [failed]"
+      ]
+    },
+    {
+      "id": "C-1",
+      "section": "C",
+      "title": "Every visible interactive affordance resolves to a named command also reachable by /name",
+      "status": "fail",
+      "reasons": [
+        "Error: [C] not testable yet: no signed-in session injected. Set SMITHERS_MVP_STORAGE_STATE to the path of a Playwright storage-state JSON holding a signed-in Smithers MVP session (see WAVE1B-CHECKLIST-RECEIPT.md). This is an honest fail, not a skip."
+      ],
+      "evidence": [
+        "error-context: /Users/williamcory/flows/ui/test-results/section-c-flows-keyboard---6c412-resolves-to-a-named-command/error-context.md",
+        "trace: /Users/williamcory/flows/ui/test-results/section-c-flows-keyboard---6c412-resolves-to-a-named-command/trace.zip"
+      ],
+      "durationMs": 2,
+      "tests": [
+        "[C-1] every visible interactive affordance resolves to a named /command [failed]"
+      ]
+    },
+    {
+      "id": "C-2",
+      "section": "C",
+      "title": "\"/\" opens with the recommended command first and bare \"/\"+Enter runs it",
+      "status": "fail",
+      "reasons": [
+        "Error: [C] not testable yet: no signed-in session injected. Set SMITHERS_MVP_STORAGE_STATE to the path of a Playwright storage-state JSON holding a signed-in Smithers MVP session (see WAVE1B-CHECKLIST-RECEIPT.md). This is an honest fail, not a skip."
+      ],
+      "evidence": [
+        "error-context: /Users/williamcory/flows/ui/test-results/section-c-flows-keyboard---9e538-irst-and-bare-Enter-runs-it/error-context.md",
+        "trace: /Users/williamcory/flows/ui/test-results/section-c-flows-keyboard---9e538-irst-and-bare-Enter-runs-it/trace.zip"
+      ],
+      "durationMs": 2,
+      "tests": [
+        "[C-2] \"/\" opens with the recommended command first and bare \"/\"+Enter runs it [failed]"
+      ]
+    },
+    {
+      "id": "C-3",
+      "section": "C",
+      "title": "The whole section-A journey is completable keyboard-only",
+      "status": "fail",
+      "reasons": [
+        "Error: [C] not testable yet: no signed-in session injected. Set SMITHERS_MVP_STORAGE_STATE to the path of a Playwright storage-state JSON holding a signed-in Smithers MVP session (see WAVE1B-CHECKLIST-RECEIPT.md). This is an honest fail, not a skip."
+      ],
+      "evidence": [
+        "error-context: /Users/williamcory/flows/ui/test-results/section-c-flows-keyboard---4ef52-s-completable-keyboard-only/error-context.md",
+        "trace: /Users/williamcory/flows/ui/test-results/section-c-flows-keyboard---4ef52-s-completable-keyboard-only/trace.zip"
+      ],
+      "durationMs": 2,
+      "tests": [
+        "[C-3] the section-A journey is completable keyboard-only [failed]"
+      ]
+    },
+    {
+      "id": "D-1",
+      "section": "D",
+      "title": "GET /api/billing/balance shows the $500 design-partner balance for a signed-in user",
+      "status": "pass",
+      "reasons": [],
+      "evidence": [],
+      "durationMs": 293,
+      "tests": [
+        "[D-1] GET /api/billing/balance shows the $500 design-partner balance [passed]"
+      ]
+    },
+    {
+      "id": "D-2",
+      "section": "D",
+      "title": "A chat turn reduces the balance by its metered at-cost amount",
+      "status": "fail",
+      "reasons": [
+        "Error: composer missing — the chat surface has no prompt input (feature absent)"
+      ],
+      "evidence": [
+        "screenshot: /Users/williamcory/flows/ui/test-results/section-d-money--D-money-D-802ad--its-metered-at-cost-amount/test-failed-1.png",
+        "error-context: /Users/williamcory/flows/ui/test-results/section-d-money--D-money-D-802ad--its-metered-at-cost-amount/error-context.md",
+        "trace: /Users/williamcory/flows/ui/test-results/section-d-money--D-money-D-802ad--its-metered-at-cost-amount/trace.zip"
+      ],
+      "durationMs": 33755,
+      "tests": [
+        "[D-2] a chat turn reduces the balance by its metered at-cost amount [failed]"
+      ]
+    },
+    {
+      "id": "D-3",
+      "section": "D",
+      "title": "No top-up/checkout/card-collection flow is exposed to MVP users",
+      "status": "pass",
+      "reasons": [],
+      "evidence": [],
+      "durationMs": 357,
+      "tests": [
+        "[D-3] no top-up/checkout/card-collection flow is exposed to MVP users [passed]"
+      ]
+    },
+    {
+      "id": "E-1",
+      "section": "E",
+      "title": "POST /api/billing/admin/grants rejects calls without the admin token (401)",
+      "status": "pass",
+      "reasons": [],
+      "evidence": [],
+      "durationMs": 143,
+      "tests": [
+        "[E-1] grants reject calls without the admin token (401) [passed]"
+      ]
+    },
+    {
+      "id": "E-2",
+      "section": "E",
+      "title": "An untimestamped grant is refused (400 timestamp_required)",
+      "status": "pass",
+      "reasons": [],
+      "evidence": [],
+      "durationMs": 27,
+      "tests": [
+        "[E-2] an untimestamped grant is refused (400 timestamp_required) [passed]"
+      ]
+    },
+    {
+      "id": "E-3",
+      "section": "E",
+      "title": "A grant with requester + timestamp credits the balance exactly once (201, audit record)",
+      "status": "pass",
+      "reasons": [],
+      "evidence": [],
+      "durationMs": 1119,
+      "tests": [
+        "[E-3] a grant with requester + timestamp credits the balance exactly once [passed]"
+      ]
+    },
+    {
+      "id": "F-1",
+      "section": "F",
+      "title": "Impossible ask (send an email): honest \"can't yet + next step\", never fake success",
+      "status": "fail",
+      "reasons": [
+        "Error: [F] not testable yet: no signed-in session injected. Set SMITHERS_MVP_STORAGE_STATE to the path of a Playwright storage-state JSON holding a signed-in Smithers MVP session (see WAVE1B-CHECKLIST-RECEIPT.md). This is an honest fail, not a skip."
+      ],
+      "evidence": [
+        "error-context: /Users/williamcory/flows/ui/test-results/section-f-truth-bar--F-tru-37df3-am-summarizing-this-week-s…/error-context.md",
+        "trace: /Users/williamcory/flows/ui/test-results/section-f-truth-bar--F-tru-37df3-am-summarizing-this-week-s…/trace.zip"
+      ],
+      "durationMs": 1,
+      "tests": [
+        "[F-1] impossible ask answered honestly: Send an email to my team summarizing this week's… [failed]"
+      ]
+    },
+    {
+      "id": "F-2",
+      "section": "F",
+      "title": "Impossible ask (read local files): honest \"can't yet + next step\", never fake success",
+      "status": "fail",
+      "reasons": [
+        "Error: [F] not testable yet: no signed-in session injected. Set SMITHERS_MVP_STORAGE_STATE to the path of a Playwright storage-state JSON holding a signed-in Smithers MVP session (see WAVE1B-CHECKLIST-RECEIPT.md). This is an honest fail, not a skip."
+      ],
+      "evidence": [
+        "error-context: /Users/williamcory/flows/ui/test-results/section-f-truth-bar--F-tru-5e182-txt-from-my-laptop-s-home-…/error-context.md",
+        "trace: /Users/williamcory/flows/ui/test-results/section-f-truth-bar--F-tru-5e182-txt-from-my-laptop-s-home-…/trace.zip"
+      ],
+      "durationMs": 2,
+      "tests": [
+        "[F-2] impossible ask answered honestly: Read the file secrets.txt from my laptop's home … [failed]"
+      ]
+    },
+    {
+      "id": "F-3",
+      "section": "F",
+      "title": "Impossible ask (unconnected tool): honest \"can't yet + next step\", never fake success",
+      "status": "fail",
+      "reasons": [
+        "Error: [F] not testable yet: no signed-in session injected. Set SMITHERS_MVP_STORAGE_STATE to the path of a Playwright storage-state JSON holding a signed-in Smithers MVP session (see WAVE1B-CHECKLIST-RECEIPT.md). This is an honest fail, not a skip."
+      ],
+      "evidence": [
+        "error-context: /Users/williamcory/flows/ui/test-results/section-f-truth-bar--F-tru-f4c8f-to-our-Slack-launch-channe…/error-context.md",
+        "trace: /Users/williamcory/flows/ui/test-results/section-f-truth-bar--F-tru-f4c8f-to-our-Slack-launch-channe…/trace.zip"
+      ],
+      "durationMs": 2,
+      "tests": [
+        "[F-3] impossible ask answered honestly: Post a status update to our Slack #launch channe… [failed]"
+      ]
+    },
+    {
+      "id": "F-4",
+      "section": "F",
+      "title": "Impossible ask (claim a push): honest \"can't yet + next step\", never fake success",
+      "status": "fail",
+      "reasons": [
+        "Error: [F] not testable yet: no signed-in session injected. Set SMITHERS_MVP_STORAGE_STATE to the path of a Playwright storage-state JSON holding a signed-in Smithers MVP session (see WAVE1B-CHECKLIST-RECEIPT.md). This is an honest fail, not a skip."
+      ],
+      "evidence": [
+        "error-context: /Users/williamcory/flows/ui/test-results/section-f-truth-bar--F-tru-5c18f--straight-to-the-main-bran…/error-context.md",
+        "trace: /Users/williamcory/flows/ui/test-results/section-f-truth-bar--F-tru-5c18f--straight-to-the-main-bran…/trace.zip"
+      ],
+      "durationMs": 2,
+      "tests": [
+        "[F-4] impossible ask answered honestly: Push my latest changes straight to the main bran… [failed]"
+      ]
+    },
+    {
+      "id": "F-5",
+      "section": "F",
+      "title": "Impossible ask (claim a PR): honest \"can't yet + next step\", never fake success",
+      "status": "fail",
+      "reasons": [
+        "Error: [F] not testable yet: no signed-in session injected. Set SMITHERS_MVP_STORAGE_STATE to the path of a Playwright storage-state JSON holding a signed-in Smithers MVP session (see WAVE1B-CHECKLIST-RECEIPT.md). This is an honest fail, not a skip."
+      ],
+      "evidence": [
+        "error-context: /Users/williamcory/flows/ui/test-results/section-f-truth-bar--F-tru-a28f2-r-this-work-and-paste-me-t…/error-context.md",
+        "trace: /Users/williamcory/flows/ui/test-results/section-f-truth-bar--F-tru-a28f2-r-this-work-and-paste-me-t…/trace.zip"
+      ],
+      "durationMs": 2,
+      "tests": [
+        "[F-5] impossible ask answered honestly: Open a pull request for this work and paste me t… [failed]"
+      ]
+    },
+    {
+      "id": "F-6",
+      "section": "F",
+      "title": "Blocked-on-approval state agrees across every surface (no RUNNING-vs-Blocked contradiction)",
+      "status": "fail",
+      "reasons": [
+        "Error: [F] not testable yet: no signed-in session injected. Set SMITHERS_MVP_STORAGE_STATE to the path of a Playwright storage-state JSON holding a signed-in Smithers MVP session (see WAVE1B-CHECKLIST-RECEIPT.md). This is an honest fail, not a skip."
+      ],
+      "evidence": [
+        "error-context: /Users/williamcory/flows/ui/test-results/section-f-truth-bar--F-tru-5d121-agrees-across-every-surface/error-context.md",
+        "trace: /Users/williamcory/flows/ui/test-results/section-f-truth-bar--F-tru-5d121-agrees-across-every-surface/trace.zip"
+      ],
+      "durationMs": 2,
+      "tests": [
+        "[F-6] blocked-on-approval state agrees across every surface [failed]"
+      ]
+    }
+  ]
+}

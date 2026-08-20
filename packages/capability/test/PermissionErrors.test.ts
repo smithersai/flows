@@ -25,7 +25,7 @@ describe("permission failures", () => {
   it("constructs a request for an exact capability and defaults its meta", () => {
     const required = permissionRequired({ requestId: "req-1", capability, tier: "compensable" })
     expect(required).toMatchObject({
-      _tag: "@smthrs/capability-next/PermissionRequired",
+      _tag: "@smthrs/capability/PermissionRequired",
       code: "permission_required",
       requestId: "req-1",
       tier: "compensable",
@@ -46,7 +46,7 @@ describe("permission failures", () => {
 
   it("constructs a denial carrying its reason", () => {
     expect(permissionDenied(capability, "outside the workspace")).toMatchObject({
-      _tag: "@smthrs/capability-next/PermissionDenied",
+      _tag: "@smthrs/capability/PermissionDenied",
       code: "permission_denied",
       reason: "outside the workspace"
     })
@@ -57,7 +57,7 @@ describe("permission failures", () => {
     expect(isPermissionError(permissionDenied(capability, "no"))).toBe(true)
     expect(isPermissionError(new GrantStoreError({ code: "store_closed" }))).toBe(true)
     expect(isPermissionError(new Error("boom"))).toBe(false)
-    expect(isPermissionError({ _tag: "@smthrs/jj-next/JjError" })).toBe(false)
+    expect(isPermissionError({ _tag: "@smthrs/jj/JjError" })).toBe(false)
     expect(isPermissionError(null)).toBe(false)
     expect(isPermissionError("permission_denied")).toBe(false)
   })

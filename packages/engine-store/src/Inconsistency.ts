@@ -20,10 +20,10 @@
  *
  * @since 0.1.0
  */
-import { FlowEngine } from "@smthrs/engine-next"
-import { Journal } from "@smthrs/journal-next"
-import type { Ownership } from "@smthrs/run-store-next"
-import type { CacheStore } from "@smthrs/step-cache-next"
+import { FlowEngine } from "@smthrs/engine"
+import { Journal } from "@smthrs/journal"
+import type { Ownership } from "@smthrs/run-store"
+import type { CacheStore } from "@smthrs/step-cache"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -34,6 +34,7 @@ import * as JournalRecords from "./internal/JournalRecords.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type InconsistencyVerdict = "fail" | "tolerate"
 
@@ -43,6 +44,7 @@ export type InconsistencyVerdict = "fail" | "tolerate"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface CacheConflict {
   readonly key: string
@@ -59,6 +61,7 @@ export interface CacheConflict {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface BlobCorruption {
   /** The run that observed the corruption; the journaling target. */
@@ -80,6 +83,7 @@ export interface BlobCorruption {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Service {
   readonly note: (event: CacheConflict) => Effect.Effect<InconsistencyVerdict, Journal.JournalError>
@@ -96,14 +100,16 @@ export interface Service {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
-export class Inconsistency extends Context.Service<Inconsistency, Service>()("flows/engine-store/Inconsistency") {}
+export class Inconsistency extends Context.Service<Inconsistency, Service>()("@smthrs/engine-store/Inconsistency") {}
 
 /**
  * Options for constructing a journaling inconsistency receiver.
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface MakeOptions {
   readonly journal: Journal.Service
@@ -125,6 +131,7 @@ export interface MakeOptions {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (options: MakeOptions): Service => ({
   note: Effect.fn("Inconsistency.note")((event) =>
@@ -203,6 +210,7 @@ export const make = (options: MakeOptions): Service => ({
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (overrides: Partial<Service> = {}): Service => ({
   note: Effect.fn("Inconsistency.note")(() => Effect.succeed("tolerate" as const)),
@@ -215,6 +223,7 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service => ({
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<Inconsistency> =>
   Layer.succeed(Inconsistency)(makeNoop(overrides))
@@ -226,6 +235,7 @@ export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<Inconsi
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerStrict: Layer.Layer<Inconsistency, never, Journal.Journal> = Layer.effect(Inconsistency)(
   Effect.gen(function*() {
@@ -240,6 +250,7 @@ export const layerStrict: Layer.Layer<Inconsistency, never, Journal.Journal> = L
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerTolerant: Layer.Layer<Inconsistency, never, Journal.Journal> = Layer.effect(Inconsistency)(
   Effect.gen(function*() {

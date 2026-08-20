@@ -1,7 +1,7 @@
-import { Capability, CapabilityPattern } from "@smthrs/capability-next/Capability"
-import { GrantStoreError, Rule } from "@smthrs/capability-next/Permission"
+import { describe, expect, it } from "@effect/vitest"
+import { Capability, CapabilityPattern } from "@smthrs/capability/Capability"
+import { GrantStoreError, Rule } from "@smthrs/capability/Permission"
 import { Effect, Fiber, Layer } from "effect"
-import { describe, expect, it } from "vitest"
 import type { GrantEvent } from "../src/GrantEvent.ts"
 import * as GrantStore from "../src/GrantStore.ts"
 import * as Workspace from "../src/Workspace.ts"
@@ -27,7 +27,7 @@ const make = (options?: GrantStore.MakeOptions) =>
   GrantStore.make(options).pipe(Effect.provide(Workspace.layer("/workspace")))
 
 const itEffect = <A, E>(name: string, body: () => Effect.Effect<A, E>): void => {
-  it(name, () => Effect.runPromise(body()))
+  it.effect(name, () => body())
 }
 
 const recorder = () => {
@@ -181,6 +181,23 @@ describe("GrantStore construction-time envelope", () => {
       })
     ))
 
+  itEffect("refuses a runtime-invalid envelope scope with a typed store error", () =>
+    Effect.scoped(
+      Effect.gen(function*() {
+        const failure = yield* Effect.flip(
+          make({
+            planDigest: "plan-1",
+            envelope: {
+              planDigest: "plan-1",
+              patterns: [workspaceReads],
+              scope: "once" as unknown as "run" | "remembered"
+            }
+          })
+        )
+        expect(failure.code).toBe("invalid_resolution")
+      })
+    ))
+
   itEffect("refuses an envelope pattern that widens the filesystem effect tier", () =>
     Effect.scoped(
       Effect.gen(function*() {
@@ -217,6 +234,49 @@ describe("GrantStore construction-time envelope", () => {
 })
 
 describe("GrantStore.grantEnvelope", () => {
+  itEffect("persists each predicate only once inside a runtime envelope", () =>
+    Effect.scoped(
+      Effect.gen(function*() {
+        const { events, persist } = recorder()
+        const store = yield* make({ attended: false, planDigest: "plan-1", persist })
+        yield* store.grantEnvelope({
+          planDigest: "plan-1",
+          patterns: [workspaceReads, workspaceReads],
+          scope: "run"
+        })
+
+        expect(events).toHaveLength(1)
+        expect(events[0]).toMatchObject({ patterns: [workspaceReads] })
+      })
+    ))
+
+  itEffect("makes repeated and reordered runtime envelopes idempotent", () =>
+    Effect.scoped(
+      Effect.gen(function*() {
+        const { events, persist } = recorder()
+        const store = yield* make({ attended: false, planDigest: "plan-1", persist })
+        yield* store.grantEnvelope({
+          planDigest: "plan-1",
+          patterns: [workspaceReads, workspaceWrites],
+          scope: "run"
+        })
+        yield* store.grantEnvelope({
+          planDigest: "plan-1",
+          patterns: [workspaceWrites, workspaceReads],
+          scope: "run"
+        })
+        yield* store.grantEnvelope({
+          planDigest: "plan-1",
+          patterns: [workspaceReads, workspaceWrites],
+          scope: "run"
+        })
+
+        expect(events).toHaveLength(1)
+        yield* store.check(insideRead)
+        yield* store.check(insideWrite)
+      })
+    ))
+
   itEffect("accepts an empty pattern list as a no-op without persisting", () =>
     Effect.scoped(
       Effect.gen(function*() {

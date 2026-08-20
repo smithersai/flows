@@ -63,5 +63,5 @@ export interface Provider {
  * @since 0.1.0
  */
 export const Provider: Context.Service<Provider, Provider> = Context.Service(
-  "@smthrs/sandbox-next/RemoteChildProcessSpawner/Provider"
+  "@smthrs/sandbox/RemoteChildProcessSpawner/Provider"
 )

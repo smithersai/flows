@@ -1,13 +1,13 @@
-import { DurableWriter, type Service as WriterService } from "@smthrs/database-next/DurableWriter"
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
-import { type DurableReceipt, Journal, type JournalError, makeNoop } from "@smthrs/journal-next/Journal"
-import { Input, type RunId, type Seq, type SourceId, type SourceSeq } from "@smthrs/journal-next/JournalEvent"
-import type { OwnerId } from "@smthrs/journal-next/OwnerId"
-import * as SqlJournal from "@smthrs/journal-next/SqlJournal"
+import { describe, expect, it } from "@effect/vitest"
+import { DurableWriter, type Service as WriterService } from "@smthrs/database/DurableWriter"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import { type DurableReceipt, Journal, type JournalError, makeNoop } from "@smthrs/journal/Journal"
+import { Input, type RunId, type Seq, type SourceId, type SourceSeq } from "@smthrs/journal/JournalEvent"
+import type { OwnerId } from "@smthrs/journal/OwnerId"
+import * as SqlJournal from "@smthrs/journal/SqlJournal"
 import { Deferred, Effect, Layer } from "effect"
 import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
-import { describe, expect, it } from "vitest"
 import * as Migrations from "../src/Migrations.ts"
 
 const runId = (value: string): RunId => value as RunId
@@ -18,7 +18,7 @@ const ownerA: OwnerId = { hostId: "host-a", pid: 1, nonce: "nonce-a" }
 const ownerB: OwnerId = { hostId: "host-b", pid: 2, nonce: "nonce-b" }
 
 const effect = <E>(name: string, body: () => Effect.Effect<void, E>) =>
-  it(name, () => Effect.runPromise(body().pipe(Effect.provide(TestClock.layer()))))
+  it.effect(name, () => body().pipe(Effect.provide(TestClock.layer())))
 
 const input = (
   run: RunId,
@@ -76,24 +76,52 @@ const gateWrites = (gate: Deferred.Deferred<void>, passthrough = 0): Layer.Layer
   )
 
 const activateRun = (sql: SqlClient.SqlClient, run: RunId, owner: OwnerId) =>
-  sql`
-    INSERT INTO flows_runs (
-      run_id, status, created_at_ms, started_at_ms,
-      owner_host_id, owner_pid, owner_nonce, heartbeat_at_ms, state_json
-    ) VALUES (
-      ${run}, 'running', 0, 0,
-      ${owner.hostId}, ${owner.pid}, ${owner.nonce}, 0, '{}'
-    )
-  `
+  Effect.gen(function*() {
+    yield* sql`
+      INSERT INTO flows_runs (
+        run_id, status, created_at_ms, started_at_ms,
+        owner_host_id, owner_pid, owner_nonce, heartbeat_at_ms, state_json
+      ) VALUES (
+        ${run}, 'running', 0, 0,
+        ${owner.hostId}, ${owner.pid}, ${owner.nonce}, 0, '{}'
+      )
+    `
+    yield* sql`
+      INSERT INTO flows_consensus_leases (
+        run_id, owner_host_id, owner_pid, owner_nonce, granted_at_ms, heartbeat_at_ms
+      ) VALUES (
+        ${run}, ${owner.hostId}, ${owner.pid}, ${owner.nonce}, 0, 0
+      )
+    `
+  })
 
 const reclaimRun = (sql: SqlClient.SqlClient, run: RunId, owner: OwnerId) =>
-  sql`
-    UPDATE flows_runs
-    SET owner_host_id = ${owner.hostId},
-      owner_pid = ${owner.pid},
-      owner_nonce = ${owner.nonce}
-    WHERE run_id = ${run}
-  `
+  Effect.gen(function*() {
+    yield* sql`
+      UPDATE flows_runs
+      SET owner_host_id = ${owner.hostId},
+        owner_pid = ${owner.pid},
+        owner_nonce = ${owner.nonce}
+      WHERE run_id = ${run}
+    `
+    yield* sql`
+      INSERT INTO flows_consensus_leases (
+        run_id, owner_host_id, owner_pid, owner_nonce, granted_at_ms, heartbeat_at_ms
+      ) VALUES (
+        ${run}, ${owner.hostId}, ${owner.pid}, ${owner.nonce}, 0, 0
+      )
+      ON CONFLICT (run_id) DO UPDATE SET
+        owner_host_id = excluded.owner_host_id,
+        owner_pid = excluded.owner_pid,
+        owner_nonce = excluded.owner_nonce,
+        granted_at_ms = excluded.granted_at_ms,
+        heartbeat_at_ms = excluded.heartbeat_at_ms,
+        claim_host_id = NULL,
+        claim_pid = NULL,
+        claim_nonce = NULL,
+        claimed_at_ms = NULL
+    `
+  })
 
 const seqsOf = (sql: SqlClient.SqlClient, run: RunId) =>
   Effect.map(
@@ -175,7 +203,7 @@ describe("SqlJournal ownership fencing", () => {
       })
     ))
 
-  effect("a fenced retry of an already-committed entry stays idempotent after fence loss", () =>
+  effect("a fenced retry of an already-committed entry reports fence_lost after fence loss", () =>
     withJournal(
       Effect.gen(function*() {
         const journal = yield* Journal
@@ -186,12 +214,21 @@ describe("SqlJournal ownership fencing", () => {
           input(run, sourceId("s"), "created", 1, sourceSeq(0)),
           ownerA
         )
-        yield* reclaimRun(sql, run, ownerB)
-        const retry = yield* journal.emitDurable(
+        // While the fence holds, a retry of the same identity is idempotent.
+        const held = yield* journal.emitDurable(
           input(run, sourceId("s"), "created", 1, sourceSeq(0)),
           ownerA
         )
-        expect(retry).toEqual({ _tag: "Duplicate", seq: first.seq, sourceSeq: 0, status: "committed" })
+        expect(held).toEqual({ _tag: "Duplicate", seq: first.seq, sourceSeq: 0, status: "committed" })
+        yield* reclaimRun(sql, run, ownerB)
+        // Once the fence is lost, the fence outranks dedup: the zombie is
+        // told it lost the run, never handed a `Duplicate` receipt for work
+        // the journal will no longer accept from it.
+        const retry = yield* Effect.flip(
+          journal.emitDurable(input(run, sourceId("s"), "created", 1, sourceSeq(0)), ownerA)
+        )
+        expect((retry as JournalError).code).toBe("fence_lost")
+        expect(yield* seqsOf(sql, run)).toEqual([first.seq])
       })
     ))
 })

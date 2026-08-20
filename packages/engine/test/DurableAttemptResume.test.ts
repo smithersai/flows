@@ -8,21 +8,28 @@ import type * as Crypto from "effect/Crypto"
  * failed attempts keep their numbering: the backoff ladder is not re-slept
  * and the retry decision sees the true attempt count.
  */
-import { Action, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow-next"
-import { Node } from "@smthrs/plan-next"
+import { describe, expect, it } from "@effect/vitest"
+import { Action, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Cause, Effect, Exit, Layer, Option, Schema } from "effect"
-import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it(name, () => runPromise(body()))
+  it.effect(name, () => withCrypto(body()))
+
+/**
+ * The same wiring on the live clock, for cases that wait on the real elapsed
+ * time a retry or resume policy schedules rather than driving `TestClock`.
+ */
+const liveEffect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
+  it.live(name, () => withCrypto(body()))
 
 const flow = Flow.make("AttemptResume/flow", {
   payload: { id: Schema.String },
   success: Schema.Number,
   error: Schema.String,
-  body: () => Node.succeed(undefined)
+  body: () => Node.succeed(0)
 })
 
 const scriptedWith = (options: {
@@ -81,7 +88,7 @@ describe("durable attempt counter resume", () => {
     }).pipe((self) => provideInstance(self, engine))
   })
 
-  effect("keeps the caller's attempt when the persisted sequence is not ahead", () => {
+  liveEffect("keeps the caller's attempt when the persisted sequence is not ahead", () => {
     const attempts: Array<number> = []
     const action = Action.make({
       name: "AttemptResume/fresh",

@@ -1,12 +1,16 @@
-# @smthrs/flow-next
+---
+description: "The flow authoring model: flow and action definitions, durable primitives, retry policy, and the runtime port."
+---
+
+# @smthrs/flow
 
 The flow authoring model: typed flow and action definitions, durable primitives, step identity, retry policy, and the runtime port they execute against. The whole package bundles for the browser; durability comes from whichever runtime you provide.
 
 An `Action` carries an implementation, attached separately as a layer. A `Flow` carries a required pure `body`, and `Interpreter.layer` drives it.
 
 ```ts
-import { Action, Flow, Interpreter } from "@smthrs/flow-next"
-import { FlowEngine } from "@smthrs/engine-next"
+import { Action, Flow, Interpreter } from "@smthrs/flow"
+import { FlowEngine } from "@smthrs/engine"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
@@ -33,7 +37,7 @@ const layer = Layer.mergeAll(
 
 | Import | Source | Platform |
 | --- | --- | --- |
-| `@smthrs/flow-next` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/flow/src/index.ts) | any |
+| `@smthrs/flow` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/flow/src/index.ts) | any |
 
 ## Flow
 
@@ -119,7 +123,7 @@ const layer = Layer.mergeAll(
 
 [src/FlowRuntime](https://github.com/smithersai/flows/tree/main/packages/flow/src/FlowRuntime)
 
-The execution contract the authoring APIs are written against. This package declares it and depends on nothing that implements it, so the dependency runs `@smthrs/flow-next` ← `@smthrs/engine-next` only.
+The execution contract the authoring APIs are written against. This package declares it and depends on nothing that implements it, so the dependency runs `@smthrs/flow` ← `@smthrs/engine` only.
 
 | Export | Kind | Notes |
 | --- | --- | --- |

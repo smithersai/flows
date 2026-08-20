@@ -1,8 +1,11 @@
 {
-  "name": "@smthrs/sync-next",
+  "name": "@smthrs/sync",
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
+  "smthrs": {
+    "group": "engine"
+  },
   "description": "Workspace read-path sync protocol, server, and client for flows",
   "homepage": "https://github.com/smithersai/flows",
   "repository": {
@@ -76,11 +79,12 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@smthrs/journal-next": "0.1.0",
+    "@smthrs/journal": "0.1.0",
     "effect": "4.0.0-rc.108"
   },
   "devDependencies": {
     "@effect/language-service": "0.87.1",
+    "@effect/vitest": "4.0.0-rc.108",
     "@eslint/js": "9.39.1",
     "@types/node": "25.9.5",
     "@vitest/coverage-v8": "4.1.9",

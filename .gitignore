@@ -53,6 +53,11 @@ reference/*
 # Cargo build output (crates/flows-jj and friends)
 /target
 
+# flows engine state (artifact CAS under .flows/objects, fork lanes under
+# .flows/forks) — derived and engine-owned. jj must not snapshot it: a restore
+# to a pre-publication change would delete CAS blobs live cache rows reference.
+.flows/
+
 # Smithers run store (ephemeral — never commit)
 smithers.db
 smithers.db-shm
@@ -69,3 +74,12 @@ packages/*/.smithers/
 .smithers/executions/
 .smithers/claude-mirror-subscriptions.json
 .smithers/logs/
+
+# Wrangler local dev-server state (miniflare sqlite, DO storage, traces)
+.wrangler/
+
+# Launch-checklist dry runs prove the runner, not the product: they touch no
+# origin, so they are never evidence and never belong in the tracked report
+# trail under apps/reports/launch-checklist/.
+apps/reports/launch-checklist/*-dry-run/
+.money-scratch/

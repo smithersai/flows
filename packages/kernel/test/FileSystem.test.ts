@@ -1,13 +1,12 @@
-import * as Capability from "@smthrs/capability-next/Capability"
-import * as Permission from "@smthrs/capability-next/Permission"
+import { describe, expect, it } from "@effect/vitest"
+import * as Capability from "@smthrs/capability/Capability"
+import * as Permission from "@smthrs/capability/Permission"
 import { Effect, FileSystem as EffectFileSystem, Option, Path as EffectPath, type PlatformError, Stream } from "effect"
-import { describe, expect, it } from "vitest"
 import * as FileSystem from "../src/FileSystem.ts"
 import { GrantStore } from "../src/GrantStore.ts"
 import * as Workspace from "../src/Workspace.ts"
 
-const itEffect = (name: string, effect: () => Effect.Effect<void, unknown, never>) =>
-  it(name, () => Effect.runPromise(effect()))
+const itEffect = (name: string, effect: () => Effect.Effect<void, unknown, never>) => it.effect(name, () => effect())
 
 /**
  * Effect's `FileSystem` tag fixes its error channel to `PlatformError`, so the
@@ -30,10 +29,10 @@ const scriptedStore = (allowed: ReadonlySet<string>, checks: Array<Capability.Ca
   })
 
 const hostFileSystem = (overrides: Partial<EffectFileSystem.FileSystem>) =>
-  EffectFileSystem.makeNoop({
+  FileSystem.withIsolatedFileSystem(EffectFileSystem.makeNoop({
     realPath: (path) => Effect.succeed(path),
     ...overrides
-  })
+  }))
 
 const provide = (
   effect: Effect.Effect<void, unknown, EffectFileSystem.FileSystem>,
@@ -84,11 +83,17 @@ describe("FileSystem", () => {
           { action: "fs:write", resource: "/workspace/out/file.ts" },
           { action: "fs:write", resource: "/workspace/out" }
         ])
+        // Three host calls per operation: the guard stats the path before the
+        // grant decision AND after it (the decision can suspend, so the path
+        // must still name what was authorized), then the delegate runs.
         expect(paths).toEqual([
           "/workspace/src/file.ts",
           "/workspace/src/file.ts",
+          "/workspace/src/file.ts",
           "/workspace/out/file.ts",
           "/workspace/out/file.ts",
+          "/workspace/out/file.ts",
+          "/workspace/out",
           "/workspace/out",
           "/workspace/out"
         ])
@@ -215,7 +220,9 @@ describe("FileSystem", () => {
     let reads = 0
     const handle: EffectFileSystem.File = {
       [EffectFileSystem.FileTypeId]: EffectFileSystem.FileTypeId,
-      stat: Effect.die("not used"),
+      // `open` fstats the handle to bind its authorization; an identity-free
+      // Info opts this double out of descriptor verification.
+      stat: Effect.succeed({} as EffectFileSystem.File.Info),
       seek: () => Effect.succeed(EffectFileSystem.Size(0)),
       sync: Effect.void,
       read: () => Effect.sync(() => EffectFileSystem.Size(++reads)),
@@ -239,6 +246,67 @@ describe("FileSystem", () => {
       }).pipe(Effect.scoped),
       host,
       scriptedStore(new Set(["fs:read:/workspace/input"]), checks)
+    )
+  })
+
+  itEffect("rechecks dynamic authority before every read and write on an open handle", () => {
+    const checks: Array<Capability.Capability> = []
+    let allowed = true
+    let reads = 0
+    let writes = 0
+    const grants = GrantStore.of({
+      check: (capability) => {
+        checks.push(capability)
+        return allowed
+          ? Effect.void
+          : Effect.fail(Permission.permissionDenied(capability, "authority changed"))
+      },
+      reply: () => Effect.die("not used by filesystem decorator tests"),
+      list: Effect.succeed([]),
+      grantEnvelope: () => Effect.void
+    })
+    const handle: EffectFileSystem.File = {
+      [EffectFileSystem.FileTypeId]: EffectFileSystem.FileTypeId,
+      // `open` fstats the handle to bind its authorization; an identity-free
+      // Info opts this double out of descriptor verification.
+      stat: Effect.succeed({} as EffectFileSystem.File.Info),
+      seek: () => Effect.succeed(EffectFileSystem.Size(0)),
+      sync: Effect.void,
+      read: () => Effect.sync(() => EffectFileSystem.Size(++reads)),
+      readAlloc: () => Effect.succeed(Option.none()),
+      truncate: () => Effect.void,
+      write: () => Effect.sync(() => EffectFileSystem.Size(++writes)),
+      writeAll: () => Effect.void
+    }
+    const host = hostFileSystem({ open: () => Effect.succeed(handle) })
+
+    return provide(
+      Effect.scoped(
+        Effect.gen(function*() {
+          const fileSystem = yield* EffectFileSystem.FileSystem
+          const file = yield* fileSystem.open("dynamic", { flag: "w+" })
+          allowed = false
+
+          expect(denial(yield* Effect.flip(file.read(new Uint8Array(1))))).toMatchObject({
+            capability: { action: "fs:read", resource: "/workspace/dynamic" },
+            reason: "authority changed"
+          })
+          expect(denial(yield* Effect.flip(file.write(new Uint8Array(1))))).toMatchObject({
+            capability: { action: "fs:write", resource: "/workspace/dynamic" },
+            reason: "authority changed"
+          })
+          expect(reads).toBe(0)
+          expect(writes).toBe(0)
+          expect(checks.map((check) => check.action)).toEqual([
+            "fs:read",
+            "fs:write",
+            "fs:read",
+            "fs:write"
+          ])
+        })
+      ),
+      host,
+      grants
     )
   })
 

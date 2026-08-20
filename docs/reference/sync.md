@@ -1,4 +1,4 @@
-# `@smthrs/sync-next`
+# `@smthrs/sync`
 
 This page is the public API reference for read-only journal synchronization over Effect RPC. The protocol currently supports catch-up and credit-bounded follow, not remote journal writes.
 
@@ -17,7 +17,7 @@ Cursor field names are `runId` and `afterSeq`.
 
 ## RPC group
 
-`SyncRpcs.SyncRpcs` contains `Sync.Read` and streaming `Sync.Subscribe`. `SyncRpcs.SyncAuth` is the RPC middleware service for deployment-supplied authentication.
+`SyncRpcs.SyncRpcs` contains `Sync.Read` and streaming `Sync.Subscribe`. `SyncRpcs.SyncAuth` is the RPC middleware service; `SyncAuth.layer` is the shipped implementation, authenticating the `flows-sync-workspace` header against `WorkspaceShare` and installing the request's `SyncPrincipal` (default anonymous, non-branch reads refused). `SyncServer.layerHandlers` projects the server onto the group.
 
 ## Server
 
@@ -34,7 +34,7 @@ The live layer requires `Journal` and `RunCatalog`. `RunCatalog` exposes `list` 
 
 `make({ client })` adapts an Effect RPC client; `layer` derives that client from `RpcClient.Protocol`. `makeNoop` and `layerNoop` provide a closed client.
 
-The client advances its local cursor as each entry is admitted to the consumer, so interruption of a partial frame does not acknowledge entries that were never observed.
+The client advances its local cursor as each entry is admitted to the consumer, so interruption of a partial frame does not acknowledge entries that were never observed. The acknowledged cursor set is shared service state in a `Ref`, and a commit only ever advances it, so concurrent subscriptions cannot move it backward. A live follow that loses its transport reconnects under exponential backoff (capped at five seconds), resuming from the acknowledged cursors; gaps, authorization refusals, and server closes propagate to the consumer instead of retrying.
 
 ## Errors
 

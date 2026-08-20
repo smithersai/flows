@@ -2,10 +2,15 @@
  * The branch collaboration wire contract: the RPC projection of the write
  * and presence paths that complement the read-only {@link SyncRpcs}.
  *
- * Every procedure carries its own share capability and every handler
- * authorizes through {@link BranchShare}, so the group needs no middleware —
- * the capability IS the credential, and cross-branch or expired capabilities
- * are refused by the same service boundary the in-process callers use.
+ * Authorization has two stages. Opening a branch is the bootstrap: no
+ * capability can exist yet, so `CreateBranch` requires an authenticated
+ * workspace principal supplied by the group's {@link SyncAuth} middleware,
+ * and its handler refuses any other principal.
+ *
+ * Every later procedure carries its own share capability and authorizes
+ * through {@link BranchShare}: past the bootstrap the capability IS the
+ * credential, and cross-branch or expired capabilities are refused by the
+ * same service boundary the in-process callers use.
  *
  * @since 0.1.0
  */
@@ -22,6 +27,15 @@ import {
   ShareCapability
 } from "./BranchProtocol.ts"
 import { SyncError } from "./SyncError.ts"
+import { SyncAuth } from "./SyncRpcs.ts"
+
+/**
+ * Maximum lifetime the branch bootstrap may mint.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const maximumBranchTtlMs = 24 * 60 * 60 * 1000
 
 /**
  * Schema for a capability-bearing command submission.
@@ -106,16 +120,17 @@ export type RosterPayload = typeof RosterPayload.Type
 /**
  * Schema for a request to open a new shared branch.
  *
- * The requester is the local workspace owner: creating a branch needs no
- * capability because the branch does not exist yet to have one. What the
- * requester receives is the branch's first write capability — every later
- * participant arrives through a link minted from it.
+ * The RPC authentication middleware must establish the workspace principal
+ * before the handler mints the first write capability.
  *
  * @category schemas
  * @since 0.1.0
  */
 export const CreateBranchPayload = Schema.Struct({
-  ttlMs: Schema.Int.check(Schema.isGreaterThan(0))
+  ttlMs: Schema.Int.check(
+    Schema.isGreaterThan(0),
+    Schema.isLessThanOrEqualTo(maximumBranchTtlMs)
+  )
 })
 
 /**
@@ -209,4 +224,4 @@ export const BranchRpcs = RpcGroup.make(
     error: SyncError
   }),
   Rpc.make("Branch.WatchRoster", { payload: RosterPayload, success: RosterFrame, error: SyncError, stream: true })
-)
+).middleware(SyncAuth)

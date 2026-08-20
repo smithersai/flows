@@ -1,8 +1,11 @@
 {
-  "name": "@smthrs/capability-next",
+  "name": "@smthrs/capability",
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
+  "smthrs": {
+    "group": "engine"
+  },
   "description": "Capability values and permission failures — the leaf vocabulary of the flows permission kernel",
   "homepage": "https://github.com/smithersai/flows",
   "repository": {
@@ -80,6 +83,7 @@
   },
   "devDependencies": {
     "@effect/language-service": "0.87.1",
+    "@effect/vitest": "4.0.0-rc.108",
     "@eslint/js": "9.39.1",
     "@types/node": "25.9.5",
     "@vitest/coverage-v8": "4.1.9",

@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mvp × Agent Chain — integration &amp; debug-mode plan</title>
+<style>
+  :root {
+    --bg: #fbfaf8; --fg: #1c1b19; --muted: #6b675f; --line: #e4e1da;
+    --accent: #7a4df3; --accent-soft: #f0ebfe; --ok: #1a7f4b; --warn: #b45309;
+    --danger: #b3261e; --code-bg: #f2f0ec; --card: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16151a; --fg: #e8e6e1; --muted: #9a968e; --line: #2e2c33;
+      --accent: #a98bff; --accent-soft: #262038; --ok: #4fc98a; --warn: #e5a04c;
+      --danger: #ef7b74; --code-bg: #211f27; --card: #1c1b21;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 960px; margin: 0 auto; padding: 3rem 1.5rem 6rem; }
+  h1 { font-size: 1.9rem; line-height: 1.25; margin: 0 0 .4rem; letter-spacing: -.02em; }
+  h2 { font-size: 1.35rem; margin: 3rem 0 1rem; padding-top: 1.4rem; border-top: 1px solid var(--line); letter-spacing: -.01em; }
+  h3 { font-size: 1.05rem; margin: 1.8rem 0 .6rem; }
+  p, li { max-width: 72ch; }
+  .sub { color: var(--muted); margin: 0 0 2.4rem; font-size: .95rem; }
+  a { color: var(--accent); }
+  code { font: .85em/1.5 ui-monospace, "SF Mono", Menlo, monospace; background: var(--code-bg); padding: .1em .35em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; padding: 1rem 1.2rem; overflow-x: auto; font: .8rem/1.5 ui-monospace, "SF Mono", Menlo, monospace; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .9rem; display: block; overflow-x: auto; }
+  th, td { border: 1px solid var(--line); padding: .5rem .7rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); font-weight: 600; }
+  .tldr { background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 10px; padding: 1.1rem 1.4rem; margin: 1.6rem 0; }
+  .tldr p { margin: .4rem 0; }
+  .decision { background: var(--card); border-left: 4px solid var(--warn); border-radius: 6px; padding: .8rem 1.1rem; margin: 1rem 0; }
+  .decision strong:first-child { color: var(--warn); }
+  .bar { background: var(--card); border-left: 4px solid var(--ok); border-radius: 6px; padding: .8rem 1.1rem; margin: 1rem 0; }
+  .bar strong:first-child { color: var(--ok); }
+  .kill { color: var(--danger); }
+  .keep { color: var(--ok); }
+  .tag { display: inline-block; font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; padding: .1rem .5rem; border-radius: 999px; background: var(--accent-soft); color: var(--accent); margin-right: .4rem; vertical-align: middle; }
+  .muted { color: var(--muted); }
+  hr { border: none; border-top: 1px solid var(--line); margin: 2.5rem 0; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>mvp × Agent Chain — integration &amp; debug-mode plan</h1>
+<p class="sub">2026-08-11 · sources: <code>flows/docs/specs</code> vault (Agent Chain, Chain Slice, Chain Harness Build, Product Surfaces, System Prompt, Forensics, Notification Queue, Temporal Worldview) · <code>flows/agent</code> package survey · full <code>~/mvp</code> code map · tickets #17 <code>mvp-harness-transport</code> / #18 <code>mvp-session-model</code></p>
+
+<div class="tldr">
+  <p><strong>TL;DR.</strong> The mvp's current agent is one HTTP POST to <code>chat.smithers.sh</code> with a client-side tool loop — a ticketed violation of the Product Surfaces mandate. The replacement, the <strong>Agent Chain</strong> (<code>@smthrs/chain</code>), shipped today with PRs 1–8 landed and is browser-runnable <em>now</em>: QuickJS sealed runner, model seat, catalog, memory door, sub-chains, envelope seam. The plan: run the <strong>concierge chain in the webview</strong> behind the existing <code>NativeAgent</code> seam, project the mvp <strong>command registry as the catalog</strong>, persist the chain journal into the existing OPFS store, and grow the <code>AgentTurnFrame</code> envelope into a projection of chain events. The UI stays what the vault says it is — <em>folds over one event stream</em> — and <strong>debug mode is the same fold at full fidelity</strong>: script x-ray, two-histories diff, cache-hit build view, prompt inspector, wire tap, journal scrubber.</p>
+</div>
+
+<h2>1 · Where the three sides actually stand</h2>
+
+<table>
+<tr><th></th><th>mvp today</th><th>chain today</th><th>the mandate</th></tr>
+<tr>
+<td><strong>Loop</strong></td>
+<td>Client-side tool loop in <code>AppController.ts:1508-1902</code>; whole transcript re-sent per leg; <code>MAX_TOOL_LEGS=8</code>; one <code>commands</code> tool</td>
+<td><code>Chain.run</code> trampoline (<code>chain/src/Chain.ts:109</code>): model authors a Flow script per link; gates shape/fuel/catalog/authorize; every failure a journaled observation</td>
+<td>“There is no agent loop… every turn is the model writing a workflow script” (<em>Agent Chain</em>)</td>
+</tr>
+<tr>
+<td><strong>Wire</strong></td>
+<td><code>AgentTurnFrame</code>: <code>delta · done · card · card.update · tool_call</code> (<code>shared/NativeAgent.ts:72</code>)</td>
+<td>Journal events: <code>ChainStarted · LinkAuthored · CallSettled · GateRejected · LinkEnded · SteeringDrained</code> + pure folds (<code>chain/src/Event.ts</code>) — <strong>but no live stream tap</strong></td>
+<td>“The harness's entire output is one typed event stream; a chat UI … each just folds over it”</td>
+</tr>
+<tr>
+<td><strong>Model</strong></td>
+<td>External proxy, wire vocabulary <code>{delta, done}</code>; context snapshot computed then discarded</td>
+<td><code>Model.stream(ModelRequest) → Stream&lt;ModelEvent&gt;</code>; <code>toolChoice</code> is literally only <code>"none"</code> — the sealed-step law in the types</td>
+<td>“No product surface talks to a hosted model proxy” (<em>Product Surfaces</em>, decision 2026-08-09)</td>
+</tr>
+<tr>
+<td><strong>Memory</strong></td>
+<td><code>worldDocuments</code>: markdown wiki, wikilinks, provenance, confidence — plus the <code>/clear</code> sweep</td>
+<td><code>remember</code>/<code>recall</code> catalog entries over the SQL memory store; <strong>worldview-as-wiki is prompt prose only</strong></td>
+<td>“Your worldview is your global store of context: an Obsidian-like markdown wiki” (<em>System Prompt</em> BASE)</td>
+</tr>
+<tr>
+<td><strong>Approvals</strong></td>
+<td><code>forwardApprovalDecision</code> wired only for workflow relay; chat-side effects unguarded</td>
+<td><code>Authorize</code> seam: <code>denied</code> → observation, <code>approval_required</code> → park-without-LinkEnded; resume re-executes from settled prefix</td>
+<td>Three-tier rule (<em>Now</em> §6); per-link plan preview (<em>Agent Chain</em>)</td>
+</tr>
+<tr>
+<td><strong>Store</strong></td>
+<td>TanStack DB collections + transitions journal, OPFS WASQLite, schema v8</td>
+<td><code>Journal.layerMemory</code> only — “a deletable stand-in for the flows engine journal”</td>
+<td>“TanStack DB is the client store; collections fed by the flows-owned sync layer” (<em>Ui</em>)</td>
+</tr>
+</table>
+
+<p>The five chain gaps the integration must bridge (from the package survey): <strong>(1)</strong> no live event stream from <code>Chain.run</code>; <strong>(2)</strong> no durable journal binding; <strong>(3)</strong> <code>ControlExecutor</code> is a noop — Control/gateway is contracts, not wiring; <strong>(4)</strong> two event vocabularies (cell <code>AgentEvent</code> × chain <code>Event</code>) and an untyped Control wire event; <strong>(5)</strong> steering's durable binding (<code>@smthrs/notifications</code>) unwired, no monitor/wake.</p>
+
+<p>The convergences that make this cheap rather than hard: mvp already <em>is</em> a TanStack-DB fold with an actor-stamped transition journal; the command registry already <em>is</em> a catalog with visibility rules (<code>agentVisible()</code>); <code>worldDocuments</code> already <em>is</em> the worldview wiki the System Prompt describes; and the <code>NativeAgent</code> seam is four members wide.</p>
+
+<h2>2 · Target architecture</h2>
+
+<pre>
+                         ┌─ mvp webview ────────────────────────────────────────────────┐
+   user ── composer ──▶  │  ChainRuntime (replaces the tool loop)                       │
+        ── mid-turn ──▶  │    Steering.admit ─ drains at link boundaries                │
+                         │                                                              │
+                         │  Chain.run(goal)                                             │
+                         │   ├─ Author: ModelAuthor ──▶ /api/model/stream (worker) ──▶ provider
+                         │   │    prefix = Prompt.assemble({role:"concierge", entries}) │
+                         │   ├─ Runner: QuickJsRunner (browser WASM, sealed)            │
+                         │   ├─ Catalog:                                                │
+                         │   │    · command registry projection (executeForAgent)       │
+                         │   │    · worldview: remember / recall over worldDocuments    │
+                         │   │    · widgets: card.show / card.update (typed cards)      │
+                         │   │    · agent: sub-chains (inline | background)             │
+                         │   │    · triggers.register · sys/now · sys/random            │
+                         │   ├─ Authorize.layerRules(three-tier policy)                 │
+                         │   └─ Journal: OPFS-backed collection (chainEvents)           │
+                         │                    │                                         │
+                         │        pure folds  ▼                                        │
+                         │  AgentTurnFrame′ ──▶ AppStore.dispatch ──▶ useLiveQuery ──▶ UI
+                         │  (transcript · links · calls · cards · parks · debug mode)   │
+                         └──────────────────────────────────────────────────────────────┘
+                                   │ background / heavy work: catalog `agent` entry
+                                   ▼ with server placement
+                         workspace VM / gateway (later: Control Watch/Steer/Approve/Deny)
+</pre>
+
+<p>Why the concierge runs <strong>in the browser</strong>: the System Prompt's BASE section states it (“the brain of an agentic harness that runs in the browser”), the chain's dependency set has no Node built-ins, and the QuickJS runner ships the browser-safe single-file variant. The webview is where the catalog's most valuable entries live anyway — every UI command. Heavy/repo work is a <em>sub-chain with server placement</em>, which is a catalog call like any other (<em>Agent Chain</em> §Nesting), reached initially through the existing workflow relay and eventually through Control.</p>
+
+<p>The only mandatory new server surface is <code>/api/model/stream</code>: a metered worker route that speaks the full <code>ModelEvent</code> vocabulary (text/thinking deltas, usage, settle). The current <code>{delta, done}</code> proxy cannot carry a sealed step. Same auth/metering pattern as the existing turn route; the turn relay itself and the cancellation Durable Object retire (cancel becomes lineage interruption in the runtime that owns the fiber).</p>
+
+<h2>3 · The seam plan — what changes, what dies, what survives</h2>
+
+<h3>The envelope grows; it does not get replaced</h3>
+<p><code>AgentTurnFrame</code> stays the one wire the UI folds, extended with a chain family (a zod-union edit plus frame-handler branches — the extension path the code already anticipates). <code>runId</code> becomes the <strong>lineage id</strong>, resolving the identity overload (turn id = cancel key = message prefix) in one move and setting up ticket #18's session model.</p>
+
+<pre>
+  delta · done · card · card.update · tool_call            (existing — tool_call retires with the loop)
++ link.authored   { link, scriptDigest, script }           ← LinkAuthored
++ call.started    { link, ordinal, name, payload }         ← runtime, pre-settle
++ call.settled    { link, ordinal, name, verdict: run|hit|replay, resultDigest }
++ gate.rejected   { link, kind: shape|fuel|catalog|denied|call_failed|script_failed }
++ link.ended      { link, outcome: done|to|park(code) }
++ steering.drained{ link, count }
++ park            { code: approval|event|timer|quota|plugin, approvalCard? }
+</pre>
+
+<h3>What is deleted <span class="kill">(the satisfying column)</span></h3>
+<ul>
+  <li><code>src/bun/CloudAgent.ts</code>, <code>src/server/AgentApi.ts</code>, the worker turn relay + <code>TurnCancelRegistry</code> DO — the proxy transport, whole.</li>
+  <li><code>Instructions.ts</code> → <code>Prompt.assemble</code> (byte-stable, cache-tested, source-of-truth in the vault).</li>
+  <li><code>RunClaims.ts</code> + <code>claimBuffer</code> — regex claim-substitution exists only because the model returns unstructured prose beside real effects; chain outcomes are typed, so the turn-settle path rewrites onto <code>link.ended</code>/terminal events. (Careful: <code>settleRunClaims</code> is load-bearing in four paths today.)</li>
+  <li><code>agentTools.ts</code>'s one-tool projection, <code>toolItems</code>/<code>MAX_TOOL_LEGS</code> bookkeeping, transcript re-send per leg — control flow moves into the authored script, which is the whole point (“one turn does what took a dozen tool-call turns”).</li>
+  <li>The <code>/clear</code> sweep as a bespoke second model call — it becomes an authored flow that reads a transcript projection and writes worldview notes through <code>remember</code>.</li>
+</ul>
+
+<h3>What survives untouched <span class="keep">(the load-bearing column)</span></h3>
+<ul>
+  <li><code>AppStore</code>/<code>AppState</code> — chain events are new collections + transitions; the dispatcher, journal, persistence, and actor stamping don't change.</li>
+  <li>The command registry, the parity test (“every affordance is a command”), slash menu, pills — commands become catalog entries; <code>trigger: "user"|"agent"|"both"</code> becomes the catalog visibility predicate it already is.</li>
+  <li><code>App.tsx</code>/<code>ChatCards.tsx</code> and all 18 card kinds; toasts; auth/billing/reco/workflow seams; the browser-fetch tool.</li>
+  <li>The card frame path (<code>card</code>/<code>card.update</code>) — already validated and wired; the chain uses it as the widget door. “Show, don't just say” lands as typed cards first; free-form generative HTML stays a later, separately-decided card kind.</li>
+</ul>
+
+<h2>4 · Phases, each with its bar</h2>
+
+<h3><span class="tag">Phase 1</span> Chain behind the seam, feature-flagged</h3>
+<ul>
+  <li>Link <code>@smthrs/chain</code> + <code>@smthrs/model</code> via the donor <code>file:</code> pattern (the <code>ui</code> submodule's wiring; mind the Bun <code>file:</code>-tarball trap → <code>bun pm migrate</code> workaround).</li>
+  <li>New <code>ChainRuntime</code> in mainview implementing the <code>NativeAgent</code> surface: <code>startTurn</code> = <code>Chain.run</code>; cancel = fiber interrupt; <code>subscribe</code> = the event fold.</li>
+  <li>Journal = <code>chainEvents</code> TanStack collection (OPFS), honestly labeled an app-layer stand-in for the engine journal; replay-on-reload comes free from the chain's own replay rule.</li>
+  <li>Catalog v1: command projection + <code>sys/*</code> + <code>card.show</code>. Worker gains <code>/api/model/stream</code>.</li>
+  <li>Flag: <code>session.agentBackend = "proxy" | "chain"</code>, flipped by an admin command; both backends behind the same seam until parity.</li>
+</ul>
+<div class="bar"><strong>Bar</strong> (ticket #17's, upgraded): a chat turn driven by the chain end-to-end — model deltas render, the authored script exists in the journal, calls execute as real commands with actor <code>smithers</code>, a gate rejection is visible as an observation the next link corrects, reload mid-turn replays with <strong>zero re-executed model calls and zero re-executed effects</strong>.</div>
+
+<h3><span class="tag">Phase 2</span> Steering, approvals, background work, triggers</h3>
+<ul>
+  <li>Composer stays live during a turn: mid-turn input → <code>Steering.admit</code>, drained at link boundaries, rendered as <code>steering.drained</code> markers.</li>
+  <li><code>Authorize.layerRules</code> encodes the three-tier policy (free / ask-once-per-session-revocable / outbound-always-asks). <code>approval_required</code> park → existing approval card; approve resumes the lineage, which re-executes the link from its settled prefix — this is the semantic the chain's PR 8 already ships.</li>
+  <li><code>agent</code> catalog entry with <code>background: true</code> → own lineage; its monitor is a notification admitted to the concierge's steering queue (<code>system-event</code> class) — “never block on slow work” becomes mechanical.</li>
+  <li>Triggers v1: UI + slash (already the registry), schedules via <code>@smthrs/triggers</code> cron on the worker, webhooks as channels terminating at the worker → notification admit. <code>triggers.register</code> is a catalog entry; the trigger inventory lives in worldview, as BASE promises.</li>
+</ul>
+<div class="bar"><strong>Bar</strong>: user steers mid-turn and the next link's context contains it; a chat-side outbound effect asks first, every time; a backgrounded sub-chain completes and the concierge surfaces the result unprompted; a cron trigger starts a chain with nobody watching.</div>
+
+<h3><span class="tag">Phase 3</span> Worldview convergence</h3>
+<ul>
+  <li>Bind <code>remember</code>/<code>recall</code> to <code>worldDocuments</code>: recall = scored query over the wiki (keyword first, FTS when browser SQL lands); remember = note upsert with provenance, confidence, actor. The agent's scripts literally read memory from world — the ask, verbatim.</li>
+  <li>Retrieval flows the agent authors and saves (“flows written in the past for retrieving from it”) = registry entries persisted as world documents with a <code>flow</code> tag — the first real instance of the agent extending its own catalog.</li>
+  <li>Adopt <code>@smthrs/memory</code>'s store underneath when the flows browser-SQL layer ships; the wiki becomes the notes-lane surface. Watch the documented catalog double-declaration hazard (one <code>remember</code> disclosed, a different one run → resume-breaking digest mismatch).</li>
+</ul>
+<div class="bar"><strong>Bar</strong>: a fact learned in one conversation is recalled in a fresh one via a script-authored <code>recall</code> call, with confidence and provenance visible; the <code>/clear</code> sweep is an ordinary authored flow.</div>
+
+<h3><span class="tag">Phase 4</span> Control alignment — closing #17/#18 in their final form</h3>
+<ul>
+  <li>When the flows engine mounts under chain (journal binding + trampoline in the engine), the <code>chainEvents</code> collection stops being locally appended and becomes fed by the flows-owned sync layer — the exact data path <em>Ui.md</em> settles. The UI code doesn't change: same collections, same folds.</li>
+  <li>Sessions keyed by lineage ids; run list via <code>Control.List</code>; attach/detach via <code>Watch</code> cursors; server-placed sub-chains observed through the same envelope.</li>
+</ul>
+<div class="bar"><strong>Bar</strong>: kill the tab mid-run on a server-placed chain, reopen, attach by lineage id, and the transcript is identical to having watched live.</div>
+
+<h2>5 · Decision points for will</h2>
+<div class="decision"><strong>D1 — model transport.</strong> New <code>/api/model/stream</code> route speaking full <code>ModelEvent</code> (recommended; the <code>{delta,done}</code> proxy cannot carry a sealed step) vs extending <code>chat.smithers.sh</code>'s vocabulary. Either way it stays metered per user.</div>
+<div class="decision"><strong>D2 — worldview binding order.</strong> <code>worldDocuments</code>-backed recall now (product-visible, already built, zero new storage) vs waiting for <code>@smthrs/memory</code> in the browser. Recommended: wiki now, SQL store underneath later — the catalog entry names and schemas stay fixed either way, so scripts don't churn.</div>
+<div class="decision"><strong>D3 — the journal stand-in.</strong> OPFS collection journal now (recommended — it's the same honesty as <code>Journal.layerMemory</code>, plus persistence) vs blocking Phase 1 on the flows engine mount. Guard against it becoming a second engine the same way the Chain Slice did: acceptance tests assert <strong>journal contents</strong>, not runtime API.</div>
+<div class="decision"><strong>D4 — widget door scope.</strong> Typed cards only (recommended for v1; 18 kinds exist and the frame path is validated) vs an agent-authored-HTML card kind (sandboxed iframe srcdoc). The concierge prompt promises widgets; typed cards deliver that promise without opening the generative-HTML question mid-migration.</div>
+
+<h2>6 · Upstream work in the agent/flows repos (fix at the source)</h2>
+<ul>
+  <li><strong>Chain event tap</strong>: <code>Chain.run</code> needs a live <code>Stream&lt;Event&gt;</code> (or a blessed <code>Journal.layerTee</code>) — today a UI can only poll <code>Journal.read</code>. This is gap #1 and it belongs in <code>@smthrs/chain</code>, not in mvp.</li>
+  <li><strong>Type the Control wire event</strong>: <code>ControlEvent.kind</code> is an untyped string with an opaque payload; the chain's six-event union is the natural typed vocabulary for <code>Watch</code>, and Phase 4 depends on it.</li>
+  <li><strong>Steering's durable binding</strong>: wire <code>@smthrs/notifications</code>' queue under <code>Chain.Steering</code> (the in-memory drain has an acknowledged loss window).</li>
+  <li><strong>Park/wake</strong>: <code>ParkCode</code> includes <code>event</code>/<code>timer</code> but nothing wakes a parked chain — the monitor story in Phase 2 needs at least the approval-resume and background-completion wakes; flag the rest into the vault's open question rather than inventing it in mvp.</li>
+</ul>
+
+<h2>7 · Debug mode — the same fold, at full fidelity</h2>
+
+<p>The design principle comes straight from the vault: <em>forensics are queries, not commands</em> (Forensics.md), and the UI is a fold over the journal. Debug mode is therefore <strong>not instrumentation bolted on</strong> — it is rendering, at full fidelity, evidence the app already persists for correctness: <code>chainEvents</code>, <code>transitions</code> (actor-stamped), <code>toolCalls</code>, and the model-event ring. One toggle (<code>/debug</code>, admin-gated and non-enumerable, evolving today's <code>DevtoolsPanel</code>), seven surfaces:</p>
+
+<table>
+<tr><th>Surface</th><th>What it shows</th><th>Evidence it reads</th></tr>
+<tr><td><strong>1 · Link x-ray</strong></td><td>Every assistant turn expands into its links: the authored script (highlighted, digest-stamped), each call with its <code>CallKey</code>, payload, result, and <strong>verdict — ran live / cache hit / replayed</strong> (the Bazel build view), gate rejections, the outcome. The vault's promised object model: <em>plan → execution → hand-off</em>, per link.</td><td><code>chainEvents</code> folds (<code>Event.authored/settled/rejected/terminal</code>)</td></tr>
+<tr><td><strong>2 · Two-histories diff</strong></td><td>For each author call: the exact context the previous link's code chose to build vs what the one before built — the self-edit diff. Context rot becomes visible as a diff instead of a feeling.</td><td><code>LinkAuthored</code> + the author call's pinned context in <code>CallSettled</code></td></tr>
+<tr><td><strong>3 · Prompt inspector</strong></td><td>The byte-stable prefix (with digest, so cache-hit expectations are checkable), context lines, drained steering, token usage per author call. “What did the model actually see” becomes a click — today that context is computed and discarded.</td><td>author <code>CallSettled</code> payloads + model <code>usage</code> events</td></tr>
+<tr><td><strong>4 · Event console</strong></td><td>One time-ordered feed across every stream the UI consumes — chain events, transitions, tool calls, workflow-relay events, toasts — filterable by actor/type/link, payloads collapsible. Today's <code>debug.events</code> (last 40 transitions), grown into the real thing.</td><td>all journal collections, merged by seq/time</td></tr>
+<tr><td><strong>5 · Store inspector</strong></td><td>Live browser over all collections: counts, schema version, persistence backend + last persist result, and a <strong>revision scrubber</strong> — pick a transition, see exactly which rows it changed and who did it.</td><td><code>transitions</code> journal + collection snapshots</td></tr>
+<tr><td><strong>6 · Wire tap</strong></td><td>Every HTTP call the controller makes (method, path, status, duration, sizes), SSE/WS states, pump state (afterSeq, quiet timer). Implemented by wrapping the already-injected <code>fetchImpl</code> into a ring-buffer log — the only genuinely new capture in the whole design.</td><td><code>netLog</code> ring (new, debug-scoped)</td></tr>
+<tr><td><strong>7 · Journal scrubber</strong></td><td>Replay the fold to any journal offset — read-only time travel, honest by construction because replay is deterministic. When the flows engine mounts, the same affordance grows the real verbs (rewind/fork with injected observations); the UI seat for them lands now.</td><td><code>chainEvents</code> prefix folds</td></tr>
+</table>
+
+<h3>Rules that keep it honest</h3>
+<ul>
+  <li><strong>Read-only.</strong> Every debug surface is a query; mutating verbs (retry a link, fork) arrive only as first-class chain verbs later, never as debug-panel side doors.</li>
+  <li><strong>Evidence, not claims.</strong> Views report recorded evidence and its last sequence; after a crash, absence of an event is shown as absence — never “this didn't happen” (Forensics' journal-boundary rule).</li>
+  <li><strong>Commands all the way down.</strong> Each surface is a command (<code>/debug.links</code>, <code>/debug.context</code>, <code>/debug.net</code> …) so the parity discipline holds and the agent itself can be asked to open its own x-ray.</li>
+  <li><strong>Bounded.</strong> Model-event ring keeps the last N turns raw; <code>chainEvents</code> gets the same compaction discipline as messages; the wire tap only records while debug mode is on.</li>
+</ul>
+
+<h2>8 · Risks and traps</h2>
+<ul>
+  <li><strong>Bun × <code>file:</code> transitive tarballs</strong> — the 24/100 POC's biggest wound; use the <code>bun pm migrate</code> workaround, budget for it in Phase 1.</li>
+  <li><strong>Catalog double-declaration</strong> — one entry disclosed, a different one run breaks resume across the digest mismatch; the memory door and registry projection must mount exactly once each.</li>
+  <li><strong>Steering loss window</strong> — until the notifications queue is wired, an in-memory drain can lose a steer on crash; acceptable behind the flag, not at parity.</li>
+  <li><strong>OPFS budget</strong> — journals grow monotonically; compaction/truncation policy needs deciding before the flag flips default (the vault's Journal Truncation note is the reference).</li>
+  <li><strong>Concurrent sessions</strong> — two live Claude sessions are actively rebasing the agent and flows stacks; pin the chain package by commit for Phase 1 and re-sync deliberately, not continuously.</li>
+  <li><strong>Don't fork the vocabulary</strong> — any frame/field mvp needs that chain doesn't emit goes upstream as a chain event first (§6); mvp never invents private chain semantics (the exact mistake <code>@smthrs/core</code>'s duplicate Flow was).</li>
+</ul>
+
+<p class="muted">Written 2026-08-11 by Claude (Fable) from the working session in <code>~/mvp</code>. Where this document and the vault disagree, the vault wins.</p>
+
+</main>
+</body>
+</html>

@@ -3,8 +3,8 @@
  *
  * @since 0.1.0
  */
-import { Jj } from "@smthrs/jj-next"
-import * as CacheStore from "@smthrs/step-cache-next/CacheStore"
+import { Jj } from "@smthrs/jj"
+import * as CacheStore from "@smthrs/step-cache/CacheStore"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as Random from "effect/Random"
@@ -119,6 +119,11 @@ export const retry = <A, E, R>(
 > =>
   Effect.fn("Retry.retry")(() =>
     Effect.gen(function*() {
+      yield* Effect.annotateCurrentSpan({
+        effectId: options.effect.id,
+        tier: options.effect.tier,
+        previousAttempt: options.previousAttempt
+      })
       const attempt = options.previousAttempt + 1
       const nonce = yield* freshNonce(options, attempt)
       const blocked = (

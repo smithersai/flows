@@ -1,8 +1,8 @@
-# `@smthrs/run-store-next`
+# `@smthrs/run-store`
 
 This page is the public API reference for **executable run state**: run rows,
 action attempt rows, and the ownership arbitration that fences them. It was
-split out of `@smthrs/journal-next` — see
+split out of `@smthrs/journal` — see
 [`docs/specs/Concepts/Journal Split.md`](../../../docs/specs/Concepts/Journal%20Split.md).
 
 Recovery reads these stores. The journal is history, audit, replay evidence,
@@ -77,16 +77,16 @@ field like `clientSecret: { … }` becomes a string, so schema decode of the
 persisted state dies and the run is undrivable (issue #72). These stores
 therefore take no `redact` option at all — `RunStore.layer` and
 `AttemptStore.layer` round-trip their columns byte-for-byte. See the
-[`@smthrs/journal-next` reference](journal.md) for the write-side rules.
+[`@smthrs/journal` reference](journal.md) for the write-side rules.
 
 ## Entry points
 
 The root holds the stores and their contracts, all written against the
-driver-neutral `@smthrs/database-next` service, and it bundles for the browser
+driver-neutral `@smthrs/database` service, and it bundles for the browser
 (`pnpm run browser`). The test double binds a Node SQLite database and is
-therefore imported from `@smthrs/run-store-next/test/TestRunStore`. A consumer that
+therefore imported from `@smthrs/run-store/test/TestRunStore`. A consumer that
 needs the journal, the run store, and the step cache over ONE database takes
-`@smthrs/engine-store-next/test/TestStores`. See
+`@smthrs/engine-store/test/TestStores`. See
 [browser support](../architecture/browser-support.md).
 
 ## Migrations
@@ -94,10 +94,10 @@ needs the journal, the run store, and the step cache over ONE database takes
 `Migrations.set` is this package's namespaced migration set — `flows_runs`,
 its three indexes, and `flows_attempts` — and reserves migration id block
 `1000`. `Migrations.run` / `Migrations.layer` install it alone;
-`@smthrs/engine-store-next/Migrations` composes it with the journal's, the step
+`@smthrs/engine-store/Migrations` composes it with the journal's, the step
 cache's, and the engine's. See
-[`@smthrs/database-next`](database.md) for the composition rules.
+[`@smthrs/database`](database.md) for the composition rules.
 
 See [Run ownership](../../../docs/specs/Concepts/Run%20Ownership.md), the
-[`@smthrs/journal-next` reference](journal.md), and the
-[`@smthrs/engine-store-next` reference](engine-store.md).
+[`@smthrs/journal` reference](journal.md), and the
+[`@smthrs/engine-store` reference](engine-store.md).

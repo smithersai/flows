@@ -1,3 +1,7 @@
+---
+description: "Every durable shape in Smithers Flows: where it lives, who writes it, who reads it, and which invariants hold."
+---
+
 # Data structures
 
 Everything durable in Smithers Flows is one of a small number of shapes. This page names each shape, says where it lives, who writes it, who reads it, and which invariants hold. Read it before the per-package API pages: those tables list exports, this one explains what the exports move around.
@@ -6,24 +10,24 @@ Everything durable in Smithers Flows is one of a small number of shapes. This pa
 
 | Shape | Table | Migration | Package |
 | --- | --- | --- | --- |
-| Journal entry | `flows_journal_events` | `0001_initial` | `@smthrs/journal-next` |
-| Journal checkpoint | `flows_journal_checkpoints` | `0002_checkpoints` | `@smthrs/journal-next` |
-| Run row | `flows_runs` | `0001_initial` | `@smthrs/run-store-next` |
-| Attempt row | `flows_attempts` | `0001_initial` | `@smthrs/run-store-next` |
-| Cache row | `flows_step_cache` | `0001_initial` | `@smthrs/step-cache-next` |
-| Deferred completion | `flows_deferred_completions` | `0001_initial` | `@smthrs/engine-store-next` |
-| Clock deadline | `flows_clock_deadlines` | `0001_initial` | `@smthrs/engine-store-next` |
-| Run-parent edge | `flows_run_parents` | created by `DurableEngineState.make` | `@smthrs/engine-store-next` |
-| Plan row | `flows_plans` | `0001_initial` | `@smthrs/plan-next` |
-| Plan node | `flows_plan_nodes` | `0001_initial` | `@smthrs/plan-next` |
-| Plan edge | `flows_plan_edges` | `0001_initial` | `@smthrs/plan-next` |
-| Frame snapshot | `flows_time_travel_snapshots` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel-next` |
-| Lineage edge | `flows_time_travel_edges` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel-next` |
-| Rewind audit | `flows_time_travel_audits` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel-next` |
-| Compensation receipt | `flows_time_travel_receipts` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel-next` |
-| Archived entry | `flows_time_travel_archive` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel-next` |
+| Journal entry | `flows_journal_events` | `0001_initial` | `@smthrs/journal` |
+| Journal checkpoint | `flows_journal_checkpoints` | `0002_checkpoints` | `@smthrs/journal` |
+| Run row | `flows_runs` | `0001_initial` | `@smthrs/run-store` |
+| Attempt row | `flows_attempts` | `0001_initial` | `@smthrs/run-store` |
+| Cache row | `flows_step_cache` | `0001_initial` | `@smthrs/step-cache` |
+| Deferred completion | `flows_deferred_completions` | `0001_initial` | `@smthrs/engine-store` |
+| Clock deadline | `flows_clock_deadlines` | `0001_initial` | `@smthrs/engine-store` |
+| Run-parent edge | `flows_run_parents` | created by `DurableEngineState.make` | `@smthrs/engine-store` |
+| Plan row | `flows_plans` | `0001_initial` | `@smthrs/plan` |
+| Plan node | `flows_plan_nodes` | `0001_initial` | `@smthrs/plan` |
+| Plan edge | `flows_plan_edges` | `0001_initial` | `@smthrs/plan` |
+| Frame snapshot | `flows_time_travel_snapshots` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel` |
+| Lineage edge | `flows_time_travel_edges` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel` |
+| Rewind audit | `flows_time_travel_audits` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel` |
+| Compensation receipt | `flows_time_travel_receipts` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel` |
+| Archived entry | `flows_time_travel_archive` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel` |
 
-Two shapes are in-memory only: the action step keys the engine derives, which are recomputed on every replay, and sync frames, which exist on the wire. A compiled plan's node keys are different — they are computed once at plan time and persisted in `flows_plan_nodes`.
+Two shapes are in-memory only: the action step keys the engine derives, which are recomputed on every replay, and sync frames, which exist on the wire. A compiled plan's node keys are different: they are computed once at plan time and persisted in `flows_plan_nodes`.
 
 ## Journal entries
 
@@ -67,7 +71,11 @@ Invariants:
 | durable | `emitDurable` | allocates and commits inside the write transaction; returns after COMMIT | lifecycle evidence, anything a recovery argument cites |
 | lossy | `emitLossy` | bounded non-blocking queue; returns before COMMIT | telemetry where a drop is acceptable |
 
-An `Accepted` receipt from the lossy queue means the event entered the writer queue. A crash can still lose it. Overflow behavior is explicit:
+:::warning
+An `Accepted` receipt from the lossy queue means the event entered the writer queue. A crash can still lose it.
+:::
+
+Overflow behavior is explicit:
 
 | Policy | Full queue |
 | --- | --- |
@@ -79,7 +87,7 @@ An `Accepted` receipt from the lossy queue means the event entered the writer qu
 
 The writer is one scoped fiber inside `SqlJournal.layer`, persisting batches through `DurableWriter.write`. Published entries reach the general `changes` subscription and the per-run wake channels that `stream` follows, and publication is deferred until the outermost transaction commits.
 
-Readers: `Journal.entries` pages history, `Journal.stream` replays then follows, `Journal.project` folds a stream through a deterministic reducer with no separate durable state, `@smthrs/sync-next` replicates entries to followers, and `@smthrs/time-travel-next` reads suffixes and archives them.
+Readers: `Journal.entries` pages history, `Journal.stream` replays then follows, `Journal.project` folds a stream through a deterministic reducer with no separate durable state, `@smthrs/sync` replicates entries to followers, and `@smthrs/time-travel` reads suffixes and archives them.
 
 ### Event types the engine writes
 
@@ -116,7 +124,11 @@ Invariants, enforced by table `CHECK` constraints rather than by convention:
 - The four claim fields are all set or all `NULL`.
 - The lifecycle is `pending → running → completed | failed | suspended | cancelled`, and `suspended → running` on a wake.
 
-Ownership constants live in `Ownership`: a 1 second heartbeat interval, a 19 second write tolerance, and a 30 second stale threshold. The write tolerance is eleven ticks shorter than the steal cutoff, so an owner whose heartbeat writes fail is always interrupted before a peer may take over. Takeover also requires `LivenessEvidence`; elapsed time alone does not prove an owner is dead.
+Ownership constants live in `Ownership`: a 1 second heartbeat interval, a 19 second write tolerance, and a 30 second stale threshold. The write tolerance is eleven ticks shorter than the steal cutoff, so an owner whose heartbeat writes fail is always interrupted before a peer may take over.
+
+:::warning
+Takeover also requires `LivenessEvidence`. Elapsed time alone does not prove an owner is dead.
+:::
 
 ### Waiting rows
 
@@ -166,7 +178,7 @@ A `Conflict` is journalled as `flows.engine.cache-conflict` and handed to `Incon
 
 ## Step keys
 
-A step key is `key1_` followed by a lowercase SHA-256 digest. It is computed in `@smthrs/engine-next` above the encoded storage seam, so the memory and durable engines receive the same identity.
+A step key is `key1_` followed by a lowercase SHA-256 digest. It is computed in `@smthrs/engine` above the encoded storage seam, so the memory and durable engines receive the same identity.
 
 ### Canonical serialization
 
@@ -178,7 +190,7 @@ Decoding through `Canonical` produces RFC 8785 JSON. The wrapped `canonicalize` 
 yield* Schema.decodeUnknownEffect(Key)({ operation: "compile", version: 3 })
 ```
 
-A sealed action key changes when its caller identity, complete cache environment, or filesystem boundary changes. The engine owns that combined input; `@smthrs/keys-next` only hashes it.
+A sealed action key changes when its caller identity, complete cache environment, or filesystem boundary changes. The engine owns that combined input; `@smthrs/keys` only hashes it.
 
 A string `idempotencyKey` folds in the action name and declared schemas. An object identity is caller-owned and rename-stable.
 
@@ -225,7 +237,11 @@ Sync shapes are on the wire, never in a table.
 | `HeartbeatFrame` | emitted when no entries arrive |
 | `ClosedFrame` | the single terminal frame |
 
-Because journal sequences may have holes, `afterSeq` means entries after this number. A client persists a returned cursor only after applying the batch that came with it. Credit bounds the frames one subscription emits; there is no acknowledgement RPC, so a client that needs more opens another subscription from its last durable cursor.
+Because journal sequences may have holes, `afterSeq` means entries after this number. Credit bounds the frames one subscription emits. There is no acknowledgement RPC, so a client that needs more opens another subscription from its last durable cursor.
+
+:::warning
+Persist a returned cursor only after applying the batch that came with it.
+:::
 
 ## The atomicity rule that ties these together
 

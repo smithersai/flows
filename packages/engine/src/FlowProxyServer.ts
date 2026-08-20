@@ -18,7 +18,7 @@
  *
  * @since 4.0.0
  */
-import type { Flow, FlowRuntime } from "@smthrs/flow-next"
+import type { Flow, FlowRuntime } from "@smthrs/flow"
 import type { NonEmptyReadonlyArray } from "effect/Array"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
@@ -34,6 +34,7 @@ import type * as Rpc from "effect/unstable/rpc/Rpc"
  *
  * @category layers
  * @since 4.0.0
+ * @slop
  */
 export const layerHttpApi = <
   ApiId extends string,
@@ -118,6 +119,7 @@ export const layerHttpApi = <
  *
  * @category layers
  * @since 4.0.0
+ * @slop
  */
 export const layerRpcHandlers = <
   const Flows extends NonEmptyReadonlyArray<Flow.Any>,
@@ -175,6 +177,7 @@ export const layerRpcHandlers = <
  *
  * @category services
  * @since 4.0.0
+ * @slop
  */
 export type RpcHandlers<Flows extends Flow.Any, Prefix extends string> = Flows extends Flow.Flow<
   infer _Name,

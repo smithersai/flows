@@ -1,17 +1,17 @@
-import { Journal } from "@smthrs/journal-next"
-import { Jj } from "@smthrs/kernel-next"
-import { type Ownership, RunStore } from "@smthrs/run-store-next"
-import { CacheStore } from "@smthrs/step-cache-next"
+import { describe, expect, it } from "@effect/vitest"
+import { Journal } from "@smthrs/journal"
+import { Jj } from "@smthrs/kernel"
+import { type Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { readFileSync } from "node:fs"
-import { describe, expect, it } from "vitest"
 import * as Inconsistency from "../src/Inconsistency.ts"
 import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
-import { runPromise, sha256 } from "./Sha256.ts"
+import { sha256, withCrypto } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "inconsistency-host", pid: 7, nonce: "inconsistency-process" }
 
@@ -89,81 +89,84 @@ const conflictEvents = (runId: string) =>
   })
 
 describe("Inconsistency", () => {
-  it("journals the conflict and fails the run under layerStrict", async () => {
-    const key = "inconsistency/strict"
-    const keyDigest = sha256(key)
-    const result = await runPromise(
-      Effect.gen(function*() {
-        yield* activate("strict-run")
-        yield* seedConflictingRow(keyDigest, "original")
-        const error = yield* Effect.flip(dispatch("strict-run", key, "divergent"))
-        const cache = yield* CacheStore.CacheStore
-        return {
-          error,
-          cached: yield* cache.get(keyDigest),
-          conflicts: yield* conflictEvents("strict-run")
-        }
-      }).pipe(Effect.provide(Layer.provideMerge(Inconsistency.layerStrict, base)), Effect.scoped)
-    )
+  it.effect("journals the conflict and fails the run under layerStrict", () =>
+    Effect.gen(function*() {
+      const key = "inconsistency/strict"
+      const keyDigest = sha256(key)
+      const result = yield* withCrypto(
+        Effect.gen(function*() {
+          yield* activate("strict-run")
+          yield* seedConflictingRow(keyDigest, "original")
+          const error = yield* Effect.flip(dispatch("strict-run", key, "divergent"))
+          const cache = yield* CacheStore.CacheStore
+          return {
+            error,
+            cached: yield* cache.get(keyDigest),
+            conflicts: yield* conflictEvents("strict-run")
+          }
+        }).pipe(Effect.provide(Layer.provideMerge(Inconsistency.layerStrict, base)), Effect.scoped)
+      )
 
-    expect(result.error).toBeInstanceOf(ActionPersistence.CacheConflictDetected)
-    expect(result.error).toMatchObject({
-      code: "cache_conflict_detected",
-      keyDigest,
-      recordedRunId: "recorded-run"
-    })
-    expect(Option.getOrThrow(result.cached).result).toBe("original")
-    expect(result.conflicts).toHaveLength(1)
-    expect(result.conflicts[0]!.payload).toMatchObject({ key: keyDigest, verdict: "fail" })
-  })
+      expect(result.error).toBeInstanceOf(ActionPersistence.CacheConflictDetected)
+      expect(result.error).toMatchObject({
+        code: "cache_conflict_detected",
+        keyDigest,
+        recordedRunId: "recorded-run"
+      })
+      expect(Option.getOrThrow(result.cached).result).toBe("original")
+      expect(result.conflicts).toHaveLength(1)
+      expect(result.conflicts[0]!.payload).toMatchObject({ key: keyDigest, verdict: "fail" })
+    }))
 
-  it("journals the conflict and keeps serving the original row under layerTolerant", async () => {
-    const key = "inconsistency/tolerant"
-    const keyDigest = sha256(key)
-    const result = await runPromise(
-      Effect.gen(function*() {
-        yield* activate("tolerant-run")
-        yield* seedConflictingRow(keyDigest, "original")
-        const value = yield* dispatch("tolerant-run", key, "divergent")
-        const cache = yield* CacheStore.CacheStore
-        return {
-          value,
-          cached: yield* cache.get(keyDigest),
-          conflicts: yield* conflictEvents("tolerant-run")
-        }
-      }).pipe(Effect.provide(Layer.provideMerge(Inconsistency.layerTolerant, base)), Effect.scoped)
-    )
+  it.effect("journals the conflict and keeps serving the original row under layerTolerant", () =>
+    Effect.gen(function*() {
+      const key = "inconsistency/tolerant"
+      const keyDigest = sha256(key)
+      const result = yield* withCrypto(
+        Effect.gen(function*() {
+          yield* activate("tolerant-run")
+          yield* seedConflictingRow(keyDigest, "original")
+          const value = yield* dispatch("tolerant-run", key, "divergent")
+          const cache = yield* CacheStore.CacheStore
+          return {
+            value,
+            cached: yield* cache.get(keyDigest),
+            conflicts: yield* conflictEvents("tolerant-run")
+          }
+        }).pipe(Effect.provide(Layer.provideMerge(Inconsistency.layerTolerant, base)), Effect.scoped)
+      )
 
-    expect(result.value).toBe("divergent")
-    expect(Option.getOrThrow(result.cached).result).toBe("original")
-    expect(result.conflicts).toHaveLength(1)
-    expect(result.conflicts[0]!.payload).toMatchObject({ key: keyDigest, verdict: "tolerate" })
-  })
+      expect(result.value).toBe("divergent")
+      expect(Option.getOrThrow(result.cached).result).toBe("original")
+      expect(result.conflicts).toHaveLength(1)
+      expect(result.conflicts[0]!.payload).toMatchObject({ key: keyDigest, verdict: "tolerate" })
+    }))
 
-  it("does not note Inserted or ExistingSame puts", async () => {
-    let notes = 0
-    const counting = Inconsistency.layerNoop({
-      note: () =>
-        Effect.sync(() => {
-          notes++
-          return "tolerate" as const
-        })
-    })
-    const result = await runPromise(
-      Effect.gen(function*() {
-        yield* activate("clean-run")
-        yield* seedConflictingRow(sha256("inconsistency/existing-same"), "same")
-        const inserted = yield* dispatch("clean-run", "inconsistency/inserted", "fresh")
-        const existingSame = yield* dispatch("clean-run", "inconsistency/existing-same", "same")
-        return { inserted, existingSame, conflicts: yield* conflictEvents("clean-run") }
-      }).pipe(Effect.provide(Layer.merge(base, counting)), Effect.scoped)
-    )
+  it.effect("does not note Inserted or ExistingSame puts", () =>
+    Effect.gen(function*() {
+      let notes = 0
+      const counting = Inconsistency.layerNoop({
+        note: () =>
+          Effect.sync(() => {
+            notes++
+            return "tolerate" as const
+          })
+      })
+      const result = yield* withCrypto(
+        Effect.gen(function*() {
+          yield* activate("clean-run")
+          yield* seedConflictingRow(sha256("inconsistency/existing-same"), "same")
+          const inserted = yield* dispatch("clean-run", "inconsistency/inserted", "fresh")
+          const existingSame = yield* dispatch("clean-run", "inconsistency/existing-same", "same")
+          return { inserted, existingSame, conflicts: yield* conflictEvents("clean-run") }
+        }).pipe(Effect.provide(Layer.merge(base, counting)), Effect.scoped)
+      )
 
-    expect(result.inserted).toBe("fresh")
-    expect(result.existingSame).toBe("same")
-    expect(result.conflicts).toHaveLength(0)
-    expect(notes).toBe(0)
-  })
+      expect(result.inserted).toBe("fresh")
+      expect(result.existingSame).toBe("same")
+      expect(result.conflicts).toHaveLength(0)
+      expect(notes).toBe(0)
+    }))
 
   it("never discards a cache.put result in ActionPersistence", () => {
     const source = readFileSync(new URL("../src/internal/ActionPersistence.ts", import.meta.url), "utf8")

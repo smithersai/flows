@@ -14,15 +14,37 @@
  * toolchain sysroot — to fixed tokens. Without the remapping, the same
  * commit produces different bytes on every machine and checkout path.
  *
+ * The contract is scoped to one host triple, because no flag remaps the host.
+ * Cargo compiles build scripts for the host, so the `-C metadata` hash of
+ * every crate that has one — and of everything above it, which here reaches
+ * jj-lib and flows-jj — carries the host triple. rustc folds `-C metadata`
+ * into the crate's `StableCrateId`, which seeds every symbol hash, and it
+ * orders codegen items by symbol name, so a different host reorders the
+ * module and LLVM then optimizes it differently. Measured on 1.89.0 from
+ * identical sources: aarch64-apple-darwin, x86_64-unknown-linux-gnu, and
+ * aarch64-unknown-linux-gnu each produce a different artifact, differing in
+ * function count and code size, not just in symbol names. The committed
+ * bytes therefore belong to the declared host below — the one CI runs — and
+ * this script refuses to build them anywhere else rather than write bytes CI
+ * cannot match.
+ *
  * Honors `CARGO_TARGET_DIR`; a relative value resolves against the workspace
- * root, exactly as cargo resolves it for the build itself.
+ * root, exactly as cargo resolves it for the build itself. It needs no token
+ * of its own: an out-of-tree target directory builds the same bytes as the
+ * in-tree default, verified on the canonical host and on macOS.
+ *
+ * `--verify` rebuilds without writing and compares the result against the
+ * committed artifact, which is the reproducibility gate itself. Without it the
+ * gate was three shell steps — copy the committed bytes aside, rebuild over
+ * them, `cmp` — that only a workflow file could sequence.
  *
  * Run it from anywhere: `node crates/flows-jj/build-wasm.mjs`.
  * Prerequisite: rustup — `rust-toolchain.toml` supplies the toolchain,
- * the `wasm32-wasip1` target, and the components.
+ * the `wasm32-wasip1` target, and the components. Off the canonical host,
+ * run it in a container; `foreignHostError` prints the command.
  */
 import { spawnSync } from "node:child_process"
-import { copyFileSync, mkdirSync, statSync } from "node:fs"
+import { copyFileSync, mkdirSync, readFileSync, statSync } from "node:fs"
 import { homedir } from "node:os"
 import { join, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
@@ -48,6 +70,47 @@ export const rustcCommitHash = (verboseVersion) => {
   return match[1]
 }
 
+/** The `host` line of `rustc -vV`, the triple the artifact's bytes are keyed on. */
+export const rustcHost = (verboseVersion) => {
+  const match = verboseVersion.match(/^host: (\S+)$/m)
+  if (match === null) {
+    throw new Error(`rustc -vV output has no host line:\n${verboseVersion}`)
+  }
+  return match[1]
+}
+
+/**
+ * The host triple the committed artifact is built on: the one CI's
+ * `ubuntu-latest` runner reports, and the only one whose bytes the
+ * `wasm-repro` job can reproduce.
+ */
+export const canonicalHost = "x86_64-unknown-linux-gnu"
+
+/**
+ * The refusal for a host whose build CI could never match, or `undefined` on
+ * the canonical host. The container command it prints is the one CI runs,
+ * one layer down: a Node image, rustup reading `rust-toolchain.toml`, and
+ * this script.
+ */
+export const foreignHostError = (host) =>
+  host === canonicalHost ? undefined : [
+    `error: the committed flows_jj.wasm is built on ${canonicalHost}, and this host is ${host}.`,
+    "Cargo builds every build script for the host, so the metadata hash of each crate that has",
+    "one — and of everything above it — carries the host triple, and rustc turns that into a",
+    "different module. Building here would produce bytes CI cannot reproduce.",
+    "",
+    "Rebuild the committed artifact on the canonical host, from the repository root:",
+    "  docker run --rm --platform linux/amd64 -v \"$PWD\":/repo -w /repo \\",
+    "    -e CARGO_TARGET_DIR=/tmp/wasm-target node:22-bookworm sh -c \\",
+    "    'curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal >/dev/null \\",
+    "      && . \"$HOME/.cargo/env\" && rustup toolchain install \\",
+    "      && node crates/flows-jj/build-wasm.mjs'",
+    "",
+    "For a scratch module to run locally, build the crate directly and read it out of the",
+    "target directory instead of committing it:",
+    "  cargo build --locked --release --target wasm32-wasip1 --package flows-jj"
+  ].join("\n")
+
 /**
  * `--remap-path-prefix` flags that replace every machine-specific source
  * prefix with a fixed token, so the artifact's bytes do not depend on where
@@ -63,6 +126,38 @@ export const remapFlags = ({ cargoHome, commitHash, sysroot, workspaceRoot }) =>
   `--remap-path-prefix=${cargoHome}=/cargo`,
   `--remap-path-prefix=${join(sysroot, "lib", "rustlib", "src", "rust")}=/rustc/${commitHash}`
 ]
+
+/**
+ * The child cargo environment, authored rather than inherited.
+ *
+ * `RUSTFLAGS` is set from the remap flags alone: an ambient value would bake
+ * extra codegen into the artifact. `CARGO_ENCODED_RUSTFLAGS` is deleted
+ * because cargo prefers it over `RUSTFLAGS` entirely — an ambient value
+ * would silently drop the remap flags and embed machine paths. The
+ * byte-compare would catch the damage one step later on CI, but a build on
+ * the canonical host must produce the canonical bytes on the first try.
+ */
+export const buildEnvironment = (env, flags) => {
+  const environment = { ...env, RUSTFLAGS: flags.join(" ") }
+  delete environment.CARGO_ENCODED_RUSTFLAGS
+  return environment
+}
+
+/**
+ * The reproducibility failure between the committed artifact and a fresh
+ * build, or undefined when the two are byte-identical.
+ *
+ * The message names the one host the committed bytes belong to, because a
+ * mismatch on any other host is expected and is not a source problem.
+ */
+export const reproductionFailure = (committed, rebuilt) =>
+  committed.equals(rebuilt) ? undefined : [
+    "error: packages/jj/wasm/flows_jj.wasm does not reproduce from source.",
+    `  committed ${committed.length} bytes, rebuilt ${rebuilt.length} bytes`,
+    `  Rebuild it with the pinned toolchain on ${canonicalHost} and commit the result:`,
+    "    node crates/flows-jj/build-wasm.mjs",
+    "  On any other host the same script prints the container command."
+  ].join("\n")
 
 const isMain = process.argv[1] !== undefined &&
   import.meta.url === pathToFileURL(resolve(process.argv[1])).href
@@ -86,13 +181,21 @@ if (isMain) {
     return result.stdout
   }
 
+  const verboseVersion = rustc(["-vV"])
+  const foreignHost = foreignHostError(rustcHost(verboseVersion))
+  if (foreignHost !== undefined) {
+    console.error(foreignHost)
+    process.exit(1)
+  }
+
   const flags = remapFlags({
     cargoHome: process.env.CARGO_HOME ?? join(homedir(), ".cargo"),
-    commitHash: rustcCommitHash(rustc(["-vV"])),
+    commitHash: rustcCommitHash(verboseVersion),
     sysroot: rustc(["--print", "sysroot"]).trim(),
     workspaceRoot: repoRoot
   })
 
+  const environment = buildEnvironment(process.env, flags)
   const build = spawnSync(
     "cargo",
     ["build", "--locked", "--release", "--target", "wasm32-wasip1", "--package", "flows-jj"],
@@ -100,7 +203,7 @@ if (isMain) {
       cwd: repoRoot,
       // RUSTFLAGS applies to wasm32-wasip1 units only (cargo exempts host
       // units when --target is passed), so proc macros build untouched.
-      env: { ...process.env, RUSTFLAGS: [process.env.RUSTFLAGS, ...flags].filter(Boolean).join(" ") },
+      env: environment,
       stdio: "inherit"
     }
   )
@@ -116,8 +219,17 @@ if (isMain) {
     process.exit(build.status ?? 1)
   }
 
-  mkdirSync(destinationDir, { recursive: true })
-  copyFileSync(artifact, destination)
-  const { size } = statSync(destination)
-  console.log(`built ${destination} (${(size / 1024 / 1024).toFixed(2)} MiB)`)
+  if (process.argv.slice(2).includes("--verify")) {
+    const failure = reproductionFailure(readFileSync(destination), readFileSync(artifact))
+    if (failure !== undefined) {
+      console.error(failure)
+      process.exit(1)
+    }
+    console.log(`verified ${destination} reproduces from source`)
+  } else {
+    mkdirSync(destinationDir, { recursive: true })
+    copyFileSync(artifact, destination)
+    const { size } = statSync(destination)
+    console.log(`built ${destination} (${(size / 1024 / 1024).toFixed(2)} MiB)`)
+  }
 }

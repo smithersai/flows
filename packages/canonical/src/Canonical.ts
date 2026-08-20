@@ -21,11 +21,10 @@ import * as Schema from "effect/Schema"
 import * as SchemaGetter from "effect/SchemaGetter"
 import * as SchemaIssue from "effect/SchemaIssue"
 import { canonicalize } from "./internal/canonicalize.ts"
-import { validateUnicode } from "./Unicode.ts"
 
 /** @private */
 const CanonicalString = Schema.String.pipe(
-  Schema.brand("flows/canonical/Canonical")
+  Schema.brand("@smthrs/canonical/Canonical")
 )
 
 /**
@@ -37,6 +36,7 @@ const CanonicalString = Schema.String.pipe(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Canonical = typeof Canonical.Type
 
@@ -46,34 +46,33 @@ export type Canonical = typeof Canonical.Type
  * Decoding fails rather than approximates: a value carrying a lone surrogate,
  * a non-finite number, or a cycle has no canonical form, and emitting a
  * best-effort string for it would produce a digest that silently disagrees
- * with another host's. Encoding parses the document back into a plain value.
+ * with another host's. The refusals live in the serializer itself, so they
+ * hold for every string it emits — including one a `toJSON` mints during
+ * serialization, which no pre-pass over the input value could ever see.
+ * Encoding parses the document back into a plain value.
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const Canonical = Schema.Unknown.pipe(
   Schema.decodeTo(CanonicalString, {
     decode: SchemaGetter.transformOrFail((value, parseOptions) =>
-      Effect.gen(function*() {
-        yield* validateUnicode(value, new WeakSet()).pipe(
-          Effect.mapError((error) => error.issue)
-        )
-        return yield* Effect.try({
-          try: () => {
-            const result = canonicalize(value)
-            if (result === undefined) {
-              throw new TypeError("The value is not valid JSON")
-            }
-            JSON.parse(result)
-            return result
-          },
-          catch: (cause) =>
-            new SchemaIssue.InvalidValue(
-              { message: cause instanceof Error ? cause.message : String(cause) },
-              value,
-              parseOptions
-            )
-        })
+      Effect.try({
+        try: () => {
+          const result = canonicalize(value)
+          if (result === undefined) {
+            throw new TypeError("The value is not valid JSON")
+          }
+          JSON.parse(result)
+          return result
+        },
+        catch: (cause) =>
+          new SchemaIssue.InvalidValue(
+            { message: cause instanceof Error ? cause.message : String(cause) },
+            value,
+            parseOptions
+          )
       })
     ),
     encode: SchemaGetter.transform(

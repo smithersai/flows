@@ -14,10 +14,11 @@ import * as StepIdentity from "./StepIdentity.ts"
 /**
  * Computes a run-local invocation key for an internal durable operation.
  *
- * The `name` remains diagnostic only and never contributes to identity.
+ * The caller name separates durable declarations that share a parent scope.
  *
  * @category idempotency
  * @since 4.0.0
+ * @slop
  */
 export const idempotencyKey: (
   name: string,
@@ -27,15 +28,14 @@ export const idempotencyKey: (
   } | undefined
 ) => Effect.Effect<string, never, FlowInstance | Crypto.Crypto> =
   // Untraced because action-key allocation is on every action attempt.
-  Effect.fnUntraced(function*(_name: string, options?: {
+  Effect.fnUntraced(function*(name: string, options?: {
     readonly includeAttempt?: boolean | undefined
     readonly parentScope?: string | undefined
   }) {
     const instance = yield* FlowInstance
     const attempt = yield* CurrentAttempt
-    // Internal durable operations stay name-free (the name is diagnostic
-    // only), but their counter is scoped by the caller's declared
-    // `parentScope` through the canonical `StepIdentity` derivation (issue
+    // Internal durable operations are scoped by the caller's declaration name
+    // and declared `parentScope` through the canonical `StepIdentity` derivation (issue
     // #98): a run-global counter numbered concurrent offers in fiber-arrival
     // order, so a replay with a permuted interleaving handed one payload's
     // ordinal to another and its await watched a deferred nothing resolves.
@@ -53,14 +53,15 @@ export const idempotencyKey: (
     // injected cryptography keeps key construction platform-independent.
     const scope = yield* StepIdentity.allocationScope({
       kind: "internal",
-      name: "idempotency",
+      name,
       idempotency: parentScope
     }).pipe(Effect.orDie)
     const ordinal = instance.actionState.nextOrdinal(scope)
+    const identityScope = JSON.stringify([name, parentScope ?? null])
     return yield* StepIdentity.invocationKey({
       runId: instance.executionId,
       ordinal,
       tier: "unsealed",
-      ...(parentScope !== undefined ? { parentScope } : {})
+      parentScope: identityScope
     }).pipe(Effect.orDie)
   })

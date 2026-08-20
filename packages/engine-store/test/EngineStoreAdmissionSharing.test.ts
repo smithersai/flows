@@ -17,18 +17,18 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * (double execution or an AttemptAdmissionRejected conflict); with it the
  * loser waits out the winner's span and replays its terminal row.
  */
-import { Action, Flow } from "@smthrs/flow-next"
-import { Jj } from "@smthrs/kernel-next"
-import { Node } from "@smthrs/plan-next"
+import { describe, expect, it } from "@effect/vitest"
+import { Action, Flow } from "@smthrs/flow"
+import { Jj } from "@smthrs/kernel"
+import { Node } from "@smthrs/plan"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
-import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
-import { runPromise } from "./Sha256.ts"
+import { withCrypto } from "./Sha256.ts"
 
 const AdmissionFlow = Flow.make("EngineStoreAdmission/Flow", {
   payload: {},
@@ -53,48 +53,49 @@ const baseLayers = Layer.mergeAll(
 )
 
 describe("EngineStore shares one admission mutex across dispatches (issue #112)", () => {
-  it("runs a concurrently double-dispatched sealed key's body exactly once", async () => {
-    let dispatches = 0
-    // A sealed action with a string idempotencyKey takes the content-key
-    // path, so both concurrent invocations below share ONE step key — and
-    // therefore one admission permit, if the store threads it.
-    const charge = Action.make({
-      name: "EngineStoreAdmission/charge",
-      tier: "sealed",
-      idempotencyKey: "charge-once",
-      success: Schema.String,
-      execute: Effect.gen(function*() {
-        dispatches++
-        // Keep the body in flight long enough that the sibling dispatch is
-        // admitted while this one is mid-execution — the #102 window.
-        for (let index = 0; index < 20; index++) yield* Effect.yieldNow
-        return "charged"
+  it.effect("runs a concurrently double-dispatched sealed key's body exactly once", () =>
+    Effect.gen(function*() {
+      let dispatches = 0
+      // A sealed action with a string idempotencyKey takes the content-key
+      // path, so both concurrent invocations below share ONE step key — and
+      // therefore one admission permit, if the store threads it.
+      const charge = Action.make({
+        name: "EngineStoreAdmission/charge",
+        tier: "sealed",
+        idempotencyKey: "charge-once",
+        success: Schema.String,
+        execute: Effect.gen(function*() {
+          dispatches++
+          // Keep the body in flight long enough that the sibling dispatch is
+          // admitted while this one is mid-execution — the #102 window.
+          for (let index = 0; index < 20; index++) yield* Effect.yieldNow
+          return "charged"
+        })
       })
-    })
 
-    const result = await runPromise(
-      Effect.scoped(Effect.gen(function*() {
-        const engine = yield* EngineStore.make({
-          owner: { hostId: "admission-host" },
-          journalSource: "admission-test",
-          isAlive: () => Effect.succeed(true)
-        })
-        yield* engine.register(AdmissionFlow, () =>
-          Effect.map(
-            Effect.all([charge, charge], { concurrency: 2 }),
-            ([first, second]) => `${first}|${second}`
-          ))
-        return yield* engine.execute(AdmissionFlow, {
-          executionId: "admission-run",
-          payload: {},
-          discard: false
-        })
-      })).pipe(Effect.provide(baseLayers))
-    )
+      const result = yield* withCrypto(
+        Effect.scoped(Effect.gen(function*() {
+          const engine = yield* EngineStore.make({
+            owner: { hostId: "admission-host" },
+            journalSource: "admission-test",
+            isAlive: () => Effect.succeed(true)
+          })
+          yield* engine.register(AdmissionFlow, () =>
+            Effect.map(
+              Effect.all([charge, charge], { concurrency: 2 }),
+              ([first, second]) => `${first}|${second}`
+            ))
+          return yield* engine.execute(AdmissionFlow, {
+            executionId: "admission-run",
+            payload: {},
+            discard: false
+          })
+        })).pipe(Effect.provide(baseLayers))
+      )
 
-    // The loser of the permit race replays the winner's terminal row: one
-    // physical execution, both invocations observing its outcome.
-    expect(result).toBe("charged|charged")
-    expect(dispatches).toBe(1)
-  })
+      // The loser of the permit race replays the winner's terminal row: one
+      // physical execution, both invocations observing its outcome.
+      expect(result).toBe("charged|charged")
+      expect(dispatches).toBe(1)
+    }))
 })

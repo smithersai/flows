@@ -3,7 +3,7 @@
  *
  * @since 0.1.0
  */
-import * as CommandLine from "@smthrs/kernel-next/CommandLine"
+import * as CommandLine from "@smthrs/kernel/CommandLine"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Path from "effect/Path"
@@ -66,6 +66,7 @@ const resolveEnvironment = (
  *
  * @private
  * @since 0.1.0
+ * @slop
  */
 export const make = (bash: JustBashLike) =>
   Effect.gen(function*() {

@@ -18,8 +18,8 @@
  *
  * @since 0.1.0
  */
-import { Sha256 } from "@smthrs/crypto-next"
-import { Key } from "@smthrs/keys-next/Key"
+import { Sha256 } from "@smthrs/crypto"
+import { Key } from "@smthrs/keys/Key"
 import * as Context from "effect/Context"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
@@ -37,6 +37,7 @@ import type { Any } from "./Flow.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface ExecutionIdSource {
   readonly mint: (
@@ -77,6 +78,7 @@ const canonicalKey = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const derived: ExecutionIdSource = {
   mint: (flow, payload) =>
@@ -92,9 +94,10 @@ export const derived: ExecutionIdSource = {
  *
  * @category idempotency
  * @since 0.1.0
+ * @slop
  */
 export const CurrentExecutionIds = Context.Reference<ExecutionIdSource>(
-  "flows/flow/Flow/CurrentExecutionIds",
+  "@smthrs/flow/Flow/CurrentExecutionIds",
   { defaultValue: () => derived }
 )
 
@@ -111,6 +114,7 @@ export const CurrentExecutionIds = Context.Reference<ExecutionIdSource>(
  *
  * @category idempotency
  * @since 0.1.0
+ * @slop
  */
 export const layerExecutionIds = (
   source: ExecutionIdSource

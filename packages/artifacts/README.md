@@ -1,9 +1,9 @@
-# `@smthrs/artifacts-next`
+# `@smthrs/artifacts`
 
 The content-addressed artifact store: bytes addressed by their own SHA-256
 digest.
 
-This is the second half of the cache. `@smthrs/step-cache-next` maps a step key to a
+This is the second half of the cache. `@smthrs/step-cache` maps a step key to a
 recorded result; a recorded result references its large outputs **by digest**
 rather than inlining them, and those bytes live here. `docs/specs/Specs/Object
 Model.md` names both halves as the `Cache` service's job; `docs/specs/Specs/Input.md`
@@ -11,13 +11,13 @@ is where "large values enter by digest" comes from.
 
 The package name says what it stores, per the naming rule in
 `docs/specs/Concepts/Journal Split.md`. It depends on `effect` and
-`@smthrs/crypto-next` and nothing else, owns no SQL, and bundles for the browser.
+`@smthrs/crypto` and nothing else, owns no SQL, and bundles for the browser.
 
 ## Public API
 
 | Export                                             | Meaning                                                                                                                                 |
 | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `ArtifactStore.ArtifactStore`                      | The service tag. Identity `@smthrs/artifacts-next/ArtifactStore`                                                                        |
+| `ArtifactStore.ArtifactStore`                      | The service tag. Identity `@smthrs/artifacts/ArtifactStore`                                                                             |
 | `ArtifactStore.Service`                            | `put(bytes)`, `get(digest)`, `has(digest)`, `findMissing(digests)`                                                                      |
 | `ArtifactStore.ArtifactMissing`                    | The typed miss — the answer a read-through composition acts on                                                                          |
 | `ArtifactStore.ArtifactCorruption`                 | Bytes at an address no longer hash to it                                                                                                |
@@ -25,7 +25,7 @@ The package name says what it stores, per the naming rule in
 | `ArtifactStore.makeFileSystem`, `.layerFileSystem` | Over Effect's `FileSystem` tag                                                                                                          |
 | `ArtifactStore.makeMemory`, `.layerMemory`         | For tests and browser hosts with no durable filesystem                                                                                  |
 | `ArtifactStore.makeNoop`, `.layerNoop`             | Everything unavailable, with per-method overrides                                                                                       |
-| `ArtifactSweep.ArtifactSweep`                      | The sweep tag. Identity `@smthrs/artifacts-next/ArtifactSweep`                                                                          |
+| `ArtifactSweep.ArtifactSweep`                      | The sweep tag. Identity `@smthrs/artifacts/ArtifactSweep`                                                                               |
 | `ArtifactSweep.Service`                            | `inventory`, `remove(digest, { ifUnmodifiedSinceMs })` — host-local enumeration and mtime-fenced deletion for the engine's `ArtifactGc` |
 | `ArtifactSweep.makeFileSystem`, `.layerFileSystem` | Over the same objects directory the store publishes into                                                                                |
 | `ArtifactSweep.makeNoop`, `.layerNoop`             | Everything unavailable, with per-method overrides                                                                                       |
@@ -33,7 +33,7 @@ The package name says what it stores, per the naming rule in
 | `CombinedArtifacts.make`, `.layer`                 | Local-first, remote-second, with local write-back                                                                                       |
 
 ```ts
-import { ArtifactStore, CombinedArtifacts, RemoteArtifacts } from "@smthrs/artifacts-next"
+import { ArtifactStore, CombinedArtifacts, RemoteArtifacts } from "@smthrs/artifacts"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 
@@ -98,8 +98,8 @@ Reclaiming published artifacts is an explicit verb per
 `docs/specs/Concepts/Reconciliation.md`, never a side effect of a store
 operation. The `.tmp-*` sweep in `layerFileSystem` reclaims crash orphans only;
 `ArtifactSweep` is the deletion surface, and the mark phase that decides what
-is live belongs to `@smthrs/engine-store-next`'s `ArtifactGc`
-(`docs/pages/artifact-gc.md`). Two concerns are ticketed rather than silently
+is live belongs to `@smthrs/engine-store`'s `ArtifactGc`
+(`docs/pages/artifact-gc.mdx`). Two concerns are ticketed rather than silently
 omitted (`docs/specs/Concepts/Tickets Not Exceptions.md`):
 
 - `.smithers/tickets/cas-chunked-transfer.md` — chunked and resumable transfer.

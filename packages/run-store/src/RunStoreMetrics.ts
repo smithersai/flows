@@ -5,7 +5,7 @@
  * `ClusterMetrics`. `RunStore` updates them as compare-and-swap outcomes are
  * decided, so every driver that persists through the store — the engine, a
  * sweeper, a foreign process — lands in the same counters. No exporter ships
- * in this package; provide one — for example `@smthrs/observability-next` —
+ * in this package; provide one — for example `@smthrs/observability` —
  * and these counters appear in it.
  *
  * Each exported record maps an outcome's `_tag` to an attributed view of the

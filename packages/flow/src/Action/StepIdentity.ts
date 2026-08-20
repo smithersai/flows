@@ -3,20 +3,20 @@
 /**
  * Derives allocation scopes and run-local invocation keys.
  *
- * Ordinal step identity has three components: the kind of durable operation
+ * Ordinal step identity has four components: the kind of durable operation
  * (an action dispatch or an internal engine operation), the stable
- * declaration identity (the action name, or a fixed internal label), and an
+ * declaration identity (the action name, or a fixed internal label), an
  * optional explicit idempotency component — a caller-declared string or
- * object. Every ordinal counter in the engine
- * is keyed by the scope this module derives, and the scope is also folded
- * into the persisted key as `parentScope`, so two dispatches with distinct
- * declarations can never swap ordinals under a permuted fiber interleaving
- * (issues #73, #85, #98, #101).
+ * object — and an optional structural dispatch site. Every ordinal counter
+ * in the engine is keyed by the scope this module derives, and the scope is
+ * also folded into the persisted key as `parentScope`, so two dispatches with
+ * distinct declarations or structural sites can never swap ordinals under a
+ * permuted fiber interleaving (issues #73, #85, #98, #101).
  *
- * The derivation is injective: distinct `(kind, name, idempotency)` inputs
- * always produce distinct scopes. The name is length-prefixed so a name that
- * happens to contain the component separator cannot alias another
- * declaration, and both idempotency forms are canonicalized to a fixed-width
+ * The derivation is injective: distinct `(kind, name, idempotency, site)`
+ * inputs always produce distinct scopes. The name and site are
+ * length-prefixed so their contents cannot splice across component
+ * separators, and both idempotency forms are canonicalized to a fixed-width
  * digest under distinct tags so a string can never alias the object identity
  * whose digest it happens to spell.
  *
@@ -24,8 +24,9 @@
  *
  * @since 0.1.0
  */
-import { Sha256 } from "@smthrs/crypto-next"
-import { Key, type Key as KeyType } from "@smthrs/keys-next"
+import { Sha256 } from "@smthrs/crypto"
+import { Key, type Key as KeyType } from "@smthrs/keys"
+import * as Context from "effect/Context"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
@@ -44,10 +45,27 @@ const Invocation = Schema.Struct({
 })
 
 /**
+ * The interpreter graph site currently dispatching an action.
+ *
+ * A site is a replay-stable structural address of an `ActionCall` node. It is
+ * never derived from fiber arrival order and is never a diagnostic label. It
+ * is durable key material: changing it deliberately changes ordinal scopes
+ * and invocation keys. Handler-driven dispatches leave the service absent.
+ *
+ * @since 0.1.0
+ * @category services
+ * @slop
+ */
+export class DispatchSite extends Context.Service<DispatchSite, string>()(
+  "@smthrs/flow/Action/DispatchSite"
+) {}
+
+/**
  * The declaration material an allocation scope is derived from.
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface AllocationIdentity {
   /**
@@ -72,6 +90,12 @@ export interface AllocationIdentity {
    * have no material to order them by.
    */
   readonly idempotency?: string | Schema.JsonObject | undefined
+  /**
+   * The replay-stable structural address of the interpreter graph node that
+   * drives this dispatch. Absent for handler-driven dispatches, preserving
+   * their existing allocation scopes byte for byte.
+   */
+  readonly site?: string | undefined
 }
 
 /**
@@ -86,7 +110,10 @@ export interface AllocationIdentity {
  * of a shorter name, and the idempotency component is a fixed-shape tagged
  * digest appended after the name. Both idempotency forms canonicalize under
  * distinct one-character tags so a string can never alias the object identity
- * whose digest it happens to spell.
+ * whose digest it happens to spell. A present site is appended as
+ * `/g:<length>:<site>`; its length prefix prevents site contents from
+ * aliasing another component or splicing across a future suffix. An absent
+ * site appends nothing, preserving the prior encoding exactly.
  *
  * The object form is caller-owned material, so it can carry values canonical
  * serialization rejects (`Date`, `undefined`, class instances, `Redacted`);
@@ -96,19 +123,22 @@ export interface AllocationIdentity {
  *
  * @since 0.1.0
  * @category derivations
+ * @slop
  */
 export const allocationScope = (
   identity: AllocationIdentity
 ): Effect.Effect<string, Schema.SchemaError, Crypto.Crypto> =>
   Effect.gen(function*() {
-    const base = `${identity.kind}/${identity.name.length}:${identity.name}`
-    if (identity.idempotency === undefined) return base
+    let scope = `${identity.kind}/${identity.name.length}:${identity.name}`
     if (typeof identity.idempotency === "string") {
       const digest = yield* Schema.decodeUnknownEffect(Sha256)(identity.idempotency)
-      return `${base}/s:${digest}`
+      scope = `${scope}/s:${digest}`
+    } else if (identity.idempotency !== undefined) {
+      const key = yield* Schema.decodeUnknownEffect(Key)({ kind: "declaration", input: identity.idempotency })
+      scope = `${scope}/c:${key}`
     }
-    const key = yield* Schema.decodeUnknownEffect(Key)({ kind: "declaration", input: identity.idempotency })
-    return `${base}/c:${key}`
+    if (identity.site === undefined) return scope
+    return `${scope}/g:${identity.site.length}:${identity.site}`
   })
 
 /**
@@ -122,6 +152,7 @@ export const allocationScope = (
  *
  * @since 0.1.0
  * @category derivations
+ * @slop
  */
 export const invocationKey = (input: {
   readonly runId: string

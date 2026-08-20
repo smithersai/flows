@@ -5,7 +5,7 @@
  * `ClusterMetrics`. The local `ArtifactStore` implementations update them per
  * successful operation, so a `CombinedArtifacts` stack counts once per tier it
  * actually touched. No exporter ships in this package; provide one — for
- * example `@smthrs/observability-next` — and these counters appear in it.
+ * example `@smthrs/observability` — and these counters appear in it.
  *
  * @since 0.1.0
  */
@@ -18,6 +18,7 @@ import * as Metric from "effect/Metric"
  *
  * @category metrics
  * @since 0.1.0
+ * @slop
  */
 export const puts = Metric.counter("flows_artifact_puts", {
   description: "Successful artifact puts, including deduplicated ones"
@@ -30,6 +31,7 @@ export const puts = Metric.counter("flows_artifact_puts", {
  *
  * @category metrics
  * @since 0.1.0
+ * @slop
  */
 export const gets = Metric.counter("flows_artifact_gets", {
   description: "Successful artifact gets"

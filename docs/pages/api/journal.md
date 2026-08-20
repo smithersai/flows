@@ -1,9 +1,13 @@
-# @smthrs/journal-next
+---
+description: "The logical write-ahead log: the event history, its projections and redaction, and the OwnerId fence."
+---
 
-The logical write-ahead log: the immutable event history, its projections and redaction, and the `OwnerId` fence its durable channel accepts. Run and attempt state live in [`@smthrs/run-store-next`](/api/run-store), sealed step results in [`@smthrs/step-cache-next`](/api/step-cache). The journal writes through the `@smthrs/database-next` contract, so the package root bundles for the browser.
+# @smthrs/journal
+
+The logical write-ahead log: the immutable event history, its projections and redaction, and the `OwnerId` fence its durable channel accepts. Run and attempt state live in [`@smthrs/run-store`](/api/run-store), sealed step results in [`@smthrs/step-cache`](/api/step-cache). The journal writes through the `@smthrs/database` contract, so the package root bundles for the browser.
 
 ```ts
-import { Journal, JournalEvent, Migrations, SqlJournal } from "@smthrs/journal-next"
+import { Journal, JournalEvent, Migrations, SqlJournal } from "@smthrs/journal"
 import * as Layer from "effect/Layer"
 
 const layer = SqlJournal.layer({ capacity: 1024, overflow: "reject" }).pipe(
@@ -15,9 +19,9 @@ const layer = SqlJournal.layer({ capacity: 1024, overflow: "reject" }).pipe(
 
 | Import | Source | Platform |
 | --- | --- | --- |
-| `@smthrs/journal-next` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/journal/src/index.ts) | any |
-| `@smthrs/journal-next/test/TestJournal` | [src/test/TestJournal.ts](https://github.com/smithersai/flows/blob/main/packages/journal/src/test/TestJournal.ts) | Node |
-| `@smthrs/journal-next/test/Notifying` | [src/test/Notifying.ts](https://github.com/smithersai/flows/blob/main/packages/journal/src/test/Notifying.ts) | any |
+| `@smthrs/journal` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/journal/src/index.ts) | any |
+| `@smthrs/journal/test/TestJournal` | [src/test/TestJournal.ts](https://github.com/smithersai/flows/blob/main/packages/journal/src/test/TestJournal.ts) | Node |
+| `@smthrs/journal/test/Notifying` | [src/test/Notifying.ts](https://github.com/smithersai/flows/blob/main/packages/journal/src/test/Notifying.ts) | any |
 
 ## JournalEvent
 
@@ -36,7 +40,7 @@ const layer = SqlJournal.layer({ capacity: 1024, overflow: "reject" }).pipe(
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `Journal` | service tag | `flows/journal/Journal` |
+| `Journal` | service tag | `@smthrs/journal/Journal` |
 | `Service` | interface | the methods below |
 | `make`, `makeNoop` | constructors | |
 | `layerNoop` | layer | |
@@ -63,7 +67,9 @@ const layer = SqlJournal.layer({ capacity: 1024, overflow: "reject" }).pipe(
 | `latestCheckpoint(runId)` | `Option<Checkpoint>` | the resync point for a compacted run |
 | `compact(options, owner?)` | `Compacted` | truncates strictly below a checkpoint, atomically with the floor advance |
 
-Reads below a run's compaction floor fail with `compacted`; see [Checkpoints and compaction](/compaction).
+:::warning
+Reads below a run's compaction floor fail with `compacted`. See [Checkpoints and compaction](/compaction).
+:::
 
 ## SqlJournal
 
@@ -90,7 +96,7 @@ Reads below a run's compaction floor fail with `compacted`; see [Checkpoints and
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `OwnerId` | schema + type | `hostId`, `pid`, `nonce` — the fence `emitDurable` accepts; `@smthrs/run-store-next`'s `Ownership` re-exports it |
+| `OwnerId` | schema + type | `hostId`, `pid`, `nonce`: the fence `emitDurable` accepts; `@smthrs/run-store`'s `Ownership` re-exports it |
 
 ## Migrations
 
@@ -102,7 +108,7 @@ Reads below a run's compaction floor fail with `compacted`; see [Checkpoints and
 | `run` | effect | apply the journal schema |
 | `layer` | layer | applies the journal schema at construction |
 
-Every other durable table belongs to the package that reads it. `@smthrs/database-next`'s `Migrations` composes the sets, and `@smthrs/engine-store-next/Migrations` is the composed list a durable engine installs.
+Every other durable table belongs to the package that reads it. `@smthrs/database`'s `Migrations` composes the sets, and `@smthrs/engine-store/Migrations` is the composed list a durable engine installs.
 
 ## Projection, Redaction
 
@@ -115,5 +121,5 @@ Every other durable table belongs to the package that reads it. `@smthrs/databas
 
 | Export | Source | Notes |
 | --- | --- | --- |
-| `TestJournal.layer(options?)`, `TestJournal.TestJournalOptions` | [src/test/TestJournal.ts](https://github.com/smithersai/flows/blob/main/packages/journal/src/test/TestJournal.ts) | the SQL journal over in-memory SQLite; `@smthrs/engine-store-next/test/TestStores` bundles all four stores over one database |
+| `TestJournal.layer(options?)`, `TestJournal.TestJournalOptions` | [src/test/TestJournal.ts](https://github.com/smithersai/flows/blob/main/packages/journal/src/test/TestJournal.ts) | the SQL journal over in-memory SQLite; `@smthrs/engine-store/test/TestStores` bundles all four stores over one database |
 | `Notifying.wrap`, `Notifying.layer`, `Notifying.Order`, `Notifying.Hook` | [src/test/Notifying.ts](https://github.com/smithersai/flows/blob/main/packages/journal/src/test/Notifying.ts) | interstitial crash and fence-loss injection around any Effect service |

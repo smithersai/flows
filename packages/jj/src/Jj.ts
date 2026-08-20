@@ -10,14 +10,14 @@
  * The error lives here rather than in a shared host error module so that a
  * consumer who only snapshots a working copy does not pull in a process
  * spawner or an HTTP client. The one thing this package does import is
- * `@smthrs/capability-next`, the leaf that names the permission failures a guarded
+ * `@smthrs/capability`, the leaf that names the permission failures a guarded
  * `Jj` adds; it depends on nothing but `effect` either.
  *
  * The tag key and the error `_tag` are durable identity: step keys digest the
  * resolved service set, and `JjError` round-trips through the journal, so
  * renaming either invalidates recorded runs.
  */
-import type * as Permission from "@smthrs/capability-next/Permission"
+import type * as Permission from "@smthrs/capability/Permission"
 import { Context, Effect, Layer, Schema } from "effect"
 import type { PlatformError } from "effect/PlatformError"
 
@@ -33,6 +33,7 @@ import type { PlatformError } from "effect/PlatformError"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const JjErrorCode = Schema.Literals(["not_installed", "conflict", "invalid_ref", "unknown"])
 
@@ -41,6 +42,7 @@ export const JjErrorCode = Schema.Literals(["not_installed", "conflict", "invali
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type JjErrorCode = typeof JjErrorCode.Type
 
@@ -53,14 +55,17 @@ export type JjErrorCode = typeof JjErrorCode.Type
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
-export class JjError extends Schema.TaggedError<JjError>()("@smthrs/jj-next/JjError", {
+export class JjError extends Schema.TaggedError<JjError>()("@smthrs/jj/JjError", {
   code: JjErrorCode,
   module: Schema.optional(Schema.String),
   method: Schema.optional(Schema.String),
   message: Schema.String,
   /** The jj command that produced the failure, when one was run. */
-  command: Schema.optional(Schema.String)
+  command: Schema.optional(Schema.String),
+  /** The underlying host failure, carried whole rather than flattened away. */
+  cause: Schema.optional(Schema.Unknown)
 }) {}
 
 /**
@@ -70,6 +75,7 @@ export class JjError extends Schema.TaggedError<JjError>()("@smthrs/jj-next/JjEr
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const jjError = (options: {
   readonly code: JjErrorCode
@@ -94,9 +100,10 @@ export const jjError = (options: {
  *
  * @category refinements
  * @since 0.1.0
+ * @slop
  */
 export const isJjError = (error: unknown): error is JjError =>
-  typeof error === "object" && error !== null && "_tag" in error && error._tag === "@smthrs/jj-next/JjError"
+  typeof error === "object" && error !== null && "_tag" in error && error._tag === "@smthrs/jj/JjError"
 
 /**
  * A jj change id — the durable handle a run uses to name workspace state.
@@ -107,6 +114,7 @@ export const isJjError = (error: unknown): error is JjError =>
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ChangeId = string
 
@@ -116,15 +124,16 @@ export type ChangeId = string
  * `flows` runs jj behind the capability kernel, so the honest error channel of
  * this contract is jj's own failure *plus* the three the kernel adds. The
  * interface declares them here, in the package that owns the service, rather
- * than being redeclared and re-tagged by `@smthrs/kernel-next`: one interface, one
+ * than being redeclared and re-tagged by `@smthrs/kernel`: one interface, one
  * tag, and a caller that holds `Jj` cannot forget a snapshot may be denied.
  *
- * `@smthrs/capability-next` is a leaf that depends on nothing but `effect`, so
+ * `@smthrs/capability` is a leaf that depends on nothing but `effect`, so
  * naming these here keeps this package browser-bundleable and keeps the
  * kernel → jj dependency acyclic.
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type JjFailure = JjError | Permission.PermissionError
 
@@ -139,6 +148,7 @@ export type JjFailure = JjError | Permission.PermissionError
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export interface Jj {
   /** Commits the working copy and returns the change id to restore to later. */
@@ -169,8 +179,9 @@ export interface Jj {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
-export const Jj: Context.Service<Jj, Jj> = Context.Service("@smthrs/jj-next/Jj")
+export const Jj: Context.Service<Jj, Jj> = Context.Service("@smthrs/jj/Jj")
 
 /**
  * Brands an implementation as the {@link Jj} service, so a new backend is
@@ -178,6 +189,7 @@ export const Jj: Context.Service<Jj, Jj> = Context.Service("@smthrs/jj-next/Jj")
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (impl: Jj): Jj => Jj.of(impl)
 
@@ -191,6 +203,7 @@ export const make = (impl: Jj): Jj => Jj.of(impl)
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (overrides: Partial<Jj>): Jj => {
   const missing = (method: string) =>
@@ -213,5 +226,6 @@ export const makeNoop = (overrides: Partial<Jj>): Jj => {
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop = (overrides: Partial<Jj>): Layer.Layer<Jj> => Layer.succeed(Jj)(makeNoop(overrides))

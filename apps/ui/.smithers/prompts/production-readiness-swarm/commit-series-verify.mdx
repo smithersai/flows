@@ -1,0 +1,11 @@
+# Production Readiness Swarm — commit-series-verify
+
+Independently verify each curated commit in isolation using its relevant real commands and preserve a stable failure signature.
+
+Declared upstream receipts and run-scoped VCS targets:
+{props.context}
+
+Work only from the fresh versioned evidence snapshot and declared upstream receipts. Record command outputs and artifact locations. Do not claim success without deterministic evidence. Treat inferred worldview data as provisional with provenance. Never force-push or land on main.
+
+REQUIRED OUTPUT:
+{props.schema}

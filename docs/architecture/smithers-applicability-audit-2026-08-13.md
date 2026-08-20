@@ -138,7 +138,7 @@ are documented production or parity gaps rather than surprise bugs.
 | F-06 | Medium | Low | Cancellation records have no actor/source/reason attribution | Source + documented gap | Legit; known missing feature |
 | F-07 | Medium | Medium | Durable `interruptUnsafe` is an alias of ordinary `interrupt` despite a different contract | Source | Legit |
 | F-08 | High | High | Registration sweeps terminal deferred/clock state and writes or arms historical work | Source | Legit |
-| F-09 | High | High | Durable rows, journal/archive history, branch ledgers, and CAS blobs have no retention/GC | Source + documented gap | Legit; production-blocking missing feature |
+| F-09 | High | High | Durable rows, journal/archive history, branch ledgers, and CAS blobs still lack automatic retention policy | Source + documented gap | Legit; remaining production retention gap |
 | F-10 | Medium | Medium | Sixty-four live-but-stale owners can starve the stale-run sweep and spam the journal | Source | Legit |
 | F-11 | Medium | Low | Suspended-flow retry bounds reset on each caller/process restart | Source; explicitly designed this way | Partial: intentional semantics with contradictory naming/docs |
 | F-12 | High | High | Fork database creation and workspace creation are non-atomic; workspace names also collide | Source | Legit |
@@ -331,16 +331,22 @@ marks those clock rows complete. Stable producer identity may deduplicate some
 re-announcements within one configured source, but it does not remove the
 timer fan-out or the terminal deferred work.
 
-### F-09 — no retention or garbage collection across durable stores
+### F-09 — retention gaps across durable stores
 
-There is no run deletion API, no journal compaction/checkpointing, no attempt
-retention job, no deferred/clock cleanup, and no time-travel archive retention.
-The artifact service exposes put/get/has/find-missing but no published-blob GC;
-step cache eviction is per key only. The `flows_run_parents_gc` trigger merely
-cleans graph edges if some future lane deletes a run—it does not provide that
-lane.
+At the audit baseline there was no run deletion API, no journal
+compaction/checkpointing, no attempt retention job, no deferred/clock cleanup,
+no time-travel archive retention, and no published-blob GC. Journal
+checkpointing/compaction and explicit artifact GC have since shipped. The
+remaining retention gaps are the lack of run deletion, attempt retention,
+deferred/clock cleanup, and time-travel archive retention; compaction and GC
+remain explicit operations rather than automatic retention jobs. The artifact
+service now exposes `ArtifactSweep`, and `ArtifactGc` in engine-store computes
+the durable live set before sweeping. Step-cache eviction remains per key. The
+`flows_run_parents_gc` trigger cleans graph edges if a lane deletes a run; it
+does not provide that lane.
 
-Long-lived installations grow all of these without bound:
+Long-lived installations can still grow without bound without operator-invoked
+compaction, GC, and retention jobs:
 
 - `flows_runs`, `flows_attempts`, and `flows_journal_events`;
 - deferred completions, clock deadlines, wait metadata, and repeated wake
@@ -349,12 +355,11 @@ Long-lived installations grow all of these without bound:
 - branch command history and its rehydrated in-memory ledger;
 - published CAS blobs and local/shared cache records.
 
-This is already listed piecemeal in source tickets and implementation status,
-but Smithers [#1349](https://github.com/smithersai/smithers/issues/1349) records
-the eventual outcome—100GB control databases—and
+This remains a production blocker for a complete retention contract. Smithers
+[#1349](https://github.com/smithersai/smithers/issues/1349) records the
+eventual outcome—100GB control databases—and
 [#1491](https://github.com/smithersai/smithers/issues/1491) records the same
-class for logs/worktrees. It should be treated as a production blocker with an
-explicit retention contract, not a collection of optional cleanups.
+class for logs/worktrees.
 
 ### F-10 — stale-run sweep starvation and write amplification
 
@@ -596,11 +601,11 @@ They already appear, sometimes inconsistently, in the local architecture docs.
 | G-02 | No durable process-tree registry/reaper | Relevant to agent/child-process integrations; Smithers #972/#1332 and containment commits are direct prior art |
 | G-03 | No checkpoint host capability or durable worktree-lane lifecycle | Smithers checkpoint publication, retry, provenance, restore, and worktree cleanup code is directly applicable |
 | G-04 | No quota-error classifier and wake policy | Smithers provider classification belongs behind an injected seam, not hard-coded in core |
-| G-05 | No packaged production layer | Blocks a clean Smithers cutover even where primitives exist |
+| G-05 | No packaged production layer at the audit baseline; `@smthrs/flows/NodeRuntime` has since shipped the storage-and-engine half | Half the cutover artifact exists; host services, the guarded kernel, `StepBoundary`, and `WorkspaceSandbox` are still the embedder's. `packages/flows/test/NodeRuntime.test.ts` directly gates that module over real SQLite. |
 | G-06 | SQLite-only shipped storage/migration layers | Smithers' PGlite/Postgres installations cannot adopt the store as written |
 | G-07 | Event-driven resume signal is absent | Polling is correct fallback but adds latency/load and complicates bounded retry semantics |
-| G-08 | Artifact GC, chunked transfer, and download policy are absent | Smithers #1349/#1491 make retention and worktree cleanup operational requirements |
-| G-09 | Journal checkpointing/compaction is absent | Directly exposed by F-08/F-09 |
+| G-08 | Artifact GC is shipped as explicit mark/sweep; chunked transfer and download policy remain absent | Smithers #1349/#1491 make retention and worktree cleanup operational requirements |
+| G-09 | No default journal retention job; checkpointing/compaction are shipped as explicit or opt-in operations | Directly exposed by F-08/F-09 |
 | G-10 | Diff-review gate and parts of the sandbox filesystem surface are absent | Required for Smithers agent/worktree parity, not for the minimal executor |
 | G-11 | Flow registrations are in memory | A restarted worker must re-register before execution; F-05 shows control-only settlement should be separated |
 | G-12 | Plan admission caps do not account for lifecycle-linked child runs | Smithers #885 is relevant if child flows are meant to consume agent capacity |
@@ -679,10 +684,10 @@ boundaries already debugged under failure:
   scope finalizer ran zero times after terminal cancellation.
 - Focused two-instance branch-command test: failed its exactly-once assertion,
   observing two durable writes for one command ID.
-- TypeScript checks passed for `@smthrs/engine-store-next`,
-  `@smthrs/engine-next`, `@smthrs/run-store-next`,
-  `@smthrs/time-travel-next`, `@smthrs/journal-next`, and
-  `@smthrs/sync-next` at the audit baseline.
+- TypeScript checks passed for `@smthrs/engine-store`,
+  `@smthrs/engine`, `@smthrs/run-store`,
+  `@smthrs/time-travel`, `@smthrs/journal`, and
+  `@smthrs/sync` at the audit baseline.
 - No full repository test run was performed, per repository instructions.
 - All temporary audit tests were removed. Only this report was added; unrelated
   worktree edits were not modified.
@@ -719,7 +724,7 @@ intentional semantics/docs/gaps, and choose `LEGIT`, `PARTIAL`, or
 | F-06 | Legit | Low | Known missing feature affecting forensics rather than execution correctness |
 | F-07 | Legit | Medium | Contract bug/missing feature: durable `interruptUnsafe` is literally the safe path alias while memory mode has two behaviors |
 | F-08 | Legit | High | Bug: all-time completion selection, terminal wake journaling, and no dedup make every registration cost grow with history |
-| F-09 | Legit | High | Production-blocking missing feature; arguably a `G-*` classification, but Smithers demonstrates the operational severity |
+| F-09 | Legit | High | Remaining retention gap; journal compaction and artifact GC are explicit, but run, attempt, deferred/clock, and archive cleanup are still missing |
 | F-10 | Legit | Medium | Bug: refused rows never change ordering or next-probe time, so starvation and repeated durable refusal writes follow |
 | F-11 | Partial | Low | Intentional per-caller semantics; the misleading policy name and contradictory restart comments are the surviving defect |
 | F-12 | Legit | High | Bug: same-frame re-fork deterministically combines a duplicate workspace with an already-committed child |

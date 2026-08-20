@@ -89,14 +89,20 @@ export const make = (
     const send = (operation: string, request: HttpClientRequest.HttpClientRequest) =>
       client.execute(authorize(request)).pipe(Effect.mapError((cause) => transportFailure(operation, cause)))
 
-    const get: CacheStore.Service["get"] = Effect.fn("RemoteCacheStore.get")((keyDigest: string) =>
+    const get: CacheStore.Service["get"] = Effect.fn("RemoteCacheStore.get")((keyDigest, getOptions) =>
       Effect.gen(function*() {
-        if (keyDigest.length === 0) {
-          return yield* Effect.fail(
-            new CacheStore.CacheStoreError({ code: "invalid_cache", message: "keyDigest must not be empty" })
-          )
-        }
-        const response = yield* send("a lookup", HttpClientRequest.get(acUrl(keyDigest)))
+        yield* Effect.annotateCurrentSpan({ keyDigest })
+        yield* CacheStore.validateKey(keyDigest)
+        yield* CacheStore.validateFence(getOptions?.recordedBy)
+        const recordedBy = getOptions?.recordedBy
+        const lookup = HttpClientRequest.get(acUrl(keyDigest))
+        const request = recordedBy === undefined
+          ? lookup
+          : HttpClientRequest.setUrlParams(lookup, {
+            recordedRunId: recordedBy.runId,
+            recordedEventSeq: String(recordedBy.eventSeq)
+          })
+        const response = yield* send("a lookup", request)
         if (response.status === 404) return Option.none()
         if (!isOk(response.status)) return yield* Effect.fail(unexpectedStatus("a lookup", response.status))
         const body = yield* response.json.pipe(
@@ -128,6 +134,7 @@ export const make = (
 
     const put: CacheStore.Service["put"] = Effect.fn("RemoteCacheStore.put")((entry: CacheStore.CacheEntry) =>
       Effect.gen(function*() {
+        yield* Effect.annotateCurrentSpan({ keyDigest: entry.keyDigest })
         const encoded = yield* Schema.encodeEffect(CacheStore.CacheEntry)(entry).pipe(
           Effect.mapError((cause) =>
             new CacheStore.CacheStoreError({
@@ -137,9 +144,19 @@ export const make = (
             })
           )
         )
+        // The wire bytes are the canonical form itself. Besides refusing
+        // values JSON cannot represent, this gives structurally equal entries
+        // identical bytes on every host regardless of object insertion order.
+        // Validate the two unknown fields before encoding the struct because
+        // a struct encoder may omit an `undefined` member.
+        yield* CacheStore.encodeCanonical(entry.result, "result")
+        yield* CacheStore.encodeCanonical(entry.meta, "meta")
+        const body = yield* CacheStore.encodeCanonical(encoded, "cache entry")
         const response = yield* send(
           "a publication",
-          HttpClientRequest.put(acUrl(entry.keyDigest)).pipe(HttpClientRequest.bodyJsonUnsafe(encoded))
+          HttpClientRequest.put(acUrl(entry.keyDigest)).pipe(
+            HttpClientRequest.bodyText(body, "application/json")
+          )
         )
         if (response.status === 409) return { _tag: "Conflict" } as const
         if (!isOk(response.status)) return yield* Effect.fail(unexpectedStatus("a publication", response.status))
@@ -149,6 +166,12 @@ export const make = (
 
     const evict: CacheStore.Service["evict"] = Effect.fn("RemoteCacheStore.evict")((keyDigest, evictOptions) =>
       Effect.gen(function*() {
+        yield* Effect.annotateCurrentSpan({ keyDigest })
+        // An empty key would aim the protocol's one destructive verb at the
+        // `/ac/` collection root instead of a single entry, so the preflight
+        // that guards `get` guards the DELETE all the more.
+        yield* CacheStore.validateKey(keyDigest)
+        yield* CacheStore.validateFence(evictOptions?.ifRecordedBy)
         const fenced = evictOptions?.ifRecordedBy
         // The provenance fence rides in the request the same way it rides in
         // the SQL `DELETE`: the server compares before deleting, so a fresher

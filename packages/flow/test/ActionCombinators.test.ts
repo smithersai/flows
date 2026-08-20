@@ -1,19 +1,61 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Action, Flow, Interpreter } from "@smthrs/flow-next"
-import { Context, Effect, Layer, Schema } from "effect"
+import { describe, expect, it } from "@effect/vitest"
+import { Action, Flow, Interpreter } from "@smthrs/flow"
+import { Context, Effect, Layer, Schema, Tracer } from "effect"
 import type * as Crypto from "effect/Crypto"
-import { describe, expect, it } from "vitest"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 import { layerWired } from "./MemoryFlowRuntime.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it(name, () => runPromise(body()))
+  it.effect(name, () => withCrypto(body()))
 
 const Label = Context.Reference<string>("test/Label", { defaultValue: () => "none" })
 const Owner = Context.Reference<string>("test/Owner", { defaultValue: () => "none" })
 
 describe("Action combinators", () => {
+  effect("uses one stable action span name with dispatch attributes", () => {
+    const spans: Array<Tracer.NativeSpan> = []
+    const tracer = Tracer.make({
+      span(options) {
+        const span = new Tracer.NativeSpan(options)
+        spans.push(span)
+        return span
+      }
+    })
+    const step = Action.make({
+      name: "Observe/action",
+      success: Schema.Number,
+      execute: Effect.succeed(7)
+    })
+    const Run = Action.make("Observe/run", {
+      payload: { id: Schema.String },
+      success: Schema.Number
+    })
+    const flow = Flow.make("Observe/flow", {
+      payload: { id: Schema.String },
+      success: Schema.Number,
+      body: (payload) => Run.call(payload)
+    })
+    const layer = layerWired(Layer.mergeAll(
+      Run.toLayer(() => step),
+      Interpreter.layer(flow)
+    ))
+    return Effect.gen(function*() {
+      expect(yield* flow.execute({ id: "x" }, { executionId: "observe-run" })).toBe(7)
+      const span = spans.find((candidate) => candidate.attributes.get("action") === "Observe/action")
+      expect(span?.name).toBe("Action.execute")
+      expect(span?.attributes.get("executionId")).toBe("observe-run")
+      expect(span?.attributes.get("attempt")).toBe(1)
+      expect(span?.attributes.get("tier")).toBe("sealed")
+      expect(span?.attributes.get("outcome")).toBe("success")
+      expect(spans.some((candidate) => candidate.name === "Observe/action")).toBe(false)
+    }).pipe(
+      Effect.provide(layer),
+      Effect.provideService(Tracer.Tracer, tracer)
+    )
+  })
+
   effect("annotate returns a new action carrying the annotation", () =>
     Effect.sync(() => {
       const base = Action.make({

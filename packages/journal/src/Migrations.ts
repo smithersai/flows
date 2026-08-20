@@ -1,21 +1,23 @@
 /**
  * Journal schema migrations.
  *
- * The journal owns exactly one table family, `flows_journal_events`. Run and
- * attempt state migrate from `@smthrs/run-store-next`, the step cache from
- * `@smthrs/step-cache-next`, and the durable deferred/clock tables from
- * `@smthrs/engine-store-next`; an application composes those sets with this one
- * through `@smthrs/database-next`'s `Migrations.layer`.
+ * The journal owns the event table, the checkpoint table, and the
+ * `SqlConsensus` lease table. Run and attempt state migrate from
+ * `@smthrs/run-store`, the step cache from `@smthrs/step-cache`, and the
+ * durable deferred/clock tables from `@smthrs/engine-store`; an application
+ * composes those sets with this one through `@smthrs/database`'s
+ * `Migrations.layer`.
  *
  * Derived contracts: `docs/specs/Concepts/Journal Queue.md` and
  * `docs/specs/Concepts/Journal Split.md`.
  *
  * @since 0.1.0
  */
-import * as DatabaseMigrations from "@smthrs/database-next/Migrations"
+import * as DatabaseMigrations from "@smthrs/database/Migrations"
 import * as Layer from "effect/Layer"
 import initial from "./migrations/0001_initial.ts"
 import checkpoints from "./migrations/0002_checkpoints.ts"
+import consensus from "./migrations/0003_consensus.ts"
 
 /**
  * The journal's namespaced migration set, for composition with the other
@@ -23,13 +25,15 @@ import checkpoints from "./migrations/0002_checkpoints.ts"
  *
  * @category migrations
  * @since 0.1.0
+ * @slop
  */
 export const set: DatabaseMigrations.MigrationSet = {
   namespace: "journal",
   idOffset: 0,
   migrations: {
     "0001_initial": initial,
-    "0002_checkpoints": checkpoints
+    "0002_checkpoints": checkpoints,
+    "0003_consensus": consensus
   }
 }
 
@@ -38,6 +42,7 @@ export const set: DatabaseMigrations.MigrationSet = {
  *
  * @category migrations
  * @since 0.1.0
+ * @slop
  */
 export const run = DatabaseMigrations.run([set])
 
@@ -47,5 +52,6 @@ export const run = DatabaseMigrations.run([set])
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = Layer.effectDiscard(run)

@@ -1,8 +1,11 @@
 {
-  "name": "@smthrs/run-store-next",
+  "name": "@smthrs/run-store",
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
+  "smthrs": {
+    "group": "engine"
+  },
   "description": "Effect services for flows run state, attempts, and ownership arbitration",
   "homepage": "https://github.com/smithersai/flows",
   "repository": {
@@ -76,12 +79,13 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@smthrs/database-next": "0.1.0",
-    "@smthrs/journal-next": "0.1.0",
+    "@smthrs/database": "0.1.0",
+    "@smthrs/journal": "0.1.0",
     "effect": "4.0.0-rc.108"
   },
   "devDependencies": {
     "@effect/language-service": "0.87.1",
+    "@effect/vitest": "4.0.0-rc.108",
     "@eslint/js": "9.39.1",
     "@types/node": "25.9.5",
     "@vitest/coverage-v8": "4.1.9",

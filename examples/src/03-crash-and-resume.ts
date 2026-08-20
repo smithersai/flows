@@ -12,7 +12,7 @@
  * replay contract: the step's implementation runs twice, and the sealed
  * action in front of the suspension dispatches once.
  */
-import { Action, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
+import { Action, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"

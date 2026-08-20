@@ -10,8 +10,8 @@
  *
  * @since 0.1.0
  */
-import { DatabaseError, DurableWriter } from "@smthrs/database-next/DurableWriter"
-import type { OwnerId } from "@smthrs/run-store-next/Ownership"
+import { DatabaseError, DurableWriter } from "@smthrs/database/DurableWriter"
+import type { OwnerId } from "@smthrs/run-store/Ownership"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -31,6 +31,7 @@ const NonNegativeSafeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const DeferredAddress = Schema.Struct({
   flowName: Schema.NonEmptyString,
@@ -43,6 +44,7 @@ export const DeferredAddress = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type DeferredAddress = typeof DeferredAddress.Type
 
@@ -54,6 +56,7 @@ export type DeferredAddress = typeof DeferredAddress.Type
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const DeferredRow = Schema.Struct({
   ...DeferredAddress.fields,
@@ -67,6 +70,7 @@ export const DeferredRow = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type DeferredRow = typeof DeferredRow.Type
 
@@ -75,6 +79,7 @@ export type DeferredRow = typeof DeferredRow.Type
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type CompleteDeferredOutcome =
   | { readonly _tag: "Completed"; readonly row: DeferredRow }
@@ -85,6 +90,7 @@ export type CompleteDeferredOutcome =
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const ClockAddress = Schema.Struct({
   flowName: Schema.NonEmptyString,
@@ -97,6 +103,7 @@ export const ClockAddress = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ClockAddress = typeof ClockAddress.Type
 
@@ -105,6 +112,7 @@ export type ClockAddress = typeof ClockAddress.Type
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const ClockRow = Schema.Struct({
   ...ClockAddress.fields,
@@ -118,6 +126,7 @@ export const ClockRow = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ClockRow = typeof ClockRow.Type
 
@@ -126,6 +135,7 @@ export type ClockRow = typeof ClockRow.Type
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type ScheduleClockOutcome =
   | { readonly _tag: "Scheduled"; readonly row: ClockRow }
@@ -136,6 +146,7 @@ export type ScheduleClockOutcome =
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type CompleteClockOutcome =
   | { readonly _tag: "Completed"; readonly row: ClockRow }
@@ -168,6 +179,7 @@ export type CompleteClockOutcome =
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const WaitingReason = Schema.NonEmptyString
 
@@ -176,6 +188,7 @@ export const WaitingReason = Schema.NonEmptyString
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type WaitingReason = typeof WaitingReason.Type
 
@@ -189,6 +202,7 @@ export type WaitingReason = typeof WaitingReason.Type
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const Waiting = Schema.Struct({
   reason: WaitingReason,
@@ -201,6 +215,7 @@ export const Waiting = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Waiting = typeof Waiting.Type
 
@@ -209,6 +224,7 @@ export type Waiting = typeof Waiting.Type
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const WaitingRow = Schema.Struct({
   runId: Schema.NonEmptyString,
@@ -222,6 +238,7 @@ export const WaitingRow = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type WaitingRow = typeof WaitingRow.Type
 
@@ -230,6 +247,7 @@ export type WaitingRow = typeof WaitingRow.Type
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface WaitingRunsFilter {
   readonly reason?: string
@@ -251,6 +269,7 @@ export interface WaitingRunsFilter {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type ParkOutcome =
   | { readonly _tag: "Parked"; readonly row: WaitingRow }
@@ -261,6 +280,7 @@ export type ParkOutcome =
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type WakeOutcome =
   | { readonly _tag: "Woken"; readonly row: WaitingRow }
@@ -280,6 +300,7 @@ export type WakeOutcome =
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const RunParentEdge = Schema.Struct({
   childId: Schema.NonEmptyString,
@@ -292,6 +313,7 @@ export const RunParentEdge = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type RunParentEdge = typeof RunParentEdge.Type
 
@@ -301,6 +323,7 @@ export type RunParentEdge = typeof RunParentEdge.Type
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export const AttemptSurvivors = Schema.Struct({
   /**
@@ -318,6 +341,7 @@ export const AttemptSurvivors = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type AttemptSurvivors = typeof AttemptSurvivors.Type
 
@@ -332,9 +356,10 @@ export type AttemptSurvivors = typeof AttemptSurvivors.Type
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export class RunParentCycleError extends Schema.TaggedError<RunParentCycleError>()(
-  "flows/engine-store/RunParentCycleError",
+  "@smthrs/engine-store/RunParentCycleError",
   {
     path: Schema.Array(Schema.String)
   }
@@ -345,35 +370,37 @@ export class RunParentCycleError extends Schema.TaggedError<RunParentCycleError>
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type RecordRunParentOutcome =
   | { readonly _tag: "Recorded"; readonly edge: RunParentEdge }
   | { readonly _tag: "Existing"; readonly edge: RunParentEdge }
 
 /**
- * Minimal durable state missing from the current `@smthrs/journal-next` contract.
+ * Minimal durable state missing from the current `@smthrs/journal` contract.
  *
  * A successful mutation means the row is durable. Callers may therefore
  * journal and schedule a wake only after the mutation returns.
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Service {
-  // TODO(piece-6): fold into @smthrs/journal-next — needs DeferredStore.get(flowName, executionId, deferredName).
+  // TODO(piece-6): fold into @smthrs/journal — needs DeferredStore.get(flowName, executionId, deferredName).
   readonly deferred: (address: DeferredAddress) => Effect.Effect<Option.Option<DeferredRow>>
-  // TODO(piece-6): fold into @smthrs/journal-next — needs DeferredStore.completeFirstWriterWins(row).
+  // TODO(piece-6): fold into @smthrs/journal — needs DeferredStore.completeFirstWriterWins(row).
   readonly completeDeferred: (row: DeferredRow) => Effect.Effect<CompleteDeferredOutcome>
-  // TODO(piece-6): fold into @smthrs/journal-next — needs ClockStore.get(flowName, executionId, clockName).
+  // TODO(piece-6): fold into @smthrs/journal — needs ClockStore.get(flowName, executionId, clockName).
   readonly clock: (address: ClockAddress) => Effect.Effect<Option.Option<ClockRow>>
-  // TODO(piece-6): fold into @smthrs/journal-next — needs ClockStore.scheduleFirstWriterWins(rowWithAbsoluteDueAtMs).
+  // TODO(piece-6): fold into @smthrs/journal — needs ClockStore.scheduleFirstWriterWins(rowWithAbsoluteDueAtMs).
   readonly scheduleClock: (row: ClockRow, owner?: OwnerId) => Effect.Effect<ScheduleClockOutcome>
-  // TODO(piece-6): fold into @smthrs/journal-next — needs ClockStore.completeOnce(address, completedAtMs).
+  // TODO(piece-6): fold into @smthrs/journal — needs ClockStore.completeOnce(address, completedAtMs).
   readonly completeClock: (
     address: ClockAddress,
     completedAtMs: number
   ) => Effect.Effect<CompleteClockOutcome>
-  // TODO(piece-6): fold into @smthrs/journal-next — needs ClockStore.due(nowMs).
+  // TODO(piece-6): fold into @smthrs/journal — needs ClockStore.due(nowMs).
   readonly dueClocks: (nowMs: number) => Effect.Effect<ReadonlyArray<ClockRow>>
   /**
    * Lists uncompleted clock rows scoped to an execution or flow, with no
@@ -480,6 +507,17 @@ export interface Service {
    */
   readonly runParents: (childId: string) => Effect.Effect<ReadonlyArray<RunParentEdge>>
   /**
+   * Lists the durably recorded child edges of a run, oldest first.
+   *
+   * The reverse direction of `runParents`, and the only instance-independent
+   * way to find the runs a cancelled parent linked to itself. Cancellation
+   * cascade reads it rather than an in-process instance map, so a
+   * cross-process cancel observed by a driver that never spawned the children
+   * still reaches them (`docs/specs/Concepts/Subflows.md`). Served by the
+   * `flows_run_parents_parent_idx` index.
+   */
+  readonly runChildren: (parentId: string) => Effect.Effect<ReadonlyArray<RunParentEdge>>
+  /**
    * Runs `effect` inside one storage write transaction, so a caller can make
    * several store operations atomic — the run driver wraps the parent-edge
    * record and the run-row creation it guards, closing the crash window that
@@ -498,9 +536,10 @@ export interface Service {
  *
  * @since 0.1.0
  * @category services
+ * @slop
  */
 export class DurableEngineState extends Context.Service<DurableEngineState, Service>()(
-  "flows/engine-store/DurableEngineState"
+  "@smthrs/engine-store/DurableEngineState"
 ) {}
 
 /** @private */
@@ -659,6 +698,7 @@ const decodeClockRow = (input: unknown): Effect.Effect<ClockRow> =>
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlClient> = Effect.gen(function*() {
   const sql = yield* Effect.service(SqlClient.SqlClient)
@@ -1275,6 +1315,21 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
     )
   )
 
+  const runChildren: Service["runChildren"] = Effect.fn("DurableEngineState.runChildren")((parentId) =>
+    sql<RunParentDatabaseRow>`
+      SELECT
+        child_id AS "childId",
+        parent_id AS "parentId",
+        seq AS "seq"
+      FROM flows_run_parents
+      WHERE parent_id = ${parentId}
+      ORDER BY seq
+    `.pipe(
+      Effect.orDie,
+      Effect.flatMap((rows) => Effect.forEach(rows, decodeRunParentEdge))
+    )
+  )
+
   return DurableEngineState.of({
     deferred,
     completeDeferred,
@@ -1293,6 +1348,7 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
     recordRunParent,
     removeRunParentsForRun,
     runParents,
+    runChildren,
     transaction
   })
 })
@@ -1302,6 +1358,7 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
  *
  * @since 0.1.0
  * @category layers
+ * @slop
  */
 export const layer: Layer.Layer<DurableEngineState, never, DurableWriter | SqlClient.SqlClient> = Layer.effect(
   DurableEngineState,
@@ -1314,6 +1371,7 @@ export const layer: Layer.Layer<DurableEngineState, never, DurableWriter | SqlCl
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface MemoryRunView {
   readonly status: "pending" | "running" | "suspended" | "completed" | "failed" | "cancelled"
@@ -1338,6 +1396,7 @@ export interface MemoryRunView {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface MemoryOptions {
   /**
@@ -1369,6 +1428,7 @@ export interface MemoryOptions {
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const makeMemory = (options: MemoryOptions = {}): Service => {
   const deferreds = new Map<string, DeferredRow>()
@@ -1656,6 +1716,16 @@ export const makeMemory = (options: MemoryOptions = {}): Service => {
           .sort((left, right) => left.seq - right.seq)
       )
     ),
+    runChildren: Effect.fn("DurableEngineState.runChildren")((parentId) =>
+      Effect.sync(() => {
+        const edges: Array<RunParentEdge> = []
+        for (const [childId, parents] of parentEdges) {
+          const seq = parents.get(parentId)
+          if (seq !== undefined) edges.push({ childId, parentId, seq })
+        }
+        return edges.sort((left, right) => left.seq - right.seq)
+      })
+    ),
     // The in-memory twin has no crash windows between writes, so the
     // atomicity `transaction` exists to provide (issue #80) holds trivially;
     // the effect runs directly and nothing is rolled back.
@@ -1668,6 +1738,7 @@ export const makeMemory = (options: MemoryOptions = {}): Service => {
  *
  * @since 0.1.0
  * @category layers
+ * @slop
  */
 export const layerMemory: Layer.Layer<DurableEngineState> = Layer.sync(
   DurableEngineState,

@@ -5,7 +5,7 @@
  * `ClusterMetrics`. `SqlJournal` updates them as emission receipts are
  * produced, so the counters measure admissions on the hot path rather than
  * rows read back. No exporter ships in this package; provide one — for
- * example `@smthrs/observability-next` — and these counters appear in it.
+ * example `@smthrs/observability` — and these counters appear in it.
  *
  * @since 0.1.0
  */
@@ -25,6 +25,7 @@ import * as Metric from "effect/Metric"
  *
  * @category metrics
  * @since 0.1.0
+ * @slop
  */
 export const writes = Metric.counter("flows_journal_writes", {
   description: "Journal emissions by channel and receipt"
@@ -36,6 +37,7 @@ export const writes = Metric.counter("flows_journal_writes", {
  *
  * @category metrics
  * @since 0.1.0
+ * @slop
  */
 export const durable: {
   readonly [Tag in "Accepted" | "Duplicate"]: Metric.Metric<number, Metric.CounterState<number>>
@@ -50,6 +52,7 @@ export const durable: {
  *
  * @category metrics
  * @since 0.1.0
+ * @slop
  */
 export const lossy: {
   readonly [Tag in "Accepted" | "Duplicate" | "Dropped"]: Metric.Metric<number, Metric.CounterState<number>>

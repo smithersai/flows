@@ -7,23 +7,23 @@
  * budget restarts (with a logged warning) instead of failing the run — so
  * the #45 fix cannot silently regress into an untested branch.
  */
-import { Action, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow-next"
-import { Node } from "@smthrs/plan-next"
+import { describe, expect, it } from "@effect/vitest"
+import { Action, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Cause, Effect, Exit, Fiber, Layer, Logger, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
-import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it(name, () => runPromise(body()))
+  it.effect(name, () => withCrypto(body()))
 
 const flow = Flow.make("RetryOriginFallback/flow", {
   payload: { id: Schema.String },
   success: Schema.Number,
   error: Schema.String,
-  body: () => Node.succeed(undefined)
+  body: () => Node.succeed(0)
 })
 
 describe("retry origin fallback when the durable hook yields none", () => {
@@ -92,7 +92,7 @@ describe("retry origin fallback when the durable hook yields none", () => {
         expect(Exit.isFailure(result.exit)).toBe(true)
         if (Exit.isFailure(result.exit)) {
           expect(Cause.squash(result.exit.cause)).toMatchObject({
-            _tag: "@smthrs/engine-next/RetryPolicyExpired",
+            _tag: "@smthrs/flow/RetryPolicyExpired",
             actionName: "RetryOriginFallback/pruned",
             expirationMs: 1,
             lastError: "still-failing"

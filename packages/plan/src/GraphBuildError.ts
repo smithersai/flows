@@ -27,17 +27,28 @@ import * as Schema from "effect/Schema"
  * has to become a trampoline handoff or an explicit child boundary;
  * `placement_requires_boundary` is an inline call whose callee declares a
  * placement the enclosing flow cannot satisfy, which has to become that same
- * explicit child boundary.
+ * explicit child boundary; `cyclic_payload` is a payload that contains itself,
+ * which no plan could serialize or hash; `payload_too_deep` is a payload
+ * nested past the build bound, which has to be flattened into shallower data;
+ * `graph_too_deep` is authored topology nested past the build bound, which
+ * has to be split with `.child()` boundaries or trampoline handoffs. The two
+ * depth refusals exist because graph building walks with an explicit stack
+ * and refuses at a bound, rather than recursing until the native stack
+ * overflows without a typed error.
  *
  * @since 0.1.0
  * @category schemas
+ * @slop
  */
 export const GraphBuildErrorCode = Schema.Literals([
   "planned_value_computed",
   "invalid_all_member",
   "invalid_continuation",
   "recursion_requires_boundary",
-  "placement_requires_boundary"
+  "placement_requires_boundary",
+  "cyclic_payload",
+  "payload_too_deep",
+  "graph_too_deep"
 ])
 
 /**
@@ -45,6 +56,7 @@ export const GraphBuildErrorCode = Schema.Literals([
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type GraphBuildErrorCode = typeof GraphBuildErrorCode.Type
 
@@ -58,8 +70,9 @@ export type GraphBuildErrorCode = typeof GraphBuildErrorCode.Type
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
-export class GraphBuildError extends Schema.TaggedError<GraphBuildError>()("flows/plan/GraphBuildError", {
+export class GraphBuildError extends Schema.TaggedError<GraphBuildError>()("@smthrs/plan/GraphBuildError", {
   code: GraphBuildErrorCode,
   node: Schema.String,
   path: Schema.Array(Schema.String),

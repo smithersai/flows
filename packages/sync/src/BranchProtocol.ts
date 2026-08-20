@@ -12,7 +12,7 @@
  *
  * @since 0.1.0
  */
-import * as JournalEvent from "@smthrs/journal-next/JournalEvent"
+import * as JournalEvent from "@smthrs/journal/JournalEvent"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
@@ -22,7 +22,7 @@ import * as Schema from "effect/Schema"
  * @category schemas
  * @since 0.1.0
  */
-export const BranchId = Schema.NonEmptyString.pipe(Schema.brand("flows/sync/BranchId"))
+export const BranchId = Schema.NonEmptyString.pipe(Schema.brand("@smthrs/sync/BranchProtocol/BranchId"))
 
 /**
  * Identifier of one collaboratively edited branch.
@@ -38,7 +38,7 @@ export type BranchId = typeof BranchId.Type
  * @category schemas
  * @since 0.1.0
  */
-export const ParticipantId = Schema.NonEmptyString.pipe(Schema.brand("flows/sync/ParticipantId"))
+export const ParticipantId = Schema.NonEmptyString.pipe(Schema.brand("@smthrs/sync/BranchProtocol/ParticipantId"))
 
 /**
  * Identifier of one connected client.
@@ -58,7 +58,7 @@ export type ParticipantId = typeof ParticipantId.Type
  * @category schemas
  * @since 0.1.0
  */
-export const CommandId = Schema.NonEmptyString.pipe(Schema.brand("flows/sync/CommandId"))
+export const CommandId = Schema.NonEmptyString.pipe(Schema.brand("@smthrs/sync/BranchProtocol/CommandId"))
 
 /**
  * Client-minted command identifier used as the idempotency key.
@@ -105,17 +105,35 @@ export const branchOfRunId = (runId: JournalEvent.RunId): BranchId | null =>
   runId.startsWith("flows/branch/") ? runId.slice("flows/branch/".length) as BranchId : null
 
 /**
- * The journal producer identity of one participant.
+ * The journal producer identity of one admitted command.
  *
- * `(runId, sourceId, sourceSeq)` is the journal's own idempotency key, so
- * giving every participant a distinct source keeps two clients submitting
- * concurrently from ever colliding on it.
+ * `(runId, sourceId, sourceSeq)` is the journal's own durable idempotency
+ * key. Deriving the source from the client-minted `commandId` — with the
+ * fixed {@link commandSourceSeq} — turns that key into the branch's
+ * exactly-once admission constraint: two server instances racing the same
+ * command collide inside the journal's own transaction, so one appends and
+ * the other reads back the canonical sequence, instead of both appending
+ * (audit finding F-14). The branch run id already scopes the key, so equal
+ * command ids on different branches never collide.
  *
  * @category constructors
  * @since 0.1.0
  */
-export const participantSourceId = (participantId: ParticipantId): JournalEvent.SourceId =>
-  `flows/participant/${participantId}` as JournalEvent.SourceId
+export const commandSourceId = (commandId: CommandId): JournalEvent.SourceId =>
+  `flows/branch-command/${commandId}` as JournalEvent.SourceId
+
+/**
+ * The fixed producer sequence of an admitted command.
+ *
+ * A command's identity lives entirely in {@link commandSourceId}, so its
+ * producer sequence is always 0. It must be supplied explicitly: letting the
+ * journal allocate would hand a resubmission after a lost response sequence 1,
+ * a fresh identity, and therefore a second durable append.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const commandSourceSeq: JournalEvent.SourceSeq = 0 as JournalEvent.SourceSeq
 
 /**
  * The single durable event type a branch document is built from.
@@ -134,7 +152,7 @@ export const CommandEvent = "flows/branch/command"
  * @category schemas
  * @since 0.1.0
  */
-export class ShareClaims extends Schema.Class<ShareClaims>("flows/sync/BranchProtocol/ShareClaims")({
+export class ShareClaims extends Schema.Class<ShareClaims>("@smthrs/sync/BranchProtocol/ShareClaims")({
   branchId: BranchId,
   capabilityId: Schema.NonEmptyString,
   access: Access,
@@ -148,7 +166,7 @@ export class ShareClaims extends Schema.Class<ShareClaims>("flows/sync/BranchPro
  * @category schemas
  * @since 0.1.0
  */
-export class ShareCapability extends Schema.Class<ShareCapability>("flows/sync/BranchProtocol/ShareCapability")({
+export class ShareCapability extends Schema.Class<ShareCapability>("@smthrs/sync/BranchProtocol/ShareCapability")({
   claims: ShareClaims,
   signature: Schema.String
 }) {}
@@ -159,7 +177,7 @@ export class ShareCapability extends Schema.Class<ShareCapability>("flows/sync/B
  * @category schemas
  * @since 0.1.0
  */
-export class Cursor extends Schema.Class<Cursor>("flows/sync/BranchProtocol/Cursor")({
+export class Cursor extends Schema.Class<Cursor>("@smthrs/sync/BranchProtocol/Cursor")({
   cardId: Schema.NonEmptyString,
   offset: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
 }) {}
@@ -173,7 +191,7 @@ export class Cursor extends Schema.Class<Cursor>("flows/sync/BranchProtocol/Curs
  * @category schemas
  * @since 0.1.0
  */
-export class Participant extends Schema.Class<Participant>("flows/sync/BranchProtocol/Participant")({
+export class Participant extends Schema.Class<Participant>("@smthrs/sync/BranchProtocol/Participant")({
   branchId: BranchId,
   participantId: ParticipantId,
   displayName: Schema.NonEmptyString,
@@ -193,7 +211,7 @@ export class Participant extends Schema.Class<Participant>("flows/sync/BranchPro
  * @since 0.1.0
  */
 export class CommandSubmission extends Schema.Class<CommandSubmission>(
-  "flows/sync/BranchProtocol/CommandSubmission"
+  "@smthrs/sync/BranchProtocol/CommandSubmission"
 )({
   branchId: BranchId,
   commandId: CommandId,
@@ -214,7 +232,7 @@ export class CommandSubmission extends Schema.Class<CommandSubmission>(
  * @since 0.1.0
  */
 export class CommandEventPayload extends Schema.Class<CommandEventPayload>(
-  "flows/sync/BranchProtocol/CommandEventPayload"
+  "@smthrs/sync/BranchProtocol/CommandEventPayload"
 )({
   commandId: CommandId,
   participantId: ParticipantId,
@@ -233,7 +251,7 @@ export class CommandEventPayload extends Schema.Class<CommandEventPayload>(
  * @since 0.1.0
  */
 export class CommandIdentity extends Schema.Class<CommandIdentity>(
-  "flows/sync/BranchProtocol/CommandIdentity"
+  "@smthrs/sync/BranchProtocol/CommandIdentity"
 )({
   commandId: CommandId
 }) {}
@@ -256,7 +274,7 @@ export const SayCommand = "branch.say"
  * @category schemas
  * @since 0.1.0
  */
-export class CommandReceipt extends Schema.Class<CommandReceipt>("flows/sync/BranchProtocol/CommandReceipt")({
+export class CommandReceipt extends Schema.Class<CommandReceipt>("@smthrs/sync/BranchProtocol/CommandReceipt")({
   branchId: BranchId,
   commandId: CommandId,
   status: Schema.Literals(["admitted", "duplicate"]),

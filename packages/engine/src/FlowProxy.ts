@@ -11,7 +11,7 @@
  *
  * @since 4.0.0
  */
-import type { Flow } from "@smthrs/flow-next"
+import type { Flow } from "@smthrs/flow"
 import type { NonEmptyReadonlyArray } from "effect/Array"
 import * as Schema from "effect/Schema"
 import * as HttpApiEndpoint from "effect/unstable/httpapi/HttpApiEndpoint"
@@ -42,8 +42,8 @@ const executePayload = <Payload extends Flow.AnyStructSchema>(
  * ```ts
  * import { Layer, Schema } from "effect"
  * import { RpcServer } from "effect/unstable/rpc"
- * import { FlowProxy, FlowProxyServer } from "@smthrs/engine-next"
- * import { Flow } from "@smthrs/flow-next"
+ * import { FlowProxy, FlowProxyServer } from "@smthrs/engine"
+ * import { Flow } from "@smthrs/flow"
  *
  * const EmailFlow = Flow.make("EmailFlow", {
  *   payload: {
@@ -68,6 +68,7 @@ const executePayload = <Payload extends Flow.AnyStructSchema>(
  *
  * @category constructors
  * @since 4.0.0
+ * @slop
  */
 export const toRpcGroup = <
   const Flows extends NonEmptyReadonlyArray<Flow.Any>,
@@ -104,6 +105,7 @@ export const toRpcGroup = <
  *
  * @category converting
  * @since 4.0.0
+ * @slop
  */
 export type ConvertRpcs<Flows extends Flow.Any, Prefix extends string> = Flows extends Flow.Flow<
   infer _Name,
@@ -125,8 +127,8 @@ export type ConvertRpcs<Flows extends Flow.Any, Prefix extends string> = Flows e
  * ```ts
  * import { Layer, Schema } from "effect"
  * import { HttpApi, HttpApiBuilder } from "effect/unstable/httpapi"
- * import { FlowProxy, FlowProxyServer } from "@smthrs/engine-next"
- * import { Flow } from "@smthrs/flow-next"
+ * import { FlowProxy, FlowProxyServer } from "@smthrs/engine"
+ * import { Flow } from "@smthrs/flow"
  *
  * const EmailFlow = Flow.make("EmailFlow", {
  *   payload: {
@@ -155,6 +157,7 @@ export type ConvertRpcs<Flows extends Flow.Any, Prefix extends string> = Flows e
  *
  * @category constructors
  * @since 4.0.0
+ * @slop
  */
 export const toHttpApiGroup = <const Name extends string, const Flows extends NonEmptyReadonlyArray<Flow.Any>>(
   name: Name,
@@ -193,6 +196,7 @@ const tagToPath = (tag: string): string =>
  *
  * @category converting
  * @since 4.0.0
+ * @slop
  */
 export type ConvertHttpApi<Flows extends Flow.Any> = Flows extends Flow.Flow<
   infer _Name,

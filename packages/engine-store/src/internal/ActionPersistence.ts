@@ -7,22 +7,24 @@
  *
  * @since 0.1.0
  */
-import { Sha256 } from "@smthrs/crypto-next"
-import { FlowEngine } from "@smthrs/engine-next"
-import type { Action } from "@smthrs/flow-next"
-import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
-import { Journal, type JournalEvent } from "@smthrs/journal-next"
-import { Jj } from "@smthrs/kernel-next"
-import { Key } from "@smthrs/keys-next"
-import * as FileSet from "@smthrs/plan-next/FileSet"
-import { AttemptStore, Ownership, RunStore } from "@smthrs/run-store-next"
-import { CacheStore } from "@smthrs/step-cache-next"
+import { Sha256 } from "@smthrs/crypto"
+import { FlowEngine } from "@smthrs/engine"
+import type { Action } from "@smthrs/flow"
+import type { FileBoundary } from "@smthrs/flow/FileBoundary"
+import { Journal, type JournalEvent } from "@smthrs/journal"
+import { Jj } from "@smthrs/kernel"
+import { Key } from "@smthrs/keys"
+import * as FileSet from "@smthrs/plan/FileSet"
+import { AttemptStore, Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
+import * as Metric from "effect/Metric"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
+import * as EngineStoreMetrics from "../EngineStoreMetrics.ts"
 import * as Inconsistency from "../Inconsistency.ts"
 import * as StepBoundary from "../StepBoundary.ts"
 import * as StepSandbox from "../StepSandbox.ts"
@@ -37,11 +39,12 @@ import * as SandboxedExecution from "./SandboxedExecution.ts"
  * The boundary declaration an action may carry alongside its input.
  *
  * Aliased to `FileBoundary` rather than re-declared so the dispatch path and
- * the `@smthrs/flow-next` declaration cannot drift apart; it is a distinct name only
+ * the `@smthrs/flow` declaration cannot drift apart; it is a distinct name only
  * because "metadata" is how the action input refers to it.
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type BoundaryMetadata = FileBoundary
 
@@ -56,12 +59,19 @@ export type BoundaryMetadata = FileBoundary
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface ActionInput {
   readonly action: unknown
   readonly attempt: number
   readonly key: string
   readonly tier: Action.Tier
+  /**
+   * The caller declares this sealed step's recorded result is one of many
+   * legitimate results; a same-key divergence is expected, not a hermeticity
+   * violation.
+   */
+  readonly nondeterministic?: true | undefined
   readonly metadata?: BoundaryMetadata | undefined
 }
 
@@ -74,9 +84,10 @@ export interface ActionInput {
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export class AttemptSuspended extends Schema.TaggedError<AttemptSuspended>()(
-  "flows/engine-store/AttemptSuspended",
+  "@smthrs/engine-store/AttemptSuspended",
   {
     code: Schema.Literal("attempt_suspended"),
     runId: Schema.String,
@@ -96,10 +107,11 @@ export class AttemptSuspended extends Schema.TaggedError<AttemptSuspended>()(
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export class IrreversibleRetryRequiresIdempotencyKey
   extends Schema.TaggedError<IrreversibleRetryRequiresIdempotencyKey>()(
-    "flows/engine-store/IrreversibleRetryRequiresIdempotencyKey",
+    "@smthrs/engine-store/IrreversibleRetryRequiresIdempotencyKey",
     {
       code: Schema.Literal("irreversible_retry_requires_idempotency_key"),
       key: Schema.String
@@ -116,9 +128,10 @@ export class IrreversibleRetryRequiresIdempotencyKey
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export class AttemptAdmissionRejected extends Schema.TaggedError<AttemptAdmissionRejected>()(
-  "flows/engine-store/AttemptAdmissionRejected",
+  "@smthrs/engine-store/AttemptAdmissionRejected",
   {
     code: Schema.Literal("attempt_admission_rejected"),
     keyDigest: Schema.String,
@@ -136,9 +149,10 @@ export class AttemptAdmissionRejected extends Schema.TaggedError<AttemptAdmissio
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export class CacheConflictDetected extends Schema.TaggedError<CacheConflictDetected>()(
-  "flows/engine-store/CacheConflictDetected",
+  "@smthrs/engine-store/CacheConflictDetected",
   {
     code: Schema.Literal("cache_conflict_detected"),
     keyDigest: Schema.String,
@@ -155,9 +169,10 @@ export class CacheConflictDetected extends Schema.TaggedError<CacheConflictDetec
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export class CacheCorruptionDetected extends Schema.TaggedError<CacheCorruptionDetected>()(
-  "flows/engine-store/CacheCorruptionDetected",
+  "@smthrs/engine-store/CacheCorruptionDetected",
   {
     code: Schema.Literal("cache_corruption_detected"),
     keyDigest: Schema.String,
@@ -183,9 +198,10 @@ export class CacheCorruptionDetected extends Schema.TaggedError<CacheCorruptionD
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export class AttemptEvidenceQuarantined extends Schema.TaggedError<AttemptEvidenceQuarantined>()(
-  "flows/engine-store/AttemptEvidenceQuarantined",
+  "@smthrs/engine-store/AttemptEvidenceQuarantined",
   {
     code: Schema.Literal("attempt_evidence_quarantined"),
     keyDigest: Schema.String,
@@ -203,6 +219,7 @@ export class AttemptEvidenceQuarantined extends Schema.TaggedError<AttemptEviden
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export const evidenceQuarantined = (
   cause: Cause.Cause<unknown>
@@ -269,6 +286,20 @@ const declarationViolated = (cause: Cause.Cause<unknown>): boolean =>
   )
 
 /**
+ * Whether a failed settle carries one of the boundary's own contract
+ * violations, as opposed to a host refusal. Classification for the
+ * `boundarySettlements` counter only — the journal record stays the source
+ * of truth.
+ */
+const settlementViolated = (cause: Cause.Cause<unknown>): boolean =>
+  cause.reasons.some((reason) =>
+    Cause.isFailReason(reason) &&
+    (reason.error instanceof StepBoundary.UndeclaredWrite ||
+      reason.error instanceof StepBoundary.MissingDeclaredOutput ||
+      reason.error instanceof StepBoundary.SurvivingDeclaredRemoval)
+  )
+
+/**
  * What the action dispatcher is constructed with: the run it belongs to, the
  * ownership fence it writes under, and the `execute` function that actually
  * runs an action body.
@@ -280,6 +311,7 @@ const declarationViolated = (cause: Cause.Cause<unknown>): boolean =>
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Dependencies {
   readonly runId: string
@@ -304,6 +336,11 @@ export interface Dependencies {
 
 const AttemptMeta = Schema.Struct({
   tier: Schema.Literals(["sealed", "compensable", "irreversible"]),
+  /**
+   * The sealed declaration admits multiple legitimate recorded results under
+   * this key. Absence remains the durable determinism claim.
+   */
+  nondeterministic: Schema.optional(Schema.Literal(true)),
   boundary: Schema.optional(StepBoundary.BoundaryEvidence),
   /**
    * The prepare-time measurement matched the caller-declared read set the
@@ -408,6 +445,7 @@ const rehydrateCause = (error: unknown): Cause.Cause<unknown> => {
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const make = (deps: Dependencies) => {
   const admission = deps.admission ?? AttemptAdmission.makeUnsafe()
@@ -418,11 +456,17 @@ export const make = (deps: Dependencies) => {
   const lineageId = FlowEngine.Lineage.root(deps.runId)
   return Effect.fn("ActionPersistence.execute")((input: ActionInput) =>
     Effect.gen(function*() {
+      yield* Effect.annotateCurrentSpan({
+        runId: deps.runId,
+        attempt: input.attempt,
+        tier: input.tier
+      })
       const attempts = yield* AttemptStore.AttemptStore
       const cache = yield* CacheStore.CacheStore
       const journal = yield* Journal.Journal
       const runs = yield* RunStore.RunStore
       const keyDigest = yield* Schema.decodeUnknownEffect(Sha256)(input.key).pipe(Effect.orDie)
+      yield* Effect.annotateCurrentSpan({ keyDigest })
       const attemptId = { runId: deps.runId, stepKeyDigest: keyDigest, attempt: input.attempt }
       /**
        * Lifecycle events take the journal's durable channel, fenced to the
@@ -492,6 +536,10 @@ export const make = (deps: Dependencies) => {
       // their key cannot prove which expansion it names and must stay local.
       const readsKeyedExactly = input.metadata?.readSet.every((entry) => !FileSet.isGlob(entry)) ?? true
       const cacheable = input.tier === "sealed" && input.metadata?.boundaryMode === "hard" && readsKeyedExactly
+      const declarationMeta = {
+        tier: input.tier,
+        ...(input.nondeterministic === undefined ? {} : { nondeterministic: input.nondeterministic })
+      } satisfies AttemptMeta
 
       /**
        * Cache-provenance producer identity (issue #124): the plain
@@ -647,6 +695,27 @@ export const make = (deps: Dependencies) => {
           }
           if (recording.outcome._tag === "Conflict") {
             const conflicting = yield* cache.get(keyDigest)
+            if (options.meta.nondeterministic === true) {
+              const recorded = Option.map(conflicting, (entry) => ({
+                runId: entry.recordedRunId,
+                eventSeq: entry.recordedEventSeq
+              }))
+              // Declared output nondeterminism is not a hermeticity violation,
+              // so it does not enter the Inconsistency receiver. The key folds
+              // the declaration, making first-writer-wins safe for both sides.
+              yield* emitLifecycle(
+                JournalRecords.cacheProvenance(
+                  cacheSource("conflict_first_writer", Option.getOrUndefined(recorded)),
+                  {
+                    keyDigest,
+                    action: "conflict_first_writer",
+                    recordedRunId: Option.getOrNull(Option.map(recorded, (value) => value.runId)),
+                    recordedEventSeq: Option.getOrNull(Option.map(recorded, (value) => value.eventSeq))
+                  }
+                )
+              )
+              return
+            }
             const receiverOption = yield* Effect.serviceOption(Inconsistency.Inconsistency)
             // Core default is STRICT: journal the conflict and fail the run,
             // which is Skyframe's throwing `GraphInconsistencyReceiver`
@@ -775,6 +844,12 @@ export const make = (deps: Dependencies) => {
                       recordedRunId: cached.value.recordedRunId,
                       recordedEventSeq: cached.value.recordedEventSeq
                     }))
+                    // Counted after the provenance emit: `verified_hit` means
+                    // the cached result was served, and a journal failure on
+                    // the emit fails the dispatch before any result is
+                    // returned. A dispatch that dies mid-decision records no
+                    // decision; its exit lands in `flows_engine_dispatches`.
+                    yield* Metric.update(EngineStoreMetrics.stepCacheDecision.VerifiedHit, 1)
                     return cached.value.result
                   }
                   // Evidence the host cannot re-materialize — a transient
@@ -859,6 +934,12 @@ export const make = (deps: Dependencies) => {
                       )
                     }
                   }
+                  // `replay_failed` is a fall-through decision, so it is
+                  // counted only once the refusal emit landed and the strict
+                  // corruption verdict above has NOT terminated the dispatch:
+                  // a dispatch that fails instead of re-executing records no
+                  // decision.
+                  yield* Metric.update(EngineStoreMetrics.stepCacheDecision.ReplayFailed, 1)
                 } else if (Option.isSome(measured)) {
                   // Only a *measured* mismatch is evidence the inputs changed
                   // (issue #110): a host that cannot measure right now — a
@@ -907,8 +988,22 @@ export const make = (deps: Dependencies) => {
                       eventSeq: cached.value.recordedEventSeq
                     }
                   })
+                  // The fall-through decision is counted once the refusal is
+                  // durable and the poisoned row is gone: a fenced-out zombie
+                  // self-interrupts at the emit above and records no decision.
+                  yield* Metric.update(EngineStoreMetrics.stepCacheDecision.StaleReadSet, 1)
+                } else {
+                  // The host could not measure the read set at all, so the
+                  // hit is merely refused for this dispatch; the row survives.
+                  yield* Metric.update(EngineStoreMetrics.stepCacheDecision.Unmeasurable, 1)
                 }
+              } else {
+                // A row whose recorded evidence cannot justify reuse — a
+                // foreign tier, an unverified capture, a recorded deviation.
+                yield* Metric.update(EngineStoreMetrics.stepCacheDecision.UnverifiableEvidence, 1)
               }
+            } else {
+              yield* Metric.update(EngineStoreMetrics.stepCacheDecision.Miss, 1)
             }
           }
 
@@ -963,9 +1058,10 @@ export const make = (deps: Dependencies) => {
                     // or publishing the row back into the shared cache.
                     //
                     // The owner heartbeat and patch share one write
-                    // transaction. AttemptStore.patch is intentionally
-                    // lifecycle-unfenced, so the heartbeat is what prevents a
-                    // process that lost the run fence from mutating the row.
+                    // transaction. The patch is owner-fenced itself — it only
+                    // lands while `flows_runs` still records `deps.owner` —
+                    // and the heartbeat both refreshes the lease and reports
+                    // the loss as a run-store outcome before the patch runs.
                     const quarantinedMeta: AttemptMeta = {
                       ...meta,
                       boundary: undefined,
@@ -975,7 +1071,7 @@ export const make = (deps: Dependencies) => {
                       const quarantineAtMs = yield* Clock.currentTimeMillis
                       const fence = yield* runs.heartbeat(deps.runId, deps.owner, quarantineAtMs)
                       if (fence._tag !== "Updated") return false
-                      const patched = yield* attempts.patch(attemptId, { meta: quarantinedMeta })
+                      const patched = yield* attempts.patch(attemptId, { meta: quarantinedMeta }, deps.owner)
                       return patched._tag === "Patched"
                     }))
                     if (!quarantined) return yield* Effect.interrupt
@@ -1023,6 +1119,11 @@ export const make = (deps: Dependencies) => {
                 meta.boundary !== undefined &&
                 meta.boundary.deviation === undefined &&
                 meta.boundary.wholeTreeWritesVerified === true &&
+                // Fail-closed on BOTH proofs, exactly like the fresh-completion
+                // gate below: a durable row persisted before read verification
+                // existed carries the write proof alone, and convergence must
+                // not promote it into the shared cache on resume.
+                meta.boundary.hermeticReadsVerified === true &&
                 meta.readSetVerified === true
               ) {
                 yield* recordCache({
@@ -1126,7 +1227,7 @@ export const make = (deps: Dependencies) => {
           yield* atomically(Effect.gen(function*() {
             if (!adopted) {
               const now = yield* Clock.currentTimeMillis
-              const initialMeta: AttemptMeta = { tier: input.tier, admittedBy: deps.owner }
+              const initialMeta: AttemptMeta = { ...declarationMeta, admittedBy: deps.owner }
               const put = yield* attempts.put(
                 { ...attemptId, state: "running", startedAtMs: now, meta: initialMeta },
                 deps.owner
@@ -1147,20 +1248,20 @@ export const make = (deps: Dependencies) => {
               // The claim is fenced at the moment it lands (issue #102): re-verify
               // run ownership immediately before re-homing the row, so a process
               // that lost the fence while waiting on the permit parks instead of
-              // patching a run it no longer owns. With the permit excluding
-              // in-process racers and the fence excluding every other process's
-              // writers (`put`/`finish` are owner-fenced), the patch below is
-              // exclusive even though `AttemptStore` has no conditional update.
+              // patching a run it no longer owns. The patch below carries the
+              // owner fence itself; the heartbeat additionally refreshes the
+              // lease, and the permit excludes in-process racers.
               const claimAtMs = yield* Clock.currentTimeMillis
               const claimFence = yield* runs.heartbeat(deps.runId, deps.owner, claimAtMs)
               if (claimFence._tag !== "Updated") return yield* Effect.interrupt
               // Re-home the adopted row to the current incarnation; the patch
               // keeps the dead incarnation's other meta (tier, pre-image
-              // snapshot) intact. A vanished row means the durable state moved
-              // under us — surface it as self-interruption like the fence losses.
+              // snapshot) intact. A vanished row or a lost fence means the
+              // durable state moved under us — surface it as self-interruption
+              // like the other fence losses.
               const rehomed = yield* attempts.patch(attemptId, {
-                meta: { ...runningMeta, tier: input.tier, admittedBy: deps.owner } satisfies AttemptMeta
-              })
+                meta: { ...runningMeta, ...declarationMeta, admittedBy: deps.owner } satisfies AttemptMeta
+              }, deps.owner)
               if (rehomed._tag !== "Patched") return yield* Effect.interrupt
             }
             yield* emitLifecycle(
@@ -1230,8 +1331,8 @@ export const make = (deps: Dependencies) => {
               // outside: a host call must never run inside a write transaction.
               yield* atomically(
                 attempts.patch(attemptId, {
-                  meta: { tier: input.tier, admittedBy: deps.owner, snapshotId } satisfies AttemptMeta
-                }).pipe(Effect.andThen(announceSnapshot(snapshotId)))
+                  meta: { ...declarationMeta, admittedBy: deps.owner, snapshotId } satisfies AttemptMeta
+                }, deps.owner).pipe(Effect.andThen(announceSnapshot(snapshotId)))
               )
             }
           }
@@ -1252,7 +1353,7 @@ export const make = (deps: Dependencies) => {
               // A boundary is prepared only for sealed work, while snapshots are
               // created only for compensable work. The two capabilities are
               // disjoint, so a preparation failure can never carry a snapshot.
-              meta: { tier: input.tier, hardViolation: true }
+              meta: { ...declarationMeta, hardViolation: true }
             }, [
               JournalRecords.hardViolation(attemptSource("hard-violation"), {
                 ...attemptId,
@@ -1281,10 +1382,33 @@ export const make = (deps: Dependencies) => {
           const stepSandbox = boundary === undefined || input.metadata === undefined
             ? Option.none<StepSandbox.Service>()
             : yield* Effect.serviceOption(StepSandbox.StepSandbox)
+          const opened = Option.isSome(stepSandbox) ? yield* stepSandbox.value.open.pipe(Effect.exit) : undefined
+          if (opened !== undefined && Exit.isFailure(opened)) {
+            // A host that cannot isolate (`layerNoop`, a refusing forest) is a
+            // typed refusal, not a crash: settle the attempt exactly like a
+            // prepare failure, or the row stays "running" and reads as an
+            // abandoned attempt to the reclaim machinery.
+            const finishedAtMs = yield* Clock.currentTimeMillis
+            const finished = yield* settleAttempt({
+              ...attemptId,
+              state: "failed",
+              finishedAtMs,
+              error: persistCause(opened.cause),
+              meta: { ...declarationMeta, hardViolation: true }
+            }, [
+              JournalRecords.hardViolation(attemptSource("hard-violation"), {
+                ...attemptId,
+                error: opened.cause
+              }),
+              JournalRecords.attemptFinished(attemptSource("finished"), { ...attemptId, state: "failed" })
+            ])
+            if (!finished) return yield* Effect.interrupt
+            return yield* Effect.failCause(opened.cause)
+          }
           const sandbox = boundary === undefined || input.metadata === undefined
             ? undefined
-            : Option.isSome(stepSandbox)
-            ? yield* stepSandbox.value.open
+            : opened !== undefined
+            ? opened.value
             : Option.getOrUndefined(yield* Effect.serviceOption(WorkspaceSandbox.WorkspaceSandbox))
           const isolated = sandbox === undefined || input.metadata === undefined
             ? undefined
@@ -1298,30 +1422,39 @@ export const make = (deps: Dependencies) => {
           // handling below is unchanged by which path produced it.
           const settlement = isolated !== undefined && Exit.isSuccess(isolated) ? isolated.value : undefined
           /**
-           * THE EFFECT BOUNDARY. An irreversible dispatch is the only kind that
-           * can change the world outside this journal, so it is the only kind
-           * wrapped: `intended` commits before the body starts, and the
-           * terminal record commits after it settles — `succeeded` with the
-           * recorded result, `unknown` for a failure, defect, or interruption
-           * whose external outcome nobody can testify to
-           * (`docs/specs/Concepts/Time Travel Compensation.md`).
+           * THE EFFECT BOUNDARY. An irreversible dispatch can change the world
+           * outside this journal, and a compensable one mutates the workspace
+           * a rewind must restore — both are wrapped: `intended` commits
+           * before the body starts, and the terminal record commits after it
+           * settles — `succeeded` with the recorded result, `unknown` for a
+           * failure, defect, or interruption whose external outcome nobody can
+           * testify to (`docs/specs/Concepts/Time Travel Compensation.md`).
+           *
+           * The compensable record is what makes the tier-2 restore REAL: a
+           * rewind classifies the doomed suffix by its boundary rows, so a
+           * compensable action that recorded only its pre-image snapshot left
+           * nothing for the rewind to restore against — the suffix archived
+           * "completed" while the tree kept the discarded future's bytes. The
+           * record names the attempt's anchored `changeId` so the evidence and
+           * the pointer travel together.
            *
            * The settlement is uninterruptible: cancellation must not strand an
            * effect that has already crossed without at least attempting to say
-           * so. Sealed and compensable work is deliberately outside this — a
-           * sealed result is cache evidence and a compensable one restores
-           * through jj, neither needs the operator to decide anything.
+           * so. Sealed work is deliberately outside this — a sealed result is
+           * cache evidence, and replay answers it from the recorded cache
+           * entry rather than an operator decision.
            */
-          const effect = input.tier === "irreversible"
+          const effect = input.tier === "irreversible" || input.tier === "compensable"
             ? {
               id: `${deps.runId}:${keyDigest}:${input.attempt}`,
               kind: actionKind(input.action),
-              tier: "irreversible" as const,
+              tier: input.tier,
               runId: deps.runId,
               lineageId,
               sourceId: deps.sourceId,
               attempt: input.attempt,
-              ...(deps.idempotencyKey === undefined ? {} : { idempotencyKey: deps.idempotencyKey })
+              ...(deps.idempotencyKey === undefined ? {} : { idempotencyKey: deps.idempotencyKey }),
+              ...(snapshotId === undefined ? {} : { changeId: snapshotId })
             } satisfies EffectRecords.Descriptor
             : undefined
           const dispatch = effect === undefined
@@ -1352,7 +1485,7 @@ export const make = (deps: Dependencies) => {
               finishedAtMs,
               error: persistCause(outcome.cause),
               meta: {
-                tier: input.tier,
+                ...declarationMeta,
                 ...(violation ? { hardViolation: true as const } : {}),
                 ...(snapshotId === undefined ? {} : { snapshotId })
               }
@@ -1408,6 +1541,16 @@ export const make = (deps: Dependencies) => {
           const settled = prepared === undefined || boundary === undefined
             ? undefined
             : yield* boundary.settle(prepared).pipe(Effect.exit)
+          yield* settled === undefined ? Effect.void : Metric.update(
+            EngineStoreMetrics.boundarySettlement[
+              Exit.isSuccess(settled)
+                ? settled.value.deviation === undefined ? "Clean" : "Deviation"
+                : settlementViolated(settled.cause)
+                ? "Violation"
+                : "Refused"
+            ],
+            1
+          )
           if (settled !== undefined && Exit.isFailure(settled)) {
             const failedAtMs = yield* Clock.currentTimeMillis
             const finished = yield* settleAttempt({
@@ -1417,7 +1560,7 @@ export const make = (deps: Dependencies) => {
               error: persistCause(settled.cause),
               // Settlement, like preparation, runs only for sealed work; a
               // compensable snapshot is therefore unreachable on this path.
-              meta: { tier: input.tier, hardViolation: true }
+              meta: { ...declarationMeta, hardViolation: true }
             }, [
               JournalRecords.hardViolation(attemptSource("hard-violation"), { ...attemptId, error: settled.cause }),
               JournalRecords.attemptFinished(attemptSource("finished"), { ...attemptId, state: "failed" })
@@ -1468,7 +1611,7 @@ export const make = (deps: Dependencies) => {
           // fine, but the completion must never enter the shared cache.
           const readSetVerified = prepared !== undefined && StepBoundary.readSetMatches(prepared)
           const meta: AttemptMeta = {
-            tier: input.tier,
+            ...declarationMeta,
             ...(snapshotId === undefined ? {} : { snapshotId }),
             ...(evidence === undefined ? {} : { boundary: evidence }),
             ...(readSetVerified ? { readSetVerified: true as const } : {})
@@ -1510,6 +1653,26 @@ export const make = (deps: Dependencies) => {
           return outcome.value
         })
       )
-    })
+    }).pipe(
+      // The operation's own span is annotated above once the digest exists;
+      // this ambient context gives every child store, boundary, and sandbox
+      // span the dispatch identity as it opens.
+      Effect.annotateSpans({
+        runId: deps.runId,
+        key: input.key,
+        attempt: input.attempt,
+        tier: input.tier
+      }),
+      Effect.annotateLogs({
+        runId: deps.runId,
+        key: input.key,
+        attempt: input.attempt,
+        tier: input.tier
+      }),
+      EngineStoreMetrics.observe({
+        timer: EngineStoreMetrics.dispatchDuration,
+        counter: EngineStoreMetrics.dispatch
+      })
+    )
   )
 }

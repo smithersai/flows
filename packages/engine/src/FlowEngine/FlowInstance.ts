@@ -5,8 +5,8 @@
  *
  * @since 4.0.0
  */
-import type { Flow } from "@smthrs/flow-next"
-import { FlowRuntime } from "@smthrs/flow-next"
+import type { Flow } from "@smthrs/flow"
+import { FlowRuntime } from "@smthrs/flow"
 import * as Latch from "effect/Latch"
 import * as Scope from "effect/Scope"
 import * as Lineage from "./Lineage.ts"
@@ -22,14 +22,16 @@ import * as Lineage from "./Lineage.ts"
  *
  * @category constructors
  * @since 4.0.0
+ * @slop
  */
 export const makeInstance = (
   flow: Flow.Any,
   executionId: string
 ): FlowRuntime.FlowInstance["Service"] => {
   // Ordinals are counted per allocation scope, not per run: the engine
-  // scopes action dispatches by action name so a permuted fiber
-  // interleaving cannot renumber them across a replay (issue #73).
+  // scopes action dispatches by declaration identity and an optional
+  // structural interpreter site so a permuted fiber interleaving cannot
+  // renumber distinguishable dispatches across a replay (issue #73).
   const ordinals = new Map<string, number>()
   return FlowRuntime.FlowInstance.of({
     executionId,

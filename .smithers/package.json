@@ -1,0 +1,39 @@
+{
+  "name": "smithers-workflows",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "gateway": "bun ./gateway.ts",
+    "workflow:list": "smithers workflow list",
+    "workflow:run": "smithers workflow run",
+    "workflow:inspect": "smithers workflow inspect",
+    "workflow:skills": "smithers workflow skills",
+    "test": "bun test ./tests/alpha-ui.test.tsx ./tests/alpha-ui-evals.test.tsx ./tests/alpha-agent.test.tsx ./tests/alpha-agent-eval-judge.test.tsx ./tests/upstream-drift.test.tsx ./tests/canonical-history.test.tsx"
+  },
+  "dependencies": {
+    "@milkdown/crepe": "7.21.2",
+    "@smthrs/cli": "0.33.0",
+    "@xyflow/react": "12.11.2",
+    "dagre": "0.8.5",
+    "mermaid": "11.16.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "smthrs": "0.33.0",
+    "yaml": "2.9.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@types/mdx": "2.0.14",
+    "@types/node": "26.2.0",
+    "@types/dagre": "0.7.54"
+  },
+  "overrides": {
+    "effect": "4.0.0-beta.102",
+    "@effect/platform-node-shared": "4.0.0-beta.102",
+    "@effect/platform-bun": "4.0.0-beta.102"
+  }
+}

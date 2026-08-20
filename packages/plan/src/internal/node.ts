@@ -28,20 +28,23 @@ import { pipeArguments } from "effect/Pipeable"
 import * as Schema from "effect/Schema"
 import type * as Types from "effect/Types"
 import * as Planned from "../Planned.ts"
+import { sha256 } from "./sha256.ts"
 
 /**
  * The runtime type identifier every node carries.
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
-export const TypeId = "~flows/plan/Node" as const
+export const TypeId = "~@smthrs/plan/Node" as const
 
 /**
  * The type-level form of {@link TypeId}.
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export type TypeId = typeof TypeId
 
@@ -50,6 +53,7 @@ export type TypeId = typeof TypeId
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export interface Succeed {
   readonly _tag: "Succeed"
@@ -62,6 +66,7 @@ export interface Succeed {
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export interface All {
   readonly _tag: "All"
@@ -74,6 +79,7 @@ export interface All {
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export interface Map {
   readonly _tag: "Map"
@@ -88,6 +94,7 @@ export interface Map {
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export interface AndThen {
   readonly _tag: "AndThen"
@@ -104,6 +111,7 @@ export interface AndThen {
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export interface Branch {
   readonly _tag: "Branch"
@@ -131,6 +139,7 @@ export interface Branch {
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export interface Catch {
   readonly _tag: "Catch"
@@ -155,6 +164,7 @@ export interface Catch {
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export type CallMode = "inline" | "boundary" | "handoff"
 
@@ -165,6 +175,7 @@ export type CallMode = "inline" | "boundary" | "handoff"
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export interface FlowCall {
   readonly _tag: "FlowCall"
@@ -179,6 +190,7 @@ export interface FlowCall {
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export interface ActionCall {
   readonly _tag: "ActionCall"
@@ -187,17 +199,141 @@ export interface ActionCall {
 }
 
 /**
- * The serializable stand-in for a function: a tagged digest of its normalized
- * source. The algorithm tag is versioned so a change to how sources are
- * digested re-keys everything derived from one, rather than colliding with it.
+ * The serializable stand-in for a function. Captured functions digest their
+ * exact source and declared inert captures. Unannotated functions additionally
+ * carry process-local, per-object entropy so indistinguishable closure sources
+ * fail closed instead of sharing a cache key.
+ *
+ * The algorithm tag is versioned so a change to identity semantics re-keys
+ * everything derived from one, rather than colliding with it.
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export interface FunctionIdentity {
   readonly _tag: "FunctionIdentity"
-  readonly algorithm: "fnv1a32-source/v1"
+  readonly algorithm: "sha256-source-ephemeral/v4" | "sha256-source-captures/v3" | "static-node/v1"
   readonly digest: string
+}
+
+/** @private */
+const CapturedTypeId = Symbol.for("@smthrs/plan/Node/CapturedFunction")
+
+/** @private */
+interface CapturedMetadata {
+  readonly source: string
+  readonly captures: string
+}
+
+/** @private */
+type CapturedFunction = { readonly [CapturedTypeId]?: CapturedMetadata }
+
+const ephemeralNonceBytes = new Uint8Array(16)
+const runtimeCrypto = (globalThis as unknown as {
+  readonly crypto: { readonly getRandomValues: (array: Uint8Array) => Uint8Array }
+}).crypto
+runtimeCrypto.getRandomValues(ephemeralNonceBytes)
+const ephemeralNonce = [...ephemeralNonceBytes].map((byte) => byte.toString(16).padStart(2, "0")).join("")
+const ephemeralIdentities = new WeakMap<object, string>()
+let ephemeralOrdinal = 0
+
+/** @private */
+const captureError = (path: string, reason: string): TypeError =>
+  new TypeError(`Node.capture: capture at ${path} ${reason}; captures must be finite, inert data`)
+
+/** @private */
+const canonicalCapture = (input: unknown, path: string, ancestors: WeakSet<object>): string => {
+  if (input === null) return "null"
+  switch (typeof input) {
+    case "boolean":
+      return input ? "true" : "false"
+    case "number":
+      if (!Number.isFinite(input)) throw captureError(path, "is not finite")
+      return Object.is(input, -0) ? "[\"number\",\"-0\"]" : `["number",${JSON.stringify(input)}]`
+    case "string":
+      return `["string",${JSON.stringify(input)}]`
+    case "undefined":
+    case "bigint":
+    case "symbol":
+    case "function":
+      throw captureError(path, `has unsupported type ${typeof input}`)
+  }
+
+  if (ancestors.has(input)) throw captureError(path, "is cyclic")
+  const prototype = Object.getPrototypeOf(input)
+  if (!Array.isArray(input) && prototype !== Object.prototype && prototype !== null) {
+    throw captureError(path, "has a non-plain prototype")
+  }
+  ancestors.add(input)
+  try {
+    if (Array.isArray(input)) {
+      const descriptors = Object.getOwnPropertyDescriptors(input)
+      for (const key of Reflect.ownKeys(descriptors)) {
+        if (key === "length") continue
+        if (typeof key === "symbol" || !/^(0|[1-9]\d*)$/.test(key)) {
+          throw captureError(path, `has unsupported array key ${String(key)}`)
+        }
+      }
+      const items: Array<string> = []
+      for (let index = 0; index < input.length; index++) {
+        const descriptor = descriptors[String(index)]
+        if (descriptor === undefined) throw captureError(`${path}[${index}]`, "is an array hole")
+        if (!("value" in descriptor)) throw captureError(`${path}[${index}]`, "is an accessor")
+        items.push(canonicalCapture(descriptor.value, `${path}[${index}]`, ancestors))
+      }
+      return `["array",[${items.join(",")}]]`
+    }
+    const members = Object.getOwnPropertyDescriptors(input)
+    const keys = Reflect.ownKeys(members)
+    const symbol = keys.find((key) => typeof key === "symbol")
+    if (symbol !== undefined) throw captureError(path, `has symbol key ${String(symbol)}`)
+    const encoded = (keys as Array<string>).sort().map((key) => {
+      const descriptor = members[key]!
+      if (!("value" in descriptor)) throw captureError(`${path}.${key}`, "is an accessor")
+      return `${JSON.stringify(key)}:${canonicalCapture(descriptor.value, `${path}.${key}`, ancestors)}`
+    })
+    return `["object",{${encoded.join(",")}}]`
+  } finally {
+    ancestors.delete(input)
+  }
+}
+
+/** @private */
+const freezeCapture = (input: unknown, seen: WeakSet<object>): void => {
+  if (typeof input !== "object" || input === null || seen.has(input)) return
+  seen.add(input)
+  for (const descriptor of Object.values(Object.getOwnPropertyDescriptors(input))) {
+    /* v8 ignore else -- canonicalCapture rejects every accessor before freezing starts */
+    if ("value" in descriptor) freezeCapture(descriptor.value, seen)
+  }
+  Object.freeze(input)
+}
+
+/**
+ * Brands an operation with every inert value it closes over.
+ *
+ * @since 0.1.0
+ * @private
+ * @slop
+ */
+export const capture = <Args extends ReadonlyArray<unknown>, A>(
+  captures: Readonly<Record<string, unknown>>,
+  operation: (...args: Args) => A
+): (...args: Args) => A => {
+  const source = Function.prototype.toString.call(operation)
+  const canonical = canonicalCapture(captures, "$", new WeakSet())
+  freezeCapture(captures, new WeakSet())
+  const wrapped = function(this: unknown, ...args: ReadonlyArray<unknown>): unknown {
+    return Reflect.apply(operation, this, args)
+  }
+  Object.defineProperty(wrapped, CapturedTypeId, {
+    configurable: false,
+    enumerable: false,
+    value: { source, captures: canonical } satisfies CapturedMetadata,
+    writable: false
+  })
+  return wrapped as (...args: Args) => A
 }
 
 /**
@@ -207,6 +343,7 @@ export interface FunctionIdentity {
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export interface PlannedReference {
   readonly _tag: "PlannedReference"
@@ -219,6 +356,7 @@ export interface PlannedReference {
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export type NodeAst = Succeed | All | Map | AndThen | Branch | Catch | FlowCall | ActionCall
 
@@ -232,58 +370,124 @@ const filters = new WeakMap<Catch, Schema.Top>()
 const declarations = new WeakMap<ActionCall | FlowCall, unknown>()
 
 /**
- * Replaces strict planned proxies with their inert reference records while
- * preserving the shape of JSON payloads.
+ * One container being cloned: the object walked, the clone being filled, and
+ * the member position the walk has reached. `keys` is `undefined` for an
+ * array, whose members are positional.
  *
  * @since 0.1.0
  * @private
  */
-export const value = (input: unknown, seen: WeakMap<object, unknown> = new WeakMap()): unknown => {
-  const reference = Planned.reference(input)
-  if (reference !== undefined) {
-    return { _tag: "PlannedReference", node: reference.node, path: [...reference.path] } satisfies PlannedReference
-  }
-  if (input === null || typeof input !== "object") return input
-  const previous = seen.get(input)
-  if (previous !== undefined) return previous
-  if (Array.isArray(input)) {
-    const output: Array<unknown> = []
-    seen.set(input, output)
-    for (const item of input) output.push(value(item, seen))
-    return output
-  }
-  const output: Record<string, unknown> = Object.create(null) as Record<string, unknown>
-  seen.set(input, output)
-  for (const key of Object.keys(input)) {
-    Object.defineProperty(output, key, {
-      configurable: true,
-      enumerable: true,
-      value: value(input[key as keyof typeof input], seen),
-      writable: true
-    })
-  }
-  return output
+interface CloneFrame {
+  readonly source: Record<string, unknown> | ReadonlyArray<unknown>
+  readonly output: Record<string, unknown> | Array<unknown>
+  readonly keys: ReadonlyArray<string> | undefined
+  index: number
 }
 
 /**
- * Digests a function by its source: whitespace collapsed, then FNV-1a over the
- * UTF-16 code units. Two separately written functions with the same source
- * therefore key identically, and an edited one does not.
+ * Replaces strict planned proxies with their inert reference records while
+ * preserving the shape of JSON payloads.
+ *
+ * The walk carries its own explicit stack rather than recursing, because a
+ * payload's nesting depth is the author's data and must not be bounded by the
+ * native call stack. Cycles and shared references are memoized through `seen`
+ * exactly as one recursion would memoize them: the clone of an object that
+ * appears twice is one object, and a payload that contains itself clones into
+ * a clone that contains itself. Whether such a payload is PLANNABLE is graph
+ * building's verdict, not this cloner's.
  *
  * @since 0.1.0
  * @private
+ * @slop
+ */
+export const value = (input: unknown, seen: WeakMap<object, unknown> = new WeakMap()): unknown => {
+  let result: unknown
+  const frames: Array<CloneFrame> = []
+  /** Resolves one member, opening a frame when it is an unseen container. */
+  const enter = (current: unknown, place: (member: unknown) => void): void => {
+    const reference = Planned.reference(current)
+    if (reference !== undefined) {
+      place({ _tag: "PlannedReference", node: reference.node, path: [...reference.path] } satisfies PlannedReference)
+      return
+    }
+    if (current === null || typeof current !== "object") {
+      place(current)
+      return
+    }
+    const previous = seen.get(current)
+    if (previous !== undefined) {
+      place(previous)
+      return
+    }
+    const container = current as Record<string, unknown> | ReadonlyArray<unknown>
+    const output: Record<string, unknown> | Array<unknown> = Array.isArray(container)
+      ? []
+      : Object.create(null) as Record<string, unknown>
+    seen.set(container, output)
+    place(output)
+    frames.push({
+      source: container,
+      output,
+      keys: Array.isArray(container) ? undefined : Object.keys(container),
+      index: 0
+    })
+  }
+  enter(input, (member) => {
+    result = member
+  })
+  while (frames.length > 0) {
+    const frame = frames[frames.length - 1]!
+    if (frame.index >= (frame.keys ?? frame.source as ReadonlyArray<unknown>).length) {
+      frames.pop()
+      continue
+    }
+    const position = frame.index
+    frame.index = position + 1
+    if (frame.keys === undefined) {
+      const members = frame.output as Array<unknown>
+      enter((frame.source as ReadonlyArray<unknown>)[position], (member) => {
+        members.push(member)
+      })
+    } else {
+      const key = frame.keys[position]!
+      enter((frame.source as Record<string, unknown>)[key], (member) => {
+        Object.defineProperty(frame.output, key, {
+          configurable: true,
+          enumerable: true,
+          value: member,
+          writable: true
+        })
+      })
+    }
+  }
+  return result
+}
+
+/**
+ * Digests a function's exact source as UTF-8 with SHA-256. Exact source matters:
+ * whitespace inside a string literal is behavior, and normalizing it before
+ * hashing can make different functions share an identity. Unless its inert
+ * captures were declared with {@link capture}, the digest also includes
+ * process-local, per-function entropy: JavaScript cannot inspect a closure, so
+ * source-only identity would permit incorrect cache hits.
+ *
+ * @since 0.1.0
+ * @private
+ * @slop
  */
 export const functionIdentity = (operation: unknown): FunctionIdentity => {
-  const source = Function.prototype.toString.call(operation).replaceAll(/\s+/g, " ").trim()
-  let hash = 0x811c9dc5
-  for (let index = 0; index < source.length; index++) {
-    hash ^= source.charCodeAt(index)
-    hash = Math.imul(hash, 0x01000193)
+  if (typeof operation !== "function") throw new TypeError("function identity requires a function")
+  const metadata = (operation as CapturedFunction)[CapturedTypeId]
+  const source = metadata?.source ?? Function.prototype.toString.call(operation)
+  let ephemeral = ephemeralIdentities.get(operation)
+  if (metadata === undefined && ephemeral === undefined) {
+    ephemeral = `${ephemeralNonce}:${ephemeralOrdinal++}`
+    ephemeralIdentities.set(operation, ephemeral)
   }
   return {
     _tag: "FunctionIdentity",
-    algorithm: "fnv1a32-source/v1",
-    digest: (hash >>> 0).toString(16).padStart(8, "0")
+    algorithm: metadata === undefined ? "sha256-source-ephemeral/v4" : "sha256-source-captures/v3",
+    digest: sha256(metadata === undefined ? `${source}\0${ephemeral}` : `${source}\0${metadata.captures}`)
   }
 }
 
@@ -296,6 +500,7 @@ export const functionIdentity = (operation: unknown): FunctionIdentity => {
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export interface Node<out A, out E = never, out R = never> extends Pipeable.Pipeable {
   readonly [TypeId]: {
@@ -312,6 +517,7 @@ export interface Node<out A, out E = never, out R = never> extends Pipeable.Pipe
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const NodeProto = {
   [TypeId]: {
@@ -330,6 +536,7 @@ export const NodeProto = {
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const makeNode = <A = unknown, E = never, R = never>(ast: NodeAst): Node<A, E, R> =>
   Object.assign(Object.create(NodeProto), { ast })
@@ -339,6 +546,7 @@ export const makeNode = <A = unknown, E = never, R = never>(ast: NodeAst): Node<
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const succeed = (input: unknown): Succeed => ({ _tag: "Succeed", value: value(input) })
 
@@ -347,6 +555,7 @@ export const succeed = (input: unknown): Succeed => ({ _tag: "Succeed", value: v
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const all = (nodes: Readonly<Record<string, NodeAst>>): All => ({ _tag: "All", nodes })
 
@@ -355,6 +564,7 @@ export const all = (nodes: Readonly<Record<string, NodeAst>>): All => ({ _tag: "
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const map = (first: NodeAst, operation: Operation, source: unknown): Map => {
   const ast: Map = { _tag: "Map", first, mapper: functionIdentity(source) }
@@ -368,6 +578,7 @@ export const map = (first: NodeAst, operation: Operation, source: unknown): Map 
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const andThen = (first: NodeAst, operation: Operation, source: unknown): AndThen => {
   const ast: AndThen = { _tag: "AndThen", first, continuation: functionIdentity(source) }
@@ -381,11 +592,12 @@ export const andThen = (first: NodeAst, operation: Operation, source: unknown): 
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const andThenNode = (first: NodeAst, next: NodeAst): AndThen => ({
   _tag: "AndThen",
   first,
-  continuation: { _tag: "FunctionIdentity", algorithm: "fnv1a32-source/v1", digest: "static-node" },
+  continuation: { _tag: "FunctionIdentity", algorithm: "static-node/v1", digest: sha256("static-node") },
   next
 })
 
@@ -395,6 +607,7 @@ export const andThenNode = (first: NodeAst, next: NodeAst): AndThen => ({
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const branch = (
   subject: string,
@@ -421,6 +634,7 @@ export const branch = (
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const catch_ = (subject: string, protectedAst: NodeAst, failure: NodeAst, filter?: Schema.Top): Catch => {
   const ast: Catch = {
@@ -439,6 +653,7 @@ export const catch_ = (subject: string, protectedAst: NodeAst, failure: NodeAst,
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const flowCall = (declaration: unknown, flow: string, mode: CallMode, payload: unknown): FlowCall => {
   const ast: FlowCall = { _tag: "FlowCall", flow, mode, payload: value(payload) }
@@ -452,6 +667,7 @@ export const flowCall = (declaration: unknown, flow: string, mode: CallMode, pay
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const actionCall = (declaration: unknown, action: string, payload: unknown): ActionCall => {
   const ast: ActionCall = { _tag: "ActionCall", action, payload: value(payload) }
@@ -464,6 +680,7 @@ export const actionCall = (declaration: unknown, action: string, payload: unknow
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const operation = (ast: AndThen | Map): Operation | undefined => operations.get(ast)
 
@@ -472,6 +689,7 @@ export const operation = (ast: AndThen | Map): Operation | undefined => operatio
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const predicate = (ast: Branch): Predicate | undefined => predicates.get(ast)
 
@@ -480,6 +698,7 @@ export const predicate = (ast: Branch): Predicate | undefined => predicates.get(
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const filter = (ast: Catch): Schema.Top | undefined => filters.get(ast)
 
@@ -488,5 +707,6 @@ export const filter = (ast: Catch): Schema.Top | undefined => filters.get(ast)
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const declaration = (ast: ActionCall | FlowCall): unknown => declarations.get(ast)

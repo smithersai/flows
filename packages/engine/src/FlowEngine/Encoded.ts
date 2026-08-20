@@ -4,13 +4,13 @@
  * The low-level engine contract, expressed over encoded payloads and results.
  *
  * `makeUnsafe` adapts an `Encoded` implementation into the typed
- * `FlowRuntime` port that `@smthrs/flow-next` declares, adding schema decoding and
+ * `FlowRuntime` port that `@smthrs/flow` declares, adding schema decoding and
  * encoding on the way through. Durable stores implement `Encoded`, never the
  * typed port directly.
  *
  * @since 4.0.0
  */
-import type { Action, DurableClock, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow-next"
+import type { Action, DurableClock, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
 import type * as Crypto from "effect/Crypto"
 import type * as Effect from "effect/Effect"
 import type * as Exit from "effect/Exit"
@@ -24,12 +24,15 @@ import type * as Round from "./Round.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface ActionExecuteOptions {
   readonly action: Action.Any
   readonly attempt: number
   readonly key: string
   readonly tier: Action.Tier
+  /** Allows a cache put race to retain the first row without failing this run. */
+  readonly nondeterministic?: true | undefined
   readonly metadata: unknown
 }
 
@@ -39,6 +42,7 @@ export interface ActionExecuteOptions {
  *
  * @category models
  * @since 4.0.0
+ * @slop
  */
 export interface Encoded {
   readonly register: (
@@ -69,25 +73,35 @@ export interface Encoded {
     Discard extends true ? void : Flow.Result<unknown, unknown>,
     FlowRuntime.FlowCycleDetected
   >
+  /**
+   * `Option.none` is a known, unsettled execution; an unknown execution id
+   * fails with `FlowRuntime.FlowExecutionNotFound`.
+   */
   readonly poll: (
     flow: Flow.Any,
     executionId: string
-  ) => Effect.Effect<Option.Option<Flow.Result<unknown, unknown>>>
+  ) => Effect.Effect<
+    Option.Option<Flow.Result<unknown, unknown>>,
+    FlowRuntime.FlowExecutionNotFound
+  >
   /**
    * Requests cancellation with normal cleanup and compensation semantics.
    * This is not a pause operation.
+   *
+   * Reports `FlowRuntime.CancelRequestFailed` when a durable implementation
+   * could not record the request; an in-memory one never raises it.
    */
   readonly interrupt: (
     flow: Flow.Any,
     executionId: string
-  ) => Effect.Effect<void>
+  ) => Effect.Effect<void, FlowRuntime.CancelRequestFailed>
   /**
    * Forces cancellation without guaranteeing cleanup or compensation.
    */
   readonly interruptUnsafe: (
     flow: Flow.Any,
     executionId: string
-  ) => Effect.Effect<void>
+  ) => Effect.Effect<void, FlowRuntime.CancelRequestFailed>
   /**
    * Re-drives a durably suspended execution; it does not undo cancellation.
    */

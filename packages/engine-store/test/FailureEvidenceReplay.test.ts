@@ -6,19 +6,19 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * Parity: Bazel Skyframe `MemoizingEvaluatorTest.java:3542` (transient versus
  * persistent cached error reevaluation).
  */
-import { Action, Flow } from "@smthrs/flow-next"
-import { Journal } from "@smthrs/journal-next"
-import { Jj } from "@smthrs/kernel-next"
-import { Node } from "@smthrs/plan-next"
-import { RunStore } from "@smthrs/run-store-next"
+import { describe, expect, it } from "@effect/vitest"
+import { Action, Flow } from "@smthrs/flow"
+import { Journal } from "@smthrs/journal"
+import { Jj } from "@smthrs/kernel"
+import { Node } from "@smthrs/plan"
+import { RunStore } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
-import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
-import { runPromise } from "./Sha256.ts"
+import { withCrypto } from "./Sha256.ts"
 
 const FailFlow = Flow.make("FailureEvidence/Flow", {
   payload: {},
@@ -37,93 +37,94 @@ const jj = Jj.make({
 })
 
 describe("failure evidence across restarts", () => {
-  it("replays a terminal failure instead of reevaluating the step that produced it", async () => {
-    let successDispatches = 0
-    let failingDispatches = 0
-    const state = DurableEngineState.makeMemory()
+  it.effect("replays a terminal failure instead of reevaluating the step that produced it", () =>
+    Effect.gen(function*() {
+      let successDispatches = 0
+      let failingDispatches = 0
+      const state = DurableEngineState.makeMemory()
 
-    const stable = Action.make({
-      name: "stable",
-      success: Schema.String,
-      tier: "sealed",
-      idempotencyKey: "failure-evidence-stable-v1",
-      execute: Effect.sync(() => {
-        successDispatches++
-        return "stable-result"
+      const stable = Action.make({
+        name: "stable",
+        success: Schema.String,
+        tier: "sealed",
+        idempotencyKey: "failure-evidence-stable-v1",
+        execute: Effect.sync(() => {
+          successDispatches++
+          return "stable-result"
+        })
       })
-    })
-    // fails on its first dispatch, succeeds afterwards: a *transient* failure
-    const flaky = Action.make({
-      name: "flaky",
-      success: Schema.String,
-      error: Schema.String,
-      tier: "sealed",
-      idempotencyKey: "failure-evidence-flaky-v1",
-      execute: Effect.suspend(() =>
-        ++failingDispatches === 1
-          ? Effect.fail("transient")
-          : Effect.succeed("recovered")
-      )
-    })
-    const handler = () =>
-      Effect.gen(function*() {
-        const first = yield* stable
-        const second = yield* flaky
-        return `${first}/${second}`
-      })
-
-    const outcome = await runPromise(
-      Effect.scoped(
-        Effect.gen(function*() {
-          const runs = yield* RunStore.RunStore
-          const makeEngine = EngineStore.make({
-            owner: { hostId: "failure-evidence-host" },
-            journalSource: "failure-evidence-test",
-            isAlive: () => Effect.succeed(false)
-          })
-
-          const first = yield* makeEngine
-          yield* first.register(FailFlow, handler)
-          const firstExit = yield* Effect.exit(
-            first.execute(FailFlow, {
-              executionId: "failure-evidence-run",
-              payload: {},
-              discard: false
-            })
-          )
-          const afterFailure = yield* runs.get("failure-evidence-run")
-
-          const restarted = yield* makeEngine
-          yield* restarted.register(FailFlow, handler)
-          const secondExit = yield* Effect.exit(
-            restarted.execute(FailFlow, {
-              executionId: "failure-evidence-run",
-              payload: {},
-              discard: false
-            })
-          )
-          const journal = yield* Journal.Journal
-          yield* journal.flush
-          return { firstExit, secondExit, afterFailure }
-        }).pipe(
-          Effect.provideService(DurableEngineState.DurableEngineState, state),
-          Effect.provideService(Jj.Jj, jj)
+      // fails on its first dispatch, succeeds afterwards: a *transient* failure
+      const flaky = Action.make({
+        name: "flaky",
+        success: Schema.String,
+        error: Schema.String,
+        tier: "sealed",
+        idempotencyKey: "failure-evidence-flaky-v1",
+        execute: Effect.suspend(() =>
+          ++failingDispatches === 1
+            ? Effect.fail("transient")
+            : Effect.succeed("recovered")
         )
-      ).pipe(
-        Effect.provide(StepBoundary.layerTest()),
-        Effect.provide(TestStores.layer())
-      )
-    )
+      })
+      const handler = () =>
+        Effect.gen(function*() {
+          const first = yield* stable
+          const second = yield* flaky
+          return `${first}/${second}`
+        })
 
-    expect(outcome.firstExit._tag).toBe("Failure")
-    expect(outcome.afterFailure.status).toBe("failed")
-    // the successful step's evidence is durable: it is never dispatched twice
-    expect(successDispatches).toBe(1)
-    // a terminal run failure is *persistent* evidence: re-executing the same
-    // executionId replays the recorded failure instead of reevaluating the
-    // step, so the "would now succeed" branch is never reached
-    expect(failingDispatches).toBe(1)
-    expect(outcome.secondExit._tag).toBe("Failure")
-    expect(String(outcome.secondExit)).toContain("transient")
-  })
+      const outcome = yield* withCrypto(
+        Effect.scoped(
+          Effect.gen(function*() {
+            const runs = yield* RunStore.RunStore
+            const makeEngine = EngineStore.make({
+              owner: { hostId: "failure-evidence-host" },
+              journalSource: "failure-evidence-test",
+              isAlive: () => Effect.succeed(false)
+            })
+
+            const first = yield* makeEngine
+            yield* first.register(FailFlow, handler)
+            const firstExit = yield* Effect.exit(
+              first.execute(FailFlow, {
+                executionId: "failure-evidence-run",
+                payload: {},
+                discard: false
+              })
+            )
+            const afterFailure = yield* runs.get("failure-evidence-run")
+
+            const restarted = yield* makeEngine
+            yield* restarted.register(FailFlow, handler)
+            const secondExit = yield* Effect.exit(
+              restarted.execute(FailFlow, {
+                executionId: "failure-evidence-run",
+                payload: {},
+                discard: false
+              })
+            )
+            const journal = yield* Journal.Journal
+            yield* journal.flush
+            return { firstExit, secondExit, afterFailure }
+          }).pipe(
+            Effect.provideService(DurableEngineState.DurableEngineState, state),
+            Effect.provideService(Jj.Jj, jj)
+          )
+        ).pipe(
+          Effect.provide(StepBoundary.layerTest()),
+          Effect.provide(TestStores.layer())
+        )
+      )
+
+      expect(outcome.firstExit._tag).toBe("Failure")
+      expect(outcome.afterFailure.status).toBe("failed")
+      // the successful step's evidence is durable: it is never dispatched twice
+      expect(successDispatches).toBe(1)
+      // a terminal run failure is *persistent* evidence: re-executing the same
+      // executionId replays the recorded failure instead of reevaluating the
+      // step, so the "would now succeed" branch is never reached
+      expect(failingDispatches).toBe(1)
+      expect(outcome.secondExit._tag).toBe("Failure")
+      expect(String(outcome.secondExit)).toContain("transient")
+    }))
 })

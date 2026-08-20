@@ -7,13 +7,14 @@
  *
  * @since 0.1.0
  */
-import { type CapabilityPattern, format } from "@smthrs/capability-next/Capability"
-import { GrantStoreError, Rule } from "@smthrs/capability-next/Permission"
-import * as JournalModule from "@smthrs/journal-next/Journal"
-import * as JournalEvent from "@smthrs/journal-next/JournalEvent"
+import type { CapabilityPattern } from "@smthrs/capability/Capability"
+import { GrantStoreError, Rule } from "@smthrs/capability/Permission"
+import * as JournalModule from "@smthrs/journal/Journal"
+import * as JournalEvent from "@smthrs/journal/JournalEvent"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
+import * as Semaphore from "effect/Semaphore"
 import { decode, type GrantEvent, GrantEventSchema } from "./GrantEvent.ts"
 import * as GrantStore from "./GrantStore.ts"
 import { Workspace } from "./Workspace.ts"
@@ -34,6 +35,7 @@ import { Workspace } from "./Workspace.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface JournalGrantStoreOptions {
   readonly runId: string
@@ -84,16 +86,21 @@ const decodeTrustedEntry = (
   return Effect.succeed(event.success)
 }
 
-const envelopeSignature = (
-  planDigest: string,
-  scope: "run" | "remembered",
-  patterns: ReadonlyArray<CapabilityPattern>
-): string =>
-  JSON.stringify({
-    planDigest,
-    scope,
-    patterns: patterns.map(format).sort()
-  })
+// One construction-envelope critical section per journal instance.
+// Two concurrent constructors against the same journal can both replay the
+// envelope's absence before either persists it; the lock serializes the
+// re-check-then-append so exactly one construction envelope lands.
+const constructionLocks = new WeakMap<JournalModule.Service, Semaphore.Semaphore>()
+
+const constructionLock = (journal: JournalModule.Service): Semaphore.Semaphore => {
+  const existing = constructionLocks.get(journal)
+  if (existing !== undefined) {
+    return existing
+  }
+  const created = Semaphore.makeUnsafe(1)
+  constructionLocks.set(journal, created)
+  return created
+}
 
 const replayRememberedRules = (
   policyRunId: string,
@@ -112,6 +119,13 @@ const replayRememberedRules = (
         ...(after === undefined ? {} : { after }),
         limit: 256
       })
+      const last = page.entries.at(-1)
+      if (last !== undefined && after !== undefined && last.seq <= after) {
+        // A page that does not advance past the cursor it was asked for is
+        // corrupt journal output. Following it would replay the same events
+        // forever; accepting it would double-apply them. Refuse construction.
+        return yield* Effect.fail(invalidReplay(`non-advancing journal page at sequence ${last.seq}`))
+      }
       for (const entry of page.entries) {
         const event = yield* decodeTrustedEntry(entry, sourceId)
         if (event === undefined) {
@@ -129,12 +143,11 @@ const replayRememberedRules = (
             return yield* Effect.fail(invalidReplay(`unsafe remembered envelope event: ${entry.seq}`))
           }
           rules.push(...event.patterns.map((pattern) => new Rule({ effect: "allow" as const, pattern })))
-          envelopeSignatures.add(envelopeSignature(event.planDigest, event.scope, event.patterns))
+          envelopeSignatures.add(GrantStore.envelopeSignature(event.planDigest, event.scope, event.patterns))
           continue
         }
         return yield* Effect.fail(invalidReplay(`run-scoped event found in policy journal: ${entry.seq}`))
       }
-      const last = page.entries.at(-1)
       after = last?.seq
       if (!page.hasMore) {
         return { rules, envelopeSignatures }
@@ -162,6 +175,11 @@ const replayRunRules = (
         ...(after === undefined ? {} : { after }),
         limit: 256
       })
+      const last = page.entries.at(-1)
+      if (last !== undefined && after !== undefined && last.seq <= after) {
+        // See the identical guard in `replayRememberedRules`.
+        return yield* Effect.fail(invalidReplay(`non-advancing journal page at sequence ${last.seq}`))
+      }
       for (const entry of page.entries) {
         const event = yield* decodeTrustedEntry(entry, sourceId)
         if (event === undefined) {
@@ -191,12 +209,11 @@ const replayRunRules = (
             return yield* Effect.fail(invalidReplay(`unsafe run envelope event: ${entry.seq}`))
           }
           rules.push(...event.patterns.map((pattern) => new Rule({ effect: "allow" as const, pattern })))
-          envelopeSignatures.add(envelopeSignature(event.planDigest, event.scope, event.patterns))
+          envelopeSignatures.add(GrantStore.envelopeSignature(event.planDigest, event.scope, event.patterns))
           continue
         }
         return yield* Effect.fail(invalidReplay(`remembered event found in run journal: ${entry.seq}`))
       }
-      const last = page.entries.at(-1)
       after = last?.seq
       if (!page.hasMore) {
         return { rules, envelopeSignatures }
@@ -216,6 +233,7 @@ const replayRunRules = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (options: JournalGrantStoreOptions) =>
   Effect.gen(function*() {
@@ -229,7 +247,7 @@ export const make = (options: JournalGrantStoreOptions) =>
     }
     const journal = yield* JournalModule.Journal
     const workspace = yield* Workspace
-    const replayedPolicy = yield* replayRememberedRules(
+    const replayPolicy = replayRememberedRules(
       options.policyRunId,
       options.sourceId,
       workspace.root
@@ -238,7 +256,7 @@ export const make = (options: JournalGrantStoreOptions) =>
         cause instanceof GrantStoreError ? cause : journalFailed("could not replay remembered grants", cause)
       )
     )
-    const replayedRun = yield* replayRunRules(
+    const replayRun = replayRunRules(
       options.runId,
       options.sourceId,
       options.planDigest,
@@ -248,6 +266,8 @@ export const make = (options: JournalGrantStoreOptions) =>
         cause instanceof GrantStoreError ? cause : journalFailed("could not replay run grants", cause)
       )
     )
+    let replayedPolicy = yield* replayPolicy
+    let replayedRun = yield* replayRun
     const persist = (event: GrantEvent): Effect.Effect<void, GrantStoreError> => {
       const payload = encodeGrantEvent(event)
       return Effect.gen(function*() {
@@ -269,33 +289,56 @@ export const make = (options: JournalGrantStoreOptions) =>
         Effect.asVoid
       )
     }
-    const rules = options.rules === undefined || options.rules.length === 0
-      ? [[], replayedPolicy.rules]
-      : [...options.rules, replayedPolicy.rules]
-    const store = yield* GrantStore.make({
-      runId: options.runId,
-      planDigest: options.planDigest,
-      ...(options.attended === undefined ? {} : { attended: options.attended }),
-      rules,
-      runRules: replayedRun.rules,
-      persist
-    })
-    if (options.envelope === undefined || options.envelope.patterns.length === 0) {
-      return store
+    const envelope = options.envelope
+    const build = () =>
+      GrantStore.make({
+        runId: options.runId,
+        planDigest: options.planDigest,
+        ...(options.attended === undefined ? {} : { attended: options.attended }),
+        rules: options.rules === undefined || options.rules.length === 0
+          ? [[], replayedPolicy.rules]
+          : [...options.rules, replayedPolicy.rules],
+        runRules: replayedRun.rules,
+        envelopeSignatures: [
+          ...replayedPolicy.envelopeSignatures,
+          ...replayedRun.envelopeSignatures
+        ],
+        ...(envelope === undefined ? {} : {
+          envelope: {
+            planDigest: options.planDigest,
+            patterns: envelope.patterns,
+            ...(envelope.scope === undefined ? {} : { scope: envelope.scope })
+          }
+        }),
+        persist
+      })
+    if (envelope === undefined || envelope.patterns.length === 0) {
+      return yield* build()
     }
-    const scope = options.envelope.scope ?? "run"
-    const signature = envelopeSignature(options.planDigest, scope, options.envelope.patterns)
+    const scope = envelope.scope ?? "run"
+    const signature = GrantStore.envelopeSignature(options.planDigest, scope, envelope.patterns)
     const replayedSignatures = scope === "remembered"
       ? replayedPolicy.envelopeSignatures
       : replayedRun.envelopeSignatures
-    if (!replayedSignatures.has(signature)) {
-      yield* store.grantEnvelope({
-        planDigest: options.planDigest,
-        patterns: options.envelope.patterns,
-        scope
-      })
+    if (replayedSignatures.has(signature)) {
+      // Already durable: the seeded signature makes the construction envelope
+      // activate without persisting again.
+      return yield* build()
     }
-    return store
+    // The envelope was absent when this constructor replayed, but a concurrent
+    // constructor may persist it before we do. Re-replay the target journal
+    // inside the per-journal critical section, so exactly one constructor
+    // appends the envelope and every other one replays it instead.
+    return yield* constructionLock(journal).withPermit(
+      Effect.gen(function*() {
+        if (scope === "remembered") {
+          replayedPolicy = yield* replayPolicy
+        } else {
+          replayedRun = yield* replayRun
+        }
+        return yield* build()
+      })
+    )
   })
 
 /**
@@ -303,5 +346,6 @@ export const make = (options: JournalGrantStoreOptions) =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (options: JournalGrantStoreOptions) => Layer.effect(GrantStore.GrantStore)(make(options))

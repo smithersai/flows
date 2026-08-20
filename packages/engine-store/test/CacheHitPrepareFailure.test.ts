@@ -11,18 +11,18 @@
  * row's provenance first so a fresh entry recorded by a concurrent run
  * between the get and the evict is not deleted with the poison.
  */
-import { Journal } from "@smthrs/journal-next"
-import { Jj } from "@smthrs/kernel-next"
-import { type Ownership, RunStore } from "@smthrs/run-store-next"
-import { CacheStore } from "@smthrs/step-cache-next"
+import { describe, expect, it } from "@effect/vitest"
+import { Journal } from "@smthrs/journal"
+import { Jj } from "@smthrs/kernel"
+import { type Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
-import { describe, expect, it } from "vitest"
 import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
-import { runPromise, sha256 } from "./Sha256.ts"
+import { sha256, withCrypto } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "prepare-failure-host", pid: 31, nonce: "prepare-failure-process" }
 
@@ -76,182 +76,186 @@ const provenance = (runId: string) =>
   })
 
 describe("transient prepare host errors on a cache hit (issue #110)", () => {
-  it("keeps the valid row, journals no stale_read_set, and fails the attempt retryably", async () => {
-    const key = "prepare-failure/transient"
-    const keyDigest = sha256(key)
-    const outcome = await runPromise(
-      Effect.gen(function*() {
-        const cache = yield* CacheStore.CacheStore
-        let executions = 0
-        const body = () =>
-          Effect.sync(() => {
-            executions++
-            return "recorded"
-          })
-        // First run records the entry under a healthy boundary.
-        yield* activate("prepare-transient-first")
-        yield* dispatch("prepare-transient-first", key, body).pipe(
-          Effect.provide(StepBoundary.layerTest({ readSnapshot: StepBoundary.exactReads(declared) }))
-        )
-        // Second run's host dies measuring the read set: every prepare —
-        // the cache-hit gate and the dispatch path's own — fails.
-        yield* activate("prepare-transient-second")
-        const exit = yield* dispatch("prepare-transient-second", key, body).pipe(
-          Effect.provide(StepBoundary.layerTest({ supported: false })),
-          Effect.exit
-        )
-        const entry = yield* cache.get(keyDigest)
-        const records = yield* provenance("prepare-transient-second")
-        return { executions, exit, entry, records }
-      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
-    )
-    // The attempt fails as an ordinary host error the retry ladder owns…
-    expect(outcome.exit._tag).toBe("Failure")
-    // …the body never ran under the broken host…
-    expect(outcome.executions).toBe(1)
-    // …the valid shared row survives for every other run…
-    expect(Option.isSome(outcome.entry)).toBe(true)
-    // …and no factually wrong stale_read_set record was journalled.
-    expect(outcome.records.map((record) => record.action)).not.toContain("stale_read_set")
-  })
-
-  it("a transient prepare failure refuses the hit, re-prepares, and runs the body (issue #126)", async () => {
-    const key = "prepare-failure/transient-recovery"
-    const keyDigest = sha256(key)
-    // The transient cell: prepare dies on its FIRST invocation (the
-    // cache-hit gate's measurement) and returns a verified snapshot on
-    // every later one (the dispatch path's own re-prepare).
-    const transientBoundary = () => {
-      let prepares = 0
-      return Layer.succeed(
-        StepBoundary.StepBoundary,
-        StepBoundary.make({
-          prepare: (descriptor) =>
-            ++prepares === 1
-              ? Effect.fail(
-                new StepBoundary.UnsupportedBoundary({
-                  code: "unsupported_boundary",
-                  message: "transient EIO measuring the read set"
-                })
-              )
-              : Effect.succeed({ descriptor, readSnapshot: StepBoundary.exactReads(descriptor) }),
-          settle: (prepared) =>
-            Effect.succeed({
-              declaredOutputs: { paths: prepared.descriptor.writeSet },
-              diffIdentity: "transient-recovery-diff"
-            }),
-          replayOutputs: () => Effect.void
-        })
-      )
-    }
-    const outcome = await runPromise(
-      Effect.gen(function*() {
-        const cache = yield* CacheStore.CacheStore
-        let executions = 0
-        const body = () =>
-          Effect.sync(() => {
-            executions++
-            return "recorded"
-          })
-        yield* activate("prepare-transient-recovery-first")
-        yield* dispatch("prepare-transient-recovery-first", key, body).pipe(
-          Effect.provide(StepBoundary.layerTest({ readSnapshot: StepBoundary.exactReads(declared) }))
-        )
-        yield* activate("prepare-transient-recovery-second")
-        const result = yield* dispatch("prepare-transient-recovery-second", key, body).pipe(
-          Effect.provide(transientBoundary())
-        )
-        const entry = yield* cache.get(keyDigest)
-        const records = yield* provenance("prepare-transient-recovery-second")
-        return { result, executions, entry, records }
-      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
-    )
-    // The dispatch succeeds on the re-prepared real execution…
-    expect(outcome.result).toBe("recorded")
-    // …the cache-hit gate refused (never replayed) and the body ran again…
-    expect(outcome.executions).toBe(2)
-    // …the valid shared row survives…
-    expect(Option.isSome(outcome.entry)).toBe(true)
-    // …and no factually wrong stale_read_set record was journalled.
-    expect(outcome.records.map((record) => record.action)).not.toContain("stale_read_set")
-  })
-
-  it("a genuinely stale measurement still journals stale_read_set and evicts", async () => {
-    const key = "prepare-failure/still-stale"
-    const keyDigest = sha256(key)
-    const outcome = await runPromise(
-      Effect.gen(function*() {
-        const cache = yield* CacheStore.CacheStore
-        yield* activate("prepare-stale-first")
-        yield* dispatch("prepare-stale-first", key, () => Effect.succeed("recorded")).pipe(
-          Effect.provide(StepBoundary.layerTest({ readSnapshot: StepBoundary.exactReads(declared) }))
-        )
-        yield* activate("prepare-stale-second")
-        yield* dispatch("prepare-stale-second", key, () => Effect.succeed("fresh")).pipe(
-          Effect.provide(StepBoundary.layerTest({ readSnapshot: [{ path: "config.json", digest: "D2" }] }))
-        )
-        const entry = yield* cache.get(keyDigest)
-        const records = yield* provenance("prepare-stale-second")
-        return { entry, records }
-      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
-    )
-    expect(outcome.records.map((record) => record.action)).toContain("stale_read_set")
-    // The poisoned row was invalidated (the re-execution recorded nothing
-    // new here: its declaration still mismatches the measured set). The
-    // strong form: the row is gone, not merely different — the old
-    // disjunction also passed if the evict silently failed and the row was
-    // replaced (issue #127).
-    expect(Option.isNone(outcome.entry)).toBe(true)
-  })
-
-  it("skips the evict when a concurrent run re-recorded the entry between get and evict", async () => {
-    const key = "prepare-failure/concurrent-put"
-    const keyDigest = sha256(key)
-    const outcome = await runPromise(
-      Effect.gen(function*() {
-        const cache = yield* CacheStore.CacheStore
-        yield* activate("prepare-race-first")
-        yield* dispatch("prepare-race-first", key, () => Effect.succeed("recorded")).pipe(
-          Effect.provide(StepBoundary.layerTest({ readSnapshot: StepBoundary.exactReads(declared) }))
-        )
-        // A racing dispatch observes the first row, decides it is stale, and
-        // — between its `get` and its `evict` — a *foreign process* replaces
-        // the entry. The per-key admission permit cannot close that window
-        // (issue #119), so the fencing predicate inside the DELETE is what
-        // protects the fresh row: the interceptor lands the replacement
-        // immediately before the eviction reaches the store.
-        yield* activate("prepare-race-second")
-        const swapping: typeof cache = {
-          put: (entry) => cache.put(entry),
-          get: (digest) => cache.get(digest),
-          evict: (digest, options) =>
-            Effect.gen(function*() {
-              // The concurrent run's fresh entry lands before the delete.
-              yield* cache.evict(digest)
-              yield* cache.put({
-                keyDigest: digest,
-                result: "fresh-from-concurrent-run",
-                meta: { tier: "sealed" },
-                createdAtMs: 99,
-                recordedRunId: "concurrent-run",
-                recordedEventSeq: 9
-              })
-              return yield* cache.evict(digest, options)
+  it.effect("keeps the valid row, journals no stale_read_set, and fails the attempt retryably", () =>
+    Effect.gen(function*() {
+      const key = "prepare-failure/transient"
+      const keyDigest = sha256(key)
+      const outcome = yield* withCrypto(
+        Effect.gen(function*() {
+          const cache = yield* CacheStore.CacheStore
+          let executions = 0
+          const body = () =>
+            Effect.sync(() => {
+              executions++
+              return "recorded"
             })
-        }
-        const exit = yield* dispatch("prepare-race-second", key, () => Effect.succeed("fresh")).pipe(
-          Effect.provide(StepBoundary.layerTest({ readSnapshot: [{ path: "config.json", digest: "D2" }] })),
-          Effect.provideService(CacheStore.CacheStore, swapping),
-          Effect.exit
+          // First run records the entry under a healthy boundary.
+          yield* activate("prepare-transient-first")
+          yield* dispatch("prepare-transient-first", key, body).pipe(
+            Effect.provide(StepBoundary.layerTest({ readSnapshot: StepBoundary.exactReads(declared) }))
+          )
+          // Second run's host dies measuring the read set: every prepare —
+          // the cache-hit gate and the dispatch path's own — fails.
+          yield* activate("prepare-transient-second")
+          const exit = yield* dispatch("prepare-transient-second", key, body).pipe(
+            Effect.provide(StepBoundary.layerTest({ supported: false })),
+            Effect.exit
+          )
+          const entry = yield* cache.get(keyDigest)
+          const records = yield* provenance("prepare-transient-second")
+          return { executions, exit, entry, records }
+        }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
+      )
+      // The attempt fails as an ordinary host error the retry ladder owns…
+      expect(outcome.exit._tag).toBe("Failure")
+      // …the body never ran under the broken host…
+      expect(outcome.executions).toBe(1)
+      // …the valid shared row survives for every other run…
+      expect(Option.isSome(outcome.entry)).toBe(true)
+      // …and no factually wrong stale_read_set record was journalled.
+      expect(outcome.records.map((record) => record.action)).not.toContain("stale_read_set")
+    }))
+
+  it.effect("a transient prepare failure refuses the hit, re-prepares, and runs the body (issue #126)", () =>
+    Effect.gen(function*() {
+      const key = "prepare-failure/transient-recovery"
+      const keyDigest = sha256(key)
+      // The transient cell: prepare dies on its FIRST invocation (the
+      // cache-hit gate's measurement) and returns a verified snapshot on
+      // every later one (the dispatch path's own re-prepare).
+      const transientBoundary = () => {
+        let prepares = 0
+        return Layer.succeed(
+          StepBoundary.StepBoundary,
+          StepBoundary.make({
+            prepare: (descriptor) =>
+              ++prepares === 1
+                ? Effect.fail(
+                  new StepBoundary.UnsupportedBoundary({
+                    code: "unsupported_boundary",
+                    message: "transient EIO measuring the read set"
+                  })
+                )
+                : Effect.succeed({ descriptor, readSnapshot: StepBoundary.exactReads(descriptor) }),
+            settle: (prepared) =>
+              Effect.succeed({
+                declaredOutputs: { paths: prepared.descriptor.writeSet },
+                diffIdentity: "transient-recovery-diff"
+              }),
+            replayOutputs: () => Effect.void
+          })
         )
-        const entry = yield* cache.get(keyDigest)
-        return { exit, entry }
-      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
-    )
-    // The concurrent run's fresh entry survives the racing evict.
-    expect(Option.isSome(outcome.entry)).toBe(true)
-    if (Option.isSome(outcome.entry)) {
-      expect(outcome.entry.value.recordedRunId).toBe("concurrent-run")
-    }
-  })
+      }
+      const outcome = yield* withCrypto(
+        Effect.gen(function*() {
+          const cache = yield* CacheStore.CacheStore
+          let executions = 0
+          const body = () =>
+            Effect.sync(() => {
+              executions++
+              return "recorded"
+            })
+          yield* activate("prepare-transient-recovery-first")
+          yield* dispatch("prepare-transient-recovery-first", key, body).pipe(
+            Effect.provide(StepBoundary.layerTest({ readSnapshot: StepBoundary.exactReads(declared) }))
+          )
+          yield* activate("prepare-transient-recovery-second")
+          const result = yield* dispatch("prepare-transient-recovery-second", key, body).pipe(
+            Effect.provide(transientBoundary())
+          )
+          const entry = yield* cache.get(keyDigest)
+          const records = yield* provenance("prepare-transient-recovery-second")
+          return { result, executions, entry, records }
+        }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
+      )
+      // The dispatch succeeds on the re-prepared real execution…
+      expect(outcome.result).toBe("recorded")
+      // …the cache-hit gate refused (never replayed) and the body ran again…
+      expect(outcome.executions).toBe(2)
+      // …the valid shared row survives…
+      expect(Option.isSome(outcome.entry)).toBe(true)
+      // …and no factually wrong stale_read_set record was journalled.
+      expect(outcome.records.map((record) => record.action)).not.toContain("stale_read_set")
+    }))
+
+  it.effect("a genuinely stale measurement still journals stale_read_set and evicts", () =>
+    Effect.gen(function*() {
+      const key = "prepare-failure/still-stale"
+      const keyDigest = sha256(key)
+      const outcome = yield* withCrypto(
+        Effect.gen(function*() {
+          const cache = yield* CacheStore.CacheStore
+          yield* activate("prepare-stale-first")
+          yield* dispatch("prepare-stale-first", key, () => Effect.succeed("recorded")).pipe(
+            Effect.provide(StepBoundary.layerTest({ readSnapshot: StepBoundary.exactReads(declared) }))
+          )
+          yield* activate("prepare-stale-second")
+          yield* dispatch("prepare-stale-second", key, () => Effect.succeed("fresh")).pipe(
+            Effect.provide(StepBoundary.layerTest({ readSnapshot: [{ path: "config.json", digest: "D2" }] }))
+          )
+          const entry = yield* cache.get(keyDigest)
+          const records = yield* provenance("prepare-stale-second")
+          return { entry, records }
+        }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
+      )
+      expect(outcome.records.map((record) => record.action)).toContain("stale_read_set")
+      // The poisoned row was invalidated (the re-execution recorded nothing
+      // new here: its declaration still mismatches the measured set). The
+      // strong form: the row is gone, not merely different — the old
+      // disjunction also passed if the evict silently failed and the row was
+      // replaced (issue #127).
+      expect(Option.isNone(outcome.entry)).toBe(true)
+    }))
+
+  it.effect("skips the evict when a concurrent run re-recorded the entry between get and evict", () =>
+    Effect.gen(function*() {
+      const key = "prepare-failure/concurrent-put"
+      const keyDigest = sha256(key)
+      const outcome = yield* withCrypto(
+        Effect.gen(function*() {
+          const cache = yield* CacheStore.CacheStore
+          yield* activate("prepare-race-first")
+          yield* dispatch("prepare-race-first", key, () => Effect.succeed("recorded")).pipe(
+            Effect.provide(StepBoundary.layerTest({ readSnapshot: StepBoundary.exactReads(declared) }))
+          )
+          // A racing dispatch observes the first row, decides it is stale, and
+          // — between its `get` and its `evict` — a *foreign process* replaces
+          // the entry. The per-key admission permit cannot close that window
+          // (issue #119), so the fencing predicate inside the DELETE is what
+          // protects the fresh row: the interceptor lands the replacement
+          // immediately before the eviction reaches the store.
+          yield* activate("prepare-race-second")
+          const swapping: typeof cache = {
+            put: (entry) => cache.put(entry),
+            get: (digest) => cache.get(digest),
+            evict: (digest, options) =>
+              Effect.gen(function*() {
+                // The concurrent run's fresh entry lands before the delete.
+                yield* cache.evict(digest)
+                yield* cache.put({
+                  keyDigest: digest,
+                  result: "fresh-from-concurrent-run",
+                  meta: { tier: "sealed" },
+                  createdAtMs: 99,
+                  recordedRunId: "concurrent-run",
+                  recordedEventSeq: 9
+                })
+                return yield* cache.evict(digest, options)
+              })
+          }
+          const exit = yield* dispatch("prepare-race-second", key, () => Effect.succeed("fresh")).pipe(
+            Effect.provide(StepBoundary.layerTest({ readSnapshot: [{ path: "config.json", digest: "D2" }] })),
+            Effect.provideService(CacheStore.CacheStore, swapping),
+            Effect.exit
+          )
+          const entry = yield* cache.get(keyDigest)
+          return { exit, entry }
+        }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
+      )
+      // The concurrent run's fresh entry survives the racing evict.
+      expect(Option.isSome(outcome.entry)).toBe(true)
+      if (Option.isSome(outcome.entry)) {
+        expect(outcome.entry.value.recordedRunId).toBe("concurrent-run")
+      }
+    }))
 })

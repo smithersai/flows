@@ -1,22 +1,24 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Action, DurableQueue, Flow, Interpreter } from "@smthrs/flow-next"
+import { describe, expect, it } from "@effect/vitest"
+import { Action, DurableQueue, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
 import { Cause, Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
 import { PersistedQueue } from "effect/unstable/persistence"
-import { describe, expect, it } from "vitest"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 import { layerMemory } from "./MemoryFlowRuntime.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it(name, () => runPromise(body().pipe(Effect.provide(TestClock.layer()))))
+  it.effect(name, () => withCrypto(body().pipe(Effect.provide(TestClock.layer()))))
 
 const PersistedQueueLayer = PersistedQueue.layer.pipe(
   Layer.provideMerge(PersistedQueue.layerStoreMemory)
 )
 
-const pollUntilComplete = <A, E, R>(poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>) =>
+const pollUntilComplete = <A, E, R>(
+  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, FlowRuntime.FlowExecutionNotFound, R>
+) =>
   Effect.gen(function*() {
     let result = yield* poll
     for (let i = 0; i < 10 && (Option.isNone(result) || result.value._tag !== "Complete"); i++) {

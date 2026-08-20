@@ -35,7 +35,7 @@
  *
  * @since 0.1.0
  */
-import type { CacheStore } from "@smthrs/step-cache-next"
+import type { CacheStore } from "@smthrs/step-cache"
 import * as Cause from "effect/Cause"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
@@ -61,6 +61,7 @@ const entrySync: Effect.Effect<CacheSync.Service> = Effect.map(
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Unshareable {
   /** Which half of the two-tier publication refused. */
@@ -79,6 +80,7 @@ export interface Unshareable {
  *
  * @since 0.1.0
  * @category protocol
+ * @slop
  */
 export const publishArtifacts = (
   evidence: StepBoundary.BoundaryEvidence | undefined
@@ -104,6 +106,7 @@ export const publishArtifacts = (
  *
  * @since 0.1.0
  * @category protocol
+ * @slop
  */
 export const publishEntry = (
   entry: CacheStore.CacheEntry
@@ -120,6 +123,7 @@ export const publishEntry = (
  *
  * @since 0.1.0
  * @category protocol
+ * @slop
  */
 export const hydrateArtifacts = (
   evidence: StepBoundary.BoundaryEvidence
@@ -139,6 +143,7 @@ export const hydrateArtifacts = (
  *
  * @since 0.1.0
  * @category protocol
+ * @slop
  */
 export const replayMissingArtifact = (
   cause: Cause.Cause<unknown>

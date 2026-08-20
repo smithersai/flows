@@ -17,13 +17,17 @@ import { fileURLToPath, pathToFileURL } from "node:url"
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 
 const packagesRoot = join(repoRoot, "packages")
+const packageGroups = new Set(["engine", "agent", "tooling"])
+export const releaseGroup = "engine"
 
 /**
- * Reads every publishable workspace under `packages/`, keyed by directory name.
+ * Reads every publishable engine workspace under `packages/`, keyed by
+ * directory name.
  *
- * Membership is derived, never restated. A directory qualifies when it holds a
- * `package.json` whose `private` is falsy. Directories a deleted package left
- * behind carry no manifest and are skipped.
+ * Membership is derived from `smthrs.group`, never restated. Every manifest
+ * must declare a known group so a new package cannot silently fall outside a
+ * release train. Directories a deleted package left behind carry no manifest
+ * and are skipped.
  */
 export const readWorkspaceManifests = (root = packagesRoot) => {
   const manifests = new Map()
@@ -32,7 +36,11 @@ export const readWorkspaceManifests = (root = packagesRoot) => {
     const manifestPath = join(root, entry.name, "package.json")
     if (!existsSync(manifestPath)) continue
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"))
-    if (manifest.private) continue
+    const group = manifest.smthrs?.group
+    if (!packageGroups.has(group)) {
+      throw new Error(`${manifestPath}: smthrs.group must be one of ${[...packageGroups].join(", ")}`)
+    }
+    if (manifest.private || group !== releaseGroup) continue
     manifests.set(entry.name, manifest)
   }
   return manifests
@@ -76,9 +84,9 @@ const dependsOnItself = (node, dependencies, remaining) => {
 /**
  * Orders workspaces so a package follows every workspace dependency it declares.
  *
- * The graph is not acyclic. `@smthrs/kernel-next` publishes `kernel/test/TestHost`,
- * which imports `@smthrs/platform-browser-next`, and `platform-browser` imports
- * `@smthrs/kernel-next` back. So the order emits an unblocked workspace whenever one
+ * The graph is not acyclic. `@smthrs/kernel` publishes `kernel/test/TestHost`,
+ * which imports `@smthrs/platform-browser`, and `platform-browser` imports
+ * `@smthrs/kernel` back. So the order emits an unblocked workspace whenever one
  * exists, and otherwise enters the remaining cycle at its alphabetically first
  * member. Only a genuine cycle is ever broken; every other edge is respected.
  */
@@ -236,8 +244,27 @@ const packWorkspace = async (name, outputDirectory, stagingRoot) => {
 
 export const main = async (args) => {
   const destination = args[0]
+  if (destination === "--help") {
+    console.log(
+      [
+        "usage: node scripts/pack-release.mjs <output-directory>",
+        "       node scripts/pack-release.mjs --list    workspace directories, in publication order",
+        "       node scripts/pack-release.mjs --names   package names, in publication order"
+      ].join("\n")
+    )
+    return
+  }
+  if (destination === "--list") {
+    console.log(workspaces.join("\n"))
+    return
+  }
+  if (destination === "--names") {
+    const manifests = readWorkspaceManifests()
+    console.log(workspaces.map((directory) => manifests.get(directory).name).join("\n"))
+    return
+  }
   if (destination === undefined) {
-    throw new Error("usage: node scripts/pack-release.mjs <output-directory>")
+    throw new Error("usage: node scripts/pack-release.mjs <output-directory> (or --list or --names)")
   }
   const outputDirectory = resolve(repoRoot, destination)
   await mkdir(outputDirectory, { recursive: true })

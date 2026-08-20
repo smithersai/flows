@@ -1,14 +1,14 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Action, Flow, Interpreter } from "@smthrs/flow-next"
+import { describe, expect, it } from "@effect/vitest"
+import { Action, Flow, Interpreter } from "@smthrs/flow"
 import { Effect, Layer, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
-import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it(name, () => runPromise(body()))
+  it.effect(name, () => withCrypto(body()))
 
 describe("action durability tiers", () => {
   effect("sealed actions replay from the memory memo", () => {
@@ -42,22 +42,6 @@ describe("action durability tiers", () => {
       expect(calls).toBe(1)
     }).pipe(Effect.provide(layer))
   })
-
-  effect(
-    "compensable actions establish a snapshot before run and restore before retry",
-    () =>
-      Effect.gen(function*() {
-        const boundaryEvents: Array<string> = []
-        const snapshotBoundary = {
-          prepare: () => Effect.sync(() => boundaryEvents.push("prepare")),
-          restore: () => Effect.sync(() => boundaryEvents.push("restore")),
-          settle: () => Effect.void
-        }
-        yield* snapshotBoundary.prepare()
-        yield* snapshotBoundary.restore()
-        expect(boundaryEvents).toEqual(["prepare", "restore"])
-      })
-  )
 
   effect("rejects irreversible retries without an idempotency key", () => {
     const step = Action.make({

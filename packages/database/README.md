@@ -1,12 +1,12 @@
-# @smthrs/database-next
+# @smthrs/database
 
 Durable write boundary for the flows persistence packages. It provides the
 shared write policy (`DurableWriter`), normalized database failures, and
 Node/in-memory SQLite client layers; queries go through Effect's own
-`SqlClient` service, and journal schema and queries stay in `@smthrs/journal-next`.
+`SqlClient` service, and journal schema and queries stay in `@smthrs/journal`.
 
 ```sh
-pnpm add @smthrs/database-next
+pnpm add @smthrs/database
 ```
 
 ## Public API
@@ -15,19 +15,19 @@ The root is the driver-neutral contract and bundles for the browser. The drivers
 are Node-only — `node:sqlite` through `@effect/sql-sqlite-node` — so they live
 under explicit subpaths.
 
-| Import                                    | Public exports                                                                                                                                                                                                                                                                                         |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `@smthrs/database-next`                   | `DurableWriter` and `Service` expose transaction-scoped `write(effect)`. `DatabaseErrorCode`, `DatabaseError`, and `fromSqlError` normalize driver failures. `make` builds over a SQL client; `layer` composes over the context's `SqlClient`; `makeNoop` and `layerNoop` provide an unsupported stub. |
-| `@smthrs/database-next/node/NodeDatabase` | **Node only.** `NodeDatabaseOptions` configures the SQLite connection; `layer(options)` provides Effect's `SqlClient`.                                                                                                                                                                                 |
-| `@smthrs/database-next/test/TestDatabase` | **Node only.** `layer` provides the production Node client and the writer over a fresh `:memory:` database.                                                                                                                                                                                            |
+| Import                               | Public exports                                                                                                                                                                                                                                                                                         |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `@smthrs/database`                   | `DurableWriter` and `Service` expose transaction-scoped `write(effect)`. `DatabaseErrorCode`, `DatabaseError`, and `fromSqlError` normalize driver failures. `make` builds over a SQL client; `layer` composes over the context's `SqlClient`; `makeNoop` and `layerNoop` provide an unsupported stub. |
+| `@smthrs/database/node/NodeDatabase` | **Node only.** `NodeDatabaseOptions` configures the SQLite connection; `layer(options)` provides Effect's `SqlClient`.                                                                                                                                                                                 |
+| `@smthrs/database/test/TestDatabase` | **Node only.** `layer` provides the production Node client and the writer over a fresh `:memory:` database.                                                                                                                                                                                            |
 
 Any Effect `SqlClient` works underneath `DurableWriter.layer()`, so a browser or
 Postgres client gets the same normalized errors and write retry — see
 [browser support](../../docs/architecture/browser-support.md).
 
 ```ts
-import { DurableWriter } from "@smthrs/database-next"
-import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
+import { DurableWriter } from "@smthrs/database"
+import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
 import { Effect, Layer } from "effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 
@@ -49,7 +49,7 @@ syntax errors, and arbitrary application errors are not.
 
 `write` is one combinator, not a decorated client — queries use Effect's plain
 `SqlClient` directly. The combinator exists because the durable stores
-(`@smthrs/journal-next`, `@smthrs/engine-store-next`, `@smthrs/time-travel-next`) share
+(`@smthrs/journal`, `@smthrs/engine-store`, `@smthrs/time-travel`) share
 transaction policy that must live at one boundary:
 
 - **Savepoint composition.** Every store writes through the same `write`, so a

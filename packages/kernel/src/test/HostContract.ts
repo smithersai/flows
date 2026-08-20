@@ -2,13 +2,18 @@
  * Shared contract suite for complete Host bundles.
  *
  * This module is emitted as ESM, CJS, and declarations and exported from
- * `@smthrs/kernel-next/test/contract`. It intentionally has a Vitest peer because
+ * `@smthrs/kernel/test/contract`. It intentionally has a Vitest peer because
  * it registers a reusable behavioral contract for third-party Host bundles.
  *
  * @since 0.1.0
  */
-import * as JjService from "@smthrs/jj-next"
-import type { Jj, JjErrorCode } from "@smthrs/jj-next"
+// Every case here runs on real elapsed time — subprocess spawns, file locks,
+// mtimes, and poll loops — so the suite uses `it.live`; `it.effect`'s
+// TestClock never advances for them.
+
+import { describe, expect, it } from "@effect/vitest"
+import * as JjService from "@smthrs/jj"
+import type { Jj, JjErrorCode } from "@smthrs/jj"
 import { Effect, Fiber, FileSystem, type Layer, Path, Stream } from "effect"
 import { HttpClient } from "effect/unstable/http/HttpClient"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
@@ -17,7 +22,6 @@ import * as ChildProcess from "effect/unstable/process/ChildProcess"
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { describe, expect, it } from "vitest"
 
 /**
  * A capability that must fail with a stable typed code.
@@ -215,8 +219,7 @@ const provide = <A, E, R>(
   layer: HostContractLayer
 ): Effect.Effect<A, E | unknown> => effect.pipe(Effect.provide(layer)) as Effect.Effect<A, E | unknown>
 
-const run = <A, E, R>(effect: Effect.Effect<A, E, R>, layer: HostContractLayer): Promise<A> =>
-  Effect.runPromise(provide(effect, layer))
+const run = <A, E, R>(effect: Effect.Effect<A, E, R>, layer: HostContractLayer) => provide(effect, layer)
 
 const unsupported = ChildProcess.make("host-contract-unsupported")
 
@@ -260,7 +263,7 @@ export const runHostContract = (
     : ""
 
   describe(`${name} Host contract`, () => {
-    it("provides every tag in the closed Host service list", () =>
+    it.live("provides every tag in the closed Host service list", () =>
       run(
         Effect.gen(function*() {
           yield* FileSystem.FileSystem
@@ -272,7 +275,7 @@ export const runHostContract = (
         layer
       ))
 
-    it("declares FileSystem behavior", () =>
+    it.live("declares FileSystem behavior", () =>
       run(
         fileSystemCap.expected === "failure"
           ? Effect.gen(function*() {
@@ -293,7 +296,7 @@ export const runHostContract = (
         layer
       ))
 
-    it("declares Path behavior", () =>
+    it.live("declares Path behavior", () =>
       run(
         pathCap.expected === "failure"
           ? Effect.gen(function*() {
@@ -313,7 +316,7 @@ export const runHostContract = (
         layer
       ))
 
-    it("declares buffered child-process behavior", () =>
+    it.live("declares buffered child-process behavior", () =>
       run(
         childProcessCap.expected === "failure"
           ? unsupportedChildProcess("string", childProcessCap.code)
@@ -326,7 +329,7 @@ export const runHostContract = (
         layer
       ))
 
-    it("declares child-process streaming behavior", () =>
+    it.live("declares child-process streaming behavior", () =>
       run(
         childProcessCap.expected === "failure"
           ? unsupportedChildProcess("stream", childProcessCap.code)
@@ -342,7 +345,7 @@ export const runHostContract = (
         layer
       ))
 
-    it("declares child-process cwd and env option behavior", () =>
+    it.live("declares child-process cwd and env option behavior", () =>
       run(
         childProcessCap.expected === "failure"
           ? unsupportedChildProcess("string", childProcessCap.code)
@@ -361,7 +364,7 @@ export const runHostContract = (
         layer
       ))
 
-    it("declares child-process stdin behavior", () =>
+    it.live("declares child-process stdin behavior", () =>
       run(
         Effect.gen(function*() {
           const spawner = yield* ChildProcessSpawner
@@ -377,7 +380,7 @@ export const runHostContract = (
         layer
       ))
 
-    it("declares child-process interruption behavior", () =>
+    it.live("declares child-process interruption behavior", () =>
       run(
         childProcessCap.expected === "failure"
           ? unsupportedChildProcess("stream", childProcessCap.code)
@@ -396,7 +399,7 @@ export const runHostContract = (
         layer
       ))
 
-    it("declares Jj behavior", () =>
+    it.live("declares Jj behavior", () =>
       run(
         jjCap.expected === "failure"
           ? Effect.gen(function*() {
@@ -410,7 +413,7 @@ export const runHostContract = (
         layer
       ))
 
-    it("declares HttpClient behavior", () =>
+    it.live("declares HttpClient behavior", () =>
       run(
         httpClientCap.expected === "failure"
           ? Effect.gen(function*() {

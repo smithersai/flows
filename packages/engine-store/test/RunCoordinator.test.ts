@@ -1,8 +1,8 @@
-import { Cause, Deferred, Effect, Exit, Fiber } from "effect"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "@effect/vitest"
+import { Cause, Deferred, Effect, Exit, Fiber, Logger } from "effect"
 import * as RunCoordinator from "../src/internal/RunCoordinator.ts"
 
-const effect = <E>(name: string, body: () => Effect.Effect<void, E>) => it(name, () => Effect.runPromise(body()))
+const effect = <E>(name: string, body: () => Effect.Effect<void, E>) => it.effect(name, () => body())
 
 describe("RunCoordinator", () => {
   effect("joins a second run for the same key", () =>
@@ -125,6 +125,23 @@ describe("RunCoordinator", () => {
       yield* coordinator.wake("run")
       yield* Deferred.await(drained)
     })))
+
+  effect("logs a wake-initiated drain failure", () => {
+    const logs: Array<{ readonly level: string; readonly message: unknown }> = []
+    const capture = Logger.make((entry) => {
+      logs.push({ level: entry.logLevel, message: entry.message })
+    })
+    return Effect.scoped(Effect.gen(function*() {
+      const coordinator = yield* RunCoordinator.make<string, string, never>({
+        drain: () => Effect.fail("boom")
+      })
+      yield* coordinator.wake("run")
+      yield* Effect.yieldNow
+      expect(logs.some((entry) =>
+        entry.level === "Warn" && String(entry.message).includes("coordinated drain failed for run")
+      )).toBe(true)
+    }).pipe(Effect.provide(Logger.layer([capture]))))
+  })
 
   effect("distinguishes direct runs from coalesced wakes", () =>
     Effect.scoped(Effect.gen(function*() {

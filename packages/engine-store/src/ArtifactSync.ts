@@ -25,7 +25,7 @@
  *
  * @since 0.1.0
  */
-import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
+import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
 import * as Context from "effect/Context"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
@@ -41,13 +41,21 @@ import * as Schema from "effect/Schema"
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export class ArtifactPublicationFailed extends Schema.TaggedError<ArtifactPublicationFailed>()(
-  "flows/engine-store/ArtifactPublicationFailed",
+  "@smthrs/engine-store/ArtifactPublicationFailed",
   {
     code: Schema.Literal("artifact_publication_failed"),
     digests: Schema.Array(Schema.String),
-    message: Schema.String
+    message: Schema.String,
+    cause: Schema.optional(
+      Schema.Union([
+        ArtifactStore.ArtifactStoreError,
+        ArtifactStore.ArtifactMissing,
+        ArtifactStore.ArtifactCorruption
+      ])
+    )
   }
 ) {}
 
@@ -63,6 +71,7 @@ export class ArtifactPublicationFailed extends Schema.TaggedError<ArtifactPublic
  *
  * @since 0.1.0
  * @category services
+ * @slop
  */
 export interface Service {
   /**
@@ -92,8 +101,9 @@ export interface Service {
  *
  * @since 0.1.0
  * @category services
+ * @slop
  */
-export class ArtifactSync extends Context.Service<ArtifactSync, Service>()("flows/engine-store/ArtifactSync") {}
+export class ArtifactSync extends Context.Service<ArtifactSync, Service>()("@smthrs/engine-store/ArtifactSync") {}
 
 /**
  * The single-tier implementation: there is no shared artifact store, so there
@@ -105,6 +115,7 @@ export class ArtifactSync extends Context.Service<ArtifactSync, Service>()("flow
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const makeLocal = (): Service => ({
   publish: Effect.fn("ArtifactSync.publish")(() => Effect.void),
@@ -116,6 +127,7 @@ export const makeLocal = (): Service => ({
  *
  * @since 0.1.0
  * @category layers
+ * @slop
  */
 export const layerLocal: Layer.Layer<ArtifactSync> = Layer.succeed(ArtifactSync)(makeLocal())
 
@@ -124,32 +136,36 @@ export const layerLocal: Layer.Layer<ArtifactSync> = Layer.succeed(ArtifactSync)
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const make = (options: {
   readonly local: ArtifactStore.Service
   readonly remote: ArtifactStore.Service
 }): Service => {
   const { local, remote } = options
-  const publicationFailed = (digests: ReadonlyArray<string>, message: string) =>
-    new ArtifactPublicationFailed({ code: "artifact_publication_failed", digests, message })
+  const publicationFailed = (
+    digests: ReadonlyArray<string>,
+    message: string,
+    cause?: ArtifactStore.ArtifactStoreError | ArtifactStore.ArtifactMissing | ArtifactStore.ArtifactCorruption
+  ) => new ArtifactPublicationFailed({ code: "artifact_publication_failed", digests, message, cause })
   return {
     publish: Effect.fn("ArtifactSync.publish")(function*(digests) {
       if (digests.length === 0) return
       const missing = yield* remote.findMissing(digests).pipe(
-        Effect.mapError((cause) => publicationFailed(digests, `the shared tier refused a probe: ${cause.message}`))
+        Effect.mapError((cause) => publicationFailed(digests, "the shared tier refused a probe", cause))
       )
       for (const digest of missing) {
         const bytes = yield* local.get(digest).pipe(
-          Effect.mapError(() =>
+          Effect.mapError((cause) =>
             // The blob is referenced by evidence this host just produced, so
             // it should be in this host's own store. If it is not, the
             // evidence is not publishable — and saying so is far better than
             // publishing an entry nobody can replay.
-            publicationFailed([digest], `this host cannot read the artifact it recorded`)
+            publicationFailed([digest], "this host cannot read the artifact it recorded", cause)
           )
         )
         yield* remote.put(bytes).pipe(
-          Effect.mapError((cause) => publicationFailed([digest], `the shared tier refused an upload: ${cause.message}`))
+          Effect.mapError((cause) => publicationFailed([digest], "the shared tier refused an upload", cause))
         )
       }
       if (missing.length === 0) return
@@ -158,7 +174,7 @@ export const make = (options: {
       // published entry unreplayable, and it is cheap to rule out — one
       // batched round trip over the set we just wrote.
       const stillMissing = yield* remote.findMissing(missing).pipe(
-        Effect.mapError((cause) => publicationFailed(missing, `the shared tier refused a probe: ${cause.message}`))
+        Effect.mapError((cause) => publicationFailed(missing, "the shared tier refused a probe", cause))
       )
       if (stillMissing.length > 0) {
         return yield* Effect.fail(
@@ -194,6 +210,7 @@ export const make = (options: {
  *
  * @since 0.1.0
  * @category layers
+ * @slop
  */
 export const layer = <E, R>(
   remote: Effect.Effect<ArtifactStore.Service, E, R>

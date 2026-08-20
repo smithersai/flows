@@ -5,15 +5,28 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "paths": {
-      "*": ["./*"]
+      "*": [
+        "./*"
+      ]
     }
   },
   "include": [
+    "BUILD.ts",
+    "apps/*/BUILD.ts",
+    "ci/BUILD.ts",
+    "crates/*/BUILD.ts",
+    "evals/*/BUILD.ts",
+    "lint/BUILD.ts",
+    "scripts/BUILD.ts",
+    "packages/*/BUILD.ts",
     "packages/*/src/**/*",
     "packages/*/test/**/*",
     "packages/storage/*/src/**/*",
     "packages/storage/*/test/**/*",
     "packages/coding-agent/examples/**/*"
   ],
-  "exclude": ["**/dist/**", "packages/coding-agent/examples/extensions/gondolin/**"]
+  "exclude": [
+    "**/dist/**",
+    "packages/coding-agent/examples/extensions/gondolin/**"
+  ]
 }

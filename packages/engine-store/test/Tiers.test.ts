@@ -1,13 +1,13 @@
-import { Journal } from "@smthrs/journal-next"
-import { Jj } from "@smthrs/kernel-next"
-import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store-next"
-import { CacheStore } from "@smthrs/step-cache-next"
+import { describe, expect, it } from "@effect/vitest"
+import { Journal } from "@smthrs/journal"
+import { Jj } from "@smthrs/kernel"
+import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import { Effect, Layer, Option } from "effect"
-import { describe, expect, it } from "vitest"
 import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
-import { runPromise, sha256 } from "./Sha256.ts"
+import { sha256, withCrypto } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "tiers", pid: 1, nonce: "owner" }
 
@@ -46,164 +46,168 @@ const jjLayer = (snapshots: Array<string>, restores: Array<string>) =>
   )
 
 describe("engine-store action tiers", () => {
-  it("replays a sealed action from the shared cache across runs without dispatching again", async () => {
-    let executions = 0
-    const program = Effect.gen(function*() {
-      yield* activate("sealed-first")
-      const first = ActionPersistence.make({
-        runId: "sealed-first",
-        owner,
-        sourceId: "tier-test",
-        execute: () => Effect.sync(() => ++executions)
-      })({
-        action: {},
-        attempt: 1,
-        key: "caller-key/sealed",
-        tier: "sealed",
-        metadata: { readSet: [], writeSet: ["output.txt"], boundaryMode: "hard" }
+  it.effect("replays a sealed action from the shared cache across runs without dispatching again", () =>
+    Effect.gen(function*() {
+      let executions = 0
+      const program = Effect.gen(function*() {
+        yield* activate("sealed-first")
+        const first = ActionPersistence.make({
+          runId: "sealed-first",
+          owner,
+          sourceId: "tier-test",
+          execute: () => Effect.sync(() => ++executions)
+        })({
+          action: {},
+          attempt: 1,
+          key: "caller-key/sealed",
+          tier: "sealed",
+          metadata: { readSet: [], writeSet: ["output.txt"], boundaryMode: "hard" }
+        })
+        yield* first
+        yield* activate("sealed-second")
+        const second = yield* ActionPersistence.make({
+          runId: "sealed-second",
+          owner,
+          sourceId: "tier-test",
+          execute: () => Effect.sync(() => ++executions)
+        })({
+          action: {},
+          attempt: 1,
+          key: "caller-key/sealed",
+          tier: "sealed",
+          metadata: { readSet: [], writeSet: ["output.txt"], boundaryMode: "hard" }
+        })
+        return second
+      }).pipe(
+        Effect.provide(Layer.mergeAll(TestStores.layer(), StepBoundary.layerTest(), jjLayer([], []))),
+        Effect.scoped
+      )
+
+      expect(yield* withCrypto(program)).toBe(1)
+      expect(executions).toBe(1)
+    }))
+
+  it.effect("persists compensable snapshot evidence and restores it before a retry without populating the cache", () =>
+    Effect.gen(function*() {
+      const snapshots: Array<string> = []
+      const restores: Array<string> = []
+      let executions = 0
+      const program = Effect.gen(function*() {
+        yield* activate("compensable")
+        const execute = () => Effect.sync(() => ++executions)
+        const runner = ActionPersistence.make({ runId: "compensable", owner, sourceId: "tier-test", execute })
+        yield* runner({ action: {}, attempt: 1, key: "caller-key/compensable", tier: "compensable" })
+        yield* runner({ action: {}, attempt: 2, key: "caller-key/compensable", tier: "compensable" })
+        const attempts = yield* AttemptStore.AttemptStore
+        const cache = yield* CacheStore.CacheStore
+        return {
+          retry: yield* attempts.get({
+            runId: "compensable",
+            stepKeyDigest: sha256("caller-key/compensable"),
+            attempt: 2
+          }),
+          cached: yield* cache.get(sha256("caller-key/compensable"))
+        }
+      }).pipe(
+        Effect.provide(Layer.mergeAll(TestStores.layer(), StepBoundary.layerTest(), jjLayer(snapshots, restores))),
+        Effect.scoped
+      )
+
+      const result = yield* withCrypto(program)
+      expect(executions).toBe(2)
+      expect(snapshots).toEqual(["snapshot-0", "snapshot-1"])
+      expect(restores).toEqual(["snapshot-0"])
+      expect(Option.getOrThrow(result.retry).meta).toMatchObject({ snapshotId: "snapshot-1", tier: "compensable" })
+      expect(Option.isNone(result.cached)).toBe(true)
+    }))
+
+  it.effect("requires an idempotency key before retrying an irreversible action", () =>
+    Effect.gen(function*() {
+      const program = Effect.gen(function*() {
+        yield* activate("irreversible")
+        const withoutKey = ActionPersistence.make({
+          runId: "irreversible",
+          owner,
+          sourceId: "tier-test",
+          execute: () => Effect.succeed("never")
+        })({ action: {}, attempt: 2, key: "caller-key/irreversible", tier: "irreversible" }).pipe(Effect.result)
+        const withKey = yield* ActionPersistence.make({
+          runId: "irreversible",
+          owner,
+          sourceId: "tier-test",
+          idempotencyKey: "request-1",
+          execute: () => Effect.succeed("once")
+        })({ action: {}, attempt: 2, key: "caller-key/irreversible-keyed", tier: "irreversible" })
+        return { withoutKey: yield* withoutKey, withKey }
+      }).pipe(
+        Effect.provide(Layer.mergeAll(TestStores.layer(), StepBoundary.layerTest(), jjLayer([], []))),
+        Effect.scoped
+      )
+
+      const result = yield* withCrypto(program)
+      expect(result.withoutKey).toMatchObject({
+        _tag: "Failure",
+        failure: { _tag: "@smthrs/engine-store/IrreversibleRetryRequiresIdempotencyKey" }
       })
-      yield* first
-      yield* activate("sealed-second")
-      const second = yield* ActionPersistence.make({
-        runId: "sealed-second",
-        owner,
-        sourceId: "tier-test",
-        execute: () => Effect.sync(() => ++executions)
-      })({
-        action: {},
-        attempt: 1,
-        key: "caller-key/sealed",
-        tier: "sealed",
-        metadata: { readSet: [], writeSet: ["output.txt"], boundaryMode: "hard" }
+      expect(result.withKey).toBe("once")
+    }))
+
+  it.effect("fails closed for hard undeclared writes, journals expected deviations, and never derives keys", () =>
+    Effect.gen(function*() {
+      const hard = Effect.gen(function*() {
+        yield* activate("hard")
+        return yield* ActionPersistence.make({
+          runId: "hard",
+          owner,
+          sourceId: "tier-test",
+          execute: () => Effect.succeed("value")
+        })({
+          action: {},
+          attempt: 1,
+          key: "supplier-key/hard",
+          tier: "sealed",
+          metadata: { readSet: [], writeSet: ["declared"], boundaryMode: "hard" }
+        }).pipe(Effect.result)
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(TestStores.layer(), StepBoundary.layerTest({ changedPaths: ["other"] }), jjLayer([], []))
+        ),
+        Effect.scoped
+      )
+      expect(yield* withCrypto(hard)).toMatchObject({
+        _tag: "Failure",
+        failure: { _tag: "@smthrs/engine-store/UndeclaredWrite" }
       })
-      return second
-    }).pipe(
-      Effect.provide(Layer.mergeAll(TestStores.layer(), StepBoundary.layerTest(), jjLayer([], []))),
-      Effect.scoped
-    )
 
-    expect(await runPromise(program)).toBe(1)
-    expect(executions).toBe(1)
-  })
-
-  it("persists compensable snapshot evidence and restores it before a retry without populating the cache", async () => {
-    const snapshots: Array<string> = []
-    const restores: Array<string> = []
-    let executions = 0
-    const program = Effect.gen(function*() {
-      yield* activate("compensable")
-      const execute = () => Effect.sync(() => ++executions)
-      const runner = ActionPersistence.make({ runId: "compensable", owner, sourceId: "tier-test", execute })
-      yield* runner({ action: {}, attempt: 1, key: "caller-key/compensable", tier: "compensable" })
-      yield* runner({ action: {}, attempt: 2, key: "caller-key/compensable", tier: "compensable" })
-      const attempts = yield* AttemptStore.AttemptStore
-      const cache = yield* CacheStore.CacheStore
-      return {
-        retry: yield* attempts.get({
-          runId: "compensable",
-          stepKeyDigest: sha256("caller-key/compensable"),
-          attempt: 2
-        }),
-        cached: yield* cache.get(sha256("caller-key/compensable"))
-      }
-    }).pipe(
-      Effect.provide(Layer.mergeAll(TestStores.layer(), StepBoundary.layerTest(), jjLayer(snapshots, restores))),
-      Effect.scoped
-    )
-
-    const result = await runPromise(program)
-    expect(executions).toBe(2)
-    expect(snapshots).toEqual(["snapshot-0", "snapshot-1"])
-    expect(restores).toEqual(["snapshot-0"])
-    expect(Option.getOrThrow(result.retry).meta).toMatchObject({ snapshotId: "snapshot-1", tier: "compensable" })
-    expect(Option.isNone(result.cached)).toBe(true)
-  })
-
-  it("requires an idempotency key before retrying an irreversible action", async () => {
-    const program = Effect.gen(function*() {
-      yield* activate("irreversible")
-      const withoutKey = ActionPersistence.make({
-        runId: "irreversible",
-        owner,
-        sourceId: "tier-test",
-        execute: () => Effect.succeed("never")
-      })({ action: {}, attempt: 2, key: "caller-key/irreversible", tier: "irreversible" }).pipe(Effect.result)
-      const withKey = yield* ActionPersistence.make({
-        runId: "irreversible",
-        owner,
-        sourceId: "tier-test",
-        idempotencyKey: "request-1",
-        execute: () => Effect.succeed("once")
-      })({ action: {}, attempt: 2, key: "caller-key/irreversible-keyed", tier: "irreversible" })
-      return { withoutKey: yield* withoutKey, withKey }
-    }).pipe(
-      Effect.provide(Layer.mergeAll(TestStores.layer(), StepBoundary.layerTest(), jjLayer([], []))),
-      Effect.scoped
-    )
-
-    const result = await runPromise(program)
-    expect(result.withoutKey).toMatchObject({
-      _tag: "Failure",
-      failure: { _tag: "flows/engine-store/IrreversibleRetryRequiresIdempotencyKey" }
-    })
-    expect(result.withKey).toBe("once")
-  })
-
-  it("fails closed for hard undeclared writes, journals expected deviations, and never derives keys", async () => {
-    const hard = Effect.gen(function*() {
-      yield* activate("hard")
-      return yield* ActionPersistence.make({
-        runId: "hard",
-        owner,
-        sourceId: "tier-test",
-        execute: () => Effect.succeed("value")
-      })({
-        action: {},
-        attempt: 1,
-        key: "supplier-key/hard",
-        tier: "sealed",
-        metadata: { readSet: [], writeSet: ["declared"], boundaryMode: "hard" }
-      }).pipe(Effect.result)
-    }).pipe(
-      Effect.provide(
-        Layer.mergeAll(TestStores.layer(), StepBoundary.layerTest({ changedPaths: ["other"] }), jjLayer([], []))
-      ),
-      Effect.scoped
-    )
-    expect(await runPromise(hard)).toMatchObject({
-      _tag: "Failure",
-      failure: { _tag: "flows/engine-store/UndeclaredWrite" }
-    })
-
-    const expected = Effect.gen(function*() {
-      yield* activate("expected")
-      yield* ActionPersistence.make({
-        runId: "expected",
-        owner,
-        sourceId: "tier-test",
-        execute: () => Effect.succeed("value")
-      })({
-        action: {},
-        attempt: 1,
-        key: "supplier-key/expected",
-        tier: "sealed",
-        metadata: { readSet: [], writeSet: ["declared"], boundaryMode: "expected" }
-      })
-      const journal = yield* Journal.Journal
-      const cache = yield* CacheStore.CacheStore
-      yield* journal.flush
-      return {
-        events: yield* journal.entries({ runId: "expected" as never, limit: 20 }),
-        cached: yield* cache.get(sha256("supplier-key/expected"))
-      }
-    }).pipe(
-      Effect.provide(
-        Layer.mergeAll(TestStores.layer(), StepBoundary.layerTest({ changedPaths: ["other"] }), jjLayer([], []))
-      ),
-      Effect.scoped
-    )
-    const result = await runPromise(expected)
-    expect(result.events.entries.map((entry) => entry.eventType)).toContain("flows.engine.expected-set-deviation")
-    expect(Option.isNone(result.cached)).toBe(true)
-  })
+      const expected = Effect.gen(function*() {
+        yield* activate("expected")
+        yield* ActionPersistence.make({
+          runId: "expected",
+          owner,
+          sourceId: "tier-test",
+          execute: () => Effect.succeed("value")
+        })({
+          action: {},
+          attempt: 1,
+          key: "supplier-key/expected",
+          tier: "sealed",
+          metadata: { readSet: [], writeSet: ["declared"], boundaryMode: "expected" }
+        })
+        const journal = yield* Journal.Journal
+        const cache = yield* CacheStore.CacheStore
+        yield* journal.flush
+        return {
+          events: yield* journal.entries({ runId: "expected" as never, limit: 20 }),
+          cached: yield* cache.get(sha256("supplier-key/expected"))
+        }
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(TestStores.layer(), StepBoundary.layerTest({ changedPaths: ["other"] }), jjLayer([], []))
+        ),
+        Effect.scoped
+      )
+      const result = yield* withCrypto(expected)
+      expect(result.events.entries.map((entry) => entry.eventType)).toContain("flows.engine.expected-set-deviation")
+      expect(Option.isNone(result.cached)).toBe(true)
+    }))
 })

@@ -4,5 +4,6 @@
  * Canonical flow-key transformation.
  *
  * @since 0.1.0
+ * @slop
  */
 export { Key } from "./Key.ts"

@@ -13,7 +13,7 @@
  *
  * @since 0.1.0
  */
-import { affectedRows, DatabaseError, DurableWriter } from "@smthrs/database-next/DurableWriter"
+import { affectedRows, DatabaseError, DurableWriter } from "@smthrs/database/DurableWriter"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -28,6 +28,7 @@ import * as Plan from "./Plan.ts"
  *
  * @since 0.1.0
  * @category schemas
+ * @slop
  */
 export const PlanStoreErrorCode = Schema.Literals([
   "invalid_plan",
@@ -42,6 +43,7 @@ export const PlanStoreErrorCode = Schema.Literals([
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type PlanStoreErrorCode = typeof PlanStoreErrorCode.Type
 
@@ -50,8 +52,9 @@ export type PlanStoreErrorCode = typeof PlanStoreErrorCode.Type
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
-export class PlanStoreError extends Schema.TaggedError<PlanStoreError>()("flows/plan/PlanStoreError", {
+export class PlanStoreError extends Schema.TaggedError<PlanStoreError>()("@smthrs/plan/PlanStoreError", {
   code: PlanStoreErrorCode,
   message: Schema.String,
   cause: Schema.optional(Schema.Unknown)
@@ -65,6 +68,7 @@ export class PlanStoreError extends Schema.TaggedError<PlanStoreError>()("flows/
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type RecordResult =
   | { readonly _tag: "Recorded" }
@@ -76,6 +80,7 @@ export type RecordResult =
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Service {
   /** Records generation 0 of a plan. */
@@ -91,8 +96,9 @@ export interface Service {
  *
  * @since 0.1.0
  * @category services
+ * @slop
  */
-export class PlanStore extends Context.Service<PlanStore, Service>()("flows/plan/PlanStore") {}
+export class PlanStore extends Context.Service<PlanStore, Service>()("@smthrs/plan/PlanStore") {}
 
 const error = (code: PlanStoreErrorCode, message: string, cause: unknown): PlanStoreError =>
   new PlanStoreError({ code, message, cause })
@@ -133,6 +139,7 @@ const nodeJson = (node: Plan.PlanNode): Effect.Effect<string, PlanStoreError> =>
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlClient> = Effect.gen(function*() {
   const sql = yield* Effect.service(SqlClient.SqlClient)
@@ -250,6 +257,7 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
  *
  * @since 0.1.0
  * @category layers
+ * @slop
  */
 export const layer: Layer.Layer<PlanStore, never, DurableWriter | SqlClient.SqlClient> = Layer.effect(
   PlanStore,

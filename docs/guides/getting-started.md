@@ -1,13 +1,13 @@
 # Getting started
 
-This guide runs a typed flow with the in-memory engine. It is the shortest executable path through `@smthrs/flow-next` and `@smthrs/engine-next`; it does not provide process-crash durability.
+This guide runs a typed flow with the in-memory engine. It is the shortest executable path through `@smthrs/flow` and `@smthrs/engine`; it does not provide process-crash durability.
 
 ## Prerequisites
 
 Install Node.js 22.19 or newer, then install the engine and Effect:
 
 ```sh
-pnpm add @smthrs/flow-next @smthrs/engine-next effect
+pnpm add @smthrs/flow @smthrs/engine effect
 ```
 
 For source development in this repository, run `pnpm install` followed by
@@ -16,8 +16,8 @@ For source development in this repository, run `pnpm install` followed by
 ## Define and run a flow
 
 ```ts
-import { FlowEngine } from "@smthrs/engine-next"
-import { Flow } from "@smthrs/flow-next"
+import { FlowEngine } from "@smthrs/engine"
+import { Flow } from "@smthrs/flow"
 import { Effect, Layer, Schema } from "effect"
 
 const Greeting = Flow.make("example/Greeting", {

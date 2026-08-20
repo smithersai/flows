@@ -5,7 +5,7 @@
  *
  * @since 4.0.0
  */
-import * as Node from "@smthrs/plan-next/Node"
+import * as Node from "@smthrs/plan/Node"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Effectable from "effect/Effectable"
@@ -42,6 +42,7 @@ const makeInline = <
   readonly execute: Effect.Effect<Success["Type"], Error["Type"], R>
   readonly tier?: Tier | undefined
   readonly idempotencyKey?: IdempotencyKey | undefined
+  readonly nondeterministic?: true | undefined
   readonly metadata?: unknown
   readonly interruptRetryPolicy?: Schedule.Schedule<any, unknown> | undefined
   readonly retryPolicy?: RetryPolicy.RetryPolicy | undefined
@@ -73,6 +74,7 @@ const makeInline = <
     annotations: options.annotations ?? Context.empty(),
     tier: options.tier ?? "sealed",
     idempotencyKey: options.idempotencyKey,
+    nondeterministic: options.nondeterministic,
     metadata: options.metadata,
     retryPolicy: options.retryPolicy,
     annotate(tag: Context.Key<any, any>, value: any) {
@@ -108,6 +110,7 @@ const makeDeclared = <
   readonly error?: Error | undefined
   readonly tier?: Tier | undefined
   readonly idempotencyKey?: IdempotencyKey | undefined
+  readonly nondeterministic?: true | undefined
   readonly annotations?: Context.Context<never> | undefined
 }): Declared<
   Tag,
@@ -126,7 +129,7 @@ const makeDeclared = <
   // compared by their string key, so re-minting one for an annotated copy of
   // this declaration names the same slot the original does.
   const requirement = Context.Service<Requirement<Tag>, Implementation>(
-    `@smthrs/flow-next/Action/Requirement/${tag}`
+    `@smthrs/flow/Action/Requirement/${tag}`
   )
   const self: Declared<Tag, PayloadSchema, Success, Error> = {
     [TypeId]: TypeId,
@@ -136,6 +139,7 @@ const makeDeclared = <
     errorSchema,
     tier: options.tier ?? "sealed",
     idempotencyKey: options.idempotencyKey,
+    nondeterministic: options.nondeterministic,
     annotations,
     requirement,
     annotate(key: Context.Key<any, any>, value: any) {
@@ -179,6 +183,7 @@ const makeDeclared = <
           error: errorSchema,
           tier: self.tier,
           idempotencyKey: self.idempotencyKey,
+          nondeterministic: self.nondeterministic,
           annotations,
           execute: execute(payload)
         })
@@ -234,6 +239,7 @@ const makeDeclared = <
  *
  * @category constructors
  * @since 4.0.0
+ * @slop
  */
 export const make: {
   <
@@ -247,6 +253,7 @@ export const make: {
     readonly error?: Error | undefined
     readonly tier?: Tier | undefined
     readonly idempotencyKey?: IdempotencyKey | undefined
+    readonly nondeterministic?: true | undefined
     readonly annotations?: Context.Context<never> | undefined
   }): Declared<
     Tag,
@@ -265,6 +272,7 @@ export const make: {
     readonly execute: Effect.Effect<Success["Type"], Error["Type"], R>
     readonly tier?: Tier | undefined
     readonly idempotencyKey?: IdempotencyKey | undefined
+    readonly nondeterministic?: true | undefined
     readonly metadata?: unknown
     readonly interruptRetryPolicy?: Schedule.Schedule<any, unknown> | undefined
     readonly retryPolicy?: RetryPolicy.RetryPolicy | undefined
@@ -292,6 +300,7 @@ export const make: {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeSystem = <
   const Tag extends string,
@@ -304,6 +313,7 @@ export const makeSystem = <
   readonly error?: Error | undefined
   readonly tier?: Tier | undefined
   readonly idempotencyKey?: IdempotencyKey | undefined
+  readonly nondeterministic?: true | undefined
   readonly annotations?: Context.Context<never> | undefined
 }): Declared<
   Tag,
@@ -324,7 +334,7 @@ export const makeSystem = <
     never
   >
 
-const isInfraInterrupt = Predicate.isTagged("@smthrs/engine-next/InfraInterrupt")
+const isInfraInterrupt = Predicate.isTagged("@smthrs/flow/InfraInterrupt")
 
 const retryInfraInterrupt = (
   name: string,
@@ -354,7 +364,12 @@ const makeExecute = Effect.fnUntraced(function*<
   const engine = yield* FlowRuntime
   const instance = yield* FlowInstance
   const attempt = yield* CurrentAttempt
-  yield* Effect.annotateCurrentSpan({ executionId: instance.executionId })
+  yield* Effect.annotateCurrentSpan({
+    executionId: instance.executionId,
+    action: action.name,
+    attempt,
+    tier: action.tier
+  })
   const result = yield* Flow.wrapActionResult(
     engine.actionExecute(action, attempt),
     (_) => _._tag === "Suspended"
@@ -364,10 +379,12 @@ const makeExecute = Effect.fnUntraced(function*<
   // narrowing is written as "not complete" so the third result variant needs
   // no unreachable arm of its own.
   if (result._tag !== "Complete") {
+    yield* Effect.annotateCurrentSpan({ outcome: "suspended" })
     return yield* Flow.suspend(instance)
   }
+  yield* Effect.annotateCurrentSpan({ outcome: result.exit._tag === "Success" ? "success" : "failure" })
   return yield* result.exit
-}, (effect, action) =>
-  Effect.withSpan(effect, action.name, {
+}, (effect) =>
+  Effect.withSpan(effect, "Action.execute", {
     captureStackTrace: false
   }))

@@ -5,8 +5,8 @@
  *
  * @since 4.0.0
  */
-import { Sha256 } from "@smthrs/crypto-next"
-import * as Node from "@smthrs/plan-next/Node"
+import { Sha256 } from "@smthrs/crypto"
+import * as Node from "@smthrs/plan/Node"
 import * as Context from "effect/Context"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
@@ -14,7 +14,7 @@ import * as Schema from "effect/Schema"
 import { FlowRuntime } from "../FlowRuntime/FlowRuntime.ts"
 import type * as RetryPolicy from "../RetryPolicy.ts"
 import { CurrentExecutionIds } from "./ExecutionIds.ts"
-import type { AnyStructSchema, AnyWithProps, Flow } from "./Flow.ts"
+import type { AnyStructSchema, AnyWithProps, BodySuccess, Flow } from "./Flow.ts"
 import type { To } from "./Outcome.ts"
 import { withRollback } from "./Runtime.ts"
 import { TypeId } from "./TypeId.ts"
@@ -92,23 +92,29 @@ const Proto = {
       readonly executionId?: string | undefined
     } | undefined
   ) {
-    return Effect.suspend(() => {
-      const payload = this.payloadSchema.make(fields)
-      return Effect.flatMap(
-        resolveExecutionId(this, payload, opts?.executionId),
-        (executionId) =>
-          Effect.flatMap(FlowRuntime, (engine) =>
-            Effect.andThen(
-              Effect.annotateCurrentSpan({ executionId }),
-              engine.execute(this as any, {
-                executionId,
-                payload,
-                discard: opts?.discard,
-                suspendedRetryPolicy: this.suspendedRetryPolicy
-              })
-            ))
+    // Caller input that fails the payload schema is data, not programmer
+    // wiring, so it FAILS with the schema's typed `SchemaError` — carrying
+    // the offending field path — instead of dying with the raw constructor
+    // throw `payloadSchema.make` would produce.
+    return this.payloadSchema.makeEffect(fields).pipe(
+      Effect.mapError((issue) => new Schema.SchemaError(issue)),
+      Effect.flatMap((payload) =>
+        Effect.flatMap(
+          resolveExecutionId(this, payload, opts?.executionId),
+          (executionId) =>
+            Effect.flatMap(FlowRuntime, (engine) =>
+              Effect.andThen(
+                Effect.annotateCurrentSpan({ executionId }),
+                engine.execute(this as any, {
+                  executionId,
+                  payload,
+                  discard: opts?.discard,
+                  suspendedRetryPolicy: this.suspendedRetryPolicy
+                })
+              ))
+        )
       )
-    }).pipe(
+    ).pipe(
       Effect.withSpan(
         `${this._tag}.execute`,
         {},
@@ -152,7 +158,7 @@ const makeProto = <
   readonly successSchema: Success
   readonly errorSchema: Error
   readonly annotations: Context.Context<never>
-  readonly body: (payload: Payload["Type"]) => Node.Node<unknown, unknown, Requires>
+  readonly body: (payload: Payload["Type"]) => Node.Node<BodySuccess<Success["Type"]>, Error["Type"], Requires>
   readonly idempotencyKey?: ((payload: Payload["Type"]) => string) | undefined
   readonly suspendedRetryPolicy?: RetryPolicy.RetryPolicy | undefined
   readonly maxRounds?: number | undefined
@@ -195,9 +201,14 @@ interface MakeOptions<
  *
  * @private
  */
-type Body<Payload extends Schema.Struct.Fields | AnyStructSchema, Requires> = (
+type Body<
+  Payload extends Schema.Struct.Fields | AnyStructSchema,
+  Success extends Schema.Top,
+  Error extends Schema.Top,
+  Requires
+> = (
   payload: Payload extends Schema.Struct.Fields ? Schema.Struct.Type<Payload> : Payload["Type"]
-) => Node.Node<unknown, unknown, Requires>
+) => Node.Node<BodySuccess<Success["Type"]>, Error["Type"], Requires>
 
 /**
  * The payload schema a declaration's `payload` field stands for.
@@ -220,6 +231,7 @@ type PayloadSchemaOf<Payload extends Schema.Struct.Fields | AnyStructSchema> = P
  *
  * @category constructors
  * @since 4.0.0
+ * @slop
  */
 export const make = <
   const Tag extends string,
@@ -229,13 +241,16 @@ export const make = <
   Requires = never
 >(
   tag: Tag,
-  options: MakeOptions<Payload, Success, Error> & { readonly body: Body<Payload, Requires> }
+  options: MakeOptions<Payload, Success, Error> & { readonly body: Body<Payload, Success, Error, Requires> }
 ): Flow<Tag, PayloadSchemaOf<Payload>, Success, Error, Requires> => {
+  // Invalid static configuration is a programmer error thrown at construction,
+  // the same contract as effect's own `ExecutionPlan.make` (which throws on
+  // `attempts <= 0`); `RangeError` matches effect's range-violation throws.
   if (
     options.maxRounds !== undefined &&
     (!Number.isSafeInteger(options.maxRounds) || options.maxRounds < 1)
   ) {
-    throw new RangeError(`Flow "${tag}" maxRounds must be a positive safe integer`)
+    throw new RangeError(`Flow.make: "${tag}" maxRounds must be a positive safe integer`)
   }
   return makeProto<Tag, PayloadSchemaOf<Payload>, Success, Error, Requires>({
     _tag: tag,
@@ -245,7 +260,9 @@ export const make = <
     successSchema: options.success ?? (Schema.Void as any),
     errorSchema: options.error ?? (Schema.Never as any),
     annotations: options.annotations ?? Context.empty(),
-    body: options.body as (payload: PayloadSchemaOf<Payload>["Type"]) => Node.Node<unknown, unknown, Requires>,
+    body: options.body as (
+      payload: PayloadSchemaOf<Payload>["Type"]
+    ) => Node.Node<BodySuccess<Success["Type"]>, Error["Type"], Requires>,
     idempotencyKey: options.idempotencyKey as any,
     suspendedRetryPolicy: options.suspendedRetryPolicy,
     maxRounds: options.maxRounds

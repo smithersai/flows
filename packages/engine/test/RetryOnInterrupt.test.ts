@@ -1,13 +1,14 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Action, Flow, FlowRuntime } from "@smthrs/flow-next"
-import { Node } from "@smthrs/plan-next"
+import { describe, expect, it } from "@effect/vitest"
+import { Action, Flow, FlowRuntime } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Clock, Effect, Exit, Fiber, Schedule, Schema } from "effect"
+import type * as Crypto from "effect/Crypto"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
-import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 
 const flow = Flow.make("RetryOnInterrupt/test", {
   payload: {},
@@ -21,11 +22,11 @@ const effect = (
   body: () => Effect.Effect<
     void,
     unknown,
-    Scope.Scope | FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance
+    Scope.Scope | FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance | Crypto.Crypto
   >
 ) =>
-  it(name, () =>
-    runPromise(
+  it.effect(name, () =>
+    withCrypto(
       body().pipe(
         Effect.provide(FlowEngine.layerMemory),
         Effect.provideService(FlowRuntime.FlowInstance, instance),

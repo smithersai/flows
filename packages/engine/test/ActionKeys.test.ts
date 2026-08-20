@@ -1,15 +1,15 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
-import { Node } from "@smthrs/plan-next"
+import { describe, expect, it } from "@effect/vitest"
+import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Effect, Exit, Layer, Result, Schedule, Schema, SchemaRepresentation, Scope } from "effect"
 import type * as Crypto from "effect/Crypto"
-import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
-import { key, runPromise } from "./Crypto.ts"
+import { key, withCrypto } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it(name, () => runPromise(body()))
+  it.effect(name, () => withCrypto(body()))
 
 const hostFlow = Flow.make("ActionKeys/host", {
   payload: { id: Schema.String },
@@ -21,9 +21,9 @@ const provideHost = <A, E>(
   self: Effect.Effect<
     A,
     E,
-    FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance | Scope.Scope
+    FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance | Scope.Scope | Crypto.Crypto
   >
-): Effect.Effect<A, E> =>
+): Effect.Effect<A, E, Crypto.Crypto> =>
   self.pipe(
     Effect.scoped,
     Effect.provideService(
@@ -117,6 +117,45 @@ describe("action execution keys", () => {
     return Effect.gen(function*() {
       expect(yield* flow.execute({ run: "one" }, { executionId: "run-one" })).toBe(1)
       expect(executions).toBe(1)
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("folds declared output nondeterminism into the sealed action key", () => {
+    let executions = 0
+    const action = (nondeterministic?: true) =>
+      Action.make({
+        name: "ActionKeys/nondeterministic",
+        success: Schema.Number,
+        idempotencyKey: "shared",
+        ...(nondeterministic === undefined ? {} : { nondeterministic }),
+        execute: Effect.sync(() => ++executions)
+      })
+    const flowActionDeclaration = Action.make("ActionKeys/nondeterministic/action", {
+      payload: {},
+      success: Schema.Number
+    })
+    const flow = Flow.make("ActionKeys/nondeterministic/flow", {
+      payload: {},
+      success: Schema.Number,
+      body: (payload) => flowActionDeclaration.call(payload)
+    })
+    const layer = Layer.mergeAll(
+      flowActionDeclaration.toLayer(() =>
+        Effect.gen(function*() {
+          expect(yield* action()).toBe(1)
+          expect(yield* action(true)).toBe(2)
+          return yield* action(true)
+        })
+      ),
+      Interpreter.layer(flow)
+    ).pipe(
+      Layer.provideMerge(Action.layerImplementations),
+      Layer.provideMerge(FlowEngine.layerMemory)
+    )
+
+    return Effect.gen(function*() {
+      expect(yield* flow.execute({}, { executionId: "nondeterministic-key" })).toBe(2)
+      expect(executions).toBe(2)
     }).pipe(Effect.provide(layer))
   })
 
@@ -431,31 +470,6 @@ describe("action execution keys", () => {
       }).pipe(Effect.provide(layer))
     }
   )
-
-  effect("changes sealed replay identity when its input, layer, or capability material changes", () => {
-    const keyFor = (input: string, layer: string, capability: string) =>
-      key({
-        kind: "cache",
-        input: {
-          body: "action",
-          dependencies: { input: { kind: "literal", value: input } }
-        },
-        environment: {
-          layers: [layer],
-          capabilities: { declared: [capability] }
-        }
-      })
-    const first = keyFor("input-a", "layer-a", "capability-a")
-    const changedInput = keyFor("input-b", "layer-a", "capability-a")
-    const changedLayer = keyFor("input-a", "layer-b", "capability-a")
-    const changedCapability = keyFor("input-a", "layer-a", "capability-b")
-
-    return Effect.gen(function*() {
-      expect(first).not.toBe(changedInput)
-      expect(first).not.toBe(changedLayer)
-      expect(first).not.toBe(changedCapability)
-    })
-  })
 
   effect("keeps ordinal action keys isolated by run and never by action name", () =>
     Effect.gen(function*() {

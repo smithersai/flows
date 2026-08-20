@@ -42,6 +42,37 @@ describe("CommandLine.render", () => {
 
     expect(CommandLine.render(pipeline)).toBe("printf 'a b' | grep a")
   })
+
+  it("renders shell and custom-shell stages independently inside a pipeline", () => {
+    const pipeline = ChildProcess.make("printf", ["safe; printf injected"], { shell: true }).pipe(
+      ChildProcess.pipeTo(ChildProcess.make("grep", ["hello world"], { shell: "/custom shell" }))
+    )
+
+    expect(CommandLine.render(pipeline)).toBe(
+      "printf safe; printf injected | '/custom shell' -c 'grep hello world'"
+    )
+  })
+
+  it("keeps pipe descriptor options out of the capability resource at the fd3 boundary", () => {
+    const defaultPipe = ChildProcess.pipeTo(ChildProcess.make("left"), ChildProcess.make("right"))
+    const minimumCustomFd = ChildProcess.pipeTo(
+      ChildProcess.make("left"),
+      ChildProcess.make("right"),
+      { from: "fd3", to: "fd3" }
+    )
+    const belowMinimumFd = ChildProcess.pipeTo(
+      ChildProcess.make("left"),
+      ChildProcess.make("right"),
+      {
+        from: "fd2" as unknown as ChildProcess.PipeFromOption,
+        to: "fd2" as unknown as ChildProcess.PipeToOption
+      }
+    )
+
+    expect(CommandLine.render(defaultPipe)).toBe("left | right")
+    expect(CommandLine.render(minimumCustomFd)).toBe("left | right")
+    expect(CommandLine.render(belowMinimumFd)).toBe("left | right")
+  })
 })
 
 describe("CommandLine.cwd and CommandLine.env", () => {

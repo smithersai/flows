@@ -34,9 +34,11 @@
  * @since 0.1.0
  */
 import * as Context from "effect/Context"
+import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import type { Scope } from "effect/Scope"
 import type { FlowInstance } from "../FlowRuntime/FlowInstance.ts"
 import type { FlowRuntime } from "../FlowRuntime/FlowRuntime.ts"
 
@@ -51,12 +53,13 @@ import type { FlowRuntime } from "../FlowRuntime/FlowRuntime.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Implementation {
   readonly name: string
   readonly action: (
     payload: unknown
-  ) => Effect.Effect<unknown, unknown, FlowRuntime | FlowInstance>
+  ) => Effect.Effect<unknown, unknown, Crypto.Crypto | FlowRuntime | FlowInstance>
 }
 
 /**
@@ -72,18 +75,23 @@ export interface Implementation {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export class Implementations extends Context.Service<
   Implementations,
   {
     /**
-     * Files an implementation under its action tag. A later registration of
-     * the same tag replaces the earlier one. Which of two merged layers is
-     * later is not a guarantee Effect makes, so a substitution replaces the
-     * implementation layer in the composition rather than stacking a second
-     * one on top of it.
+     * Files an implementation under its action tag for the lifetime of the
+     * registering scope. A later registration of the same tag replaces the
+     * earlier one, and closing the registering scope restores what it
+     * replaced. Which of two merged layers is later is not a guarantee Effect
+     * makes, so a substitution replaces the implementation layer in the
+     * composition rather than stacking a second one on top of it — and a
+     * NESTED provision that reaches this same table through layer
+     * memoization shadows the enclosing entry only while it lives, instead
+     * of leaking its replacement into the enclosing composition.
      */
-    readonly add: (implementation: Implementation) => Effect.Effect<void>
+    readonly add: (implementation: Implementation) => Effect.Effect<void, never, Scope>
 
     /**
      * The implementation registered for an action tag, if a layer supplied
@@ -91,7 +99,7 @@ export class Implementations extends Context.Service<
      */
     readonly get: (name: string) => Effect.Effect<Option.Option<Implementation>>
   }
->()("@smthrs/flow-next/Action/Implementations") {}
+>()("@smthrs/flow/Action/Implementations") {}
 
 /**
  * Layer providing an implementation table scoped to the composition that
@@ -105,12 +113,33 @@ export class Implementations extends Context.Service<
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerImplementations: Layer.Layer<Implementations> = Layer.effect(Implementations)(
   Effect.sync(() => {
     const registered = new Map<string, Implementation>()
     return Implementations.of({
-      add: (implementation) => Effect.sync(() => void registered.set(implementation.name, implementation)),
+      add: (implementation) =>
+        Effect.suspend(() => {
+          const previous = registered.get(implementation.name)
+          registered.set(implementation.name, implementation)
+          // The registration lives exactly as long as the layer build scope
+          // that filed it. `Effect.provide` forks the enclosing memo map, so a
+          // nested provision reuses THIS table rather than building its own;
+          // restoring on scope close is what keeps that reuse a shadow instead
+          // of a leak. Finalizers run in reverse registration order, so
+          // stacked same-tag replacements unwind to exactly what each one
+          // replaced.
+          return Effect.addFinalizer(() =>
+            Effect.sync(() => {
+              // A sibling scope may have replaced this entry and may outlive
+              // this one; its own finalizer owns that restoration.
+              if (registered.get(implementation.name) !== implementation) return
+              if (previous === undefined) registered.delete(implementation.name)
+              else registered.set(implementation.name, previous)
+            })
+          )
+        }),
       get: (name) => Effect.sync(() => Option.fromNullishOr(registered.get(name)))
     })
   })

@@ -1,6 +1,6 @@
-# `@smthrs/journal-next`
+# `@smthrs/journal`
 
-This page is the public API reference for the durable event history. Run and attempt state moved to [`@smthrs/run-store-next`](run-store.md) and sealed step results to [`@smthrs/step-cache-next`](step-cache.md); flow orchestration is implemented by [`@smthrs/engine-store-next`](engine-store.md).
+This page is the public API reference for the durable event history. Run and attempt state moved to [`@smthrs/run-store`](run-store.md) and sealed step results to [`@smthrs/step-cache`](step-cache.md); flow orchestration is implemented by [`@smthrs/engine-store`](engine-store.md).
 
 ## Journal events
 
@@ -65,7 +65,7 @@ Because that transaction both replays and can abort at COMMIT, `emitDurable` mut
 
 Every write funnels through one preparation step, and that step redacts: `payload` and `meta` are scrubbed by `Redaction.make()` before they are encoded, so no channel can persist a credential. Fields whose names read as credentials (`apiKey`, `authorization`, `cookie`, `token`, `password`, `secret`, and separator/case variants) are replaced wholesale; provider keys, bearer tokens, and `SECRET=value` assignments are replaced inside any string. Rows are permanent and are replayed verbatim to sync subscribers and time-travel consumers, so redaction on write is the only place it can be enforced once. Pass `redact: Redaction.makeNoop()` to `SqlJournal.layer` to persist payloads verbatim by choice.
 
-Redaction stops at the journal. It is an **observability** concern, and journal rows exist to be read — by sync subscribers, by time-travel consumers, by a support bundle. The stores in [`@smthrs/run-store-next`](run-store.md) and [`@smthrs/step-cache-next`](step-cache.md) hold *executable* state and are deliberately not redacted; those pages state why, and neither takes a `redact` option at all.
+Redaction stops at the journal. It is an **observability** concern, and journal rows exist to be read — by sync subscribers, by time-travel consumers, by a support bundle. The stores in [`@smthrs/run-store`](run-store.md) and [`@smthrs/step-cache`](step-cache.md) hold *executable* state and are deliberately not redacted; those pages state why, and neither takes a `redact` option at all.
 
 A value that must never reach durable executable state is a typed boundary, not a guess made at the storage seam: model it as a `Redacted` field in the flow's own state schema, so the encoder drops it by declaration and the decoder knows it is absent. For rendering a stored column to a human, `Redaction.redactJsonString` scrubs an already-encoded JSON string at the display surface, leaving the durable row untouched.
 
@@ -73,18 +73,18 @@ The two channels also fail independently, and neither failure is permanent. A ba
 
 ### Migrations
 
-`Migrations.set` is the journal's namespaced migration set — `flows_journal_events` and its event-type index — and reserves migration id block `0`. `Migrations.run` / `Migrations.layer` install it alone. Every other durable table belongs to the package that reads it, and `@smthrs/database-next`'s `Migrations` composes those sets over one `flows_migrations` table, namespacing each package's ids into a reserved block so two packages' `0001_initial` cannot collide; `@smthrs/engine-store-next/Migrations` is the composed list a durable engine installs. The repository is unreleased, so each package has one authoritative initial schema rather than compatibility migrations for obsolete internal versions.
+`Migrations.set` is the journal's namespaced migration set — `flows_journal_events` and its event-type index — and reserves migration id block `0`. `Migrations.run` / `Migrations.layer` install it alone. Every other durable table belongs to the package that reads it, and `@smthrs/database`'s `Migrations` composes those sets over one `flows_migrations` table, namespacing each package's ids into a reserved block so two packages' `0001_initial` cannot collide; `@smthrs/engine-store/Migrations` is the composed list a durable engine installs. The repository is unreleased, so each package has one authoritative initial schema rather than compatibility migrations for obsolete internal versions.
 
 ## Ownership token
 
-`OwnerId.OwnerId` contains `hostId`, `pid`, and `nonce`. It lives here rather than with the arbitration in `@smthrs/run-store-next` because the journal is what it fences: `emitDurable(input, owner)` only lands the row while `flows_runs` still records that owner as the running run's owner, and otherwise fails `fence_lost`. `@smthrs/run-store-next`'s `Ownership` re-exports it alongside `LivenessEvidence`, `LivenessProbe`, and the heartbeat constants.
+`OwnerId.OwnerId` contains `hostId`, `pid`, and `nonce`. It lives here rather than with the arbitration in `@smthrs/run-store` because the journal is what it fences: `emitDurable(input, owner)` only lands the row while `flows_runs` still records that owner as the running run's owner, and otherwise fails `fence_lost`. `@smthrs/run-store`'s `Ownership` re-exports it alongside `LivenessEvidence`, `LivenessProbe`, and the heartbeat constants.
 
 ## Projections and tests
 
-`Projection.make` is an identity constructor for `{ name, initial, reduce }`. `TestJournal.layer(options?)` — imported from `@smthrs/journal-next/test/TestJournal`, not the root — provides the migrated SQL journal over in-memory SQLite. For the journal, run, attempt, and cache services over ONE database, take `@smthrs/engine-store-next/test/TestStores`.
+`Projection.make` is an identity constructor for `{ name, initial, reduce }`. `TestJournal.layer(options?)` — imported from `@smthrs/journal/test/TestJournal`, not the root — provides the migrated SQL journal over in-memory SQLite. For the journal, run, attempt, and cache services over ONE database, take `@smthrs/engine-store/test/TestStores`.
 
 ## Entry points
 
-The root holds the journal and its contracts, written against the driver-neutral `@smthrs/database-next` service, and it bundles for the browser (`pnpm run browser`). The test doubles bind a Node SQLite database and are therefore imported from `@smthrs/journal-next/test/TestJournal` and `@smthrs/journal-next/test/Notifying`. See [browser support](../architecture/browser-support.md).
+The root holds the journal and its contracts, written against the driver-neutral `@smthrs/database` service, and it bundles for the browser (`pnpm run browser`). The test doubles bind a Node SQLite database and are therefore imported from `@smthrs/journal/test/TestJournal` and `@smthrs/journal/test/Notifying`. See [browser support](../architecture/browser-support.md).
 
-See [Journal semantics](../concepts/journal.md), [Concurrency](../concepts/concurrency.md), and the [`@smthrs/engine-store-next` reference](engine-store.md).
+See [Journal semantics](../concepts/journal.md), [Concurrency](../concepts/concurrency.md), and the [`@smthrs/engine-store` reference](engine-store.md).

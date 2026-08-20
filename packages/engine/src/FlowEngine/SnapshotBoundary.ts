@@ -5,7 +5,7 @@
  *
  * @since 0.1.0
  */
-import type { Flow } from "@smthrs/flow-next"
+import type { Flow } from "@smthrs/flow"
 import * as Context from "effect/Context"
 import type * as Effect from "effect/Effect"
 
@@ -14,6 +14,7 @@ import type * as Effect from "effect/Effect"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface SnapshotBoundaryOptions {
   readonly flow: Flow.Any
@@ -26,10 +27,11 @@ export interface SnapshotBoundaryOptions {
 /**
  * Minimal host snapshot boundary required by compensable actions.
  *
- * TODO(piece-6): bind to @smthrs/kernel-next Jj in @smthrs/engine-store-next.
+ * TODO(piece-6): bind to @smthrs/kernel Jj in @smthrs/engine-store.
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export class SnapshotBoundary extends Context.Service<
   SnapshotBoundary,
@@ -44,4 +46,4 @@ export class SnapshotBoundary extends Context.Service<
       options: SnapshotBoundaryOptions
     ) => Effect.Effect<unknown>
   }
->()("flows/engine/SnapshotBoundary") {}
+>()("@smthrs/engine/FlowEngine/SnapshotBoundary") {}

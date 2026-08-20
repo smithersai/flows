@@ -18,10 +18,10 @@
  * `Action.CurrentCacheEnvironment`; with no declaration the engine scopes
  * the key to the execution that produced it, and the fork would re-execute.
  */
-import { Action, Flow, Interpreter } from "@smthrs/flow-next"
-import { EngineStore } from "@smthrs/engine-store-next"
-import { Journal } from "@smthrs/journal-next"
-import { SqlTimeTravelStore, TimeTravel } from "@smthrs/time-travel-next"
+import { Action, Flow, Interpreter } from "@smthrs/flow"
+import { EngineStore } from "@smthrs/engine-store"
+import { Journal } from "@smthrs/journal"
+import { SqlTimeTravelStore, TimeTravel } from "@smthrs/time-travel"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"

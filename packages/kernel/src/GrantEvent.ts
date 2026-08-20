@@ -7,7 +7,7 @@
  *
  * @since 0.1.0
  */
-import { Capability, CapabilityPattern } from "@smthrs/capability-next/Capability"
+import { Capability, CapabilityPattern } from "@smthrs/capability/Capability"
 import * as Schema from "effect/Schema"
 
 /**
@@ -15,6 +15,7 @@ import * as Schema from "effect/Schema"
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const GrantTier = Schema.Literals(["sealed", "compensable", "irreversible"])
 
@@ -23,6 +24,7 @@ export const GrantTier = Schema.Literals(["sealed", "compensable", "irreversible
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const GrantScope = Schema.Literals(["once", "run", "remembered"])
 
@@ -34,8 +36,9 @@ export const GrantScope = Schema.Literals(["once", "run", "remembered"])
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
-export class OnceGrant extends Schema.TaggedClass<OnceGrant>()("@smthrs/kernel-next/GrantEvent/OnceGrant", {
+export class OnceGrant extends Schema.TaggedClass<OnceGrant>()("@smthrs/kernel/GrantEvent/OnceGrant", {
   eventType: Schema.Literal("flows.kernel.grant.once.v1"),
   requestId: Schema.String,
   runId: Schema.String,
@@ -51,9 +54,10 @@ export class OnceGrant extends Schema.TaggedClass<OnceGrant>()("@smthrs/kernel-n
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class RememberedGrant extends Schema.TaggedClass<RememberedGrant>()(
-  "@smthrs/kernel-next/GrantEvent/RememberedGrant",
+  "@smthrs/kernel/GrantEvent/RememberedGrant",
   {
     eventType: Schema.Literal("flows.kernel.grant.remembered.v1"),
     requestId: Schema.String,
@@ -71,8 +75,9 @@ export class RememberedGrant extends Schema.TaggedClass<RememberedGrant>()(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
-export class RunGrant extends Schema.TaggedClass<RunGrant>()("@smthrs/kernel-next/GrantEvent/RunGrant", {
+export class RunGrant extends Schema.TaggedClass<RunGrant>()("@smthrs/kernel/GrantEvent/RunGrant", {
   eventType: Schema.Literal("flows.kernel.grant.run.v1"),
   requestId: Schema.String,
   runId: Schema.String,
@@ -88,8 +93,9 @@ export class RunGrant extends Schema.TaggedClass<RunGrant>()("@smthrs/kernel-nex
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
-export class DeniedGrant extends Schema.TaggedClass<DeniedGrant>()("@smthrs/kernel-next/GrantEvent/DeniedGrant", {
+export class DeniedGrant extends Schema.TaggedClass<DeniedGrant>()("@smthrs/kernel/GrantEvent/DeniedGrant", {
   eventType: Schema.Literal("flows.kernel.grant.denied.v1"),
   requestId: Schema.String,
   runId: Schema.String,
@@ -111,9 +117,10 @@ export class DeniedGrant extends Schema.TaggedClass<DeniedGrant>()("@smthrs/kern
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export class EnvelopeGrant extends Schema.TaggedClass<EnvelopeGrant>()(
-  "@smthrs/kernel-next/GrantEvent/EnvelopeGrant",
+  "@smthrs/kernel/GrantEvent/EnvelopeGrant",
   {
     eventType: Schema.Literal("flows.kernel.grant.envelope.v1"),
     runId: Schema.String,
@@ -128,6 +135,7 @@ export class EnvelopeGrant extends Schema.TaggedClass<EnvelopeGrant>()(
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const GrantEventSchema = Schema.Union([
   OnceGrant,
@@ -142,21 +150,30 @@ export const GrantEventSchema = Schema.Union([
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type GrantEvent = typeof GrantEventSchema.Type
 
 /**
  * Decodes one JSON-compatible journal payload into a grant event.
  *
+ * Excess payload keys are rejected rather than stripped. Grant payloads are
+ * replayed as active permission authority, so a payload that mixes fields
+ * from two grant variants — for example an envelope carrying request-only
+ * fields — is treated as corrupt instead of silently narrowed to whichever
+ * variant its declared keys happen to satisfy.
+ *
  * @category decoding
  * @since 0.1.0
+ * @slop
  */
-export const decode = Schema.decodeUnknownResult(GrantEventSchema)
+export const decode = Schema.decodeUnknownResult(GrantEventSchema, { onExcessProperty: "error" })
 
 /**
  * Encodes a grant event into its JSON-compatible journal payload.
  *
  * @category encoding
  * @since 0.1.0
+ * @slop
  */
 export const encode = Schema.encodeUnknownResult(GrantEventSchema)

@@ -10,6 +10,7 @@
  *
  * @since 4.0.0
  */
+import type * as Crypto from "effect/Crypto"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import type * as Schema from "effect/Schema"
@@ -26,6 +27,7 @@ const TypeId = "~effect/flow/DurableClock"
  *
  * @category models
  * @since 4.0.0
+ * @slop
  */
 export interface DurableClock {
   readonly [TypeId]: typeof TypeId
@@ -40,6 +42,7 @@ export interface DurableClock {
  *
  * @category constructors
  * @since 4.0.0
+ * @slop
  */
 export const make = (options: {
   readonly name: string
@@ -57,6 +60,7 @@ export const make = (options: {
  *
  * @category sleeping
  * @since 4.0.0
+ * @slop
  */
 export const sleep: (
   options: {
@@ -73,7 +77,7 @@ export const sleep: (
 ) => Effect.Effect<
   void,
   never,
-  FlowRuntime | FlowInstance
+  Crypto.Crypto | FlowRuntime | FlowInstance
 > =
   // Untraced because durable sleeps are recursively resumed by the engine.
   Effect.fnUntraced(function*(options: {

@@ -3,7 +3,7 @@
  *
  * @since 0.1.0
  */
-import type { JournalEvent } from "@smthrs/journal-next"
+import type { JournalEvent } from "@smthrs/journal"
 import { describe, expect, it } from "vitest"
 import { SyncError, SyncGapError } from "../src/SyncError.ts"
 import * as SyncProtocol from "../src/SyncProtocol.ts"

@@ -42,6 +42,7 @@ import * as Planned from "./Planned.ts"
  *
  * @since 0.1.0
  * @category type ids
+ * @slop
  */
 export const TypeId: TypeId = internal.TypeId
 
@@ -50,8 +51,9 @@ export const TypeId: TypeId = internal.TypeId
  *
  * @since 0.1.0
  * @category type ids
+ * @slop
  */
-export type TypeId = "~flows/plan/Node"
+export type TypeId = "~@smthrs/plan/Node"
 
 /**
  * The inspectable AST a node stores: closure-free, and JSON serializable for
@@ -59,6 +61,7 @@ export type TypeId = "~flows/plan/Node"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type Ast = internal.NodeAst
 
@@ -69,6 +72,7 @@ export type Ast = internal.NodeAst
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type FunctionIdentity = Extract<Ast, { readonly _tag: "Map" }>["mapper"]
 
@@ -86,6 +90,7 @@ export type FunctionIdentity = Extract<Ast, { readonly _tag: "Map" }>["mapper"]
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Node<out A, out E = never, out R = never> extends Pipeable.Pipeable {
   readonly [TypeId]: {
@@ -101,6 +106,7 @@ export interface Node<out A, out E = never, out R = never> extends Pipeable.Pipe
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type Any = Node<unknown, unknown, any>
 
@@ -109,6 +115,7 @@ export type Any = Node<unknown, unknown, any>
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type Success<N> = N extends Node<infer A, infer _E, infer _R> ? A : never
 
@@ -117,6 +124,7 @@ export type Success<N> = N extends Node<infer A, infer _E, infer _R> ? A : never
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type Error<N> = N extends Node<infer _A, infer E, infer _R> ? E : never
 
@@ -126,6 +134,7 @@ export type Error<N> = N extends Node<infer _A, infer E, infer _R> ? E : never
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type Services<N> = N extends Node<infer _A, infer _E, infer R> ? R : never
 
@@ -137,6 +146,7 @@ export type Services<N> = N extends Node<infer _A, infer _E, infer R> ? R : neve
  *
  * @since 0.1.0
  * @category constants
+ * @slop
  */
 export const branchSubject = "branch/subject"
 
@@ -152,6 +162,7 @@ let branchOrdinal = 0
  *
  * @since 0.1.0
  * @category constants
+ * @slop
  */
 export const catchSubject = "catch/subject"
 
@@ -167,6 +178,7 @@ let catchOrdinal = 0
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface BranchOptions<A, B1, E1, R1, B2, E2, R2> {
   readonly if: (value: A) => boolean
@@ -180,6 +192,7 @@ export interface BranchOptions<A, B1, E1, R1, B2, E2, R2> {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface CatchOptions<E, B, E2, R2 = never, Handled = E> {
   readonly error?: Schema.Schema<Handled> | undefined
@@ -191,6 +204,7 @@ export interface CatchOptions<E, B, E2, R2 = never, Handled = E> {
  *
  * @since 0.1.0
  * @category guards
+ * @slop
  */
 export const isNode = (value: unknown): value is Any => Predicate.hasProperty(value, TypeId)
 
@@ -199,6 +213,7 @@ export const isNode = (value: unknown): value is Any => Predicate.hasProperty(va
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const succeed = <A>(value: A): Node<A> => internal.makeNode<A>(internal.succeed(value))
 
@@ -211,6 +226,7 @@ export const succeed = <A>(value: A): Node<A> => internal.makeNode<A>(internal.s
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const all = <const Nodes extends Readonly<Record<string, Any>>>(
   nodes: Nodes
@@ -248,6 +264,7 @@ export const all = <const Nodes extends Readonly<Record<string, Any>>>(
  *
  * @since 0.1.0
  * @category mapping
+ * @slop
  */
 export const map: {
   <A, B>(f: (a: A) => B): <E, R>(self: Node<A, E, R>) => Node<B, E, R>
@@ -268,6 +285,7 @@ export const map: {
  *
  * @since 0.1.0
  * @category sequencing
+ * @slop
  */
 export const andThen: {
   <A, B, E2, R2>(
@@ -339,6 +357,7 @@ const arm = <A, B, E, R>(
  *
  * @since 0.1.0
  * @category sequencing
+ * @slop
  */
 export const branch: {
   <A, B1, E1, R1, B2, E2, R2>(
@@ -383,6 +402,7 @@ export const branch: {
  *
  * @since 0.1.0
  * @category sequencing
+ * @slop
  */
 const catch_: {
   <Handled, B, E2, R2>(
@@ -430,11 +450,12 @@ const catch_: {
 export { catch_ as catch }
 
 /**
- * Constructs the flow-call node used by `@smthrs/flow-next` without making flow
+ * Constructs the flow-call node used by `@smthrs/flow` without making flow
  * calls part of the public authoring surface of this package.
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const flowCall = <A = unknown, E = never, R = never>(
   declaration: unknown,
@@ -444,11 +465,12 @@ export const flowCall = <A = unknown, E = never, R = never>(
 ): Node<A, E, R> => internal.makeNode<A, E, R>(internal.flowCall(declaration, flow, mode, payload))
 
 /**
- * Constructs the action-call node used by `@smthrs/flow-next` without making
+ * Constructs the action-call node used by `@smthrs/flow` without making
  * action calls part of the public authoring surface of this package.
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const actionCall = <A = unknown, E = never, R = never>(
   declaration: unknown,
@@ -457,13 +479,14 @@ export const actionCall = <A = unknown, E = never, R = never>(
 ): Node<A, E, R> => internal.makeNode<A, E, R>(internal.actionCall(declaration, action, payload))
 
 /**
- * Reads the flow or action declaration a call node names, so `@smthrs/flow-next`
+ * Reads the flow or action declaration a call node names, so `@smthrs/flow`
  * can expand a call it recorded. It is `undefined` for an AST that was
  * rehydrated from JSON, because the declaration lives beside the AST rather
  * than inside it — a graph built from such an AST keeps the call as a leaf.
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const declaration = (
   ast: Extract<Ast, { readonly _tag: "ActionCall" | "FlowCall" }>
@@ -477,6 +500,7 @@ export const declaration = (
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const continuation = (
   ast: Extract<Ast, { readonly _tag: "AndThen" }>
@@ -490,6 +514,7 @@ export const continuation = (
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const mapper = (ast: Ast): ((value: unknown) => unknown) | undefined =>
   ast._tag === "Map" ? internal.operation(ast) : undefined
@@ -502,6 +527,7 @@ export const mapper = (ast: Ast): ((value: unknown) => unknown) | undefined =>
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const predicate = (ast: Ast): ((value: unknown) => boolean) | undefined =>
   ast._tag === "Branch" ? internal.predicate(ast) : undefined
@@ -511,16 +537,37 @@ export const predicate = (ast: Ast): ((value: unknown) => boolean) | undefined =
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const catchFilter = (ast: Ast): Schema.Top | undefined => ast._tag === "Catch" ? internal.filter(ast) : undefined
 
 /**
- * Digests a plan-time function the AST does NOT store — a flow's `body` —
- * exactly as the AST digests the mapper and the continuation it does store.
+ * Identifies a plan-time function the AST does NOT store — a flow's `body` —
+ * exactly as the AST identifies the mapper and continuation it does store.
  * A call that keeps its callee as a leaf still has to re-key when that
- * callee's body is edited, and this is the identity it folds in.
+ * callee's body is edited, and this is the identity it folds in. Unannotated
+ * functions fail closed with process-local identity; use {@link capture} to
+ * declare inert captures and obtain deterministic identity.
  *
  * @since 0.1.0
  * @private
+ * @slop
  */
 export const functionIdentity = (operation: unknown): FunctionIdentity => internal.functionIdentity(operation)
+
+/**
+ * Declares the inert values a plan-time function closes over.
+ *
+ * The capture record is canonicalized into function identity and deeply frozen
+ * immediately. Unsupported values, accessors, exotic prototypes, symbols, and
+ * cycles are refused instead of producing an identity that cannot describe the
+ * function's behavior.
+ *
+ * @since 0.1.0
+ * @category constructors
+ * @slop
+ */
+export const capture = <Args extends ReadonlyArray<unknown>, A>(
+  captures: Readonly<Record<string, unknown>>,
+  operation: (...args: Args) => A
+): (...args: Args) => A => internal.capture(captures, operation)

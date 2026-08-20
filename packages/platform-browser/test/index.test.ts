@@ -4,10 +4,10 @@
  * that the spawner it wires up is the one talking to the filesystem it wires
  * up — the failure mode the function signature exists to prevent.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { Effect, FileSystem, Path } from "effect"
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
 import * as NodeFsPromises from "node:fs/promises"
-import { describe, expect, it } from "vitest"
 import * as BrowserChildProcessSpawner from "../src/BrowserChildProcessSpawner/index.ts"
 import * as BrowserFileSystem from "../src/BrowserFileSystem/index.ts"
 import * as BrowserHost from "../src/BrowserHost.ts"
@@ -18,7 +18,7 @@ const bash: BrowserChildProcessSpawner.JustBashLike = {
   run: async (command) => ({ stdout: command, stderr: "", exitCode: 0 })
 }
 
-describe("@smthrs/platform-browser-next barrel", () => {
+describe("@smthrs/platform-browser barrel", () => {
   it("re-exports every module as a namespace", () => {
     expect(Object.keys(Index).sort()).toEqual(
       [
@@ -36,20 +36,21 @@ describe("@smthrs/platform-browser-next barrel", () => {
 })
 
 describe("BrowserServices", () => {
-  it("provides the spawner, the filesystem, and the path service from one layer", async () => {
-    const services = await Effect.runPromise(
-      Effect.gen(function*() {
-        const spawner = yield* ChildProcessSpawner
-        const fs = yield* FileSystem.FileSystem
-        const path = yield* Path.Path
-        return {
-          spawned: typeof spawner.spawn,
-          exists: yield* fs.exists("/definitely-not-a-real-path"),
-          normalized: path.normalize("/a/./b/../c")
-        }
-      }).pipe(Effect.provide(BrowserServices.layer({ bash, fs: NodeFsPromises })))
-    )
+  it.effect("provides the spawner, the filesystem, and the path service from one layer", () =>
+    Effect.gen(function*() {
+      const services = yield* (
+        Effect.gen(function*() {
+          const spawner = yield* ChildProcessSpawner
+          const fs = yield* FileSystem.FileSystem
+          const path = yield* Path.Path
+          return {
+            spawned: typeof spawner.spawn,
+            exists: yield* fs.exists("/definitely-not-a-real-path"),
+            normalized: path.normalize("/a/./b/../c")
+          }
+        }).pipe(Effect.provide(BrowserServices.layer({ bash, fs: NodeFsPromises })))
+      )
 
-    expect(services).toEqual({ spawned: "function", exists: false, normalized: "/a/c" })
-  })
+      expect(services).toEqual({ spawned: "function", exists: false, normalized: "/a/c" })
+    }))
 })

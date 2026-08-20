@@ -3,7 +3,7 @@
 /**
  * Defines typed action execution and identity failures.
  *
- * The `_tag` strings below keep the `@smthrs/engine-next/` prefix they were minted
+ * The `_tag` strings below keep the `@smthrs/engine/` prefix they were minted
  * with. A tag is wire format: durable stores persist encoded exits carrying
  * it, so renaming one to match this package would make every stored row
  * decode as an unknown error on replay. The owning package moved; the tag did
@@ -20,9 +20,10 @@ import * as Schema from "effect/Schema"
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class InfraInterrupt extends Schema.TaggedError<InfraInterrupt>()(
-  "@smthrs/engine-next/InfraInterrupt",
+  "@smthrs/flow/InfraInterrupt",
   {
     code: Schema.Literal("infra_interrupt").pipe(
       Schema.withConstructorDefault(Effect.succeed("infra_interrupt"))
@@ -37,10 +38,11 @@ export class InfraInterrupt extends Schema.TaggedError<InfraInterrupt>()(
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class IrreversibleRetryRequiresIdempotencyKey
   extends Schema.TaggedError<IrreversibleRetryRequiresIdempotencyKey>()(
-    "@smthrs/engine-next/IrreversibleRetryRequiresIdempotencyKey",
+    "@smthrs/flow/IrreversibleRetryRequiresIdempotencyKey",
     {
       code: Schema.Literal("irreversible_retry_requires_idempotency_key").pipe(
         Schema.withConstructorDefault(Effect.succeed("irreversible_retry_requires_idempotency_key"))
@@ -66,9 +68,10 @@ export class IrreversibleRetryRequiresIdempotencyKey
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class ConcurrentKeylessDispatch extends Schema.TaggedError<ConcurrentKeylessDispatch>()(
-  "@smthrs/engine-next/ConcurrentKeylessDispatch",
+  "@smthrs/flow/ConcurrentKeylessDispatch",
   {
     code: Schema.Literal("concurrent_keyless_dispatch").pipe(
       Schema.withConstructorDefault(Effect.succeed("concurrent_keyless_dispatch"))
@@ -85,9 +88,10 @@ export class ConcurrentKeylessDispatch extends Schema.TaggedError<ConcurrentKeyl
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class UncanonicalIdempotencyKey extends Schema.TaggedError<UncanonicalIdempotencyKey>()(
-  "@smthrs/engine-next/UncanonicalIdempotencyKey",
+  "@smthrs/flow/UncanonicalIdempotencyKey",
   {
     code: Schema.Literal("uncanonical_idempotency_key").pipe(
       Schema.withConstructorDefault(Effect.succeed("uncanonical_idempotency_key"))

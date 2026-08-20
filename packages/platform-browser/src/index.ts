@@ -1,7 +1,7 @@
 /**
  * @since 0.1.0
  *
- * `@smthrs/platform-browser-next` — the two platform services `@effect/platform-browser`
+ * `@smthrs/platform-browser` — the two platform services `@effect/platform-browser`
  * does not ship.
  *
  * `effect`'s browser platform package covers HTTP, sockets, workers, key-value
@@ -12,7 +12,7 @@
  * slices, so the page decides which backend is mounted.
  *
  * ```ts
- * import { BrowserServices } from "@smthrs/platform-browser-next"
+ * import { BrowserServices } from "@smthrs/platform-browser"
  *
  * const layer = BrowserServices.layer({ bash, fs })
  * ```
@@ -21,14 +21,26 @@
  * at the repository root pins that property.
  */
 
-/** `ChildProcessSpawner` over an in-page bash interpreter. */
+/**
+ * `ChildProcessSpawner` over an in-page bash interpreter.
+ * @slop
+ */
 export * as BrowserChildProcessSpawner from "./BrowserChildProcessSpawner/index.ts"
 
-/** `FileSystem` over a ZenFS-shaped promises API. */
+/**
+ * `FileSystem` over a ZenFS-shaped promises API.
+ * @slop
+ */
 export * as BrowserFileSystem from "./BrowserFileSystem/index.ts"
 
-/** The complete closed Host bundle for a browser tab. */
+/**
+ * The complete closed Host bundle for a browser tab.
+ * @slop
+ */
 export * as BrowserHost from "./BrowserHost.ts"
 
-/** The aggregate browser platform services layer. */
+/**
+ * The aggregate browser platform services layer.
+ * @slop
+ */
 export * as BrowserServices from "./BrowserServices.ts"

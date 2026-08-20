@@ -14,7 +14,13 @@ For a first pass, read:
 6. [Getting started](guides/getting-started.md)
 7. [Writing a flow](guides/writing-a-flow.md)
 
-Read [implementation status](architecture/implementation-status.md) before choosing a deployment architecture. It distinguishes working library surfaces from planned integration work.
+Read [implementation status](architecture/implementation-status.md) before choosing a deployment architecture. It distinguishes working library surfaces from planned integration work. Three sections there answer the questions that come up first:
+
+- [Not in release 1](architecture/implementation-status.md#not-in-release-1) — subsystems that exist in this tree and are not part of release 1: `@smthrs/triggers`, `@smthrs/evals`, `@smthrs/gateway`, memory semantic recall, and OTLP export.
+- [Abandoned runs and supervision](architecture/implementation-status.md#abandoned-runs-and-supervision) — abandoned runs are **not** auto-resumed in this release, and the manual resume path.
+- [Substrate pin and known upstream issues](architecture/implementation-status.md#substrate-pin-and-known-upstream-issues) — the exact `effect@4.0.0-rc.108` pin and the upstream defects tracked against it.
+
+Private-alpha operators should also read the [alpha notes](alpha-notes.md) for current operational limits.
 
 ## Concepts
 
@@ -37,30 +43,31 @@ Read [implementation status](architecture/implementation-status.md) before choos
 - [Writing a flow](guides/writing-a-flow.md)
 - [Using the durable engine](guides/durable-engine.md)
 - [Testing](guides/testing.md)
+- [Control-plane trust posture](guides/control-plane-trust.md) — bearer authentication, loopback binding, and alpha authorization limits.
 
 ## Package reference
 
-- [`@smthrs/flows-next`](reference/flows.md) — barrel package re-exporting everything below
-- [`@smthrs/database-next`](reference/database.md)
-- [`@smthrs/jj-next`](reference/jj.md)
-- [`@smthrs/sandbox-next`](reference/sandbox.md)
-- [`@smthrs/platform-browser-next`](reference/platform-browser.md)
-- `@smthrs/platform-node-next` and `@smthrs/platform-bun-next` — the Node and Bun Host bundles; see the [platform-node](pages/api/platform-node.md) and [platform-bun](pages/api/platform-bun.md) API pages
-- [`@smthrs/journal-next`](reference/journal.md)
-- [`@smthrs/run-store-next`](reference/run-store.md)
-- [`@smthrs/step-cache-next`](reference/step-cache.md)
-- [`@smthrs/artifacts-next`](reference/artifacts.md)
-- [`@smthrs/capability-next`](reference/capability.md)
-- [`@smthrs/kernel-next`](reference/kernel.md)
-- [`@smthrs/canonical-next`](reference/canonical.md)
-- [`@smthrs/crypto-next`](reference/crypto.md)
-- [`@smthrs/keys-next`](reference/keys.md)
-- [`@smthrs/plan-next`](reference/plan.md)
-- [`@smthrs/flow-next`](reference/flow.md)
-- [`@smthrs/engine-next`](reference/engine.md)
-- [`@smthrs/engine-store-next`](reference/engine-store.md)
-- [`@smthrs/sync-next`](reference/sync.md)
-- [`@smthrs/time-travel-next`](reference/time-travel.md)
+- [`@smthrs/flows`](reference/flows.md) — barrel package re-exporting everything below
+- [`@smthrs/database`](reference/database.md)
+- [`@smthrs/jj`](reference/jj.md)
+- [`@smthrs/sandbox`](reference/sandbox.md)
+- [`@smthrs/platform-browser`](reference/platform-browser.md)
+- `@smthrs/platform-node` and `@smthrs/platform-bun` — the Node and Bun Host bundles; see the [platform-node](pages/api/platform-node.md) and [platform-bun](pages/api/platform-bun.md) API pages
+- [`@smthrs/journal`](reference/journal.md)
+- [`@smthrs/run-store`](reference/run-store.md)
+- [`@smthrs/step-cache`](reference/step-cache.md)
+- [`@smthrs/artifacts`](reference/artifacts.md)
+- [`@smthrs/capability`](reference/capability.md)
+- [`@smthrs/kernel`](reference/kernel.md)
+- [`@smthrs/canonical`](reference/canonical.md)
+- [`@smthrs/crypto`](reference/crypto.md)
+- [`@smthrs/keys`](reference/keys.md)
+- [`@smthrs/plan`](reference/plan.md)
+- [`@smthrs/flow`](reference/flow.md)
+- [`@smthrs/engine`](reference/engine.md)
+- [`@smthrs/engine-store`](reference/engine-store.md)
+- [`@smthrs/sync`](reference/sync.md)
+- [`@smthrs/time-travel`](reference/time-travel.md)
 
 Vendor host adapters (`@smthrs/host-cloudflare`, `@smthrs/host-vercel`) are
 documented in the [plugins repository](https://github.com/smithersai/plugins).
@@ -72,6 +79,12 @@ documented in the [plugins repository](https://github.com/smithersai/plugins).
 - [Execution and data flow](architecture/execution-data-flow.md)
 - [Design decisions](architecture/design-decisions.md)
 - [Implementation status](architecture/implementation-status.md)
+- [Alpha notes](alpha-notes.md) — known limitations for the private alpha, including the register of test pins.
+
+## Releasing
+
+- [Release runbook](release-runbook.md) — what a human runs to publish the engine train.
+- [Release rehearsal receipt](release-rehearsal.md) — the recorded no-publish rehearsal of that path.
 
 ## Documentation conventions
 

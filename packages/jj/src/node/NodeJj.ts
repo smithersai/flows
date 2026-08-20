@@ -63,8 +63,8 @@ const jj = (method: string, args: ReadonlyArray<string>, cwd?: string): Effect.E
     child.on("error", (error: NodeJS.ErrnoException) =>
       resume(Effect.fail(
         error.code === "ENOENT"
-          ? new JjError({ code: "not_installed", message: "jj: command not found on PATH" })
-          : new JjError({ code: "unknown", message: `jj ${method}: ${error.message}` })
+          ? new JjError({ code: "not_installed", message: "jj: command not found on PATH", cause: error })
+          : new JjError({ code: "unknown", message: `jj ${method}: ${error.message}`, cause: error })
       )))
     child.on("close", (exitCode: number | null) => resume(Effect.succeed({ stdout, stderr, exitCode: exitCode ?? 1 })))
     return Effect.sync(() => {
@@ -113,6 +113,7 @@ const status = () => jj("status", ["status"])
  *
  * @category layers
  * @since 1.0.0
+ * @slop
  */
 export const layer: Layer.Layer<Jj> = Layer.succeed(Jj)({
   snapshot,

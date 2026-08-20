@@ -7,8 +7,8 @@
  * and the three error shapes `errorCode` has to normalize — would otherwise go
  * unasserted. A serverless or locked-down bundle looks exactly like this.
  */
-import * as BrowserJj from "@smthrs/jj-next/browser/BrowserJj"
-import * as BrowserFileSystem from "@smthrs/platform-browser-next/BrowserFileSystem"
+import * as BrowserJj from "@smthrs/jj/browser/BrowserJj"
+import * as BrowserFileSystem from "@smthrs/platform-browser/BrowserFileSystem"
 import { Effect, Layer, Path, PlatformError } from "effect"
 import { ChildProcessSpawner, make as makeSpawner } from "effect/unstable/process/ChildProcessSpawner"
 import * as CommandLine from "../../src/CommandLine.ts"

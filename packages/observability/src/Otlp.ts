@@ -31,6 +31,7 @@ import * as Otlp from "effect/unstable/observability/Otlp"
  *
  * @category resource
  * @since 0.1.0
+ * @slop
  */
 export const defaultServiceName = "flows"
 
@@ -40,6 +41,7 @@ export const defaultServiceName = "flows"
  *
  * @category resource
  * @since 0.1.0
+ * @slop
  */
 export const defaultServiceVersion = "0.1.0"
 
@@ -48,6 +50,7 @@ export const defaultServiceVersion = "0.1.0"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Options {
   /**
@@ -77,12 +80,13 @@ export interface Options {
  *
  * The layer still requires an `HttpClient`, which is how it stays
  * platform-neutral: a Node host may hand it `@effect/platform-node`'s Undici
- * client (re-exported by `@smthrs/platform-node-next`), a browser or test
+ * client (re-exported by `@smthrs/platform-node`), a browser or test
  * hands it something else. Use {@link layerFetch} when the host's global
  * `fetch` is good enough — on Node 22 and every browser it is.
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (options: Options): Layer.Layer<never, never, HttpClient.HttpClient> =>
   Otlp.layerJson({
@@ -107,13 +111,14 @@ export const layer = (options: Options): Layer.Layer<never, never, HttpClient.Ht
  * **Example**
  *
  * ```ts
- * import * as Otlp from "@smthrs/observability-next/Otlp"
+ * import * as Otlp from "@smthrs/observability/Otlp"
  *
  * const Telemetry = Otlp.layerFetch({ baseUrl: "http://localhost:4318" })
  * ```
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerFetch = (options: Options): Layer.Layer<never> =>
   layer(options).pipe(Layer.provide(FetchHttpClient.layer))
@@ -125,5 +130,6 @@ export const layerFetch = (options: Options): Layer.Layer<never> =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop: Layer.Layer<never> = Layer.empty

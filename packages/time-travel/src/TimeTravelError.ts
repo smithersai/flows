@@ -6,7 +6,7 @@
  * offering "retry", a driver deciding whether to back off — branch on *why*
  * the operation was refused, and a closed code list keeps that branch
  * exhaustive. The tag itself is wire format, so it stays
- * `flows/time-travel/TimeTravelError` even as the code list grows.
+ * `@smthrs/time-travel/TimeTravelError` even as the code list grows.
  *
  * @since 0.1.0
  */
@@ -17,11 +17,12 @@ import * as Schema from "effect/Schema"
  * `busy` — another rewind holds the run. `live_parent` / `live_child` — the
  * run or one of its descendants is still executing, so its history is not
  * settled enough to branch from or truncate. `not_found` — the run or frame
- * does not exist. `rate_limited` — the rewind rate limiter rejected the
- * attempt. `compensation_failed` — a side effect's rollback handler failed, so
- * the rewind stopped rather than leave the world half-reverted. `irreversible`
- * — an effect in the truncated range cannot be undone at all. `unknown` — the
- * store or an unmapped host failure.
+ * does not exist. `invalid` — a caller-supplied option is malformed, refused
+ * before the operation touches anything. `rate_limited` — the rewind rate
+ * limiter rejected the attempt. `compensation_failed` — a side effect's
+ * rollback handler failed, so the rewind stopped rather than leave the world
+ * half-reverted. `irreversible` — an effect in the truncated range cannot be
+ * undone at all. `unknown` — the store or an unmapped host failure.
  *
  * @since 0.1.0
  * @category schemas
@@ -31,6 +32,7 @@ export const TimeTravelErrorCode = Schema.Literals([
   "live_parent",
   "live_child",
   "not_found",
+  "invalid",
   "rate_limited",
   "compensation_failed",
   "irreversible",
@@ -51,7 +53,7 @@ export type TimeTravelErrorCode = typeof TimeTravelErrorCode.Type
  * @since 0.1.0
  * @category errors
  */
-export class TimeTravelError extends Schema.TaggedError<TimeTravelError>()("flows/time-travel/TimeTravelError", {
+export class TimeTravelError extends Schema.TaggedError<TimeTravelError>()("@smthrs/time-travel/TimeTravelError", {
   code: TimeTravelErrorCode,
   message: Schema.String,
   cause: Schema.optional(Schema.Unknown)

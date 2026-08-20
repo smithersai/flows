@@ -1,4 +1,5 @@
-import * as Permission from "@smthrs/capability-next/Permission"
+import { describe, expect, it } from "@effect/vitest"
+import * as Permission from "@smthrs/capability/Permission"
 import {
   Effect,
   FileSystem as EffectFileSystem,
@@ -8,7 +9,6 @@ import {
   Sink,
   Stream
 } from "effect"
-import { describe, expect, it } from "vitest"
 import * as FileSystem from "../src/FileSystem.ts"
 import { GrantStore } from "../src/GrantStore.ts"
 import * as Workspace from "../src/Workspace.ts"
@@ -36,7 +36,7 @@ const resolve = (
     return yield* FileSystem.canonicalResource(host, pathService, root, value)
   }).pipe(Effect.provide(path))
 
-const itEffect = <A, E>(name: string, body: () => Effect.Effect<A, E>) => it(name, () => Effect.runPromise(body()))
+const itEffect = <A, E>(name: string, body: () => Effect.Effect<A, E>) => it.effect(name, () => body())
 
 describe("canonicalResource", () => {
   itEffect("resolves a workspace-relative value against the workspace root", () =>
@@ -134,10 +134,10 @@ describe("FileSystem.sink failures", () => {
       list: Effect.succeed([]),
       grantEnvelope: () => Effect.void
     })
-    const host = EffectFileSystem.makeNoop({
+    const host = FileSystem.withIsolatedFileSystem(EffectFileSystem.makeNoop({
       realPath: (value) => Effect.succeed(value),
       sink: () => Sink.forEach(() => Effect.fail(platformError("ENOSPC")))
-    })
+    }))
     return Effect.gen(function*() {
       const fileSystem = yield* EffectFileSystem.FileSystem
       const failure = yield* Effect.flip(
@@ -161,7 +161,7 @@ describe("FileSystem.sink failures", () => {
       list: Effect.succeed([]),
       grantEnvelope: () => Effect.void
     })
-    const host = EffectFileSystem.makeNoop({
+    const host = FileSystem.withIsolatedFileSystem(EffectFileSystem.makeNoop({
       realPath: (value) => Effect.succeed(value),
       sink: () =>
         Sink.forEach(() =>
@@ -169,7 +169,7 @@ describe("FileSystem.sink failures", () => {
             opened = true
           })
         )
-    })
+    }))
     return Effect.gen(function*() {
       const fileSystem = yield* EffectFileSystem.FileSystem
       const failure = yield* Effect.flip(

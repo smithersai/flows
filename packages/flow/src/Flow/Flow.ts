@@ -16,19 +16,37 @@
  *
  * @since 4.0.0
  */
-import type * as Node from "@smthrs/plan-next/Node"
+import type * as Node from "@smthrs/plan/Node"
+import type * as Planned from "@smthrs/plan/Planned"
 import type * as Cause from "effect/Cause"
 import type * as Context from "effect/Context"
+import type * as Crypto from "effect/Crypto"
 import type * as Effect from "effect/Effect"
 import type * as Option from "effect/Option"
 import type * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
 import type { PlannedPayload } from "../Action/Action.ts"
+import type { CancelRequestFailed } from "../FlowRuntime/CancelRequestFailed.ts"
+import type { FlowCycleDetected } from "../FlowRuntime/FlowCycleDetected.ts"
+import type { FlowExecutionNotFound } from "../FlowRuntime/FlowExecutionNotFound.ts"
 import type { FlowInstance, FlowRuntime } from "../FlowRuntime/index.ts"
 import type * as RetryPolicy from "../RetryPolicy.ts"
-import type { To } from "./Outcome.ts"
+import type { Outcome, To } from "./Outcome.ts"
 import type { Result } from "./Result.ts"
 import type { TypeId } from "./TypeId.ts"
+
+/**
+ * Values with which a flow body may settle one round.
+ *
+ * A plain decoded success completes the flow. A planned success is a symbolic
+ * reference the graph resolves before settlement. An outcome either completes
+ * explicitly, hands off to another round, or parks durably.
+ *
+ * @category models
+ * @since 4.0.0
+ * @slop
+ */
+export type BodySuccess<A> = A | Planned.Planned<A> | Outcome<A | Planned.Planned<A>, unknown>
 
 /**
  * Durable flow definition with typed payload, success, and error schemas
@@ -37,6 +55,7 @@ import type { TypeId } from "./TypeId.ts"
  *
  * @category models
  * @since 4.0.0
+ * @slop
  */
 export interface Flow<
   Tag extends string,
@@ -70,7 +89,7 @@ export interface Flow<
    * implementation it does not carry, and that obligation travels with the flow
    * until something executes it.
    */
-  readonly body: (payload: Payload["Type"]) => Node.Node<unknown, unknown, Requires>
+  readonly body: (payload: Payload["Type"]) => Node.Node<BodySuccess<Success["Type"]>, Error["Type"], Requires>
   readonly idempotencyKey?: ((payload: Payload["Type"]) => string) | undefined
   readonly suspendedRetryPolicy?: RetryPolicy.RetryPolicy | undefined
   /**
@@ -80,8 +99,9 @@ export interface Flow<
    * are legal, so `docs/specs/Concepts/Trampoline Loops.md` stops a runaway
    * lineage by counting rounds instead of comparing them. Absent means
    * unbounded, which is the right default for a lineage whose exit condition
-   * is its own branch. Exceeding it fails the lineage with
-   * {@link module:MaxRoundsExceeded.MaxRoundsExceeded}.
+   * is its own branch. Exceeding it terminates the lineage with a
+   * {@link module:MaxRoundsExceeded.MaxRoundsExceeded} defect recorded in the
+   * execution result; it is not a typed `execute` failure.
    */
   readonly maxRounds?: number | undefined
 
@@ -154,6 +174,10 @@ export interface Flow<
    * option, the flow's declared `idempotencyKey`, then the ambient
    * `CurrentExecutionIds` source, whose default derives an id from the flow
    * tag and the payload's canonical form.
+   *
+   * A payload that fails the flow's own schema is a typed
+   * `Schema.SchemaError` failure carrying the offending field path — caller
+   * input is data, not programmer wiring, so it fails rather than dies.
    */
   readonly execute: <const Discard extends boolean = false>(
     payload: Payload["~type.make.in"],
@@ -163,8 +187,9 @@ export interface Flow<
     }
   ) => Effect.Effect<
     Discard extends true ? string : Success["Type"],
-    Discard extends true ? never : Error["Type"],
+    Schema.SchemaError | FlowCycleDetected | (Discard extends true ? never : Error["Type"]),
     | FlowRuntime
+    | Crypto.Crypto
     | Requires
     | Payload["EncodingServices"]
     | Success["DecodingServices"]
@@ -173,12 +198,16 @@ export interface Flow<
 
   /**
    * Poll the current status of a flow execution.
+   *
+   * `Option.none` means the execution is known and has not settled;
+   * {@link FlowExecutionNotFound} means the runtime has no record of the
+   * execution id at all.
    */
   readonly poll: (
     executionId: string
   ) => Effect.Effect<
     Option.Option<Result<Success["Type"], Error["Type"]>>,
-    never,
+    FlowExecutionNotFound,
     FlowRuntime | Success["DecodingServices"] | Error["DecodingServices"]
   >
 
@@ -188,10 +217,16 @@ export interface Flow<
    * This is not a pause operation. The engine interrupts active work while
    * preserving its normal cleanup, compensation, and child-flow semantics.
    * Calling `resume` does not undo the cancellation request.
+   *
+   * A durable engine records the cancellation request before it interrupts
+   * anything, and reports {@link CancelRequestFailed} when that record could
+   * not be written — the execution is then still running, so the caller sees
+   * the storage failure instead of a false success. An in-memory engine has
+   * nothing to record and never raises it.
    */
   readonly interrupt: (
     executionId: string
-  ) => Effect.Effect<void, never, FlowRuntime>
+  ) => Effect.Effect<void, CancelRequestFailed, FlowRuntime>
 
   /**
    * Re-drives an execution that returned `Suspended` so it can replay its
@@ -222,7 +257,7 @@ export interface Flow<
    */
   readonly executionId: (
     payload: Payload["~type.make.in"]
-  ) => Effect.Effect<string>
+  ) => Effect.Effect<string, never, Crypto.Crypto>
 
   /**
    * Runs an effect and registers how to undo its successful result if the
@@ -268,6 +303,7 @@ export interface Flow<
  *
  * @category schemas
  * @since 4.0.0
+ * @slop
  */
 export interface AnyStructSchema extends Schema.Top {
   readonly fields: Schema.Struct.Fields
@@ -279,6 +315,7 @@ export interface AnyStructSchema extends Schema.Top {
  *
  * @category models
  * @since 4.0.0
+ * @slop
  */
 export interface Execution<Tag extends string> {
   readonly _: unique symbol
@@ -291,13 +328,14 @@ export interface Execution<Tag extends string> {
  *
  * @category models
  * @since 4.0.0
+ * @slop
  */
 export interface Any {
   new(_: never): {}
 
   readonly [TypeId]: typeof TypeId
   readonly _tag: string
-  readonly executionId: (payload: any) => Effect.Effect<string>
+  readonly executionId: (payload: any) => Effect.Effect<string, never, Crypto.Crypto>
   readonly payloadSchema: AnyStructSchema
   readonly successSchema: Schema.Top
   readonly errorSchema: Schema.Top
@@ -314,6 +352,7 @@ export interface Any {
  *
  * @category models
  * @since 4.0.0
+ * @slop
  */
 export interface AnyWithProps extends Any {
   readonly payloadSchema: AnyStructSchema
@@ -339,6 +378,7 @@ export interface AnyWithProps extends Any {
  *
  * @category models
  * @since 4.0.0
+ * @slop
  */
 export type PayloadSchema<W> = W extends Flow<
   infer _Name,
@@ -355,6 +395,7 @@ export type PayloadSchema<W> = W extends Flow<
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Requirements<W> = W extends Flow<
   infer _Name,
@@ -371,6 +412,7 @@ export type Requirements<W> = W extends Flow<
  *
  * @category models
  * @since 4.0.0
+ * @slop
  */
 export type RequirementsClient<Flows extends Any> = Flows extends Flow<
   infer _Name,
@@ -390,6 +432,7 @@ export type RequirementsClient<Flows extends Any> = Flows extends Flow<
  *
  * @category models
  * @since 4.0.0
+ * @slop
  */
 export type RequirementsHandler<Flows extends Any> = Flows extends Flow<
   infer _Name,

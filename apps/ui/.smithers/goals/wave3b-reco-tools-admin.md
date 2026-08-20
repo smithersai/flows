@@ -1,0 +1,28 @@
+# Wave 3b — Product integration: recommendations, the agent tool loop, the admin plugin
+
+You are working in `/Users/williamcory/mvp` on branch `oneshot-mskp7qe7-work`. Read `WAVE2A-RECEIPT.md` first (the substrate + the seam patterns + contract-verification discipline), then `WAVE1-RECEIPT.md`, `DESIGN.md`, `AGENTS.md`. House laws hold: no `useEffect`; projections only; every mutation a dispatched transition; every affordance a registered command (parity gate); honest states over fake success; keep `bun test src`, `bun run typecheck`, and `bun scripts/worker-e2e.ts` green and extend them.
+
+Sibling contracts live in `/Users/williamcory/flows/ui` on the branch tip carrying all wave work — **read the landed code, not just docs**: `workers/recommendations` (+ `WAVE3-RECO-RECEIPT.md`), `workers/identity`, `workers/billing`, and `workers/chat` (a tool-call loop is being added to the contract in `.smithers/goals/wave4-chat-tool-loop.md`; if `workers/chat/TOOL-LOOP.md` exists, IT is the contract — verify against the code).
+
+## 1. Recommendations in the product (Beat 5 — "Smithers has already read")
+- Proxy `/api/reco/*` through the product Worker to `RECO_UPSTREAM_URL` (same seam discipline; honest 501 unset).
+- On entering chat signed-in: fetch `GET /api/reco/first-run`; render the **digest as the first Smithers message** (its one plain-language sentence, with the typed evidence one step deeper on the card — counts, repo names, oldest item) and the **one recommendation as a card** carrying proposes / why now / what happens / accept · edit · dismiss.
+- `degraded:true` renders the `honestMessage` as an honest first message — never filler, never a fake digest.
+- **Dismiss is one key** (Escape or `d` while the card is focused, plus a visible affordance), posts `dismiss` to `/api/reco/feedback`, removes the card without argument. Accept runs the recommendation's affordance (as a command); edit opens the composer prefilled. **Every accept/edit/dismiss posts feedback** (the day-one logging law).
+- The `/` surface lists the current recommendation FIRST (gold), before other commands; bare `/` + Enter runs it. Commands: `reco.accept`, `reco.edit`, `reco.dismiss`, `reco.refresh`.
+- Stub reco upstream added to `scripts/stub-backends.ts` honoring the landed response shapes (grounded + degraded + feedback), driven in the worker e2e.
+
+## 2. Agent tool loop, client side ("a Flow created through conversation")
+- Per the chat tool-loop contract: send the one `workflows` tool spec (`src/mainview/commands/agentTools.ts`) with each turn; handle the `{"type":"tool_call"}` frame → execute through the registry (`Commands.executeForAgent` path — same path as buttons and slash, actor `smithers`) → POST the continuation turn with the `tool` role result → render the resumed stream. Cap client-side loop legs (mirror the server cap); an unknown tool name returns an honest tool-result error to the model, never a crash.
+- Tool executions are visible: each tool call renders in the transcript as a compact one-line act ("Smithers ran /world.new-note") — nothing completes silently.
+- If the chat worker's tool loop has NOT landed by the time you integrate: build fully against the documented frame contract with the stub upstream emitting `tool_call` frames, keep it green, and say so in the receipt. Do not fake a live end-to-end claim.
+- Tests: tool_call → registry execution → continuation POST; unknown tool; leg cap; visibility line. Worker e2e: scripted turn where the stub model asks for a real command (e.g. `world.new-note`), the note actually exists in the store afterward, and the final text acknowledges it.
+
+## 3. The admin plugin (Launch Checklist §E — non-enumerable)
+- Product Worker: `/api/admin/*` routes that FIRST validate the session via identity (`/api/identity/validate`) and require `admin:true`; a non-admin (or signed-out) gets **404 with the same body shape as any unknown route — never 403, never a different error shape**. Admin-true requests proxy: allowlist add/remove (identity admin API, with `requester` = the admin's login and a fresh timestamp), grant balance (billing admin grants API, same attribution), request-access queue read (identity), reco feedback log read.
+- Client: admin commands registered ONLY when `session.admin` is true — they must not exist in the registry otherwise (not hidden: absent; the parity/enumeration surface of a non-admin session contains no trace, and a direct `/name` invocation renders the same "unknown command" state as any typo). Commands: `admin.allowlist.add`, `admin.allowlist.remove`, `admin.grant` (amount + login → billing grant, confirmation card showing exactly what will happen before posting), `admin.requests` (queue card with one-click approve → allowlist add), `admin.feedback` (reco log card).
+- "What failed overnight?" v1: `admin.health` — a card composed from real reads (billing healthz + recent charges, identity healthz, reco healthz, request-queue depth) with an honest per-service ok/failed line. No invented metrics.
+- Tests: non-admin 404-shape equality (byte-identical to unknown-route response), admin journey through stubs (add → grant with attribution → queue drain), registry absence for non-admin sessions (extend the parity gate). Worker e2e: the full admin journey + a non-admin probe asserting undetectability.
+
+## 4. Receipt
+Commit clean conventional commits. `WAVE3B-RECEIPT.md`: what landed, proofs with observed outputs, exact env vars the deployed product now needs (compile the FULL list across all seams — this becomes the deploy checklist), contract deltas found in sibling code, honest gaps.

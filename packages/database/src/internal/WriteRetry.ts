@@ -26,6 +26,7 @@ import * as DatabaseMetrics from "../DatabaseMetrics.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface WriteRetryOptions {
   /** Total attempts, including the initial write. */
@@ -40,8 +41,10 @@ const defaultMaxAttempts = 10
 const defaultBaseDelayMs = 50
 const defaultMaxDelayMs = 10_000
 
-const boundedPositiveInteger = (value: number | undefined, fallback: number): number =>
-  Math.max(1, Math.floor(value ?? fallback))
+const boundedPositiveInteger = (value: number | undefined, fallback: number): number => {
+  const candidate = value ?? fallback
+  return Number.isSafeInteger(candidate) && candidate >= 1 ? candidate : 1
+}
 
 const causeCode = (cause: unknown): string | undefined => {
   if (typeof cause !== "object" || cause === null || !("code" in cause)) {
@@ -63,7 +66,6 @@ const isRetryableCode = (code: string | undefined): boolean =>
   code !== undefined &&
   (code.startsWith("SQLITE_BUSY") ||
     code.startsWith("SQLITE_LOCKED") ||
-    code.startsWith("SQLITE_IOERR") ||
     retryablePostgresStates.has(code))
 
 // PGlite runs Postgres in-process and does not always surface a SQLSTATE, so
@@ -72,13 +74,12 @@ const isRetryableMessage = (message: string): boolean =>
   message.includes("database is locked") ||
   message.includes("database is busy") ||
   message.includes("cannot rollback - no transaction is active") ||
-  message.includes("disk i/o error") ||
   message.includes("could not serialize access") ||
   message.includes("deadlock detected")
 
 /**
- * Returns whether a failure represents a transient write conflict or I/O
- * error, in either the SQLite or the Postgres vocabulary. The failure may be
+ * Returns whether a failure represents a transient write conflict in either
+ * the SQLite or the Postgres vocabulary. The failure may be
  * the structured SQL error itself or a domain error wrapping one — the walk
  * follows `cause` chains (and a `SqlError`'s reason cause) either way, so the
  * outermost `DurableWriter.write` still replays a transaction whose failing
@@ -88,6 +89,7 @@ const isRetryableMessage = (message: string): boolean =>
  *
  * @category guards
  * @since 0.1.0
+ * @slop
  */
 export const isRetryableWriteError = (error: unknown): boolean => {
   const seen = new Set<unknown>()
@@ -123,6 +125,7 @@ const retryableFromCause = <E>(cause: Cause.Cause<E>): E | undefined => {
  *
  * @category combinators
  * @since 0.1.0
+ * @slop
  */
 export const withWriteRetry = <A, E, R>(
   effect: Effect.Effect<A, E, R>,
@@ -131,11 +134,14 @@ export const withWriteRetry = <A, E, R>(
   const maxAttempts = boundedPositiveInteger(options?.maxAttempts, defaultMaxAttempts)
   const baseDelayMs = boundedPositiveInteger(options?.baseDelayMs, defaultBaseDelayMs)
   const maxDelayMs = boundedPositiveInteger(options?.maxDelayMs, defaultMaxDelayMs)
+  // Jitter runs before the cap so `maxDelayMs` bounds the delay that is
+  // actually slept: capping first and jittering after lets a jitter draw
+  // above 1 stretch a delay past the documented upper bound.
   const schedule = Schedule.exponential(Duration.millis(baseDelayMs)).pipe(
+    Schedule.jittered,
     Schedule.modifyDelay(({ duration }) =>
       Effect.succeed(Duration.millis(Math.min(maxDelayMs, Duration.toMillis(duration))))
     ),
-    Schedule.jittered,
     Schedule.upTo({ times: maxAttempts - 1 }),
     // The tap sits after `upTo`, so it fires once per step that actually
     // schedules a replay and never for the exhausted attempt that surfaces

@@ -9,18 +9,11 @@
  */
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
-import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
-import { DurableWriter } from "@smthrs/database-next"
-import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
-import { DurableEngineState, EngineStore, OwnerIdentity, StepBoundary, WorkspaceSandbox } from "@smthrs/engine-store-next"
-import * as Migrations from "@smthrs/engine-store-next/Migrations"
-import { AttemptStore, RunStore } from "@smthrs/run-store-next"
-import { CacheStore } from "@smthrs/step-cache-next"
-import { SqlJournal } from "@smthrs/journal-next"
-import { Jj, Workspace } from "@smthrs/kernel-next"
+import { StepBoundary, WorkspaceSandbox } from "@smthrs/engine-store"
+import * as NodeRuntime from "@smthrs/flows/NodeRuntime"
+import { Jj } from "@smthrs/kernel"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
-import { dirname, join } from "node:path"
 
 /**
  * A Jujutsu service that records nothing. The engine calls it for compensable
@@ -39,43 +32,8 @@ export const stubJj = Layer.succeed(
   })
 )
 
-/** Journal, run, attempt, and cache stores over one migrated SQLite file. */
-export const storesLayer = (filename: string) => {
-  const database = Layer.provideMerge(
-    Migrations.layer,
-    Layer.provideMerge(DurableWriter.layer(), NodeDatabase.layer({ filename }))
-  )
-  return Layer.mergeAll(
-    SqlJournal.layer({ capacity: 1024, overflow: "reject" }),
-    RunStore.layer,
-    AttemptStore.layer,
-    CacheStore.layer,
-    DurableEngineState.layer
-  ).pipe(Layer.provideMerge(database))
-}
-
-/**
- * The workspace an example's actions read and write. It defaults to the
- * directory holding the SQLite file, so a temp-file example is confined to its
- * own temp directory.
- */
-const workspaceRoot = (filename: string) => dirname(filename)
-
-/**
- * The host half: a real filesystem, a content-addressed artifact store inside
- * the workspace, and the workspace root itself.
- *
- * The store's directory is passed explicitly. `ArtifactStore.layerFileSystem`
- * does not read the kernel `Workspace` tag — its default `.flows/objects` is
- * resolved by the filesystem, which means the process's current directory —
- * so leaving it out would scatter an example's blobs wherever it happened to
- * be run from instead of into the temp workspace it just made.
- */
-const hostLayer = (filename: string) =>
-  ArtifactStore.layerFileSystem({ directory: join(workspaceRoot(filename), ".flows/objects") }).pipe(
-    Layer.provideMerge(Workspace.layer(workspaceRoot(filename))),
-    Layer.provideMerge(NodeFileSystem.layer)
-  )
+/** The migrated production storage context over one SQLite file. */
+export const storesLayer = (filename: string) => NodeRuntime.storage(filename)
 
 /**
  * Everything `EngineStore` requires, minus the engine itself.
@@ -99,13 +57,14 @@ const hostLayer = (filename: string) =>
  */
 export const requirements = (filename: string) =>
   Layer.mergeAll(
-    storesLayer(filename),
     StepBoundary.layer,
     WorkspaceSandbox.layerFileSystem(),
-    stubJj,
-    OwnerIdentity.layer,
-    NodeCrypto.layer
-  ).pipe(Layer.provideMerge(hostLayer(filename)))
+    stubJj
+  ).pipe(
+    Layer.provideMerge(storesLayer(filename)),
+    Layer.provideMerge(NodeCrypto.layer),
+    Layer.provideMerge(NodeFileSystem.layer)
+  )
 
 /**
  * A durable `FlowEngine` over the SQLite file at `filename`.
@@ -114,8 +73,21 @@ export const requirements = (filename: string) =>
  * read the journal or a run row back after executing a flow.
  */
 export const durableEngine = (filename: string, hostId: string) =>
-  EngineStore.layer({
-    owner: { hostId },
-    journalSource: `${hostId}-engine`,
-    isAlive: () => Effect.succeed(false)
-  }).pipe(Layer.provideMerge(requirements(filename)))
+  NodeRuntime.layer(
+    {
+      filename,
+      owner: { hostId },
+      isAlive: () => Effect.succeed(false)
+    },
+    StepBoundary.layer,
+    WorkspaceSandbox.layerFileSystem(),
+    // Each example provides this layer beneath its action implementations and
+    // Interpreter registrations. The public composition accepts the
+    // registration phase here; `Layer.empty` keeps this helper compatible with
+    // those focused examples while preserving their same outer startup order.
+    Layer.empty
+  ).pipe(
+    Layer.provideMerge(stubJj),
+    Layer.provideMerge(NodeCrypto.layer),
+    Layer.provideMerge(NodeFileSystem.layer)
+  )

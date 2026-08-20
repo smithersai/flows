@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "./workflows/production-readiness-swarm.tsx",
+    "./agents.ts",
+    "./agents/**/*.ts",
+    "./types/**/*.d.ts",
+    "./prompts/production-readiness-swarm/**/*.mdx"
+  ],
+  "exclude": [
+    "./executions/**/*"
+  ]
+}

@@ -14,6 +14,7 @@ import { Layer, Path as EffectPath } from "effect"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Path = EffectPath.Path
 
@@ -22,6 +23,7 @@ export type Path = EffectPath.Path
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
 export const Path = EffectPath.Path
 
@@ -32,5 +34,6 @@ export const Path = EffectPath.Path
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer: Layer.Layer<Path, never, Path> = Layer.effect(Path, Path)

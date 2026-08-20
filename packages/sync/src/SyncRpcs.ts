@@ -10,14 +10,17 @@ import { Frame, ReadRequest, ReadResponse, SubscribeRequest } from "./SyncProtoc
 /**
  * Authentication boundary for the sync RPC group.
  *
- * The middleware provides nothing: sync is a read path, and authorization is
- * expressed by rejecting the request rather than by narrowing a principal into
- * the handler.
+ * The middleware authenticates each request to a `SyncPrincipal` before the
+ * handler runs. The production implementation is `SyncAuth.layer`, which
+ * verifies the workspace capability presented in the request headers and
+ * installs the resulting principal; a request without a credential runs as
+ * the anonymous principal, which the server refuses for every non-branch
+ * read.
  *
  * @category middleware
  * @since 0.1.0
  */
-export class SyncAuth extends RpcMiddleware.Service<SyncAuth>()("@smthrs/sync-next/SyncAuth", { error: SyncError }) {}
+export class SyncAuth extends RpcMiddleware.Service<SyncAuth>()("@smthrs/sync/SyncAuth", { error: SyncError }) {}
 
 /**
  * The two remote procedures of the sync read path.

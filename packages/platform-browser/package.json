@@ -1,8 +1,11 @@
 {
-  "name": "@smthrs/platform-browser-next",
+  "name": "@smthrs/platform-browser",
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
+  "smthrs": {
+    "group": "engine"
+  },
   "description": "Browser implementations of Effect platform services backed by ZenFS and just-bash",
   "homepage": "https://github.com/smithersai/flows",
   "repository": {
@@ -92,12 +95,13 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@smthrs/jj-next": "0.1.0",
-    "@smthrs/kernel-next": "0.1.0",
+    "@smthrs/jj": "0.1.0",
+    "@smthrs/kernel": "0.1.0",
     "effect": "4.0.0-rc.108"
   },
   "devDependencies": {
     "@effect/language-service": "0.87.1",
+    "@effect/vitest": "4.0.0-rc.108",
     "@eslint/js": "9.39.1",
     "@types/node": "25.9.5",
     "@vitest/coverage-v8": "4.1.9",

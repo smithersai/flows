@@ -1,16 +1,16 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Action, DurableDeferred, Flow, Interpreter } from "@smthrs/flow-next"
-import { Node } from "@smthrs/plan-next"
+import { describe, expect, it } from "@effect/vitest"
+import { Action, DurableDeferred, Flow, Interpreter } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Effect, Fiber, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
-import { describe, expect, it } from "vitest"
 import { FlowEngine, FlowProxy } from "../src/index.ts"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it(name, () => runPromise(body().pipe(Effect.provide(TestClock.layer()))))
+  it.effect(name, () => withCrypto(body().pipe(Effect.provide(TestClock.layer()))))
 
 describe("FlowProxy", () => {
   const flow = Flow.make("FlowProxy/round-trip", {
@@ -18,7 +18,7 @@ describe("FlowProxy", () => {
     success: Schema.Number,
     error: Schema.Literal("invalid"),
     idempotencyKey: ({ value }) => String(value),
-    body: () => Node.succeed(undefined)
+    body: () => Node.succeed(0)
   })
 
   effect("uses an envelope that forwards executionId for execute and discard", () =>

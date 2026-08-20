@@ -11,7 +11,7 @@
  *
  * @since 0.1.0
  */
-import * as FileSet from "@smthrs/plan-next/FileSet"
+import * as FileSet from "@smthrs/plan/FileSet"
 import * as Schema from "effect/Schema"
 import { BoundaryMode } from "./BoundaryMode.ts"
 import { FileInput } from "./FileInput.ts"
@@ -21,6 +21,7 @@ import { FileInput } from "./FileInput.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const FileBoundary = Schema.Struct({
   /** Exact files already measured, or globs to expand while preparing. */
@@ -40,9 +41,11 @@ export const FileBoundary = Schema.Struct({
    *
    * Optional with an empty default, so boundaries persisted before it keep
    * decoding. Disjoint from {@link writeSet}: a path cannot be both promised
-   * and disclaimed.
+   * and disclaimed. Workspace-relative like every other declared path —
+   * replay acts on a removal by deleting it, so an absolute or upward
+   * spelling would hand evidence an eraser aimed outside the workspace.
    */
-  removes: Schema.optional(Schema.Array(Schema.NonEmptyString)),
+  removes: Schema.optional(Schema.Array(FileSet.Pattern)),
   /** Whether undeclared access is rejected immediately or validated later. */
   boundaryMode: BoundaryMode
 }).check(
@@ -63,5 +66,6 @@ export const FileBoundary = Schema.Struct({
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type FileBoundary = typeof FileBoundary.Type

@@ -27,6 +27,7 @@ import type { FlowInstance, FlowRuntime } from "./FlowRuntime/index.ts"
  *
  * @category type IDs
  * @since 4.0.0
+ * @slop
  */
 export type TypeId = "~effect/flow/DurableQueue"
 
@@ -35,6 +36,7 @@ export type TypeId = "~effect/flow/DurableQueue"
  *
  * @category type IDs
  * @since 4.0.0
+ * @slop
  */
 export const TypeId: TypeId = "~effect/flow/DurableQueue"
 
@@ -44,6 +46,7 @@ export const TypeId: TypeId = "~effect/flow/DurableQueue"
  *
  * @category models
  * @since 4.0.0
+ * @slop
  */
 export interface DurableQueue<
   Payload extends Schema.Top,
@@ -64,7 +67,7 @@ export interface DurableQueue<
  * **Example** (Defining a durable queue with workers)
  *
  * ```ts
- * import { Action, DurableQueue, Flow, Interpreter } from "@smthrs/flow-next"
+ * import { Action, DurableQueue, Flow, Interpreter } from "@smthrs/flow"
  * import { Effect, Layer, Schema } from "effect"
  *
  * // Define a DurableQueue that can be used to derive workers and offer items for
@@ -127,6 +130,7 @@ export interface DurableQueue<
  *
  * @category constructors
  * @since 4.0.0
+ * @slop
  */
 export const make = <
   Payload extends Schema.Top | Schema.Struct.Fields,
@@ -188,6 +192,7 @@ const getQueueSchema = <Payload extends Schema.Top>(
  *
  * @category processing
  * @since 4.0.0
+ * @slop
  */
 export const process: <
   Payload extends Schema.Top,
@@ -269,6 +274,7 @@ const defaultRetrySchedule = Schedule.min([
  *
  * @category worker
  * @since 4.0.0
+ * @slop
  */
 export const makeWorker: <
   Payload extends Schema.Top,
@@ -358,6 +364,7 @@ export const makeWorker: <
  *
  * @category worker
  * @since 4.0.0
+ * @slop
  */
 export const worker: <
   Payload extends Schema.Top,

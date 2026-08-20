@@ -57,6 +57,7 @@ const REQUIRED_EXPORTS = ["memory", "_initialize", "flows_jj_alloc", "flows_jj_f
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface BrowserJjOptions {
   /**
@@ -195,6 +196,7 @@ const instantiate = async (options: BrowserJjOptions): Promise<AbiExports> => {
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const make = (options: BrowserJjOptions): Jj => {
   const root = options.root ?? "/"
@@ -263,6 +265,7 @@ export const make = (options: BrowserJjOptions): Jj => {
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layer = (options: BrowserJjOptions): Layer.Layer<Jj> => Layer.succeed(Jj)(make(options))
 
@@ -283,6 +286,7 @@ const fail = (command: string) =>
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerUnsupported: Layer.Layer<Jj> = Layer.succeed(Jj)({
   snapshot: () => fail("jj commit"),

@@ -5,5 +5,6 @@
  *
  * @private
  * @since 4.0.0
+ * @slop
  */
 export const TypeId = "~effect/flow/Action"

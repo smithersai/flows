@@ -2,20 +2,20 @@
  * The system sleep action: what it puts in a plan, how it parks, and what a
  * settled wait does on replay.
  */
-import { Action, DurableClock, DurableDeferred, Flow, FlowRuntime, Graph, Interpreter, Sleep } from "@smthrs/flow-next"
-import { Node } from "@smthrs/plan-next"
+import { describe, expect, it } from "@effect/vitest"
+import { Action, DurableClock, DurableDeferred, Flow, FlowRuntime, Graph, Interpreter, Sleep } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
-import { describe, expect, it } from "vitest"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 import { dispatchKey, layerMemory, makeInstance } from "./MemoryFlowRuntime.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it(name, () => runPromise(body().pipe(Effect.provide(TestClock.layer()))))
+  it.effect(name, () => withCrypto(body().pipe(Effect.provide(TestClock.layer()))))
 
 const pollComplete = <A, E, R>(
-  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>
+  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, FlowRuntime.FlowExecutionNotFound, R>
 ) =>
   Effect.gen(function*() {
     let result = yield* poll
@@ -38,7 +38,9 @@ const marks: Array<string> = []
 const wired = (
   registration: Layer.Layer<never, never, FlowRuntime.FlowRuntime | Action.Implementations> = Layer.empty
 ): Layer.Layer<
-  Action.Requirement<"sleep/mark"> | FlowRuntime.FlowRuntime | Action.Implementations
+  Action.Requirement<"sleep/mark"> | FlowRuntime.FlowRuntime | Action.Implementations,
+  never,
+  Crypto.Crypto
 > =>
   Layer.mergeAll(
     Sleep.layer,
@@ -64,22 +66,24 @@ const clockOf = (executionId: string, ordinal: number) =>
     duration: "10 minutes"
   })
 
-const refusal = async (node: Node.Node<unknown, unknown>): Promise<unknown> => {
-  const instance = makeInstance(Host, "sleep-refusal")
-  const exit = await runPromise(
-    Effect.exit(Interpreter.interpret(node)).pipe(
-      Effect.provideService(FlowRuntime.FlowInstance, instance),
-      Effect.provide(wired())
+const refusal = (node: Node.Node<unknown, unknown>) =>
+  Effect.gen(function*() {
+    const instance = makeInstance(Host, "sleep-refusal")
+    const exit = yield* withCrypto(
+      Effect.exit(Interpreter.interpret(node)).pipe(
+        Effect.provideService(FlowRuntime.FlowInstance, instance),
+        Effect.provide(wired())
+      )
     )
-  )
-  expect(Exit.isFailure(exit)).toBe(true)
-  return Exit.isFailure(exit) ? exit.cause.reasons[0] : undefined
-}
+    expect(Exit.isFailure(exit)).toBe(true)
+    return Exit.isFailure(exit) ? exit.cause.reasons[0] : undefined
+  })
 
 describe("Sleep as a plan node", () => {
   const Timed = Flow.make("sleep/plan", {
     payload: { millis: Schema.Number },
     success: Schema.Void,
+    error: Sleep.SleepRequestInvalid,
     body: ({ millis }) => Sleep.action.call({ millis })
   })
 
@@ -117,6 +121,7 @@ describe("Sleep parks", () => {
     const Timed = Flow.make("sleep/durable", {
       payload: { millis: Schema.Number },
       success: Schema.String,
+      error: Sleep.SleepRequestInvalid,
       body: ({ millis }) =>
         Mark.call({ label: "before" }).pipe(
           Node.andThen(() => Sleep.action.call({ millis })),
@@ -155,6 +160,7 @@ describe("Sleep parks", () => {
     const Twice = Flow.make("sleep/twice", {
       payload: {},
       success: Schema.String,
+      error: Sleep.SleepRequestInvalid,
       body: () =>
         Sleep.action.call({ millis: 600_000 }).pipe(
           Node.andThen(() => Sleep.action.call({ millis: 600_000 })),
@@ -197,6 +203,7 @@ describe("Sleep parks", () => {
     const Rearmed = Flow.make("sleep/rearm", {
       payload: {},
       success: Schema.String,
+      error: Sleep.SleepRequestInvalid,
       body: () =>
         Mark.call({ label: "before" }).pipe(
           Node.andThen(() => Sleep.action.call({ millis: 600_000 })),
@@ -259,98 +266,103 @@ describe("Sleep parks", () => {
 })
 
 describe("Sleep replays", () => {
-  it("does not park again once its wake is recorded", async () => {
-    const instance = makeInstance(Host, "sleep-replay")
-    await runPromise(
-      Effect.gen(function*() {
-        // Exactly the state a fired timer leaves behind before the round is
-        // re-driven: the wake recorded under this dispatch's own clock.
-        const clock = clockOf("sleep-replay", 1)
-        const token = DurableDeferred.tokenFromExecutionId(clock.deferred, {
-          flow: Host,
-          executionId: "sleep-replay"
-        })
-        yield* DurableDeferred.succeed(clock.deferred, { token, value: undefined })
+  it.effect("does not park again once its wake is recorded", () =>
+    Effect.gen(function*() {
+      const instance = makeInstance(Host, "sleep-replay")
+      yield* withCrypto(
+        Effect.gen(function*() {
+          // Exactly the state a fired timer leaves behind before the round is
+          // re-driven: the wake recorded under this dispatch's own clock.
+          const clock = clockOf("sleep-replay", 1)
+          const token = DurableDeferred.tokenFromExecutionId(clock.deferred, {
+            flow: Host,
+            executionId: "sleep-replay"
+          })
+          yield* DurableDeferred.succeed(clock.deferred, { token, value: undefined })
 
-        const interpretation = yield* Interpreter.interpret(Sleep.action.call({ millis: 600_000 }))
-        expect(interpretation.value).toBeUndefined()
-      }).pipe(
-        Effect.provideService(FlowRuntime.FlowInstance, instance),
-        Effect.provide(wired())
+          const interpretation = yield* Interpreter.interpret(Sleep.action.call({ millis: 600_000 }))
+          expect(interpretation.value).toBeUndefined()
+        }).pipe(
+          Effect.provideService(FlowRuntime.FlowInstance, instance),
+          Effect.provide(wired())
+        )
       )
-    )
-    expect(instance.suspended).toBe(false)
-    // The persisted result consumes the declared classification, so a later
-    // suspension parks under its own reason.
-    expect(instance.waiting).toBeUndefined()
-  })
+      expect(instance.suspended).toBe(false)
+      // The persisted result consumes the declared classification, so a later
+      // suspension parks under its own reason.
+      expect(instance.waiting).toBeUndefined()
+    }))
 
-  it("settles a deadline that has already passed instead of parking", async () => {
-    const instance = makeInstance(Host, "sleep-past")
-    await runPromise(
-      Effect.gen(function*() {
-        const interpretation = yield* Interpreter.interpret(Sleep.action.call({ until: 0 }))
-        expect(interpretation.value).toBeUndefined()
-      }).pipe(
-        Effect.provideService(FlowRuntime.FlowInstance, instance),
-        Effect.provide(wired())
+  it.effect("settles a deadline that has already passed instead of parking", () =>
+    Effect.gen(function*() {
+      const instance = makeInstance(Host, "sleep-past")
+      yield* withCrypto(
+        Effect.gen(function*() {
+          const interpretation = yield* Interpreter.interpret(Sleep.action.call({ until: 0 }))
+          expect(interpretation.value).toBeUndefined()
+        }).pipe(
+          Effect.provideService(FlowRuntime.FlowInstance, instance),
+          Effect.provide(wired())
+        )
       )
-    )
-    expect(instance.suspended).toBe(false)
-    expect(instance.waiting).toBeUndefined()
-  })
+      expect(instance.suspended).toBe(false)
+      expect(instance.waiting).toBeUndefined()
+    }))
 })
 
 describe("Sleep refusals", () => {
-  it("refuses to arm a timer under a runtime that supplies no dispatch identity", async () => {
-    const instance = makeInstance(Host, "sleep-unidentified")
-    const exit = await runPromise(
-      Effect.gen(function*() {
-        const engine = yield* FlowRuntime.FlowRuntime
-        // A runtime that runs an implementation without saying which dispatch
-        // it is. The ordinary path provides `CurrentInvocationKey` here, and a
-        // timer named without it would collapse onto every other sleep.
-        const unidentified = FlowRuntime.FlowRuntime.of({
-          ...engine,
-          actionExecute: ((action: Action.Any) =>
-            Effect.map(
-              Effect.exit(action.executeEncoded),
-              (settled) => new Flow.Complete({ exit: settled })
-            )) as FlowRuntime.FlowRuntime["Service"]["actionExecute"]
-        })
-        return yield* Effect.exit(Interpreter.interpret(Sleep.action.call({ millis: 600_000 }))).pipe(
-          Effect.provideService(FlowRuntime.FlowRuntime, unidentified)
+  it.effect("refuses to arm a timer under a runtime that supplies no dispatch identity", () =>
+    Effect.gen(function*() {
+      const instance = makeInstance(Host, "sleep-unidentified")
+      const exit = yield* withCrypto(
+        Effect.gen(function*() {
+          const engine = yield* FlowRuntime.FlowRuntime
+          // A runtime that runs an implementation without saying which dispatch
+          // it is. The ordinary path provides `CurrentInvocationKey` here, and a
+          // timer named without it would collapse onto every other sleep.
+          const unidentified = FlowRuntime.FlowRuntime.of({
+            ...engine,
+            actionExecute: ((action: Action.Any) =>
+              Effect.map(
+                Effect.exit(action.executeEncoded),
+                (settled) => new Flow.Complete({ exit: settled })
+              )) as FlowRuntime.FlowRuntime["Service"]["actionExecute"]
+          })
+          return yield* Effect.exit(Interpreter.interpret(Sleep.action.call({ millis: 600_000 }))).pipe(
+            Effect.provideService(FlowRuntime.FlowRuntime, unidentified)
+          )
+        }).pipe(
+          Effect.provideService(FlowRuntime.FlowInstance, instance),
+          Effect.provide(wired())
         )
-      }).pipe(
-        Effect.provideService(FlowRuntime.FlowInstance, instance),
-        Effect.provide(wired())
       )
-    )
 
-    expect(Exit.isFailure(exit) && exit.cause.reasons[0]).toMatchObject({
-      _tag: "Die",
-      defect: expect.stringContaining("CurrentInvocationKey")
-    })
-    expect(instance.suspended).toBe(false)
-  })
+      expect(Exit.isFailure(exit) && exit.cause.reasons[0]).toMatchObject({
+        _tag: "Die",
+        defect: expect.stringContaining("CurrentInvocationKey")
+      })
+      expect(instance.suspended).toBe(false)
+    }))
 
-  it("refuses a payload that names no deadline", async () => {
-    expect(await refusal(Sleep.action.call({}))).toMatchObject({
-      error: {
-        _tag: "@smthrs/flow-next/SleepRequestInvalid",
-        code: "missing_deadline",
-        message: expect.stringContaining("neither")
-      }
-    })
-  })
+  it.effect("refuses a payload that names no deadline", () =>
+    Effect.gen(function*() {
+      expect(yield* refusal(Sleep.action.call({}))).toMatchObject({
+        error: {
+          _tag: "@smthrs/flow/SleepRequestInvalid",
+          code: "missing_deadline",
+          message: expect.stringContaining("neither")
+        }
+      })
+    }))
 
-  it("refuses a payload that names both a duration and a deadline", async () => {
-    expect(await refusal(Sleep.action.call({ millis: 1_000, until: 5_000 }))).toMatchObject({
-      error: {
-        _tag: "@smthrs/flow-next/SleepRequestInvalid",
-        code: "ambiguous_deadline",
-        message: expect.stringContaining("one deadline")
-      }
-    })
-  })
+  it.effect("refuses a payload that names both a duration and a deadline", () =>
+    Effect.gen(function*() {
+      expect(yield* refusal(Sleep.action.call({ millis: 1_000, until: 5_000 }))).toMatchObject({
+        error: {
+          _tag: "@smthrs/flow/SleepRequestInvalid",
+          code: "ambiguous_deadline",
+          message: expect.stringContaining("one deadline")
+        }
+      })
+    }))
 })

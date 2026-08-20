@@ -9,9 +9,9 @@
  * warning; nothing else in the journal can answer that question, because an
  * attempt row says an attempt happened, not that an effect left the machine.
  *
- * ## Why the shape lives here and not in `@smthrs/time-travel-next`
+ * ## Why the shape lives here and not in `@smthrs/time-travel`
  *
- * `@smthrs/time-travel-next` depends on `@smthrs/engine-store-next` (it decodes
+ * `@smthrs/time-travel` depends on `@smthrs/engine-store` (it decodes
  * `RunState`), so the arrow cannot be reversed without a cycle. The record is
  * therefore a **wire contract**, not a shared type: this module writes the
  * shape `EffectBoundary.fromEntry` reads, under the event type that module
@@ -32,15 +32,16 @@
  *
  * @since 0.1.0
  */
-import { JournalEvent } from "@smthrs/journal-next"
+import { JournalEvent } from "@smthrs/journal"
 
 /**
- * The event type `@smthrs/time-travel-next` decodes boundary evidence from.
+ * The event type `@smthrs/time-travel` decodes boundary evidence from.
  *
  * Duplicated deliberately rather than imported: see the module note.
  *
  * @since 0.1.0
  * @category constants
+ * @slop
  */
 export const eventType = "flows.time-travel.effect-boundary"
 
@@ -49,6 +50,7 @@ export const eventType = "flows.time-travel.effect-boundary"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type Status = "intended" | "succeeded" | "unknown"
 
@@ -57,6 +59,7 @@ export type Status = "intended" | "succeeded" | "unknown"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Descriptor {
   readonly id: string
@@ -89,6 +92,7 @@ export interface Descriptor {
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const boundary = (
   descriptor: Descriptor,
@@ -101,6 +105,7 @@ export const boundary = (
     sourceSeq: 0 as JournalEvent.SourceSeq,
     eventType,
     payload: {
+      version: 1,
       effect: {
         id: descriptor.id,
         kind: descriptor.kind,

@@ -1,4 +1,4 @@
-# Third-party notices for @smthrs/jj-next
+# Third-party notices for @smthrs/jj
 
 This distribution contains third-party software. The notices below are
 reproduced to satisfy the terms of the licenses those components are

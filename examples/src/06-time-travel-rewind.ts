@@ -24,9 +24,9 @@
  * ownership claim like any driver and refuses a live run. Phase one below parks
  * the run at a `DurableDeferred.await`, which is what makes it rewindable.
  */
-import { Action, DurableDeferred, Flow, Interpreter } from "@smthrs/flow-next"
-import { Journal, JournalEvent } from "@smthrs/journal-next"
-import { SqlTimeTravelStore, TimeTravel } from "@smthrs/time-travel-next"
+import { Action, DurableDeferred, Flow, Interpreter } from "@smthrs/flow"
+import { Journal, JournalEvent } from "@smthrs/journal"
+import { SqlTimeTravelStore, TimeTravel } from "@smthrs/time-travel"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"

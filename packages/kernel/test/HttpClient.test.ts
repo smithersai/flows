@@ -1,15 +1,15 @@
-import * as Capability from "@smthrs/capability-next/Capability"
-import { PermissionDenied } from "@smthrs/capability-next/Permission"
+import { describe, expect, it } from "@effect/vitest"
+import * as Capability from "@smthrs/capability/Capability"
+import { PermissionDenied } from "@smthrs/capability/Permission"
 import { Effect, Fiber, Option } from "effect"
 import * as EffectHttpClient from "effect/unstable/http/HttpClient"
 import * as HttpClientErrorModule from "effect/unstable/http/HttpClientError"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
 import type * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"
-import { describe, expect, it } from "vitest"
 import { GrantStore, type Service } from "../src/GrantStore.ts"
 import * as HttpClient from "../src/HttpClient.ts"
 
-const itEffect = <E>(name: string, effect: () => Effect.Effect<void, E>) => it(name, () => Effect.runPromise(effect()))
+const itEffect = <E>(name: string, effect: () => Effect.Effect<void, E>) => it.effect(name, () => effect())
 
 const store = (checks: Array<Capability.Capability>, allowed = true) =>
   GrantStore.of({

@@ -13,7 +13,7 @@ import { UnhealthyReason } from "./UnhealthyReason.ts"
  * @category models
  * @since 0.1.0
  */
-export class Unhealthy extends Schema.Class<Unhealthy>("@smthrs/sandbox-next/SandboxHealth/Unhealthy")({
+export class Unhealthy extends Schema.Class<Unhealthy>("@smthrs/sandbox/SandboxHealth/Unhealthy")({
   _tag: Schema.tag("Unhealthy"),
   component: Schema.Literal("sandbox"),
   reason: UnhealthyReason,

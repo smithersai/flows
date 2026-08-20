@@ -16,7 +16,7 @@ import * as Schema from "effect/Schema"
  * This is a **typed failure**, never a defect: the caller is expected to be
  * able to recover from it (see `docs/specs/Concepts/Run Ownership.md` and
  * `docs/architecture/implementation-status.md`). Detection itself lives in
- * `@smthrs/engine-store-next`'s `DurableEngineState.recordRunParent`, which
+ * `@smthrs/engine-store`'s `DurableEngineState.recordRunParent`, which
  * inserts the durable parent edge and walks the parent chain in O(depth)
  * inside one storage transaction, rolling back on a hit; the error is
  * declared here because it is part of the `execute` contract this package
@@ -24,9 +24,10 @@ import * as Schema from "effect/Schema"
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class FlowCycleDetected extends Schema.TaggedError<FlowCycleDetected>()(
-  "flows/engine/FlowCycleDetected",
+  "@smthrs/flow/FlowCycleDetected",
   {
     /** Stable public error code. */
     code: Schema.Literal("flow_cycle_detected"),

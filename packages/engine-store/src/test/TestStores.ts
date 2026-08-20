@@ -1,8 +1,8 @@
 /**
  * Deterministic bundle of every durable store a flow engine composes.
  *
- * The stores split into `@smthrs/journal-next`, `@smthrs/run-store-next`, and
- * `@smthrs/step-cache-next`, each with its own in-memory test layer. An engine
+ * The stores split into `@smthrs/journal`, `@smthrs/run-store`, and
+ * `@smthrs/step-cache`, each with its own in-memory test layer. An engine
  * needs all of them over ONE database, which is what this layer builds:
  * the composed migration sets from `../Migrations.ts` run first, then the four
  * services bind to the same in-memory SQLite connection.
@@ -13,12 +13,12 @@
  *
  * @since 0.1.0
  */
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
-import * as SqlJournal from "@smthrs/journal-next/SqlJournal"
-import * as PlanStore from "@smthrs/plan-next/PlanStore"
-import * as AttemptStore from "@smthrs/run-store-next/AttemptStore"
-import * as RunStore from "@smthrs/run-store-next/RunStore"
-import * as CacheStore from "@smthrs/step-cache-next/CacheStore"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import * as SqlJournal from "@smthrs/journal/SqlJournal"
+import * as PlanStore from "@smthrs/plan/PlanStore"
+import * as AttemptStore from "@smthrs/run-store/AttemptStore"
+import * as RunStore from "@smthrs/run-store/RunStore"
+import * as CacheStore from "@smthrs/step-cache/CacheStore"
 import * as Layer from "effect/Layer"
 import * as Migrations from "../Migrations.ts"
 import * as OwnerIdentity from "../OwnerIdentity.ts"

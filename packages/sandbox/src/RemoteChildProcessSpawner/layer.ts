@@ -10,7 +10,7 @@
  *
  * @since 0.1.0
  */
-import * as CommandLine from "@smthrs/kernel-next/CommandLine"
+import * as CommandLine from "@smthrs/kernel/CommandLine"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -145,8 +145,15 @@ const handleOf = (
     const stdout = outputStream(rawStdout, options.stdout)
     const stderr = outputStream(rawStderr, options.stderr)
     const completed = yield* Deferred.make<ExitCode, PlatformError.PlatformError>()
+    // Either settlement of the provider's exit observation — a code or a
+    // failure — means the remote process is gone, so both clear `running`:
+    // a handle whose exit could not be read must not keep reporting itself
+    // as a live process.
     const observeExit = process.exitCode.pipe(
-      Effect.mapError(platformError("exitCode", command)),
+      Effect.mapError((error) => {
+        running = false
+        return platformError("exitCode", command)(error)
+      }),
       Effect.map((code) => {
         running = false
         return ExitCode(code)
@@ -179,7 +186,7 @@ const handleOf = (
  * installed by `Provider.open`.
  *
  * The command reaches the provider as the same rendered line
- * `@smthrs/kernel-next/ChildProcessSpawner` writes as the `proc:spawn` capability
+ * `@smthrs/kernel/ChildProcessSpawner` writes as the `proc:spawn` capability
  * resource, so a grant and the thing it authorizes read the same.
  *
  * @category layers

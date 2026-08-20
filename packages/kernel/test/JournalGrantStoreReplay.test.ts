@@ -1,13 +1,14 @@
-import * as Capability from "@smthrs/capability-next/Capability"
-import { PermissionRequired, Rule } from "@smthrs/capability-next/Permission"
-import * as JournalModule from "@smthrs/journal-next/Journal"
-import { Journal } from "@smthrs/journal-next/Journal"
-import * as JournalEvent from "@smthrs/journal-next/JournalEvent"
-import { Entry, Input, type RunId, type Seq, type SourceId } from "@smthrs/journal-next/JournalEvent"
-import * as TestJournal from "@smthrs/journal-next/test/TestJournal"
-import { Effect, Fiber, Layer } from "effect"
+import { describe, expect, it } from "@effect/vitest"
+import * as Capability from "@smthrs/capability/Capability"
+import { PermissionRequired, Rule } from "@smthrs/capability/Permission"
+import * as JournalModule from "@smthrs/journal/Journal"
+import { Journal } from "@smthrs/journal/Journal"
+import * as JournalEvent from "@smthrs/journal/JournalEvent"
+import { Entry, Input, type RunId, type Seq, type SourceId } from "@smthrs/journal/JournalEvent"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Deferred, Effect, Fiber, Layer, Ref } from "effect"
 import type * as Scope from "effect/Scope"
-import { describe, expect, it } from "vitest"
+import { spawnSync } from "node:child_process"
 import * as GrantEvent from "../src/GrantEvent.ts"
 import { GrantStore } from "../src/GrantStore.ts"
 import * as JournalGrantStore from "../src/JournalGrantStore.ts"
@@ -39,6 +40,68 @@ const options = {
   attended: false
 } as const
 
+const journalGrantStoreModuleUrl = new URL("../src/JournalGrantStore.ts", import.meta.url).href
+const grantEventModuleUrl = new URL("../src/GrantEvent.ts", import.meta.url).href
+const workspaceModuleUrl = new URL("../src/Workspace.ts", import.meta.url).href
+
+const repeatedCursorProgram = `
+  import { Capability, CapabilityPattern } from "@smthrs/capability/Capability"
+  import * as JournalModule from "@smthrs/journal/Journal"
+  import { Entry } from "@smthrs/journal/JournalEvent"
+  import { Effect } from "effect"
+  import * as GrantEvent from ${JSON.stringify(grantEventModuleUrl)}
+  import * as JournalGrantStore from ${JSON.stringify(journalGrantStoreModuleUrl)}
+  import * as Workspace from ${JSON.stringify(workspaceModuleUrl)}
+
+  const capability = new Capability({ action: "fs:write", resource: "/workspace/file.txt" })
+  const pattern = new CapabilityPattern({ action: "fs:write", resource: "/workspace/**" })
+  const event = new GrantEvent.RememberedGrant({
+    eventType: "flows.kernel.grant.remembered.v1",
+    requestId: "request",
+    runId: "run",
+    planDigest: "plan-1",
+    capability,
+    pattern,
+    scope: "remembered",
+    tier: "compensable"
+  })
+  const encoded = GrantEvent.encode(event)
+  if (encoded._tag === "Failure") throw new Error("could not encode event")
+  const repeated = new Entry({
+    runId: "policy",
+    seq: 1,
+    eventId: "event-1",
+    sourceId: "kernel",
+    sourceSeq: 1,
+    emittedAtMs: 0,
+    eventType: event.eventType,
+    payload: encoded.success,
+    meta: undefined
+  })
+  let calls = 0
+  const journal = JournalModule.layerNoop({
+    entries: (options) => {
+      if (options.runId !== "policy") return Effect.succeed({ entries: [], hasMore: false })
+      calls += 1
+      return Effect.succeed({ entries: [repeated], hasMore: true })
+    }
+  })
+  const failure = await Effect.runPromise(
+    Effect.flip(JournalGrantStore.make({
+      runId: "run",
+      policyRunId: "policy",
+      sourceId: "kernel",
+      planDigest: "plan-1",
+      attended: false
+    })).pipe(
+      Effect.provide(journal),
+      Effect.provide(Workspace.layer("/workspace")),
+      Effect.scoped
+    )
+  )
+  process.stdout.write(failure.code + ":" + calls)
+`
+
 const run = <A, E>(effect: Effect.Effect<A, E, Journal | Scope.Scope | Workspace.Workspace>) =>
   effect.pipe(
     Effect.provide(TestJournal.layer()),
@@ -47,7 +110,7 @@ const run = <A, E>(effect: Effect.Effect<A, E, Journal | Scope.Scope | Workspace
   )
 
 const itEffect = <A, E>(name: string, body: () => Effect.Effect<A, E>): void => {
-  it(name, () => Effect.runPromise(body()))
+  it.effect(name, () => body())
 }
 
 const encoded = (event: GrantEvent.GrantEvent): unknown => {
@@ -354,6 +417,115 @@ describe("JournalGrantStore replay filtering", () => {
 })
 
 describe("JournalGrantStore construction envelopes", () => {
+  itEffect("deduplicates sequential construction envelopes whose patterns are reordered", () =>
+    run(
+      Effect.gen(function*() {
+        const journal = yield* Journal
+        const readPattern = new Capability.CapabilityPattern({
+          action: "fs:read",
+          resource: "/workspace/**"
+        })
+        yield* JournalGrantStore.make({
+          ...options,
+          envelope: { patterns: [insidePattern, readPattern], scope: "run" }
+        })
+        yield* JournalGrantStore.make({
+          ...options,
+          envelope: { patterns: [readPattern, insidePattern], scope: "run" }
+        })
+
+        const page = yield* journal.entries({ runId: runId(options.runId), limit: 10 })
+        expect(page.entries).toHaveLength(1)
+      })
+    ))
+
+  itEffect("deduplicates construction envelopes with repeated patterns", () =>
+    run(
+      Effect.gen(function*() {
+        const journal = yield* Journal
+        const readPattern = new Capability.CapabilityPattern({
+          action: "fs:read",
+          resource: "/workspace/**"
+        })
+        yield* JournalGrantStore.make({
+          ...options,
+          envelope: { patterns: [insidePattern, insidePattern, readPattern], scope: "run" }
+        })
+        yield* JournalGrantStore.make({
+          ...options,
+          envelope: { patterns: [readPattern, insidePattern], scope: "run" }
+        })
+
+        const page = yield* journal.entries({ runId: runId(options.runId), limit: 10 })
+        expect(page.entries).toHaveLength(1)
+      })
+    ))
+
+  itEffect("serializes concurrent construction-envelope deduplication", () =>
+    run(
+      Effect.gen(function*() {
+        const base = yield* Journal
+        const arrivals = yield* Ref.make(0)
+        const barrier = yield* Deferred.make<void>()
+        const journal = JournalModule.makeNoop({
+          entries: (entriesOptions) =>
+            base.entries(entriesOptions).pipe(
+              Effect.tap((page) => {
+                if (
+                  entriesOptions.runId !== options.runId
+                  || entriesOptions.after !== undefined
+                  || page.entries.length !== 0
+                ) {
+                  return Effect.void
+                }
+                return Ref.updateAndGet(arrivals, (value) => value + 1).pipe(
+                  Effect.flatMap((count) => count === 2 ? Deferred.succeed(barrier, undefined) : Effect.void),
+                  Effect.andThen(Deferred.await(barrier))
+                )
+              })
+            ),
+          emitDurable: base.emitDurable
+        })
+        const withEnvelope = {
+          ...options,
+          envelope: { patterns: [insidePattern], scope: "run" as const }
+        }
+
+        yield* Effect.all([
+          JournalGrantStore.make(withEnvelope),
+          JournalGrantStore.make(withEnvelope)
+        ], { concurrency: "unbounded" }).pipe(Effect.provideService(Journal, journal))
+
+        const page = yield* base.entries({ runId: runId(options.runId), limit: 10 })
+        expect(page.entries).toHaveLength(1)
+      })
+    ))
+
+  itEffect("skips a runtime envelope that repeats a replayed construction envelope", () =>
+    run(
+      Effect.gen(function*() {
+        const journal = yield* Journal
+        const readPattern = new Capability.CapabilityPattern({
+          action: "fs:read",
+          resource: "/workspace/**"
+        })
+        yield* JournalGrantStore.make({
+          ...options,
+          envelope: { patterns: [insidePattern, readPattern], scope: "run" }
+        })
+        const resumed = yield* JournalGrantStore.make(options)
+        yield* resumed.grantEnvelope({
+          planDigest: options.planDigest,
+          patterns: [readPattern, insidePattern],
+          scope: "run"
+        })
+
+        const page = yield* journal.entries({ runId: runId(options.runId), limit: 10 })
+        expect(page.entries).toHaveLength(1)
+        yield* resumed.check(insideWrite)
+      })
+    ))
+
   itEffect("emits a remembered construction envelope once and replays it thereafter", () =>
     run(
       Effect.gen(function*() {
@@ -436,6 +608,72 @@ const entry = (seq: number, event: GrantEvent.GrantEvent, target: string): Entry
   })
 
 describe("JournalGrantStore paging and journal failures", () => {
+  it("fails closed when a page repeats its last sequence with hasMore", () => {
+    // The subprocess exists to bound the regression case — an unfixed replay
+    // loops forever, which would hang an in-process assertion. Node boot plus
+    // TS-stripped effect imports take seconds under coverage-instrumented
+    // parallel workers, so the kill budget is generous but finite and stays
+    // inside the suite's 30 s test budget.
+    const replay = spawnSync(process.execPath, ["--input-type=module", "--eval", repeatedCursorProgram], {
+      encoding: "utf8",
+      timeout: 25_000
+    })
+
+    expect(replay.error).toBeUndefined()
+    expect(replay.status).toBe(0)
+    expect(replay.stdout).toBe("invalid_resolution:2")
+  })
+
+  itEffect("refuses a non-advancing policy page instead of looping", () => {
+    let calls = 0
+    const journal = JournalModule.layerNoop({
+      entries: (entriesOptions) =>
+        Effect.sync(() => {
+          if (entriesOptions.runId !== options.policyRunId) {
+            return { entries: [], hasMore: false }
+          }
+          calls += 1
+          return { entries: [entry(1, rememberedGrant(insidePattern), options.policyRunId)], hasMore: true }
+        })
+    })
+
+    return Effect.gen(function*() {
+      const failure = yield* Effect.flip(JournalGrantStore.make(options))
+      expect(failure.code).toBe("invalid_resolution")
+      expect(failure.message).toContain("non-advancing journal page at sequence 1")
+      expect(calls).toBe(2)
+    }).pipe(
+      Effect.provide(journal),
+      Effect.provide(Workspace.layer(workspaceRoot)),
+      Effect.scoped
+    )
+  })
+
+  itEffect("refuses a non-advancing run page instead of looping", () => {
+    let calls = 0
+    const journal = JournalModule.layerNoop({
+      entries: (entriesOptions) =>
+        Effect.sync(() => {
+          if (entriesOptions.runId === options.policyRunId) {
+            return { entries: [], hasMore: false }
+          }
+          calls += 1
+          return { entries: [entry(1, runGrant(insidePattern), options.runId)], hasMore: true }
+        })
+    })
+
+    return Effect.gen(function*() {
+      const failure = yield* Effect.flip(JournalGrantStore.make(options))
+      expect(failure.code).toBe("invalid_resolution")
+      expect(failure.message).toContain("non-advancing journal page at sequence 1")
+      expect(calls).toBe(2)
+    }).pipe(
+      Effect.provide(journal),
+      Effect.provide(Workspace.layer(workspaceRoot)),
+      Effect.scoped
+    )
+  })
+
   itEffect("follows the cursor across every page of remembered policy", () => {
     const cursors: Array<number | undefined> = []
     const journal = JournalModule.layerNoop({

@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest"
 import * as Sync from "../src/index.ts"
 
-describe("@smthrs/sync-next barrel", () => {
+describe("@smthrs/sync barrel", () => {
   it("re-exports every module as its own namespace", () => {
     expect(Object.keys(Sync).sort()).toEqual([
       "BranchCommands",
@@ -18,11 +18,14 @@ describe("@smthrs/sync-next barrel", () => {
       "BranchServer",
       "BranchShare",
       "RunCatalog",
+      "SyncAuth",
       "SyncClient",
       "SyncError",
+      "SyncPrincipal",
       "SyncProtocol",
       "SyncRpcs",
-      "SyncServer"
+      "SyncServer",
+      "WorkspaceShare"
     ])
   })
 
@@ -41,6 +44,9 @@ describe("@smthrs/sync-next barrel", () => {
     expect(Sync.BranchRpcs).toBe(await import("../src/BranchRpcs.ts"))
     expect(Sync.BranchServer).toBe(await import("../src/BranchServer.ts"))
     expect(Sync.BranchIds).toBe(await import("../src/BranchIds.ts"))
+    expect(Sync.WorkspaceShare).toBe(await import("../src/WorkspaceShare.ts"))
+    expect(Sync.SyncPrincipal).toBe(await import("../src/SyncPrincipal.ts"))
+    expect(Sync.SyncAuth).toBe(await import("../src/SyncAuth.ts"))
   })
 
   it("maps a branch onto exactly one journal run, reversibly", () => {
@@ -59,10 +65,10 @@ describe("@smthrs/sync-next barrel", () => {
 
   it("exposes the tagged error classes with their canonical tags", () => {
     expect(new Sync.SyncError.SyncError({ code: "unknown", message: "x" })._tag).toBe(
-      "flows/sync/SyncError"
+      "@smthrs/sync/SyncError"
     )
     expect(
       new Sync.SyncError.SyncGapError({ runId: "run" as never, expectedFrom: 1, receivedFrom: 3 } as never)._tag
-    ).toBe("flows/sync/SyncGapError")
+    ).toBe("@smthrs/sync/SyncGapError")
   })
 })

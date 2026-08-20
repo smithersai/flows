@@ -1,10 +1,14 @@
+---
+description: "The operator contract for a durable store on SQLite: connection settings, write contention, multi-process rules, backup, and growth."
+---
+
 # SQLite Operating Envelope
 
 This page is the operator contract for a durable store backed by
-`@smthrs/database-next/node/NodeDatabase`. Each assertion points at the source,
+`@smthrs/database/node/NodeDatabase`. Each assertion points at the source,
 test, or upstream database/client document that establishes it.
 
-## Supported Backend
+## Supported backend
 
 The shipped production database layer is SQLite on Node: `NodeDatabase.layer`
 passes a filename and optional `sqlite` driver options through to
@@ -14,10 +18,10 @@ restart durability (`packages/database/src/test/TestDatabase.ts`).
 
 The package root is browser-bundleable because it exposes the `DurableWriter`
 contract, not a driver (`packages/database/src/index.ts`,
-`docs/pages/package-structure.md`). Running a durable browser engine still
+`docs/pages/package-structure.mdx`). Running a durable browser engine still
 requires a browser SQL client supplied by the application. This repository does
 not ship a sqlite-wasm, OPFS, PGlite, Postgres, or other browser database layer
-(`docs/architecture/browser-support.md`, `docs/pages/package-structure.md`).
+(`docs/architecture/browser-support.md`, `docs/pages/package-structure.mdx`).
 
 Postgres and PGlite are not parity backends today. `DurableWriter.make` accepts
 any Effect `SqlClient`, and its classifier recognizes Postgres SQLSTATEs and
@@ -29,7 +33,7 @@ SQLite-specific DDL, and `packages/engine-store/src/internal/EngineStateSchema.t
 marks the `flows_run_parents_gc` trigger as SQLite-only; the catalog test pins
 that inventory (`packages/engine-store/test/OutOfLadderSchema.test.ts`).
 
-## Connection Settings
+## Connection settings
 
 For `@effect/sql-sqlite-node@4.0.0-rc.108`, the installed SQLite client opens
 `node:sqlite`, sets `PRAGMA busy_timeout` from `busyTimeout` with a five-second
@@ -51,7 +55,7 @@ write lock, proves a later layer build waits instead of failing, and verifies th
 file remains in WAL mode after the first successful open
 (`packages/database/test/NodeDatabaseConcurrentOpen.test.ts`).
 
-## Write Contention
+## Write contention
 
 SQLite WAL permits many readers but only one writer at a time; SQLite's own WAL
 documentation states that readers and a writer can proceed concurrently, but
@@ -83,13 +87,35 @@ and adds client and driver tests for typed failure propagation
 ([issue #7235](https://github.com/Effect-TS/effect/issues/7235),
 [PR #7236](https://github.com/Effect-TS/effect/pull/7236)).
 
-## Multi-Process Rules
+That fix merged on 2026-08-13 and first shipped in `effect@4.0.0-rc.109`
+(2026-08-14).
+
+:::warning[The defect is live against the installed substrate]
+This repository pins `4.0.0-rc.108` (2026-08-12).
+:::
+
+It is degraded rather than avoided:
+`WriteRetry.isRetryableWriteError` and `DurableWriter.fromSqlError` both match
+the defect's message text and classify it into the transient busy vocabulary
+(`packages/database/src/internal/WriteRetry.ts`,
+`packages/database/src/DurableWriter.ts`), so a lost `BEGIN IMMEDIATE` race
+retries instead of killing the run, and
+`packages/database/test/contract/DatabaseWriteContract.ts` pins that
+classification. Moving the pin is the real fix and is not part of this release.
+The pin and its known upstream issues are tracked in
+[implementation status](https://github.com/smithersai/flows/blob/main/docs/architecture/implementation-status.md#substrate-pin-and-known-upstream-issues).
+
+## Multi-process rules
 
 Multiple local processes may open the same SQLite file, and this repository tests
 the concurrent-open race described above. WAL itself requires all database
 processes to be on the same host filesystem because the WAL index uses shared
-memory; do not operate the same WAL database from separate hosts or a network
-filesystem ([sqlite.org/wal.html](https://www.sqlite.org/wal.html)).
+memory ([sqlite.org/wal.html](https://www.sqlite.org/wal.html)).
+
+:::danger
+Do not operate the same WAL database from separate hosts or over a network
+filesystem.
+:::
 
 Every engine process that drives runs must mint a distinct `OwnerId` with
 `hostId`, `pid`, and `nonce` (`packages/engine-store/src/OwnerIdentity.ts`).
@@ -107,36 +133,43 @@ is not read-only: it must write run rows, attempt rows, cache rows, and durable
 journal entries. A restarted driver also needs the flow implementations
 registered in memory before it can drive stored runs (`docs/pages/architecture.md`).
 
-## Files And Backup
+## Files and backup
 
 With WAL enabled, a database named `flows.sqlite` can have `flows.sqlite-wal`
 and `flows.sqlite-shm` beside it. SQLite documents the `-wal` file as persistent
 database state that must stay with the main file when copied or moved, and
 documents the `-shm` sidecar as the WAL index shared-memory file
-([sqlite.org/wal.html](https://www.sqlite.org/wal.html)). Do not copy only the
-main file while the database may have committed frames in `-wal`.
+([sqlite.org/wal.html](https://www.sqlite.org/wal.html)).
+
+:::danger
+Do not copy only the main file while the database may have committed frames in
+`-wal`.
+:::
 
 For an online backup, prefer the driver's backup API. The installed client
 exposes `backup(destination)` and implements it with `node:sqlite`'s backup
 function (`node_modules/@effect/sql-sqlite-node/src/SqliteClient.ts`). SQLite's
 backup API is intended for online backup of a running database, though it may
 still encounter `SQLITE_BUSY` if it cannot obtain a needed lock
-([sqlite.org/backup.html](https://www.sqlite.org/backup.html)). That backup API
-is not wrapped in `DurableWriter`; callers that need retries must add them at
-the backup call site.
+([sqlite.org/backup.html](https://www.sqlite.org/backup.html)).
+
+:::warning
+That backup API is not wrapped in `DurableWriter`. Callers that need retries
+must add them at the backup call site.
+:::
 
 For a raw filesystem copy, quiesce all writers and readers first or copy the
 main file and all sidecars that exist as one unit. The repository does not ship a
 checkpoint/truncate command, and it does not configure a custom WAL checkpoint
 policy.
 
-## Growth And Bounds
+## Growth and bounds
 
 The main SQLite file grows with the durable tables. This repository does not
 ship a database-wide prune job. `flows_journal_events` is the append-only
-logical WAL; public observability docs list journal checkpointing or compaction
-as planned, not implemented (`docs/pages/observability.md`,
-`docs/architecture/implementation-status.md`).
+logical WAL. Journal checkpointing and compaction are shipped as explicit or
+opt-in operations; they bound journal history when invoked but do not prune
+the other durable tables. See [Checkpoints and compaction](/compaction).
 
 SQLite's physical WAL file is bounded by SQLite checkpoint behavior, not by a
 repository setting. SQLite documents automatic checkpointing by default, but also
@@ -154,8 +187,8 @@ Run-parent edge cleanup is enforced by the SQLite `flows_run_parents_gc` trigger
 when a run row is deleted (`packages/engine-store/src/internal/EngineStateSchema.ts`,
 `packages/engine-store/test/RunParentAtomicity.test.ts`).
 
-Content-addressed cache/artifact growth is not globally garbage-collected here.
-`CombinedCacheStore.evict` is local-only and leaves shared CAS reclamation to the
-ticketed release verb (`packages/step-cache/src/CombinedCacheStore.ts`), and the
-implementation-status page lists artifact garbage collection as planned
-(`docs/architecture/implementation-status.md`).
+Content-addressed cache/artifact growth has no automatic database-wide policy.
+`CombinedCacheStore.evict` is local-only. Host-local CAS cleanup is available
+as the explicit `ArtifactGc.gc()` operation over `ArtifactSweep`; remote CAS
+retention remains outside this repository. See [Artifact GC](/artifact-gc)
+and the implementation-status page.

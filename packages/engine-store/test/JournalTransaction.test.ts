@@ -1,32 +1,33 @@
 /**
- * Pins the WAL/state atomicity seam ACROSS packages: `@smthrs/journal-next`'s
- * `transact` runs a `@smthrs/run-store-next` state projection and the lifecycle
+ * Pins the WAL/state atomicity seam ACROSS packages: `@smthrs/journal`'s
+ * `transact` runs a `@smthrs/run-store` state projection and the lifecycle
  * entries describing it in ONE write transaction, because both stores write
  * through the same `DurableWriter` and so join it as savepoints. The
- * journal-only half of the contract stays in `@smthrs/journal-next`.
+ * journal-only half of the contract stays in `@smthrs/journal`.
  *
  * Prior art: `reference/temporal/service/history/workflow/transaction_impl.go`
  * submits the mutable-state mutation and its event batches as one persistence
  * request.
  */
-import { DurableWriter } from "@smthrs/database-next/DurableWriter"
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
-import { Journal } from "@smthrs/journal-next/Journal"
-import { Input, type RunId, type SourceId, type SourceSeq } from "@smthrs/journal-next/JournalEvent"
-import * as SqlJournal from "@smthrs/journal-next/SqlJournal"
-import * as RunStore from "@smthrs/run-store-next/RunStore"
+import { describe, expect, it } from "@effect/vitest"
+import { DurableWriter } from "@smthrs/database/DurableWriter"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import { Journal } from "@smthrs/journal/Journal"
+import { Input, type RunId, type SourceId, type SourceSeq } from "@smthrs/journal/JournalEvent"
+import * as SqlJournal from "@smthrs/journal/SqlJournal"
+import * as RunStore from "@smthrs/run-store/RunStore"
 import { Effect, Layer, PubSub } from "effect"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
-import { describe, expect, it } from "vitest"
 import * as Migrations from "../src/Migrations.ts"
 
 const runId = (value: string): RunId => value as RunId
 const sourceId = (value: string): SourceId => value as SourceId
+const owner = { hostId: "journal-transaction", pid: 1, nonce: "owner" } as const
 
 const effect = <E>(name: string, body: () => Effect.Effect<void, E>) =>
-  it(name, () => Effect.runPromise(body().pipe(Effect.provide(TestClock.layer()))))
+  it.effect(name, () => body().pipe(Effect.provide(TestClock.layer())))
 
 const input = (
   run: RunId,
@@ -129,4 +130,34 @@ describe("Journal.transact across the journal and run stores", () => {
       expect(yield* PubSub.remaining(subscription)).toBe(0)
       expect(yield* rowsOf(sql, run)).toHaveLength(0)
     })))
+
+  effect(
+    "rolls an R6 ownership transition back with the enclosing transaction",
+    () =>
+      withStack(Effect.gen(function*() {
+        const journal = yield* Journal
+        const runs = yield* RunStore.RunStore
+        const sql = yield* Effect.service(SqlClient.SqlClient)
+        const run = runId("atomic-r6-rollback")
+
+        yield* runs.create(run, "{}")
+        const pending = yield* runs.get(run)
+        expect(yield* runs.claimAndOwn(run, pending, owner, 0)).toEqual({ _tag: "Activated" })
+        yield* journal.flush
+
+        const exit = yield* journal.transact(Effect.gen(function*() {
+          expect(yield* runs.transitionOwned(run, owner, "suspended")).toEqual({ _tag: "Transitioned" })
+          return yield* Effect.fail(new Rejected("outer rejected after the R6 append"))
+        })).pipe(Effect.exit)
+
+        expect(exit._tag).toBe("Failure")
+        const row = yield* runs.get(run)
+        const rows = yield* rowsOf(sql, run)
+        expect(row.status).toBe("running")
+        expect(rows.map((entry) => entry.event_type)).toEqual([
+          "flows.consensus.claimed",
+          "flows.consensus.activated"
+        ])
+      }))
+  )
 })

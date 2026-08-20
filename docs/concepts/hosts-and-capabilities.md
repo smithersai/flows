@@ -4,17 +4,17 @@ This page describes the portable host surface and the permission kernel that med
 
 ## The closed host surface
 
-`@smthrs/kernel-next` owns the closed list — `HostServiceTags` and `HostServiceIds` — of these protected services:
+`@smthrs/kernel` owns the closed list — `HostServiceTags` and `HostServiceIds` — of these protected services:
 
 - Effect `FileSystem`
 - Effect `Path`
 - Effect `ChildProcessSpawner`
-- `Jj` (contract in [`@smthrs/jj-next`](../reference/jj.md))
+- `Jj` (contract in [`@smthrs/jj`](../reference/jj.md))
 - Effect `HttpClient`
 
 Four of the five slots hold Effect's own tags. `flows` used to define a `Shell` service in the third slot; it was `effect/unstable/process` with fewer features, so it was deleted and the slot now holds `effect/process/ChildProcessSpawner` (see [design decisions](../pages/design-decisions.md)). The fifth slot went the same way: a `flows`-defined one-hop `HttpTransport` was deleted in favour of `effect/HttpClient`. `flows` supplies implementations of both — Node, Bun, an in-browser one, and a remote one — and adds only the capability check.
 
-The list is closed, not the package: `Jj` ships as its own package so a consumer that only needs that capability does not take the whole host surface. The contract stays in `@smthrs/jj-next`; the kernel decorates that same tag (and re-exports it for convenience) rather than declaring a second one, and the composite bundles (`NodeHost`, `BunHost`, `BrowserHost`, `TestHost`) provide all five tags. There is no pseudo-terminal service: interactive-terminal support is out of core by design (see [design decisions](../pages/design-decisions.md)).
+The list is closed, not the package: `Jj` ships as its own package so a consumer that only needs that capability does not take the whole host surface. The contract stays in `@smthrs/jj`; the kernel decorates that same tag (and re-exports it for convenience) rather than declaring a second one, and the composite bundles (`NodeHost`, `BunHost`, `BrowserHost`, `TestHost`) provide all five tags. There is no pseudo-terminal service: interactive-terminal support is out of core by design (see [design decisions](../pages/design-decisions.md)).
 
 Clock and Random are tracked as host built-ins. This workspace ships Node,
 Bun, browser, and deterministic test layers for the same service tags.
@@ -38,7 +38,7 @@ Where Effect owns the tag (`FileSystem`, `ChildProcessSpawner`) the error channe
 For a spawn, the exact capability is `proc:spawn` with `CommandLine.render(command)` as its resource — the same string a browser interpreter or a remote sandbox is handed for supported commands, so a grant and the thing it authorizes cannot drift apart. A custom shell path is included explicitly in the resource; adapters that cannot select it reject the command.
 
 ```ts
-import { Capability, Permission } from "@smthrs/kernel-next"
+import { Capability, Permission } from "@smthrs/kernel"
 
 const rule = new Permission.Rule({
   effect: "allow",
@@ -97,10 +97,10 @@ story in `docs/specs/Concepts/Agent Adapters.md`, and it is future work.
 
 - The browser layer wraps an injected ZenFS-like promises API and an injected just-bash interpreter, which must be mounted on the *same* filesystem.
 - The browser spawner is buffered, cannot take stdin or be killed, and rejects custom shells, detached processes, and configured extra file descriptors rather than silently dropping them.
-- Browser `Jj` has a real implementation: `@smthrs/jj-next/browser/BrowserJj`'s `layer({ fs, wasm })` drives jj-lib compiled to `wasm32-wasip1` over an injected virtual filesystem. `layerUnsupported` remains exported for a host that ships no wasm module — it fails in the error channel rather than omitting the tag — but the `BrowserHost` bundle wires the real layer: `layer({ bash, fs, jj })` takes the compiled module and the sync slice of the same mount, and a jj-less host is an explicit page choice, never the bundle's silent default.
+- Browser `Jj` has a real implementation: `@smthrs/jj/browser/BrowserJj`'s `layer({ fs, wasm })` drives jj-lib compiled to `wasm32-wasip1` over an injected virtual filesystem. `layerUnsupported` remains exported for a host that ships no wasm module — it fails in the error channel rather than omitting the tag — but the `BrowserHost` bundle wires the real layer: `layer({ bash, fs, jj })` takes the compiled module and the sync slice of the same mount, and a jj-less host is an explicit page choice, never the bundle's silent default.
 - Hosted-adapter behavior and limitations are documented with those adapters
   in the external plugins repository.
 
-See the [`@smthrs/jj-next`](../reference/jj.md) and
-[`@smthrs/sandbox-next`](../reference/sandbox.md) references, and the
-[`@smthrs/kernel-next` reference](../reference/kernel.md).
+See the [`@smthrs/jj`](../reference/jj.md) and
+[`@smthrs/sandbox`](../reference/sandbox.md) references, and the
+[`@smthrs/kernel` reference](../reference/kernel.md).

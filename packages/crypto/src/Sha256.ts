@@ -25,7 +25,7 @@ import * as SchemaIssue from "effect/SchemaIssue"
  * @since 0.1.0
  */
 const Digest = Schema.String.check(Schema.isPattern(/^[0-9a-f]{64}$/)).pipe(
-  Schema.brand("flows/crypto/Sha256/Digest")
+  Schema.brand("@smthrs/crypto/Sha256/Digest")
 )
 
 /**
@@ -45,6 +45,7 @@ const encoder = new TextEncoder()
  *
  * @category transformations
  * @since 0.1.0
+ * @slop
  */
 export const Sha256 = Object.assign(
   Schema.Union([Schema.String, Schema.Uint8Array]).pipe(
@@ -68,6 +69,7 @@ export const Sha256 = Object.assign(
      *
      * @category models
      * @since 0.1.0
+     * @slop
      */
     Digest
   }

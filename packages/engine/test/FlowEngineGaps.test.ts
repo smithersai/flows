@@ -1,19 +1,26 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Action, DurableDeferred, Flow, FlowRuntime, Interpreter, RetryPolicy } from "@smthrs/flow-next"
-import { Node } from "@smthrs/plan-next"
+import { describe, expect, it } from "@effect/vitest"
+import { Action, DurableDeferred, Flow, FlowRuntime, Interpreter, RetryPolicy } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Cause, Deferred, Effect, Exit, Fiber, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
-import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it(name, () => runPromise(body()))
+  it.effect(name, () => withCrypto(body()))
+
+/**
+ * The same wiring on the live clock, for cases that wait on the real elapsed
+ * time a retry or resume policy schedules rather than driving `TestClock`.
+ */
+const liveEffect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
+  it.live(name, () => withCrypto(body()))
 
 const pollUntil = <A, E, R>(
-  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>,
+  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, FlowRuntime.FlowExecutionNotFound, R>,
   predicate: (result: Flow.Result<A, E>) => boolean
 ) =>
   Effect.gen(function*() {
@@ -320,7 +327,7 @@ describe("suspended resume policy", () => {
         maxMs: 100,
         expirationMs: 150
       }),
-      body: () => Node.succeed(undefined)
+      body: () => Node.succeed("ready")
     })
     let executions = 0
     const scripted = FlowEngine.makeUnsafe({
@@ -390,7 +397,7 @@ describe("suspended resume policy", () => {
     }).pipe(Effect.provide(layer))
   })
 
-  effect("keeps re-polling a suspended flow until the deferred is completed", () => {
+  liveEffect("keeps re-polling a suspended flow until the deferred is completed", () => {
     const Gate = DurableDeferred.make("Gaps/late-resolved", {
       success: Schema.String
     })
@@ -416,7 +423,15 @@ describe("suspended resume policy", () => {
       const fiber = yield* Effect.forkChild(
         flow.execute({ id: "x" }, { executionId: "run-late" })
       )
-      const suspended = yield* pollUntil(flow.poll("run-late"), isSuspended)
+      // The forked execute may not have recorded the run on the first poll
+      // tick, so a typed not-found during startup reads as "not settled yet"
+      // for this loop.
+      const suspended = yield* pollUntil(
+        flow.poll("run-late").pipe(
+          Effect.catchTag("@smthrs/flow/FlowExecutionNotFound", () => Effect.succeedNone)
+        ),
+        isSuspended
+      )
       expect(Option.isSome(suspended)).toBe(true)
       const token = DurableDeferred.tokenFromExecutionId(Gate, { flow, executionId: "run-late" })
       yield* DurableDeferred.succeed(Gate, { token, value: "opened" })
@@ -443,7 +458,7 @@ describe("action retry give-up reasons", () => {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String,
-      body: () => Node.succeed(undefined)
+      body: () => Node.succeed(0)
     })
     let requestedKey: string | undefined
     const scripted = FlowEngine.makeUnsafe({
@@ -466,7 +481,7 @@ describe("action retry give-up reasons", () => {
       if (result._tag === "Complete") {
         expect(Exit.isFailure(result.exit)).toBe(true)
         expect(Exit.isFailure(result.exit) && Cause.squash(result.exit.cause)).toMatchObject({
-          _tag: "@smthrs/engine-next/RetryPolicyExpired",
+          _tag: "@smthrs/flow/RetryPolicyExpired",
           actionName: "Gaps/durable-retry-origin",
           attempt: 1,
           expirationMs: 1,
@@ -518,7 +533,7 @@ describe("action retry give-up reasons", () => {
       expect(Exit.isFailure(exit)).toBe(true)
       const defect = Exit.isFailure(exit) ? Cause.squash(exit.cause) : undefined
       expect((defect as RetryPolicy.RetryAttemptsExhausted)._tag).toBe(
-        "@smthrs/engine-next/RetryAttemptsExhausted"
+        "@smthrs/flow/RetryAttemptsExhausted"
       )
       expect((defect as RetryPolicy.RetryAttemptsExhausted).attempt).toBe(1)
       expect((defect as RetryPolicy.RetryAttemptsExhausted).maxAttempts).toBe(1)
@@ -593,7 +608,13 @@ describe("memory engine lifecycle", () => {
       const engine = yield* FlowRuntime.FlowRuntime
       yield* engine.interruptUnsafe(flow, "never-started")
       yield* engine.resume(flow, "never-started")
-      expect(Option.isNone(yield* flow.poll("never-started"))).toBe(true)
+      // Neither no-op invented an execution: the id is still unknown, which
+      // poll reports as a typed not-found rather than `Option.none`.
+      const error = yield* Effect.flip(flow.poll("never-started"))
+      expect(error).toMatchObject({
+        _tag: "@smthrs/flow/FlowExecutionNotFound",
+        executionId: "never-started"
+      })
     }).pipe(Effect.provide(layer))
   })
 

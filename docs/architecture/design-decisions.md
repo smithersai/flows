@@ -16,7 +16,7 @@ Consequence: local computation between boundaries must be deterministic, while a
 
 ## D3. Key computation sits above storage
 
-`@smthrs/engine-next` computes content or ordinal step keys before calling `FlowEngine.Encoded.actionExecute`. Memory and durable engines therefore receive the same identity instead of implementing key policy independently.
+`@smthrs/engine` computes content or ordinal step keys before calling `FlowEngine.Encoded.actionExecute`. Memory and durable engines therefore receive the same identity instead of implementing key policy independently.
 
 Consequence: object-form sealed cache key inputs are caller-owned and
 rename-stable. String idempotency keys are intentionally namespaced by the
@@ -24,7 +24,7 @@ action name and schema declaration, so those changes invalidate reuse.
 
 ## D4. Cache admission requires evidence
 
-A cache key alone does not prove hermetic execution. `@smthrs/engine-store-next` caches only sealed actions that carry a hard `StepBoundary` descriptor, settle without a deviation, and explicitly attest whole-tree write verification.
+A cache key alone does not prove hermetic execution. `@smthrs/engine-store` caches only sealed actions that carry a hard `StepBoundary` descriptor, settle without a deviation, and explicitly attest whole-tree write verification.
 
 Consequence: the filesystem-backed `StepBoundary.layer` measures declared read sets and materializes declared outputs, but cannot detect writes elsewhere and therefore does not admit shared cache rows. Cross-run admission requires a stronger whole-tree boundary, such as a future jj-diff-backed implementation.
 
@@ -64,14 +64,14 @@ Consequence: time travel depends on explicit effect-boundary records, lineage ed
 
 ## D10. Remote sync is read-only
 
-`@smthrs/sync-next` exports catch-up and follow RPCs over journal entries. Mutation, resume, and permission decisions are deliberately outside this protocol.
+`@smthrs/sync` exports catch-up and follow RPCs over journal entries. Mutation, resume, and permission decisions are deliberately outside this protocol.
 
 Consequence: consumers can rebuild read models without acquiring run ownership or receiving write authority.
 
-## D11. Extension is dependency injection, not a plugin framework
+## D11. Core extension is dependency injection; cell-loop extension uses the plugin kernel
 
 `flows` is extended by providing an Effect `Layer`, and a behavior is replaced by providing a different implementation of the service — or a different constructor option — at the seam that owns it. The rule for what becomes a seam: external effects, nondeterminism, and policies a user may reasonably replace become named services or options with defaults; deterministic algorithms stay ordinary functions.
 
-A speculative `@smthrs/plugin` package once shipped a typed hook catalog with plugin ordering, config resolution, and four dispatch kinds. No runtime ever dispatched a hook from it, and its only consumer was a re-export in the `@smthrs/flows-next` barrel, so it sold an extension API nothing called. It was deleted rather than wired, because every seam it proposed is reachable today through injection: `Inconsistency` for cache-conflict verdicts, `OwnerIdentity` for owner minting, `StepBoundary` for hermeticity, `Jj` and the rest of the closed Host list for host access, and constructor options such as `suspendedRetryPolicy` and `clockFireRetryPolicy` for retry policy.
+`@smthrs/plugin` is the narrower extension point for the assembled agent loop in `@smthrs/agent`. It resolves and orders plugins, runs the `config` waterfall and `configResolved` observers, merges plugin layers, and lets the cell host add only the waterfalls it dispatches: `cellRegistry`, `cellFlows`, and `cellModelRequest`. The broader speculative engine lifecycle catalog was trimmed rather than advertised: run, step, retry, cache, wait, checkpoint, and journal hooks are not extension points unless a runtime first owns and dispatches them. Those policies continue to use their existing services and constructor options, including `Inconsistency`, `OwnerIdentity`, `StepBoundary`, and the closed Host services.
 
-Consequence: there is no hook registry, no event bus, and no plugin resolution order to reason about. The composition root is the extension point, and the requirement types of `Layer` say exactly which behaviors a program must supply and may override. This supersedes the open disagreement recorded for publishing `@smthrs/plugin` in [design decisions](../pages/design-decisions.md).
+Consequence: durable-core behavior is still extended at the composition root, where `Layer` requirements say which behaviors a program supplies or overrides. Cell-loop plugins are resolved once at `Agent.run` startup and may affect only resolved configuration, contributed layers, registry disclosure and resolution, executable flow bindings, and provider-neutral model requests. There is no engine-wide hook registry or lifecycle event bus. This settles the open disagreement recorded for publishing `@smthrs/plugin` in [design decisions](../pages/design-decisions.md) by blessing the package for that bounded cell-host role.

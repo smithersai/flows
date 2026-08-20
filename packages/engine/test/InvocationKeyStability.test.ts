@@ -17,15 +17,15 @@ import type * as Crypto from "effect/Crypto"
  * orders, which is exactly what a permuted interleaving produces. Each
  * action must keep its own identity across both.
  */
-import { Action, Flow, FlowRuntime, StepIdentity } from "@smthrs/flow-next"
-import { Node } from "@smthrs/plan-next"
+import { describe, expect, it } from "@effect/vitest"
+import { Action, Flow, FlowRuntime, StepIdentity } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Deferred, Effect, Exit, Layer, Schema } from "effect"
-import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it(name, () => runPromise(body()))
+  it.effect(name, () => withCrypto(body()))
 
 const flow = Flow.make("InvocationKeyStability/flow", {
   payload: { id: Schema.String },

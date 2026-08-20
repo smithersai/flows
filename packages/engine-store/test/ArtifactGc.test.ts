@@ -8,19 +8,23 @@
  * what protect a writer racing the collector, and a crash mid-sweep leaves a
  * store the next collection converges from.
  */
+// Every case here runs on real elapsed time — subprocess spawns, file locks,
+// mtimes, and poll loops — so the suite uses `it.live`; `it.effect`'s
+// TestClock never advances for them.
+
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
-import { ArtifactStore, ArtifactSweep } from "@smthrs/artifacts-next"
-import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store-next"
-import { CacheStore } from "@smthrs/step-cache-next"
+import { describe, expect, it } from "@effect/vitest"
+import { ArtifactStore, ArtifactSweep } from "@smthrs/artifacts"
+import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
-import { describe, expect, it } from "vitest"
 import * as ArtifactGc from "../src/ArtifactGc.ts"
 import * as TestStores from "../src/test/TestStores.ts"
-import { runPromise, sha256 } from "./Sha256.ts"
+import { sha256, withCrypto } from "./Sha256.ts"
 
 const encoder = new TextEncoder()
 const bytes = (content: string): Uint8Array => encoder.encode(content)
@@ -139,7 +143,9 @@ const harness = (host: Host, options?: {
   return Layer.mergeAll(
     collector,
     durable,
-    Layer.succeed(ArtifactStore.ArtifactStore)(ArtifactStore.makeFileSystem(host.fs))
+    Layer.succeed(ArtifactStore.ArtifactStore)(
+      ArtifactStore.makeFileSystem(host.fs, { durability: "best-effort" })
+    )
   )
 }
 
@@ -204,294 +210,308 @@ const gc = (options?: ArtifactGc.GcOptions) =>
   })
 
 describe("mark: durable roots keep their referenced blobs", () => {
-  it("never collects a blob referenced by a run's attempt row or a cache entry", async () => {
-    const host = memoryFs()
-    const attemptRef = host.seedBlob("attempt-referenced-output", 100 * dayMs)
-    const cacheRef = host.seedBlob("cache-referenced-output", 100 * dayMs)
-    const garbage = host.seedBlob("orphaned-output", 100 * dayMs)
-    const young = host.seedBlob("recent-orphan", minuteMs)
-    const report = await runPromise(
-      Effect.gen(function*() {
-        yield* activateRun("run-live")
-        yield* recordAttempt("run-live", "step-a", attemptRef)
-        yield* recordCacheEntry("cache-key-a", cacheRef)
-        return yield* gc()
-      }).pipe(Effect.provide(harness(host)))
-    )
-    expect(report.sweptDigests).toEqual([garbage])
-    expect(report.scannedBlobs).toBe(4)
-    expect(report.liveDigests).toBe(2)
-    expect(report.keptByGrace).toBe(1)
-    expect(report.reclaimedBytes).toBe(bytes("orphaned-output").length)
-    expect(report.dryRun).toBe(false)
-    expect(host.hasBlob(attemptRef)).toBe(true)
-    expect(host.hasBlob(cacheRef)).toBe(true)
-    expect(host.hasBlob(young)).toBe(true)
-    expect(host.hasBlob(garbage)).toBe(false)
-  })
-
-  it("keeps a blob referenced only by an attempt checkpoint", async () => {
-    const host = memoryFs()
-    const checkpointRef = host.seedBlob("checkpoint-referenced-output", 100 * dayMs)
-    const garbage = host.seedBlob("checkpoint-orphan", 100 * dayMs)
-    const report = await runPromise(
-      Effect.gen(function*() {
-        yield* activateRun("run-checkpoint")
-        const attempts = yield* AttemptStore.AttemptStore
-        const put = yield* attempts.put({
-          runId: "run-checkpoint",
-          stepKeyDigest: "step-checkpoint",
-          attempt: 1,
-          state: "running",
-          startedAtMs: 0,
-          checkpoint: { retainedArtifacts: [checkpointRef, "not-a-digest", null] },
-          meta: { tier: "sealed" }
-        }, owner)
-        expect(put._tag).toBe("Inserted")
-        return yield* gc()
-      }).pipe(Effect.provide(harness(host)))
-    )
-    expect(report.sweptDigests).toEqual([garbage])
-    expect(host.hasBlob(checkpointRef)).toBe(true)
-  })
-
-  it("pages the mark scan by primary key across both root tables", async () => {
-    const host = memoryFs()
-    const referenced: Array<string> = []
-    const garbage = host.seedBlob("paged-orphan", 100 * dayMs)
-    const report = await runPromise(
-      Effect.gen(function*() {
-        yield* activateRun("run-paged")
-        for (let index = 0; index < 5; index++) {
-          const attemptRef = host.seedBlob(`attempt-output-${index}`, 100 * dayMs)
-          const cacheRef = host.seedBlob(`cache-output-${index}`, 100 * dayMs)
-          referenced.push(attemptRef, cacheRef)
-          yield* recordAttempt("run-paged", `step-${index}`, attemptRef)
-          yield* recordCacheEntry(`cache-key-${index}`, cacheRef)
-        }
-        return yield* gc()
-      }).pipe(Effect.provide(harness(host, { pageSize: 2 })))
-    )
-    expect(report.sweptDigests).toEqual([garbage])
-    expect(report.liveDigests).toBe(10)
-    expect(referenced.every((digest) => host.hasBlob(digest))).toBe(true)
-  })
-
-  it("collects nothing and reports an empty sweep over an empty composition", async () => {
-    const host = memoryFs()
-    const report = await runPromise(gc().pipe(Effect.provide(harness(host))))
-    expect(report).toEqual({
-      scannedBlobs: 0,
-      liveDigests: 0,
-      sweptDigests: [],
-      reclaimedBytes: 0,
-      keptByGrace: 0,
-      dryRun: false
-    })
-  })
-
-  it("ignores root metadata that carries no boundary evidence", async () => {
-    const host = memoryFs()
-    const garbage = host.seedBlob("meta-shapes-orphan", 100 * dayMs)
-    const report = await runPromise(
-      Effect.gen(function*() {
-        // Null, non-object, and boundary-free metadata are all legitimate
-        // rows that reference nothing.
-        yield* recordCacheEntry("cache-null", "unused", null)
-        yield* recordCacheEntry("cache-scalar", "unused", 42)
-        yield* recordCacheEntry("cache-plain", "unused", { tier: "sealed" })
-        return yield* gc()
-      }).pipe(Effect.provide(harness(host)))
-    )
-    expect(report.sweptDigests).toEqual([garbage])
-  })
-
-  it("fails the collection when a root carries undecodable boundary evidence", async () => {
-    // FAIL-SAFE: reading such a row as "references nothing" is exactly how a
-    // live blob would be collected, so the mark aborts and nothing sweeps.
-    const host = memoryFs()
-    const garbage = host.seedBlob("protected-by-refusal", 100 * dayMs)
-    const failure = await runPromise(
-      Effect.gen(function*() {
-        yield* recordCacheEntry("cache-foreign", "unused", {
-          boundary: { declaredOutputs: {}, diffIdentity: "" }
-        })
-        return yield* gc().pipe(Effect.flip)
-      }).pipe(Effect.provide(harness(host)))
-    )
-    expect(failure.code).toBe("mark_failed")
-    expect(host.hasBlob(garbage)).toBe(true)
-  })
-
-  it("fails the collection when a root table cannot be scanned", async () => {
-    // A stub client that refuses the named table's scan and returns no rows
-    // for the other: the mark must surface the refusal rather than treat an
-    // unreadable root set as empty.
-    const refusing = (table: string) =>
-      Layer.succeed(SqlClient.SqlClient)(
-        ((strings: TemplateStringsArray) =>
-          strings.join("?").includes(table)
-            ? Effect.fail(new Error(`refused scan of ${table}`))
-            : Effect.succeed([])) as never
+  it.live("never collects a blob referenced by a run's attempt row or a cache entry", () =>
+    Effect.gen(function*() {
+      const host = memoryFs()
+      const attemptRef = host.seedBlob("attempt-referenced-output", 100 * dayMs)
+      const cacheRef = host.seedBlob("cache-referenced-output", 100 * dayMs)
+      const garbage = host.seedBlob("orphaned-output", 100 * dayMs)
+      const young = host.seedBlob("recent-orphan", minuteMs)
+      const report = yield* withCrypto(
+        Effect.gen(function*() {
+          yield* activateRun("run-live")
+          yield* recordAttempt("run-live", "step-a", attemptRef)
+          yield* recordCacheEntry("cache-key-a", cacheRef)
+          return yield* gc()
+        }).pipe(Effect.provide(harness(host)))
       )
-    const host = memoryFs()
-    const garbage = host.seedBlob("protected-by-scan-failure", 100 * dayMs)
-    const collector = (table: string) =>
-      ArtifactGc.layer().pipe(
-        Layer.provide(Layer.mergeAll(
-          refusing(table),
-          Layer.succeed(ArtifactSweep.ArtifactSweep)(ArtifactSweep.makeFileSystem(host.fs))
-        ))
+      expect(report.sweptDigests).toEqual([garbage])
+      expect(report.scannedBlobs).toBe(4)
+      expect(report.liveDigests).toBe(2)
+      expect(report.keptByGrace).toBe(1)
+      expect(report.reclaimedBytes).toBe(bytes("orphaned-output").length)
+      expect(report.dryRun).toBe(false)
+      expect(host.hasBlob(attemptRef)).toBe(true)
+      expect(host.hasBlob(cacheRef)).toBe(true)
+      expect(host.hasBlob(young)).toBe(true)
+      expect(host.hasBlob(garbage)).toBe(false)
+    }))
+
+  it.live("keeps a blob referenced only by an attempt checkpoint", () =>
+    Effect.gen(function*() {
+      const host = memoryFs()
+      const checkpointRef = host.seedBlob("checkpoint-referenced-output", 100 * dayMs)
+      const garbage = host.seedBlob("checkpoint-orphan", 100 * dayMs)
+      const report = yield* withCrypto(
+        Effect.gen(function*() {
+          yield* activateRun("run-checkpoint")
+          const attempts = yield* AttemptStore.AttemptStore
+          const put = yield* attempts.put({
+            runId: "run-checkpoint",
+            stepKeyDigest: "step-checkpoint",
+            attempt: 1,
+            state: "running",
+            startedAtMs: 0,
+            checkpoint: { retainedArtifacts: [checkpointRef, "not-a-digest", null] },
+            meta: { tier: "sealed" }
+          }, owner)
+          expect(put._tag).toBe("Inserted")
+          return yield* gc()
+        }).pipe(Effect.provide(harness(host)))
       )
-    const cacheFailure = await runPromise(
-      gc().pipe(Effect.flip, Effect.provide(collector("flows_step_cache")))
-    )
-    const attemptFailure = await runPromise(
-      gc().pipe(Effect.flip, Effect.provide(collector("flows_attempts")))
-    )
-    expect(cacheFailure.code).toBe("mark_failed")
-    expect(attemptFailure.code).toBe("mark_failed")
-    expect(host.hasBlob(garbage)).toBe(true)
-  })
+      expect(report.sweptDigests).toEqual([garbage])
+      expect(host.hasBlob(checkpointRef)).toBe(true)
+    }))
+
+  it.live("pages the mark scan by primary key across both root tables", () =>
+    Effect.gen(function*() {
+      const host = memoryFs()
+      const referenced: Array<string> = []
+      const garbage = host.seedBlob("paged-orphan", 100 * dayMs)
+      const report = yield* withCrypto(
+        Effect.gen(function*() {
+          yield* activateRun("run-paged")
+          for (let index = 0; index < 5; index++) {
+            const attemptRef = host.seedBlob(`attempt-output-${index}`, 100 * dayMs)
+            const cacheRef = host.seedBlob(`cache-output-${index}`, 100 * dayMs)
+            referenced.push(attemptRef, cacheRef)
+            yield* recordAttempt("run-paged", `step-${index}`, attemptRef)
+            yield* recordCacheEntry(`cache-key-${index}`, cacheRef)
+          }
+          return yield* gc()
+        }).pipe(Effect.provide(harness(host, { pageSize: 2 })))
+      )
+      expect(report.sweptDigests).toEqual([garbage])
+      expect(report.liveDigests).toBe(10)
+      expect(referenced.every((digest) => host.hasBlob(digest))).toBe(true)
+    }))
+
+  it.live("collects nothing and reports an empty sweep over an empty composition", () =>
+    Effect.gen(function*() {
+      const host = memoryFs()
+      const report = yield* withCrypto(gc().pipe(Effect.provide(harness(host))))
+      expect(report).toEqual({
+        scannedBlobs: 0,
+        liveDigests: 0,
+        sweptDigests: [],
+        reclaimedBytes: 0,
+        keptByGrace: 0,
+        dryRun: false
+      })
+    }))
+
+  it.live("ignores root metadata that carries no boundary evidence", () =>
+    Effect.gen(function*() {
+      const host = memoryFs()
+      const garbage = host.seedBlob("meta-shapes-orphan", 100 * dayMs)
+      const report = yield* withCrypto(
+        Effect.gen(function*() {
+          // Null, non-object, and boundary-free metadata are all legitimate
+          // rows that reference nothing.
+          yield* recordCacheEntry("cache-null", "unused", null)
+          yield* recordCacheEntry("cache-scalar", "unused", 42)
+          yield* recordCacheEntry("cache-plain", "unused", { tier: "sealed" })
+          return yield* gc()
+        }).pipe(Effect.provide(harness(host)))
+      )
+      expect(report.sweptDigests).toEqual([garbage])
+    }))
+
+  it.live("fails the collection when a root carries undecodable boundary evidence", () =>
+    Effect.gen(function*() {
+      // FAIL-SAFE: reading such a row as "references nothing" is exactly how a
+      // live blob would be collected, so the mark aborts and nothing sweeps.
+      const host = memoryFs()
+      const garbage = host.seedBlob("protected-by-refusal", 100 * dayMs)
+      const failure = yield* withCrypto(
+        Effect.gen(function*() {
+          yield* recordCacheEntry("cache-foreign", "unused", {
+            boundary: { declaredOutputs: {}, diffIdentity: "" }
+          })
+          return yield* gc().pipe(Effect.flip)
+        }).pipe(Effect.provide(harness(host)))
+      )
+      expect(failure.code).toBe("mark_failed")
+      expect(host.hasBlob(garbage)).toBe(true)
+    }))
+
+  it.live("fails the collection when a root table cannot be scanned", () =>
+    Effect.gen(function*() {
+      // A stub client that refuses the named table's scan and returns no rows
+      // for the other: the mark must surface the refusal rather than treat an
+      // unreadable root set as empty.
+      const refusing = (table: string) =>
+        Layer.succeed(SqlClient.SqlClient)(
+          ((strings: TemplateStringsArray) =>
+            strings.join("?").includes(table)
+              ? Effect.fail(new Error(`refused scan of ${table}`))
+              : Effect.succeed([])) as never
+        )
+      const host = memoryFs()
+      const garbage = host.seedBlob("protected-by-scan-failure", 100 * dayMs)
+      const collector = (table: string) =>
+        ArtifactGc.layer().pipe(
+          Layer.provide(Layer.mergeAll(
+            refusing(table),
+            Layer.succeed(ArtifactSweep.ArtifactSweep)(ArtifactSweep.makeFileSystem(host.fs))
+          ))
+        )
+      const cacheFailure = yield* withCrypto(
+        gc().pipe(Effect.flip, Effect.provide(collector("flows_step_cache")))
+      )
+      const attemptFailure = yield* withCrypto(
+        gc().pipe(Effect.flip, Effect.provide(collector("flows_attempts")))
+      )
+      expect(cacheFailure.code).toBe("mark_failed")
+      expect(attemptFailure.code).toBe("mark_failed")
+      expect(host.hasBlob(garbage)).toBe(true)
+    }))
 })
 
 describe("sweep: grace period, pins, and policy", () => {
-  it("honours the grace period from options, policy, and the default", async () => {
-    const host = memoryFs()
-    const older = host.seedBlob("ten-minute-orphan", 10 * minuteMs)
-    const younger = host.seedBlob("one-minute-orphan", minuteMs)
-    const layer = harness(host, { policy: { graceMs: 5 * minuteMs } })
-    const policyReport = await runPromise(gc().pipe(Effect.provide(layer)))
-    expect(policyReport.sweptDigests).toEqual([older])
-    expect(policyReport.keptByGrace).toBe(1)
-    expect(host.hasBlob(younger)).toBe(true)
-    // Explicit options override the installed policy: under a two-week bound
-    // the surviving one-minute orphan stays untouchable.
-    const optionsReport = await runPromise(gc({ graceMs: 14 * dayMs }).pipe(Effect.provide(layer)))
-    expect(optionsReport.sweptDigests).toEqual([])
-    expect(optionsReport.keptByGrace).toBe(1)
-  })
+  it.live("honours the grace period from options, policy, and the default", () =>
+    Effect.gen(function*() {
+      const host = memoryFs()
+      const older = host.seedBlob("ten-minute-orphan", 10 * minuteMs)
+      const younger = host.seedBlob("one-minute-orphan", minuteMs)
+      const layer = harness(host, { policy: { graceMs: 5 * minuteMs } })
+      const policyReport = yield* withCrypto(gc().pipe(Effect.provide(layer)))
+      expect(policyReport.sweptDigests).toEqual([older])
+      expect(policyReport.keptByGrace).toBe(1)
+      expect(host.hasBlob(younger)).toBe(true)
+      // Explicit options override the installed policy: under a two-week bound
+      // the surviving one-minute orphan stays untouchable.
+      const optionsReport = yield* withCrypto(gc({ graceMs: 14 * dayMs }).pipe(Effect.provide(layer)))
+      expect(optionsReport.sweptDigests).toEqual([])
+      expect(optionsReport.keptByGrace).toBe(1)
+    }))
 
-  it("keeps pinned digests regardless of reachability", async () => {
-    const host = memoryFs()
-    const pinnedByCall = host.seedBlob("pinned-by-call", 100 * dayMs)
-    const pinnedByPolicy = host.seedBlob("pinned-by-policy", 100 * dayMs)
-    const garbage = host.seedBlob("unpinned-orphan", 100 * dayMs)
-    const report = await runPromise(
-      gc({ pins: [pinnedByCall] }).pipe(
-        Effect.provide(harness(host, { policy: { pins: Effect.succeed([pinnedByPolicy]) } }))
+  it.live("keeps pinned digests regardless of reachability", () =>
+    Effect.gen(function*() {
+      const host = memoryFs()
+      const pinnedByCall = host.seedBlob("pinned-by-call", 100 * dayMs)
+      const pinnedByPolicy = host.seedBlob("pinned-by-policy", 100 * dayMs)
+      const garbage = host.seedBlob("unpinned-orphan", 100 * dayMs)
+      const report = yield* withCrypto(
+        gc({ pins: [pinnedByCall] }).pipe(
+          Effect.provide(harness(host, { policy: { pins: Effect.succeed([pinnedByPolicy]) } }))
+        )
       )
-    )
-    expect(report.sweptDigests).toEqual([garbage])
-    expect(report.liveDigests).toBe(2)
-    expect(host.hasBlob(pinnedByCall)).toBe(true)
-    expect(host.hasBlob(pinnedByPolicy)).toBe(true)
-  })
+      expect(report.sweptDigests).toEqual([garbage])
+      expect(report.liveDigests).toBe(2)
+      expect(host.hasBlob(pinnedByCall)).toBe(true)
+      expect(host.hasBlob(pinnedByPolicy)).toBe(true)
+    }))
 
-  it("reports a dry run without deleting anything", async () => {
-    const host = memoryFs()
-    const garbage = host.seedBlob("dry-run-orphan", 100 * dayMs)
-    const layer = harness(host)
-    const dry = await runPromise(gc({ dryRun: true }).pipe(Effect.provide(layer)))
-    expect(dry.dryRun).toBe(true)
-    expect(dry.sweptDigests).toEqual([garbage])
-    expect(dry.reclaimedBytes).toBe(bytes("dry-run-orphan").length)
-    expect(host.hasBlob(garbage)).toBe(true)
-    // The real collection then does exactly what the dry run promised.
-    const real = await runPromise(gc().pipe(Effect.provide(layer)))
-    expect(real.sweptDigests).toEqual([garbage])
-    expect(host.hasBlob(garbage)).toBe(false)
-  })
+  it.live("reports a dry run without deleting anything", () =>
+    Effect.gen(function*() {
+      const host = memoryFs()
+      const garbage = host.seedBlob("dry-run-orphan", 100 * dayMs)
+      const layer = harness(host)
+      const dry = yield* withCrypto(gc({ dryRun: true }).pipe(Effect.provide(layer)))
+      expect(dry.dryRun).toBe(true)
+      expect(dry.sweptDigests).toEqual([garbage])
+      expect(dry.reclaimedBytes).toBe(bytes("dry-run-orphan").length)
+      expect(host.hasBlob(garbage)).toBe(true)
+      // The real collection then does exactly what the dry run promised.
+      const real = yield* withCrypto(gc().pipe(Effect.provide(layer)))
+      expect(real.sweptDigests).toEqual([garbage])
+      expect(host.hasBlob(garbage)).toBe(false)
+    }))
 
-  it("is idempotent: a second collection over the same state sweeps nothing", async () => {
-    const host = memoryFs()
-    const referenced = host.seedBlob("kept-output", 100 * dayMs)
-    host.seedBlob("swept-output", 100 * dayMs)
-    const layer = harness(host)
-    const [first, second] = await runPromise(
-      Effect.gen(function*() {
-        yield* activateRun("run-idempotent")
-        yield* recordAttempt("run-idempotent", "step-a", referenced)
-        const initial = yield* gc()
-        const repeat = yield* gc()
-        return [initial, repeat] as const
-      }).pipe(Effect.provide(layer))
-    )
-    expect(first.sweptDigests).toHaveLength(1)
-    expect(second.sweptDigests).toEqual([])
-    expect(second.scannedBlobs).toBe(1)
-    expect(host.hasBlob(referenced)).toBe(true)
-  })
+  it.live("is idempotent: a second collection over the same state sweeps nothing", () =>
+    Effect.gen(function*() {
+      const host = memoryFs()
+      const referenced = host.seedBlob("kept-output", 100 * dayMs)
+      host.seedBlob("swept-output", 100 * dayMs)
+      const layer = harness(host)
+      const [first, second] = yield* withCrypto(
+        Effect.gen(function*() {
+          yield* activateRun("run-idempotent")
+          yield* recordAttempt("run-idempotent", "step-a", referenced)
+          const initial = yield* gc()
+          const repeat = yield* gc()
+          return [initial, repeat] as const
+        }).pipe(Effect.provide(layer))
+      )
+      expect(first.sweptDigests).toHaveLength(1)
+      expect(second.sweptDigests).toEqual([])
+      expect(second.scannedBlobs).toBe(1)
+      expect(host.hasBlob(referenced)).toBe(true)
+    }))
 })
 
 describe("sweep: liveness under concurrency and crashes", () => {
-  it("a blob written or freshened during the sweep survives it", async () => {
-    const host = memoryFs()
-    // Two old orphans: the first removal triggers the concurrent writer, the
-    // second is the freshened blob whose fence must then refuse.
-    const trigger = host.seedBlob("sweep-trigger-orphan", 100 * dayMs)
-    const freshened = host.seedBlob("re-referenced-output", 100 * dayMs)
-    const fresh = "written-during-sweep"
-    const freshDigest = sha256(bytes(fresh))
-    const store = ArtifactStore.makeFileSystem(host.fs)
-    host.hooks.beforeRemove = () =>
-      // A concurrent writer publishes a brand-new blob and re-publishes the
-      // bytes of an old unreferenced one — the dedupe path that freshens the
-      // blob's mtime instead of rewriting it.
-      store.put(bytes(fresh)).pipe(
-        Effect.andThen(store.put(bytes("re-referenced-output"))),
-        Effect.provide(NodeCrypto.layer),
-        Effect.orDie,
-        Effect.asVoid
-      )
-    const report = await runPromise(gc().pipe(Effect.provide(harness(host))))
-    expect(report.sweptDigests).toEqual([trigger])
-    // The freshened blob failed the deletion fence; the brand-new blob was
-    // never a candidate at all.
-    expect(report.keptByGrace).toBe(1)
-    expect(host.hasBlob(freshened)).toBe(true)
-    expect(host.hasBlob(freshDigest)).toBe(true)
-  })
+  it.live("a blob written or freshened during the sweep survives it", () =>
+    Effect.gen(function*() {
+      const host = memoryFs()
+      // Two old orphans: the first removal triggers the concurrent writer, the
+      // second is the freshened blob whose fence must then refuse.
+      const trigger = host.seedBlob("sweep-trigger-orphan", 100 * dayMs)
+      const freshened = host.seedBlob("re-referenced-output", 100 * dayMs)
+      const fresh = "written-during-sweep"
+      const freshDigest = sha256(bytes(fresh))
+      const store = ArtifactStore.makeFileSystem(host.fs, { durability: "best-effort" })
+      host.hooks.beforeRemove = () =>
+        // A concurrent writer publishes a brand-new blob and re-publishes the
+        // bytes of an old unreferenced one — the dedupe path that freshens the
+        // blob's mtime instead of rewriting it.
+        store.put(bytes(fresh)).pipe(
+          Effect.andThen(store.put(bytes("re-referenced-output"))),
+          Effect.provide(NodeCrypto.layer),
+          Effect.orDie,
+          Effect.asVoid
+        )
+      const report = yield* withCrypto(gc().pipe(Effect.provide(harness(host))))
+      expect(report.sweptDigests).toEqual([trigger])
+      // The freshened blob failed the deletion fence; the brand-new blob was
+      // never a candidate at all.
+      expect(report.keptByGrace).toBe(1)
+      expect(host.hasBlob(freshened)).toBe(true)
+      expect(host.hasBlob(freshDigest)).toBe(true)
+    }))
 
-  it("a crash mid-sweep deletes garbage only, and a re-run converges", async () => {
-    const host = memoryFs()
-    const referenced = host.seedBlob("crash-survivor-output", 100 * dayMs)
-    const first = host.seedBlob("first-orphan", 100 * dayMs)
-    const second = host.seedBlob("second-orphan", 100 * dayMs)
-    host.failure.removeOf = blobPathOf(second)
-    // One provision throughout: the durable roots live in one in-memory
-    // database, and the recovery collection must see the same rows the
-    // crashed one did.
-    const [failure, recovery] = await runPromise(
-      Effect.gen(function*() {
-        yield* activateRun("run-crash")
-        yield* recordAttempt("run-crash", "step-a", referenced)
-        const crashed = yield* gc().pipe(Effect.flip)
-        // The interrupted sweep deleted only garbage: the referenced blob is
-        // untouched and the fenced remainder is still present.
-        expect(host.hasBlob(referenced)).toBe(true)
-        expect(host.hasBlob(first)).toBe(false)
-        expect(host.hasBlob(second)).toBe(true)
-        yield* Effect.sync(() => {
-          host.failure.removeOf = undefined
-        })
-        const converged = yield* gc()
-        return [crashed, converged] as const
-      }).pipe(Effect.provide(harness(host)))
-    )
-    expect(failure.code).toBe("sweep_failed")
-    expect(recovery.sweptDigests).toEqual([second])
-    expect(host.hasBlob(referenced)).toBe(true)
-  })
-
-  it("fails the collection when the inventory itself refuses", async () => {
-    const host = memoryFs()
-    const failure = await runPromise(
-      gc().pipe(
-        Effect.flip,
-        Effect.provide(harness(host, { sweep: ArtifactSweep.makeNoop() }))
+  it.live("a crash mid-sweep deletes garbage only, and a re-run converges", () =>
+    Effect.gen(function*() {
+      const host = memoryFs()
+      const referenced = host.seedBlob("crash-survivor-output", 100 * dayMs)
+      const first = host.seedBlob("first-orphan", 100 * dayMs)
+      const second = host.seedBlob("second-orphan", 100 * dayMs)
+      host.failure.removeOf = blobPathOf(second)
+      // One provision throughout: the durable roots live in one in-memory
+      // database, and the recovery collection must see the same rows the
+      // crashed one did.
+      const [failure, recovery] = yield* withCrypto(
+        Effect.gen(function*() {
+          yield* activateRun("run-crash")
+          yield* recordAttempt("run-crash", "step-a", referenced)
+          const crashed = yield* gc().pipe(Effect.flip)
+          // The interrupted sweep deleted only garbage: the referenced blob is
+          // untouched and the fenced remainder is still present.
+          expect(host.hasBlob(referenced)).toBe(true)
+          expect(host.hasBlob(first)).toBe(false)
+          expect(host.hasBlob(second)).toBe(true)
+          yield* Effect.sync(() => {
+            host.failure.removeOf = undefined
+          })
+          const converged = yield* gc()
+          return [crashed, converged] as const
+        }).pipe(Effect.provide(harness(host)))
       )
-    )
-    expect(failure.code).toBe("sweep_failed")
-  })
+      expect(failure.code).toBe("sweep_failed")
+      expect(recovery.sweptDigests).toEqual([second])
+      expect(host.hasBlob(referenced)).toBe(true)
+    }))
+
+  it.live("fails the collection when the inventory itself refuses", () =>
+    Effect.gen(function*() {
+      const host = memoryFs()
+      const failure = yield* withCrypto(
+        gc().pipe(
+          Effect.flip,
+          Effect.provide(harness(host, { sweep: ArtifactSweep.makeNoop() }))
+        )
+      )
+      expect(failure.code).toBe("sweep_failed")
+    }))
 })

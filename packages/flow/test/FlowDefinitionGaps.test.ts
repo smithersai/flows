@@ -1,19 +1,19 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
-import { Node } from "@smthrs/plan-next"
+import { describe, expect, expectTypeOf, it } from "@effect/vitest"
+import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import type * as Scope from "effect/Scope"
-import { describe, expect, expectTypeOf, it } from "vitest"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 import { layerWired } from "./MemoryFlowRuntime.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it(name, () => runPromise(body()))
+  it.effect(name, () => withCrypto(body()))
 
 const pollUntil = <A, E, R>(
-  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>,
+  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, FlowRuntime.FlowExecutionNotFound, R>,
   predicate: (result: Flow.Result<A, E>) => boolean
 ) =>
   Effect.gen(function*() {
@@ -115,6 +115,22 @@ describe("Flow.make requires a body", () => {
     // consumer is left with an optional-body branch to write.
     expectTypeOf<Flow.Any["body"]>().not.toBeNullable()
     expect(typeof declared.body).toBe("function")
+  })
+
+  it("rejects a body whose settled value contradicts its success schema", () => {
+    Flow.make("Definition/wrong-success", {
+      payload: {},
+      success: Schema.String,
+      // @ts-expect-error -- a Number body cannot satisfy a String success contract.
+      body: () => Node.succeed(42)
+    })
+
+    const valid = Flow.make("Definition/right-success", {
+      payload: {},
+      success: Schema.String,
+      body: () => Node.succeed("forty-two")
+    })
+    expect(valid.body({}).ast).toEqual({ _tag: "Succeed", value: "forty-two" })
   })
 })
 
@@ -371,6 +387,45 @@ describe("suspension while siblings are still running", () => {
         Option.isSome(done) && done.value._tag === "Complete" && Exit.isSuccess(done.value.exit) &&
           done.value.exit.value
       ).toBe("recovered")
+    }).pipe(Effect.provide(layer))
+  })
+})
+
+describe("typed caller-input errors", () => {
+  effect("fails an invalid execute payload with a typed SchemaError naming the field", () => {
+    const flow = Flow.make("Definition/invalid-payload", {
+      payload: { count: Schema.Number },
+      success: Schema.Number,
+      body: ({ count }) => Node.succeed(count)
+    })
+    const layer = layerWired(Interpreter.layer(flow))
+    return Effect.gen(function*() {
+      const error = yield* Effect.flip(flow.execute(
+        { count: "not-a-number" } as unknown as { readonly count: number },
+        { executionId: "run-invalid-payload" }
+      ))
+      // Caller input is data, not wiring: the failure is the schema's own
+      // typed error, and its rendering names the offending field.
+      expect(error).toMatchObject({ _tag: "SchemaError" })
+      expect(String(error)).toContain("count")
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("fails poll on an unknown execution id with a typed not-found naming the id", () => {
+    const flow = Flow.make("Definition/unknown-poll", {
+      payload: { id: Schema.String },
+      success: Schema.String,
+      body: () => Node.succeed("done")
+    })
+    const layer = layerWired(Interpreter.layer(flow))
+    return Effect.gen(function*() {
+      const error = yield* Effect.flip(flow.poll("never-started"))
+      expect(error).toMatchObject({
+        _tag: "@smthrs/flow/FlowExecutionNotFound",
+        code: "execution_not_found",
+        executionId: "never-started"
+      })
+      expect(String(error)).toContain("never-started")
     }).pipe(Effect.provide(layer))
   })
 })

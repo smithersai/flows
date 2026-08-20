@@ -2,20 +2,20 @@
  * Pins the WAL side of the atomicity seam: `Journal.transact` runs its body
  * and the lifecycle entries describing it in ONE write transaction, and
  * publishes those entries only once that transaction has committed. The
- * cross-package half — a `@smthrs/run-store-next` state write committing or rolling
- * back with its entry — lives in `@smthrs/engine-store-next`, which composes both.
+ * cross-package half — a `@smthrs/run-store` state write committing or rolling
+ * back with its entry — lives in `@smthrs/engine-store`, which composes both.
  *
  * Prior art: `reference/temporal/service/history/workflow/transaction_impl.go`
  * submits the mutable-state mutation and its event batches as one persistence
  * request.
  */
-import { DurableWriter } from "@smthrs/database-next/DurableWriter"
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
+import { describe, expect, it } from "@effect/vitest"
+import { DurableWriter } from "@smthrs/database/DurableWriter"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Deferred, Effect, Fiber, Layer, PubSub } from "effect"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
-import { describe, expect, it } from "vitest"
 import { Journal, JournalError, makeNoop } from "../src/Journal.ts"
 import { Input, type RunId, type SourceId, type SourceSeq } from "../src/JournalEvent.ts"
 import * as Migrations from "../src/Migrations.ts"
@@ -25,7 +25,7 @@ const runId = (value: string): RunId => value as RunId
 const sourceId = (value: string): SourceId => value as SourceId
 
 const effect = <E>(name: string, body: () => Effect.Effect<void, E>) =>
-  it(name, () => Effect.runPromise(body().pipe(Effect.provide(TestClock.layer()))))
+  it.effect(name, () => body().pipe(Effect.provide(TestClock.layer())))
 
 const input = (
   run: RunId,

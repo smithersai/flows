@@ -10,12 +10,13 @@
  * Uses the SQL `DurableEngineState` over the same database as `RunStore`:
  * the filter's cancel predicate reads `flows_runs.cancel_requested_at_ms`.
  */
-import { DurableWriter } from "@smthrs/database-next"
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
-import { Flow, FlowRuntime } from "@smthrs/flow-next"
-import { SqlJournal } from "@smthrs/journal-next"
-import { Node } from "@smthrs/plan-next"
-import { Ownership, RunStore } from "@smthrs/run-store-next"
+import { describe, expect, it } from "@effect/vitest"
+import { DurableWriter } from "@smthrs/database"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import { Flow, FlowRuntime } from "@smthrs/flow"
+import { SqlJournal } from "@smthrs/journal"
+import { Node } from "@smthrs/plan"
+import { Ownership, RunStore } from "@smthrs/run-store"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -23,16 +24,15 @@ import * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
-import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
 import * as Migrations from "../src/Migrations.ts"
-import { runPromise } from "./Sha256.ts"
+import { withCrypto } from "./Sha256.ts"
 
 const TestFlow = Flow.make("SweepFiltering/Test", {
   payload: {},
   success: Schema.String,
-  body: () => Node.succeed(undefined)
+  body: () => Node.succeed("unused")
 })
 
 const fakeEngine = {} as unknown as FlowRuntime.FlowRuntime["Service"]
@@ -79,71 +79,72 @@ const insertParkedRun = (
   })
 
 describe("the parked-run sweep fetches only actionable rows (issue #68)", () => {
-  it("never issues store.get for rows that are neither released nor cancel-requested", async () => {
-    const result = await runPromise(
-      Effect.scoped(
-        Effect.gen(function*() {
-          // A quota-parked fleet the sweep must not touch, plus the two
-          // actionable shapes.
-          yield* insertParkedRun("neutral-quota", "quota", null)
-          yield* insertParkedRun("neutral-event", "event", null)
-          yield* insertParkedRun("actionable-cancel", "event", 1)
-          yield* insertParkedRun("actionable-released", "released", null)
+  it.effect("never issues store.get for rows that are neither released nor cancel-requested", () =>
+    Effect.gen(function*() {
+      const result = yield* withCrypto(
+        Effect.scoped(
+          Effect.gen(function*() {
+            // A quota-parked fleet the sweep must not touch, plus the two
+            // actionable shapes.
+            yield* insertParkedRun("neutral-quota", "quota", null)
+            yield* insertParkedRun("neutral-event", "event", null)
+            yield* insertParkedRun("actionable-cancel", "event", 1)
+            yield* insertParkedRun("actionable-released", "released", null)
 
-          // Spy on store.get: the sweep's per-row guard is the only reader
-          // for runs no execute/resume ever touches.
-          const store = yield* RunStore.RunStore
-          const getCounts = new Map<string, number>()
-          const spyingStore: RunStore.RunStore["Service"] = {
-            ...store,
-            get: (runId) => {
-              getCounts.set(runId, (getCounts.get(runId) ?? 0) + 1)
-              return store.get(runId)
+            // Spy on store.get: the sweep's per-row guard is the only reader
+            // for runs no execute/resume ever touches.
+            const store = yield* RunStore.RunStore
+            const getCounts = new Map<string, number>()
+            const spyingStore: RunStore.RunStore["Service"] = {
+              ...store,
+              get: (runId) => {
+                getCounts.set(runId, (getCounts.get(runId) ?? 0) + 1)
+                return store.get(runId)
+              }
             }
-          }
 
-          yield* RunDriver.make({
-            owner: { hostId: "sweep-filter-host", pid: 1, nonce: "owner-1" },
-            journalSource: "sweep-filtering",
-            isAlive: () => Effect.succeed(false),
-            engine: Effect.succeed(fakeEngine)
-          }).pipe(Effect.provideService(RunStore.RunStore, spyingStore))
+            yield* RunDriver.make({
+              owner: { hostId: "sweep-filter-host", pid: 1, nonce: "owner-1" },
+              journalSource: "sweep-filtering",
+              isAlive: () => Effect.succeed(false),
+              engine: Effect.succeed(fakeEngine)
+            }).pipe(Effect.provideService(RunStore.RunStore, spyingStore))
 
-          for (let i = 0; i < 5; i++) {
-            yield* TestClock.adjust(Duration.toMillis(Ownership.heartbeatInterval))
-          }
-          return {
-            neutralQuota: getCounts.get("neutral-quota") ?? 0,
-            neutralEvent: getCounts.get("neutral-event") ?? 0,
-            actionableCancel: getCounts.get("actionable-cancel") ?? 0,
-            actionableReleased: getCounts.get("actionable-released") ?? 0
-          }
-        }) as Effect.Effect<
-          {
-            neutralQuota: number
-            neutralEvent: number
-            actionableCancel: number
-            actionableReleased: number
-          },
-          never,
-          Scope.Scope
-        >
-      ).pipe(
-        Effect.provide(services),
-        Effect.provide(TestClock.layer())
-      ) as Effect.Effect<{
-        neutralQuota: number
-        neutralEvent: number
-        actionableCancel: number
-        actionableReleased: number
-      }>
-    )
+            for (let i = 0; i < 5; i++) {
+              yield* TestClock.adjust(Duration.toMillis(Ownership.heartbeatInterval))
+            }
+            return {
+              neutralQuota: getCounts.get("neutral-quota") ?? 0,
+              neutralEvent: getCounts.get("neutral-event") ?? 0,
+              actionableCancel: getCounts.get("actionable-cancel") ?? 0,
+              actionableReleased: getCounts.get("actionable-released") ?? 0
+            }
+          }) as Effect.Effect<
+            {
+              neutralQuota: number
+              neutralEvent: number
+              actionableCancel: number
+              actionableReleased: number
+            },
+            never,
+            Scope.Scope
+          >
+        ).pipe(
+          Effect.provide(services),
+          Effect.provide(TestClock.layer())
+        ) as Effect.Effect<{
+          neutralQuota: number
+          neutralEvent: number
+          actionableCancel: number
+          actionableReleased: number
+        }>
+      )
 
-    // The sweep still examines and wakes the actionable rows…
-    expect(result.actionableCancel).toBeGreaterThanOrEqual(1)
-    expect(result.actionableReleased).toBeGreaterThanOrEqual(1)
-    // …but pays nothing for the parked fleet it cannot act on.
-    expect(result.neutralQuota).toBe(0)
-    expect(result.neutralEvent).toBe(0)
-  })
+      // The sweep still examines and wakes the actionable rows…
+      expect(result.actionableCancel).toBeGreaterThanOrEqual(1)
+      expect(result.actionableReleased).toBeGreaterThanOrEqual(1)
+      // …but pays nothing for the parked fleet it cannot act on.
+      expect(result.neutralQuota).toBe(0)
+      expect(result.neutralEvent).toBe(0)
+    }))
 })

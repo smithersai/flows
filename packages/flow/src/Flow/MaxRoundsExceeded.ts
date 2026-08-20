@@ -1,5 +1,5 @@
 /**
- * Failure raised when a trampoline lineage runs past its declared round budget.
+ * Defect recorded when a trampoline lineage runs past its declared round budget.
  *
  * @since 0.1.0
  */
@@ -13,7 +13,7 @@ import * as Schema from "effect/Schema"
  * detection: identical consecutive rounds are legal (a poller is exactly
  * that), so the only honest stop condition is a declared bound on how many
  * rounds one lineage may open. Exceeding it is terminal for the lineage — the
- * round that asked for the handoff is settled with this failure rather than
+ * round that asked for the handoff is settled with this defect rather than
  * handed off — because a lineage that has run out of budget has nowhere left
  * to continue, and letting it keep going would make the bound advisory.
  *
@@ -22,9 +22,10 @@ import * as Schema from "effect/Schema"
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class MaxRoundsExceeded extends Schema.TaggedError<MaxRoundsExceeded>()(
-  "@smthrs/flow-next/MaxRoundsExceeded",
+  "@smthrs/flow/MaxRoundsExceeded",
   {
     code: Schema.Literal("max_rounds_exceeded").pipe(
       Schema.withConstructorDefault(Effect.succeed("max_rounds_exceeded"))

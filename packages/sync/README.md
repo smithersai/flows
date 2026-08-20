@@ -1,6 +1,6 @@
-# @smthrs/sync-next
+# @smthrs/sync
 
-Browser-safe, read-only replication of canonical `@smthrs/journal-next` entries.
+Browser-safe, read-only replication of canonical `@smthrs/journal` entries.
 It defines the wire protocol, RPC group, server, and replay-then-follow client;
 journal mutation remains outside this package.
 
@@ -9,39 +9,54 @@ whose durable state is exactly one journal run (`BranchProtocol.branchRunId`),
 so multiplayer reuses the canonical `seq`, cursors, gap detection, and resumable
 follow rather than introducing a second source of truth. Presence is a lease and
 is never journalled; commands are admitted through a client-minted idempotency
-key; every operation authorizes through a signed, expiring, branch-scoped share
-capability.
+key; every branch operation after `Branch.CreateBranch` authorizes through a
+signed, expiring, branch-scoped share capability.
+
+Authorization is fail-closed along two boundaries:
+
+- **Branch runs** authorize through the branch share capability carried in
+  each request (`BranchShare`). A share link grants exactly its branch's run.
+- **Non-branch runs and workspace listings** authorize through the
+  authenticated workspace principal (`SyncPrincipal`, default anonymous). Over
+  RPC, `SyncAuth.layer` establishes the principal by verifying the
+  `WorkspaceShare` capability presented in the `flows-sync-workspace` request
+  header; secrets are provisioned as a `Redacted` keyring with rotation-ready
+  `kid`s (`WorkspaceShare.layerHmac`, `WorkspaceShare.layerConfig`). A
+  connection with no valid credential is refused every non-branch read.
 
 ```sh
-pnpm add @smthrs/sync-next
+pnpm add @smthrs/sync
 ```
 
 ## Public API
 
 The root exports these namespaces, also available from matching
-`@smthrs/sync-next/*` subpaths.
+`@smthrs/sync/*` subpaths.
 
-| Namespace          | Public exports                                                                                                                                                                                                                                                |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SyncError`        | `ErrorCode` schema/type, general `SyncError` with guard `SyncError.is`, and terminal `SyncGapError`.                                                                                                                                                          |
-| `SyncProtocol`     | Scope schemas `WorkspaceScope`, `RunScope`, and `Scope`; cursor schemas/types `RunCursor` and `WorkspaceCursor`; `ReadRequest`, `ReadResponse`, and `SubscribeRequest`; `EntriesFrame`, `HeartbeatFrame`, `ClosedFrame`, and `Frame`; `covers(scope, runId)`. |
-| `SyncRpcs`         | `SyncRpcs` defines `Sync.Read` and streaming `Sync.Subscribe`; `SyncAuth` is the RPC middleware service.                                                                                                                                                      |
-| `RunCatalog`       | `RunCatalog` / `Service` list runs and expose changes. `make`, `layerStatic`, `makeMemory`, and `layerNoop` provide implementations.                                                                                                                          |
-| `SyncServer`       | `SyncServer` / `Service`, `make`, `makeNoop`, and `layerNoop`; `makeLive` / `layer` implement journal replay and follow using `Journal` and `RunCatalog`.                                                                                                     |
-| `SyncClient`       | `Sync` / `Service` expose `subscribe` and materialized `cursors`; `SubscribeOptions`, `make`, `makeNoop`, `layer`, and `layerNoop` construct the browser-safe client.                                                                                         |
-| `BranchProtocol`   | `BranchId`, `ParticipantId`, `CommandId`, `Access`; `branchRunId` / `branchOfRunId` / `participantSourceId`; `CommandEvent` and `SayCommand`; `ShareClaims`, `ShareCapability`, `Cursor`, `Participant`, `CommandSubmission`, `CommandReceipt`.               |
-| `BranchShare`      | `BranchShare` / `Service` with `mint` and `verify`; `AuthorizeRequest`, `MintRequest`, `make`, `makeNoop`, `layerNoop`, `makeHmac`, `layerHmac`.                                                                                                              |
-| `BranchPresence`   | `BranchPresence` / `Service` with `announce`, `leave`, `list`, `changes`; `Announcement`, `RosterRequest`, `LeaveRequest`, `PresenceOptions`, `make`, `makeNoop`, `layerNoop`, `makeMemory`, `layer`.                                                         |
-| `BranchCommands`   | `BranchCommands` / `Service` with `submit`; `SubmitRequest`, `submission`, `make`, `makeNoop`, `layerNoop`, `makeLive`, `layer`.                                                                                                                              |
-| `BranchIds`        | `BranchIds` / `Service` with `fresh`, the port `BranchServer.layerHandlers` mints branch and capability ids through; `make`, `makeWebCrypto`, `layer` (Web Crypto UUIDs), and `layerSequential(prefix)` for deterministic tests.                              |
-| `BranchProjection` | `State`, `Message`, `AppliedCommand`, `Field`; `empty`, `apply`, `project`, and the explicit `resolveField` conflict policy.                                                                                                                                  |
+| Namespace          | Public exports                                                                                                                                                                                                                                                                  |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SyncError`        | `ErrorCode` schema/type, general `SyncError` with guard `SyncError.is`, and terminal `SyncGapError`.                                                                                                                                                                            |
+| `SyncProtocol`     | Scope schemas `WorkspaceScope`, `RunScope`, and `Scope`; cursor schemas/types `RunCursor` and `WorkspaceCursor`; `ReadRequest`, `ReadResponse`, and `SubscribeRequest`; `EntriesFrame`, `HeartbeatFrame`, `ClosedFrame`, and `Frame`; `covers(scope, runId)`.                   |
+| `SyncRpcs`         | `SyncRpcs` defines `Sync.Read` and streaming `Sync.Subscribe`; `SyncAuth` is the RPC middleware service every served group must implement.                                                                                                                                      |
+| `RunCatalog`       | `RunCatalog` / `Service` list runs and expose changes. `make`, `layerStatic`, `makeMemory`, and `layerNoop` provide implementations.                                                                                                                                            |
+| `SyncServer`       | `SyncServer` / `Service`, `make`, `makeNoop`, and `layerNoop`; `makeLive` / `layer` implement journal replay and follow using `Journal` and `RunCatalog`; `makeLiveWith` / `layerWith` take an explicit `Options` policy; `layerHandlers` projects the service onto `SyncRpcs`. |
+| `SyncClient`       | `Sync` / `Service` expose `subscribe` and materialized `cursors`; `SubscribeOptions`, `make`, `makeNoop`, `layer`, and `layerNoop` construct the browser-safe client.                                                                                                           |
+| `BranchProtocol`   | `BranchId`, `ParticipantId`, `CommandId`, `Access`; `branchRunId` / `branchOfRunId` / `commandSourceId` / `commandSourceSeq`; `CommandEvent` and `SayCommand`; `ShareClaims`, `ShareCapability`, `Cursor`, `Participant`, `CommandSubmission`, `CommandReceipt`.                |
+| `BranchShare`      | `BranchShare` / `Service` with `mint` and `verify`; `AuthorizeRequest`, `MintRequest`, `make`, `makeNoop`, `layerNoop`, `makeHmac`, `layerHmac`.                                                                                                                                |
+| `WorkspaceShare`   | `WorkspaceShare` / `Service` with `mint` and `verify` over a `Redacted` `Keyring` with `kid` rotation; `WorkspaceClaims`, `WorkspaceCapability`, `AuthorizeRequest`, `MintRequest`, `make`, `makeNoop`, `layerNoop`, `makeHmac`, `layerHmac`, `layerConfig`.                    |
+| `SyncPrincipal`    | `Principal` (`Anonymous` / `Workspace`), `anonymous`, `workspace`, `isWorkspace`, the `SyncPrincipal` reference (default anonymous), and `layerWorkspace` for in-process owners.                                                                                                |
+| `SyncAuth`         | Implementations of the `SyncRpcs.SyncAuth` middleware: `layer` verifies the `capabilityHeader` workspace capability, `layerClient` stamps it on outgoing requests, `encodeCapability` / `decodeCapability` are the header codec.                                                |
+| `BranchPresence`   | `BranchPresence` / `Service` with `announce`, `leave`, `list`, `changes`; `Announcement`, `RosterRequest`, `LeaveRequest`, `PresenceOptions`, `make`, `makeNoop`, `layerNoop`, `makeMemory`, `layer`.                                                                           |
+| `BranchCommands`   | `BranchCommands` / `Service` with `submit`; `SubmitRequest`, `submission`, `make`, `makeNoop`, `layerNoop`, `makeLive`, `layer`.                                                                                                                                                |
+| `BranchIds`        | `BranchIds` / `Service` with `fresh`, the port `BranchServer.layerHandlers` mints branch and capability ids through; `make`, `makeWebCrypto`, `layer` (Web Crypto UUIDs), and `layerSequential(prefix)` for deterministic tests.                                                |
+| `BranchProjection` | `State`, `Message`, `AppliedCommand`, `Field`; `empty`, `apply`, `project`, and the explicit `resolveField` conflict policy.                                                                                                                                                    |
 
-Public test subpaths are `@smthrs/sync-next/test/TestSocket` (`FrameFilter`,
-`TestFaults`, `Pair`, `makePair`) and `@smthrs/sync-next/test/TestSync`
-(`layerTest`, `layerNoop`, `connect`).
+Public test subpaths are `@smthrs/sync/test/TestSocket` (`FrameFilter`,
+`TestFaults`, `Pair`, `makePair`) and `@smthrs/sync/test/TestSync`
+(`layerTest`, `layerWorkspaceAuth`, `layerNoop`, `connect`).
 
 ```ts
-import { RunCatalog, SyncServer } from "@smthrs/sync-next"
+import { RunCatalog, SyncServer } from "@smthrs/sync"
 import { Effect, Layer } from "effect"
 
 const serverLayer = SyncServer.layer.pipe(

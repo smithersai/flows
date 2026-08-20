@@ -1,9 +1,13 @@
-# @smthrs/artifacts-next
+---
+description: "The content-addressed artifact store: bytes addressed by their own SHA-256 digest."
+---
 
-The content-addressed artifact store: bytes addressed by their own SHA-256 digest. The other half of the cache — [`@smthrs/step-cache-next`](/api/step-cache) maps a step key to a recorded result, and a recorded result references its large outputs by digest. It depends on `effect` and `@smthrs/crypto-next` and nothing else, so the package root bundles for the browser.
+# @smthrs/artifacts
+
+The content-addressed artifact store: bytes addressed by their own SHA-256 digest. It is the other half of the cache: [`@smthrs/step-cache`](/api/step-cache) maps a step key to a recorded result, and a recorded result references its large outputs by digest. It depends on `effect` and `@smthrs/crypto` and nothing else, so the package root bundles for the browser.
 
 ```ts
-import { ArtifactStore, CombinedArtifacts, RemoteArtifacts } from "@smthrs/artifacts-next"
+import { ArtifactStore, CombinedArtifacts, RemoteArtifacts } from "@smthrs/artifacts"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 
@@ -17,7 +21,7 @@ const layer = CombinedArtifacts.layer({
 
 | Import | Source | Platform |
 | --- | --- | --- |
-| `@smthrs/artifacts-next` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/artifacts/src/index.ts) | any |
+| `@smthrs/artifacts` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/artifacts/src/index.ts) | any |
 
 ## ArtifactStore
 
@@ -26,7 +30,7 @@ const layer = CombinedArtifacts.layer({
 | Export | Kind | Notes |
 | --- | --- | --- |
 | `ArtifactStore` | service tag | `put`, `get`, `has`, `findMissing` |
-| `Digest` | schema + type | 64 lowercase hex characters, branded by `@smthrs/crypto-next` |
+| `Digest` | schema + type | 64 lowercase hex characters, branded by `@smthrs/crypto` |
 | `ArtifactMissing` | error | the typed miss a read-through composition acts on |
 | `ArtifactCorruption` | error | stored bytes no longer hash to their address |
 | `ArtifactStoreError`, `ArtifactStoreErrorCode` | class + codes | `invalid_digest`, `unavailable`, `transport_failed` |
@@ -35,7 +39,7 @@ const layer = CombinedArtifacts.layer({
 | `makeFileSystem`, `makeMemory`, `makeNoop` | constructors | |
 | `layerFileSystem`, `layerMemory`, `layerNoop` | layers | |
 
-A digest reaches a read straight out of a durable row, so every implementation validates it before interpolating it into a location — a path under the objects directory, a `/cas/{digest}` URL. The 64-hex *shape* is deliberately not enforced: refusing to look up an unfamiliar address would reclassify an ordinary miss as a caller error, and the digest verification on read is the check that actually protects the caller.
+A digest reaches a read straight out of a durable row, so every implementation validates it before interpolating it into a location: a path under the objects directory, a `/cas/{digest}` URL. The 64-hex *shape* is deliberately not enforced, because refusing to look up an unfamiliar address would reclassify an ordinary miss as a caller error. The digest verification on read is the check that actually protects the caller.
 
 ## ArtifactSweep
 
@@ -59,7 +63,7 @@ The sweep half of [Artifact GC](/artifact-gc), deliberately not part of `Artifac
 | Export | Kind | Notes |
 | --- | --- | --- |
 | `puts` | counter | `flows_artifact_puts`; successful puts, deduplicated ones included |
-| `gets` | counter | `flows_artifact_gets`; successful digest-verified gets — typed misses are error evidence, not throughput |
+| `gets` | counter | `flows_artifact_gets`; successful digest-verified gets. Typed misses are error evidence, not throughput |
 
 The local implementations update them, so a `CombinedArtifacts` stack counts once per tier it actually touched.
 
@@ -69,7 +73,7 @@ The local implementations update them, so a `CombinedArtifacts` stack counts onc
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `Options` | interface | `endpoint`, `headers` — a capability, never a step-key input |
+| `Options` | interface | `endpoint`, `headers`; a capability, never a step-key input |
 | `make`, `layer` | constructor + layer | `GET`/`PUT`/`HEAD /cas/{digest}`, `POST /cas/findMissing` over Effect's `HttpClient` |
 
 ## CombinedArtifacts
@@ -81,4 +85,8 @@ The local implementations update them, so a `CombinedArtifacts` stack counts onc
 | `Options` | interface | the `local` and `remote` tiers |
 | `make`, `layer` | constructor + layer | local-first read-through with local write-back; in-flight uploads deduplicate per digest |
 
-`put` records locally and its local digest is the answer; the upload to the shared tier is opportunistic and a refusal is dropped, because failing there would fail whatever produced the bytes over an unreachable *cache*. What gates a shared cache entry is the publication protocol's `findMissing` → upload → confirm, not this upload.
+`put` records locally and its local digest is the answer. The upload to the shared tier is opportunistic and a refusal is dropped, because failing there would fail whatever produced the bytes over an unreachable *cache*.
+
+:::note
+What gates a shared cache entry is the publication protocol's `findMissing`, upload, confirm sequence, not this upload.
+:::

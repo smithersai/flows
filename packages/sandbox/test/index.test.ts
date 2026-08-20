@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest"
 import * as Sandbox from "../src/index.ts"
 
-describe("@smthrs/sandbox-next barrel", () => {
+describe("@smthrs/sandbox barrel", () => {
   it("re-exports every module as its own namespace", () => {
     expect(Object.keys(Sandbox).sort()).toEqual(["RemoteChildProcessSpawner", "SandboxHealth"])
   })
@@ -16,11 +16,11 @@ describe("@smthrs/sandbox-next barrel", () => {
    * invalidate recorded runs.
    */
   it("pins the identity strings the durable record depends on", () => {
-    expect(Sandbox.SandboxHealth.SandboxHealth.key).toBe("@smthrs/sandbox-next/SandboxHealth")
+    expect(Sandbox.SandboxHealth.SandboxHealth.key).toBe("@smthrs/sandbox/SandboxHealth")
     expect(Sandbox.RemoteChildProcessSpawner.Provider.key).toBe(
-      "@smthrs/sandbox-next/RemoteChildProcessSpawner/Provider"
+      "@smthrs/sandbox/RemoteChildProcessSpawner/Provider"
     )
     expect(new Sandbox.RemoteChildProcessSpawner.ProviderError({ code: "unknown", message: "x" })._tag)
-      .toBe("@smthrs/sandbox-next/RemoteChildProcessSpawner/ProviderError")
+      .toBe("@smthrs/sandbox/RemoteChildProcessSpawner/ProviderError")
   })
 })

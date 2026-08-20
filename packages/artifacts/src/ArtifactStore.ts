@@ -17,7 +17,7 @@
  *
  * @since 0.1.0
  */
-import { Sha256 } from "@smthrs/crypto-next"
+import { Sha256 } from "@smthrs/crypto"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import type * as Crypto from "effect/Crypto"
@@ -29,14 +29,16 @@ import * as Option from "effect/Option"
 import * as Random from "effect/Random"
 import * as Schema from "effect/Schema"
 import * as ArtifactStoreMetrics from "./ArtifactStoreMetrics.ts"
+import * as ArtifactLocks from "./internal/ArtifactLocks.ts"
 
 /**
  * Schema for a content address: exactly 64 lowercase hexadecimal SHA-256
- * characters, branded by `@smthrs/crypto-next`. Re-exported so a consumer never has
+ * characters, branded by `@smthrs/crypto`. Re-exported so a consumer never has
  * to reach past this package for the address type it stores under.
  *
  * @category schemas
  * @since 0.1.0
+ * @slop
  */
 export const Digest = Sha256.Digest
 
@@ -51,6 +53,7 @@ export const Digest = Sha256.Digest
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type Digest = typeof Sha256.Digest.Type
 
@@ -59,6 +62,7 @@ export type Digest = typeof Sha256.Digest.Type
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export const ArtifactStoreErrorCode = Schema.Literals([
   "invalid_digest",
@@ -71,6 +75,7 @@ export const ArtifactStoreErrorCode = Schema.Literals([
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export type ArtifactStoreErrorCode = typeof ArtifactStoreErrorCode.Type
 
@@ -86,9 +91,10 @@ export type ArtifactStoreErrorCode = typeof ArtifactStoreErrorCode.Type
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class ArtifactStoreError extends Schema.TaggedError<ArtifactStoreError>()(
-  "@smthrs/artifacts-next/ArtifactStoreError",
+  "@smthrs/artifacts/ArtifactStoreError",
   {
     code: ArtifactStoreErrorCode,
     message: Schema.String,
@@ -105,9 +111,10 @@ export class ArtifactStoreError extends Schema.TaggedError<ArtifactStoreError>()
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class ArtifactMissing extends Schema.TaggedError<ArtifactMissing>()(
-  "@smthrs/artifacts-next/ArtifactMissing",
+  "@smthrs/artifacts/ArtifactMissing",
   {
     code: Schema.Literal("artifact_missing"),
     digest: Schema.String
@@ -123,9 +130,10 @@ export class ArtifactMissing extends Schema.TaggedError<ArtifactMissing>()(
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class ArtifactCorruption extends Schema.TaggedError<ArtifactCorruption>()(
-  "@smthrs/artifacts-next/ArtifactCorruption",
+  "@smthrs/artifacts/ArtifactCorruption",
   {
     code: Schema.Literal("artifact_corruption"),
     recordedDigest: Schema.String,
@@ -146,6 +154,7 @@ export class ArtifactCorruption extends Schema.TaggedError<ArtifactCorruption>()
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Service {
   /**
@@ -174,13 +183,13 @@ export interface Service {
  * Service tag for the content-addressed artifact store.
  *
  * The identity string equals this module's package path, per the house rule
- * that a new identity is the defining module path. It is not one of the three
- * deliberately frozen `flows/journal/…` ids.
+ * that an identity is the defining module path.
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
-export class ArtifactStore extends Context.Service<ArtifactStore, Service>()("@smthrs/artifacts-next/ArtifactStore") {}
+export class ArtifactStore extends Context.Service<ArtifactStore, Service>()("@smthrs/artifacts/ArtifactStore") {}
 
 const error = (code: ArtifactStoreErrorCode, message: string, cause?: unknown): ArtifactStoreError =>
   new ArtifactStoreError({ code, message, ...(cause === undefined ? {} : { cause }) })
@@ -205,6 +214,7 @@ const hostFailure = (cause: unknown): ArtifactStoreError =>
  *
  * @category predicates
  * @since 0.1.0
+ * @slop
  */
 export const validateDigest = (digest: string): Effect.Effect<void, ArtifactStoreError> =>
   digest.length > 0 && !digest.includes("/") && !digest.includes("\\") && digest !== "." && digest !== ".."
@@ -222,6 +232,7 @@ const distinct = (digests: Iterable<string>): Array<string> => [...new Set(diges
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface FileSystemOptions {
   /**
@@ -229,6 +240,13 @@ export interface FileSystemOptions {
    * defaults to `.flows/objects`.
    */
   readonly directory?: string | undefined
+  /**
+   * `required` reports success only after syncing both the blob and the
+   * containing fanout directory. `best-effort` is the explicit weaker
+   * capability for hosts such as browser filesystems that cannot open file
+   * handles for syncing.
+   */
+  readonly durability?: "required" | "best-effort" | undefined
 }
 
 /**
@@ -267,9 +285,11 @@ const fanout = (directory: string, digest: string): { readonly parent: string; r
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOptions = {}): Service => {
   const directory = options.directory ?? defaultDirectory
+  const durability = options.durability ?? "required"
   /**
    * Distinguishes concurrent temp paths for the same digest across writers.
    * The counter separates in-flight writers of this service instance; the
@@ -311,7 +331,7 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
    *
    * This is a sweep of scratch files, not garbage collection. Reclaiming
    * *published* artifacts is `ArtifactSweep` driven by an explicit
-   * `ArtifactGc.gc()` call in `@smthrs/engine-store-next` — an explicit verb per
+   * `ArtifactGc.gc()` call in `@smthrs/engine-store` — an explicit verb per
    * `docs/specs/Concepts/Reconciliation.md`, never folded in here.
    */
   let sweepDone = false
@@ -337,90 +357,102 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
    *
    * Bazel does exactly this in `DiskCacheClient.saveFile`: "fsync temp before
    * we rename it to avoid data loss in the case of machine crashes (the OS may
-   * reorder the writes and the rename)". It is best-effort here because
-   * `FileSystem.open` is one of the operations a browser backend does not
-   * serve (`@smthrs/platform-browser-next`'s `BrowserFileSystem` fails it rather
-   * than pretending). A host without writable handles still gets the
-   * temp+rename atomicity; it just does not get the crash-durability bound.
+   * reorder the writes and the rename)". Hosts such as browser filesystems
+   * that cannot open writable handles must select the explicit `best-effort`
+   * capability. Required durability propagates every open or sync refusal
+   * instead of claiming a durable write.
    */
-  const fsyncTemp = (tempPath: string): Effect.Effect<void> =>
-    Effect.scoped(
-      Effect.flatMap(fs.open(tempPath, { flag: "r+" }), (file) => file.sync)
-    ).pipe(Effect.ignore)
+  const syncPath = (path: string, flag: "r" | "r+"): Effect.Effect<void, ArtifactStoreError> => {
+    const sync = Effect.scoped(Effect.flatMap(fs.open(path, { flag }), (file) => file.sync)).pipe(
+      Effect.mapError(hostFailure)
+    )
+    return durability === "best-effort" ? Effect.ignore(sync) : sync
+  }
   const measure = (bytes: Uint8Array): Effect.Effect<Digest, never, Crypto.Crypto> =>
     Schema.decodeUnknownEffect(Sha256)(bytes).pipe(Effect.orDie)
 
   const put: Service["put"] = Effect.fn("ArtifactStore.put")((bytes: Uint8Array) =>
-    Effect.gen(function*() {
-      const digest = yield* measure(bytes)
-      const blob = fanout(directory, digest)
-      const stored = yield* fs.exists(blob.path).pipe(Effect.mapError(hostFailure))
-      // Existence alone is not validity: a truncated blob left by a crashing
-      // writer or by disk corruption would otherwise be trusted forever at
-      // write time while `get` digest-verifies and refuses — a permanent
-      // failure with no repair path even though this process holds the correct
-      // bytes. The existing blob is digest-verified on EVERY put (an
-      // unreadable blob counts as corrupt), and only a verified match skips
-      // the write; a mismatch falls through to the atomic rewrite below,
-      // healing the address. Verification is deliberately not memoized: the
-      // objects directory is workspace-shared, so a blob can change behind
-      // this store's back, and a remembered proof let a later `put` report
-      // success over corrupt bytes without repairing them — `get` would then
-      // refuse the digest forever even though every `put` held the cure.
-      // Re-verifying costs a constant factor, never a new asymptote: a `put`
-      // already pays one O(blob size) hash to measure its own input.
-      let verified = stored &&
-        (yield* fs.readFile(blob.path).pipe(
-          Effect.flatMap((existing) => Effect.map(measure(existing), (measured) => measured === digest)),
-          Effect.catch(() => Effect.succeed(false))
-        ))
-      if (verified) {
-        // Freshen the blob's mtime on a dedupe hit — git's loose-object
-        // freshening, and the touch Bazel's `DiskCacheClient` performs on a
-        // cache hit. The mtime is the age evidence a mark/sweep collector
-        // fences its deletions on (`ArtifactSweep`), so a re-publication of
-        // old bytes must read as a recent reference or the grace period
-        // cannot protect the entry recorded moments later. Best-effort on
-        // hosts without `utimes` (the browser filesystem): a failed freshen
-        // over a blob that still exists keeps the dedupe skip and accepts
-        // git's freshen-versus-prune race; a failed freshen over a blob that
-        // VANISHED — a sweep won it — falls through to the atomic rewrite
-        // below, healing the address.
-        const now = yield* Clock.currentTimeMillis
-        const alive = yield* fs.utimes(blob.path, now, now).pipe(
-          Effect.as(true),
-          Effect.catch(() => fs.exists(blob.path).pipe(Effect.catch(() => Effect.succeed(true))))
-        )
-        if (!alive) {
-          verified = false
-        }
-      }
-      if (!verified) {
-        // Atomic publication: a plain write to the canonical address could be
-        // observed — or survive a crash — as a partial file that every later
-        // read of this digest would trust. The payload lands at a temp path in
-        // the same fanout directory (so the rename never crosses a filesystem)
-        // and is renamed into place; an existing blob is rewritten only when
-        // its bytes no longer match its address.
-        yield* fs.makeDirectory(blob.parent, { recursive: true }).pipe(Effect.mapError(hostFailure))
-        yield* sweepOrphanedTemps
-        const tempPath = `${blob.path}.tmp-${yield* freshTempToken}-${tempSequence++}`
-        // A failed publication removes its own scratch file; a crash cannot,
-        // which is what the sweep above reclaims.
-        yield* fs.writeFile(tempPath, bytes).pipe(
-          Effect.andThen(fsyncTemp(tempPath)),
-          Effect.andThen(fs.rename(tempPath, blob.path)),
-          Effect.mapError(hostFailure),
-          Effect.onError(() => fs.remove(tempPath).pipe(Effect.ignore))
-        )
-      }
-      yield* Metric.update(ArtifactStoreMetrics.puts, 1)
-      return digest
-    })
+    Effect.flatMap(measure(bytes), (digest) =>
+      ArtifactLocks.withDigest(
+        fs,
+        digest,
+        Effect.gen(function*() {
+          yield* Effect.annotateCurrentSpan({ digest })
+          const blob = fanout(directory, digest)
+          const stored = yield* fs.exists(blob.path).pipe(Effect.mapError(hostFailure))
+          // Existence alone is not validity: a truncated blob left by a crashing
+          // writer or by disk corruption would otherwise be trusted forever at
+          // write time while `get` digest-verifies and refuses — a permanent
+          // failure with no repair path even though this process holds the correct
+          // bytes. The existing blob is digest-verified on EVERY put (an
+          // unreadable blob counts as corrupt), and only a verified match skips
+          // the write; a mismatch falls through to the atomic rewrite below,
+          // healing the address. Verification is deliberately not memoized: the
+          // objects directory is workspace-shared, so a blob can change behind
+          // this store's back, and a remembered proof let a later `put` report
+          // success over corrupt bytes without repairing them — `get` would then
+          // refuse the digest forever even though every `put` held the cure.
+          // Re-verifying costs a constant factor, never a new asymptote: a `put`
+          // already pays one O(blob size) hash to measure its own input.
+          let verified = stored &&
+            (yield* fs.readFile(blob.path).pipe(
+              Effect.flatMap((existing) => Effect.map(measure(existing), (measured) => measured === digest)),
+              Effect.catch(() => Effect.succeed(false))
+            ))
+          if (verified) {
+            // Freshen the blob's mtime on a dedupe hit — git's loose-object
+            // freshening, and the touch Bazel's `DiskCacheClient` performs on a
+            // cache hit. The mtime is the age evidence a mark/sweep collector
+            // fences its deletions on (`ArtifactSweep`), so a re-publication of
+            // old bytes must read as a recent reference or the grace period
+            // cannot protect the entry recorded moments later. Best-effort on
+            // hosts without `utimes` (the browser filesystem): a failed freshen
+            // over a blob that still exists keeps the dedupe skip and accepts
+            // git's freshen-versus-prune race; a failed freshen over a blob that
+            // VANISHED — a sweep won it — falls through to the atomic rewrite
+            // below, healing the address.
+            const now = yield* Clock.currentTimeMillis
+            const alive = yield* fs.utimes(blob.path, now, now).pipe(
+              Effect.as(true),
+              Effect.catch(() => fs.exists(blob.path).pipe(Effect.catch(() => Effect.succeed(true))))
+            )
+            if (!alive) {
+              verified = false
+            }
+            if (verified) {
+              yield* syncPath(blob.path, "r+")
+              yield* syncPath(blob.parent, "r")
+            }
+          }
+          if (!verified) {
+            // Atomic publication: a plain write to the canonical address could be
+            // observed — or survive a crash — as a partial file that every later
+            // read of this digest would trust. The payload lands at a temp path in
+            // the same fanout directory (so the rename never crosses a filesystem)
+            // and is renamed into place; an existing blob is rewritten only when
+            // its bytes no longer match its address.
+            yield* fs.makeDirectory(blob.parent, { recursive: true }).pipe(Effect.mapError(hostFailure))
+            yield* sweepOrphanedTemps
+            const tempPath = `${blob.path}.tmp-${yield* freshTempToken}-${tempSequence++}`
+            // A failed publication removes its own scratch file; a crash cannot,
+            // which is what the sweep above reclaims.
+            yield* fs.writeFile(tempPath, bytes).pipe(
+              Effect.andThen(syncPath(tempPath, "r+")),
+              Effect.andThen(fs.rename(tempPath, blob.path)),
+              Effect.andThen(syncPath(blob.parent, "r")),
+              Effect.mapError(hostFailure),
+              Effect.onError(() => fs.remove(tempPath).pipe(Effect.ignore))
+            )
+          }
+          yield* Metric.update(ArtifactStoreMetrics.puts, 1)
+          return digest
+        })
+      ))
   )
 
   const get: Service["get"] = Effect.fn("ArtifactStore.get")((digest: string) =>
     Effect.gen(function*() {
+      yield* Effect.annotateCurrentSpan({ digest })
       yield* validateDigest(digest)
       const blob = fanout(directory, digest)
       const present = yield* fs.exists(blob.path).pipe(Effect.mapError(hostFailure))
@@ -445,6 +477,7 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
 
   const has: Service["has"] = Effect.fn("ArtifactStore.has")((digest: string) =>
     Effect.gen(function*() {
+      yield* Effect.annotateCurrentSpan({ digest })
       yield* validateDigest(digest)
       return yield* fs.exists(fanout(directory, digest).path).pipe(Effect.mapError(hostFailure))
     })
@@ -452,8 +485,10 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
 
   const findMissing: Service["findMissing"] = Effect.fn("ArtifactStore.findMissing")((digests: Iterable<string>) =>
     Effect.gen(function*() {
+      const requested = distinct(digests)
+      yield* Effect.annotateCurrentSpan({ count: requested.length })
       const missing: Array<string> = []
-      for (const digest of distinct(digests)) {
+      for (const digest of requested) {
         if (!(yield* has(digest))) missing.push(digest)
       }
       return missing
@@ -468,6 +503,7 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerFileSystem = (
   options: FileSystemOptions = {}
@@ -488,13 +524,16 @@ export const layerFileSystem = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeMemory = (): Service => {
   const blobs = new Map<string, Uint8Array>()
   const measure = (bytes: Uint8Array): Effect.Effect<Digest, never, Crypto.Crypto> =>
     Schema.decodeUnknownEffect(Sha256)(bytes).pipe(Effect.orDie)
   const has: Service["has"] = Effect.fn("ArtifactStore.has")((digest: string) =>
-    Effect.map(validateDigest(digest), () => blobs.has(digest))
+    Effect.annotateCurrentSpan({ digest }).pipe(
+      Effect.andThen(Effect.map(validateDigest(digest), () => blobs.has(digest)))
+    )
   )
   return {
     put: Effect.fn("ArtifactStore.put")((bytes: Uint8Array) =>
@@ -504,10 +543,14 @@ export const makeMemory = (): Service => {
         // let that mutation corrupt the stored content for its digest.
         blobs.set(digest, bytes.slice())
         return digest
-      }).pipe(Effect.tap(() => Metric.update(ArtifactStoreMetrics.puts, 1)))
+      }).pipe(
+        Effect.tap((digest) => Effect.annotateCurrentSpan({ digest })),
+        Effect.tap(() => Metric.update(ArtifactStoreMetrics.puts, 1))
+      )
     ),
     get: Effect.fn("ArtifactStore.get")((digest: string) =>
       Effect.gen(function*() {
+        yield* Effect.annotateCurrentSpan({ digest })
         yield* validateDigest(digest)
         const bytes = blobs.get(digest)
         if (bytes === undefined) {
@@ -523,8 +566,10 @@ export const makeMemory = (): Service => {
     has,
     findMissing: Effect.fn("ArtifactStore.findMissing")((digests: Iterable<string>) =>
       Effect.gen(function*() {
+        const requested = distinct(digests)
+        yield* Effect.annotateCurrentSpan({ count: requested.length })
         const missing: Array<string> = []
-        for (const digest of distinct(digests)) {
+        for (const digest of requested) {
           if (!(yield* has(digest))) missing.push(digest)
         }
         return missing
@@ -538,6 +583,7 @@ export const makeMemory = (): Service => {
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerMemory: Layer.Layer<ArtifactStore> = Layer.effect(ArtifactStore)(Effect.sync(makeMemory))
 
@@ -547,6 +593,7 @@ export const layerMemory: Layer.Layer<ArtifactStore> = Layer.effect(ArtifactStor
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (overrides: Partial<Service> = {}): Service => {
   const unavailable = (method: string) => Effect.fail(error("unavailable", `${method} is unavailable`))
@@ -564,6 +611,7 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service => {
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<ArtifactStore> =>
   Layer.succeed(ArtifactStore)(makeNoop(overrides))

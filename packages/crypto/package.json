@@ -1,8 +1,11 @@
 {
-  "name": "@smthrs/crypto-next",
+  "name": "@smthrs/crypto",
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
+  "smthrs": {
+    "group": "engine"
+  },
   "description": "Effect schemas for injected cryptographic operations",
   "homepage": "https://github.com/smithersai/flows",
   "repository": {
@@ -81,6 +84,7 @@
   "devDependencies": {
     "@effect/language-service": "0.87.1",
     "@effect/platform-node": "4.0.0-rc.108",
+    "@effect/vitest": "4.0.0-rc.108",
     "@eslint/js": "9.39.1",
     "@types/node": "25.9.5",
     "@vitest/coverage-v8": "4.1.9",

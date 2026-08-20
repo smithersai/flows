@@ -16,6 +16,7 @@ import { CurrentAttempt, CurrentOrdinal, type OrdinalSlot } from "./Context.ts"
  *
  * @category error handling
  * @since 4.0.0
+ * @slop
  */
 export const retry: {
   <E, O extends Types.NoExcessProperties<Omit<Effect.Retry.Options<E>, "schedule">, O>>(

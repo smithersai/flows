@@ -20,6 +20,7 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import { Access, BranchId, ShareCapability, ShareClaims } from "./BranchProtocol.ts"
+import * as shareSigner from "./internal/shareSigner.ts"
 import { SyncError } from "./SyncError.ts"
 
 /**
@@ -62,11 +63,15 @@ export type MintRequest = typeof MintRequest.Type
 /**
  * Share capability operations.
  *
+ * `mint` fails with a `SyncError` when the Web Crypto signing operation
+ * rejects; `verify` fails with a `SyncError` when signing rejects or the
+ * capability is refused.
+ *
  * @category models
  * @since 0.1.0
  */
 export interface Service {
-  readonly mint: (request: MintRequest) => Effect.Effect<ShareCapability>
+  readonly mint: (request: MintRequest) => Effect.Effect<ShareCapability, SyncError>
   readonly verify: (
     capability: ShareCapability,
     request: AuthorizeRequest
@@ -79,7 +84,7 @@ export interface Service {
  * @category services
  * @since 0.1.0
  */
-export class BranchShare extends Context.Service<BranchShare, Service>()("@smthrs/sync-next/BranchShare") {}
+export class BranchShare extends Context.Service<BranchShare, Service>()("@smthrs/sync/BranchShare") {}
 
 /**
  * Constructs a share authority from an implementation.
@@ -112,84 +117,65 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service =>
  */
 export const layerNoop: Layer.Layer<BranchShare> = Layer.succeed(BranchShare, makeNoop())
 
-const encoder = new TextEncoder()
-
 /** Length-prefixed so no two distinct claim sets share an encoding. */
 const canonical = (claims: ShareClaims): string =>
-  [claims.branchId, claims.capabilityId, claims.access, String(claims.issuedAtMs), String(claims.expiresAtMs)]
-    .map((field) => `${field.length}:${field}`)
-    .join("")
-
-const hex = (bytes: Uint8Array): string => Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")
-
-/** Length-independent comparison, so a signature check leaks no prefix length. */
-const constantTimeEquals = (left: string, right: string): boolean => {
-  let difference = left.length ^ right.length
-  // `charCodeAt` past the end is NaN, and `NaN | 0` is 0, so the loop reads
-  // both strings to the longer length without an early return.
-  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
-    difference |= (left.charCodeAt(index) | 0) ^ (right.charCodeAt(index) | 0)
-  }
-  return difference === 0
-}
+  shareSigner.lengthPrefixed(
+    [claims.branchId, claims.capabilityId, claims.access, String(claims.issuedAtMs), String(claims.expiresAtMs)]
+  )
 
 /**
  * Constructs the HMAC-SHA-256 share authority over a shared secret.
  *
+ * Fails with a `SyncError` carrying the rejection as `cause` when Web Crypto
+ * refuses to import the signing key.
+ *
  * @category constructors
  * @since 0.1.0
  */
-export const makeHmac = (options: { readonly secret: string }): Effect.Effect<Service> =>
+export const makeHmac = (options: { readonly secret: string }): Effect.Effect<Service, SyncError> =>
   Effect.map(
-    Effect.promise(() =>
-      crypto.subtle.importKey("raw", encoder.encode(options.secret), { name: "HMAC", hash: "SHA-256" }, false, [
-        "sign"
-      ])
-    ),
+    shareSigner.importHmacKey(options.secret),
     (key) => {
-      const sign = (claims: ShareClaims): Effect.Effect<string> =>
-        Effect.map(
-          Effect.promise(() => crypto.subtle.sign("HMAC", key, encoder.encode(canonical(claims)))),
-          (signature) => hex(new Uint8Array(signature))
-        )
+      const sign = (claims: ShareClaims): Effect.Effect<string, SyncError> =>
+        shareSigner.signHmac(key, canonical(claims))
 
-      const mint = (request: MintRequest): Effect.Effect<ShareCapability> =>
-        Effect.gen(function*() {
-          const issuedAtMs = yield* Clock.currentTimeMillis
-          const claims = new ShareClaims({
-            branchId: request.branchId,
-            capabilityId: request.capabilityId,
-            access: request.access,
-            issuedAtMs,
-            expiresAtMs: issuedAtMs + request.ttlMs
-          })
-          return new ShareCapability({ claims, signature: yield* sign(claims) })
+      const mint = Effect.fn("BranchShare.mint")(function*(request: MintRequest) {
+        yield* Effect.annotateCurrentSpan({ branchId: request.branchId, access: request.access })
+        const issuedAtMs = yield* Clock.currentTimeMillis
+        const claims = new ShareClaims({
+          branchId: request.branchId,
+          capabilityId: request.capabilityId,
+          access: request.access,
+          issuedAtMs,
+          expiresAtMs: issuedAtMs + request.ttlMs
         })
+        return new ShareCapability({ claims, signature: yield* sign(claims) })
+      })
 
-      const verify = (
+      const verify = Effect.fn("BranchShare.verify")(function*(
         capability: ShareCapability,
         request: AuthorizeRequest
-      ): Effect.Effect<ShareClaims, SyncError> =>
-        Effect.gen(function*() {
-          const claims = capability.claims
-          const expected = yield* sign(claims)
-          if (!constantTimeEquals(expected, capability.signature)) {
-            return yield* Effect.fail(denied("The share capability signature is invalid"))
-          }
-          if (claims.branchId !== request.branchId) {
-            return yield* Effect.fail(
-              denied(`The share capability is scoped to branch ${claims.branchId}`)
-            )
-          }
-          const nowMs = yield* Clock.currentTimeMillis
-          if (nowMs >= claims.expiresAtMs) {
-            return yield* Effect.fail(denied("The share capability has expired"))
-          }
-          if (request.access === "write" && claims.access !== "write") {
-            return yield* Effect.fail(denied("The share capability is read-only"))
-          }
-          return claims
-        })
+      ) {
+        yield* Effect.annotateCurrentSpan({ branchId: request.branchId, access: request.access })
+        const claims = capability.claims
+        const expected = yield* sign(claims)
+        if (!shareSigner.constantTimeEquals(expected, capability.signature)) {
+          return yield* Effect.fail(denied("The share capability signature is invalid"))
+        }
+        if (claims.branchId !== request.branchId) {
+          return yield* Effect.fail(
+            denied(`The share capability is scoped to branch ${claims.branchId}`)
+          )
+        }
+        const nowMs = yield* Clock.currentTimeMillis
+        if (nowMs >= claims.expiresAtMs) {
+          return yield* Effect.fail(denied("The share capability has expired"))
+        }
+        if (request.access === "write" && claims.access !== "write") {
+          return yield* Effect.fail(denied("The share capability is read-only"))
+        }
+        return claims
+      })
 
       return make({ mint, verify })
     }
@@ -201,5 +187,5 @@ export const makeHmac = (options: { readonly secret: string }): Effect.Effect<Se
  * @category layers
  * @since 0.1.0
  */
-export const layerHmac = (options: { readonly secret: string }): Layer.Layer<BranchShare> =>
+export const layerHmac = (options: { readonly secret: string }): Layer.Layer<BranchShare, SyncError> =>
   Layer.effect(BranchShare, makeHmac(options))

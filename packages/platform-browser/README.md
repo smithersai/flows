@@ -1,10 +1,10 @@
-# @smthrs/platform-browser-next
+# @smthrs/platform-browser
 
 Browser implementations of Effect platform services backed by ZenFS and
 just-bash — the two `@effect/platform-browser` does not ship.
 
 ```sh
-pnpm add @smthrs/platform-browser-next
+pnpm add @smthrs/platform-browser
 ```
 
 `effect`'s own browser platform package covers HTTP, sockets, workers,
@@ -17,7 +17,7 @@ own.
 Network access is not one of them: `BrowserHost.layer` provides Effect's own
 `FetchHttpClient.layer` directly, configured with
 `RequestInit { redirect: "manual" }` so the runtime never follows a redirect
-behind `@smthrs/kernel-next`'s grant check. There is no `flows` wrapper around
+behind `@smthrs/kernel`'s grant check. There is no `flows` wrapper around
 `fetch`.
 
 ## Public API
@@ -34,7 +34,7 @@ behind `@smthrs/kernel-next`'s grant check. There is no `flows` wrapper around
 Every backend is an **argument, not an import**. The page owns which ZenFS
 backend is mounted (IndexedDB, OPFS, memory), which just-bash instance is wired
 to it, and how the `flows_jj.wasm` bytes arrive (bundler asset, `fetch` +
-`WebAssembly.compileStreaming` — see `@smthrs/jj-next`'s README for the recipe).
+`WebAssembly.compileStreaming` — see `@smthrs/jj`'s README for the recipe).
 `BrowserHost.layer({ bash, fs, jj })` takes all three; `jj.fs` is the
 _synchronous_ slice of the same mount `fs` exposes as promises, because WASI
 preview1 is a sync syscall ABI. All of them must view the same filesystem or
@@ -43,7 +43,7 @@ A page with no wasm to hand over composes `BrowserJj.layerUnsupported`
 explicitly — the bundle never installs it silently. The signature says so:
 
 ```ts
-import { BrowserServices } from "@smthrs/platform-browser-next"
+import { BrowserServices } from "@smthrs/platform-browser"
 import { Effect } from "effect"
 import { ChildProcess } from "effect/unstable/process"
 

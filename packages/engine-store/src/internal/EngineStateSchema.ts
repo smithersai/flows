@@ -3,7 +3,7 @@
  * migration, and the inventory of what porting them to another
  * dialect costs.
  *
- * The canonical `flows_*` migrations live in `@smthrs/journal-next`; these
+ * The canonical `flows_*` migrations live in `@smthrs/journal`; these
  * statements are engine-store-owned storage created idempotently at
  * construction instead (issues #40/#41/#79/#81). That is a deliberate lane
  * boundary, not an oversight — but it left the statements invisible to the
@@ -15,7 +15,7 @@
  *
  * @since 0.1.0
  */
-import type { Service as WriterService } from "@smthrs/database-next/DurableWriter"
+import type { Service as WriterService } from "@smthrs/database/DurableWriter"
 import * as Effect from "effect/Effect"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"
 
@@ -24,6 +24,7 @@ import type * as SqlClient from "effect/unstable/sql/SqlClient"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type Dialect = "sqlite" | "postgres"
 
@@ -32,6 +33,7 @@ export type Dialect = "sqlite" | "postgres"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface Statement {
   /** The schema object's name, as it appears in the catalog. */
@@ -54,6 +56,7 @@ export interface Statement {
  *
  * @since 0.1.0
  * @category constants
+ * @slop
  */
 export const statements: ReadonlyArray<Statement> = [
   {
@@ -122,6 +125,7 @@ export const statements: ReadonlyArray<Statement> = [
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const apply = (sql: SqlClient.SqlClient, writer: WriterService): Effect.Effect<void> =>
   Effect.forEach(

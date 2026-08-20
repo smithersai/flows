@@ -1,4 +1,4 @@
-import { JournalEvent } from "@smthrs/journal-next"
+import { JournalEvent } from "@smthrs/journal"
 import { describe, expect, it } from "vitest"
 import * as BranchProjection from "../src/BranchProjection.ts"
 import * as BranchProtocol from "../src/BranchProtocol.ts"
@@ -20,7 +20,7 @@ const entry = (fields: {
     runId: fields.runId ?? runId,
     seq: fields.seq as JournalEvent.Seq,
     eventId: `event-${fields.seq}`,
-    sourceId: BranchProtocol.participantSourceId(participant(fields.participantId ?? "alice")),
+    sourceId: BranchProtocol.commandSourceId(`event-${fields.seq}` as BranchProtocol.CommandId),
     sourceSeq: (nextSourceSeq += 1) as JournalEvent.SourceSeq,
     emittedAtMs: fields.seq,
     eventType: fields.eventType ?? BranchProtocol.CommandEvent,
@@ -85,7 +85,22 @@ describe("BranchProjection", () => {
     expect(thrice).toEqual(once)
   })
 
-  it("ignores entries at or below the applied cursor, so a resumed read replays nothing", () => {
+  it("converges regardless of the order frames are delivered in", () => {
+    const entries = [
+      command({ seq: 0, commandId: "c1", args: "first" }),
+      command({ seq: 1, commandId: "c2", participantId: "bob", args: "second" }),
+      command({ seq: 2, commandId: "c3", args: "third" })
+    ]
+    const inOrder = BranchProjection.project(branchId, entries)
+    const reversed = BranchProjection.project(branchId, [...entries].reverse())
+    const interleaved = BranchProjection.project(branchId, [entries[2]!, entries[0]!, entries[2]!, entries[1]!])
+
+    expect(reversed).toEqual(inOrder)
+    expect(interleaved).toEqual(inOrder)
+    expect(inOrder.messages.map((message) => message.text)).toEqual(["first", "second", "third"])
+  })
+
+  it("ignores a redelivery of the cursor tip, so a resumed read replays nothing", () => {
     const applied = BranchProjection.project(branchId, [command({ seq: 4, commandId: "c1", args: "hello" })])
     const replayed = BranchProjection.apply(applied, command({ seq: 4, commandId: "c-other", args: "again" }))
 

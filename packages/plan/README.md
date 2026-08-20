@@ -1,4 +1,4 @@
-# @smthrs/plan-next
+# @smthrs/plan
 
 The persisted plan: a keyed action graph, its append-only store, its diff, and
 the step-key compiler that gives every node its identity.
@@ -6,10 +6,10 @@ the step-key compiler that gives every node its identity.
 A plan is "a `Node` graph with every key computed, produced by the plan phase
 and inert until run". This package is that value made durable — and nothing
 more. It performs no I/O beyond the database and never executes anything;
-driving a plan is `@smthrs/engine-store-next`'s `PlanScheduler`.
+driving a plan is `@smthrs/engine-store`'s `PlanScheduler`.
 
 ```ts
-import { Plan, PlanStore } from "@smthrs/plan-next"
+import { Plan, PlanStore } from "@smthrs/plan"
 import * as Effect from "effect/Effect"
 
 const plan = yield* Plan.compile({
@@ -52,11 +52,11 @@ yield* store.record(plan, Date.now())
 | Module        | Role                                                                                                 |
 | ------------- | ---------------------------------------------------------------------------------------------------- |
 | `KeyMaterial` | What a planner declares about a node: body, tagged input references, layers, capabilities, effects   |
-| `StepKey`     | The compiler that turns material plus resolved dependency digests into an `@smthrs/keys-next` `Key`  |
+| `StepKey`     | The compiler that turns material plus resolved dependency digests into an `@smthrs/keys` `Key`       |
 | `Plan`        | `compile`, `append`, the node/edge/conflict schemas, and the digest an approval binds to             |
 | `PlanDiff`    | `flows plan --diff` as a value: added, removed, re-keyed (with attribution), unchanged               |
 | `PlanStore`   | Append-only SQL persistence — migration block `4000`, enforced by triggers rather than by convention |
-| `Migrations`  | The namespaced migration set, composed by `@smthrs/engine-store-next`'s `Migrations.sets`            |
+| `Migrations`  | The namespaced migration set, composed by `@smthrs/engine-store`'s `Migrations.sets`                 |
 
 ## The four rules this package exists to keep
 
@@ -66,7 +66,7 @@ graph, the key material, and every digest are identical whatever it says.
 Building a plan therefore asks for no service at all. What fills the channel is
 a call to something whose code lives elsewhere — an action — so a plan's type
 states which implementations running it will need, and the place that runs it
-(`Flow.execute`, in `@smthrs/flow-next`) is where the compiler asks for them.
+(`Flow.execute`, in `@smthrs/flow`) is where the compiler asks for them.
 Each combinator unions its parts: `all` over its members, `map` and `andThen`
 along the chain, `branch` over BOTH arms and `catch` over its failure arm,
 because both arms of a decision are topology the plan carries and a run has to

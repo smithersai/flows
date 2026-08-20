@@ -1,10 +1,14 @@
-# @smthrs/database-next
+---
+description: "A driver-neutral SQL contract with a bounded write-retry seam, plus the composed migration ladder."
+---
+
+# @smthrs/database
 
 A driver-neutral SQL contract with a bounded write-retry seam. The package owns no domain tables.
 
 ```ts
-import { DurableWriter } from "@smthrs/database-next"
-import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
+import { DurableWriter } from "@smthrs/database"
+import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
 
 const layer = NodeDatabase.layer({ filename: "runs.sqlite" })
 ```
@@ -15,9 +19,9 @@ The root is the contract, so it bundles for the browser. The SQLite drivers are 
 
 | Import | Source | Platform |
 | --- | --- | --- |
-| `@smthrs/database-next` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/database/src/index.ts) | any |
-| `@smthrs/database-next/node/NodeDatabase` | [src/node/NodeDatabase.ts](https://github.com/smithersai/flows/blob/main/packages/database/src/node/NodeDatabase.ts) | Node |
-| `@smthrs/database-next/test/TestDatabase` | [src/test/TestDatabase.ts](https://github.com/smithersai/flows/blob/main/packages/database/src/test/TestDatabase.ts) | Node |
+| `@smthrs/database` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/database/src/index.ts) | any |
+| `@smthrs/database/node/NodeDatabase` | [src/node/NodeDatabase.ts](https://github.com/smithersai/flows/blob/main/packages/database/src/node/NodeDatabase.ts) | Node |
+| `@smthrs/database/test/TestDatabase` | [src/test/TestDatabase.ts](https://github.com/smithersai/flows/blob/main/packages/database/src/test/TestDatabase.ts) | Node |
 
 ## DurableWriter
 
@@ -25,7 +29,7 @@ The root is the contract, so it bundles for the browser. The SQLite drivers are 
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `DurableWriter` | service tag | `flows/database/DurableWriter` |
+| `DurableWriter` | service tag | `@smthrs/database/DurableWriter` |
 | `Service` | interface | `sql: SqlClient`, `write: (effect) => Effect` |
 | `DatabaseError` | class | carries a `DatabaseErrorCode` |
 | `DatabaseErrorCode` | const + type | includes `busy`, `constraint`, `io` |
@@ -37,7 +41,9 @@ The root is the contract, so it bundles for the browser. The SQLite drivers are 
 
 `write` opens one write transaction and retries the transient categories. Classification covers the SQLite codes and the Postgres SQLSTATEs `40001`, `40P01`, and `55P03` plus PGlite's text forms, normalized onto the same `busy` category.
 
+:::danger
 A backend must run write transactions serializably. `packages/database/test/contract/DatabaseWriteContract.ts` is the conformance suite for that requirement.
+:::
 
 ## DatabaseMetrics
 
@@ -57,7 +63,7 @@ Every storage package declares its own `MigrationSet`; this module composes them
 | --- | --- | --- |
 | `table` | const | `"flows_migrations"`, the single ledger every set records into |
 | `MigrationSet` | interface | a `namespace` prefixing the set's migration names and an `idOffset` reserving its block of ids |
-| `idBlock` | const | `1000` — the block size each package's `idOffset` is a multiple of |
+| `idBlock` | const | `1000`, the block size each package's `idOffset` is a multiple of |
 | `loader` | loader | turns a list of sets into an Effect `Migrator.Loader` |
 | `run` | migration | applies every set in the order given |
 | `layer` | layer | applies them at construction |
@@ -85,4 +91,8 @@ The shipped offsets are `journal` at `0`, `run-store` at `idBlock`, `step-cache`
 
 ## Dialect status
 
-SQLite is the shipped backend, in both the Node file form and the in-memory test form. The package root bundles for browsers as a contract, but no browser SQL client layer ships here. Postgres and PGlite layers, and a dialect-parameterized migration ladder, are Planned.
+SQLite is the shipped backend, in both the Node file form and the in-memory test form.
+
+:::warning
+The package root bundles for browsers as a contract, but no browser SQL client layer ships here. Postgres and PGlite layers, and a dialect-parameterized migration ladder, are Planned.
+:::

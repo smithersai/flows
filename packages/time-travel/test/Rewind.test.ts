@@ -1,13 +1,13 @@
-import * as Jj from "@smthrs/jj-next"
-import { Journal } from "@smthrs/journal-next"
-import type * as JournalEvent from "@smthrs/journal-next/JournalEvent"
-import { RunStore } from "@smthrs/run-store-next"
-import type { OwnerId } from "@smthrs/run-store-next/Ownership"
-import { CacheStore } from "@smthrs/step-cache-next"
+import { describe, expect, it } from "@effect/vitest"
+import * as Jj from "@smthrs/jj"
+import { Journal } from "@smthrs/journal"
+import type * as JournalEvent from "@smthrs/journal/JournalEvent"
+import { RunStore } from "@smthrs/run-store"
+import type { OwnerId } from "@smthrs/run-store/Ownership"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
-import { describe, expect, it } from "vitest"
 import * as EffectBoundary from "../src/EffectBoundary.ts"
 import type { LineageEdge } from "../src/Frame.ts"
 import * as EffectHandlerRegistry from "../src/internal/EffectHandlerRegistry.ts"
@@ -131,7 +131,7 @@ const boundaryRecord = (
   lineageId: "run/root",
   payload: {
     eventType: EffectBoundary.eventType,
-    payload: { effect },
+    payload: { version: 1, effect },
     meta: { lineageId: "run/root" }
   }
 })
@@ -146,6 +146,18 @@ const baseline = (): MemoryTimeTravelStore.JournalRecord => ({
     payload: {},
     meta: { lineageId: "run/root" }
   }
+})
+
+const journalEntry = (seq: number): JournalEvent.Entry => ({
+  runId: "run" as JournalEvent.RunId,
+  seq: seq as JournalEvent.Seq,
+  eventId: `event-${seq}`,
+  sourceId: "test" as JournalEvent.SourceId,
+  sourceSeq: seq as JournalEvent.SourceSeq,
+  emittedAtMs: seq,
+  eventType: "baseline",
+  payload: {},
+  meta: { lineageId: frame.lineageId }
 })
 
 const effect = (
@@ -218,12 +230,13 @@ const provide = <A, E, R>(
     readonly runs: RunStore.Service
     readonly jj: Jj.Jj
     readonly handlers?: ReadonlyArray<EffectHandlerRegistry.Handler>
+    readonly journal?: Journal.Service
   }
 ) =>
   program.pipe(
     Effect.provide(Layer.succeed(TimeTravelStore, options.store)),
     Effect.provide(Layer.succeed(RunStore.RunStore, options.runs)),
-    Effect.provide(Layer.succeed(Journal.Journal, makeJournal(options.store))),
+    Effect.provide(Layer.succeed(Journal.Journal, options.journal ?? makeJournal(options.store))),
     Effect.provide(CacheStore.layerNoop({
       get: () => Effect.succeed(Option.none())
     })),
@@ -237,305 +250,350 @@ const provide = <A, E, R>(
   )
 
 describe("Rewind", () => {
-  it("compensates in reverse order, restores jj, archives the suffix, and suspends the run", async () => {
-    const calls: Array<string> = []
-    const external = ["first", "second"]
-    const handler: EffectHandlerRegistry.Handler = {
-      kind: "send",
-      tier: "irreversible",
-      requiresIdempotencyKey: true,
-      residue: () => "message remains delivered until compensation succeeds",
-      revert: (crossed) =>
-        Effect.sync(() => {
-          calls.push(crossed.id)
-          return external.pop()
-        }),
-      rollback: (_crossed, receipt) =>
-        Effect.sync(() => {
-          external.push(String(receipt))
-        })
-    }
-    const records = [
-      baseline(),
-      boundaryRecord(1, effect("send-1", "send", "irreversible")),
-      boundaryRecord(2, effect("send-2", "send", "irreversible")),
-      boundaryRecord(3, effect("workspace", "fs-write", "compensable"))
-    ]
-    const store = MemoryTimeTravelStore.make({
-      records,
-      snapshots: [{ runId: "run", frame, changeId: "target" }]
-    })
-    const runs = makeRuns([row("run")])
-    const jj = makeJj("current")
-
-    const result = await Effect.runPromise(
-      provide(
-        Rewind.rewind({ runId: "run", frame, owner, auditId: "audit-happy" }),
-        { store, runs, jj: jj.service, handlers: [handler] }
+  it.effect("fails a repeated frame-validation page instead of spinning", () =>
+    Effect.gen(function*() {
+      const failure = yield* Effect.flip(
+        Rewind.validate({ runId: "run", frame }).pipe(
+          Effect.provideService(
+            Journal.Journal,
+            Journal.makeNoop({ entries: () => Effect.succeed({ entries: [journalEntry(0)], hasMore: true }) })
+          )
+        )
       )
-    )
 
-    expect(calls).toEqual(["send-2", "send-1"])
-    expect(external).toEqual([])
-    expect(jj.pointer()).toBe("target")
-    expect(store.state().records.map((record) => record.seq)).toEqual([0])
-    expect(store.state().archived.map((record) => record.seq)).toEqual([1, 2, 3])
-    expect(store.state().receipts).toHaveLength(2)
-    expect(store.state().audits).toMatchObject([{ id: "audit-happy", status: "completed" }])
-    expect(runs.state("run")).toMatchObject({ status: "suspended", owner: null, stateJson: "{\"cursor\":5}" })
-    expect(result.archive.archived).toBe(3)
-  })
+      expect(failure).toMatchObject({
+        code: "invalid",
+        message: "journal validation pagination did not advance for run"
+      })
+    }))
 
-  it("discloses a terminal detached child as an orphan warning", async () => {
-    const edge: LineageEdge = {
-      parentRunId: "run",
-      parentSeq: 1,
-      childRunId: "child",
-      kind: "child",
-      attached: false
-    }
-    const store = MemoryTimeTravelStore.make({ records: [baseline()], edges: [edge] })
-    const runs = makeRuns([row("run"), row("child", "completed")])
-    const jj = makeJj("current")
+  it.effect("fails a repeated suffix page instead of spinning", () =>
+    Effect.gen(function*() {
+      const store = MemoryTimeTravelStore.make({ records: [baseline()] })
+      const failure = yield* Effect.flip(provide(
+        Rewind.rewind({ runId: "run", frame, owner, auditId: "audit-repeated-suffix" }),
+        {
+          store,
+          runs: makeRuns([row("run")]),
+          jj: makeJj("current").service,
+          journal: Journal.makeNoop({
+            entries: ({ after }) =>
+              Effect.succeed(
+                after === undefined
+                  ? { entries: [journalEntry(0)], hasMore: false }
+                  : { entries: [journalEntry(1)], hasMore: true }
+              )
+          })
+        }
+      ))
 
-    const result = await Effect.runPromise(
-      provide(
-        Rewind.rewind({ runId: "run", frame, owner, auditId: "audit-terminal" }),
-        { store, runs, jj: jj.service }
+      expect(failure).toMatchObject({
+        code: "invalid",
+        message: "journal suffix pagination did not advance for run"
+      })
+    }))
+
+  it.effect("compensates in reverse order, restores jj, archives the suffix, and suspends the run", () =>
+    Effect.gen(function*() {
+      const calls: Array<string> = []
+      const external = ["first", "second"]
+      const handler: EffectHandlerRegistry.Handler = {
+        kind: "send",
+        tier: "irreversible",
+        requiresIdempotencyKey: true,
+        residue: () => "message remains delivered until compensation succeeds",
+        revert: (crossed) =>
+          Effect.sync(() => {
+            calls.push(crossed.id)
+            return external.pop()
+          }),
+        rollback: (_crossed, receipt) =>
+          Effect.sync(() => {
+            external.push(String(receipt))
+          })
+      }
+      const records = [
+        baseline(),
+        boundaryRecord(1, effect("send-1", "send", "irreversible")),
+        boundaryRecord(2, effect("send-2", "send", "irreversible")),
+        boundaryRecord(3, effect("workspace", "fs-write", "compensable"))
+      ]
+      const store = MemoryTimeTravelStore.make({
+        records,
+        snapshots: [{ runId: "run", frame, changeId: "target" }]
+      })
+      const runs = makeRuns([row("run")])
+      const jj = makeJj("current")
+
+      const result = yield* (
+        provide(
+          Rewind.rewind({ runId: "run", frame, owner, auditId: "audit-happy" }),
+          { store, runs, jj: jj.service, handlers: [handler] }
+        )
       )
-    )
 
-    expect(result.warnings).toEqual([
-      expect.objectContaining({ childRunId: "child", parentSeq: 1 })
-    ])
-    expect(result.archive.orphaned).toEqual([edge])
-    expect(runs.state("child").status).toBe("completed")
-  })
+      expect(calls).toEqual(["send-2", "send-1"])
+      expect(external).toEqual([])
+      expect(jj.pointer()).toBe("target")
+      expect(store.state().records.map((record) => record.seq)).toEqual([0])
+      expect(store.state().archived.map((record) => record.seq)).toEqual([1, 2, 3])
+      expect(store.state().receipts).toHaveLength(2)
+      expect(store.state().audits).toMatchObject([{ id: "audit-happy", status: "completed" }])
+      expect(runs.state("run")).toMatchObject({ status: "suspended", owner: null, stateJson: "{\"cursor\":5}" })
+      expect(result.archive.archived).toBe(3)
+    }))
 
-  it("preserves failed and cancelled detached children as disclosed terminal orphans", async () => {
-    for (const status of ["failed", "cancelled"] as const) {
+  it.effect("discloses a terminal detached child as an orphan warning", () =>
+    Effect.gen(function*() {
       const edge: LineageEdge = {
         parentRunId: "run",
         parentSeq: 1,
-        childRunId: `child-${status}`,
+        childRunId: "child",
         kind: "child",
         attached: false
       }
       const store = MemoryTimeTravelStore.make({ records: [baseline()], edges: [edge] })
-      const runs = makeRuns([row("run"), row(edge.childRunId, status)])
+      const runs = makeRuns([row("run"), row("child", "completed")])
+      const jj = makeJj("current")
 
-      const result = await Effect.runPromise(
+      const result = yield* (
         provide(
-          Rewind.rewind({ runId: "run", frame, owner, auditId: `audit-${status}` }),
-          { store, runs, jj: makeJj("current").service }
+          Rewind.rewind({ runId: "run", frame, owner, auditId: "audit-terminal" }),
+          { store, runs, jj: jj.service }
         )
       )
 
       expect(result.warnings).toEqual([
-        {
-          childRunId: edge.childRunId,
-          parentSeq: 1,
-          reason: `Terminal detached child ${edge.childRunId} survives as an orphaned lineage edge.`
-        }
+        expect.objectContaining({ childRunId: "child", parentSeq: 1 })
       ])
       expect(result.archive.orphaned).toEqual([edge])
-      expect(runs.state(edge.childRunId).status).toBe(status)
-    }
-  })
+      expect(runs.state("child").status).toBe("completed")
+    }))
 
-  it("blocks a live detached child before any compensation runs", async () => {
-    let reverts = 0
-    const handler: EffectHandlerRegistry.Handler = {
-      kind: "send",
-      tier: "irreversible",
-      requiresIdempotencyKey: true,
-      residue: () => "message remains sent",
-      revert: () =>
-        Effect.sync(() => {
-          reverts += 1
-          return "receipt"
-        }),
-      rollback: () => Effect.void
-    }
-    const edge: LineageEdge = {
-      parentRunId: "run",
-      parentSeq: 1,
-      childRunId: "child",
-      kind: "child",
-      attached: false
-    }
-    const store = MemoryTimeTravelStore.make({
-      records: [baseline(), boundaryRecord(1, effect("send", "send", "irreversible"))],
-      edges: [edge]
-    })
-    const runs = makeRuns([row("run"), row("child", "running")])
-    const jj = makeJj("current")
+  it.effect("preserves failed and cancelled detached children as disclosed terminal orphans", () =>
+    Effect.gen(function*() {
+      for (const status of ["failed", "cancelled"] as const) {
+        const edge: LineageEdge = {
+          parentRunId: "run",
+          parentSeq: 1,
+          childRunId: `child-${status}`,
+          kind: "child",
+          attached: false
+        }
+        const store = MemoryTimeTravelStore.make({ records: [baseline()], edges: [edge] })
+        const runs = makeRuns([row("run"), row(edge.childRunId, status)])
 
-    const failure = await Effect.runPromise(
-      Effect.flip(
-        provide(
-          Rewind.rewind({ runId: "run", frame, owner, auditId: "audit-live" }),
-          { store, runs, jj: jj.service, handlers: [handler] }
+        const result = yield* (
+          provide(
+            Rewind.rewind({ runId: "run", frame, owner, auditId: `audit-${status}` }),
+            { store, runs, jj: makeJj("current").service }
+          )
         )
-      )
-    )
 
-    expect(failure.code).toBe("live_child")
-    expect(reverts).toBe(0)
-    expect(store.state().records).toHaveLength(2)
-    expect(runs.state("run").status).toBe("suspended")
-  })
+        expect(result.warnings).toEqual([
+          {
+            childRunId: edge.childRunId,
+            parentSeq: 1,
+            reason: `Terminal detached child ${edge.childRunId} survives as an orphaned lineage edge.`
+          }
+        ])
+        expect(result.archive.orphaned).toEqual([edge])
+        expect(runs.state(edge.childRunId).status).toBe(status)
+      }
+    }))
 
-  it("claims and cancels a nonterminal detached child under explicit cancel policy", async () => {
-    const edge: LineageEdge = {
-      parentRunId: "run",
-      parentSeq: 1,
-      childRunId: "child",
-      kind: "child",
-      attached: false
-    }
-    const store = MemoryTimeTravelStore.make({ records: [baseline()], edges: [edge] })
-    const runs = makeRuns([row("run"), row("child", "suspended")])
-    const jj = makeJj("current")
-
-    const result = await Effect.runPromise(
-      provide(
-        Rewind.rewind({
-          runId: "run",
-          frame,
-          owner,
-          auditId: "audit-cancel",
-          detachedChildPolicy: "cancel"
-        }),
-        { store, runs, jj: jj.service }
-      )
-    )
-
-    expect(result.cancelledChildren).toEqual(["child"])
-    expect(runs.state("child")).toMatchObject({ status: "cancelled", owner: null })
-  })
-
-  it("discloses irreversibly cancelled children when the rewind rolls back", async () => {
-    const edge: LineageEdge = {
-      parentRunId: "run",
-      parentSeq: 1,
-      childRunId: "child",
-      kind: "child",
-      attached: false
-    }
-    const store = MemoryTimeTravelStore.make({ records: [baseline()], edges: [edge] })
-    const runs = makeRuns([row("run"), row("child", "suspended")])
-    const jj = makeJj("current")
-
-    const failure = await Effect.runPromise(
-      Effect.flip(
-        provide(
-          Rewind.rewind({
-            runId: "run",
-            frame,
-            owner,
-            auditId: "audit-rollback-cancelled",
-            detachedChildPolicy: "cancel",
-            hooks: {
-              beforeStep: (step) =>
-                step === "compensate-effects"
-                  ? Effect.fail(new Error("injected compensate-effects"))
-                  : Effect.void
-            }
+  it.effect("blocks a live detached child before any compensation runs", () =>
+    Effect.gen(function*() {
+      let reverts = 0
+      const handler: EffectHandlerRegistry.Handler = {
+        kind: "send",
+        tier: "irreversible",
+        requiresIdempotencyKey: true,
+        residue: () => "message remains sent",
+        revert: () =>
+          Effect.sync(() => {
+            reverts += 1
+            return "receipt"
           }),
-          { store, runs, jj: jj.service }
+        rollback: () => Effect.void
+      }
+      const edge: LineageEdge = {
+        parentRunId: "run",
+        parentSeq: 1,
+        childRunId: "child",
+        kind: "child",
+        attached: false
+      }
+      const store = MemoryTimeTravelStore.make({
+        records: [baseline(), boundaryRecord(1, effect("send", "send", "irreversible"))],
+        edges: [edge]
+      })
+      const runs = makeRuns([row("run"), row("child", "running")])
+      const jj = makeJj("current")
+
+      const failure = yield* (
+        Effect.flip(
+          provide(
+            Rewind.rewind({ runId: "run", frame, owner, auditId: "audit-live" }),
+            { store, runs, jj: jj.service, handlers: [handler] }
+          )
         )
       )
-    )
 
-    // The parent rolls back, but the child cancellation is terminal and
-    // cannot be undone — the audit must say so.
-    expect(failure.code).toBe("unknown")
-    expect(runs.state("run").status).toBe("suspended")
-    expect(runs.state("child").status).toBe("cancelled")
-    const audit = store.state().audits.at(-1)!
-    expect(audit.status).toBe("failed")
-    const detail = audit.detail as Rewind.AuditDetail
-    expect(detail.phase).toBe("rolled_back")
-    expect(detail.cancelledChildren).toEqual(["child"])
-    expect(detail.failure).toContain("child")
-  })
+      expect(failure.code).toBe("live_child")
+      expect(reverts).toBe(0)
+      expect(store.state().records).toHaveLength(2)
+      expect(runs.state("run").status).toBe("suspended")
+    }))
 
-  it("discloses every cancelled child, newest edge first, when the rewind rolls back", async () => {
-    const edges: ReadonlyArray<LineageEdge> = [
-      { parentRunId: "run", parentSeq: 1, childRunId: "child-a", kind: "child", attached: false },
-      { parentRunId: "run", parentSeq: 2, childRunId: "child-b", kind: "child", attached: false }
-    ]
-    const store = MemoryTimeTravelStore.make({ records: [baseline()], edges: [...edges] })
-    const runs = makeRuns([row("run"), row("child-a", "suspended"), row("child-b", "suspended")])
-    const jj = makeJj("current")
-
-    await Effect.runPromise(
-      Effect.flip(
-        provide(
-          Rewind.rewind({
-            runId: "run",
-            frame,
-            owner,
-            auditId: "audit-cancel-order",
-            detachedChildPolicy: "cancel",
-            hooks: {
-              beforeStep: (step) =>
-                step === "restore-workspace"
-                  ? Effect.fail(new Error("injected restore-workspace"))
-                  : Effect.void
-            }
-          }),
-          { store, runs, jj: jj.service }
-        )
-      )
-    )
-
-    expect(runs.state("child-a").status).toBe("cancelled")
-    expect(runs.state("child-b").status).toBe("cancelled")
-    const detail = store.state().audits.at(-1)!.detail as Rewind.AuditDetail
-    // Cancellation walks the highest parentSeq first; the audit keeps that order.
-    expect(detail.cancelledChildren).toEqual(["child-b", "child-a"])
-    expect(detail.phase).toBe("rolled_back")
-  })
-
-  it("resolves the full suffix before running any handler", async () => {
-    let reverts = 0
-    const handler: EffectHandlerRegistry.Handler = {
-      kind: "known",
-      tier: "irreversible",
-      requiresIdempotencyKey: true,
-      residue: () => "known residue",
-      revert: () =>
-        Effect.sync(() => {
-          reverts += 1
-          return "receipt"
-        }),
-      rollback: () => Effect.void
-    }
-    const store = MemoryTimeTravelStore.make({
-      records: [
-        baseline(),
-        boundaryRecord(1, effect("known", "known", "irreversible")),
-        boundaryRecord(2, effect("missing", "missing", "irreversible"))
+  it.effect("claims and cancels a nonterminal detached child under explicit cancel policy", () =>
+    Effect.gen(function*() {
+      const edges: ReadonlyArray<LineageEdge> = [
+        { parentRunId: "run", parentSeq: 1, childRunId: "child-a", kind: "child", attached: false },
+        { parentRunId: "run", parentSeq: 2, childRunId: "child-b", kind: "child", attached: false }
       ]
-    })
-    const runs = makeRuns([row("run")])
-    const jj = makeJj("current")
+      const store = MemoryTimeTravelStore.make({ records: [baseline()], edges })
+      const runs = makeRuns([row("run"), row("child-a", "suspended"), row("child-b", "suspended")])
+      const jj = makeJj("current")
 
-    const failure = await Effect.runPromise(
-      Effect.flip(
+      const result = yield* (
         provide(
-          Rewind.rewind({ runId: "run", frame, owner, auditId: "audit-blocked" }),
-          { store, runs, jj: jj.service, handlers: [handler] }
+          Rewind.rewind({
+            runId: "run",
+            frame,
+            owner,
+            auditId: "audit-cancel",
+            detachedChildPolicy: "cancel"
+          }),
+          { store, runs, jj: jj.service }
         )
       )
-    )
 
-    expect(failure.code).toBe("irreversible")
-    expect(reverts).toBe(0)
-    expect(store.state().records.map((record) => record.seq)).toEqual([0, 1, 2])
-    expect(store.state().receipts).toEqual([])
-    expect(runs.state("run").status).toBe("suspended")
-  })
+      expect(result.cancelledChildren).toEqual(["child-b", "child-a"])
+      expect(runs.state("child-a")).toMatchObject({ status: "cancelled", owner: null })
+      expect(runs.state("child-b")).toMatchObject({ status: "cancelled", owner: null })
+    }))
+
+  it.effect("leaves detached children unchanged when rewind fails before the archive commit", () =>
+    Effect.gen(function*() {
+      const edge: LineageEdge = {
+        parentRunId: "run",
+        parentSeq: 1,
+        childRunId: "child",
+        kind: "child",
+        attached: false
+      }
+      const store = MemoryTimeTravelStore.make({ records: [baseline()], edges: [edge] })
+      const runs = makeRuns([row("run"), row("child", "suspended")])
+      const jj = makeJj("current")
+
+      const failure = yield* (
+        Effect.flip(
+          provide(
+            Rewind.rewind({
+              runId: "run",
+              frame,
+              owner,
+              auditId: "audit-rollback-cancelled",
+              detachedChildPolicy: "cancel",
+              hooks: {
+                beforeStep: (step) =>
+                  step === "compensate-effects"
+                    ? Effect.fail(new Error("injected compensate-effects"))
+                    : Effect.void
+              }
+            }),
+            { store, runs, jj: jj.service }
+          )
+        )
+      )
+
+      expect(failure.code).toBe("unknown")
+      expect(runs.state("run").status).toBe("suspended")
+      expect(runs.state("child").status).toBe("suspended")
+      const audit = store.state().audits.at(-1)!
+      expect(audit.status).toBe("failed")
+      const detail = audit.detail as Rewind.AuditDetail
+      expect(detail.phase).toBe("rolled_back")
+      expect(detail.cancelledChildren).toEqual([])
+    }))
+
+  it.effect("does not cancel any detached child when workspace restoration rolls back", () =>
+    Effect.gen(function*() {
+      const edges: ReadonlyArray<LineageEdge> = [
+        { parentRunId: "run", parentSeq: 1, childRunId: "child-a", kind: "child", attached: false },
+        { parentRunId: "run", parentSeq: 2, childRunId: "child-b", kind: "child", attached: false }
+      ]
+      const store = MemoryTimeTravelStore.make({ records: [baseline()], edges: [...edges] })
+      const runs = makeRuns([row("run"), row("child-a", "suspended"), row("child-b", "suspended")])
+      const jj = makeJj("current")
+
+      yield* (
+        Effect.flip(
+          provide(
+            Rewind.rewind({
+              runId: "run",
+              frame,
+              owner,
+              auditId: "audit-cancel-order",
+              detachedChildPolicy: "cancel",
+              hooks: {
+                beforeStep: (step) =>
+                  step === "restore-workspace"
+                    ? Effect.fail(new Error("injected restore-workspace"))
+                    : Effect.void
+              }
+            }),
+            { store, runs, jj: jj.service }
+          )
+        )
+      )
+
+      expect(runs.state("child-a").status).toBe("suspended")
+      expect(runs.state("child-b").status).toBe("suspended")
+      const detail = store.state().audits.at(-1)!.detail as Rewind.AuditDetail
+      expect(detail.cancelledChildren).toEqual([])
+      expect(detail.phase).toBe("rolled_back")
+    }))
+
+  it.effect("resolves the full suffix before running any handler", () =>
+    Effect.gen(function*() {
+      let reverts = 0
+      const handler: EffectHandlerRegistry.Handler = {
+        kind: "known",
+        tier: "irreversible",
+        requiresIdempotencyKey: true,
+        residue: () => "known residue",
+        revert: () =>
+          Effect.sync(() => {
+            reverts += 1
+            return "receipt"
+          }),
+        rollback: () => Effect.void
+      }
+      const store = MemoryTimeTravelStore.make({
+        records: [
+          baseline(),
+          boundaryRecord(1, effect("known", "known", "irreversible")),
+          boundaryRecord(2, effect("missing", "missing", "irreversible"))
+        ]
+      })
+      const runs = makeRuns([row("run")])
+      const jj = makeJj("current")
+
+      const failure = yield* (
+        Effect.flip(
+          provide(
+            Rewind.rewind({ runId: "run", frame, owner, auditId: "audit-blocked" }),
+            { store, runs, jj: jj.service, handlers: [handler] }
+          )
+        )
+      )
+
+      expect(failure.code).toBe("irreversible")
+      expect(reverts).toBe(0)
+      expect(store.state().records.map((record) => record.seq)).toEqual([0, 1, 2])
+      expect(store.state().receipts).toEqual([])
+      expect(runs.state("run").status).toBe("suspended")
+    }))
 })

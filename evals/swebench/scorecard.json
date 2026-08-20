@@ -1,0 +1,230 @@
+{
+  "aggregate": {
+    "instances": 5,
+    "flowsResolved": 3,
+    "codexResolved": 4,
+    "flowsWins": 0,
+    "codexWins": 1,
+    "bothPass": 3,
+    "bothFail": 1,
+    "flowsWallClockSeconds": 2564,
+    "codexWallClockSeconds": 529,
+    "flowsTokens": 543720,
+    "codexTokens": 195987,
+    "flowsUsd": 3.127,
+    "codexUsdFloor": 0.9799,
+    "perCallLatency": "journaled"
+  },
+  "instances": [
+    {
+      "instanceId": "astropy__astropy-8707",
+      "quality": {
+        "verdict": "resolved",
+        "patchBytes": 1057,
+        "status": "completed",
+        "editsAttempted": 2,
+        "editsSucceeded": 1
+      },
+      "speed": {
+        "wallClockSeconds": 494,
+        "journalSeconds": 465,
+        "budgetSeconds": 1200,
+        "turns": 20,
+        "modelCalls": 20,
+        "flowCalls": 24,
+        "flowCallsRefused": 1,
+        "meanCallLatencyMs": 13448,
+        "perCallLatency": "journaled"
+      },
+      "cost": {
+        "model": "openai:gpt-5.6-sol",
+        "inputTokens": 147041,
+        "cachedInputTokens": 62945,
+        "outputTokens": 17094,
+        "usd": 0.9648,
+        "priceSource": "OpenAI API list price, verified 2026-08-19"
+      },
+      "baseline": {
+        "verdict": "resolved",
+        "seconds": 101,
+        "tokens": 37867,
+        "patchBytes": 1777,
+        "usd": 0.1893,
+        "priceSource": "OpenAI API list price, verified 2026-08-19"
+      },
+      "callout": "both pass",
+      "runIds": [
+        "plan:plan-1",
+        "run-1"
+      ]
+    },
+    {
+      "instanceId": "django__django-16612",
+      "quality": {
+        "verdict": "resolved",
+        "patchBytes": 643,
+        "status": "completed",
+        "editsAttempted": 1,
+        "editsSucceeded": 1
+      },
+      "speed": {
+        "wallClockSeconds": 240,
+        "journalSeconds": 238,
+        "budgetSeconds": 1200,
+        "turns": 10,
+        "modelCalls": 10,
+        "flowCalls": 15,
+        "flowCallsRefused": 0,
+        "meanCallLatencyMs": 7668,
+        "perCallLatency": "journaled"
+      },
+      "cost": {
+        "model": "openai:gpt-5.6-sol",
+        "inputTokens": 53201,
+        "cachedInputTokens": 11569,
+        "outputTokens": 4451,
+        "usd": 0.3475,
+        "priceSource": "OpenAI API list price, verified 2026-08-19"
+      },
+      "baseline": {
+        "verdict": "resolved",
+        "seconds": 82,
+        "tokens": 30840,
+        "patchBytes": 643,
+        "usd": 0.1542,
+        "priceSource": "OpenAI API list price, verified 2026-08-19"
+      },
+      "callout": "both pass",
+      "runIds": [
+        "plan:plan-1",
+        "run-1"
+      ]
+    },
+    {
+      "instanceId": "pydata__xarray-7393",
+      "quality": {
+        "verdict": "resolved",
+        "patchBytes": 658,
+        "status": "completed",
+        "editsAttempted": 1,
+        "editsSucceeded": 1
+      },
+      "speed": {
+        "wallClockSeconds": 420,
+        "journalSeconds": 399,
+        "budgetSeconds": 1200,
+        "turns": 13,
+        "modelCalls": 13,
+        "flowCalls": 16,
+        "flowCallsRefused": 0,
+        "meanCallLatencyMs": 8164,
+        "perCallLatency": "journaled"
+      },
+      "cost": {
+        "model": "openai:gpt-5.6-sol",
+        "inputTokens": 95655,
+        "cachedInputTokens": 22121,
+        "outputTokens": 5988,
+        "usd": 0.5584,
+        "priceSource": "OpenAI API list price, verified 2026-08-19"
+      },
+      "baseline": {
+        "verdict": "resolved",
+        "seconds": 81,
+        "tokens": 34894,
+        "patchBytes": 658,
+        "usd": 0.1745,
+        "priceSource": "OpenAI API list price, verified 2026-08-19"
+      },
+      "callout": "both pass",
+      "runIds": [
+        "plan:plan-1",
+        "run-1"
+      ]
+    },
+    {
+      "instanceId": "pytest-dev__pytest-6197",
+      "quality": {
+        "verdict": "unresolved",
+        "patchBytes": 569,
+        "status": "failed",
+        "editsAttempted": 3,
+        "editsSucceeded": 3
+      },
+      "speed": {
+        "wallClockSeconds": 1134,
+        "journalSeconds": 1122,
+        "budgetSeconds": 1200,
+        "turns": 30,
+        "modelCalls": 29,
+        "flowCalls": 47,
+        "flowCallsRefused": 0,
+        "meanCallLatencyMs": 8740,
+        "perCallLatency": "journaled"
+      },
+      "cost": {
+        "model": "openai:gpt-5.6-sol",
+        "inputTokens": 180631,
+        "cachedInputTokens": 48928,
+        "outputTokens": 13130,
+        "usd": 1.0769,
+        "priceSource": "OpenAI API list price, verified 2026-08-19"
+      },
+      "baseline": {
+        "verdict": "resolved",
+        "seconds": 183,
+        "tokens": 64398,
+        "patchBytes": 1005,
+        "usd": 0.322,
+        "priceSource": "OpenAI API list price, verified 2026-08-19"
+      },
+      "callout": "codex win",
+      "runIds": [
+        "plan:plan-1",
+        "run-1"
+      ]
+    },
+    {
+      "instanceId": "sphinx-doc__sphinx-11445",
+      "quality": {
+        "verdict": "unresolved",
+        "patchBytes": 442,
+        "status": "failed",
+        "editsAttempted": 0,
+        "editsSucceeded": 0
+      },
+      "speed": {
+        "wallClockSeconds": 276,
+        "journalSeconds": 270,
+        "budgetSeconds": 1200,
+        "turns": 5,
+        "modelCalls": 4,
+        "flowCalls": 7,
+        "flowCallsRefused": 0,
+        "meanCallLatencyMs": 13180,
+        "perCallLatency": "journaled"
+      },
+      "cost": {
+        "model": "openai:gpt-5.6-sol",
+        "inputTokens": 23908,
+        "cachedInputTokens": 4162,
+        "outputTokens": 2621,
+        "usd": 0.1794,
+        "priceSource": "OpenAI API list price, verified 2026-08-19"
+      },
+      "baseline": {
+        "verdict": "unresolved",
+        "seconds": 82,
+        "tokens": 27988,
+        "patchBytes": 881,
+        "usd": 0.1399,
+        "priceSource": "OpenAI API list price, verified 2026-08-19"
+      },
+      "callout": "both fail",
+      "runIds": [
+        "plan:plan-1",
+        "run-1"
+      ]
+    }
+  ]
+}

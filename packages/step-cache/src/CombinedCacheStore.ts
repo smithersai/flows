@@ -12,7 +12,7 @@
  * is missing from the shared artifact tier — Bazel's REAPI ordering constraint
  * at `UploadManifest.java:630-633`, stated there as "action results may fail to
  * validate server-side if they are accessed before all blobs they refer to are
- * present". `@smthrs/engine-store-next`'s `ArtifactSync` enforces it around
+ * present". `@smthrs/engine-store`'s `ArtifactSync` enforces it around
  * `put`. This module cannot: it does not know what an entry references.
  *
  * *When* the shared copy is written is configurable for the same reason — see
@@ -44,7 +44,7 @@ export interface Options {
    * - `"deferred"`: `put` writes the **local tier only**, and publishing to the
    *   shared tier belongs to the caller.
    *
-   * `"deferred"` exists for one caller: `@smthrs/engine-store-next` commits the
+   * `"deferred"` exists for one caller: `@smthrs/engine-store` commits the
    * cache row and the journal record that explains it inside a single
    * `DurableWriter` transaction, and a host call must never be held across a
    * write transaction — an inline `put` would hold a network round trip inside
@@ -66,25 +66,35 @@ export const make = (options: Options): CacheStore.Service => {
   const { local, remote } = options
   const deferred = options.publication === "deferred"
 
-  const get: CacheStore.Service["get"] = Effect.fn("CombinedCacheStore.get")((keyDigest: string) =>
+  const get: CacheStore.Service["get"] = Effect.fn("CombinedCacheStore.get")((keyDigest, options) =>
     Effect.gen(function*() {
-      const cached = yield* local.get(keyDigest)
+      yield* Effect.annotateCurrentSpan({ keyDigest })
+      // The provenance fence travels with the lookup: each tier answers with
+      // its recorded version when it holds one and its head otherwise.
+      const cached = yield* local.get(keyDigest, options)
       if (Option.isSome(cached)) return cached
-      const shared = yield* remote.get(keyDigest)
+      const shared = yield* remote.get(keyDigest, options)
       if (Option.isNone(shared)) return shared
       // Write-back, exactly as `downloadActionResultFromRemote` does: the
       // shared entry becomes a local row so this machine's next lookup — and
-      // every sibling run on it — is a local hit. The local `put` is
-      // insert-or-nothing, so a row that landed concurrently wins and the
-      // write-back is a no-op; the entry this caller returns is still the one
-      // it read.
-      yield* local.put(shared.value)
-      return shared
+      // every sibling run on it — is a local hit.
+      const written = yield* local.put(shared.value)
+      if (written._tag === "Inserted") return shared
+      // The write-back lost: a sibling run recorded its own row under the key
+      // while this lookup was inside the remote tier. The durable local row is
+      // the one this machine replays from and the one a fenced eviction must
+      // name, so the caller is served that row — handing out the remote entry
+      // over a local `Conflict` would be a cache collision the caller cannot
+      // detect. If the winner is already gone again, the remote entry is the
+      // only row anyone holds and stands.
+      const durable = yield* local.get(keyDigest)
+      return Option.isSome(durable) ? durable : shared
     })
   )
 
   const put: CacheStore.Service["put"] = Effect.fn("CombinedCacheStore.put")((entry: CacheStore.CacheEntry) =>
     Effect.gen(function*() {
+      yield* Effect.annotateCurrentSpan({ keyDigest: entry.keyDigest })
       // Local first, and the local outcome is the answer: first-writer-wins
       // conflict detection is what drives the `Inconsistency` receiver, and it
       // has to be decided against the durable row this machine will actually
@@ -110,7 +120,7 @@ export const make = (options: Options): CacheStore.Service => {
     // explicit release verb (`docs/specs/Concepts/Reconciliation.md`) and is
     // ticketed (`.smithers/tickets/cas-garbage-collection.md`), never a side
     // effect of one host's failed replay.
-    local.evict(keyDigest, evictOptions)
+    Effect.annotateCurrentSpan({ keyDigest }).pipe(Effect.andThen(local.evict(keyDigest, evictOptions)))
   )
 
   return { get, put, evict }

@@ -1,18 +1,18 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Action, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
-import { Node } from "@smthrs/plan-next"
+import { describe, expect, it } from "@effect/vitest"
+import { Action, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Cause, Effect, Exit, Fiber, Latch, Layer, Option, Schema, Scope } from "effect"
 import type * as Crypto from "effect/Crypto"
-import { describe, expect, it } from "vitest"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 import { layerWired, makeInstance } from "./MemoryFlowRuntime.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it(name, () => runPromise(body()))
+  it.effect(name, () => withCrypto(body()))
 
 const pollSuspended = <A, E, R>(
-  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>
+  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, FlowRuntime.FlowExecutionNotFound, R>
 ) =>
   Effect.gen(function*() {
     let result = yield* poll
@@ -24,7 +24,7 @@ const pollSuspended = <A, E, R>(
   })
 
 const pollComplete = <A, E, R>(
-  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>
+  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, FlowRuntime.FlowExecutionNotFound, R>
 ) =>
   Effect.gen(function*() {
     let result = yield* poll
@@ -87,6 +87,39 @@ describe("DurableDeferred", () => {
       expect(parsed.deferredName).toBe("Gate")
       expect(DurableDeferred.TokenParsed.encode(parsed)).toBe(token)
     }))
+
+  effect("malformed completion tokens fail on the typed channel", () =>
+    Effect.gen(function*() {
+      const failure = yield* DurableDeferred.succeed(Gate, {
+        token: "not-a-token" as DurableDeferred.Token,
+        value: "ignored"
+      }).pipe(Effect.flip)
+
+      expect(failure).toBeInstanceOf(DurableDeferred.TokenInvalid)
+      expect(failure.code).toBe("malformed_token")
+    }).pipe(Effect.provide(layerWired(Layer.empty))))
+
+  effect("registers an awaited deferred before reading its result", () => {
+    const flow = Flow.make("DurableDeferred/registration", {
+      payload: {},
+      success: Schema.Void,
+      body: () => Node.succeed(undefined)
+    })
+    const instance = makeInstance(flow, "registration")
+    return Effect.gen(function*() {
+      const engine = yield* FlowRuntime.FlowRuntime
+      yield* engine.deferredDone(Gate, {
+        flowName: flow._tag,
+        executionId: instance.executionId,
+        deferredName: Gate.name,
+        exit: Exit.succeed("ready")
+      })
+      yield* DurableDeferred.await(Gate).pipe(
+        Effect.provideService(FlowRuntime.FlowInstance, instance)
+      )
+      expect(instance.awaitedDeferreds).toEqual(new Set([Gate.name]))
+    }).pipe(Effect.provide(layerWired(Layer.empty)))
+  })
 
   effect("tokenFromPayload derives the same token as the running instance", () => {
     const flow = Flow.make("DurableDeferred/token-payload", {
@@ -302,7 +335,7 @@ describe("DurableDeferred", () => {
           expect(Option.isNone(yield* engine.deferredResult(Guarded))).toBe(true)
           // The real completion still lands...
           const token = yield* DurableDeferred.token(Guarded)
-          yield* DurableDeferred.succeed(Guarded, { token, value: 42 })
+          yield* DurableDeferred.succeed(Guarded, { token, value: 42 }).pipe(Effect.orDie)
           // ...and the replay read returns it, not `Error: Empty cause`.
           return yield* DurableDeferred.await(Guarded)
         })
@@ -332,6 +365,50 @@ describe("DurableDeferred", () => {
       expect(Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)).toBe(true)
       if (Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)) {
         expect(result.value.exit.value).toBe("got:first")
+      }
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("simultaneous success and failure completion persist exactly one replayable winner", () => {
+    const Contended = DurableDeferred.make("DurableDeferred/Contended", {
+      success: Schema.String,
+      error: Schema.String
+    })
+    const { flow, layer } = makeFlow(
+      "DurableDeferred/contended",
+      DurableDeferred.await(Contended)
+    )
+    return Effect.gen(function*() {
+      const executionId = yield* flow.execute({ id: "contended" }, { discard: true })
+      const suspended = yield* pollSuspended(flow.poll(executionId))
+      expect(Option.isSome(suspended) && suspended.value._tag).toBe("Suspended")
+      const token = yield* completeToken(Contended, flow, executionId)
+      const release = yield* Latch.make()
+      const success = yield* Effect.forkChild(
+        release.await.pipe(
+          Effect.andThen(DurableDeferred.succeed(Contended, { token, value: "won" }))
+        )
+      )
+      const failure = yield* Effect.forkChild(
+        release.await.pipe(
+          Effect.andThen(DurableDeferred.fail(Contended, { token, error: "lost" }))
+        )
+      )
+      yield* release.open
+      yield* Fiber.join(success)
+      yield* Fiber.join(failure)
+
+      const settled = yield* pollComplete(flow.poll(executionId))
+      expect(Option.isSome(settled) && settled.value._tag).toBe("Complete")
+      if (Option.isNone(settled) || settled.value._tag !== "Complete") return
+      const first = JSON.stringify(settled.value.exit)
+
+      yield* DurableDeferred.succeed(Contended, { token, value: "late-success" })
+      yield* DurableDeferred.fail(Contended, { token, error: "late-failure" })
+      const replayed = yield* flow.poll(executionId)
+      expect(Option.isSome(replayed) && replayed.value._tag).toBe("Complete")
+      if (Option.isSome(replayed) && replayed.value._tag === "Complete") {
+        expect(JSON.stringify(replayed.value.exit)).toBe(first)
       }
     }).pipe(Effect.provide(layer))
   })
@@ -436,6 +513,85 @@ describe("DurableDeferred", () => {
       expect(yield* flow.execute({ id: "r" })).toBe("fast/fast")
       // the second call reads the persisted race exit instead of racing again
       expect(attempts).toBe(1)
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("raceAll persists and replays the terminal cause when every branch fails", () => {
+    let attempts = 0
+    const Step = Action.make("DurableDeferred/race-failure/step", {
+      payload: { id: Schema.String },
+      success: Schema.String
+    })
+    const flow = Flow.make("DurableDeferred/race-failure", {
+      payload: { id: Schema.String },
+      success: Schema.String,
+      body: (payload) => Step.call(payload)
+    })
+    const race = DurableDeferred.raceAll({
+      name: "all-fail",
+      success: Schema.Never,
+      error: Schema.String,
+      effects: [
+        Effect.sync(() => attempts++).pipe(Effect.andThen(Effect.fail("left"))),
+        Effect.sync(() => attempts++).pipe(Effect.andThen(Effect.fail("right")))
+      ]
+    })
+    const layer = layerWired(Layer.mergeAll(
+      Step.toLayer(() =>
+        Effect.gen(function*() {
+          const first = yield* Effect.exit(race)
+          const replayed = yield* Effect.exit(race)
+          expect(Exit.isFailure(first)).toBe(true)
+          expect(replayed).toEqual(first)
+          return "recorded"
+        })
+      ),
+      Interpreter.layer(flow)
+    ))
+
+    return Effect.gen(function*() {
+      expect(yield* flow.execute({ id: "all-fail" }, { executionId: "all-fail" })).toBe("recorded")
+      expect(attempts).toBe(2)
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("raceAll persists and replays the terminal cause when every branch defects", () => {
+    let attempts = 0
+    const Step = Action.make("DurableDeferred/race-defect/step", {
+      payload: { id: Schema.String },
+      success: Schema.String
+    })
+    const flow = Flow.make("DurableDeferred/race-defect", {
+      payload: { id: Schema.String },
+      success: Schema.String,
+      body: (payload) => Step.call(payload)
+    })
+    const race = DurableDeferred.raceAll({
+      name: "all-defect",
+      success: Schema.Never,
+      error: Schema.Never,
+      effects: [
+        Effect.sync(() => attempts++).pipe(Effect.andThen(Effect.die("left defect"))),
+        Effect.sync(() => attempts++).pipe(Effect.andThen(Effect.die("right defect")))
+      ]
+    })
+    const layer = layerWired(Layer.mergeAll(
+      Step.toLayer(() =>
+        Effect.gen(function*() {
+          const first = yield* Effect.exit(race)
+          const replayed = yield* Effect.exit(race)
+          expect(Exit.isFailure(first)).toBe(true)
+          if (Exit.isFailure(first)) expect(first.cause.reasons.some(Cause.isDieReason)).toBe(true)
+          expect(replayed).toEqual(first)
+          return "recorded"
+        })
+      ),
+      Interpreter.layer(flow)
+    ))
+
+    return Effect.gen(function*() {
+      expect(yield* flow.execute({ id: "all-defect" }, { executionId: "all-defect" })).toBe("recorded")
+      expect(attempts).toBe(2)
     }).pipe(Effect.provide(layer))
   })
 

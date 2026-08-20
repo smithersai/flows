@@ -13,16 +13,18 @@
  * A manifest written last records the digests a restore must verify, so a
  * partial backup is detectable by its missing manifest.
  *
- * Restore never lets a pre-backup owner resurrect. The fencing token here is
- * the `OwnerId` triple persisted on `flows_runs` — Temporal's shard `rangeID`
- * equality check reduced to one SQL predicate (`reference/temporal`
+ * Restore never lets a pre-backup owner resurrect. The fencing token is the
+ * `OwnerId` triple mirrored on `flows_runs` and arbitrated by
+ * `flows_consensus_leases` — Temporal's shard `rangeID` equality check reduced
+ * to one SQL predicate (`reference/temporal`
  * `service/history/shard/context_impl.go`, `renewRangeLocked`). Temporal
  * fences a restored shard by bumping the persisted epoch above anything a
  * surviving owner could hold; the equivalent bump for an identity fence is
- * {@link fence}: clear every persisted claim and owner in one serialized write
- * transaction, so every pre-backup `OwnerId` fails its equality
- * compare-and-swap (`FenceLost`, journal `fence_lost`) and the restored runs
- * are claimable immediately instead of after the heartbeat staleness cutoff.
+ * {@link fence}: clear every persisted claim, owner, and consensus lease in
+ * one serialized write transaction, so every pre-backup `OwnerId` fails its
+ * equality compare-and-swap (`FenceLost`, journal `fence_lost`) and the
+ * restored runs are claimable immediately instead of after the heartbeat
+ * staleness cutoff.
  *
  * Host access arrives through Effect's `FileSystem` and `SqlClient` tags and
  * hashing through the injected `Crypto` service, so the module carries no
@@ -31,8 +33,8 @@
  *
  * @since 0.1.0
  */
-import { Sha256 } from "@smthrs/crypto-next"
-import { DurableWriter } from "@smthrs/database-next/DurableWriter"
+import { Sha256 } from "@smthrs/crypto"
+import { DurableWriter } from "@smthrs/database/DurableWriter"
 import * as Clock from "effect/Clock"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
@@ -47,6 +49,7 @@ import * as SqlClient from "effect/unstable/sql/SqlClient"
  *
  * @since 0.1.0
  * @category constants
+ * @slop
  */
 export const databaseFileName = "store.sqlite3"
 
@@ -56,6 +59,7 @@ export const databaseFileName = "store.sqlite3"
  *
  * @since 0.1.0
  * @category constants
+ * @slop
  */
 export const manifestFileName = "manifest.json"
 
@@ -65,6 +69,7 @@ export const manifestFileName = "manifest.json"
  *
  * @since 0.1.0
  * @category constants
+ * @slop
  */
 export const objectsDirectoryName = "objects"
 
@@ -74,6 +79,7 @@ export const objectsDirectoryName = "objects"
  *
  * @since 0.1.0
  * @category constants
+ * @slop
  */
 export const restoredMarkerFileName = "restored.json"
 
@@ -83,6 +89,7 @@ export const restoredMarkerFileName = "restored.json"
  *
  * @since 0.1.0
  * @category schemas
+ * @slop
  */
 export const AppliedMigration = Schema.Struct({
   migrationId: Schema.Number,
@@ -94,6 +101,7 @@ export const AppliedMigration = Schema.Struct({
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type AppliedMigration = typeof AppliedMigration.Type
 
@@ -103,6 +111,7 @@ export type AppliedMigration = typeof AppliedMigration.Type
  *
  * @since 0.1.0
  * @category schemas
+ * @slop
  */
 export const ArtifactEntry = Schema.Struct({
   digest: Sha256.Digest,
@@ -114,6 +123,7 @@ export const ArtifactEntry = Schema.Struct({
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type ArtifactEntry = typeof ArtifactEntry.Type
 
@@ -123,6 +133,7 @@ export type ArtifactEntry = typeof ArtifactEntry.Type
  *
  * @since 0.1.0
  * @category schemas
+ * @slop
  */
 export const BackupManifest = Schema.Struct({
   formatVersion: Schema.Literal(1),
@@ -141,6 +152,7 @@ export const BackupManifest = Schema.Struct({
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export type BackupManifest = typeof BackupManifest.Type
 
@@ -152,6 +164,7 @@ const ManifestFromJsonString = Schema.fromJsonString(BackupManifest)
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export const DisasterRecoveryErrorCode = Schema.Literals([
   "not_empty",
@@ -169,6 +182,7 @@ export const DisasterRecoveryErrorCode = Schema.Literals([
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export type DisasterRecoveryErrorCode = typeof DisasterRecoveryErrorCode.Type
 
@@ -179,9 +193,10 @@ export type DisasterRecoveryErrorCode = typeof DisasterRecoveryErrorCode.Type
  *
  * @since 0.1.0
  * @category errors
+ * @slop
  */
 export class DisasterRecoveryError extends Schema.TaggedError<DisasterRecoveryError>()(
-  "@smthrs/engine-store-next/DisasterRecoveryError",
+  "@smthrs/engine-store/DisasterRecoveryError",
   {
     code: DisasterRecoveryErrorCode,
     method: Schema.String,
@@ -195,6 +210,7 @@ export class DisasterRecoveryError extends Schema.TaggedError<DisasterRecoveryEr
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface BackupOptions {
   /** The directory the backup is written into. Created when absent; must be empty when present. */
@@ -212,6 +228,7 @@ export interface BackupOptions {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface RestoreOptions {
   /** The directory a previous {@link backup} wrote. */
@@ -226,6 +243,7 @@ export interface RestoreOptions {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface RestoreAndFenceOptions<R = never, E = never> extends RestoreOptions {
   /**
@@ -242,6 +260,7 @@ export interface RestoreAndFenceOptions<R = never, E = never> extends RestoreOpt
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface RestoredStore {
   readonly databaseFile: string
@@ -255,6 +274,7 @@ export interface RestoredStore {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface FencedRestoredStore extends RestoredStore {
   readonly fence: FenceSummary
@@ -265,6 +285,7 @@ export interface FencedRestoredStore extends RestoredStore {
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface FenceSummary {
   /** Runs whose pending claim columns were cleared. */
@@ -409,6 +430,7 @@ const checkedFile = (
  *
  * @since 0.1.0
  * @category operations
+ * @slop
  */
 export const backup = Effect.fn("DisasterRecovery.backup")(function*(options: BackupOptions) {
   const sql = yield* Effect.service(SqlClient.SqlClient)
@@ -482,6 +504,7 @@ export const backup = Effect.fn("DisasterRecovery.backup")(function*(options: Ba
  *
  * @since 0.1.0
  * @category operations
+ * @slop
  */
 export const verify = Effect.fn("DisasterRecovery.verify")(function*(backupDirectory: string) {
   const fs = yield* FileSystem.FileSystem
@@ -511,6 +534,7 @@ export const verify = Effect.fn("DisasterRecovery.verify")(function*(backupDirec
  *
  * @since 0.1.0
  * @category operations
+ * @slop
  */
 export const restore = Effect.fn("DisasterRecovery.restore")(function*(options: RestoreOptions) {
   const fs = yield* FileSystem.FileSystem
@@ -564,13 +588,14 @@ export const restore = Effect.fn("DisasterRecovery.restore")(function*(options: 
  *
  * The store's fence is `OwnerId` equality, so the epoch bump is fence
  * invalidation: in one serialized write transaction every pending claim is
- * cleared and every run that was `running` at backup time is suspended with
- * its owner and heartbeat cleared. A surviving pre-backup owner then fails
- * every fenced operation against the restored store — `heartbeat` and
- * `transitionOwned` report `FenceLost`, fenced journal appends fail
- * `fence_lost` — exactly as a stale Temporal owner fails its `rangeID`
- * compare-and-swap. The suspended runs are claimable immediately, without
- * waiting out the heartbeat staleness cutoff and without liveness evidence.
+ * cleared, every run that was `running` at backup time is suspended with its
+ * owner and heartbeat cleared, and every consensus lease is deleted. A
+ * surviving pre-backup owner then fails every fenced operation against the
+ * restored store — `heartbeat` and `transitionOwned` report `FenceLost`,
+ * fenced journal appends fail `fence_lost` — exactly as a stale Temporal owner
+ * fails its `rangeID` compare-and-swap. The suspended runs are claimable
+ * immediately, without waiting out the heartbeat staleness cutoff and without
+ * liveness evidence.
  *
  * The manifest's recorded migrations must be a prefix of the restored
  * database's applied migrations: equal when the restoring binary matches the
@@ -584,6 +609,7 @@ export const restore = Effect.fn("DisasterRecovery.restore")(function*(options: 
  *
  * @since 0.1.0
  * @category operations
+ * @slop
  */
 export const fence = Effect.fn("DisasterRecovery.fence")(function*(manifest: BackupManifest) {
   const sql = yield* Effect.service(SqlClient.SqlClient)
@@ -625,10 +651,14 @@ export const fence = Effect.fn("DisasterRecovery.fence")(function*(manifest: Bac
           owner_host_id = NULL,
           owner_pid = NULL,
           owner_nonce = NULL,
-          heartbeat_at_ms = NULL
+          heartbeat_at_ms = NULL,
+          waiting_reason = 'released',
+          waiting_wake_at_ms = NULL,
+          waiting_token = NULL
         WHERE status = 'running'
         RETURNING run_id
       `.withoutTransform
+      yield* sql`DELETE FROM flows_consensus_leases`.withoutTransform
       return { clearedClaims: claims.length, suspendedRuns: running.length } satisfies FenceSummary
     })
   ).pipe(Effect.mapError(sqlFailure("fence", "invalidating the persisted fences")))
@@ -644,6 +674,7 @@ export const fence = Effect.fn("DisasterRecovery.fence")(function*(manifest: Bac
  *
  * @since 0.1.0
  * @category operations
+ * @slop
  */
 export const restoreAndFence = <R = never, E = never>(
   options: RestoreAndFenceOptions<R, E>

@@ -1,9 +1,13 @@
-# @smthrs/kernel-next
+---
+description: "Capability enforcement at the host boundary: grant checks decorated onto each host service tag in place."
+---
 
-Capability enforcement at the host boundary. The kernel decorates each host service tag in place — a middleware `Layer` over the very tag the platform adapter provides — checking a capability against a grant store before delegating. There is no second, "protected" tag: where Effect owns the tag (`FileSystem`, `ChildProcessSpawner`) a denied request surfaces as a `PlatformError` whose reason is `PermissionDenied` and whose `cause` carries the structured kernel failure (`Permission.fromPlatformError` reads it back); `HttpClient` is the same story in Effect's network channel, projecting a denial into an `HttpClientError` whose reason is a `TransportError` (`HttpClient.fromHttpClientError` reads it back); where `flows` owns the service (`Jj`) the interface names the kernel's failures directly. The `Capability` and `Permission` namespaces are re-exports from `@smthrs/capability-next`.
+# @smthrs/kernel
+
+Capability enforcement at the host boundary. The kernel decorates each host service tag in place, as a middleware `Layer` over the very tag the platform adapter provides, checking a capability against a grant store before delegating. There is no second, "protected" tag: where Effect owns the tag (`FileSystem`, `ChildProcessSpawner`) a denied request surfaces as a `PlatformError` whose reason is `PermissionDenied` and whose `cause` carries the structured kernel failure (`Permission.fromPlatformError` reads it back); `HttpClient` is the same story in Effect's network channel, projecting a denial into an `HttpClientError` whose reason is a `TransportError` (`HttpClient.fromHttpClientError` reads it back); where `flows` owns the service (`Jj`) the interface names the kernel's failures directly. The `Capability` and `Permission` namespaces are re-exports from `@smthrs/capability`.
 
 ```ts
-import { Capability, Permission } from "@smthrs/kernel-next"
+import { Capability, Permission } from "@smthrs/kernel"
 
 const rule = new Permission.Rule({
   effect: "allow",
@@ -15,12 +19,12 @@ const rule = new Permission.Rule({
 
 | Import | Source | Platform |
 | --- | --- | --- |
-| `@smthrs/kernel-next` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/kernel/src/index.ts) | any |
-| `@smthrs/kernel-next/test/TestGrantStore` | [src/test/TestGrantStore.ts](https://github.com/smithersai/flows/blob/main/packages/kernel/src/test/TestGrantStore.ts) | any |
+| `@smthrs/kernel` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/kernel/src/index.ts) | any |
+| `@smthrs/kernel/test/TestGrantStore` | [src/test/TestGrantStore.ts](https://github.com/smithersai/flows/blob/main/packages/kernel/src/test/TestGrantStore.ts) | any |
 
 ## Capability
 
-Re-exported from [`@smthrs/capability-next`](capability.md) — [packages/capability/src/Capability.ts](https://github.com/smithersai/flows/blob/main/packages/capability/src/Capability.ts)
+Re-exported from [`@smthrs/capability`](capability.md), source [packages/capability/src/Capability.ts](https://github.com/smithersai/flows/blob/main/packages/capability/src/Capability.ts).
 
 | Export | Kind | Notes |
 | --- | --- | --- |
@@ -52,7 +56,7 @@ Re-exported from [`@smthrs/capability-next`](capability.md) — [packages/capabi
 
 ## Permission
 
-Re-exported from [`@smthrs/capability-next`](capability.md) — [packages/capability/src/Permission.ts](https://github.com/smithersai/flows/blob/main/packages/capability/src/Permission.ts)
+Re-exported from [`@smthrs/capability`](capability.md), source [packages/capability/src/Permission.ts](https://github.com/smithersai/flows/blob/main/packages/capability/src/Permission.ts).
 
 | Export | Kind | Notes |
 | --- | --- | --- |
@@ -60,7 +64,7 @@ Re-exported from [`@smthrs/capability-next`](capability.md) — [packages/capabi
 | `RuleEffect` | type | `allow`, `deny`, `ask` |
 | `evaluate` | function | applies rules to a capability |
 | `PermissionRequired`, `PermissionDenied` | classes | typed failures the kernel raises |
-| `PermissionError` | type | `PermissionRequired \| PermissionDenied \| GrantStoreError` — the channel `Jj` exposes directly |
+| `PermissionError` | type | `PermissionRequired \| PermissionDenied \| GrantStoreError`, the channel `Jj` exposes directly |
 | `permissionRequired`, `permissionDenied` | constructors | |
 | `GrantStoreError`, `GrantStoreErrorCode` | class + codes | |
 | `isPermissionError` | refinement | narrows `unknown` to a kernel permission failure |
@@ -82,13 +86,13 @@ Re-exported from [`@smthrs/capability-next`](capability.md) — [packages/capabi
 
 ## Decorated host services
 
-Each module below exports a `layer` that decorates the matching service tag in place. `FileSystem`, `ChildProcessSpawner`, and `HttpClient` decorate Effect's own tags (permission failures projected into `PlatformError` and `HttpClientError` respectively); `Jj` decorates `@smthrs/jj-next`'s tag and re-exports it. No module declares a kernel-owned service tag.
+Each module below exports a `layer` that decorates the matching service tag in place. `FileSystem`, `ChildProcessSpawner`, and `HttpClient` decorate Effect's own tags (permission failures projected into `PlatformError` and `HttpClientError` respectively); `Jj` decorates `@smthrs/jj`'s tag and re-exports it. No module declares a kernel-owned service tag.
 
 | Module | Source | Guarded actions |
 | --- | --- | --- |
 | `FileSystem` | [src/FileSystem.ts](https://github.com/smithersai/flows/blob/main/packages/kernel/src/FileSystem.ts) | `fs:read`, `fs:write`; also exports `canonicalResource` |
 | `ChildProcessSpawner` | [src/ChildProcessSpawner.ts](https://github.com/smithersai/flows/blob/main/packages/kernel/src/ChildProcessSpawner.ts) | `proc:spawn`, whose resource is `CommandLine.render(command)`; re-exports Effect's tag, `make`, plus `makeNoop`/`layerNoop` stubs |
-| `Jj` | [src/Jj.ts](https://github.com/smithersai/flows/blob/main/packages/kernel/src/Jj.ts) | the six `jj:*` actions; re-exports `@smthrs/jj-next`'s tag, `make`, `makeNoop`, and `layerNoop` |
+| `Jj` | [src/Jj.ts](https://github.com/smithersai/flows/blob/main/packages/kernel/src/Jj.ts) | the six `jj:*` actions; re-exports `@smthrs/jj`'s tag, `make`, `makeNoop`, and `layerNoop` |
 | `HttpClient` | [src/HttpClient.ts](https://github.com/smithersai/flows/blob/main/packages/kernel/src/HttpClient.ts) | `net:get`, `net:post`, and `model:call` under `withModelCall`; re-exports Effect's tag and `make`, plus `toHttpClientError`/`fromHttpClientError`, the `ModelCall` reference, and `makeNoop`/`layerNoop` stubs. Redirects are followed *above* the guard with Effect's `followRedirects`, so every hop is rechecked |
 | `Path` | [src/Path.ts](https://github.com/smithersai/flows/blob/main/packages/kernel/src/Path.ts) | none; pure path manipulation is not checked |
 | `Workspace` | [src/Workspace.ts](https://github.com/smithersai/flows/blob/main/packages/kernel/src/Workspace.ts) | supplies the root used to resolve path capabilities |
@@ -99,10 +103,11 @@ Each module below exports a `layer` that decorates the matching service tag in p
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `HostService`, `HostServiceTags`, `HostServiceIds` | type + consts | the one closed list of Host tags — the kernel decorates each in place, so there is no second "protected" list |
-| `HostBuiltinNames` | const | `effect/Clock` and `effect/Random`, named for completeness but provided by Effect |
+| `HostService`, `HostServiceTags`, `HostServiceIds` | type + consts | the one closed list of Host tags; the kernel decorates each in place, so there is no second "protected" list |
 | `layer` | layer | decorates every service in the list, composed over a raw host bundle with `Layer.provide` |
 
 ## What the kernel does not do
 
-It is a capability check at the adapter call site. It does not sandbox the operating system, and it does not observe reads or writes that bypass the decorated services. Hermetic execution additionally needs a `StepBoundary` implementation.
+:::warning
+The kernel is a capability check at the adapter call site. It does not sandbox the operating system, and it does not observe reads or writes that bypass the decorated services. Hermetic execution additionally needs a `StepBoundary` implementation.
+:::

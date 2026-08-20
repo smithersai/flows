@@ -1,0 +1,383 @@
+{
+  "generatedAt": "2026-08-08T22:16:50.826Z",
+  "target": "http://127.0.0.1:9",
+  "totals": {
+    "pass": 0,
+    "fail": 0,
+    "notTestableYet": 31
+  },
+  "rows": [
+    {
+      "id": "A-1",
+      "section": "A",
+      "title": "Landing is one sentence plus a GitHub sign-in affordance (no blank prompt box, no feature list)",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "A-2",
+      "section": "A",
+      "title": "Sign-in to first useful message in <= 90s",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "A-3",
+      "section": "A",
+      "title": "First message cites repo-specific data (not greeting-only boilerplate)",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "A-4",
+      "section": "A",
+      "title": "Workspace pre-exists: no clone/install/configure copy anywhere",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "A-5",
+      "section": "A",
+      "title": "\"$500 of usage on us\" stated exactly once",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "A-6",
+      "section": "A",
+      "title": "No card form anywhere in the product",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "A-7",
+      "section": "A",
+      "title": "<= 3 questions asked in the whole first run",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "A-8",
+      "section": "A",
+      "title": "One recommendation card carrying proposes / why-now / what-happens / accept-edit-dismiss",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "A-9",
+      "section": "A",
+      "title": "Dismiss is one key and the same recommendation does not return unchanged",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "B-1",
+      "section": "B",
+      "title": "Close browser mid-turn, reopen: conversation + in-flight work restored and correctly described",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "B-2",
+      "section": "B",
+      "title": "Escape stops foreground work <= 1s with a statement of what stopped",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "B-3",
+      "section": "B",
+      "title": "A server-side kill surfaces in the UI (no silent completion/failure)",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "B-4",
+      "section": "B",
+      "title": "Result cards lead with the result",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "B-5",
+      "section": "B",
+      "title": "No score/grade/number user-facing",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "B-6",
+      "section": "B",
+      "title": "A correction never renders as an error state",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "B-7",
+      "section": "B",
+      "title": "Zero rating prompts (\"was this helpful?\" anywhere = fail)",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "C-1",
+      "section": "C",
+      "title": "Every visible interactive affordance resolves to a named command also reachable by /name",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "C-2",
+      "section": "C",
+      "title": "\"/\" opens with the recommended command first and bare \"/\"+Enter runs it",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "C-3",
+      "section": "C",
+      "title": "The whole section-A journey is completable keyboard-only",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "D-1",
+      "section": "D",
+      "title": "GET /api/billing/balance shows the $500 design-partner balance for a signed-in user",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "D-2",
+      "section": "D",
+      "title": "A chat turn reduces the balance by its metered at-cost amount",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "D-3",
+      "section": "D",
+      "title": "No top-up/checkout/card-collection flow is exposed to MVP users",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "E-1",
+      "section": "E",
+      "title": "POST /api/billing/admin/grants rejects calls without the admin token (401)",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "E-2",
+      "section": "E",
+      "title": "An untimestamped grant is refused (400 timestamp_required)",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "E-3",
+      "section": "E",
+      "title": "A grant with requester + timestamp credits the balance exactly once (201, audit record)",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "F-1",
+      "section": "F",
+      "title": "Impossible ask (send an email): honest \"can't yet + next step\", never fake success",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "F-2",
+      "section": "F",
+      "title": "Impossible ask (read local files): honest \"can't yet + next step\", never fake success",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "F-3",
+      "section": "F",
+      "title": "Impossible ask (unconnected tool): honest \"can't yet + next step\", never fake success",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "F-4",
+      "section": "F",
+      "title": "Impossible ask (claim a push): honest \"can't yet + next step\", never fake success",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "F-5",
+      "section": "F",
+      "title": "Impossible ask (claim a PR): honest \"can't yet + next step\", never fake success",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    },
+    {
+      "id": "F-6",
+      "section": "F",
+      "title": "Blocked-on-approval state agrees across every surface (no RUNNING-vs-Blocked contradiction)",
+      "status": "not-testable-yet",
+      "reasons": [
+        "no automated check for this row executed in this run"
+      ],
+      "evidence": [],
+      "durationMs": 0,
+      "tests": []
+    }
+  ]
+}

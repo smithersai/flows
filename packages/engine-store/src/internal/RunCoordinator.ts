@@ -10,7 +10,7 @@
  *
  * @since 0.1.0
  */
-import { Deferred, Effect, Exit, Fiber, FiberSet, type Scope } from "effect"
+import { Cause, Deferred, Effect, Exit, Fiber, FiberSet, type Scope } from "effect"
 
 /**
  * Serializes drain execution for each key while allowing distinct keys to run
@@ -18,6 +18,7 @@ import { Deferred, Effect, Exit, Fiber, FiberSet, type Scope } from "effect"
  *
  * @since 0.1.0
  * @category models
+ * @slop
  */
 export interface RunCoordinator<Key, E> {
   /**
@@ -62,6 +63,7 @@ type Entry<E> = {
  *
  * @since 0.1.0
  * @category constructors
+ * @slop
  */
 export const make = <Key, E, R>(options: {
   readonly drain: (key: Key, force: boolean) => Effect.Effect<void, E, R>
@@ -81,6 +83,11 @@ export const make = <Key, E, R>(options: {
       const owner = fork(
         (successor ? Effect.yieldNow : Deferred.await(ready)).pipe(
           Effect.andThen(Effect.suspend(() => options.drain(key, force))),
+          Effect.onError((cause) =>
+            Cause.hasInterruptsOnly(cause)
+              ? Effect.void
+              : Effect.logWarning(`engine-store: coordinated drain failed for ${String(key)}`, cause)
+          ),
           Effect.onExit((exit) => Effect.sync(() => settle(key, entry, exit))),
           Effect.exit,
           Effect.asVoid

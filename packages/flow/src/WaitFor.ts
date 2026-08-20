@@ -20,6 +20,7 @@
  *
  * @since 0.1.0
  */
+import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import type * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
@@ -41,9 +42,10 @@ import { annotateWaiting } from "./FlowRuntime/WaitingAnnotation.ts"
  *
  * @category errors
  * @since 0.1.0
+ * @slop
  */
 export class WaitForRequestInvalid extends Schema.TaggedError<WaitForRequestInvalid>()(
-  "@smthrs/flow-next/WaitForRequestInvalid",
+  "@smthrs/flow/WaitForRequestInvalid",
   {
     code: Schema.Literals([
       "missing_target",
@@ -60,6 +62,7 @@ export class WaitForRequestInvalid extends Schema.TaggedError<WaitForRequestInva
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const tag = "system/wait-for"
 
@@ -79,6 +82,7 @@ export const tag = "system/wait-for"
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const deferred = (name: string): DurableDeferred.DurableDeferred<typeof Schema.Json> =>
   DurableDeferred.make(`WaitFor/${name}`, { success: Schema.Json })
@@ -95,6 +99,7 @@ export const deferred = (name: string): DurableDeferred.DurableDeferred<typeof S
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const action: Action.Declared<
   typeof tag,
@@ -211,8 +216,9 @@ const target = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
-export const layer: Layer.Layer<never, never, FlowRuntime> = action.toLayer((payload) =>
+export const layer: Layer.Layer<never, never, Crypto.Crypto | FlowRuntime> = action.toLayer((payload) =>
   Effect.gen(function*() {
     const instance = yield* FlowInstance
     const waitPoint = yield* target(payload, instance.flow._tag, instance.executionId)

@@ -1,13 +1,13 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Flow } from "@smthrs/flow-next"
+import { describe, expect, it } from "@effect/vitest"
+import { Flow } from "@smthrs/flow"
 import { Effect, Exit, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
-import { describe, expect, it } from "vitest"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it(name, () => runPromise(body()))
+  it.effect(name, () => withCrypto(body()))
 
 const CompleteSchema = Flow.Complete.Schema({
   success: Schema.Number,

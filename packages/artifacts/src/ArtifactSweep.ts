@@ -24,6 +24,7 @@ import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as ArtifactStore from "./ArtifactStore.ts"
+import * as ArtifactLocks from "./internal/ArtifactLocks.ts"
 
 /**
  * One enumerated blob: its content address, when it was last written or
@@ -35,6 +36,7 @@ import * as ArtifactStore from "./ArtifactStore.ts"
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface BlobStat {
   readonly digest: string
@@ -47,6 +49,7 @@ export interface BlobStat {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface RemoveOptions {
   /**
@@ -64,6 +67,7 @@ export interface RemoveOptions {
  *
  * @category models
  * @since 0.1.0
+ * @slop
  */
 export interface Service {
   /**
@@ -91,8 +95,9 @@ export interface Service {
  *
  * @category services
  * @since 0.1.0
+ * @slop
  */
-export class ArtifactSweep extends Context.Service<ArtifactSweep, Service>()("@smthrs/artifacts-next/ArtifactSweep") {}
+export class ArtifactSweep extends Context.Service<ArtifactSweep, Service>()("@smthrs/artifacts/ArtifactSweep") {}
 
 const error = (message: string, cause?: unknown): ArtifactStore.ArtifactStoreError =>
   new ArtifactStore.ArtifactStoreError({
@@ -120,6 +125,7 @@ const defaultDirectory = ".flows/objects"
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeFileSystem = (
   fs: FileSystem.FileSystem,
@@ -161,28 +167,31 @@ export const makeFileSystem = (
 
   const remove: Service["remove"] = Effect.fn("ArtifactSweep.remove")((digest, removeOptions) =>
     Effect.gen(function*() {
+      yield* Effect.annotateCurrentSpan({ digest })
       yield* ArtifactStore.validateDigest(digest)
-      const path = blobPath(digest)
-      const bound = removeOptions?.ifUnmodifiedSinceMs
-      if (bound !== undefined) {
-        const info = yield* fs.stat(path).pipe(Effect.option)
-        // Already gone is a completed deletion, and an unmeasurable mtime is
-        // no proof of age: both refuse rather than delete.
-        if (Option.isNone(info)) return false
-        const mtime = Option.getOrUndefined(info.value.mtime)
-        if (mtime === undefined || mtime.getTime() > bound) return false
-      }
-      return yield* fs.remove(path).pipe(
-        Effect.as(true),
-        // The blob may have been removed between the fence and here; only a
-        // refusal over bytes that still exist is a host failure.
-        Effect.catch((cause) =>
-          fs.exists(path).pipe(
-            Effect.catch(() => Effect.succeed(false)),
-            Effect.flatMap((present) => present ? Effect.fail(hostFailure(cause)) : Effect.succeed(false))
+      return yield* ArtifactLocks.withDigest(fs, digest, Effect.gen(function*() {
+        const path = blobPath(digest)
+        const bound = removeOptions?.ifUnmodifiedSinceMs
+        if (bound !== undefined) {
+          const info = yield* fs.stat(path).pipe(Effect.option)
+          // Already gone is a completed deletion, and an unmeasurable mtime is
+          // no proof of age: both refuse rather than delete.
+          if (Option.isNone(info)) return false
+          const mtime = Option.getOrUndefined(info.value.mtime)
+          if (mtime === undefined || mtime.getTime() > bound) return false
+        }
+        return yield* fs.remove(path).pipe(
+          Effect.as(true),
+          // The blob may have been removed between the fence and here; only a
+          // refusal over bytes that still exist is a host failure.
+          Effect.catch((cause) =>
+            fs.exists(path).pipe(
+              Effect.catch(() => Effect.succeed(false)),
+              Effect.flatMap((present) => present ? Effect.fail(hostFailure(cause)) : Effect.succeed(false))
+            )
           )
         )
-      )
+      }))
     })
   )
 
@@ -194,6 +203,7 @@ export const makeFileSystem = (
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerFileSystem = (
   options: ArtifactStore.FileSystemOptions = {}
@@ -206,6 +216,7 @@ export const layerFileSystem = (
  *
  * @category constructors
  * @since 0.1.0
+ * @slop
  */
 export const makeNoop = (overrides: Partial<Service> = {}): Service => ({
   inventory: Effect.fail(error("inventory is unavailable")),
@@ -218,6 +229,7 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service => ({
  *
  * @category layers
  * @since 0.1.0
+ * @slop
  */
 export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<ArtifactSweep> =>
   Layer.succeed(ArtifactSweep)(makeNoop(overrides))
