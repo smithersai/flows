@@ -24,6 +24,7 @@ import * as Migrations from "../src/Migrations.ts"
 
 const runId = (value: string): RunId => value as RunId
 const sourceId = (value: string): SourceId => value as SourceId
+const owner = { hostId: "journal-transaction", pid: 1, nonce: "owner" } as const
 
 const effect = <E>(name: string, body: () => Effect.Effect<void, E>) =>
   it.effect(name, () => body().pipe(Effect.provide(TestClock.layer())))
@@ -129,4 +130,34 @@ describe("Journal.transact across the journal and run stores", () => {
       expect(yield* PubSub.remaining(subscription)).toBe(0)
       expect(yield* rowsOf(sql, run)).toHaveLength(0)
     })))
+
+  effect(
+    "rolls an R6 ownership transition back with the enclosing transaction",
+    () =>
+      withStack(Effect.gen(function*() {
+        const journal = yield* Journal
+        const runs = yield* RunStore.RunStore
+        const sql = yield* Effect.service(SqlClient.SqlClient)
+        const run = runId("atomic-r6-rollback")
+
+        yield* runs.create(run, "{}")
+        const pending = yield* runs.get(run)
+        expect(yield* runs.claimAndOwn(run, pending, owner, 0)).toEqual({ _tag: "Activated" })
+        yield* journal.flush
+
+        const exit = yield* journal.transact(Effect.gen(function*() {
+          expect(yield* runs.transitionOwned(run, owner, "suspended")).toEqual({ _tag: "Transitioned" })
+          return yield* Effect.fail(new Rejected("outer rejected after the R6 append"))
+        })).pipe(Effect.exit)
+
+        expect(exit._tag).toBe("Failure")
+        const row = yield* runs.get(run)
+        const rows = yield* rowsOf(sql, run)
+        expect(row.status).toBe("running")
+        expect(rows.map((entry) => entry.event_type)).toEqual([
+          "flows.consensus.claimed",
+          "flows.consensus.activated"
+        ])
+      }))
+  )
 })

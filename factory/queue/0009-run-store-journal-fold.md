@@ -21,4 +21,3 @@ Implement the run/attempt row in the fold table from
 - Add rebuild/conformance tests that compare the live materialization with a
   replayed fold across lifecycle, cancellation, waiting, terminal, and attempt
   mutation paths.
-

@@ -491,7 +491,6 @@ describe("vitest coverage isolation conformance", () => {
       // construction because every application enters the trap.
       "plan/src/Planned.ts": 1,
       "run-store/src/AttemptStore.ts": 1,
-      "run-store/src/RunStore.ts": 1,
       "step-cache/src/CacheStore.ts": 1
     }
     const sourceFiles = (directory: string): Array<string> => {

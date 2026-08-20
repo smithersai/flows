@@ -56,14 +56,17 @@ describe("engine-store journal integration", () => {
       // dispatch records a `carried` tier-2 pointer so a rewind to this frame has
       // an address to restore (`docs/specs/Concepts/Time Travel.md`).
       expect(entries.entries.map((entry) => entry.eventType)).toEqual([
+        "flows.consensus.claimed",
+        "flows.consensus.activated",
         "flows.engine.attempt-started",
         "flows.engine.snapshot-identified",
         "flows.engine.attempt-finished",
         "flows.engine.cache-provenance"
       ])
       // Lineage is the frame address, and it is on every engine record.
-      expect(entries.entries.map((entry) => (entry.meta as { lineageId?: string }).lineageId)).toEqual(
-        entries.entries.map(() => "journal-run/root")
+      const engineEntries = entries.entries.filter((entry) => entry.eventType.startsWith("flows.engine."))
+      expect(engineEntries.map((entry) => (entry.meta as { lineageId?: string }).lineageId)).toEqual(
+        engineEntries.map(() => "journal-run/root")
       )
     }))
 

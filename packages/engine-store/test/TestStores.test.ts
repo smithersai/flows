@@ -89,6 +89,6 @@ describe("TestStores", () => {
 
       expect(Option.getOrThrow(result.attempt).meta).toEqual({ poisonPill: false })
       expect(Option.getOrThrow(result.cache).result).toEqual({ value: "ok" })
-      expect(result.entries.entries.map((entry) => entry.seq)).toEqual([0])
+      expect(result.entries.entries.map((entry) => entry.seq)).toEqual([0, 1, 2])
     }))
 })

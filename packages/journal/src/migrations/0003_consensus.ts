@@ -13,7 +13,8 @@ import * as Effect from "effect/Effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 
 /**
- * Creates the `flows_consensus_leases` table.
+ * Creates the `flows_consensus_leases` table and backfills any pre-consensus
+ * run ownership rows when `flows_runs` is already present in the database.
  *
  * @category migrations
  * @since 0.1.0
@@ -33,6 +34,48 @@ const consensus: Effect.Effect<void, unknown, SqlClient.SqlClient> = Effect.gen(
     claim_nonce TEXT,
     claimed_at_ms INTEGER CHECK (claimed_at_ms IS NULL OR (typeof(claimed_at_ms) = 'integer' AND claimed_at_ms >= 0))
   )`
+
+  const legacyRuns = yield* sql<{ readonly present: number }>`
+    SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'flows_runs'
+  `
+  if (legacyRuns.length === 0) {
+    return
+  }
+
+  yield* sql`
+    INSERT INTO flows_consensus_leases (
+      run_id,
+      owner_host_id,
+      owner_pid,
+      owner_nonce,
+      granted_at_ms,
+      heartbeat_at_ms,
+      claim_host_id,
+      claim_pid,
+      claim_nonce,
+      claimed_at_ms
+    )
+    SELECT
+      run_id,
+      owner_host_id,
+      owner_pid,
+      owner_nonce,
+      CASE
+        WHEN status = 'running' THEN heartbeat_at_ms
+        ELSE NULL
+      END,
+      CASE
+        WHEN status = 'running' THEN heartbeat_at_ms
+        ELSE NULL
+      END,
+      claim_host_id,
+      claim_pid,
+      claim_nonce,
+      claimed_at_ms
+    FROM flows_runs
+    WHERE status = 'running' OR claim_host_id IS NOT NULL
+    ON CONFLICT (run_id) DO NOTHING
+  `
 })
 
 export default consensus

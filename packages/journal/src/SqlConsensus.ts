@@ -55,6 +55,10 @@ interface LeaseRow {
   readonly claim_nonce: string | null
 }
 
+interface LegacyClaimRow {
+  readonly claimed_at_ms: number
+}
+
 /**
  * Constructs the database-backed strategy over the context's SQL client and
  * durable writer.
@@ -78,7 +82,8 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
   // conflict raised by a savepoint-nested lease statement.
   const write = <A>(
     body: Effect.Effect<A, unknown>
-  ): Effect.Effect<A, ConsensusError> => writer.write(body).pipe(Effect.mapError(strategyError))
+  ): Effect.Effect<A, ConsensusError> =>
+    writer.write(body).pipe(Effect.mapError((cause) => cause instanceof ConsensusError ? cause : strategyError(cause)))
 
   const leaseOf = (runId: string) =>
     sql<LeaseRow>`
@@ -86,6 +91,54 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
       FROM flows_consensus_leases
       WHERE run_id = ${runId}
     `
+
+  const hasLegacyRunsTable = Effect.map(
+    sql<{ readonly present: number }>`
+      SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'flows_runs'
+    `,
+    (rows) => rows.length > 0
+  )
+
+  const legacyStaleOwner = (
+    runId: string,
+    owner: OwnerId,
+    nowMs: number
+  ) =>
+    Effect.gen(function*() {
+      if (!(yield* hasLegacyRunsTable)) return false
+      const rows = yield* sql<{ readonly run_id: string }>`
+        SELECT run_id FROM flows_runs
+        WHERE run_id = ${runId}
+          AND status = 'running'
+          AND owner_host_id = ${owner.hostId}
+          AND owner_pid = ${owner.pid}
+          AND owner_nonce = ${owner.nonce}
+          AND heartbeat_at_ms < ${nowMs - staleAfterMs}
+          AND claim_host_id IS NULL
+      `
+      return rows.length > 0
+    })
+
+  const legacyClaimState = (
+    runId: string,
+    claimant: OwnerId,
+    grantedAtMs: number,
+    nowMs: number
+  ) =>
+    Effect.gen(function*() {
+      if (!(yield* hasLegacyRunsTable)) return "missing" as const
+      const rows = yield* sql<LegacyClaimRow>`
+        SELECT claimed_at_ms FROM flows_runs
+        WHERE run_id = ${runId}
+          AND claim_host_id = ${claimant.hostId}
+          AND claim_pid = ${claimant.pid}
+          AND claim_nonce = ${claimant.nonce}
+          AND claimed_at_ms = ${grantedAtMs}
+      `
+      const claimedAtMs = rows[0]?.claimed_at_ms
+      if (claimedAtMs === undefined) return "missing" as const
+      return Number(claimedAtMs) < nowMs - staleAfterMs ? "stale" as const : "fresh" as const
+    })
 
   const prune = (runId: string) =>
     sql`
@@ -225,8 +278,16 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
         if (rows.length > 0) return claimed(nowMs)
         const lease = (yield* leaseOf(runId))[0]
         if (lease !== undefined && lease.claim_host_id !== null) return rejected("already_claimed")
+        if (lease === undefined) {
+          const legacy = yield* legacyStaleOwner(runId, evidence.expectedOwner, nowMs)
+          if (!legacy) return rejected("evidence_invalid")
+          yield* sql`
+            INSERT INTO flows_consensus_leases (run_id, claim_host_id, claim_pid, claim_nonce, claimed_at_ms)
+            VALUES (${runId}, ${claimant.hostId}, ${claimant.pid}, ${claimant.nonce}, ${nowMs})
+          `
+          return claimed(nowMs)
+        }
         if (
-          lease === undefined ||
           lease.owner_host_id !== evidence.expectedOwner.hostId ||
           lease.owner_pid !== evidence.expectedOwner.pid ||
           lease.owner_nonce !== evidence.expectedOwner.nonce
@@ -266,6 +327,15 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
           yield* prune(runId)
           return { _tag: "Recovered" }
         }
+        const lease = (yield* leaseOf(runId))[0]
+        if (lease === undefined) {
+          const legacy = yield* legacyClaimState(runId, staleClaimant, grantedAtMs, nowMs)
+          return legacy === "stale"
+            ? { _tag: "Recovered" }
+            : legacy === "fresh"
+            ? rejected("claim_fresh")
+            : rejected("claim_changed")
+        }
         const matches = yield* sql<{ readonly run_id: string }>`
           SELECT run_id FROM flows_consensus_leases
           WHERE run_id = ${runId}
@@ -282,14 +352,14 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
   )
 
   const guard: Service["guard"] = Effect.fn("Consensus.guard")((runId: string, owner: OwnerId) =>
-    Effect.gen(function*() {
+    write(Effect.gen(function*() {
       const held = yield* sql<{ readonly ok: number }>`
         SELECT 1 AS ok FROM flows_consensus_leases
         WHERE run_id = ${runId}
           AND owner_host_id = ${owner.hostId}
           AND owner_pid = ${owner.pid}
           AND owner_nonce = ${owner.nonce}
-      `.pipe(Effect.mapError(strategyError))
+      `
       if (held.length === 0) {
         return yield* Effect.fail(
           new ConsensusError({
@@ -298,7 +368,7 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
           })
         )
       }
-    })
+    }))
   )
 
   return Consensus.of({ claim, activate, heartbeat, release, steal, recover, guard })

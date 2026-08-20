@@ -308,4 +308,41 @@ describe("a failing strategy is a persistence failure, never a silent grant", ()
       const transitionFailure = yield* Effect.flip(store.transitionOwned("run-broken-lease", ownerA, "completed"))
       expect(transitionFailure.code).toBe("persistence_failed")
     })))
+
+  it.effect("steals and recovers legacy rows that have no lease row", () =>
+    withSql(Effect.gen(function*() {
+      const store = yield* RunStore
+      const sql = yield* Effect.service(SqlClient.SqlClient)
+      const nowMs = Duration.toMillis(heartbeatStaleAfter) + 1
+
+      yield* sql`
+        INSERT INTO flows_runs (
+          run_id, status, created_at_ms, started_at_ms,
+          owner_host_id, owner_pid, owner_nonce, heartbeat_at_ms, state_json
+        ) VALUES (
+          'run-legacy-owner', 'running', 0, 0,
+          ${ownerA.hostId}, ${ownerA.pid}, ${ownerA.nonce}, 0, '{}'
+        )
+      `
+      const stale = yield* store.get("run-legacy-owner")
+      expect(
+        yield* store.steal("run-legacy-owner", stale, ownerB, nowMs, evidence(ownerA, ownerB, nowMs))
+      ).toEqual({ _tag: "Claimed", claimedAtMs: nowMs })
+      expect(yield* store.activate("run-legacy-owner", ownerB, nowMs, stale)).toEqual({ _tag: "Activated" })
+      expect((yield* store.get("run-legacy-owner")).owner).toEqual(ownerB)
+
+      yield* sql`
+        INSERT INTO flows_runs (
+          run_id, status, created_at_ms,
+          claim_host_id, claim_pid, claim_nonce, claimed_at_ms, state_json
+        ) VALUES (
+          'run-legacy-claim', 'pending', 0,
+          ${ownerA.hostId}, ${ownerA.pid}, ${ownerA.nonce}, 0, '{}'
+        )
+      `
+      expect(
+        yield* store.recoverClaim("run-legacy-claim", ownerA, 0, ownerB, nowMs, evidence(ownerA, ownerB, nowMs))
+      ).toEqual({ _tag: "Recovered" })
+      expect((yield* store.get("run-legacy-claim")).claim).toBeNull()
+    })))
 })

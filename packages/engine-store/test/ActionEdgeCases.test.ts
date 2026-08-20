@@ -208,14 +208,16 @@ describe("attempt lifecycle journal failures", () => {
         Effect.map(Journal.Journal, (journal) =>
           Journal.makeNoop({
             ...journal,
-            emitDurable: () =>
-              Effect.fail(
-                new Journal.JournalError({
-                  code: "sink_failed",
-                  message: "sink_failed: journal sink is down",
-                  cause: undefined
-                })
-              )
+            emitDurable: (input, owner) =>
+              input.eventType.startsWith("flows.consensus.")
+                ? journal.emitDurable(input, owner)
+                : Effect.fail(
+                  new Journal.JournalError({
+                    code: "sink_failed",
+                    message: "sink_failed: journal sink is down",
+                    cause: undefined
+                  })
+                )
           }))
       )
       const exit = yield* withCrypto(

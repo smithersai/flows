@@ -202,6 +202,19 @@ const durable = <A, E, R>(
 
 const roundId = (lineageId: string, ordinal: number) => sha256(`flow-round-${lineageId}-${ordinal}`)
 
+const getWhenStatus = (
+  store: RunStore.RunStore["Service"],
+  runId: string,
+  status: RunStore.RunStatus,
+  attempts = 20
+): Effect.Effect<RunStore.RunRow, RunStore.RunStoreError> =>
+  Effect.gen(function*() {
+    const row = yield* store.get(runId)
+    if (row.status === status || attempts <= 0) return row
+    yield* Effect.yieldNow
+    return yield* getWhenStatus(store, runId, status, attempts - 1)
+  })
+
 describe("a durable lineage", () => {
   it.effect("counts to its target across rounds, chaining each one under the lineage", () =>
     Effect.gen(function*() {
@@ -574,7 +587,7 @@ describe("a durable lineage", () => {
           discard: true
         }).pipe(Effect.provide(wiring))
 
-        const parked = yield* store.get(roundId("park-lineage", 1))
+        const parked = yield* getWhenStatus(store, roundId("park-lineage", 1), "suspended")
         const waiting = yield* state.waiting(roundId("park-lineage", 1))
 
         yield* Gate.resume(roundId("park-lineage", 1)).pipe(Effect.provide(wiring))

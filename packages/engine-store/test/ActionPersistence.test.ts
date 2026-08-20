@@ -159,6 +159,8 @@ describe("ActionPersistence", () => {
       // A rejected finish still leaves the attempt's admission and its tier-2
       // frame anchor on the journal; what it must not leave is a terminal record.
       expect(result.entries.entries.map((entry) => entry.eventType)).toEqual([
+        "flows.consensus.claimed",
+        "flows.consensus.activated",
         "flows.engine.attempt-started",
         "flows.engine.snapshot-identified",
         "flows.engine.attempt-started",

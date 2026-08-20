@@ -21,4 +21,3 @@ Implement the deferred/clock row in the fold table from
 - Add rebuild/conformance tests that compare the live indexes with a replayed
   fold across completion, duplicate completion, scheduled deadline, cancelled
   deadline, and restart recovery paths.
-

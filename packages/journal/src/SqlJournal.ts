@@ -69,8 +69,8 @@ const UnknownFromJsonString = Schema.fromJsonString(Schema.Unknown)
  *
  * The attempt runs post-commit in the fiber that crossed the threshold, so
  * keep `capture` to storage reads. It must not emit through this journal:
- * the triggering durable emit still holds the allocation permit, and a
- * nested emit would deadlock on it.
+ * doing so would let automatic compaction recursively trigger more durable
+ * journal work from the settlement path.
  *
  * A failed or refused attempt — a live stream behind the boundary, a
  * capture failure — is logged at warning, damped for `entryThreshold`
@@ -1158,61 +1158,70 @@ export const layerWith = (
           runId: input.runId,
           sourceId: input.sourceId,
           eventType: input.eventType
-        }).pipe(Effect.andThen(allocation.withPermit(Effect.flatMap(Clock.currentTimeMillis, (emittedAtMs) =>
+        }).pipe(Effect.andThen(Effect.flatMap(Clock.currentTimeMillis, (emittedAtMs) =>
           Effect.flatMap(Effect.fromResult(prepare(input, emittedAtMs)), ({ metaJson, payloadJson, validated }) =>
-            writer.write(
-              Effect.gen(function*() {
-                const key = sourceKey(validated.runId, validated.sourceId)
-                const sourceSeq: SourceSeq = validated.sourceSeq ??
-                  (Math.max(
-                    yield* nextDurable("source_seq", validated.runId, validated.sourceId),
-                    state.sourceSequences.get(key) ?? 0
-                  ) as SourceSeq)
-                if (
-                  !Number.isSafeInteger(sourceSeq) ||
-                  sourceSeq < 0 ||
-                  sourceSeq === Number.MAX_SAFE_INTEGER
-                ) {
-                  return yield* Effect.fail(
-                    error("invalid_event", "journal sequence is outside the allocatable safe integer range")
-                  )
-                }
-                const seq = Math.max(
-                  yield* nextDurable("seq", validated.runId, undefined),
-                  state.sequences.get(validated.runId) ?? 0
-                ) as Seq
-                if (!Number.isSafeInteger(seq) || seq === Number.MAX_SAFE_INTEGER) {
-                  return yield* Effect.fail(
-                    error("invalid_event", "journal sequence is outside the allocatable safe integer range")
-                  )
-                }
-                // Claim the seq NOW, not at commit: a concurrent `emitLossy`
-                // allocates from this floor alone, and `settleCommit` parks
-                // the commit-time raise until the outermost COMMIT.
-                // Re-entering the transaction body is idempotent because the
-                // floor only rises. An abandoned attempt leaves the number
-                // unused, which is a gap: allocation is `MAX(seq) + 1` and
-                // replay is `ORDER BY seq`, so neither reads a gap as anything.
-                raiseSequenceFloor(validated.runId, seq)
-                // Claim the producer sequence at the same allocation seam.
-                // Without this, a lossy emit from the same producer can read
-                // the pre-transaction source floor and reuse this identity
-                // while an enclosing `transact` is still open.
-                raiseSourceSequenceFloor(validated.runId, validated.sourceId, sourceSeq)
-                const queued: QueuedEntry = {
-                  runId: validated.runId,
-                  seq,
-                  eventId: makeEventId(validated.runId, validated.sourceId, sourceSeq),
-                  sourceId: validated.sourceId,
-                  sourceSeq,
-                  emittedAtMs,
-                  eventType: validated.eventType,
-                  payloadJson,
-                  metaJson
-                }
-                const commit = yield* insertOne(queued, owner)
-                return { commit, queued, sourceSeq }
-              })
+            Effect.flatMap(
+              Effect.serviceOption(Settlements),
+              (enclosing) => {
+                const writeEntry = Effect.gen(function*() {
+                  const { queued, sourceSeq } = yield* allocation.withPermit(Effect.gen(function*() {
+                    const key = sourceKey(validated.runId, validated.sourceId)
+                    const sourceSeq: SourceSeq = validated.sourceSeq ??
+                      (Math.max(
+                        yield* nextDurable("source_seq", validated.runId, validated.sourceId),
+                        state.sourceSequences.get(key) ?? 0
+                      ) as SourceSeq)
+                    if (
+                      !Number.isSafeInteger(sourceSeq) ||
+                      sourceSeq < 0 ||
+                      sourceSeq === Number.MAX_SAFE_INTEGER
+                    ) {
+                      return yield* Effect.fail(
+                        error("invalid_event", "journal sequence is outside the allocatable safe integer range")
+                      )
+                    }
+                    const seq = Math.max(
+                      yield* nextDurable("seq", validated.runId, undefined),
+                      state.sequences.get(validated.runId) ?? 0
+                    ) as Seq
+                    if (!Number.isSafeInteger(seq) || seq === Number.MAX_SAFE_INTEGER) {
+                      return yield* Effect.fail(
+                        error("invalid_event", "journal sequence is outside the allocatable safe integer range")
+                      )
+                    }
+                    // Claim the seq NOW, not at commit: a concurrent `emitLossy`
+                    // allocates from this floor alone, and `settleCommit` parks
+                    // the commit-time raise until the outermost COMMIT.
+                    // Re-entering the transaction body is idempotent because the
+                    // floor only rises. An abandoned attempt leaves the number
+                    // unused, which is a gap: allocation is `MAX(seq) + 1` and
+                    // replay is `ORDER BY seq`, so neither reads a gap as anything.
+                    raiseSequenceFloor(validated.runId, seq)
+                    // Claim the producer sequence at the same allocation seam.
+                    // Without this, a lossy emit from the same producer can read
+                    // the pre-transaction source floor and reuse this identity
+                    // while an enclosing `transact` is still open.
+                    raiseSourceSequenceFloor(validated.runId, validated.sourceId, sourceSeq)
+                    return {
+                      queued: {
+                        runId: validated.runId,
+                        seq,
+                        eventId: makeEventId(validated.runId, validated.sourceId, sourceSeq),
+                        sourceId: validated.sourceId,
+                        sourceSeq,
+                        emittedAtMs,
+                        eventType: validated.eventType,
+                        payloadJson,
+                        metaJson
+                      },
+                      sourceSeq
+                    }
+                  }))
+                  const commit = yield* insertOne(queued, owner)
+                  return { commit, queued, sourceSeq }
+                })
+                return Option.isSome(enclosing) ? writeEntry : writer.write(writeEntry)
+              }
             ).pipe(
               /**
                * `writer.write` is a retrying transaction: its body replays on
@@ -1240,7 +1249,7 @@ export const layerWith = (
               Effect.mapError((cause) =>
                 isJournalError(cause) ? cause : error("sink_failed", "durable journal write failed", cause)
               )
-            ))))))
+            )))))
       )
 
       const emitLossy: Service["emitLossy"] = queuedEmit

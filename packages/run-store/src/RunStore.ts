@@ -620,11 +620,11 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
   const writer = yield* DurableWriter
   // Arbitration is delegated to the `Consensus` strategy in context,
   // defaulting to the database-backed `SqlConsensus` over the same client.
-  // When a `Journal` is also in context, ownership transitions append R6
-  // events through it; without one, no events are recorded.
+  // Ownership methods resolve `Journal` from the caller's fiber context so
+  // standard `Layer.mergeAll` compositions still record R6 events when the
+  // journal service is present beside this store.
   const injected = yield* Effect.serviceOption(Consensus)
   const consensus = Option.isSome(injected) ? injected.value : yield* SqlConsensus.make
-  const journal = yield* Effect.serviceOption(Journal)
 
   const write = <A, E, R>(
     method: string,
@@ -641,12 +641,13 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
   const writeOwnership = <A, E, R>(
     method: string,
     effect: Effect.Effect<A, E, R>
-  ): Effect.Effect<A, RunStoreError, R> => {
-    const transacted: Effect.Effect<A, unknown, R> = Option.isSome(journal)
-      ? journal.value.transact(effect)
-      : writer.write(effect)
-    return transacted.pipe(Effect.mapError((cause) => persistenceError(method, cause)))
-  }
+  ): Effect.Effect<A, RunStoreError, R> =>
+    Effect.flatMap(Effect.serviceOption(Journal), (journal) => {
+      const transacted: Effect.Effect<A, unknown, R> = Option.isSome(journal)
+        ? journal.value.transact(effect)
+        : writer.write(effect)
+      return transacted.pipe(Effect.mapError((cause) => persistenceError(method, cause)))
+    })
 
   /**
    * Appends an R6 ownership-transition event — claimed, activated, released,
@@ -663,14 +664,18 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
     actor: OwnerId,
     grantedAtMs: number | null
   ): Effect.Effect<void, unknown> =>
-    Option.isNone(journal) ? Effect.void : journal.value.emitDurable(
-      new JournalEvent.Input({
-        runId: runId as JournalEvent.RunId,
-        sourceId: `flows/run-store/consensus:${actor.hostId}:${actor.pid}:${actor.nonce}` as JournalEvent.SourceId,
-        eventType: `flows.consensus.${transition}`,
-        payload: { owner: actor, grantedAtMs }
-      })
-    ).pipe(Effect.asVoid)
+    Effect.flatMap(
+      Effect.serviceOption(Journal),
+      (journal) =>
+        Option.isNone(journal) ? Effect.void : journal.value.emitDurable(
+          new JournalEvent.Input({
+            runId: runId as JournalEvent.RunId,
+            sourceId: `flows/run-store/consensus:${actor.hostId}:${actor.pid}:${actor.nonce}` as JournalEvent.SourceId,
+            eventType: `flows.consensus.${transition}`,
+            payload: { owner: actor, grantedAtMs }
+          })
+        ).pipe(Effect.asVoid)
+    )
 
   // A bare SELECT needs no write transaction and no replay; only the error
   // vocabulary stays shared with `write`.

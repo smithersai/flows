@@ -21,4 +21,3 @@ rebuildable materialization of sealed step-result journal events.
 - Add rebuild/conformance tests that compare the live cache materialization
   with a replayed fold across insert, duplicate, conflict, eviction, and
   provenance paths.
-
