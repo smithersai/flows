@@ -652,11 +652,10 @@ const SMOKE_TABLE: Readonly<Record<string, SmokeEntry>> = {
 	},
 	"prs.list": {
 		klass: "needs-fixture",
-		effect: ["refusal"],
-		refusal: "no route GET /api/repos/will/flows/landings",
+		effect: ["card"],
 		args: "will/flows",
-		fixture: "a signed-in session",
-		reason: "Reads a repository's pull requests through the platform proxy.",
+		fixture: "a signed-in session; will/flows is imported in the platform double, which answers /landings",
+		reason: "Reads a repository's pull requests through the platform proxy — the GitHub pane's Pull Requests tab.",
 	},
 	"prs.view": {
 		klass: "needs-fixture",

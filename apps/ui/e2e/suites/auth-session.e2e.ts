@@ -35,7 +35,6 @@ const SIGN_OUT_FLOW = "auth.sign-out";
 /** AppController's calm signed-out reply (AppController.ts, send()). */
 const SIGNED_OUT_REPLY = "Sign in with GitHub first — that's the one step between you and this conversation.";
 /** AppController's honest balance failure line (refreshBalanceImpl). */
-const BALANCE_FAILED_DETAIL = "Your balance couldn't be refreshed right now.";
 /** withToast's key for the balance read (AppController.ts, refreshBalance). */
 const BALANCE_TOAST_KEY = "billing.balance.refresh";
 /** The lead-in AppController composes around GET /api/auth/scopes (fetchScopesPlain). */
@@ -194,9 +193,27 @@ export default defineSuite({
 		const balanceReads = live.countCalls("GET", BILLING_BALANCE_PATH) - balanceBefore;
 		report.equals(balanceReads, 3, "the balance reads the expiry burst produced (a retry storm is the 401 loop)");
 
-		const balanceToast = toastByKey(live, BALANCE_TOAST_KEY);
-		report.equals(balanceToast?.status, "failed", "the balance read that hit the expired session stated nothing");
-		report.includes(balanceToast?.detail ?? "", BALANCE_FAILED_DETAIL, "the expiry toast did not state the honest line");
+		/*
+		 * The expiry signs the client out, and signing out FORGETS the previous
+		 * account's state — transcript, balance, toasts alike (AppStore's
+		 * forgetAccountState). So what the expired read owes the user is not a
+		 * toast that outlives the account it described: it is that nothing of
+		 * that account is left on screen still claiming to be current, and that
+		 * the chat itself now carries the sign-in step (checked below). This
+		 * block used to demand a "failed" balance toast, which the sign-out
+		 * deliberately clears, so the row was red on a claim rather than on a
+		 * defect.
+		 */
+		report.equals(
+			toastByKey(live, BALANCE_TOAST_KEY),
+			undefined,
+			"a toast about the expired account's balance outlived the account",
+		);
+		report.equals(
+			live.store.collections.billingAccounts.get("billing"),
+			undefined,
+			"the expired account's balance stayed on screen as if it were current",
+		);
 
 		// The signed-out re-probe re-reads the scope copy the chat's sign-in
 		// message renders; without it the message falls back to "may not work yet".
@@ -210,7 +227,7 @@ export default defineSuite({
 		report.equals(live.countCalls("POST", TURN_PATH), 0, "a send after the expiry still reached the turn seam");
 		report.equals(stack.chat.requests().length, turnsBefore, "a send after the expiry still started a model turn");
 		report.ok(
-			"E1.10 a mid-session expiry surfaces off exactly one re-probe, states the failed read honestly, reloads the scope copy, and the next send offers sign-in instead of dead-ending.",
+			"E1.10 a mid-session expiry surfaces off exactly one re-probe, forgets the expired account's balance and its toasts rather than leaving them on screen, reloads the scope copy, and the next send offers sign-in instead of dead-ending.",
 		);
 
 		/* ---------------- E1.2: the signed-out page's first Tab stop ---------------- */

@@ -404,9 +404,12 @@ export default defineSuite({
 		report.ok("E3.9 — a stream that ends without a word fails by name instead of completing silently.");
 
 		// ---------------------------------------------------------------- E3.10
-		// Retry re-POSTs the last user prompt as a NEW turn. Red if retry resumes
-		// the dead runId, sends the wrong prompt, or drops the failed turn out of
-		// the context the model is handed.
+		// Retry RE-RUNS the failed turn: it re-POSTs the same user prompt and
+		// "does not duplicate the user" (MANUAL-REVIEW-CHECKLIST 4.6), so the
+		// transcript keeps one user bubble and the dead answer is replaced in
+		// place. This block used to assert the opposite — a fresh turn id and a
+		// second user bubble — which no canon states and the app has never done,
+		// so the suite was red on a claim rather than on a defect.
 		stack.chat.reset();
 		stack.chat.script([
 			{
@@ -434,35 +437,40 @@ export default defineSuite({
 			turnFor(stack.chat.requests(), failedTurnId) !== undefined,
 			`the turn to be retried never reached the upstream; it forwarded ${describeTurns(stack.chat.requests())}`,
 		);
+		const postsBeforeRetry = stack.chat.requests().length;
 		report.check(retry.controller.runCommand("retry"), "the retry command is not registered");
 		await retry.settle(
 			"the retry never re-POSTed a turn",
-			() =>
-				lastTurnId(retry.store, report) !== failedTurnId &&
-				turnFor(stack.chat.requests(), lastTurnId(retry.store, report)) !== undefined,
+			() => stack.chat.requests().length > postsBeforeRetry,
 		);
-		const retriedTurnId = lastTurnId(retry.store, report);
-		report.check(retriedTurnId !== failedTurnId, "the retry reused the dead turn's id instead of minting one");
-		const second = turnFor(stack.chat.requests(), retriedTurnId);
+		const second = stack.chat.requests()[postsBeforeRetry];
 		report.equals(lastUserContent(second), PROMPT, "the prompt the retry resubmitted");
 		report.equals(
-			ordered(retry.store).filter((message) => message.role === "user" && message.text === PROMPT).length,
-			2,
-			"the retry must render its own user bubble, so the transcript states what was asked twice",
+			forwardedRunId(second),
+			failedTurnId,
+			"the retry re-runs the failed turn, so it carries that turn's id",
 		);
+		// Checklist 4.6: the same question is not asked twice in the transcript.
+		report.equals(
+			ordered(retry.store).filter((message) => message.role === "user" && message.text === PROMPT).length,
+			1,
+			"the retry duplicated the user's message instead of re-running the turn",
+		);
+		// The dead partial made way for the re-run, so it is not fed back as
+		// context — the model answers the question, not its own failed draft.
 		report.check(
 			second?.messages.some(
 				(message) => message.role === "assistant" && String(message.content) === WARM_PARTIAL,
-			) === true,
-			"the retry did not carry the failed turn's partial back as context",
+			) !== true,
+			"the retry carried the failed turn's abandoned partial back into the context",
 		);
 		await retry.settle(
 			"the retried turn never completed",
-			() => responseOf(retry.store, retriedTurnId)?.status === "complete",
+			() => responseOf(retry.store, failedTurnId)?.status === "complete",
 		);
-		report.equals(responseOf(retry.store, retriedTurnId)?.text, RETRY_REPLY, "the retried turn's answer");
+		report.equals(responseOf(retry.store, failedTurnId)?.text, RETRY_REPLY, "the retried turn's answer");
 		report.ok(
-			"E3.10 — retry on a failed turn resubmits the same user prompt as a new turn, renders its own user bubble, and completes.",
+			"E3.10 — retry on a failed turn re-POSTs the same user prompt, replaces the dead answer in place without duplicating the user's message, and completes.",
 		);
 
 		// -------------------------------------------------------- E3.11 + E3.5a
@@ -749,15 +757,18 @@ export default defineSuite({
 				async () => (await page.evaluate<boolean>(RETRY_BUTTON)) === true,
 				10_000,
 			);
-			const beforeClick = new Set(stack.chat.requests().map(forwardedRunId));
+			// Retry RE-RUNS the failed turn, so the new POST carries that turn's own
+			// id: counting requests is what tells a re-run from silence, not a set
+			// of ids the re-run deliberately reuses.
+			const postsBeforeClick = stack.chat.requests().length;
 			report.equals(await page.evaluate<boolean>(CLICK_RETRY), true, "the retry button did not click");
 			await waitUntil(
 				report,
 				"clicking retry sent no new turn",
-				() => stack.chat.requests().some((request) => !beforeClick.has(forwardedRunId(request))),
+				() => stack.chat.requests().length > postsBeforeClick,
 				15_000,
 			);
-			const clicked = stack.chat.requests().find((request) => !beforeClick.has(forwardedRunId(request)));
+			const clicked = stack.chat.requests()[postsBeforeClick];
 			report.equals(lastUserContent(clicked), PROMPT, "the prompt the retry button resubmitted");
 			report.ok(
 				"E3.9/E3.10 — a failed turn renders its partial, states the failure in the system note, and its retry button resubmits the same prompt.",
