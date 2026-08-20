@@ -185,12 +185,22 @@ export const startStack = async (options: StackOptions): Promise<Stack> => {
 	);
 
 	const persistDir = `${process.env.TMPDIR ?? "/tmp"}/flows-e2e-wrangler-${process.pid}-${phase}`;
+	/*
+	 * The stack runs the BUILT Start Worker (dist/server/index.mjs through the
+	 * config the build emits beside it), not `apps/server/src/index.ts` raw.
+	 * Since the Start migration there is no static index.html at all — the
+	 * shell HTML is server-rendered by that bundle — so booting the source
+	 * Worker quietly served whatever stale `dist/` a previous checkout left
+	 * behind, and every suite measured an app main no longer ships.
+	 */
 	let wrangler: ReturnType<typeof Bun.spawn> | undefined = Bun.spawn(
 		[
 			"bun",
 			"x",
 			WRANGLER,
 			"dev",
+			"--config",
+			fileURLToPath(new URL("../dist/server/wrangler.json", import.meta.url)),
 			"--ip",
 			"127.0.0.1",
 			"--port",
