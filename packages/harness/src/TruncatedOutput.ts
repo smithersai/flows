@@ -83,11 +83,16 @@ export const flagKey = "truncated"
 export const minimumBytes = 1024
 
 /**
- * How many captures one run carries forward.
+ * How many *distinct* captures one run carries forward.
  *
  * The ledger is durable controller state, so it is bounded: the digest of a
  * capture is what the guard compares, and a run that has produced sixteen newer
  * fragments is no longer plausibly about to write the seventeenth.
+ *
+ * The bound counts distinct payloads because the run this guard exists for
+ * repeats itself: the graded instance ran the identical `git show` restore
+ * frame after frame. Counting each repetition would let one command evict every
+ * other fragment the run was handed and re-open the hole sixteen calls later.
  *
  * @category constants
  * @since 0.1.0
@@ -256,14 +261,31 @@ export const refusal = (flow: string, found: Reuse): string =>
   `Flow ${flow} was refused: its ${found.path} is byte-identical to output this run already returned truncated — ${found.capture.flow} cut ${found.capture.field} and dropped ${found.capture.droppedBytes} bytes. Those bytes are a fragment of the value, not the value, so writing them replaces the target with a piece of itself. To restore a file from git, run git checkout or git restore on the path; never route file content through captured stdout.`
 
 /**
- * Bounds the ledger to the {@link retained} most recent captures.
+ * Bounds the ledger to the {@link retained} most recent distinct captures.
+ *
+ * A repeated call returns the same bytes and so the same digest, and the guard
+ * compares digests, so a second copy adds nothing but costs a slot. Collapsing
+ * them keeps the bound a bound on what the run was handed rather than on how
+ * many times it asked: a cell looping on one truncated `git show` no longer
+ * pushes the fragment it captured before that loop out of the ledger.
+ *
+ * The newest position of a repeated digest is the one kept, so the record
+ * states when the run was last handed those bytes.
  *
  * @category conversions
  * @since 0.1.0
  * @slop
  */
-export const retain = (ledger: ReadonlyArray<Capture>): ReadonlyArray<Capture> =>
-  ledger.length <= retained ? ledger : ledger.slice(ledger.length - retained)
+export const retain = (ledger: ReadonlyArray<Capture>): ReadonlyArray<Capture> => {
+  const newest = new Map<string, Capture>()
+  for (const capture of ledger) {
+    newest.delete(capture.digest)
+    newest.set(capture.digest, capture)
+  }
+  if (newest.size === ledger.length && ledger.length <= retained) return ledger
+  const distinct = [...newest.values()]
+  return distinct.length <= retained ? distinct : distinct.slice(distinct.length - retained)
+}
 
 /**
  * The ledger schema carried in controller state.

@@ -177,6 +177,44 @@ describe("TruncatedOutput.retain", () => {
     expect(retained[0]?.droppedBytes).toBe(3)
     expect(retained[TruncatedOutput.retained - 1]?.droppedBytes).toBe(TruncatedOutput.retained + 2)
   })
+
+  /**
+   * The run this guard exists for repeated one restore frame after frame. If
+   * each repetition took a slot, seventeen identical `git show` calls would
+   * evict every other fragment and the write those bytes came from would be
+   * accepted on the next frame.
+   */
+  it("counts one repeated capture once, and keeps its newest record", () => {
+    const first = capture(1)
+    const again = new TruncatedOutput.Capture({ flow: "bash", field: "stdout", droppedBytes: 99, digest: "d1" })
+    const other = capture(2)
+    const retained = TruncatedOutput.retain([first, other, again])
+
+    expect(retained.map((entry) => entry.digest)).toEqual(["d2", "d1"])
+    expect(retained[1]?.droppedBytes).toBe(99)
+  })
+
+  it("does not let a repeated capture push a distinct one out of the bound", () => {
+    const distinct = Array.from({ length: TruncatedOutput.retained }, (_, index) => capture(index))
+    const repeated = Array.from({ length: TruncatedOutput.retained }, () => capture(0))
+    const retained = TruncatedOutput.retain([...distinct, ...repeated])
+
+    expect(retained).toHaveLength(TruncatedOutput.retained)
+    // The oldest fragment survives, because the loop that re-read it adds no
+    // new payload — every entry the run was handed is still recognised.
+    expect(new Set(retained.map((entry) => entry.digest)))
+      .toEqual(new Set(distinct.map((entry) => entry.digest)))
+  })
+
+  it("bounds a ledger that is still over the bound after the repeats collapse", () => {
+    const distinct = Array.from({ length: TruncatedOutput.retained + 2 }, (_, index) => capture(index))
+    const retained = TruncatedOutput.retain([...distinct, capture(0)])
+
+    expect(retained).toHaveLength(TruncatedOutput.retained)
+    expect(retained.map((entry) => entry.digest)).not.toContain("d1")
+    // `d0` was re-handed last, so it is the newest entry and survives the bound.
+    expect(retained[TruncatedOutput.retained - 1]?.digest).toBe("d0")
+  })
 })
 
 describe("TruncatedOutput.Ledger", () => {

@@ -27,6 +27,8 @@
 
 - Taught the cell contract that a result flagged truncated is a fragment: restore a file from git with git checkout or git restore, never by routing file content through captured stdout.
 
+- Made the truncation ledger's sixteen-entry bound count distinct payloads. A repeated call returns the same bytes and so the same digest, and the guard compares digests, so each repetition was taking a slot it added nothing to: seventeen identical `git show` restores evicted every other fragment the run had been handed and re-opened the hole. The run this guard exists for is exactly a run that repeated one restore frame after frame.
+
 - Added the run-start `DisciplineArmed` event, recording the read-only and
   frame caps and every effective sandbox limit before the first frame runs.
 
