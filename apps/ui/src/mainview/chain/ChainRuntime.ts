@@ -557,10 +557,16 @@ export const createChainRuntime = (options: ChainRuntimeOptions): NativeAgent =>
 				emit({ runId: request.runId, type: "done", reason: "stop" });
 				return;
 			}
+			const cause = String(settled.cause ?? "unknown cause");
 			emit({
 				runId: request.runId,
 				type: "done",
-				error: `The chain failed: ${String(settled.cause ?? "unknown cause")}`,
+				// A model that streamed no words is the product's one empty-answer
+				// state, whatever backend produced it — same sentence as the turn
+				// seam's (§3.9), so honesty copy does not fork per wire.
+				error: cause.includes("no visible text")
+					? "Smithers Cloud returned an empty response."
+					: `The chain failed: ${cause}`,
 			});
 		});
 		return { status: "started" } as const;

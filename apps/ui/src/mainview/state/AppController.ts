@@ -2499,6 +2499,27 @@ export const createAppController = (
 					frame.verdict === "run" ? "" : frame.verdict === "hit" ? "answered from cache" : "replayed",
 					actDetailField(resultLine),
 				]);
+				/*
+				 * Wave 12 §1 holds on this wire too: the act line for a launch is
+				 * deterministic — it names the run the machine acknowledged, never
+				 * the model's wording.
+				 */
+				const resultText = typeof settled?.result === "string" ? settled.result : "";
+				const launchedWorkflow =
+					runLaunchCommandOf(frame.name, "") !== undefined && toolResultLaunchedRun(resultText)
+						? (/\bworkflow=(\S+)/.exec(resultText)?.[1] ?? frame.name)
+						: undefined;
+				if (launchedWorkflow !== undefined) {
+					const launchedRepo = /\brepo=(\S+)/.exec(resultText)?.[1];
+					store.dispatch({
+						type: "message.tool.executed",
+						actor: "smithers",
+						turnId: frame.runId,
+						text: `Smithers started a ${launchedWorkflow} run${launchedRepo === undefined ? "" : ` on ${launchedRepo}`}`,
+						...(detail === undefined ? {} : { detail }),
+					});
+					return;
+				}
 				store.dispatch({
 					type: "message.tool.executed",
 					actor: "smithers",
