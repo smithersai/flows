@@ -1,0 +1,88 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "9c3c6579152081da207eeecb93b9439b20e201ff",
+ "tree": "90f2401c36ce1d687704041d0080023e189387aa",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 51,
+  "sectionCount": 71
+ },
+ "source": {
+  "commit": "72314f552fcd4c99f554d0333cd0b59a4bca1a96",
+  "subject": "✅ test(ui): gate the two architecture laws that are invisible at review",
+  "priorCanonicalCommit": "c1f157762972d99752356128525aa68fa815dcc6",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 51,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": null,
+  "epicsTouched": [],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 889,
+  "globalCount": 909,
+  "purpose": "✅ test(ui): gate the two architecture laws that are invisible at review",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "a1e73d8e90f8cbc8e35bb4a659a1899cc0b09f10"
+  ],
+  "parent": "a1e73d8e90f8cbc8e35bb4a659a1899cc0b09f10",
+  "sourceImports": [],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "a1e73d8e90f8cbc8e35bb4a659a1899cc0b09f10",
+  "next": "07fdce401c691a30ae825340fac20a707f861379",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "9f4db87e9b528812c207c1054f8c36a09a06c2c7"
+ },
+ "size": {
+  "files": 1,
+  "added": 76,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "72314f552fcd4c99f554d0333cd0b59a4bca1a96"
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/ArchitectureLaws.test.ts",
+   "mode": "100644",
+   "blob": "f0f9bb41804777bac37dcf775592998d22ba0f09",
+   "previousBlob": null,
+   "added": 76,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 0,
+     "oldLines": 0,
+     "newStart": 1,
+     "newLines": 76
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": null
+  }
+ ]
+}
