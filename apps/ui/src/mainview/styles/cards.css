@@ -132,7 +132,7 @@
 }
 
 .slash-menu-item[data-highlighted="true"] {
-	background: var(--brand-soft-strong);
+	background: var(--brand-row-tint);
 }
 
 .slash-menu-item:focus-visible {
@@ -336,13 +336,16 @@
  * `--brand`, the palette's full-saturation colour, while the row keeps
  * `--text`: across the nine palettes in both variants that pairing measured
  * between 1.18:1 and 3.35:1, so it failed AA everywhere, not only where will
- * saw it. `--brand-soft-strong` is the fill the slash menu's highlighted row
- * already uses, and the foreground is stated rather than inherited so no
- * ancestor can quietly reintroduce the trap. Contrast is pinned per palette in
- * state/Palette.test.ts.
+ * saw it. `--brand-row-tint` is the fill every text-bearing highlighted row
+ * wears, and the foreground is stated rather than inherited so no ancestor can
+ * quietly reintroduce the trap. The tint is deliberately light: this row's
+ * freshness and issue-count columns are 13px, so AA asks 4.5:1 of them, and
+ * the 16% tint that replaced `--accent` first still measured 3.86:1 in
+ * solarized dark and 3.71:1 in rose-pine dark. Contrast is pinned per palette,
+ * per foreground, in state/Palette.test.ts.
  */
 .repo-chooser-row[data-highlighted="true"] {
-	background: var(--brand-soft-strong);
+	background: var(--brand-row-tint);
 	color: var(--text);
 }
 .repo-chooser-check {
@@ -585,7 +588,7 @@
 }
 /* The same tint, for the same reason, as .repo-chooser-row above. */
 .workflow-repo-row[data-highlighted="true"] {
-	background: var(--brand-soft-strong);
+	background: var(--brand-row-tint);
 	color: var(--text);
 }
 
