@@ -160,17 +160,33 @@ describe("EffectHandlerRegistry", () => {
       providerStream: false
     })
     expect(
-      EffectBoundary.fromEntries([
+      Effect.runSync(EffectBoundary.fromEntries([
         { ...entry(1, "ignored", "intended"), eventType: "other" },
         entry(3, "a", "unknown"),
         entry(2, "b", "succeeded"),
         entry(4, "a", "succeeded")
-      ])
+      ]))
     )
       .toEqual([
         expect.objectContaining({ id: "b", seq: 2 }),
         expect.objectContaining({ id: "a", seq: 4, status: "succeeded" })
       ])
+  })
+
+  it("fails closed on a malformed known boundary event", () => {
+    const failure = Effect.runSync(Effect.flip(EffectBoundary.fromEntries([{
+      runId: "run" as JournalEvent.RunId,
+      seq: 1 as JournalEvent.Seq,
+      eventId: "corrupt",
+      sourceId: "source" as JournalEvent.SourceId,
+      sourceSeq: 1 as JournalEvent.SourceSeq,
+      emittedAtMs: 0,
+      eventType: EffectBoundary.eventType,
+      payload: { version: 2, effect: {} },
+      meta: {}
+    }])))
+
+    expect(failure).toMatchObject({ code: "invalid" })
   })
   it("rejects duplicate stable effect kinds before exposing a registry", () => {
     const failure = Effect.runSync(

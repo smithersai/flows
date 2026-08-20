@@ -17,6 +17,7 @@ import { describe, expect, expectTypeOf, it } from "@effect/vitest"
 import { Action, Flow, FlowRuntime, Graph, Interpreter, Sleep, WaitFor } from "@smthrs/flow"
 import { Node } from "@smthrs/plan"
 import { Effect, Exit, Layer, Option, Schema, Scope } from "effect"
+import type * as Crypto from "effect/Crypto"
 import { withCrypto } from "./Crypto.ts"
 import { layerMemory } from "./MemoryFlowRuntime.ts"
 
@@ -124,7 +125,10 @@ describe("a flow carries what its body requires", () => {
   it("puts it in execute, and nowhere a plan is only being described", () => {
     expectTypeOf<Flow.Requirements<typeof Paying>>().toEqualTypeOf<ChargeNeeded>()
     expectTypeOf<Effect.Services<ReturnType<typeof Paying.execute>>>().toEqualTypeOf<
-      FlowRuntime.FlowRuntime | ChargeNeeded
+      Crypto.Crypto | FlowRuntime.FlowRuntime | ChargeNeeded
+    >()
+    expectTypeOf<Effect.Error<ReturnType<typeof Paying.execute>>>().toEqualTypeOf<
+      Schema.SchemaError | FlowRuntime.FlowCycleDetected | string
     >()
 
     // Neither reading an execution's state nor cancelling one drives a body,
@@ -165,7 +169,7 @@ describe("a flow carries what its body requires", () => {
         Effect.provide(wired)
       )
 
-      expectTypeOf<Effect.Services<typeof run>>().toEqualTypeOf<never>()
+      expectTypeOf<Effect.Services<typeof run>>().toEqualTypeOf<Crypto.Crypto>()
       expect(yield* withCrypto(run)).toBe(100)
     }))
 })
@@ -233,7 +237,7 @@ describe("requirements travel the way the plan does", () => {
 
     expectTypeOf<Flow.Requirements<typeof Self>>().toEqualTypeOf<ChargeNeeded>()
     expectTypeOf<Effect.Services<ReturnType<typeof Self.execute>>>().toEqualTypeOf<
-      FlowRuntime.FlowRuntime | ChargeNeeded
+      Crypto.Crypto | FlowRuntime.FlowRuntime | ChargeNeeded
     >()
   })
 })

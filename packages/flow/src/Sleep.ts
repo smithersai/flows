@@ -26,6 +26,7 @@
  * @since 0.1.0
  */
 import * as Clock from "effect/Clock"
+import type * as Crypto from "effect/Crypto"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import type * as Layer from "effect/Layer"
@@ -188,7 +189,7 @@ const clockName: Effect.Effect<string> = Effect.gen(function*() {
  * @since 0.1.0
  * @slop
  */
-export const layer: Layer.Layer<never, never, FlowRuntime> = action.toLayer((payload) =>
+export const layer: Layer.Layer<never, never, Crypto.Crypto | FlowRuntime> = action.toLayer((payload) =>
   Effect.gen(function*() {
     const now = yield* Clock.currentTimeMillis
     const wakeAt = yield* deadlineOf(payload, now)

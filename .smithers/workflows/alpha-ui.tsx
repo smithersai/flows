@@ -83,6 +83,12 @@ const { Workflow, smithers, outputs } = createSmithers({
     landedTip: z.string().min(7),
   }),
   alphaUiGate: approvalDecisionSchema,
+  alphaUiPanelFailure: z.object({
+    passed: z.literal(false),
+    attemptsExhausted: z.literal(true),
+    failures: z.string().min(1),
+    summary: z.string().min(20),
+  }),
 })
 
 const REPO = "/Users/williamcory/flows2"
@@ -885,22 +891,35 @@ export default smithers((ctx) => {
             </Parallel>
           </Sequence>
         </Loop>
-        <Task id="humanTasksDoc" agent={reviewSeat()} output={outputs.alphaUiHuman} retries={8}>
-          {humanDocPrompt}
-        </Task>
-        <Approval
-          id="humanGate"
-          output={outputs.alphaUiGate}
-          onDeny="continue"
-          request={{
-            title: "Alpha UI readiness: human tasks are ready",
-            summary:
-              "The production-readiness panel has concluded and apps/HUMAN-TASKS.md is on main. " +
-              "Approve to acknowledge handoff of H1 (choose alpha entry point), H2 (credentialed deploy via the U4 pipeline), " +
-              "H3 (seed the invitee allowlist + grants via U5), H4 (re-run the U7 checklist against the deployed target, then go/no-go). " +
-              "Deny to send findings back into the run.",
-          }}
-        />
+        {panelPassed() ? (
+          <Sequence>
+            <Task id="humanTasksDoc" agent={reviewSeat()} output={outputs.alphaUiHuman} retries={8}>
+              {humanDocPrompt}
+            </Task>
+            <Approval
+              id="humanGate"
+              output={outputs.alphaUiGate}
+              onDeny="continue"
+              request={{
+                title: "Alpha UI readiness: human tasks are ready",
+                summary:
+                  "The production-readiness panel passed and apps/HUMAN-TASKS.md is on main. " +
+                  "Approve to acknowledge handoff of H1 (choose alpha entry point), H2 (credentialed deploy via the U4 pipeline), " +
+                  "H3 (seed the invitee allowlist + grants via U5), H4 (re-run the U7 checklist against the deployed target, then go/no-go). " +
+                  "Deny to send findings back into the run.",
+              }}
+            />
+          </Sequence>
+        ) : (
+          <Task id="panelFailed" output={outputs.alphaUiPanelFailure}>
+            {() => ({
+              passed: false as const,
+              attemptsExhausted: true as const,
+              failures: panelFailuresText() || "The panel did not produce two PRODUCTION-READY verdicts.",
+              summary: "The bounded production-readiness panel exhausted without passing; no readiness handoff or approval was mounted.",
+            })}
+          </Task>
+        )}
       </Sequence>
     </Workflow>
   )

@@ -361,7 +361,7 @@ describe("StepKey.dispatchIdentity", () => {
         Effect.succeed("key1_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" as StepKey.StepKey)
       )
       expect(recovered).toBe("key1_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
-    }))
+    }).pipe(Effect.provide(NodeCrypto.layer)))
 
   it.effect("folds an engine-resolved environment without moving the absent identity", () =>
     Effect.gen(function*() {

@@ -6,6 +6,8 @@
 /** @jsxImportSource smthrs */
 import { $ } from "bun";
 import { createSmithers, Approval } from "smthrs";
+import { existsSync, lstatSync, realpathSync } from "node:fs";
+import { extname, join, relative, resolve, sep } from "node:path";
 import { z } from "zod/v4";
 import { agents } from "../agents";
 
@@ -104,6 +106,37 @@ function tailLines(text: string, max: number): string[] {
     .slice(-max);
 }
 
+/** Resolve only real workflow sources under this installed pack. */
+export function trustedWorkflowSourcePath(rawPath: string | null | undefined, root = process.cwd()): string | null {
+  if (!rawPath) return null;
+  const candidate = resolve(root, rawPath);
+  if (![".ts", ".tsx", ".mdx"].includes(extname(candidate)) || !existsSync(candidate) || !lstatSync(candidate).isFile()) {
+    return null;
+  }
+  const canonicalCandidate = realpathSync(candidate);
+  for (const allowedRelative of [".smithers/workflows", ".smithers/monitor"]) {
+    const allowed = join(root, allowedRelative);
+    if (!existsSync(allowed)) continue;
+    const canonicalAllowed = realpathSync(allowed);
+    const lexicalRelative = relative(resolve(allowed), candidate);
+    if (!lexicalRelative || lexicalRelative === ".." || lexicalRelative.startsWith(`..${sep}`)) continue;
+    let lexicalCursor = resolve(allowed);
+    let safe = true;
+    for (const part of lexicalRelative.split(sep)) {
+      lexicalCursor = join(lexicalCursor, part);
+      if (lstatSync(lexicalCursor).isSymbolicLink()) {
+        safe = false;
+        break;
+      }
+    }
+    if (!safe) continue;
+    const rel = relative(canonicalAllowed, canonicalCandidate);
+    if (!rel || rel.startsWith(`..${sep}`) || rel === ".." || resolve(canonicalAllowed, rel) !== canonicalCandidate) continue;
+    return canonicalCandidate;
+  }
+  return null;
+}
+
 export default smithers((ctx) => {
   // `smithers graph` renders with an empty input object so it can inspect the
   // workflow without executing it. Runtime runs are still schema-validated,
@@ -111,7 +144,7 @@ export default smithers((ctx) => {
   const inputTargetRunId = ctx.input?.targetRunId;
   const targetRunId =
     typeof inputTargetRunId === "string" && inputTargetRunId.trim() ? inputTargetRunId.trim() : "<target-run-id>";
-  const workflowPath = ctx.input?.workflowPath ?? null;
+  const workflowPath = trustedWorkflowSourcePath(ctx.input?.workflowPath ?? null);
 
   const gather = ctx.outputMaybe("gather", { nodeId: "gather" });
   const investigate = ctx.outputMaybe("investigate", { nodeId: "investigate" });

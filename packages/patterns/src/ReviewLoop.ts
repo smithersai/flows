@@ -74,7 +74,8 @@ const approved = (value: unknown): boolean =>
   )
 
 /**
- * Builds a fixed maximum number of review rounds and short-circuits approval.
+ * Builds the conservative topology for every declared review round. Use
+ * {@link run} for runtime approval and short-circuiting.
  *
  * @category constructors
  * @since 0.1.0
@@ -91,21 +92,30 @@ export const make = (options: MakeOptions): Flow.Flow<typeof Schema.Unknown, typ
     input: Schema.Unknown,
     output: Schema.Unknown,
     flows: [options.produce, options.review, options.revise],
-    body: (input) =>
-      Node.andThen(call(options.produce, input), (initial) => {
-        const visit = (output: unknown, round: number): Node.Node<unknown, unknown> =>
-          Node.andThen(call(options.review, output), (review) => {
-            if (approved(review)) return Node.succeed(output)
-            if (round >= options.maxRounds) {
-              return Node.succeed({ output, review, approved: false, exhausted: true })
-            }
-            return Node.andThen(
-              call(options.revise, { output, review, round }),
-              (revised) => visit(revised, round + 1)
-            )
+    body: Node.capture(
+      { maxRounds: options.maxRounds },
+      (input) =>
+        Node.andThen(
+          call(options.produce, input),
+          Node.capture({ maxRounds: options.maxRounds }, (initial) => {
+            const visit = (output: unknown, round: number): Node.Node<unknown, unknown> =>
+              Node.andThen(
+                call(options.review, output),
+                Node.capture({ maxRounds: options.maxRounds, round }, (review) => {
+                  if (approved(review)) return Node.succeed(output)
+                  if (round >= options.maxRounds) {
+                    return Node.succeed({ output, review, approved: false, exhausted: true })
+                  }
+                  return Node.andThen(
+                    call(options.revise, { output, review, round }),
+                    Node.capture({ maxRounds: options.maxRounds, round }, (revised) => visit(revised, round + 1))
+                  )
+                })
+              )
+            return visit(initial, 1)
           })
-        return visit(initial, 1)
-      })
+        )
+    )
   })
 }
 

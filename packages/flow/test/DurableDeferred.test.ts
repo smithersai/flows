@@ -88,6 +88,39 @@ describe("DurableDeferred", () => {
       expect(DurableDeferred.TokenParsed.encode(parsed)).toBe(token)
     }))
 
+  effect("malformed completion tokens fail on the typed channel", () =>
+    Effect.gen(function*() {
+      const failure = yield* DurableDeferred.succeed(Gate, {
+        token: "not-a-token" as DurableDeferred.Token,
+        value: "ignored"
+      }).pipe(Effect.flip)
+
+      expect(failure).toBeInstanceOf(DurableDeferred.TokenInvalid)
+      expect(failure.code).toBe("malformed_token")
+    }).pipe(Effect.provide(layerWired(Layer.empty))))
+
+  effect("registers an awaited deferred before reading its result", () => {
+    const flow = Flow.make("DurableDeferred/registration", {
+      payload: {},
+      success: Schema.Void,
+      body: () => Node.succeed(undefined)
+    })
+    const instance = makeInstance(flow, "registration")
+    return Effect.gen(function*() {
+      const engine = yield* FlowRuntime.FlowRuntime
+      yield* engine.deferredDone(Gate, {
+        flowName: flow._tag,
+        executionId: instance.executionId,
+        deferredName: Gate.name,
+        exit: Exit.succeed("ready")
+      })
+      yield* DurableDeferred.await(Gate).pipe(
+        Effect.provideService(FlowRuntime.FlowInstance, instance)
+      )
+      expect(instance.awaitedDeferreds).toEqual(new Set([Gate.name]))
+    }).pipe(Effect.provide(layerWired(Layer.empty)))
+  })
+
   effect("tokenFromPayload derives the same token as the running instance", () => {
     const flow = Flow.make("DurableDeferred/token-payload", {
       payload: { id: Schema.String },
@@ -302,7 +335,7 @@ describe("DurableDeferred", () => {
           expect(Option.isNone(yield* engine.deferredResult(Guarded))).toBe(true)
           // The real completion still lands...
           const token = yield* DurableDeferred.token(Guarded)
-          yield* DurableDeferred.succeed(Guarded, { token, value: 42 })
+          yield* DurableDeferred.succeed(Guarded, { token, value: 42 }).pipe(Effect.orDie)
           // ...and the replay read returns it, not `Error: Empty cause`.
           return yield* DurableDeferred.await(Guarded)
         })

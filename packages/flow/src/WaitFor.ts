@@ -20,6 +20,7 @@
  *
  * @since 0.1.0
  */
+import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import type * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
@@ -217,7 +218,7 @@ const target = (
  * @since 0.1.0
  * @slop
  */
-export const layer: Layer.Layer<never, never, FlowRuntime> = action.toLayer((payload) =>
+export const layer: Layer.Layer<never, never, Crypto.Crypto | FlowRuntime> = action.toLayer((payload) =>
   Effect.gen(function*() {
     const instance = yield* FlowInstance
     const waitPoint = yield* target(payload, instance.flow._tag, instance.executionId)

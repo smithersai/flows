@@ -178,7 +178,7 @@ export const inProcessModel = "flows-embedding/in-process-v1"
  */
 export const inProcessVector = (input: string): ReadonlyArray<number> => {
   const vector = new Array<number>(64).fill(0)
-  const normalized = input.normalize("NFKC").toLocaleLowerCase()
+  const normalized = input.normalize("NFKC").toLowerCase()
   for (const [index, character] of [...normalized].entries()) {
     const code = character.codePointAt(0) ?? 0
     const bucket = Math.abs(Math.imul(code + index, 16777619)) % vector.length

@@ -1,4 +1,4 @@
-import { Effect, Layer } from "effect"
+import { Cause, Deferred, Effect, Fiber, Layer } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Author from "../src/Author.ts"
 import * as Catalog from "../src/Catalog.ts"
@@ -236,6 +236,44 @@ describe("QuickJs sealed realm", () => {
       echo
     ) as ScriptRunner.ScriptFailure
     expect(error.code).toBe("runtime")
+  })
+
+  it("interrupts a runaway synchronous loop under the production defaults", async () => {
+    const error = await failWith(
+      QuickJsRunner.layer(),
+      `while (true) {}`,
+      echo
+    ) as ScriptRunner.ScriptFailure
+    expect(error.code).toBe("runtime")
+  })
+
+  it("allows an explicit opt-out from both production resource limits", async () => {
+    const outcome = await runWith(
+      QuickJsRunner.layer({ memoryBytes: undefined, steps: undefined }),
+      `return done("unbounded")`,
+      echo
+    )
+    expect(outcome).toEqual({ _tag: "Done", value: "unbounded" })
+  })
+
+  it("disposes a pending bridge promise when the host handler is interrupted", async () => {
+    const exit = await Effect.runPromise(Effect.scoped(Effect.gen(function*() {
+      const started = yield* Deferred.make<void>()
+      const blocked = yield* Deferred.make<never>()
+      const fiber = yield* Effect.forkChild(
+        Effect.flatMap(ScriptRunner.ScriptRunner, (runner) =>
+          runner.run(
+            Script.make(`await ctx.call("blocked")\nreturn done(null)`),
+            () => Deferred.succeed(started, undefined).pipe(Effect.andThen(Deferred.await(blocked)))
+          )).pipe(Effect.provide(QuickJsRunner.layer()))
+      )
+      yield* Deferred.await(started)
+      yield* Fiber.interrupt(fiber)
+      return yield* Fiber.await(fiber)
+    })))
+
+    expect(exit._tag).toBe("Failure")
+    if (exit._tag === "Failure") expect(Cause.hasInterruptsOnly(exit.cause)).toBe(true)
   })
 
   it("stops a runaway allocation under a memory budget", async () => {

@@ -132,15 +132,24 @@ const fetch = (input: Input): Effect.Effect<string, never, MemoryStore.MemorySto
  * @since 0.1.0
  * @slop
  */
-export const make = (): Source => {
+export const make = (options: { readonly capacity?: number | undefined } = {}): Source => {
+  const capacity = options.capacity ?? 1_024
+  if (!Number.isSafeInteger(capacity) || capacity < 1) {
+    throw new TypeError("memory source capacity must be a positive safe integer")
+  }
   const snapshots = new Map<string, Effect.Effect<string, never, MemoryStore.MemoryStore | Recall.Recall>>()
   return {
     read: (input) => {
       const key = `${input.lineageId}\u0000${input.iteration}`
       const existing = snapshots.get(key)
-      if (existing !== undefined) return existing
+      if (existing !== undefined) {
+        snapshots.delete(key)
+        snapshots.set(key, existing)
+        return existing
+      }
       const current = Effect.runSync(Effect.cached(Effect.suspend(() => fetch(input))))
       snapshots.set(key, current)
+      while (snapshots.size > capacity) snapshots.delete(snapshots.keys().next().value!)
       return current
     }
   }

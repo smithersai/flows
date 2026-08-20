@@ -27,9 +27,25 @@ describe("WithRetry", () => {
     const retried = WithRetry.withRetry(inner, { attempts: 3 })
     const graph = Graph.build(retried, "query")
 
-    expect((retried as typeof inner).name).toBe("withRetry(search)")
+    expect((retried as typeof inner).name).toBe("withRetry(search, attempts=3)")
     expect(Graph.nodes(graph).filter((node) => node.kind === "Dynamic")).toHaveLength(1)
     expect(Graph.nodes(graph).filter((node) => node.kind === "AndThen")).toHaveLength(1)
+  })
+
+  it("folds attempts into stable declaration identity", () => {
+    const inner = Flow.make({
+      name: "search",
+      input: Schema.String,
+      output: Schema.String,
+      effects: sealed,
+      body: () => Node.dynamic({ output: Schema.String })
+    })
+    const twice = WithRetry.withRetry(inner, { attempts: 2 }) as typeof inner
+    const twiceAgain = WithRetry.withRetry(inner, { attempts: 2 }) as typeof inner
+    const three = WithRetry.withRetry(inner, { attempts: 3 }) as typeof inner
+
+    expect(twice.implementation).toEqual(twiceAgain.implementation)
+    expect(twice.implementation).not.toEqual(three.implementation)
   })
 
   it("rejects invalid attempt bounds", () => {

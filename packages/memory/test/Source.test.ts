@@ -199,6 +199,21 @@ describe("Source", () => {
     expect(reads).toBe(3)
   })
 
+  it("evicts the least recently used snapshot at its finite capacity", async () => {
+    let reads = 0
+    const source = Source.make({ capacity: 1 })
+    const options = {
+      source,
+      store: storeOf(() => Effect.sync(() => [{ text: `read-${++reads}` }])),
+      recall: Recall.makeNoop()
+    }
+    await read({ lineageId: "a", iteration: 0, banks: ["bank"], query: "q" }, options)
+    await read({ lineageId: "b", iteration: 0, banks: ["bank"], query: "q" }, options)
+    const reloaded = await read({ lineageId: "a", iteration: 0, banks: ["bank"], query: "q" }, options)
+    expect(reloaded.text).toContain("read-3")
+    expect(reads).toBe(3)
+  })
+
   it("digests identical text identically and changes the digest when the text changes", async () => {
     const options = { store: storeOf(() => Effect.succeed([{ text: "same" }])), recall: Recall.makeNoop() }
     const first = await read({ lineageId: "a", iteration: 0, banks: ["bank"], query: "q" }, options)

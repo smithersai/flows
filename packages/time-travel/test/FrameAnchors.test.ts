@@ -93,18 +93,26 @@ describe("the snapshot projector", () => {
       ])
     }))
 
-  it.effect("skips what it cannot address or decode", () =>
+  it.effect("ignores unrelated events but fails closed on malformed known events", () =>
     Effect.gen(function*() {
-      const result = yield* projectInto([
-        // No lineage: an anchor with no frame address is not an anchor.
-        { seq: 0, eventType: "flows.engine.snapshot-identified", payload: { snapshotId: "x" }, lineageId: undefined },
-        // Undecodable payloads on both channels.
-        { seq: 1, eventType: "flows.engine.plan-recorded", payload: { digest: 42 } },
-        { seq: 2, eventType: "flows.engine.snapshot-identified", payload: { snapshotId: 7 } }
+      const unrelated = yield* projectInto([
+        { seq: 0, eventType: "another.package.event", payload: { digest: 42 } }
       ])
+      expect(unrelated.state).toEqual({ changeId: undefined, planDigest: undefined, anchors: 0 })
 
-      expect(result.state).toEqual({ changeId: undefined, planDigest: undefined, anchors: 0 })
-      expect(result.snapshots).toEqual([])
+      const malformed = [
+        [{ seq: 0, eventType: "flows.engine.snapshot-identified", payload: { snapshotId: "x" }, lineageId: undefined }],
+        [{ seq: 0, eventType: "flows.engine.plan-recorded", payload: { digest: 42 } }],
+        [{ seq: 0, eventType: "flows.engine.snapshot-identified", payload: { snapshotId: 7 } }],
+        [{ seq: 0, eventType: "flows.engine.plan-recorded", payload: { version: 2, digest: "future" } }]
+      ] satisfies ReadonlyArray<ReadonlyArray<Fixture>>
+      const failures = yield* Effect.forEach(malformed, (fixtures) => Effect.flip(projectInto(fixtures)))
+      expect(failures.map((failure) => (failure as { readonly code: string }).code)).toEqual([
+        "invalid",
+        "invalid",
+        "invalid",
+        "invalid"
+      ])
     }))
 
   it.effect("is idempotent: the same journal folded twice leaves one anchor per frame", () =>

@@ -130,7 +130,9 @@ export const compare = (
   for (const groupedKey of keys) {
     const expected = [...baselineByKey.get(groupedKey) ?? []]
     const observed = [...actualByKey.get(groupedKey) ?? []]
-    const pairs: Array<readonly [BaselineRecord | undefined, Extract<Observation, { readonly kind: "score" }> | undefined]> = []
+    const pairs: Array<
+      readonly [BaselineRecord | undefined, Extract<Observation, { readonly kind: "score" }> | undefined]
+    > = []
     for (const stepKey of [...new Set(expected.map((record) => record.stepKey))].sort(compareText)) {
       const expectedAtStep = expected.filter((record) => record.stepKey === stepKey).sort((a, b) => a.score - b.score)
       const observedAtStep = observed.filter((record) => record.stepKey === stepKey).sort((a, b) => a.score - b.score)

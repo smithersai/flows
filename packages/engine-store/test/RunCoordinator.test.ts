@@ -126,12 +126,12 @@ describe("RunCoordinator", () => {
       yield* Deferred.await(drained)
     })))
 
-  effect("logs a wake-initiated drain failure", () =>
-    Effect.scoped(Effect.gen(function*() {
-      const logs: Array<{ readonly level: string; readonly message: unknown }> = []
-      const capture = Logger.make((entry) => {
-        logs.push({ level: entry.logLevel, message: entry.message })
-      })
+  effect("logs a wake-initiated drain failure", () => {
+    const logs: Array<{ readonly level: string; readonly message: unknown }> = []
+    const capture = Logger.make((entry) => {
+      logs.push({ level: entry.logLevel, message: entry.message })
+    })
+    return Effect.scoped(Effect.gen(function*() {
       const coordinator = yield* RunCoordinator.make<string, string, never>({
         drain: () => Effect.fail("boom")
       })
@@ -141,6 +141,7 @@ describe("RunCoordinator", () => {
         entry.level === "Warn" && String(entry.message).includes("coordinated drain failed for run")
       )).toBe(true)
     }).pipe(Effect.provide(Logger.layer([capture]))))
+  })
 
   effect("distinguishes direct runs from coalesced wakes", () =>
     Effect.scoped(Effect.gen(function*() {

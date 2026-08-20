@@ -2,7 +2,7 @@ import { describe, expect, it } from "@effect/vitest"
 import { DatabaseError, DurableWriter, layer as writerLayer } from "@smthrs/database/DurableWriter"
 import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
-import { Context, Effect, Layer, PubSub } from "effect"
+import { Context, Effect, Fiber, Layer, Option, PubSub, Stream } from "effect"
 import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { mkdtemp, rm } from "node:fs/promises"
@@ -93,6 +93,29 @@ describe("SqlJournal durable emission", () => {
         yield* right.emitDurable(input(run, sourceId("right"), "r1", 1))
         const rows = yield* seqsOf(sql, run)
         expect(rows.map((row) => row.seq)).toEqual([0, 1, 2, 3])
+      }).pipe(Effect.provide(migratedDatabase))
+    ))
+
+  effect("a live follower observes a commit made by another journal instance", () =>
+    Effect.scoped(
+      Effect.gen(function*() {
+        const shared = yield* sharedContext
+        const build = Effect.map(
+          Layer.build(SqlJournal.layer(options).pipe(Layer.provide(shared))),
+          (context) => Context.get(context, Journal) as Service
+        )
+        const follower = yield* build
+        const writer = yield* build
+        const run = runId("cross-process-follow")
+        const next = yield* follower.stream({ runId: run }).pipe(
+          Stream.runHead,
+          Effect.forkChild({ startImmediately: true })
+        )
+        yield* Effect.yieldNow
+        yield* writer.emitDurable(input(run, sourceId("peer"), "committed-elsewhere", 1))
+        yield* TestClock.adjust("1 second")
+        const entry = Option.getOrThrow(yield* Fiber.join(next))
+        expect(entry.eventType).toBe("committed-elsewhere")
       }).pipe(Effect.provide(migratedDatabase))
     ))
 

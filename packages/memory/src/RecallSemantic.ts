@@ -9,6 +9,7 @@
  * @see docs/specs/Concepts/Memory.md
  * @since 0.1.0
  */
+import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Semaphore from "effect/Semaphore"
@@ -18,6 +19,8 @@ import * as MemoryError from "./MemoryError.ts"
 import * as MemoryStore from "./MemoryStore.ts"
 import * as Namespace from "./Namespace.ts"
 import * as Recall from "./Recall.ts"
+
+const compareText = (left: string, right: string): number => left < right ? -1 : left > right ? 1 : 0
 
 /**
  * Durable vector projection row.
@@ -60,7 +63,6 @@ export interface VectorStore {
 export interface Options {
   readonly vectorStore: VectorStore
   readonly model?: string
-  readonly nowMs?: () => number
   readonly halfLifeMs?: number
 }
 
@@ -104,12 +106,30 @@ const vectorBytes = (vector: ReadonlyArray<number>): Uint8Array => {
   return new Uint8Array(values.buffer)
 }
 
-const readVector = (bytes: Uint8Array, dimensions: number): ReadonlyArray<number> => {
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
-  const vector = new Array<number>(dimensions)
-  for (let index = 0; index < dimensions; index++) vector[index] = view.getFloat32(index * 4, true)
-  return vector
-}
+const maximumDimensions = 65_536
+
+const readVector = (
+  bytes: Uint8Array,
+  dimensions: number
+): Effect.Effect<ReadonlyArray<number>, MemoryError.MemoryError> =>
+  !Number.isSafeInteger(dimensions) || dimensions < 1 || dimensions > maximumDimensions ||
+    bytes.byteLength !== dimensions * 4
+    ? Effect.fail(
+      new MemoryError.MemoryError({
+        code: "store",
+        message: "stored memory vector has invalid dimensions or byte length"
+      })
+    )
+    : Effect.try({
+      try: () => {
+        const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+        const vector = new Array<number>(dimensions)
+        for (let index = 0; index < dimensions; index++) vector[index] = view.getFloat32(index * 4, true)
+        return vector
+      },
+      catch: (cause) =>
+        new MemoryError.MemoryError({ code: "store", message: "stored memory vector could not be decoded", cause })
+    })
 
 const sqlError = (cause: unknown): MemoryError.MemoryError =>
   new MemoryError.MemoryError({ code: "store", message: "memory vector projection failed", cause })
@@ -161,22 +181,23 @@ export const makeSqlVectorStore = (database: DatabaseService): VectorStore => ({
       }),
       { concurrency: "unbounded" }
     ).pipe(
-      Effect.map((groups) =>
-        groups.flatMap(({ bank, rows }) =>
-          rows.map((row) => ({
+      Effect.flatMap((groups) =>
+        Effect.forEach(groups.flatMap(({ bank, rows }) => rows.map((row) => ({ bank, row }))), ({ bank, row }) =>
+          readVector(row.vector_bytes, row.dimensions).pipe(Effect.map((vector) => ({
             bank,
             key: row.record_id,
             model: row.embedding_model,
             contentDigest: row.content_digest,
             dimensions: row.dimensions,
-            vector: readVector(row.vector_bytes, row.dimensions),
+            vector,
             updatedAtMs: row.updated_at_ms,
             recordKind: row.record_kind,
             recordId: row.record_id
-          }))
-        )
+          }))))
       ),
-      Effect.mapError(sqlError)
+      Effect.mapError((cause) =>
+        cause instanceof MemoryError.MemoryError ? cause : sqlError(cause)
+      )
     )
 })
 
@@ -267,7 +288,7 @@ export const recall = (
         )
       )
     )
-    const now = (options.nowMs ?? Date.now)()
+    const now = yield* Clock.currentTimeMillis
     const halfLife = options.halfLifeMs ?? defaultHalfLifeMs
     if (!Number.isFinite(now) || !Number.isFinite(halfLife) || halfLife <= 0) {
       return yield* Effect.fail(mismatch("semantic recency configuration must be finite with a positive half-life"))
@@ -295,7 +316,7 @@ export const recall = (
     }
     ranked.sort((left, right) =>
       right.score - left.score || (right.updatedAtMs ?? 0) - (left.updatedAtMs ?? 0) ||
-      left.key.localeCompare(right.key)
+      compareText(left.key, right.key)
     )
     return Recall.capRecallResults(ranked.slice(0, limit), input.maxTokens ?? 2048)
   })
@@ -308,42 +329,64 @@ export const recall = (
  * @since 0.1.0
  * @slop
  */
-export const makeProjector = (options: Options): (row: {
-  readonly bank: string
-  readonly key: string
-  readonly text: string
-  readonly updatedAtMs: number
-  readonly recordKind?: "fact" | "note" | undefined
-  readonly recordId?: string | undefined
-}) => Effect.Effect<void, never, Embedding.Embedding> => {
-  const locks = new Map<string, Semaphore.Semaphore>()
-  return (row) => {
-    const model = options.model ?? defaultModel
-    const task = Effect.gen(function*() {
-      const embedding = yield* Embedding.Embedding
-      const response = yield* embedding.embed(row.text)
-      yield* options.vectorStore.upsert({
-        ...row,
-        model,
-        contentDigest: digest(row.text),
-        dimensions: response.vector.length,
-        vector: response.vector,
-        recordKind: row.recordKind,
-        recordId: row.recordId
-      })
-    }).pipe(
-      Effect.retry({ times: 1 }),
-      Effect.catch((cause) => Effect.logWarning(`memory semantic projection failed: ${String(cause)}`)),
-      Effect.asVoid
-    )
-    const identity = `${model}\u0000${row.bank}\u0000${row.key}`
-    let lock = locks.get(identity)
-    if (lock === undefined) {
-      lock = Semaphore.makeUnsafe(1)
-      locks.set(identity, lock)
-    }
-    return lock.withPermit(task)
-  }
+export interface Projector {
+  (row: {
+    readonly bank: string
+    readonly key: string
+    readonly text: string
+    readonly updatedAtMs: number
+    readonly recordKind?: "fact" | "note" | undefined
+    readonly recordId?: string | undefined
+  }): Effect.Effect<void, never, Embedding.Embedding>
+  /** Number of keys currently projecting or waiting; exposed for diagnostics. */
+  readonly activeKeys: () => number
+}
+
+export const makeProjector = (options: Options): Projector => {
+  const locks = new Map<string, { readonly lock: Semaphore.Semaphore; users: number }>()
+  const project = (row: {
+    readonly bank: string
+    readonly key: string
+    readonly text: string
+    readonly updatedAtMs: number
+    readonly recordKind?: "fact" | "note" | undefined
+    readonly recordId?: string | undefined
+  }) =>
+    Effect.suspend(() => {
+      const model = options.model ?? defaultModel
+      const task = Effect.gen(function*() {
+        const embedding = yield* Embedding.Embedding
+        const response = yield* embedding.embed(row.text)
+        yield* options.vectorStore.upsert({
+          ...row,
+          model,
+          contentDigest: digest(row.text),
+          dimensions: response.vector.length,
+          vector: response.vector,
+          recordKind: row.recordKind,
+          recordId: row.recordId
+        })
+      }).pipe(
+        Effect.retry({ times: 1 }),
+        Effect.catch((cause) => Effect.logWarning(`memory semantic projection failed: ${String(cause)}`)),
+        Effect.asVoid
+      )
+      const identity = `${model}\u0000${row.bank}\u0000${row.key}`
+      let entry = locks.get(identity)
+      if (entry === undefined) {
+        entry = { lock: Semaphore.makeUnsafe(1), users: 0 }
+        locks.set(identity, entry)
+      }
+      entry.users += 1
+      const current = entry
+      return current.lock.withPermit(task).pipe(
+        Effect.ensuring(Effect.sync(() => {
+          current.users -= 1
+          if (current.users === 0 && locks.get(identity) === current) locks.delete(identity)
+        }))
+      )
+    })
+  return Object.assign(project, { activeKeys: () => locks.size })
 }
 
 /**
@@ -355,8 +398,8 @@ export const makeProjector = (options: Options): (row: {
  * @slop
  */
 export const projectAfterCommit = (
-  projector: ReturnType<typeof makeProjector>,
-  row: Parameters<ReturnType<typeof makeProjector>>[0]
+  projector: Projector,
+  row: Parameters<Projector>[0]
 ): Effect.Effect<void, never, Embedding.Embedding> => projector(row)
 
 /**
@@ -370,24 +413,28 @@ export const projectAfterCommit = (
  */
 export const decorateStore = (
   store: MemoryStore.Service,
-  projector: ReturnType<typeof makeProjector>,
+  projector: Projector,
   embedding: Embedding.Service
 ): MemoryStore.Service => {
-  const project = (row: Parameters<ReturnType<typeof makeProjector>>[0]): Effect.Effect<void> =>
+  const project = (row: Parameters<Projector>[0]): Effect.Effect<void> =>
     projector(row).pipe(Effect.provideService(Embedding.Embedding, embedding))
   return {
     ...store,
     putFact: (input) =>
       store.putFact(input).pipe(
-        Effect.andThen(Effect.sync(() => ({
-          bank: `${input.namespace.kind}-${input.namespace.id}`,
-          key: input.key,
-          text: factText(input.value),
-          updatedAtMs: Date.now(),
-          recordKind: "fact" as const,
-          recordId: input.key
-        }))),
-        Effect.andThen(project)
+        Effect.andThen(store.getFact({ namespace: input.namespace, key: input.key })),
+        Effect.flatMap((fact) =>
+          fact === undefined
+            ? Effect.void
+            : project({
+              bank: `${fact.namespace.kind}-${fact.namespace.id}`,
+              key: fact.key,
+              text: factText(fact.value),
+              updatedAtMs: fact.updatedAtMs,
+              recordKind: "fact" as const,
+              recordId: fact.key
+            })
+        )
       ),
     putNote: (input) =>
       store.putNote(input).pipe(

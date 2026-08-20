@@ -266,7 +266,7 @@ describe("the supported Node SQLite composition", () => {
           review: yield* runs.get("gate-review"),
           value
         }
-      }).pipe(Effect.provide(incarnation("gate-a")), Effect.scoped)
+      }).pipe(Effect.provide(incarnation("gate-a")), Effect.provide(hostCrypto), Effect.scoped)
     )
 
     expect(first.value).toBe(42)
@@ -335,7 +335,7 @@ describe("the supported Node SQLite composition", () => {
           result: yield* Review.poll("gate-review"),
           row
         }
-      }).pipe(Effect.provide(incarnation("gate-c")), Effect.scoped)
+      }).pipe(Effect.provide(incarnation("gate-c")), Effect.provide(hostCrypto), Effect.scoped)
     )
 
     expect(third.row.status).toBe("completed")

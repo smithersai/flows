@@ -53,7 +53,7 @@ const writeReport = (done: number) => {
     "| --- | --- | --- |",
     ...results.map((r) => `| ${r.id} | ${r.exitCode} | ${path.relative(FLOWS_ROOT, r.logPath)} |`),
     "",
-    "Verification: `grep -rn \"@slop\" packages/*/src | wc -l`.",
+    'Verification: `grep -rn "@slop" packages/*/src | wc -l`.',
     ""
   ]
   fs.mkdirSync(REPORTS_DIR, { recursive: true })
@@ -79,7 +79,9 @@ for (let index = 0; index < waves.length; index++) {
               cwd: FLOWS_ROOT,
               model: MODEL,
               timeoutMs: TIMEOUT_MS,
-              logDir
+              logDir,
+              completionMarker: "DONE",
+              allowedPaths: [path.join(FLOWS_ROOT, "packages", pkg, "src"), logDir]
             })
           ])
         )
@@ -101,6 +103,14 @@ for (let index = 0; index < waves.length; index++) {
 
 const slopCount = execSync('grep -rn "@slop" packages/*/src 2>/dev/null | wc -l', {
   cwd: FLOWS_ROOT
-}).toString().trim()
+})
+  .toString()
+  .trim()
 fs.appendFileSync(reportPath, `\nTotal @slop tags after sweep: ${slopCount}\n`)
-console.log(`slop-sweep done: ${slopCount} tags. Report: ${reportPath}`)
+const failed = results.filter((result) => result.exitCode !== 0)
+if (failed.length > 0) {
+  process.exitCode = 1
+  console.error(`slop-sweep failed: ${failed.length} agent seat(s) failed. Report: ${reportPath}`)
+} else {
+  console.log(`slop-sweep done: ${slopCount} tags. Report: ${reportPath}`)
+}

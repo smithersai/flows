@@ -1118,6 +1118,30 @@ describe("Journal", () => {
     )
   })
 
+  effect("re-admits the exact producer identity after its failed batch was lost", () => {
+    const run = runId("sink-failure-retry-identity")
+    const source = sourceId("producer")
+    const database = transientlyFailingDatabase()
+
+    return Effect.gen(function*() {
+      const journal = yield* Journal
+      const retried = input(run, source, "event", { value: 1 }, sourceSeq(7))
+      expect((yield* journal.emitLossy(retried))._tag).toBe("Accepted")
+      expect((yield* Effect.flip(journal.flush)).code).toBe("sink_failed")
+
+      database.repair()
+      const accepted = yield* journal.emitLossy(retried)
+      expect(accepted._tag).toBe("Accepted")
+      yield* journal.flush
+      const page = yield* journal.entries({ runId: run, limit: 10 })
+      expect(page.entries).toHaveLength(1)
+      expect(page.entries[0]).toMatchObject({ sourceSeq: 7, eventType: "event" })
+    }).pipe(
+      Effect.provide(journalLayer({ capacity: 4, overflow: "reject" }, database.layer)),
+      Effect.scoped
+    )
+  })
+
   effect("never vouches for entries still queued behind a lost batch", () => {
     const run = runId("sink-failure-queued-behind")
     const source = sourceId("producer")

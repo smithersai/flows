@@ -902,8 +902,8 @@ describe("CellTurn completion audit boundaries", () => {
     expect(of(events, "completion-audited")[0]?.detail).toBe("Re-ran bash: null")
   })
 
-  it("accepts a bounced completion at the budget wall even when its check does not hold", async () => {
-    const { events, model } = await run({
+  it("fails a bounced completion at the budget wall when its check does not hold", async () => {
+    const { events, failure, model } = await run({
       state: audited({ maxFrames: 2 }),
       flows: [check],
       script: [
@@ -919,13 +919,14 @@ describe("CellTurn completion audit boundaries", () => {
       ]
     })
 
-    // Bounced on frame one, refused on the evidence on frame two, and accepted
-    // anyway: there was no frame left in which to produce better, and a
-    // possibly true answer beats a certainly empty one.
     expect(model.recorder.requests).toHaveLength(2)
-    expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: true })
+    expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: false })
     expect(of(events, "completion-audited")[0]?.detail).toContain("never called")
-    expect(resolvedText(events)).toBe("final claim")
+    expect(failure).toMatchObject({
+      code: "unverified_completion",
+      cause: { output: "final claim", detail: expect.stringContaining("never called") }
+    })
+    expect(of(events, "resolved")).toHaveLength(0)
   })
 
   it("records the declared check on the audit even when it is refused", async () => {

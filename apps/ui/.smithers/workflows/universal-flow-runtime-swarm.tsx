@@ -5,7 +5,7 @@
 // smithers-tags: architecture, flows, worktrees, review
 /** @jsxImportSource smthrs */
 import { execFileSync, spawnSync } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { Parallel, Ralph, Sequence, Task, Worktree, createSmithers, fallbackAgents } from "smthrs";
 import { z } from "zod/v4";
@@ -114,6 +114,7 @@ const mirrorSchema = z.strictObject({
 const snapshotSchema = z.strictObject({
   revisionId: z.string().min(7),
   heads: z.array(z.strictObject({ repo: repoName, sha: z.string().min(7) })).length(4),
+  bases: z.array(z.strictObject({ repo: repoName, sha: z.string().min(7) })).length(4),
 });
 
 const reviewIssue = z.strictObject({
@@ -159,6 +160,7 @@ const landSchema = z.strictObject({
   monorepoSha: z.string().min(7).nullable(),
   closedPrs: z.array(z.strictObject({ repo: repoName, number: z.number().int().positive() })),
   blockers: z.array(z.string().min(1)),
+  ledgerPath: z.string().min(1),
   summary: z.string().min(1),
 });
 
@@ -232,6 +234,10 @@ function branchFor(runSlug: string, lane: Lane): string {
   return `agent/universal-flow-runtime/${runSlug}/${lane}`;
 }
 
+export function canonicalGithubRemote(value: string): string {
+  return value.trim().replace(/^git@github\.com:/, "").replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/, "");
+}
+
 function inspectPreflight(): z.infer<typeof preflightSchema> {
   const auth = tryRun(process.cwd(), "gh", ["auth", "status"]);
   const repositories = SOURCE_REPOSITORIES.map((spec) => ({
@@ -265,6 +271,15 @@ function ensureNestedWorktree(source: Repository, target: string, branch: string
   if (existsSync(target)) {
     const actual = tryRun(target, "git", ["rev-parse", "--show-toplevel"]);
     if (actual.status !== 0) throw new Error(`Existing path is not a worktree: ${target}`);
+    if (realpathSync(actual.stdout.trim()) !== realpathSync(target)) throw new Error(`Existing worktree root mismatch: ${target}`);
+    const actualBranch = run(target, "git", ["branch", "--show-current"]);
+    if (actualBranch !== branch) throw new Error(`Existing worktree branch mismatch: expected ${branch}, got ${actualBranch || "detached"}`);
+    const actualOrigin = canonicalGithubRemote(run(target, "git", ["remote", "get-url", "origin"]));
+    if (actualOrigin !== canonicalGithubRemote(source.githubRepo)) throw new Error(`Existing worktree origin mismatch: ${actualOrigin}`);
+    if (run(target, "git", ["status", "--porcelain"])) throw new Error(`Existing worktree is dirty: ${target}`);
+    if (tryRun(target, "git", ["merge-base", "--is-ancestor", source.baseSha, "HEAD"]).status !== 0) {
+      throw new Error(`Existing worktree HEAD is not descended from pinned base ${source.baseSha}`);
+    }
     return;
   }
   mkdirSync(path.dirname(target), { recursive: true });
@@ -299,8 +314,9 @@ function prepareWorkspace(lane: Lane, root: string, branch: string, sources: Rep
 
 function heads(workspace: Workspace): z.infer<typeof snapshotSchema> {
   const values = workspace.repositories.map((repo) => ({ repo: repo.name, sha: run(repo.worktreePath, "git", ["rev-parse", "HEAD"]) }));
-  const revisionId = values.map((value) => `${value.repo}:${value.sha}`).join("|");
-  return { revisionId, heads: values };
+  const bases = workspace.repositories.map((repo) => ({ repo: repo.name, sha: repo.baseSha }));
+  const revisionId = values.map((value, index) => `${value.repo}:${bases[index]!.sha}->${value.sha}`).join("|");
+  return { revisionId, heads: values, bases };
 }
 
 function mirrorLane(workspace: Workspace): Mirror {
@@ -408,7 +424,7 @@ function revisionPrompt(workspace: Workspace, fableReview: unknown, solReview: u
   ].join("\n\n");
 }
 
-function ensureLandingClone(root: string, repo: Workspace["repositories"][number]): string {
+function ensureLandingClone(root: string, repo: Workspace["repositories"][number], approvedBaseSha: string): string {
   const target = path.join(root, ".smithers-federated", "landing", repo.name);
   if (!existsSync(target)) {
     mkdirSync(path.dirname(target), { recursive: true });
@@ -416,8 +432,15 @@ function ensureLandingClone(root: string, repo: Workspace["repositories"][number
   }
   run(target, "git", ["fetch", "origin", repo.baseBranch, repo.branch]);
   run(target, "git", ["checkout", repo.baseBranch]);
-  run(target, "git", ["reset", "--hard", `origin/${repo.baseBranch}`]);
+  run(target, "git", ["reset", "--hard", approvedBaseSha]);
   return target;
+}
+
+function remoteBaseSha(repo: Workspace["repositories"][number]): string {
+  const output = run(repo.worktreePath, "git", ["ls-remote", "origin", `refs/heads/${repo.baseBranch}`]);
+  const sha = output.split(/\s+/, 1)[0];
+  if (!sha) throw new Error(`Missing remote base ${repo.githubRepo}:${repo.baseBranch}`);
+  return sha;
 }
 
 function closeMirrors(mirrors: Mirror[]): Array<{ repo: Repo; number: number }> {
@@ -457,31 +480,86 @@ function updateMonorepo(root: string): string | null {
   return run(target, "git", ["rev-parse", "HEAD"]);
 }
 
+type LandingLedger = {
+  revisionId: string;
+  repositories: Partial<Record<Repo, { approvedBase: string; mainSha: string }>>;
+  monorepoSha?: string | null;
+};
+
+function readLandingLedger(ledgerPath: string, revisionId: string): LandingLedger {
+  if (!existsSync(ledgerPath)) return { revisionId, repositories: {} };
+  const ledger = JSON.parse(readFileSync(ledgerPath, "utf8")) as LandingLedger;
+  if (ledger.revisionId !== revisionId) throw new Error("Landing ledger belongs to a different reviewed revision.");
+  return ledger;
+}
+
+function writeLandingLedger(ledgerPath: string, ledger: LandingLedger): void {
+  const temporary = `${ledgerPath}.tmp-${process.pid}`;
+  writeFileSync(temporary, `${JSON.stringify(ledger, null, 2)}\n`, { flag: "wx" });
+  renameSync(temporary, ledgerPath);
+}
+
 function land(workspace: Workspace, snapshot: z.infer<typeof snapshotSchema>, mirrors: Mirror[]): z.infer<typeof landSchema> {
   const actual = heads(workspace);
   if (actual.revisionId !== snapshot.revisionId) throw new Error("Judge heads changed after the approved reviews.");
-  const prepared: Array<{ repo: Workspace["repositories"][number]; target: string; changed: boolean }> = [];
+  const ledgerPath = path.join(workspace.root, ".smithers-federated", "landing", `transaction-${snapshot.revisionId.replace(/[^A-Za-z0-9._-]/g, "_")}.json`);
+  mkdirSync(path.dirname(ledgerPath), { recursive: true });
+  const ledger = readLandingLedger(ledgerPath, snapshot.revisionId);
+  const approvedBases = new Map(snapshot.bases.map((base) => [base.repo, base.sha]));
+  const prepared: Array<{ repo: Workspace["repositories"][number]; target: string; changed: boolean; mainSha: string }> = [];
   for (const repo of workspace.repositories) {
+    const approvedBase = approvedBases.get(repo.name);
+    if (!approvedBase || approvedBase !== repo.baseSha) throw new Error(`Approved base mismatch for ${repo.name}.`);
+    const remoteBase = remoteBaseSha(repo);
+    const recorded = ledger.repositories[repo.name];
+    if (remoteBase !== approvedBase && remoteBase !== recorded?.mainSha) throw new Error(`${repo.name} base drifted after review: approved ${approvedBase}, remote ${remoteBase}.`);
     if (run(repo.worktreePath, "git", ["status", "--porcelain"])) throw new Error(`Judge ${repo.name} worktree is dirty.`);
     run(repo.worktreePath, "git", ["push", "--set-upstream", "origin", repo.branch]);
-    const target = ensureLandingClone(workspace.root, repo);
+    const target = ensureLandingClone(workspace.root, repo, approvedBase);
     const changed = Number(run(repo.worktreePath, "git", ["rev-list", "--count", `${repo.baseSha}..HEAD`])) > 0;
     if (changed) run(target, "git", ["merge", "--no-ff", "--no-edit", `origin/${repo.branch}`]);
-    prepared.push({ repo, target, changed });
+    const mainSha = run(target, "git", ["rev-parse", "HEAD"]);
+    if (recorded && (recorded.approvedBase !== approvedBase || recorded.mainSha !== mainSha)) {
+      throw new Error(`${repo.name} landing ledger does not match the currently staged merge.`);
+    }
+    prepared.push({ repo, target, changed, mainSha });
   }
 
+  const repositories: Array<{ repo: Repo; changed: boolean; mainSha: string; pushed: boolean }> = [];
+  const blockers: string[] = [];
+  for (const preparedRepo of prepared) {
+    const { repo, target, changed, mainSha } = preparedRepo;
+    const approvedBase = approvedBases.get(repo.name)!;
+    try {
+      const recorded = ledger.repositories[repo.name];
+      if (recorded) {
+        if (remoteBaseSha(repo) !== mainSha) throw new Error("ledger says pushed, but remote main does not match");
+      } else {
+        if (remoteBaseSha(repo) !== approvedBase) throw new Error(`${repo.name} base drifted while merges were staged.`);
+        run(target, "git", ["push", `--force-with-lease=refs/heads/${repo.baseBranch}:${approvedBase}`, "origin", `HEAD:${repo.baseBranch}`]);
+        ledger.repositories[repo.name] = { approvedBase, mainSha };
+        writeLandingLedger(ledgerPath, ledger);
+      }
+      repositories.push({ repo: repo.name, changed, mainSha, pushed: true });
+    } catch (error) {
+      blockers.push(`${repo.name}: ${error instanceof Error ? error.message : String(error)}`);
+      repositories.push({ repo: repo.name, changed, mainSha, pushed: false });
+    }
+  }
+  if (blockers.length > 0) {
+    return { landed: false, repositories, monorepoSha: null, closedPrs: [], blockers, ledgerPath, summary: `Landing is partial; resume from ${ledgerPath}.` };
+  }
+  const monorepoSha = ledger.monorepoSha ?? updateMonorepo(workspace.root);
+  ledger.monorepoSha = monorepoSha;
+  writeLandingLedger(ledgerPath, ledger);
   const closedPrs = closeMirrors(mirrors);
-  const repositories = prepared.map(({ repo, target, changed }) => {
-    run(target, "git", ["push", "origin", repo.baseBranch]);
-    return { repo: repo.name, changed, mainSha: run(target, "git", ["rev-parse", "HEAD"]), pushed: true };
-  });
-  const monorepoSha = updateMonorepo(workspace.root);
   return {
     landed: true,
     repositories,
     monorepoSha,
     closedPrs,
     blockers: [],
+    ledgerPath,
     summary: "Merged the reviewed synthesis in clean local clones, pushed main, advanced monorepo submodules, and closed mirror PRs without using GitHub merge.",
   };
 }
@@ -622,7 +700,7 @@ export default smithers((ctx) => {
                   <Task id="final_report" output={outputs.report} dependsOn={["land"]}>
                     {() => {
                       if (!landed) throw new Error("Missing landing receipt.");
-                      return writeReport(runSlug, fableCandidate, solCandidate, synthesis, [fableReview, solReview], landed);
+                      return writeReport(runSlug, fableCandidate, solCandidate, synthesis!, [fableReview, solReview], landed);
                     }}
                   </Task>
                 </Sequence>

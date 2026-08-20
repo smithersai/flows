@@ -85,7 +85,10 @@ export const recurse = (options: RecurseOptions): Flow.Flow<typeof Schema.Unknow
     input: Schema.Unknown,
     output: Schema.Unknown,
     flows: [options.child],
-    body: (input) => {
+    body: Node.capture({ depth: options.depth, fanout: options.fanout, fuel: options.fuel }, (input) => {
+      if (typeof input === "function") {
+        return boundError("Recursion input must be a literal tree available while planning")
+      }
       const ledger = { remaining: options.fuel }
       const visit = (
         value: unknown,
@@ -114,15 +117,18 @@ export const recurse = (options: RecurseOptions): Flow.Flow<typeof Schema.Unknow
           }
         })
         if (children.length === 0) return current
-        return Node.andThen(current, () => {
-          const members: Record<string, FlowNode<unknown, unknown>> = {}
-          children.forEach((child, index) => {
-            members[`child-${index}`] = visit(child, depth - 1)
+        return Node.andThen(
+          current,
+          Node.capture({ depth }, () => {
+            const members: Record<string, FlowNode<unknown, unknown>> = {}
+            children.forEach((child, index) => {
+              members[`child-${index}`] = visit(child, depth - 1)
+            })
+            return Node.all(members)
           })
-          return Node.all(members)
-        })
+        )
       }
       return visit(input, options.depth)
-    }
+    })
   })
 }

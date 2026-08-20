@@ -5,7 +5,7 @@
  * once on the QuickJS-WASM binding that a production host actually selects.
  * A contract only one of them honours is not a contract.
  */
-import { Cause, Effect, Exit, Fiber, Layer, Option, Schema } from "effect"
+import { Cause, Deferred, Effect, Exit, Fiber, Layer, Option, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Cell from "../src/Cell.ts"
 import { HarnessError } from "../src/HarnessError.ts"
@@ -41,13 +41,13 @@ const handler = (
       : new Cell.CallResult({ outcome: "success", value: replies[invocation.flow] ?? null })
   })
 
-const bindings: ReadonlyArray<readonly [string, Layer.Layer<Sandbox.Sandbox>]> = [
+const bindings: ReadonlyArray<readonly [string, Layer.Layer<Sandbox.Sandbox, unknown>]> = [
   ["restricted", Sandbox.layerRestricted],
   ["quickjs", QuickJSSandbox.layer]
 ]
 
 const evaluate = (
-  binding: Layer.Layer<Sandbox.Sandbox>,
+  binding: Layer.Layer<Sandbox.Sandbox, unknown>,
   text: string,
   options: {
     readonly call?: Sandbox.Handler | undefined
@@ -647,23 +647,19 @@ for (const [name, binding] of bindings) {
     it("surfaces an interruption mid-call as an interrupted exit, never as an outcome", async () => {
       const result = await Effect.gen(function*() {
         const sandbox = yield* Sandbox.Sandbox
-        let entered = false
+        const entered = yield* Deferred.make<void>()
         const frame = yield* sandbox.evaluate({
           cell: Cell.source(`await ctx.call("fs/list", {})\nreturn { intent: "complete", output: "unreachable" }`),
           flows,
-          call: () =>
-            Effect.sync(() => {
-              entered = true
-            }).pipe(Effect.andThen(Effect.never))
+          call: () => Deferred.succeed(entered, void 0).pipe(Effect.andThen(Effect.never))
         }).pipe(Effect.forkChild({ startImmediately: true }))
 
         // Interrupt only once the frame is genuinely suspended in a host call.
-        while (!entered) yield* Effect.sleep(5)
+        yield* Deferred.await(entered)
         yield* Fiber.interrupt(frame)
-        return { entered, exit: yield* Fiber.await(frame) }
+        return { exit: yield* Fiber.await(frame) }
       }).pipe(Effect.provide(binding), Effect.scoped, Effect.runPromise)
 
-      expect(result.entered).toBe(true)
       expect(Exit.isFailure(result.exit) && Cause.hasInterruptsOnly(result.exit.cause)).toBe(true)
     })
   })
@@ -745,6 +741,7 @@ describe("Sandbox projections", () => {
     expect(observed).toEqual([
       Sandbox.defaultLimits,
       {
+        calls: Sandbox.defaultLimits.calls,
         memoryBytes: Sandbox.defaultLimits.memoryBytes,
         steps: Sandbox.defaultLimits.steps + 1,
         timeMs: Sandbox.defaultLimits.timeMs,
@@ -752,6 +749,7 @@ describe("Sandbox projections", () => {
         callMs: Sandbox.defaultLimits.callMs
       },
       {
+        calls: Sandbox.defaultLimits.calls,
         memoryBytes: Sandbox.defaultLimits.memoryBytes + 1,
         steps: Sandbox.defaultLimits.steps + 1,
         timeMs: Sandbox.defaultLimits.timeMs + 1,
@@ -987,6 +985,7 @@ describe("Sandbox.layer", () => {
     // The ceilings the declared capabilities can enforce are filled in, and the
     // one they cannot (`memoryBytes`) is left absent rather than invented.
     expect(observed).toEqual([{
+      calls: Sandbox.defaultLimits.calls,
       steps: undefined,
       timeMs: Sandbox.defaultLimits.timeMs,
       totalMs: Sandbox.defaultLimits.totalMs,
@@ -1012,7 +1011,7 @@ describe("Sandbox.latch", () => {
         Effect.as("woken"),
         Effect.forkChild({ startImmediately: true })
       )
-      yield* Effect.sleep(20)
+      yield* Effect.yieldNow
       order.push("still waiting")
       gate.wake()
       return yield* Fiber.join(waiter)

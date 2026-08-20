@@ -15,7 +15,7 @@ import { Node } from "../../packages/plan/src/index.ts"
 import {
   chunk,
   FLOWS_ROOT,
-  listPackages,
+  listWorkspacePackages,
   REPORTS_DIR,
   runFlow,
   ShellTask,
@@ -27,7 +27,8 @@ const TIMEOUT_MS = 20 * 60_000
 const logDir = path.join(REPORTS_DIR, "coverage")
 const reportPath = path.join(REPORTS_DIR, "COVERAGE-BASELINE.md")
 
-const packages = listPackages()
+const packageDescriptors = listWorkspacePackages()
+const packages = packageDescriptors.map((pkg) => pkg.dir)
 const waves = chunk(packages, WAVE_SIZE)
 const results: Array<TaskResult> = []
 const startedAt = new Date().toISOString()
@@ -49,8 +50,9 @@ const writeReport = (done: number) => {
     "",
     "| Package | Exit | All files (Stmts/Branch/Funcs/Lines) | Log |",
     "| --- | --- | --- | --- |",
-    ...results.map((r) =>
-      `| ${r.id} | ${r.exitCode} | ${coverageLine(r.logPath)} | ${path.relative(FLOWS_ROOT, r.logPath)} |`
+    ...results.map(
+      (r) =>
+        `| ${r.id} | ${r.exitCode} | ${coverageLine(r.logPath)} | ${path.relative(FLOWS_ROOT, r.logPath)} |`
     ),
     ""
   ]
@@ -68,16 +70,20 @@ for (let index = 0; index < waves.length; index++) {
     body: () =>
       Node.all(
         Object.fromEntries(
-          wave.map((pkg) => [
-            pkg,
-            ShellTask.call({
-              id: pkg,
-              command: `pnpm --filter @smthrs/${pkg} exec vitest run --coverage`,
-              cwd: FLOWS_ROOT,
-              timeoutMs: TIMEOUT_MS,
-              logDir
-            })
-          ])
+          wave.map((pkg) => {
+            const descriptor = packageDescriptors.find((candidate) => candidate.dir === pkg)!
+            return [
+              pkg,
+              ShellTask.call({
+                id: pkg,
+                command: "pnpm",
+                args: ["--filter", descriptor.npmName, "exec", "vitest", "run", "--coverage"],
+                cwd: FLOWS_ROOT,
+                timeoutMs: TIMEOUT_MS,
+                logDir
+              })
+            ]
+          })
         )
       )
   })
@@ -95,4 +101,12 @@ for (let index = 0; index < waves.length; index++) {
   writeReport(results.length)
 }
 
-console.log(`coverage-baseline done. Report: ${reportPath}`)
+const failed = results.filter((result) => result.exitCode !== 0)
+if (failed.length > 0) {
+  process.exitCode = 1
+  console.error(
+    `coverage-baseline failed: ${failed.length} package gate(s) failed. Report: ${reportPath}`
+  )
+} else {
+  console.log(`coverage-baseline done. Report: ${reportPath}`)
+}

@@ -6,11 +6,13 @@
  */
 import type { Report as RegressionReport } from "./Regression.ts"
 
+const compareText = (left: string, right: string): number => left < right ? -1 : left > right ? 1 : 0
+
 const canonical = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(canonical)
   if (value !== null && typeof value === "object") {
     return Object.fromEntries(
-      Object.entries(value).filter(([, entry]) => entry !== undefined).sort(([a], [b]) => a.localeCompare(b)).map((
+      Object.entries(value).filter(([, entry]) => entry !== undefined).sort(([a], [b]) => compareText(a, b)).map((
         [key, entry]
       ) => [key, canonical(entry)])
     )

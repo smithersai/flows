@@ -29,6 +29,7 @@ import * as Option from "effect/Option"
 import * as Random from "effect/Random"
 import * as Schema from "effect/Schema"
 import * as ArtifactStoreMetrics from "./ArtifactStoreMetrics.ts"
+import * as ArtifactLocks from "./internal/ArtifactLocks.ts"
 
 /**
  * Schema for a content address: exactly 64 lowercase hexadecimal SHA-256
@@ -239,6 +240,13 @@ export interface FileSystemOptions {
    * defaults to `.flows/objects`.
    */
   readonly directory?: string | undefined
+  /**
+   * `required` reports success only after syncing both the blob and the
+   * containing fanout directory. `best-effort` is the explicit weaker
+   * capability for hosts such as browser filesystems that cannot open file
+   * handles for syncing.
+   */
+  readonly durability?: "required" | "best-effort" | undefined
 }
 
 /**
@@ -281,6 +289,7 @@ const fanout = (directory: string, digest: string): { readonly parent: string; r
  */
 export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOptions = {}): Service => {
   const directory = options.directory ?? defaultDirectory
+  const durability = options.durability ?? "required"
   /**
    * Distinguishes concurrent temp paths for the same digest across writers.
    * The counter separates in-flight writers of this service instance; the
@@ -354,16 +363,17 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
    * than pretending). A host without writable handles still gets the
    * temp+rename atomicity; it just does not get the crash-durability bound.
    */
-  const fsyncTemp = (tempPath: string): Effect.Effect<void> =>
-    Effect.scoped(
-      Effect.flatMap(fs.open(tempPath, { flag: "r+" }), (file) => file.sync)
-    ).pipe(Effect.ignore)
+  const syncPath = (path: string, flag: "r" | "r+"): Effect.Effect<void, ArtifactStoreError> => {
+    const sync = Effect.scoped(Effect.flatMap(fs.open(path, { flag }), (file) => file.sync)).pipe(
+      Effect.mapError(hostFailure)
+    )
+    return durability === "best-effort" ? Effect.ignore(sync) : sync
+  }
   const measure = (bytes: Uint8Array): Effect.Effect<Digest, never, Crypto.Crypto> =>
     Schema.decodeUnknownEffect(Sha256)(bytes).pipe(Effect.orDie)
 
   const put: Service["put"] = Effect.fn("ArtifactStore.put")((bytes: Uint8Array) =>
-    Effect.gen(function*() {
-      const digest = yield* measure(bytes)
+    Effect.flatMap(measure(bytes), (digest) => ArtifactLocks.withDigest(fs, digest, Effect.gen(function*() {
       yield* Effect.annotateCurrentSpan({ digest })
       const blob = fanout(directory, digest)
       const stored = yield* fs.exists(blob.path).pipe(Effect.mapError(hostFailure))
@@ -406,6 +416,10 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
         if (!alive) {
           verified = false
         }
+        if (verified) {
+          yield* syncPath(blob.path, "r+")
+          yield* syncPath(blob.parent, "r")
+        }
       }
       if (!verified) {
         // Atomic publication: a plain write to the canonical address could be
@@ -420,15 +434,16 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
         // A failed publication removes its own scratch file; a crash cannot,
         // which is what the sweep above reclaims.
         yield* fs.writeFile(tempPath, bytes).pipe(
-          Effect.andThen(fsyncTemp(tempPath)),
+          Effect.andThen(syncPath(tempPath, "r+")),
           Effect.andThen(fs.rename(tempPath, blob.path)),
+          Effect.andThen(syncPath(blob.parent, "r")),
           Effect.mapError(hostFailure),
           Effect.onError(() => fs.remove(tempPath).pipe(Effect.ignore))
         )
       }
       yield* Metric.update(ArtifactStoreMetrics.puts, 1)
       return digest
-    })
+    })))
   )
 
   const get: Service["get"] = Effect.fn("ArtifactStore.get")((digest: string) =>

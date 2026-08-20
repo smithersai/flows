@@ -94,7 +94,7 @@ describe("alpha-agent workflow graph", () => {
     expect(human.needsApproval).toBe(true)
   })
 
-  test("a review row mounts that lane's land task in the bounded merge queue", async () => {
+  test("a FIX review mounts correction and cannot mount the lane's land task", async () => {
     const g = await render({
       alphaReview: [
         {
@@ -108,14 +108,21 @@ describe("alpha-agent workflow graph", () => {
       ],
     })
     const nodeIds = ids(g)
-    expect(nodeIds).toContain("a1Land")
+    expect(nodeIds).not.toContain("a1Land")
     expect(nodeIds).not.toContain("a2Land")
+    expect(nodeIds).toContain("a1Correction")
+    expect(String(pick(g, "a1Correction").prompt)).toContain("1. add the steer round-trip assertion")
+  })
+
+  test("only APPROVE mounts a lane's land task", async () => {
+    const g = await render({
+      alphaReview: [
+        { nodeId: "a1Review", iteration: 0, laneKey: "a1", verdict: "APPROVE", findings: "none", dodAssessment: "all requirements verified" },
+      ],
+    })
     const land = pick(g, "a1Land")
     expect(land.parallelGroupId).toBe("alphaMergeQueue")
-    // Bounded, not serialized: each land rebases and retries on rejection, so
-    // three at a time trades no safety for real wall clock.
     expect(land.parallelMaxConcurrency).toBe(3)
-    expect(String(land.prompt)).toContain("1. add the steer round-trip assertion")
   })
 
   test("a landed lane mounts its polish loop; FIX verdicts mount the fix task", async () => {

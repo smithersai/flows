@@ -17,6 +17,7 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import { spawn } from "node:child_process"
+import { execFileSync } from "node:child_process"
 import * as fs from "node:fs"
 import * as path from "node:path"
 import { FlowEngine } from "../../packages/engine/src/index.ts"
@@ -35,30 +36,51 @@ export const TaskResult = Schema.Struct({
 
 export type TaskResult = typeof TaskResult.Type
 
-interface SpawnSpec {
+export interface SpawnSpec {
   readonly id: string
   readonly command: string
   readonly args: ReadonlyArray<string>
   readonly cwd: string
   readonly timeoutMs: number
   readonly logDir: string
+  readonly environment?: Readonly<Record<string, string>>
+  readonly completionMarker?: string
+  readonly validateResult?: () => string | undefined
 }
 
-const runProcess = (spec: SpawnSpec): Promise<TaskResult> =>
-  new Promise((resolve) => {
+const agentEnvironment = (): Record<string, string> =>
+  Object.fromEntries(
+    ["PATH", "HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "LANG", "LC_ALL", "TERM"]
+      .map((key) => [key, process.env[key]] as const)
+      .filter((entry): entry is readonly [string, string] => entry[1] !== undefined)
+  )
+
+const signalProcessTree = (pid: number | undefined, signal: NodeJS.Signals): void => {
+  if (pid === undefined) return
+  try {
+    if (process.platform === "win32") process.kill(pid, signal)
+    else process.kill(-pid, signal)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error
+  }
+}
+
+/** Runs one owned process group and interrupts the whole group on timeout or scope closure. */
+export const runProcess = (spec: SpawnSpec): Effect.Effect<TaskResult> =>
+  Effect.callback<TaskResult>((resume) => {
     fs.mkdirSync(spec.logDir, { recursive: true })
     const logPath = path.join(spec.logDir, `${spec.id}.log`)
     const log = fs.createWriteStream(logPath, { flags: "a" })
     log.write(`# ${new Date().toISOString()} ${spec.command} ${spec.args.join(" ")}\n`)
-    const env = { ...process.env }
-    // A stale ANTHROPIC_API_KEY export overrides subscription OAuth for the
-    // claude CLI; the spawned agents must authenticate with the subscription.
-    delete env["ANTHROPIC_API_KEY"]
     const child = spawn(spec.command, spec.args, {
       cwd: spec.cwd,
-      env,
+      env: spec.environment ?? process.env,
+      detached: process.platform !== "win32",
+      shell: false,
       stdio: ["ignore", "pipe", "pipe"]
     })
+    let settled = false
+    let timedOut = false
     let tail = ""
     const keep = (chunk: Buffer) => {
       tail = (tail + chunk.toString()).slice(-4000)
@@ -71,19 +93,71 @@ const runProcess = (spec: SpawnSpec): Promise<TaskResult> =>
       log.write(chunk)
       keep(chunk)
     })
+    const finish = (exitCode: number, finalTail = tail) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      if (escalation !== undefined) clearTimeout(escalation)
+      const markerMissing =
+        spec.completionMarker !== undefined && !finalTail.includes(spec.completionMarker)
+      const validationError = exitCode === 0 && !markerMissing ? spec.validateResult?.() : undefined
+      const verifiedExitCode =
+        exitCode === 0 && markerMissing ? -2 : exitCode === 0 && validationError ? -3 : exitCode
+      if (markerMissing) log.write(`\n# MISSING COMPLETION MARKER: ${spec.completionMarker}\n`)
+      if (validationError) log.write(`\n# CONFINEMENT VIOLATION: ${validationError}\n`)
+      log.end(() =>
+        resume(
+          Effect.succeed({
+            id: spec.id,
+            exitCode: verifiedExitCode,
+            logPath,
+            tail: finalTail
+          })
+        )
+      )
+    }
+    let escalation: ReturnType<typeof setTimeout> | undefined
     const timer = setTimeout(() => {
+      timedOut = true
       log.write(`\n# TIMEOUT after ${spec.timeoutMs}ms\n`)
-      child.kill("SIGKILL")
+      signalProcessTree(child.pid, "SIGTERM")
+      escalation = setTimeout(() => signalProcessTree(child.pid, "SIGKILL"), 2_000)
     }, spec.timeoutMs)
     child.on("error", (error) => {
-      clearTimeout(timer)
-      log.end()
-      resolve({ id: spec.id, exitCode: -1, logPath, tail: String(error) })
+      finish(-1, String(error))
     })
     child.on("close", (code) => {
+      if (escalation !== undefined) clearTimeout(escalation)
+      finish(timedOut ? -1 : (code ?? -1))
+    })
+    return Effect.callback<void>((done) => {
+      if (settled) {
+        done(Effect.void)
+        return
+      }
+      settled = true
       clearTimeout(timer)
-      log.end()
-      resolve({ id: spec.id, exitCode: code ?? -1, logPath, tail })
+      if (escalation !== undefined) clearTimeout(escalation)
+      let finalized = false
+      let kill: ReturnType<typeof setTimeout> | undefined
+      let bound: ReturnType<typeof setTimeout> | undefined
+      const complete = () => {
+        if (finalized) return
+        finalized = true
+        if (kill !== undefined) clearTimeout(kill)
+        if (bound !== undefined) clearTimeout(bound)
+        child.off("close", complete)
+        log.end("\n# INTERRUPTED: owned process group terminated\n", () => done(Effect.void))
+      }
+      child.once("close", complete)
+      signalProcessTree(child.pid, "SIGTERM")
+      kill = setTimeout(() => signalProcessTree(child.pid, "SIGKILL"), 2_000)
+      bound = setTimeout(complete, 3_000)
+      return Effect.sync(() => {
+        if (kill !== undefined) clearTimeout(kill)
+        if (bound !== undefined) clearTimeout(bound)
+        child.off("close", complete)
+      })
     })
   })
 
@@ -97,37 +171,94 @@ export const AgentTask = Action.make("factory/AgentTask", {
     cwd: Schema.String,
     model: Schema.String,
     timeoutMs: Schema.Number,
-    logDir: Schema.String
+    logDir: Schema.String,
+    completionMarker: Schema.String,
+    allowedPaths: Schema.Array(Schema.String)
   },
   success: TaskResult
 })
 
-export const agentTaskLayer = AgentTask.toLayer((payload) =>
-  Effect.promise(() =>
-    runProcess({
-      id: payload.id,
-      command: "claude",
-      args: [
-        "-p",
-        payload.prompt,
-        "--dangerously-skip-permissions",
-        "--model",
-        payload.model
-      ],
-      cwd: payload.cwd,
-      timeoutMs: payload.timeoutMs,
-      logDir: payload.logDir
-    })
+const gitChangedPaths = (root: string): Array<string> => {
+  const tracked = execFileSync(
+    "git",
+    ["-C", root, "diff", "--name-only", "-z", "--no-renames", "HEAD"],
+    { encoding: "utf8" }
   )
-)
+  const untracked = execFileSync(
+    "git",
+    ["-C", root, "ls-files", "--others", "--exclude-standard", "-z"],
+    { encoding: "utf8" }
+  )
+  return [...new Set(`${tracked}${untracked}`.split("\0").filter(Boolean))]
+}
+
+const fileSnapshot = (filename: string): string => {
+  try {
+    return fs.readFileSync(filename).toString("base64")
+  } catch {
+    return "<missing>"
+  }
+}
+
+/** Captures the existing dirty tree and rejects every new or altered path outside the declared roots. */
+export const makeConfinementValidator = (
+  cwd: string,
+  allowedPaths: ReadonlyArray<string>
+): (() => string | undefined) => {
+  const root = execFileSync("git", ["-C", cwd, "rev-parse", "--show-toplevel"], {
+    encoding: "utf8"
+  }).trim()
+  const allowed = allowedPaths.map((candidate) => path.resolve(candidate))
+  const isAllowed = (relative: string) => {
+    const absolute = path.resolve(root, relative)
+    return allowed.some((base) => absolute === base || absolute.startsWith(`${base}${path.sep}`))
+  }
+  const before = new Map(
+    gitChangedPaths(root)
+      .filter((relative) => !isAllowed(relative))
+      .map((relative) => [relative, fileSnapshot(path.resolve(root, relative))] as const)
+  )
+  return () => {
+    const violations = gitChangedPaths(root).filter((relative) => {
+      if (isAllowed(relative)) return false
+      return before.get(relative) !== fileSnapshot(path.resolve(root, relative))
+    })
+    return violations.length === 0
+      ? undefined
+      : `writes escaped allowedPaths: ${violations.join(", ")}`
+  }
+}
+
+export const agentTaskLayer = AgentTask.toLayer((payload) => {
+  const validateResult = makeConfinementValidator(payload.cwd, payload.allowedPaths)
+  return runProcess({
+    id: payload.id,
+    command: "claude",
+    args: [
+      "-p",
+      payload.prompt,
+      "--model",
+      payload.model,
+      "--allowedTools",
+      "Read,Edit,Write,Glob,Grep"
+    ],
+    cwd: payload.cwd,
+    timeoutMs: payload.timeoutMs,
+    logDir: payload.logDir,
+    environment: agentEnvironment(),
+    completionMarker: payload.completionMarker,
+    validateResult
+  })
+})
 
 /**
- * A shell step: one `sh -c` invocation.
+ * A structured command step. Arguments are passed directly without a shell.
  */
 export const ShellTask = Action.make("factory/ShellTask", {
   payload: {
     id: Schema.String,
     command: Schema.String,
+    args: Schema.Array(Schema.String),
     cwd: Schema.String,
     timeoutMs: Schema.Number,
     logDir: Schema.String
@@ -136,16 +267,14 @@ export const ShellTask = Action.make("factory/ShellTask", {
 })
 
 export const shellTaskLayer = ShellTask.toLayer((payload) =>
-  Effect.promise(() =>
-    runProcess({
-      id: payload.id,
-      command: "sh",
-      args: ["-c", payload.command],
-      cwd: payload.cwd,
-      timeoutMs: payload.timeoutMs,
-      logDir: payload.logDir
-    })
-  )
+  runProcess({
+    id: payload.id,
+    command: payload.command,
+    args: payload.args,
+    cwd: payload.cwd,
+    timeoutMs: payload.timeoutMs,
+    logDir: payload.logDir
+  })
 )
 
 /**
@@ -167,12 +296,14 @@ export const runFlow = <F extends Flow.Flow.AnyWithProps>(
     Layer.provideMerge(NodeCrypto.layer)
   )
   return Effect.runPromise(
-    (flow as never as {
-      execute: (
-        payload: unknown,
-        options: { readonly executionId: string }
-      ) => Effect.Effect<unknown, unknown, never>
-    })
+    (
+      flow as never as {
+        execute: (
+          payload: unknown,
+          options: { readonly executionId: string }
+        ) => Effect.Effect<unknown, unknown, never>
+      }
+    )
       .execute(payload, { executionId })
       .pipe(Effect.orDie, Effect.provide(layer)) as Effect.Effect<unknown>
   )
@@ -187,10 +318,31 @@ export const chunk = <T>(items: ReadonlyArray<T>, size: number): Array<Array<T>>
   return waves
 }
 
-/** Lists the workspace package directory names. */
-export const listPackages = (): Array<string> =>
+export interface WorkspacePackage {
+  readonly dir: string
+  readonly npmName: string
+}
+
+/** Reads and validates every workspace package identity before it reaches a command argument. */
+export const listWorkspacePackages = (): Array<WorkspacePackage> =>
   fs
     .readdirSync(path.join(FLOWS_ROOT, "packages"), { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .sort()
+    .map((entry) => {
+      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(entry.name)) {
+        throw new Error(`Unsafe workspace package directory: ${JSON.stringify(entry.name)}`)
+      }
+      const manifestPath = path.join(FLOWS_ROOT, "packages", entry.name, "package.json")
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as {
+        name?: unknown
+      }
+      const expected = `@smthrs/${entry.name}`
+      if (manifest.name !== expected) {
+        throw new Error(`${manifestPath} must declare the exact package name ${expected}`)
+      }
+      return { dir: entry.name, npmName: expected }
+    })
+    .sort((left, right) => left.dir.localeCompare(right.dir))
+
+/** Lists validated workspace package directory names. */
+export const listPackages = (): Array<string> => listWorkspacePackages().map((pkg) => pkg.dir)

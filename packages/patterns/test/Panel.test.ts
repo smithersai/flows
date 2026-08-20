@@ -12,20 +12,17 @@ const participant = Flow.make({
 })
 
 describe("Panel", () => {
-  it("declares keyed fan-out with a valid quorum", () => {
+  it("declares keyed fail-fast fan-out", () => {
     const panel = Panel.make({
       panelists: { one: participant, two: participant },
-      moderator: participant,
-      quorum: 1
+      moderator: participant
     })
 
     expect(Flow.isFlow(panel)).toBe(true)
     expect(panel.body?.("topic").ast._tag).toBe("AndThen")
   })
 
-  it("rejects quorum above panel size", () => {
-    expect(() => Panel.make({ panelists: { one: participant }, moderator: participant, quorum: 2 })).toThrow(
-      PatternError
-    )
+  it("rejects an empty panel", () => {
+    expect(() => Panel.make({ panelists: {}, moderator: participant })).toThrow(PatternError)
   })
 })

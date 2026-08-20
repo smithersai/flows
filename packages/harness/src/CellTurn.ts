@@ -983,9 +983,9 @@ const frame = (
       // The audit bounce. A completion inside the frame budget is accepted
       // only on its second attempt: the first is answered with a demand for
       // evidence, because the claim "done" is the one output the model can
-      // produce without doing anything. A completion on the final frame is
-      // accepted as-is — bouncing it into the budget wall would discard a
-      // possibly true answer for a certainly empty one.
+      // produce without doing anything. At the frame wall a claim is checked
+      // immediately; lacking a later frame never converts failed evidence into
+      // successful evidence.
       const finalFrame = state.frame + 1 >= state.maxFrames
       if (!state.completionChallenged && !finalFrame) {
         yield* emit(
@@ -1025,14 +1025,22 @@ const frame = (
           new AgentEvent.CompletionAudited({
             eventType: eventType.completionAudited,
             ...(transition.verify === undefined ? {} : { verification: transition.verify }),
-            // A completion at the budget wall is still reported on its
-            // evidence, but it is not thrown away for lacking any: the run
-            // has no frame left in which to produce better.
-            accepted: verdict.accepted || finalFrame,
+            accepted: verdict.accepted,
             detail: verdict.detail
           })
         )
-        if (!verdict.accepted && !finalFrame) {
+        if (!verdict.accepted && finalFrame) {
+          return yield* new HarnessError({
+            code: "unverified_completion",
+            message: `Completion could not be verified before the frame budget was exhausted: ${verdict.detail}`,
+            cause: {
+              output: transition.output,
+              detail: verdict.detail,
+              ...(transition.verify === undefined ? {} : { verification: transition.verify })
+            }
+          })
+        }
+        if (!verdict.accepted) {
           yield* emit(
             new AgentEvent.TurnClosed({
               eventType: eventType.turnClosed,

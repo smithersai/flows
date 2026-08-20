@@ -37,9 +37,11 @@ const Host = Flow.make("Gaps/Host", {
 
 /** The host flow, wired to run `execute` as its single declared step. */
 const hosted = (
-  execute: () => Effect.Effect<void, never, FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance>
+  execute: () => Effect.Effect<void, never, Crypto.Crypto | FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance>
 ): Layer.Layer<
-  Action.Requirement<"Gaps/Block"> | FlowRuntime.FlowRuntime | Action.Implementations
+  Action.Requirement<"Gaps/Block"> | FlowRuntime.FlowRuntime | Action.Implementations,
+  never,
+  Crypto.Crypto
 > => layerWired(Layer.mergeAll(Block.toLayer(execute), Interpreter.layer(Host)))
 
 describe("Action.CacheEnvironment", () => {
@@ -136,7 +138,7 @@ describe("Action.idempotencyKey", () => {
       expect(new Set(concurrent).size).toBe(2)
     }))
 
-  effect("gives an explicit parent scope precedence over the current attempt", () =>
+  effect("combines the declaration name with parent-scope precedence over the attempt", () =>
     Effect.gen(function*() {
       const withBoth = yield* Action.idempotencyKey("offer", {
         includeAttempt: true,
@@ -155,7 +157,7 @@ describe("Action.idempotencyKey", () => {
         Effect.provideService(FlowRuntime.FlowInstance, makeInstance(Host, "attempt-parent"))
       )
 
-      expect(withBoth).toBe(parentOnly)
+      expect(withBoth).not.toBe(parentOnly)
       expect(attemptOnly).not.toBe(parentOnly)
     }))
 })

@@ -1093,6 +1093,29 @@ export type DocLinkTarget =
   | { kind: "doc"; path: string; anchor: string }
   | { kind: "anchor"; anchor: string };
 
+/** Return a normalized external URL only for the explicit safe protocol set. */
+export function safeExternalHref(rawHref: string): string | null {
+  const href = rawHref.trim();
+  if (!href || /[\u0000-\u001f\u007f]/.test(href)) return null;
+  try {
+    const parsed = new URL(href);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+      return parsed.username || parsed.password ? null : parsed.href;
+    }
+    if (parsed.protocol === "mailto:") {
+      const address = href.slice("mailto:".length).split("?", 1)[0] ?? "";
+      return /^[^@\s]+@[^@\s]+$/.test(address) ? href : null;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function hasExplicitScheme(href: string): boolean {
+  return /^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith("//");
+}
+
 /**
  * Resolve a markdown link `href` written inside the doc at `fromPath` to a real
  * target. Doc paths are content-root-relative (e.g. `overview.md`,
@@ -1109,9 +1132,9 @@ export function resolveDocLink(
 ): DocLinkTarget | null {
   const trimmed = (href ?? "").trim();
   if (!trimmed) return null;
-  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) || trimmed.startsWith("mailto:")) {
-    return { kind: "external", href: trimmed };
-  }
+  const external = safeExternalHref(trimmed);
+  if (external) return { kind: "external", href: external };
+  if (hasExplicitScheme(trimmed)) return null;
   const hashIdx = trimmed.indexOf("#");
   const rawPath = (hashIdx >= 0 ? trimmed.slice(0, hashIdx) : trimmed).trim();
   const anchor = hashIdx >= 0 ? trimmed.slice(hashIdx + 1) : "";
@@ -1249,10 +1272,12 @@ export function MarkdownEditor({
       if (!href) return;
       event.preventDefault();
       event.stopPropagation();
-      if (/^[a-z][a-z0-9+.-]*:\/\//i.test(href) || href.startsWith("mailto:")) {
-        window.open(href, "_blank", "noopener");
+      const external = safeExternalHref(href);
+      if (external) {
+        window.open(external, "_blank", "noopener");
         return;
       }
+      if (hasExplicitScheme(href)) return;
       if (href.startsWith("#")) {
         const target = host.querySelector(`[id="${href.slice(1)}"]`);
         target?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1560,11 +1585,18 @@ function renderInlineMarkdown(value: string, keyPrefix: string, onLinkClick?: (h
           flushText(cursor);
           const label = value.slice(cursor + 1, labelEnd);
           const href = unescapeMarkdownText(value.slice(labelEnd + 2, hrefEnd));
-          if (/^[a-z][a-z0-9+.-]*:\/\//i.test(href) || href.startsWith("mailto:")) {
+          const external = safeExternalHref(href);
+          if (external) {
             nodes.push(
-              <a key={`${keyPrefix}:link:${cursor}`} className="doc-link" href={href} target="_blank" rel="noreferrer">
+              <a key={`${keyPrefix}:link:${cursor}`} className="doc-link" href={external} target="_blank" rel="noreferrer">
                 {renderInlineMarkdown(label, `${keyPrefix}:link-label:${cursor}`, onLinkClick)}
               </a>,
+            );
+          } else if (hasExplicitScheme(href)) {
+            nodes.push(
+              <span key={`${keyPrefix}:link:${cursor}`} className="doc-link">
+                {renderInlineMarkdown(label, `${keyPrefix}:link-label:${cursor}`, onLinkClick)}
+              </span>,
             );
           } else {
             nodes.push(
@@ -1678,7 +1710,7 @@ export function MarkdownPreview({ markdown, onLinkClick }: { markdown: string; o
 
 export function WorkflowSource({ workflowKey = "docs-driven-development" }: { workflowKey?: string }) {
   const entry =
-    workflowSources[workflowKey] ??
+    (workflowSources as Record<string, { path: string; source: string }>)[workflowKey] ??
     (workflowKey === "docs-driven-development" ? { path: workflowSourcePath, source: workflowSource } : undefined);
   if (!entry?.source) return null;
   const lineCount = entry.source.split("\n").length;
@@ -1757,17 +1789,18 @@ export function EndpointBlock({
 export function LinkBlock({ links, onOpenDoc }: { links?: FeatureLink[]; onOpenDoc?: (href: string) => void }) {
   const items = links ?? [];
   if (items.length === 0) return null;
-  const isExternal = (href: string) => /^https?:\/\//.test(href);
   return (
     <div className="list-block">
       <strong>Related docs</strong>
       <ul>
         {items.map((link, index) => (
           <li key={`link:${index}`}>
-            {isExternal(link.href) ? (
-              <a className="doc-link" href={link.href} target="_blank" rel="noreferrer">
+            {safeExternalHref(link.href) ? (
+              <a className="doc-link" href={safeExternalHref(link.href)!} target="_blank" rel="noreferrer">
                 {link.label} ↗
               </a>
+            ) : hasExplicitScheme(link.href) ? (
+              <span className="doc-link">{link.label}</span>
             ) : (
               <button type="button" className="doc-link" onClick={() => onOpenDoc?.(link.href)}>
                 {link.label} →

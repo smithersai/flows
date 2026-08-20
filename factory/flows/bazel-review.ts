@@ -58,7 +58,9 @@ const Review = Flow.make("factory/BazelReview", {
             cwd: REPO_ROOT,
             model: MODEL,
             timeoutMs: TIMEOUT_MS,
-            logDir
+            logDir,
+            completionMarker: "DONE",
+            allowedPaths: [path.join(logDir, `${pkg}.md`), path.join(logDir, `review-${pkg}.log`)]
           })
         ])
       )
@@ -94,5 +96,14 @@ for (const pkg of PACKAGES) {
   }
   console.log(`  ${pkg}: exit ${r.exitCode}`)
 }
-fs.writeFileSync(reportPath, sections.join("\n"))
-console.log(`bazel-review done. Report: ${reportPath}`)
+const failed = PACKAGES.filter((pkg) => {
+  const resultForPackage = result[pkg]!
+  return resultForPackage.exitCode !== 0 || !fs.existsSync(path.join(logDir, `${pkg}.md`))
+})
+if (failed.length > 0) {
+  process.exitCode = 1
+  console.error(`bazel-review failed: incomplete seats: ${failed.join(", ")}`)
+} else {
+  fs.writeFileSync(reportPath, sections.join("\n"))
+  console.log(`bazel-review done. Report: ${reportPath}`)
+}

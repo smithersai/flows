@@ -7,11 +7,15 @@
  * `git prune`'s expiry window keeps protecting re-referenced bytes.
  */
 import { describe, expect, it } from "@effect/vitest"
+import * as Clock from "effect/Clock"
+import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
+import * as Fiber from "effect/Fiber"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import { TestClock } from "effect/testing"
 import * as ArtifactStore from "../src/ArtifactStore.ts"
 import * as ArtifactSweep from "../src/ArtifactSweep.ts"
 import { bytes, sha256, text, withCrypto } from "./Crypto.ts"
@@ -109,19 +113,20 @@ const memoryFs = (options: {
         return Effect.void
       })) as never,
     writeFile: ((path: string, content: Uint8Array) =>
-      Effect.sync(() => {
+      Effect.flatMap(Clock.currentTimeMillis, (now) => Effect.sync(() => {
         writes.push(path)
         files.set(path, content)
-        mtimes.set(path, Date.now())
-      })) as never,
+        mtimes.set(path, now)
+      }))) as never,
     rename: ((from: string, to: string) =>
       Effect.suspend(() => {
         const content = files.get(from)
         if (content === undefined) return Effect.fail(new Error(`ENOENT: ${from}`))
-        files.set(to, content)
-        mtimes.set(to, Date.now())
-        files.delete(from)
-        return Effect.void
+        return Effect.flatMap(Clock.currentTimeMillis, (now) => Effect.sync(() => {
+          files.set(to, content)
+          mtimes.set(to, now)
+          files.delete(from)
+        }))
       })) as never,
     remove: ((path: string) =>
       Effect.suspend(() => {
@@ -226,6 +231,32 @@ describe("fenced removal", () => {
       expect(host.files.has(blobPath)).toBe(false)
     }))
 
+  it.effect("serializes a concurrent put with fenced deletion so the digest remains readable", () =>
+    Effect.gen(function*() {
+      const host = memoryFs({ seed: { [blobPath]: artifact }, mtimes: { [blobPath]: 1_000 } })
+      const entered = yield* Deferred.make<void>()
+      const release = yield* Deferred.make<void>()
+      host.hooks.beforeRemove = () =>
+        Deferred.succeed(entered, undefined).pipe(Effect.andThen(Deferred.await(release)))
+      const sweep = ArtifactSweep.makeFileSystem(host.fs)
+      const store = ArtifactStore.makeFileSystem(host.fs, { durability: "best-effort" })
+
+      const removing = yield* sweep.remove(digest, { ifUnmodifiedSinceMs: 1_000 }).pipe(
+        Effect.forkChild({ startImmediately: true })
+      )
+      yield* Deferred.await(entered)
+      const publishing = yield* withCrypto(store.put(bytes(artifact))).pipe(
+        Effect.forkChild({ startImmediately: true })
+      )
+      yield* Effect.yieldNow
+      expect(publishing.pollUnsafe()).toBeUndefined()
+      yield* Deferred.succeed(release, undefined)
+
+      expect(yield* Fiber.join(removing)).toBe(true)
+      expect(yield* Fiber.join(publishing)).toBe(digest)
+      expect(text(host.files.get(blobPath))).toBe(artifact)
+    }))
+
   it.effect("refuses the fence when the blob's age cannot be measured", () =>
     Effect.gen(function*() {
       const host = memoryFs({ seed: { [blobPath]: artifact }, withoutMtimeFor: blobPath })
@@ -311,12 +342,12 @@ describe("layers", () => {
 })
 
 describe("put freshens a deduplicated blob (git's loose-object freshening)", () => {
-  // Real elapsed time: `it.effect`'s TestClock would stall this.
-  it.live("re-stamps the mtime instead of rewriting, so the grace fence protects it", () =>
+  it.effect("re-stamps the mtime instead of rewriting, so the grace fence protects it", () =>
     Effect.gen(function*() {
       const host = memoryFs({ seed: { [blobPath]: artifact }, mtimes: { [blobPath]: 1_000 } })
-      const store = ArtifactStore.makeFileSystem(host.fs)
-      const before = Date.now()
+      const store = ArtifactStore.makeFileSystem(host.fs, { durability: "best-effort" })
+      yield* TestClock.adjust("2 seconds")
+      const before = yield* Clock.currentTimeMillis
       yield* withCrypto(store.put(bytes(artifact)))
       expect(host.writes).toEqual([])
       expect(host.utimesCalls).toEqual([blobPath])
@@ -338,7 +369,7 @@ describe("put freshens a deduplicated blob (git's loose-object freshening)", () 
         mtimes: { [blobPath]: 1_000 },
         utimesUnsupported: true
       })
-      yield* withCrypto(ArtifactStore.makeFileSystem(host.fs).put(bytes(artifact)))
+      yield* withCrypto(ArtifactStore.makeFileSystem(host.fs, { durability: "best-effort" }).put(bytes(artifact)))
       expect(host.writes).toEqual([])
       expect(host.mtimes.get(blobPath)).toBe(1_000)
     }))
@@ -354,7 +385,7 @@ describe("put freshens a deduplicated blob (git's loose-object freshening)", () 
         utimesUnsupported: true,
         failExistsAfter: 1
       })
-      yield* withCrypto(ArtifactStore.makeFileSystem(host.fs).put(bytes(artifact)))
+      yield* withCrypto(ArtifactStore.makeFileSystem(host.fs, { durability: "best-effort" }).put(bytes(artifact)))
       expect(host.writes).toEqual([])
       expect(host.mtimes.get(blobPath)).toBe(1_000)
     }))
@@ -370,7 +401,9 @@ describe("put freshens a deduplicated blob (git's loose-object freshening)", () 
         mtimes: { [blobPath]: 1_000 },
         utimesVanishes: true
       })
-      const published = yield* withCrypto(ArtifactStore.makeFileSystem(host.fs).put(bytes(artifact)))
+      const published = yield* withCrypto(
+        ArtifactStore.makeFileSystem(host.fs, { durability: "best-effort" }).put(bytes(artifact))
+      )
       expect(published).toBe(digest)
       expect(host.writes).toHaveLength(1)
       expect(host.writes[0]!.includes(".tmp-")).toBe(true)

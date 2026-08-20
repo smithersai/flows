@@ -37,6 +37,7 @@ const memoryFs = (options: {
   readonly failReadOf?: string
   readonly failDirectoryRead?: boolean
   readonly supportsOpen?: boolean
+  readonly failSyncOf?: (path: string) => boolean
 } = {}) => {
   const files = new Map<string, Uint8Array>(
     Object.entries(options.seed ?? {}).map(([path, content]) => [path, bytes(content)])
@@ -78,6 +79,7 @@ const memoryFs = (options: {
       options.supportsOpen === true
         ? Effect.sync(() => ({
           sync: Effect.sync(() => {
+            if (options.failSyncOf?.(path) === true) throw new Error(`EIO: sync ${path}`)
             syncs.push(path)
           })
         }))
@@ -105,7 +107,7 @@ const memoryFs = (options: {
 }
 
 const store = (host: ReturnType<typeof memoryFs>, options?: ArtifactStore.FileSystemOptions) =>
-  ArtifactStore.makeFileSystem(host.fs, options)
+  ArtifactStore.makeFileSystem(host.fs, { durability: "best-effort", ...options })
 
 const tempsOf = (host: ReturnType<typeof memoryFs>) => [...host.files.keys()].filter((path) => path.includes(".tmp-"))
 
@@ -177,8 +179,8 @@ describe("atomic publication (issues #117, #131, #138)", () => {
       const exit = yield* withCrypto(
         Effect.all(
           [
-            ArtifactStore.makeFileSystem(latched).put(bytes(artifact)),
-            ArtifactStore.makeFileSystem(latched).put(bytes(artifact))
+            ArtifactStore.makeFileSystem(latched, { durability: "best-effort" }).put(bytes(artifact)),
+            ArtifactStore.makeFileSystem(latched, { durability: "best-effort" }).put(bytes(artifact))
           ],
           { concurrency: 2 }
         ).pipe(Effect.exit)
@@ -202,9 +204,10 @@ describe("atomic publication (issues #117, #131, #138)", () => {
       // avoid data loss in the case of machine crashes (the OS may reorder the
       // writes and the rename)".
       const host = memoryFs({ supportsOpen: true })
-      yield* withCrypto(store(host).put(bytes(artifact)))
-      expect(host.syncs).toHaveLength(1)
+      yield* withCrypto(store(host, { durability: "required" }).put(bytes(artifact)))
+      expect(host.syncs).toHaveLength(2)
       expect(host.syncs[0]!.includes(".tmp-")).toBe(true)
+      expect(host.syncs[1]).toBe(`.flows/objects/${digest.slice(0, 2)}`)
     }))
 
   it.effect("still publishes on a host with no writable file handles", () =>
@@ -215,6 +218,18 @@ describe("atomic publication (issues #117, #131, #138)", () => {
       yield* withCrypto(store(host).put(bytes(artifact)))
       expect(host.syncs).toEqual([])
       expect(text(host.files.get(blobPath))).toBe(artifact)
+    }))
+
+  it.effect("fails publication when a required durability barrier fails", () =>
+    Effect.gen(function*() {
+      const host = memoryFs({
+        supportsOpen: true,
+        failSyncOf: (path) => path === `.flows/objects/${digest.slice(0, 2)}`
+      })
+      const exit = yield* withCrypto(
+        store(host, { durability: "required" }).put(bytes(artifact)).pipe(Effect.exit)
+      )
+      expect(Exit.isFailure(exit)).toBe(true)
     }))
 })
 

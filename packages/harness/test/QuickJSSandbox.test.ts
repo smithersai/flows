@@ -6,7 +6,7 @@
  * separate-realm binding has: the ceilings it alone enforces, the shapes that
  * cross the WebAssembly boundary, and the failure modes of the realm itself.
  */
-import { Cause, Effect, Exit, Fiber, Option, Schema } from "effect"
+import { Cause, Deferred, Effect, Exit, Fiber, Option, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Cell from "../src/Cell.ts"
 import * as QuickJSSandbox from "../src/QuickJSSandbox.ts"
@@ -72,6 +72,34 @@ const resultOf = (
   }).pipe(Effect.runPromise)
 
 describe("QuickJSSandbox limits", () => {
+  it("retries a rejected cached module load instead of poisoning the cache", async () => {
+    let attempts = 0
+    const load = QuickJSSandbox.cacheSuccessful(() => {
+      attempts += 1
+      return attempts === 1 ? Promise.reject(new Error("transient")) : Promise.resolve("loaded")
+    })
+    await expect(load()).rejects.toThrow("transient")
+    await expect(load()).resolves.toBe("loaded")
+    expect(attempts).toBe(2)
+  })
+
+  it("reads compute time through the injected synchronous clock", async () => {
+    let now = 0
+    const outcome = await Effect.gen(function*() {
+      const sandbox = yield* QuickJSSandbox.makeWithClock
+      return yield* sandbox.evaluate({
+        cell: Cell.source(`while (true) {}`),
+        flows,
+        call: succeeds,
+        limits: { timeMs: 2, steps: Number.MAX_SAFE_INTEGER }
+      })
+    }).pipe(
+      Effect.provideService(QuickJSSandbox.ComputeClock, { now: () => now++ }),
+      Effect.runPromise
+    )
+    expect(outcome).toMatchObject({ _tag: "rejected", code: "limit_exceeded" })
+  })
+
   it("runs at exactly the minimum heap and refuses the byte below it", async () => {
     const atMinimum = await outcomeOf(`return { intent: "complete", output: "ok" }`, {
       limits: { memoryBytes: Sandbox.minimumMemoryBytes }
@@ -362,18 +390,15 @@ describe("QuickJSSandbox interruption", () => {
   it("tears the realm down when the frame is interrupted mid-call, and the next frame still runs", async () => {
     const result = await Effect.gen(function*() {
       const sandbox = yield* QuickJSSandbox.make
-      let entered = false
+      const entered = yield* Deferred.make<void>()
       const frame = yield* sandbox.evaluate({
         cell: Cell.source(`await ctx.call("fs/list", {})\nreturn { intent: "complete", output: "unreachable" }`),
         flows,
-        call: () =>
-          Effect.sync(() => {
-            entered = true
-          }).pipe(Effect.andThen(Effect.never))
+        call: () => Deferred.succeed(entered, void 0).pipe(Effect.andThen(Effect.never))
       }).pipe(Effect.forkChild({ startImmediately: true }))
 
       // Interrupt only once the frame is genuinely suspended in a host call.
-      while (!entered) yield* Effect.sleep(5)
+      yield* Deferred.await(entered)
       yield* Fiber.interrupt(frame)
       const exit = yield* Fiber.await(frame)
 
@@ -384,10 +409,9 @@ describe("QuickJSSandbox interruption", () => {
         flows,
         call: succeeds
       })
-      return { after, entered, exit }
+      return { after, exit }
     }).pipe(Effect.scoped, Effect.runPromise)
 
-    expect(result.entered).toBe(true)
     expect(Exit.isFailure(result.exit) && Cause.hasInterruptsOnly(result.exit.cause)).toBe(true)
     expect(result.after).toMatchObject({ _tag: "settled", transition: { _tag: "complete", output: "after" } })
   }, 60_000)

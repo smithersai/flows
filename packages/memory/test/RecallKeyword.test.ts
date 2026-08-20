@@ -57,6 +57,8 @@ describe("RecallKeyword", () => {
     const tied = [
       { key: "b", text: "alpha", tags: [], updatedAtMs: 5 },
       { key: "a", text: "alpha", tags: [], updatedAtMs: 5 },
+      { key: "é", text: "alpha", tags: [], updatedAtMs: 5 },
+      { key: "z", text: "alpha", tags: [], updatedAtMs: 5 },
       { key: "unmatched", text: "delta", tags: [], updatedAtMs: 9 }
     ]
     const result = await Effect.runPromise(
@@ -64,7 +66,7 @@ describe("RecallKeyword", () => {
         Effect.provideService(MemoryStore.MemoryStore, storeOf(() => Effect.succeed(tied)))
       )
     )
-    expect(result.map(({ key, score }) => [key, score])).toEqual([["a", 1], ["b", 1]])
+    expect(result.map(({ key, score }) => [key, score])).toEqual([["a", 1], ["b", 1], ["z", 1], ["é", 1]])
   })
 
   it("recalls nothing for a query with no terms and nothing from an empty bank", async () => {

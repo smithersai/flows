@@ -323,7 +323,7 @@ const awaitStatus = (
     if (attempts <= 0) {
       return yield* Effect.die(`run ${runId} never reached ${status} (still ${run.status})`)
     }
-    yield* Effect.sleep(Duration.millis(10))
+    yield* Effect.yieldNow
     return yield* awaitStatus(runtime, runId, status, attempts - 1)
   })
 
@@ -407,14 +407,20 @@ const textOf = (request: ModelRequest.ModelRequest): string =>
 describe("AgentSession", () => {
   it("waits through an accepted control row before driving the engine", async () => {
     let reads = 0
-    await Effect.runPromise(
+    await expect(Effect.runPromise(
       AgentSession.waitForRunning(
         () => Effect.sync(() => (reads++ === 0 ? "accepted" : "running")),
         "run-wait",
         1
       )
-    )
+    )).resolves.toBe(true)
     expect(reads).toBe(2)
+    await expect(
+      Effect.runPromise(AgentSession.waitForRunning(() => Effect.succeed("cancelled"), "run-cancelled", 1))
+    ).resolves.toBe(false)
+    await expect(
+      Effect.runPromise(AgentSession.waitForRunning(() => Effect.succeed("accepted"), "run-stuck", 0))
+    ).rejects.toMatchObject({ code: "launch_failed", runId: "run-stuck" })
   })
 
   it("waits for a parked execution publication before resuming it", async () => {
@@ -442,10 +448,24 @@ describe("AgentSession", () => {
       message: "The run driver could not be registered for cancellation",
       cause: "missing run"
     })
-    await expect(Effect.runPromise(AgentSession.settleDriverFailure(Cause.fail("engine failed"), "run-failed")))
+    let failedDetail = ""
+    await expect(Effect.runPromise(AgentSession.settleDriverFailure(
+      Cause.fail("engine failed"),
+      "run-failed",
+      (detail) => Effect.sync(() => void (failedDetail = detail))
+    )))
       .resolves.toBeUndefined()
+    expect(failedDetail).toContain("engine failed")
+    const statusFailure = await Effect.runPromiseExit(
+      AgentSession.settleDriverFailure(
+        Cause.fail("engine failed"),
+        "run-failed",
+        () => Effect.fail("status unavailable")
+      )
+    )
+    expect(statusFailure).toMatchObject({ _tag: "Failure" })
     const interrupted = await Effect.runPromiseExit(
-      AgentSession.settleDriverFailure(Cause.interrupt(1), "run-interrupted")
+      AgentSession.settleDriverFailure(Cause.interrupt(1), "run-interrupted", () => Effect.void)
     )
     expect(interrupted._tag).toBe("Failure")
   })
@@ -651,7 +671,7 @@ describe("AgentSession", () => {
           // control row.
           yield* control.cancel({ runId: receipt.runId, idempotencyKey: "cancel:blocked-tool" })
           yield* Deferred.succeed(gate, void 0)
-          yield* Effect.sleep(Duration.millis(20))
+          yield* awaitStatus(runtime, receipt.runId, "cancelled")
           return (yield* runtime.getRun(receipt.runId)).status
         }).pipe(Effect.provide(stack({ resolve: seat(capturing([])), notes, gate, toolStarted })))
       }).pipe(Effect.scoped) as Effect.Effect<string>

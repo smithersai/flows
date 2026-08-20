@@ -1,5 +1,6 @@
 import { DurableWriter } from "@smthrs/database/DurableWriter"
 import { Cause, Effect } from "effect"
+import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import * as Embedding from "../src/Embedding.ts"
@@ -93,14 +94,17 @@ describe("RecallSemantic", () => {
     ]
     const embedding = Embedding.make(() => Effect.succeed([[1, 0]]))
     const result = await Effect.runPromise(
-      Semantic.recall({ banks: ["bank"], query: "q", budget: "low" }, {
-        vectorStore: { list: () => Effect.succeed(vectors), upsert: () => Effect.void },
-        model: "test",
-        nowMs: () => 1000,
-        halfLifeMs: 1000
+      Effect.gen(function*() {
+        yield* TestClock.setTime(1_000)
+        return yield* Semantic.recall({ banks: ["bank"], query: "q", budget: "low" }, {
+          vectorStore: { list: () => Effect.succeed(vectors), upsert: () => Effect.void },
+          model: "test",
+          halfLifeMs: 1000
+        })
       }).pipe(
         Effect.provideService(MemoryStore.MemoryStore, store),
-        Effect.provideService(Embedding.Embedding, embedding)
+        Effect.provideService(Embedding.Embedding, embedding),
+        Effect.provide(TestClock.layer())
       )
     )
     expect(result[0]?.key).toBe("near")
@@ -174,7 +178,8 @@ describe("RecallSemantic", () => {
       Effect.runPromise(
         Effect.flip(Semantic.recall({ banks: ["flow-bank"], query: "q" }, options)).pipe(
           Effect.provideService(MemoryStore.MemoryStore, storeOf([])),
-          Effect.provideService(Embedding.Embedding, queryVector)
+          Effect.provideService(Embedding.Embedding, queryVector),
+          Effect.provide(TestClock.layer())
         )
       )
 
@@ -190,16 +195,14 @@ describe("RecallSemantic", () => {
       vectorStore: vectorStoreOf([]),
       halfLifeMs: Number.POSITIVE_INFINITY
     })
-    const unusableNow = await failing({ vectorStore: vectorStoreOf([]), nowMs: () => Number.NaN })
 
-    expect([model, storedDimensions, vectorLength, zeroHalfLife, infiniteHalfLife, unusableNow].map((error) => [
+    expect([model, storedDimensions, vectorLength, zeroHalfLife, infiniteHalfLife].map((error) => [
       error.code,
       error.message
     ])).toEqual([
       ["embedding_unavailable", `embedding model mismatch: expected ${Semantic.defaultModel}`],
       ["embedding_unavailable", "embedding dimensions do not match the query vector"],
       ["embedding_unavailable", "embedding dimensions do not match the query vector"],
-      ["embedding_unavailable", "semantic recency configuration must be finite with a positive half-life"],
       ["embedding_unavailable", "semantic recency configuration must be finite with a positive half-life"],
       ["embedding_unavailable", "semantic recency configuration must be finite with a positive half-life"]
     ])
@@ -227,11 +230,11 @@ describe("RecallSemantic", () => {
           projection({ key: "untagged", recordId: "untagged" }),
           projection({ key: "orthogonal", recordId: "orthogonal", vector: [0, 1] })
         ]),
-        nowMs: () => 5,
         halfLifeMs: 1000
       }).pipe(
         Effect.provideService(MemoryStore.MemoryStore, store),
-        Effect.provideService(Embedding.Embedding, queryVector)
+        Effect.provideService(Embedding.Embedding, queryVector),
+        Effect.provide(TestClock.layer())
       )
     )
 
@@ -248,14 +251,14 @@ describe("RecallSemantic", () => {
       vectorStore: vectorStoreOf(
         keys.map((key, index) => projection({ key, recordId: key, vector: [1, index / 100] }))
       ),
-      nowMs: () => 0,
       halfLifeMs: 1000
     }
     const recall = (input: Recall.Input) =>
       Effect.runPromise(
         Semantic.recall(input, options).pipe(
           Effect.provideService(MemoryStore.MemoryStore, store),
-          Effect.provideService(Embedding.Embedding, queryVector)
+          Effect.provideService(Embedding.Embedding, queryVector),
+          Effect.provide(TestClock.layer())
         )
       )
 
@@ -280,7 +283,8 @@ describe("RecallSemantic", () => {
         ])
       }).pipe(
         Effect.provideService(MemoryStore.MemoryStore, store),
-        Effect.provideService(Embedding.Embedding, queryVector)
+        Effect.provideService(Embedding.Embedding, queryVector),
+        Effect.provide(TestClock.layer())
       )
     )
 
@@ -385,15 +389,37 @@ describe("RecallSemantic", () => {
     ])
   })
 
+  it("rejects corrupt vector dimensions and byte lengths as a typed store error", async () => {
+    const failure = await Effect.runPromise(
+      Effect.gen(function*() {
+        const sql = yield* Effect.service(SqlClient.SqlClient)
+        const writer = yield* DurableWriter
+        const vectors = Semantic.makeSqlVectorStore({ sql, write: writer.write })
+        yield* sql`INSERT INTO memory_vectors (
+          record_kind, record_id, namespace_kind, namespace_id,
+          embedding_model, content_digest, dimensions, vector_bytes, updated_at_ms
+        ) VALUES ('note', 'bad', 'flow', 'one', 'test', 'digest', 2, ${new Uint8Array(4)}, 0)`
+        return yield* Effect.flip(vectors.list(["flow-one"]))
+      }).pipe(Effect.provide(TestMemory.layerWithDatabase))
+    )
+    expect(failure).toMatchObject({ code: "store", message: expect.stringContaining("invalid dimensions") })
+  })
+
   it("projects a decorated fact and note write after the authoritative commit", async () => {
     const projected: Array<Parameters<ReturnType<typeof Semantic.makeProjector>>[0]> = []
-    const projector: ReturnType<typeof Semantic.makeProjector> = (row) =>
+    const projector: Semantic.Projector = Object.assign((row: Parameters<Semantic.Projector>[0]) =>
       Effect.sync(() => {
         projected.push(row)
-      })
+      }), { activeKeys: () => 0 })
+    const facts = new Map<string, MemoryStore.PutFactInput>()
     const decorated = Semantic.decorateStore(
       MemoryStore.makeNoop({
-        putFact: () => Effect.void,
+        putFact: (input) => Effect.sync(() => void facts.set(input.key, input)),
+        getFact: (input) =>
+          Effect.sync(() => {
+            const fact = facts.get(input.key)
+            return fact === undefined ? undefined : { ...fact, createdAtMs: 7, updatedAtMs: 7 }
+          }),
         putNote: (input) =>
           Effect.succeed({
             namespace: input.namespace,
@@ -428,7 +454,7 @@ describe("RecallSemantic", () => {
     ])
     expect(projected.every((row) => row.bank === "flow-one")).toBe(true)
     expect(projected.at(-1)?.updatedAtMs).toBe(11)
-    expect(projected[0]?.updatedAtMs).toBeGreaterThan(0)
+    expect(projected[0]?.updatedAtMs).toBe(7)
     expect(note.id).toBe("note")
     expect(passthrough.message).toBe("listAllFacts is unavailable")
   })
@@ -457,6 +483,7 @@ describe("RecallSemantic", () => {
     expect(upserted[0]?.contentDigest).toBe(upserted[1]?.contentDigest)
     expect(upserted[2]?.contentDigest).not.toBe(upserted[0]?.contentDigest)
     expect(upserted[0]?.dimensions).toBe(64)
+    expect(projector.activeKeys()).toBe(0)
   })
 
   it("installs semantic recall as the recall service", async () => {
@@ -466,14 +493,14 @@ describe("RecallSemantic", () => {
         Effect.provide(Semantic.layer({
           vectorStore: vectorStoreOf([projection({ key: "runbook", recordId: "runbook", model: "test" })]),
           model: "test",
-          nowMs: () => 0,
           halfLifeMs: 1_000
         })),
         Effect.provideService(
           MemoryStore.MemoryStore,
           storeOf([searchRow({ id: "runbook", key: "runbook", text: "durable recovery" })])
         ),
-        Effect.provideService(Embedding.Embedding, queryVector)
+        Effect.provideService(Embedding.Embedding, queryVector),
+        Effect.provide(TestClock.layer())
       )
     )
 

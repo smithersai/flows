@@ -90,7 +90,11 @@ export const rederive = <S>(
           if (entry.seq > frame.seq) continue
           if (!prefix.has(entry.seq)) prefix.set(entry.seq, entry)
         }
-        if (!page.hasMore || pageTail === undefined) break
+        if (!page.hasMore) break
+        const previous = after ?? -1
+        if (pageTail === undefined || pageTail <= previous) {
+          return yield* Effect.fail(error("invalid", "journal replay pagination did not advance"))
+        }
         after = pageTail
       }
       let state = projection.initial

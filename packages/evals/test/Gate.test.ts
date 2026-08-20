@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect"
 import { describe, expect, it } from "vitest"
-import * as Gate from "../src/Gate.ts"
 import { EvalError } from "../src/EvalError.ts"
+import * as Gate from "../src/Gate.ts"
 
 const report = (
   observations: ReadonlyArray<

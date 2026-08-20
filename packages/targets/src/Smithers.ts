@@ -171,6 +171,8 @@ export { Dev } from "./Dev.ts"
 /** @category targets @since 0.1.0 */
 export { ToolBuild } from "./ToolBuild.ts"
 /** @category targets @since 0.1.0 */
+export { ToolRun } from "./ToolRun.ts"
+/** @category targets @since 0.1.0 */
 export { CargoLint, CargoTest } from "./Cargo.ts"
 /** @category targets @since 0.1.0 */
 export { NodeTest } from "./NodeTest.ts"

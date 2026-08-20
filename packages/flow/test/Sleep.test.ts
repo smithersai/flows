@@ -38,7 +38,9 @@ const marks: Array<string> = []
 const wired = (
   registration: Layer.Layer<never, never, FlowRuntime.FlowRuntime | Action.Implementations> = Layer.empty
 ): Layer.Layer<
-  Action.Requirement<"sleep/mark"> | FlowRuntime.FlowRuntime | Action.Implementations
+  Action.Requirement<"sleep/mark"> | FlowRuntime.FlowRuntime | Action.Implementations,
+  never,
+  Crypto.Crypto
 > =>
   Layer.mergeAll(
     Sleep.layer,

@@ -143,7 +143,9 @@ const harness = (host: Host, options?: {
   return Layer.mergeAll(
     collector,
     durable,
-    Layer.succeed(ArtifactStore.ArtifactStore)(ArtifactStore.makeFileSystem(host.fs))
+    Layer.succeed(ArtifactStore.ArtifactStore)(
+      ArtifactStore.makeFileSystem(host.fs, { durability: "best-effort" })
+    )
   )
 }
 
@@ -449,7 +451,7 @@ describe("sweep: liveness under concurrency and crashes", () => {
       const freshened = host.seedBlob("re-referenced-output", 100 * dayMs)
       const fresh = "written-during-sweep"
       const freshDigest = sha256(bytes(fresh))
-      const store = ArtifactStore.makeFileSystem(host.fs)
+      const store = ArtifactStore.makeFileSystem(host.fs, { durability: "best-effort" })
       host.hooks.beforeRemove = () =>
         // A concurrent writer publishes a brand-new blob and re-publishes the
         // bytes of an old unreferenced one — the dedupe path that freshens the

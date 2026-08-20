@@ -261,7 +261,9 @@ export const validate = (options: {
           error("unknown", `could not validate frame ${coordinate} for ${options.runId}`, cause)
         )
       )
+      let pageTail: JournalEvent.Seq | undefined
       for (const entry of page.entries) {
+        if (pageTail === undefined || entry.seq > pageTail) pageTail = entry.seq
         if (tail === undefined || entry.seq > tail.seq) tail = entry
         if (entry.seq === options.frame.seq) {
           const lineage = lineageOf(entry)
@@ -269,7 +271,11 @@ export const validate = (options: {
         }
       }
       if (!page.hasMore || page.entries.length === 0) break
-      after = tail!.seq
+      const previous = after ?? -1
+      if (pageTail === undefined || pageTail <= previous) {
+        return yield* Effect.fail(error("invalid", `journal validation pagination did not advance for ${options.runId}`))
+      }
+      after = pageTail
     }
     if (tail === undefined) {
       // Frame zero is the state before the run wrote anything, so it is the
@@ -319,7 +325,11 @@ const readSuffix = (
       )
       entries.push(...page.entries)
       if (!page.hasMore || page.entries.length === 0) return entries
-      after = page.entries.at(-1)!.seq
+      const next = page.entries.reduce((tail, entry) => entry.seq > tail ? entry.seq : tail, after)
+      if (next <= after) {
+        return yield* Effect.fail(error("invalid", `journal suffix pagination did not advance for ${runId}`))
+      }
+      after = next
     }
   })
 
@@ -602,7 +612,7 @@ export const rewind = (
                 options.frame,
                 options.pageSize ?? 100
               )
-              const effects = EffectBoundary.fromEntries(suffix)
+              const effects = yield* EffectBoundary.fromEntries(suffix)
               yield* runHook(options, "load-suffix")
 
               const childAssessment = yield* assessChildren(
@@ -630,25 +640,6 @@ export const rewind = (
               yield* store.updateAudit(auditId, { detail })
               yield* runHook(options, "assess-boundary")
 
-              /**
-               * Cancelling a detached child is terminal and happens before the
-               * archive commit point, so it is the one rewind mutation a
-               * rollback cannot undo. Each cancellation is therefore recorded
-               * on the audit as it happens: the rollback path spreads the
-               * current `detail`, and an undisclosed irreversible side effect
-               * is worse than a slower protocol.
-               */
-              for (
-                const child of [...childAssessment.cancellable].sort(
-                  (left, right) => right.edge.parentSeq - left.edge.parentSeq
-                )
-              ) {
-                yield* cancelChild(runs, options, child)
-                cancelledChildren.push(child.edge.childRunId)
-                detail = { ...detail, cancelledChildren: [...cancelledChildren] }
-                yield* store.updateAudit(auditId, { detail })
-              }
-
               const handlerReceipts = yield* Compensation.compensate(plan)
               compensation = { handlerReceipts }
               yield* runHook(options, "compensate-effects")
@@ -672,6 +663,20 @@ export const rewind = (
               archiveCommitted = true
               detail = { ...detail, phase: "archive_committed" }
               yield* store.updateAudit(auditId, { detail })
+
+              // Detached-child cancellation is terminal and has no inverse.
+              // It therefore happens only after the archive commit point: a
+              // failed pre-commit rewind leaves every child exactly as it was.
+              for (
+                const child of [...childAssessment.cancellable].sort(
+                  (left, right) => right.edge.parentSeq - left.edge.parentSeq
+                )
+              ) {
+                yield* cancelChild(runs, options, child)
+                cancelledChildren.push(child.edge.childRunId)
+                detail = { ...detail, cancelledChildren: [...cancelledChildren] }
+                yield* store.updateAudit(auditId, { detail })
+              }
 
               const suspended = yield* runs.transitionOwned(
                 options.runId,

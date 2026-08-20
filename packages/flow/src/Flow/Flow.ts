@@ -20,12 +20,14 @@ import type * as Node from "@smthrs/plan/Node"
 import type * as Planned from "@smthrs/plan/Planned"
 import type * as Cause from "effect/Cause"
 import type * as Context from "effect/Context"
+import type * as Crypto from "effect/Crypto"
 import type * as Effect from "effect/Effect"
 import type * as Option from "effect/Option"
 import type * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
 import type { PlannedPayload } from "../Action/Action.ts"
 import type { CancelRequestFailed } from "../FlowRuntime/CancelRequestFailed.ts"
+import type { FlowCycleDetected } from "../FlowRuntime/FlowCycleDetected.ts"
 import type { FlowExecutionNotFound } from "../FlowRuntime/FlowExecutionNotFound.ts"
 import type { FlowInstance, FlowRuntime } from "../FlowRuntime/index.ts"
 import type * as RetryPolicy from "../RetryPolicy.ts"
@@ -97,8 +99,9 @@ export interface Flow<
    * are legal, so `docs/specs/Concepts/Trampoline Loops.md` stops a runaway
    * lineage by counting rounds instead of comparing them. Absent means
    * unbounded, which is the right default for a lineage whose exit condition
-   * is its own branch. Exceeding it fails the lineage with
-   * {@link module:MaxRoundsExceeded.MaxRoundsExceeded}.
+   * is its own branch. Exceeding it terminates the lineage with a
+   * {@link module:MaxRoundsExceeded.MaxRoundsExceeded} defect recorded in the
+   * execution result; it is not a typed `execute` failure.
    */
   readonly maxRounds?: number | undefined
 
@@ -184,8 +187,9 @@ export interface Flow<
     }
   ) => Effect.Effect<
     Discard extends true ? string : Success["Type"],
-    Schema.SchemaError | (Discard extends true ? never : Error["Type"]),
+    Schema.SchemaError | FlowCycleDetected | (Discard extends true ? never : Error["Type"]),
     | FlowRuntime
+    | Crypto.Crypto
     | Requires
     | Payload["EncodingServices"]
     | Success["DecodingServices"]
@@ -253,7 +257,7 @@ export interface Flow<
    */
   readonly executionId: (
     payload: Payload["~type.make.in"]
-  ) => Effect.Effect<string>
+  ) => Effect.Effect<string, never, Crypto.Crypto>
 
   /**
    * Runs an effect and registers how to undo its successful result if the
@@ -331,7 +335,7 @@ export interface Any {
 
   readonly [TypeId]: typeof TypeId
   readonly _tag: string
-  readonly executionId: (payload: any) => Effect.Effect<string>
+  readonly executionId: (payload: any) => Effect.Effect<string, never, Crypto.Crypto>
   readonly payloadSchema: AnyStructSchema
   readonly successSchema: Schema.Top
   readonly errorSchema: Schema.Top

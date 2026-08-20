@@ -131,8 +131,9 @@ const synthesis = {
 };
 
 const snapshot = {
-  revisionId: repositories.map((repo) => `${repo.name}:${"b".repeat(40)}`).join("|"),
+  revisionId: repositories.map((repo) => `${repo.name}:${repo.baseSha}->${"b".repeat(40)}`).join("|"),
   heads: repositories.map((repo) => ({ repo: repo.name, sha: "b".repeat(40) })),
+  bases: repositories.map((repo) => ({ repo: repo.name, sha: repo.baseSha })),
 };
 
 function approvedReview(reviewer: "fable" | "sol") {

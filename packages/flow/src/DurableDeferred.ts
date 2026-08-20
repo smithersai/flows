@@ -16,6 +16,7 @@ import type { NonEmptyReadonlyArray } from "effect/Array"
 import type * as Brand from "effect/Brand"
 import * as Cause from "effect/Cause"
 import * as Context from "effect/Context"
+import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Encoding from "effect/Encoding"
 import * as Exit from "effect/Exit"
@@ -142,6 +143,7 @@ const await_: <Success extends Schema.Constraint, Error extends Schema.Constrain
   >(self: DurableDeferred<Success, Error>) {
     const engine = yield* FlowRuntime
     const instance = yield* FlowInstance
+    ;(instance.awaitedDeferreds ??= new Set()).add(self.name)
     const exit = yield* Flow.wrapActionResult(
       engine.deferredResult(self),
       Option.isNone
@@ -345,6 +347,20 @@ export type Token = Brand.Branded<string, TokenTypeId>
 export const Token: Schema.brand<Schema.String, TokenTypeId> = Schema.String.pipe(Schema.brand(TokenTypeId))
 
 /**
+ * A completion token could not be decoded into its durable address.
+ *
+ * @category errors
+ * @since 0.1.0
+ * @slop
+ */
+export class TokenInvalid extends Schema.TaggedError<TokenInvalid>()("@smthrs/flow/DurableDeferred/TokenInvalid", {
+  code: Schema.Literal("malformed_token").pipe(
+    Schema.withConstructorDefault(Effect.succeed("malformed_token"))
+  ),
+  message: Schema.String
+}) {}
+
+/**
  * Schema for a decoded durable deferred token containing the flow
  * name, execution ID, and deferred name.
  *
@@ -490,7 +506,7 @@ export const tokenFromPayload: {
     readonly payload: Flow.PayloadSchema<W>["~type.make.in"]
   }): <Success extends Schema.Constraint, Error extends Schema.Constraint>(
     self: DurableDeferred<Success, Error>
-  ) => Effect.Effect<Token>
+  ) => Effect.Effect<Token, never, Crypto.Crypto>
   <
     Success extends Schema.Constraint,
     Error extends Schema.Constraint,
@@ -501,7 +517,7 @@ export const tokenFromPayload: {
       readonly flow: W
       readonly payload: Flow.PayloadSchema<W>["~type.make.in"]
     }
-  ): Effect.Effect<Token>
+  ): Effect.Effect<Token, never, Crypto.Crypto>
 } = dual(
   2,
   <
@@ -514,7 +530,7 @@ export const tokenFromPayload: {
       readonly flow: W
       readonly payload: Flow.PayloadSchema<W>["~type.make.in"]
     }
-  ): Effect.Effect<Token> =>
+  ): Effect.Effect<Token, never, Crypto.Crypto> =>
     Effect.map(options.flow.executionId(options.payload), (executionId) =>
       tokenFromExecutionId(self, {
         flow: options.flow,
@@ -538,7 +554,7 @@ export const done: {
     self: DurableDeferred<Success, Error>
   ) => Effect.Effect<
     void,
-    never,
+    TokenInvalid,
     FlowRuntime | Success["EncodingServices"] | Error["EncodingServices"]
   >
   <Success extends Schema.Constraint, Error extends Schema.Constraint>(
@@ -549,7 +565,7 @@ export const done: {
     }
   ): Effect.Effect<
     void,
-    never,
+    TokenInvalid,
     FlowRuntime | Success["EncodingServices"] | Error["EncodingServices"]
   >
 } = dual(
@@ -566,7 +582,9 @@ export const done: {
     }
   ) {
     const engine = yield* FlowRuntime
-    const token = TokenParsed.fromString(options.token)
+    const token = yield* Schema.decodeEffect(TokenParsed.FromString)(options.token).pipe(
+      Effect.mapError(() => new TokenInvalid({ message: "The supplied token is not a durable deferred token" }))
+    )
     yield* engine.deferredDone(self, {
       flowName: token.flowName,
       executionId: token.executionId,
@@ -590,14 +608,14 @@ export const succeed: {
     readonly value: Success["Type"]
   }): (
     self: DurableDeferred<Success, Error>
-  ) => Effect.Effect<void, never, FlowRuntime | Success["EncodingServices"]>
+  ) => Effect.Effect<void, TokenInvalid, FlowRuntime | Success["EncodingServices"]>
   <Success extends Schema.Constraint, Error extends Schema.Constraint>(
     self: DurableDeferred<Success, Error>,
     options: {
       readonly token: Token
       readonly value: Success["Type"]
     }
-  ): Effect.Effect<void, never, FlowRuntime | Success["EncodingServices"]>
+  ): Effect.Effect<void, TokenInvalid, FlowRuntime | Success["EncodingServices"]>
 } = dual(
   2,
   <Success extends Schema.Constraint, Error extends Schema.Constraint>(
@@ -606,7 +624,7 @@ export const succeed: {
       readonly token: Token
       readonly value: Success["Type"]
     }
-  ): Effect.Effect<void, never, FlowRuntime | Success["EncodingServices"]> =>
+  ): Effect.Effect<void, TokenInvalid, FlowRuntime | Success["EncodingServices"]> =>
     done(self, {
       token: options.token,
       exit: Exit.succeed(options.value)
@@ -626,14 +644,14 @@ export const fail: {
     readonly error: Error["Type"]
   }): (
     self: DurableDeferred<Success, Error>
-  ) => Effect.Effect<void, never, FlowRuntime | Error["EncodingServices"]>
+  ) => Effect.Effect<void, TokenInvalid, FlowRuntime | Error["EncodingServices"]>
   <Success extends Schema.Constraint, Error extends Schema.Constraint>(
     self: DurableDeferred<Success, Error>,
     options: {
       readonly token: Token
       readonly error: Error["Type"]
     }
-  ): Effect.Effect<void, never, FlowRuntime | Error["EncodingServices"]>
+  ): Effect.Effect<void, TokenInvalid, FlowRuntime | Error["EncodingServices"]>
 } = dual(
   2,
   <Success extends Schema.Constraint, Error extends Schema.Constraint>(
@@ -642,7 +660,7 @@ export const fail: {
       readonly token: Token
       readonly error: Error["Type"]
     }
-  ): Effect.Effect<void, never, FlowRuntime | Error["EncodingServices"]> =>
+  ): Effect.Effect<void, TokenInvalid, FlowRuntime | Error["EncodingServices"]> =>
     done(self, {
       token: options.token,
       exit: Exit.fail(options.error)
@@ -662,14 +680,14 @@ export const failCause: {
     readonly cause: Cause.Cause<Error["Type"]>
   }): (
     self: DurableDeferred<Success, Error>
-  ) => Effect.Effect<void, never, FlowRuntime | Error["EncodingServices"]>
+  ) => Effect.Effect<void, TokenInvalid, FlowRuntime | Error["EncodingServices"]>
   <Success extends Schema.Constraint, Error extends Schema.Constraint>(
     self: DurableDeferred<Success, Error>,
     options: {
       readonly token: Token
       readonly cause: Cause.Cause<Error["Type"]>
     }
-  ): Effect.Effect<void, never, FlowRuntime | Error["EncodingServices"]>
+  ): Effect.Effect<void, TokenInvalid, FlowRuntime | Error["EncodingServices"]>
 } = dual(
   2,
   <Success extends Schema.Constraint, Error extends Schema.Constraint>(
@@ -678,7 +696,7 @@ export const failCause: {
       readonly token: Token
       readonly cause: Cause.Cause<Error["Type"]>
     }
-  ): Effect.Effect<void, never, FlowRuntime | Error["EncodingServices"]> =>
+  ): Effect.Effect<void, TokenInvalid, FlowRuntime | Error["EncodingServices"]> =>
     done(self, {
       token: options.token,
       exit: Exit.failCause(options.cause)

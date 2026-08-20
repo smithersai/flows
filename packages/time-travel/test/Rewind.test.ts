@@ -420,7 +420,7 @@ describe("Rewind", () => {
       expect(runs.state("child")).toMatchObject({ status: "cancelled", owner: null })
     }))
 
-  it.effect("discloses irreversibly cancelled children when the rewind rolls back", () =>
+  it.effect("leaves detached children unchanged when rewind fails before the archive commit", () =>
     Effect.gen(function*() {
       const edge: LineageEdge = {
         parentRunId: "run",
@@ -454,20 +454,17 @@ describe("Rewind", () => {
         )
       )
 
-      // The parent rolls back, but the child cancellation is terminal and
-      // cannot be undone — the audit must say so.
       expect(failure.code).toBe("unknown")
       expect(runs.state("run").status).toBe("suspended")
-      expect(runs.state("child").status).toBe("cancelled")
+      expect(runs.state("child").status).toBe("suspended")
       const audit = store.state().audits.at(-1)!
       expect(audit.status).toBe("failed")
       const detail = audit.detail as Rewind.AuditDetail
       expect(detail.phase).toBe("rolled_back")
-      expect(detail.cancelledChildren).toEqual(["child"])
-      expect(detail.failure).toContain("child")
+      expect(detail.cancelledChildren).toEqual([])
     }))
 
-  it.effect("discloses every cancelled child, newest edge first, when the rewind rolls back", () =>
+  it.effect("does not cancel any detached child when workspace restoration rolls back", () =>
     Effect.gen(function*() {
       const edges: ReadonlyArray<LineageEdge> = [
         { parentRunId: "run", parentSeq: 1, childRunId: "child-a", kind: "child", attached: false },
@@ -498,11 +495,10 @@ describe("Rewind", () => {
         )
       )
 
-      expect(runs.state("child-a").status).toBe("cancelled")
-      expect(runs.state("child-b").status).toBe("cancelled")
+      expect(runs.state("child-a").status).toBe("suspended")
+      expect(runs.state("child-b").status).toBe("suspended")
       const detail = store.state().audits.at(-1)!.detail as Rewind.AuditDetail
-      // Cancellation walks the highest parentSeq first; the audit keeps that order.
-      expect(detail.cancelledChildren).toEqual(["child-b", "child-a"])
+      expect(detail.cancelledChildren).toEqual([])
       expect(detail.phase).toBe("rolled_back")
     }))
 

@@ -56,7 +56,9 @@ export const check = (report: Report, options: Options = {}): Effect.Effect<Verd
       result.error === undefined ? [] : [`case '${result.case}' failed: ${result.error.message}`]
     )
     const auditFailures = [
-      ...report.missing.map((item) => `missing ${item.side} observation for ${item.case}/${item.scorer}/${item.stepKey}`),
+      ...report.missing.map((item) =>
+        `missing ${item.side} observation for ${item.case}/${item.scorer}/${item.stepKey}`
+      ),
       ...report.regressions.map((item) => `regression for ${item.case}/${item.scorer}`),
       ...report.nondeterminism.map((item) => `nondeterminism for ${item.case}/${item.scorer}`)
     ]

@@ -13,6 +13,7 @@
  */
 import { Action, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
 import * as Context from "effect/Context"
+import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Fiber from "effect/Fiber"
@@ -334,8 +335,8 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
  * the interpreter reads.
  */
 export const layerWired = <Implemented = never>(
-  registrations: Layer.Layer<Implemented, never, FlowRuntime.FlowRuntime | Action.Implementations>
-): Layer.Layer<Implemented | FlowRuntime.FlowRuntime | Action.Implementations> =>
+  registrations: Layer.Layer<Implemented, never, Crypto.Crypto | FlowRuntime.FlowRuntime | Action.Implementations>
+): Layer.Layer<Implemented | FlowRuntime.FlowRuntime | Action.Implementations, never, Crypto.Crypto> =>
   registrations.pipe(
     Layer.provideMerge(Action.layerImplementations),
     Layer.provideMerge(layerMemory)

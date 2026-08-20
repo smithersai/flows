@@ -21,7 +21,6 @@ import * as Journal from "@smthrs/journal/Journal"
 import type * as JournalEvent from "@smthrs/journal/JournalEvent"
 import type * as Projection from "@smthrs/journal/Projection"
 import * as Effect from "effect/Effect"
-import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import { error, type TimeTravelError } from "../TimeTravelError.ts"
 import { TimeTravelStore } from "../TimeTravelStore.ts"
@@ -56,17 +55,17 @@ export interface State {
 export const initial: State = { changeId: undefined, planDigest: undefined, anchors: 0 }
 
 const LineageMeta = Schema.Struct({ lineageId: Schema.NonEmptyString })
-const lineageOf = (entry: JournalEvent.Entry): string | undefined =>
-  Option.getOrUndefined(Schema.decodeUnknownOption(LineageMeta)(entry.meta))?.lineageId
 
 const SnapshotPayload = Schema.Struct({
+  version: Schema.optionalKey(Schema.Literal(1)),
   snapshotId: Schema.optionalKey(Schema.NonEmptyString),
   carried: Schema.optionalKey(Schema.Boolean)
 })
-const snapshotPayload = Schema.decodeUnknownOption(SnapshotPayload)
 
-const PlanPayload = Schema.Struct({ digest: Schema.NonEmptyString })
-const planPayload = Schema.decodeUnknownOption(PlanPayload)
+const PlanPayload = Schema.Struct({
+  version: Schema.optionalKey(Schema.Literal(1)),
+  digest: Schema.NonEmptyString
+})
 
 /**
  * The fold, as a reproducible journal projection.
@@ -82,18 +81,22 @@ export const projection = (
   reduce: (state, entry) =>
     Effect.gen(function*() {
       if (entry.eventType === "flows.engine.plan-recorded" || entry.eventType === "flows.engine.subgraph-appended") {
-        const plan = planPayload(entry.payload)
-        return plan._tag === "Some" ? { ...state, planDigest: plan.value.digest } : state
+        const plan = yield* Schema.decodeUnknownEffect(PlanPayload)(entry.payload).pipe(
+          Effect.mapError((cause) => error("invalid", `plan event ${entry.eventId} is corrupt`, cause))
+        )
+        return { ...state, planDigest: plan.digest }
       }
       if (entry.eventType !== "flows.engine.snapshot-identified") return state
-      const lineageId = lineageOf(entry)
-      if (lineageId === undefined) return state
-      const payload = snapshotPayload(entry.payload)
-      if (payload._tag === "None") return state
+      const { lineageId } = yield* Schema.decodeUnknownEffect(LineageMeta)(entry.meta).pipe(
+        Effect.mapError((cause) => error("invalid", `snapshot event ${entry.eventId} has corrupt lineage metadata`, cause))
+      )
+      const payload = yield* Schema.decodeUnknownEffect(SnapshotPayload)(entry.payload).pipe(
+        Effect.mapError((cause) => error("invalid", `snapshot event ${entry.eventId} is corrupt`, cause))
+      )
       // `carried` asserts "the same pointer as the previous anchor" — the cheap
       // half of the per-frame obligation. Resolving it here is what turns one
       // journal row into a real tier-2 address.
-      const changeId = payload.value.snapshotId ?? state.changeId
+      const changeId = payload.snapshotId ?? state.changeId
       if (changeId === undefined) return { ...state, anchors: state.anchors }
       yield* store.recordSnapshot({
         runId: entry.runId,
@@ -138,7 +141,11 @@ export const project = (
       }).pipe(Effect.mapError((cause) => error("unknown", `could not read ${runId} for anchoring`, cause)))
       for (const entry of page.entries) state = yield* fold.reduce(state, entry)
       const tail = page.entries.at(-1)?.seq
-      if (!page.hasMore || tail === undefined) return state
+      if (!page.hasMore) return state
+      const previous = after ?? -1
+      if (tail === undefined || tail <= previous) {
+        return yield* Effect.fail(error("invalid", `snapshot pagination did not advance for ${runId}`))
+      }
       after = tail
     }
   })

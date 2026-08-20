@@ -15,6 +15,8 @@ import * as MemoryStore from "./MemoryStore.ts"
 import * as Namespace from "./Namespace.ts"
 import * as Recall from "./Recall.ts"
 
+const compareText = (left: string, right: string): number => left < right ? -1 : left > right ? 1 : 0
+
 /**
  * Escapes a query into a quoted, implicit-AND FTS5 expression.
  *
@@ -67,7 +69,7 @@ const run = (input: Recall.Input): Effect.Effect<Recall.Output, MemoryError.Memo
     }
     results.sort((left, right) =>
       right.score - left.score || (right.updatedAtMs ?? 0) - (left.updatedAtMs ?? 0) ||
-      left.key.localeCompare(right.key)
+      compareText(left.key, right.key)
     )
     return Recall.capRecallResults(results.slice(0, requested), input.maxTokens ?? 2048)
   })

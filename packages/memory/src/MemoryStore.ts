@@ -8,6 +8,7 @@
 import { DurableWriter } from "@smthrs/database/DurableWriter"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
+import * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
@@ -16,6 +17,8 @@ import * as Embedding from "./Embedding.ts"
 import * as Sql from "./internal/Sql.ts"
 import { MemoryError } from "./MemoryError.ts"
 import * as Namespace from "./Namespace.ts"
+
+const compareText = (left: string, right: string): number => left < right ? -1 : left > right ? 1 : 0
 
 /**
  * Explicit run coordinates attached to a memory write.
@@ -668,21 +671,23 @@ const literalFtsQuery = (query: string): string => {
  * @since 0.1.0
  * @slop
  */
-export const make: Effect.Effect<Service, MemoryError, DurableWriter | SqlClient.SqlClient> = Effect.gen(function*() {
-  const sql = yield* Effect.service(SqlClient.SqlClient)
-  const writer = yield* DurableWriter
-  const database: Sql.DatabaseService = { sql, write: writer.write }
-  yield* Sql.migrate(database).pipe(Effect.mapError(storeError("memory migration failed")))
+export const make: Effect.Effect<Service, MemoryError, Crypto.Crypto | DurableWriter | SqlClient.SqlClient> = Effect
+  .gen(function*() {
+    const sql = yield* Effect.service(SqlClient.SqlClient)
+    const writer = yield* DurableWriter
+    const crypto = yield* Crypto.Crypto
+    const database: Sql.DatabaseService = { sql, write: writer.write }
+    yield* Sql.migrate(database).pipe(Effect.mapError(storeError("memory migration failed")))
 
-  const project = (
-    namespace: Namespace.Namespace,
-    kind: "fact" | "note",
-    id: string,
-    text: string,
-    updatedAtMs: number
-  ): Effect.Effect<void> => {
-    const vector = Embedding.inProcessVector(text)
-    return database.write(sql`INSERT INTO memory_vectors (
+    const project = (
+      namespace: Namespace.Namespace,
+      kind: "fact" | "note",
+      id: string,
+      text: string,
+      updatedAtMs: number
+    ): Effect.Effect<void> => {
+      const vector = Embedding.inProcessVector(text)
+      return database.write(sql`INSERT INTO memory_vectors (
       namespace_kind, namespace_id, record_kind, record_id,
       embedding_model, content_digest, dimensions, vector_bytes, updated_at_ms
     ) VALUES (
@@ -695,32 +700,32 @@ export const make: Effect.Effect<Service, MemoryError, DurableWriter | SqlClient
       dimensions = excluded.dimensions,
       vector_bytes = excluded.vector_bytes,
       updated_at_ms = excluded.updated_at_ms`).pipe(
-      Effect.catch((cause) => Effect.logWarning(`memory semantic projection failed: ${String(cause)}`)),
-      Effect.asVoid
-    )
-  }
+        Effect.catch((cause) => Effect.logWarning(`memory semantic projection failed: ${String(cause)}`)),
+        Effect.asVoid
+      )
+    }
 
-  const listFacts: Service["listFacts"] = (input) =>
-    Effect.gen(function*() {
-      const namespace = yield* validateNamespace(input.namespace)
-      const now = yield* Clock.currentTimeMillis
-      const rows = yield* sql<FactRow>`SELECT
+    const listFacts: Service["listFacts"] = (input) =>
+      Effect.gen(function*() {
+        const namespace = yield* validateNamespace(input.namespace)
+        const now = yield* Clock.currentTimeMillis
+        const rows = yield* sql<FactRow>`SELECT
         namespace_kind, namespace_id, fact_key, value_json, ttl_ms,
         provenance_json, created_at_ms, updated_at_ms
         FROM memory_facts
         WHERE namespace_kind = ${namespace.kind} AND namespace_id = ${namespace.id}
         ORDER BY fact_key`.pipe(Effect.mapError(storeError("could not list memory facts")))
-      const facts = yield* Effect.forEach(rows, decodeFact)
-      return facts.filter((fact) =>
-        !isExpired(fact, now) && (input.prefix === undefined || fact.key.startsWith(input.prefix))
-      )
-    })
+        const facts = yield* Effect.forEach(rows, decodeFact)
+        return facts.filter((fact) =>
+          !isExpired(fact, now) && (input.prefix === undefined || fact.key.startsWith(input.prefix))
+        )
+      })
 
-  const getFact: Service["getFact"] = (input) =>
-    Effect.gen(function*() {
-      const namespace = yield* validateNamespace(input.namespace)
-      yield* validateNonEmpty(input.key, "fact key")
-      const rows = yield* sql<FactRow>`SELECT
+    const getFact: Service["getFact"] = (input) =>
+      Effect.gen(function*() {
+        const namespace = yield* validateNamespace(input.namespace)
+        yield* validateNonEmpty(input.key, "fact key")
+        const rows = yield* sql<FactRow>`SELECT
         namespace_kind, namespace_id, fact_key, value_json, ttl_ms,
         provenance_json, created_at_ms, updated_at_ms
         FROM memory_facts
@@ -728,41 +733,41 @@ export const make: Effect.Effect<Service, MemoryError, DurableWriter | SqlClient
           AND namespace_id = ${namespace.id}
           AND fact_key = ${input.key}
         LIMIT 1`.pipe(Effect.mapError(storeError("could not read memory fact")))
-      if (rows.length === 0) {
-        return undefined
-      }
-      const fact = yield* decodeFact(rows[0]!)
-      const now = yield* Clock.currentTimeMillis
-      return isExpired(fact, now) ? undefined : fact
-    })
+        if (rows.length === 0) {
+          return undefined
+        }
+        const fact = yield* decodeFact(rows[0]!)
+        const now = yield* Clock.currentTimeMillis
+        return isExpired(fact, now) ? undefined : fact
+      })
 
-  const listAllFacts: Service["listAllFacts"] = () =>
-    Effect.gen(function*() {
-      const now = yield* Clock.currentTimeMillis
-      const rows = yield* sql<FactRow>`SELECT
+    const listAllFacts: Service["listAllFacts"] = () =>
+      Effect.gen(function*() {
+        const now = yield* Clock.currentTimeMillis
+        const rows = yield* sql<FactRow>`SELECT
         namespace_kind, namespace_id, fact_key, value_json, ttl_ms,
         provenance_json, created_at_ms, updated_at_ms
         FROM memory_facts
         ORDER BY namespace_kind, namespace_id, fact_key`.pipe(
-        Effect.mapError(storeError("could not list all memory facts"))
-      )
-      const facts = yield* Effect.forEach(rows, decodeFact)
-      return facts.filter((fact) => !isExpired(fact, now))
-    })
+          Effect.mapError(storeError("could not list all memory facts"))
+        )
+        const facts = yield* Effect.forEach(rows, decodeFact)
+        return facts.filter((fact) => !isExpired(fact, now))
+      })
 
-  const putFact: Service["putFact"] = (input) =>
-    Effect.gen(function*() {
-      const namespace = yield* validateNamespace(input.namespace)
-      yield* validateNonEmpty(input.key, "fact key")
-      if (input.ttlMs !== undefined) {
-        yield* validateTime(input.ttlMs, "ttlMs")
-      }
-      const valueJson = yield* encodeJson(input.value, "fact value")
-      const provenanceJson = yield* encodeJson(input.provenance, "fact provenance")
-      const now = yield* Clock.currentTimeMillis
-      yield* database.write(
-        Effect.gen(function*() {
-          yield* sql`INSERT INTO memory_facts (
+    const putFact: Service["putFact"] = (input) =>
+      Effect.gen(function*() {
+        const namespace = yield* validateNamespace(input.namespace)
+        yield* validateNonEmpty(input.key, "fact key")
+        if (input.ttlMs !== undefined) {
+          yield* validateTime(input.ttlMs, "ttlMs")
+        }
+        const valueJson = yield* encodeJson(input.value, "fact value")
+        const provenanceJson = yield* encodeJson(input.provenance, "fact provenance")
+        const now = yield* Clock.currentTimeMillis
+        yield* database.write(
+          Effect.gen(function*() {
+            yield* sql`INSERT INTO memory_facts (
             namespace_kind, namespace_id, fact_key, value_json, ttl_ms,
             provenance_json, created_at_ms, updated_at_ms
           ) VALUES (
@@ -773,502 +778,542 @@ export const make: Effect.Effect<Service, MemoryError, DurableWriter | SqlClient
             ttl_ms = excluded.ttl_ms,
             provenance_json = excluded.provenance_json,
             updated_at_ms = excluded.updated_at_ms`
-          yield* Sql.replaceFtsRecord(database, namespace.kind, {
-            recordId: input.key,
-            recordKind: "fact",
-            namespaceId: namespace.id,
-            key: input.key,
-            text: searchableText(input.value)
+            yield* Sql.replaceFtsRecord(database, namespace.kind, {
+              recordId: input.key,
+              recordKind: "fact",
+              namespaceId: namespace.id,
+              key: input.key,
+              text: searchableText(input.value)
+            })
           })
-        })
-      ).pipe(Effect.mapError(storeError("could not write memory fact")))
-      yield* project(namespace, "fact", input.key, searchableText(input.value), now)
-    })
+        ).pipe(Effect.mapError(storeError("could not write memory fact")))
+        yield* project(namespace, "fact", input.key, searchableText(input.value), now)
+      })
 
-  const deleteFact: Service["deleteFact"] = (input) =>
-    Effect.gen(function*() {
-      const namespace = yield* validateNamespace(input.namespace)
-      yield* validateNonEmpty(input.key, "fact key")
-      const deleted = yield* database.write(
-        Effect.gen(function*() {
-          const result = yield* sql`DELETE FROM memory_facts
+    const deleteFact: Service["deleteFact"] = (input) =>
+      Effect.gen(function*() {
+        const namespace = yield* validateNamespace(input.namespace)
+        yield* validateNonEmpty(input.key, "fact key")
+        const deleted = yield* database.write(
+          Effect.gen(function*() {
+            const result = yield* sql`DELETE FROM memory_facts
             WHERE namespace_kind = ${namespace.kind}
               AND namespace_id = ${namespace.id}
               AND fact_key = ${input.key}`.raw
-          yield* Sql.deleteFtsRecord(database, namespace.kind, {
-            recordId: input.key,
-            recordKind: "fact",
-            namespaceId: namespace.id
-          })
-          yield* sql`DELETE FROM memory_vectors
+            yield* Sql.deleteFtsRecord(database, namespace.kind, {
+              recordId: input.key,
+              recordKind: "fact",
+              namespaceId: namespace.id
+            })
+            yield* sql`DELETE FROM memory_vectors
             WHERE namespace_kind = ${namespace.kind}
               AND namespace_id = ${namespace.id}
               AND record_kind = 'fact'
               AND record_id = ${input.key}`
-          return changed(result) > 0
-        })
-      ).pipe(Effect.mapError(storeError("could not delete memory fact")))
-      return deleted
-    })
+            return changed(result) > 0
+          })
+        ).pipe(Effect.mapError(storeError("could not delete memory fact")))
+        return deleted
+      })
 
-  const getThread: Service["getThread"] = (threadId) =>
-    Effect.gen(function*() {
-      yield* validateNonEmpty(threadId, "threadId")
-      const rows = yield* sql<ThreadRow>`SELECT
+    const getThread: Service["getThread"] = (threadId) =>
+      Effect.gen(function*() {
+        yield* validateNonEmpty(threadId, "threadId")
+        const rows = yield* sql<ThreadRow>`SELECT
         thread_id, namespace_kind, namespace_id, title, metadata_json,
         created_at_ms, updated_at_ms
         FROM memory_threads WHERE thread_id = ${threadId} LIMIT 1`.pipe(
-        Effect.mapError(storeError("could not read memory thread"))
-      )
-      return rows[0] === undefined ? undefined : yield* decodeThread(rows[0])
-    })
+          Effect.mapError(storeError("could not read memory thread"))
+        )
+        return rows[0] === undefined ? undefined : yield* decodeThread(rows[0])
+      })
 
-  const createThread: Service["createThread"] = (input) =>
-    Effect.gen(function*() {
-      const namespace = yield* validateNamespace(input.namespace)
-      const id = input.id ?? crypto.randomUUID()
-      yield* validateNonEmpty(id, "threadId")
-      const metadata = input.metadata === undefined
-        ? null
-        : yield* encodeJson(input.metadata, "thread metadata")
-      const now = yield* Clock.currentTimeMillis
-      yield* database.write(sql`INSERT INTO memory_threads (
+    const createThread: Service["createThread"] = (input) =>
+      Effect.gen(function*() {
+        const namespace = yield* validateNamespace(input.namespace)
+        const id = input.id ?? (yield* crypto.randomUUIDv4.pipe(
+          Effect.mapError((cause) => error("store", "could not generate memory thread id", cause))
+        ))
+        yield* validateNonEmpty(id, "threadId")
+        const metadata = input.metadata === undefined
+          ? null
+          : yield* encodeJson(input.metadata, "thread metadata")
+        const now = yield* Clock.currentTimeMillis
+        const inserted = yield* database.write(
+          sql`INSERT INTO memory_threads (
         thread_id, namespace_kind, namespace_id, title, metadata_json,
         created_at_ms, updated_at_ms
       ) VALUES (
         ${id}, ${namespace.kind}, ${namespace.id}, ${input.title ?? null}, ${metadata}, ${now}, ${now}
-      ) ON CONFLICT (thread_id) DO NOTHING`).pipe(
-        Effect.mapError(storeError("could not create memory thread"))
-      )
-      const thread = yield* getThread(id)
-      return thread === undefined
-        ? yield* Effect.fail(error("store", "created memory thread could not be read back"))
-        : thread
-    })
+      ) ON CONFLICT (thread_id) DO NOTHING`.raw
+        ).pipe(
+          Effect.mapError(storeError("could not create memory thread"))
+        )
+        const thread = yield* getThread(id)
+        if (thread === undefined) {
+          return yield* Effect.fail(error("store", "created memory thread could not be read back"))
+        }
+        if (
+          changed(inserted) === 0 &&
+          (thread.namespace.kind !== namespace.kind || thread.namespace.id !== namespace.id ||
+            thread.title !== input.title || JSON.stringify(thread.metadata) !== (metadata ?? undefined))
+        ) {
+          return yield* Effect.fail(error("store", `thread id "${id}" already exists with different creation data`))
+        }
+        return thread
+      })
 
-  const listThreads: Service["listThreads"] = (input = {}) =>
-    Effect.gen(function*() {
-      const namespace = input.namespace === undefined
-        ? undefined
-        : yield* validateNamespace(input.namespace)
-      const rows = yield* (namespace === undefined
-        ? sql<ThreadRow>`SELECT
+    const listThreads: Service["listThreads"] = (input = {}) =>
+      Effect.gen(function*() {
+        const namespace = input.namespace === undefined
+          ? undefined
+          : yield* validateNamespace(input.namespace)
+        const rows = yield* (namespace === undefined
+          ? sql<ThreadRow>`SELECT
           thread_id, namespace_kind, namespace_id, title, metadata_json,
           created_at_ms, updated_at_ms
           FROM memory_threads ORDER BY created_at_ms, thread_id`
-        : sql<ThreadRow>`SELECT
+          : sql<ThreadRow>`SELECT
           thread_id, namespace_kind, namespace_id, title, metadata_json,
           created_at_ms, updated_at_ms
           FROM memory_threads
           WHERE namespace_kind = ${namespace.kind} AND namespace_id = ${namespace.id}
           ORDER BY created_at_ms, thread_id`).pipe(
-          Effect.mapError(storeError("could not list memory threads"))
-        )
-      return yield* Effect.forEach(rows, decodeThread)
-    })
+            Effect.mapError(storeError("could not list memory threads"))
+          )
+        return yield* Effect.forEach(rows, decodeThread)
+      })
 
-  const deleteThread: Service["deleteThread"] = (threadId) =>
-    Effect.gen(function*() {
-      yield* validateNonEmpty(threadId, "threadId")
-      return yield* database.write(
-        Effect.gen(function*() {
-          yield* sql`DELETE FROM memory_messages WHERE thread_id = ${threadId}`
-          const result = yield* sql`DELETE FROM memory_threads WHERE thread_id = ${threadId}`.raw
-          return changed(result) > 0
-        })
-      ).pipe(Effect.mapError(storeError("could not delete memory thread")))
-    })
+    const deleteThread: Service["deleteThread"] = (threadId) =>
+      Effect.gen(function*() {
+        yield* validateNonEmpty(threadId, "threadId")
+        return yield* database.write(
+          Effect.gen(function*() {
+            yield* sql`DELETE FROM memory_messages WHERE thread_id = ${threadId}`
+            const result = yield* sql`DELETE FROM memory_threads WHERE thread_id = ${threadId}`.raw
+            return changed(result) > 0
+          })
+        ).pipe(Effect.mapError(storeError("could not delete memory thread")))
+      })
 
-  const appendMessage: Service["appendMessage"] = (input) =>
-    Effect.gen(function*() {
-      yield* validateNonEmpty(input.threadId, "threadId")
-      yield* validateNonEmpty(input.id, "message id")
-      yield* validateNonEmpty(input.role, "message role")
-      yield* validateTime(input.at, "message at")
-      yield* database.write(
-        Effect.gen(function*() {
-          yield* sql`INSERT INTO memory_threads (
+    const appendMessage: Service["appendMessage"] = (input) =>
+      Effect.gen(function*() {
+        yield* validateNonEmpty(input.threadId, "threadId")
+        yield* validateNonEmpty(input.id, "message id")
+        yield* validateNonEmpty(input.role, "message role")
+        yield* validateTime(input.at, "message at")
+        yield* database.write(
+          Effect.gen(function*() {
+            yield* sql`INSERT INTO memory_threads (
             thread_id, namespace_kind, namespace_id, created_at_ms, updated_at_ms
           )
             VALUES (${input.threadId}, 'global', 'history', ${input.at}, ${input.at})
             ON CONFLICT (thread_id) DO NOTHING`
-          const inserted = yield* sql`INSERT INTO memory_messages (id, thread_id, role, text, at_ms)
+            const inserted = yield* sql`INSERT INTO memory_messages (id, thread_id, role, text, at_ms)
             VALUES (${input.id}, ${input.threadId}, ${input.role}, ${input.text}, ${input.at})
             ON CONFLICT (id) DO NOTHING`.raw
-          if (changed(inserted) > 0) {
-            yield* sql`UPDATE memory_threads
+            if (changed(inserted) > 0) {
+              yield* sql`UPDATE memory_threads
               SET updated_at_ms = MAX(updated_at_ms, ${input.at})
               WHERE thread_id = ${input.threadId}`
-          }
-        })
-      ).pipe(Effect.mapError(storeError("could not append memory message")))
-    })
+            }
+          })
+        ).pipe(Effect.mapError(storeError("could not append memory message")))
+      })
 
-  const listMessages: Service["listMessages"] = (input) =>
-    Effect.gen(function*() {
-      yield* validateNonEmpty(input.threadId, "threadId")
-      const rows = yield* sql<MessageRow>`SELECT thread_id, id, role, text, at_ms
+    const listMessages: Service["listMessages"] = (input) =>
+      Effect.gen(function*() {
+        yield* validateNonEmpty(input.threadId, "threadId")
+        const rows = yield* sql<MessageRow>`SELECT thread_id, id, role, text, at_ms
         FROM memory_messages
         WHERE thread_id = ${input.threadId}
         ORDER BY at_ms, id`.pipe(Effect.mapError(storeError("could not list memory messages")))
-      return rows.map((row) => ({
-        threadId: row.thread_id,
-        id: row.id,
-        role: row.role,
-        text: row.text,
-        at: Number(row.at_ms)
-      }))
-    })
+        return rows.map((row) => ({
+          threadId: row.thread_id,
+          id: row.id,
+          role: row.role,
+          text: row.text,
+          at: Number(row.at_ms)
+        }))
+      })
 
-  const countMessages: Service["countMessages"] = (input) =>
-    Effect.gen(function*() {
-      yield* validateNonEmpty(input.threadId, "threadId")
-      const rows = yield* sql<{ readonly count: number }>`
+    const countMessages: Service["countMessages"] = (input) =>
+      Effect.gen(function*() {
+        yield* validateNonEmpty(input.threadId, "threadId")
+        const rows = yield* sql<{ readonly count: number }>`
         SELECT count(*) AS count FROM memory_messages WHERE thread_id = ${input.threadId}
       `.pipe(Effect.mapError(storeError("could not count memory messages")))
-      return Number(rows[0]?.count ?? 0)
-    })
+        return Number(rows[0]?.count ?? 0)
+      })
 
-  const deleteMessageRows = (threadId: string, ids: ReadonlyArray<string>) =>
-    Effect.gen(function*() {
-      let deleted = 0
-      for (let offset = 0; offset < ids.length; offset += DELETE_MESSAGES_CHUNK_SIZE) {
-        const chunk = ids.slice(offset, offset + DELETE_MESSAGES_CHUNK_SIZE)
-        const result = yield* sql`DELETE FROM memory_messages
+    const deleteMessageRows = (threadId: string, ids: ReadonlyArray<string>) =>
+      Effect.gen(function*() {
+        let deleted = 0
+        for (let offset = 0; offset < ids.length; offset += DELETE_MESSAGES_CHUNK_SIZE) {
+          const chunk = ids.slice(offset, offset + DELETE_MESSAGES_CHUNK_SIZE)
+          const result = yield* sql`DELETE FROM memory_messages
           WHERE thread_id = ${threadId} AND ${sql.in("id", chunk)}`.raw
-        deleted += changed(result)
-      }
-      return deleted
-    })
+          deleted += changed(result)
+        }
+        return deleted
+      })
 
-  const supersededIds = (
-    namespace: Namespace.Namespace
-  ): Effect.Effect<ReadonlySet<string>, MemoryError> =>
-    sql<{ readonly target_id: string }>`SELECT edges.target_id
+    const supersededIds = (
+      namespace: Namespace.Namespace
+    ): Effect.Effect<ReadonlySet<string>, MemoryError> =>
+      sql<{ readonly target_id: string }>`SELECT edges.target_id
       FROM memory_note_supersedes edges
       JOIN memory_notes superseder ON superseder.id = edges.superseder_id
       JOIN memory_notes target ON target.id = edges.target_id
       WHERE superseder.status = 'accepted'
         AND target.namespace_kind = ${namespace.kind}
         AND target.namespace_id = ${namespace.id}`.pipe(
-      Effect.map((rows) => new Set(rows.map((row) => row.target_id))),
-      Effect.mapError(storeError("could not read memory supersession edges"))
-    )
+        Effect.map((rows) => new Set(rows.map((row) => row.target_id))),
+        Effect.mapError(storeError("could not read memory supersession edges"))
+      )
 
-  const readNotes = (
-    input: ListNotesInput
-  ): Effect.Effect<ReadonlyArray<Note>, MemoryError> =>
-    Effect.gen(function*() {
-      const { namespace } = yield* resolveNamespace(input.namespace)
-      const rows = yield* sql<NoteRow>`SELECT
+    const readNotes = (
+      input: ListNotesInput
+    ): Effect.Effect<ReadonlyArray<Note>, MemoryError> =>
+      Effect.gen(function*() {
+        const { namespace } = yield* resolveNamespace(input.namespace)
+        const rows = yield* sql<NoteRow>`SELECT
         namespace_kind, namespace_id, id, text, tags_json,
         provenance_json, status, created_at_ms
         FROM memory_notes
         WHERE namespace_kind = ${namespace.kind} AND namespace_id = ${namespace.id}
         ORDER BY created_at_ms, id`.pipe(Effect.mapError(storeError("could not list memory notes")))
-      const notes = yield* Effect.forEach(rows, decodeNote)
-      const hidden = input.includeSuperseded === true ? new Set<string>() : yield* supersededIds(namespace)
-      return notes.filter((note) =>
-        statusMatches(input.status, note.status) &&
-        !hidden.has(note.id) &&
-        (input.tagGroup === undefined || Namespace.matches(input.tagGroup, note.tags)) &&
-        (input.tagGroups === undefined || input.tagGroups.every((group) => Namespace.matches(group, note.tags)))
-      )
-    })
+        const notes = yield* Effect.forEach(rows, decodeNote)
+        const hidden = input.includeSuperseded === true ? new Set<string>() : yield* supersededIds(namespace)
+        return notes.filter((note) =>
+          statusMatches(input.status, note.status) &&
+          !hidden.has(note.id) &&
+          (input.tagGroup === undefined || Namespace.matches(input.tagGroup, note.tags)) &&
+          (input.tagGroups === undefined || input.tagGroups.every((group) => Namespace.matches(group, note.tags)))
+        )
+      })
 
-  const putNote: Service["putNote"] = (input) =>
-    Effect.gen(function*() {
-      const namespace = yield* validateNamespace(input.namespace)
-      const tags = yield* validateTags(input.tags)
-      yield* validateNonEmpty(input.id, "note id")
-      const status = input.status ?? "accepted"
-      const tagsJson = yield* encodeJson(tags, "note tags")
-      const provenanceJson = yield* encodeJson(input.provenance, "note provenance")
-      const supersedes = Array.from(new Set(input.supersedes ?? []))
-      if (supersedes.includes(input.id)) {
-        return yield* Effect.fail(error("supersede_conflict", "a note cannot supersede itself"))
-      }
-      const now = yield* Clock.currentTimeMillis
-      const row = yield* database.write(
-        Effect.gen(function*() {
-          const inserted = yield* sql`INSERT INTO memory_notes (
+    const putNote: Service["putNote"] = (input) =>
+      Effect.gen(function*() {
+        const namespace = yield* validateNamespace(input.namespace)
+        const tags = yield* validateTags(input.tags)
+        yield* validateNonEmpty(input.id, "note id")
+        const status = input.status ?? "accepted"
+        const tagsJson = yield* encodeJson(tags, "note tags")
+        const provenanceJson = yield* encodeJson(input.provenance, "note provenance")
+        const supersedes = Array.from(new Set(input.supersedes ?? []))
+        if (supersedes.includes(input.id)) {
+          return yield* Effect.fail(error("supersede_conflict", "a note cannot supersede itself"))
+        }
+        const now = yield* Clock.currentTimeMillis
+        const row = yield* database.write(
+          Effect.gen(function*() {
+            const inserted = yield* sql`INSERT INTO memory_notes (
             namespace_kind, namespace_id, id, text, tags_json,
             provenance_json, status, created_at_ms
           ) VALUES (
             ${namespace.kind}, ${namespace.id}, ${input.id}, ${input.text}, ${tagsJson},
             ${provenanceJson}, ${status}, ${now}
           ) ON CONFLICT (id) DO NOTHING`.raw
-          if (changed(inserted) > 0) {
-            for (const targetId of supersedes) {
-              const target = yield* sql<{ readonly id: string }>`
-                SELECT id FROM memory_notes WHERE id = ${targetId} LIMIT 1
+            const created = changed(inserted) > 0
+            if (created) {
+              for (const targetId of supersedes) {
+                const target = yield* sql<{ readonly id: string }>`
+                SELECT id FROM memory_notes
+                WHERE id = ${targetId}
+                  AND namespace_kind = ${namespace.kind}
+                  AND namespace_id = ${namespace.id}
+                LIMIT 1
               `
-              if (target.length === 0) {
-                return yield* Effect.fail(
-                  error("supersede_conflict", `superseded note "${targetId}" does not exist`)
-                )
-              }
-              yield* sql`INSERT INTO memory_note_supersedes (superseder_id, target_id, created_at_ms)
+                if (target.length === 0) {
+                  return yield* Effect.fail(
+                    error("supersede_conflict", `superseded note "${targetId}" does not exist`)
+                  )
+                }
+                yield* sql`INSERT INTO memory_note_supersedes (superseder_id, target_id, created_at_ms)
                 VALUES (${input.id}, ${targetId}, ${now})
                 ON CONFLICT (superseder_id, target_id) DO NOTHING`
+              }
+              yield* Sql.replaceFtsRecord(database, namespace.kind, {
+                recordId: input.id,
+                recordKind: "note",
+                namespaceId: namespace.id,
+                key: input.id,
+                text: input.text
+              })
             }
-            yield* Sql.replaceFtsRecord(database, namespace.kind, {
-              recordId: input.id,
-              recordKind: "note",
-              namespaceId: namespace.id,
-              key: input.id,
-              text: input.text
-            })
-          }
-          const persisted = yield* sql<NoteRow>`SELECT
+            const persisted = yield* sql<NoteRow>`SELECT
             namespace_kind, namespace_id, id, text, tags_json,
             provenance_json, status, created_at_ms
             FROM memory_notes WHERE id = ${input.id} LIMIT 1`
-          if (persisted.length === 0) {
-            return yield* Effect.fail(error("store", "inserted note could not be read back"))
-          }
-          return persisted[0]!
-        })
-      ).pipe(Effect.mapError(storeError("could not insert memory note")))
-      const note = yield* decodeNote(row)
-      yield* project(note.namespace, "note", note.id, note.text, note.createdAtMs)
-      return note
-    })
+            if (persisted.length === 0) {
+              return yield* Effect.fail(error("store", "inserted note could not be read back"))
+            }
+            const existing = persisted[0]!
+            if (
+              !created &&
+              (existing.namespace_kind !== namespace.kind || existing.namespace_id !== namespace.id ||
+                existing.text !== input.text || existing.tags_json !== tagsJson ||
+                existing.provenance_json !== provenanceJson || existing.status !== status)
+            ) {
+              return yield* Effect.fail(
+                error("supersede_conflict", `note id "${input.id}" already exists with different creation data`)
+              )
+            }
+            return existing
+          })
+        ).pipe(Effect.mapError(storeError("could not insert memory note")))
+        const note = yield* decodeNote(row)
+        yield* project(note.namespace, "note", note.id, note.text, note.createdAtMs)
+        return note
+      })
 
-  const getNote: Service["getNote"] = (input) =>
-    Effect.gen(function*() {
-      yield* validateNonEmpty(input.id, "note id")
-      const rows = yield* sql<NoteRow>`SELECT
+    const getNote: Service["getNote"] = (input) =>
+      Effect.gen(function*() {
+        yield* validateNonEmpty(input.id, "note id")
+        const rows = yield* sql<NoteRow>`SELECT
         namespace_kind, namespace_id, id, text, tags_json,
         provenance_json, status, created_at_ms
         FROM memory_notes WHERE id = ${input.id} LIMIT 1`.pipe(
-        Effect.mapError(storeError("could not read memory note"))
-      )
-      return rows[0] === undefined ? undefined : yield* decodeNote(rows[0])
-    })
+          Effect.mapError(storeError("could not read memory note"))
+        )
+        return rows[0] === undefined ? undefined : yield* decodeNote(rows[0])
+      })
 
-  const setNoteStatus: Service["setNoteStatus"] = (input) =>
-    Effect.gen(function*() {
-      yield* validateNonEmpty(input.id, "note id")
-      const result = yield* database.write(
-        sql`UPDATE memory_notes SET status = ${input.status} WHERE id = ${input.id}`.raw
-      ).pipe(Effect.mapError(storeError("could not update memory note status")))
-      if (changed(result) === 0) {
-        return yield* Effect.fail(error("not_found", `memory note "${input.id}" was not found`))
-      }
-    })
+    const setNoteStatus: Service["setNoteStatus"] = (input) =>
+      Effect.gen(function*() {
+        yield* validateNonEmpty(input.id, "note id")
+        const result = yield* database.write(
+          sql`UPDATE memory_notes SET status = ${input.status} WHERE id = ${input.id}`.raw
+        ).pipe(Effect.mapError(storeError("could not update memory note status")))
+        if (changed(result) === 0) {
+          return yield* Effect.fail(error("not_found", `memory note "${input.id}" was not found`))
+        }
+      })
 
-  const supersede: Service["supersede"] = (input) =>
-    Effect.gen(function*() {
-      yield* validateNonEmpty(input.supersederId, "supersederId")
-      yield* validateNonEmpty(input.targetId, "targetId")
-      if (input.supersederId === input.targetId) {
-        return yield* Effect.fail(error("supersede_conflict", "a note cannot supersede itself"))
-      }
-      const now = yield* Clock.currentTimeMillis
-      yield* database.write(
-        Effect.gen(function*() {
-          const rows = yield* sql<{ readonly id: string }>`SELECT id FROM memory_notes
+    const supersede: Service["supersede"] = (input) =>
+      Effect.gen(function*() {
+        yield* validateNonEmpty(input.supersederId, "supersederId")
+        yield* validateNonEmpty(input.targetId, "targetId")
+        if (input.supersederId === input.targetId) {
+          return yield* Effect.fail(error("supersede_conflict", "a note cannot supersede itself"))
+        }
+        const now = yield* Clock.currentTimeMillis
+        yield* database.write(
+          Effect.gen(function*() {
+            const rows = yield* sql<{
+              readonly id: string
+              readonly namespace_kind: Namespace.Kind
+              readonly namespace_id: string
+            }>`SELECT id, namespace_kind, namespace_id FROM memory_notes
             WHERE id = ${input.supersederId} OR id = ${input.targetId}`
-          const found = new Set(rows.map((row) => row.id))
-          if (!found.has(input.supersederId) || !found.has(input.targetId)) {
-            return yield* Effect.fail(
-              error("supersede_conflict", "both superseder and target notes must exist")
-            )
-          }
-          yield* sql`INSERT INTO memory_note_supersedes (superseder_id, target_id, created_at_ms)
+            const found = new Set(rows.map((row) => row.id))
+            if (!found.has(input.supersederId) || !found.has(input.targetId)) {
+              return yield* Effect.fail(
+                error("supersede_conflict", "both superseder and target notes must exist")
+              )
+            }
+            const superseder = rows.find((row) => row.id === input.supersederId)!
+            const target = rows.find((row) => row.id === input.targetId)!
+            if (
+              superseder.namespace_kind !== target.namespace_kind ||
+              superseder.namespace_id !== target.namespace_id
+            ) {
+              return yield* Effect.fail(error("supersede_conflict", "superseder and target must share a namespace"))
+            }
+            yield* sql`INSERT INTO memory_note_supersedes (superseder_id, target_id, created_at_ms)
             VALUES (${input.supersederId}, ${input.targetId}, ${now})
             ON CONFLICT (superseder_id, target_id) DO NOTHING`
-        })
-      ).pipe(Effect.mapError(storeError("could not write memory supersession edge")))
-    })
-
-  const searchRows: Service["searchRows"] = (input) =>
-    Effect.gen(function*() {
-      const { bank, namespace } = yield* resolveNamespace(input.namespace)
-      const [facts, notes] = yield* Effect.all([
-        listFacts({ namespace }),
-        readNotes(input)
-      ])
-      const factRows = facts.map((fact): SearchRow => ({
-        id: fact.key,
-        kind: "fact",
-        bank,
-        namespace: fact.namespace,
-        key: fact.key,
-        text: searchableText(fact.value),
-        tags: retainedTags(fact.value),
-        updatedAtMs: fact.updatedAtMs
-      }))
-      const noteRows = notes.map((note): SearchRow => ({
-        id: note.id,
-        kind: "note",
-        bank,
-        namespace: note.namespace,
-        key: note.id,
-        text: note.text,
-        tags: note.tags,
-        updatedAtMs: note.createdAtMs,
-        status: note.status
-      }))
-      const rows = [...factRows, ...noteRows]
-        .filter((row) =>
-          (input.tagGroup === undefined || Namespace.matches(input.tagGroup, row.tags)) &&
-          (input.tagGroups === undefined || input.tagGroups.every((group) => Namespace.matches(group, row.tags)))
-        )
-        .sort((left, right) => right.updatedAtMs - left.updatedAtMs || left.key.localeCompare(right.key))
-      if (input.limit === undefined) {
-        return rows
-      }
-      if (!Number.isSafeInteger(input.limit) || input.limit < 0) {
-        return yield* Effect.fail(error("store", "searchRows limit must be a non-negative safe integer"))
-      }
-      return rows.slice(0, input.limit)
-    })
-
-  const enableFts: Service["enableFts"] = (kind) =>
-    Effect.gen(function*() {
-      const decodedKind = yield* Schema.decodeUnknownEffect(Namespace.Kind)(kind).pipe(
-        Effect.mapError((cause) => error("invalid_namespace", "FTS namespace kind is invalid", cause))
-      )
-      const now = yield* Clock.currentTimeMillis
-      yield* database.write(Sql.enableFts(database, decodedKind, now)).pipe(
-        Effect.mapError(storeError(`could not enable FTS for "${decodedKind}"`))
-      )
-    })
-
-  const searchFts: Service["searchFts"] = (input) =>
-    Effect.gen(function*() {
-      const { namespace } = yield* resolveNamespace(input.namespace)
-      const enabled = yield* Sql.isFtsEnabled(database, namespace.kind).pipe(
-        Effect.mapError(storeError("could not inspect FTS enablement"))
-      )
-      if (!enabled) {
-        return yield* Effect.fail(
-          error(
-            "fts_not_enabled",
-            `FTS is not enabled for namespace kind "${namespace.kind}"; call enableFts first`
-          )
-        )
-      }
-      const query = literalFtsQuery(input.query)
-      if (query.length === 0) {
-        return []
-      }
-      const limit = input.limit ?? 20
-      if (!Number.isSafeInteger(limit) || limit < 0) {
-        return yield* Effect.fail(error("store", "searchFts limit must be a non-negative safe integer"))
-      }
-      if (limit === 0) {
-        return []
-      }
-      const matches = yield* Sql.searchFts(database, namespace.kind, namespace.id, query, limit).pipe(
-        Effect.mapError(storeError("memory FTS query failed"))
-      )
-      const rows = yield* searchRows({
-        namespace,
-        ...(input.tagGroup === undefined ? {} : { tagGroup: input.tagGroup }),
-        ...(input.tagGroups === undefined ? {} : { tagGroups: input.tagGroups }),
-        ...(input.status === undefined ? {} : { status: input.status }),
-        ...(input.includeSuperseded === undefined ? {} : { includeSuperseded: input.includeSuperseded })
+          })
+        ).pipe(Effect.mapError(storeError("could not write memory supersession edge")))
       })
-      const byId = new Map(rows.map((row) => [`${row.kind}\0${row.id}`, row]))
-      const ordered: Array<FtsRow> = []
-      for (const match of matches) {
-        const row = byId.get(`${match.record_kind}\0${match.record_id}`)
-        if (row !== undefined) {
-          const rank = Number(match.rank)
-          ordered.push({ ...row, rank, score: -rank })
-        }
-        if (ordered.length === limit) {
-          break
-        }
-      }
-      return ordered
-    })
 
-  const deleteExpiredFacts: Service["deleteExpiredFacts"] = Clock.currentTimeMillis.pipe(
-    Effect.flatMap((now) =>
-      database.write(
-        sql`DELETE FROM memory_facts
+    const searchRows: Service["searchRows"] = (input) =>
+      Effect.gen(function*() {
+        const { bank, namespace } = yield* resolveNamespace(input.namespace)
+        const [facts, notes] = yield* Effect.all([
+          listFacts({ namespace }),
+          readNotes(input)
+        ])
+        const factRows = facts.map((fact): SearchRow => ({
+          id: fact.key,
+          kind: "fact",
+          bank,
+          namespace: fact.namespace,
+          key: fact.key,
+          text: searchableText(fact.value),
+          tags: retainedTags(fact.value),
+          updatedAtMs: fact.updatedAtMs
+        }))
+        const noteRows = notes.map((note): SearchRow => ({
+          id: note.id,
+          kind: "note",
+          bank,
+          namespace: note.namespace,
+          key: note.id,
+          text: note.text,
+          tags: note.tags,
+          updatedAtMs: note.createdAtMs,
+          status: note.status
+        }))
+        const rows = [...factRows, ...noteRows]
+          .filter((row) =>
+            (input.tagGroup === undefined || Namespace.matches(input.tagGroup, row.tags)) &&
+            (input.tagGroups === undefined || input.tagGroups.every((group) => Namespace.matches(group, row.tags)))
+          )
+          .sort((left, right) => right.updatedAtMs - left.updatedAtMs || compareText(left.key, right.key))
+        if (input.limit === undefined) {
+          return rows
+        }
+        if (!Number.isSafeInteger(input.limit) || input.limit < 0) {
+          return yield* Effect.fail(error("store", "searchRows limit must be a non-negative safe integer"))
+        }
+        return rows.slice(0, input.limit)
+      })
+
+    const enableFts: Service["enableFts"] = (kind) =>
+      Effect.gen(function*() {
+        const decodedKind = yield* Schema.decodeUnknownEffect(Namespace.Kind)(kind).pipe(
+          Effect.mapError((cause) => error("invalid_namespace", "FTS namespace kind is invalid", cause))
+        )
+        const now = yield* Clock.currentTimeMillis
+        yield* database.write(Sql.enableFts(database, decodedKind, now)).pipe(
+          Effect.mapError(storeError(`could not enable FTS for "${decodedKind}"`))
+        )
+      })
+
+    const searchFts: Service["searchFts"] = (input) =>
+      Effect.gen(function*() {
+        const { namespace } = yield* resolveNamespace(input.namespace)
+        const enabled = yield* Sql.isFtsEnabled(database, namespace.kind).pipe(
+          Effect.mapError(storeError("could not inspect FTS enablement"))
+        )
+        if (!enabled) {
+          return yield* Effect.fail(
+            error(
+              "fts_not_enabled",
+              `FTS is not enabled for namespace kind "${namespace.kind}"; call enableFts first`
+            )
+          )
+        }
+        const query = literalFtsQuery(input.query)
+        if (query.length === 0) {
+          return []
+        }
+        const limit = input.limit ?? 20
+        if (!Number.isSafeInteger(limit) || limit < 0) {
+          return yield* Effect.fail(error("store", "searchFts limit must be a non-negative safe integer"))
+        }
+        if (limit === 0) {
+          return []
+        }
+        const matches = yield* Sql.searchFts(database, namespace.kind, namespace.id, query, limit).pipe(
+          Effect.mapError(storeError("memory FTS query failed"))
+        )
+        const rows = yield* searchRows({
+          namespace,
+          ...(input.tagGroup === undefined ? {} : { tagGroup: input.tagGroup }),
+          ...(input.tagGroups === undefined ? {} : { tagGroups: input.tagGroups }),
+          ...(input.status === undefined ? {} : { status: input.status }),
+          ...(input.includeSuperseded === undefined ? {} : { includeSuperseded: input.includeSuperseded })
+        })
+        const byId = new Map(rows.map((row) => [`${row.kind}\0${row.id}`, row]))
+        const ordered: Array<FtsRow> = []
+        for (const match of matches) {
+          const row = byId.get(`${match.record_kind}\0${match.record_id}`)
+          if (row !== undefined) {
+            const rank = Number(match.rank)
+            ordered.push({ ...row, rank, score: -rank })
+          }
+          if (ordered.length === limit) {
+            break
+          }
+        }
+        return ordered
+      })
+
+    const deleteExpiredFacts: Service["deleteExpiredFacts"] = Clock.currentTimeMillis.pipe(
+      Effect.flatMap((now) =>
+        database.write(
+          sql`DELETE FROM memory_facts
           WHERE ttl_ms IS NOT NULL AND updated_at_ms + ttl_ms <= ${now}`.raw
-      )
-    ),
-    Effect.map(changed),
-    Effect.mapError(storeError("could not delete expired memory facts"))
-  )
+        )
+      ),
+      Effect.map(changed),
+      Effect.mapError(storeError("could not delete expired memory facts"))
+    )
 
-  const listThreadIds: Service["listThreadIds"] = sql<{ readonly thread_id: string }>`
+    const listThreadIds: Service["listThreadIds"] = sql<{ readonly thread_id: string }>`
     SELECT thread_id FROM memory_threads ORDER BY created_at_ms, thread_id
   `.pipe(
-    Effect.map((rows) => rows.map((row) => row.thread_id)),
-    Effect.mapError(storeError("could not list memory threads"))
-  )
+      Effect.map((rows) => rows.map((row) => row.thread_id)),
+      Effect.mapError(storeError("could not list memory threads"))
+    )
 
-  const deleteMessages: Service["deleteMessages"] = (input) =>
-    Effect.gen(function*() {
-      yield* validateNonEmpty(input.threadId, "threadId")
-      const ids = Array.from(new Set(input.ids))
-      if (ids.length === 0) {
-        return 0
-      }
-      return yield* database.write(deleteMessageRows(input.threadId, ids)).pipe(
-        Effect.mapError(storeError("could not delete memory messages"))
-      )
-    })
+    const deleteMessages: Service["deleteMessages"] = (input) =>
+      Effect.gen(function*() {
+        yield* validateNonEmpty(input.threadId, "threadId")
+        const ids = Array.from(new Set(input.ids))
+        if (ids.length === 0) {
+          return 0
+        }
+        return yield* database.write(deleteMessageRows(input.threadId, ids)).pipe(
+          Effect.mapError(storeError("could not delete memory messages"))
+        )
+      })
 
-  const compactMessages: Service["compactMessages"] = (input) =>
-    Effect.gen(function*() {
-      if (input.summary.threadId !== input.threadId) {
-        return yield* Effect.fail(error("store", "summary threadId must match the compacted thread"))
-      }
-      const ids = Array.from(new Set(input.deleteIds)).filter((id) => id !== input.summary.id)
-      if (ids.length === 0) {
-        return 0
-      }
-      const result = yield* database.write(
-        Effect.gen(function*() {
-          const inserted = yield* sql`INSERT INTO memory_messages (id, thread_id, role, text, at_ms)
+    const compactMessages: Service["compactMessages"] = (input) =>
+      Effect.gen(function*() {
+        if (input.summary.threadId !== input.threadId) {
+          return yield* Effect.fail(error("store", "summary threadId must match the compacted thread"))
+        }
+        const ids = Array.from(new Set(input.deleteIds)).filter((id) => id !== input.summary.id)
+        if (ids.length === 0) {
+          return 0
+        }
+        const result = yield* database.write(
+          Effect.gen(function*() {
+            const inserted = yield* sql`INSERT INTO memory_messages (id, thread_id, role, text, at_ms)
             VALUES (
               ${input.summary.id}, ${input.summary.threadId}, ${input.summary.role},
               ${input.summary.text}, ${input.summary.at}
             ) ON CONFLICT (id) DO NOTHING`.raw
-          if (changed(inserted) === 0) {
-            return yield* Effect.fail(error("store", `summary id "${input.summary.id}" already exists`))
-          }
-          return yield* deleteMessageRows(input.threadId, ids)
-        })
-      ).pipe(Effect.mapError(storeError("could not compact memory history")))
-      return result
-    })
+            if (changed(inserted) === 0) {
+              return yield* Effect.fail(error("store", `summary id "${input.summary.id}" already exists`))
+            }
+            return yield* deleteMessageRows(input.threadId, ids)
+          })
+        ).pipe(Effect.mapError(storeError("could not compact memory history")))
+        return result
+      })
 
-  return MemoryStore.of({
-    putFact,
-    getFact,
-    deleteFact,
-    listFacts,
-    listAllFacts,
-    createThread,
-    getThread,
-    listThreads,
-    deleteThread,
-    appendMessage,
-    listMessages,
-    countMessages,
-    putNote,
-    getNote,
-    setNoteStatus,
-    supersede,
-    listNotes: readNotes,
-    enableFts,
-    searchFts,
-    searchRows,
-    deleteExpiredFacts,
-    listThreadIds,
-    deleteMessages,
-    compactMessages
+    return MemoryStore.of({
+      putFact,
+      getFact,
+      deleteFact,
+      listFacts,
+      listAllFacts,
+      createThread,
+      getThread,
+      listThreads,
+      deleteThread,
+      appendMessage,
+      listMessages,
+      countMessages,
+      putNote,
+      getNote,
+      setNoteStatus,
+      supersede,
+      listNotes: readNotes,
+      enableFts,
+      searchFts,
+      searchRows,
+      deleteExpiredFacts,
+      listThreadIds,
+      deleteMessages,
+      compactMessages
+    })
   })
-})
 
 /**
  * Constructs an unavailable store stub, optionally overriding operations.
@@ -1327,6 +1372,7 @@ export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<MemoryS
  * @since 0.1.0
  * @slop
  */
-export const layer: Layer.Layer<MemoryStore, MemoryError, DurableWriter | SqlClient.SqlClient> = Layer.effect(
-  MemoryStore
-)(make)
+export const layer: Layer.Layer<MemoryStore, MemoryError, Crypto.Crypto | DurableWriter | SqlClient.SqlClient> = Layer
+  .effect(
+    MemoryStore
+  )(make)

@@ -66,7 +66,11 @@ const suffixAfter = (
       }).pipe(Effect.mapError((cause) => error("unknown", `could not read fork suffix for ${runId}`, cause)))
       entries.push(...page.entries)
       if (!page.hasMore || page.entries.length === 0) return entries
-      after = page.entries.at(-1)!.seq
+      const next = page.entries.reduce((tail, entry) => entry.seq > tail ? entry.seq : tail, after)
+      if (next <= after) {
+        return yield* Effect.fail(error("invalid", "journal fork pagination did not advance"))
+      }
+      after = next
     }
   })
 
@@ -137,7 +141,8 @@ export const fork = (
       // simply refuses to act on the verdict beyond disclosing it.
       const snapshot = yield* store.snapshotAt(options.parentRunId, options.frame)
       const suffix = yield* suffixAfter(journal, options.parentRunId, options.frame, options.pageSize ?? 100)
-      const plan = yield* Compensation.assess(EffectBoundary.fromEntries(suffix), snapshot?.changeId)
+      const effects = yield* EffectBoundary.fromEntries(suffix)
+      const plan = yield* Compensation.assess(effects, snapshot?.changeId)
       const warnings = normalize(plan.assessments)
 
       const jj = yield* Jj

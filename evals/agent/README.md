@@ -117,17 +117,10 @@ a behaviour change stops being visible.
 Three mechanical facts about the baseline are worth knowing before you read a
 red run:
 
-- **The baseline is recorded under bun, and only bun reproduces it.** A scorer's
-  key digests its `score` function's source text, and that text is whatever the
-  runtime's TypeScript transpile produced — node's type stripping and bun's
-  transpile do not agree. Run it under node and every committed record reads as
-  a missing observation. `run.ts` guards this: no `Bun` global means one line on
-  stderr and exit `5`, never a red result.
-- A scorer's identity is `Scorer.scorerKey`, a digest over its declaration
-  **and its `score` function's source text**. Editing a scorer body — including
-  reformatting it — changes that key, and every record under the old key then
-  reads as a missing observation on both sides. Re-record the baseline in the
-  same commit that edits a scorer.
+- A scorer's identity is `Scorer.scorerKey`, a SHA-256 digest over its explicit
+  stable id, version, and canonical configuration. Function source and runtime
+  transpilation are deliberately absent, so Node and Bun reproduce the same
+  baseline keys. Bump the scorer version when its scoring contract changes.
 - A case's step key is fixed as `evals/agent:<case>`. The regression comparison
   reads a changed key as a new step and a changed score under an unchanged key as
   nondeterminism, so the key is stated rather than derived from a run.
