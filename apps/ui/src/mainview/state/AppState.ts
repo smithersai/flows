@@ -272,6 +272,29 @@ export const WatchedReposSchema = z.object({
 export type WatchedRepos = z.infer<typeof WatchedReposSchema>;
 
 /*
+ * Import readiness, per repository — the background half of will's directive 5
+ * (2026-08-19): "importing to smithers cloud just happens in background — it's
+ * an implementation detail. the user feels like they are on github".
+ *
+ * Opening a repository starts its mirror import. That job has real state (it is
+ * running, it finished, it failed) and the reads degrade honestly against it,
+ * so the state is kept — but in THIS collection, which nothing renders, rather
+ * than on a transcript card announcing "Import · owner/repo" to a user who
+ * never asked for one. The explicit capability still writes its card; only the
+ * automatic import is silent.
+ */
+export const RepoImportStateSchema = z.object({
+	/** The repository full name, `owner/repo`, which is also the row key. */
+	id: z.string(),
+	jobId: z.string().nullable(),
+	phase: z.enum(["starting", "running", "done", "failed"]),
+	/** The upstream's own words when it failed, for the report — never rendered. */
+	detail: z.string().nullable(),
+	updatedAt: z.number(),
+});
+export type RepoImportState = z.infer<typeof RepoImportStateSchema>;
+
+/*
  * The tool-call stream the admin dev-tools panel reads (Wave 10, §2b): the
  * full arguments AND result of every agent tool act. Persisted like
  * everything else, recorded with actor smithers, and rendered ONLY in the
@@ -633,6 +656,8 @@ export type AppTransition =
 			id: string;
 	  }
 	| { type: "card.upsert"; actor: Actor; card: Card }
+	/* Directive 5: the background import's progress, in a collection nothing renders. */
+	| { type: "repo.import.progress"; actor: Actor; state: RepoImportState }
 	| { type: "card.updated"; actor: Actor; id: string; patch: CardPatch }
 	| {
 			type: "card.approval.decision.pending";

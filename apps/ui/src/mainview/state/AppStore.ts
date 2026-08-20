@@ -30,6 +30,7 @@ import {
 	initialWorldDocuments,
 	LocalRepositoryConnectorSchema,
 	MessageSchema,
+	RepoImportStateSchema,
 	SessionSchema,
 	ToastSchema,
 	ToolCallRecordSchema,
@@ -48,6 +49,7 @@ import type {
 	LocalRepositoryConnector,
 	Message,
 	Palette,
+	RepoImportState,
 	RepositoryCapabilityPattern,
 	Session,
 	Toast,
@@ -362,6 +364,7 @@ export interface AppCollections {
 	readonly billingAccounts: ReturnType<typeof createBillingAccountCollection>;
 	readonly toasts: ReturnType<typeof createToastCollection>;
 	readonly watchedRepos: ReturnType<typeof createWatchedReposCollection>;
+	readonly repoImports: ReturnType<typeof createRepoImportCollection>;
 	readonly toolCalls: ReturnType<typeof createToolCallCollection>;
 	readonly chainEvents: ReturnType<typeof createChainEventCollection>;
 }
@@ -473,6 +476,19 @@ const createWatchedReposCollection = (backend: PersistenceBackend) =>
 		schema: WatchedReposSchema,
 	});
 
+/*
+ * Directive 5's background import readiness. It is a collection and not a card
+ * on purpose: the state is real and belongs in the store, but NOTHING projects
+ * it, because the user is meant to feel they are on GitHub rather than watching
+ * a mirror job they never asked for.
+ */
+const createRepoImportCollection = (backend: PersistenceBackend) =>
+	createPersistedCollection(backend, {
+		id: "app-repo-imports",
+		getKey: (state: RepoImportState) => state.id,
+		schema: RepoImportStateSchema,
+	});
+
 const createToolCallCollection = (backend: PersistenceBackend) =>
 	createPersistedCollection(backend, {
 		id: "app-tool-calls",
@@ -500,6 +516,7 @@ const seed = async (collections: AppCollections): Promise<void> => {
 		collections.billingAccounts.preload(),
 		collections.toasts.preload(),
 		collections.watchedRepos.preload(),
+		collections.repoImports.preload(),
 		collections.toolCalls.preload(),
 		collections.chainEvents.preload(),
 	]);
@@ -580,6 +597,7 @@ const forgetAccountState = (collections: AppCollections): void => {
 		collections.cards,
 		collections.toasts,
 		collections.watchedRepos,
+		collections.repoImports,
 		collections.toolCalls,
 		// The chain journal and the transition journal quote the account's
 		// turns verbatim (§2.4): a tool result or a submitted message naming a
@@ -635,6 +653,7 @@ export const createAppStore = async (
 		billingAccounts: createBillingAccountCollection(resolvedBackend),
 		toasts: createToastCollection(resolvedBackend),
 		watchedRepos: createWatchedReposCollection(resolvedBackend),
+		repoImports: createRepoImportCollection(resolvedBackend),
 		toolCalls: createToolCallCollection(resolvedBackend),
 		chainEvents: createChainEventCollection(resolvedBackend),
 	};
@@ -692,6 +711,7 @@ export const createAppStore = async (
 			collections.billingAccounts.utils.acceptMutations(transaction),
 			collections.toasts.utils.acceptMutations(transaction),
 			collections.watchedRepos.utils.acceptMutations(transaction),
+			collections.repoImports.utils.acceptMutations(transaction),
 			collections.toolCalls.utils.acceptMutations(transaction),
 			collections.chainEvents.utils.acceptMutations(transaction),
 		]);
@@ -1340,6 +1360,22 @@ export const createAppStore = async (
 				case "connector.removed":
 					if (collections.connectors.get(transition.id) === undefined) return;
 					collections.connectors.delete(transition.id);
+					collections.sessions.update(SESSION_ID, (draft) => {
+						draft.revision = revision;
+					});
+					break;
+
+				case "repo.import.progress":
+					// Readiness, not a card: directive 5 makes the import an
+					// implementation detail, so this row exists to be READ (by the
+					// seams' honest degradation) and never to be rendered.
+					if (collections.repoImports.get(transition.state.id) === undefined) {
+						collections.repoImports.insert(transition.state);
+					} else {
+						collections.repoImports.update(transition.state.id, (draft) => {
+							Object.assign(draft, transition.state);
+						});
+					}
 					collections.sessions.update(SESSION_ID, (draft) => {
 						draft.revision = revision;
 					});

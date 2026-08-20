@@ -5,13 +5,30 @@
  * multi src/smithersCloud/githubImport.ts (startImport/pollImport) against
  * plue internal/routes/github_import.go.
  */
-import type { Card } from "../AppState";
+import type { Card, RepoImportState } from "../AppState";
 import { resolveTargetRepo } from "../RepoContext";
 import type { SeamContext } from "./SeamContext";
 import { readErrorMessage } from "./SeamContext";
 
 export interface RepoImportSeam {
-	readonly importRepository: (repo?: string) => Promise<string | void>;
+	readonly importRepository: (repo?: string, options?: RepoImportOptions) => Promise<string | void>;
+}
+
+/**
+ * How an import presents itself.
+ *
+ * will, 2026-08-19 (directive 5): "importing to smithers cloud just happens in
+ * background — it's an implementation detail. the user feels like they are on
+ * github". Opening a repository imports it SILENTLY: the same requests, the
+ * same job tracking, the same honest degradation in the reads that depend on
+ * it — but the progress lands in the `repoImports` collection, which nothing
+ * renders, instead of on a transcript card the user never asked for.
+ *
+ * The explicit capability (the hidden `repos.import` flow) still gets its card:
+ * someone who ASKS for an import is owed the answer.
+ */
+export interface RepoImportOptions {
+	readonly silent?: boolean;
 }
 
 /**
@@ -82,6 +99,11 @@ export const createRepoImportSeam = (ctx: SeamContext): RepoImportSeam => {
 	 */
 	const epochs = new Map<string, number>();
 
+	/*
+	 * One progress writer, two destinations. A silent import writes readiness to
+	 * the `repoImports` collection — real state, in the store, rendered by
+	 * nothing. An explicit import writes the card it always wrote.
+	 */
 	const upsert = (
 		repo: string,
 		ordinal: number,
@@ -89,7 +111,13 @@ export const createRepoImportSeam = (ctx: SeamContext): RepoImportSeam => {
 		jobId: string | null,
 		phase: ImportPhase,
 		detail: string | null,
+		silent: boolean,
 	): void => {
+		if (silent) {
+			const state: RepoImportState = { id: repo, jobId, phase, detail, updatedAt: Date.now() };
+			ctx.dispatch({ type: "repo.import.progress", actor: ctx.actor(), state });
+			return;
+		}
 		const card: Card = {
 			id: `repo-import-${repo}`,
 			kind: "repo-import",
@@ -110,6 +138,7 @@ export const createRepoImportSeam = (ctx: SeamContext): RepoImportSeam => {
 		ordinal: number,
 		createdAt: number,
 		epoch: number,
+		silent: boolean,
 	): Promise<void> => {
 		let failures = 0;
 		for (let attempt = 0; attempt < repoImportPolling.maxAttempts; attempt += 1) {
@@ -128,40 +157,52 @@ export const createRepoImportSeam = (ctx: SeamContext): RepoImportSeam => {
 			if (job === null) {
 				failures += 1;
 				if (failures <= repoImportPolling.networkRetries) continue;
-				upsert(repo, ordinal, createdAt, jobId, "running", REPO_IMPORT_LOST_STREAM_DETAIL);
+				upsert(repo, ordinal, createdAt, jobId, "running", REPO_IMPORT_LOST_STREAM_DETAIL, silent);
 				return;
 			}
 			failures = 0;
 			if (job.status === "ready") {
-				upsert(repo, ordinal, createdAt, jobId, "done", null);
+				upsert(repo, ordinal, createdAt, jobId, "done", null, silent);
 				return;
 			}
 			if (job.status === "failed") {
-				upsert(repo, ordinal, createdAt, jobId, "failed", job.error ?? "The import failed upstream.");
+				upsert(repo, ordinal, createdAt, jobId, "failed", job.error ?? "The import failed upstream.", silent);
 				return;
 			}
-			upsert(repo, ordinal, createdAt, jobId, "running", stageDetail(job) ?? job.error);
+			upsert(repo, ordinal, createdAt, jobId, "running", stageDetail(job) ?? job.error, silent);
 		}
 		// Attempts exhausted without a terminal status: same honest hand-off as a
 		// lost stream — the command re-checks the job when run again.
-		upsert(repo, ordinal, createdAt, jobId, "running", REPO_IMPORT_LOST_STREAM_DETAIL);
+		upsert(repo, ordinal, createdAt, jobId, "running", REPO_IMPORT_LOST_STREAM_DETAIL, silent);
 	};
 
-	const importRepository = async (explicit?: string): Promise<string | void> => {
+	const importRepository = async (
+		explicit?: string,
+		options?: RepoImportOptions,
+	): Promise<string | void> => {
+		const silent = options?.silent === true;
 		const resolved = resolveTargetRepo(ctx.store, explicit);
 		if ("error" in resolved) return resolved.error;
 		const repo = resolved.repo;
-		const existing = ctx.store.collections.cards.get(`repo-import-${repo}`);
-		if (existing?.kind === "repo-import" && (existing.payload.phase === "starting" || existing.payload.phase === "running" || existing.payload.phase === "done")) {
-			return undefined;
-		}
+		/*
+		 * An import already under way (or already finished) is not started
+		 * again, whichever half recorded it — so opening a repository twice
+		 * makes one request, and asking for an explicit import after a silent
+		 * one does not re-clone what is already there.
+		 */
+		const card = ctx.store.collections.cards.get(`repo-import-${repo}`);
+		const background = ctx.store.collections.repoImports.get(repo);
+		const settled = (phase: ImportPhase | undefined): boolean =>
+			phase === "starting" || phase === "running" || phase === "done";
+		if (card?.kind === "repo-import" && settled(card.payload.phase)) return undefined;
+		if (settled(background?.phase)) return undefined;
 		const [owner, name] = repo.split("/") as [string, string];
 
 		const ordinal = ctx.nextOrdinal();
 		const createdAt = Date.now();
 		const epoch = (epochs.get(repo) ?? 0) + 1;
 		epochs.set(repo, epoch);
-		upsert(repo, ordinal, createdAt, null, "starting", null);
+		upsert(repo, ordinal, createdAt, null, "starting", null, silent);
 
 		let response: Response;
 		try {
@@ -173,14 +214,14 @@ export const createRepoImportSeam = (ctx: SeamContext): RepoImportSeam => {
 		} catch (error) {
 			const reason = error instanceof Error ? error.message : String(error);
 			const message = `The import couldn't start — ${reason}`;
-			upsert(repo, ordinal, createdAt, null, "failed", message);
+			upsert(repo, ordinal, createdAt, null, "failed", message, silent);
 			return message;
 		}
 		if (response.status === 409) {
 			// Plue's conflict verdicts ("repository already exists",
 			// "github_import_already_active") both mean the mirror is already
 			// there or already on its way — stated honestly, not failed.
-			upsert(repo, ordinal, createdAt, null, "done", "already imported");
+			upsert(repo, ordinal, createdAt, null, "done", "already imported", silent);
 			return undefined;
 		}
 		if (!response.ok) {
@@ -188,27 +229,27 @@ export const createRepoImportSeam = (ctx: SeamContext): RepoImportSeam => {
 				response,
 				`The import couldn't start (HTTP ${response.status})`,
 			);
-			upsert(repo, ordinal, createdAt, null, "failed", message);
+			upsert(repo, ordinal, createdAt, null, "failed", message, silent);
 			return message;
 		}
 		const job = parseImportJob(await response.json().catch(() => undefined));
 		if (job === null) {
 			const message = "The import answer was malformed — the job id never arrived.";
-			upsert(repo, ordinal, createdAt, null, "failed", message);
+			upsert(repo, ordinal, createdAt, null, "failed", message, silent);
 			return message;
 		}
 		if (job.status === "ready") {
-			upsert(repo, ordinal, createdAt, job.jobId, "done", "already imported");
+			upsert(repo, ordinal, createdAt, job.jobId, "done", "already imported", silent);
 			return undefined;
 		}
 		if (job.status === "failed") {
 			const message = job.error ?? "The import failed upstream.";
-			upsert(repo, ordinal, createdAt, job.jobId, "failed", message);
+			upsert(repo, ordinal, createdAt, job.jobId, "failed", message, silent);
 			return message;
 		}
-		upsert(repo, ordinal, createdAt, job.jobId, "running", stageDetail(job));
+		upsert(repo, ordinal, createdAt, job.jobId, "running", stageDetail(job), silent);
 		// Fire-and-forget: the job started and the card tracks it — success now.
-		void track(repo, job.jobId, ordinal, createdAt, epoch);
+		void track(repo, job.jobId, ordinal, createdAt, epoch, silent);
 		return undefined;
 	};
 
