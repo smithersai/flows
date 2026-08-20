@@ -1,0 +1,103 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "38eb01958932b71ab3094294ea56c82bac082370",
+ "tree": "422c16aa9edfec2907a6de8d2d0ab63d445ecdc9",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 58,
+  "sectionCount": 83
+ },
+ "source": {
+  "commit": "250831528e0477ecd4b6ecea3cbfabbc75faf5f0",
+  "subject": "📝 docs(queue): 0009-run-store-journal-fold → landed",
+  "priorCanonicalCommit": "5c181dbb13d6c9323efaf32112c0dcfbecbf4c74",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 46,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true,
+  "rebuild": {
+   "reason": "rebuilt onto the 13-commit split of canonical commit 2632c05da63099666add6437c743f4c5b3922f59",
+   "priorCanonicalCommit": "5c181dbb13d6c9323efaf32112c0dcfbecbf4c74",
+   "treePreserved": true,
+   "tree": "422c16aa9edfec2907a6de8d2d0ab63d445ecdc9"
+  }
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "factory",
+  "epicsTouched": [
+   {
+    "id": "factory",
+    "files": 1
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 896,
+  "globalCount": 921,
+  "purpose": "📝 docs(queue): 0009-run-store-journal-fold → landed",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "67bc7bf66a404e0541a5e2b83eb8fff0a0fe6b94"
+  ],
+  "parent": "67bc7bf66a404e0541a5e2b83eb8fff0a0fe6b94",
+  "sourceImports": [],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "67bc7bf66a404e0541a5e2b83eb8fff0a0fe6b94",
+  "next": "42a2d6238b172069102b74ce82856773c9909407",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "6fe6857b28247375ab46b0d79cba15e74754ebd6"
+ },
+ "size": {
+  "files": 1,
+  "added": 79,
+  "deleted": 31
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "250831528e0477ecd4b6ecea3cbfabbc75faf5f0"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "factory/queue/0009-run-store-journal-fold.md",
+   "mode": "100644",
+   "blob": "0a8ee1caa7baa637fdbbf98388e6324863c9ff0a",
+   "previousBlob": "b863a979966409627dce2ab72527951157491d59",
+   "added": 79,
+   "deleted": 31,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 141,
+     "oldLines": 31,
+     "newStart": 141,
+     "newLines": 79
+    }
+   ],
+   "role": "docs",
+   "introducedByEpic": {
+    "index": 17,
+    "id": "factory",
+    "name": "Repository software factory"
+   }
+  }
+ ]
+}
