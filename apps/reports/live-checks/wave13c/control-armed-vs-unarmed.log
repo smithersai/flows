@@ -1,0 +1,12 @@
+
+Running 2 tests using 1 worker
+
+[1/2] e2e/launch-checklist/zz-hold-control.spec.ts:25:5 › [control] ARMED › ARMED: twelve turns, count the stream drops
+e2e/launch-checklist/zz-hold-control.spec.ts:25:5 › [control] ARMED › ARMED: twelve turns, count the stream drops
+ARMED DROPS: 0/12
+
+[2/2] e2e/launch-checklist/zz-hold-control.spec.ts:25:5 › [control] UNARMED › UNARMED: twelve turns, count the stream drops
+e2e/launch-checklist/zz-hold-control.spec.ts:25:5 › [control] UNARMED › UNARMED: twelve turns, count the stream drops
+UNARMED DROPS: 0/12
+
+  2 passed (51.4s)

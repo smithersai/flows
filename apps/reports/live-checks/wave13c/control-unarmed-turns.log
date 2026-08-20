@@ -1,0 +1,32 @@
+
+Running 1 test using 1 worker
+
+[1/1] e2e/launch-checklist/zz-hold-control.spec.ts:15:3 › [control] unarmed turns › twelve unarmed asks — count the stream drops
+e2e/launch-checklist/zz-hold-control.spec.ts:15:3 › [control] unarmed turns › twelve unarmed asks — count the stream drops
+unarmed turn 0: ok
+
+unarmed turn 1: ok
+
+unarmed turn 2: ok
+
+unarmed turn 3: ok
+
+unarmed turn 4: ok
+
+unarmed turn 5: ok
+
+unarmed turn 6: ok
+
+unarmed turn 7: ok
+
+unarmed turn 8: ok
+
+unarmed turn 9: ok
+
+unarmed turn 10: ok
+
+unarmed turn 11: ok
+
+UNARMED DROPS: 0/12
+
+  1 passed (24.4s)
