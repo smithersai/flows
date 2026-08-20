@@ -99,13 +99,13 @@ describe("the connect surface's roving arrows skip non-interactive status rows",
 		flushSync(() => {
 			list?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
 		});
-		expect(document.activeElement).toBe(importButton);
+		expect(document.activeElement).toBe(importButton ?? null);
 
 		// The ring wraps over the buttons only; the badge never takes focus.
 		flushSync(() => {
 			list?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
 		});
-		expect(document.activeElement).toBe(importButton);
-		expect(document.activeElement).not.toBe(badge);
+		expect(document.activeElement).toBe(importButton ?? null);
+		expect(document.activeElement).not.toBe(badge ?? null);
 	});
 });
