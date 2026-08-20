@@ -114,8 +114,13 @@ export function ConnectorsSurface() {
 
 	const onRowsKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
 		if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+		/*
+		 * Buttons only: a status Badge also carries data-row-action (it is the
+		 * row's action slot) but is deliberately not a control — roving onto it
+		 * would call focus() on a non-focusable element and strand the ring.
+		 */
 		const items = Array.from(
-			event.currentTarget.querySelectorAll<HTMLElement>(".connect-store-row [data-row-action]"),
+			event.currentTarget.querySelectorAll<HTMLElement>(".connect-store-row button[data-row-action]"),
 		);
 		if (items.length === 0) return;
 		event.preventDefault();
