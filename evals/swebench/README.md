@@ -97,6 +97,12 @@ Do not use `control.agent.completion-audited` as the arming gate. That event
 proves an armed audit was reached, not merely armed; a run that times out before
 attempting completion correctly has no such event.
 
+For the wave report, read `control.agent.read-only-demanded` directly. Each
+event records the streak and configured cap that triggered the intervention,
+the following frame number, and whether that frame wrote, justified continued
+diagnosis, or stayed read-only. Count these events rather than reconstructing
+the intervention from transitions and call ordering.
+
 ## Evaluate
 
 Grading is the unmodified official harness, never our own judgement of a patch:
