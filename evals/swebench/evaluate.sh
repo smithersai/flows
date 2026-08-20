@@ -8,16 +8,22 @@
 # <model-name>.<run-id>.json, into this directory. Both are transient and
 # gitignored; the scorecard reads the report.
 #
-# SWB_EVAL_WORKERS sets the evaluator's concurrency (default 3). Grading is
-# per-instance docker work with no shared state, so it parallelizes cleanly;
-# what bounds it is disk and the docker VM's memory, the same limit that caps
-# the wave's own job count. Keep it at 1 when a grading run is being timed, or
-# when free disk is tight.
+# SWB_EVAL_WORKERS sets the evaluator's concurrency. It defaults to 1, and
+# raising it is not merely a speed/disk tradeoff: with this evaluator (swebench
+# 4.0.4) and `--cache_level env`, concurrent workers race in the post-run image
+# cleanup and the run dies with `docker.errors.ImageNotFound` on an image
+# another worker already removed. Every instance still grades — the 2026-08-19
+# attempt logged "2 ran successfully, 0 failed" — but the crash happens before
+# the report is written, so the whole grading is lost. Measured on the same two
+# instances: workers=3 crashed with no report, workers=1 wrote the report.
+#
+# The wave itself (run-sample.sh) is a different matter and does run its
+# instances concurrently; only grading serializes.
 set -u
 S="$(cd "$(dirname "$0")" && pwd)"
 RUN_ID="$1"; shift
 HARNESS="${HARNESS:-flows}"
-WORKERS="${SWB_EVAL_WORKERS:-3}"
+WORKERS="${SWB_EVAL_WORKERS:-1}"
 
 case "$WORKERS" in
   ''|*[!0-9]*|0) echo "SWB_EVAL_WORKERS must be a positive integer"; exit 2 ;;
