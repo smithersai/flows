@@ -1,0 +1,213 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "1511d2674244fe7343ef51d3e67bcef530ed8de0",
+ "tree": "3956de0ed7f280243c49281317fa1a471ae02bd7",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 56,
+  "sectionCount": 83
+ },
+ "source": {
+  "commit": "2a7ea8e456a136e51a529cbd657a779038abbe65",
+  "subject": "🐛 fix(engine-store): give the artifact-gc harness the one journal its stores share",
+  "priorCanonicalCommit": "0b574d019ac0faf633bdcb354999fdfbccab1162",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 44,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true,
+  "rebuild": {
+   "reason": "rebuilt onto the 13-commit split of canonical commit 2632c05da63099666add6437c743f4c5b3922f59",
+   "priorCanonicalCommit": "0b574d019ac0faf633bdcb354999fdfbccab1162",
+   "treePreserved": true,
+   "tree": "3956de0ed7f280243c49281317fa1a471ae02bd7"
+  }
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "engine-store",
+  "epicsTouched": [
+   {
+    "id": "engine-store",
+    "files": 3
+   },
+   {
+    "id": "storage",
+    "files": 1
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 894,
+  "globalCount": 921,
+  "purpose": "🐛 fix(engine-store): give the artifact-gc harness the one journal its stores share",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "790cadb3fb933f3ce5158eeed06531a69d431007"
+  ],
+  "parent": "790cadb3fb933f3ce5158eeed06531a69d431007",
+  "sourceImports": [
+   "0ef4871b719f3876407cc5ccb9f876c69c3c7158",
+   "45e3c1570fd6be09e9c529beaab1c8602d059998",
+   "c8bce393ea55d3257b21dbf5095fb2af8220a9d3",
+   "4390fe6159b47fbf5df3fcbcadcdc24e77d5ce8d",
+   "934a70097b819b70f9190e5b9a97a3aa36b0304a",
+   "5170b035bdf2d833b4acb4be7324ea335c388b5f",
+   "3c5d2a382f0b4329646f29959243a04c97df5c2b",
+   "12ad8369e9068d18b27bf6a8f389602099843668"
+  ],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": [],
+  "sourceImportsRemapped": {
+   "reason": "prior canonical SHAs rewritten by the 13-commit split of 2632c05da63099666add6437c743f4c5b3922f59",
+   "priorSourceImports": [
+    "0ef4871b719f3876407cc5ccb9f876c69c3c7158",
+    "2632c05da63099666add6437c743f4c5b3922f59",
+    "c8bce393ea55d3257b21dbf5095fb2af8220a9d3",
+    "4390fe6159b47fbf5df3fcbcadcdc24e77d5ce8d",
+    "934a70097b819b70f9190e5b9a97a3aa36b0304a",
+    "16b531103a259eea1ce78d5ac3f3cda3ed2eefa4",
+    "3c5d2a382f0b4329646f29959243a04c97df5c2b",
+    "12ad8369e9068d18b27bf6a8f389602099843668"
+   ]
+  }
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "790cadb3fb933f3ce5158eeed06531a69d431007",
+  "next": "67bc7bf66a404e0541a5e2b83eb8fff0a0fe6b94",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "6fe6857b28247375ab46b0d79cba15e74754ebd6"
+ },
+ "size": {
+  "files": 4,
+  "added": 30,
+  "deleted": 36
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "2a7ea8e456a136e51a529cbd657a779038abbe65"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "packages/engine-store/README.md",
+   "mode": "100644",
+   "blob": "b008536d6e965416a4e2482ef92e86c3dc2125fa",
+   "previousBlob": "c76f7aa5932933db0b72d49d5067f5d39dffff37",
+   "added": 16,
+   "deleted": 16,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 32,
+     "oldLines": 2,
+     "newStart": 32,
+     "newLines": 2
+    },
+    {
+     "oldStart": 35,
+     "oldLines": 14,
+     "newStart": 35,
+     "newLines": 14
+    }
+   ],
+   "role": "docs",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/ArtifactGc.test.ts",
+   "mode": "100644",
+   "blob": "c22f5a8363011e59412bb0b73e1d3bf7cb6a1a8a",
+   "previousBlob": "cec7a115b8fb692065cb8dc3f1ce67d2570d6f9b",
+   "added": 2,
+   "deleted": 8,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 131,
+     "oldLines": 8,
+     "newStart": 131,
+     "newLines": 2
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/journal/test/Redaction.test.ts",
+   "mode": "100644",
+   "blob": "f1e05b6a5a9df486e3de0e32257487e315ef74af",
+   "previousBlob": "4616a668c88f96f6522476d0912c35dedda48923",
+   "added": 11,
+   "deleted": 11,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 258,
+     "oldLines": 11,
+     "newStart": 258,
+     "newLines": 11
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/time-travel/test/RealTimeTravelHarness.ts",
+   "mode": "100644",
+   "blob": "611bd20e7ef1e449dc4bfad9a60c5a44f3c8d9b8",
+   "previousBlob": "87792ee1336cdfb1c226f3e0dd4c920f75893e88",
+   "added": 1,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 20,
+     "oldLines": 1,
+     "newStart": 19,
+     "newLines": 0
+    },
+    {
+     "oldStart": 21,
+     "oldLines": 0,
+     "newStart": 21,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  }
+ ]
+}
