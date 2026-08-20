@@ -1,0 +1,43 @@
+{
+    "degraded": false,
+    "cached": false,
+    "watched": [
+        "codeplanesmithers/smithers-demo",
+        "codeplanesmithers/canary-sandbox",
+        "codeplanesmithers/demo-calendar"
+    ],
+    "digest": {
+        "login": "codeplanesmithers",
+        "computedAt": "2026-08-10T19:39:12.969Z",
+        "reposConsidered": 3,
+        "openIssues": 5,
+        "openPullRequests": 1,
+        "staleCount": 6,
+        "mostActiveRepo": {
+            "name": "codeplanesmithers/demo-calendar",
+            "pushedAt": "2026-08-05T03:06:40Z"
+        },
+        "oldestWaiting": {
+            "kind": "pr",
+            "repo": "codeplanesmithers/canary-sandbox",
+            "number": 2,
+            "title": "Canary: read-only repository summary",
+            "url": "https://github.com/codeplanesmithers/canary-sandbox/pull/2",
+            "updatedAt": "2026-07-15T17:32:27Z",
+            "waitingDays": 26
+        },
+        "untriagedInMostActive": 0,
+        "sentence": "You have 5 open issues and 1 open pull request across 3 repos. 6 have been waiting more than a week. The oldest is pull request \"Canary: read-only repository summary\" in codeplanesmithers/canary-sandbox, waiting 26 days."
+    },
+    "recommendation": null,
+    "suppressed": [
+        {
+            "id": "review-pr:codeplanesmithers/canary-sandbox#2",
+            "until": "2026-08-17T14:10:33.297Z"
+        },
+        {
+            "id": "stale-issue:codeplanesmithers/canary-sandbox#1",
+            "until": "2026-08-17T14:11:03.064Z"
+        }
+    ]
+}
