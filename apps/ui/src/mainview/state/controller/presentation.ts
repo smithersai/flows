@@ -300,7 +300,7 @@ export const createPresentationController = (
 			  }
 			| undefined;
 		try {
-			const response = await ctx.http(`${ctx.baseUrl}${TOOLS_BROWSER_FETCH_PATH}`, {
+			const response = await ctx.boundedFetch(`${ctx.baseUrl}${TOOLS_BROWSER_FETCH_PATH}`, {
 				method: "POST",
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({ url }),

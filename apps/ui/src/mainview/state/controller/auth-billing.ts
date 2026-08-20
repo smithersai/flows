@@ -48,7 +48,7 @@ export const createAuthBillingController = (
 	ctx: ControllerContext,
 	nextTranscriptOrdinal: () => number,
 ): AuthBillingController => {
-	const { store, services, baseUrl, http, errorMessageOf, unref } = ctx;
+	const { store, services, baseUrl, boundedFetch: http, errorMessageOf, unref } = ctx;
 	const withToast = ctx.withToast;
 	const loadFirstRunReco = (bump?: boolean): Promise<void> => ctx.loadFirstRunReco(bump);
 	const resumeWorkflowRuns = (): void => ctx.resumeWorkflowRuns();
@@ -891,6 +891,11 @@ export const createAuthBillingController = (
 		};
 		document.addEventListener("visibilitychange", reread);
 		window.addEventListener("focus", reread);
+		// Everything opened here is released when the controller's scope closes.
+		ctx.onDispose(() => {
+			document.removeEventListener("visibilitychange", reread);
+			window.removeEventListener("focus", reread);
+		});
 		if (typeof BroadcastChannel === "undefined") return;
 		const channel = new BroadcastChannel(IDENTITY_CHANNEL);
 		channel.onmessage = () => {
@@ -898,6 +903,11 @@ export const createAuthBillingController = (
 			// the message — the cookie is the authority, not the announcement.
 			void loadSession();
 		};
+		ctx.onDispose(() => {
+			channel.onmessage = null;
+			channel.close();
+			ctx.identityChanged = () => {};
+		});
 		ctx.identityChanged = () => {
 			channel.postMessage("changed");
 		};

@@ -39,7 +39,7 @@ export const createWorkflowController = (
 	nextTranscriptOrdinal: () => number,
 	pumpWorkflowRun: (cardId: string) => Promise<void>,
 ): WorkflowController => {
-	const { store, baseUrl, http, boundedFetch, errorMessageOf, unref, workflowPollMs, withToast } = ctx;
+	const { store, baseUrl, boundedFetch, errorMessageOf, unref, workflowPollMs, withToast } = ctx;
 	const RUN_POLL_MS = workflowPollMs;
 	const waitMs = (ms: number): Promise<void> =>
 		new Promise((resolve) => {
@@ -190,7 +190,7 @@ export const createWorkflowController = (
 			  }
 			| undefined;
 		try {
-			const response = await http(`${baseUrl}${WORKFLOW_RPC_PATH}`, {
+			const response = await boundedFetch(`${baseUrl}${WORKFLOW_RPC_PATH}`, {
 				method: "POST",
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({ repo, method, params }),
@@ -475,7 +475,7 @@ export const createWorkflowController = (
 		const { runId, nodeId, iteration, repo } = card.payload;
 		let response: Response;
 		try {
-			response = await http(`${baseUrl}${APPROVAL_DECISION_PATH}`, {
+			response = await boundedFetch(`${baseUrl}${APPROVAL_DECISION_PATH}`, {
 				method: "POST",
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({

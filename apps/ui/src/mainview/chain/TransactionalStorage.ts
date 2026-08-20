@@ -47,6 +47,15 @@ export interface TransactionalStorage {
 	/** The StorageApi the persisted collections read and write. */
 	readonly storage: StorageApi;
 	/**
+	 * Open a batch: writes accumulate into a pending delta. Batches nest;
+	 * only the outermost commit writes the envelope.
+	 */
+	readonly beginBatch: () => void;
+	/** Close a batch, committing every write it buffered as ONE envelope write. */
+	readonly commitBatch: () => void;
+	/** Abandon a batch: nothing it buffered reaches the host. */
+	readonly abortBatch: () => void;
+	/**
 	 * Run `work` against a pending delta and commit every write it made as ONE
 	 * envelope write. A throw (or rejection) aborts the batch: no projection of
 	 * it reaches the host.
@@ -220,6 +229,7 @@ export const openTransactionalStorage = async (
 
 	const base = new Map<string, string>(Object.entries(entries));
 	let pending: Map<string, string | null> | undefined;
+	let batchDepth = 0;
 
 	const serialize = (): string =>
 		JSON.stringify({ version: ENVELOPE_VERSION, entries: Object.fromEntries(base) });
@@ -269,34 +279,44 @@ export const openTransactionalStorage = async (
 		},
 	};
 
+	const beginBatch = (): void => {
+		if (batchDepth === 0) pending = new Map();
+		batchDepth += 1;
+	};
+
+	const commitBatch = (): void => {
+		if (batchDepth === 0) return;
+		batchDepth -= 1;
+		if (batchDepth > 0) return;
+		flushPending();
+		commit();
+	};
+
+	const abortBatch = (): void => {
+		batchDepth = 0;
+		pending = undefined;
+	};
+
 	const batch = <T>(work: () => T): T => {
-		if (pending !== undefined) return work(); // Nested batches join the outer one.
-		pending = new Map();
-		const settle = (): void => {
-			flushPending();
-			commit();
-		};
-		const abort = (): void => {
-			pending = undefined;
-		};
+		beginBatch();
 		try {
 			const out = work();
 			if (out instanceof Promise) {
 				return out.then(
 					(value) => {
-						settle();
+						commitBatch();
 						return value;
 					},
 					(error: unknown) => {
-						abort();
+						abortBatch();
 						throw error;
 					},
 				) as T;
 			}
-			settle();
+			commitBatch();
 			return out;
 		} catch (error) {
-			abort();
+			abortBatch();
 			throw error;
 		}
 	};
@@ -306,5 +326,5 @@ export const openTransactionalStorage = async (
 	// boot and keeps every open's end state committed by construction.
 	commit();
 
-	return { storage, batch, recovery, quarantinedKeys };
+	return { storage, beginBatch, commitBatch, abortBatch, batch, recovery, quarantinedKeys };
 };

@@ -123,7 +123,22 @@ localStorage fallback. Records beyond the bound are deleted oldest-first.
 - **Controller seam routing**: request/response HTTP seams (the domain seam
   context and controller `ctx.http` call sites) route through `boundedFetch`,
   so every non-streaming call carries the deadline. Streaming paths (the
-  agent turn, the workflow SSE pumps) deliberately carry no deadline.
+  agent turn, the workflow SSE pumps, the world-sweep model stream) and the
+  workflow event poll deliberately carry no deadline: the poll already has
+  its own bounded retry/quiet discipline, and routing it through
+  `Effect.runPromise` shifted the pump's dispatch timing enough to expose a
+  TanStack optimistic rollback/replay race on the session revision
+  (Wave12.test.ts caught it as a duplicate transition id). That race is a
+  pre-existing latent property of revision allocation from optimistic state,
+  not of this change; the poll stays on the tapped `http` until it is
+  addressed.
+- **The batch commit adds no latency**: `AppStore.persist` opens the batch
+  with `beginBatch()` and calls `commitBatch()` synchronously as the
+  acceptMutations fan-out settles. Committing even one microtask later
+  leaves the transaction uncommitted when the next dispatch mutates the
+  session row, and TanStack answers with an optimistic rollback/replay that
+  lets a later dispatch re-allocate the same revision (duplicate
+  `transition-N` insert, reproduced by ToolLoop.test.ts).
 - **Controller disposal scope**: `ControllerContext` gains a disposal list
   (`onDispose`/`dispose`). The agent subscription (`turns.ts`), the
   cross-tab identity listeners and `BroadcastChannel` (`auth-billing.ts`),

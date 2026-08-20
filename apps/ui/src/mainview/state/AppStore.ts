@@ -759,8 +759,27 @@ export const createAppStore = async (
 		 * so every projection of the transition changes or none does
 		 * (docs/persistence.md). The OPFS backend keeps SQLite's own WAL.
 		 */
-		if (transactional !== undefined) await transactional.batch(fanOut);
-		else await fanOut();
+		if (transactional === undefined) {
+			await fanOut();
+			return;
+		}
+		/*
+		 * The one atomic commit point per logical transition: between begin and
+		 * commit every collection's write accumulates into a single envelope
+		 * commit, so every projection of the transition changes or none does
+		 * (docs/persistence.md). The commit runs synchronously as the fan-out
+		 * settles — deferring it even a microtask would leave the transaction
+		 * uncommitted when the next dispatch mutates, which TanStack answers
+		 * with an optimistic rollback/replay that revisits a revision.
+		 */
+		transactional.beginBatch();
+		try {
+			await fanOut();
+			transactional.commitBatch();
+		} catch (error) {
+			transactional.abortBatch();
+			throw error;
+		}
 	};
 
 	const dispatch = (transition: AppTransition): Transaction => {
