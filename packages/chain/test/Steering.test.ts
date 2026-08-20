@@ -111,7 +111,7 @@ describe("Steering", () => {
     const drains = events.filter((event) => event._tag === "SteeringDrained") as Array<Event.SteeringDrained>
     expect(drains).toHaveLength(1)
     expect(drains[0]).toMatchObject({ link: 1, messages: ["stop and reconsider"] })
-    expect(boundaries.every((boundary) => /^\d+\/\d+$/.test(boundary))).toBe(true)
+    expect(boundaries).toEqual(["0/0", "1/1"])
   })
 
   it("carries drained steering into the retry after a rejected author attempt", async () => {

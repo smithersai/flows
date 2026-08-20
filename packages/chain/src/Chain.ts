@@ -10,6 +10,7 @@
  *
  * @since 0.1.0
  */
+import * as Digest from "@smthrs/core/Digest"
 import { Effect, Option, Schema } from "effect"
 import * as Author from "./Author.ts"
 import * as AuthorDeclaration from "./AuthorDeclaration.ts"
@@ -37,7 +38,7 @@ export class ChainError extends Schema.TaggedError<ChainError>()("/chain/ChainEr
   message: Schema.String
 }) {}
 
-class LinkAborted extends Schema.TaggedError<LinkAborted>()("/chain/internal/LinkAborted", {
+class LinkAborted extends Schema.TaggedError<LinkAborted>()("/chain/Chain/LinkAborted", {
   observation: Observation.Observation
 }) {}
 
@@ -46,7 +47,7 @@ class LinkAborted extends Schema.TaggedError<LinkAborted>()("/chain/internal/Lin
  * `LinkEnded`: resuming re-executes the link from its settled prefix and
  * re-asks the seam, converging under whatever grant now exists.
  */
-class ApprovalPark extends Schema.TaggedError<ApprovalPark>()("/chain/internal/ApprovalPark", {
+class ApprovalPark extends Schema.TaggedError<ApprovalPark>()("/chain/Chain/ApprovalPark", {
   message: Schema.String
 }) {}
 
@@ -101,7 +102,8 @@ export const authorDigest: string = AuthorDeclaration.authorDigest
 
 const decodeScript = Schema.decodeUnknownOption(Script.Script)
 
-const asJson = (value: unknown): typeof Schema.Json.Type => value as typeof Schema.Json.Type
+const sameJson = (left: typeof Schema.Json.Type, right: typeof Schema.Json.Type): boolean =>
+  Digest.canonical(left) === Digest.canonical(right)
 
 type RunError =
   | ChainError
@@ -146,7 +148,6 @@ export const run = (options: Options): Effect.Effect<Outcome.Terminal, RunError,
     const events: Array<Event.Event> = [...initial]
 
     const existing = Event.terminal(events, chainId)
-    if (existing !== undefined) return existing
 
     const append = (event: Event.Event): Effect.Effect<void, Journal.JournalError> =>
       Effect.gen(function*() {
@@ -163,9 +164,18 @@ export const run = (options: Options): Effect.Effect<Outcome.Terminal, RunError,
         && Event.inChain(event, chainId)
       )
 
-    if (!Event.started(events, chainId)) {
+    const started = events.find(
+      (event): event is Event.ChainStarted => event._tag === "ChainStarted" && Event.inChain(event, chainId)
+    )
+    if (started === undefined) {
       yield* append({ _tag: "ChainStarted", goal: options.goal, envelope: options.envelope ?? null })
+    } else if (started.goal !== options.goal || !sameJson(started.envelope, options.envelope ?? null)) {
+      return yield* new ChainError({
+        code: "replay_divergence",
+        message: `chain ${JSON.stringify(chainId)} was started with a different goal or envelope`
+      })
     }
+    if (existing !== undefined) return existing
 
     const executeLink = (link: number): Effect.Effect<Outcome.Outcome, RunError | ApprovalPark> =>
       Effect.gen(function*() {
@@ -212,6 +222,14 @@ export const run = (options: Options): Effect.Effect<Outcome.Terminal, RunError,
         ): Effect.Effect<unknown, RunError | LinkAborted | ApprovalPark> =>
           Effect.gen(function*() {
             const ordinal = counter++
+            const payloadBoundary = ScriptRunner.jsonBoundary(payload)
+            if (payloadBoundary._tag === "Refused") {
+              return yield* reject(
+                ordinal,
+                Observation.make("call_failed", `"${name}" received input that is not JSON-serializable`)
+              )
+            }
+            const jsonPayload = payloadBoundary.value as typeof Schema.Json.Type
             const priorRejection = rejectedPrior.get(ordinal)
             if (priorRejection !== undefined) {
               lastRejection = priorRejection.observation
@@ -230,6 +248,13 @@ export const run = (options: Options): Effect.Effect<Outcome.Terminal, RunError,
                 return yield* new ChainError({
                   code: "replay_divergence",
                   message: `link ${link} call ${ordinal} requested "${name}" but the journal settled "${prior.name}"`
+                })
+              }
+              if (!sameJson(prior.payload, jsonPayload)) {
+                return yield* new ChainError({
+                  code: "replay_divergence",
+                  message:
+                    `link ${link} call ${ordinal} ("${name}") received a different payload than the journaled call`
                 })
               }
               // The settled result only replays under the same declaration
@@ -299,7 +324,7 @@ export const run = (options: Options): Effect.Effect<Outcome.Terminal, RunError,
                   key: CallKey.make(link, scriptDigest, ordinal, authorDigest),
                   link,
                   name,
-                  payload: asJson(payload),
+                  payload: jsonPayload,
                   result: { raw, rejected: true }
                 })
                 return yield* new LinkAborted({ observation })
@@ -310,7 +335,7 @@ export const run = (options: Options): Effect.Effect<Outcome.Terminal, RunError,
                 key: CallKey.make(link, scriptDigest, ordinal, authorDigest),
                 link,
                 name,
-                payload: asJson(payload),
+                payload: jsonPayload,
                 result
               })
               return result
@@ -357,22 +382,29 @@ export const run = (options: Options): Effect.Effect<Outcome.Terminal, RunError,
                   return yield* reject(ordinal, Observation.make("call_failed", `"${name}" failed: ${error.message}`))
                 }))
             )
+            const resultBoundary = ScriptRunner.jsonBoundary(result)
+            if (resultBoundary._tag === "Refused") {
+              return yield* reject(
+                ordinal,
+                Observation.make("call_failed", `"${name}" produced a result that is not JSON-serializable`)
+              )
+            }
             yield* append({
               _tag: "CallSettled",
               key: CallKey.make(link, scriptDigest, ordinal, Catalog.entryDigest(entry)),
               link,
               name,
-              payload: asJson(payload),
-              result: asJson(result)
+              payload: jsonPayload,
+              result: resultBoundary.value as typeof Schema.Json.Type
             })
-            return result
+            return resultBoundary.value
           })
 
         if (script !== undefined) {
           const ran = yield* runner
             .run(script, (request) => executeCall("script", request.name, request.payload))
             .pipe(
-              Effect.catchTag("/chain/internal/LinkAborted", () => Effect.succeed(undefined)),
+              Effect.catchTag("/chain/Chain/LinkAborted", () => Effect.succeed(undefined)),
               Effect.catchTag("/chain/ScriptFailure", (failure) =>
                 Effect.gen(function*() {
                   // A failing script — compile, throw, or bad outcome — is an
@@ -402,7 +434,7 @@ export const run = (options: Options): Effect.Effect<Outcome.Terminal, RunError,
               ...(options.context ?? []),
               ...Event.observations(events, link, chainId).map(Observation.render)
             ]
-          }).pipe(Effect.catchTag("/chain/internal/LinkAborted", () => Effect.succeed(undefined)))
+          }).pipe(Effect.catchTag("/chain/Chain/LinkAborted", () => Effect.succeed(undefined)))
           if (attempt === undefined) continue
           const decoded = decodeScript(attempt)
           if (decoded._tag === "None") {
@@ -430,7 +462,7 @@ export const run = (options: Options): Effect.Effect<Outcome.Terminal, RunError,
       const outcome: Outcome.Outcome | { readonly _tag: "ApprovalParked"; readonly message: string } =
         yield* executeLink(link).pipe(
           Effect.catchTag(
-            "/chain/internal/ApprovalPark",
+            "/chain/Chain/ApprovalPark",
             (error) => Effect.succeed({ _tag: "ApprovalParked" as const, message: error.message })
           )
         )

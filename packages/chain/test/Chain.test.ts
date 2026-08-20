@@ -1,3 +1,5 @@
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"
 import * as Author from "../src/Author.ts"
 import * as Chain from "../src/Chain.ts"
@@ -96,6 +98,21 @@ describe("Chain", () => {
     expect(edit.count()).toBe(0)
   })
 
+  it.each([
+    ["goal", { goal: "a different goal" }],
+    ["envelope", { envelope: { workspace: "different" } }]
+  ])("refuses to resume a finished chain under a different %s", async (_label, changed) => {
+    const { events } = await goldenRun()
+    const error = await failChain({
+      author: Author.layerMock([]),
+      initial: events,
+      runner: ScriptRunner.layerNoop(),
+      ...changed
+    }) as Chain.ChainError
+    expect(error.code).toBe("replay_divergence")
+    expect(error.message).toContain("different goal or envelope")
+  })
+
   it("resumes a crash after the first settled call without re-running it", async () => {
     const { events } = await goldenRun()
     const grep = countingEntry("grep", grepResult)
@@ -189,6 +206,41 @@ describe("Chain", () => {
     expect(rejection.observation.kind).toBe("call_failed")
     expect(rejection.observation.message).toContain("exploded")
     expect((seen[1] as Author.Input).context.some((line) => line.startsWith("[call_failed]"))).toBe(true)
+  })
+
+  it("rejects a non-JSON handler result before journaling it", async () => {
+    const bad = flow(`await ctx.call("bad-result", {})`, `return done(null)`)
+    const { events, outcome } = await runChain({
+      author: Author.layerMock([bad, doneScript]),
+      entries: [countingEntry("bad-result", new Date(0)).entry]
+    })
+    expect(outcome).toEqual({ _tag: "Done", value: "recovered" })
+    expect(events.some((event) => event._tag === "CallSettled" && event.name === "bad-result")).toBe(false)
+    const rejection = events.find((event) =>
+      event._tag === "GateRejected" && event.observation.message.includes("not JSON-serializable")
+    )
+    expect(rejection).toBeDefined()
+  })
+
+  it("rejects a non-JSON payload supplied by a runner binding", async () => {
+    let runs = 0
+    const runner = ScriptRunner.make({
+      run: (_script, handler) => {
+        runs++
+        return runs === 1
+          ? handler({ name: "bad-input", payload: new Date(0) }).pipe(
+            Effect.as({ _tag: "Done", value: null } as const)
+          )
+          : Effect.succeed({ _tag: "Done", value: "recovered" } as const)
+      }
+    })
+    const { events, outcome } = await runChain({
+      author: Author.layerMock([flow(`return done(null)`), doneScript]),
+      entries: [countingEntry("bad-input", null).entry],
+      runner: Layer.succeed(ScriptRunner.ScriptRunner)(runner)
+    })
+    expect(outcome).toEqual({ _tag: "Done", value: "recovered" })
+    expect(events.some((event) => event._tag === "CallSettled" && event.name === "bad-input")).toBe(false)
   })
 
   it.each([
@@ -332,6 +384,19 @@ describe("Chain", () => {
       initial: events.slice(0, 5)
     }) as { code: string }
     expect(error.code).toBe("replay_divergence")
+  })
+
+  it("refuses to replay a settled call under a different payload", async () => {
+    const { events } = await goldenRun()
+    const tampered = [...events.slice(0, 5)]
+    tampered[4] = { ...(tampered[4] as Event.CallSettled), payload: { pattern: "FIXME" } }
+    const error = await failChain({
+      author: Author.layerMock([]),
+      entries: [countingEntry("grep", grepResult).entry],
+      initial: tampered
+    }) as Chain.ChainError
+    expect(error.code).toBe("replay_divergence")
+    expect(error.message).toContain("different payload")
   })
 
   it("refuses catalog and entries together in the test harness", () => {

@@ -54,7 +54,13 @@ describe("MemoryEntries", () => {
       >
     )
     expect(entries.written).toEqual({ key: "release-plan" })
-    expect(JSON.stringify(entries.found)).toContain("ship the chain harness this week")
+    const found = entries.found as Array<{ readonly bank: string; readonly key: string; readonly text: string }>
+    expect(found).toHaveLength(1)
+    expect({ bank: found[0]!.bank, key: found[0]!.key, text: found[0]!.text }).toEqual({
+      bank: "worldview",
+      key: "release-plan",
+      text: "ship the chain harness this week"
+    })
   })
 
   it("refuses malformed payloads quoting the actual parse failure", async () => {
@@ -115,7 +121,26 @@ describe("MemoryEntries", () => {
     expect(remember.digest).not.toBe(changed)
   })
 
-  it("digests non-struct schemas by AST kind and marks codeless failures unknown", async () => {
+  it("digests field types as well as field names", async () => {
+    const Schema = (await import("effect")).Schema
+    const text = MemoryEntries.contractDigest({
+      description: "d",
+      effects: {},
+      input: Schema.Struct({ value: Schema.String }),
+      name: "n",
+      output: Schema.String
+    })
+    const object = MemoryEntries.contractDigest({
+      description: "d",
+      effects: {},
+      input: Schema.Struct({ value: Schema.Struct({ text: Schema.String }) }),
+      name: "n",
+      output: Schema.String
+    })
+    expect(text).not.toBe(object)
+  })
+
+  it("digests scalar schemas and marks codeless failures unknown", async () => {
     const Schema = (await import("effect")).Schema
     const scalar = MemoryEntries.contractDigest({
       description: "d",

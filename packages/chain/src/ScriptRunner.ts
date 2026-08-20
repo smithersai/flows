@@ -199,16 +199,6 @@ const runInProcess = <E>(
     const pending: Array<Pending> = []
     let settled: Settled | undefined
     let aborted = false
-    let notify: (() => void) | undefined
-    const signal = (): void => {
-      const wake = notify
-      notify = undefined
-      if (wake !== undefined) wake()
-    }
-    const arm = (): Promise<void> =>
-      new Promise((resolve) => {
-        notify = resolve
-      })
 
     const ctx = Object.freeze({
       call: (name: unknown, payload?: unknown) =>
@@ -230,7 +220,6 @@ const runInProcess = <E>(
             return
           }
           pending.push({ name, payload: payloadBoundary.value, resolve, reject })
-          signal()
         })
     })
 
@@ -239,16 +228,13 @@ const runInProcess = <E>(
     Promise.resolve(factory(ctx, Outcome.done, Outcome.to, Outcome.park)).then(
       (value) => {
         settled = { _tag: "value", value }
-        signal()
       },
       (error: unknown) => {
         settled = { _tag: "thrown", error }
-        signal()
       }
     )
 
     while (true) {
-      const wake = arm()
       const next = pending.shift()
       if (next !== undefined) {
         const result = yield* handler({ name: next.name, payload: next.payload }).pipe(
@@ -286,7 +272,16 @@ const runInProcess = <E>(
         }
         return outcome.value
       }
-      yield* Effect.promise(() => wake)
+      // Let every currently runnable host microtask finish. If that produces
+      // neither a call nor a terminal result, the script is waiting on a
+      // promise outside the only supported async door and cannot advance.
+      yield* Effect.yieldNow
+      if (pending.length === 0 && settled === undefined) {
+        return yield* new ScriptFailure({
+          code: "runtime",
+          message: "the script awaited something that never settles — the only thing worth awaiting is ctx.call"
+        })
+      }
     }
   })
 

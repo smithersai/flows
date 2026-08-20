@@ -16,6 +16,7 @@ import variant from "@jitl/quickjs-singlefile-browser-release-sync"
 import { Effect, Layer } from "effect"
 import type { QuickJSContext, QuickJSDeferredPromise, QuickJSRuntime, QuickJSWASMModule } from "quickjs-emscripten-core"
 import { newQuickJSWASMModuleFromVariant } from "quickjs-emscripten-core"
+import * as QuickJsJobs from "./internal/QuickJsJobs.ts"
 import type * as Outcome from "./Outcome.ts"
 import type * as Script from "./Script.ts"
 import * as ScriptRunner from "./ScriptRunner.ts"
@@ -132,6 +133,7 @@ interface Pending {
   readonly name: string
   readonly payload: unknown
   readonly settle: (payload: unknown) => void
+  readonly refusal?: string | undefined
 }
 
 /**
@@ -213,7 +215,22 @@ const evaluate = <E>(
           deferreds.delete(deferred)
         }
       }
-      pending.push({ name, payload: JSON.parse(encoded), settle })
+      let payload: ReturnType<typeof ScriptRunner.jsonBoundary>
+      try {
+        payload = ScriptRunner.jsonBoundary(JSON.parse(encoded))
+      } catch {
+        payload = { _tag: "Refused" }
+      }
+      if (payload._tag === "Refused") {
+        pending.push({
+          name,
+          payload: null,
+          refusal: "ctx.call input must be JSON-serializable",
+          settle
+        })
+      } else {
+        pending.push({ name, payload: payload.value, settle })
+      }
       return deferred.handle
     })
     context.setProp(context.global, "__call", bridge)
@@ -256,12 +273,17 @@ const evaluate = <E>(
     yield* Effect.addFinalizer(() => Effect.sync(() => scriptHandle.dispose()))
 
     while (true) {
-      runtime.executePendingJobs()
+      const jobs = runtime.executePendingJobs()
+      yield* QuickJsJobs.check(jobs)
       // Drain issued calls before consulting the script's promise: a call
       // that was issued settles durably even when the script no longer
       // awaits it (a race loser), and its bridge handle is disposed.
       const next = pending.shift()
       if (next !== undefined) {
+        if (next.refusal !== undefined) {
+          next.settle({ message: next.refusal, ok: false })
+          continue
+        }
         const result = yield* handler({ name: next.name, payload: next.payload }).pipe(
           Effect.tapError(() =>
             Effect.sync(() => {

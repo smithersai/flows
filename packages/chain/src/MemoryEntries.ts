@@ -36,29 +36,13 @@ const messageOf = (error: unknown): string =>
     ? String((error as { readonly message: unknown }).message)
     : String(error)
 
-interface AnySchema {
-  readonly ast: unknown
-  readonly fields?: object
-  readonly value?: { readonly fields?: object }
-}
-
 interface Contract {
   readonly name: string
   readonly description: string
-  readonly input: AnySchema
-  readonly output: AnySchema
+  readonly input: Schema.Top
+  readonly output: Schema.Top
   readonly effects: { readonly [key: string]: unknown }
 }
-
-// Struct schemas expose their field names; array schemas expose their
-// element's; anything else contributes its AST kind — enough that a
-// contract change on any axis produces a different digest.
-const shapeOf = (schema: AnySchema): unknown =>
-  schema.fields !== undefined
-    ? Object.keys(schema.fields).sort()
-    : schema.value?.fields !== undefined
-    ? { element: Object.keys(schema.value.fields).sort() }
-    : String(schema.ast)
 
 /**
  * The digest of a memory entry's shipped contract — name, description,
@@ -74,9 +58,9 @@ export const contractDigest = (contract: Contract): string =>
   Digest.digest(Digest.canonical({
     description: contract.description,
     effects: { ...contract.effects },
-    input: shapeOf(contract.input),
+    input: Schema.toJsonSchemaDocument(contract.input),
     name: contract.name,
-    output: shapeOf(contract.output)
+    output: Schema.toJsonSchemaDocument(contract.output)
   }))
 
 const entryOf = <A>(

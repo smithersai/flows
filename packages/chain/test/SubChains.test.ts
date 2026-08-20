@@ -38,7 +38,7 @@ describe("SubChains", () => {
     expect(childEvents.length).toBeGreaterThan(0)
     expect(new Set(childEvents.map((event) => event.chain))).toEqual(new Set(["1.0"]))
     const settle = events.find((event) => event._tag === "CallSettled" && event.name === "agent") as Event.CallSettled
-    expect(settle.result).toMatchObject({ _tag: "Done" })
+    expect(settle.result).toEqual({ _tag: "Done", value: { files: ["a.ts"] } })
   })
 
   it("resumes a crashed child from its own settled events", async () => {
@@ -70,7 +70,7 @@ describe("SubChains", () => {
     })
     expect(outcome).toEqual({ _tag: "Park", reason: { code: "timer", message: "waiting on the world" } })
     const settle = events.find((event) => event._tag === "CallSettled" && event.name === "agent") as Event.CallSettled
-    expect(settle.result).toMatchObject({ _tag: "Park" })
+    expect(settle.result).toEqual({ _tag: "Park", reason: { code: "timer", message: "waiting on the world" } })
   })
 
   it("bubbles a child's approval park in place, and a grant resumes the child through the same slot", async () => {

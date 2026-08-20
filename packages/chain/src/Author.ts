@@ -148,15 +148,13 @@ export const layerMock = (outputs: ReadonlyArray<string>): Layer.Layer<Author> =
       return make({
         author: Effect.fn("Author.author")(() =>
           Effect.gen(function*() {
-            const queue = yield* Ref.get(remaining)
-            const next = queue[0]
+            const next = yield* Ref.modify(remaining, (queue) => [queue[0], queue.slice(1)] as const)
             if (next === undefined) {
               return yield* new AuthorError({
                 code: "exhausted",
                 message: `the mock author ran out of outputs after ${outputs.length}`
               })
             }
-            yield* Ref.set(remaining, queue.slice(1))
             return next
           })
         )

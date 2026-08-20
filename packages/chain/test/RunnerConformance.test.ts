@@ -175,6 +175,16 @@ describe.each(runners)("runner conformance: %s", (_name, layer) => {
     const error = await failWith(layer, `throw new Error("kaput")`, echo) as ScriptRunner.ScriptFailure
     expect(error.message).toBe("kaput")
   })
+
+  it("fails a script that awaits something that never settles", async () => {
+    const error = await failWith(
+      layer,
+      `await new Promise(function () {})\nreturn done(null)`,
+      echo
+    ) as ScriptRunner.ScriptFailure
+    expect(error.code).toBe("runtime")
+    expect(error.message).toContain("never settles")
+  })
 })
 
 describe("QuickJs sealed realm", () => {
@@ -219,20 +229,53 @@ describe("QuickJs sealed realm", () => {
     expect(outcome).toEqual({ _tag: "Done", value: "booted" })
   })
 
-  it("fails a script that awaits something that never settles", async () => {
-    const error = await failWith(
-      layer,
-      `await new Promise(function () {})\nreturn done(null)`,
-      echo
-    ) as ScriptRunner.ScriptFailure
-    expect(error.code).toBe("runtime")
-    expect(error.message).toContain("never settles")
-  })
-
   it("interrupts a runaway synchronous loop under a step budget", async () => {
     const error = await failWith(
       QuickJsRunner.layer({ steps: 1_000 }),
       `while (true) {}`,
+      echo
+    ) as ScriptRunner.ScriptFailure
+    expect(error.code).toBe("runtime")
+  })
+
+  it("reports a step-budget interrupt raised by a post-await job", async () => {
+    const error = await failWith(
+      QuickJsRunner.layer({ steps: 1_000 }),
+      `await Promise.resolve()\nwhile (true) {}`,
+      echo
+    ) as ScriptRunner.ScriptFailure
+    expect(error.code).toBe("runtime")
+  })
+
+  it.each(["1e999", "not-json"])("host-validates call input encoded as %s by replaced realm JSON", async (encoded) => {
+    let calls = 0
+    const outcome = await runWith(
+      layer,
+      [
+        `const stringify = globalThis.JSON.stringify`,
+        `globalThis.JSON.stringify = function () { return ${JSON.stringify(encoded)} }`,
+        `const message = await ctx.call("x", {}).catch(function (error) { return error.message })`,
+        `globalThis.JSON.stringify = stringify`,
+        `return done(message)`
+      ].join("\n"),
+      () =>
+        Effect.sync(() => {
+          calls++
+          return null
+        })
+    )
+    expect(outcome).toEqual({ _tag: "Done", value: "ctx.call input must be JSON-serializable" })
+    expect(calls).toBe(0)
+  })
+
+  it("reports a job-queue interrupt that is outside the script promise", async () => {
+    const error = await failWith(
+      QuickJsRunner.layer({ steps: 1_000 }),
+      [
+        `Promise.resolve().then(function () { while (true) {} })`,
+        `await new Promise(function () {})`,
+        `return done(null)`
+      ].join("\n"),
       echo
     ) as ScriptRunner.ScriptFailure
     expect(error.code).toBe("runtime")

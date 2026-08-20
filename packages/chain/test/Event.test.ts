@@ -14,10 +14,10 @@ const settledCall = (link: number, ordinal: number, name: string): Event.Event =
   result: null
 })
 
-const rejection = (link: number, ordinal: number): Event.Event => ({
+const rejection = (link: number, ordinal: number, message = "nope"): Event.Event => ({
   _tag: "GateRejected",
   link,
-  observation: { kind: "catalog", message: "nope" },
+  observation: { kind: "catalog", message },
   ordinal
 })
 
@@ -57,10 +57,10 @@ describe("Event", () => {
   })
 
   it("collects a link's observations in journal order", () => {
-    const events: ReadonlyArray<Event.Event> = [rejection(1, 0), rejection(2, 0), rejection(1, 1)]
+    const events: ReadonlyArray<Event.Event> = [rejection(1, 0, "first"), rejection(2, 0), rejection(1, 1, "second")]
     expect(Event.observations(events, 1)).toEqual([
-      { kind: "catalog", message: "nope" },
-      { kind: "catalog", message: "nope" }
+      { kind: "catalog", message: "first" },
+      { kind: "catalog", message: "second" }
     ])
   })
 

@@ -7,7 +7,11 @@
  *
  * @since 0.1.0
  */
-import { Context, Effect, Layer, Ref, Schema } from "effect"
+import * as Context from "effect/Context"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as Ref from "effect/Ref"
+import * as Schema from "effect/Schema"
 import type * as Event from "./Event.ts"
 
 /**
