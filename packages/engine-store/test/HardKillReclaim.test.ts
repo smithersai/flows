@@ -52,10 +52,12 @@ const makeDriver = (nonce: string) =>
 const migratedDatabase = Layer.provideMerge(Migrations.layer, TestDatabase.layer)
 
 const services = Layer.mergeAll(
-  SqlJournal.layer({ capacity: 1024, overflow: "reject" }),
   RunStore.layer,
   DurableEngineState.layer
-).pipe(Layer.provideMerge(migratedDatabase))
+).pipe(
+  Layer.provideMerge(SqlJournal.layer({ capacity: 1024, overflow: "reject" })),
+  Layer.provideMerge(migratedDatabase)
+)
 
 /**
  * Simulates a hard-killed owner: a `running` row with a frozen heartbeat, a

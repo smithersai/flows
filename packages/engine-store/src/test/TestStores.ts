@@ -57,19 +57,24 @@ export const database = Layer.provideMerge(Migrations.layer, TestDatabase.layer)
  * @category layers
  * @since 0.1.0
  */
-export const layer = (options?: TestStoresOptions) => {
-  const journal = SqlJournal.layer({
-    capacity: options?.capacity ?? 1024,
-    overflow: options?.overflow ?? "reject",
-    batchSize: options?.batchSize
-  })
-  return Layer.mergeAll(
-    journal,
+export const layer = (options?: TestStoresOptions) =>
+  Layer.mergeAll(
     RunStore.layer,
     AttemptStore.layer,
-    // The cache is a fold of journal events, so its layer appends through the
-    // journal; the same layer reference is memoized, so both see one journal.
-    CacheStore.layer.pipe(Layer.provide(journal)),
+    CacheStore.layer,
     PlanStore.layer
-  ).pipe(Layer.provide(database), Layer.merge(OwnerIdentity.layer))
-}
+  ).pipe(
+    // Run, attempt, and cache rows are journal folds, so every store layer
+    // appends through the one journal provided here; `provideMerge` hands the
+    // same journal instance to all four stores and keeps it in the final
+    // context.
+    Layer.provideMerge(
+      SqlJournal.layer({
+        capacity: options?.capacity ?? 1024,
+        overflow: options?.overflow ?? "reject",
+        batchSize: options?.batchSize
+      })
+    ),
+    Layer.provide(database),
+    Layer.merge(OwnerIdentity.layer)
+  )
