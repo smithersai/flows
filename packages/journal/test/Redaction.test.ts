@@ -255,17 +255,17 @@ describe("Redaction", () => {
     }).pipe(Effect.provide(journalLayer()), Effect.scoped))
 
   effect("never persists a secret through the lossy queue either", () =>
-  Effect.gen(function*() {
-    const journal = yield* Journal
-    const run = runId("redaction-lossy")
-    yield* journal.emitLossy(input(run, sourceId("telemetry"), "tool.call", { secret: "hunter2" }))
-    yield* journal.flush
-    const page = yield* journal.entries({ runId: run, limit: 10 })
-    expect(page.entries[0]!.payload).toEqual({ secret: Redaction.placeholder })
-  }).pipe(
-    Effect.provide(journalLayer({ capacity: 8, overflow: "reject" })),
-    Effect.scoped
-  ))
+    Effect.gen(function*() {
+      const journal = yield* Journal
+      const run = runId("redaction-lossy")
+      yield* journal.emitLossy(input(run, sourceId("telemetry"), "tool.call", { secret: "hunter2" }))
+      yield* journal.flush
+      const page = yield* journal.entries({ runId: run, limit: 10 })
+      expect(page.entries[0]!.payload).toEqual({ secret: Redaction.placeholder })
+    }).pipe(
+      Effect.provide(journalLayer({ capacity: 8, overflow: "reject" })),
+      Effect.scoped
+    ))
 
   it("applies an empty rule set literally, keeping only the structural redaction", () => {
     // `rules` is caller-supplied, and `[]` is not nullish, so it replaces the
