@@ -14,6 +14,7 @@ import { minimatch } from "minimatch"
 import { createHash } from "node:crypto"
 import type { Dirent } from "node:fs"
 import * as NodePath from "node:path"
+import * as Yaml from "yaml"
 import * as Config from "./Config.ts"
 import * as SafeFs from "./SafeFs.ts"
 
@@ -73,12 +74,30 @@ export const GitDiff = Schema.TaggedStruct("GitDiff", {
 export type GitDiff = typeof GitDiff.Type
 
 /**
+ * Schema for a pnpm workspace definition whose members are planner inputs.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const PnpmWorkspace = Schema.TaggedStruct("PnpmWorkspace", {
+  path: Schema.NonEmptyString
+})
+
+/**
+ * A pnpm workspace file expanded to its root and member manifests.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type PnpmWorkspace = typeof PnpmWorkspace.Type
+
+/**
  * Schema for every declared input value the planner understands.
  *
  * @category schemas
  * @since 0.1.0
  */
-export const Declared = Schema.Union([Glob, File, GitDiff])
+export const Declared = Schema.Union([Glob, File, GitDiff, PnpmWorkspace])
 
 /**
  * Every declared input value the planner understands.
@@ -148,6 +167,25 @@ export const file = (path: string): File => File.make({ path })
  * @since 0.1.0
  */
 export const gitDiff = (base: string): GitDiff => GitDiff.make({ base: validateGitBase(base) })
+
+/**
+ * Creates a workspace-membership input without reading the filesystem.
+ *
+ * The planner parses the named pnpm workspace file, validates its `packages`
+ * list, and expands the root and member `package.json` files. The workspace
+ * file and every resolved manifest then contribute content to the target key.
+ *
+ * @example
+ * ```ts
+ * import { Smithers } from "@smthrs/targets"
+ *
+ * const workspace = Smithers.pnpmWorkspace("//pnpm-workspace.yaml")
+ * ```
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const pnpmWorkspace = (path: string): PnpmWorkspace => PnpmWorkspace.make({ path })
 
 /** Reports whether UTF-8 encoding can preserve a string without replacement. */
 const isWellFormed = (value: string): boolean => {
@@ -703,6 +741,84 @@ export const discoverFiles = async (
   if (opened === undefined) throw new Error(`workspace is not a directory: ${workspaceRoot}`)
   await walk(scan, opened, [], false)
   return scan.found.sort()
+}
+
+const PnpmWorkspaceContents = Schema.Struct({
+  packages: Schema.Array(Schema.NonEmptyString).check(Schema.isMinLength(1))
+})
+
+const yamlFailure = (path: string, action: string, cause: unknown): Error =>
+  new Error(`could not ${action} pnpm workspace ${path}`, { cause })
+
+/**
+ * Expands a pnpm workspace declaration to the files resolution reads.
+ *
+ * Workspace package patterns are relative to the workspace file, including
+ * pnpm's leading-`!` exclusions. The result includes the workspace file, its
+ * adjacent root manifest, and every matching member manifest. This makes one
+ * declaration both the membership source and the complete lockfile input.
+ *
+ * @category expansion
+ * @since 0.1.0
+ */
+export const expandPnpmWorkspace = async (
+  workspaceRoot: string,
+  packageDir: string,
+  declaration: PnpmWorkspace,
+  options: {
+    readonly cacheDirectory?: string | undefined
+    readonly io?: SafeFs.Io | undefined
+    readonly limits?: Partial<ScanLimits> | undefined
+    readonly signal?: AbortSignal | undefined
+  } = {}
+): Promise<ReadonlyArray<string>> => {
+  const io = options.io ?? SafeFs.defaultIo
+  const root = await SafeFs.canonicalRoot(workspaceRoot, io)
+  const path = resolvePath(packageDir, declaration.path)
+  const source = await SafeFs.readText(NodePath.join(root, path), {
+    root,
+    io,
+    signal: options.signal,
+    what: "pnpm workspace"
+  })
+  if (source === undefined) throw new Error(`pnpm workspace does not exist: ${path}`)
+  let parsed: unknown
+  try {
+    parsed = Yaml.parse(source) as unknown
+  } catch (cause) {
+    throw yamlFailure(path, "parse", cause)
+  }
+  let contents: typeof PnpmWorkspaceContents.Type
+  try {
+    contents = Schema.decodeUnknownSync(PnpmWorkspaceContents)(parsed)
+  } catch (cause) {
+    throw yamlFailure(path, "validate", cause)
+  }
+  const directoryName = posix(NodePath.dirname(path))
+  const directory = directoryName === "." ? "" : directoryName
+  const patterns = contents.packages.map((entry) => {
+    const excluded = entry.startsWith("!")
+    const value = excluded ? entry.slice(1) : entry
+    if (value === "") throw new Error(`pnpm workspace ${path} contains an empty exclusion`)
+    return { excluded, pattern: resolvePath(directory, value) }
+  })
+  if (!patterns.some((pattern) => !pattern.excluded)) {
+    throw new Error(`pnpm workspace ${path} contains no package inclusion`)
+  }
+  const files = await discoverFiles(root, {
+    cacheDirectory: options.cacheDirectory,
+    io,
+    limits: options.limits,
+    signal: options.signal
+  })
+  const members = files.filter((file) => {
+    if (NodePath.posix.basename(file) !== "package.json") return false
+    const member = NodePath.posix.dirname(file)
+    return patterns.some(({ excluded, pattern }) => !excluded && minimatch(member, pattern, { dot: true })) &&
+      !patterns.some(({ excluded, pattern }) => excluded && minimatch(member, pattern, { dot: true }))
+  })
+  const rootManifest = directory === "" ? "package.json" : `${directory}/package.json`
+  return [...new Set([path, rootManifest, ...members])].sort()
 }
 
 /**

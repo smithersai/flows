@@ -53,6 +53,10 @@ export const Attrs = Schema.Struct({
   /** The workspace-definition target, when it is generated. @default null */
   workspace: Schema.NullOr(Target.Target).pipe(
     Schema.withConstructorDefault(Effect.succeed(null))
+  ),
+  /** The hand-written pnpm workspace definition and the manifests it selects. @default null */
+  workspaceManifest: Schema.NullOr(Input.PnpmWorkspace).pipe(
+    Schema.withConstructorDefault(Effect.succeed(null))
   )
 })
 
@@ -78,7 +82,8 @@ export type Attrs = typeof Attrs.Type
 export const inputsFor = (attrs: Attrs): ReadonlyArray<Input.Declared> => [
   Input.file(PackageManager.lockfileName(attrs.packageManager)),
   Input.file(".npmrc"),
-  Input.file("package.json")
+  Input.file("package.json"),
+  ...(attrs.workspaceManifest === null ? [] : [attrs.workspaceManifest])
 ]
 
 /**

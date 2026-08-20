@@ -21,24 +21,86 @@ package instead of the first casualty.
 
 ## Changing a root file
 
-The files at the repository root are generated from `BUILD.ts` and then
-pinned, by suites that deliberately re-declare rather than import them —
-importing `BUILD.ts` would be circular, since it imports the very packages
-doing the pinning. The duplication is the point: widening the workspace,
-letting a package run an install script, or narrowing how CI fans out are
-all changes someone should have to justify in review rather than slip in.
+Some files at the repository root are generated from `BUILD.ts` and then
+pinned by suites that deliberately re-declare rather than import them.
+Importing `BUILD.ts` would be circular, since it imports the very packages
+doing the pinning. `pnpm-workspace.yaml` is the exception: pnpm owns and may
+update it, so it is hand-written and authoritative. The build graph parses its
+`packages` list and keys lockfile resolution and installation on the file plus
+the root and selected member manifests.
 
 The cost is that one edit lands in several places. If you change:
 
 | What                                                             | Also update                                                                                                                                                                                  |
 | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BUILD.ts` workspace attrs (`packages`, `allowBuilds`, settings) | the generated `pnpm-workspace.yaml` (`pnpm exec smthrs build '//:workspace'`), `packages/targets/test/GeneratedRootFiles.test.ts`, and `packages/flows/test/vitestCoverageIsolation.test.ts` |
+| `pnpm-workspace.yaml` package membership                         | `packages/flows/test/vitestCoverageIsolation.test.ts` (the coverage-universe policy pin); lockfile inputs are derived automatically                                                          |
 | root `package.json` scripts                                      | `packages/flows/test/vitestCoverageIsolation.test.ts` (the aggregator roster)                                                                                                                |
 | root `BUILD.ts` CI jobs, steps, or triggers                      | the generated `.github/workflows/ci.yml` (`pnpm exec smthrs build '//:ci'` with `mode: "write"`), and `packages/flows/test/vitestCoverageIsolation.test.ts` (source-text pins)               |
 | `.github/workflows/release.yml`                                  | the same suite, plus `scripts/release-rehearsal.test.mjs`                                                                                                                                    |
 
 Miss one and CI reports a generated file as a hand edit, which is exactly
 what it should do — it cannot tell your deliberate change from a stray one.
+
+## Root graph rationale
+
+The root `BUILD.ts` intentionally contains declarations only, with its
+explanatory prose kept here. Nothing in that file is a command. Jobs declare
+the toolchain a runner provides and the targets they invoke; `GithubCiGen`
+derives checkout, installation, tool setup, and every
+`pnpm exec smthrs <verb> <pattern>` argv. A gate must therefore become a target
+in the package that owns it before CI can invoke it, matching Bazel's rule that
+a BUILD file has no free-form command surface.
+
+The generated `tsconfig.json` is the root TypeScript project. The lockfile and
+install are separate targets because a target cannot be keyed on a file it
+also produces: `Lockfile` writes `pnpm-lock.yaml`, while `Install` consumes the
+lockfile target. The hand-written `pnpm-workspace.yaml` is a planner input. Its
+contents select the workspace manifests, and all of those files key both
+targets, so a membership or dependency edit forces resolution before linking
+`node_modules`. `PackageDefaults` applies `StandardPackage` to each
+`packages/*` directory with a `package.json` and no BUILD file, synthesizing
+the conventional `lib`, `check`, `test`, `lint`, `fmt`, and `docs` targets;
+packages with a different layout carry their own BUILD file.
+
+The CI declaration has several deliberate operational constraints:
+
+- The `test` job aggregates build, test, lint, docs, format, and circular
+  targets in one graph plan. It uses `parallelism: 2` because the heavy Vitest
+  suites have finite 30-second per-test budgets that excessive concurrency on
+  a four-core runner can starve.
+- `actionlint` checks every workflow named by the declaration so GitHub-only
+  expression-context failures surface in review, not in a scheduled run.
+  `apps/server/scripts/canary/workflow-wiring.test.ts` ensures no workflow is
+  omitted. The script targets include the browser contract and release
+  pack-and-smoke chain; the agent eval suite and typecheck are offline and
+  baseline-gated. CI also lint-checks its own generated workflow so the file
+  describing the pipeline is not exempt from drift enforcement.
+- The `apps-e2e` lane is separate because it boots Wrangler and a real Chrome;
+  nothing under `apps/` needs jj. The Ubuntu runner's Chrome path is asserted
+  because `BrowserLaunch.ts` probes that fixed candidate list. Screenshots in
+  `/tmp` and launch-checklist reports under `apps/reports` are collected under
+  one artifact root.
+- Issue #163 requires jj on `PATH` for the real-binary suites so a missing
+  binary fails loudly instead of skipping. GitHub checkout creates a Git
+  repository, not a jj repository, so CI initializes colocated metadata before
+  those contracts run.
+- `rust-toolchain.toml` is the shared pin for the Rust jobs. The WebAssembly
+  lane rebuilds `packages/jj/wasm/flows_jj.wasm` without a build cache and
+  requires byte-for-byte equality with the committed artifact. Its Linux host
+  triple is part of that reproducibility contract; `build-wasm.mjs` refuses a
+  different host explicitly rather than producing a misleading byte diff.
+- The Bun lane covers only the compatibility matrix documented in
+  `ci/BUILD.ts`. The browser lane remains a standalone contract until a real
+  browser-runner suite exists. macOS and Windows package suites are advisory
+  until they establish a stable green history; known Windows path failures are
+  not chased in that lane.
+
+The package policy in `pnpm-workspace.yaml` is equally deliberate.
+`verifyDepsBeforeRun` stays disabled because installation is an explicit graph
+step, and a gate must not reinstall what it is measuring with different script
+settings. Playwright lifecycle builds stay denied: the live browser checks use
+a system or previously installed browser, so dependency installation must not
+download one.
 
 Packages under `packages/` follow the structure and conventions in the Effect repository. Use `reference/effect` as the local reference when adding or changing package modules, public APIs, tests, build configuration, or package metadata.
 
