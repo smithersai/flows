@@ -8,6 +8,14 @@
   fold namespaces whose payloads are executable state (`flows.cache.*`) bypass
   the write-path redactor, because the fold rebuilds served rows from them —
   see `docs/specs/Concepts/Step Cache Fold.md`.
+- The deferred/clock fold's five fold-input event types
+  (`flows.engine.deferred-completed`, `flows.engine.clock-scheduled`,
+  `flows.engine.clock-completed`, `flows.engine.deferred-snapshot`,
+  `flows.engine.clock-snapshot`) join `Redaction.verbatimNamespaces` as exact
+  entries: prefix matching makes a full event-type string an exact entry, so
+  the rest of `flows.engine.*` stays redacted — see
+  `docs/specs/Concepts/Deferred Clock Fold.md`. The bypass is journal-owned
+  allowlist policy; `JournalEvent.Input` carries no per-entry flag.
 
 ### Breaking Changes
 

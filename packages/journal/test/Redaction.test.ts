@@ -104,11 +104,28 @@ describe("Redaction", () => {
     }).pipe(Effect.provide(journalLayer()), Effect.scoped))
 
   it("names the fold namespaces whose entries bypass the write-path redactor", () => {
-    expect(Redaction.verbatimNamespaces).toEqual(["flows.cache."])
+    expect(Redaction.verbatimNamespaces).toEqual([
+      "flows.cache.",
+      "flows.engine.deferred-completed",
+      "flows.engine.clock-scheduled",
+      "flows.engine.clock-completed",
+      "flows.engine.deferred-snapshot",
+      "flows.engine.clock-snapshot"
+    ])
     expect(Redaction.isVerbatimEventType("flows.cache.recorded")).toBe(true)
     expect(Redaction.isVerbatimEventType("flows.cache.evicted")).toBe(true)
     expect(Redaction.isVerbatimEventType("flows.cachex.other")).toBe(false)
     expect(Redaction.isVerbatimEventType("action.completed")).toBe(false)
+    // The deferred/clock fold shares `flows.engine.` with non-fold records,
+    // so its five fold-input types are exact entries and the rest of the
+    // namespace stays redacted.
+    expect(Redaction.isVerbatimEventType("flows.engine.deferred-completed")).toBe(true)
+    expect(Redaction.isVerbatimEventType("flows.engine.clock-scheduled")).toBe(true)
+    expect(Redaction.isVerbatimEventType("flows.engine.clock-completed")).toBe(true)
+    expect(Redaction.isVerbatimEventType("flows.engine.deferred-snapshot")).toBe(true)
+    expect(Redaction.isVerbatimEventType("flows.engine.clock-snapshot")).toBe(true)
+    expect(Redaction.isVerbatimEventType("flows.engine.attempt-started")).toBe(false)
+    expect(Redaction.isVerbatimEventType("flows.engine.run-decision")).toBe(false)
   })
 
   effect("keeps fold-namespace payloads verbatim on the write path", () =>
@@ -137,6 +154,39 @@ describe("Redaction", () => {
       })
       expect(page.entries[0]!.meta).toEqual({ lineageId: "redaction-fold/root" })
       expect(page.entries[1]!.payload).toEqual({ apiKey: Redaction.placeholder })
+    }).pipe(Effect.provide(journalLayer()), Effect.scoped))
+
+  effect("keeps a deferred exit byte-exact past the write-path redactor", () =>
+    Effect.gen(function*() {
+      // Executable replay state: the deferred/clock fold rebuilds
+      // `flows_deferred_completions` rows from this payload, so a placeholder
+      // would resume a flow with the wrong data. The bypass is the exact
+      // `flows.engine.deferred-completed` entry in
+      // `Redaction.verbatimNamespaces` — journal-owned allowlist policy, not
+      // anything the producer marks on the entry. `token`-shaped members are
+      // exactly what the redactor would otherwise rewrite.
+      const journal = yield* Journal
+      const run = runId("redaction-deferred")
+      const exit = { _tag: "Success", value: { token: "opaque-correlation" } }
+      yield* journal.emitDurable(
+        input(run, sourceId("engine"), "flows.engine.deferred-completed", {
+          deferredName: "answer",
+          exit,
+          completedAtMs: 7
+        }, { lineageId: "redaction-deferred/root" })
+      )
+      // A non-fold record in the same namespace still funnels through the
+      // redactor: the allowlist names the five fold-input types, never
+      // `flows.engine.` itself.
+      yield* journal.emitDurable(
+        input(run, sourceId("engine"), "flows.engine.attempt-started", {
+          token: "sk-ant-api03-abcdefgh"
+        })
+      )
+      const page = yield* journal.entries({ runId: run, limit: 10 })
+      expect(page.entries[0]!.payload).toEqual({ deferredName: "answer", exit, completedAtMs: 7 })
+      expect(page.entries[0]!.meta).toEqual({ lineageId: "redaction-deferred/root" })
+      expect(page.entries[1]!.payload).toEqual({ token: Redaction.placeholder })
     }).pipe(Effect.provide(journalLayer()), Effect.scoped))
 
   effect("never persists a secret through the lossy queue either", () =>

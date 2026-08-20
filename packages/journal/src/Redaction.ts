@@ -171,6 +171,15 @@ export const redact = (value: unknown, options?: Options): unknown => {
  * `flows.run.*` and `flows.attempt.*` namespaces join this list when that fold
  * lands (`docs/specs/Concepts/Run State Fold.md`).
  *
+ * Matching is by prefix, so a full event-type string works as an exact entry.
+ * The deferred/clock fold (`docs/specs/Concepts/Deferred Clock Fold.md`) needs
+ * that: `flows.engine.` also carries many non-fold records (attempt-started,
+ * run-decision, ...), so the fold lists its five input types exactly and the
+ * namespace itself is never listed. The policy lives here rather than on the
+ * producing entry because redaction is a security control — a producer-set
+ * flag would let any caller exempt its own entries, while this list keeps the
+ * bypass auditable in one place.
+ *
  * The accepted consequences are the module doc's: hygiene for values that must
  * never persist stays the caller-schema `Redacted` rule, and export/display
  * surfaces scrub at render time.
@@ -178,7 +187,14 @@ export const redact = (value: unknown, options?: Options): unknown => {
  * @since 0.1.0
  * @category constants
  */
-export const verbatimNamespaces: ReadonlyArray<string> = ["flows.cache."]
+export const verbatimNamespaces: ReadonlyArray<string> = [
+  "flows.cache.",
+  "flows.engine.deferred-completed",
+  "flows.engine.clock-scheduled",
+  "flows.engine.clock-completed",
+  "flows.engine.deferred-snapshot",
+  "flows.engine.clock-snapshot"
+]
 
 /**
  * Whether entries of this event type bypass the write-path redactor because
