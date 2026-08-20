@@ -17,6 +17,8 @@ describe("tailwind content globs resolve from any cwd", () => {
 		const previous = process.cwd();
 		process.chdir(repoRoot);
 		try {
+			// The config is plain JavaScript with no declaration file; the shape read here is asserted below.
+			// @ts-expect-error TS7016: no declarations for the JS config module
 			const config = (await import("../../../tailwind.config.js")).default as {
 				readonly content: ReadonlyArray<string>;
 			};
@@ -32,6 +34,7 @@ describe("tailwind content globs resolve from any cwd", () => {
 	});
 
 	test("the globs cover the app's own sources", async () => {
+		// @ts-expect-error TS7016: no declarations for the JS config module
 		const config = (await import("../../../tailwind.config.js")).default as {
 			readonly content: ReadonlyArray<string>;
 		};
