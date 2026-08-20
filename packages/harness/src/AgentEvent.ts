@@ -14,12 +14,12 @@ import * as EngineLike from "./EngineLike.ts"
  * The loop discipline a run was armed with, journaled once when it starts.
  *
  * Arming used to be observable only through the events a disciplined run
- * *reaches*: `completion-audited` proves the audit was armed, and the read-cap
- * failure proves the cap was. A run that times out before either fires proves
- * nothing, so a grader could not tell "armed but never reached" from "never
- * armed" — which is exactly what the 2026-08-19 SWE-bench wave could not
- * decide about its django instance. This event is the positive record: it says
- * what was armed, before anything has had a chance to fire.
+ * *reaches*: the read-cap failure proves the cap was armed, and a run that
+ * times out before it fires proves nothing — so a grader could not tell "armed
+ * but never reached" from "never armed", which is exactly what the 2026-08-19
+ * SWE-bench wave could not decide about its django instance. This event is the
+ * positive record: it says what was armed, before anything has had a chance to
+ * fire.
  *
  * @category events
  * @since 0.1.0
@@ -29,13 +29,6 @@ export class DisciplineArmed extends Schema.TaggedClass<DisciplineArmed>(
   "flows/harness/AgentEvent/DisciplineArmed"
 )("discipline-armed", {
   eventType: Schema.Literal("flows.harness.discipline-armed.v1"),
-  /** Whether the run's first `complete` is challenged for evidence. */
-  auditCompletion: Schema.Boolean,
-  /** Whether accepted evidence must prove a baseline regression changed after a write. */
-  requireRegressionEvidence: Schema.Boolean.pipe(
-    Schema.withConstructorDefault(Effect.succeed(false)),
-    Schema.withDecodingDefaultKey(Effect.succeed(false))
-  ),
   /** Consecutive read-only frames allowed; zero means the cap is disarmed. */
   readOnlyCap: Schema.Number,
   /** The frame budget the run stops at. */
@@ -205,29 +198,6 @@ export class TransitionApplied extends Schema.TaggedClass<TransitionApplied>(
 }) {}
 
 /**
- * The machine-checked verdict on one completion claim.
- *
- * The controller re-ran the check the completing cell declared and recorded
- * what actually happened. This is the grader's evidence: the flow, the input,
- * and the real output the harness saw, not the model's account of them.
- *
- * @category events
- * @since 0.1.0
- * @slop
- */
-export class CompletionAudited extends Schema.TaggedClass<CompletionAudited>(
-  "flows/harness/AgentEvent/CompletionAudited"
-)("completion-audited", {
-  eventType: Schema.Literal("flows.harness.completion-audited.v1"),
-  /** The declared verification, absent when the completion declared none. */
-  verification: Schema.optional(Cell.Verification),
-  /** Whether the completion was accepted on this evidence. */
-  accepted: Schema.Boolean,
-  /** What the harness observed: the real output, or why nothing was run. */
-  detail: Schema.String
-}) {}
-
-/**
  * The outcome of the frame immediately following a read-cap intervention.
  *
  * @category events
@@ -361,7 +331,6 @@ export const AgentEvent = Schema.Union([
   CellCallSettled,
   CellSettled,
   TransitionApplied,
-  CompletionAudited,
   ReadOnlyDemanded,
   Suspended,
   CompactionSettled,

@@ -53,17 +53,14 @@ loop and its seams, not durability and not a real catalog.
 | `correction-reprompt-recovers`         | One malformed answer spends one correction slot; the re-prompted run decodes and the step succeeds.                    |
 | `correction-budget-exhausted`          | A model that never produces the declared shape fails `/harness/StructuredOutputFailure`, not silently.                 |
 | `cell-calls-a-flow`                    | A cell reaches a host capability through `ctx.call`, and the flow's typed result reaches the answer.                   |
-| `completion-audit-bounces-first-claim` | With the audit armed, the first completion is refused; the second is accepted only after the harness re-runs the check it declares. |
-| `completion-audit-refuses-an-unproven-claim` | A completion with no declared check is refused with what the harness observed; the run recovers by running one and citing it. |
 | `read-only-cap-stops-a-reading-run`    | A task run that only reads is told to write or justify at its cap, and stops as `/harness/HarnessError` at twice it.   |
 | `max-frames-stops-the-run`             | A run that never completes stops at its frame budget and reports `/harness/HarnessError`.                              |
 | `seat-unresolved-is-typed`             | A host with no model for the declared seat refuses before any model call, as `@smthrs/agent/Seat/SeatUnresolved`.      |
 
 Seven cases drive the agent through `AgentAction` — one typed step inside an
-ordinary flow, which is how a workflow author reaches it. The three loop-
-discipline cases drive the `Agent` service directly inside a real flow
-execution, because `auditCompletion` and `readOnlyCap` are `Agent.Options`
-fields that `AgentAction` does not forward.
+ordinary flow, which is how a workflow author reaches it. The read-only-cap case
+drives the `Agent` service directly inside a real flow execution, because
+`readOnlyCap` is an `Agent.Options` field that `AgentAction` does not forward.
 
 Each case reduces its run to one `Observation`:
 
@@ -80,15 +77,11 @@ invariants the schema cannot state, namely that `kind` decides which of `value`
 and `failure` is set and that `modelCalls` is a non-negative integer.
 
 Cases are self-evidencing rather than count-based wherever the prompt makes that
-possible. The completion-audit cases script the model to answer `"audited"` only
-when the prompt it receives contains the audit demand, and the correction case
-answers with valid JSON only when the prompt carries the correction teaching, so
-a boundary that stopped bouncing or stopped re-prompting reports the wrong
-answer and not merely a different call count. The audit cases also read their
-own machine check: the cited command appears twice in `flowCalls`, once from
-the cell and once from the controller re-running it, so an audit that went back
-to believing prose records it once. The read-only case records `probe:demanded`
-only if the structural demand actually reached the model.
+possible. The correction case answers with valid JSON only when the prompt
+carries the correction teaching, so a boundary that stopped re-prompting reports
+the wrong answer and not merely a different call count. The read-only case
+records `probe:demanded` only if the structural demand actually reached the
+model.
 
 ## Files
 
@@ -140,7 +133,8 @@ red run:
 
 - **It scores a scripted provider.** Every case fixes what the model says, so
   the suite measures the loop around the model — decoding, correction, calls,
-  budgets, audits, seat resolution — and measures nothing about model quality.
+  budgets, discipline, seat resolution — and measures nothing about model
+  quality.
   A live-provider suite is a separate thing and would not be deterministic.
 - **One composition.** Every case runs with an empty registry, an empty
   capability envelope, and at most one host flow. Plugin ordering, memory

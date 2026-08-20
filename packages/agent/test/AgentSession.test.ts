@@ -172,17 +172,6 @@ return { intent: "continue", state: { saved: saved.saved }, context: [{ role: "u
 const frameOne = `const decision = await ctx.call("ask", { question: "publish the log?", options: ["yes", "no"] })
 return { intent: "complete", state: null, output: "approved=" + decision.approved }`
 
-/**
- * The executor arms the completion audit, so the accepted completion is the
- * second one, and it has to cite a check the harness can run itself.
- */
-const frameTwo = `return {
-  intent: "complete",
-  state: null,
-  output: "approved=true",
-  verify: { flow: "project/check", input: { command: "npm test" } }
-}`
-
 const cellEvents = (source: string, id: string): ReadonlyArray<ModelEvent.ModelEvent> => [
   ModelEvent.ModelEvent.TextStart({ type: "text-start", id }),
   ModelEvent.ModelEvent.TextDelta({ type: "text-delta", id, text: "```cell\n" + source + "\n```" }),
@@ -200,7 +189,7 @@ const capturing = (captured: Array<Captured>): Model.Model =>
   Model.make({
     stream: (request) =>
       Stream.suspend(() => {
-        const source = captured.length === 0 ? frameZero : captured.length === 1 ? frameOne : frameTwo
+        const source = captured.length === 0 ? frameZero : frameOne
         const events = cellEvents(source, `cell-${captured.length}`)
         captured.push({ request, events })
         return Stream.fromIterable(events)
@@ -215,7 +204,7 @@ interface StackOptions {
   /** The scripted resolver installed as the composition's `SeatResolver`. */
   readonly resolve: SeatResolver.Service["resolve"]
   readonly notes: Array<string>
-  /** Commands the audited check flow was actually asked to run. */
+  /** Commands the project-check flow was actually asked to run. */
   readonly checks?: Array<string> | undefined
   readonly gate: Deferred.Deferred<void>
   /** Completes when the test tool enters its gate, before its side effect. */
@@ -252,15 +241,13 @@ const stack = (options: StackOptions) => {
         )
     })
   ])
-  let checkCalls = 0
   const checkSource = FlowBinding.source("test/check", [
     FlowBinding.make({
       flow: checkFlow,
       handler: (input) =>
         Effect.sync(() => {
           options.checks?.push(input.command)
-          checkCalls++
-          return { exitCode: checkCalls === 1 ? 1 : 0 }
+          return { exitCode: 0 }
         })
     })
   ])
@@ -489,23 +476,18 @@ describe("AgentSession", () => {
       }).pipe(Effect.scoped) as Effect.Effect<Outcome>
     )
 
-    // Three provider calls — two frames plus the completion audit's
-    // re-affirmation — and the resumed attempt replayed all of them as
-    // sealed steps instead of asking the provider again.
-    expect(captured).toHaveLength(3)
-    // The audit is machine-checked end to end: the cell ran the check once,
-    // and the controller ran the cited check itself before accepting the
-    // completion. The verdict and the real output are on the journal.
-    expect(checks).toEqual(["npm test", "npm test"])
-    const auditTrail = outcome.agentTrail.filter((entry) => entry.eventType === "control.agent.completion-audited")
-    expect(auditTrail).toHaveLength(1)
-    expect(auditTrail[0]?.payload).toMatchObject({ accepted: true, flowName: "project/check" })
+    // Two provider calls, one per frame, and the resumed attempt replayed
+    // both as sealed steps instead of asking the provider again.
+    expect(captured).toHaveLength(2)
+    // The host check flow ran exactly once, from the cell that called it: the
+    // controller has no private way to run commands of its own.
+    expect(checks).toEqual(["npm test"])
     // Per-call latency is journaled next to usage, so a benchmark can measure
     // seconds per call and not only per run.
     // At least one per frame; the park and its resumed attempt re-emit the
     // frames they replay.
     const settled = outcome.agentTrail.filter((entry) => entry.eventType === "control.agent.model-settled")
-    expect(settled.length).toBeGreaterThanOrEqual(3)
+    expect(settled.length).toBeGreaterThanOrEqual(2)
     expect(
       settled.every((entry) =>
         typeof (entry.payload as { readonly durationMillis?: unknown }).durationMillis === "number"
@@ -576,7 +558,7 @@ describe("AgentSession", () => {
           // single-concurrency resume bridge for its whole retry budget,
           // starving the genuine resume below past its completion wait.
           for (const foreign of ["foreign-1", "foreign-2", "foreign-3"]) {
-            yield* journal.emitDurable(
+            yield* journal.emitDurableUnfenced(
               new JournalEvent.Input({
                 runId: JournalEvent.RunId.make(foreign),
                 sourceId: JournalEvent.SourceId.make("/test/foreign-control"),

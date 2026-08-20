@@ -87,15 +87,14 @@ The whole sample, one harness at a time:
 Before spending tokens on the rest of a wave, run and grade its first flows
 instance, then inspect that workspace's journal for exactly one
 `control.agent.discipline-armed` event per run. Its payload is the positive
-record of the discipline configured at run start: `auditCompletion` must be
-`true`, `requireRegressionEvidence` must be `true`, `readOnlyCap` must be
-nonzero, and `maxFrames` plus every armed sandbox limit (`calls`, `memoryBytes`,
-`steps`, `timeMs`, `callMs`, and `totalMs`) must match the wave's intended
-budgets. Stop the wave if the event is absent or the values are wrong.
+record of the discipline configured at run start: `readOnlyCap` must be nonzero,
+and `maxFrames` plus every armed sandbox limit (`calls`, `memoryBytes`, `steps`,
+`timeMs`, `callMs`, and `totalMs`) must match the wave's intended budgets. Stop
+the wave if the event is absent or the values are wrong.
 
-Do not use `control.agent.completion-audited` as the arming gate. That event
-proves an armed audit was reached, not merely armed; a run that times out before
-attempting completion correctly has no such event.
+Gate on this event rather than on `control.agent.read-only-demanded`. The demand
+event proves an armed cap was reached, not merely armed; a run that writes early
+and often correctly has no such event.
 
 For the wave report, read `control.agent.read-only-demanded` directly. Each
 event records the streak and configured cap that triggered the intervention,

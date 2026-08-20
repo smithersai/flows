@@ -140,27 +140,12 @@ export class Continue extends Schema.TaggedClass<Continue>("flows/harness/Cell/C
 }) {}
 
 /**
- * The check a completing cell declares, for the harness to run itself.
- *
- * The audit is machine-checked: the controller invokes exactly this flow with
- * exactly this input through the same durable call boundary a cell uses, and
- * accepts the completion only if the call passes. Quoting a command in prose
- * proves nothing — one benchmark run shipped a patch that never imported the
- * symbol it called and closed with quoted evidence it had not re-run.
- *
- * @category models
- * @since 0.1.0
- * @slop
- */
-export class Verification extends Schema.Class<Verification>("flows/harness/Cell/Verification")({
-  /** The flow to call, which must be in this frame's catalog. */
-  flow: Schema.String,
-  /** The input to call it with, byte-identical to the call being cited. */
-  input: Schema.Json
-}) {}
-
-/**
  * The cell declares the task finished and supplies its final output.
+ *
+ * A completion carries no self-reported proof. The run's evidence is the calls
+ * it actually made — every one journaled as `cell-call-settled` with its real
+ * input and result — and a field in which the model restates which of them
+ * proved the work would be a claim about a check rather than the check.
  *
  * @category models
  * @since 0.1.0
@@ -169,9 +154,7 @@ export class Verification extends Schema.Class<Verification>("flows/harness/Cell
 export class Complete extends Schema.TaggedClass<Complete>("flows/harness/Cell/Complete")("complete", {
   state: Schema.Json,
   output: Schema.String,
-  reason: Schema.optional(Schema.String),
-  /** The check the controller re-runs before it accepts this completion. */
-  verify: Schema.optional(Verification)
+  reason: Schema.optional(Schema.String)
 }) {}
 
 /**
@@ -224,8 +207,7 @@ const Returned = Schema.Union([
     intent: Schema.Literal("complete"),
     state: Schema.optional(Schema.Json),
     output: Schema.String,
-    reason: Schema.optional(Schema.String),
-    verify: Schema.optional(Verification)
+    reason: Schema.optional(Schema.String)
   }),
   Schema.Struct({
     intent: Schema.Literal("park"),
@@ -349,8 +331,7 @@ export const transition = (value: unknown): Outcome => {
         transition: new Complete({
           state: returned.state ?? null,
           output: returned.output,
-          reason: returned.reason,
-          verify: returned.verify
+          reason: returned.reason
         })
       })
     case "park":

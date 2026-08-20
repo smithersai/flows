@@ -58,7 +58,6 @@ describe("AgentEvent", () => {
     const events: ReadonlyArray<AgentEvent.AgentEvent> = [
       new AgentEvent.DisciplineArmed({
         eventType: "flows.harness.discipline-armed.v1",
-        auditCompletion: true,
         readOnlyCap: 3,
         maxFrames: 100,
         calls: 8,
@@ -110,12 +109,6 @@ describe("AgentEvent", () => {
       new AgentEvent.TransitionApplied({
         eventType: "flows.harness.transition-applied.v1",
         transition: new Cell.Park({ state: { step: 1 }, reason: "waiting-input", message: "choose a branch" })
-      }),
-      new AgentEvent.CompletionAudited({
-        eventType: "flows.harness.completion-audited.v1",
-        verification: new Cell.Verification({ flow: "run-tests", input: { suite: "unit" } }),
-        accepted: true,
-        detail: "0 failures"
       }),
       new AgentEvent.Suspended({
         eventType: "flows.harness.suspended.v1",
@@ -186,14 +179,8 @@ describe("AgentEvent", () => {
     const events: ReadonlyArray<AgentEvent.AgentEvent> = [
       new AgentEvent.DisciplineArmed({
         eventType: "flows.harness.discipline-armed.v1",
-        auditCompletion: false,
         readOnlyCap: 0,
         maxFrames: 1
-      }),
-      new AgentEvent.CompletionAudited({
-        eventType: "flows.harness.completion-audited.v1",
-        accepted: false,
-        detail: "the completion declared no verification"
       }),
       new AgentEvent.Suspended({
         eventType: "flows.harness.suspended.v1",

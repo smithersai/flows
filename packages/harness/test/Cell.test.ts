@@ -193,7 +193,7 @@ describe("Cell.transition", () => {
     const done = Cell.transition({ intent: "complete", output: "answer" })
     expect(done._tag).toBe("settled")
     expect((done as Cell.Settled).transition).toStrictEqual(
-      new Cell.Complete({ state: null, output: "answer", reason: undefined, verify: undefined })
+      new Cell.Complete({ state: null, output: "answer", reason: undefined })
     )
 
     const parked = Cell.transition({ intent: "park", reason: "waiting-input", message: "need a choice" })
@@ -237,18 +237,16 @@ describe("Cell.transition", () => {
       })
     )
 
-    const verified = Cell.transition({
+    const reasoned = Cell.transition({
       intent: "complete",
       output: "patched",
-      reason: "tests pass",
-      verify: { flow: "bash", input: { command: "pytest -q" } }
+      reason: "tests pass"
     })
-    expect((verified as Cell.Settled).transition).toStrictEqual(
+    expect((reasoned as Cell.Settled).transition).toStrictEqual(
       new Cell.Complete({
         state: null,
         output: "patched",
-        reason: "tests pass",
-        verify: new Cell.Verification({ flow: "bash", input: { command: "pytest -q" } })
+        reason: "tests pass"
       })
     )
   })

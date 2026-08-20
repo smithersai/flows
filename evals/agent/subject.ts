@@ -234,14 +234,6 @@ export const echoSource = (recorder: Recorder): FlowBinding.Source =>
     })
   ])
 
-const check = CoreFlow.make({
-  name: "check",
-  description: "Run the project's own check and report its exit code.",
-  input: Schema.Struct({ command: Schema.String }),
-  output: Schema.Struct({ exitCode: Schema.Number }),
-  effects: { reads: [], writes: [], mode: "expected", onConflict: "serialize", tier: "irreversible" }
-})
-
 const probe = CoreFlow.make({
   name: "probe",
   description: "Read something and report that it was read.",
@@ -249,58 +241,6 @@ const probe = CoreFlow.make({
   output: Schema.Struct({ read: Schema.Boolean }),
   effects: { reads: ["/**"], writes: [], mode: "hermetic", onConflict: "serialize", tier: "sealed" }
 })
-
-const edit = CoreFlow.make({
-  name: "edit",
-  description: "Apply one source edit.",
-  input: Schema.Struct({ path: Schema.String }),
-  output: Schema.Struct({ edited: Schema.Boolean }),
-  effects: { reads: [], writes: ["/**"], mode: "expected", onConflict: "serialize", tier: "irreversible" }
-})
-
-/**
- * The check a completing cell cites, recorded by the command it was given.
- *
- * The audit re-runs the cited call itself, so a scenario that completes with
- * evidence records the command twice: once from the cell, once from the
- * harness. A boundary that went back to accepting prose would record it once.
- *
- * @category constructors
- * @since 0.1.0
- */
-export const checkSource = (
-  recorder: Recorder,
-  exitCodes: ReadonlyArray<number> = [0]
-): FlowBinding.Source => {
-  let calls = 0
-  return (
-    FlowBinding.source("evals/agent/check", [
-      FlowBinding.make({
-        flow: check,
-        handler: (input) =>
-          Effect.sync(() => {
-            recorder.flowCalls.push(`check:${input.command}`)
-            const exitCode = exitCodes[Math.min(calls, exitCodes.length - 1)] ?? 0
-            calls++
-            return { exitCode }
-          })
-      })
-    ])
-  )
-}
-
-/** A declared write used by the strict completion-evidence scenarios. */
-export const editSource = (recorder: Recorder): FlowBinding.Source =>
-  FlowBinding.source("evals/agent/edit", [
-    FlowBinding.make({
-      flow: edit,
-      handler: (input) =>
-        Effect.sync(() => {
-          recorder.flowCalls.push(`edit:${input.path}`)
-          return { edited: true }
-        })
-    })
-  ])
 
 /**
  * A read that declares no writes, so a frame spent on it is a read-only frame.
@@ -437,9 +377,7 @@ export interface AgentOptions {
   readonly recorder: Recorder
   readonly respond: Respond
   readonly maxFrames: number
-  /** Arms the completion audit, which `AgentAction` does not forward. */
-  readonly auditCompletion?: boolean | undefined
-  /** Caps consecutive read-only frames, the other task-run discipline. */
+  /** Caps consecutive read-only frames, the task-run discipline. */
   readonly readOnlyCap?: number | undefined
   /** Host executable flows the cell may call. */
   readonly flows?: ReadonlyArray<FlowBinding.Source> | undefined
@@ -473,7 +411,6 @@ export const runAgent = (options: AgentOptions): Effect.Effect<Observation> =>
         capabilityEnvelope: [],
         maxFrames: options.maxFrames,
         ...(options.flows === undefined ? {} : { flows: options.flows }),
-        ...(options.auditCompletion === undefined ? {} : { auditCompletion: options.auditCompletion }),
         ...(options.readOnlyCap === undefined ? {} : { readOnlyCap: options.readOnlyCap })
       }).pipe(
         Stream.runForEach((event) => Effect.sync(() => collected.push(event))),
