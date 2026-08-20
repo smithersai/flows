@@ -18,6 +18,26 @@
  * fails before execution begins. Nothing here knows a repository, a path, or a
  * benchmark instance, and nothing that does may be added.
  *
+ * Those phrases are not exclusive to load time, which is the whole precision
+ * problem: a bug that *is* an import error prints `No module named` from inside
+ * a test that ran, and a test that asserts on a shell message prints `command
+ * not found` inside its own diff. Reading either as an invalid probe would
+ * suppress the reproduction it is meant to protect. So a runner's own report
+ * that it executed tests vetoes every wording recogniser, and the recognisers
+ * themselves match whole lines rather than substrings.
+ *
+ * The veto costs recall in two places, and both are the cheap direction: a
+ * compound command whose first check ran and whose second named nothing reads
+ * as an ordinary failure, and so does any refusal a runner prints after a
+ * tally. A missed invalid probe leaves the reader exactly the output it would
+ * have had; a false one tells the reader its reproduction proved nothing.
+ *
+ * One residual false positive has no evidence to read: a bare script that
+ * raises `ModuleNotFoundError` from inside application code prints nothing to
+ * say a check ran, so it still reads as an invalid probe. The message says what
+ * the result does and does not prove and leaves the reading to the caller,
+ * which is the safe shape for a call that cannot be decided at the boundary.
+ *
  * A flow that can tell the difference reports it under the reserved output key
  * {@link key}. The harness reads that key off an otherwise opaque call result
  * and refuses to count such a result as evidence that anything about the tree
@@ -121,7 +141,10 @@ const recognisers: ReadonlyArray<Recogniser> = [
   { reason: "unknown-test", pattern: /unittest\.loader\._FailedTest/ },
   // The class loaded and the method is not on it. This is the django case:
   // `type object 'AdminViewBasicTest' has no attribute 'test_catch_all_…'`.
-  { reason: "unknown-test", pattern: /has no attribute '(?:test[A-Za-z0-9_]*)'/ },
+  // The name must be shaped like a test method — `test_foo` or the older
+  // `testFoo` — because `test` is also the start of ordinary attribute names
+  // (`testing`, `tests`, `tested`) whose absence is an ordinary bug.
+  { reason: "unknown-test", pattern: /has no attribute '(?:test_[A-Za-z0-9_]*|test[A-Z][A-Za-z0-9_]*)'/ },
   // pytest resolved the file and could not resolve the node id inside it.
   { reason: "unknown-test", pattern: /^ERROR: not found:/m },
   { reason: "unknown-path", pattern: /^ERROR: file or directory not found:/m },
@@ -130,11 +153,39 @@ const recognisers: ReadonlyArray<Recogniser> = [
   { reason: "unknown-module", pattern: /(?:ModuleNotFoundError|ImportError): No module named/ },
   // tox and nox both phrase a missing environment this way.
   { reason: "unknown-environment", pattern: /unknown environment/i },
-  // bash and zsh.
-  { reason: "unknown-command", pattern: /: command not found/ },
+  // bash, sh and csh, which put the name first and the verdict last. Anchored
+  // to the end of the line so the phrase quoted inside a test's own assertion
+  // diff is not read as the shell having said it.
+  { reason: "unknown-command", pattern: /^[^\n]*: command not found\s*$/m },
+  // zsh, which puts the verdict first and the name last.
+  { reason: "unknown-command", pattern: /^[^\n]*: command not found: \S+\s*$/m },
   // dash, which prints `sh: 1: pytest: not found`.
   { reason: "unknown-command", pattern: /^[^\n:]+: \d+: [^\n:]+: not found$/m }
 ]
+
+/**
+ * Phrases with which a runner reports that it executed tests.
+ *
+ * A runner that refused a name never reaches its own tally, so a tally is proof
+ * the refusal wording came from somewhere else — a traceback inside a test that
+ * ran, or a test's own assertion diff. Only outcomes a test must have executed
+ * to earn are counted: `error` is what a collection failure reports and
+ * `skipped` and `deselected` are what an unexecuted test reports, so none of
+ * the three appear here. Zero counts are not evidence either, which is why
+ * every count is anchored at one.
+ *
+ * Truncation keeps the tail of a captured stream, so a tally survives a run
+ * whose output overflowed the capture limit.
+ */
+const executed: ReadonlyArray<RegExp> = [
+  // unittest, which prints its tally after the run and before the verdict.
+  /^Ran [1-9]\d* tests? in /m,
+  // pytest's short summary.
+  /\b[1-9]\d* (?:passed|failed|xpassed|xfailed)\b/
+]
+
+/** Whether the output carries the runner's own report that tests ran. */
+const ranTests = (text: string): boolean => executed.some((pattern) => pattern.test(text))
 
 /** The whole line one pattern matched, trimmed and clipped. */
 const matchedLine = (text: string, pattern: RegExp): string | undefined => {
@@ -160,6 +211,13 @@ const invalid = (reason: Reason, evidence: string): InvalidProbe => ({
  * evidence — the runner's own load-time wording, then the shell's reserved exit
  * codes — and the first that fires wins.
  *
+ * The wording half is vetoed by the runner's own report that it executed tests.
+ * That report outranks the wording because it is the stronger statement: a
+ * runner that ran tests resolved every name it was given, so the phrase was
+ * printed by something the run reached rather than by the runner refusing to
+ * start. The exit-code half is not vetoed — 126 and 127 are the shell's verdict
+ * on the command, and nothing a runner printed changes what the shell said.
+ *
  * Pass the text the caller will actually return, so the evidence line is always
  * quotable from the output the reader can see.
  *
@@ -177,9 +235,11 @@ export const classify = (result: {
     : result.stdout === ""
     ? result.stderr
     : `${result.stdout}\n${result.stderr}`
-  for (const recogniser of recognisers) {
-    const line = matchedLine(text, recogniser.pattern)
-    if (line !== undefined) return invalid(recogniser.reason, line)
+  if (!ranTests(text)) {
+    for (const recogniser of recognisers) {
+      const line = matchedLine(text, recogniser.pattern)
+      if (line !== undefined) return invalid(recogniser.reason, line)
+    }
   }
   // POSIX reserves these two for the shell's own refusal to start the command
   // at all: 127 is "not found", 126 is "found and not executable". No runner

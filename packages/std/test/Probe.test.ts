@@ -131,3 +131,97 @@ describe("Probe.classify", () => {
     expect(Probe.key).toBe("invalidProbe")
   })
 })
+
+describe("Probe.classify against a genuine failure that prints refusal wording", () => {
+  // The failure mode that would make this module worse than nothing: the bug
+  // under test is itself an import error, or a test asserts on a shell message,
+  // so a real reproduction carries the exact phrase a refusal carries. Reading
+  // one as an invalid probe tells the agent its reproduction proved nothing.
+  it("leaves an import error raised inside a test that ran alone", () => {
+    const probe = Probe.classify({
+      exitCode: 1,
+      stdout: [
+        "collected 3 items",
+        "",
+        "=================================== FAILURES ===================================",
+        "    def test_lazy_import():",
+        ">       load_backend('sqlite3')",
+        "E   ModuleNotFoundError: No module named 'app.backends.sqlite3'",
+        "========================= 1 failed, 2 passed in 0.41s =========================="
+      ].join("\n"),
+      stderr: ""
+    })
+    expect(probe).toBeUndefined()
+  })
+
+  it("leaves an import error raised inside a unittest case that ran alone", () => {
+    expect(
+      failing(
+        [
+          ".....E",
+          "ERROR: test_optional_dep (tests.test_compat.CompatTests.test_optional_dep)",
+          "Traceback (most recent call last):",
+          "    from app.compat import pytz_shim",
+          "ImportError: No module named pytz",
+          "----------------------------------------------------------------------",
+          "Ran 6 tests in 0.013s",
+          "",
+          "FAILED (errors=1)"
+        ].join("\n")
+      )
+    ).toBeUndefined()
+  })
+
+  it("leaves a test that asserts on a shell's own not-found message alone", () => {
+    expect(
+      failing(
+        [
+          "E   AssertionError: assert 'sh: nope: command not found' == 'sh: nope: not executable'",
+          "========================= 1 failed, 40 passed in 2.10s ========================="
+        ].join("\n")
+      )
+    ).toBeUndefined()
+  })
+
+  it("leaves a missing attribute that only starts with the word test alone", () => {
+    // `testing`, `tests` and `tested` are ordinary attribute names, and their
+    // absence is an ordinary bug. Only `test_foo` and the older `testFoo` are
+    // shaped like the test method a runner was asked to find.
+    expect(failing("AttributeError: type object 'Settings' has no attribute 'testing'")).toBeUndefined()
+    expect(failing("AttributeError: module 'app.conf' has no attribute 'tests'")).toBeUndefined()
+    expect(failing("AttributeError: type object 'Case' has no attribute 'testFoo'")?.reason).toBe("unknown-test")
+  })
+
+  it("still classifies when the runner reported that it ran nothing", () => {
+    // A collection error tallies `error`, never `passed` or `failed`, so the
+    // veto does not fire and the load-time wording is still read.
+    expect(
+      Probe.classify({
+        exitCode: 2,
+        stdout: "collected 0 items / 1 error\nE   ModuleNotFoundError: No module named 'django'\n1 error in 0.12s",
+        stderr: ""
+      })?.reason
+    ).toBe("unknown-module")
+    // A tally of zero is a tally of nothing, and proves nothing ran.
+    expect(failing("Ran 0 tests in 0.000s\nModuleNotFoundError: No module named 'tests.helpers'")?.reason).toBe(
+      "unknown-module"
+    )
+    expect(failing("0 passed in 0.01s\nERROR: not found: t.py::x")?.reason).toBe("unknown-test")
+  })
+
+  it("reads both shells' word order, and only as a whole line", () => {
+    expect(failing("bash: line 1: pytest: command not found", 127)?.reason).toBe("unknown-command")
+    expect(failing("zsh: command not found: pytest", 127)?.reason).toBe("unknown-command")
+    expect(failing("stdout captured: 'x: command not found' was expected here")).toBeUndefined()
+  })
+
+  it("lets the shell's reserved exit codes speak even when tests ran", () => {
+    // 126 and 127 are the shell's verdict on the command it was handed. A
+    // compound command whose check passed and whose next program is missing
+    // still ran a broken invocation, and nothing in the tally contradicts the
+    // shell.
+    expect(
+      Probe.classify({ exitCode: 127, stdout: "412 passed in 3.20s", stderr: "flake9: command not found" })?.reason
+    ).toBe("unknown-command")
+  })
+})
