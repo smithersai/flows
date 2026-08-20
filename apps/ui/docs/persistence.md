@@ -49,6 +49,11 @@ projection changed. A write outside any explicit batch commits its own
 three-step protocol immediately, so direct inserts (seed, boot
 reconciliation) keep their durability.
 
+The in-memory mirror adopts a write only after the host write returns. A
+commit that throws (a quota rejection, a revoked host) leaves the mirror on
+the last committed envelope, so the live session cannot read a projection the
+host never took and the next successful commit cannot smuggle it out.
+
 ### Boot recovery
 
 At open, before any collection reads:
@@ -67,9 +72,9 @@ proves both recovery directions from each.
 
 ### Versioned envelopes, ordered migrations, quarantine
 
-The envelope carries `version`. `ENVELOPE_MIGRATIONS` is an ordered list of
-pure steps, each migrating version *n* to *n+1*; open applies every step
-between the stored version and `ENVELOPE_VERSION` in order.
+The envelope carries `version`. `migrateEntries` walks an ordered list of
+steps, each migrating version *n* to *n+1*; open applies every step between
+the stored version and `ENVELOPE_VERSION` in order.
 
 - **Version 0** is the pre-envelope layout: the 13 collection keys living
   directly on the host. Step `0 → 1` collects them into the envelope and
@@ -80,7 +85,7 @@ between the stored version and `ENVELOPE_VERSION` in order.
   collection key whose bytes do not parse is quarantined whole. Nothing is
   adopted blind.
 - **A future version** (written by a newer build) is quarantined to
-  `smithers-mvp-quarantine.future.<version>.store` and the live envelope key
+  `smithers-mvp-quarantine.store.future.<version>` and the live envelope key
   is removed so this build reseeds empty. The quarantine copy is never
   deleted; a later boot leaves it in place.
 - **An unparseable envelope** is quarantined the same way.
@@ -111,15 +116,19 @@ localStorage fallback. Records beyond the bound are deleted oldest-first.
 - **CloudAgent** (`src/bun/CloudAgent.ts`): the `Map<runId, AbortController>`
   transport is replaced by a scoped Effect transport. Each turn runs as a
   fiber in one `FiberSet` owned by a `Scope` the agent acquires; `cancel`
-  interrupts the fiber. The fetch rides `Effect.tryPromise`'s interruption
+  interrupts the fiber. The registry keys a turn by entry identity, not by run
+  id alone, so a cancelled turn's teardown cannot evict the turn that replaced
+  it. The fetch rides `Effect.tryPromise`'s interruption
   signal, and the stream reader is released with `Effect.acquireRelease`, so
   interrupting a turn cancels the in-flight read instead of leaking it. The
   public call shape (`start`/`cancel` signatures and frame protocol) is
   unchanged.
 - **boundedFetch** (`controller/context.ts`): the manual
-  `AbortController` + `setTimeout` deadline is an `Effect.timeoutFail` over
+  `AbortController` + `setTimeout` deadline is an `Effect.timeoutOrElse` over
   `Effect.tryPromise`; interruption aborts the request. Public shape and the
-  "seam timeout" failure are unchanged.
+  "seam timeout" failure are unchanged. `Effect.timeout` alone would not hold
+  the second half of that: it rejects with a `TimeoutError` whose `message` is
+  undefined, so the fallback names the failure explicitly.
 - **Controller seam routing**: request/response HTTP seams (the domain seam
   context and controller `ctx.http` call sites) route through `boundedFetch`,
   so every non-streaming call carries the deadline. Streaming paths (the
@@ -145,6 +154,14 @@ localStorage fallback. Records beyond the bound are deleted oldest-first.
   and the workflow pumps are registered so everything a controller opens is
   released when `AppController.dispose()` runs. Previously the unsubscribe
   was discarded and the listeners/channel leaked for the page lifetime.
+
+  Boundary: the shipped app never calls `dispose()`. `ControllerProvider`
+  memoises one boot promise per page (`browserBoot`), so the controller is a
+  page-lifetime singleton with no teardown point to hang the call on. The
+  scope exists so a controller that IS replaced — an HMR reload, a second
+  boot, every test that builds one — releases what it opened instead of
+  stacking listeners on the shared `document`/`window`. Wiring `dispose()` to
+  `pagehide` would buy nothing: the page is being destroyed anyway.
 
 ### No-go: ambient `commandActor` invocation-context threading
 
