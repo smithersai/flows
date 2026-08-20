@@ -1,0 +1,227 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "ec155dddce69c87dee4d75dad53ecfc1b144bf2b",
+ "tree": "50073b7cd07d05b071bd0c4c4072b1dc14a08472",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 34,
+  "sectionCount": 71
+ },
+ "source": {
+  "commit": "2af6f4a4437e8a4fe13b86980ead71f122b110f1",
+  "subject": "✅ test(e2e): pin E5/E6 to the closed alpha the Worker actually runs",
+  "priorCanonicalCommit": "1406f68dde643c9ef6319e0d19b5e1086a2613e2",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 34,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "ui",
+  "epicsTouched": [
+   {
+    "id": "ui",
+    "files": 2
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 872,
+  "globalCount": 909,
+  "purpose": "✅ test(e2e): pin E5/E6 to the closed alpha the Worker actually runs",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "de4f8b49b8c2d69d03650aa903aba898fa0995ba"
+  ],
+  "parent": "de4f8b49b8c2d69d03650aa903aba898fa0995ba",
+  "sourceImports": [
+   "6c83b7b131e8e10ed61bea58861cb8758e0fe470",
+   "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+   "c7389c8fb2e161d11d7f53dbeea9064f56c9c167",
+   "55cc0d8ceb120ba78e2dd9d25f3b8ad05e33d804",
+   "f01dafa893105f00d06046ae8d94c86cb040cc24",
+   "767956221a8bd966d33df1ed26427b0e7bcf4a57",
+   "44053b9f5f436d435ee9eeac6beba54dbfa3323b",
+   "3b0c70f67ee7274e2c106e4cb4411598aed405ec",
+   "6ee5df66db65e929997a2795336b742366b9a8d1"
+  ],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "de4f8b49b8c2d69d03650aa903aba898fa0995ba",
+  "next": "934a70097b819b70f9190e5b9a97a3aa36b0304a",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "9f4db87e9b528812c207c1054f8c36a09a06c2c7"
+ },
+ "size": {
+  "files": 2,
+  "added": 36,
+  "deleted": 21
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "2af6f4a4437e8a4fe13b86980ead71f122b110f1"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "apps/ui/e2e/suites/billing-grants.e2e.ts",
+   "mode": "100644",
+   "blob": "48fbf17388954120eda36a244af964ec866cd826",
+   "previousBlob": "01fc4ebe4379ddc75e1fa60c0817c0309fabde98",
+   "added": 18,
+   "deleted": 10,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 32,
+     "oldLines": 0,
+     "newStart": 33,
+     "newLines": 1
+    },
+    {
+     "oldStart": 34,
+     "oldLines": 1,
+     "newStart": 34,
+     "newLines": 0
+    },
+    {
+     "oldStart": 333,
+     "oldLines": 2,
+     "newStart": 333,
+     "newLines": 4
+    },
+    {
+     "oldStart": 460,
+     "oldLines": 1,
+     "newStart": 462,
+     "newLines": 7
+    },
+    {
+     "oldStart": 465,
+     "oldLines": 4,
+     "newStart": 473,
+     "newLines": 4
+    },
+    {
+     "oldStart": 479,
+     "oldLines": 1,
+     "newStart": 487,
+     "newLines": 1
+    },
+    {
+     "oldStart": 481,
+     "oldLines": 1,
+     "newStart": 489,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "M",
+   "path": "apps/ui/e2e/suites/commands-registry.e2e.ts",
+   "mode": "100644",
+   "blob": "5d2b389dcd4e65b09876a1e2ed90139386ae59e4",
+   "previousBlob": "d4a90adc2c5d51fd09ff70dfdb58c5133210ffb6",
+   "added": 18,
+   "deleted": 11,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 566,
+     "oldLines": 1,
+     "newStart": 566,
+     "newLines": 1
+    },
+    {
+     "oldStart": 568,
+     "oldLines": 1,
+     "newStart": 568,
+     "newLines": 1
+    },
+    {
+     "oldStart": 573,
+     "oldLines": 1,
+     "newStart": 573,
+     "newLines": 1
+    },
+    {
+     "oldStart": 575,
+     "oldLines": 1,
+     "newStart": 575,
+     "newLines": 1
+    },
+    {
+     "oldStart": 699,
+     "oldLines": 1,
+     "newStart": 699,
+     "newLines": 2
+    },
+    {
+     "oldStart": 701,
+     "oldLines": 1,
+     "newStart": 702,
+     "newLines": 1
+    },
+    {
+     "oldStart": 705,
+     "oldLines": 1,
+     "newStart": 706,
+     "newLines": 2
+    },
+    {
+     "oldStart": 707,
+     "oldLines": 2,
+     "newStart": 709,
+     "newLines": 2
+    },
+    {
+     "oldStart": 789,
+     "oldLines": 1,
+     "newStart": 791,
+     "newLines": 2
+    },
+    {
+     "oldStart": 1334,
+     "oldLines": 1,
+     "newStart": 1337,
+     "newLines": 2
+    },
+    {
+     "oldStart": 1621,
+     "oldLines": 0,
+     "newStart": 1626,
+     "newLines": 3
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  }
+ ]
+}
