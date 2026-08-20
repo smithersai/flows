@@ -67,6 +67,12 @@ you tested. A row you could not reach is a finding, not a blank.
       is unregistered for them (the flow is absent, not present-and-refusing).
 - [ ] **1.6** Signed-out copy carries no card-collection or pricing language.
       `[auto A-6]`
+- [ ] **1.7** Load the app with the network throttled hard, and watch the page
+      BEFORE the app hydrates. The server-rendered document states nothing of
+      its own — no headline, no sentence about the closed alpha, no sign-in
+      link. Every one of those belongs to the chat, embedded, once the shell
+      mounts. A bare page that answers before the transcript does is the
+      finding.
 
 ## §2 Sign-in
 
@@ -361,6 +367,18 @@ Run the flow, read the card, resize the window, switch theme, and reload.
       unchanged throughout. Another repository's earlier read stays where it
       was read, and closing the pane returns this repository's reads to the
       transcript — the pane hides them, it never deletes them.
+
+- [ ] **11a.10** Open a repository the account has NEVER opened before, and
+      then do nothing at all. Its preparation runs invisibly, and the tab on
+      screen fills itself the moment the repository becomes readable. A pane
+      that stays on "Files have not been read yet." until you press something
+      is the finding: the preparation is meant to be invisible, not the
+      browsing.
+- [ ] **11a.11** The Flows tab is the same list as the Issues and Pull
+      Requests tabs: one row per flow, its key as the row's title, its
+      description beside it, its run act at the end. It must NOT wear a column
+      a flow does not have — no issue number, no open/closed badge, no author,
+      no comment count.
 
 ## §12 Repos and the GitHub App
 
