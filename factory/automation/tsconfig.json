@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "inlineSources": false,
+    "typeRoots": [
+      "../../packages/targets/node_modules/@types"
+    ],
+    "lib": [
+      "ES2024"
+    ]
+  },
+  "include": [
+    "**/*.ts"
+  ]
+}
