@@ -13,11 +13,13 @@
  * back without healing it, so verification now runs on every put.
  */
 import { describe, expect, it } from "@effect/vitest"
+import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import { TestClock } from "effect/testing"
 import * as ArtifactStore from "../src/ArtifactStore.ts"
 import { bytes, sha256, text, withCrypto } from "./Crypto.ts"
 
@@ -176,11 +178,16 @@ describe("atomic publication (issues #117, #131, #138)", () => {
             await bothWritten
           })) as never
       })
+      // Distinct filesystem service identities model separate processes: the
+      // in-process digest lock cannot coordinate them, so their unique temp
+      // paths remain the crash-safety boundary this test exercises.
+      const firstProcess = FileSystem.makeNoop({ ...latched })
+      const secondProcess = FileSystem.makeNoop({ ...latched })
       const exit = yield* withCrypto(
         Effect.all(
           [
-            ArtifactStore.makeFileSystem(latched, { durability: "best-effort" }).put(bytes(artifact)),
-            ArtifactStore.makeFileSystem(latched, { durability: "best-effort" }).put(bytes(artifact))
+            ArtifactStore.makeFileSystem(firstProcess, { durability: "best-effort" }).put(bytes(artifact)),
+            ArtifactStore.makeFileSystem(secondProcess, { durability: "best-effort" }).put(bytes(artifact))
           ],
           { concurrency: 2 }
         ).pipe(Effect.exit)
@@ -336,10 +343,10 @@ describe("the orphan sweep (issue #138)", () => {
   const stale = `.flows/objects/aa/old.tmp-dead-0`
   const fresh = `.flows/objects/aa/live.tmp-live-0`
 
-  // Real elapsed time: `it.effect`'s TestClock would stall this.
-  it.live("sweeps stale orphans on first put, keeps fresh temps, and sweeps once", () =>
+  it.effect("sweeps stale orphans on first put, keeps fresh temps, and sweeps once", () =>
     Effect.gen(function*() {
-      const now = Date.now()
+      yield* TestClock.adjust("2 hours")
+      const now = yield* Clock.currentTimeMillis
       const host = memoryFs({
         seed: { [stale]: "torn", [fresh]: "in-flight" },
         mtimes: { [stale]: now - 2 * 60 * 60 * 1000, [fresh]: now }
@@ -442,7 +449,7 @@ describe("reads, probes, and refusals", () => {
 describe("layers", () => {
   it.effect("layerFileSystem builds the store from the FileSystem tag", () =>
     Effect.gen(function*() {
-      const host = memoryFs()
+      const host = memoryFs({ supportsOpen: true })
       const published = yield* withCrypto(
         Effect.flatMap(ArtifactStore.ArtifactStore, (artifacts) => artifacts.put(bytes(artifact))).pipe(
           Effect.provide(
