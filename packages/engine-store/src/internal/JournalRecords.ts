@@ -64,6 +64,19 @@ const event = (options: EventOptions, eventType: string, payload: unknown): Jour
   })
 
 /**
+ * A deferred/clock fold-input record (`docs/specs/Concepts/Deferred Clock
+ * Fold.md`). The payload is executable replay state — `Fold` rebuilds
+ * `flows_deferred_completions` and `flows_clock_deadlines` rows from it — so
+ * each of the five fold-input event types is an exact entry in the journal's
+ * `Redaction.verbatimNamespaces` allowlist and persists byte-exact past the
+ * write-path redactor. The bypass is journal-owned policy, not anything this
+ * producer marks on the entry. Hygiene for values that must never persist
+ * stays the caller-schema `Redacted` rule.
+ */
+const foldInputEvent = (options: EventOptions, eventType: string, payload: unknown): JournalEvent.Input =>
+  event(options, eventType, payload)
+
+/**
  * The run's state advanced. Replaying these records in order is how time
  * travel derives the state AT a frame, rather than reading the run row's
  * latest value.
@@ -97,25 +110,62 @@ export const attemptFinished = (options: EventOptions, payload: unknown) =>
 /**
  * A durable deferred was resolved from outside the run. Journaled because the
  * resolution is the only evidence of it — a replay cannot re-derive a value
- * that arrived over the network.
+ * that arrived over the network. A fold input: the payload is self-contained
+ * (it carries `completedAtMs`) and rebuilds the `flows_deferred_completions`
+ * row exactly, which is why the entry persists verbatim.
  *
  * @since 0.1.0
  * @category events
  * @slop
  */
 export const deferredCompleted = (options: EventOptions, payload: unknown) =>
-  event(options, "flows.engine.deferred-completed", payload)
+  foldInputEvent(options, "flows.engine.deferred-completed", payload)
 /**
  * A durable timer was armed. Journaling the schedule rather than the firing is
  * what lets a resumed run re-arm the same deadline instead of restarting the
- * wait.
+ * wait. A fold input: the payload rebuilds the `flows_clock_deadlines`
+ * identity columns exactly.
  *
  * @since 0.1.0
  * @category events
  * @slop
  */
 export const clockScheduled = (options: EventOptions, payload: unknown) =>
-  event(options, "flows.engine.clock-scheduled", payload)
+  foldInputEvent(options, "flows.engine.clock-scheduled", payload)
+/**
+ * A durable clock's deadline ended: the `completed_at_ms` compare-and-set
+ * committed, in the same write transaction as this record. It covers both
+ * ways a deadline ends — fired at or after `due_at_ms`, or completed early,
+ * the cancel semantic — so a rebuilt table never resurrects a finished clock
+ * as pending. A refused CAS (`AlreadyCompleted`, `NotFound`) appends nothing.
+ *
+ * @since 0.1.0
+ * @category events
+ */
+export const clockCompleted = (options: EventOptions, payload: unknown) =>
+  foldInputEvent(options, "flows.engine.clock-completed", payload)
+/**
+ * An administrative snapshot of one `flows_deferred_completions` row, carried
+ * in full. Appended unfenced by the fold migration's backfill and by
+ * compaction checkpointing, so a fold can seed an address whose ordinary
+ * events are missing or not self-contained (pre-fold histories).
+ *
+ * @since 0.1.0
+ * @category events
+ */
+export const deferredSnapshot = (options: EventOptions, payload: unknown) =>
+  foldInputEvent(options, "flows.engine.deferred-snapshot", payload)
+/**
+ * An administrative snapshot of one `flows_clock_deadlines` row, carried in
+ * full. The clock twin of {@link deferredSnapshot}: it seeds an unseen
+ * address and, when it carries a completion an event never recorded
+ * (pre-fold fired clocks), completes the folded row.
+ *
+ * @since 0.1.0
+ * @category events
+ */
+export const clockSnapshot = (options: EventOptions, payload: unknown) =>
+  foldInputEvent(options, "flows.engine.clock-snapshot", payload)
 /**
  * The run was interrupted — cancelled, fenced out, or torn down — as opposed
  * to failing. Recorded so a later reader can tell a cancelled run from a

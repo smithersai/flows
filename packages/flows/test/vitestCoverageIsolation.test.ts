@@ -492,6 +492,10 @@ describe("vitest coverage isolation conformance", () => {
       // `observeReads` already failed the run for the same glob when no
       // FileSystem was composed.
       "engine-store/src/PlanScheduler.ts": 9,
+      // Fold rows are decoded from committed `payload_json`, so a value that
+      // fails to re-encode as JSON is unreachable; the mapper keeps the
+      // defect legible for a corrupted journal.
+      "engine-store/src/Fold.ts": 1,
       // One `else` arm in recursive enumeration: special entries (symlinks,
       // sockets) are neither materializable leaves nor prunable scaffolding
       // and are intentionally discarded.

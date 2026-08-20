@@ -48,6 +48,12 @@ export * as EngineStoreMetrics from "./EngineStoreMetrics.ts"
 
 /**
  * @since 0.1.0
+ * @category projections
+ */
+export * as Fold from "./Fold.ts"
+
+/**
+ * @since 0.1.0
  * @category services
  */
 export * as PlanScheduler from "./PlanScheduler.ts"

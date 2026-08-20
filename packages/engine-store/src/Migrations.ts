@@ -23,6 +23,7 @@ import * as StepCacheMigrations from "@smthrs/step-cache/Migrations"
 import * as Layer from "effect/Layer"
 import initial from "./migrations/0001_initial.ts"
 import selectionStore from "./migrations/0002_selection_store.ts"
+import deferredClockFold from "./migrations/0003_deferred_clock_fold.ts"
 
 /**
  * Engine-store's own namespaced migration set.
@@ -36,7 +37,8 @@ export const set: DatabaseMigrations.MigrationSet = {
   idOffset: DatabaseMigrations.idBlock * 3,
   migrations: {
     "0001_initial": initial,
-    "0002_selection_store": selectionStore
+    "0002_selection_store": selectionStore,
+    "0003_deferred_clock_fold": deferredClockFold
   }
 }
 

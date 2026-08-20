@@ -455,4 +455,111 @@ describe("durable primitive history is atomic with its state row", () => {
       expect(result.rows).toHaveLength(1)
       expect(result.events).toHaveLength(1)
     }))
+
+  it.effect("a crash inside the clock fire rolls the CAS, both records, and the deferred row back as one", () =>
+    Effect.gen(function*() {
+      const executionId = "wal-clock-fire"
+      const clock = DurableClock.make({ name: "fire", duration: "10 seconds" })
+      const clockAddress = { flowName: DriverFlow._tag, executionId, clockName: clock.name }
+      const deferredAddress = { flowName: DriverFlow._tag, executionId, deferredName: clock.deferred.name }
+      const result = yield* run(Effect.gen(function*() {
+        const state = yield* DurableEngineState.DurableEngineState
+        yield* activate(executionId, owner)
+        const resumes: Array<string> = []
+        // The deferred row write is the LAST mutation of the fire
+        // transaction: a crash right after it must take the clock CAS and
+        // both records down with it, or a rebuilt table would disagree with
+        // the journal.
+        let crashes = 0
+        const crashing = yield* persistence(resumes).pipe(
+          Effect.provideService(
+            DurableEngineState.DurableEngineState,
+            Notifying.wrap(state, (op, order) =>
+              op === "completeDeferred" && order === "after" && crashes++ === 0
+                ? Effect.die(new CrashInjected("crash injected after completeDeferred"))
+                : Effect.void)
+          )
+        )
+        yield* crashing.scheduleClock(DriverFlow, { executionId, clock })
+        yield* TestClock.adjust("10 seconds")
+        yield* Effect.yieldNow
+        const afterCrash = {
+          clock: Option.getOrThrow(yield* state.clock(clockAddress)),
+          completions: yield* eventsOf(executionId, "flows.engine.clock-completed"),
+          deferred: yield* state.deferred(deferredAddress),
+          deferredEvents: yield* eventsOf(executionId, "flows.engine.deferred-completed")
+        }
+        // The fire-retry ladder redispatches the whole transaction.
+        yield* TestClock.adjust("100 millis")
+        yield* Effect.yieldNow
+        return {
+          afterCrash,
+          clock: Option.getOrThrow(yield* state.clock(clockAddress)),
+          completions: yield* eventsOf(executionId, "flows.engine.clock-completed"),
+          deferred: yield* state.deferred(deferredAddress),
+          deferredEvents: yield* eventsOf(executionId, "flows.engine.deferred-completed"),
+          resumes
+        }
+      }))
+
+      // Equivalence after the crash: none of the four effects survived.
+      expect(result.afterCrash.clock.completedAtMs).toBeNull()
+      expect(result.afterCrash.completions).toHaveLength(0)
+      expect(Option.isNone(result.afterCrash.deferred)).toBe(true)
+      expect(result.afterCrash.deferredEvents).toHaveLength(0)
+      // The redispatched fire commits all four as one.
+      expect(result.clock.completedAtMs).not.toBeNull()
+      expect(result.completions).toHaveLength(1)
+      expect(Option.isSome(result.deferred)).toBe(true)
+      expect(result.deferredEvents).toHaveLength(1)
+      expect(result.resumes).toEqual([`${executionId}:clock`])
+    }))
+
+  it.effect("a crash at the clock-completed append rolls the compare-and-set back with it", () =>
+    Effect.gen(function*() {
+      const executionId = "wal-clock-completed-append"
+      const clock = DurableClock.make({ name: "append", duration: "10 seconds" })
+      const clockAddress = { flowName: DriverFlow._tag, executionId, clockName: clock.name }
+      const result = yield* run(Effect.gen(function*() {
+        const state = yield* DurableEngineState.DurableEngineState
+        const journal = yield* Journal.Journal
+        yield* activate(executionId, owner)
+        const resumes: Array<string> = []
+        let crashes = 0
+        const crashing = yield* persistence(resumes).pipe(
+          Effect.provideService(
+            Journal.Journal,
+            Notifying.wrap(journal, (op, order, args) =>
+              op === "emitDurable" && order === "before" &&
+                (args[0] as JournalEvent.Input).eventType === "flows.engine.clock-completed" &&
+                crashes++ === 0
+                ? Effect.die(new CrashInjected("crash injected before the clock-completed append"))
+                : Effect.void)
+          )
+        )
+        yield* crashing.scheduleClock(DriverFlow, { executionId, clock })
+        yield* TestClock.adjust("10 seconds")
+        yield* Effect.yieldNow
+        const afterCrash = {
+          clock: Option.getOrThrow(yield* state.clock(clockAddress)),
+          completions: yield* eventsOf(executionId, "flows.engine.clock-completed")
+        }
+        yield* TestClock.adjust("100 millis")
+        yield* Effect.yieldNow
+        return {
+          afterCrash,
+          clock: Option.getOrThrow(yield* state.clock(clockAddress)),
+          completions: yield* eventsOf(executionId, "flows.engine.clock-completed"),
+          resumes
+        }
+      }))
+
+      // The CAS is not durable without its record: the deadline stayed
+      // pending, so a rebuilt table and the live one still agree.
+      expect(result.afterCrash.clock.completedAtMs).toBeNull()
+      expect(result.afterCrash.completions).toHaveLength(0)
+      expect(result.clock.completedAtMs).not.toBeNull()
+      expect(result.completions).toHaveLength(1)
+      expect(result.resumes).toEqual([`${executionId}:clock`])
+    }))
 })

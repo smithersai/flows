@@ -100,6 +100,72 @@ const clockKey = (row: DurableEngineState.ClockAddress): string =>
   JSON.stringify([row.flowName, row.executionId, row.clockName])
 
 /**
+ * The deterministic durable source of one deferred's records — the
+ * `<source>:deferred:<key>` scheme the fold's dedup rule rests on.
+ */
+const deferredSourceId = (journalSource: string, address: DurableEngineState.DeferredAddress): string =>
+  `${journalSource}:deferred:${JSON.stringify([address.flowName, address.executionId, address.deferredName])}`
+
+/**
+ * The deterministic durable source of one clock's records — the
+ * `<source>:clock:<key>` scheme. The schedule record takes `sourceSeq` 0 on
+ * this source and the completion record `sourceSeq` 1, so producer retries of
+ * either dedupe instead of forking history.
+ */
+const clockSourceId = (journalSource: string, address: DurableEngineState.ClockAddress): string =>
+  `${journalSource}:clock:${JSON.stringify([address.flowName, address.executionId, address.clockName])}`
+
+/**
+ * Completes a durable clock and journals the completion as one write
+ * transaction: the `completed_at_ms` compare-and-set and the
+ * `flows.engine.clock-completed` record commit together, so a rebuilt
+ * `flows_clock_deadlines` never resurrects a finished deadline as pending. A
+ * refused CAS (`AlreadyCompleted`, `NotFound`) appends nothing. This is the
+ * only way to complete a clock durably — the fire path and any cancel path
+ * go through it (`docs/specs/Concepts/Deferred Clock Fold.md`).
+ *
+ * @since 0.1.0
+ * @category constructors
+ */
+export const completeClockDurable = Effect.fn("DeferredPersistence.completeClockDurable")((options: {
+  readonly journalSource: string
+  readonly address: DurableEngineState.ClockAddress
+  readonly completedAtMs: number
+}): Effect.Effect<
+  DurableEngineState.CompleteClockOutcome,
+  never,
+  DurableEngineState.DurableEngineState | Journal.Journal
+> =>
+  Effect.gen(function*() {
+    const state = yield* DurableEngineState.DurableEngineState
+    const journal = yield* Journal.Journal
+    return yield* journal.transact(
+      Effect.gen(function*() {
+        const outcome = yield* state.completeClock(options.address, options.completedAtMs)
+        if (outcome._tag !== "Completed") {
+          return outcome
+        }
+        const row = outcome.row
+        yield* journal.emitDurable(
+          JournalRecords.clockCompleted({
+            runId: row.executionId,
+            lineageId: FlowEngine.Lineage.root(row.executionId),
+            sourceId: clockSourceId(options.journalSource, row),
+            sourceSeq: 1
+          }, {
+            flowName: row.flowName,
+            executionId: row.executionId,
+            clockName: row.clockName,
+            completedAtMs: options.completedAtMs
+          })
+        ).pipe(Effect.orDie)
+        return outcome
+      })
+    ).pipe(Effect.orDie)
+  })
+)
+
+/**
  * A clock-fire redispatch policy. The input is the sandboxed cause of a failed
  * fire, so any schedule that recurs on an arbitrary input fits.
  *
@@ -167,6 +233,54 @@ export const make = (
       )
     )
 
+    /**
+     * Persists a deferred completion row and, when this write is the first
+     * writer, the self-contained record describing it — inside the caller's
+     * write transaction. A duplicate completion (`Existing`) appends nothing:
+     * the first writer's record is the fold input, and re-emitting under the
+     * same source identity would conflict with a pre-fold history's record,
+     * whose payload is not self-contained.
+     */
+    const persistDeferredCompletion = (
+      options: DeferredDoneOptions,
+      completedAtMs: number
+    ): Effect.Effect<DurableEngineState.CompleteDeferredOutcome> =>
+      Effect.gen(function*() {
+        const completion = yield* state.completeDeferred({
+          flowName: options.flowName,
+          executionId: options.executionId,
+          deferredName: options.deferredName,
+          exit: options.exit,
+          ...(options.metadata === undefined ? {} : { metadata: options.metadata }),
+          completedAtMs
+        })
+        if (completion._tag !== "Completed") {
+          return completion
+        }
+        const row = completion.row
+
+        // Durable channel: a deferred completion is a lifecycle record and
+        // must never take the droppable lossy queue. It stays ownerless by
+        // design — external-trigger admissions are first-writer-wins
+        // regardless of who owns the run (issue #10).
+        yield* journal.emitDurable(
+          JournalRecords.deferredCompleted({
+            runId: options.executionId,
+            lineageId: FlowEngine.Lineage.root(options.executionId),
+            sourceId: deferredSourceId(dependencies.journalSource, row),
+            sourceSeq: 0
+          }, {
+            flowName: row.flowName,
+            executionId: row.executionId,
+            deferredName: row.deferredName,
+            exit: row.exit,
+            ...(row.metadata === undefined ? {} : { metadata: row.metadata }),
+            completedAtMs: row.completedAtMs
+          })
+        ).pipe(Effect.orDie)
+        return completion
+      })
+
     const completeDeferred = (
       options: DeferredDoneOptions,
       reason: ResumeReason = "deferred"
@@ -179,39 +293,7 @@ export const make = (
         // journal's writer fiber, which would deadlock against the write
         // transaction this holds.
         const completion = yield* journal.transact(
-          Effect.gen(function*() {
-            const completion = yield* state.completeDeferred({
-              flowName: options.flowName,
-              executionId: options.executionId,
-              deferredName: options.deferredName,
-              exit: options.exit,
-              ...(options.metadata === undefined ? {} : { metadata: options.metadata }),
-              completedAtMs
-            })
-            const row = completion.row
-
-            // Durable channel: a deferred completion is a lifecycle record and
-            // must never take the droppable lossy queue. It stays ownerless by
-            // design — external-trigger admissions are first-writer-wins
-            // regardless of who owns the run (issue #10).
-            yield* journal.emitDurable(
-              JournalRecords.deferredCompleted({
-                runId: options.executionId,
-                lineageId: FlowEngine.Lineage.root(options.executionId),
-                sourceId: `${dependencies.journalSource}:deferred:${
-                  JSON.stringify([options.flowName, options.executionId, options.deferredName])
-                }`,
-                sourceSeq: 0
-              }, {
-                flowName: row.flowName,
-                executionId: row.executionId,
-                deferredName: row.deferredName,
-                exit: row.exit,
-                ...(row.metadata === undefined ? {} : { metadata: row.metadata })
-              })
-            ).pipe(Effect.orDie)
-            return completion
-          })
+          persistDeferredCompletion(options, completedAtMs)
         ).pipe(Effect.orDie)
         const row = completion.row
         yield* flushLossy
@@ -225,21 +307,50 @@ export const make = (
     const fireClock = (row: DurableEngineState.ClockRow): Effect.Effect<void> =>
       Effect.gen(function*() {
         const completedAtMs = yield* Clock.currentTimeMillis
-        yield* completeDeferred(
-          {
-            flowName: row.flowName,
-            executionId: row.executionId,
-            deferredName: row.deferredName,
-            exit: Exit.void,
-            metadata: {
-              clockName: row.clockName,
-              dueAtMs: row.dueAtMs,
+        // The fire is one write transaction: clock CAS, clock-completed
+        // record, deferred row, and deferred record commit as savepoints of
+        // it, so no crash window can leave a fired deadline the journal does
+        // not explain. The CAS runs first — temporal's fire-time validation
+        // against mutable state (`reference/temporal`
+        // `service/history/timer_queue_active_task_executor.go`): a deadline
+        // completed early is gone, so its fire is skipped rather than
+        // completing a deferred nobody is waiting on. A skipped fire
+        // schedules nothing; the registration sweep stays the backstop.
+        const fired = yield* journal.transact(
+          Effect.gen(function*() {
+            const outcome = yield* completeClockDurable({
+              journalSource: dependencies.journalSource,
+              address: row,
               completedAtMs
+            }).pipe(
+              Effect.provideService(DurableEngineState.DurableEngineState, state),
+              Effect.provideService(Journal.Journal, journal)
+            )
+            if (outcome._tag !== "Completed") {
+              return false
             }
-          },
-          "clock"
-        )
-        yield* state.completeClock(row, completedAtMs)
+            yield* persistDeferredCompletion(
+              {
+                flowName: row.flowName,
+                executionId: row.executionId,
+                deferredName: row.deferredName,
+                exit: Exit.void,
+                metadata: {
+                  clockName: row.clockName,
+                  dueAtMs: row.dueAtMs,
+                  completedAtMs
+                }
+              },
+              completedAtMs
+            )
+            return true
+          })
+        ).pipe(Effect.orDie)
+        if (!fired) {
+          return
+        }
+        yield* flushLossy
+        yield* dependencies.scheduleResume(row.flowName, row.executionId, "clock")
       })
 
     const armClock = (row: DurableEngineState.ClockRow): Effect.Effect<void> =>
@@ -271,9 +382,7 @@ export const make = (
         JournalRecords.clockScheduled({
           runId: row.executionId,
           lineageId: FlowEngine.Lineage.root(row.executionId),
-          sourceId: `${dependencies.journalSource}:clock:${
-            JSON.stringify([row.flowName, row.executionId, row.clockName])
-          }`,
+          sourceId: clockSourceId(dependencies.journalSource, row),
           sourceSeq: 0
         }, {
           flowName: row.flowName,
@@ -334,11 +443,13 @@ export const make = (
                 address.flowName,
                 address.executionId,
                 "deferred",
-                `${dependencies.journalSource}:wake:${JSON.stringify([
-                  address.flowName,
-                  address.executionId,
-                  address.deferredName
-                ])}`
+                `${dependencies.journalSource}:wake:${
+                  JSON.stringify([
+                    address.flowName,
+                    address.executionId,
+                    address.deferredName
+                  ])
+                }`
               ),
             { discard: true }
           )
