@@ -206,6 +206,37 @@ export default defineSuite({
 			report.check(firstIssue.startsWith("#"), `an issue row did not lead with its number (saw ${firstIssue})`);
 			report.ok("the Issues tab lists the repository's issues through the issues seam");
 
+			/*
+			 * The frame OWNS the reads it shows. Every repo-scoped read card used
+			 * to render twice — once as a standalone transcript card above the
+			 * pane, once inside it — so the page held two of every list, and the
+			 * previous tab's list stayed behind when the user changed tabs.
+			 */
+			report.equals(
+				await count(page, `[data-flow="issues.view"]`),
+				await count(page, `${PANE} [data-flow="issues.view"]`),
+				"the issues list rendered twice: once in the transcript and once in the pane",
+			);
+			report.equals(
+				await count(page, '.smithers-card[data-kind="issue-list"]'),
+				0,
+				"the pane's own issues read was left in the transcript as a standalone card",
+			);
+			/*
+			 * Directive 5, measured on the page: opening a repository starts its
+			 * import in the BACKGROUND. No import card, at any phase, ever.
+			 */
+			report.equals(
+				await count(page, '.smithers-card[data-kind="repo-import"]'),
+				0,
+				"opening a repository rendered an import card the user never asked for",
+			);
+			report.check(
+				!(await page.evaluate<string>('document.body.textContent ?? ""')).includes("Import ·"),
+				"opening a repository announced an import to the user",
+			);
+			report.ok("each tab's list renders once, inside the pane, and the import stays invisible");
+
 			// The Pull Requests tab: the issues-tab row shape on the landing side —
 			// number, title, state, author, comment count, updated time.
 			const pullsTab = (await textsOf(page, TAB)).indexOf("Pull Requests");
@@ -224,6 +255,11 @@ export default defineSuite({
 			report.check(firstPull.includes("by will"), `a pull-request row lost its author (saw ${firstPull})`);
 			// The count is its own column, next to the comment glyph — the same
 			// shape the issues row uses.
+			report.equals(
+				await count(page, `[data-flow="issues.view"]`),
+				0,
+				"the Issues tab's list was left behind when the user changed tabs",
+			);
 			const pullColumns = await textsOf(page, `${PANE} [data-flow="prs.view"] .world-card-path`);
 			report.equals(
 				(pullColumns[0] ?? "").trim(),

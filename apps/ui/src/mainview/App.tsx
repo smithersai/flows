@@ -37,7 +37,7 @@ import { useLiveQuery } from "@tanstack/react-db";
 import { CardView } from "./ChatCards";
 import { ConnectorsSurface } from "./ConnectorsSurface";
 import { useController } from "./ControllerContext";
-import { GitHubPane, RepoFilesPane } from "./GitHubPane";
+import { GitHubPane, RepoFilesPane, paneOwnedCardIds } from "./GitHubPane";
 import { repositoryRows } from "./RepositoryList";
 import { DevtoolsPanel } from "./DevtoolsPanel";
 import { ConfirmDialog, SurfaceHeader } from "./SurfaceChrome";
@@ -865,10 +865,20 @@ function App() {
 	 * longer a filler message to filter out here — the transcript is exactly
 	 * what the session actually said.
 	 */
+	/*
+	 * A frame is a VIEW of reads the store already holds, so the cards it
+	 * renders leave the standalone projection while it is open. Without this the
+	 * same list rendered twice — once above the pane, once inside it — and every
+	 * tab visited left its list behind. The cards stay in the collection, which
+	 * is the authority, and return to the transcript when the frame closes.
+	 */
+	const framedCardIds = paneOwnedCardIds(session.surface, session.selectedRepository, cardRows);
 	const entries: ReadonlyArray<TranscriptEntry> = [
 		...(authMessage === undefined ? [] : [{ kind: "message", message: authMessage } as const]),
 		...messages.map((message): TranscriptEntry => ({ kind: "message", message })),
-		...[...cardRows].map((card): TranscriptEntry => ({ kind: "card", card })),
+		...[...cardRows]
+			.filter((card) => !framedCardIds.has(card.id))
+			.map((card): TranscriptEntry => ({ kind: "card", card })),
 	].sort((left, right) => {
 		if (entryOrdinal(left) !== entryOrdinal(right)) return entryOrdinal(left) - entryOrdinal(right);
 		return entryCreatedAt(left) - entryCreatedAt(right);

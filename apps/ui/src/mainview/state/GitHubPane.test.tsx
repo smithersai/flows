@@ -523,3 +523,117 @@ describe("the GitHub pane (will, 2026-08-19)", () => {
 		expect(host.textContent).toContain("No flows have been read for this repository.");
 	});
 });
+
+/*
+ * A frame is a VIEW of reads the store already holds. Every repo-scoped read
+ * card used to be rendered TWICE while a frame was open — once as a standalone
+ * transcript card above the pane, once inside it — and every tab the user
+ * visited left its list behind, so browsing three tabs left three stray lists
+ * stacked above the pane. That is not a browsing pane; it is the transcript
+ * with a pane in it.
+ */
+describe("a frame owns the reads it renders", () => {
+	const issueCard = (id: string, repo: string, ordinal: number) =>
+		({
+			id,
+			kind: "issue-list" as const,
+			title: `Issues · ${repo}`,
+			status: "active" as const,
+			createdAt: ordinal,
+			ordinal,
+			payload: {
+				repo,
+				filter: "open" as const,
+				issues: [
+					{
+						number: 7,
+						title: `Keep ${repo} honest`,
+						state: "open" as const,
+						author: "will",
+						comments: 2,
+						updatedAt: "2026-08-19T09:00:00Z",
+					},
+				],
+			},
+		});
+
+	test("each active tab shows exactly one list, and switching tabs leaves nothing behind", async () => {
+		const store = await webStore();
+		const controller = controllerWith(store);
+		await signedIn(store, []);
+		await controller.commands.run("repo.open", "will/flows");
+		store.dispatch({ type: "card.upsert", actor: "system", card: issueCard("issues-will/flows", "will/flows", 1) });
+		store.dispatch({
+			type: "card.upsert",
+			actor: "system",
+			card: {
+				id: "prs-will/flows",
+				kind: "pr-list",
+				title: "Pull requests · will/flows",
+				status: "active",
+				createdAt: 2,
+				ordinal: 2,
+				payload: {
+					repo: "will/flows",
+					landings: [{ number: 8, title: "Show when it changed", state: "open", author: "will", updatedAt: "2026-08-19T10:00:00Z" }],
+				},
+			},
+		});
+		await controller.commands.run("repo.tab", "issues");
+		await settled();
+		const { host } = mount(controller);
+		const pane = host.querySelector('[aria-label="GitHub repositories"]');
+		expect(pane).not.toBeNull();
+
+		// One issues list in the whole document, and it is inside the pane.
+		const issueLists = [...host.querySelectorAll('[data-flow="issues.view"]')];
+		expect(issueLists).toHaveLength(1);
+		expect(pane?.contains(issueLists[0] as Node)).toBe(true);
+		// The pull-request read the pane is not showing has not been left in the
+		// transcript either — the frame owns this repository's reads while open.
+		expect([...host.querySelectorAll('[data-flow="prs.view"]')]).toHaveLength(0);
+
+		await controller.commands.run("repo.tab", "pulls");
+		await settled();
+		expect([...host.querySelectorAll('[data-flow="issues.view"]')]).toHaveLength(0);
+		const pullRows = [...host.querySelectorAll('[data-flow="prs.view"]')];
+		expect(pullRows.length).toBeGreaterThan(0);
+		expect(pullRows.every((row) => pane?.contains(row) === true)).toBe(true);
+	});
+
+	test("another repository's read is still the transcript's — a frame owns only what it shows", async () => {
+		const store = await webStore();
+		const controller = controllerWith(store);
+		await signedIn(store, []);
+		await controller.commands.run("repo.open", "will/flows");
+		store.dispatch({ type: "card.upsert", actor: "system", card: issueCard("issues-other", "will/quiet", 1) });
+		await controller.commands.run("repo.tab", "issues");
+		await settled();
+		const { host } = mount(controller);
+		const pane = host.querySelector('[aria-label="GitHub repositories"]');
+		const lists = [...host.querySelectorAll('[data-flow="issues.view"]')];
+		expect(lists).toHaveLength(1);
+		// It belongs to a different repository, so it stays where it was read.
+		expect(pane?.contains(lists[0] as Node)).toBe(false);
+	});
+
+	test("the cards are hidden, never deleted — closing the frame returns them to the transcript", async () => {
+		const store = await webStore();
+		const controller = controllerWith(store);
+		await signedIn(store, []);
+		await controller.commands.run("repo.open", "will/flows");
+		store.dispatch({ type: "card.upsert", actor: "system", card: issueCard("issues-will/flows", "will/flows", 1) });
+		await controller.commands.run("repo.tab", "issues");
+		await settled();
+		const { host } = mount(controller);
+		expect([...host.querySelectorAll('[data-flow="issues.view"]')]).toHaveLength(1);
+
+		await controller.commands.run("chat");
+		await settled();
+		// The store never lost the read…
+		expect(store.collections.cards.get("issues-will/flows")).toBeDefined();
+		// …and with the frame closed the transcript renders it again, once.
+		expect([...host.querySelectorAll('[data-flow="issues.view"]')]).toHaveLength(1);
+		expect(host.querySelector('[aria-label="GitHub repositories"]')).toBeNull();
+	});
+});
