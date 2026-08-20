@@ -1,5 +1,5 @@
 ---
-status: blocked
+status: done
 anchor: head
 priority: p1
 ---
@@ -154,3 +154,12 @@ are the ones that failed — before re-running the wide gates. Note: the
 90-minute node timeout killed round 2's attempt 2 during
 `pnpm --recursive --if-present run check`; run targeted package gates first
 and do not leave the wide check for last.
+
+DONE 2026-08-20. Stage 1 landed on main as merge 361677714 (lane tip
+cfeaecb32). Round 3 (verify run-1787193268849) closed both R6 blockers; the
+operator closed verify's final finding (the journal README dprint reflow,
+commit cfeaecb32) and landed, because the land node's sandbox has no DNS.
+Gates at the landed tip: journal 177/177, run-store 132/132, engine-store
+682/682, control 109/109, time-travel 293/293, engine-harness 124/124, flows
+301/301, all 100% coverage; recursive check and lint green; vault gate clean.
+Stage 2 continues as items 0009, 0010, 0011.
