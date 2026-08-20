@@ -31,6 +31,8 @@ const ACTION_PROPS = ["onClick", "onSubmit", "onStop", "onConfirm", "onDecide", 
 
 interface HandlerRef {
 	readonly prop: string;
+	/** The line the action prop appears on. */
+	readonly line: string;
 	readonly context: string;
 }
 
@@ -42,7 +44,7 @@ const handlers = (source: string): Array<HandlerRef> => {
 		for (const prop of ACTION_PROPS) {
 			const pattern = new RegExp(`\\b${prop}=`);
 			if (!pattern.test(line)) continue;
-			found.push({ prop, context: lines.slice(index, index + 4).join("\n") });
+			found.push({ prop, line, context: lines.slice(index, index + 4).join("\n") });
 		}
 	});
 	return found;
@@ -115,7 +117,15 @@ describe("launch-law parity: every affordance is a command", () => {
 		for (const [file, source] of Object.entries(files)) {
 			for (const handler of handlers(source)) {
 				if (routesThroughRegistry(handler.context)) continue;
-				if (PRESENTATION_ONLY.some((token) => handler.context.includes(token))) continue;
+				// The allowlist exempts the handler that NAMES the token, not any
+				// handler that happens to sit near one: a complete one-line
+				// handler matches against its own line only, so it can no longer
+				// ride a neighbour's exemption through the four-line window. A
+				// handler that opens a multi-line body may name its token on the
+				// body's own lines.
+				const opensBody = /=>\s*\{?\s*$/.test(handler.line);
+				const allowance = opensBody ? handler.context : handler.line;
+				if (PRESENTATION_ONLY.some((token) => allowance.includes(token))) continue;
 				violations.push(`${file}: ${handler.prop} → ${handler.context.split("\n")[0]?.trim()}`);
 			}
 		}
@@ -234,7 +244,10 @@ describe("launch-law parity: every affordance is a command", () => {
 				.split(/[^a-z]+/)
 				.filter((word) => word.length > 2);
 			if (words.length === 0) return true;
-			return words.some(
+			// EVERY word must resolve: the old any-word rule passed a label on a
+			// single common word ("open", "run") no matter what the rest of it
+			// promised, which is exactly the fuzz a mis-bound button hides in.
+			return words.every(
 				(word) =>
 					names.some((name) => name.includes(word) || word.includes(name)) ||
 					summaries.some((summary) => summary.includes(word)),
