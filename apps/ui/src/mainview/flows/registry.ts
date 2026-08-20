@@ -147,7 +147,7 @@ export const unmetRequirements = (
 
 /** The app state the recommendation rule reads, sampled from the store. */
 export interface CommandState {
-	readonly surface: "chat" | "world" | "connectors";
+	readonly surface: "chat" | "world" | "connectors" | "github" | "files";
 	readonly typing: boolean;
 	readonly hasConnectors: boolean;
 	/** A live recommendation card is waiting on an answer (reco seam, Wave 3b). */
