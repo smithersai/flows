@@ -15,7 +15,12 @@ export interface ChatTurnScript {
 	 * and is how a continuation turn quotes the tool output it just received.
 	 */
 	readonly framesFor?: (request: ChatRequest) => ReadonlyArray<Record<string, unknown>>;
-	/** When true, a request arriving without a non-empty `tools` array answers HTTP 400. */
+	/**
+	 * When true, a request that carries NO tool catalog answers HTTP 400. On
+	 * the proxy wire the catalog is the `tools` array; on the sealed chain
+	 * wire (RelayProtocol) tools never ride — the catalog is assembled into
+	 * `instructions` — so a non-empty instructions block is the proof there.
+	 */
 	readonly requireTools?: boolean;
 	readonly gapMs?: number;
 	/** When set, the whole turn answers this HTTP status with `body` instead of streaming. */
@@ -33,6 +38,8 @@ export interface ChatMessage {
 export interface ChatRequest {
 	readonly messages: ReadonlyArray<ChatMessage>;
 	readonly tools: ReadonlyArray<unknown>;
+	/** The system prefix — on the sealed chain wire this is where the catalog rides. */
+	readonly instructions: string;
 	readonly headers: Readonly<Record<string, string>>;
 }
 
@@ -78,35 +85,48 @@ export const DEFAULT_CHAT_SCRIPT: ChatTurnScript = {
 export const toolOutputOf = (request: ChatRequest): string =>
 	request.messages.find((message) => message.type === "function_call_output")?.output ?? "";
 
-/** The two-turn tool-loop script for one flow: the call, then the model's word about its result. */
+/**
+ * One chain-authored turn: a fenced flow script, streamed as a single text
+ * frame that settles with "stop" — the only shape the sealed author accepts
+ * (Script.ts: exactly one ```flow block; ctx.call is the only door).
+ */
+export const flowScript = (body: string): ChatTurnScript => ({
+	requireTools: true,
+	frames: [
+		{ type: "delta", kind: "text", text: "```flow\n" + body + "\n```" },
+		{ type: "done", reason: "stop" },
+	],
+});
+
+/**
+ * The tool-loop script for one flow on the chain wire: one authored script
+ * calls the flow and says the model's word about its result; a later turn
+ * replaying this script (scripts repeat their last entry) only says the word,
+ * proving repeated turns act exactly once.
+ *
+ * `finalText` receives the placeholder the script substitutes with the call's
+ * own result at run time, so a sentence may quote the output it just got.
+ */
 export const toolLoopScript = (
 	call: { readonly callId: string; readonly name: string; readonly args?: string },
 	finalText: (toolOutput: string) => string,
 ): ReadonlyArray<ChatTurnScript> => [
-	{
-		requireTools: true,
-		frames: [
-			{
-				type: "tool_call",
-				call_id: call.callId,
-				name: "commands",
-				arguments: JSON.stringify({
-					action: "execute",
-					name: call.name,
-					...(call.args === undefined ? {} : { args: call.args }),
-				}),
-			},
-			{ type: "done", reason: "tool_call" },
-		],
-	},
-	{
-		requireTools: true,
-		frames: [],
-		framesFor: (request) => [
-			{ type: "delta", kind: "text", text: finalText(toolOutputOf(request)) },
-			{ type: "done", reason: "stop" },
-		],
-	},
+	flowScript(
+		[
+			`const result = await ctx.call(${JSON.stringify(call.name)}, ${
+				JSON.stringify(call.args === undefined ? {} : { args: call.args })
+			})`,
+			`const rendered = typeof result === "string" ? result : JSON.stringify(result ?? "")`,
+			`await ctx.call("say", { text: ${JSON.stringify(finalText("__TOOL_OUTPUT__"))}.split("__TOOL_OUTPUT__").join(rendered) })`,
+			`return done({ ok: true })`,
+		].join("\n"),
+	),
+	flowScript(
+		[
+			`await ctx.call("say", { text: ${JSON.stringify(finalText(""))} })`,
+			`return done({ ok: true })`,
+		].join("\n"),
+	),
 ];
 
 const SLOW_SCRIPT: ChatTurnScript = {
@@ -153,7 +173,11 @@ export const createChatUpstream = (): ChatUpstream => {
 			}
 
 			const raw = await request.text();
-			let parsed: { messages?: ReadonlyArray<ChatMessage>; tools?: ReadonlyArray<unknown> } = {};
+			let parsed: {
+				messages?: ReadonlyArray<ChatMessage>;
+				tools?: ReadonlyArray<unknown>;
+				instructions?: string;
+			} = {};
 			try {
 				parsed = JSON.parse(raw) as typeof parsed;
 			} catch {
@@ -164,6 +188,7 @@ export const createChatUpstream = (): ChatUpstream => {
 			const record: ChatRequest = {
 				messages: parsed.messages ?? [],
 				tools: parsed.tools ?? [],
+				instructions: typeof parsed.instructions === "string" ? parsed.instructions : "",
 				headers,
 			};
 			recorded.push(record);
@@ -171,8 +196,8 @@ export const createChatUpstream = (): ChatUpstream => {
 			const script = armed(turn);
 			turn += 1;
 
-			if (script.requireTools === true && record.tools.length === 0) {
-				return new Response("tool-loop turn arrived without tools", { status: 400 });
+			if (script.requireTools === true && record.tools.length === 0 && record.instructions === "") {
+				return new Response("tool-loop turn arrived without a tool catalog", { status: 400 });
 			}
 			if (script.status !== undefined) {
 				return new Response(script.body ?? "", { status: script.status });
