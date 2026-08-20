@@ -1,0 +1,7 @@
+{
+  "name": "canary-repro-plue-deploy",
+  "private": true,
+  "dependencies": {
+    "viem": "2.55.2"
+  }
+}
