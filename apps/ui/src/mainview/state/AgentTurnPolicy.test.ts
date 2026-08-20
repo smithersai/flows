@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import type { Message } from "./AppState";
 import {
+	MAX_TURN_REQUEST_BYTES,
 	boundToolResult,
+	boundTurnRequest,
 	contextMessages,
 	estimateTextTokens,
 	selectCompactionSlice,
@@ -94,5 +96,86 @@ describe("agent turn production policy", () => {
 		const bounded = boundToolResult("large", 0, 0);
 		expect(bounded.truncated).toBe(true);
 		expect(bounded.modelOutput).toContain("Tool result truncated");
+	});
+});
+
+/*
+ * §4.13 — a long conversation must not wedge the seam permanently.
+ *
+ * Measured on canary: seven long answers pushed POST /api/agent/turn past the
+ * upstream body limit, and from that point every turn failed the same way —
+ * including `say ok`, and including `/clear`, which runs a model turn of its
+ * own into the same wall. The only escape was clearing the origin's storage
+ * from outside the app.
+ */
+describe("one turn request is bounded to the boundary's body limit", () => {
+	const turn = (messages: ReadonlyArray<{ role: "user" | "assistant"; content: string }>) => ({
+		runId: "turn-1",
+		messages,
+		instructions: "be snappy",
+	});
+
+	test("a request that already fits is passed through untouched", () => {
+		const request = turn([{ role: "user", content: "hello" }]);
+		const bounded = boundTurnRequest(request);
+		expect(bounded.dropped).toBe(0);
+		expect(bounded.request).toBe(request);
+	});
+
+	test("the oldest messages are dropped until the turn fits, and the newest survives", () => {
+		const long = "x".repeat(20_000);
+		const request = turn([
+			{ role: "user", content: long },
+			{ role: "assistant", content: long },
+			{ role: "user", content: long },
+			{ role: "assistant", content: long },
+			{ role: "user", content: "and now say ok" },
+		]);
+		expect(turnRequestBytes(request)).toBeGreaterThan(MAX_TURN_REQUEST_BYTES);
+		const bounded = boundTurnRequest(request);
+		expect(bounded.dropped).toBeGreaterThan(0);
+		expect(turnRequestBytes(bounded.request)).toBeLessThanOrEqual(MAX_TURN_REQUEST_BYTES);
+		expect(bounded.request.messages.at(-1)?.content).toBe("and now say ok");
+	});
+
+	test("what was dropped is stated, never silently missing", () => {
+		const long = "y".repeat(40_000);
+		const bounded = boundTurnRequest(
+			turn([
+				{ role: "user", content: long },
+				{ role: "assistant", content: long },
+				{ role: "user", content: "still here?" },
+			]),
+		);
+		expect(bounded.request.messages[0]?.content).toContain("dropped to fit this turn's size limit");
+		expect(bounded.request.messages[0]?.content).toContain("say you may no longer have it");
+	});
+
+	test("a tool leg's call and output are never split by the bound", () => {
+		const long = "z".repeat(20_000);
+		// Three context messages, then a two-message tool leg plus the prompt.
+		const bounded = boundTurnRequest(
+			turn([
+				{ role: "user", content: long },
+				{ role: "assistant", content: long },
+				{ role: "user", content: long },
+				{ role: "assistant", content: "call: issues.list" },
+				{ role: "user", content: "result: two issues" },
+			]),
+			2,
+		);
+		expect(turnRequestBytes(bounded.request)).toBeLessThanOrEqual(MAX_TURN_REQUEST_BYTES);
+		expect(bounded.request.messages.slice(-2).map((message) => message.content)).toEqual([
+			"call: issues.list",
+			"result: two issues",
+		]);
+	});
+
+	test("a single message over the limit is still sent, so the seam refuses it honestly", () => {
+		// Dropping the user's own words to hide the refusal would be the worse
+		// answer: the boundary's message already names what happened.
+		const bounded = boundTurnRequest(turn([{ role: "user", content: "q".repeat(80_000) }]));
+		expect(bounded.dropped).toBe(0);
+		expect(bounded.request.messages).toHaveLength(1);
 	});
 });
