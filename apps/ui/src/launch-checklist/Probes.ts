@@ -82,6 +82,10 @@ export const VISIBLE_AFFORDANCES = `(() => {
 		.map((element) => ({
 			label: (element.getAttribute("aria-label") ?? element.textContent ?? "").trim().slice(0, 60),
 			flow: element.getAttribute("data-flow") ?? element.closest("[data-flow]")?.getAttribute("data-flow") ?? null,
+			// A disabled control is unreachable by POINTER too, so the
+			// pointer-only rule below has to know which ones are inert rather
+			// than reading "not in the tab ring" as "mouse users only".
+			disabled: element.hasAttribute("disabled") || element.getAttribute("aria-disabled") === "true",
 		}));
 })()`;
 
@@ -174,6 +178,8 @@ export const ZERO_BALANCE_PAUSE_COPY = /workflow runs pause/i;
 export interface Affordance {
 	readonly label: string;
 	readonly flow: string | null;
+	/** Inert right now: no pointer reaches it either, so it is not pointer-only. */
+	readonly disabled: boolean;
 }
 
 export const unnamedAffordances = (

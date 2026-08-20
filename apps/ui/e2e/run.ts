@@ -23,6 +23,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createReporter, SuiteFailure, type Reporter } from "./Assert.ts";
 import { createE2eBrowser } from "./Browser.ts";
+import { closeOpenClients } from "./Client.ts";
 import { buildSpa, startStack } from "./Stack.ts";
 import type { Phase, Suite } from "./Suite.ts";
 
@@ -321,6 +322,15 @@ const main = async (): Promise<number> => {
 					outcomes.push({ suiteId: suite.id, status: "skip", unproven: claims });
 					continue;
 				}
+				/*
+				 * The previous suite's clients stop before this one starts. A
+				 * workflow run pump polls the SHARED stack until its run ends or
+				 * its conversation resets, so an abandoned client keeps hammering
+				 * wrangler for the rest of the phase and starves the suites after
+				 * it — which is how E5's balance chip and E8's browser turn timed
+				 * out at the tail of a full run while both passed alone.
+				 */
+				closeOpenClients();
 				await stack.reset();
 				const base = createReporter(suite.id);
 				// The `ok:` lines are the record of what was proven, so read the ids
@@ -373,6 +383,8 @@ const main = async (): Promise<number> => {
 				}
 			}
 		} finally {
+			// The last suite's clients stop with the stack they were driving.
+			closeOpenClients();
 			await browser.close();
 			await stack.stop();
 		}

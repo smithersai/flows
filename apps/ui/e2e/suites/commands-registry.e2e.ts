@@ -1936,10 +1936,22 @@ export default defineSuite({
 			// E5.4 — the C-3 structural rule, from the row's own probe source.
 			const tabbable = new Set(await page.evaluate<ReadonlyArray<string>>(TABBABLE_FLOWS));
 			report.check(tabbable.has("textarea"), "the composer is not in the page's tab ring");
-			const pointerOnly = (await page.evaluate<ReadonlyArray<Affordance>>(VISIBLE_AFFORDANCES))
-				.filter((affordance) => affordance.flow !== null && !tabbable.has(affordance.flow))
+			/*
+			 * A DISABLED control is out of the tab ring by definition, and out of
+			 * reach of a pointer too — inert, not pointer-only. The suggestion
+			 * pills go disabled for the length of a turn (App.tsx), so reading
+			 * them as mouse-only affordances was the rule mistaking "nobody can
+			 * use this right now" for "only a mouse can use this".
+			 */
+			const visibleAffordances = await page.evaluate<ReadonlyArray<Affordance>>(VISIBLE_AFFORDANCES);
+			const pointerOnly = visibleAffordances
+				.filter((affordance) => affordance.flow !== null && !affordance.disabled && !tabbable.has(affordance.flow))
 				.map((affordance) => affordance.flow ?? "");
-			report.equals(pointerOnly.length, 0, `affordances a keyboard cannot reach: ${pointerOnly.join(", ")}`);
+			report.equals(
+				pointerOnly.length,
+				0,
+				`affordances a keyboard cannot reach: ${pointerOnly.join(", ")} (of ${visibleAffordances.length} visible, ${visibleAffordances.filter((affordance) => affordance.disabled).length} inert)`,
+			);
 			report.ok("E5.4: every affordance carrying a flow name is in the tab ring.");
 
 			// E5.3 at the keyboard — the typed name leads, and Enter runs it.

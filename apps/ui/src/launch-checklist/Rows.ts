@@ -546,8 +546,10 @@ export const ROWS: ReadonlyArray<ChecklistRow> = [
 			const tabbable = await page.evaluate<ReadonlyArray<string>>(TABBABLE_FLOWS);
 			const affordances = await page.evaluate<ReadonlyArray<Affordance>>(VISIBLE_AFFORDANCES);
 			const reachable = new Set(tabbable);
+			// A disabled control is out of the tab ring by definition and out of
+			// reach of a pointer too, so it is inert — not pointer-only.
 			const pointerOnly = affordances
-				.filter((affordance) => affordance.flow !== null && !reachable.has(affordance.flow))
+				.filter((affordance) => affordance.flow !== null && !affordance.disabled && !reachable.has(affordance.flow))
 				.map((affordance) => affordance.flow ?? "");
 			const composerFocusable = tabbable.includes("textarea");
 			return verdict(

@@ -66,7 +66,28 @@ export interface Client {
 	readonly settle: (what: string, predicate: () => boolean, timeoutMs?: number) => Promise<void>;
 	/** Wait for session().phase === "idle". */
 	readonly idle: (timeoutMs?: number) => Promise<void>;
+	/**
+	 * Stop this client's background work — the workflow run pumps above all.
+	 * A pump polls until its run finishes or the conversation resets, so a
+	 * client left open after its suite keeps hitting the SHARED stack every
+	 * `workflowPollMs` for the rest of the run. Late suites then time out
+	 * waiting for reads that are queued behind a dozen abandoned pumps.
+	 */
+	readonly close: () => void;
 }
+
+/*
+ * Every client this module has opened and not closed. The runner closes them
+ * between suites, so a suite that forgets cannot leak its pumps into the next
+ * one. Closing twice is harmless.
+ */
+const openClients = new Set<{ readonly close: () => void }>();
+
+/** Stop the background work of every client still open. Called between suites. */
+export const closeOpenClients = (): void => {
+	for (const client of [...openClients]) client.close();
+	openClients.clear();
+};
 
 /** An in-memory StorageApi so no two clients share persisted state. */
 export const memoryStorage = (): StorageApi => {
@@ -153,9 +174,21 @@ export const openClient = async (options: ClientOptions): Promise<Client> => {
 		}
 	};
 
-	return {
+	const close = (): void => {
+		openClients.delete(handle);
+		// `reset` cancels the live turn and stops every run pump; the store it
+		// empties belongs to this client alone (memoryStorage above).
+		try {
+			controller.runCommand("reset");
+		} catch {
+			// A client whose store is already torn down has nothing left to stop.
+		}
+	};
+
+	const handle: Client = {
 		store,
 		controller,
+		close,
 		calls: () => tracked,
 		countCalls: (method, path) =>
 			tracked.filter((call) => call.method.toUpperCase() === method.toUpperCase() && call.path === path).length,
@@ -170,4 +203,6 @@ export const openClient = async (options: ClientOptions): Promise<Client> => {
 		idle: (timeoutMs = 12_000) =>
 			settle("the composer never returned to idle", () => store.session().phase === "idle", timeoutMs),
 	};
+	openClients.add(handle);
+	return handle;
 };
