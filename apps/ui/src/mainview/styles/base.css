@@ -10,7 +10,13 @@ body {
 
 body {
 	min-width: 320px;
+	/*
+	 * 100vh on mobile includes the browser chrome, so a fixed 100vh shell with
+	 * hidden overflow strands the composer below the fold whenever the URL bar
+	 * is showing. vh stays as the fallback; dvh tracks the visible area.
+	 */
 	min-height: 100vh;
+	min-height: 100dvh;
 	overflow: hidden;
 	background: var(--bg);
 	color: var(--text);
@@ -22,6 +28,7 @@ body {
 #root {
 	display: flex;
 	height: 100vh;
+	height: 100dvh;
 	flex-direction: column;
 }
 

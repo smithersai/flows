@@ -188,13 +188,28 @@
 	border-radius: var(--r-sm);
 	background: var(--surface-glass-strong);
 	box-shadow: var(--shadow-1);
+	/*
+	 * opacity: 0 alone leaves the buttons hit-testable: on a touch screen a
+	 * tap in the corner landed on an invisible control. pointer-events follows
+	 * the opacity, and hover:none devices (no hover to reveal them) get the
+	 * actions as a deliberate, visible affordance instead of a hidden trap.
+	 */
 	opacity: 0;
+	pointer-events: none;
 	transition: opacity var(--dur) var(--ease-current);
 }
 
 .smithers-chat-message:hover .message-actions,
 .message-actions:focus-within {
 	opacity: 1;
+	pointer-events: auto;
+}
+
+@media (hover: none) {
+	.message-actions {
+		opacity: 1;
+		pointer-events: auto;
+	}
 }
 
 .message-action {

@@ -936,6 +936,24 @@
 	background: var(--card, #fffefa);
 	overflow: auto;
 }
+
+/*
+ * 21rem (336px) exceeds the 320px minimum shell width all by itself, so a
+ * nonshrinking panel pushed the composer off a narrow screen. Below the same
+ * 900px breakpoint the panes already use, the panel stacks under the chat
+ * column instead of fighting it for the row.
+ */
+@media (max-width: 900px) {
+	.chat-frame:has(> .devtools-panel) {
+		flex-direction: column;
+	}
+
+	.devtools-panel {
+		width: 100%;
+		border-top: 1px solid var(--border, #e4ddcf);
+		border-left: 0;
+	}
+}
 .devtools-sections {
 	display: flex;
 	flex-direction: column;
