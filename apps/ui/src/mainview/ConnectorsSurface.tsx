@@ -209,20 +209,15 @@ export function ConnectorsSurface() {
 							<div>
 								<strong>No repositories connected</strong>
 								<span>
+									{/*
+									 * Directive 5 (will, 2026-08-19): importing is an
+									 * implementation detail that happens in the background —
+									 * no user-facing import button, here or anywhere.
+									 */}
 									{signedIn
-										? "Import a GitHub repository into Smithers Cloud and it appears here."
-										: "Connecting GitHub above is the first step; imported repositories appear here."}
+										? "Repositories Smithers watches are imported automatically and appear here."
+										: "Connecting GitHub above is the first step; watched repositories appear here."}
 								</span>
-								{signedIn ? (
-									<Button
-										size="sm"
-										variant="outline"
-										data-flow="repos.import"
-										onClick={() => controller.runCommand("repos.import")}
-									>
-										Import a repository
-									</Button>
-								) : null}
 							</div>
 						</div>
 					) : (

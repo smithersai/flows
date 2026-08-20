@@ -97,17 +97,16 @@ const openConnectors = async (
 };
 
 describe("the connectors surface with nothing connected", () => {
-	test("signed in, it names the act that adds one and offers it", async () => {
+	test("signed in, it states that imports happen by themselves — no button (directive 5)", async () => {
+		// will, 2026-08-19: "import to smithers cloud button exists and it
+		// shouldn't. importing to smithers cloud just happens in background".
 		const { host } = await openConnectors(true);
 		const empty = host.querySelector(".connector-empty");
 		expect(empty).not.toBeNull();
 		const text = empty?.textContent ?? "";
 		expect(text).toContain("No repositories connected");
-		// A fact plus a move, not a fact alone.
-		expect(text).toContain("Import a GitHub repository");
-		const action = empty?.querySelector('[data-flow="repos.import"]');
-		expect(action).not.toBeNull();
-		expect(action?.textContent).toContain("Import a repository");
+		expect(text).toContain("imported automatically");
+		expect(empty?.querySelector('[data-flow="repos.import"]')).toBeNull();
 	});
 
 	test("signed out, it points at the one door there is instead of offering a second", async () => {
