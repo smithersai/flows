@@ -44,7 +44,6 @@ import { ConfirmDialog, SurfaceHeader } from "./SurfaceChrome";
 import { ToastStack } from "./ToastStack";
 import type { AppController } from "./state/AppController";
 import { scrubToolEcho } from "./state/MessageScrub";
-import { timeLabel } from "./Timestamps";
 import { tabOutOf } from "./FocusRing";
 import { stampFlows } from "./FlowStamp";
 import { RichMarkdown } from "./RichMarkdown";
@@ -1157,15 +1156,6 @@ function App() {
 											className="message-markdown"
 											content={scrubToolEcho(entry.message.text)}
 										/>
-									) : null}
-									{/* The synthetic auth message has no clock time to tell. */}
-									{entry.message.createdAt > 0 ? (
-										<time
-											className="message-time"
-											dateTime={new Date(entry.message.createdAt).toISOString()}
-										>
-											{timeLabel(entry.message.createdAt)}
-										</time>
 									) : null}
 									{entry.message.action !== undefined ? (
 										<Button
