@@ -38,6 +38,13 @@ const buildConfigs = [
 const serverSources = Smithers.glob("//apps/server/src/**/*.ts")
 
 /**
+ * The harness and suite sources outside `src/`. The tsconfig compiles them, so
+ * the typecheck measures them and its key has to carry them too.
+ */
+const harnessSources = Smithers.glob("//apps/ui/scripts/**/*.ts")
+const suiteSources = Smithers.glob("//apps/ui/e2e/**/*.ts")
+
+/**
  * Checks the application against its own tsconfig.
  *
  * @since 0.1.0
@@ -45,7 +52,20 @@ const serverSources = Smithers.glob("//apps/server/src/**/*.ts")
  */
 export const check = Smithers.Typecheck({
   packageManager,
-  srcs: [sources, componentSources],
+  /*
+   * Everything this tsconfig includes. `scripts`, `e2e`, and the bundler
+   * configs are compiled by this target — `vite.start.config.ts` only joined
+   * the include recently — so a key made of `src` alone would serve a green
+   * cache entry over an edit that breaks the typecheck.
+   */
+  srcs: [
+    sources,
+    componentSources,
+    harnessSources,
+    suiteSources,
+    ...buildConfigs,
+    Smithers.file("electrobun.config.ts")
+  ],
   deps: [],
   tsconfig: Smithers.file("tsconfig.json"),
   buildMode: false,
@@ -80,7 +100,7 @@ export const unitTests = Smithers.NodeTest({
 export const workerE2e = Smithers.NodeTest({
   runtime: bunRuntime,
   runner: Smithers.entrypoint(Smithers.file("scripts/worker-e2e.ts")),
-  srcs: [sources, componentSources, styleSources, ...buildConfigs, serverSources, Smithers.glob("//apps/ui/scripts/**/*.ts")],
+  srcs: [sources, componentSources, styleSources, ...buildConfigs, serverSources, harnessSources],
   deps: [],
   cwd
 })
@@ -99,7 +119,7 @@ export const workerE2e = Smithers.NodeTest({
 export const browserE2e = Smithers.NodeTest({
   runtime: bunRuntime,
   runner: Smithers.entrypoint(Smithers.file("e2e/run.ts")),
-  srcs: [sources, componentSources, styleSources, ...buildConfigs, serverSources, Smithers.glob("//apps/ui/e2e/**/*.ts")],
+  srcs: [sources, componentSources, styleSources, ...buildConfigs, serverSources, suiteSources],
   deps: [],
   cwd
 })
