@@ -1,0 +1,119 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "ab7f9bfc50bd64295245de69ff27841d00a7ddfd",
+ "tree": "1d93ff6efd57f1c674c561a8070954c38a3d89a6",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 2,
+  "sectionCount": 71
+ },
+ "source": {
+  "commit": "8cba2f307de62e07a5d88d660ca52c8bce795d85",
+  "subject": "✅ test(server): pin the two ways this Worker could invent a $0 balance",
+  "priorCanonicalCommit": "aac4f097e9984091e58e650029b3bddafa1f15cf",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 2,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "server",
+  "epicsTouched": [
+   {
+    "id": "server",
+    "files": 1
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 840,
+  "globalCount": 909,
+  "purpose": "✅ test(server): pin the two ways this Worker could invent a $0 balance",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1"
+  ],
+  "parent": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sourceImports": [
+   "79981b2d185faaf85448f83c1fad4c193b571043"
+  ],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "next": "cb8f99248af220028e149517dd12d294f006f3b1",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "9f4db87e9b528812c207c1054f8c36a09a06c2c7"
+ },
+ "size": {
+  "files": 2,
+  "added": 324,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "8cba2f307de62e07a5d88d660ca52c8bce795d85"
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/server/BALANCE-DIAGNOSIS.md",
+   "mode": "100644",
+   "blob": "409f015fce8f2ebcfa98c1179f0886bab2612202",
+   "previousBlob": null,
+   "added": 178,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 0,
+     "oldLines": 0,
+     "newStart": 1,
+     "newLines": 178
+    }
+   ],
+   "role": "docs",
+   "introducedByEpic": null
+  },
+  {
+   "change": "M",
+   "path": "apps/server/src/index.test.ts",
+   "mode": "100644",
+   "blob": "1735cd6f587c8e76be21249d969df0d7296bd7ed",
+   "previousBlob": "5e0111c467287bc3a3b8af8184d17e1e7d2bd464",
+   "added": 146,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1025,
+     "oldLines": 0,
+     "newStart": 1026,
+     "newLines": 146
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 13,
+    "id": "server",
+    "name": "Shared application contracts and worker backend"
+   }
+  }
+ ]
+}
