@@ -1,5 +1,5 @@
 ---
-status: blocked
+status: landed
 anchor: head
 priority: p1
 ---
@@ -154,3 +154,5 @@ are the ones that failed — before re-running the wide gates. Note: the
 90-minute node timeout killed round 2's attempt 2 during
 `pnpm --recursive --if-present run check`; run targeted package gates first
 and do not leave the wide check for last.
+
+LANDED. The consensus seam is on main; its content survived a history retell and was restored by oneshot-mt13hi5b-49261796. Stage 2 is items 0009, 0010, 0011 — all landed.

@@ -1,5 +1,5 @@
 ---
-status: blocked
+status: landed
 anchor: head
 priority: p1
 ---
@@ -21,3 +21,5 @@ rebuildable materialization of sealed step-result journal events.
 - Add rebuild/conformance tests that compare the live cache materialization
   with a replayed fold across insert, duplicate, conflict, eviction, and
   provenance paths.
+
+LANDED 2026-08-20 on main as merge 8bef6fbe0. Approved by verify run-1787198239752; the land node could not push (its sandbox has no DNS), so the operator merged onto the restored main and pushed after verifying green in a scratch worktree.
