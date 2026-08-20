@@ -129,6 +129,93 @@ export const toolLoopScript = (
 	),
 ];
 
+/*
+ * The proxy-to-chain translation. The suites were written against the old
+ * turn wire (prose deltas, `card` frames, `tool_call` frames); the app now
+ * has ONE backend — the in-browser Agent Chain — whose author accepts only a
+ * fenced flow script. Rather than rewrite every suite's fixtures, the double
+ * renders a proxy-shaped script as the flow script a real model would author
+ * for the same behavior: prose becomes ctx.call("say"), cards become
+ * card.show/card.update, a commands tool_call becomes the flow's own
+ * ctx.call, and a turn that ended `done: tool_call` continues by asking the
+ * author for its successor — which arms the script's next entry, exactly the
+ * per-request sequencing the old wire had.
+ */
+const translatable = (frames: ReadonlyArray<Record<string, unknown>>): boolean => {
+	const last = frames[frames.length - 1];
+	if (last === undefined || last.type !== "done" || (last.error !== undefined && last.error !== "")) return false;
+	if (frames.some((frame) => frame.type === "error")) return false;
+	const first = frames[0];
+	// Already chain-authored: pass through untouched.
+	if (
+		first !== undefined &&
+		first.type === "delta" &&
+		typeof first.text === "string" &&
+		first.text.startsWith("```flow")
+	) {
+		return false;
+	}
+	return true;
+};
+
+const chainAuthored = (frames: ReadonlyArray<Record<string, unknown>>): string => {
+	const lines: Array<string> = [];
+	let saying: Array<string> = [];
+	const flushSay = (): void => {
+		if (saying.length === 0) return;
+		lines.push(`await ctx.call("say", { text: ${JSON.stringify(saying.join(""))} })`);
+		saying = [];
+	};
+	let continues = false;
+	for (const frame of frames) {
+		if (frame.type === "delta" && frame.kind === "text" && typeof frame.text === "string") {
+			saying.push(frame.text);
+			continue;
+		}
+		if (frame.type === "card") {
+			flushSay();
+			lines.push(`await ctx.call("card.show", { card: ${JSON.stringify(frame.card)} })`);
+			continue;
+		}
+		if (frame.type === "card.update") {
+			flushSay();
+			lines.push(
+				`await ctx.call("card.update", { id: ${JSON.stringify(frame.id)}, patch: ${JSON.stringify(frame.patch)} })`,
+			);
+			continue;
+		}
+		if (frame.type === "tool_call") {
+			flushSay();
+			let name = typeof frame.name === "string" ? frame.name : "";
+			let payload: Record<string, unknown> = {};
+			try {
+				const parsed = JSON.parse(typeof frame.arguments === "string" ? frame.arguments : "{}") as Record<
+					string,
+					unknown
+				>;
+				if (name === "commands" && typeof parsed.name === "string") {
+					name = parsed.name;
+					payload = typeof parsed.args === "string" ? { args: parsed.args } : {};
+				} else {
+					payload = parsed;
+				}
+			} catch {
+				// A malformed fixture reaches the catalog as an empty payload.
+			}
+			lines.push(`await ctx.call(${JSON.stringify(name)}, ${JSON.stringify(payload)})`);
+			continue;
+		}
+		if (frame.type === "done" && frame.reason === "tool_call") continues = true;
+	}
+	flushSay();
+	lines.push(
+		continues
+			? `return to(await ctx.call("author", { context: ["continue"] }))`
+			: `return done({ ok: true })`,
+	);
+	return "```flow\n" + lines.join("\n") + "\n```";
+};
+
 const SLOW_SCRIPT: ChatTurnScript = {
 	gapMs: 250,
 	frames: [
@@ -203,7 +290,16 @@ export const createChatUpstream = (): ChatUpstream => {
 				return new Response(script.body ?? "", { status: script.status });
 			}
 
-			const frames = script.framesFor?.(record) ?? script.frames;
+			const scripted = script.framesFor?.(record) ?? script.frames;
+			// A paced script (gapMs) is a STREAM under test — kill/steer suites
+			// need the wire to stay open — so pacing opts out of translation.
+			const frames =
+				script.gapMs === undefined && translatable(scripted)
+					? [
+							{ type: "delta", kind: "text", text: chainAuthored(scripted) },
+							{ type: "done", reason: "stop" },
+						]
+					: scripted;
 			const gapMs = script.gapMs ?? 10;
 			const encoder = new TextEncoder();
 			return new Response(

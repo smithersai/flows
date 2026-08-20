@@ -134,6 +134,15 @@ export default defineSuite({
 			);
 			report.ok("the structured channel leaves no act row behind");
 
+			// The pills arrive when the propose call settles, which can be a beat
+			// BEFORE the turn itself finishes; a send pressed into a live turn is
+			// refused, so wait for the answer to land first.
+			await waitUntil(
+				report,
+				"the turn's answer never landed after the proposal",
+				async () => (await page.text()).includes("I'm Smithers."),
+				TURN_MS,
+			);
 			// Pressing the question pill speaks as the user, through `send`.
 			report.check(await clickPill(page, "send"), "the question pill was not in the row");
 			await waitUntil(
