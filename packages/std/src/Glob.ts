@@ -23,7 +23,18 @@
  *   match any `a.py` in the subtree. A leading `./` means the same anchor.
  *
  * `**` crosses directory boundaries, `*` and `?` stay inside one segment, and
- * `?` consumes one UTF-8 byte.
+ * `?` consumes one UTF-8 byte. Trailing spaces are not part of a pattern:
+ * `rg` reads `-g` by gitignore's rules and drops them, so `"a.ts "` finds
+ * `a.ts`, and a pattern left blank by that is rejected rather than read as no
+ * filter at all.
+ *
+ * A `root` that names one file is that file. It is reported whatever the
+ * pattern says, because `rg` searches a path given on its command line without
+ * consulting `-g`, and a walk that reaches one file has nothing to filter.
+ *
+ * A walk skips what it cannot read — a dangling symlink, a link cycle, a
+ * directory the process may not list — and reports everything it did reach.
+ * One unreadable entry never fails the call.
  *
  * The consequence worth stating is the one that cost a SWE-bench run 41 of its
  * 43 frames: an *absolute* pattern such as `/home/repo/tests/**` is read as the

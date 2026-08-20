@@ -203,7 +203,10 @@ const utf8ByteString = (value: string): string =>
  * `.` is never a path component either peer can produce, so a leading `./` and
  * every interior `/./` would silently make a pattern unmatchable. Both are
  * folded into the root anchor, which is what a caller writing `./src/**` means.
- * A leading `!` is preserved so exclusion globs canonicalize the same way.
+ * Trailing spaces are dropped because `rg` reads `-g` by gitignore's rules and
+ * drops them too, so `"a.ts "` finds `a.ts` in the native peer and has to find
+ * it in the in-process one. A leading `!` is preserved so exclusion globs
+ * canonicalize the same way.
  *
  * @private
  * @since 0.1.0
@@ -211,7 +214,7 @@ const utf8ByteString = (value: string): string =>
 export const canonicalGlob = (glob: string): string => {
   const excluded = glob.startsWith("!")
   const pattern = excluded ? glob.slice(1) : glob
-  const canonical = pattern.replace(/\/\.(?=\/)/g, "").replace(/^\.\//, "/")
+  const canonical = pattern.replace(/ +$/, "").replace(/\/\.(?=\/)/g, "").replace(/^\.\//, "/")
   return excluded ? `!${canonical}` : canonical
 }
 
@@ -331,6 +334,14 @@ export const unsatisfiableNotice = (options: {
   readonly hidden: boolean
 }): Effect.Effect<string | undefined> =>
   Effect.gen(function*() {
+    // Globs filter a walk. A root that names one file is searched whatever the
+    // globs say — `rg` always searches a path given on the command line — so
+    // there is no unsatisfiable pattern to report and no directory to stat.
+    const walkable = yield* options.fileSystem.stat(options.root).pipe(
+      Effect.map((info) => info.type === "Directory"),
+      Effect.orElseSucceed(() => false)
+    )
+    if (!walkable) return undefined
     const sentences: Array<string> = []
     for (const glob of options.globs) {
       if (glob.startsWith("!")) continue
@@ -357,7 +368,10 @@ export const unsatisfiableNotice = (options: {
  */
 export const validateGlob = (glob: string): StdError.StdError | undefined => {
   const pattern = glob.startsWith("!") ? glob.slice(1) : glob
-  if (pattern.length === 0) return invalidPattern(glob, "glob patterns must not be empty")
+  // `rg` drops the trailing spaces and then ignores a glob that is left blank,
+  // which filters nothing at all. Rejecting it keeps a typo from silently
+  // widening the search instead of narrowing it.
+  if (pattern.replace(/ +$/, "").length === 0) return invalidPattern(glob, "glob patterns must not be empty")
   if (!/^[\x20-\x7e]*$/.test(pattern)) return invalidPattern(glob, "globs must contain printable ASCII only")
   if (pattern.includes("\\") || pattern.includes("[") || pattern.includes("]")) {
     return invalidPattern(glob, "glob escapes and character classes are not supported")

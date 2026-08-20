@@ -46,6 +46,25 @@ const execute = (
 const skipGlobs = [...Walk.skippedDirectories].map((directory) => `!**/${directory}/**`)
 const hiddenGlobs = ["!.*", "!**/.*", "!**/.*/**"]
 
+/**
+ * Reports what `rg` rejected, or `undefined` when it produced an answer.
+ *
+ * Exit status 2 means only "an error occurred", and a walk hits those
+ * routinely: a dangling symlink, a symlink loop, a directory the process may
+ * not list. `--no-messages` suppresses exactly those, leaving stderr empty and
+ * the results on stdout complete for everything `rg` could reach — the same
+ * entries the in-process peer skips, so the peers still agree. A fatal error —
+ * an unparsable glob, a rejected expression, a killed process — always writes
+ * to stderr, which `--no-messages` does not touch. Stderr is therefore the
+ * discriminator, and the exit status alone is not.
+ */
+const rejection = (result: RgResult): string | undefined => {
+  const message = result.stderr.trim()
+  return result.exitCode > 1 && message.length > 0 ? message : undefined
+}
+
+const nulSeparated = (stdout: string): ReadonlyArray<string> => stdout.split("\0").filter((value) => value.length > 0)
+
 const preview = (line: string): string => {
   const withoutTerminator = line.replace(/\r?\n$/, "")
   const characters = Array.from(withoutTerminator)
@@ -125,15 +144,6 @@ const grep = (
     const globs = [...input.globs.map(Contract.canonicalGlob), ...(input.hidden ? [] : hiddenGlobs), ...skipGlobs]
     for (const glob of globs) args.push("--glob", glob)
     args.push("--", input.pattern, root.target)
-    const result = yield* execute(root.cwd, args)
-    if (result.exitCode > 1) {
-      return yield* Effect.fail(
-        new StdError.StdError({
-          code: "request_failed",
-          message: result.stderr.trim() || `rg exited with status ${result.exitCode}`
-        })
-      )
-    }
 
     const binaryArgs: Array<string> = [
       "--files-with-matches",
@@ -147,18 +157,27 @@ const grep = (
     if (input.hidden) binaryArgs.push("--hidden")
     for (const glob of globs) binaryArgs.push("--glob", glob)
     binaryArgs.push("--", "\\x00", root.target)
-    const binaryResult = yield* execute(root.cwd, binaryArgs)
-    if (binaryResult.exitCode > 1) {
-      return yield* Effect.fail(
-        new StdError.StdError({
-          code: "request_failed",
-          message: binaryResult.stderr.trim() || `rg binary scan exited with status ${binaryResult.exitCode}`
-        })
-      )
-    }
-    const binaryFiles = new Set(
-      binaryResult.stdout.split("\0").filter((value) => value.length > 0).map(root.absolute)
+
+    // `--json` reports `stats.searches` from the printer, so it counts only the
+    // files that produced output — the files with a match. The contract counts
+    // every file the search covered, which is what `--files` lists, and listing
+    // reads no file contents.
+    const listingArgs: Array<string> = ["--files", "--null", "--no-ignore", "--no-messages"]
+    if (input.hidden) listingArgs.push("--hidden")
+    for (const glob of globs) listingArgs.push("--glob", glob)
+    listingArgs.push("--", root.target)
+
+    const [result, binaryResult, listingResult] = yield* Effect.all(
+      [execute(root.cwd, args), execute(root.cwd, binaryArgs), execute(root.cwd, listingArgs)],
+      { concurrency: "unbounded" }
     )
+    for (const outcome of [result, binaryResult, listingResult]) {
+      const message = rejection(outcome)
+      if (message !== undefined) {
+        return yield* Effect.fail(new StdError.StdError({ code: "request_failed", message }))
+      }
+    }
+    const binaryFiles = new Set(nulSeparated(binaryResult.stdout).map(root.absolute))
     if (root.explicitFile && binaryFiles.size > 0) {
       return yield* Effect.fail(
         new StdError.StdError({
@@ -171,7 +190,6 @@ const grep = (
 
     const lines: Array<Search.GrepLine> = []
     const files = new Set<string>()
-    let filesSearched = 0
     let sawSummary = false
     for (const encoded of result.stdout.split("\n")) {
       if (encoded.length === 0) continue
@@ -206,7 +224,6 @@ const grep = (
       } else if (type === "summary") {
         const stats = asRecord(data?.stats)
         if (typeof stats?.searches !== "number") return yield* Effect.fail(malformedJson())
-        filesSearched = stats.searches
         sawSummary = true
       } else return yield* Effect.fail(malformedJson())
     }
@@ -225,9 +242,7 @@ const grep = (
     return {
       matches: input.filesWithMatches ? [] : visibleLines.slice(0, input.limit),
       files: input.filesWithMatches ? [...files].sort().slice(0, input.limit) : [],
-      // rg excludes NUL-bearing files from stats.searches; the shared
-      // contract counts every included file, including skipped binaries.
-      filesSearched: filesSearched + binaryFiles.size,
+      filesSearched: nulSeparated(listingResult.stdout).length,
       skippedBinary: binaryFiles.size,
       truncated,
       ...(truncated ? { notice: notice(input.filesWithMatches ? "files" : "lines", input.limit, entries.length) } : {}),
@@ -252,10 +267,9 @@ const glob = (
     for (const glob of [...(input.hidden ? [] : hiddenGlobs), ...skipGlobs]) args.push("--glob", glob)
     args.push("--", root.target)
     const result = yield* execute(root.cwd, args)
-    if (result.exitCode > 1) {
-      return yield* Effect.fail(
-        new StdError.StdError({ code: "invalid_pattern", message: result.stderr.trim() || "rg rejected the glob" })
-      )
+    const rejected = rejection(result)
+    if (rejected !== undefined) {
+      return yield* Effect.fail(new StdError.StdError({ code: "invalid_pattern", message: rejected }))
     }
     const paths = result.stdout.split(/\r?\n/).filter((value) => value.length > 0).map(root.absolute).sort()
     const shown = paths.slice(0, input.limit)

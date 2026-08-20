@@ -4,7 +4,7 @@ import { Cause, Effect, Exit, Layer, Sink, Stream } from "effect"
 import * as Path from "effect/Path"
 import type * as ChildProcess from "effect/unstable/process/ChildProcess"
 import { ExitCode, makeHandle, ProcessId } from "effect/unstable/process/ChildProcessSpawner"
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
@@ -19,6 +19,25 @@ const file = (relative: string, content: string | Uint8Array): void => {
   mkdirSync(dirname(target), { recursive: true })
   writeFileSync(target, content)
 }
+
+// A directory the process may not list belongs in its own root: every search
+// rooted above it would otherwise depend on the same skip, and a filesystem
+// that does not enforce the mode (or a run as root) would hide the case
+// instead of failing it.
+const deniedRoot = mkdtempSync(join(tmpdir(), "flows-search-denied-"))
+const denied = join(deniedRoot, "locked")
+mkdirSync(denied, { recursive: true })
+writeFileSync(join(denied, "hidden.ts"), "needle denied\n")
+writeFileSync(join(deniedRoot, "listed.ts"), "needle denied\n")
+chmodSync(denied, 0o000)
+const modeEnforced = ((): boolean => {
+  try {
+    readdirSync(denied)
+    return false
+  } catch {
+    return true
+  }
+})()
 
 beforeAll(() => {
   file("src/a.ts", "intro\nNeedle one\ncontext after\nneedle two\nend")
@@ -43,9 +62,21 @@ beforeAll(() => {
   file("globs/.hidden/h.ts", "")
   file("globs/é.ts", "")
   file("globs/😀.ts", "")
+  file("counted/one.txt", "counted needle\n")
+  file("counted/two.txt", "nothing here\n")
+  file("counted/three.txt", "nothing here\n")
+  file("hostile/present.ts", "needle hostile\n")
+  symlinkSync(join(root, "hostile/present.ts"), join(root, "hostile/alias.ts"))
+  symlinkSync(join(root, "hostile/absent.ts"), join(root, "hostile/dangling.ts"))
+  symlinkSync(join(root, "hostile/cycle-b"), join(root, "hostile/cycle-a"))
+  symlinkSync(join(root, "hostile/cycle-a"), join(root, "hostile/cycle-b"))
 })
 
-afterAll(() => rmSync(root, { recursive: true, force: true }))
+afterAll(() => {
+  chmodSync(denied, 0o755)
+  rmSync(root, { recursive: true, force: true })
+  rmSync(deniedRoot, { recursive: true, force: true })
+})
 
 const peers = [
   ["portable", PortableSearch.layer.pipe(Layer.provide(NodeServices.layer))],
@@ -323,6 +354,74 @@ for (const [peer, implementation] of peers) {
       expect(exclusionOnly.notice).toBeUndefined()
     })
 
+    it("searches a root that names one file whatever the globs say", async () => {
+      const matching = await grep({
+        pattern: "needle",
+        root: join(root, "src/a.ts"),
+        globs: ["*.ts"],
+        filesWithMatches: true
+      })
+      const mismatching = await grep({
+        pattern: "needle",
+        root: join(root, "src/a.ts"),
+        globs: ["missing/*.js"],
+        filesWithMatches: true
+      })
+      const empty = await grep({ pattern: "definitely absent", root: join(root, "src/a.ts"), globs: ["missing/*.js"] })
+      const listed = await glob({ pattern: "*.js", root: join(root, "src/a.ts") })
+      const linked = await grep({ pattern: "hostile", root: join(root, "hostile/alias.ts"), filesWithMatches: true })
+      expect(matching.files).toEqual([join(root, "src/a.ts")])
+      expect(mismatching.files).toEqual([join(root, "src/a.ts")])
+      expect(mismatching.notice).toBeUndefined()
+      expect(empty).toEqual({ matches: [], files: [], filesSearched: 1, skippedBinary: 0, truncated: false })
+      expect(listed.paths).toEqual([join(root, "src/a.ts")])
+      expect(linked.files).toEqual([join(root, "hostile/alias.ts")])
+    })
+
+    it("counts every file the search covered, not only the files that matched", async () => {
+      const found = await grep({ pattern: "counted needle", root: join(root, "counted") })
+      const absent = await grep({ pattern: "definitely absent", root: join(root, "counted") })
+      expect(found).toMatchObject({ filesSearched: 3, skippedBinary: 0, matches: [{ line: 1 }] })
+      expect(absent).toMatchObject({ filesSearched: 3, matches: [], truncated: false })
+    })
+
+    it("walks past dangling links and link cycles instead of failing the search", async () => {
+      const paths = await glob({ pattern: "*.ts", root: join(root, "hostile") })
+      const matches = await grep({ pattern: "hostile", root: join(root, "hostile"), filesWithMatches: true })
+      expect(paths.paths).toEqual([join(root, "hostile/present.ts")])
+      expect(matches).toMatchObject({ files: [join(root, "hostile/present.ts")], filesSearched: 1 })
+    })
+
+    it.skipIf(!modeEnforced)("walks past a directory it may not list", async () => {
+      const paths = await glob({ pattern: "**/*.ts", root: deniedRoot })
+      const matches = await grep({ pattern: "denied", root: deniedRoot, filesWithMatches: true })
+      expect(paths.paths).toEqual([join(deniedRoot, "listed.ts")])
+      expect(matches).toMatchObject({ files: [join(deniedRoot, "listed.ts")], filesSearched: 1 })
+    })
+
+    it("drops a glob's trailing spaces as rg does and rejects what that leaves blank", async () => {
+      const padded = await glob({ pattern: "a.ts ", root: join(root, "globs") })
+      const anchored = await glob({ pattern: "/nested/a.ts  ", root: join(root, "globs") })
+      const blank = await Effect.runPromise(Effect.exit(Effect.provide(
+        Glob.run({ pattern: "  ", root }),
+        implementation
+      )))
+      const noMatchWanted = await Effect.runPromise(Effect.exit(Effect.provide(
+        Grep.run({ pattern: "needle", root: join(root, "src"), maxCount: 0 }),
+        implementation
+      )))
+      expect(padded.paths).toEqual([join(root, "globs/a.ts"), join(root, "globs/nested/a.ts")])
+      expect(anchored.paths).toEqual([join(root, "globs/nested/a.ts")])
+      expect(failure(blank)).toEqual({
+        code: "invalid_pattern",
+        message: "Unsupported ripgrep pattern \"  \": glob patterns must not be empty"
+      })
+      expect(failure(noMatchWanted)).toEqual({
+        code: "invalid_input",
+        message: "Invalid ripgrep options: --max-count must be at least 1"
+      })
+    })
+
     it("returns clean empty results and a typed missing-root failure", async () => {
       const empty = await grep({ pattern: "definitely absent", root: join(root, "src") })
       const missing = await Effect.runPromise(Effect.exit(Effect.provide(
@@ -410,7 +509,26 @@ it("the native peer launches only cwd-rooted rg processes through the injected p
     Grep.run({ pattern: "absent", root: join(root, "src") }),
     scriptedNative({ stdout: `${summary}\n`, commands })
   ))
-  expect(commands).toHaveLength(2)
+  expect(commands).toHaveLength(3)
   expect(commands.every((command) => command.command === "rg")).toBe(true)
   expect(commands.every((command) => command.options.cwd === join(root, "src"))).toBe(true)
+})
+
+it("the native peer keeps what rg produced when it only skipped what it could not read", async () => {
+  const summary = JSON.stringify({ type: "summary", data: { stats: { searches: 0 } } })
+  const tolerated = await Effect.runPromise(Effect.provide(
+    Grep.run({ pattern: "absent", root: join(root, "src") }),
+    scriptedNative({ stdout: `${summary}\n`, exitCode: 2 })
+  ))
+  const listed = await Effect.runPromise(Effect.provide(
+    Glob.run({ pattern: "*.ts", root: join(root, "src") }),
+    scriptedNative({ stdout: "a.ts\n", exitCode: 2 })
+  ))
+  const rejected = await Effect.runPromise(Effect.exit(Effect.provide(
+    Glob.run({ pattern: "*.ts", root: join(root, "src") }),
+    scriptedNative({ stderr: "rg: error parsing glob", exitCode: 2 })
+  )))
+  expect(tolerated).toMatchObject({ matches: [], files: [] })
+  expect(listed.paths).toEqual([join(root, "src/a.ts")])
+  expect(failure(rejected)).toEqual({ code: "invalid_pattern", message: "rg: error parsing glob" })
 })

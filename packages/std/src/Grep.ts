@@ -17,9 +17,14 @@
  * way: every pattern is matched against each candidate's path *relative to
  * `root`*, a pattern without `/` matches the basename at any depth, and a
  * leading `/` or `./` anchors at the root rather than naming a filesystem
- * absolute path. See `Glob` for the full statement of the rules. A search that
- * matched nothing because a positive glob was unsatisfiable says so through
- * `notice` instead of returning a silent empty result.
+ * absolute path. A `root` that names one file is searched whatever the globs
+ * say. See `Glob` for the full statement of the rules. A search that matched
+ * nothing because a positive glob was unsatisfiable says so through `notice`
+ * instead of returning a silent empty result.
+ *
+ * `filesSearched` counts every file the globs admitted, including the binaries
+ * `skippedBinary` reports and any file the process could not open. A walk
+ * skips what it cannot read rather than failing the call.
  *
  * Native and in-process implementations are peers behind `Search.Search`.
  * This module declares and validates the call; it performs no host access.
@@ -74,8 +79,8 @@ export const Input = Schema.Struct({
     description: "Ripgrep -A."
   }),
   context: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))).annotate({ description: "Ripgrep -C." }),
-  maxCount: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))).annotate({
-    description: "Ripgrep --max-count, per file."
+  maxCount: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(1))).annotate({
+    description: "Ripgrep --max-count, per file; at least 1."
   }),
   filesWithMatches: Schema.optional(Schema.Boolean).annotate({ description: "Ripgrep --files-with-matches." }),
   hidden: Schema.optional(Schema.Boolean).annotate({ description: "Ripgrep --hidden." }),
@@ -161,6 +166,12 @@ const normalize = (input: typeof Input.Type): Search.GrepInput | StdError.StdErr
   }
   if (input.context !== undefined && (input.beforeContext !== undefined || input.afterContext !== undefined)) {
     return Contract.invalidInput("-C cannot be combined with -A or -B")
+  }
+  // `rg --max-count 0` answers nothing at all, not even the summary the native
+  // peer parses, so a cap that admits no match is rejected rather than read
+  // differently by each peer.
+  if (input.maxCount !== undefined && input.maxCount < 1) {
+    return Contract.invalidInput("--max-count must be at least 1")
   }
   const fixedStrings = input.fixedStrings ?? false
   const patternError = Contract.validatePattern(input.pattern, fixedStrings)
