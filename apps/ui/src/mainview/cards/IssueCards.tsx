@@ -49,6 +49,9 @@ export const IssueListCardBody = ({
 					<span className="world-card-path">
 						<MessageSquare size={12} aria-hidden="true" /> {issue.comments}
 					</span>
+					{issue.author !== null ? (
+						<span className="world-card-path">by {issue.author}</span>
+					) : null}
 					{issue.updatedAt !== null ? (
 						<span className="world-card-path">{dateLabel(issue.updatedAt)}</span>
 					) : null}

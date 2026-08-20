@@ -243,6 +243,51 @@ describe("the GitHub pane (will, 2026-08-19)", () => {
 		expect(host.textContent).not.toContain("available in the transcript");
 	});
 
+	test("the issue and pull-request rows retain the author and updated time their seams read", async () => {
+		const store = await webStore();
+		const controller = controllerWith(store);
+		await signedIn(store, []);
+		await controller.commands.run("repo.open", "will/flows");
+		store.dispatch({
+			type: "card.upsert",
+			actor: "system",
+			card: {
+				id: "issues-will/flows",
+				kind: "issue-list",
+				title: "Issues · will/flows",
+				status: "active",
+				createdAt: 1,
+				ordinal: 1,
+				payload: {
+					repo: "will/flows",
+					filter: "open",
+					issues: [{ number: 7, title: "Keep the row honest", state: "open", author: "will", comments: 2, updatedAt: "2026-08-19T09:00:00Z" }],
+				},
+			},
+		});
+		store.dispatch({
+			type: "card.upsert",
+			actor: "system",
+			card: {
+				id: "prs-will/flows",
+				kind: "pr-list",
+				title: "Pull requests · will/flows",
+				status: "active",
+				createdAt: 2,
+				ordinal: 2,
+				payload: { repo: "will/flows", landings: [{ number: 8, title: "Show when it changed", state: "open", author: "will", updatedAt: "2026-08-19T10:00:00Z" }] },
+			},
+		});
+		await controller.commands.run("repo.tab", "issues");
+		await settled();
+		const { host } = mount(controller);
+		expect(host.textContent).toContain("by will");
+		expect(host.textContent).toContain("2026-08-19 09:00");
+		await controller.commands.run("repo.tab", "pulls");
+		await settled();
+		expect(host.textContent).toContain("2026-08-19 10:00");
+	});
+
 	test("a repository with no flows read says so instead of showing an empty list", async () => {
 		const store = await webStore();
 		const controller = controllerWith(store);

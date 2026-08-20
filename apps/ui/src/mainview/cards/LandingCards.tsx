@@ -35,6 +35,9 @@ export const LandingListCardBody = ({
 							{landing.author !== null ? (
 								<span className="world-card-path">by {landing.author}</span>
 							) : null}
+							{landing.updatedAt !== null ? (
+								<span className="world-card-path">{landing.updatedAt.replace("T", " ").slice(0, 16)}</span>
+							) : null}
 							<StatusPill status={landing.state} />
 						</span>
 					</RowButton>
