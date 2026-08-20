@@ -141,7 +141,11 @@ export const openClient = async (options: ClientOptions): Promise<Client> => {
 	const store = await createAppStore({ kind: "localStorage", storage: memoryStorage() });
 	// Both agents bind their fetch at construction, so clientFetch exists first.
 	// The chain binds after the controller: its catalog IS the command registry.
-	const chainSeat = options.backend === "chain" ? createAgentSeat() : undefined;
+	// The CHAIN is the default because it is the only backend the product
+	// ships (ControllerBoot binds it; /debug.backend reports, never switches).
+	// "proxy" remains an explicit opt-in for rows that test the Worker's own
+	// /api/agent/turn seam rather than the product's turn path.
+	const chainSeat = options.backend === "proxy" ? undefined : createAgentSeat();
 	const controller = createAppController(
 		store,
 		options.repositories ?? NO_NATIVE_REPOSITORIES,

@@ -556,17 +556,22 @@ const SMOKE_TABLE: Readonly<Record<string, SmokeEntry>> = {
 		reason: "Requires signed-in; reads the balance through the billing seam.",
 	},
 	"billing.upgrade": {
-		klass: "needs-fixture",
+		/*
+		 * §17.4: no checkout is exposed to an MVP account — the pair registers
+		 * in the admin plugin alone, so a non-admin /billing.upgrade resolves
+		 * exactly like a typo. The admin walk still smokes the seam.
+		 */
+		klass: "admin-only",
 		effect: ["refusal"],
 		refusal: "gateway stub: no route /api/billing/checkout",
-		fixture: "a signed-in session",
+		fixture: "an admin session (checkout registers in the admin plugin alone)",
 		reason: "Opens a Stripe checkout session; there is no window in a headless run, so only the seam call happens.",
 	},
 	"billing.portal": {
-		klass: "needs-fixture",
+		klass: "admin-only",
 		effect: ["refusal"],
 		refusal: "gateway stub: no route /api/billing/portal",
-		fixture: "a signed-in session",
+		fixture: "an admin session (same rule as billing.upgrade)",
 		reason: "Same seam, the portal half.",
 	},
 	"reco.refresh": {
@@ -930,8 +935,6 @@ const FIXTURE_ORDER: ReadonlyArray<string> = [
 	"browser",
 	"auth.request-access",
 	"billing.balance",
-	"billing.upgrade",
-	"billing.portal",
 	"reco.refresh",
 	"reco.edit",
 	"reco.dismiss",
@@ -1009,6 +1012,9 @@ const ADMIN_ORDER: ReadonlyArray<string> = [
 	"admin.queue.approve",
 	"admin.feedback",
 	"admin.health",
+	// §17.4: checkout is the admin's to smoke; an MVP session cannot name it.
+	"billing.upgrade",
+	"billing.portal",
 	"debug.backend",
 ];
 

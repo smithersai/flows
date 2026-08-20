@@ -22,6 +22,12 @@ export interface ChatTurnScript {
 	 * `instructions` — so a non-empty instructions block is the proof there.
 	 */
 	readonly requireTools?: boolean;
+	/**
+	 * Serve the frames EXACTLY as written, skipping the chain translation.
+	 * For fixtures that test the wire itself: the raw author seat, empty
+	 * streams, malformed frames.
+	 */
+	readonly raw?: boolean;
 	readonly gapMs?: number;
 	/** When set, the whole turn answers this HTTP status with `body` instead of streaming. */
 	readonly status?: number;
@@ -141,10 +147,14 @@ export const toolLoopScript = (
  * author for its successor — which arms the script's next entry, exactly the
  * per-request sequencing the old wire had.
  */
+const CONTENT_FRAME_TYPES = new Set(["delta", "card", "card.update", "tool_call"]);
+
 const translatable = (frames: ReadonlyArray<Record<string, unknown>>): boolean => {
 	const last = frames[frames.length - 1];
 	if (last === undefined || last.type !== "done" || (last.error !== undefined && last.error !== "")) return false;
 	if (frames.some((frame) => frame.type === "error")) return false;
+	// An empty stream is a FIXTURE (the client must name it), not an answer.
+	if (!frames.some((frame) => CONTENT_FRAME_TYPES.has(String(frame.type)))) return false;
 	const first = frames[0];
 	// Already chain-authored: pass through untouched.
 	if (
@@ -294,7 +304,7 @@ export const createChatUpstream = (): ChatUpstream => {
 			// A paced script (gapMs) is a STREAM under test — kill/steer suites
 			// need the wire to stay open — so pacing opts out of translation.
 			const frames =
-				script.gapMs === undefined && translatable(scripted)
+				script.raw !== true && script.gapMs === undefined && translatable(scripted)
 					? [
 							{ type: "delta", kind: "text", text: chainAuthored(scripted) },
 							{ type: "done", reason: "stop" },

@@ -344,7 +344,25 @@ export default defineSuite({
 				() => WAVE11_CANARY_LIE,
 			),
 		);
-		const launch = await turn("Make me a Smithers workflow that summarizes my open issues.", 40_000);
+		/*
+		 * On the chain, flow.create claims outbound:launch — it ALWAYS asks.
+		 * The park renders the approval card, the human approves, and the same
+		 * lineage resumes into the real launch; only then can the deterministic
+		 * substitution have anything to substitute.
+		 */
+		const launch = await openClient({ origin, cookie });
+		await launch.controller.loadSession();
+		await launch.controller.loadFirstRunReco();
+		launch.controller.send("Make me a Smithers workflow that summarizes my open issues.");
+		await launch.settle(
+			"the launch never parked for the human's approval",
+			() => launch.cards().some((card) => card.kind === "approval" && card.status === "active"),
+			30_000,
+		);
+		const approvalCard = launch.cards().find((card) => card.kind === "approval" && card.status === "active");
+		const approved = await launch.controller.commands.run("approval.approve", approvalCard?.id ?? "");
+		report.equals(approved.status, "executed", `approving the launch failed: ${JSON.stringify(approved)}`);
+		await launch.idle(40_000);
 		const launchProse = smithersProse(launch);
 		const runLine = deterministicRunLine("flow.create");
 		report.includes(launchProse, runLine, "E8.6: the deterministic run line is not what the transcript says");
@@ -451,6 +469,24 @@ export default defineSuite({
 				session.page,
 				"Make me a Smithers workflow that summarizes my open issues.",
 			);
+			// outbound:launch always asks: approve the park the way the human does.
+			const parked = await waitForText(
+				session.page,
+				(text) => text.includes("Smithers wants to run /flow.create"),
+				30_000,
+				Date.now,
+				wait,
+			);
+			report.check(parked.ok, "E8.6 in the browser: the launch never parked for approval");
+			const approvedInPage = await session.page.evaluate<boolean>(
+				`(() => {
+					const button = document.querySelector('section[data-kind="approval"] [data-slot="confirmation-action"][data-decision="approve"]');
+					if (button === null) return false;
+					button.click();
+					return true;
+				})()`,
+			);
+			report.check(approvedInPage, "E8.6 in the browser: the approval card offered no approve control");
 			const settledRun = await waitForText(
 				session.page,
 				(text) => replyRegion(beforeRun, text).includes(runPhrase),

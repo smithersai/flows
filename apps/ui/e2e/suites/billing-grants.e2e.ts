@@ -57,10 +57,6 @@ const SIGNED_OUT_BILLING_MESSAGE =
 /** apps/server/src/index.ts, requireTurnSession's signed-out refusal. */
 const SIGNED_OUT_TURN_MESSAGE = "Sign in to run a Smithers turn.";
 
-/** apps/ui/src/mainview/flows/agentTools.ts, userOnlyError with no per-command alternative. */
-const USER_ONLY_REFUSAL =
-	"failed: /billing.upgrade is user-only — it is a control the human clicks, already visible on their screen";
-
 /** Row D-3's own predicate over registered command names (Rows.ts). */
 const CHECKOUT_SHAPED_NAME = /checkout|top-?up|payment|card/i;
 
@@ -367,13 +363,13 @@ export default defineSuite({
 			report.equals(item?.hidden, true, `${name} is listed in the catalog`);
 		}
 		/*
-		 * The two billing commands ARE registered, and that is not the
-		 * violation: the rule is that they are the human's own control, never
-		 * a model-invocable payment flow and never a card form on this origin.
-		 * Asserting their presence keeps the row honest about what it forbids.
+		 * §17.4 hardened the exposure rule: the two checkout commands register
+		 * in the ADMIN plugin alone, so an MVP session does not carry them at
+		 * all — absent, not hidden, and a direct invocation resolves exactly
+		 * like a typo. No checkout is exposed to the account this stack mints.
 		 */
 		for (const name of ["billing.upgrade", "billing.portal"]) {
-			report.check(names.includes(name), `${name} is no longer registered, so the exposure rule moved`);
+			report.check(!names.includes(name), `${name} is registered for an MVP session (§17.4)`);
 		}
 
 		const callable = client.controller.commands.callable().map(nameOf);
@@ -384,11 +380,10 @@ export default defineSuite({
 		}
 		const checkoutMark = client.calls().length;
 		const refused = await client.controller.commands.runForAgent("billing.upgrade", "pro");
-		report.equals(refused.status, "failed", "the agent's billing.upgrade invocation");
 		report.equals(
-			refused.status === "failed" ? refused.error : "",
-			USER_ONLY_REFUSAL,
-			"the agent's billing.upgrade refusal text",
+			refused.status,
+			"unknown-command",
+			"the agent's billing.upgrade invocation must resolve like a typo (§17.4)",
 		);
 		const checkoutCalls = client
 			.calls()

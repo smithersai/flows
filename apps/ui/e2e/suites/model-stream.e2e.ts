@@ -60,6 +60,8 @@ const PROOF_TAIL = "proof-8805";
 const PROOF_TEXT = `${PROOF_HEAD}${PROOF_TAIL}`;
 
 const textScript = (chunks: ReadonlyArray<string>) => ({
+	// The wire itself is under test here: serve the chunks untranslated.
+	raw: true,
 	frames: [
 		...chunks.map((text) => ({ type: "delta", kind: "text", text })),
 		{ type: "done", reason: "stop" },

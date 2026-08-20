@@ -73,15 +73,24 @@ export default defineSuite({
 			"application/x-ndjson",
 			"the turn did not stream NDJSON",
 		);
-		const kinds = (await turn.text())
+		const turnBody = await turn.text();
+		const frames = turnBody
 			.trim()
 			.split("\n")
-			.map((line) => (JSON.parse(line) as { type: string }).type);
+			.map((line) => JSON.parse(line) as { type: string; text?: string });
+		const kinds = frames.map((frame) => frame.type);
 		report.equals(kinds[0], "delta", "the streamed turn did not open with a delta");
-		report.check(kinds.includes("card"), `the streamed turn carried no card (saw ${kinds.join(",")}).`);
+		/*
+		 * The double renders its default script in the chain dialect: the card
+		 * rides INSIDE the authored flow script as a card.show call, not as a
+		 * bare card frame (there is one backend, and its author reads scripts).
+		 */
+		const authored = frames.filter((frame) => frame.type === "delta").map((frame) => frame.text ?? "").join("");
+		report.includes(authored, "```flow", "the default script was not rendered as an authored flow script");
+		report.includes(authored, 'ctx.call("card.show"', `the authored script carried no card (saw ${kinds.join(",")}).`);
 		report.equals(kinds[kinds.length - 1], "done", "the streamed turn did not end with done");
 		report.equals(stack.chat.requests().length, 1, "the chat double recorded the wrong number of turns");
-		report.ok("the chat double's default script streamed delta → card → done through /api/agent/turn.");
+		report.ok("the chat double's default script streams an authored say → card.show → done flow script.");
 
 		const relay = await fetch(`${origin}/api/model/stream`, {
 			method: "POST",

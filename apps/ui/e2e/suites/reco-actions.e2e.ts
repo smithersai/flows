@@ -425,10 +425,16 @@ export default defineSuite({
 				async () => stack.chat.requests().length === turnsBeforeAccept + 1,
 				20_000,
 			);
-			report.equals(
-				lastUserContent(stack.chat.requests()[turnsBeforeAccept]),
-				proposes,
-				"the accepted proposal did not reach the turn route as the user's own message",
+			/*
+			 * On the chain wire the upstream sees ONE user message: the rendered
+			 * context lines. The accepted proposal must be its LAST line, spoken
+			 * as the user — that is what "the pill speaks for the user" means on
+			 * this wire.
+			 */
+			const acceptedContent = lastUserContent(stack.chat.requests()[turnsBeforeAccept]);
+			report.check(
+				acceptedContent === proposes || acceptedContent.endsWith(`user: ${proposes}`),
+				`the accepted proposal did not reach the turn route as the user's own message (saw ${JSON.stringify(acceptedContent.slice(-200))})`,
 			);
 			report.equals(
 				await composerValue(acceptPage),

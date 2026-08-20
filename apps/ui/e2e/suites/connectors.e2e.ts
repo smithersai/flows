@@ -94,10 +94,6 @@ const PROXY_NOT_ALLOWLISTED = "This account is not in the closed-alpha allowlist
 
 /** stub-backends freshNotifications — the first row's subject.title. */
 const FIRST_NOTIFICATION = "Wire the sync adapter";
-/** KeysSeam maskedPreview synthesizes this from the platform's `last4`. */
-const ANTHROPIC_MASK = "sk-…4242";
-/** The platform sends this one pre-masked, so it must survive verbatim. */
-const OPENAI_MASK = "sk-…9f21";
 /** RepoImportSeam STAGE_DETAIL["cloning_github"]. */
 const CLONING_DETAIL = "Downloading from GitHub…";
 
@@ -707,42 +703,27 @@ export default defineSuite({
 			"mark-all-read round-trips through the proxy — the platform's 205 counts as success, and the card re-states the platform's new truth.",
 		);
 
+		/*
+		 * BYOK keys are a family the Worker now refuses at its own boundary
+		 * (PLATFORM_UNIMPLEMENTED): Smithers Cloud has no key store, and the
+		 * old forward handed the browser the Go router's plain-text 404. The
+		 * contract to pin is the honest 501 sentence, and that the platform is
+		 * never bothered with a call the Worker knows cannot succeed.
+		 */
+		const KEYS_REFUSAL = "Bring-your-own provider keys aren't part of this preview.";
 		const keysListed = await client.controller.commands.run("keys.list");
-		report.equals(keysListed.status, "executed", `/keys.list failed: ${JSON.stringify(keysListed)}`);
-		const keys = cardOfKind(client, "keys");
-		report.check(keys !== undefined, "/keys.list surfaced no keys card");
-		if (keys?.kind === "keys") {
-			report.equals(
-				keys.payload.keys.map((key) => `${key.provider}=${key.masked}`).join(","),
-				`anthropic=${ANTHROPIC_MASK},openai=${OPENAI_MASK}`,
-				"the keys card does not state exactly the masked previews the platform allows",
-			);
-		}
-		report.ok(
-			`the keys card shows only masked previews, synthesizing ${ANTHROPIC_MASK} from the platform's last4 and passing ${OPENAI_MASK} through.`,
-		);
-
-		const keyRemoved = await client.controller.commands.run("keys.remove", "anthropic");
-		report.equals(keyRemoved.status, "executed", `/keys.remove failed: ${JSON.stringify(keyRemoved)}`);
-		const afterRemoval = cardOfKind(client, "keys");
-		if (afterRemoval?.kind === "keys") {
-			report.equals(
-				afterRemoval.payload.keys.map((key) => key.provider).join(","),
-				"openai",
-				"removing the anthropic key did not re-list the platform's remaining keys",
-			);
-		}
-		const removedAgain = await client.controller.commands.run("keys.remove", "anthropic");
-		report.equals(
-			removedAgain.status,
-			"failed",
-			"removing a key the platform no longer holds was reported as a success",
-		);
+		report.equals(keysListed.status, "failed", "keys.list forwarded to a platform route that does not exist");
 		report.check(
-			removedAgain.status === "failed" && removedAgain.error.trim() !== "",
-			"the second removal failed with an empty message",
+			keysListed.status === "failed" && keysListed.error.startsWith(KEYS_REFUSAL),
+			`keys.list did not answer the honest preview refusal (saw ${JSON.stringify(keysListed)})`,
 		);
-		report.ok("removing a key DELETEs through the proxy, re-lists, and refuses honestly the second time.");
+		const keyRemoved = await client.controller.commands.run("keys.remove", "anthropic");
+		report.equals(keyRemoved.status, "failed", "keys.remove forwarded to a platform route that does not exist");
+		report.check(
+			keyRemoved.status === "failed" && keyRemoved.error.startsWith(KEYS_REFUSAL),
+			`keys.remove did not answer the honest preview refusal (saw ${JSON.stringify(keyRemoved)})`,
+		);
+		report.ok("the BYOK key family answers the honest preview refusal instead of a forwarded router 404.");
 
 		const imported = await client.controller.commands.run("repos.import", IMPORT_REPO);
 		report.equals(imported.status, "executed", `/repos.import failed: ${JSON.stringify(imported)}`);
@@ -783,8 +764,6 @@ export default defineSuite({
 		for (const wanted of [
 			"GET /api/notifications/list",
 			"PUT /api/notifications/mark-read",
-			"GET /api/user/byok-keys",
-			"DELETE /api/user/byok-keys/anthropic",
 			"POST /api/github/import",
 		]) {
 			report.check(
@@ -795,6 +774,10 @@ export default defineSuite({
 		report.check(
 			paths.some((seen) => seen.startsWith("GET /api/github/import/job-")),
 			`the import job was never polled through the proxy (saw ${paths.join(" | ")})`,
+		);
+		report.check(
+			!paths.some((seen) => seen.includes("/api/user/byok-keys")),
+			`the Worker forwarded a BYOK call it knows the platform cannot serve (saw ${paths.join(" | ")})`,
 		);
 		const wrongCredential = calls.filter((call) => call.authorization !== `Bearer ${STUB_CLOUD_TOKEN}`);
 		report.equals(
