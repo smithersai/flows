@@ -1,14 +1,23 @@
+---
+description: "Read-only journal replication over Effect RPC, plus the branch protocol for shared run views."
+---
+
 # @smthrs/sync
 
-Read-only journal replication over Effect RPC, plus a branch protocol for shared, presence-aware run views. Nothing here mutates a run.
+Read-only journal replication over Effect RPC, plus a branch protocol for shared, presence-aware run views.
+
+:::note
+Nothing in this package mutates a run. Mutation, resume, and permission decisions are outside the protocol on purpose.
+:::
 
 ```ts
 import { SyncClient } from "@smthrs/sync"
-import * as Stream from "effect/Stream"
+import * as Effect from "effect/Effect"
 
-const frames = SyncClient.Sync.pipe(
-  Effect.map((sync) => sync.subscribe({ scope: { _tag: "Run", runId: "build-42" }, cursors: [] }))
-)
+const frames = Effect.gen(function*() {
+  const sync = yield* SyncClient.Sync
+  return sync.subscribe({ scope: { _tag: "Run", runId: "build-42" }, cursors: [] })
+})
 ```
 
 ## Entry points
@@ -32,7 +41,9 @@ const frames = SyncClient.Sync.pipe(
 | `Frame`, `EntriesFrame`, `HeartbeatFrame`, `ClosedFrame` | schemas + types | subscription frames |
 | `covers` | predicate | whether a cursor covers an entry |
 
-Credit is a hard limit on frames emitted by one subscription. There is no acknowledgement RPC; a client that needs more opens another subscription from its last durable cursor.
+:::warning
+Credit is a hard limit on frames emitted by one subscription. There is no acknowledgement RPC, so a client that needs more opens another subscription from its last durable cursor.
+:::
 
 ## SyncRpcs, SyncServer, SyncClient
 
@@ -79,4 +90,8 @@ Credit is a hard limit on frames emitted by one subscription. There is no acknow
 
 ## Directionality
 
-The shipped RPCs are `Read` and `Subscribe`. Client-to-server event submission, bidirectional reconciliation, acknowledgement windows, and resumable transport sessions are Planned.
+The shipped RPCs are `Read` and `Subscribe`.
+
+:::warning
+Client-to-server event submission, bidirectional reconciliation, acknowledgement windows, and resumable transport sessions are Planned.
+:::

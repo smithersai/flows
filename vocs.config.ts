@@ -46,12 +46,14 @@ export default defineConfig({
     { text: "Artifact GC", link: "/artifact-gc" },
     { text: "Probabilistic Selection", link: "/selection" },
     { text: "Disaster recovery", link: "/disaster-recovery" },
+    { text: "SQLite operating envelope", link: "/sqlite-operating-envelope" },
     { text: "Telemetry", link: "/telemetry" },
     { text: "Examples", link: "/examples" },
     { text: "Design decisions", link: "/design-decisions" },
     { text: "Comparisons", link: "/comparisons" },
     { text: "External", link: "/external" },
-    { text: "Contributor plan", link: "/contributing" }
+    { text: "Contributor plan", link: "/contributing" },
+    { text: "Code design", link: "/code-design" }
   ],
   topNav: [
     { text: "GitHub", link: "https://github.com/smithersai/flows" }

@@ -1,3 +1,7 @@
+---
+description: "Why the engine looks the way it does. Each entry states the decision, the alternatives, and what the choice costs."
+---
+
 # Design decisions
 
 Why the engine looks the way it does. Each entry states the decision, the alternatives that were on the table, what was chosen, and what the choice costs. Where a decision was contested during the release-readiness review, the disagreement is recorded rather than smoothed over.
@@ -36,9 +40,9 @@ Cost: the production sandbox composition admits results only when it has this ev
 
 ## D5. Host access is closed and decorated
 
-The host surface is exactly `FileSystem`, `Path`, `ChildProcessSpawner`, `Jj`, and `HttpClient` — four of them Effect's own tags — with Effect's `Clock` and `Random` treated as swappable built-ins. `@smthrs/kernel` decorates those services with grant checks instead of asking every flow to remember to check permissions. A `flows`-defined one-hop `HttpTransport` used to sit in the last slot so redirects could be authorized hop by hop; it was deleted once the same guarantee could be had from Effect alone — host bundles hand over a client that never follows a redirect, and the kernel composes Effect's own `HttpClient.followRedirects` above the grant check.
+The host surface is exactly `FileSystem`, `Path`, `ChildProcessSpawner`, `Jj`, and `HttpClient`, four of them Effect's own tags, with Effect's `Clock` and `Random` treated as swappable built-ins. `@smthrs/kernel` decorates those services with grant checks instead of asking every flow to remember to check permissions. A `flows`-defined one-hop `HttpTransport` used to sit in the last slot so redirects could be authorized hop by hop; it was deleted once the same guarantee could be had from Effect alone. Host bundles hand over a client that never follows a redirect, and the kernel composes Effect's own `HttpClient.followRedirects` above the grant check.
 
-Four of those five slots hold Effect's own tags rather than `flows` wrappers, and the last two arrived by the same argument. `flows` used to define a `Shell` service with `exec` and `stream`, which was `effect/unstable/process` with fewer features and a second error type to keep honest. It was deleted; `flows` now supplies implementations of Effect's spawner (Node, Bun, an in-browser just-bash one) and adds only the `proc:spawn` capability check on top. `HttpTransport` went the same way once its one genuine contribution — hop-by-hop redirect authorization — turned out to be expressible as `followRedirects` composed above the guard. A wrapper earns its place by adding something; the shell wrapper added a `timeoutMs` option that `Effect.timeout` already covers, and the transport added a second way to reach the network.
+Four of those five slots hold Effect's own tags rather than `flows` wrappers, and the last two arrived by the same argument. `flows` used to define a `Shell` service with `exec` and `stream`, which was `effect/unstable/process` with fewer features and a second error type to keep honest. It was deleted; `flows` now supplies implementations of Effect's spawner (Node, Bun, an in-browser just-bash one) and adds only the `proc:spawn` capability check on top. `HttpTransport` went the same way once its one genuine contribution, hop-by-hop redirect authorization, turned out to be expressible as `followRedirects` composed above the guard. A wrapper earns its place by adding something; the shell wrapper added a `timeoutMs` option that `Effect.timeout` already covers, and the transport added a second way to reach the network.
 
 The alternative was an open host surface with per-call permission arguments. An open surface cannot be audited, and per-call arguments are forgotten.
 
@@ -96,13 +100,13 @@ Cost: an attribution obligation, discharged by `packages/engine/THIRD_PARTY_NOTI
 
 The runtime is `effect@4.0.0-rc.*`. Most of the former `@effect/*` ecosystem now lives at `effect/unstable/*`, and the AI, RPC, cluster, persistence, and workflow surfaces are imported from there. `@effect/sql-sqlite-node` is a dependency because it is a driver, not a rewritten core module.
 
-Cost: a release-candidate pin, exact at `4.0.0-rc.108` across every release-1 engine manifest — the private `@smthrs/build-infra` tooling workspace is the one exception, at `4.0.0-rc.109`, and ships in no release group — and Effect 3 documentation does not apply.
+Cost: a release-candidate pin, exact at `4.0.0-rc.108` across every release-1 engine manifest (the private `@smthrs/build-infra` tooling workspace is the one exception, at `4.0.0-rc.109`, and ships in no release group), and Effect 3 documentation does not apply.
 
 ## D13. No pseudo-terminal service in core
 
-The host surface has no `Pty` service and the engine has no interactive-session hijack. Smithers needs both because its underlying agents are the Claude Code and Codex CLIs — interactive terminal programs a human may take over mid-run, which requires a real pseudo-terminal between the gateway and the CLI. `flows` does not depend on those agent CLIs, so nothing in the core engine ever drives an interactive terminal.
+The host surface has no `Pty` service and the engine has no interactive-session hijack. Smithers needs both because its underlying agents are the Claude Code and Codex CLIs: interactive terminal programs a human may take over mid-run, which requires a real pseudo-terminal between the gateway and the CLI. `flows` does not depend on those agent CLIs, so nothing in the core engine ever drives an interactive terminal.
 
-If a harness extension later wraps agent CLIs into workflows the way smithers does, the PTY adapter and the hijack handshake belong in that higher-level extension package, injected as a capability beside its gateway — not in the closed host list, where every platform bundle would have to carry or explicitly refuse it forever. Non-interactive process execution is already covered by Effect's `ChildProcessSpawner` behind the kernel's `proc:spawn` check.
+If a harness extension later wraps agent CLIs into workflows the way smithers does, the PTY adapter and the hijack handshake belong in that higher-level extension package, injected as a capability beside its gateway, not in the closed host list, where every platform bundle would have to carry or explicitly refuse it forever. Non-interactive process execution is already covered by Effect's `ChildProcessSpawner` behind the kernel's `proc:spawn` check.
 
 The alternative was keeping the `@smthrs/pty` package that once shipped here. It was removed: its contract had no production consumer, and its Node implementation was piped stdio rather than a pseudo-terminal, so it could not honestly back the contract it named.
 
@@ -113,7 +117,7 @@ The alternative was keeping the `@smthrs/pty` package that once shipped here. It
 | Ship 0.1.0 or an experimental preview | a full 0.1.0, with WAL atomicity fixed first | atomicity landed; the version is `0.1.0` |
 | Package naming | keep the `@smthrs/*` names | kept |
 | Publish `@smthrs/plugin` | hold it back as private until dispatch is wired, because publishing sells an extension API nothing calls | settled for the bounded assembled cell loop: `@smthrs/agent` dispatches its configuration, registry, flow-binding, and model-request hooks; durable-core policy remains dependency injection, with no engine-wide lifecycle hook catalog. The package exists and the decision whether to publish it remains open for the agent track. |
-| Browser claim | narrow the claim and gate it, rather than restructure subpaths for 0.1.0 | narrowed and gated by `pnpm run browser`; the gate has since grown to twenty-four browser entry points as each Node read moved behind a port, so the barrel and engine-store now bundle too — only the platform bundles, the jj and SQLite drivers, and the test host stay Node-only |
+| Browser claim | narrow the claim and gate it, rather than restructure subpaths for 0.1.0 | narrowed and gated by `pnpm run browser`; the gate has since grown to twenty-four browser entry points as each Node read moved behind a port, so the barrel and engine-store now bundle too; only the platform bundles, the jj and SQLite drivers, and the test host stay Node-only |
 | Positioning against Temporal, Restate, Inngest | lead with Effect integration, embeddability, content addressing, and time travel; do not lead with parity | adopted, see [External](/external) |
 
 ## Reading next

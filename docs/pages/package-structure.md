@@ -1,12 +1,16 @@
+---
+description: "Twenty-three workspaces: who owns which tables, which package may import which, and which entry points bundle for a browser."
+---
+
 # Package structure
 
-Twenty-three pnpm workspaces under `packages/`, one closed dependency set. This page is the map: who owns which data, which package may import which, and which entry points bundle for a browser.
+Twenty-three pnpm workspaces make up the engine group under `packages/`, one closed dependency set. This page is the map: who owns which data, which package may import which, and which entry points bundle for a browser.
 
 ## Workspaces
 
 | Workspace | Directory | Published | Owns |
 | --- | --- | --- | --- |
-| `@smthrs/flows` | `packages/flows` | yes | nothing; re-exports the engine packages below as namespaces — but not the `platform-*` bundles |
+| `@smthrs/flows` | `packages/flows` | yes | nothing; re-exports the engine packages below as namespaces, but not the `platform-*` bundles |
 | `@smthrs/jj` | `packages/jj` | yes | no tables; the `Jj` contract, `JjError`, and its adapters |
 | `@smthrs/sandbox` | `packages/sandbox` | yes | no tables; remote process execution and the health probe |
 | `@smthrs/platform-browser` | `packages/platform-browser` | yes | no tables; browser `FileSystem` and `ChildProcessSpawner` implementations, and the `BrowserHost` bundle |
@@ -53,7 +57,9 @@ The engine-store statements sit outside its migration deliberately, because the 
 
 ## Dependency graph
 
-An arrow means the left package imports the right one.
+The table below is the reference; the diagram is the same edges drawn out. An arrow means the left package imports the right one.
+
+:::details[Dependency graph as a diagram]
 
 ```mermaid
 flowchart LR
@@ -147,6 +153,8 @@ flowchart LR
   TT --> STEPCACHE
 ```
 
+:::
+
 | Package | Depends on | Depended on by |
 | --- | --- | --- |
 | `@smthrs/canonical` | nothing in the workspace | `keys`, `step-cache`, `flows` |
@@ -175,7 +183,7 @@ flowchart LR
 
 `pnpm run circular` fails the build on an import cycle, within a package or across them.
 
-The one cycle at *package* granularity is `kernel` ↔ `platform-browser`: the kernel's deterministic `TestHost` bundle (a test-only subpath) mounts the browser filesystem and interpreter, and `BrowserChildProcessSpawner` renders command lines with the kernel's `CommandLine`. Removing `HttpTransport` cut the network half of it — `BrowserHost` now provides Effect's own `HttpClient` and no longer fills a kernel-owned slot. No module-level cycle exists, which is what `pnpm run circular` checks.
+The one cycle at *package* granularity is `kernel` ↔ `platform-browser`: the kernel's deterministic `TestHost` bundle (a test-only subpath) mounts the browser filesystem and interpreter, and `BrowserChildProcessSpawner` renders command lines with the kernel's `CommandLine`. Removing `HttpTransport` cut the network half of it: `BrowserHost` now provides Effect's own `HttpClient` and no longer fills a kernel-owned slot. No module-level cycle exists, which is what `pnpm run circular` checks.
 
 ## Entry point matrix
 
@@ -218,9 +226,13 @@ A package root exports contracts. A platform implementation lives under a subpat
 | `@smthrs/observability` | yes | yes | OTLP logs, metrics, and traces layers over Effect's `HttpClient`; the fetch variant binds the host's global `fetch` |
 | `@smthrs/flows` | yes | yes | re-exports every engine package |
 
-Twenty-three entry points bundle for the browser. Bundling is a weaker claim than running: `@smthrs/journal`, `@smthrs/run-store`, `@smthrs/step-cache`, and `@smthrs/plan` bundle because they depend on the `DurableWriter` contract, and a browser application still has to supply a browser SQL client, such as Effect's sqlite-wasm OPFS worker, to that contract. No such layer ships here.
+Twenty-three entry points bundle for the browser.
 
-The accurate sentence is that canonical JSON, crypto, the host contracts, `BrowserHost`, keys, plan, artifacts, capability, kernel, sandbox, database, journal, run store, step cache, flow, engine, engine-store, the barrel, sync, time travel, and the OTLP exporter bundle for the browser, and the durable engine composition is still SQLite-on-Node first because no browser SQL client layer ships here. `@smthrs/engine-store`'s last two `node:`-flavoured reads — `process.pid` and `node:crypto` `randomUUID` — moved behind the `OwnerIdentity` service, which closed issue #114.
+:::warning[Bundling is a weaker claim than running]
+`@smthrs/journal`, `@smthrs/run-store`, `@smthrs/step-cache`, and `@smthrs/plan` bundle because they depend on the `DurableWriter` contract. A browser application still has to supply a browser SQL client, such as Effect's sqlite-wasm OPFS worker, to that contract. No such layer ships here.
+:::
+
+The accurate sentence is that canonical JSON, crypto, the host contracts, `BrowserHost`, keys, plan, artifacts, capability, kernel, sandbox, database, journal, run store, step cache, flow, engine, engine-store, the barrel, sync, time travel, and the OTLP exporter bundle for the browser, and the durable engine composition is still SQLite-on-Node first because no browser SQL client layer ships here. `@smthrs/engine-store`'s last two `node:`-flavoured reads (`process.pid` and `node:crypto` `randomUUID`) moved behind the `OwnerIdentity` service, which closed issue #114.
 
 ## Build shape
 

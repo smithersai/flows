@@ -1,8 +1,17 @@
+---
+description: "Jujutsu version control as a portable host service, with Node, Bun, and browser adapters."
+---
+
 # @smthrs/jj
 
 Jujutsu version control as a portable host service: `flows` snapshots the working copy around every step, so jj is host access, not a tool the agent happens to call.
 
-```ts
+One program, three layers. The body never changes; the import at the top decides
+which adapter runs it.
+
+:::code-group
+
+```ts [Node]
 import { Jj } from "@smthrs/jj"
 import * as NodeJj from "@smthrs/jj/node/NodeJj"
 import * as Effect from "effect/Effect"
@@ -12,6 +21,30 @@ const program = Effect.gen(function*() {
   return yield* jj.snapshot("before the step")
 }).pipe(Effect.provide(NodeJj.layer))
 ```
+
+```ts [Bun]
+import { Jj } from "@smthrs/jj"
+import * as BunJj from "@smthrs/jj/bun/BunJj"
+import * as Effect from "effect/Effect"
+
+const program = Effect.gen(function*() {
+  const jj = yield* Jj
+  return yield* jj.snapshot("before the step")
+}).pipe(Effect.provide(BunJj.layer))
+```
+
+```ts [Browser]
+import { Jj } from "@smthrs/jj"
+import * as BrowserJj from "@smthrs/jj/browser/BrowserJj"
+import * as Effect from "effect/Effect"
+
+const program = Effect.gen(function*() {
+  const jj = yield* Jj
+  return yield* jj.snapshot("before the step")
+}).pipe(Effect.provide(BrowserJj.layer({ wasm, fs, root: "/repo" })))
+```
+
+:::
 
 The package root holds the contract, its error, and the no-op layer only, so it bundles for the browser. Implementations live under `/node`, `/bun`, and `/browser`. The package depends on `effect` and `@smthrs/capability` (its error channel names `Permission.PermissionError`); `@smthrs/kernel` depends on it, because `Jj` is still one of the five tags in the closed host list.
 
@@ -32,7 +65,7 @@ The package root holds the contract, its error, and the no-op layer only, so it 
 | --- | --- | --- |
 | `ChangeId` | type | string handle for workspace state |
 | `Jj` | interface | `snapshot`, `restore`, `diff`, `workspaceAdd`, `workspaceForget`, `status` |
-| `Jj` | service tag | `@smthrs/jj/Jj` — digested into step keys |
+| `Jj` | service tag | `@smthrs/jj/Jj`; digested into step keys |
 | `JjError` | class | tagged `@smthrs/jj/JjError`; carries `code`, `module`, `method`, `message`, `command`, and an optional `cause` |
 | `JjErrorCode` | const + type | `not_installed`, `conflict`, `invalid_ref`, `unknown` |
 | `jjError` | constructor | builds an error from a code plus context |
@@ -46,7 +79,7 @@ The package root holds the contract, its error, and the no-op layer only, so it 
 | `NodeJj.layer` | `src/node/NodeJj.ts` | spawns the jj CLI with argv, never a shell string; classifies stderr onto the stable codes |
 | `BunJj.layer` | `src/bun/BunJj.ts` | Bun implements the same child-process API, so this *is* `NodeJj.layer` |
 | `BrowserJj.make`, `BrowserJj.layer`, `BrowserJjOptions` | `src/browser/BrowserJj.ts` | jj-lib compiled to `wasm32-wasip1` (`packages/jj/wasm/flows_jj.wasm`), driven over an injected virtual filesystem through this package's hand-written WASI preview1 shim; the mount and the compiled module arrive as options |
-| `BrowserJj.layerUnsupported` | `src/browser/BrowserJj.ts` | the fallback for a host that ships no wasm module — every operation reports `not_installed`, naming the jj command it would have run |
+| `BrowserJj.layerUnsupported` | `src/browser/BrowserJj.ts` | the fallback for a host that ships no wasm module: every operation reports `not_installed`, naming the jj command it would have run |
 
 ## Reading next
 

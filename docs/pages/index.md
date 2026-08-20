@@ -1,3 +1,7 @@
+---
+description: "Smithers Flows is an Effect-based durable-execution engine. Typed flows record every side effect to a journal, so a crashed process resumes from its recorded steps instead of starting over."
+---
+
 # Smithers Flows
 
 Smithers Flows is an Effect-based durable-execution engine: typed flows that record every side effect to a journal, so a crashed process resumes from its recorded steps instead of starting over.
@@ -10,9 +14,27 @@ A build system remembers what it has done so it can skip it. A workflow engine r
 
 Requires Node.js 22.19 or later.
 
-```sh
+::::steps
+
+### Install the packages
+
+:::code-group
+
+```bash [pnpm]
 pnpm add @smthrs/flow @smthrs/engine effect
 ```
+
+```bash [npm]
+npm install @smthrs/flow @smthrs/engine effect
+```
+
+```bash [bun]
+bun add @smthrs/flow @smthrs/engine effect
+```
+
+:::
+
+### Declare an action, a flow, and their layers
 
 ```ts
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
@@ -54,7 +76,11 @@ Effect.runPromise(program).then(console.log)
 // "Hello, Ada."
 ```
 
-That engine keeps its state in the process. To survive a crash, drive the same flow with `EngineStore.layer` over SQLite. [Examples](/examples) walks the nine runnable programs that do it, and `pnpm run test:examples` executes every one of them against the real packages.
+### Make it durable
+
+That engine keeps its state in the process. To survive a crash, drive the same flow with `EngineStore.layer` over SQLite. [Examples](/examples) walks the eleven runnable programs that do it, and `pnpm run test:examples` executes every one of them against the real packages.
+
+::::
 
 ## Where to go next
 
@@ -97,4 +123,4 @@ That engine keeps its state in the process. To survive a crash, drive the same f
 | `@smthrs/sync` | read-only journal replication for followers |
 | `@smthrs/time-travel` | replay, fork, rewind, compensation, and recovery protocols |
 
-Packages are pre-1.0 at `0.1.0` in lockstep. Every engine package — including `@smthrs/engine-store` and the barrel — bundles for the browser; the `platform-node`, `platform-bun`, and driver subpaths are the deliberate Node-only entry points.
+Packages are pre-1.0 at `0.1.0` in lockstep. Every engine package, including `@smthrs/engine-store` and the barrel, bundles for the browser. The `platform-node`, `platform-bun`, and driver subpaths are the deliberate Node-only entry points.

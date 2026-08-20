@@ -1,3 +1,7 @@
+---
+description: "RFC 8785 canonical JSON as an Effect Schema."
+---
+
 # @smthrs/canonical
 
 RFC 8785 canonical JSON as an Effect Schema, backed by the well-tested [`canonicalize`](https://www.npmjs.com/package/canonicalize) package.

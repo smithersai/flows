@@ -1,3 +1,7 @@
+---
+description: "Eleven runnable programs under examples/src, each paired with a test that runs it against the real packages."
+---
+
 # Examples
 
 Eleven programs under `examples/src`, each one paired with a test under `examples/test` that runs it against the real packages. Nothing in this directory is mocked: the durable examples open a real SQLite file, the host example spawns a real process, and the browser example is bundled by a real bundler.
@@ -37,7 +41,7 @@ The first three build on each other. `01` shows what the two nouns are with noth
 
 `10` is `02` plus telemetry. The flow body and the engine layers do not change; providing `Otlp.layerFetch` is the entire wiring, and the example reads the same run through the export, through `Journal.entries`, and through a tagged metric view with `Metric.value`. [Telemetry](/telemetry) documents the layer; [Observability](/observability) tables the spans it exports.
 
-`11` is the agent seam. `AgentAction.make` declares a model call as an ordinary action — same tag, same `.call()`, same plan node — and ships the implementation with it, so the author writes a seat, a system prompt, a prompt built from the payload, and an `output` schema instead of a `toLayer`. The implementation resolves the declared seat through the `SeatResolver` service and runs one loop of the `Agent` service inside the enclosing execution. The schema is rendered into the run's teaching and enforced on the way out, which is why the second step reads `research.summary` as a `string`. The example provides a `SeatResolver` that answers with a scripted model, so it runs in CI with no API key.
+`11` is the agent seam. `AgentAction.make` declares a model call as an ordinary action, with the same tag, the same `.call()`, and the same plan node, and ships the implementation with it, so the author writes a seat, a system prompt, a prompt built from the payload, and an `output` schema instead of a `toLayer`. The implementation resolves the declared seat through the `SeatResolver` service and runs one loop of the `Agent` service inside the enclosing execution. The schema is rendered into the run's teaching and enforced on the way out, which is why the second step reads `research.summary` as a `string`. The example provides a `SeatResolver` that answers with a scripted model, so it runs in CI with no API key.
 
 ## The shared durable layer
 

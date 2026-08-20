@@ -1,3 +1,7 @@
+---
+description: "The Node host bundle: one layer that provides all five tags in the closed host list."
+---
+
 # @smthrs/platform-node
 
 The Node.js Host bundle: one layer that provides all five tags in the closed host list, backed by `@effect/platform-node`.
@@ -18,7 +22,9 @@ const program = Effect.gen(function*() {
 }).pipe(Effect.provide(NodeHost.layer))
 ```
 
+:::warning
 This entry point is Node-only by construction: it resolves `node:child_process`. `scripts/browser-check.mjs` pins that.
+:::
 
 ## Entry points
 

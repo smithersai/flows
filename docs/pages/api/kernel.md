@@ -1,6 +1,10 @@
+---
+description: "Capability enforcement at the host boundary: grant checks decorated onto each host service tag in place."
+---
+
 # @smthrs/kernel
 
-Capability enforcement at the host boundary. The kernel decorates each host service tag in place — a middleware `Layer` over the very tag the platform adapter provides — checking a capability against a grant store before delegating. There is no second, "protected" tag: where Effect owns the tag (`FileSystem`, `ChildProcessSpawner`) a denied request surfaces as a `PlatformError` whose reason is `PermissionDenied` and whose `cause` carries the structured kernel failure (`Permission.fromPlatformError` reads it back); `HttpClient` is the same story in Effect's network channel, projecting a denial into an `HttpClientError` whose reason is a `TransportError` (`HttpClient.fromHttpClientError` reads it back); where `flows` owns the service (`Jj`) the interface names the kernel's failures directly. The `Capability` and `Permission` namespaces are re-exports from `@smthrs/capability`.
+Capability enforcement at the host boundary. The kernel decorates each host service tag in place, as a middleware `Layer` over the very tag the platform adapter provides, checking a capability against a grant store before delegating. There is no second, "protected" tag: where Effect owns the tag (`FileSystem`, `ChildProcessSpawner`) a denied request surfaces as a `PlatformError` whose reason is `PermissionDenied` and whose `cause` carries the structured kernel failure (`Permission.fromPlatformError` reads it back); `HttpClient` is the same story in Effect's network channel, projecting a denial into an `HttpClientError` whose reason is a `TransportError` (`HttpClient.fromHttpClientError` reads it back); where `flows` owns the service (`Jj`) the interface names the kernel's failures directly. The `Capability` and `Permission` namespaces are re-exports from `@smthrs/capability`.
 
 ```ts
 import { Capability, Permission } from "@smthrs/kernel"
@@ -20,7 +24,7 @@ const rule = new Permission.Rule({
 
 ## Capability
 
-Re-exported from [`@smthrs/capability`](capability.md) — [packages/capability/src/Capability.ts](https://github.com/smithersai/flows/blob/main/packages/capability/src/Capability.ts)
+Re-exported from [`@smthrs/capability`](capability.md), source [packages/capability/src/Capability.ts](https://github.com/smithersai/flows/blob/main/packages/capability/src/Capability.ts).
 
 | Export | Kind | Notes |
 | --- | --- | --- |
@@ -52,7 +56,7 @@ Re-exported from [`@smthrs/capability`](capability.md) — [packages/capability/
 
 ## Permission
 
-Re-exported from [`@smthrs/capability`](capability.md) — [packages/capability/src/Permission.ts](https://github.com/smithersai/flows/blob/main/packages/capability/src/Permission.ts)
+Re-exported from [`@smthrs/capability`](capability.md), source [packages/capability/src/Permission.ts](https://github.com/smithersai/flows/blob/main/packages/capability/src/Permission.ts).
 
 | Export | Kind | Notes |
 | --- | --- | --- |
@@ -60,7 +64,7 @@ Re-exported from [`@smthrs/capability`](capability.md) — [packages/capability/
 | `RuleEffect` | type | `allow`, `deny`, `ask` |
 | `evaluate` | function | applies rules to a capability |
 | `PermissionRequired`, `PermissionDenied` | classes | typed failures the kernel raises |
-| `PermissionError` | type | `PermissionRequired \| PermissionDenied \| GrantStoreError` — the channel `Jj` exposes directly |
+| `PermissionError` | type | `PermissionRequired \| PermissionDenied \| GrantStoreError`, the channel `Jj` exposes directly |
 | `permissionRequired`, `permissionDenied` | constructors | |
 | `GrantStoreError`, `GrantStoreErrorCode` | class + codes | |
 | `isPermissionError` | refinement | narrows `unknown` to a kernel permission failure |
@@ -99,9 +103,11 @@ Each module below exports a `layer` that decorates the matching service tag in p
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `HostService`, `HostServiceTags`, `HostServiceIds` | type + consts | the one closed list of Host tags — the kernel decorates each in place, so there is no second "protected" list |
+| `HostService`, `HostServiceTags`, `HostServiceIds` | type + consts | the one closed list of Host tags; the kernel decorates each in place, so there is no second "protected" list |
 | `layer` | layer | decorates every service in the list, composed over a raw host bundle with `Layer.provide` |
 
 ## What the kernel does not do
 
-It is a capability check at the adapter call site. It does not sandbox the operating system, and it does not observe reads or writes that bypass the decorated services. Hermetic execution additionally needs a `StepBoundary` implementation.
+:::warning
+The kernel is a capability check at the adapter call site. It does not sandbox the operating system, and it does not observe reads or writes that bypass the decorated services. Hermetic execution additionally needs a `StepBoundary` implementation.
+:::

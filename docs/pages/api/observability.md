@@ -1,6 +1,10 @@
+---
+description: "Default OTLP export wiring for flows telemetry, over Effect's own observability modules."
+---
+
 # @smthrs/observability
 
-Default OTLP export wiring for flows telemetry. The store packages define their metric handles and open spans but deliberately ship no exporter; this package is that exporter. It composes Effect's own OTLP logger, metrics exporter, and tracer (`effect/unstable/observability`) into one layer with the flows service identity as the default resource. It depends on `effect` alone — no OpenTelemetry SDK — and resolves no `node:` built-in, so the package root bundles for the browser.
+Default OTLP export wiring for flows telemetry. The store packages define their metric handles and open spans but deliberately ship no exporter; this package is that exporter. It composes Effect's own OTLP logger, metrics exporter, and tracer (`effect/unstable/observability`) into one layer with the flows service identity as the default resource. It depends on `effect` alone, with no OpenTelemetry SDK, and resolves no `node:` built-in, so the package root bundles for the browser.
 
 ```ts
 import * as Otlp from "@smthrs/observability/Otlp"

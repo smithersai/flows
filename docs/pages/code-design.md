@@ -1,3 +1,7 @@
+---
+description: "The rules new code follows: make invalid data unrepresentable and keep the code that operates on it small."
+---
+
 # Code design
 
 Make invalid data unrepresentable and keep the code needed to operate on it as small as possible.

@@ -1,3 +1,7 @@
+---
+description: "How the Flows caching model compares with TurboRepo, Nx, and Bazel, and what a build system does not keep."
+---
+
 # Comparisons
 
 Flows takes its caching model from build systems and its execution model from durable workflow engines. This page compares the implementation with [TurboRepo](https://turborepo.com), [Nx](https://nx.dev), and [Bazel](https://bazel.build), three build systems that also key work and cache the results. For the workflow-engine side (Temporal, Restate, Inngest), see the prior-art table in [External](/external).

@@ -1,3 +1,7 @@
+---
+description: "Provider-neutral remote process execution and sandbox liveness, above Effect's ChildProcessSpawner."
+---
+
 # @smthrs/sandbox
 
 Provider-neutral remote process execution and sandbox liveness. Provider packages adapt their SDK sessions to `RemoteChildProcessSpawner.Provider`; this package converts them onto Effect's `ChildProcessSpawner` contract and adds the health taxonomy above it.
@@ -18,7 +22,7 @@ const program = Effect.gen(function*() {
 }).pipe(Effect.provide(RemoteChildProcessSpawner.layer(provider)))
 ```
 
-The package depends on `@smthrs/kernel` — for `CommandLine.render` alone — and nothing else in the workspace: a sandbox is one way to satisfy `ChildProcessSpawner`, so it sits above the closed host list rather than inside it. It bundles for the browser — it only runs the effect a provider hands it.
+The package depends on `@smthrs/kernel`, for `CommandLine.render` alone, and on nothing else in the workspace: a sandbox is one way to satisfy `ChildProcessSpawner`, so it sits above the closed host list rather than inside it. It bundles for the browser, because it only runs the effect a provider hands it.
 
 ## Entry points
 
@@ -32,23 +36,25 @@ The package depends on `@smthrs/kernel` — for `CommandLine.render` alone — a
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `ProviderErrorCode` | const + type | `aborted`, `timeout`, `unavailable`, `spawn_error`, `unknown` — this seam's own closed set |
+| `ProviderErrorCode` | const + type | `aborted`, `timeout`, `unavailable`, `spawn_error`, `unknown`: this seam's own closed set |
 | `ProviderError` | class | tagged `@smthrs/sandbox/RemoteChildProcessSpawner/ProviderError` |
 | `Provider` | interface + service tag | `session`, scoped `open`, scoped `spawn` |
 | `RemoteProcess`, `RemoteOptions` | interfaces | a started remote process (`stdout`, `stderr`, `exitCode`) and the `cwd`/`env` carried across |
 | `layer` | layer | a `ChildProcessSpawner` backed by a provider; acquisition is tied to the layer scope |
 | `TestScript`, `TestRemoteState`, `TestRemoteProvider` | interfaces | scripted provider fixtures |
-| `TestRemote` | const | `make(options?)` — deterministic scripted provider |
+| `TestRemote` | const | `make(options?)`, a deterministic scripted provider |
 
 `layer` rejects command-supplied stdin streams, additional file descriptors,
 custom shell paths, detached processes, and non-default pipeline routing with a
-`BadArgument` `PlatformError`; those options cannot be represented by the
+`BadArgument` `PlatformError`. Those options cannot be represented by the
 provider contract and are never silently dropped. Output dispositions and
-output sinks are applied by the adapter. Two divergences cannot be reported
-that way and are stated in the module header instead: `extendEnv` is ignored,
-because the remote session's ambient environment never crosses the seam, and
-`isRunning` turns `false` when a caller observes `exitCode` rather than when the
-remote process ends.
+output sinks are applied by the adapter.
+
+:::warning[Two divergences the error channel cannot report]
+`extendEnv` is ignored, because the remote session's ambient environment never
+crosses the seam. `isRunning` turns `false` when a caller observes `exitCode`
+rather than when the remote process ends. Both are stated in the module header.
+:::
 
 ## SandboxHealth
 
@@ -65,4 +71,4 @@ remote process ends.
 
 ## Reading next
 
-[`@smthrs/kernel`](kernel.md) owns the closed host list this satisfies a slot of — and the `proc:spawn` check written against the same rendered command line the provider receives — and [`@smthrs/run-store`](run-store.md) owns the run-ownership heartbeat that detects a dead engine owner rather than a dead sandbox.
+[`@smthrs/kernel`](kernel.md) owns the closed host list this satisfies a slot of, and the `proc:spawn` check written against the same rendered command line the provider receives. [`@smthrs/run-store`](run-store.md) owns the run-ownership heartbeat that detects a dead engine owner rather than a dead sandbox.

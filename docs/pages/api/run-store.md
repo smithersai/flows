@@ -1,3 +1,7 @@
+---
+description: "Executable run state: run rows, attempt rows, and the ownership arbitration that fences them."
+---
+
 # @smthrs/run-store
 
 Executable run state: run rows, action attempt rows, and the ownership arbitration that fences them. Split out of [`@smthrs/journal`](/api/journal). Both stores write through the `@smthrs/database` contract, so the package root bundles for the browser.

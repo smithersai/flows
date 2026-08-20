@@ -1,3 +1,7 @@
+---
+description: "What the repository proves about its own public surface, which files prove it, and where the gaps are."
+---
+
 # Public API tests
 
 What the repository proves about its own public surface, which files prove it, and where the gaps are. Use this page when you change an API and need to know which suite you have just made responsible for the change.
@@ -64,7 +68,7 @@ These are the behaviors that have to be exercised against real implementations, 
 | `@smthrs/sync` | 20 | protocol, server paging and workspace merge, client cursors and gaps, transport faults, branch commands, presence, share, projection, convergence |
 | `@smthrs/time-travel` | 21 | the `TimeTravel` service surface, replay, fork and its lineage, rewind with claims, concurrency and rollback, truncation, compensation, recovery, both stores |
 | `@smthrs/flows` | 2 | the barrel namespace list against the derived package universe, and the coverage-isolation conformance suite |
-| `@smthrs/examples` | 9 | every documentation example, run end to end against the real packages |
+| `@smthrs/examples` | 11 | every documentation example, run end to end against the real packages |
 
 ## Explicit gaps
 
@@ -82,4 +86,8 @@ These are known and unclosed. None of them is covered by an existing suite.
 
 ## Adding a test
 
-Match the package's existing style: real SQLite through `TestJournal.layer()`, `TestStores.layer()`, or `TestDatabase.layer` rather than a fake store, `Notifying.wrap` for crash and fence-loss injection, and the host contract suite rather than a new bespoke adapter assertion. Coverage is already at 100%, so a new branch in `src` without a new case fails the gate rather than passing quietly.
+Match the package's existing style: real SQLite through `TestJournal.layer()`, `TestStores.layer()`, or `TestDatabase.layer` rather than a fake store, `Notifying.wrap` for crash and fence-loss injection, and the host contract suite rather than a new bespoke adapter assertion.
+
+:::warning
+Coverage is already at 100%. A new branch in `src` without a new case fails the gate rather than passing quietly.
+:::

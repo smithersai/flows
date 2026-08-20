@@ -1,3 +1,7 @@
+---
+description: "Sealed step results addressed by step-key digest, in a local SQL tier and a remote one."
+---
+
 # @smthrs/step-cache
 
 Sealed step results addressed by step-key digest. Split out of [`@smthrs/journal`](/api/journal); it depends on `@smthrs/database` and nothing else, so the package root bundles for the browser.
@@ -47,7 +51,7 @@ const layer = CacheStore.layer.pipe(Layer.provideMerge(Migrations.layer))
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `Options` | interface | `endpoint`, `headers` — a capability, never a step-key input |
+| `Options` | interface | `endpoint`, `headers`; a capability, never a step-key input |
 | `make`, `layer` | constructor + layer | `GET`/`PUT`/`DELETE /ac/{keyDigest}` over Effect's `HttpClient` |
 
 ## CombinedCacheStore
@@ -59,7 +63,11 @@ const layer = CacheStore.layer.pipe(Layer.provideMerge(Migrations.layer))
 | `Options` | interface | the `local` and `remote` tiers, plus `publication: "inline" \| "deferred"` |
 | `make`, `layer` | constructor + layer | local-first lookup with write-back into the local SQL store; eviction stays local |
 
-`publication` defaults to `"inline"`, which writes both tiers in `put`. `"deferred"` writes the local tier only and leaves the shared write to the caller — for a caller holding a write transaction, which must never span a host call. `@smthrs/engine-store` composes this mode and publishes through its `CacheSync` seam once the transaction commits.
+`publication` defaults to `"inline"`, which writes both tiers in `put`. `"deferred"` writes the local tier only and leaves the shared write to the caller. `@smthrs/engine-store` composes this mode and publishes through its `CacheSync` seam once the transaction commits.
+
+:::danger
+A write transaction must never span a host call. A caller holding one wants `"deferred"`.
+:::
 
 ## Migrations
 

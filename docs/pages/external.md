@@ -1,6 +1,14 @@
+---
+description: "Prior art, implementation status, deployment limits, and what a deployment cannot do here yet."
+---
+
 # External
 
-What exists elsewhere, what this engine borrows from it, and what a deployment cannot do here yet. Everything below is stated against `packages/*/src`. Behavior with a test in source is Implemented; contract and TODO behavior is Planned.
+What exists elsewhere, what this engine borrows from it, and what a deployment cannot do here yet.
+
+:::note[How to read the status labels]
+Everything below is stated against `packages/*/src`. Behavior with a test in source is Implemented; contract and TODO behavior is Planned.
+:::
 
 ## Prior art
 
@@ -65,8 +73,8 @@ The honest positioning is an embeddable, Effect-native durable-execution toolkit
 ### Planned
 
 - Production hermetic action execution and output materialization for cross-run caching.
-- A packaged production layer composing database, migrations, journal stores, durable deferred and clock state, kernel, host, and engine. Partly shipped: the `@smthrs/flows/NodeRuntime` subpath packages the SQLite storage and engine composition, with `registerFlows` as its final startup phase. It stops at the host boundary — it installs neither `NodeHost.layer` nor the guarded `HostServices` kernel, so `Jj`, Effect `FileSystem`, and Effect `Crypto` stay requirements the host supplies, and `StepBoundary` and `WorkspaceSandbox` are caller arguments. It installs no process or signal handlers. Its application-source consumers in the repository are `examples/src/durable-layer.ts` and the production control executor in `packages/cli/src/NodeControl.ts`; the composition itself has a direct real-SQLite package gate at `packages/flows/test/NodeRuntime.test.ts`.
-- Automatic resume of abandoned runs — a gateway-level supervisor that notices a run whose owner died and *launches a process* for it. The supervision runtime in `@smthrs/gateway` is a noop, so a run whose owner died advances only once a process running the engine with that flow registered comes up; that process's own sweep then reclaims the row. See [implementation status](https://github.com/smithersai/flows/blob/main/docs/architecture/implementation-status.md#abandoned-runs-and-supervision).
+- A packaged production layer composing database, migrations, journal stores, durable deferred and clock state, kernel, host, and engine. Partly shipped: the `@smthrs/flows/NodeRuntime` subpath packages the SQLite storage and engine composition, with `registerFlows` as its final startup phase. It stops at the host boundary: it installs neither `NodeHost.layer` nor the guarded `HostServices` kernel, so `Jj`, Effect `FileSystem`, and Effect `Crypto` stay requirements the host supplies, and `StepBoundary` and `WorkspaceSandbox` are caller arguments. It installs no process or signal handlers. Its application-source consumers in the repository are `examples/src/durable-layer.ts` and the production control executor in `packages/cli/src/NodeControl.ts`; the composition itself has a direct real-SQLite package gate at `packages/flows/test/NodeRuntime.test.ts`.
+- Automatic resume of abandoned runs: a gateway-level supervisor that notices a run whose owner died and *launches a process* for it. The supervision runtime in `@smthrs/gateway` is a noop, so a run whose owner died advances only once a process running the engine with that flow registered comes up; that process's own sweep then reclaims the row. See [implementation status](https://github.com/smithersai/flows/blob/main/docs/architecture/implementation-status.md#abandoned-runs-and-supervision).
 - Injectable seams for retry classification, shareability, and wait/wake. Cache-conflict verdicts and owner identity already have services; retry classification and shareability are still fixed engine behavior.
 - Graph-level failure policies such as quarantine or continue-on-failure.
 - Detached child flow construction and lifecycle policy.
@@ -82,24 +90,42 @@ The honest positioning is an embeddable, Effect-native durable-execution toolkit
 | --- | --- |
 | SQLite only | the shipped production SQL backend is `@effect/sql-sqlite-node` on Node, with an in-memory SQLite test layer. No browser SQL client layer ships here, and the journal migration ladder is SQLite-flavoured DDL. Postgres and PGlite parity is an accepted gap, issue #78 |
 | No browser SQL layer | the journal bundles for the browser against the `DurableWriter` contract, and no browser SQL client layer ships here |
-| Durable engine bundles, does not yet run, in a browser | `@smthrs/engine-store` and the `@smthrs/flows` barrel are browser entry points — owner identity moved behind the `OwnerIdentity` service and closed issue #114 — but running the composition still needs a browser SQL client behind `DurableWriter`, which is the row above |
+| Durable engine bundles, does not yet run, in a browser | `@smthrs/engine-store` and the `@smthrs/flows` barrel are browser entry points, because owner identity moved behind the `OwnerIdentity` service and closed issue #114. Running the composition still needs a browser SQL client behind `DurableWriter`, which is the row above |
 | Registration before resume | flow registrations and active fibers are in-memory, so a restarted process must re-register handlers before driving stored runs |
 | Single-writer serialization | `DurableWriter.write` requires serialized write transactions, and a Postgres backend must run them `SERIALIZABLE` |
 | No hosted deployment | a fully runnable engine-store on Cloudflare Workers and fully durable serverless deferreds and clocks on Vercel do not exist. Platform host adapters live in [smithersai/plugins](https://github.com/smithersai/plugins) |
 | Cache address convention | the time-travel package reads cache keys out of effect-boundary metadata, so a caller recording those boundaries must use the same address convention as the cache producer |
 | Fork records are not per-frame | `SqlTimeTravelStore.createFork` materializes from the parent's current persisted snapshot and attempts, not from a historical reconstruction at the frame |
 
+:::warning
 Packages are pre-1.0. Treat every boundary above as an evolving compatibility contract.
+:::
 
 ## What Postgres parity would take
 
 The write-retry seam is already dialect-blind: `DurableWriter.make` accepts any `SqlClient`, and classification covers the Postgres transient SQLSTATEs `40001`, `40P01`, and `55P03` plus PGlite's text forms alongside the SQLite codes, normalized onto the same `busy` category. A hand-supplied `PgClient` is therefore degraded rather than unprotected.
 
-What remains, in order:
+What remains, in order.
 
-1. `packages/database/src/pg/` and `packages/database/src/pglite/` layers over `@effect/sql-pg` and `@effect/sql-pglite`. Thin, because the retry seam is already neutral.
-2. A dialect parameter on `Migrations.run` splitting the SQLite-specific DDL, `INTEGER PRIMARY KEY`, `INSERT OR IGNORE`, and `AUTOINCREMENT`, plus a port of the statements that live outside the ladder. `flows_run_parents_gc` is the blocker there: its inline `BEGIN...END` trigger body is SQLite-exclusive and needs `CREATE FUNCTION ... RETURNS trigger` with `CREATE TRIGGER ... FOR EACH ROW EXECUTE FUNCTION` on Postgres. Everything in `DurableEngineState.make` is piped through `Effect.orDie`, so an unported statement is a layer-construction defect.
-3. The existing journal and engine-store suites run against PGlite as a second backend in CI, which is the only honest proof of parity. Any new backend must also pass `packages/database/test/contract/DatabaseWriteContract.ts`.
+::::steps
+
+### Add the Postgres and PGlite driver layers
+
+`packages/database/src/pg/` and `packages/database/src/pglite/` over `@effect/sql-pg` and `@effect/sql-pglite`. Thin, because the retry seam is already neutral.
+
+### Parameterize the migration ladder by dialect
+
+A dialect parameter on `Migrations.run` splitting the SQLite-specific DDL, `INTEGER PRIMARY KEY`, `INSERT OR IGNORE`, and `AUTOINCREMENT`, plus a port of the statements that live outside the ladder. `flows_run_parents_gc` is the blocker there: its inline `BEGIN...END` trigger body is SQLite-exclusive and needs `CREATE FUNCTION ... RETURNS trigger` with `CREATE TRIGGER ... FOR EACH ROW EXECUTE FUNCTION` on Postgres.
+
+:::warning
+Everything in `DurableEngineState.make` is piped through `Effect.orDie`, so an unported statement is a layer-construction defect.
+:::
+
+### Run the existing suites against PGlite in CI
+
+The journal and engine-store suites against PGlite as a second backend is the only honest proof of parity. Any new backend must also pass `packages/database/test/contract/DatabaseWriteContract.ts`.
+
+::::
 
 ## Open owner decisions
 

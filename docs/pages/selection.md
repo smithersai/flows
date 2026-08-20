@@ -1,6 +1,12 @@
+---
+description: "Learned suspected edges that may propose, defer, or order work, and never decide what is cached or correct."
+---
+
 # Probabilistic Selection
 
-Source: `docs/specs/Concepts/Probabilistic Selection.md` (`status: draft`).
+:::note
+The source spec, `docs/specs/Concepts/Probabilistic Selection.md`, is `status: draft`.
+:::
 
 The engine's exact-dependency graph knows which files a step read and which
 inputs it declared, and that is enough to know what must re-run and what is
@@ -14,8 +20,10 @@ learns which changed paths tend to affect which flows, and lets those guesses
 do three things: suggest extra work, postpone low-risk sink work, and order the
 queue.
 
-**A guess may schedule work. Only a real dependency edge decides what is
-cached, correct, or up to date.**
+:::warning[The rule this rests on]
+A guess may schedule work. Only a real dependency edge decides what is cached,
+correct, or up to date.
+:::
 
 ## The motivating picture
 
@@ -65,7 +73,8 @@ A sink is a node nothing else in the plan depends on: a test, a lint pass, a
 doc check. Deferring a step something depends on would block or corrupt its
 consumers, so the scheduler only offers selection verdicts to sink candidates.
 A `Defer` or `Propose` verdict that violates the plan's shape is ignored and
-journaled as an inconsistency observation, not executed as a silent no-op.
+journaled as an inconsistency observation rather than executed as a silent
+no-op.
 
 ## Store and training
 
@@ -123,11 +132,16 @@ grammar is fixed by tests:
   risk      <level> - <reasons joined with '; '>
 ```
 
-The risk row is optional and comes from `Selection.risk({ changed, beliefs })`. Risk is an annotation, never a gate: `high` means at least one live
-matching edge has confidence `>= 0.7`, `medium` means at least one has
-confidence `>= 0.4`, and `low` means no live matching edge reaches that bar.
+The risk row is optional and comes from `Selection.risk({ changed, beliefs })`.
+`high` means at least one live matching edge has confidence `>= 0.7`, `medium`
+means at least one has confidence `>= 0.4`, and `low` means no live matching
+edge reaches that bar.
+
+:::warning
+Risk is an annotation, never a gate. Approval routing from that level is
+intentionally outside this package.
+:::
 Reasons name contributing edges as `<scope> -> <affects> (<confidence>)`.
-Approval routing from that level is intentionally outside this package.
 
 `Selection.proposeReadSet({ beliefs, flow, paths })` is the related helper for
 agent steps. It returns workspace paths that match the scope of any live edge
