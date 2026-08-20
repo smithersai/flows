@@ -1,3 +1,7 @@
+---
+description: "The rules the durable driver enforces, the reasoning behind each one, and the tests that pin them."
+---
+
 # Internal details
 
 This page is for people changing the engine. It documents the rules the durable driver enforces, the reasoning behind each one, and the tests that pin them. Nothing here is required to write a flow.
@@ -27,7 +31,9 @@ Three consequences to design around:
 - The unit is all-or-nothing. A crash before COMMIT loses the whole unit, so an action body that had already run re-executes on the next drive. Temporal makes the same trade when it submits mutable state and its event batches as one persistence request.
 - Nothing that is not storage work may run inside the transaction. No flow bodies, no host calls, no jj snapshots, no boundary prepare or settle, no lossy `flush`.
 
-A local commit is still not remote atomicity. No journal write makes an external effect atomic with it, so effects outside the database keep needing idempotency keys, fencing tokens, or a declared compensation.
+:::warning[A local commit is not remote atomicity]
+No journal write makes an external effect atomic with it. Effects outside the database keep needing idempotency keys, fencing tokens, or a declared compensation.
+:::
 
 Pinned by `packages/engine-store/test/WalAtomicity.test.ts`, which drives `Notifying.wrap` at every closed interstitial, crashes there, restarts, and asserts journal and state equivalence.
 
@@ -60,7 +66,11 @@ All start and wake paths enter the same keyed `RunCoordinator`, so concurrent ca
 
 The tolerance is eleven ticks shorter than the steal cutoff. An owner that cannot write its heartbeat is therefore always interrupted before any peer is allowed to take its run, which is what makes the two-sided fence safe rather than merely likely.
 
-Elapsed wall time alone never proves an owner is dead, so `steal` demands `Ownership.LivenessEvidence` and `EngineStore.Options.isAlive` is supplied by the application. These are protocol defaults, and a deployment that cannot answer the liveness question in 30 seconds should say so rather than assume.
+Elapsed wall time alone never proves an owner is dead, so `steal` demands `Ownership.LivenessEvidence` and `EngineStore.Options.isAlive` is supplied by the application.
+
+:::warning
+These are protocol defaults. A deployment that cannot answer the liveness question in 30 seconds should say so rather than assume.
+:::
 
 Two sweeps run on the heartbeat cadence. One enumerates actionable parked rows, filtered by reason `released` plus a cancel-requested predicate, so it does not scan every parked run. The other enumerates stale-running rows and re-drives them through the claim path, so a hard-killed owner does not strand its run. Both are sandboxed: a transient defect escaping the sweep is logged and retried on the next tick rather than killing delivery for the process lifetime. A wake for a flow the sweeping process never registered logs a once-per-run structured warning and leaves the row parked.
 
@@ -97,11 +107,17 @@ When `replayOutputs` fails for a shared-cache row, `ActionPersistence` classifie
 
 Handlers are not serialized. A resume claims the run, decodes the original payload, invokes the registered handler from the top, returns stored results at known boundaries, and dispatches at the first boundary with no recorded state.
 
-Control flow is re-evaluated rather than restored from a stack snapshot, so code between boundaries must produce the same control flow given the same payload and recorded values. That rules out `Date.now()`, unseeded randomness, global mutable state, unordered external reads, environment variables read inline, and host operations outside an action. The output of a recorded action may be nondeterministic, because replay safety comes from recording its encoded exit.
+Control flow is re-evaluated rather than restored from a stack snapshot, so code between boundaries must produce the same control flow given the same payload and recorded values.
+
+:::danger[Unsafe in a flow body]
+`Date.now()`, unseeded randomness, global mutable state, unordered external reads, environment variables read inline, and host operations outside an action. The output of a recorded action may be nondeterministic, because replay safety comes from recording its encoded exit.
+:::
 
 Durability attaches at boundaries: `Action`, `DurableDeferred`, durable clocks, durable queues, child flow execution, and explicit journal or time-travel effect boundaries. Nothing between them is journaled.
 
-Two APIs use the word replay differently. `EngineStore` replay re-runs a registered handler. `TimeTravel.inspect` is read-only and folds committed entries into a projection, never invoking a handler or dispatcher.
+:::note[Two meanings of replay]
+`EngineStore` replay re-runs a registered handler. `TimeTravel.inspect` is read-only: it folds committed entries into a projection and never invokes a handler or dispatcher.
+:::
 
 There is no flow-source digest. What decides reuse after a code edit is action identity: a changed cache key input produces a new result, an unchanged one reuses the old, changed control flow around ordinal actions can remap ordinals, and changed schemas can make stored payloads or results fail to decode as a defect.
 

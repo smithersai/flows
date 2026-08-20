@@ -1,3 +1,7 @@
+---
+description: "The runtime that executes flows: the encoded seam, the in-memory engine, and the RPC and HTTP facades."
+---
+
 # @smthrs/engine
 
 The runtime that executes flows: the low-level encoded engine contract, its typed adapter onto `@smthrs/flow`'s `FlowRuntime` port, execution-instance state, the in-memory implementation, and the generated RPC/HTTP flow façades.

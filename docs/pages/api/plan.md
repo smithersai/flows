@@ -1,45 +1,52 @@
+---
+description: "The persisted plan: a keyed action graph, its authoring AST, its append-only store, and its diff."
+---
+
 # @smthrs/plan
 
-The persisted plan: a keyed action graph, its append-only store, its diff, and the step-key compiler that gives every node its identity. Above the persisted form sits the authoring AST — `Node` describes a plan as pure data, and `Planned` is the placeholder a body sees where a step result will be.
+The persisted plan: a keyed action graph, its append-only store, its diff, and the step-key compiler that gives every node its identity. Above the persisted form sits the authoring AST: `Node` describes a plan as pure data, and `Planned` is the placeholder a body sees where a step result will be.
 
 The package performs no I/O beyond the database and executes nothing. Driving a plan is [`@smthrs/engine-store`](/api/engine-store)'s `PlanScheduler`.
 
 ```ts
 import { Plan, PlanStore } from "@smthrs/plan"
+import * as Effect from "effect/Effect"
 
-const plan = yield* Plan.compile({
-  planId: "review-4821",
-  flow: "example/Review",
-  nodes: [
-    {
-      id: "read-pr",
-      material: {
-        version: "flows/key-material/v1",
-        kind: "sealed",
-        body: { action: "read-pr", pr: 4821 },
-        inputs: [],
-        layers: [],
-        capabilities: ["net:get"]
+const program = Effect.gen(function*() {
+  const plan = yield* Plan.compile({
+    planId: "review-4821",
+    flow: "example/Review",
+    nodes: [
+      {
+        id: "read-pr",
+        material: {
+          version: "flows/key-material/v1",
+          kind: "sealed",
+          body: { action: "read-pr", pr: 4821 },
+          inputs: [],
+          layers: [],
+          capabilities: ["net:get"]
+        },
+        effects: { reads: [], writes: ["pr.json"], boundaryMode: "hard" }
       },
-      effects: { reads: [], writes: ["pr.json"], boundaryMode: "hard" }
-    },
-    {
-      id: "run-tests",
-      material: {
-        version: "flows/key-material/v1",
-        kind: "sealed",
-        body: { action: "run-tests" },
-        inputs: [{ _tag: "Ref", from: "read-pr", path: [] }],
-        layers: [],
-        capabilities: []
-      },
-      effects: { reads: ["pr.json"], writes: ["report.json"], boundaryMode: "hard" }
-    }
-  ]
+      {
+        id: "run-tests",
+        material: {
+          version: "flows/key-material/v1",
+          kind: "sealed",
+          body: { action: "run-tests" },
+          inputs: [{ _tag: "Ref", from: "read-pr", path: [] }],
+          layers: [],
+          capabilities: []
+        },
+        effects: { reads: ["pr.json"], writes: ["report.json"], boundaryMode: "hard" }
+      }
+    ]
+  })
+
+  const store = yield* PlanStore.PlanStore
+  yield* store.record(plan, Date.now())
 })
-
-const store = yield* PlanStore.PlanStore
-yield* store.record(plan, Date.now())
 ```
 
 ## Entry point
@@ -97,7 +104,7 @@ The brand behind `digestInput` is private, so a plain object that merely has a `
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `compile` | constructor | topological order, dependency-digest substitution, overlap annotation, and the plan digest — no I/O |
+| `compile` | constructor | topological order, dependency-digest substitution, overlap annotation, and the plan digest; no I/O |
 | `append` | constructor | adds a pre-keyed subgraph at the next generation |
 | `generationNodes` | accessor | the nodes added by the newest generation |
 | `Plan` | schema + type | `planId`, `flow`, `generation`, `baseDigest`, `digest`, `nodes` |
@@ -116,7 +123,7 @@ Planning performs no I/O. Declared `NodeEffects` carry read and write *paths*, n
 
 A plan grows and is never rewritten. `append` leaves the nodes already in it with their id, key, edges, and generation byte for byte, and the new nodes arrive pre-keyed against them. Re-ordering after a reconciliation happens by re-keying future steps.
 
-`baseDigest` is the digest at generation 0 — what a human approved and what a running run pins. `digest` advances with every appended elaboration. Both cover node identity, every computed key, the edge set, the conflict annotations, the declared effects, and priority.
+`baseDigest` is the digest at generation 0: what a human approved and what a running run pins. `digest` advances with every appended elaboration. Both cover node identity, every computed key, the edge set, the conflict annotations, the declared effects, and priority.
 
 ### Conflict annotations
 
@@ -152,7 +159,7 @@ The pure, pipeable authoring AST. Building a node records an inspectable, closur
 
 Map transforms; branch decides. Both branch arms are evaluated once, symbolically, so the exit condition and the handoff site are visible topology before anything runs. A plan is always a DAG, so there is no loop node: repetition lives one level up, in what a flow settles with.
 
-The functions an author writes — a mapper, a continuation, a branch predicate — live in `WeakMap`s keyed by the AST node they belong to, and the AST keeps only a `FunctionIdentity` digest of their normalized source. The digest is what enters content identity; the `WeakMap` is what a run reaches for once it has the real value.
+The functions an author writes (a mapper, a continuation, a branch predicate) live in `WeakMap`s keyed by the AST node they belong to, and the AST keeps only a `FunctionIdentity` digest of their normalized source. The digest is what enters content identity; the `WeakMap` is what a run reaches for once it has the real value.
 
 ## Planned
 
@@ -167,7 +174,11 @@ The functions an author writes — a mapper, a continuation, a branch predicate 
 | `isPlanned` | guard | |
 | `TypeId` | symbol | interned, so a value that crossed a module boundary is still recognised |
 
-A planned value may be passed — into a payload field, into a branch, into a map — and field access is allowed, because it records a reference path. It may never be computed on.
+A planned value may be passed into a payload field, into a branch, or into a map, and field access is allowed, because it records a reference path.
+
+:::danger
+A planned value may never be computed on.
+:::
 
 Misuse fails twice. The type is branded, so arithmetic and template interpolation are compile errors; and the proxy's `Symbol.toPrimitive`, `valueOf`, `toString`, `toJSON`, application, `in`, and enumeration traps throw rather than let a plan be built around `NaN` or `"[object Object]"`. JavaScript exposes no trap for `Boolean(value)` or strict identity, so those cannot be refused at run time; they reveal only proxy truthiness or identity and never the planned result.
 
@@ -175,7 +186,7 @@ Misuse fails twice. The type is branded, so arithmetic and template interpolatio
 
 [src/GraphBuildError.ts](https://github.com/smithersai/flows/blob/main/packages/plan/src/GraphBuildError.ts)
 
-The refusals a plan-time build raises instead of producing a wrong plan. Each carries the site — `node` plus the recorded property `path` — and states the fix in `message`, because the author reading it is mid-body.
+The refusals a plan-time build raises instead of producing a wrong plan. Each carries the site, `node` plus the recorded property `path`, and states the fix in `message`, because the author reading it is mid-body.
 
 | `code` | Meaning |
 | --- | --- |
@@ -197,7 +208,7 @@ The refusals a plan-time build raises instead of producing a wrong plan. Each ca
 | `PlanDiff` | interface | `added`, `removed`, `rekeyed`, `unchanged` |
 | `Rekeyed` | interface | `id`, `from`, `to`, and the `changed` field labels |
 
-The verdict is the key: two nodes with the same id and the same key are the same step. The attribution — `changed: ["body", "input[1]"]` — is a report for a human, derived by comparing declarations field by field, and is deliberately part of no digest. Labels are `body`, `layers`, `capabilities`, `effects`, `version`, and `input[n]`, including `input[n]` entries whose declaration is unchanged but whose referenced node itself re-keyed. A node re-keyed purely by an upstream edit is therefore attributed to the input position that references it, even behind an unprojected `Pending`, rather than reported as nothing changed.
+The verdict is the key: two nodes with the same id and the same key are the same step. The attribution, `changed: ["body", "input[1]"]`, is a report for a human, derived by comparing declarations field by field, and is deliberately part of no digest. Labels are `body`, `layers`, `capabilities`, `effects`, `version`, and `input[n]`, including `input[n]` entries whose declaration is unchanged but whose referenced node itself re-keyed. A node re-keyed purely by an upstream edit is therefore attributed to the input position that references it, even behind an unprojected `Pending`, rather than reported as nothing changed.
 
 ## PlanStore
 

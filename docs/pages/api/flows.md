@@ -1,3 +1,7 @@
+---
+description: "The umbrella barrel: every engine package re-exported as a namespace, in one dependency."
+---
+
 # @smthrs/flows
 
 The umbrella barrel. It re-exports the engine packages as namespaces, so one dependency gives you the whole surface without collapsing each package's `make` / `makeNoop` / `layerNoop` trio into a shared namespace. There are two exceptions: `@smthrs/flow`'s authoring model is re-exported flat, so `Flow`, `Action`, and their siblings sit at the top level, and `@smthrs/time-travel` contributes the `TimeTravel` *service key* flat rather than a namespace, so `yield* TimeTravel` is the whole onboarding and `TimeTravel.layer` provides it.
@@ -21,7 +25,10 @@ const Build = Flow.make("example/Build", {
 })
 ```
 
-This entry point bundles for the browser: it re-exports only package roots, each of which is itself browser-safe, and `pnpm run browser` gates all of them. Bundling is not running — the durable composition still needs a SQL client behind the `DurableWriter` contract, and the only ones shipped here are `node:sqlite`-backed.
+This entry point bundles for the browser: it re-exports only package roots, each of which is itself browser-safe, and `pnpm run browser` gates all of them. 
+:::warning[Bundling is not running]
+The durable composition still needs a SQL client behind the `DurableWriter` contract, and the only ones shipped here are `node:sqlite`-backed.
+:::
 
 ## Entry point
 
@@ -52,7 +59,7 @@ This entry point bundles for the browser: it re-exports only package roots, each
 | `Sync` | `@smthrs/sync` | [Sync](/api/sync) |
 | `TimeTravel` | `@smthrs/time-travel` (the service key, re-exported flat) | [TimeTravel](/api/time-travel) |
 
-The rest of `@smthrs/time-travel` — `Frame`, `TimeTravelStore`, its two store layers, and `EffectBoundary` — is reached through that package directly, not through the barrel.
+The rest of `@smthrs/time-travel` (`Frame`, `TimeTravelStore`, its two store layers, and `EffectBoundary`) is reached through that package directly, not through the barrel.
 
 ## Own exports
 

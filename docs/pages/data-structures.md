@@ -1,3 +1,7 @@
+---
+description: "Every durable shape in Smithers Flows: where it lives, who writes it, who reads it, and which invariants hold."
+---
+
 # Data structures
 
 Everything durable in Smithers Flows is one of a small number of shapes. This page names each shape, says where it lives, who writes it, who reads it, and which invariants hold. Read it before the per-package API pages: those tables list exports, this one explains what the exports move around.
@@ -23,7 +27,7 @@ Everything durable in Smithers Flows is one of a small number of shapes. This pa
 | Compensation receipt | `flows_time_travel_receipts` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel` |
 | Archived entry | `flows_time_travel_archive` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel` |
 
-Two shapes are in-memory only: the action step keys the engine derives, which are recomputed on every replay, and sync frames, which exist on the wire. A compiled plan's node keys are different — they are computed once at plan time and persisted in `flows_plan_nodes`.
+Two shapes are in-memory only: the action step keys the engine derives, which are recomputed on every replay, and sync frames, which exist on the wire. A compiled plan's node keys are different: they are computed once at plan time and persisted in `flows_plan_nodes`.
 
 ## Journal entries
 
@@ -67,7 +71,11 @@ Invariants:
 | durable | `emitDurable` | allocates and commits inside the write transaction; returns after COMMIT | lifecycle evidence, anything a recovery argument cites |
 | lossy | `emitLossy` | bounded non-blocking queue; returns before COMMIT | telemetry where a drop is acceptable |
 
-An `Accepted` receipt from the lossy queue means the event entered the writer queue. A crash can still lose it. Overflow behavior is explicit:
+:::warning
+An `Accepted` receipt from the lossy queue means the event entered the writer queue. A crash can still lose it.
+:::
+
+Overflow behavior is explicit:
 
 | Policy | Full queue |
 | --- | --- |
@@ -116,7 +124,11 @@ Invariants, enforced by table `CHECK` constraints rather than by convention:
 - The four claim fields are all set or all `NULL`.
 - The lifecycle is `pending → running → completed | failed | suspended | cancelled`, and `suspended → running` on a wake.
 
-Ownership constants live in `Ownership`: a 1 second heartbeat interval, a 19 second write tolerance, and a 30 second stale threshold. The write tolerance is eleven ticks shorter than the steal cutoff, so an owner whose heartbeat writes fail is always interrupted before a peer may take over. Takeover also requires `LivenessEvidence`; elapsed time alone does not prove an owner is dead.
+Ownership constants live in `Ownership`: a 1 second heartbeat interval, a 19 second write tolerance, and a 30 second stale threshold. The write tolerance is eleven ticks shorter than the steal cutoff, so an owner whose heartbeat writes fail is always interrupted before a peer may take over.
+
+:::warning
+Takeover also requires `LivenessEvidence`. Elapsed time alone does not prove an owner is dead.
+:::
 
 ### Waiting rows
 
@@ -225,7 +237,11 @@ Sync shapes are on the wire, never in a table.
 | `HeartbeatFrame` | emitted when no entries arrive |
 | `ClosedFrame` | the single terminal frame |
 
-Because journal sequences may have holes, `afterSeq` means entries after this number. A client persists a returned cursor only after applying the batch that came with it. Credit bounds the frames one subscription emits; there is no acknowledgement RPC, so a client that needs more opens another subscription from its last durable cursor.
+Because journal sequences may have holes, `afterSeq` means entries after this number. Credit bounds the frames one subscription emits. There is no acknowledgement RPC, so a client that needs more opens another subscription from its last durable cursor.
+
+:::warning
+Persist a returned cursor only after applying the batch that came with it.
+:::
 
 ## The atomicity rule that ties these together
 

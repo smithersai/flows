@@ -1,6 +1,10 @@
+---
+description: "Capability values and permission failures: the leaf vocabulary of the flows permission kernel."
+---
+
 # @smthrs/capability
 
-Capability values and permission failures — the leaf vocabulary of the `flows` permission kernel. This package holds only the words, never the enforcement: `@smthrs/kernel` owns the `GrantStore`, the decorating layers, and the journal. Both the kernel and `@smthrs/jj` depend on this leaf, so a protected Host service can name permission failures in its own interface without a `kernel` ↔ `jj` dependency cycle.
+Capability values and permission failures: the leaf vocabulary of the `flows` permission kernel. This package holds only the words, never the enforcement: `@smthrs/kernel` owns the `GrantStore`, the decorating layers, and the journal. Both the kernel and `@smthrs/jj` depend on this leaf, so a protected Host service can name permission failures in its own interface without a `kernel` ↔ `jj` dependency cycle.
 
 ```ts
 import { Capability, Permission } from "@smthrs/capability"
@@ -11,7 +15,9 @@ const rule = new Permission.Rule({
 })
 ```
 
-Schema ids (`@smthrs/capability/Capability`, `@smthrs/capability/PermissionDenied`, …) are digested into step keys and round-trip through the grant journal, so renaming one invalidates recorded runs.
+:::danger
+Schema ids (`@smthrs/capability/Capability`, `@smthrs/capability/PermissionDenied`, and the rest) are digested into step keys and round-trip through the grant journal. Renaming one invalidates recorded runs.
+:::
 
 ## Entry points
 

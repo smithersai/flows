@@ -1,3 +1,7 @@
+---
+description: "Bound an unbounded journal. A checkpoint captures the state that replays a run from an offset; compaction deletes the entries below it."
+---
+
 # Checkpoints and compaction
 
 The journal is an append-only history, and a long-lived run makes it unbounded. Checkpoints and compaction bound it: a checkpoint durably captures the state that replays a run from a journal offset, and compaction deletes the entries strictly below a checkpoint. Both live on the `Journal` service in `@smthrs/journal`. Nothing is deleted unless a caller asks: compaction is explicit or opt-in by policy, never automatic by default.
@@ -7,14 +11,24 @@ The design follows Temporal, where the durable "snapshot" is mutable state pinne
 ## Checkpoint
 
 ```ts
-const checkpoint = yield* journal.checkpoint({
-  runId,
-  seq,          // a committed sequence of this run
-  state         // your replay state, covering every entry with seq <= this one
-}, owner)       // optional: fence on run ownership
+import { Journal } from "@smthrs/journal"
+import * as Effect from "effect/Effect"
+
+const program = Effect.gen(function*() {
+  const journal = yield* Journal.Journal
+  return yield* journal.checkpoint({
+    runId,
+    seq,        // a committed sequence of this run
+    state       // your replay state, covering every entry with seq <= this one
+  }, owner)     // optional: fence on run ownership
+})
 ```
 
-A checkpoint at `seq` asserts: `state` subsumes every entry at or below `seq`, so replay is `state` plus `stream({ runId, afterSequence: seq })`. The journal never interprets `state`; it round-trips verbatim. Redaction deliberately does not apply — checkpoint state is replay input, exactly like executable state, and rewriting it would resume the run with the wrong data. A secret that must not persist belongs in a `Redacted` field of your own state schema.
+A checkpoint at `seq` asserts: `state` subsumes every entry at or below `seq`, so replay is `state` plus `stream({ runId, afterSequence: seq })`. The journal never interprets `state`; it round-trips verbatim.
+
+:::danger
+Redaction deliberately does not apply. Checkpoint state is replay input, exactly like executable state, and rewriting it would resume the run with the wrong data. A secret that must not persist belongs in a `Redacted` field of your own state schema.
+:::
 
 Rules the write enforces:
 
@@ -28,11 +42,11 @@ The write shares `Journal.transact`'s discipline. Inside an open `transact` it j
 ## Compact
 
 ```ts
-const receipt = yield* journal.compact({ runId }, owner)   // latest checkpoint
-const receipt = yield* journal.compact({ runId, upTo }, owner)
+yield* journal.compact({ runId }, owner)          // truncate below the latest checkpoint
+yield* journal.compact({ runId, upTo }, owner)    // truncate below a named checkpoint
 ```
 
-Compaction deletes the run's entries strictly below the checkpoint, deletes superseded checkpoints, and marks the checkpoint as the run's compaction floor — all in one write transaction. A crash mid-compaction is unrepresentable as a partial state: either everything committed or nothing did. A retried compaction is idempotent and reports `deleted: 0`.
+Compaction deletes the run's entries strictly below the checkpoint, deletes superseded checkpoints, and marks the checkpoint as the run's compaction floor, all in one write transaction. A crash mid-compaction is unrepresentable as a partial state: either everything committed or nothing did. A retried compaction is idempotent and reports `deleted: 0`.
 
 Compaction refuses rather than guesses:
 
@@ -47,15 +61,29 @@ Compaction refuses rather than guesses:
 Sequence gaps are normal in the journal (rejected admissions consume sequences), so a follower cannot detect compaction by looking for holes. Compacted history is therefore reported explicitly:
 
 - Every live in-process `stream` registers its durable cursor. `compact` refuses with `reader_behind` while any of them is behind the boundary, so a live follower's next page is never deleted out from under it.
-- Every other reader — `entries` pollers, `stream` subscribers in other processes, sync followers — is covered on the read side: a read whose cursor starts below the floor fails with `compacted`, carrying `checkpointSeq`, the floor to resync from. `@smthrs/sync` reads through `Journal.entries` and `Journal.stream`, so a remote follower behind the floor sees its read or subscription fail rather than a gapped history.
+- Every other reader (`entries` pollers, `stream` subscribers in other processes, sync followers) is covered on the read side: a read whose cursor starts below the floor fails with `compacted`, carrying `checkpointSeq`, the floor to resync from. `@smthrs/sync` reads through `Journal.entries` and `Journal.stream`, so a remote follower behind the floor sees its read or subscription fail rather than a gapped history.
 
-Resync is three steps:
+Resync is three steps.
+
+::::steps
+
+### Read the latest checkpoint
 
 ```ts
 const latest = yield* journal.latestCheckpoint(runId)   // Option<Checkpoint>
-// 1. discard local derived state; 2. apply latest.state;
-// 3. continue from stream({ runId, afterSequence: latest.seq })
 ```
+
+### Discard local derived state and apply `latest.state`
+
+The checkpoint state subsumes every entry at or below `latest.seq`, so anything derived from those entries is replaced rather than merged.
+
+### Continue from the checkpoint sequence
+
+```ts
+journal.stream({ runId, afterSequence: latest.seq })
+```
+
+::::
 
 A projection over a compacted run follows the same rule: start it from the checkpoint, not from sequence zero.
 
@@ -79,18 +107,24 @@ Once a run's committed entry count reaches `entryThreshold`, the journal calls `
 Constraints on `capture`:
 
 - It runs post-commit in the fiber that crossed the threshold. Keep it to storage reads.
-- It must not emit through the same journal — the triggering durable emit still holds the allocation permit — and must not call `flush`.
+- It must not emit through the same journal, because the triggering durable emit still holds the allocation permit, and it must not call `flush`.
 - A failure or a `reader_behind` refusal is logged at warning, damped for `entryThreshold` further commits, and never fails the emit that triggered it.
 
 ## Operational guidance
 
-**Choose boundaries that dominate producer retries.** Compaction truncates the durable producer-retry window: a retry of a source event whose row was compacted away is admitted as a new event, not deduplicated. Checkpoint only at sequences where no producer can still retry an event at or below the boundary — in the engine's terms, at quiescent points where every in-flight action outcome is already durable.
+:::warning[Choose boundaries that dominate producer retries]
+Compaction truncates the durable producer-retry window: a retry of a source event whose row was compacted away is admitted as a new event, not deduplicated. Checkpoint only at sequences where no producer can still retry an event at or below the boundary. In the engine's terms, that means quiescent points where every in-flight action outcome is already durable.
+:::
 
-**Do not compact runs you intend to fork or rewind below the checkpoint.** `@smthrs/time-travel` forks copy the parent's surviving journal rows; history below the floor is gone. Compaction trades auditability below the boundary for bounded storage — that is its point — so keep full history on runs where the audit trail matters more than the disk.
+:::danger[Do not compact runs you intend to fork or rewind below the checkpoint]
+`@smthrs/time-travel` forks copy the parent's surviving journal rows; history below the floor is gone. Compaction trades auditability below the boundary for bounded storage, which is its point. Keep full history on runs where the audit trail matters more than the disk.
+:::
 
 **Checkpoint state is unbounded by the journal.** Persist a digest or a reference if your replay state is large; the row is a single `state_json` column.
 
-**Dialect.** The implementation ships for the SQLite dialect (the `SqlJournal` all stores share). The PGlite/browser story is a follow-up: the SQL is standard except for the migration's `typeof` checks, and the read-side guard and transactional shape carry over unchanged, but only SQLite is exercised by the test suite today.
+:::warning[SQLite only]
+The implementation ships for the SQLite dialect (the `SqlJournal` all stores share). The PGlite/browser story is a follow-up: the SQL is standard except for the migration's `typeof` checks, and the read-side guard and transactional shape carry over unchanged, but only SQLite is exercised by the test suite today.
+:::
 
 ## API summary
 

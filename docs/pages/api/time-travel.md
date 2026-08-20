@@ -1,13 +1,20 @@
+---
+description: "Frame-addressed history behind one injectable service: inspect, fork, and rewind."
+---
+
 # @smthrs/time-travel
 
 Frame-addressed history behind ONE injectable service: inspect, fork, rewind. It reads and writes through public journal, cache, host, and time-travel store contracts.
 
 ```ts
 import { TimeTravel } from "@smthrs/time-travel"
+import * as Effect from "effect/Effect"
 
-const timeTravel = yield* TimeTravel
-const position = { runId: "build-42", frame: { lineageId: "build-42/root", seq: 17 } }
-const count = yield* timeTravel.inspect(position, { initial: 0, reduce: (state) => state + 1 })
+const program = Effect.gen(function*() {
+  const timeTravel = yield* TimeTravel
+  const position = { runId: "build-42", frame: { lineageId: "build-42/root", seq: 17 } }
+  return yield* timeTravel.inspect(position, { initial: 0, reduce: (state) => state + 1 })
+})
 ```
 
 ## Entry point
@@ -34,7 +41,7 @@ const count = yield* timeTravel.inspect(position, { initial: 0, reduce: (state) 
 | --- | --- | --- |
 | `TimeTravelStore` | service tag | |
 | `Service` | interface | snapshots, derived frame state, lineage, audits, receipts, archive |
-| `snapshotAt`, `recordSnapshot` | methods | the tier-2 anchor at a frame — its jj pointer and the plan digest in force |
+| `snapshotAt`, `recordSnapshot` | methods | the tier-2 anchor at a frame: its jj pointer and the plan digest in force |
 | `stateAt`, `attemptsAt` | methods | run state and admitted attempts AT a frame, folded from the journal rather than read off the run row |
 | `Snapshot`, `AttemptRef`, `Descendants`, `Audit`, `Receipt`, `ArchiveResult`, `Fork` | interfaces | stored shapes; `Fork` carries the normalized `warnings` |
 | `make`, `makeNoop`, `layerNoop` | constructors + layer | |
@@ -56,7 +63,7 @@ const count = yield* timeTravel.inspect(position, { initial: 0, reduce: (state) 
 | `TimeTravel` | service key | tag `@smthrs/time-travel/TimeTravel`; `yield* TimeTravel` is the whole surface |
 | `TimeTravel.layer` | layer | needs only `TimeTravelStore`, `Journal`, `RunStore`, `CacheStore`, and `Jj` |
 | `make` | constructor | the scoped effect `layer` is built from |
-| `Position` | schema + type | `runId` plus a `Frame` — an address, never a snapshot |
+| `Position` | schema + type | `runId` plus a `Frame`; an address, never a snapshot |
 | `Projection`, `ForkOptions`, `RewindOptions`, `ForkResult`, `RewindResult` | types | operation inputs and outputs |
 
 | Operation | Notes |
@@ -104,8 +111,10 @@ itself. What a composition contributes is the handler, not the registry.
 | `layer(handlers)`, `layerNoop` | layers | `TimeTravel.layer` reads the service when present |
 | `Handler` | shape | `kind` (the action name the engine journaled), `tier`, `residue`, `revert`, optional `assess`/`rollback` |
 
+:::warning
 With no handlers provided, a crossed record that is not sealed classifies as
-`blocking` and the rewind fails with `irreversible` — the safe default.
+`blocking` and the rewind fails with `irreversible`. That is the safe default.
+:::
 
 ## TimeTravelError
 
@@ -119,6 +128,8 @@ With no handlers provided, a crossed record that is not sealed classifies as
 
 ## Integration boundary
 
-The protocols here are Implemented and tested against real stores, including against a journal an ordinary engine run wrote (`test/EngineIntegration.test.ts`). `EngineStore` populates them: it stamps `meta.lineageId` on every record it writes, journals a tier-2 anchor per attempt, and writes the effect-boundary records around an irreversible dispatch and a child spawn. Anchors reach `flows_time_travel_snapshots` through a projection of those journal records — the engine never writes this package's tables, which is what keeps the dependency arrow one-way. `SqlTimeTravelStore.createFork` derives the child's state at the frame and copies only the attempts the frame's prefix can explain.
+The protocols here are Implemented and tested against real stores, including against a journal an ordinary engine run wrote (`test/EngineIntegration.test.ts`). `EngineStore` populates them: it stamps `meta.lineageId` on every record it writes, journals a tier-2 anchor per attempt, and writes the effect-boundary records around an irreversible dispatch and a child spawn. Anchors reach `flows_time_travel_snapshots` through a projection of those journal records. The engine never writes this package's tables, which is what keeps the dependency arrow one-way. `SqlTimeTravelStore.createFork` derives the child's state at the frame and copies only the attempts the frame's prefix can explain.
 
-One gap remains: a fork's workspace is created but not pinned to the frame's jj pointer, because `Jj` cannot provision a workspace at a revision. The fork discloses that as a warning rather than restoring the parent's tree (`.smithers/tickets/fork-workspace-revision.md`).
+:::warning[One gap remains]
+A fork's workspace is created but not pinned to the frame's jj pointer, because `Jj` cannot provision a workspace at a revision. The fork discloses that as a warning rather than restoring the parent's tree (`.smithers/tickets/fork-workspace-revision.md`).
+:::

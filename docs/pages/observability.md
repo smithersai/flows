@@ -1,3 +1,7 @@
+---
+description: "What you can see while a flow runs: journal queries, spans, metrics, logs, and the debugging layers that ship."
+---
+
 # Observability
 
 What you can see while a flow runs, and what you cannot. This page lists only surfaces that exist in `packages/*/src` today. Everything absent is named at the bottom rather than left implied.
@@ -17,17 +21,21 @@ Most of what you would want from an observability stack is already a durable row
 
 The engine event types are listed in [Data structures](/data-structures). Filtering on `event_type` is indexed.
 
-Three properties matter when you build on this. Entries publish after COMMIT, so a subscriber never sees an entry that later rolls back. Sequences may have holes, so a reader follows cursors rather than assuming adjacency. And a compacted run reports itself: a read whose cursor starts below the compaction floor fails with a `compacted` error carrying the checkpoint to resync from — see [Checkpoints and compaction](/compaction).
+Three properties matter when you build on this. Entries publish after COMMIT, so a subscriber never sees an entry that later rolls back. Sequences may have holes, so a reader follows cursors rather than assuming adjacency. A compacted run reports itself: a read whose cursor starts below the compaction floor fails with a `compacted` error carrying the checkpoint to resync from. See [Checkpoints and compaction](/compaction).
 
 ## Redaction
 
 `Redaction` runs at the single `payload` and `meta` encode chokepoint. `defaultRules` plus `isSensitiveKey` decide what is replaced with the placeholder, and `SqlJournal.layer` takes a `redact` option including an opt-out.
 
-Executable state is deliberately outside that chokepoint. Run state, attempt checkpoints, errors, outcomes and metadata, and cache results round-trip verbatim, because rewriting them resumes a flow with the wrong data and can make persisted state fail to decode. A secret that must not persist belongs in a `Redacted` field of the caller's own state schema.
+Executable state is deliberately outside that chokepoint. Run state, attempt checkpoints, errors, outcomes and metadata, and cache results round-trip verbatim, because rewriting them resumes a flow with the wrong data and can make persisted state fail to decode.
+
+:::danger
+Redaction does not cover executable state. A secret that must not persist belongs in a `Redacted` field of the caller's own state schema.
+:::
 
 ## Tracing
 
-`@smthrs/flow` and `@smthrs/engine` open the spans below through Effect's tracer. These packages install no exporter; provide one from your application — `@smthrs/observability` is the shipped default, wired on [Telemetry](/telemetry) — and these spans appear in it.
+`@smthrs/flow` and `@smthrs/engine` open the spans below through Effect's tracer. These packages install no exporter. Provide one from your application and these spans appear in it; `@smthrs/observability` is the shipped default, wired on [Telemetry](/telemetry).
 
 | Span | Attributes | Source |
 | --- | --- | --- |
@@ -41,7 +49,7 @@ Executable state is deliberately outside that chokepoint. Run state, attempt che
 | `FlowEngine.scheduleClock` | `executionId`, `name` | `@smthrs/engine` `FlowEngine/make.ts` |
 | `DurableQueue/<name>/worker` | parented to the offering span through `Tracer.externalSpan` | `@smthrs/flow` `DurableQueue.ts` |
 
-The store packages open one `Effect.fn` span per service operation, named `Module.method` (`RunStore.claim`, `CacheStore.get`, `Journal.emitDurable`, `ActionPersistence.execute`, `PlanScheduler.dispatch`, `WorkspaceSandbox.materialize`, `TimeTravel.fork`, `BranchShare.verify`, `SandboxHealth.probe`, and so on). Every hot-path span annotates the identifiers a debugger needs, as the operation's first statement (`Effect.annotateCurrentSpan`), with values computed mid-operation — a key digest, a diff identity — annotated the moment they exist:
+The store packages open one `Effect.fn` span per service operation, named `Module.method` (`RunStore.claim`, `CacheStore.get`, `Journal.emitDurable`, `ActionPersistence.execute`, `PlanScheduler.dispatch`, `WorkspaceSandbox.materialize`, `TimeTravel.fork`, `BranchShare.verify`, `SandboxHealth.probe`, and so on). Every hot-path span annotates the identifiers a debugger needs, as the operation's first statement (`Effect.annotateCurrentSpan`). Values computed mid-operation, such as a key digest or a diff identity, are annotated the moment they exist:
 
 | Path | Attributes |
 | --- | --- |
@@ -53,13 +61,17 @@ The store packages open one `Effect.fn` span per service operation, named `Modul
 | boundary and sandbox (`StepBoundary.*`, `WorkspaceSandbox.*`) | `boundaryMode`, read/write/change counts, `diffIdentity`, `path` |
 | journal (`Journal.*`) | `runId`, `sourceId`, `eventType`, cursors |
 | time-travel (`TimeTravel.*`, `TimeTravelStore.*`) | `runId`, `lineageId`, `seq` |
-| sync (`BranchShare.*`, `BranchPresence.*`, `BranchCommands.*`) | `branchId`, `participantId`, `access` — never capability material |
+| sync (`BranchShare.*`, `BranchPresence.*`, `BranchCommands.*`) | `branchId`, `participantId`, `access`; never capability material |
 
 The explicit `Effect.withSpan` and `useSpan` sites set `captureStackTrace: false`; `Effect.fn` spans keep Effect's default capture behavior. The queue worker is the one place trace context crosses a durable boundary: the offer records `traceId`, `spanId`, and `sampled` on the item, and the worker reattaches to that external span, so a persisted queue item stays connected to the flow that offered it.
 
 ## Metrics
 
-The store packages define `Metric` handles beside the code that updates them, one `<Service>Metrics` module per package: journal write receipts, durable write replays, run claim and heartbeat and transition outcomes (fencing events included), step-cache lookups and recordings, artifact puts and gets, and — through `EngineStoreMetrics` — the engine-store hot paths: dispatch outcomes with a latency histogram, effective step-cache decisions after verification and materialization, scheduler admissions, per-dispatch latency and per-node outcomes, sandbox executions and materializations with their copy-back conflicts, boundary settlements by classification, and the run driver's claim decisions. Durations land in `Metric.timer` histograms through Effect's own `Effect.trackDuration`, and outcome counters observe the exit through `Effect.onExit`, so instrumentation can never alter a result or a cause. [Telemetry](/telemetry) tables every series with its attributes and shows the export wiring; the handles themselves are exported, so a program can read them with `Metric.value` without any exporter — through the tagged attribute views (`CacheStoreMetrics.hit`, `EngineStoreMetrics.dispatch.Success`) for outcome-dimensioned counters, since the bare counter handle reads the attribute-less series the packages never update.
+The store packages define `Metric` handles beside the code that updates them, one `<Service>Metrics` module per package: journal write receipts, durable write replays, run claim and heartbeat and transition outcomes (fencing events included), step-cache lookups and recordings, artifact puts and gets, and, through `EngineStoreMetrics`, the engine-store hot paths: dispatch outcomes with a latency histogram, effective step-cache decisions after verification and materialization, scheduler admissions, per-dispatch latency and per-node outcomes, sandbox executions and materializations with their copy-back conflicts, boundary settlements by classification, and the run driver's claim decisions. Durations land in `Metric.timer` histograms through Effect's own `Effect.trackDuration`, and outcome counters observe the exit through `Effect.onExit`, so instrumentation can never alter a result or a cause. [Telemetry](/telemetry) tables every series with its attributes and shows the export wiring. The handles themselves are exported, so a program can read them with `Metric.value` without any exporter.
+
+:::warning
+Read an outcome-dimensioned counter through its tagged attribute view (`CacheStoreMetrics.hit`, `EngineStoreMetrics.dispatch.Success`). The bare counter handle reads the attribute-less series the packages never update, which stays at zero.
+:::
 
 ## Logging
 

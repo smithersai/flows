@@ -1,3 +1,7 @@
+---
+description: "An Effect schema for canonical flow keys."
+---
+
 # @smthrs/keys
 
 An Effect schema for canonical flow keys.

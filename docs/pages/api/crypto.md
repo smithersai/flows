@@ -1,3 +1,7 @@
+---
+description: "Effect schemas for injected cryptographic operations."
+---
+
 # @smthrs/crypto
 
 Effect schemas for injected cryptographic operations.

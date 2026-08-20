@@ -1,3 +1,7 @@
+---
+description: "The durable FlowEngine: run claims, ownership fences, attempt persistence, and cache admission."
+---
+
 # @smthrs/engine-store
 
 The durable `FlowEngine`. It claims a run before driving it, fences every write against the current owner, and persists attempts, waits, and terminal results through [`@smthrs/journal`](/api/journal), [`@smthrs/run-store`](/api/run-store), and [`@smthrs/step-cache`](/api/step-cache). It owns the durable deferred/clock tables and composes every package's migration set.
@@ -13,7 +17,11 @@ const engine = EngineStore.layer({
 })
 ```
 
-This entry point bundles for the browser. The two host reads it once made directly — `process.pid` and `randomUUID` from `node:crypto` — enter through the [`OwnerIdentity`](#owneridentity) service. Bundling is not running: the only `DurableWriter` backing shipped here is `node:sqlite`.
+This entry point bundles for the browser. The two host reads it once made directly, `process.pid` and `randomUUID` from `node:crypto`, enter through the [`OwnerIdentity`](#owneridentity) service.
+
+:::warning[Bundling is not running]
+The only `DurableWriter` backing shipped here is `node:sqlite`.
+:::
 
 ## Entry point
 
@@ -33,7 +41,7 @@ This entry point bundles for the browser. The two host reads it once made direct
 
 Required services: `Journal`, `RunStore`, `AttemptStore`, `CacheStore`, `DurableEngineState`, kernel `Jj`, `StepBoundary`, [`OwnerIdentity`](#owneridentity), and a `Scope`. [`WorkspaceSandbox`](#workspacesandbox) and its `EffectDispatcher` are optional; when present, `make` resolves them here and re-provides them onto the engine's own fiber, which does not carry the store's layer context.
 
-`clockFireRetryPolicy` is optional and defaults to exponential from 100ms capped at 30s, forever — the same option shape as the engine's `suspendedRetryPolicy`.
+`clockFireRetryPolicy` is optional and defaults to exponential from 100ms capped at 30s, forever, which is the same option shape as the engine's `suspendedRetryPolicy`.
 
 `isAlive` is application-supplied. Elapsed wall time alone never proves an owner is dead, so takeover consults this probe.
 
@@ -72,7 +80,7 @@ Required services: `Journal`, `RunStore`, `AttemptStore`, `CacheStore`, `Durable
 | `layerTest`, `TestOptions` | test layer | simplified descriptor for suites |
 | `UndeclaredWrite`, `UnsupportedBoundary`, `BoundaryCorruption`, `MissingArtifact` | classes | boundary failures |
 
-`layer` cannot observe writes outside the declared sets, so it never claims whole-tree write verification itself. That claim comes from running the body somewhere else — see [`WorkspaceSandbox`](#workspacesandbox); a composition without one keeps run-local results.
+`layer` cannot observe writes outside the declared sets, so it never claims whole-tree write verification itself. That claim comes from running the body somewhere else; see [`WorkspaceSandbox`](#workspacesandbox). A composition without one keeps run-local results.
 
 `MissingArtifact` is the one replay refusal a shared artifact tier can repair: the bytes are simply not on this host.
 
@@ -87,7 +95,7 @@ Required services: `Journal`, `RunStore`, `AttemptStore`, `CacheStore`, `Durable
 | `Workspace` | service tag | the in-transaction filesystem and effect outbox, seeded only inside `execute` |
 | `WorkflowResult`, `FileChange`, `QueuedEffect`, `Provenance`, `Resource`, `InputObservation`, `OutputObservation` | interfaces | the functional result of one execution |
 | `Accepted`, `Invalidated`, `ExecutionResult`, `DeclarationViolation`, `CacheDisposition` | models | `Invalidated` exposes provenance and violations only |
-| `Host` | interface | `snapshot`, `baseline`, `retain`, `commit`, `root` — the seam both implementations share |
+| `Host` | interface | `snapshot`, `baseline`, `retain`, `commit`, `root`: the seam both implementations share |
 | `violations` | accessor | what a declaration failed to predict |
 | `make`, `layer`, `makeHosted` | constructors | from an implementation or a `Host` |
 | `makeMemory`, `InitialFiles`, `MemorySandbox`, `HostFile` | in-memory implementation | deterministic, browser-safe, the conformance suite's host |
@@ -95,9 +103,13 @@ Required services: `Journal`, `RunStore`, `AttemptStore`, `CacheStore`, `Durable
 | `Dispatcher`, `EffectDispatcher`, `layerDispatcher` | optional dispatch stage | runs after copy-back settles, deduplicated by idempotency key |
 | `WorkspaceError`, `WorkspaceErrorCode`, `MaterializationConflict` | classes + schema | transaction and copy-back failures |
 
-The body observes exactly its declared read set, its writes become a diff bundle, and the host is untouched until `materialize` — a compare-and-set on every `beforeDigest` that applies whole or not at all. That is what makes whole-tree write observation structural, and therefore what lets a production-composed sealed result enter the shared cache.
+The body observes exactly its declared read set, its writes become a diff bundle, and the host is untouched until `materialize`, a compare-and-set on every `beforeDigest` that applies whole or not at all. That is what makes whole-tree write observation structural, and therefore what lets a production-composed sealed result enter the shared cache.
 
-Both services are optional. Without a sandbox the body runs against the host directly, exactly as before. It is a deterministic transaction model, **not a security boundary**.
+Both services are optional. Without a sandbox the body runs against the host directly, exactly as before.
+
+:::danger
+This is a deterministic transaction model, not a security boundary.
+:::
 
 ## ArtifactSync
 
@@ -120,14 +132,14 @@ Both services are optional. Without a sandbox the body runs against the host dir
 | Export | Kind | Notes |
 | --- | --- | --- |
 | `ArtifactGc` | service tag | explicit artifact garbage collection |
-| `Service` | interface | `gc(options)` — mark from the durable roots, sweep outside the live set and grace bound |
+| `Service` | interface | `gc(options)`: mark from the durable roots, sweep outside the live set and grace bound |
 | `GcOptions`, `GcReport` | interfaces | `graceMs`, `pins`, `dryRun`; `sweptDigests`, `reclaimedBytes`, `keptByGrace` |
 | `ArtifactGcPolicy`, `Policy`, `layerPolicy` | opt-in policy seam | default grace bound and pinned digests; configures, never schedules |
 | `ArtifactGcError`, `ArtifactGcErrorCode` | class + codes | `mark_failed`, `sweep_failed` |
 | `defaultGraceMs` | constant | two weeks, git's `gc.pruneExpire` default |
 | `make`, `MakeOptions`, `layer` | constructor + layer | needs `SqlClient` and [`@smthrs/artifacts`](/api/artifacts) `ArtifactSweep` |
 
-Collection never runs automatically — `gc()` is an explicit verb, and the mark is fail-safe: a root row carrying boundary evidence this build cannot decode aborts the collection rather than contributing nothing. Attempt checkpoints are also live roots, with digest-shaped strings retained conservatively. See [Artifact GC](/artifact-gc) for the algorithm and its concurrency argument.
+Collection never runs automatically. `gc()` is an explicit verb, and the mark is fail-safe: a root row carrying boundary evidence this build cannot decode aborts the collection rather than contributing nothing. Attempt checkpoints are also live roots, with digest-shaped strings retained conservatively. See [Artifact GC](/artifact-gc) for the algorithm and its concurrency argument.
 
 ## CacheSync
 
@@ -142,7 +154,7 @@ Collection never runs automatically — `gc()` is an explicit verb, and the mark
 
 The entry is published **after** the transaction that made the local row durable, because a host call must never be held across a `DurableWriter` write. Pair it with `CombinedCacheStore` in `"deferred"` publication mode, which leaves the shared write to this seam.
 
-Neither publication step can fail a run. By the time they run the result is already durably recorded on this host, so a refusal withholds the shared copy and journals a `cache-provenance` record with `action: "unpublished"` — visible, not silent.
+Neither publication step can fail a run. By the time they run the result is already durably recorded on this host, so a refusal withholds the shared copy and journals a `cache-provenance` record with `action: "unpublished"`, which is visible rather than silent.
 
 ## Inconsistency
 
@@ -170,7 +182,7 @@ The unwired core default is strict.
 | `Service` | interface | `ownerId(hostId)` mints the `OwnerId` this incarnation fences with |
 | `make` | constructor | from an implementation |
 | `makeDefault`, `layer` | default implementation | the platform's process id where one exists, a `Random`-drawn incarnation number where none does, paired with a `crypto.randomUUID` nonce |
-| `layerConstant` | layer | pins a whole `OwnerId` — for a test, or a host that derives ownership from a lease it already holds |
+| `layerConstant` | layer | pins a whole `OwnerId`, for a test or a host that derives ownership from a lease it already holds |
 
 Minting an owner id is nondeterminism against the host, so it sits behind a port rather than in the composition. That is what makes this package browser-bundleable: the module carries no Node binding, reading `process?.pid` off `globalThis` instead.
 
@@ -203,7 +215,7 @@ Every `code` literal is part of the public API. Consumers may switch on `code` o
 | Export | Kind | Notes |
 | --- | --- | --- |
 | `set` | `MigrationSet` | the namespaced set for `flows_deferred_completions` and `flows_clock_deadlines`, in id block `3000` |
-| `sets` | `ReadonlyArray<MigrationSet>` | journal, run-store, step-cache, this package, then [`@smthrs/plan`](/api/plan) — the whole durable engine schema, in dependency order |
+| `sets` | `ReadonlyArray<MigrationSet>` | journal, run-store, step-cache, this package, then [`@smthrs/plan`](/api/plan): the whole durable engine schema, in dependency order |
 | `run` | effect | apply every set |
 | `layer` | layer | applies every set at construction |
 

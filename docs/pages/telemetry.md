@@ -1,3 +1,7 @@
+---
+description: "Export the spans and counters the store packages already record to an OpenTelemetry collector."
+---
+
 # Telemetry
 
 How an application exports what the stores already measure. The spans and counters described in [Observability](/observability) exist whether or not anything exports them; this page is the wiring that sends them to an OpenTelemetry collector.
@@ -19,14 +23,14 @@ const Telemetry = Otlp.layerFetch({
 const main = program.pipe(Effect.provide(Telemetry))
 ```
 
-That is the whole wiring. Spans opened through `Effect.fn` and `Effect.withSpan` reach `/v1/traces`, `Metric` counters reach `/v1/metrics` on the export interval and on shutdown, and log lines reach `/v1/logs`. The layer's scope owns the export fibers, so closing the application scope flushes and stops them — there is no unsubscribe to remember.
+That is the whole wiring. Spans opened through `Effect.fn` and `Effect.withSpan` reach `/v1/traces`, `Metric` counters reach `/v1/metrics` on the export interval and on shutdown, and log lines reach `/v1/logs`. The layer's scope owns the export fibers, so closing the application scope flushes and stops them. There is no unsubscribe to remember.
 
 Three layers cover the deployment shapes:
 
 | Layer | Use |
 | --- | --- |
 | `Otlp.layerFetch(options)` | the default: export over the host's global `fetch` (Node 22, every browser) |
-| `Otlp.layer(options)` | the same wiring minus the HTTP client, for a host that provides its own `HttpClient` — for example Undici via `@smthrs/platform-node`'s `NodeHttpClient` |
+| `Otlp.layer(options)` | the same wiring minus the HTTP client, for a host that provides its own `HttpClient`, for example Undici via `@smthrs/platform-node`'s `NodeHttpClient` |
 | `Otlp.layerNoop` | no collector: provides nothing, so wiring code switches layers rather than branches |
 
 ### Options
@@ -41,7 +45,7 @@ Three layers cover the deployment shapes:
 | `exportInterval` | export cadence for all three signals | Effect's per-signal defaults |
 | `shutdownTimeout` | bound on the shutdown flush | Effect's default |
 
-Operators who configure through the standard `OTEL_*` environment variables can use Effect's `Otlp.layerFromConfig` from `effect/unstable/observability` directly — it reads `OTEL_EXPORTER_OTLP_ENDPOINT`, per-signal endpoints, and `OTEL_SDK_DISABLED`, and requires `OTEL_{LOGS,METRICS,TRACES}_EXPORTER=otlp` to enable each signal. Provide it an `HttpClient` (for example `FetchHttpClient.layer`) and pass the same resource options.
+Operators who configure through the standard `OTEL_*` environment variables can use Effect's `Otlp.layerFromConfig` from `effect/unstable/observability` directly. It reads `OTEL_EXPORTER_OTLP_ENDPOINT`, per-signal endpoints, and `OTEL_SDK_DISABLED`, and requires `OTEL_{LOGS,METRICS,TRACES}_EXPORTER=otlp` to enable each signal. Provide it an `HttpClient` (for example `FetchHttpClient.layer`) and pass the same resource options.
 
 ## What arrives
 
@@ -60,15 +64,17 @@ Metrics are the hot-path series the store packages define beside the code that u
 | `flows_step_cache_puts` | `outcome` = `inserted` \| `existing_same` \| `conflict` | `CacheStore.put`, after the write transaction returns |
 | `flows_artifact_puts` | none | `@smthrs/artifacts` local stores, once per successful put, dedupe included |
 | `flows_artifact_gets` | none | once per successful digest-verified get; typed misses are error evidence, not throughput |
-| `flows_engine_dispatches` | `outcome` = `success` \| `failure` \| `interrupt` | `@smthrs/engine-store` `ActionPersistence`, once per durable dispatch — cache-served and fresh alike |
+| `flows_engine_dispatches` | `outcome` = `success` \| `failure` \| `interrupt` | `@smthrs/engine-store` `ActionPersistence`, once per durable dispatch, cache-served and fresh alike |
 | `flows_engine_scheduler_admissions` | none | `PlanScheduler`, once per admission pass that launched at least one dispatch |
 | `flows_engine_scheduler_nodes` | `outcome` = `built` \| `clean` \| `failed` \| `skipped` \| `deferred` | `PlanScheduler`, once per node settlement |
 | `flows_engine_sandbox_executions` | `outcome` = `success` \| `failure` \| `interrupt` | `WorkspaceSandbox.execute` |
-| `flows_engine_sandbox_materializations` | `outcome` = `success` \| `failure` \| `interrupt` | `WorkspaceSandbox.materialize` — the one host write |
+| `flows_engine_sandbox_materializations` | `outcome` = `success` \| `failure` \| `interrupt` | `WorkspaceSandbox.materialize`, the one host write |
 | `flows_engine_sandbox_conflicts` | none | copy-back preflight, once per compare-and-set refusal |
 | `flows_engine_boundary_settlements` | `outcome` = `clean` \| `deviation` \| `violation` \| `refused` | the dispatch seam, once per boundary settle |
-| `flows_engine_step_cache_decisions` | `outcome` = `verified_hit` \| `miss` \| `unverifiable_evidence` \| `unmeasurable` \| `stale_read_set` \| `replay_failed` | `ActionPersistence`, at most once per cache-consulting dispatch, counted where the decision takes effect: `verified_hit` as the cached result is served, a fall-through outcome as the dispatch proceeds to the real execution. A dispatch that fails or is fenced out mid-decision (a journal failure on the provenance emit, a strict corruption verdict) records no decision — its exit lands in `flows_engine_dispatches`. Unlike `flows_step_cache_lookups`, this is the effective reuse/fall-through decision |
-| `flows_engine_claims` | `outcome` = `activated` \| `terminal` \| `heartbeat_fresh` \| `steal_refused_owner_alive` \| `claim_lost` \| `activation_lost` | `RunDriver.claimAndActivate` — the engine-level decisions before and after the store CAS |
+| `flows_engine_step_cache_decisions` | `outcome` = `verified_hit` \| `miss` \| `unverifiable_evidence` \| `unmeasurable` \| `stale_read_set` \| `replay_failed` | `ActionPersistence`, at most once per cache-consulting dispatch |
+| `flows_engine_claims` | `outcome` = `activated` \| `terminal` \| `heartbeat_fresh` \| `steal_refused_owner_alive` \| `claim_lost` \| `activation_lost` | `RunDriver.claimAndActivate`, the engine-level decisions before and after the store CAS |
+
+`flows_engine_step_cache_decisions` is counted where the decision takes effect: `verified_hit` as the cached result is served, a fall-through outcome as the dispatch proceeds to the real execution. A dispatch that fails or is fenced out mid-decision (a journal failure on the provenance emit, a strict corruption verdict) records no decision; its exit lands in `flows_engine_dispatches` instead. Unlike `flows_step_cache_lookups`, this counter is the effective reuse-or-fall-through decision.
 
 Durations are `Metric.timer` histograms recorded through Effect's `Effect.trackDuration` (monotonic clock; success, failure, and interruption alike):
 
@@ -79,11 +85,15 @@ Durations are `Metric.timer` histograms recorded through Effect's `Effect.trackD
 | `flows_engine_sandbox_execution_duration` | one isolated workspace execution |
 | `flows_engine_sandbox_materialization_duration` | one copy-back |
 
-The handles are exported (`JournalMetrics`, `RunStoreMetrics`, `CacheStoreMetrics`, `ArtifactStoreMetrics`, `DatabaseMetrics`, `EngineStoreMetrics`), so a program can read them with `Metric.value` without an exporter at all. Read an outcome-dimensioned counter through its exported attribute view — `CacheStoreMetrics.hit`, `EngineStoreMetrics.dispatch.Success` — not through the bare counter handle: `Metric.value` reads the series for the exact attribute set on the handle, and the packages update only the tagged series, so the bare handle's attribute-less series stays at zero.
+The handles are exported (`JournalMetrics`, `RunStoreMetrics`, `CacheStoreMetrics`, `ArtifactStoreMetrics`, `DatabaseMetrics`, `EngineStoreMetrics`), so a program can read them with `Metric.value` without an exporter at all.
+
+:::warning
+Read an outcome-dimensioned counter through its exported attribute view (`CacheStoreMetrics.hit`, `EngineStoreMetrics.dispatch.Success`), not through the bare counter handle. `Metric.value` reads the series for the exact attribute set on the handle, and the packages update only the tagged series, so the bare handle's attribute-less series stays at zero.
+:::
 
 ## Testing without a network
 
-Updates resolve the metric registry from the running Effect context, so a test provides a fresh registry and reads it back — no exporter, no network:
+Updates resolve the metric registry from the running Effect context, so a test provides a fresh registry and reads it back with no exporter and no network:
 
 ```typescript
 import { CacheStoreMetrics } from "@smthrs/step-cache"

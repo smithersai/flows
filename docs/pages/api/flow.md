@@ -1,3 +1,7 @@
+---
+description: "The flow authoring model: flow and action definitions, durable primitives, retry policy, and the runtime port."
+---
+
 # @smthrs/flow
 
 The flow authoring model: typed flow and action definitions, durable primitives, step identity, retry policy, and the runtime port they execute against. The whole package bundles for the browser; durability comes from whichever runtime you provide.
