@@ -1,0 +1,240 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "1562eb7e8bdd95c888d763f24da806ae52d10a0f",
+ "tree": "827c43a0f8ca4fcac44db86a963a89758f5f09f3",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 49,
+  "sectionCount": 71
+ },
+ "source": {
+  "commit": "45dc82d77c7b9346f0e79123ffe8b46befb58b89",
+  "subject": "🐛 fix(ui): dismiss both composer menus without a useEffect",
+  "priorCanonicalCommit": "4cc5b5b242ea7026d4eec1eb41098038440f80ee",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 49,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "ui",
+  "epicsTouched": [
+   {
+    "id": "ui",
+    "files": 2
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 887,
+  "globalCount": 909,
+  "purpose": "🐛 fix(ui): dismiss both composer menus without a useEffect",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "4de82de7826f4ec94fad8b82b9ad618941365de8"
+  ],
+  "parent": "4de82de7826f4ec94fad8b82b9ad618941365de8",
+  "sourceImports": [
+   "6c83b7b131e8e10ed61bea58861cb8758e0fe470",
+   "d2ed01714fb36ac612f8769b7360d2a561e67d54",
+   "1b4c0c503bd86ec5e890a8be549758e0c60877bb",
+   "8c026ad28fd80bb1462799d80bf5ba76edf692dc",
+   "49f05ad33ae4477ca468fc044d7ccfd9cbfbacab",
+   "1f701eba4f32fa9c4cddfdad0b5fea3a212c69e7",
+   "44b739c183d7508f003cbe31250f0a072c216002",
+   "51308f4793d76771c4129ad12325ce6ff071fbda",
+   "a6e62e957d45844c923f75337676e02826657a76",
+   "48a4b77f8b5cffc7e2b75e0aa340f9c6f07dfb0a"
+  ],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "4de82de7826f4ec94fad8b82b9ad618941365de8",
+  "next": "a1e73d8e90f8cbc8e35bb4a659a1899cc0b09f10",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "9f4db87e9b528812c207c1054f8c36a09a06c2c7"
+ },
+ "size": {
+  "files": 2,
+  "added": 108,
+  "deleted": 42
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "45dc82d77c7b9346f0e79123ffe8b46befb58b89"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "apps/ui/src/mainview/App.tsx",
+   "mode": "100644",
+   "blob": "f3bd0d7bdadad9a30349015fe20e63d9ad132a17",
+   "previousBlob": "7f75ec9963538209481c117b514e21fdc2229c21",
+   "added": 57,
+   "deleted": 41,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 34,
+     "oldLines": 1,
+     "newStart": 34,
+     "newLines": 1
+    },
+    {
+     "oldStart": 110,
+     "oldLines": 0,
+     "newStart": 111,
+     "newLines": 1
+    },
+    {
+     "oldStart": 121,
+     "oldLines": 0,
+     "newStart": 123,
+     "newLines": 8
+    },
+    {
+     "oldStart": 124,
+     "oldLines": 1,
+     "newStart": 132,
+     "newLines": 0
+    },
+    {
+     "oldStart": 128,
+     "oldLines": 25,
+     "newStart": 135,
+     "newLines": 0
+    },
+    {
+     "oldStart": 278,
+     "oldLines": 0,
+     "newStart": 262,
+     "newLines": 1
+    },
+    {
+     "oldStart": 284,
+     "oldLines": 0,
+     "newStart": 269,
+     "newLines": 2
+    },
+    {
+     "oldStart": 290,
+     "oldLines": 1,
+     "newStart": 275,
+     "newLines": 0
+    },
+    {
+     "oldStart": 299,
+     "oldLines": 13,
+     "newStart": 283,
+     "newLines": 0
+    },
+    {
+     "oldStart": 514,
+     "oldLines": 0,
+     "newStart": 487,
+     "newLines": 2
+    },
+    {
+     "oldStart": 524,
+     "oldLines": 0,
+     "newStart": 499,
+     "newLines": 3
+    },
+    {
+     "oldStart": 659,
+     "oldLines": 0,
+     "newStart": 637,
+     "newLines": 1
+    },
+    {
+     "oldStart": 665,
+     "oldLines": 0,
+     "newStart": 644,
+     "newLines": 1
+    },
+    {
+     "oldStart": 732,
+     "oldLines": 0,
+     "newStart": 712,
+     "newLines": 9
+    },
+    {
+     "oldStart": 934,
+     "oldLines": 0,
+     "newStart": 923,
+     "newLines": 26
+    },
+    {
+     "oldStart": 1231,
+     "oldLines": 0,
+     "newStart": 1246,
+     "newLines": 2
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "M",
+   "path": "apps/ui/src/mainview/state/ComposerHotPath.test.tsx",
+   "mode": "100644",
+   "blob": "0b6bf53c3656bb744353af07786791fb36c3499a",
+   "previousBlob": "93420ca93d960ea3f3e808d0483538903205caca",
+   "added": 51,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 201,
+     "oldLines": 0,
+     "newStart": 202,
+     "newLines": 6
+    },
+    {
+     "oldStart": 243,
+     "oldLines": 0,
+     "newStart": 250,
+     "newLines": 9
+    },
+    {
+     "oldStart": 245,
+     "oldLines": 1,
+     "newStart": 260,
+     "newLines": 1
+    },
+    {
+     "oldStart": 251,
+     "oldLines": 0,
+     "newStart": 267,
+     "newLines": 35
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  }
+ ]
+}
