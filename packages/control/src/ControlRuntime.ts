@@ -19,7 +19,7 @@ import {
   EnvelopeMismatch,
   FlowNotFound,
   InvalidInput,
-  type PersistenceError,
+  PersistenceError,
   PlanDigestMismatch,
   RunNotFound
 } from "./ControlError.ts"
@@ -645,10 +645,12 @@ export const layerMemory = (options: MemoryOptions = {}): Layer.Layer<ControlRun
               prior !== undefined &&
               (prior.fingerprint !== fingerprint || canonical(prior.receipt) !== canonical(receipt))
             ) {
-              return yield* Effect.fail(new PersistenceError({
-                operation: "record a mutation",
-                message: `Idempotency key ${key} was already settled by another mutation`
-              }))
+              return yield* Effect.fail(
+                new PersistenceError({
+                  operation: "record a mutation",
+                  message: `Idempotency key ${key} was already settled by another mutation`
+                })
+              )
             }
             mutations.set(key, { fingerprint, receipt })
           })

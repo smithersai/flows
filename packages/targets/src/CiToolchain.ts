@@ -268,7 +268,7 @@ export const Rust = (options: {
 export const pathShape = /^[A-Za-z0-9_./*-][A-Za-z0-9_./*-]*$/
 
 /** Validates one declared path, or throws naming what rejected it. */
-const path = (value: string, what: string): string => {
+export const validatePath = (value: string, what: string): string => {
   if (!pathShape.test(value) || value.includes("..")) {
     throw new Error(`CiToolchain: ${JSON.stringify(value)} is not a usable ${what}`)
   }
@@ -309,7 +309,7 @@ export const Browser = (options: {
   readonly reason: string
 }): SystemBrowser =>
   SystemBrowser.make({
-    executable: path(options.executable, "browser executable"),
+    executable: validatePath(options.executable, "browser executable"),
     reason: options.reason
   })
 
@@ -368,8 +368,8 @@ export const Artifacts = (options: {
   ArtifactUpload.make({
     artifact: options.artifact,
     sources: options.sources.map((source) => ({
-      from: path(source.from, "artifact source"),
-      ...(source.as === undefined ? {} : { as: path(source.as, "artifact destination") })
+      from: validatePath(source.from, "artifact source"),
+      ...(source.as === undefined ? {} : { as: validatePath(source.as, "artifact destination") })
     }))
   })
 
@@ -424,7 +424,7 @@ export const Actionlint = (options: {
 }): WorkflowLint =>
   WorkflowLint.make({
     release: options.release,
-    workflows: options.workflows.map((workflow) => path(workflow, "workflow path"))
+    workflows: options.workflows.map((workflow) => validatePath(workflow, "workflow path"))
   })
 
 /**

@@ -218,111 +218,115 @@ export const layer: Layer.Layer<NotificationQueue, never, Journal.Journal> = Lay
     const journal = yield* Journal.Journal
     const operations = yield* Semaphore.make(1)
     return make({
-      admit: Effect.fn("NotificationQueue.admit")((rawRunId, notification) => operations.withPermits(1)(journal.transact(Effect.gen(function*() {
-        const runId = JournalEvent.RunId.make(rawRunId)
-        const loaded = yield* load(journal, runId)
-        const prior = loaded.entries.find((entry) => {
-          const decoded = NotificationEvent.fromEntry(entry)
-          return Option.isSome(decoded) &&
-            "notification" in decoded.value &&
-            decoded.value.notification.id === notification.id
-        })
-        if (prior !== undefined) {
-          const decoded = NotificationEvent.fromEntry(prior)
-          if (
-            Option.isNone(decoded) ||
-            !("notification" in decoded.value) ||
-            !sameNotification(decoded.value.notification, notification)
-          ) {
-            return yield* new Journal.JournalError({
-              code: "idempotency_conflict",
-              message: `Notification id ${notification.id} was reused with different content`
-            })
+      admit: Effect.fn("NotificationQueue.admit")((rawRunId, notification) =>
+        operations.withPermits(1)(journal.transact(Effect.gen(function*() {
+          const runId = JournalEvent.RunId.make(rawRunId)
+          const loaded = yield* load(journal, runId)
+          const prior = loaded.entries.find((entry) => {
+            const decoded = NotificationEvent.fromEntry(entry)
+            return Option.isSome(decoded) &&
+              "notification" in decoded.value &&
+              decoded.value.notification.id === notification.id
+          })
+          if (prior !== undefined) {
+            const decoded = NotificationEvent.fromEntry(prior)
+            if (
+              Option.isNone(decoded) ||
+              !("notification" in decoded.value) ||
+              !sameNotification(decoded.value.notification, notification)
+            ) {
+              return yield* new Journal.JournalError({
+                code: "idempotency_conflict",
+                message: `Notification id ${notification.id} was reused with different content`
+              })
+            }
+            return {
+              notificationId: notification.id,
+              decision: decoded.value.decision,
+              seq: prior.seq,
+              duplicate: true
+            }
           }
+
+          const admission = NotificationState.admit(
+            loaded.state,
+            notification,
+            loaded.entries.at(-1)?.seq === undefined ? 0 : loaded.entries.at(-1)!.seq + 1
+          )
+          const receipt = yield* journal.emitDurable(
+            new JournalEvent.Input({
+              runId,
+              sourceId: admissionSource(notification.id),
+              sourceSeq: JournalEvent.SourceSeq.make(0),
+              eventType: NotificationEvent.AdmittedEventType,
+              payload: {
+                notification,
+                decision: admission.decision
+              }
+            })
+          )
           return {
             notificationId: notification.id,
-            decision: decoded.value.decision,
-            seq: prior.seq,
-            duplicate: true
+            decision: admission.decision,
+            seq: receipt.seq,
+            duplicate: receipt._tag === "Duplicate"
           }
-        }
-
-        const admission = NotificationState.admit(
-          loaded.state,
-          notification,
-          loaded.entries.at(-1)?.seq === undefined ? 0 : loaded.entries.at(-1)!.seq + 1
-        )
-        const receipt = yield* journal.emitDurable(
-          new JournalEvent.Input({
-            runId,
-            sourceId: admissionSource(notification.id),
-            sourceSeq: JournalEvent.SourceSeq.make(0),
-            eventType: NotificationEvent.AdmittedEventType,
-            payload: {
-              notification,
-              decision: admission.decision
-            }
-          })
-        )
-        return {
-          notificationId: notification.id,
-          decision: admission.decision,
-          seq: receipt.seq,
-          duplicate: receipt._tag === "Duplicate"
-        }
-      }))),
-      drain: Effect.fn("NotificationQueue.drain")((input) => operations.withPermits(1)(journal.transact(Effect.gen(function*() {
-        const runId = JournalEvent.RunId.make(input.runId)
-        const loaded = yield* load(journal, runId)
-        const prior = loaded.entries.flatMap((entry) =>
-          Option.match(NotificationEvent.fromEntry(entry), {
-            onNone: () => [],
-            onSome: (event) => "boundary" in event ? [event] : []
-          })
-        ).find((event) =>
-          event.boundary === input.boundary &&
-          event.targetLineageId === input.targetLineageId
-        )
-        if (prior !== undefined) {
-          return {
-            notifications: prior.ids.flatMap((id) => {
-              const notification = loaded.notifications.get(id)
-              return notification === undefined ? [] : [notification]
-            }),
-            boundary: input.boundary,
-            duplicate: true
-          }
-        }
-
-        const cutoff = loaded.entries.at(-1)?.seq ?? 0
-        const steers = NotificationState.promoteSteers(
-          loaded.state,
-          cutoff,
-          input.targetLineageId
-        )
-        const queued = input.wouldIdle && steers.promoted.length === 0
-          ? NotificationState.promoteQueued(steers.state, input.targetLineageId)
-          : { state: steers.state, promoted: [] }
-        const promoted = [...steers.promoted, ...queued.promoted].map((item) => item.notification)
-        yield* journal.emitDurable(
-          new JournalEvent.Input({
-            runId,
-            sourceId: drainSource(input.boundary),
-            sourceSeq: JournalEvent.SourceSeq.make(0),
-            eventType: NotificationEvent.PromotedEventType,
-            payload: {
+        })))
+      ),
+      drain: Effect.fn("NotificationQueue.drain")((input) =>
+        operations.withPermits(1)(journal.transact(Effect.gen(function*() {
+          const runId = JournalEvent.RunId.make(input.runId)
+          const loaded = yield* load(journal, runId)
+          const prior = loaded.entries.flatMap((entry) =>
+            Option.match(NotificationEvent.fromEntry(entry), {
+              onNone: () => [],
+              onSome: (event) => "boundary" in event ? [event] : []
+            })
+          ).find((event) =>
+            event.boundary === input.boundary &&
+            event.targetLineageId === input.targetLineageId
+          )
+          if (prior !== undefined) {
+            return {
+              notifications: prior.ids.flatMap((id) => {
+                const notification = loaded.notifications.get(id)
+                return notification === undefined ? [] : [notification]
+              }),
               boundary: input.boundary,
-              targetLineageId: input.targetLineageId,
-              ids: promoted.map((notification) => notification.id)
+              duplicate: true
             }
-          })
-        )
-        return {
-          notifications: promoted,
-          boundary: input.boundary,
-          duplicate: false
-        }
-      })))
+          }
+
+          const cutoff = loaded.entries.at(-1)?.seq ?? 0
+          const steers = NotificationState.promoteSteers(
+            loaded.state,
+            cutoff,
+            input.targetLineageId
+          )
+          const queued = input.wouldIdle && steers.promoted.length === 0
+            ? NotificationState.promoteQueued(steers.state, input.targetLineageId)
+            : { state: steers.state, promoted: [] }
+          const promoted = [...steers.promoted, ...queued.promoted].map((item) => item.notification)
+          yield* journal.emitDurable(
+            new JournalEvent.Input({
+              runId,
+              sourceId: drainSource(input.boundary),
+              sourceSeq: JournalEvent.SourceSeq.make(0),
+              eventType: NotificationEvent.PromotedEventType,
+              payload: {
+                boundary: input.boundary,
+                targetLineageId: input.targetLineageId,
+                ids: promoted.map((notification) => notification.id)
+              }
+            })
+          )
+          return {
+            notifications: promoted,
+            boundary: input.boundary,
+            duplicate: false
+          }
+        })))
+      )
     })
   })
 )

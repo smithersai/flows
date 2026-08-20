@@ -281,14 +281,16 @@ describe("SqlControlRuntime", () => {
   })
 
   it("never lets a racing mutation overwrite the first durable receipt", async () => {
-    const observed = await twoOwners((first, second) => Effect.gen(function*() {
-      yield* first.recordMutation("mut", "first", { _tag: "Accepted", receiptId: "first" })
-      const rejected = yield* Effect.flip(
-        second.recordMutation("mut", "second", { _tag: "Accepted", receiptId: "second" })
-      )
-      const retained = yield* second.lookupMutation("mut", "first")
-      return { rejected, retained }
-    }))
+    const observed = await twoOwners((first, second) =>
+      Effect.gen(function*() {
+        yield* first.recordMutation("mut", "first", { _tag: "Accepted", receiptId: "first" })
+        const rejected = yield* Effect.flip(
+          second.recordMutation("mut", "second", { _tag: "Accepted", receiptId: "second" })
+        )
+        const retained = yield* second.lookupMutation("mut", "first")
+        return { rejected, retained }
+      })
+    )
 
     expect(observed.rejected).toBeInstanceOf(PersistenceError)
     expect(observed.retained).toEqual({ _tag: "AlreadyApplied", receiptId: "first" })

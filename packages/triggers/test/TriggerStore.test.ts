@@ -81,15 +81,17 @@ describe("TriggerStore", () => {
   })
 
   it("reclaims a launch reservation after its deterministic lease expires", async () => {
-    const result = await Effect.runPromise(Effect.gen(function*() {
-      const store = yield* TriggerStore.TriggerStore
-      yield* store.register(trigger)
-      const first = yield* store.claimFire({ triggerId: trigger.id, occurrence: 1, overlap: "skip" })
-      yield* TestClock.adjust(SqlTriggerStore.reservationLeaseMs + 1)
-      const noLongerActive = yield* store.activeRun(trigger.id)
-      const retried = yield* store.claimFire({ triggerId: trigger.id, occurrence: 1, overlap: "skip" })
-      return { first, noLongerActive, retried }
-    }).pipe(Effect.provide(layer), Effect.provide(TestClock.layer())))
+    const result = await Effect.runPromise(
+      Effect.gen(function*() {
+        const store = yield* TriggerStore.TriggerStore
+        yield* store.register(trigger)
+        const first = yield* store.claimFire({ triggerId: trigger.id, occurrence: 1, overlap: "skip" })
+        yield* TestClock.adjust(SqlTriggerStore.reservationLeaseMs + 1)
+        const noLongerActive = yield* store.activeRun(trigger.id)
+        const retried = yield* store.claimFire({ triggerId: trigger.id, occurrence: 1, overlap: "skip" })
+        return { first, noLongerActive, retried }
+      }).pipe(Effect.provide(layer), Effect.provide(TestClock.layer()))
+    )
 
     expect(result.first).toMatchObject({ claimed: true, action: "fire" })
     expect(result.noLongerActive).toMatchObject({ _tag: "None" })

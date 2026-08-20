@@ -28,7 +28,7 @@ let server: Server<undefined>;
 beforeAll(() => {
 	server = Bun.serve({
 		port: 0,
-		fetch(request) {
+		async fetch(request) {
 			const url = new URL(request.url);
 			if (url.pathname === "/") {
 				return mode === "spa-down"
@@ -39,11 +39,11 @@ beforeAll(() => {
 			if (url.pathname === "/api/agent/turn") {
 				if (mode === "turn-open") return new Response("streaming to anyone", { status: 200 });
 				if (request.headers.get("cookie") === null) return new Response("Unauthorized", { status: 401 });
+				const body = await request.json() as { runId: string };
 				return new Response(
 					new ReadableStream({
 						start(controller) {
-							controller.enqueue(new TextEncoder().encode('{"type":"text","text":"ok"}\n'));
-							controller.enqueue(new TextEncoder().encode('{"type":"done"}\n'));
+							controller.enqueue(new TextEncoder().encode(`${JSON.stringify({ runId: body.runId, type: "delta", kind: "text", text: "ok" })}\n`));
 							controller.close();
 						},
 					}),

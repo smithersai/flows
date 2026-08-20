@@ -50,6 +50,7 @@ type Requirements =
   | BranchPresence.BranchPresence
   | BranchCommands.BranchCommands
   | BranchIds.BranchIds
+  | SyncAuth
   | Scope.Scope
 
 const program = <A, E>(effect: Effect.Effect<A, E, Requirements>) =>
@@ -98,8 +99,7 @@ const connect = (pair: TestSocket.Pair, authenticated = true): Effect.Effect<Cli
           effect,
           SyncPrincipal.SyncPrincipal,
           authenticated ? SyncPrincipal.workspace("branch-test") : SyncPrincipal.anonymous
-        )
-      ),
+        )),
       Effect.provide(handlers),
       Effect.forkScoped
     )
@@ -137,9 +137,11 @@ describe("BranchRpcs over the wire", () => {
         return yield* Effect.flip(client["Branch.CreateBranch"]({ ttlMs: 60_000 }))
       }))
       expect(denied).toMatchObject({ code: "unauthorized" })
-      expect(() => Schema.decodeUnknownSync(BranchRpcs.CreateBranchPayload)({
-        ttlMs: BranchRpcs.maximumBranchTtlMs + 1
-      })).toThrow()
+      expect(() =>
+        Schema.decodeUnknownSync(BranchRpcs.CreateBranchPayload)({
+          ttlMs: BranchRpcs.maximumBranchTtlMs + 1
+        })
+      ).toThrow()
     }))
 
   it.effect("creates a branch and admits commands idempotently", () =>
