@@ -26,6 +26,7 @@ const WAVE_SIZE = 4
 const TIMEOUT_MS = 20 * 60_000
 const logDir = path.join(REPORTS_DIR, "coverage")
 const reportPath = path.join(REPORTS_DIR, "COVERAGE-BASELINE.md")
+const progressPath = `${reportPath}.partial`
 
 const packageDescriptors = listWorkspacePackages()
 const packages = packageDescriptors.map((pkg) => pkg.dir)
@@ -57,7 +58,7 @@ const writeReport = (done: number) => {
     ""
   ]
   fs.mkdirSync(REPORTS_DIR, { recursive: true })
-  fs.writeFileSync(reportPath, lines.join("\n"))
+  fs.writeFileSync(progressPath, lines.join("\n"))
 }
 
 console.log(`coverage-baseline: ${packages.length} packages, ${waves.length} waves`)
@@ -105,8 +106,9 @@ const failed = results.filter((result) => result.exitCode !== 0)
 if (failed.length > 0) {
   process.exitCode = 1
   console.error(
-    `coverage-baseline failed: ${failed.length} package gate(s) failed. Report: ${reportPath}`
+    `coverage-baseline failed: ${failed.length} package gate(s) failed. Partial diagnostics: ${progressPath}`
   )
 } else {
+  fs.renameSync(progressPath, reportPath)
   console.log(`coverage-baseline done. Report: ${reportPath}`)
 }
