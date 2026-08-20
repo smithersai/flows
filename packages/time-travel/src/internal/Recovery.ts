@@ -10,7 +10,6 @@ import type { LivenessEvidence, OwnerId } from "@smthrs/run-store/Ownership"
 import * as RunStore from "@smthrs/run-store/RunStore"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
-import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Schema from "effect/Schema"
@@ -19,15 +18,6 @@ import { type Audit, TimeTravelStore } from "../TimeTravelStore.ts"
 import * as Compensation from "./Compensation.ts"
 import type { EffectHandlerRegistry } from "./EffectHandlerRegistry.ts"
 import { AuditDetail, ownsReplayEntry } from "./Rewind.ts"
-
-/** Keeps recovery's administrative lease operations out of run history. */
-const unjournaled = <A, E>(
-  effect: Effect.Effect<A, E>
-): Effect.Effect<A, E, Journal.Journal> =>
-  Effect.updateContext(
-    effect,
-    (context: Context.Context<Journal.Journal>) => Context.omit(Journal.Journal)(context)
-  )
 
 /**
  * Recovery construction options.
