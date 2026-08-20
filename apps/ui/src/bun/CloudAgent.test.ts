@@ -141,4 +141,22 @@ describe("createCloudAgent", () => {
 		await flush();
 		expect(streamCancelled).toBe(true);
 	});
+
+	test("a cancelled turn's teardown does not deregister the turn that replaced it", async () => {
+		/*
+		 * The teardown runs after `cancel` already dropped the entry, so by then
+		 * the same run id can hold a replacement turn. Deleting by run id evicted
+		 * that live turn: it answered `not-found` to cancel and a second `start`
+		 * for it was permitted, leaving two fibers streaming one run.
+		 */
+		const agent = createCloudAgent(() => {}, {
+			fetchImpl: async () => new Response(new ReadableStream<Uint8Array>({ start: () => {} }), { status: 200 }),
+		});
+		expect(agent.start(request)).toEqual({ status: "started" });
+		await flush();
+		expect(agent.cancel("run-1")).toEqual({ status: "cancelled" });
+		expect(agent.start(request)).toEqual({ status: "started" });
+		await flush();
+		expect(agent.cancel("run-1")).toEqual({ status: "cancelled" });
+	});
 });
