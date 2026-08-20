@@ -1603,11 +1603,9 @@ export const layer = (
       const failSink = (cause: JournalError, batch: ReadonlyArray<QueuedEntry>): void => {
         for (const queued of batch) {
           const identity = sourceEventKey(queued.runId, queued.sourceId, queued.sourceSeq)
-          const pending = state.sourceEvents.get(identity)
-          /* v8 ignore next -- the single allocation permit prevents this identity from changing before its batch settles */
-          if (pending?.status === "pending" && pending.seq === queued.seq) {
-            state.sourceEvents.delete(identity)
-          }
+          // Allocation is serialized until this batch settles, so no newer
+          // admission can replace this exact identity before the deletion.
+          state.sourceEvents.delete(identity)
         }
         state.sinkFailure = cause
         state.lossEpoch += 1
