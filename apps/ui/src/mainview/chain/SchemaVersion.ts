@@ -1,4 +1,5 @@
 import type { StorageApi } from "@tanstack/db";
+import { ENVELOPE_STORAGE_KEY, STAGED_ENVELOPE_STORAGE_KEY } from "./TransactionalStorage";
 
 /*
  * The boot gate for the persisted store: which backend holds it (E3.6) and
@@ -105,8 +106,13 @@ export const PERSISTED_COLLECTION_IDS: ReadonlyArray<string> = [
 ];
 
 /** The storage keys the gate clears on a mismatch. */
-export const persistedStorageKeys = (): ReadonlyArray<string> =>
-	PERSISTED_COLLECTION_IDS.map((id) => `${PERSISTED_KEY_PREFIX}${id}`);
+export const persistedStorageKeys = (): ReadonlyArray<string> => [
+	...PERSISTED_COLLECTION_IDS.map((id) => `${PERSISTED_KEY_PREFIX}${id}`),
+	// The transactional envelope and its write-ahead stage
+	// (TransactionalStorage.ts): persisted state, cleared with the rest.
+	ENVELOPE_STORAGE_KEY,
+	STAGED_ENVELOPE_STORAGE_KEY,
+];
 
 export interface SchemaVersionOutcome {
 	/**
