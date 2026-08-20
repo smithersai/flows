@@ -88,10 +88,10 @@ Before spending tokens on the rest of a wave, run and grade its first flows
 instance, then inspect that workspace's journal for exactly one
 `control.agent.discipline-armed` event per run. Its payload is the positive
 record of the discipline configured at run start: `auditCompletion` must be
-`true`, `readOnlyCap` must be nonzero, and `maxFrames` plus every armed sandbox
-limit (`calls`, `memoryBytes`, `steps`, `timeMs`, `callMs`, and `totalMs`) must
-match the wave's intended budgets. Stop the wave if the event is absent or the
-values are wrong.
+`true`, `requireRegressionEvidence` must be `true`, `readOnlyCap` must be
+nonzero, and `maxFrames` plus every armed sandbox limit (`calls`, `memoryBytes`,
+`steps`, `timeMs`, `callMs`, and `totalMs`) must match the wave's intended
+budgets. Stop the wave if the event is absent or the values are wrong.
 
 Do not use `control.agent.completion-audited` as the arming gate. That event
 proves an armed audit was reached, not merely armed; a run that times out before
@@ -100,8 +100,8 @@ attempting completion correctly has no such event.
 For the wave report, read `control.agent.read-only-demanded` directly. Each
 event records the streak and configured cap that triggered the intervention,
 the following frame number, and whether that frame wrote, justified continued
-diagnosis, or stayed read-only. Count these events rather than reconstructing
-the intervention from transitions and call ordering.
+diagnosis, stayed read-only, or parked. Count these events rather than
+reconstructing the intervention from transitions and call ordering.
 
 ## Evaluate
 
