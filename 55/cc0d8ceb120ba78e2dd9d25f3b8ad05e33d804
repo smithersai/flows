@@ -8,7 +8,7 @@
   "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
   "section": "post-bootstrap replay",
   "indexInSection": 19,
-  "sectionCount": 71
+  "sectionCount": 83
  },
  "source": {
   "commit": "dc4166ffca2c1afbded8d604b13914ed9dd3e683",
@@ -36,7 +36,7 @@
  },
  "atomic": {
   "globalIndex": 857,
-  "globalCount": 909,
+  "globalCount": 921,
   "purpose": "✅ test(e2e): drive suites through the backend the product ships",
   "merge": false
  },
@@ -72,7 +72,7 @@
   "next": "6c83b7b131e8e10ed61bea58861cb8758e0fe470",
   "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
   "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
-  "sectionLast": "9f4db87e9b528812c207c1054f8c36a09a06c2c7"
+  "sectionLast": "6fe6857b28247375ab46b0d79cba15e74754ebd6"
  },
  "size": {
   "files": 9,
