@@ -322,6 +322,36 @@ describe("Input.expandGlob", () => {
   })
 })
 
+describe("Input.expandPnpmWorkspace", () => {
+  it("ignores comments and unrelated scalar, object, and array settings", async () => {
+    await write("package.json", "{}\n")
+    await write("packages/included/package.json", "{}\n")
+    await write("packages/excluded/package.json", "{}\n")
+    await write(
+      "pnpm-workspace.yaml",
+      [
+        "# pnpm may preserve operator comments",
+        "packages:",
+        "  - packages/*",
+        "  - '!packages/excluded'",
+        "futureSetting:",
+        "  enabled: true",
+        "minimumReleaseAgeExclude:",
+        "  - example@1.0.0",
+        "linkWorkspacePackages: true",
+        ""
+      ].join("\n")
+    )
+
+    expect(await Input.expandPnpmWorkspace(root, "", Input.pnpmWorkspace("//pnpm-workspace.yaml")))
+      .toEqual([
+        "package.json",
+        "packages/included/package.json",
+        "pnpm-workspace.yaml"
+      ])
+  })
+})
+
 describe("Input.discoverFiles", () => {
   it("lists every workspace file, including BUILD.ts files", async () => {
     await write("BUILD.ts", "export const nothing = 1\n")

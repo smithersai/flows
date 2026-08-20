@@ -7,9 +7,9 @@ import { Smithers } from "@smthrs/targets"
 
 const runtime = Smithers.Runtime.Node({ version: ">=22.19.0" })
 export const packageManager = Smithers.PackageManager.Pnpm({ version: "11.21.0", runtime })
-export const workspace = Smithers.PnpmWorkspace({ packageManager, packages: ["packages/*"] })
+const workspace = Smithers.pnpmWorkspace("//pnpm-workspace.yaml")
 
-export const lockfile = Smithers.Lockfile({ packageManager, workspace })
+export const lockfile = Smithers.Lockfile({ packageManager, manifests: [workspace] })
 ```
 
 A lockfile is a build output: derived, deterministic given the manifests and
@@ -33,7 +33,10 @@ declared content.
 | `manifests`      | `Input.Declared[]` | `[glob("packages/*/package.json")]` | Every manifest whose dependencies it pins       |
 
 The manifests are declared inputs: their content is what resolution reads, so
-their digests are this target's key material.
+their digests are this target's key material. A `pnpmWorkspace` input parses
+the workspace file's `packages` list and expands to that file, the adjacent
+root manifest, and every selected member manifest. Other workspace settings
+remain pnpm-owned and do not need to be represented by the target schema.
 
 ## What it runs
 

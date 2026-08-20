@@ -195,36 +195,6 @@ describe("the checked-in root files match what BUILD.ts declares", () => {
   // These are the drift checks `smthrs lint` runs. Keeping them here means a
   // change to a generator, or a hand edit to a generated file, fails in this
   // package's own suite rather than only in a workspace-wide run.
-  const rootManager = PackageManager.Pnpm({
-    version: "11.21.0",
-    runtime: Runtime.Node({ version: ">=22.19.0" })
-  })
-
-  it("renders the checked-in pnpm-workspace.yaml", async () => {
-    const declared = PnpmWorkspaceFile.render(PnpmWorkspaceFile.Attrs.make({
-      packageManager: rootManager,
-      packages: ["packages/*", "packages/build/infra", "examples", "apps/*"],
-      // Mirrors the root BUILD.ts declaration, which this package cannot import
-      // (BUILD.ts imports @smthrs/targets). The two move together or this fails.
-      allowBuilds: {
-        "@journeyapps/wa-sqlite": false,
-        dprint: false,
-        "es5-ext": false,
-        esbuild: false,
-        "msgpackr-extract": false,
-        playwright: false,
-        sharp: false,
-        "unrs-resolver": false,
-        "vue-demi": false,
-        workerd: false
-      },
-      linkWorkspacePackages: true,
-      settings: { verifyDepsBeforeRun: false }
-    }))
-    const actual = await Fs.readFile(NodePath.join(workspaceRoot, "pnpm-workspace.yaml"), "utf8")
-    expect(declared).toBe(actual)
-  })
-
   it("renders the checked-in tsconfig.json", async () => {
     const declared = Tsconfig.render(Tsconfig.Attrs.make({
       extends: { _tag: "File", path: "tsconfig.base.json" },
