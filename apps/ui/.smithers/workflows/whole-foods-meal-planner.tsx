@@ -373,6 +373,42 @@ export async function assertTokenSafeWebhookDestination(rawUrl: string, token: s
   return assertPublicWebhookDestination(rawUrl);
 }
 
+/** The webhook's answer is a receipt, not a document: bound what we read and keep. */
+export const ORDER_WEBHOOK_MAX_BODY_BYTES = 64 * 1024;
+
+/**
+ * Reads a webhook response body with a hard byte ceiling. `res.text()` hands
+ * the upstream unlimited memory and an unbounded string for the run's output
+ * row; a reader loop stops at the cap and cancels the rest.
+ */
+export async function readBoundedBody(res: Response, maxBytes: number = ORDER_WEBHOOK_MAX_BODY_BYTES): Promise<string> {
+  if (res.body === null) return "";
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  let truncated = false;
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    if (total + value.byteLength > maxBytes) {
+      chunks.push(value.subarray(0, Math.max(0, maxBytes - total)));
+      total = maxBytes;
+      truncated = true;
+      break;
+    }
+    chunks.push(value);
+    total += value.byteLength;
+  }
+  if (truncated) await reader.cancel().catch(() => {});
+  const merged = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(merged);
+}
+
 function buildCheckoutLinks(items: Array<{ name: string }>, zipCode: string) {
   return items.map((item) => ({
     name: item.name,
@@ -740,6 +776,7 @@ export default smithers((ctx) => {
               output={outputs.orderWebhook}
               retries={0}
               sideEffect
+              timeoutMs={60_000}
               needs={{ plan: "plan-meals" }}
               deps={{ plan: outputs.planMeals }}
               children={async () => {
@@ -776,13 +813,21 @@ export default smithers((ctx) => {
                   await assertTokenSafeWebhookDestination(endpoint, token);
                   const headers: Record<string, string> = { "content-type": "application/json" };
                   if (token) headers.authorization = `Bearer ${token}`;
+                  /*
+                   * The run id is the idempotency key: the payload already
+                   * carries it, and the header lets the receiver dedupe a
+                   * retried delivery without parsing the body. The 60s task
+                   * timeout above bounds the wait engine-side; the body read
+                   * is byte-capped below.
+                   */
+                  headers["idempotency-key"] = ctx.runId;
                   const res = await fetch(endpoint, {
                     method: "POST",
                     headers,
                     body: JSON.stringify(payload),
                     redirect: "manual",
                   });
-                  const body = await res.text();
+                  const body = await readBoundedBody(res);
                   if (res.ok) {
                     let orderReference: string | null = null;
                     try {
