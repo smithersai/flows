@@ -114,4 +114,31 @@ describe("createCloudAgent", () => {
 			{ runId: "run-1", type: "done" },
 		]);
 	});
+
+	test("cancel releases the turn's response stream (scoped transport)", async () => {
+		/*
+		 * The AbortController transport aborted only the fetch promise: the
+		 * stream reader it had already handed out stayed open. The scoped
+		 * Effect transport releases the reader on interruption, so the
+		 * underlying stream sees its own cancel.
+		 */
+		let streamCancelled = false;
+		const agent = createCloudAgent(() => {}, {
+			fetchImpl: async () =>
+				new Response(
+					new ReadableStream<Uint8Array>({
+						start: () => {},
+						cancel: () => {
+							streamCancelled = true;
+						},
+					}),
+					{ status: 200 },
+				),
+		});
+		expect(agent.start(request)).toEqual({ status: "started" });
+		await flush();
+		expect(agent.cancel("run-1")).toEqual({ status: "cancelled" });
+		await flush();
+		expect(streamCancelled).toBe(true);
+	});
 });
