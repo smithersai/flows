@@ -57,7 +57,7 @@ describe("TestStores", () => {
             sourceId: "bundle" as SourceId,
             eventType: "step.completed",
             payload: { value: "ok" }
-          })
+          }, owner)
           yield* journal.flush
           yield* cache.put({
             keyDigest: "bundle-cache",

@@ -36,6 +36,32 @@ const seqOf = (value: number): Seq => value as Seq
 const run = runId("run")
 const source = sourceId("producer")
 
+const owner: OwnerId = { hostId: "host-a", pid: 42, nonce: "nonce-a" }
+
+/** The `flows_runs` columns the fence reads. */
+const fenceTable = Layer.effectDiscard(Effect.gen(function*() {
+  const sql = yield* SqlClient.SqlClient
+  yield* sql`CREATE TABLE flows_runs (
+    run_id TEXT PRIMARY KEY,
+    status TEXT NOT NULL,
+    owner_host_id TEXT,
+    owner_pid INTEGER,
+    owner_nonce TEXT
+  )`
+}))
+
+/** Claims `run` for `holder` — or reclaims it, when the run is already claimed. */
+const claim = (holder: OwnerId) =>
+  Effect.gen(function*() {
+    const sql = yield* Effect.service(SqlClient.SqlClient)
+    yield* sql`INSERT INTO flows_runs (run_id, status, owner_host_id, owner_pid, owner_nonce)
+      VALUES (${run}, 'running', ${holder.hostId}, ${holder.pid}, ${holder.nonce})
+      ON CONFLICT (run_id) DO UPDATE SET
+        owner_host_id = excluded.owner_host_id,
+        owner_pid = excluded.owner_pid,
+        owner_nonce = excluded.owner_nonce`
+  })
+
 const input = (sequence: number): Input =>
   new Input({
     runId: run,
@@ -51,7 +77,7 @@ const effect = <E>(
 ) =>
   it.effect(name, () =>
     body().pipe(
-      Effect.provide(Layer.provideMerge(Migrations.layer, TestDatabase.layer)),
+      Effect.provide(Layer.provideMerge(fenceTable, Layer.provideMerge(Migrations.layer, TestDatabase.layer))),
       Effect.provide(TestClock.layer())
     ))
 
@@ -166,7 +192,7 @@ const eventCount = Effect.gen(function*() {
 const emitMany = (service: Service, from: number, count: number) =>
   Effect.gen(function*() {
     for (let index = from; index < from + count; index++) {
-      yield* service.emitDurable(input(index))
+      yield* service.emitDurableUnfenced(input(index))
     }
   })
 
@@ -205,8 +231,9 @@ describe("Journal.checkpoint", () => {
   effect("captures replay state at a committed sequence and reads it back", () =>
     Effect.gen(function*() {
       const service = yield* Journal
+      yield* claim(owner)
       yield* emitMany(service, 0, 6)
-      const written = yield* service.checkpoint({ runId: run, seq: seqOf(3), state: { applied: 4 } })
+      const written = yield* service.checkpoint({ runId: run, seq: seqOf(3), state: { applied: 4 } }, owner)
       expect(written.seq).toBe(3)
       expect(written.compactedAtMs).toBeNull()
       const latest = yield* service.latestCheckpoint(run)
@@ -218,8 +245,9 @@ describe("Journal.checkpoint", () => {
   effect("rejects a checkpoint at a sequence that names no committed entry", () =>
     Effect.gen(function*() {
       const service = yield* Journal
+      yield* claim(owner)
       yield* emitMany(service, 0, 2)
-      const failure = yield* Effect.flip(service.checkpoint({ runId: run, seq: seqOf(9), state: null }))
+      const failure = yield* Effect.flip(service.checkpoint({ runId: run, seq: seqOf(9), state: null }, owner))
       expect(failure).toBeInstanceOf(JournalError)
       expect(failure.code).toBe("checkpoint_invalid")
     }).pipe(Effect.provide(journal()), Effect.scoped))
@@ -227,9 +255,10 @@ describe("Journal.checkpoint", () => {
   effect("re-checkpointing an uncompacted sequence replaces the state", () =>
     Effect.gen(function*() {
       const service = yield* Journal
+      yield* claim(owner)
       yield* emitMany(service, 0, 4)
-      yield* service.checkpoint({ runId: run, seq: seqOf(2), state: { attempt: 1 } })
-      yield* service.checkpoint({ runId: run, seq: seqOf(2), state: { attempt: 2 } })
+      yield* service.checkpoint({ runId: run, seq: seqOf(2), state: { attempt: 1 } }, owner)
+      yield* service.checkpoint({ runId: run, seq: seqOf(2), state: { attempt: 2 } }, owner)
       const latest = yield* service.latestCheckpoint(run)
       expect(Option.getOrThrow(latest).state).toEqual({ attempt: 2 })
     }).pipe(Effect.provide(journal()), Effect.scoped))
@@ -237,9 +266,10 @@ describe("Journal.checkpoint", () => {
   effect("rolls back with the transaction that wrote it", () =>
     Effect.gen(function*() {
       const service = yield* Journal
+      yield* claim(owner)
       yield* emitMany(service, 0, 3)
       const exit = yield* service.transact(
-        service.checkpoint({ runId: run, seq: seqOf(1), state: { half: true } }).pipe(
+        service.checkpoint({ runId: run, seq: seqOf(1), state: { half: true } }, owner).pipe(
           Effect.andThen(Effect.fail(new Error("rejected after the checkpoint write")))
         )
       ).pipe(Effect.exit)
@@ -253,13 +283,14 @@ describe("Journal.compact", () => {
   effect("replay from the checkpoint is identical before and after compaction", () =>
     Effect.gen(function*() {
       const service = yield* Journal
+      yield* claim(owner)
       yield* emitMany(service, 0, 8)
       const full = yield* service.entries({ runId: run, limit: 100 })
       const prefix = full.entries.filter((entry) => entry.seq <= 4).map((entry) => entry.payload)
-      yield* service.checkpoint({ runId: run, seq: seqOf(4), state: { prefix } })
+      yield* service.checkpoint({ runId: run, seq: seqOf(4), state: { prefix } }, owner)
 
       const before = yield* replayView(service)
-      const compacted = yield* service.compact({ runId: run })
+      const compacted = yield* service.compact({ runId: run }, owner)
       const after = yield* replayView(service)
 
       expect(compacted).toEqual({ runId: run, checkpointSeq: 4, deleted: 4 })
@@ -273,15 +304,16 @@ describe("Journal.compact", () => {
       expect(yield* eventCount).toBe(4)
 
       // The journal keeps appending across the boundary, monotonically.
-      const next = yield* service.emitDurable(input(8))
+      const next = yield* service.emitDurableUnfenced(input(8))
       expect(next.seq).toBe(8)
     }).pipe(Effect.provide(journal()), Effect.scoped))
 
   effect("refuses to compact a run that has no checkpoint", () =>
     Effect.gen(function*() {
       const service = yield* Journal
+      yield* claim(owner)
       yield* emitMany(service, 0, 3)
-      const failure = yield* Effect.flip(service.compact({ runId: run }))
+      const failure = yield* Effect.flip(service.compact({ runId: run }, owner))
       expect(failure.code).toBe("checkpoint_invalid")
       expect(yield* eventCount).toBe(3)
     }).pipe(Effect.provide(journal()), Effect.scoped))
@@ -289,10 +321,11 @@ describe("Journal.compact", () => {
   effect("is idempotent: a retried compaction deletes nothing further", () =>
     Effect.gen(function*() {
       const service = yield* Journal
+      yield* claim(owner)
       yield* emitMany(service, 0, 5)
-      yield* service.checkpoint({ runId: run, seq: seqOf(4), state: null })
-      const first = yield* service.compact({ runId: run })
-      const second = yield* service.compact({ runId: run })
+      yield* service.checkpoint({ runId: run, seq: seqOf(4), state: null }, owner)
+      const first = yield* service.compact({ runId: run }, owner)
+      const second = yield* service.compact({ runId: run }, owner)
       expect(first.deleted).toBe(4)
       expect(second).toEqual({ runId: run, checkpointSeq: 4, deleted: 0 })
     }).pipe(Effect.provide(journal()), Effect.scoped))
@@ -300,24 +333,28 @@ describe("Journal.compact", () => {
   effect("rejects a new checkpoint at or below the compaction floor", () =>
     Effect.gen(function*() {
       const service = yield* Journal
+      yield* claim(owner)
       yield* emitMany(service, 0, 6)
-      yield* service.checkpoint({ runId: run, seq: seqOf(4), state: null })
-      yield* service.compact({ runId: run })
-      const failure = yield* Effect.flip(service.checkpoint({ runId: run, seq: seqOf(4), state: { rewrite: true } }))
+      yield* service.checkpoint({ runId: run, seq: seqOf(4), state: null }, owner)
+      yield* service.compact({ runId: run }, owner)
+      const failure = yield* Effect.flip(
+        service.checkpoint({ runId: run, seq: seqOf(4), state: { rewrite: true } }, owner)
+      )
       expect(failure.code).toBe("checkpoint_invalid")
       expect(failure.checkpointSeq).toBe(4)
       // Above the floor stays checkpointable.
-      const above = yield* service.checkpoint({ runId: run, seq: seqOf(5), state: null })
+      const above = yield* service.checkpoint({ runId: run, seq: seqOf(5), state: null }, owner)
       expect(above.seq).toBe(5)
     }).pipe(Effect.provide(journal()), Effect.scoped))
 
   effect("a compaction inside a rolled-back transact restores every entry", () =>
     Effect.gen(function*() {
       const service = yield* Journal
+      yield* claim(owner)
       yield* emitMany(service, 0, 6)
-      yield* service.checkpoint({ runId: run, seq: seqOf(5), state: null })
+      yield* service.checkpoint({ runId: run, seq: seqOf(5), state: null }, owner)
       const exit = yield* service.transact(
-        service.compact({ runId: run }).pipe(
+        service.compact({ runId: run }, owner).pipe(
           Effect.andThen(Effect.fail(new Error("rejected after the truncation")))
         )
       ).pipe(Effect.exit)
@@ -331,9 +368,10 @@ describe("Journal.compact", () => {
     Effect.gen(function*() {
       yield* Effect.gen(function*() {
         const service = yield* Journal
+        yield* claim(owner)
         yield* emitMany(service, 0, 6)
-        yield* service.checkpoint({ runId: run, seq: seqOf(5), state: null })
-        const compacted = yield* service.compact({ runId: run })
+        yield* service.checkpoint({ runId: run, seq: seqOf(5), state: null }, owner)
+        const compacted = yield* service.compact({ runId: run }, owner)
         expect(compacted.deleted).toBe(5)
       }).pipe(Effect.provide(journal()), Effect.scoped)
 
@@ -342,7 +380,7 @@ describe("Journal.compact", () => {
       // truncated range, so no deleted sequence is ever re-minted.
       yield* Effect.gen(function*() {
         const service = yield* Journal
-        const durable = yield* service.emitDurable(input(6))
+        const durable = yield* service.emitDurableUnfenced(input(6))
         expect(durable.seq).toBe(6)
         const lossy = yield* service.emitLossy(input(7))
         expect(lossy.seq).toBe(7)
@@ -359,20 +397,21 @@ describe("a crash injected mid-compaction", () => {
       let crash = true
       const result = yield* Effect.gen(function*() {
         const service = yield* Journal
+        yield* claim(owner)
         yield* emitMany(service, 0, 6)
-        yield* service.checkpoint({ runId: run, seq: seqOf(5), state: { upTo: 5 } })
+        yield* service.checkpoint({ runId: run, seq: seqOf(5), state: { upTo: 5 } }, owner)
         const before = yield* replayView(service)
 
         // The injected defect fires after the floor-advance UPDATE — the last
         // statement of the compaction transaction — so every delete already
         // ran and only the transaction's atomicity can undo them.
-        const crashed = yield* service.compact({ runId: run }).pipe(Effect.exit)
+        const crashed = yield* service.compact({ runId: run }, owner).pipe(Effect.exit)
         const countAfterCrash = yield* eventCount
         const viewAfterCrash = yield* replayView(service)
         const floorAfterCrash = yield* service.latestCheckpoint(run)
 
         crash = false
-        const retried = yield* service.compact({ runId: run })
+        const retried = yield* service.compact({ runId: run }, owner)
         return {
           before,
           crashed,
@@ -407,9 +446,10 @@ describe("followers across compaction", () => {
   effect("a page read whose cursor starts below the floor fails with the resync point", () =>
     Effect.gen(function*() {
       const service = yield* Journal
+      yield* claim(owner)
       yield* emitMany(service, 0, 6)
-      yield* service.checkpoint({ runId: run, seq: seqOf(5), state: null })
-      yield* service.compact({ runId: run })
+      yield* service.checkpoint({ runId: run, seq: seqOf(5), state: null }, owner)
+      yield* service.compact({ runId: run }, owner)
 
       const fromScratch = yield* Effect.flip(service.entries({ runId: run, limit: 10 }))
       expect(fromScratch.code).toBe("compacted")
@@ -428,9 +468,10 @@ describe("followers across compaction", () => {
   effect("a stream subscribed below the floor fails with compacted instead of gapping", () =>
     Effect.gen(function*() {
       const service = yield* Journal
+      yield* claim(owner)
       yield* emitMany(service, 0, 6)
-      yield* service.checkpoint({ runId: run, seq: seqOf(5), state: null })
-      yield* service.compact({ runId: run })
+      yield* service.checkpoint({ runId: run, seq: seqOf(5), state: null }, owner)
+      yield* service.compact({ runId: run }, owner)
 
       const failure = yield* Effect.flip(
         Stream.runHead(service.stream({ runId: run, afterSequence: seqOf(1) }))
@@ -459,8 +500,9 @@ describe("followers across compaction", () => {
 
         yield* Effect.gen(function*() {
           const service = yield* Journal
+          yield* claim(owner)
           yield* emitMany(service, 0, 6)
-          yield* service.checkpoint({ runId: run, seq: seqOf(5), state: null })
+          yield* service.checkpoint({ runId: run, seq: seqOf(5), state: null }, owner)
 
           // The follower registers, then parks on the gated page read with its
           // cursor still at -1: durably behind the checkpoint.
@@ -473,7 +515,7 @@ describe("followers across compaction", () => {
             })).pipe(Effect.forkChild({ startImmediately: true }))
           yield* Deferred.await(reached)
 
-          const refused = yield* Effect.flip(service.compact({ runId: run }))
+          const refused = yield* Effect.flip(service.compact({ runId: run }, owner))
           expect(refused.code).toBe("reader_behind")
           expect(refused.checkpointSeq).toBe(5)
           expect(yield* eventCount).toBe(6)
@@ -482,10 +524,10 @@ describe("followers across compaction", () => {
           // compaction is safe, and the still-live stream follows across it.
           yield* Deferred.succeed(gate, undefined)
           yield* Deferred.await(drained)
-          const compacted = yield* service.compact({ runId: run })
+          const compacted = yield* service.compact({ runId: run }, owner)
           expect(compacted.deleted).toBe(5)
 
-          yield* service.emitDurable(input(6))
+          yield* service.emitDurableUnfenced(input(6))
           yield* Effect.repeat(Effect.yieldNow, { until: () => observed.length >= 7 })
           yield* Fiber.interrupt(follower)
         }).pipe(
@@ -499,33 +541,8 @@ describe("followers across compaction", () => {
 })
 
 describe("fencing across compaction", () => {
-  const owner: OwnerId = { hostId: "host-a", pid: 42, nonce: "nonce-a" }
-
-  const fenceTable = Effect.gen(function*() {
-    const sql = yield* Effect.service(SqlClient.SqlClient)
-    yield* sql`CREATE TABLE flows_runs (
-      run_id TEXT PRIMARY KEY,
-      status TEXT NOT NULL,
-      owner_host_id TEXT,
-      owner_pid INTEGER,
-      owner_nonce TEXT
-    )`
-  })
-
-  const claim = (holder: OwnerId) =>
-    Effect.gen(function*() {
-      const sql = yield* Effect.service(SqlClient.SqlClient)
-      yield* sql`INSERT INTO flows_runs (run_id, status, owner_host_id, owner_pid, owner_nonce)
-        VALUES (${run}, 'running', ${holder.hostId}, ${holder.pid}, ${holder.nonce})
-        ON CONFLICT (run_id) DO UPDATE SET
-          owner_host_id = excluded.owner_host_id,
-          owner_pid = excluded.owner_pid,
-          owner_nonce = excluded.owner_nonce`
-    })
-
   effect("a fenced checkpoint and compaction commit while the owner holds the run", () =>
     Effect.gen(function*() {
-      yield* fenceTable
       yield* claim(owner)
       const service = yield* Journal
       yield* emitMany(service, 0, 4)
@@ -537,7 +554,6 @@ describe("fencing across compaction", () => {
 
   effect("a reclaimed owner can neither checkpoint nor compact, and deletes nothing", () =>
     Effect.gen(function*() {
-      yield* fenceTable
       yield* claim(owner)
       const service = yield* Journal
       yield* emitMany(service, 0, 4)
@@ -578,15 +594,17 @@ describe("refused arguments and failing hosts", () => {
     () =>
       Effect.gen(function*() {
         const service = yield* Journal
-        const emptyRun = yield* Effect.flip(service.checkpoint({ runId: runId(""), seq: seqOf(0), state: null }))
+        const emptyRun = yield* Effect.flip(service.checkpoint({ runId: runId(""), seq: seqOf(0), state: null }, owner))
         expect(emptyRun.code).toBe("invalid_event")
-        const negativeSeq = yield* Effect.flip(service.checkpoint({ runId: run, seq: seqOf(-1), state: null }))
+        const negativeSeq = yield* Effect.flip(service.checkpoint({ runId: run, seq: seqOf(-1), state: null }, owner))
         expect(negativeSeq.code).toBe("invalid_event")
-        const fractionalSeq = yield* Effect.flip(service.checkpoint({ runId: run, seq: seqOf(1.5), state: null }))
+        const fractionalSeq = yield* Effect.flip(
+          service.checkpoint({ runId: run, seq: seqOf(1.5), state: null }, owner)
+        )
         expect(fractionalSeq.code).toBe("invalid_event")
         const latestEmpty = yield* Effect.flip(service.latestCheckpoint(runId("")))
         expect(latestEmpty.code).toBe("invalid_event")
-        const compactEmpty = yield* Effect.flip(service.compact({ runId: runId("") }))
+        const compactEmpty = yield* Effect.flip(service.compact({ runId: runId("") }, owner))
         expect(compactEmpty.code).toBe("invalid_event")
       }).pipe(Effect.provide(journal()), Effect.scoped)
   )
@@ -594,8 +612,9 @@ describe("refused arguments and failing hosts", () => {
   effect("names the requested sequence when the checkpoint to compact to is missing", () =>
     Effect.gen(function*() {
       const service = yield* Journal
+      yield* claim(owner)
       yield* emitMany(service, 0, 3)
-      const failure = yield* Effect.flip(service.compact({ runId: run, upTo: seqOf(2) }))
+      const failure = yield* Effect.flip(service.compact({ runId: run, upTo: seqOf(2) }, owner))
       expect(failure.code).toBe("checkpoint_invalid")
       expect(failure.message).toContain("at sequence 2")
     }).pipe(Effect.provide(journal()), Effect.scoped))
@@ -603,8 +622,9 @@ describe("refused arguments and failing hosts", () => {
   effect("a checkpoint row that no longer parses fails with decode_failed", () =>
     Effect.gen(function*() {
       const service = yield* Journal
+      yield* claim(owner)
       yield* emitMany(service, 0, 3)
-      yield* service.checkpoint({ runId: run, seq: seqOf(2), state: { ok: true } })
+      yield* service.checkpoint({ runId: run, seq: seqOf(2), state: { ok: true } }, owner)
       const sql = yield* Effect.service(SqlClient.SqlClient)
       yield* sql`PRAGMA ignore_check_constraints = ON`
       yield* sql`UPDATE flows_journal_checkpoints SET state_json = ${"not json"} WHERE run_id = ${run}`
@@ -616,6 +636,7 @@ describe("refused arguments and failing hosts", () => {
   effect("reads and writes against a vanished checkpoint table surface typed errors", () =>
     Effect.gen(function*() {
       const service = yield* Journal
+      yield* claim(owner)
       yield* emitMany(service, 0, 2)
       const sql = yield* Effect.service(SqlClient.SqlClient)
       yield* sql`DROP TABLE flows_journal_checkpoints`
@@ -625,18 +646,19 @@ describe("refused arguments and failing hosts", () => {
       expect(page.code).toBe("unknown")
       const latest = yield* Effect.flip(service.latestCheckpoint(run))
       expect(latest.code).toBe("unknown")
-      const written = yield* Effect.flip(service.checkpoint({ runId: run, seq: seqOf(1), state: null }))
+      const written = yield* Effect.flip(service.checkpoint({ runId: run, seq: seqOf(1), state: null }, owner))
       expect(written.code).toBe("sink_failed")
     }).pipe(Effect.provide(journal()), Effect.scoped))
 
   effect("a compaction over a vanished events table fails as sink_failed", () =>
     Effect.gen(function*() {
       const service = yield* Journal
+      yield* claim(owner)
       yield* emitMany(service, 0, 3)
-      yield* service.checkpoint({ runId: run, seq: seqOf(2), state: null })
+      yield* service.checkpoint({ runId: run, seq: seqOf(2), state: null }, owner)
       const sql = yield* Effect.service(SqlClient.SqlClient)
       yield* sql`DROP TABLE flows_journal_events`
-      const failure = yield* Effect.flip(service.compact({ runId: run }))
+      const failure = yield* Effect.flip(service.compact({ runId: run }, owner))
       expect(failure.code).toBe("sink_failed")
     }).pipe(Effect.provide(journal()), Effect.scoped))
 })
@@ -683,7 +705,7 @@ describe("the compaction policy hook", () => {
 
       yield* Effect.gen(function*() {
         const service = yield* Journal
-        yield* service.emitDurable(input(6))
+        yield* service.emitDurableUnfenced(input(6))
         const latest = yield* service.latestCheckpoint(run)
         expect(Option.getOrThrow(latest).seq).toBe(6)
       }).pipe(
@@ -716,8 +738,8 @@ describe("the compaction policy hook", () => {
   effect("an idempotent duplicate emit counts nothing toward the threshold", () =>
     Effect.gen(function*() {
       const service = yield* Journal
-      const first = yield* service.emitDurable(input(0))
-      const duplicate = yield* service.emitDurable(input(0))
+      const first = yield* service.emitDurableUnfenced(input(0))
+      const duplicate = yield* service.emitDurableUnfenced(input(0))
       expect(duplicate.seq).toBe(first.seq)
       // Two emits, one committed entry: the duplicate reports zero committed
       // rows, so the threshold of 2 is never crossed.
@@ -738,7 +760,7 @@ describe("the compaction policy hook", () => {
         const service = yield* Journal
         yield* service.emitLossy(input(0))
         yield* Deferred.await(reachedCapture)
-        const next = yield* service.emitDurable(input(2)).pipe(
+        const next = yield* service.emitDurableUnfenced(input(2)).pipe(
           Effect.forkChild({ startImmediately: true })
         )
         const receipt = yield* Fiber.join(next)
@@ -770,7 +792,7 @@ describe("the compaction policy hook", () => {
       const reachedCapture = yield* Deferred.make<void>()
       yield* Effect.gen(function*() {
         const service = yield* Journal
-        const crossing = yield* service.emitDurable(input(0)).pipe(
+        const crossing = yield* service.emitDurableUnfenced(input(0)).pipe(
           Effect.forkChild({ startImmediately: true })
         )
         yield* Deferred.await(reachedCapture)
@@ -798,7 +820,7 @@ describe("the compaction policy hook", () => {
     Effect.gen(function*() {
       yield* Effect.gen(function*() {
         const service = yield* Journal
-        const exit = yield* Effect.exit(service.emitDurable(input(0)))
+        const exit = yield* Effect.exit(service.emitDurableUnfenced(input(0)))
         expect(Exit.isFailure(exit) && Cause.hasInterruptsOnly(exit.cause)).toBe(true)
         expect(Option.isNone(yield* service.latestCheckpoint(run))).toBe(true)
         expect(yield* eventCount).toBe(1)
@@ -822,8 +844,8 @@ describe("the compaction policy hook", () => {
         // A concurrent process compacted-and-truncated between this process's
         // commit and its tail read: MAX(seq) comes back NULL (first attempt)
         // or the row itself is gone (second attempt). Both stand down.
-        yield* service.emitDurable(input(0))
-        yield* service.emitDurable(input(1))
+        yield* service.emitDurableUnfenced(input(0))
+        yield* service.emitDurableUnfenced(input(1))
         expect(captured).toEqual([])
         expect(Option.isNone(yield* service.latestCheckpoint(run))).toBe(true)
       }).pipe(
@@ -857,9 +879,9 @@ describe("the compaction policy hook", () => {
         const service = yield* Journal
         // The seed count comes back rowless, so the first commit seeds zero
         // and the second commit crosses the threshold.
-        yield* service.emitDurable(input(0))
+        yield* service.emitDurableUnfenced(input(0))
         expect(Option.isNone(yield* service.latestCheckpoint(run))).toBe(true)
-        yield* service.emitDurable(input(1))
+        yield* service.emitDurableUnfenced(input(1))
         const latest = yield* service.latestCheckpoint(run)
         expect(Option.getOrThrow(latest).seq).toBe(1)
         expect(Option.getOrThrow(latest).compactedAtMs).not.toBeNull()
@@ -881,7 +903,7 @@ describe("the compaction policy hook", () => {
     Effect.gen(function*() {
       yield* Effect.gen(function*() {
         const service = yield* Journal
-        const durable = yield* service.emitDurable(input(0))
+        const durable = yield* service.emitDurableUnfenced(input(0))
         expect(durable.seq).toBe(0)
         // The bookkeeping defect is logged and swallowed: nothing was
         // checkpointed, and the emit itself settled durably.

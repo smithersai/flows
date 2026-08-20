@@ -31,6 +31,7 @@ import { join } from "node:path"
 import { Journal, type JournalError, type Service } from "../src/Journal.ts"
 import { Input, type RunId, type Seq, type SourceId, type SourceSeq } from "../src/JournalEvent.ts"
 import * as Migrations from "../src/Migrations.ts"
+import type { OwnerId } from "../src/OwnerId.ts"
 import * as SqlJournal from "../src/SqlJournal.ts"
 
 const runId = (value: string): RunId => value as RunId
@@ -46,6 +47,31 @@ const input = (run: RunId, source: SourceId, eventType: string, payload: unknown
   }, { disableChecks: true })
 
 const options: SqlJournal.SqlJournalOptions = { capacity: 64, overflow: "reject" }
+
+const owner: OwnerId = { hostId: "host-a", pid: 42, nonce: "nonce-a" }
+
+/**
+ * The `flows_runs` columns the fence reads, plus the running-owner row, written
+ * through a throwaway connection to the same file.
+ */
+const claim = (filename: string, run: RunId) =>
+  Effect.scoped(
+    Effect.provide(
+      Effect.gen(function*() {
+        const sql = yield* Effect.service(SqlClient.SqlClient)
+        yield* sql`CREATE TABLE flows_runs (
+          run_id TEXT PRIMARY KEY,
+          status TEXT NOT NULL,
+          owner_host_id TEXT,
+          owner_pid INTEGER,
+          owner_nonce TEXT
+        )`
+        yield* sql`INSERT INTO flows_runs (run_id, status, owner_host_id, owner_pid, owner_nonce)
+          VALUES (${run}, 'running', ${owner.hostId}, ${owner.pid}, ${owner.nonce})`
+      }),
+      migrated(filename)
+    )
+  )
 
 const withTempFile = <A, E>(body: (filename: string) => Effect.Effect<A, E>): Effect.Effect<A, E> =>
   Effect.acquireUseRelease(
@@ -153,10 +179,10 @@ describe("SqlJournal append recovery on a real file", () => {
             Effect.scoped(
               Effect.gen(function*() {
                 const journal = yield* connection(filename, crashAfterInsert(() => crashing))
-                yield* journal.emitDurable(input(run, source, "first", { value: 0 }, 0))
-                yield* journal.emitDurable(input(run, source, "second", { value: 1 }, 1))
+                yield* journal.emitDurableUnfenced(input(run, source, "first", { value: 0 }, 0))
+                yield* journal.emitDurableUnfenced(input(run, source, "second", { value: 1 }, 1))
                 crashing = true
-                yield* journal.emitDurable(doomed)
+                yield* journal.emitDurableUnfenced(doomed)
               })
             )
           )
@@ -176,7 +202,7 @@ describe("SqlJournal append recovery on a real file", () => {
               // No phantom identity: the producer's retry of the exact input
               // the dead writer issued is a fresh admission, never a
               // `Duplicate` receipt for a row that does not exist.
-              const receipt = yield* journal.emitDurable(doomed)
+              const receipt = yield* journal.emitDurableUnfenced(doomed)
               expect(receipt._tag).toBe("Accepted")
               // The next sequence continues from the durable floor, not from
               // the number the dead writer had already claimed in memory.
@@ -204,8 +230,8 @@ describe("SqlJournal append recovery on a real file", () => {
           yield* Effect.scoped(
             Effect.gen(function*() {
               const journal = yield* connection(filename)
-              yield* journal.emitDurable(input(run, source, "first", { value: 0 }, 0))
-              yield* journal.emitDurable(input(run, source, "second", { value: 1 }, 1))
+              yield* journal.emitDurableUnfenced(input(run, source, "first", { value: 0 }, 0))
+              yield* journal.emitDurableUnfenced(input(run, source, "second", { value: 1 }, 1))
             })
           )
 
@@ -237,12 +263,13 @@ describe("SqlJournal append recovery on a real file", () => {
         Effect.gen(function*() {
           const run = runId("corrupt-checkpoint")
           const source = sourceId("driver")
+          yield* claim(filename, run)
           yield* Effect.scoped(
             Effect.gen(function*() {
               const journal = yield* connection(filename)
-              yield* journal.emitDurable(input(run, source, "first", { value: 0 }, 0))
-              yield* journal.emitDurable(input(run, source, "second", { value: 1 }, 1))
-              yield* journal.checkpoint({ runId: run, seq: 1 as Seq, state: { at: 1 } })
+              yield* journal.emitDurableUnfenced(input(run, source, "first", { value: 0 }, 0))
+              yield* journal.emitDurableUnfenced(input(run, source, "second", { value: 1 }, 1))
+              yield* journal.checkpoint({ runId: run, seq: 1 as Seq, state: { at: 1 } }, owner)
             })
           )
 

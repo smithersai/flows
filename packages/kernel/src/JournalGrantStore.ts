@@ -271,7 +271,10 @@ export const make = (options: JournalGrantStoreOptions) =>
     const persist = (event: GrantEvent): Effect.Effect<void, GrantStoreError> => {
       const payload = encodeGrantEvent(event)
       return Effect.gen(function*() {
-        yield* journal.emitDurable(
+        // Unfenced: the grant store is the kernel's own ledger, not a run's
+        // lifecycle — it owns no run, and grant admissions are
+        // first-writer-wins records replayed by every later process.
+        yield* journal.emitDurableUnfenced(
           new JournalEvent.Input({
             runId: (
               event.eventType === "flows.kernel.grant.remembered.v1"

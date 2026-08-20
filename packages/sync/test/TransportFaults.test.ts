@@ -34,7 +34,7 @@ describe("sync over a faulty transport", () => {
           const client = yield* TestSync.connect(pair)
           const initialRead = yield* Deferred.make<void>()
 
-          yield* journal.emitDurable({ runId: id, sourceId, eventType: "event-0", payload: { value: 0 } })
+          yield* journal.emitDurableUnfenced({ runId: id, sourceId, eventType: "event-0", payload: { value: 0 } })
           yield* journal.flush
 
           const fiber = yield* Stream.runCollect(
@@ -46,7 +46,7 @@ describe("sync over a faulty transport", () => {
 
           yield* Deferred.await(initialRead)
           for (const value of [1, 2]) {
-            yield* journal.emitDurable({ runId: id, sourceId, eventType: `event-${value}`, payload: { value } })
+            yield* journal.emitDurableUnfenced({ runId: id, sourceId, eventType: `event-${value}`, payload: { value } })
             yield* journal.flush
           }
           const settled = yield* Fiber.join(fiber).pipe(Effect.timeoutOption("200 millis"))
@@ -68,7 +68,7 @@ describe("sync over a faulty transport", () => {
           const pair = yield* TestSocket.makePair()
           const client = yield* TestSync.connect(pair)
 
-          yield* journal.emitDurable({ runId: id, sourceId, eventType: "before-stall", payload: { value: 0 } })
+          yield* journal.emitDurableUnfenced({ runId: id, sourceId, eventType: "before-stall", payload: { value: 0 } })
           yield* journal.flush
 
           pair.faults.stall()
@@ -101,7 +101,7 @@ describe("sync over a faulty transport", () => {
           const pair = yield* TestSocket.makePair()
           const client = yield* TestSync.connect(pair)
 
-          yield* journal.emitDurable({ runId: id, sourceId, eventType: "first", payload: { value: 0 } })
+          yield* journal.emitDurableUnfenced({ runId: id, sourceId, eventType: "first", payload: { value: 0 } })
           yield* journal.flush
 
           const fiber = yield* Stream.runCollect(

@@ -238,7 +238,10 @@ export const makeLiveWith = (
           yield* hydrate(submission.branchId)
           const known = ledger.get(ledgerKey(submission.branchId, submission.commandId))
           if (known !== undefined) return duplicateOf(known)
-          const receipt = yield* journal.emitDurable(
+          // Unfenced: the sync command journal is a multi-writer admission
+          // log — participants own no branch run, and command admissions are
+          // first-writer-wins on the command id.
+          const receipt = yield* journal.emitDurableUnfenced(
             new JournalEvent.Input({
               runId: branchRunId(submission.branchId),
               sourceId: commandSourceId(submission.commandId),

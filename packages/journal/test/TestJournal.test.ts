@@ -9,7 +9,7 @@ describe("TestJournal", () => {
     Effect.gen(function*() {
       const receipt = yield* (
         Effect.gen(function*() {
-          return yield* (yield* Journal).emitDurable({
+          return yield* (yield* Journal).emitDurableUnfenced({
             runId: "default-run" as RunId,
             sourceId: "default-source" as SourceId,
             eventType: "default",
@@ -30,7 +30,7 @@ describe("TestJournal", () => {
         Effect.gen(function*() {
           const journal = yield* Journal
           const emit = (index: number) =>
-            journal.emitDurable({
+            journal.emitDurableUnfenced({
               runId: "options-run" as RunId,
               sourceId: `source-${index}` as SourceId,
               eventType: "options",

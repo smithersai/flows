@@ -59,7 +59,7 @@ const layer = Layer.mergeAll(TestStores.layer(), StepBoundary.layerTest(), jj)
  * The shipped core default is `Inconsistency.layerStrict` — covered by
  * `test/Inconsistency.test.ts`.
  */
-const tolerantLayer = Layer.provideMerge(Inconsistency.layerTolerant, layer)
+const tolerantLayer = Layer.provideMerge(Inconsistency.layerTolerant(owner), layer)
 
 describe("ActionPersistence", () => {
   it.effect("does not dispatch when attempt admission reports an existing or conflicting row", () =>

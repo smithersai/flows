@@ -158,7 +158,7 @@ describe("SqlJournal ownership fencing", () => {
       })
     ))
 
-  effect("ownerless durable writes stay unfenced for external-trigger admissions", () =>
+  effect("the unfenced durable channel stays first-writer-wins for external-trigger admissions", () =>
     withJournal(
       Effect.gen(function*() {
         const journal = yield* Journal
@@ -168,8 +168,8 @@ describe("SqlJournal ownership fencing", () => {
         yield* reclaimRun(sql, run, ownerB)
         // Deferred completions and other first-writer-wins admissions carry no
         // owner and must land regardless of who owns the run.
-        yield* journal.emitDurable(input(run, sourceId("trigger"), "first", 1))
-        const durable = yield* journal.emitDurable(input(run, sourceId("trigger"), "durable", 2))
+        yield* journal.emitDurableUnfenced(input(run, sourceId("trigger"), "first", 1))
+        const durable = yield* journal.emitDurableUnfenced(input(run, sourceId("trigger"), "durable", 2))
         expect(durable._tag).toBe("Accepted")
         expect(yield* seqsOf(sql, run)).toEqual([0, 1])
       })
@@ -221,7 +221,7 @@ describe("SqlJournal lossy and lifecycle channels", () => {
         expect(dropped).toMatchObject({ _tag: "Dropped", seq: 2, policy: "drop-newest" })
         yield* Deferred.succeed(gate, undefined)
         yield* journal.flush
-        const durable = yield* journal.emitDurable(input(run, sourceId("lifecycle"), "finished", 3))
+        const durable = yield* journal.emitDurableUnfenced(input(run, sourceId("lifecycle"), "finished", 3))
         expect(lifecycleTag(durable)).toBe("Accepted")
         // The dropped telemetry admission consumed seq 2; the lifecycle entry
         // is allocated after it and always lands.
@@ -262,7 +262,7 @@ describe("SqlJournal lossy and lifecycle channels", () => {
         const sql = yield* Effect.service(SqlClient.SqlClient)
         // Lifecycle entries never share the lossy queue: they are already
         // durable before any telemetry eviction can happen.
-        const lifecycle = yield* journal.emitDurable(input(run, sourceId("lifecycle"), "started", 0))
+        const lifecycle = yield* journal.emitDurableUnfenced(input(run, sourceId("lifecycle"), "started", 0))
         yield* journal.emitLossy(input(run, source, "event", 1))
         yield* Effect.yieldNow
         yield* journal.emitLossy(input(run, source, "event", 2))

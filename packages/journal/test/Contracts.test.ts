@@ -13,8 +13,10 @@ describe("service contracts", () => {
 
       yield* (Effect.scoped(Effect.gen(function*() {
         const input = {} as Input
+        const owner = { hostId: "test", pid: 1, nonce: "test" } as OwnerId.OwnerId
         expect((yield* Effect.flip(implementation.emitLossy(input))).code).toBe("journal_closed")
-        expect((yield* Effect.flip(implementation.emitDurable(input))).code).toBe("journal_closed")
+        expect((yield* Effect.flip(implementation.emitDurable(input, owner))).code).toBe("journal_closed")
+        expect((yield* Effect.flip(implementation.emitDurableUnfenced(input))).code).toBe("journal_closed")
         expect(
           (yield* Effect.flip(implementation.entries({
             runId: "run" as RunId,
@@ -42,10 +44,12 @@ describe("service contracts", () => {
             runId: "run" as RunId,
             seq: 0 as Seq,
             state: null
-          }))).code
+          }, owner))).code
         ).toBe("journal_closed")
         expect((yield* Effect.flip(implementation.latestCheckpoint("run" as RunId))).code).toBe("journal_closed")
-        expect((yield* Effect.flip(implementation.compact({ runId: "run" as RunId }))).code).toBe("journal_closed")
+        expect((yield* Effect.flip(implementation.compact({ runId: "run" as RunId }, owner))).code).toBe(
+          "journal_closed"
+        )
         yield* implementation.changes
       })))
 

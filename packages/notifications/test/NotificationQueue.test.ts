@@ -163,7 +163,7 @@ describe("NotificationQueue", () => {
         yield* Effect.forEach(
           Array.from({ length: 513 }, (_, index) => index),
           (index) =>
-            journal.emitDurable(
+            journal.emitDurableUnfenced(
               new JournalEvent.Input({
                 runId: JournalEvent.RunId.make("run"),
                 sourceId: JournalEvent.SourceId.make("foreign"),
@@ -174,7 +174,7 @@ describe("NotificationQueue", () => {
             ),
           { discard: true }
         )
-        yield* journal.emitDurable(
+        yield* journal.emitDurableUnfenced(
           new JournalEvent.Input({
             runId: JournalEvent.RunId.make("run"),
             sourceId: JournalEvent.SourceId.make("foreign-promotion"),

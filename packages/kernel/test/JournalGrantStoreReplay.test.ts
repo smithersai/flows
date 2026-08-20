@@ -128,7 +128,7 @@ const emit = (
 ) =>
   Effect.gen(function*() {
     const journal = yield* Journal
-    yield* journal.emitDurable(
+    yield* journal.emitDurableUnfenced(
       new Input({
         runId: runId(target),
         sourceId: sourceId(options.sourceId),
@@ -184,7 +184,7 @@ describe("JournalGrantStore replay rejection", () => {
     run(
       Effect.gen(function*() {
         const journal = yield* Journal
-        yield* journal.emitDurable(
+        yield* journal.emitDurableUnfenced(
           new Input({
             runId: runId(options.policyRunId),
             sourceId: sourceId(options.sourceId),
@@ -347,7 +347,7 @@ describe("JournalGrantStore replay filtering", () => {
     run(
       Effect.gen(function*() {
         const journal = yield* Journal
-        yield* journal.emitDurable(
+        yield* journal.emitDurableUnfenced(
           new Input({
             runId: runId(options.policyRunId),
             sourceId: sourceId(options.sourceId),
@@ -365,7 +365,7 @@ describe("JournalGrantStore replay filtering", () => {
     run(
       Effect.gen(function*() {
         const journal = yield* Journal
-        yield* journal.emitDurable(
+        yield* journal.emitDurableUnfenced(
           new Input({
             runId: runId(options.runId),
             sourceId: sourceId("other-source"),
@@ -484,7 +484,7 @@ describe("JournalGrantStore construction envelopes", () => {
                 )
               })
             ),
-          emitDurable: base.emitDurable
+          emitDurableUnfenced: base.emitDurableUnfenced
         })
         const withEnvelope = {
           ...options,

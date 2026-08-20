@@ -114,7 +114,10 @@ export const layer: Layer.Layer<
       eventType: string,
       payload: ControlEvent["payload"]
     ): Effect.Effect<void, PersistenceError> =>
-      journal.emitDurable(
+      // Unfenced: the control plane mutates runs it does not own — that is
+      // the point of a control plane — so its event records are
+      // first-writer-wins admissions, not owner-fenced lifecycle writes.
+      journal.emitDurableUnfenced(
         new JournalEvent.Input({
           runId: JournalEvent.RunId.make(runId),
           sourceId,

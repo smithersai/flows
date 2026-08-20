@@ -81,7 +81,9 @@ describe("Journal.transact", () => {
       const run = runId("atomic-rollback")
 
       const exit = yield* journal.transact(Effect.gen(function*() {
-        yield* journal.emitDurable(input(run, sourceId("driver"), "flows.engine.run-decision", { decision: "created" }))
+        yield* journal.emitDurableUnfenced(
+          input(run, sourceId("driver"), "flows.engine.run-decision", { decision: "created" })
+        )
         return yield* Effect.fail(new Rejected("rejected after the WAL append"))
       })).pipe(Effect.exit)
 
@@ -97,14 +99,14 @@ describe("Journal.transact", () => {
       const record = () => input(run, sourceId("driver"), "flows.engine.attempt-finished", { state: "succeeded" })
 
       yield* journal.transact(
-        journal.emitDurable(record()).pipe(
+        journal.emitDurableUnfenced(record()).pipe(
           Effect.andThen(Effect.fail(new Rejected("rolled back")))
         )
       ).pipe(Effect.exit)
 
       // The in-process source index must not vouch for the rolled-back write:
       // a retry has to reach SQL again, not collapse into a phantom Duplicate.
-      const receipt = yield* journal.emitDurable(record())
+      const receipt = yield* journal.emitDurableUnfenced(record())
       const rows = yield* rowsOf(sql, run)
       expect(receipt._tag).toBe("Accepted")
       expect(rows.map((entry) => entry.seq)).toEqual([receipt.seq])
@@ -119,7 +121,9 @@ describe("Journal.transact", () => {
         const subscription = yield* journal.changes
 
         const pendingInside = yield* journal.transact(Effect.gen(function*() {
-          yield* journal.emitDurable(input(run, sourceId("driver"), "flows.engine.run-decision", { decision: "a" }))
+          yield* journal.emitDurableUnfenced(
+            input(run, sourceId("driver"), "flows.engine.run-decision", { decision: "a" })
+          )
           return yield* PubSub.remaining(subscription)
         }))
 
@@ -137,7 +141,9 @@ describe("Journal.transact", () => {
 
       const exit = yield* journal.transact(Effect.gen(function*() {
         yield* journal.transact(
-          journal.emitDurable(input(run, sourceId("driver"), "flows.engine.run-decision", { decision: "nested" }))
+          journal.emitDurableUnfenced(
+            input(run, sourceId("driver"), "flows.engine.run-decision", { decision: "nested" })
+          )
         )
         return yield* Effect.fail(new Rejected("outer rejected after the inner append"))
       })).pipe(Effect.exit)
@@ -176,13 +182,13 @@ describe("Journal.emitLossy against an open transaction", () => {
         const sql = yield* Effect.service(SqlClient.SqlClient)
         const run = runId("lossy-vs-open-transact")
 
-        yield* journal.emitDurable(input(run, sourceId("durable-a"), "first", { value: 0 }))
+        yield* journal.emitDurableUnfenced(input(run, sourceId("durable-a"), "first", { value: 0 }))
 
         // The lossy emit allocates its seq from `state.sequences` alone, while
         // the durable emit inside the open transact has already consumed that
         // value and parks `rememberCommitted` until the outermost COMMIT.
         yield* journal.transact(Effect.gen(function*() {
-          yield* journal.emitDurable(input(run, sourceId("durable-b"), "second", { value: 1 }))
+          yield* journal.emitDurableUnfenced(input(run, sourceId("durable-b"), "second", { value: 1 }))
           yield* journal.emitLossy(input(run, sourceId("telemetry"), "lossy", { value: 2 }))
         }))
         yield* journal.flush
@@ -211,7 +217,7 @@ describe("Journal.emitLossy against an open transaction", () => {
 
         yield* Deferred.await(ready)
         yield* journal.transact(Effect.gen(function*() {
-          yield* journal.emitDurable(allocatedInput(run, source, "durable", { value: 1 }))
+          yield* journal.emitDurableUnfenced(allocatedInput(run, source, "durable", { value: 1 }))
           yield* Deferred.succeed(release, undefined)
           yield* Fiber.join(lossy)
         }))

@@ -31,7 +31,7 @@ describe("SqlJournal paging properties", () => {
         yield* Effect.forEach(
           Array.from({ length: count }, (_, index) => index),
           (index) =>
-            journal.emitDurable({
+            journal.emitDurableUnfenced({
               runId: run,
               sourceId: sourceId("producer"),
               eventType: "paging.event",
