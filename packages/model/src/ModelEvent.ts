@@ -249,13 +249,23 @@ export const UsageEvent = Schema.Struct({
  * @slop
  */
 export type UsageEvent = typeof UsageEvent.Type
-/** A bounded model-boundary retry, recorded so run reports can count transport recovery. */
+/**
+ * A bounded model-boundary retry, recorded so run reports can count transport recovery.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const Retry = Schema.Struct({
   type: Schema.Literal("retry"),
   attempt: Schema.Int,
   code: Schema.String
 })
-/** The decoded form of {@link Retry}. */
+/**
+ * The decoded form of {@link Retry}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Retry = typeof Retry.Type
 /**
  * Ends the stream and states why. A stream without one was interrupted.

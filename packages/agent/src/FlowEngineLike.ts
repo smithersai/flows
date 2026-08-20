@@ -460,7 +460,12 @@ const RecordedStep = Schema.Struct({
  */
 const retryableModelCodes: ReadonlySet<string> = new Set(["provider_internal", "transport"])
 
-/** The production transport retry budget: two retries, with a short reconnect backoff. */
+/**
+ * The production transport retry budget: two retries, with a short reconnect backoff.
+ *
+ * @category policies
+ * @since 0.1.0
+ */
 export const defaultModelRetryPolicy: Schedule.Schedule<unknown, Model.ModelFailure> = Schedule.exponential(1000, 2)
   .pipe(Schedule.upTo({ times: 2 }))
 
