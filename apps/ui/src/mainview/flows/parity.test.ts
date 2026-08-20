@@ -140,7 +140,9 @@ describe("launch-law parity: every affordance is a command", () => {
 			 * first-tab-stop copy) + the reset confirm's own trigger (§28.4).
 			 */
 			"../App.tsx": 22,
-			"../ConnectorsSurface.tsx": 5,
+			// 6 = 5 + the empty state's own import affordance (§11.6): with nothing
+			// connected the pane stated a fact and offered no move.
+			"../ConnectorsSurface.tsx": 6,
 			"../ChatCards.tsx": 23,
 			"../DevtoolsPanel.tsx": 1,
 			"../SurfaceChrome.tsx": 3,
