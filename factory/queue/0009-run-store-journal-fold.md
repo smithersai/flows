@@ -1,5 +1,5 @@
 ---
-status: blocked
+status: landed
 anchor: head
 priority: p1
 ---
@@ -137,3 +137,35 @@ sync, kernel, cli all green; the new Fold suites actually passing; dprint
 and coverage green; vault gate clean. Run the targeted package gates FIRST
 and commit early — the 90-minute node timeout killed an attempt on item 0008
 during a recursive check.
+
+Landed (2026-08-20). Rounds 2 and 3 on the lane cleared every blocking
+finding above; verify approved the round-3 state (`Fold.rebuild` goes
+through `Journal` projections, compaction snapshots the fold floor, and the
+defensive arms are covered instead of ignored — `run-store/src/Fold.ts`
+pinned at 5 ignores). The lane predates the history retell, so the landing
+re-applied its seven commits onto the rebuilt main; the cross-lineage
+collisions and how they resolved:
+
+- Redaction bypass: item 0010's central allowlist won again, as it did for
+  item 0011. `flows.run.` and `flows.attempt.` joined
+  `Redaction.verbatimNamespaces` as whole namespaces — every event in them
+  is a fold input — and the lane's local `bypassesWriteRedaction` helper was
+  dropped.
+- Journal-in-context: every composition that had `SqlJournal.layer` as a
+  mergeAll sibling (item 0010's memoized `journalLayer` hoist included) now
+  provides one journal into all store layers with `Layer.provideMerge`,
+  which also retires the hoist's per-store `Layer.provide(journal)`.
+- `Rewind.validate` pagination: main's did-not-advance guard and the lane's
+  `ownsReplayEntry` filter compose; the guard tracks all entries, the
+  replay tail counts only owned ones.
+- Item 0011's `engine-store/test/Fold.test.ts` composed its journal as a
+  sibling behind a cast; it now provides the journal into
+  `DurableEngineState.layer`, whose type requires `Journal` since this fold.
+- The lane's engine-harness coverage tweaks were dropped: the rebuilt main
+  reorganized that package into `packages/agent`, whose gate passes on its
+  own terms.
+
+Landing gate at the merged tip: run-store, journal, engine-store,
+time-travel all `check` clean and 100% coverage (132+/189/714/304 tests);
+database 75, flow 290, control 145, kernel 410, flows 302 (including the
+coverage-ignore inventory), cli 206, step-cache 80 — all green.
