@@ -331,6 +331,9 @@ const main = async (): Promise<number> => {
 				 * out at the tail of a full run while both passed alone.
 				 */
 				closeOpenClients();
+				// Same leak on the browser side: closing a session's debugger
+				// socket leaves its TAB running, pumps and all.
+				await browser.closeSessions();
 				await stack.reset();
 				const base = createReporter(suite.id);
 				// The `ok:` lines are the record of what was proven, so read the ids

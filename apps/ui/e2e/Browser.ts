@@ -125,6 +125,15 @@ export interface E2eBrowser {
 	 * delete the rows the section was written to prove.
 	 */
 	readonly openIfAvailable: (cookie?: string) => Promise<CdpSession | undefined>;
+	/**
+	 * Close every page this browser still has open, without stopping the
+	 * browser itself. Closing a session's DEBUGGER socket leaves its TAB
+	 * running, and a tab that launched a workflow keeps polling the shared
+	 * stack every poll interval for the rest of the run — so the suites after
+	 * it wait behind a queue of abandoned pumps. The runner calls this between
+	 * suites.
+	 */
+	readonly closeSessions: () => Promise<void>;
 	readonly close: () => Promise<void>;
 }
 
@@ -416,7 +425,12 @@ export const createE2eBrowser = (origin: string): E2eBrowser => {
 			media: async (feature, value) => {
 				await cdp.send("Emulation.setEmulatedMedia", { features: [{ name: feature, value }] });
 			},
-			close: () => cdp.close(),
+			close: () => {
+				// The tab goes with the socket: a page left running keeps its
+				// timers, its pumps and its network alive on the shared stack.
+				void cdp.send("Page.close").catch(() => undefined);
+				cdp.close();
+			},
 		};
 	};
 
@@ -427,6 +441,18 @@ export const createE2eBrowser = (origin: string): E2eBrowser => {
 		openIfAvailable: async (cookie?: string) => {
 			if (binary === undefined) return undefined;
 			return await open(cookie);
+		},
+		closeSessions: async () => {
+			for (const connection of connections) {
+				try {
+					await connection.send("Page.close");
+				} catch {
+					// Already closed, or the tab is gone — either way there is
+					// nothing left running on it.
+				}
+				connection.close();
+			}
+			connections.length = 0;
 		},
 		close: async () => {
 			for (const connection of connections) connection.close();
