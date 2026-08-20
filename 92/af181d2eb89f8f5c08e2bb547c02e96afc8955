@@ -1,0 +1,878 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "92af181d2eb89f8f5c08e2bb547c02e96afc8955",
+ "tree": "bb9b1f7d2c14a68fd949bfdc64c3ebc38283f803",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 43,
+  "sectionCount": 83
+ },
+ "source": {
+  "commit": "bdd707bfcf264bb5dad763ed13108ee81323899e",
+  "subject": "🐛 fix(run-store): make run state fold durable",
+  "priorCanonicalCommit": "2632c05da63099666add6437c743f4c5b3922f59",
+  "treeEqualToSource": false,
+  "indexOnSourceLine": 37,
+  "sourceLineCount": 71,
+  "subjectRewritten": true,
+  "rewriteReason": "the source commit landed 13 separable concerns under one subject; this commit carries one of them and states it, while the last commit of the split keeps the source subject verbatim and reproduces the source tree exactly",
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true,
+  "split": {
+   "of": "2632c05da63099666add6437c743f4c5b3922f59",
+   "index": 7,
+   "count": 13,
+   "granularity": "whole-path",
+   "rationale": "path-partitioned split of prior canonical commit 2632c05da63099666add6437c743f4c5b3922f59 (85 files, 2647 changed lines) into 13 dependency-ordered atomic commits; the partition is by whole path, no hunk is divided, and the union of the 13 path sets is exactly the prior commit's path set, so the last split commit's tree is byte-identical to the prior canonical tree and to the source commit's tree",
+   "members": [
+    "35e8bb5ee63f687e4c5d505c0eeb2a0dc4852912",
+    "f2a7988d68204605a0893d95d2e72986c5324607",
+    "0db9b9e56057fdb635498531007046b455f59f17",
+    "93a03795321b1c8eb6b0549f7e9c077983b2a4de",
+    "4b74f1869551d52856c373d3c00176b5239f6d70",
+    "10e7bcaae6ead421319a8d67cc58759ba7fcea9b",
+    "92af181d2eb89f8f5c08e2bb547c02e96afc8955",
+    "6ba1f1e4bbfdb4e9948794207954c551fa325b2e",
+    "83bb9a5cb7fd6687b99a75a8be32bcb4e79bf977",
+    "1c4f303b40917cb36087ef46817a11f2cb9e0d29",
+    "ceccf909f0e096f82af297262f7e60620400663f",
+    "c92bd7ef9e370096bcb56fdd661d9f3ba04dd080",
+    "45e3c1570fd6be09e9c529beaab1c8602d059998"
+   ],
+   "priorSize": {
+    "files": 85,
+    "added": 1940,
+    "deleted": 707,
+    "changed": 2647
+   }
+  }
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "engine-store",
+  "epicsTouched": [
+   {
+    "id": "engine-store",
+    "files": 20
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 881,
+  "globalCount": 921,
+  "purpose": "♻️ refactor(engine-store): compose the test stores over the one journal they fold into",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "10e7bcaae6ead421319a8d67cc58759ba7fcea9b"
+  ],
+  "parent": "10e7bcaae6ead421319a8d67cc58759ba7fcea9b",
+  "sourceImports": [
+   "0ef4871b719f3876407cc5ccb9f876c69c3c7158",
+   "13373e8984e787685db54b712a84b60c7c7c8b5c",
+   "229f2a2a62fbf8eb4f2df6c8c9204deee510e76d",
+   "2371c029a5666dbf3616cc818e025811838efb01",
+   "2db286733e6b56ebdb55149cd22dcd85893f2354",
+   "38d4d52ca52f0442023133d1c458a08080e2edf9",
+   "94f7c8bf4001f5fb8bb81bf239df5caa97fbbaec",
+   "9ae5474dc0e2fd1248b8b06eb2c344de17c26828",
+   "b8f28c7744a64c21bc1dabcd26df3f4dd3918860",
+   "bc886f08eec148bc732caf49edb090d6bcfebc61",
+   "c548fa2e9a8dd3d8c628aae3c79519cce53be5f7",
+   "c8bce393ea55d3257b21dbf5095fb2af8220a9d3"
+  ],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "10e7bcaae6ead421319a8d67cc58759ba7fcea9b",
+  "next": "6ba1f1e4bbfdb4e9948794207954c551fa325b2e",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "6fe6857b28247375ab46b0d79cba15e74754ebd6"
+ },
+ "size": {
+  "files": 20,
+  "added": 125,
+  "deleted": 87
+ },
+ "provenance": {
+  "strategy": "path-partitioned split of the source commit's tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": false,
+  "sourceCommit": "bdd707bfcf264bb5dad763ed13108ee81323899e",
+  "splitOf": "2632c05da63099666add6437c743f4c5b3922f59"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "packages/engine-store/src/test/TestStores.ts",
+   "mode": "100644",
+   "blob": "29a8ba9555e028d1b8504fff3e7ae1f96afac361",
+   "previousBlob": "b36ff373d5a912926517befce1134d33a11f0c2d",
+   "added": 18,
+   "deleted": 13,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 60,
+     "oldLines": 8,
+     "newStart": 60,
+     "newLines": 2
+    },
+    {
+     "oldStart": 70,
+     "oldLines": 3,
+     "newStart": 64,
+     "newLines": 1
+    },
+    {
+     "oldStart": 74,
+     "oldLines": 2,
+     "newStart": 66,
+     "newLines": 15
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/ArtifactGc.test.ts",
+   "mode": "100644",
+   "blob": "a72e6ef31154e9f5fb7128975786c0eb74013b24",
+   "previousBlob": "6e6dbe3d326c35919c7a335b56485bb708a97157",
+   "added": 5,
+   "deleted": 2,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 18,
+     "oldLines": 0,
+     "newStart": 19,
+     "newLines": 1
+    },
+    {
+     "oldStart": 132,
+     "oldLines": 1,
+     "newStart": 133,
+     "newLines": 1
+    },
+    {
+     "oldStart": 138,
+     "oldLines": 0,
+     "newStart": 140,
+     "newLines": 2
+    },
+    {
+     "oldStart": 140,
+     "oldLines": 1,
+     "newStart": 143,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/AttemptProbeCost.test.ts",
+   "mode": "100644",
+   "blob": "67dc14d3753f07569aac742554e86a29f4611f88",
+   "previousBlob": "2060bbce9b030c57256edd868cae533a800fb6cd",
+   "added": 2,
+   "deleted": 3,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 68,
+     "oldLines": 1,
+     "newStart": 67,
+     "newLines": 0
+    },
+    {
+     "oldStart": 70,
+     "oldLines": 1,
+     "newStart": 68,
+     "newLines": 0
+    },
+    {
+     "oldStart": 73,
+     "oldLines": 1,
+     "newStart": 71,
+     "newLines": 1
+    },
+    {
+     "oldStart": 75,
+     "oldLines": 0,
+     "newStart": 74,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/AttemptSurvivorsParity.test.ts",
+   "mode": "100644",
+   "blob": "6b3ff5cd902b4f239e182a9d3c835735fb33ec0b",
+   "previousBlob": "a997a77de9233cb7f46c1522c881cc797cbaecda",
+   "added": 5,
+   "deleted": 3,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 11,
+     "oldLines": 0,
+     "newStart": 12,
+     "newLines": 1
+    },
+    {
+     "oldStart": 24,
+     "oldLines": 3,
+     "newStart": 25,
+     "newLines": 4
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/CacheProvenanceGeneration.test.ts",
+   "mode": "100644",
+   "blob": "d9a3a2d04004419edd7792d8735f4c3b83874f76",
+   "previousBlob": "d012d06ac576601f214669650a141fd31707e77b",
+   "added": 5,
+   "deleted": 4,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 303,
+     "oldLines": 1,
+     "newStart": 302,
+     "newLines": 0
+    },
+    {
+     "oldStart": 305,
+     "oldLines": 1,
+     "newStart": 303,
+     "newLines": 0
+    },
+    {
+     "oldStart": 308,
+     "oldLines": 1,
+     "newStart": 306,
+     "newLines": 1
+    },
+    {
+     "oldStart": 312,
+     "oldLines": 1,
+     "newStart": 310,
+     "newLines": 4
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/CycleDetectionSql.test.ts",
+   "mode": "100644",
+   "blob": "ff38a8d600e09736b1d82a9b335def75ef66c319",
+   "previousBlob": "5c15470dfba302b7ae0dc7fbdffd2be83b636309",
+   "added": 11,
+   "deleted": 4,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 4,
+     "oldLines": 0,
+     "newStart": 5,
+     "newLines": 1
+    },
+    {
+     "oldStart": 16,
+     "oldLines": 0,
+     "newStart": 18,
+     "newLines": 3
+    },
+    {
+     "oldStart": 37,
+     "oldLines": 1,
+     "newStart": 41,
+     "newLines": 1
+    },
+    {
+     "oldStart": 173,
+     "oldLines": 0,
+     "newStart": 178,
+     "newLines": 4
+    },
+    {
+     "oldStart": 175,
+     "oldLines": 3,
+     "newStart": 183,
+     "newLines": 2
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/DurableEngineStateSql.test.ts",
+   "mode": "100644",
+   "blob": "f352f670d999010fdd44fdccb5ab61bce6685f48",
+   "previousBlob": "0dfe00cfee7aef7ec1c6c44a61f83028e3d035e3",
+   "added": 8,
+   "deleted": 4,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 3,
+     "oldLines": 0,
+     "newStart": 4,
+     "newLines": 1
+    },
+    {
+     "oldStart": 21,
+     "oldLines": 0,
+     "newStart": 23,
+     "newLines": 3
+    },
+    {
+     "oldStart": 81,
+     "oldLines": 1,
+     "newStart": 85,
+     "newLines": 1
+    },
+    {
+     "oldStart": 134,
+     "oldLines": 1,
+     "newStart": 138,
+     "newLines": 1
+    },
+    {
+     "oldStart": 178,
+     "oldLines": 1,
+     "newStart": 182,
+     "newLines": 1
+    },
+    {
+     "oldStart": 197,
+     "oldLines": 1,
+     "newStart": 201,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/DurableStateOrdering.test.ts",
+   "mode": "100644",
+   "blob": "6faee7cc70f4f130fe44abc78b3afb1ebef42420",
+   "previousBlob": "568b74d651cbb578b561dbba522f7eabd68d75bd",
+   "added": 8,
+   "deleted": 4,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 3,
+     "oldLines": 0,
+     "newStart": 4,
+     "newLines": 1
+    },
+    {
+     "oldStart": 21,
+     "oldLines": 0,
+     "newStart": 23,
+     "newLines": 3
+    },
+    {
+     "oldStart": 146,
+     "oldLines": 1,
+     "newStart": 150,
+     "newLines": 1
+    },
+    {
+     "oldStart": 170,
+     "oldLines": 1,
+     "newStart": 174,
+     "newLines": 1
+    },
+    {
+     "oldStart": 200,
+     "oldLines": 1,
+     "newStart": 204,
+     "newLines": 1
+    },
+    {
+     "oldStart": 245,
+     "oldLines": 1,
+     "newStart": 249,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/HardKillReclaim.test.ts",
+   "mode": "100644",
+   "blob": "2d23ede0c0165f8fcbab27a1137ebc5720dced82",
+   "previousBlob": "629d6533c373d605d70267131ec053566b20bc15",
+   "added": 4,
+   "deleted": 2,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 55,
+     "oldLines": 1,
+     "newStart": 54,
+     "newLines": 0
+    },
+    {
+     "oldStart": 58,
+     "oldLines": 1,
+     "newStart": 57,
+     "newLines": 4
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/LateLinkedChildCancellation.test.ts",
+   "mode": "100644",
+   "blob": "1ac919b66e5b86e4313c1362c49dc73e113d44d4",
+   "previousBlob": "021d292665d2a35b40a88a8a967829ea319ef0e5",
+   "added": 4,
+   "deleted": 2,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 67,
+     "oldLines": 1,
+     "newStart": 66,
+     "newLines": 0
+    },
+    {
+     "oldStart": 70,
+     "oldLines": 1,
+     "newStart": 69,
+     "newLines": 4
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/OutOfLadderSchema.test.ts",
+   "mode": "100644",
+   "blob": "674bd609cb3b4be6c18fb03bcdb3ff7c7a3960f2",
+   "previousBlob": "64141f786b66cc04ddd702cdb577ac048cb5d667",
+   "added": 6,
+   "deleted": 2,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 16,
+     "oldLines": 0,
+     "newStart": 17,
+     "newLines": 1
+    },
+    {
+     "oldStart": 25,
+     "oldLines": 0,
+     "newStart": 27,
+     "newLines": 3
+    },
+    {
+     "oldStart": 44,
+     "oldLines": 1,
+     "newStart": 48,
+     "newLines": 1
+    },
+    {
+     "oldStart": 74,
+     "oldLines": 1,
+     "newStart": 78,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/RestoreDrill.test.ts",
+   "mode": "100644",
+   "blob": "f1cd822c6526c4db5366643f64e85991bd8866e8",
+   "previousBlob": "244d38f2af15a066524917a27cbd0b531e69b052",
+   "added": 4,
+   "deleted": 6,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 79,
+     "oldLines": 4,
+     "newStart": 79,
+     "newLines": 2
+    },
+    {
+     "oldStart": 85,
+     "oldLines": 1,
+     "newStart": 83,
+     "newLines": 1
+    },
+    {
+     "oldStart": 87,
+     "oldLines": 0,
+     "newStart": 86,
+     "newLines": 1
+    },
+    {
+     "oldStart": 97,
+     "oldLines": 1,
+     "newStart": 95,
+     "newLines": 0
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/RetryOrigin.test.ts",
+   "mode": "100644",
+   "blob": "c4bb38a3ab73a75cafe2764315668b06cd6746ec",
+   "previousBlob": "8527a8d41927067d1320a1818c163ccca998729f",
+   "added": 7,
+   "deleted": 9,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 169,
+     "oldLines": 9,
+     "newStart": 169,
+     "newLines": 7
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/RunParentAtomicity.test.ts",
+   "mode": "100644",
+   "blob": "68e30204395b86ad190786ee7ca8b8ea686949f2",
+   "previousBlob": "3438d90743cda3a898c01b2833a7d4a465bea013",
+   "added": 4,
+   "deleted": 2,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 49,
+     "oldLines": 1,
+     "newStart": 48,
+     "newLines": 0
+    },
+    {
+     "oldStart": 52,
+     "oldLines": 1,
+     "newStart": 51,
+     "newLines": 4
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/RunParentEdges.test.ts",
+   "mode": "100644",
+   "blob": "ed9deb6a9b9c635560cd166adf1b1f4ba8f0d6fc",
+   "previousBlob": "325ed347a570c78b044cac8f5ded7e0c02abb7d9",
+   "added": 7,
+   "deleted": 3,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 3,
+     "oldLines": 0,
+     "newStart": 4,
+     "newLines": 1
+    },
+    {
+     "oldStart": 13,
+     "oldLines": 0,
+     "newStart": 15,
+     "newLines": 3
+    },
+    {
+     "oldStart": 33,
+     "oldLines": 1,
+     "newStart": 37,
+     "newLines": 1
+    },
+    {
+     "oldStart": 231,
+     "oldLines": 1,
+     "newStart": 235,
+     "newLines": 1
+    },
+    {
+     "oldStart": 263,
+     "oldLines": 1,
+     "newStart": 267,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/Sha256.ts",
+   "mode": "100644",
+   "blob": "11e3b59a925dd904957534e5266722de3fd47f6b",
+   "previousBlob": "6b40cab9bb4ee49c7246a900ccd6376711356526",
+   "added": 2,
+   "deleted": 2,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 15,
+     "oldLines": 2,
+     "newStart": 15,
+     "newLines": 2
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/SweepFiltering.test.ts",
+   "mode": "100644",
+   "blob": "78dd59e71a38499d0989b5003f6b3b749e833393",
+   "previousBlob": "1b67fc647cf63e7257325e794d56ab6d92ba7a8f",
+   "added": 4,
+   "deleted": 2,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 43,
+     "oldLines": 1,
+     "newStart": 42,
+     "newLines": 0
+    },
+    {
+     "oldStart": 46,
+     "oldLines": 1,
+     "newStart": 45,
+     "newLines": 4
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/Trampoline.test.ts",
+   "mode": "100644",
+   "blob": "68b84be1cf2927af44aa72b3a9e0448de5c8f7f2",
+   "previousBlob": "a0f2dcf3ad1ee65298d929a54f5412f26c245f2d",
+   "added": 2,
+   "deleted": 4,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 132,
+     "oldLines": 2,
+     "newStart": 131,
+     "newLines": 0
+    },
+    {
+     "oldStart": 135,
+     "oldLines": 1,
+     "newStart": 132,
+     "newLines": 0
+    },
+    {
+     "oldStart": 138,
+     "oldLines": 1,
+     "newStart": 135,
+     "newLines": 1
+    },
+    {
+     "oldStart": 140,
+     "oldLines": 0,
+     "newStart": 138,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/WalAtomicity.test.ts",
+   "mode": "100644",
+   "blob": "9078a4a700813695bf1c227364c7e7e939fc7d8c",
+   "previousBlob": "8281f9708962a4824ca7fd00191c95563d18695c",
+   "added": 7,
+   "deleted": 5,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 79,
+     "oldLines": 2,
+     "newStart": 78,
+     "newLines": 0
+    },
+    {
+     "oldStart": 82,
+     "oldLines": 1,
+     "newStart": 79,
+     "newLines": 0
+    },
+    {
+     "oldStart": 85,
+     "oldLines": 1,
+     "newStart": 82,
+     "newLines": 1
+    },
+    {
+     "oldStart": 87,
+     "oldLines": 1,
+     "newStart": 84,
+     "newLines": 6
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/test/fixtures/durable-wait-child.ts",
+   "mode": "100644",
+   "blob": "4bbe87370263b6fda4591b7fe73edfcfeacf8d0b",
+   "previousBlob": "4e3beebb5f8b3c1d4137946b9e2d558f5ee33f03",
+   "added": 12,
+   "deleted": 11,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 56,
+     "oldLines": 10,
+     "newStart": 56,
+     "newLines": 11
+    },
+    {
+     "oldStart": 103,
+     "oldLines": 1,
+     "newStart": 104,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  }
+ ],
+ "sizeJustification": "split from prior canonical commit 2632c05da63099666add6437c743f4c5b3922f59; 212 changed lines across 20 files, below the 2000-line large-commit threshold"
+}
