@@ -1,0 +1,772 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "934a70097b819b70f9190e5b9a97a3aa36b0304a",
+ "tree": "5870507c93e35d207c74fb5d45e154901da862b5",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 35,
+  "sectionCount": 71
+ },
+ "source": {
+  "commit": "0cf4984d029443f2d08097c890734fa47878687a",
+  "subject": "✨ feat(run-store): fold run and attempt state into the journal",
+  "priorCanonicalCommit": "fa8c0fb82d0eda4fd0f50c43899c313fded2fcac",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 35,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "storage",
+  "epicsTouched": [
+   {
+    "id": "engine-store",
+    "files": 2
+   },
+   {
+    "id": "storage",
+    "files": 10
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 873,
+  "globalCount": 909,
+  "purpose": "✨ feat(run-store): fold run and attempt state into the journal",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "ec155dddce69c87dee4d75dad53ecfc1b144bf2b"
+  ],
+  "parent": "ec155dddce69c87dee4d75dad53ecfc1b144bf2b",
+  "sourceImports": [
+   "229f2a2a62fbf8eb4f2df6c8c9204deee510e76d",
+   "bfe87e288aee957ed67d609f29d7dd08b841bfff",
+   "946fffb7dde55e7f5fa758d10ceca5a9d0d09494",
+   "c8bce393ea55d3257b21dbf5095fb2af8220a9d3",
+   "4390fe6159b47fbf5df3fcbcadcdc24e77d5ce8d",
+   "72b08b12f257280fccf737d94499dd559ddf7464",
+   "dbf468b7175db5c08f3863ca79e9353b458536d5",
+   "94f7c8bf4001f5fb8bb81bf239df5caa97fbbaec"
+  ],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "ec155dddce69c87dee4d75dad53ecfc1b144bf2b",
+  "next": "10d114ff64cbedb046a690c985525246cc4d9117",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "9f4db87e9b528812c207c1054f8c36a09a06c2c7"
+ },
+ "size": {
+  "files": 16,
+  "added": 1663,
+  "deleted": 79
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "0cf4984d029443f2d08097c890734fa47878687a"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "packages/engine-store/README.md",
+   "mode": "100644",
+   "blob": "2118466e42714e40c3e2d87b2967a0777688c78b",
+   "previousBlob": "e86adc3c97ee526a76ba9ba661884cd550355ee3",
+   "added": 17,
+   "deleted": 15,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 83,
+     "oldLines": 15,
+     "newStart": 83,
+     "newLines": 17
+    }
+   ],
+   "role": "docs",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/engine-store/src/DurableEngineState.ts",
+   "mode": "100644",
+   "blob": "a84c54d8fee9f0c170a98af7166c4ed32b88308f",
+   "previousBlob": "5b43ef59b3556d9d547897c76e93279272d72444",
+   "added": 70,
+   "deleted": 9,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 13,
+     "oldLines": 0,
+     "newStart": 14,
+     "newLines": 2
+    },
+    {
+     "oldStart": 14,
+     "oldLines": 0,
+     "newStart": 17,
+     "newLines": 1
+    },
+    {
+     "oldStart": 582,
+     "oldLines": 0,
+     "newStart": 586,
+     "newLines": 4
+    },
+    {
+     "oldStart": 705,
+     "oldLines": 0,
+     "newStart": 713,
+     "newLines": 1
+    },
+    {
+     "oldStart": 742,
+     "oldLines": 0,
+     "newStart": 751,
+     "newLines": 46
+    },
+    {
+     "oldStart": 1004,
+     "oldLines": 1,
+     "newStart": 1058,
+     "newLines": 1
+    },
+    {
+     "oldStart": 1006,
+     "oldLines": 0,
+     "newStart": 1061,
+     "newLines": 1
+    },
+    {
+     "oldStart": 1016,
+     "oldLines": 1,
+     "newStart": 1071,
+     "newLines": 1
+    },
+    {
+     "oldStart": 1018,
+     "oldLines": 1,
+     "newStart": 1073,
+     "newLines": 1
+    },
+    {
+     "oldStart": 1029,
+     "oldLines": 0,
+     "newStart": 1085,
+     "newLines": 1
+    },
+    {
+     "oldStart": 1037,
+     "oldLines": 3,
+     "newStart": 1093,
+     "newLines": 6
+    },
+    {
+     "oldStart": 1043,
+     "oldLines": 1,
+     "newStart": 1102,
+     "newLines": 1
+    },
+    {
+     "oldStart": 1061,
+     "oldLines": 0,
+     "newStart": 1121,
+     "newLines": 1
+    },
+    {
+     "oldStart": 1063,
+     "oldLines": 2,
+     "newStart": 1123,
+     "newLines": 3
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/RunStateFoldWaiting.test.ts",
+   "mode": "100644",
+   "blob": "f2a9f2c6be29cb602037db36e4fa9588c45649b0",
+   "previousBlob": null,
+   "added": 125,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 0,
+     "oldLines": 0,
+     "newStart": 1,
+     "newLines": 125
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": null
+  },
+  {
+   "change": "M",
+   "path": "packages/journal/README.md",
+   "mode": "100644",
+   "blob": "ccded883db6ca0e0fd6c2fe9a9a032a4f3895921",
+   "previousBlob": "7bd30f5cce325323f48ae65dbcb1980b3cab7942",
+   "added": 14,
+   "deleted": 11,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 25,
+     "oldLines": 3,
+     "newStart": 25,
+     "newLines": 3
+    },
+    {
+     "oldStart": 101,
+     "oldLines": 8,
+     "newStart": 101,
+     "newLines": 11
+    }
+   ],
+   "role": "docs",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/journal/src/Redaction.ts",
+   "mode": "100644",
+   "blob": "76d38325d4e36c2fd47ad0ed2b24e04ca6839bb2",
+   "previousBlob": "c6dc1318201e63b383c141d597065e3a3ed9f2d0",
+   "added": 9,
+   "deleted": 4,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 170,
+     "oldLines": 3,
+     "newStart": 170,
+     "newLines": 6
+    },
+    {
+     "oldStart": 196,
+     "oldLines": 1,
+     "newStart": 199,
+     "newLines": 3
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/journal/test/Redaction.test.ts",
+   "mode": "100644",
+   "blob": "e53cf6d897530d397403d558e52827dc60ade195",
+   "previousBlob": "8a6225d79ec16607f7fe0939efc3d13e608df150",
+   "added": 64,
+   "deleted": 10,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 113,
+     "oldLines": 1,
+     "newStart": 113,
+     "newLines": 3
+    },
+    {
+     "oldStart": 118,
+     "oldLines": 0,
+     "newStart": 121,
+     "newLines": 5
+    },
+    {
+     "oldStart": 192,
+     "oldLines": 1,
+     "newStart": 199,
+     "newLines": 1
+    },
+    {
+     "oldStart": 195,
+     "oldLines": 3,
+     "newStart": 202,
+     "newLines": 22
+    },
+    {
+     "oldStart": 199,
+     "oldLines": 5,
+     "newStart": 225,
+     "newLines": 33
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/README.md",
+   "mode": "100644",
+   "blob": "bc086d39413416ace6a3abe0859346584acdde34",
+   "previousBlob": "6009564146f720af2bc52ce947e3e6c42ee84e04",
+   "added": 17,
+   "deleted": 8,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 7,
+     "oldLines": 7,
+     "newStart": 7,
+     "newLines": 15
+    },
+    {
+     "oldStart": 66,
+     "oldLines": 1,
+     "newStart": 74,
+     "newLines": 2
+    }
+   ],
+   "role": "docs",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/src/AttemptStore.ts",
+   "mode": "100644",
+   "blob": "0dd2faf50be4336c6433d26be79a363df6ed2820",
+   "previousBlob": "07b228df0c0a552ef9e4d137dd91f58e682f02a1",
+   "added": 101,
+   "deleted": 12,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 16,
+     "oldLines": 0,
+     "newStart": 17,
+     "newLines": 2
+    },
+    {
+     "oldStart": 416,
+     "oldLines": 0,
+     "newStart": 419,
+     "newLines": 3
+    },
+    {
+     "oldStart": 455,
+     "oldLines": 0,
+     "newStart": 461,
+     "newLines": 1
+    },
+    {
+     "oldStart": 471,
+     "oldLines": 0,
+     "newStart": 478,
+     "newLines": 46
+    },
+    {
+     "oldStart": 495,
+     "oldLines": 1,
+     "newStart": 547,
+     "newLines": 1
+    },
+    {
+     "oldStart": 517,
+     "oldLines": 0,
+     "newStart": 570,
+     "newLines": 1
+    },
+    {
+     "oldStart": 546,
+     "oldLines": 0,
+     "newStart": 600,
+     "newLines": 1
+    },
+    {
+     "oldStart": 577,
+     "oldLines": 2,
+     "newStart": 631,
+     "newLines": 3
+    },
+    {
+     "oldStart": 615,
+     "oldLines": 1,
+     "newStart": 670,
+     "newLines": 1
+    },
+    {
+     "oldStart": 636,
+     "oldLines": 0,
+     "newStart": 692,
+     "newLines": 7
+    },
+    {
+     "oldStart": 653,
+     "oldLines": 2,
+     "newStart": 715,
+     "newLines": 3
+    },
+    {
+     "oldStart": 677,
+     "oldLines": 1,
+     "newStart": 740,
+     "newLines": 1
+    },
+    {
+     "oldStart": 701,
+     "oldLines": 0,
+     "newStart": 765,
+     "newLines": 9
+    },
+    {
+     "oldStart": 720,
+     "oldLines": 2,
+     "newStart": 792,
+     "newLines": 3
+    },
+    {
+     "oldStart": 737,
+     "oldLines": 1,
+     "newStart": 810,
+     "newLines": 1
+    },
+    {
+     "oldStart": 763,
+     "oldLines": 0,
+     "newStart": 837,
+     "newLines": 15
+    },
+    {
+     "oldStart": 773,
+     "oldLines": 2,
+     "newStart": 861,
+     "newLines": 3
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "A",
+   "path": "packages/run-store/src/Fold.ts",
+   "mode": "100644",
+   "blob": "95f24cb44ad41b81a8625b4ef70d4c7d5dc59fac",
+   "previousBlob": null,
+   "added": 482,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 0,
+     "oldLines": 0,
+     "newStart": 1,
+     "newLines": 482
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": null
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/src/Migrations.ts",
+   "mode": "100644",
+   "blob": "017fc51f5e24c36a4249eb155d7cb5bcd593bba3",
+   "previousBlob": "887b6b1adc37da4f5e2faef3b11098da5a0afabc",
+   "added": 3,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 22,
+     "oldLines": 0,
+     "newStart": 23,
+     "newLines": 1
+    },
+    {
+     "oldStart": 36,
+     "oldLines": 1,
+     "newStart": 37,
+     "newLines": 2
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/src/RunStore.ts",
+   "mode": "100644",
+   "blob": "648c6f7b82f53b0781bbb0579dd012e1950295f7",
+   "previousBlob": "f4089d769234094c80856c729b2b62e3edafcfe0",
+   "added": 93,
+   "deleted": 7,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 634,
+     "oldLines": 0,
+     "newStart": 635,
+     "newLines": 17
+    },
+    {
+     "oldStart": 689,
+     "oldLines": 0,
+     "newStart": 707,
+     "newLines": 21
+    },
+    {
+     "oldStart": 720,
+     "oldLines": 1,
+     "newStart": 758,
+     "newLines": 1
+    },
+    {
+     "oldStart": 722,
+     "oldLines": 1,
+     "newStart": 760,
+     "newLines": 2
+    },
+    {
+     "oldStart": 760,
+     "oldLines": 1,
+     "newStart": 799,
+     "newLines": 9
+    },
+    {
+     "oldStart": 793,
+     "oldLines": 1,
+     "newStart": 840,
+     "newLines": 1
+    },
+    {
+     "oldStart": 805,
+     "oldLines": 0,
+     "newStart": 853,
+     "newLines": 3
+    },
+    {
+     "oldStart": 827,
+     "oldLines": 3,
+     "newStart": 877,
+     "newLines": 7
+    },
+    {
+     "oldStart": 966,
+     "oldLines": 0,
+     "newStart": 1021,
+     "newLines": 6
+    },
+    {
+     "oldStart": 1038,
+     "oldLines": 0,
+     "newStart": 1099,
+     "newLines": 6
+    },
+    {
+     "oldStart": 1231,
+     "oldLines": 0,
+     "newStart": 1298,
+     "newLines": 10
+    },
+    {
+     "oldStart": 1249,
+     "oldLines": 0,
+     "newStart": 1326,
+     "newLines": 10
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/src/index.ts",
+   "mode": "100644",
+   "blob": "1a3e6f3ae572f4602a5e08aac798260c8ffd1083",
+   "previousBlob": "fb64d70eaa1feed95e81061585f5d264ed42566e",
+   "added": 6,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 46,
+     "oldLines": 0,
+     "newStart": 47,
+     "newLines": 6
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "A",
+   "path": "packages/run-store/src/migrations/0003_fold_snapshots.ts",
+   "mode": "100644",
+   "blob": "9fabbcb3189e91f682dd633cda1ee62dbd89ef32",
+   "previousBlob": null,
+   "added": 202,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 0,
+     "oldLines": 0,
+     "newStart": 1,
+     "newLines": 202
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": null
+  },
+  {
+   "change": "A",
+   "path": "packages/run-store/test/Fold.test.ts",
+   "mode": "100644",
+   "blob": "742858ab490e82d195706813653df489757e45a6",
+   "previousBlob": null,
+   "added": 355,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 0,
+     "oldLines": 0,
+     "newStart": 1,
+     "newLines": 355
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": null
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/test/Migrations.test.ts",
+   "mode": "100644",
+   "blob": "8a9fd441816520ebd7e8946d793d3947514a3c83",
+   "previousBlob": "1c610543433c308623af02f4ac7b104b8f77a283",
+   "added": 5,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 59,
+     "oldLines": 1,
+     "newStart": 59,
+     "newLines": 5
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/run-store/test/MigrationsDurableUpgrade.test.ts",
+   "mode": "100644",
+   "blob": "9aaf47752fa38bd88a060db8417cd7ad9b77f2c9",
+   "previousBlob": "58f0ebe3f2244dd3cc86f36ba8ccb6d6cb8f5376",
+   "added": 100,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 4,
+     "oldLines": 0,
+     "newStart": 5,
+     "newLines": 1
+    },
+    {
+     "oldStart": 10,
+     "oldLines": 0,
+     "newStart": 12,
+     "newLines": 1
+    },
+    {
+     "oldStart": 12,
+     "oldLines": 0,
+     "newStart": 15,
+     "newLines": 1
+    },
+    {
+     "oldStart": 27,
+     "oldLines": 0,
+     "newStart": 31,
+     "newLines": 9
+    },
+    {
+     "oldStart": 145,
+     "oldLines": 1,
+     "newStart": 157,
+     "newLines": 1
+    },
+    {
+     "oldStart": 179,
+     "oldLines": 0,
+     "newStart": 192,
+     "newLines": 87
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 3,
+    "id": "storage",
+    "name": "Durable data services"
+   }
+  }
+ ]
+}
