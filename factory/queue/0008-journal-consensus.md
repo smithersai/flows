@@ -1,5 +1,5 @@
 ---
-status: queued
+status: blocked
 anchor: head
 priority: p1
 ---
