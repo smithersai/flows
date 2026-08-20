@@ -203,17 +203,75 @@ describe("composed migrations", () => {
         .toContain("Migration id 1001 claimed by both beta and gamma")
     }))
 
-  it.effect("rejects a set the migrator's high-water mark would silently skip", () =>
+  it.effect("backfills a missing lower id below the migrator's high-water mark", () =>
     Effect.gen(function*() {
       // `Migrator` runs only ids above the highest applied one, so migrating the
-      // 1000 block first leaves `alpha`'s id 1 looking done. Failing here is the
-      // whole point: the alternative is a missing table and a passing migration.
-      const message = yield* failureMessage(Effect.flatMap(
-        Migrations.run([beta]),
-        () => Migrations.run([alpha, beta])
-      ))
-      expect(message).toContain("Migration 1_alpha_initial would be skipped")
-      expect(message).toContain("already applied migration id 1001")
+      // 1000 block first leaves `alpha`'s id 1 looking done to the underlying
+      // migrator. The composed runner applies that lower missing id manually,
+      // which lets new package migrations be introduced without orphaning a
+      // database that already recorded another package's higher block.
+      const result = yield* (
+        Effect.gen(function*() {
+          const sql = yield* SqlClient.SqlClient
+          const first = yield* Migrations.run([beta])
+          const second = yield* Migrations.run([alpha, beta])
+          const tables = yield* sql<
+            { readonly name: string }
+          >`SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`
+          const records = yield* sql<
+            { readonly migration_id: number; readonly name: string }
+          >`SELECT migration_id, name FROM ${sql(Migrations.table)} ORDER BY migration_id`
+          return { first, records, second, tables: tables.map((row) => row.name) }
+        }).pipe(Effect.provide(TestDatabase.layer))
+      )
+
+      expect(result.first).toEqual([[1001, "beta_initial"]])
+      expect(result.second).toEqual([[1, "alpha_initial"]])
+      expect(result.records).toEqual([
+        { migration_id: 1, name: "alpha_initial" },
+        { migration_id: 1001, name: "beta_initial" }
+      ])
+      expect(result.tables).toEqual([
+        "alpha_rows",
+        "beta_rows",
+        Migrations.table
+      ].sort())
+    }))
+
+  it.effect("rolls back a failing backfilled lower id", () =>
+    Effect.gen(function*() {
+      const broken: Migrations.MigrationSet = {
+        namespace: "alpha",
+        idOffset: 0,
+        migrations: { "0001_initial": Effect.fail("alpha migration failed") }
+      }
+      const result = yield* (
+        Effect.gen(function*() {
+          const sql = yield* SqlClient.SqlClient
+          yield* Migrations.run([beta])
+          const failed = yield* Effect.exit(Migrations.run([broken, beta]))
+          const records = yield* sql<
+            { readonly migration_id: number; readonly name: string }
+          >`SELECT migration_id, name FROM ${sql(Migrations.table)} ORDER BY migration_id`
+          const tables = yield* sql<
+            { readonly name: string }
+          >`SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`
+          return { failed, records, tables: tables.map((row) => row.name) }
+        }).pipe(Effect.provide(TestDatabase.layer))
+      )
+
+      expect(Exit.isFailure(result.failed)).toBe(true)
+      if (Exit.isFailure(result.failed)) {
+        const defect = Cause.findDefect(result.failed.cause)
+        expect(Result.isSuccess(defect)).toBe(true)
+        if (Result.isSuccess(defect)) {
+          expect(defect.success).toBeInstanceOf(Migrator.MigrationError)
+          expect(defect.success).toMatchObject({ kind: "Failed", message: `Migration "1_alpha_initial" failed` })
+        }
+      }
+      expect(result.records).toEqual([{ migration_id: 1001, name: "beta_initial" }])
+      expect(result.tables).toContain("beta_rows")
+      expect(result.tables).not.toContain("alpha_rows")
     }))
 
   it.effect("accepts a set every id of which is already applied", () =>

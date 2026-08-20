@@ -15,12 +15,11 @@
  * offsets failed to prevent, so a mis-declared package fails the migration
  * rather than skipping a table.
  *
- * Blocks reintroduce a second way to skip one, which the loader also rejects:
- * `Migrator` decides what to run from a single high-water mark, so a set whose
- * id lands at or below the highest id the database already applied would be
- * assumed done and never run. See `rejectSkipped`. The one such skip that is
- * legitimate work — global id zero on a fresh database, which sits at the
- * mark's starting value — the loader applies itself. See `applyZero`.
+ * Blocks reintroduce a second way to skip one: `Migrator` decides what to run
+ * from a single high-water mark, so a set whose id lands at or below the
+ * highest id the database already applied would be assumed done and never run.
+ * The loader applies those missing lower-block migrations itself inside the
+ * migrator transaction, the same way it has always handled global id zero.
  *
  * {@link run} wraps the whole migrator pass in the same transient-lock retry
  * the durable writer uses, so concurrent processes migrating one database
@@ -120,6 +119,10 @@ interface ZeroMigration {
   readonly migration: Effect.Effect<void, unknown, SqlClient.SqlClient>
 }
 
+interface ManualMigration extends ZeroMigration {
+  readonly id: number
+}
+
 /**
  * Applies the id-zero migration and records it in the migrations table.
  *
@@ -143,58 +146,64 @@ const applyZero = (zero: ZeroMigration) =>
   )
 
 /**
- * Rejects a set whose migration would be silently skipped.
- *
- * `Migrator` records applied migrations but decides what to run from a single
- * high-water mark: anything with an id at or below the highest applied id is
- * assumed done. Namespaced id blocks make that assumption false — a database
- * migrated with only the `2000` block would treat the `0` and `1000` blocks as
- * already applied and never create their tables, and a package that adds a
- * second migration inside a block below the mark would never run it. Neither
- * case can be repaired by running the migration again, so the composition
- * fails here instead of returning a set the migrator would quietly drop.
+ * Applies migrations the underlying high-water-mark migrator would otherwise
+ * skip.
  *
  * @private
  */
-const rejectSkipped = (
+const applyMissingBelowHighWater = (
   resolved: ReadonlyArray<Migrator.ResolvedMigration>,
-  applied: ReadonlySet<number>
-): Effect.Effect<ReadonlyArray<Migrator.ResolvedMigration>, Migrator.MigrationError> => {
-  const highWater = Math.max(0, ...applied)
-  for (const [id, name] of resolved) {
-    if (id <= highWater && !applied.has(id)) {
-      return Effect.fail(fail(
-        `Migration ${id}_${name} would be skipped: the database has already applied migration id ${highWater}, ` +
-          `and the migrator only runs ids above the highest applied one. Compose every package's migration set ` +
-          `from the first migration onwards, and give a new migration an id above ${highWater}.`
-      ))
+  manual: ReadonlyMap<number, ManualMigration>,
+  applied: Set<number>,
+  onApplied: (entry: readonly [id: number, name: string]) => Effect.Effect<void>
+): Effect.Effect<ReadonlyArray<Migrator.ResolvedMigration>, Migrator.MigrationError, SqlClient.SqlClient> =>
+  Effect.gen(function*() {
+    const sql = yield* SqlClient.SqlClient
+    const highWater = Math.max(0, ...applied)
+    for (const [id, name] of resolved) {
+      if (id <= highWater && !applied.has(id)) {
+        const migration = manual.get(id)!
+        yield* Effect.gen(function*() {
+          yield* migration.migration
+          yield* sql`INSERT INTO ${sql(table)} ${sql.insert([{ migration_id: id, name }])}`.withoutTransform
+          yield* onApplied([id, name])
+          applied.add(id)
+        }).pipe(
+          Effect.catch((cause) =>
+            Effect.die(
+              new Migrator.MigrationError({ cause, kind: "Failed", message: `Migration "${id}_${name}" failed` })
+            )
+          )
+        )
+      }
     }
-  }
-  return Effect.succeed(resolved)
-}
+    return resolved
+  })
 
 /**
- * Applies the id-zero migration when the database is fresh, then rejects any
- * remaining skip. Id zero exists only on a fresh database — on any other
- * database it is either already applied or a skip {@link rejectSkipped}
- * rejects — so applying it here, inside the migrator's transaction, closes
- * the one case the migrator's high-water mark cannot express.
+ * Applies the id-zero migration when the database is fresh, then backfills
+ * lower ids the underlying high-water-mark migrator would skip. Id zero exists
+ * only on a fresh database — on any other database it is already applied — so
+ * applying it here, inside the migrator's transaction, closes the one case the
+ * migrator's high-water mark cannot express.
  *
  * @private
  */
 const finish = (
   resolved: ReadonlyArray<Migrator.ResolvedMigration>,
+  manual: ReadonlyMap<number, ManualMigration>,
   zero: ZeroMigration | undefined,
-  onZeroApplied: (entry: readonly [id: number, name: string]) => Effect.Effect<void>
+  onApplied: (entry: readonly [id: number, name: string]) => Effect.Effect<void>
 ) =>
   Effect.gen(function*() {
     const applied = yield* appliedIds
     if (applied.size === 0 && zero !== undefined) {
       yield* applyZero(zero)
-      yield* onZeroApplied([0, zero.name])
+      yield* onApplied([0, zero.name])
       applied.add(0)
     }
-    return yield* rejectSkipped(resolved, applied)
+    const afterManual = yield* applyMissingBelowHighWater(resolved, manual, applied, onApplied)
+    return afterManual
   })
 
 /** @private */
@@ -207,6 +216,7 @@ const loaderWith = (
     const offsets = new Set<number>()
     const ids = new Map<number, string>()
     const resolved: Array<Migrator.ResolvedMigration> = []
+    const manual = new Map<number, ManualMigration>()
     let zero: ZeroMigration | undefined
 
     for (const set of sets) {
@@ -243,11 +253,12 @@ const loaderWith = (
         if (id === 0) {
           zero = { migration, name: `${set.namespace}_${match[2]}` }
         }
+        manual.set(id, { id, migration, name: `${set.namespace}_${match[2]}` })
         resolved.push([id, `${set.namespace}_${match[2]}`, Effect.succeed(migration)])
       }
     }
 
-    return finish(resolved.sort(migrationOrder), zero, onZeroApplied)
+    return finish(resolved.sort(migrationOrder), manual, zero, onZeroApplied)
   })
 
 /**
@@ -289,19 +300,19 @@ export const run = (
   SqlClient.SqlClient
 > =>
   Effect.gen(function*() {
-    const zeroApplied = yield* Ref.make<ReadonlyArray<readonly [id: number, name: string]>>([])
+    const manuallyApplied = yield* Ref.make<ReadonlyArray<readonly [id: number, name: string]>>([])
     const completed = yield* WriteRetry.withWriteRetry(
       Migrator.make({})({
         // Reset before each attempt: a retry that finds a peer already applied
-        // id zero must not keep reporting the rolled-back application.
-        loader: Ref.set(zeroApplied, []).pipe(
-          Effect.andThen(loaderWith(sets, (entry) => Ref.set(zeroApplied, [entry])))
+        // a manual migration must not keep reporting the rolled-back application.
+        loader: Ref.set(manuallyApplied, []).pipe(
+          Effect.andThen(loaderWith(sets, (entry) => Ref.update(manuallyApplied, (entries) => [...entries, entry])))
         ),
         table
       })
     )
-    const zero = yield* Ref.get(zeroApplied)
-    return [...zero, ...completed]
+    const manual = yield* Ref.get(manuallyApplied)
+    return [...manual, ...completed]
   })
 
 /**
