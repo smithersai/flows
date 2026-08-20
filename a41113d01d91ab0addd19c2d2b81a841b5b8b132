@@ -1,0 +1,92 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a41113d01d91ab0addd19c2d2b81a841b5b8b132",
+ "tree": "efbbbbc71c0b0d6d74813d0d55868f20dfdaeef7",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 7,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 644,
+  "globalCount": 838,
+  "purpose": "📝 docs(reports): document section-a-first-run--A-fir-1dc51-happens-... and 1 more",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "reports",
+  "component": "apps/reports/launch-checklist",
+  "unitKey": "20260810T193728Z-launch-final/section-a-first-run--A-fir-1dc51-happens-accept-edit-dismiss",
+  "mergedUnitKeys": [
+   "20260810T193728Z-launch-final/section-a-first-run--A-fir-1dc51-happens-accept-edit-dismiss",
+   "20260810T193728Z-launch-final/section-a-first-run--A-fir-75174-n-does-not-return-unchanged"
+  ]
+ },
+ "dependencies": {
+  "parent": "8a6e63128288f3f8be5ec1e4e04830b659061044",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "8a6e63128288f3f8be5ec1e4e04830b659061044",
+  "next": "32483461d0fe1392eae19b86148f7899ffb1f855",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 409,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/reports/launch-checklist/20260810T193728Z-launch-final/section-a-first-run--A-fir-1dc51-happens-accept-edit-dismiss/error-context.md",
+   "mode": "100644",
+   "blob": "aef537c269f71eb47ba417bff20ec6c360d6648c",
+   "previousBlob": null,
+   "added": 249,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/launch-checklist/20260810T193728Z-launch-final/section-a-first-run--A-fir-75174-n-does-not-return-unchanged/error-context.md",
+   "mode": "100644",
+   "blob": "3b7cf5ded699492b4013ec5389dd70b71fe343c5",
+   "previousBlob": null,
+   "added": 160,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

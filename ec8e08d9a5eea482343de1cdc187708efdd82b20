@@ -1,0 +1,179 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ec8e08d9a5eea482343de1cdc187708efdd82b20",
+ "tree": "ea5fca6696441f81642f9eb71a1b02ac23c14410",
+ "epic": {
+  "index": 16,
+  "id": "docs-site",
+  "name": "Documentation site",
+  "sourceCommit": "2fd742db8891870cec6454b507fc94b3c65aa275",
+  "sourceSubject": "📚 docs(site): document the complete system",
+  "childIndex": 5,
+  "childCount": 17,
+  "head": "e952c5de8a0b032ae43f568c3224f1734b3a7adc"
+ },
+ "atomic": {
+  "globalIndex": 800,
+  "globalCount": 838,
+  "purpose": "📝 docs(apps): document apps (2/3)",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "apps",
+  "component": "apps",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "8ee5f3ae64a3a2b28a16198396f229dad19bcffe",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "8ee5f3ae64a3a2b28a16198396f229dad19bcffe",
+  "next": "b8f147f9e9b8861f7e07d5576b023ecd537405b1",
+  "epicFirst": "2d0756e2ed214c54d61c6b4dee34cfbab1982959",
+  "epicLast": "e952c5de8a0b032ae43f568c3224f1734b3a7adc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 10,
+  "added": 1422,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/REMEDIATION.md",
+   "mode": "100644",
+   "blob": "351a9d6c2ae1b1b3f492d72d0de3463edcf555f1",
+   "previousBlob": null,
+   "added": 255,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/UPSTREAMS.md",
+   "mode": "100644",
+   "blob": "32670e2b60814d809dc16428409f10c948c32f6a",
+   "previousBlob": null,
+   "added": 73,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/WAVE1-RECEIPT.md",
+   "mode": "100644",
+   "blob": "765361e89a63b9a604642e4ddbead4f980c7f970",
+   "previousBlob": null,
+   "added": 80,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/WAVE10-RECEIPT.md",
+   "mode": "100644",
+   "blob": "aa07f94747e62eaa67c7a75ebae316eb5e928859",
+   "previousBlob": null,
+   "added": 91,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/WAVE11-RECEIPT.md",
+   "mode": "100644",
+   "blob": "d3137b67c210ac9d15336a7056ea0d3c2c9e2568",
+   "previousBlob": null,
+   "added": 84,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/WAVE12-RECEIPT.md",
+   "mode": "100644",
+   "blob": "ffa53fe44e1038908edb87ebff6eda588241c5bf",
+   "previousBlob": null,
+   "added": 112,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/WAVE13-RECEIPT.md",
+   "mode": "100644",
+   "blob": "e33078865f2854ea3515fe3c53027e78fce003b1",
+   "previousBlob": null,
+   "added": 187,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/WAVE13C-RECEIPT.md",
+   "mode": "100644",
+   "blob": "f4bda7edab95772c356ec4000de1c6b2086ae054",
+   "previousBlob": null,
+   "added": 195,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/WAVE14-RECEIPT.md",
+   "mode": "100644",
+   "blob": "78bae30edaea34968f20a44a54da087b36fe44d3",
+   "previousBlob": null,
+   "added": 220,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/WAVE15-SINGLE-BACKEND-RECEIPT.md",
+   "mode": "100644",
+   "blob": "74f01841b46850a125ab17105f1b7a9d74e45775",
+   "previousBlob": null,
+   "added": 125,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

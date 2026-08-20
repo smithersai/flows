@@ -1,0 +1,92 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "3d8490127e6f2bef4753f70d6d99441abf8d5b9d",
+ "tree": "b45e7441a6edb5195e759b8dc56610b3f2a3d715",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 26,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 529,
+  "globalCount": 838,
+  "purpose": "✨ feat(targets): add the RemoteCache, Verb modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "targets",
+  "component": "packages/targets/src",
+  "unitKey": "RemoteCache",
+  "mergedUnitKeys": [
+   "RemoteCache",
+   "Verb"
+  ]
+ },
+ "dependencies": {
+  "parent": "d87963c5b2828266bbf31abbc60190cedd5e7047",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [
+   "357b1d58b060b24f450d3d84da29306d20e516c3",
+   "3601609d1c618c17e895954bbdbec9660c7cf00b"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "d87963c5b2828266bbf31abbc60190cedd5e7047",
+  "next": "bbebe37566f9480b6199baa3abce3dcf205a2b77",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 443,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/targets/src/RemoteCache.ts",
+   "mode": "100644",
+   "blob": "847a9452d51dc50133bfbc996997986aca770bd8",
+   "previousBlob": null,
+   "added": 196,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/Verb.ts",
+   "mode": "100644",
+   "blob": "e8f923f18b3ffa0f6fce6824e3f03e6d8913299d",
+   "previousBlob": null,
+   "added": 247,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

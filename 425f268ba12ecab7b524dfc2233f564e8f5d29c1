@@ -1,0 +1,187 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "425f268ba12ecab7b524dfc2233f564e8f5d29c1",
+ "tree": "26b97e432bc1979c24acc15c6aa63ac629715cbb",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 15,
+  "childCount": 60,
+  "head": "a94e46ebcc18e48adf39b7735ecbe06567ca4574"
+ },
+ "atomic": {
+  "globalIndex": 135,
+  "globalCount": 838,
+  "purpose": "🧹 chore(kernel): scaffold the @smthrs/kernel package",
+  "type": "chore",
+  "kind": "scaffold",
+  "scope": "kernel",
+  "component": "packages/kernel",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "e469b26394939cb89e067e21f274c8a8908df7a8",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "field": "dependencies",
+    "commit": "7e2eac5ca71c4fc20bbe97b888dad21267da1e30",
+    "providerComponent": "packages/capability",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/jj",
+    "field": "dependencies",
+    "commit": "d933549c894f26a1f558e5e488a6b29e8c0fc242",
+    "providerComponent": "packages/jj",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/platform-browser",
+    "field": "dependencies",
+    "commit": "3359dd0ae5a536bfdb25b36aeaebe25fdca1aa4f",
+    "providerComponent": "packages/platform-browser",
+    "classification": "circular-package-pair",
+    "justification": "@smthrs/kernel and @smthrs/platform-browser declare each other as workspace dependencies. The cycle is a property of the source tree, so exactly one of the two must be introduced first; no commit order can satisfy both directions."
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "e469b26394939cb89e067e21f274c8a8908df7a8",
+  "next": "b5436e60b50ecb78883d4c7315e8362fe16eec66",
+  "epicFirst": "a6c9698a594ba11333c7d2cefbd9720612c6e6bb",
+  "epicLast": "a94e46ebcc18e48adf39b7735ecbe06567ca4574",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 9,
+  "added": 383,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/kernel/LICENSE",
+   "mode": "100644",
+   "blob": "422a888fe58a4f77514fe407f175499d57fa27be",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/kernel/dprint.json",
+   "mode": "100644",
+   "blob": "d477c0cd6d212dfc8308198e5ed2addbcef839b8",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/kernel/eslint.config.js",
+   "mode": "100644",
+   "blob": "a4b9a14355dbe795b3bce82a01bc0ca85219c49e",
+   "previousBlob": null,
+   "added": 62,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/kernel/package.json",
+   "mode": "100644",
+   "blob": "9529ea96c124907453cdb8633a975e6a91266d52",
+   "previousBlob": null,
+   "added": 120,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/kernel/scripts/build.mjs",
+   "mode": "100644",
+   "blob": "fd7a88242734c4386799f48b850bd37b565ef171",
+   "previousBlob": null,
+   "added": 46,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/kernel/scripts/circular.mjs",
+   "mode": "100644",
+   "blob": "8424eb898a6a5b0c08f1434ff4dab0d47da3fd37",
+   "previousBlob": null,
+   "added": 18,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/kernel/tsconfig.json",
+   "mode": "100644",
+   "blob": "65540dd6e7fb1b3fcbcbdc26f4e48a6c28bb95c4",
+   "previousBlob": null,
+   "added": 40,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/kernel/tsconfig.test.json",
+   "mode": "100644",
+   "blob": "94fae90f7540fc802b584832d57cdcfc5f8167f3",
+   "previousBlob": null,
+   "added": 12,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/kernel/vitest.config.ts",
+   "mode": "100644",
+   "blob": "f48a6861cc24e7520faad8c097d2c5dbf3f6c3bd",
+   "previousBlob": null,
+   "added": 43,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

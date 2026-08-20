@@ -1,0 +1,168 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "8b766b1caf03156697687ebeed80701c788c0238",
+ "tree": "26852ce752d10d42716af239087f2017e83b3c91",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 113,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 750,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the cards modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/canary-repros",
+  "unitKey": "dir:cards",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "3d8569fecdccc85cdb649b1a63717a2cedc4b17b",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "9d7d2ff6cadcbae1fd348726efeca30043429abd"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "3d8569fecdccc85cdb649b1a63717a2cedc4b17b",
+  "next": "9b166e99a88b306e7a50a54a4718de74077546e2",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 9,
+  "added": 813,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/cards/7.2.ts",
+   "mode": "100644",
+   "blob": "2ed95bb8fc27850fea158465c3f82480a1668c97",
+   "previousBlob": null,
+   "added": 86,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/cards/7.3.ts",
+   "mode": "100644",
+   "blob": "66249749aeaf2c40cfe16f0753562885e2486226",
+   "previousBlob": null,
+   "added": 83,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/cards/7.5.ts",
+   "mode": "100644",
+   "blob": "0e376cc6c464510d5dd2a7c0bfa4fe4295aae517",
+   "previousBlob": null,
+   "added": 116,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/cards/7.7.ts",
+   "mode": "100644",
+   "blob": "9eba79b0de45756b4e524cf4395387e647ac3389",
+   "previousBlob": null,
+   "added": 80,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/cards/7.8.ts",
+   "mode": "100644",
+   "blob": "07888f6074a7897751a20126d24e5d24a6032e61",
+   "previousBlob": null,
+   "added": 96,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/cards/8.13.ts",
+   "mode": "100644",
+   "blob": "9732d3093882e9129163d53fce8f51d156b2ab46",
+   "previousBlob": null,
+   "added": 81,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/cards/8.21.ts",
+   "mode": "100644",
+   "blob": "54ae8bf953af9fbf828ebcfabd351ea037a91422",
+   "previousBlob": null,
+   "added": 57,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/cards/8.27.ts",
+   "mode": "100644",
+   "blob": "9a41909f03413c48247b8169677df1f3bdc61ed6",
+   "previousBlob": null,
+   "added": 96,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/cards/8.7.ts",
+   "mode": "100644",
+   "blob": "3e0e4f26387e3fbb1672b393205b43383e51ca8a",
+   "previousBlob": null,
+   "added": 118,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

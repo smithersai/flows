@@ -1,0 +1,81 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "bbc11668994cc8f212fa1e75ab120b1725a5ade3",
+ "tree": "f65ae8e7391670cc788e38a00e57a32190c0b53a",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 51,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 688,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the mainview/state module (3/7)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview/state",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "885f642ad3b17ad181797c45ce84842d9f5272d6",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "f1d7e3f3b271cdf382bfdc34069d1ba559f1c3ea",
+   "51308f4793d76771c4129ad12325ce6ff071fbda"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "885f642ad3b17ad181797c45ce84842d9f5272d6",
+  "next": "4ebfe9f90b4b8be1920b53ed369f919e15828f6a",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 1929,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/AppStore.ts",
+   "mode": "100644",
+   "blob": "69c9f88b5574cde10d3ac3a3a3bc63aa7496f1b1",
+   "previousBlob": null,
+   "added": 1929,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

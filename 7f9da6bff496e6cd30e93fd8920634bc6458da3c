@@ -1,0 +1,98 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "7f9da6bff496e6cd30e93fd8920634bc6458da3c",
+ "tree": "6d17c4ade7a08647eaa23dc42ea8e58c2896b619",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 30,
+  "childCount": 66,
+  "head": "5a833bbe7affdc7dda1a3b24f9e5a5239864093b"
+ },
+ "atomic": {
+  "globalIndex": 348,
+  "globalCount": 838,
+  "purpose": "✨ feat(model): add ModelRequest",
+  "type": "feat",
+  "kind": "module",
+  "scope": "model",
+  "component": "packages/model",
+  "unitKey": "ModelRequest",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "cab120da64bbf2e139691de7c7ffa61336635ea8",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "field": "dependencies",
+    "commit": "7e2eac5ca71c4fc20bbe97b888dad21267da1e30",
+    "providerComponent": "packages/capability",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "field": "dependencies",
+    "commit": "32707f96f522f0b7dce09d50ee6af6e72b7a0ef4",
+    "providerComponent": "packages/kernel",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "cab120da64bbf2e139691de7c7ffa61336635ea8",
+  "next": "a05e9bea1fed520c9c3b0e47b1394a4cac7452b8",
+  "epicFirst": "1a9eeded3e87702322afacdd6021037ce6179f5e",
+  "epicLast": "5a833bbe7affdc7dda1a3b24f9e5a5239864093b",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 634,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/model/src/ModelRequest.ts",
+   "mode": "100644",
+   "blob": "b97262a83dba0e8e26c77be23140507352716d39",
+   "previousBlob": null,
+   "added": 465,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/test/ModelRequest.test.ts",
+   "mode": "100644",
+   "blob": "482f26ec27337be5b50f51ff05113d4306b96b2c",
+   "previousBlob": null,
+   "added": 169,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

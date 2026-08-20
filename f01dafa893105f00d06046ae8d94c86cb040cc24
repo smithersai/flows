@@ -1,0 +1,104 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "f01dafa893105f00d06046ae8d94c86cb040cc24",
+ "tree": "76ebaea8aa885b7b85ed94f0dda132c0416dfa2e",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 137,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 774,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the Suite, Stack modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/e2e",
+  "unitKey": "Suite",
+  "mergedUnitKeys": [
+   "Suite",
+   "Stack"
+  ]
+ },
+ "dependencies": {
+  "parent": "e822dc188bbe3d101505bc4e0d8671fc01102cc9",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "3fd5893c645232027f083f0eb25f2a44b42f7653",
+   "e822dc188bbe3d101505bc4e0d8671fc01102cc9",
+   "767956221a8bd966d33df1ed26427b0e7bcf4a57"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [
+  {
+   "paths": [
+    "apps/ui/e2e/Stack.ts",
+    "apps/ui/e2e/Suite.ts"
+   ],
+   "reason": "These files import each other, directly or transitively. Any split would place an import ahead of the module it resolves to."
+  }
+ ],
+ "related": {
+  "previous": "e822dc188bbe3d101505bc4e0d8671fc01102cc9",
+  "next": "712a3b76594530e2511c20b060e2b24d16a5fdbe",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 402,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/Stack.ts",
+   "mode": "100644",
+   "blob": "07b477faace272021f4a3c59db33cc9e05440d63",
+   "previousBlob": null,
+   "added": 351,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/Suite.ts",
+   "mode": "100644",
+   "blob": "f688c98234036c26c6afc753c79b1c0eb79f28af",
+   "previousBlob": null,
+   "added": 51,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

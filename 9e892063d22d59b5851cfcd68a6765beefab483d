@@ -1,0 +1,141 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "9e892063d22d59b5851cfcd68a6765beefab483d",
+ "tree": "ddf8b56ff646224592951590cda9df490ad935b4",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 17,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 654,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the agents modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/.smithers",
+  "unitKey": "dir:agents",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "669ce1949bfcd62803916fd412a9409da724f2b9",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "field": "dependencies",
+    "commit": "f7a79de58ec909a8b6633954e1f1ff9117d4d46a",
+    "providerComponent": "packages/cli",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "669ce1949bfcd62803916fd412a9409da724f2b9",
+  "next": "7fc28ac63b257f981aec2e8f0c353dd97994cb0a",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 6,
+  "added": 57,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/agents/antigravity.ts",
+   "mode": "100644",
+   "blob": "15e8361dc2cc72eee9edd5d5dad708c2485047d4",
+   "previousBlob": null,
+   "added": 10,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/agents/claude-code.ts",
+   "mode": "100644",
+   "blob": "b5c401a9acf41ee2b29a005725417ccaea732996",
+   "previousBlob": null,
+   "added": 10,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/agents/codex.ts",
+   "mode": "100644",
+   "blob": "d0e8207d9f4a25c50102922cc087dd9bb4c1fc77",
+   "previousBlob": null,
+   "added": 12,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/agents/cursor.ts",
+   "mode": "100644",
+   "blob": "91de29242c0619e59616c750f09022223e8c6699",
+   "previousBlob": null,
+   "added": 10,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/agents/opencode.ts",
+   "mode": "100644",
+   "blob": "94e21244a193fedfcda2b291f1746bc22ae054ee",
+   "previousBlob": null,
+   "added": 10,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/agents/index.ts",
+   "mode": "100644",
+   "blob": "a1f88fe17661cec7f92f47249b6af8e224fb6ad2",
+   "previousBlob": null,
+   "added": 5,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

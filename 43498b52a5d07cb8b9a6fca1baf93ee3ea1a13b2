@@ -1,0 +1,105 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "43498b52a5d07cb8b9a6fca1baf93ee3ea1a13b2",
+ "tree": "bb5fbd9b2a1575bb1493e34b2fcf4753a8964985",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 65,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 702,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the conformance modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:conformance",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "254b39daba4dfe58bc1a064b2bcd75457df5b5fd",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "3b0c70f67ee7274e2c106e4cb4411598aed405ec",
+   "a6e62e957d45844c923f75337676e02826657a76",
+   "c7389c8fb2e161d11d7f53dbeea9064f56c9c167",
+   "bbc11668994cc8f212fa1e75ab120b1725a5ade3"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "254b39daba4dfe58bc1a064b2bcd75457df5b5fd",
+  "next": "a417ff879c78f5d40b5f0a376cd5b2f387ff72f1",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 1014,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/conformance/Literals.ts",
+   "mode": "100644",
+   "blob": "3e8d47cdaf950871ac80272fcbab49c6848f33d9",
+   "previousBlob": null,
+   "added": 543,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/conformance/Rules.ts",
+   "mode": "100644",
+   "blob": "1040a0a24fbeac41ba36534d144034dc6a8e2305",
+   "previousBlob": null,
+   "added": 210,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/conformance/Vocabulary.ts",
+   "mode": "100644",
+   "blob": "acbd07f2463d4651f5419a74f485a4402a2e82d7",
+   "previousBlob": null,
+   "added": 261,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

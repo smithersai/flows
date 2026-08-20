@@ -1,0 +1,182 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "633cbaaddf7411acbb95ff29c72b5a3e615da1e0",
+ "tree": "49098add71308633e0949a0560c1fcf7db9569e3",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 6,
+  "childCount": 50,
+  "head": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7"
+ },
+ "atomic": {
+  "globalIndex": 76,
+  "globalCount": 838,
+  "purpose": "🧹 chore(plan): scaffold the @smthrs/plan package",
+  "type": "chore",
+  "kind": "scaffold",
+  "scope": "plan",
+  "component": "packages/plan",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "e27c6accc742fd272f9f9f0e6d8fa69ecfd14ce4",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/keys",
+    "field": "dependencies",
+    "commit": "060d78f56853c2982e3d4fc1fab1d483ac3dc741",
+    "providerComponent": "packages/keys",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "e27c6accc742fd272f9f9f0e6d8fa69ecfd14ce4",
+  "next": "f1380547ee94bc44b102ddfb8c2a2281f45e04b4",
+  "epicFirst": "60233bebe0e00cbc35cfb5176a9644f2799fde18",
+  "epicLast": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 10,
+  "added": 394,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/plan/BUILD.ts",
+   "mode": "100644",
+   "blob": "8eae0e5638dc074d347c73de571c7b5bd9348cd4",
+   "previousBlob": null,
+   "added": 13,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/plan/LICENSE",
+   "mode": "100644",
+   "blob": "422a888fe58a4f77514fe407f175499d57fa27be",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/plan/dprint.json",
+   "mode": "100644",
+   "blob": "d477c0cd6d212dfc8308198e5ed2addbcef839b8",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/plan/eslint.config.js",
+   "mode": "100644",
+   "blob": "a4b9a14355dbe795b3bce82a01bc0ca85219c49e",
+   "previousBlob": null,
+   "added": 62,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/plan/package.json",
+   "mode": "100644",
+   "blob": "f5a4d546306dadc8031588858e93d8c6e0cb66b6",
+   "previousBlob": null,
+   "added": 123,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/plan/scripts/build.mjs",
+   "mode": "100644",
+   "blob": "fd7a88242734c4386799f48b850bd37b565ef171",
+   "previousBlob": null,
+   "added": 46,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/plan/scripts/circular.mjs",
+   "mode": "100644",
+   "blob": "8424eb898a6a5b0c08f1434ff4dab0d47da3fd37",
+   "previousBlob": null,
+   "added": 18,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/plan/tsconfig.json",
+   "mode": "100644",
+   "blob": "65540dd6e7fb1b3fcbcbdc26f4e48a6c28bb95c4",
+   "previousBlob": null,
+   "added": 40,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/plan/tsconfig.test.json",
+   "mode": "100644",
+   "blob": "94fae90f7540fc802b584832d57cdcfc5f8167f3",
+   "previousBlob": null,
+   "added": 12,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/plan/vitest.config.ts",
+   "mode": "100644",
+   "blob": "38d80edfb949aa23aa966c4c8247c8da5c3c51bf",
+   "previousBlob": null,
+   "added": 38,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

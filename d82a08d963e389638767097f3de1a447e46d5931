@@ -1,0 +1,110 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "d82a08d963e389638767097f3de1a447e46d5931",
+ "tree": "d52b99ee0f82113c3670bc0165bb5256dc8551a0",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 15,
+  "childCount": 50,
+  "head": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7"
+ },
+ "atomic": {
+  "globalIndex": 85,
+  "globalCount": 838,
+  "purpose": "✨ feat(plan): add the PlanDiff, PlanStore modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "plan",
+  "component": "packages/plan",
+  "unitKey": "PlanDiff",
+  "mergedUnitKeys": [
+   "PlanDiff",
+   "PlanStore"
+  ]
+ },
+ "dependencies": {
+  "parent": "a92456b67bf67019f32be2094f2323ee4a09cfc6",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [
+   "a92456b67bf67019f32be2094f2323ee4a09cfc6"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/keys",
+    "field": "dependencies",
+    "commit": "060d78f56853c2982e3d4fc1fab1d483ac3dc741",
+    "providerComponent": "packages/keys",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "a92456b67bf67019f32be2094f2323ee4a09cfc6",
+  "next": "b21dab66549eb99974cd7296f77391e4c3d00490",
+  "epicFirst": "60233bebe0e00cbc35cfb5176a9644f2799fde18",
+  "epicLast": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 589,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/plan/src/PlanDiff.ts",
+   "mode": "100644",
+   "blob": "7e4dc94dc1cb44f52a5a6a6ce339750a99dbd10f",
+   "previousBlob": null,
+   "added": 133,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/plan/src/PlanStore.ts",
+   "mode": "100644",
+   "blob": "8a2ec8f810f6faa06dcc1aec313c353816c18556",
+   "previousBlob": null,
+   "added": 265,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/plan/test/PlanStore.test.ts",
+   "mode": "100644",
+   "blob": "04dad32d74adceaf0a529651193aeaddfae95038",
+   "previousBlob": null,
+   "added": 191,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

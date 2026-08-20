@@ -1,0 +1,137 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "04cacb5d5da6eed65dccb54623b16b2e67e1ef04",
+ "tree": "47935f09432267f6d0fcd8dc02048e1a1415ce94",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 36,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 539,
+  "globalCount": 838,
+  "purpose": "✨ feat(targets): add the Smithers, NewPackage, index modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "targets",
+  "component": "packages/targets/src",
+  "unitKey": "Smithers",
+  "mergedUnitKeys": [
+   "Smithers",
+   "NewPackage",
+   "~index"
+  ]
+ },
+ "dependencies": {
+  "parent": "d5e0ba3442fb61c785c549b8b309cc0cc29f6617",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [
+   "357b1d58b060b24f450d3d84da29306d20e516c3",
+   "ba993df20a254d6d6558bcab0091b06aae25a223",
+   "dc4520bcf7a8d56f64844548253dfde011f6bfe8",
+   "3b194710baa38c704c036e6357e7046004f9b3a7",
+   "3601609d1c618c17e895954bbdbec9660c7cf00b",
+   "b3908b564e65363669d5bc125456dea98b66083a",
+   "161e241a652255620ce10b0002c026ad68c33244",
+   "00957ec8ebb497a919271108d05ea32e3cb1860b",
+   "3d8490127e6f2bef4753f70d6d99441abf8d5b9d",
+   "8b9a63bfdf4aaade87cb16a396107fe86df43b6d",
+   "6d2124b99fd0fe94ce5421fb4e5b1593c654f77a",
+   "8d478979bf02a223a0ca85e1ae2d677f474f1c02",
+   "8c22e12a34262541380b4e5ce654880c38a9f45b",
+   "d184ed18395ac1e9d10cbda2bd2a492370f0e129",
+   "2e6cabd34f3089181e30efce70f016ab57121847",
+   "3d4af1d100d68f840873855c5dd904594e79e522",
+   "51553cb6e87225672d046d501dcf0bac81b2fcee",
+   "d5e0ba3442fb61c785c549b8b309cc0cc29f6617",
+   "3e3a77e46d93463731f337bdec62e4aaca4626e7",
+   "bbebe37566f9480b6199baa3abce3dcf205a2b77",
+   "d87963c5b2828266bbf31abbc60190cedd5e7047",
+   "5091eb10184df80a3515c105264c949dee7e3174",
+   "768e6b328a1d9708b3d55b8cdb0279732ae72440",
+   "5133776b6152e0876b9b2b452c1c8b315dea17b7",
+   "cad2ee28bd2f0dd3a0b2eb99bfdc11a5743ecff7",
+   "e2da14e7ce6f496c2f32f260d34caff83e347987"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [
+  {
+   "paths": [
+    "packages/targets/src/NewPackage.ts",
+    "packages/targets/src/Smithers.ts",
+    "packages/targets/src/index.ts"
+   ],
+   "reason": "These files import each other, directly or transitively. Any split would place an import ahead of the module it resolves to."
+  }
+ ],
+ "related": {
+  "previous": "d5e0ba3442fb61c785c549b8b309cc0cc29f6617",
+  "next": "52913be3cdec1bcf903d6ad8893a4f2331f40636",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 811,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/targets/src/NewPackage.ts",
+   "mode": "100644",
+   "blob": "44f3097141478e7cf16d24e3c1fb8daa4bd43fa1",
+   "previousBlob": null,
+   "added": 464,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/Smithers.ts",
+   "mode": "100644",
+   "blob": "14d782a81051cef6269963ce90bbb4c6a4c08abb",
+   "previousBlob": null,
+   "added": 334,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/index.ts",
+   "mode": "100644",
+   "blob": "a9a04f4ff7dc412632af77fad1cbbe79799c3771",
+   "previousBlob": null,
+   "added": 13,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

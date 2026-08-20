@@ -1,0 +1,118 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "3c12dbdf04c94ac01d62039a304e31f3a5799f9e",
+ "tree": "770e839b87c2fc9f8e2310bbee5fe91fbd564903",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 56,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 236,
+  "globalCount": 838,
+  "purpose": "✨ feat(sync): add the BranchProjection, SyncRpcs, BranchRpcs modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "sync",
+  "component": "packages/sync",
+  "unitKey": "BranchProjection",
+  "mergedUnitKeys": [
+   "BranchProjection",
+   "SyncRpcs",
+   "BranchRpcs"
+  ]
+ },
+ "dependencies": {
+  "parent": "ca888a96f827081342ce68b1a60d98ca19647a1e",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "409d977dc6850904988b0a037cbfd926daa547f0",
+   "2466cc971787b3ecc68cc046ccba9fc9b2acf82b"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "ca888a96f827081342ce68b1a60d98ca19647a1e",
+  "next": "8ee3e4f304bc9e0e1d552635faefb9b0f5b825a1",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 698,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/sync/src/BranchProjection.ts",
+   "mode": "100644",
+   "blob": "ff27cd64d61fe442aa2eb1c1932a3c3b61d48f6b",
+   "previousBlob": null,
+   "added": 228,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/test/BranchProjection.test.ts",
+   "mode": "100644",
+   "blob": "3dd357c1f8fd786621d82162a6cce5eacd4b5ddd",
+   "previousBlob": null,
+   "added": 205,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/src/SyncRpcs.ts",
+   "mode": "100644",
+   "blob": "c03351aec56c1bc73e3727bbbfe83250247fc5ea",
+   "previousBlob": null,
+   "added": 38,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/src/BranchRpcs.ts",
+   "mode": "100644",
+   "blob": "7d53eebbfff637b5e9db14c7a1ce79cfaaee7e94",
+   "previousBlob": null,
+   "added": 227,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

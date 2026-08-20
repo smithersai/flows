@@ -1,0 +1,148 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "2ea9d0cc304c254b728eaa2ebd24f635068e2808",
+ "tree": "8fe26f29056fdc865d9a95216b89a081829304e5",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 44,
+  "childCount": 54,
+  "head": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb"
+ },
+ "atomic": {
+  "globalIndex": 60,
+  "globalCount": 838,
+  "purpose": "✅ test(run-store): cover run-store for test",
+  "type": "test",
+  "kind": "tests",
+  "scope": "run-store",
+  "component": "packages/run-store",
+  "unitKey": "test",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "5c46bca96180f2a0f49c61aa8b636c25595baf89",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "5c46bca96180f2a0f49c61aa8b636c25595baf89",
+  "next": "2820e2dc52b18a24692eccae21db9529bd25fce0",
+  "epicFirst": "2d09eee3adb5b99a7ac2a9511ca5520ac08f7a95",
+  "epicLast": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 7,
+  "added": 906,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/run-store/test/Artifacts.test.ts",
+   "mode": "100644",
+   "blob": "47a72c29c51235b5ae27d8e9712d075ecc3f032b",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/run-store/test/Contracts.test.ts",
+   "mode": "100644",
+   "blob": "7fc00cf01af7dd73dccb1c165a5f715e92dd57c9",
+   "previousBlob": null,
+   "added": 90,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/run-store/test/Redaction.test.ts",
+   "mode": "100644",
+   "blob": "d264f4e23d00e4886037431fa1d80eebec2ef7fd",
+   "previousBlob": null,
+   "added": 153,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/run-store/test/RunMetadata.test.ts",
+   "mode": "100644",
+   "blob": "637ec28d861210c10278856b1afbdfdaa3974d5a",
+   "previousBlob": null,
+   "added": 316,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/run-store/test/SpanAnnotations.test.ts",
+   "mode": "100644",
+   "blob": "5e762454b30f35251f16495747afbb5472c167d2",
+   "previousBlob": null,
+   "added": 158,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/run-store/test/StorePayloadAndTimelineLimits.test.ts",
+   "mode": "100644",
+   "blob": "613887e2dbb357aae31693871d2e883d4e19c2eb",
+   "previousBlob": null,
+   "added": 125,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/run-store/test/TestRunStore.test.ts",
+   "mode": "100644",
+   "blob": "a2548646c3f76c010f338f6042bd90b979a56354",
+   "previousBlob": null,
+   "added": 43,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

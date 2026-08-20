@@ -1,0 +1,106 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "8b9a63bfdf4aaade87cb16a396107fe86df43b6d",
+ "tree": "6e3fdb3693057bd29a379abec9144304d0860487",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 30,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 533,
+  "globalCount": 838,
+  "purpose": "✨ feat(targets): add the Lockfile, ManifestJson, PackageJsonTemplate modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "targets",
+  "component": "packages/targets/src",
+  "unitKey": "Lockfile",
+  "mergedUnitKeys": [
+   "Lockfile",
+   "ManifestJson",
+   "PackageJsonTemplate"
+  ]
+ },
+ "dependencies": {
+  "parent": "5133776b6152e0876b9b2b452c1c8b315dea17b7",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [
+   "ba993df20a254d6d6558bcab0091b06aae25a223",
+   "00957ec8ebb497a919271108d05ea32e3cb1860b",
+   "3601609d1c618c17e895954bbdbec9660c7cf00b",
+   "cad2ee28bd2f0dd3a0b2eb99bfdc11a5743ecff7"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "5133776b6152e0876b9b2b452c1c8b315dea17b7",
+  "next": "dc4520bcf7a8d56f64844548253dfde011f6bfe8",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 585,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/targets/src/Lockfile.ts",
+   "mode": "100644",
+   "blob": "378253329de0116ab06f2091c6a9ad23518df1a3",
+   "previousBlob": null,
+   "added": 110,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/ManifestJson.ts",
+   "mode": "100644",
+   "blob": "f191d87c28d6e9338eb60ee652cfcbf1ff540f1b",
+   "previousBlob": null,
+   "added": 233,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/PackageJsonTemplate.ts",
+   "mode": "100644",
+   "blob": "fc6751202c43069b598f69b6364bae75ad8b08ce",
+   "previousBlob": null,
+   "added": 242,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

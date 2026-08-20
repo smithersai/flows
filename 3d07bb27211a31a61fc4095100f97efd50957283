@@ -1,0 +1,88 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "3d07bb27211a31a61fc4095100f97efd50957283",
+ "tree": "250ac65be78af7e194ae14716af29835fccc3e71",
+ "epic": {
+  "index": 2,
+  "id": "core",
+  "name": "Canonical leaf contracts",
+  "sourceCommit": "9cd3ac554b7b6acecfceddce69f6a6b6afa257b6",
+  "sourceSubject": "✨ feat(core): add canonical leaf contracts",
+  "childIndex": 12,
+  "childCount": 14,
+  "head": "bd887cd5cc6d5d26338e43b0255d2d36396d519c"
+ },
+ "atomic": {
+  "globalIndex": 14,
+  "globalCount": 838,
+  "purpose": "✨ feat(crypto): add Sha256",
+  "type": "feat",
+  "kind": "module",
+  "scope": "crypto",
+  "component": "packages/crypto",
+  "unitKey": "Sha256",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "3fa007e2fdf46d44bc4c04ea11cc9ce9a126b44e",
+  "epicPredecessors": [
+   "repo"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "3fa007e2fdf46d44bc4c04ea11cc9ce9a126b44e",
+  "next": "530694619a107836d7830ede26f152376d364388",
+  "epicFirst": "fb8bcea968b638592c9b6360bd8fa385b34e72a0",
+  "epicLast": "bd887cd5cc6d5d26338e43b0255d2d36396d519c",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 213,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/crypto/src/Sha256.ts",
+   "mode": "100644",
+   "blob": "36295b49d9c4a8c93976fb1d2e0bf4eddea425c5",
+   "previousBlob": null,
+   "added": 76,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/crypto/test/Sha256.property.test.ts",
+   "mode": "100644",
+   "blob": "69fad463080de0b5b31a6320f27356352b1a8b21",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/crypto/test/Sha256.test.ts",
+   "mode": "100644",
+   "blob": "1022c86c3f1154a1b19becd60710d45b6da9a2b9",
+   "previousBlob": null,
+   "added": 137,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

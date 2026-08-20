@@ -1,0 +1,88 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "97008676498e5d85ade58e7adc2a55c6b7533c8a",
+ "tree": "ba08945609e0ddf8b2290d67a8692c3df4c8b6d5",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 31,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 668,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the workflows module (5/8)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/.smithers",
+  "unitKey": "dir:workflows",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "8d8593b43a00bf126ce87247a12e758fbd05dd14",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "6021bdf40f9d897d792a500edbebec5c507fe381"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "field": "dependencies",
+    "commit": "f7a79de58ec909a8b6633954e1f1ff9117d4d46a",
+    "providerComponent": "packages/cli",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "8d8593b43a00bf126ce87247a12e758fbd05dd14",
+  "next": "2acc0edb1c1ba404adb863e231da2a53f933bb61",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 241,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/workflows/share-pack.tsx",
+   "mode": "100644",
+   "blob": "4e43df068e74523196c1c08721f2c1d38965a9e1",
+   "previousBlob": null,
+   "added": 241,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

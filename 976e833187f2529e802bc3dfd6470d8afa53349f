@@ -1,0 +1,180 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "976e833187f2529e802bc3dfd6470d8afa53349f",
+ "tree": "c598255f35d0284cf0b71d4f25cbee495a68cfdb",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 10,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 647,
+  "globalCount": 838,
+  "purpose": "🧹 chore(reports): add the wave13c, wave14b-f6 review reports",
+  "type": "chore",
+  "kind": "module",
+  "scope": "reports",
+  "component": "apps/reports/live-checks",
+  "unitKey": "dir:wave13c",
+  "mergedUnitKeys": [
+   "dir:wave13c",
+   "dir:wave14b-f6"
+  ]
+ },
+ "dependencies": {
+  "parent": "d8765d5cb5c9f9b610448d4923905206eb116be8",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "d8765d5cb5c9f9b610448d4923905206eb116be8",
+  "next": "0279b02c7a74d06d855b484281ef48c4dda96644",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 10,
+  "added": 195,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave13c/control-armed-vs-unarmed.log",
+   "mode": "100644",
+   "blob": "e072184d49cdd93153d859baa2a2e8db1929489e",
+   "previousBlob": null,
+   "added": 12,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave13c/control-unarmed-turns.log",
+   "mode": "100644",
+   "blob": "8002daf303c1042809e351c5f012a60af031c75f",
+   "previousBlob": null,
+   "added": 32,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave13c/gate-fires-live.txt",
+   "mode": "100644",
+   "blob": "eb89e7260786bd42c3aba99d23e3e6d53b6c6e53",
+   "previousBlob": null,
+   "added": 54,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave13c/run0-dropped-stream.log",
+   "mode": "100644",
+   "blob": "f4a2eab59aef535afd3d9a4879d4af1d055a2bf0",
+   "previousBlob": null,
+   "added": 43,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave13c/run1.log",
+   "mode": "100644",
+   "blob": "5d094f7030fbaad1cd34585b40e771fccd5cd6ef",
+   "previousBlob": null,
+   "added": 10,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave13c/run2.log",
+   "mode": "100644",
+   "blob": "ecdd51269c291eb56233760e85d99e77ec9c2cf4",
+   "previousBlob": null,
+   "added": 10,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave13c/run3.log",
+   "mode": "100644",
+   "blob": "ad098372c31ea98ff6fd010973452b080f27e70f",
+   "previousBlob": null,
+   "added": 10,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave13c/run4.log",
+   "mode": "100644",
+   "blob": "8eeb30ffa5e11f63bfc33f4c9ad3db2fe0543e25",
+   "previousBlob": null,
+   "added": 10,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave13c/run5.log",
+   "mode": "100644",
+   "blob": "762a4ab016184ad64931d6858ea7869a30dd9271",
+   "previousBlob": null,
+   "added": 10,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave14b-f6/.last-run.json",
+   "mode": "100644",
+   "blob": "cbcc1fbac11a74b608b2b3edc3a2ffd6ab639cb2",
+   "previousBlob": null,
+   "added": 4,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,110 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "293466b245b289c7cdbfee499af028d740876062",
+ "tree": "efa59fb9bcf0796ea877d5e2b5a401878dd0b689",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 33,
+  "childCount": 60,
+  "head": "a94e46ebcc18e48adf39b7735ecbe06567ca4574"
+ },
+ "atomic": {
+  "globalIndex": 153,
+  "globalCount": 838,
+  "purpose": "📝 docs(kernel): document kernel",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "kernel",
+  "component": "packages/kernel",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "95a230cc9235df96ae12029cd78aa5dfa53c3631",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "field": "dependencies",
+    "commit": "7e2eac5ca71c4fc20bbe97b888dad21267da1e30",
+    "providerComponent": "packages/capability",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/jj",
+    "field": "dependencies",
+    "commit": "d933549c894f26a1f558e5e488a6b29e8c0fc242",
+    "providerComponent": "packages/jj",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/platform-browser",
+    "field": "dependencies",
+    "commit": "3359dd0ae5a536bfdb25b36aeaebe25fdca1aa4f",
+    "providerComponent": "packages/platform-browser",
+    "classification": "circular-package-pair",
+    "justification": "@smthrs/kernel and @smthrs/platform-browser declare each other as workspace dependencies. The cycle is a property of the source tree, so exactly one of the two must be introduced first; no commit order can satisfy both directions."
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "95a230cc9235df96ae12029cd78aa5dfa53c3631",
+  "next": "8bb5b17a876ceb5a161f5a11d4a2f795d7b9ee9d",
+  "epicFirst": "a6c9698a594ba11333c7d2cefbd9720612c6e6bb",
+  "epicLast": "a94e46ebcc18e48adf39b7735ecbe06567ca4574",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 206,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/kernel/CHANGELOG.md",
+   "mode": "100644",
+   "blob": "77d14d5481a17a6afaad09c63497eeeeecf034da",
+   "previousBlob": null,
+   "added": 120,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/kernel/README.md",
+   "mode": "100644",
+   "blob": "510733774375bec7f6c00d36b5253767d22fafba",
+   "previousBlob": null,
+   "added": 86,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

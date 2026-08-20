@@ -1,0 +1,92 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "0279b02c7a74d06d855b484281ef48c4dda96644",
+ "tree": "54eff12ec6c75b670551f4ee4060edd4c8f457c7",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 11,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 648,
+  "globalCount": 838,
+  "purpose": "📝 docs(reports): document wave13, wave13/truth-bar",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "reports",
+  "component": "apps/reports/live-checks",
+  "unitKey": "wave13",
+  "mergedUnitKeys": [
+   "wave13",
+   "wave13/truth-bar"
+  ]
+ },
+ "dependencies": {
+  "parent": "976e833187f2529e802bc3dfd6470d8afa53349f",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "976e833187f2529e802bc3dfd6470d8afa53349f",
+  "next": "cd1641a9fd0f2e8dc014f25665f31ff2d07e732a",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 363,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave13/launch-checklist-report.BEFORE.md",
+   "mode": "100644",
+   "blob": "c38e6c467710d6dae0ead266b16d49770c1a77d1",
+   "previousBlob": null,
+   "added": 292,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave13/truth-bar/transcript.md",
+   "mode": "100644",
+   "blob": "8a6b4f305b53cfd1f76f3f90bc0ec0e8b05dfde8",
+   "previousBlob": null,
+   "added": 71,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

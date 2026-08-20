@@ -1,0 +1,72 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "53e282376e1f7e7bd525a657644202288beca2d7",
+ "tree": "a5a3e86014aef185179b6a51e291c17eb6f5d4f1",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 7,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 187,
+  "globalCount": 838,
+  "purpose": "✨ feat(engine-store): add DurableEngineState",
+  "type": "feat",
+  "kind": "module",
+  "scope": "engine-store",
+  "component": "packages/engine-store/src",
+  "unitKey": "DurableEngineState",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "229f2a2a62fbf8eb4f2df6c8c9204deee510e76d",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "229f2a2a62fbf8eb4f2df6c8c9204deee510e76d"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "229f2a2a62fbf8eb4f2df6c8c9204deee510e76d",
+  "next": "13373e8984e787685db54b712a84b60c7c7c8b5c",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 1746,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/DurableEngineState.ts",
+   "mode": "100644",
+   "blob": "5b43ef59b3556d9d547897c76e93279272d72444",
+   "previousBlob": null,
+   "added": 1746,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

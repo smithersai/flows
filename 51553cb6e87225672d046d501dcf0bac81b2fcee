@@ -1,0 +1,132 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "51553cb6e87225672d046d501dcf0bac81b2fcee",
+ "tree": "d6f2cb32ec777d372bd5e1c3110c3aca6d848a61",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 33,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 536,
+  "globalCount": 838,
+  "purpose": "✨ feat(targets): add the PackageLint, PnpmWorkspaceFile, SortPackageJson and 2 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "targets",
+  "component": "packages/targets/src",
+  "unitKey": "PackageLint",
+  "mergedUnitKeys": [
+   "PackageLint",
+   "PnpmWorkspaceFile",
+   "SortPackageJson",
+   "TsBuild",
+   "Typecheck"
+  ]
+ },
+ "dependencies": {
+  "parent": "8d478979bf02a223a0ca85e1ae2d677f474f1c02",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [
+   "8c22e12a34262541380b4e5ce654880c38a9f45b",
+   "ba993df20a254d6d6558bcab0091b06aae25a223",
+   "00957ec8ebb497a919271108d05ea32e3cb1860b",
+   "3601609d1c618c17e895954bbdbec9660c7cf00b",
+   "357b1d58b060b24f450d3d84da29306d20e516c3",
+   "cad2ee28bd2f0dd3a0b2eb99bfdc11a5743ecff7"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "8d478979bf02a223a0ca85e1ae2d677f474f1c02",
+  "next": "d184ed18395ac1e9d10cbda2bd2a492370f0e129",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 5,
+  "added": 622,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/targets/src/PackageLint.ts",
+   "mode": "100644",
+   "blob": "84116433bd46ef818230ffc8e044c1ba6548c1f8",
+   "previousBlob": null,
+   "added": 107,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/PnpmWorkspaceFile.ts",
+   "mode": "100644",
+   "blob": "e43a1f4f0110a802fa17c3d39fb97189dca19742",
+   "previousBlob": null,
+   "added": 187,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/SortPackageJson.ts",
+   "mode": "100644",
+   "blob": "20b8cedc9332cba5a35df4ac34d445d6940ac67e",
+   "previousBlob": null,
+   "added": 86,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/TsBuild.ts",
+   "mode": "100644",
+   "blob": "ee62adc9847e4cf4a39674acc060230b92c5a9a5",
+   "previousBlob": null,
+   "added": 158,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/Typecheck.ts",
+   "mode": "100644",
+   "blob": "0bf203ddbdf96235598e30efd7cfb002bd71156f",
+   "previousBlob": null,
+   "added": 84,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

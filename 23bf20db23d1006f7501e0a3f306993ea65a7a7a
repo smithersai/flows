@@ -1,0 +1,77 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "23bf20db23d1006f7501e0a3f306993ea65a7a7a",
+ "tree": "2d8fbc0db3ed368d9486d08ac3252b09bfd46077",
+ "epic": {
+  "index": 13,
+  "id": "server",
+  "name": "Shared application contracts and worker backend",
+  "sourceCommit": "5e1bcec6b1db3f2e990cb2b79bec0050dfc34ba3",
+  "sourceSubject": "✨ feat(server): add shared application contracts and worker backend",
+  "childIndex": 4,
+  "childCount": 21,
+  "head": "c272b329cd28dcfe6a7ffd108f0055164724d1db"
+ },
+ "atomic": {
+  "globalIndex": 620,
+  "globalCount": 838,
+  "purpose": "✨ feat(shared): add Cards",
+  "type": "feat",
+  "kind": "module",
+  "scope": "shared",
+  "component": "apps/shared",
+  "unitKey": "Cards",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "83c97047ae11ead243469f1c08daed689f4797dd",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "83c97047ae11ead243469f1c08daed689f4797dd",
+  "next": "1df17ef3d3941c9db605d85ec65d5b6bf76a4631",
+  "epicFirst": "36966c150e44215f6d84e68304ed6f67f4dd06ff",
+  "epicLast": "c272b329cd28dcfe6a7ffd108f0055164724d1db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 521,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/shared/src/Cards.ts",
+   "mode": "100644",
+   "blob": "3c890ba19a99058bbf1a5da27f3c67d4087db185",
+   "previousBlob": null,
+   "added": 521,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

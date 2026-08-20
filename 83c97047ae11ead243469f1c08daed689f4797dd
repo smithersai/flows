@@ -1,0 +1,88 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "83c97047ae11ead243469f1c08daed689f4797dd",
+ "tree": "3ac42d3141135abe6aaee182979ccbcdb2a03d52",
+ "epic": {
+  "index": 13,
+  "id": "server",
+  "name": "Shared application contracts and worker backend",
+  "sourceCommit": "5e1bcec6b1db3f2e990cb2b79bec0050dfc34ba3",
+  "sourceSubject": "✨ feat(server): add shared application contracts and worker backend",
+  "childIndex": 3,
+  "childCount": 21,
+  "head": "c272b329cd28dcfe6a7ffd108f0055164724d1db"
+ },
+ "atomic": {
+  "globalIndex": 619,
+  "globalCount": 838,
+  "purpose": "✨ feat(shared): add BrowserFetch",
+  "type": "feat",
+  "kind": "module",
+  "scope": "shared",
+  "component": "apps/shared",
+  "unitKey": "BrowserFetch",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "a9829c617177ca17a9071a5a9f0591360696e8ee",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "a9829c617177ca17a9071a5a9f0591360696e8ee",
+  "next": "23bf20db23d1006f7501e0a3f306993ea65a7a7a",
+  "epicFirst": "36966c150e44215f6d84e68304ed6f67f4dd06ff",
+  "epicLast": "c272b329cd28dcfe6a7ffd108f0055164724d1db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 617,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/shared/src/BrowserFetch.ts",
+   "mode": "100644",
+   "blob": "0a7fc588cc24c23abbcde76536d4c8e019d712a5",
+   "previousBlob": null,
+   "added": 365,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/shared/src/BrowserFetch.test.ts",
+   "mode": "100644",
+   "blob": "fb78ee6effc1ef1d3f2430fd92fff7d07e825587",
+   "previousBlob": null,
+   "added": 252,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

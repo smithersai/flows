@@ -1,0 +1,77 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "e2da14e7ce6f496c2f32f260d34caff83e347987",
+ "tree": "2f6aa5db96f8fae290bb4d8c09146f5d66c68866",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 14,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 517,
+  "globalCount": 838,
+  "purpose": "✨ feat(targets): add SecretProxy",
+  "type": "feat",
+  "kind": "module",
+  "scope": "targets",
+  "component": "packages/targets/src",
+  "unitKey": "SecretProxy",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "357b1d58b060b24f450d3d84da29306d20e516c3",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [
+   "357b1d58b060b24f450d3d84da29306d20e516c3"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "357b1d58b060b24f450d3d84da29306d20e516c3",
+  "next": "8c22e12a34262541380b4e5ce654880c38a9f45b",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 313,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/targets/src/SecretProxy.ts",
+   "mode": "100644",
+   "blob": "4ba770e235b90c45eb2028e56dea228b49e99200",
+   "previousBlob": null,
+   "added": 313,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

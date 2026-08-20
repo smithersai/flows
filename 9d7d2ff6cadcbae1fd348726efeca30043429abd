@@ -1,0 +1,103 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "9d7d2ff6cadcbae1fd348726efeca30043429abd",
+ "tree": "70a684a417782fbf471e3bc3ad07145a6ce51af3",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 100,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 737,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the canary-restoration, canary-seam-probe modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/scripts",
+  "unitKey": "canary-restoration",
+  "mergedUnitKeys": [
+   "canary-restoration",
+   "canary-seam-probe"
+  ]
+ },
+ "dependencies": {
+  "parent": "5ed1c688534b62bf023c949acbc6e41a904f7c2f",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "5ed1c688534b62bf023c949acbc6e41a904f7c2f",
+  "next": "3fd5893c645232027f083f0eb25f2a44b42f7653",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 255,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/scripts/canary-restoration.ts",
+   "mode": "100644",
+   "blob": "3a71296dd8a251140e62af61011d2a9da441e60d",
+   "previousBlob": null,
+   "added": 41,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/scripts/canary-restoration.test.ts",
+   "mode": "100644",
+   "blob": "00f864c3da49475b6afd214e2a44ba3a8d11419c",
+   "previousBlob": null,
+   "added": 52,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/scripts/canary-seam-probe.ts",
+   "mode": "100644",
+   "blob": "58abfa8550bff6c9bb291c9cd7569d5f4ba10df6",
+   "previousBlob": null,
+   "added": 162,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

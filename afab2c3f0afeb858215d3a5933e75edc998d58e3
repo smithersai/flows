@@ -1,0 +1,100 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "afab2c3f0afeb858215d3a5933e75edc998d58e3",
+ "tree": "90c808aeb4c0f8b82409011fc8d8d3bb48b38765",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 92,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 595,
+  "globalCount": 838,
+  "purpose": "✨ feat(scripts): add the browser-check, check-test-pins modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "scripts",
+  "component": "scripts",
+  "unitKey": "browser-check",
+  "mergedUnitKeys": [
+   "browser-check",
+   "check-test-pins"
+  ]
+ },
+ "dependencies": {
+  "parent": "daedec9d5886a7944e97c19f4c70741c58621f04",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "daedec9d5886a7944e97c19f4c70741c58621f04",
+  "next": "e9ca329bd619ff25a111f86788849e6377c0e98b",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 530,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "scripts/browser-check.mjs",
+   "mode": "100644",
+   "blob": "49ebd6cc75d73abdee9ca10cd84ae36df5653fb9",
+   "previousBlob": null,
+   "added": 206,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "scripts/check-test-pins.mjs",
+   "mode": "100644",
+   "blob": "93065949f7414834994c02b1d5bb76349b192960",
+   "previousBlob": null,
+   "added": 211,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "scripts/check-test-pins.test.mjs",
+   "mode": "100644",
+   "blob": "26b4c136f7185f4f76ebc6fbf0b21fd807e2753b",
+   "previousBlob": null,
+   "added": 113,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

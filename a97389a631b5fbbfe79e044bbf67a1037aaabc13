@@ -1,0 +1,416 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a97389a631b5fbbfe79e044bbf67a1037aaabc13",
+ "tree": "244959c7c58dc92a204fbfe72e5781e9d5dd3072",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 40,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 677,
+  "globalCount": 838,
+  "purpose": "📝 docs(ui): document prompts/production-readiness-swarm",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "ui",
+  "component": "apps/ui/.smithers",
+  "unitKey": "prompts/production-readiness-swarm",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "601d6fb7a2519881981134bd1fd4aa5caceecab0",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "field": "dependencies",
+    "commit": "f7a79de58ec909a8b6633954e1f1ff9117d4d46a",
+    "providerComponent": "packages/cli",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "601d6fb7a2519881981134bd1fd4aa5caceecab0",
+  "next": "58c3374fa65e8c163f7099c577286938e1d15a23",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 31,
+  "added": 469,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/architecture-learn.mdx",
+   "mode": "100644",
+   "blob": "ac0a62e47168e6d02b0ae6b7e321ac405f661a7d",
+   "previousBlob": null,
+   "added": 22,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/commit-review.mdx",
+   "mode": "100644",
+   "blob": "07e9fd168f75f011839a0fa29f8fcc172e789325",
+   "previousBlob": null,
+   "added": 11,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/commit-series-verify.mdx",
+   "mode": "100644",
+   "blob": "6f39553af85ed54bc4bab5c4a3c89551155afaf5",
+   "previousBlob": null,
+   "added": 11,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/final-architecture-update.mdx",
+   "mode": "100644",
+   "blob": "187ac49c1b64e1b917a5f584937f0bcb6875bf17",
+   "previousBlob": null,
+   "added": 18,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/final-fix.mdx",
+   "mode": "100644",
+   "blob": "276353b47b56bdb7d16f69e49cf785f0246890f4",
+   "previousBlob": null,
+   "added": 11,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/final-scan.mdx",
+   "mode": "100644",
+   "blob": "c51146c7bb40ff13d9bdb4cb61696e2ae2884a25",
+   "previousBlob": null,
+   "added": 11,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/final-verify.mdx",
+   "mode": "100644",
+   "blob": "25b765f047280db2141259a9908318609cf7d8eb",
+   "previousBlob": null,
+   "added": 16,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/history-curate.mdx",
+   "mode": "100644",
+   "blob": "0300fe091e74b63af4d6a85523cda8cde13846d2",
+   "previousBlob": null,
+   "added": 11,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/inventory-research.mdx",
+   "mode": "100644",
+   "blob": "cc8e853c3270747f4feb0a55e43662bed6809f99",
+   "previousBlob": null,
+   "added": 26,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/inventory-synthesis.mdx",
+   "mode": "100644",
+   "blob": "1dec3ae84acb1a51678a494ce5025d036c126443",
+   "previousBlob": null,
+   "added": 15,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/poc-authority-foundation.mdx",
+   "mode": "100644",
+   "blob": "7bb63962121ce43bb2743796537ad2d481eda5b3",
+   "previousBlob": null,
+   "added": 23,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/poc-failure-route.mdx",
+   "mode": "100644",
+   "blob": "3d5f7e84c1c0cd6f92d8b62c4310c9572f453d85",
+   "previousBlob": null,
+   "added": 11,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/poc-flows-harness.mdx",
+   "mode": "100644",
+   "blob": "1512ee4a947f6908e1b9cb04028a5a45d276da67",
+   "previousBlob": null,
+   "added": 26,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/poc-integrate-verify.mdx",
+   "mode": "100644",
+   "blob": "55b327edcb87cdab12449571a7bd9f65294143e8",
+   "previousBlob": null,
+   "added": 22,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/poc-platform-worldview.mdx",
+   "mode": "100644",
+   "blob": "15832e5612eea95c03b0039fc4005cd72a6ec380",
+   "previousBlob": null,
+   "added": 16,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/poc-round-plan.mdx",
+   "mode": "100644",
+   "blob": "226d15c1a90766b13d485408c7c026b1f4e560ff",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/poc-state-journal.mdx",
+   "mode": "100644",
+   "blob": "6e3491383293cf11e4a074be56dc9a8e02ac080b",
+   "previousBlob": null,
+   "added": 16,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/poc-transcript-chat-ui.mdx",
+   "mode": "100644",
+   "blob": "bacf1417b25df1ce9add7f19279d7d490fd94179",
+   "previousBlob": null,
+   "added": 18,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/production-e2e.mdx",
+   "mode": "100644",
+   "blob": "1e8e7d75888e1b0b0496d71b3a180290f032e372",
+   "previousBlob": null,
+   "added": 16,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/production-failure-route.mdx",
+   "mode": "100644",
+   "blob": "02a271cf681bb130d05620a1356d3e59cae494d5",
+   "previousBlob": null,
+   "added": 11,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/production-merge.mdx",
+   "mode": "100644",
+   "blob": "ad56032a58f6c13e035bad4a318cd46c29c94cff",
+   "previousBlob": null,
+   "added": 13,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/production-plan-flows-harness.mdx",
+   "mode": "100644",
+   "blob": "cb45823d97ea0a29537e907bbf16ab096673cc60",
+   "previousBlob": null,
+   "added": 11,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/production-plan-platform-security.mdx",
+   "mode": "100644",
+   "blob": "20aff927013dfb55f8065d5df2b654cdf73245e9",
+   "previousBlob": null,
+   "added": 11,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/production-plan-state-journal.mdx",
+   "mode": "100644",
+   "blob": "75b52cadec1596445b89c21ddcd201987048c938",
+   "previousBlob": null,
+   "added": 11,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/production-plan-transcript-ui.mdx",
+   "mode": "100644",
+   "blob": "8b67d4221f1acbbbb4da6ea2f8082a80ef7e8bb1",
+   "previousBlob": null,
+   "added": 11,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/production-slice-implement.mdx",
+   "mode": "100644",
+   "blob": "3a432c3e94f9cc8c737fc59bd660ec5b66f20b02",
+   "previousBlob": null,
+   "added": 20,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/production-supervisor-plan.mdx",
+   "mode": "100644",
+   "blob": "6f64e7160853a906d1c35bba3fb26011432abb08",
+   "previousBlob": null,
+   "added": 11,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/production-wave-plan.mdx",
+   "mode": "100644",
+   "blob": "dfbf2aee88e15d4bbb19da763be18b68d0ea55aa",
+   "previousBlob": null,
+   "added": 11,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/review-correction.mdx",
+   "mode": "100644",
+   "blob": "68977dcbc924e60be6598aaa4e765c671f59d079",
+   "previousBlob": null,
+   "added": 11,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/review-e2e.mdx",
+   "mode": "100644",
+   "blob": "ea11e7515ce9d8f25a3553efde5581963a799a60",
+   "previousBlob": null,
+   "added": 16,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/production-readiness-swarm/stack-review.mdx",
+   "mode": "100644",
+   "blob": "0a633d7d83f47b3d959860e1c39edcd7ad8cdd3d",
+   "previousBlob": null,
+   "added": 11,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

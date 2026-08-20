@@ -1,0 +1,90 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a255fd706b30308816fc6f41d798874bcd9bf847",
+ "tree": "7891db603300d1c3d30ca8fd332ed4cb2ceb413a",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 62,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 242,
+  "globalCount": 838,
+  "purpose": "✨ feat(sync): export the public sync surface",
+  "type": "feat",
+  "kind": "index",
+  "scope": "sync",
+  "component": "packages/sync",
+  "unitKey": "~index",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "4809cb679f1928eb5987ca5593eb1c88a5cea8d0",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "409d977dc6850904988b0a037cbfd926daa547f0",
+   "2466cc971787b3ecc68cc046ccba9fc9b2acf82b",
+   "3c12dbdf04c94ac01d62039a304e31f3a5799f9e",
+   "8ee3e4f304bc9e0e1d552635faefb9b0f5b825a1",
+   "4809cb679f1928eb5987ca5593eb1c88a5cea8d0",
+   "239bfc3fc9ed99100f271bcb1d4a5a4ad9a3f524",
+   "9b5ee1f722caf32b2f81ceb86f24b150920950c1",
+   "89d87dae061373d7b32e92d3efc0d881c11d4ea3",
+   "113760108c0492bb70eaac7bb922d8772cff8c6e",
+   "ca888a96f827081342ce68b1a60d98ca19647a1e",
+   "450d72bedac73c6b54bda830c5f1c2fe6bd77f9c"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "4809cb679f1928eb5987ca5593eb1c88a5cea8d0",
+  "next": "63e4b5ab675cd7bca1287b47d0ed66f31b85a511",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 107,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/sync/src/index.ts",
+   "mode": "100644",
+   "blob": "d1aad790376942d9ac6ddab0eb641691ea68cda5",
+   "previousBlob": null,
+   "added": 107,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

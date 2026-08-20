@@ -1,0 +1,139 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "caa83de00e8dcbf052a8e945cb0ad0e091216f47",
+ "tree": "c581b63b0265901d03c92acc58856f074f9cf543",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 35,
+  "childCount": 60,
+  "head": "a94e46ebcc18e48adf39b7735ecbe06567ca4574"
+ },
+ "atomic": {
+  "globalIndex": 155,
+  "globalCount": 838,
+  "purpose": "✨ feat(platform-browser): add the BrowserChildProcessSpawner modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "platform-browser",
+  "component": "packages/platform-browser",
+  "unitKey": "dir:BrowserChildProcessSpawner",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "8bb5b17a876ceb5a161f5a11d4a2f795d7b9ee9d",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/jj",
+    "field": "dependencies",
+    "commit": "d933549c894f26a1f558e5e488a6b29e8c0fc242",
+    "providerComponent": "packages/jj",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "field": "dependencies",
+    "commit": "32707f96f522f0b7dce09d50ee6af6e72b7a0ef4",
+    "providerComponent": "packages/kernel",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "8bb5b17a876ceb5a161f5a11d4a2f795d7b9ee9d",
+  "next": "ea9524b932d7dad081c57b7b189bae1b835bb993",
+  "epicFirst": "a6c9698a594ba11333c7d2cefbd9720612c6e6bb",
+  "epicLast": "a94e46ebcc18e48adf39b7735ecbe06567ca4574",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 6,
+  "added": 915,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/platform-browser/src/BrowserChildProcessSpawner/JustBashLike.ts",
+   "mode": "100644",
+   "blob": "4b35468260e8cda6bf2966b9a12701c00bd1b64c",
+   "previousBlob": null,
+   "added": 26,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/platform-browser/src/BrowserChildProcessSpawner/captured.ts",
+   "mode": "100644",
+   "blob": "f5d9af80d4e4e9ef84941b42908c27ace277a052",
+   "previousBlob": null,
+   "added": 46,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/platform-browser/src/BrowserChildProcessSpawner/make.ts",
+   "mode": "100644",
+   "blob": "2151877f0093dd7e8cca82d1b7f82018d97e6a99",
+   "previousBlob": null,
+   "added": 164,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/platform-browser/src/BrowserChildProcessSpawner/layer.ts",
+   "mode": "100644",
+   "blob": "77a348d20056e457fd57673024769151bfb787a9",
+   "previousBlob": null,
+   "added": 29,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/platform-browser/src/BrowserChildProcessSpawner/index.ts",
+   "mode": "100644",
+   "blob": "f26ea17860917adf5766bec4fb0f1d32c22b2a38",
+   "previousBlob": null,
+   "added": 47,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/platform-browser/test/BrowserChildProcessSpawner.test.ts",
+   "mode": "100644",
+   "blob": "41553e991ded99856e506790320bc5331c03d350",
+   "previousBlob": null,
+   "added": 603,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

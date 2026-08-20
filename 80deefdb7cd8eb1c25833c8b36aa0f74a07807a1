@@ -1,0 +1,97 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "80deefdb7cd8eb1c25833c8b36aa0f74a07807a1",
+ "tree": "0ceef27a27e062eab775884a1f35ef4c8c02543e",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 76,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 579,
+  "globalCount": 838,
+  "purpose": "✨ feat(build): add the cache/service modules (1/2)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "build",
+  "component": "packages/build/terraform",
+  "unitKey": "dir:modules/cache/service",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "fec430676cadf80d09cd851bd828c098e8588d11",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "fec430676cadf80d09cd851bd828c098e8588d11",
+  "next": "5e0af07571af557249d5e426344fb85beb1fdafe",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 1098,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build/terraform/modules/cache/service/Dockerfile",
+   "mode": "100644",
+   "blob": "6e0a920b6b2478a0a76d7d9749803e4340930591",
+   "previousBlob": null,
+   "added": 13,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/terraform/modules/cache/service/protocol.js",
+   "mode": "100644",
+   "blob": "ba2ae080efad75aece57b3d79e3d12875601d9ed",
+   "previousBlob": null,
+   "added": 965,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/terraform/modules/cache/service/config.js",
+   "mode": "100644",
+   "blob": "f220ca0a04bc50e801b2841328c5782297d36492",
+   "previousBlob": null,
+   "added": 120,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

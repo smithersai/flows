@@ -1,0 +1,90 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "b098345cdcb4cadc46560f7f474c8fbe3e768a31",
+ "tree": "85969c04d8d2d5d4366f108c84e97852bfb0f52a",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 36,
+  "childCount": 41,
+  "head": "a87440798849594806112b3b5a4481f1969f8f35"
+ },
+ "atomic": {
+  "globalIndex": 313,
+  "globalCount": 838,
+  "purpose": "📝 docs(patterns): document patterns",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "patterns",
+  "component": "packages/patterns",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "c0735b098e72bf6e6e70c2a176845008d0fd02cf",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "c0735b098e72bf6e6e70c2a176845008d0fd02cf",
+  "next": "680d31302099ce6f2e55110d712cb77293e78a51",
+  "epicFirst": "199c8afe8cabc4dc289106848adee1275afbff4c",
+  "epicLast": "a87440798849594806112b3b5a4481f1969f8f35",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 46,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/patterns/CHANGELOG.md",
+   "mode": "100644",
+   "blob": "eb8ae9793e52542d9eb0be58dcf789091e255d86",
+   "previousBlob": null,
+   "added": 8,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/patterns/README.md",
+   "mode": "100644",
+   "blob": "d663b58ca062dddcf0c91296080f8591f64a350f",
+   "previousBlob": null,
+   "added": 38,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

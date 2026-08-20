@@ -1,0 +1,108 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "601d6fb7a2519881981134bd1fd4aa5caceecab0",
+ "tree": "a6042b5076a5177d0df51913d9c73abf0c72764b",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 39,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 676,
+  "globalCount": 838,
+  "purpose": "📝 docs(ui): document prompts (2/2)",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "ui",
+  "component": "apps/ui/.smithers",
+  "unitKey": "prompts",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d22165f778183d58edf12891932736cf612374e0",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "field": "dependencies",
+    "commit": "f7a79de58ec909a8b6633954e1f1ff9117d4d46a",
+    "providerComponent": "packages/cli",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "d22165f778183d58edf12891932736cf612374e0",
+  "next": "a97389a631b5fbbfe79e044bbf67a1037aaabc13",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 232,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/federation-release-dry-run.mdx",
+   "mode": "100644",
+   "blob": "9f05aac57c9b444ac65f62298f0aa923ae38f34b",
+   "previousBlob": null,
+   "added": 56,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/federation-update-smithers.mdx",
+   "mode": "100644",
+   "blob": "0c52d2679cf1a774ab345cd8546663de733db69f",
+   "previousBlob": null,
+   "added": 95,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/plan-meals.mdx",
+   "mode": "100644",
+   "blob": "debab38116703540adb2bc9134cd063ae5b216ad",
+   "previousBlob": null,
+   "added": 81,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

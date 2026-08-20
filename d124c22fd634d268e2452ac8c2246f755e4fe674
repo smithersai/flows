@@ -1,0 +1,146 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "d124c22fd634d268e2452ac8c2246f755e4fe674",
+ "tree": "1cc691f64ebc638c8d900faa504ed0a67ab3b021",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 111,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 748,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the appearance modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/canary-repros",
+  "unitKey": "dir:appearance",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "7749ad53a1017acdf165ddf82667e03329421215",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "af94a97d6e056025a3b06c795c8edca6543937b6"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "7749ad53a1017acdf165ddf82667e03329421215",
+  "next": "3d8569fecdccc85cdb649b1a63717a2cedc4b17b",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 7,
+  "added": 874,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/appearance/20.3.ts",
+   "mode": "100644",
+   "blob": "d2a21cbb2dfac9d111767a94fc280b1df1601c54",
+   "previousBlob": null,
+   "added": 153,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/appearance/20.4.ts",
+   "mode": "100644",
+   "blob": "e90d6007315a1980dd511202d64f19a11b2527fa",
+   "previousBlob": null,
+   "added": 145,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/appearance/20.6.ts",
+   "mode": "100644",
+   "blob": "28c31ee192959e5623bd018f8f3ff0699f37c8c3",
+   "previousBlob": null,
+   "added": 113,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/appearance/21.2.ts",
+   "mode": "100644",
+   "blob": "c4f843e93320a014bb3a7e79922489cdb924d7ad",
+   "previousBlob": null,
+   "added": 112,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/appearance/21.4.ts",
+   "mode": "100644",
+   "blob": "8a0a936d824cc90213dac6e8945a295162387c97",
+   "previousBlob": null,
+   "added": 140,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/appearance/21.7.ts",
+   "mode": "100644",
+   "blob": "59e7fc4d0370303bc2e0bb12caa5207d3521178d",
+   "previousBlob": null,
+   "added": 126,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/appearance/21.8.ts",
+   "mode": "100644",
+   "blob": "84c751564a300d8dc8e1519dfe8449fb22f481fb",
+   "previousBlob": null,
+   "added": 85,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

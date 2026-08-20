@@ -1,0 +1,89 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a5d03da220ba8b5219f5f02b4c38736c858420f6",
+ "tree": "11f02b3b4ba85939b41ddd20fbe56746abf0e447",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 74,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 577,
+  "globalCount": 838,
+  "purpose": "✨ feat(build): add the build, circular modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "build",
+  "component": "packages/build/scripts",
+  "unitKey": "build",
+  "mergedUnitKeys": [
+   "build",
+   "circular"
+  ]
+ },
+ "dependencies": {
+  "parent": "b4768f7613df88408af3a5150626bedcb04c5f7f",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "b4768f7613df88408af3a5150626bedcb04c5f7f",
+  "next": "fec430676cadf80d09cd851bd828c098e8588d11",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 59,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build/scripts/build.mjs",
+   "mode": "100644",
+   "blob": "e76231f3821cc1904675c718ca527124e0cba28f",
+   "previousBlob": null,
+   "added": 41,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/scripts/circular.mjs",
+   "mode": "100644",
+   "blob": "8424eb898a6a5b0c08f1434ff4dab0d47da3fd37",
+   "previousBlob": null,
+   "added": 18,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

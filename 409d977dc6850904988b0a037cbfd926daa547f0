@@ -1,0 +1,127 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "409d977dc6850904988b0a037cbfd926daa547f0",
+ "tree": "3bdd74be4937b2f63dcbb887646f84c420e13e8a",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 51,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 231,
+  "globalCount": 838,
+  "purpose": "✨ feat(sync): add the SyncError, shareSigner, BranchIds and 1 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "sync",
+  "component": "packages/sync",
+  "unitKey": "SyncError",
+  "mergedUnitKeys": [
+   "SyncError",
+   "internal/shareSigner",
+   "BranchIds",
+   "BranchProtocol"
+  ]
+ },
+ "dependencies": {
+  "parent": "12d3c24accea6c8652732d57c51edf5cc6d4423f",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "12d3c24accea6c8652732d57c51edf5cc6d4423f",
+  "next": "9b5ee1f722caf32b2f81ceb86f24b150920950c1",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 5,
+  "added": 562,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/sync/src/SyncError.ts",
+   "mode": "100644",
+   "blob": "d742cdc109d329745a9fe27df4fbccfb144c8c17",
+   "previousBlob": null,
+   "added": 69,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/src/internal/shareSigner.ts",
+   "mode": "100644",
+   "blob": "3c791b72b99b8405ece87a059002fdfbeababdcb",
+   "previousBlob": null,
+   "added": 84,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/src/BranchIds.ts",
+   "mode": "100644",
+   "blob": "41a0e37a7a2dd10d81ecdd5ec5c3050b59644654",
+   "previousBlob": null,
+   "added": 83,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/test/BranchIds.test.ts",
+   "mode": "100644",
+   "blob": "a27d5567bf993ba8d20b6d23c401cab2e811114a",
+   "previousBlob": null,
+   "added": 44,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/src/BranchProtocol.ts",
+   "mode": "100644",
+   "blob": "25dc666dc26127ee599f9c0087abae05aa42f8fb",
+   "previousBlob": null,
+   "added": 282,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

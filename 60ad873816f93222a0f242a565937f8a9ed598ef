@@ -1,0 +1,108 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "60ad873816f93222a0f242a565937f8a9ed598ef",
+ "tree": "c2689f38e255ba80462e6c743066e66860e797c7",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 67,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 570,
+  "globalCount": 838,
+  "purpose": "🧹 chore(build): scaffold the @smthrs/build-infra package",
+  "type": "chore",
+  "kind": "scaffold",
+  "scope": "build",
+  "component": "packages/build/infra",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "c4b192cf9d59081e1d2f0151c01569d50ab870da",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "c4b192cf9d59081e1d2f0151c01569d50ab870da",
+  "next": "ed0bfe85aa07fd4d410be8c2f40fab9c9c63b0c8",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 117,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build/infra/BUILD.ts",
+   "mode": "100644",
+   "blob": "edd594b1d0145d0e9d4d88e62b39ffc658ca071b",
+   "previousBlob": null,
+   "added": 53,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/infra/package.json",
+   "mode": "100644",
+   "blob": "537abe319e3945d59e0ed40cc717012601bc5059",
+   "previousBlob": null,
+   "added": 26,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/infra/tsconfig.json",
+   "mode": "100644",
+   "blob": "57cd1ac78810dcac2ca76eb5c0fd55255a2d1eea",
+   "previousBlob": null,
+   "added": 28,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/infra/vitest.config.ts",
+   "mode": "100644",
+   "blob": "b307408b97853195448dd709b9103f745aede4e6",
+   "previousBlob": null,
+   "added": 10,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

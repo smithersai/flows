@@ -1,0 +1,112 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "91278dfa2b4ab9b48447808a8a61dbe9c5f78023",
+ "tree": "3e51e51c13e06b44f3cbd60ef4ac5750488a8444",
+ "epic": {
+  "index": 18,
+  "id": "workflows",
+  "name": "Repository automation workflows",
+  "sourceCommit": "9ea4941fc404fb4f12e3384b96a37e0739be3916",
+  "sourceSubject": "✨ feat(workflows): add repository automation workflows",
+  "childIndex": 5,
+  "childCount": 9,
+  "head": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "atomic": {
+  "globalIndex": 834,
+  "globalCount": 838,
+  "purpose": "✨ feat(smithers): add the ui modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "smithers",
+  "component": ".smithers",
+  "unitKey": "dir:ui",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "4f05b89ff25dbea6b1671f350ebd4784fee9c4ac",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui",
+   "docs-site",
+   "factory"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "field": "dependencies",
+    "commit": "f7a79de58ec909a8b6633954e1f1ff9117d4d46a",
+    "providerComponent": "packages/cli",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "4f05b89ff25dbea6b1671f350ebd4784fee9c4ac",
+  "next": "3a48568f8a673037808accff1542696ad34e834a",
+  "epicFirst": "09bf6daccc080841dd705eab4099f657d2736e07",
+  "epicLast": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 306,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": ".smithers/ui/alpha-agent.tsx",
+   "mode": "100644",
+   "blob": "03485b87b2e9b0022b66c9e3e98faa337f94ae2d",
+   "previousBlob": null,
+   "added": 17,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": ".smithers/ui/alpha-ui.tsx",
+   "mode": "100644",
+   "blob": "b0644361799a2af1b150caa936c1f6a3706ecd2d",
+   "previousBlob": null,
+   "added": 279,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": ".smithers/ui/iso-ui-port.tsx",
+   "mode": "100644",
+   "blob": "8c349a28cbf35248e8239c108594e501479d1037",
+   "previousBlob": null,
+   "added": 10,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

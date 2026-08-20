@@ -1,0 +1,106 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "bc886f08eec148bc732caf49edb090d6bcfebc61",
+ "tree": "92b36814863cb75dd05370c8d32fe9736a4ec8fa",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 26,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 206,
+  "globalCount": 838,
+  "purpose": "✨ feat(engine-store): add the fixtures modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "engine-store",
+  "component": "packages/engine-store/test",
+  "unitKey": "dir:fixtures",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "2db286733e6b56ebdb55149cd22dcd85893f2354",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "2371c029a5666dbf3616cc818e025811838efb01",
+   "2db286733e6b56ebdb55149cd22dcd85893f2354"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "2db286733e6b56ebdb55149cd22dcd85893f2354",
+  "next": "a2a1a4b6fd3b15bee1c713360a659f6d4c592b85",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 239,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/fixtures/OpaqueHandlerBody.ts",
+   "mode": "100644",
+   "blob": "4b951fadece0cda9653f262e16cc7eb458fc2cee",
+   "previousBlob": null,
+   "added": 9,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/fixtures/artifact-cjs.cjs",
+   "mode": "100644",
+   "blob": "b145ecc2237d1732f0e97c3c8d5a7e84cceab16a",
+   "previousBlob": null,
+   "added": 10,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/fixtures/artifact-esm.mjs",
+   "mode": "100644",
+   "blob": "edfa188bc16c0d0c9d8d980288181a32f972066b",
+   "previousBlob": null,
+   "added": 10,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/fixtures/durable-wait-child.ts",
+   "mode": "100644",
+   "blob": "98c07e8026120834aff2668ed3b8eec4b5b349c5",
+   "previousBlob": null,
+   "added": 210,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,100 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "d205fa9ace995c69f870db2aa0ba9f7d634c8c14",
+ "tree": "a41001c338ffb08e7df93018045f4388d1e02bb7",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 85,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 722,
+  "globalCount": 838,
+  "purpose": "✅ test(ui): cover mainview/flows",
+  "type": "test",
+  "kind": "tests",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "mainview/flows",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "ea88f08ad250aeef0963f2a0fff062111bd0098e",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "ea88f08ad250aeef0963f2a0fff062111bd0098e",
+  "next": "0c4a61a4aef8c5512bdcf65714c5c14bda6b9cc6",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 1368,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/flows/parity.test.ts",
+   "mode": "100644",
+   "blob": "afdbc818dcc4037eba50cfe404200bda79452fac",
+   "previousBlob": null,
+   "added": 383,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/flows/registry.test.ts",
+   "mode": "100644",
+   "blob": "e6e626bf7a3f7fb4f42cdead67366f0713f5dcb9",
+   "previousBlob": null,
+   "added": 723,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/flows/requirements.test.ts",
+   "mode": "100644",
+   "blob": "d5bdd19002506bd164ba38b6007a0c32dce538a5",
+   "previousBlob": null,
+   "added": 262,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

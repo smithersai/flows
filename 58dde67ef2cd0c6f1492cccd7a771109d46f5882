@@ -1,0 +1,94 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "58dde67ef2cd0c6f1492cccd7a771109d46f5882",
+ "tree": "b58c29e33708571eb5c1a3221e7cf02469e354a9",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 104,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 741,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the live-signed-in-check, live-workflow-check modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/scripts",
+  "unitKey": "live-signed-in-check",
+  "mergedUnitKeys": [
+   "live-signed-in-check",
+   "live-workflow-check"
+  ]
+ },
+ "dependencies": {
+  "parent": "af94a97d6e056025a3b06c795c8edca6543937b6",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "af94a97d6e056025a3b06c795c8edca6543937b6"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "af94a97d6e056025a3b06c795c8edca6543937b6",
+  "next": "5048326ebc056cc8578208105af85126b87a2674",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 537,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/scripts/live-signed-in-check.ts",
+   "mode": "100644",
+   "blob": "a99a14b64ac32f69466a1d7f516b82fc843823d1",
+   "previousBlob": null,
+   "added": 183,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/scripts/live-workflow-check.ts",
+   "mode": "100644",
+   "blob": "d722c334986e28f4e22df254cac054ac9011657b",
+   "previousBlob": null,
+   "added": 354,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,155 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "d310cea4f270eeee1e4663f221b713d29d021c40",
+ "tree": "ce1a4ec5ee2e110d9180e31bc89b8dc19f155a59",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 65,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 245,
+  "globalCount": 838,
+  "purpose": "✅ test(sync): cover sync (2/3)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "sync",
+  "component": "packages/sync",
+  "unitKey": "test",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d5f847023cd671f5075dbdccbbe36664da6c27e2",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "d5f847023cd671f5075dbdccbbe36664da6c27e2",
+  "next": "c8be1f82b7f24dc524158cdba15d87ff8107780b",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 8,
+  "added": 1471,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/sync/test/ClientFailures.test.ts",
+   "mode": "100644",
+   "blob": "c86f02ff9cdcc1de974e73e30510d2be78cb8796",
+   "previousBlob": null,
+   "added": 530,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/test/ClientProtocolValidation.test.ts",
+   "mode": "100644",
+   "blob": "acccd69ec7628844f5f517f35063f34dabd48ff3",
+   "previousBlob": null,
+   "added": 84,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/test/CoverageGaps.test.ts",
+   "mode": "100644",
+   "blob": "a8835fbbb64fafcf9f769f59829eb08b8a85822b",
+   "previousBlob": null,
+   "added": 217,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/test/Index.test.ts",
+   "mode": "100644",
+   "blob": "f408055ff6551cd174084d7c019b8a749f6cc78c",
+   "previousBlob": null,
+   "added": 74,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/test/PayloadLimits.test.ts",
+   "mode": "100644",
+   "blob": "c5f83403395104ccfeeb4d626c552072ca3ee081",
+   "previousBlob": null,
+   "added": 267,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/test/Protocol.test.ts",
+   "mode": "100644",
+   "blob": "b4472ca729aababe57fe6e4f865c7fe4a3bdfe40",
+   "previousBlob": null,
+   "added": 40,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/test/Server.test.ts",
+   "mode": "100644",
+   "blob": "f4de919993a62a07a37864f2ee2a846bcfeae085",
+   "previousBlob": null,
+   "added": 79,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/test/ServerPaging.test.ts",
+   "mode": "100644",
+   "blob": "314616c155692474dcfce07978e9c10445793c1a",
+   "previousBlob": null,
+   "added": 180,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

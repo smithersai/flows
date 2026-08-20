@@ -1,0 +1,121 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "3579adb9235c0b2f4bd94d0933f6483b22b0b2a6",
+ "tree": "ddac7d9ad064cc6414e8a5101fd76cb4330272e3",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 22,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 659,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the ui modules (2/6)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/.smithers",
+  "unitKey": "dir:ui",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "68cd9ba868ef12ac754be44036a4ca4585fcf213",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "68cd9ba868ef12ac754be44036a4ca4585fcf213"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "field": "dependencies",
+    "commit": "f7a79de58ec909a8b6633954e1f1ff9117d4d46a",
+    "providerComponent": "packages/cli",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "68cd9ba868ef12ac754be44036a4ca4585fcf213",
+  "next": "d269cf6020ec28e805a0e5a0b39b27cc50f38fad",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 1221,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/ui/ddd-AuditTab.tsx",
+   "mode": "100644",
+   "blob": "d08c302c85d701bd05ddcd70920dfd446ca4704b",
+   "previousBlob": null,
+   "added": 199,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/ui/ddd-FeaturesTab.tsx",
+   "mode": "100644",
+   "blob": "35cf8b9fe9fb5d5b17ce7e94ac6e42e9934c9bb6",
+   "previousBlob": null,
+   "added": 247,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/ui/ddd-LiveTab.tsx",
+   "mode": "100644",
+   "blob": "191cdd52a2d782fe846f75bcb8062b906c42413a",
+   "previousBlob": null,
+   "added": 444,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/ui/ddd-SpecsTab.tsx",
+   "mode": "100644",
+   "blob": "dfcc1c39048f888068be5f8bb19a92b19acbf813",
+   "previousBlob": null,
+   "added": 331,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

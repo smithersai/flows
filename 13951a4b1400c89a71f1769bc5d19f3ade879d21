@@ -1,0 +1,78 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "13951a4b1400c89a71f1769bc5d19f3ade879d21",
+ "tree": "66096d824672a7745b9cc2b58a5e5fb42a569e33",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 82,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 719,
+  "globalCount": 838,
+  "purpose": "✅ test(ui): cover mainview/cards",
+  "type": "test",
+  "kind": "tests",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "mainview/cards",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "ca381882c72ea0cc38279470c75fbcea72854cbc",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "ca381882c72ea0cc38279470c75fbcea72854cbc",
+  "next": "a7d663c0e1ae7694a726326df301cfbf85211e50",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 71,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/cards/NotificationsCard.test.tsx",
+   "mode": "100644",
+   "blob": "97be01b81bcacefa3838c2ae58adaaf507036cbf",
+   "previousBlob": null,
+   "added": 71,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

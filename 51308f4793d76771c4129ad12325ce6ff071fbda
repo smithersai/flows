@@ -1,0 +1,78 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "51308f4793d76771c4129ad12325ce6ff071fbda",
+ "tree": "2c568453045426ee0d410f87a388b5ad2b457360",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 46,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 683,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the mainview/state module (1/7)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview/state",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "49f05ad33ae4477ca468fc044d7ccfd9cbfbacab",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "49f05ad33ae4477ca468fc044d7ccfd9cbfbacab",
+  "next": "d33e452aacb744538008cc1962306b8d0175849e",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 927,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/AppState.ts",
+   "mode": "100644",
+   "blob": "3f4ef68c18fcd205737687a4e688a384bcb855cc",
+   "previousBlob": null,
+   "added": 927,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

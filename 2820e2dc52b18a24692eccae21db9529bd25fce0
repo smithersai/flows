@@ -1,0 +1,104 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "2820e2dc52b18a24692eccae21db9529bd25fce0",
+ "tree": "35615e7b3c8ea62a6c46f6c246d6ac814506543c",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 45,
+  "childCount": 54,
+  "head": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb"
+ },
+ "atomic": {
+  "globalIndex": 61,
+  "globalCount": 838,
+  "purpose": "✅ test(run-store): cover run-store for fixtures",
+  "type": "test",
+  "kind": "tests",
+  "scope": "run-store",
+  "component": "packages/run-store",
+  "unitKey": "test/fixtures",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "2ea9d0cc304c254b728eaa2ebd24f635068e2808",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "2ea9d0cc304c254b728eaa2ebd24f635068e2808",
+  "next": "6f4292d128611b0f9de2453103717db49966601e",
+  "epicFirst": "2d09eee3adb5b99a7ac2a9511ca5520ac08f7a95",
+  "epicLast": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 156,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/run-store/test/fixtures/artifact-cjs.cjs",
+   "mode": "100644",
+   "blob": "e651d2e20ec4ed87398ff402dd85b6208142c4a1",
+   "previousBlob": null,
+   "added": 6,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/run-store/test/fixtures/artifact-esm.mjs",
+   "mode": "100644",
+   "blob": "89bdcef5d5477f8496bcc6a9a0f2015c0ef982cd",
+   "previousBlob": null,
+   "added": 6,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/run-store/test/fixtures/run-store-file-fence-child.ts",
+   "mode": "100644",
+   "blob": "825cd7ca755f800ca4981b0ed0318c4bff65b402",
+   "previousBlob": null,
+   "added": 144,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

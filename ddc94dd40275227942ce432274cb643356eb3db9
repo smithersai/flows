@@ -1,0 +1,102 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ddc94dd40275227942ce432274cb643356eb3db9",
+ "tree": "027ed30bafc5fb92dd83d2b6fb31be0b6a709ad5",
+ "epic": {
+  "index": 15,
+  "id": "tui",
+  "name": "Terminal application",
+  "sourceCommit": "ca5777391956c8a52c077feff63d7e5f4c84896a",
+  "sourceSubject": "✨ feat(tui): add the terminal application",
+  "childIndex": 5,
+  "childCount": 7,
+  "head": "17cc8c4684c778e5b9219714ab42f7dbe7d43bb3"
+ },
+ "atomic": {
+  "globalIndex": 793,
+  "globalCount": 838,
+  "purpose": "✅ test(tui): cover agent, tui",
+  "type": "test",
+  "kind": "tests",
+  "scope": "tui",
+  "component": "apps/tui",
+  "unitKey": "src/agent",
+  "mergedUnitKeys": [
+   "src/agent",
+   "src/e2e"
+  ]
+ },
+ "dependencies": {
+  "parent": "240cc8c1cca99be1a4d823c1aa005afa55713643",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "smithers-shared",
+    "field": "dependencies",
+    "commit": null,
+    "providerComponent": "apps/shared",
+    "classification": "no-source-entrypoint",
+    "justification": "smithers-shared publishes no source index file in the bootstrap tree, so there is no commit that introduces its public surface to order against."
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "240cc8c1cca99be1a4d823c1aa005afa55713643",
+  "next": "5f1285e470109c346773c1a3eab72e59629152a7",
+  "epicFirst": "f969888f0a7b9085d84a0490eb13a37557e89db9",
+  "epicLast": "17cc8c4684c778e5b9219714ab42f7dbe7d43bb3",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 530,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/tui/src/agent/WebAgent.test.ts",
+   "mode": "100644",
+   "blob": "847138d29214ac1ac4c3b3e5db0fb0e53db9f4c6",
+   "previousBlob": null,
+   "added": 61,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/tui/src/e2e/WorkerTurn.test.tsx",
+   "mode": "100644",
+   "blob": "dbcae61e7258df0c4604558401ba0f0c43734d2e",
+   "previousBlob": null,
+   "added": 469,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

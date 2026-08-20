@@ -1,0 +1,198 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "631875a2b7e3b2e961c0926efe053ef9b1bcbff0",
+ "tree": "f86ac3833f949850446434a2e3e0d12e2b81e265",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 75,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 255,
+  "globalCount": 838,
+  "purpose": "✨ feat(time-travel): add the Fork internals",
+  "type": "feat",
+  "kind": "module",
+  "scope": "time-travel",
+  "component": "packages/time-travel",
+  "unitKey": "internal/Fork",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "0cbeeb277d9929243737e789e6318cc45bd98bac",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "1741fe3e11078585191eacc9cf2eccd8a3526c1d",
+   "d62c430a56c4fec9e9ccc2c81a1884c93ded9643",
+   "c6c0d5170329c2c48b6f3ad7b1f39755c840387c",
+   "0cbeeb277d9929243737e789e6318cc45bd98bac",
+   "a3268b56e9da9bd3213f796ff44e6ac6e5ac5d43"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/engine-store",
+    "field": "dependencies",
+    "commit": "c0f6e543a2aa5e3bb7dbbfce925e8c332ecfded8",
+    "providerComponent": "packages/engine-store",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/jj",
+    "field": "dependencies",
+    "commit": "d933549c894f26a1f558e5e488a6b29e8c0fc242",
+    "providerComponent": "packages/jj",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/run-store",
+    "field": "dependencies",
+    "commit": "3af92874386ad961a4ac65bd603de8b0b38196de",
+    "providerComponent": "packages/run-store",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/step-cache",
+    "field": "dependencies",
+    "commit": "2d882398130e1321388dc084409590afb53af660",
+    "providerComponent": "packages/step-cache",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/artifacts",
+    "field": "devDependencies",
+    "commit": "83c80109f93620c67893e7c5d16326f9e242a2af",
+    "providerComponent": "packages/artifacts",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/engine",
+    "field": "devDependencies",
+    "commit": "b238e49d59c7ce059f57fe58b1d2028872d1438b",
+    "providerComponent": "packages/engine",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/flow",
+    "field": "devDependencies",
+    "commit": "ee413497efbca15acf23fa2b3cbc410affc1a802",
+    "providerComponent": "packages/flow",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "field": "devDependencies",
+    "commit": "32707f96f522f0b7dce09d50ee6af6e72b7a0ef4",
+    "providerComponent": "packages/kernel",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/plan",
+    "field": "devDependencies",
+    "commit": "b21dab66549eb99974cd7296f77391e4c3d00490",
+    "providerComponent": "packages/plan",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "0cbeeb277d9929243737e789e6318cc45bd98bac",
+  "next": "0f596c66ae7fec9453b3b08b4770a2bf3b1c3ec7",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 5,
+  "added": 1150,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/time-travel/src/internal/Fork.ts",
+   "mode": "100644",
+   "blob": "122a3a981e6b19e18505a889130811273bd75aa3",
+   "previousBlob": null,
+   "added": 204,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/time-travel/test/Fork.test.ts",
+   "mode": "100644",
+   "blob": "6365a61b5f5e3792f9e36b4ec2afcbda36c27c5c",
+   "previousBlob": null,
+   "added": 59,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/time-travel/test/ForkBoundary.test.ts",
+   "mode": "100644",
+   "blob": "1567656caa51c3dea9bdc365fa7ed047273dc530",
+   "previousBlob": null,
+   "added": 512,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/time-travel/test/ForkChain.e2e.test.ts",
+   "mode": "100644",
+   "blob": "f21c218ec90ae9ef4e66ea122ffa5666e4e5e3e9",
+   "previousBlob": null,
+   "added": 146,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/time-travel/test/ForkLineage.test.ts",
+   "mode": "100644",
+   "blob": "a7a0d6d3c8e72a958b97a94c52e30d1dc465562b",
+   "previousBlob": null,
+   "added": 229,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

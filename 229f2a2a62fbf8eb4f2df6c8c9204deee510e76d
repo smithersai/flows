@@ -1,0 +1,92 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "229f2a2a62fbf8eb4f2df6c8c9204deee510e76d",
+ "tree": "02b758f9d729ebe62cc656bfab55d1ff8dc04beb",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 6,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 186,
+  "globalCount": 838,
+  "purpose": "✨ feat(engine-store): add the internal modules (1/5)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "engine-store",
+  "component": "packages/engine-store/src",
+  "unitKey": "dir:internal",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "dfcd1b0b79c78527f800c3a21bf07b1f8d50670f",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "dfcd1b0b79c78527f800c3a21bf07b1f8d50670f",
+  "next": "53e282376e1f7e7bd525a657644202288beca2d7",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 351,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/internal/AttemptAdmission.ts",
+   "mode": "100644",
+   "blob": "8622d26a63c36409c77f50a944452261ec4f526c",
+   "previousBlob": null,
+   "added": 79,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/internal/EffectRecords.ts",
+   "mode": "100644",
+   "blob": "9a7d1018ccc1cc94e88b089114dfb796c0818221",
+   "previousBlob": null,
+   "added": 137,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/internal/EngineStateSchema.ts",
+   "mode": "100644",
+   "blob": "3832dffc5d995965d43dcb48f9b97de071c3999b",
+   "previousBlob": null,
+   "added": 135,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

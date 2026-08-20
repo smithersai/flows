@@ -1,0 +1,150 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "d184ed18395ac1e9d10cbda2bd2a492370f0e129",
+ "tree": "5b5c6f10deeb40e98a4fb6932523546360045ede",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 34,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 537,
+  "globalCount": 838,
+  "purpose": "✨ feat(targets): add the Vitest, StandardPackage, ToolRun and 3 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "targets",
+  "component": "packages/targets/src",
+  "unitKey": "Vitest",
+  "mergedUnitKeys": [
+   "Vitest",
+   "StandardPackage",
+   "ToolRun",
+   "Tsconfig",
+   "TypedocDocs",
+   "VitestCoverage"
+  ]
+ },
+ "dependencies": {
+  "parent": "51553cb6e87225672d046d501dcf0bac81b2fcee",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [
+   "8c22e12a34262541380b4e5ce654880c38a9f45b",
+   "ba993df20a254d6d6558bcab0091b06aae25a223",
+   "00957ec8ebb497a919271108d05ea32e3cb1860b",
+   "3601609d1c618c17e895954bbdbec9660c7cf00b",
+   "3e3a77e46d93463731f337bdec62e4aaca4626e7",
+   "2e6cabd34f3089181e30efce70f016ab57121847",
+   "8d478979bf02a223a0ca85e1ae2d677f474f1c02",
+   "51553cb6e87225672d046d501dcf0bac81b2fcee",
+   "161e241a652255620ce10b0002c026ad68c33244",
+   "357b1d58b060b24f450d3d84da29306d20e516c3",
+   "8b9a63bfdf4aaade87cb16a396107fe86df43b6d",
+   "cad2ee28bd2f0dd3a0b2eb99bfdc11a5743ecff7"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "51553cb6e87225672d046d501dcf0bac81b2fcee",
+  "next": "d5e0ba3442fb61c785c549b8b309cc0cc29f6617",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 6,
+  "added": 680,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/targets/src/Vitest.ts",
+   "mode": "100644",
+   "blob": "b15c057cd469b970c14a0c7e6cdeb4e12eaa2a67",
+   "previousBlob": null,
+   "added": 84,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/StandardPackage.ts",
+   "mode": "100644",
+   "blob": "3c3635eac52ac48bcfaefe1afa0809cb4a5b633c",
+   "previousBlob": null,
+   "added": 169,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/ToolRun.ts",
+   "mode": "100644",
+   "blob": "f6c3b98e8bf5075501b16cd1e010bc510d6bb3c5",
+   "previousBlob": null,
+   "added": 92,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/Tsconfig.ts",
+   "mode": "100644",
+   "blob": "5481315c25ee7d08406b90f64b447981b8e30a75",
+   "previousBlob": null,
+   "added": 141,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/TypedocDocs.ts",
+   "mode": "100644",
+   "blob": "045864dc744699f296056219dee64da14905f55b",
+   "previousBlob": null,
+   "added": 81,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/VitestCoverage.ts",
+   "mode": "100644",
+   "blob": "fc4f122067cc7518570a8c3a284b60bf60119c3d",
+   "previousBlob": null,
+   "added": 113,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

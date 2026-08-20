@@ -1,0 +1,130 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "040de90885e561fa88c1ec9af44bceb8b0f3c61e",
+ "tree": "7d6b40167636ddc942166e4999dd8f57133d07bd",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 58,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 561,
+  "globalCount": 838,
+  "purpose": "📝 docs(build): document concepts",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "build",
+  "component": "packages/build/docs",
+  "unitKey": "concepts",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "22f25aef118b9fafa182fbd202b68d66607ebfb2",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "22f25aef118b9fafa182fbd202b68d66607ebfb2",
+  "next": "1d5e3e9100f4c874605e2dddfc0de746f03d319d",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 6,
+  "added": 1062,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build/docs/concepts/actions-and-boundaries.md",
+   "mode": "100644",
+   "blob": "6e961ac76fbdb4ce806cbe48ba09d01afec10bb4",
+   "previousBlob": null,
+   "added": 170,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/concepts/dependencies.md",
+   "mode": "100644",
+   "blob": "0dedb3b20fd7b448f6912b78cb846b6793a1e32d",
+   "previousBlob": null,
+   "added": 127,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/concepts/inputs.md",
+   "mode": "100644",
+   "blob": "493bad9f44d4a9457fd035810f6b0fcf6af0f06d",
+   "previousBlob": null,
+   "added": 244,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/concepts/install.md",
+   "mode": "100644",
+   "blob": "24de620047881fb25c11f9f892fabea0b70d34ec",
+   "previousBlob": null,
+   "added": 218,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/concepts/labels.md",
+   "mode": "100644",
+   "blob": "62760b47ed854c484f9feb01c6a07e0368098310",
+   "previousBlob": null,
+   "added": 127,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/concepts/targets.md",
+   "mode": "100644",
+   "blob": "efb4f720ae9bcb733397027f4c087e5557e2dbec",
+   "previousBlob": null,
+   "added": 176,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

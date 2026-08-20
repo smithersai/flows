@@ -1,0 +1,155 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "6da8bc5768b35fa6232d781cc9e8ef10004d237e",
+ "tree": "e75912153a4708ccfbaa73984030897a21ab8c33",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 128,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 765,
+  "globalCount": 838,
+  "purpose": "📝 docs(ui): document flow-sweep (2/2)",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "ui",
+  "component": "apps/ui/canary-repros",
+  "unitKey": "flow-sweep",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "8e451d49c1457c119e256d11a611b417907e036b",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "8e451d49c1457c119e256d11a611b417907e036b",
+  "next": "dd6851227440bd172e1d1146dcd94e2d72d3586a",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 8,
+  "added": 489,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.66.md",
+   "mode": "100644",
+   "blob": "45a0656e71115349a8949c4337729aeac04b7999",
+   "previousBlob": null,
+   "added": 67,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.67.md",
+   "mode": "100644",
+   "blob": "867f058dfb6749d927823d16b5a957bf4d3667d8",
+   "previousBlob": null,
+   "added": 67,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.74.md",
+   "mode": "100644",
+   "blob": "c5c36fa624a658d36f8ba6656fafad82d725d9d4",
+   "previousBlob": null,
+   "added": 57,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.75.md",
+   "mode": "100644",
+   "blob": "21233dd4883e515df521632491d05e7ae212fa96",
+   "previousBlob": null,
+   "added": 57,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.76.md",
+   "mode": "100644",
+   "blob": "09aa8b4ef7d6e743a7b2b5021d34535d4c76b035",
+   "previousBlob": null,
+   "added": 57,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.77.md",
+   "mode": "100644",
+   "blob": "eaf3289bed1e51fbb8f59fa1bcdd975e3d8c5342",
+   "previousBlob": null,
+   "added": 57,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.86.md",
+   "mode": "100644",
+   "blob": "ff0fab8b42c6478838b86a463275d706a146bfe5",
+   "previousBlob": null,
+   "added": 50,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/_ROOT-CAUSES.md",
+   "mode": "100644",
+   "blob": "8e76ce8692ae9d363ce173e4b6327ec3ab16f797",
+   "previousBlob": null,
+   "added": 77,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

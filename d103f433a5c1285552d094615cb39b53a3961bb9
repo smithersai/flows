@@ -1,0 +1,100 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "d103f433a5c1285552d094615cb39b53a3961bb9",
+ "tree": "89cc17d345b19f10ccfa41aa047bae111bb0bb41",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 98,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 735,
+  "globalCount": 838,
+  "purpose": "✅ test(ui): cover state/seams (3/3)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "mainview/state/seams",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "cdd9027330ef7841909c30d4a3b990ed3f323095",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "cdd9027330ef7841909c30d4a3b990ed3f323095",
+  "next": "5ed1c688534b62bf023c949acbc6e41a904f7c2f",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 726,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/seams/NotificationsSeam.test.ts",
+   "mode": "100644",
+   "blob": "31488a2e58d33a29870ec36285b82f86671d65cc",
+   "previousBlob": null,
+   "added": 366,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/seams/RepoImportSeam.test.ts",
+   "mode": "100644",
+   "blob": "494c57bb5edf0827f002d03b9dc4842e266d582f",
+   "previousBlob": null,
+   "added": 305,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/seams/SeamContext.test.ts",
+   "mode": "100644",
+   "blob": "8ef2cbac9f65904f7f686c727bbff197b89ea1ab",
+   "previousBlob": null,
+   "added": 55,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

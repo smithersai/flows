@@ -1,0 +1,92 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "03e11271b754ec8731643d0b6f41b1209a191157",
+ "tree": "b4aec9310f89b17518ef1eb3feceb494c3e5322b",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 149,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 786,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add run",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/e2e",
+  "unitKey": "run",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "4c159a9b4ae9d6e10a2b22ca3fdbbd931418bf61",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "767956221a8bd966d33df1ed26427b0e7bcf4a57",
+   "f01dafa893105f00d06046ae8d94c86cb040cc24"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "4c159a9b4ae9d6e10a2b22ca3fdbbd931418bf61",
+  "next": "30933e12d75d7f8c0621aa489081fd9184405183",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 438,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/run.ts",
+   "mode": "100644",
+   "blob": "510d063119abd930591790c35280caaa68ae58ff",
+   "previousBlob": null,
+   "added": 425,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/run.test.ts",
+   "mode": "100644",
+   "blob": "5ae2427161c1186cc101f2831da424802870a9f9",
+   "previousBlob": null,
+   "added": 13,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

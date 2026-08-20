@@ -1,0 +1,85 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "060d78f56853c2982e3d4fc1fab1d483ac3dc741",
+ "tree": "e056379acca690a58ed09f611b107ac814e5ed1e",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 3,
+  "childCount": 50,
+  "head": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7"
+ },
+ "atomic": {
+  "globalIndex": 73,
+  "globalCount": 838,
+  "purpose": "✨ feat(keys): export the public keys surface",
+  "type": "feat",
+  "kind": "index",
+  "scope": "keys",
+  "component": "packages/keys",
+  "unitKey": "~index",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "8b24f67c202264d429d9525dfb71963565f2a86e",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [
+   "8b24f67c202264d429d9525dfb71963565f2a86e"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "field": "dependencies",
+    "commit": "f939384117c3c38a7fa71b1eddc029020998b589",
+    "providerComponent": "packages/canonical",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/crypto",
+    "field": "dependencies",
+    "commit": "530694619a107836d7830ede26f152376d364388",
+    "providerComponent": "packages/crypto",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "8b24f67c202264d429d9525dfb71963565f2a86e",
+  "next": "f4f7f9a36f8ee95190c799a7b27a291550b50c54",
+  "epicFirst": "60233bebe0e00cbc35cfb5176a9644f2799fde18",
+  "epicLast": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 9,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/keys/src/index.ts",
+   "mode": "100644",
+   "blob": "15dc6bf29186a1b56e73e7dced4e0b88c247d732",
+   "previousBlob": null,
+   "added": 9,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

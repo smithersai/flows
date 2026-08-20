@@ -1,0 +1,119 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "57a47bae69e93e4233df2d82e5b87d7ff75883cd",
+ "tree": "54f7c4a0bf14c164ea73a4fc3b6467df013770ac",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 139,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 776,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the suites modules (2/11)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/e2e",
+  "unitKey": "dir:suites",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "712a3b76594530e2511c20b060e2b24d16a5fdbe",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "f01dafa893105f00d06046ae8d94c86cb040cc24",
+   "767956221a8bd966d33df1ed26427b0e7bcf4a57",
+   "e822dc188bbe3d101505bc4e0d8671fc01102cc9",
+   "6ee5df66db65e929997a2795336b742366b9a8d1",
+   "3b0c70f67ee7274e2c106e4cb4411598aed405ec",
+   "bbc11668994cc8f212fa1e75ab120b1725a5ade3",
+   "a6e62e957d45844c923f75337676e02826657a76"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "712a3b76594530e2511c20b060e2b24d16a5fdbe",
+  "next": "c816a875ce0a408fb385e0c9c67eac5e5ce47b3d",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 1105,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/suites/act-markers.e2e.ts",
+   "mode": "100644",
+   "blob": "411a315be0e9068d7f1edfa75fdc2a3cdb9c883c",
+   "previousBlob": null,
+   "added": 149,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/suites/agent-suggestions.e2e.ts",
+   "mode": "100644",
+   "blob": "6ad014c6ad192b0d6fe377734fb0ca609b3673fb",
+   "previousBlob": null,
+   "added": 158,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/suites/auth-native-handoff.e2e.ts",
+   "mode": "100644",
+   "blob": "b865e9476060dc31580834e5771858297025af1c",
+   "previousBlob": null,
+   "added": 512,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/suites/auth-session.e2e.ts",
+   "mode": "100644",
+   "blob": "538b20de0cd5ea4534a12f9612d0c4372d0b94fe",
+   "previousBlob": null,
+   "added": 286,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

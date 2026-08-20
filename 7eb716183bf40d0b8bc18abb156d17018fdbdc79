@@ -1,0 +1,121 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "7eb716183bf40d0b8bc18abb156d17018fdbdc79",
+ "tree": "ec14c3e946264c2b77110176a53b3b9fd12d2629",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 17,
+  "childCount": 60,
+  "head": "a94e46ebcc18e48adf39b7735ecbe06567ca4574"
+ },
+ "atomic": {
+  "globalIndex": 137,
+  "globalCount": 838,
+  "purpose": "✨ feat(kernel): add CapabilitySet",
+  "type": "feat",
+  "kind": "module",
+  "scope": "kernel",
+  "component": "packages/kernel",
+  "unitKey": "CapabilitySet",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "b5436e60b50ecb78883d4c7315e8362fe16eec66",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "field": "dependencies",
+    "commit": "7e2eac5ca71c4fc20bbe97b888dad21267da1e30",
+    "providerComponent": "packages/capability",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/jj",
+    "field": "dependencies",
+    "commit": "d933549c894f26a1f558e5e488a6b29e8c0fc242",
+    "providerComponent": "packages/jj",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/platform-browser",
+    "field": "dependencies",
+    "commit": "3359dd0ae5a536bfdb25b36aeaebe25fdca1aa4f",
+    "providerComponent": "packages/platform-browser",
+    "classification": "circular-package-pair",
+    "justification": "@smthrs/kernel and @smthrs/platform-browser declare each other as workspace dependencies. The cycle is a property of the source tree, so exactly one of the two must be introduced first; no commit order can satisfy both directions."
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "b5436e60b50ecb78883d4c7315e8362fe16eec66",
+  "next": "f2593e80a73414263ea6c01969ff5ca604d53161",
+  "epicFirst": "a6c9698a594ba11333c7d2cefbd9720612c6e6bb",
+  "epicLast": "a94e46ebcc18e48adf39b7735ecbe06567ca4574",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 595,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/kernel/src/CapabilitySet.ts",
+   "mode": "100644",
+   "blob": "0b4311cf69e7d5087e79b50fedf71946fd327959",
+   "previousBlob": null,
+   "added": 218,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/kernel/test/CapabilitySet.test.ts",
+   "mode": "100644",
+   "blob": "53a43642c0f879f0e5002c179370ffc78658fbb4",
+   "previousBlob": null,
+   "added": 308,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/kernel/test/CapabilitySetEquality.test.ts",
+   "mode": "100644",
+   "blob": "34ea9fa308e44ba35e36ddb43dd84944129b84a4",
+   "previousBlob": null,
+   "added": 69,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

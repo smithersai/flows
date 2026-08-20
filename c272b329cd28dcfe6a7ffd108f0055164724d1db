@@ -1,0 +1,97 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "c272b329cd28dcfe6a7ffd108f0055164724d1db",
+ "tree": "7bee6d7c16027c442e673349db8ad907dd664bd6",
+ "epic": {
+  "index": 13,
+  "id": "server",
+  "name": "Shared application contracts and worker backend",
+  "sourceCommit": "5e1bcec6b1db3f2e990cb2b79bec0050dfc34ba3",
+  "sourceSubject": "✨ feat(server): add shared application contracts and worker backend",
+  "childIndex": 21,
+  "childCount": 21,
+  "head": "c272b329cd28dcfe6a7ffd108f0055164724d1db"
+ },
+ "atomic": {
+  "globalIndex": 637,
+  "globalCount": 838,
+  "purpose": "📝 docs(server): document server",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "server",
+  "component": "apps/server",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "b73d944880be87dd5fb2070ed9cbad3ba7df4658",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "smithers-shared",
+    "field": "dependencies",
+    "commit": null,
+    "providerComponent": "apps/shared",
+    "classification": "no-source-entrypoint",
+    "justification": "smithers-shared publishes no source index file in the bootstrap tree, so there is no commit that introduces its public surface to order against."
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "b73d944880be87dd5fb2070ed9cbad3ba7df4658",
+  "next": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicFirst": "36966c150e44215f6d84e68304ed6f67f4dd06ff",
+  "epicLast": "c272b329cd28dcfe6a7ffd108f0055164724d1db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 313,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/server/DEPLOY.md",
+   "mode": "100644",
+   "blob": "32b1393975c39c613bffa0a59df1427afa6bed27",
+   "previousBlob": null,
+   "added": 167,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/server/INVITES.md",
+   "mode": "100644",
+   "blob": "d6894f68172a52b995577f21622e96e04ae83035",
+   "previousBlob": null,
+   "added": 146,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

@@ -1,0 +1,81 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "fe1c85cd8695563398bdd217be9a36f52ed6df92",
+ "tree": "769dc87124ae3b2fb62046624e27639e3e95791e",
+ "epic": {
+  "index": 17,
+  "id": "factory",
+  "name": "Repository software factory",
+  "sourceCommit": "e1fbeee4b23399542c5105cb6f89733a14cc1892",
+  "sourceSubject": "✨ feat(factory): add the repository software factory",
+  "childIndex": 1,
+  "childCount": 17,
+  "head": "1666a5780add8693764a11b96b552909662d5e97"
+ },
+ "atomic": {
+  "globalIndex": 813,
+  "globalCount": 838,
+  "purpose": "📝 docs(factory-core): document factory-core",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "factory-core",
+  "component": "factory",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "e952c5de8a0b032ae43f568c3224f1734b3a7adc",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui",
+   "docs-site"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "e952c5de8a0b032ae43f568c3224f1734b3a7adc",
+  "next": "f83be9a37040312b533d6f5a05e565eb52bf8e66",
+  "epicFirst": "fe1c85cd8695563398bdd217be9a36f52ed6df92",
+  "epicLast": "1666a5780add8693764a11b96b552909662d5e97",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 24,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "factory/README.md",
+   "mode": "100644",
+   "blob": "22702baacac6f9c8ee9570e7c889da5ec02339e8",
+   "previousBlob": null,
+   "added": 24,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

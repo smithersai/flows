@@ -1,0 +1,127 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "06260caeabc51be64918442371d908ae77b7b472",
+ "tree": "eeb3ce55552a7dcc382a5f68af9dd3d1f7382f67",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 40,
+  "childCount": 41,
+  "head": "a87440798849594806112b3b5a4481f1969f8f35"
+ },
+ "atomic": {
+  "globalIndex": 317,
+  "globalCount": 838,
+  "purpose": "✅ test(plugin): cover Plugin, Kernel, plugin",
+  "type": "test",
+  "kind": "tests",
+  "scope": "plugin",
+  "component": "packages/plugin",
+  "unitKey": "Plugin",
+  "mergedUnitKeys": [
+   "Plugin",
+   "Kernel",
+   "test"
+  ]
+ },
+ "dependencies": {
+  "parent": "42f893a067646353fed2330e1b84a799c64ac613",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/flow",
+    "field": "dependencies",
+    "commit": "ee413497efbca15acf23fa2b3cbc410affc1a802",
+    "providerComponent": "packages/flow",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "42f893a067646353fed2330e1b84a799c64ac613",
+  "next": "a87440798849594806112b3b5a4481f1969f8f35",
+  "epicFirst": "199c8afe8cabc4dc289106848adee1275afbff4c",
+  "epicLast": "a87440798849594806112b3b5a4481f1969f8f35",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 5,
+  "added": 548,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/plugin/test/Plugin.test.ts",
+   "mode": "100644",
+   "blob": "3586c0115b0b8382fed5d3b7496b1f4d10a65a55",
+   "previousBlob": null,
+   "added": 17,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/plugin/test/Kernel.test.ts",
+   "mode": "100644",
+   "blob": "c61471b392cb4c21433f5b7be616090b45e5cd17",
+   "previousBlob": null,
+   "added": 156,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/plugin/test/Augmentation.test.ts",
+   "mode": "100644",
+   "blob": "9eb0a540bd54e9119fa9506be7f84e311ed542cc",
+   "previousBlob": null,
+   "added": 71,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/plugin/test/CacheEnvironment.test.ts",
+   "mode": "100644",
+   "blob": "b91473421f922ce6edd193e18ca613df9f9d429e",
+   "previousBlob": null,
+   "added": 90,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/plugin/test/Dispatch.test.ts",
+   "mode": "100644",
+   "blob": "8ac600dabf3ef767bf4722b47cb94f8796f0931a",
+   "previousBlob": null,
+   "added": 214,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

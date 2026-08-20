@@ -1,0 +1,70 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ea4cff4c728a5c50084a59aefda81799ee04c0bd",
+ "tree": "d195261d62e56cd32692a066d4db0010d8476cf9",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 48,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 228,
+  "globalCount": 838,
+  "purpose": "✅ test(engine-store): cover engine-store (22/23)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "engine-store",
+  "component": "packages/engine-store/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "90cf68eb7431d7e7017dd8adcd9dd39487a058e6",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "90cf68eb7431d7e7017dd8adcd9dd39487a058e6",
+  "next": "b9dace77d827d8c15cc1d860687307f4d5e6399d",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 456,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/WalAtomicity.test.ts",
+   "mode": "100644",
+   "blob": "4b794726e7354600447087363f10ec269b0a1138",
+   "previousBlob": null,
+   "added": 456,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

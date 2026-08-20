@@ -1,0 +1,101 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "8291d836978dbc05431ef3b16df561266394ac58",
+ "tree": "0eac49ab542948190dca24fe2d24f52e174927e7",
+ "epic": {
+  "index": 18,
+  "id": "workflows",
+  "name": "Repository automation workflows",
+  "sourceCommit": "9ea4941fc404fb4f12e3384b96a37e0739be3916",
+  "sourceSubject": "✨ feat(workflows): add repository automation workflows",
+  "childIndex": 7,
+  "childCount": 9,
+  "head": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "atomic": {
+  "globalIndex": 836,
+  "globalCount": 838,
+  "purpose": "✨ feat(smithers): add the workflows modules (2/2)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "smithers",
+  "component": ".smithers",
+  "unitKey": "dir:workflows",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "3a48568f8a673037808accff1542696ad34e834a",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui",
+   "docs-site",
+   "factory"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "field": "dependencies",
+    "commit": "f7a79de58ec909a8b6633954e1f1ff9117d4d46a",
+    "providerComponent": "packages/cli",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "3a48568f8a673037808accff1542696ad34e834a",
+  "next": "d6e6a0844de83bc3c9e7bda3e7d4c81049100609",
+  "epicFirst": "09bf6daccc080841dd705eab4099f657d2736e07",
+  "epicLast": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 1424,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": ".smithers/workflows/alpha-ui.tsx",
+   "mode": "100644",
+   "blob": "6751086705e8059d01ba2934677c30c7ccbaa625",
+   "previousBlob": null,
+   "added": 926,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": ".smithers/workflows/iso-ui-port.tsx",
+   "mode": "100644",
+   "blob": "9ae57948993cc784f1aaa660139860a6e58e2e6f",
+   "previousBlob": null,
+   "added": 498,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

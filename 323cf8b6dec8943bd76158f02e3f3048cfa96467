@@ -1,0 +1,153 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "323cf8b6dec8943bd76158f02e3f3048cfa96467",
+ "tree": "17b7be16beb1df08847943b78140678bb6147b61",
+ "epic": {
+  "index": 9,
+  "id": "agent",
+  "name": "Harness, chain, tools and CLI",
+  "sourceCommit": "a8caaa3dc45df0c14d6b10d0db9faf8a7ea7e542",
+  "sourceSubject": "✨ feat(agent): compose the harness, chain, tools, and CLI",
+  "childIndex": 33,
+  "childCount": 84,
+  "head": "49544e3fda710efb14f1dc6cf2b0051adc9dd584"
+ },
+ "atomic": {
+  "globalIndex": 417,
+  "globalCount": 838,
+  "purpose": "✨ feat(std): add the Edit, WebSearch, ExaWebSearch modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "std",
+  "component": "packages/std",
+  "unitKey": "Edit",
+  "mergedUnitKeys": [
+   "Edit",
+   "WebSearch",
+   "ExaWebSearch"
+  ]
+ },
+ "dependencies": {
+  "parent": "8b56e3ccc45cc6c8cf3a9634b23767d029c6d125",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control"
+  ],
+  "sourceImports": [
+   "06054d5a8d7b9fc60988889d7dbc794209d6d98a",
+   "3926bc1089a39d7be5ba58671fe065ac0b833bc4"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "field": "dependencies",
+    "commit": "7e2eac5ca71c4fc20bbe97b888dad21267da1e30",
+    "providerComponent": "packages/capability",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/control",
+    "field": "dependencies",
+    "commit": "75b989a26f3a351fd7b524cbc964ce9e87660ee3",
+    "providerComponent": "packages/control",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "field": "dependencies",
+    "commit": "32707f96f522f0b7dce09d50ee6af6e72b7a0ef4",
+    "providerComponent": "packages/kernel",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "8b56e3ccc45cc6c8cf3a9634b23767d029c6d125",
+  "next": "572684d88020bedef8759bb8a2ef830e5bd17dfc",
+  "epicFirst": "980ca61422f63e6bb068247c1991df44231cde33",
+  "epicLast": "49544e3fda710efb14f1dc6cf2b0051adc9dd584",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 5,
+  "added": 552,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/std/src/Edit.ts",
+   "mode": "100644",
+   "blob": "b8a94951cf83e6e9f97ed7f3b2a93fc5b4d70e6b",
+   "previousBlob": null,
+   "added": 159,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/test/Edit.test.ts",
+   "mode": "100644",
+   "blob": "b3e83a7cf8b8cc1334462736e8c6bd0e8b70bd49",
+   "previousBlob": null,
+   "added": 82,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/src/WebSearch.ts",
+   "mode": "100644",
+   "blob": "813b593273e99e6fc4cddb4fec13faf688cbd119",
+   "previousBlob": null,
+   "added": 137,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/test/WebSearch.test.ts",
+   "mode": "100644",
+   "blob": "4263c2fba787a3c31ae41dd3d759f53b86098c13",
+   "previousBlob": null,
+   "added": 72,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/src/ExaWebSearch.ts",
+   "mode": "100644",
+   "blob": "b880ac972b377e6a758a2a88d425fcf196ed0a7d",
+   "previousBlob": null,
+   "added": 102,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,160 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "24390442b3e1e082ff625da09376ba6cb74d44f0",
+ "tree": "a24b7dcbfa88bd25c4c861ef945721143858e92e",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 46,
+  "childCount": 66,
+  "head": "5a833bbe7affdc7dda1a3b24f9e5a5239864093b"
+ },
+ "atomic": {
+  "globalIndex": 364,
+  "globalCount": 838,
+  "purpose": "✨ feat(memory): add the migrations, Namespace, Sql modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "memory",
+  "component": "packages/memory",
+  "unitKey": "dir:migrations",
+  "mergedUnitKeys": [
+   "dir:migrations",
+   "Namespace",
+   "internal/Sql"
+  ]
+ },
+ "dependencies": {
+  "parent": "124493813f13b9d3b6e16112caf106789381f28a",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/model",
+    "field": "dependencies",
+    "commit": "489c9c77a1625c553ac1f7b8bde0c279d32249ba",
+    "providerComponent": "packages/model",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/patterns",
+    "field": "dependencies",
+    "commit": "c0735b098e72bf6e6e70c2a176845008d0fd02cf",
+    "providerComponent": "packages/patterns",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "124493813f13b9d3b6e16112caf106789381f28a",
+  "next": "541da6975ab292af507eb20a00e4004a7b30bb2c",
+  "epicFirst": "1a9eeded3e87702322afacdd6021037ce6179f5e",
+  "epicLast": "5a833bbe7affdc7dda1a3b24f9e5a5239864093b",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 6,
+  "added": 659,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/memory/src/migrations/0001_memory.sql",
+   "mode": "100644",
+   "blob": "c04e9a2c85d2e24ebccb38fcfb88319bd6025f9a",
+   "previousBlob": null,
+   "added": 69,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/memory/src/migrations/0002_memory_fts.sql",
+   "mode": "100644",
+   "blob": "3a5973009a447cc869ef5ea6ed79bfe8fe66fa9f",
+   "previousBlob": null,
+   "added": 9,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/memory/src/migrations/0003_memory_vectors.sql",
+   "mode": "100644",
+   "blob": "028a228a03c1b35f20837aa34aac627b5c228a3d",
+   "previousBlob": null,
+   "added": 24,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/memory/src/Namespace.ts",
+   "mode": "100644",
+   "blob": "e2632c80b2387815273ff85810b1241ebcff65f4",
+   "previousBlob": null,
+   "added": 212,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/memory/test/Namespace.test.ts",
+   "mode": "100644",
+   "blob": "56111afe886809a542da4d672b1336f812e4e888",
+   "previousBlob": null,
+   "added": 59,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/memory/src/internal/Sql.ts",
+   "mode": "100644",
+   "blob": "d8c54ecdb3f2b800fa34b1f51a961a654900451d",
+   "previousBlob": null,
+   "added": 286,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

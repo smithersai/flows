@@ -1,0 +1,295 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "d22165f778183d58edf12891932736cf612374e0",
+ "tree": "d3c369ebaa1bb06ee96272b10a8eccca8ec8fcfc",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 38,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 675,
+  "globalCount": 838,
+  "purpose": "📝 docs(ui): document prompts (1/2)",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "ui",
+  "component": "apps/ui/.smithers",
+  "unitKey": "prompts",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "51661c877ecb4587b20e7dac561e8f9f0ecec3a1",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "field": "dependencies",
+    "commit": "f7a79de58ec909a8b6633954e1f1ff9117d4d46a",
+    "providerComponent": "packages/cli",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "51661c877ecb4587b20e7dac561e8f9f0ecec3a1",
+  "next": "601d6fb7a2519881981134bd1fd4aa5caceecab0",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 20,
+  "added": 1493,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/create-skill-clarify.mdx",
+   "mode": "100644",
+   "blob": "b6f8c6c67e1cee87c77d49a6ad2a9f967f531513",
+   "previousBlob": null,
+   "added": 41,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/create-skill-design.mdx",
+   "mode": "100644",
+   "blob": "c82995d915a4339bd14634ee0e37a1284a970227",
+   "previousBlob": null,
+   "added": 41,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/create-skill-document.mdx",
+   "mode": "100644",
+   "blob": "e1deff7d70dbcd470cf27a5d73c467ac81ac3fac",
+   "previousBlob": null,
+   "added": 25,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/create-skill-scaffold.mdx",
+   "mode": "100644",
+   "blob": "88a6d5b8072fa78d1da077fe48a8d1deaa815d7d",
+   "previousBlob": null,
+   "added": 40,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/create-workflow-clarify.mdx",
+   "mode": "100644",
+   "blob": "9ad30d0d06b622e4515285d05cae8ffe01a0b7bb",
+   "previousBlob": null,
+   "added": 110,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/create-workflow-design.mdx",
+   "mode": "100644",
+   "blob": "a9555441ac0d3ffe79346ebcaab3ad43c6e34cfa",
+   "previousBlob": null,
+   "added": 112,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/create-workflow-document.mdx",
+   "mode": "100644",
+   "blob": "c868b5468f2b65786bcca4a66a658225825d7b17",
+   "previousBlob": null,
+   "added": 66,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/create-workflow-fix.mdx",
+   "mode": "100644",
+   "blob": "82ba4f410f0fcefc6b3a0a7517b853d701eae5cf",
+   "previousBlob": null,
+   "added": 80,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/create-workflow-provision.mdx",
+   "mode": "100644",
+   "blob": "0d6e7e85afaff094c70ea8337dab6f3267d44b50",
+   "previousBlob": null,
+   "added": 117,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/create-workflow-scaffold.mdx",
+   "mode": "100644",
+   "blob": "6643d7c054f316bf70fe4af7ee4fb2c267180ea8",
+   "previousBlob": null,
+   "added": 229,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/federation-final-fix.mdx",
+   "mode": "100644",
+   "blob": "9a4b5307ee3540edfdb52243647bb5f79a966ad3",
+   "previousBlob": null,
+   "added": 41,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/federation-final-verify.mdx",
+   "mode": "100644",
+   "blob": "6531c2d303d630c75c3b087679e475a406f4d6a7",
+   "previousBlob": null,
+   "added": 63,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/federation-inventory.mdx",
+   "mode": "100644",
+   "blob": "17ef2ebfc9bb236218d6a98eb766a54776835df1",
+   "previousBlob": null,
+   "added": 89,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/federation-landed-verify.mdx",
+   "mode": "100644",
+   "blob": "9338c842e4847ff5b1e164eaa20698b7666ba3d7",
+   "previousBlob": null,
+   "added": 58,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/federation-lane-decouple.mdx",
+   "mode": "100644",
+   "blob": "5df1da076db039242a9a2d38fe1e5106bd861850",
+   "previousBlob": null,
+   "added": 90,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/federation-lane-docs.mdx",
+   "mode": "100644",
+   "blob": "1fd5edcdd5e2a4f2bbd3ee99d9b5e584265b02fe",
+   "previousBlob": null,
+   "added": 44,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/federation-lane-extract.mdx",
+   "mode": "100644",
+   "blob": "0935452dd47a43c291fc3bfcd1a43dff888739d5",
+   "previousBlob": null,
+   "added": 85,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/federation-lane-fix.mdx",
+   "mode": "100644",
+   "blob": "13390fe21925b919349e39f8a9a62ecf38a82565",
+   "previousBlob": null,
+   "added": 33,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/federation-lane-verify.mdx",
+   "mode": "100644",
+   "blob": "51183cb87032e4f6c454246d416fa253f0e2a3f9",
+   "previousBlob": null,
+   "added": 49,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/federation-manifest-review.mdx",
+   "mode": "100644",
+   "blob": "aae40e3d37aa1b1cfb2e0ca8d605bf12f9b4e538",
+   "previousBlob": null,
+   "added": 80,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

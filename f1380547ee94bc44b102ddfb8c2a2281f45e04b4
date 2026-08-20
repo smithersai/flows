@@ -1,0 +1,143 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "f1380547ee94bc44b102ddfb8c2a2281f45e04b4",
+ "tree": "c05664c4ab00a9aeaa48dc95ed7b7dd873e79873",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 7,
+  "childCount": 50,
+  "head": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7"
+ },
+ "atomic": {
+  "globalIndex": 77,
+  "globalCount": 838,
+  "purpose": "✨ feat(plan): add the migrations, sha256, GraphBuildError and 1 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "plan",
+  "component": "packages/plan",
+  "unitKey": "dir:migrations",
+  "mergedUnitKeys": [
+   "dir:migrations",
+   "internal/sha256",
+   "GraphBuildError",
+   "Planned"
+  ]
+ },
+ "dependencies": {
+  "parent": "633cbaaddf7411acbb95ff29c72b5a3e615da1e0",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/keys",
+    "field": "dependencies",
+    "commit": "060d78f56853c2982e3d4fc1fab1d483ac3dc741",
+    "providerComponent": "packages/keys",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "633cbaaddf7411acbb95ff29c72b5a3e615da1e0",
+  "next": "48e3e3b2d13ed205173366523044bbbc106d6ee5",
+  "epicFirst": "60233bebe0e00cbc35cfb5176a9644f2799fde18",
+  "epicLast": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 6,
+  "added": 636,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/plan/src/migrations/0001_initial.ts",
+   "mode": "100644",
+   "blob": "d5a5ce2fc1fd721490e612f2fc86cac708a3a294",
+   "previousBlob": null,
+   "added": 82,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/plan/src/internal/sha256.ts",
+   "mode": "100644",
+   "blob": "ef4731c7d1103ddfa2c4923bd014e2e933abda39",
+   "previousBlob": null,
+   "added": 156,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/plan/src/GraphBuildError.ts",
+   "mode": "100644",
+   "blob": "627d265007ca887885120688365f4208ec8255fb",
+   "previousBlob": null,
+   "added": 80,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/plan/test/GraphBuildError.test.ts",
+   "mode": "100644",
+   "blob": "d5660ee5cc1d7cea2ea0434f0d80f232aff0d5c7",
+   "previousBlob": null,
+   "added": 30,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/plan/src/Planned.ts",
+   "mode": "100644",
+   "blob": "6e1e12fff73a84d1cebc2b6bc31e3936d03f052d",
+   "previousBlob": null,
+   "added": 190,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/plan/test/Planned.test.ts",
+   "mode": "100644",
+   "blob": "4872de4b14b936cea51684accc467bb12a647d19",
+   "previousBlob": null,
+   "added": 98,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

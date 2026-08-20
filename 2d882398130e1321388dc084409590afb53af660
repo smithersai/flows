@@ -1,0 +1,87 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "2d882398130e1321388dc084409590afb53af660",
+ "tree": "4275c368c8de95891da12fb79c51fa8d58b580bb",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 52,
+  "childCount": 54,
+  "head": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb"
+ },
+ "atomic": {
+  "globalIndex": 68,
+  "globalCount": 838,
+  "purpose": "✨ feat(step-cache): export the public step-cache surface",
+  "type": "feat",
+  "kind": "index",
+  "scope": "step-cache",
+  "component": "packages/step-cache",
+  "unitKey": "~index",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "640c0cbe0299ab336225ec0ec62d4c5097051964",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [
+   "579d84e65c24105adc35d4852f7e96646bd459f9",
+   "40b5aa0a9b4c55667ef826f96fd7e0a61a496933",
+   "d22599694309d267656b4cdf9b9788ad02360d6a",
+   "640c0cbe0299ab336225ec0ec62d4c5097051964"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "field": "dependencies",
+    "commit": "f939384117c3c38a7fa71b1eddc029020998b589",
+    "providerComponent": "packages/canonical",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "640c0cbe0299ab336225ec0ec62d4c5097051964",
+  "next": "31ea81500c6258e1a17b03fe0bdd9253aef179b2",
+  "epicFirst": "2d09eee3adb5b99a7ac2a9511ca5520ac08f7a95",
+  "epicLast": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 49,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/step-cache/src/index.ts",
+   "mode": "100644",
+   "blob": "815c3b853ff3a88f53723d32c91d0e137ad78d40",
+   "previousBlob": null,
+   "added": 49,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,121 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "8ee3e4f304bc9e0e1d552635faefb9b0f5b825a1",
+ "tree": "9d0365167a9f7b9676c22a4302c0b2922574bdb4",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 57,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 237,
+  "globalCount": 838,
+  "purpose": "✨ feat(sync): add the SyncPrincipal, BranchServer, RunCatalog modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "sync",
+  "component": "packages/sync",
+  "unitKey": "SyncPrincipal",
+  "mergedUnitKeys": [
+   "SyncPrincipal",
+   "BranchServer",
+   "RunCatalog"
+  ]
+ },
+ "dependencies": {
+  "parent": "3c12dbdf04c94ac01d62039a304e31f3a5799f9e",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "450d72bedac73c6b54bda830c5f1c2fe6bd77f9c",
+   "409d977dc6850904988b0a037cbfd926daa547f0",
+   "ca888a96f827081342ce68b1a60d98ca19647a1e",
+   "3c12dbdf04c94ac01d62039a304e31f3a5799f9e",
+   "9b5ee1f722caf32b2f81ceb86f24b150920950c1"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "3c12dbdf04c94ac01d62039a304e31f3a5799f9e",
+  "next": "89d87dae061373d7b32e92d3efc0d881c11d4ea3",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 641,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/sync/src/SyncPrincipal.ts",
+   "mode": "100644",
+   "blob": "f408475187a4b9c3c5c6b71defe6b8308e68b130",
+   "previousBlob": null,
+   "added": 94,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/src/BranchServer.ts",
+   "mode": "100644",
+   "blob": "05101ad70c752f1897b0367fc09528caa094d241",
+   "previousBlob": null,
+   "added": 102,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/test/BranchServer.test.ts",
+   "mode": "100644",
+   "blob": "c3fa1dab729f48bcdc555e74af96619a78fa4b18",
+   "previousBlob": null,
+   "added": 350,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/src/RunCatalog.ts",
+   "mode": "100644",
+   "blob": "04b625dd0f0ec3db0f259fd792709f19606abc1c",
+   "previousBlob": null,
+   "added": 95,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

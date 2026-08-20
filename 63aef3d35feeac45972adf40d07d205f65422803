@@ -1,0 +1,95 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "63aef3d35feeac45972adf40d07d205f65422803",
+ "tree": "41b3919b558fe75ea1595199462a3ce80aa7707e",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 5,
+  "childCount": 60,
+  "head": "a94e46ebcc18e48adf39b7735ecbe06567ca4574"
+ },
+ "atomic": {
+  "globalIndex": 125,
+  "globalCount": 838,
+  "purpose": "✨ feat(flows-jj): add the ops, protocol, status_render modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "flows-jj",
+  "component": "crates/flows-jj",
+  "unitKey": "ops",
+  "mergedUnitKeys": [
+   "ops",
+   "protocol",
+   "status_render"
+  ]
+ },
+ "dependencies": {
+  "parent": "9994112ce186cd0d4716d57fb19505d69d9f7d8a",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "9994112ce186cd0d4716d57fb19505d69d9f7d8a",
+  "next": "1b1db25d9b8051594c805adba32b2a5081199057",
+  "epicFirst": "a6c9698a594ba11333c7d2cefbd9720612c6e6bb",
+  "epicLast": "a94e46ebcc18e48adf39b7735ecbe06567ca4574",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 590,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "crates/flows-jj/src/ops.rs",
+   "mode": "100644",
+   "blob": "b52a953eb98faf111429bcf3ca9e6f69f5fa8dfd",
+   "previousBlob": null,
+   "added": 426,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "crates/flows-jj/src/protocol.rs",
+   "mode": "100644",
+   "blob": "190f40ff685de3871ff61bac5f28511cf85d1c45",
+   "previousBlob": null,
+   "added": 106,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "crates/flows-jj/src/status_render.rs",
+   "mode": "100644",
+   "blob": "d7a6d2e8f6568c48924daada1c0a77708104269e",
+   "previousBlob": null,
+   "added": 58,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

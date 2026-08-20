@@ -1,0 +1,88 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ec7c26b5f471204fe7e99c07d9a34b8718c57cdc",
+ "tree": "d32754a64db2faaa7c3fb893052e7084f9ed165b",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 58,
+  "childCount": 60,
+  "head": "a94e46ebcc18e48adf39b7735ecbe06567ca4574"
+ },
+ "atomic": {
+  "globalIndex": 178,
+  "globalCount": 838,
+  "purpose": "✅ test(sandbox): cover sandbox",
+  "type": "test",
+  "kind": "tests",
+  "scope": "sandbox",
+  "component": "packages/sandbox",
+  "unitKey": "test",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "8ddb128aec6c11929d20168ac543c2385b01c708",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/kernel",
+    "field": "dependencies",
+    "commit": "32707f96f522f0b7dce09d50ee6af6e72b7a0ef4",
+    "providerComponent": "packages/kernel",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "8ddb128aec6c11929d20168ac543c2385b01c708",
+  "next": "0e07ea4f7f31c85a395626de2a1de4882f67eee5",
+  "epicFirst": "a6c9698a594ba11333c7d2cefbd9720612c6e6bb",
+  "epicLast": "a94e46ebcc18e48adf39b7735ecbe06567ca4574",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 432,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/sandbox/test/RealProcessProvider.integration.test.ts",
+   "mode": "100644",
+   "blob": "90d1d43428fefd8687a4a88a0e2bfaf296b39e3c",
+   "previousBlob": null,
+   "added": 406,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/test/index.test.ts",
+   "mode": "100644",
+   "blob": "5a7305694f2ca9e66c00af32835a3cf41e6bee60",
+   "previousBlob": null,
+   "added": 26,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

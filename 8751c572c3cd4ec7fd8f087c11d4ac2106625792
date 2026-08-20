@@ -1,0 +1,80 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "8751c572c3cd4ec7fd8f087c11d4ac2106625792",
+ "tree": "0f5f26d4b2e1aa3641d1afde39d476fa0321dbf2",
+ "epic": {
+  "index": 16,
+  "id": "docs-site",
+  "name": "Documentation site",
+  "sourceCommit": "2fd742db8891870cec6454b507fc94b3c65aa275",
+  "sourceSubject": "📚 docs(site): document the complete system",
+  "childIndex": 3,
+  "childCount": 17,
+  "head": "e952c5de8a0b032ae43f568c3224f1734b3a7adc"
+ },
+ "atomic": {
+  "globalIndex": 798,
+  "globalCount": 838,
+  "purpose": "✨ feat(apps): add llms",
+  "type": "feat",
+  "kind": "module",
+  "scope": "apps",
+  "component": "apps",
+  "unitKey": "llms",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "28754b2b5c965419ef5063ab77c35f1f2470183d",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "28754b2b5c965419ef5063ab77c35f1f2470183d",
+  "next": "8ee5f3ae64a3a2b28a16198396f229dad19bcffe",
+  "epicFirst": "2d0756e2ed214c54d61c6b4dee34cfbab1982959",
+  "epicLast": "e952c5de8a0b032ae43f568c3224f1734b3a7adc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 24,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/llms.txt",
+   "mode": "100644",
+   "blob": "74e7715d6c9b3168daeca449999a5e5161fe0f51",
+   "previousBlob": null,
+   "added": 24,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

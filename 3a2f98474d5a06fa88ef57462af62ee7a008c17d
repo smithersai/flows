@@ -1,0 +1,133 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "3a2f98474d5a06fa88ef57462af62ee7a008c17d",
+ "tree": "a5c85ec5db199d2cfb01c50ee9dfcfdc5b8cbefe",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 26,
+  "childCount": 66,
+  "head": "5a833bbe7affdc7dda1a3b24f9e5a5239864093b"
+ },
+ "atomic": {
+  "globalIndex": 344,
+  "globalCount": 838,
+  "purpose": "✅ test(gateway): cover gateway",
+  "type": "test",
+  "kind": "tests",
+  "scope": "gateway",
+  "component": "packages/gateway",
+  "unitKey": "src/test",
+  "mergedUnitKeys": [
+   "src/test",
+   "test"
+  ]
+ },
+ "dependencies": {
+  "parent": "88d4abc665846368394c553e05cbafdc1ee3ed4a",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/control",
+    "field": "dependencies",
+    "commit": "75b989a26f3a351fd7b524cbc964ce9e87660ee3",
+    "providerComponent": "packages/control",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/notifications",
+    "field": "dependencies",
+    "commit": "8a93e3fe5104afa2a8c2890a88d9656e9c12c1ea",
+    "providerComponent": "packages/notifications",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/run-store",
+    "field": "dependencies",
+    "commit": "3af92874386ad961a4ac65bd603de8b0b38196de",
+    "providerComponent": "packages/run-store",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/sync",
+    "field": "dependencies",
+    "commit": "a255fd706b30308816fc6f41d798874bcd9bf847",
+    "providerComponent": "packages/sync",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "88d4abc665846368394c553e05cbafdc1ee3ed4a",
+  "next": "55855d6a1654538b35d71505e8e78153007cd4d7",
+  "epicFirst": "1a9eeded3e87702322afacdd6021037ce6179f5e",
+  "epicLast": "5a833bbe7affdc7dda1a3b24f9e5a5239864093b",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 175,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/gateway/src/test/TestSuperviseRuntime.ts",
+   "mode": "100644",
+   "blob": "1f91f5d59b20204c18ca9c01279086183b6b8df5",
+   "previousBlob": null,
+   "added": 81,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/gateway/test/Index.test.ts",
+   "mode": "100644",
+   "blob": "9bab02bcc5e52e743d7ed8eaa3eadba66ab1bc83",
+   "previousBlob": null,
+   "added": 37,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/gateway/test/TestSuperviseRuntime.test.ts",
+   "mode": "100644",
+   "blob": "5fe71c85391f829820c3875561ab4f5fcde7399d",
+   "previousBlob": null,
+   "added": 57,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

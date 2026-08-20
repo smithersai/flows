@@ -1,0 +1,75 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "c4b192cf9d59081e1d2f0151c01569d50ab870da",
+ "tree": "1e8073bc62406ad82e40aebc381c07e63a1478d5",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 66,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 569,
+  "globalCount": 838,
+  "purpose": "📝 docs(build): document workspace (2/2)",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "build",
+  "component": "packages/build/docs",
+  "unitKey": "workspace",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "de780ad48689e0828607fd56741d68ee84087723",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "de780ad48689e0828607fd56741d68ee84087723",
+  "next": "60ad873816f93222a0f242a565937f8a9ed598ef",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 263,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build/docs/workspace/writing-build-files.md",
+   "mode": "100644",
+   "blob": "8f4419370869ca5de6694d869ce52c2ecffa8178",
+   "previousBlob": null,
+   "added": 263,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

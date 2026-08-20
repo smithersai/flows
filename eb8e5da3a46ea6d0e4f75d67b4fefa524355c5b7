@@ -1,0 +1,97 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "eb8e5da3a46ea6d0e4f75d67b4fefa524355c5b7",
+ "tree": "30cc1555b740cd7279e7f40f63776202871b9485",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 13,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 193,
+  "globalCount": 838,
+  "purpose": "✨ feat(engine-store): add the internal modules (3/5)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "engine-store",
+  "component": "packages/engine-store/src",
+  "unitKey": "dir:internal",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "526fc19a7eb64ddbf26631417132a3cdfda8b362",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "53e282376e1f7e7bd525a657644202288beca2d7",
+   "a46536bcf51dcbee573a48b3bd480d0200f1c76b",
+   "b8f28c7744a64c21bc1dabcd26df3f4dd3918860",
+   "2ce3d1312fd1d5ae4b0df76930ef2d5b95ef09dd"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "526fc19a7eb64ddbf26631417132a3cdfda8b362",
+  "next": "c548fa2e9a8dd3d8c628aae3c79519cce53be5f7",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 685,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/internal/DeferredPersistence.ts",
+   "mode": "100644",
+   "blob": "7ebeea569047a93cdd27819563980cb65012d528",
+   "previousBlob": null,
+   "added": 363,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/internal/RunCoordinator.ts",
+   "mode": "100644",
+   "blob": "c0e0d8c3ba127564d92908d9607d876b3884f13f",
+   "previousBlob": null,
+   "added": 159,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/internal/SandboxedExecution.ts",
+   "mode": "100644",
+   "blob": "e9cbe2a83aaf8658a0c6b6be9b144f2e6dcd540b",
+   "previousBlob": null,
+   "added": 163,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

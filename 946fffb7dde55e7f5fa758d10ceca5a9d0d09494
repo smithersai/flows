@@ -1,0 +1,78 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "946fffb7dde55e7f5fa758d10ceca5a9d0d09494",
+ "tree": "133eb3e5c0062e421ff67dffaa42d8a770ad1c2b",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 21,
+  "childCount": 54,
+  "head": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb"
+ },
+ "atomic": {
+  "globalIndex": 37,
+  "globalCount": 838,
+  "purpose": "✨ feat(journal): add Journal",
+  "type": "feat",
+  "kind": "module",
+  "scope": "journal",
+  "component": "packages/journal",
+  "unitKey": "Journal",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "bf30564cff185becab3c94a5dbbd2833264ae9de",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [
+   "c8bce393ea55d3257b21dbf5095fb2af8220a9d3",
+   "bf30564cff185becab3c94a5dbbd2833264ae9de"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "bf30564cff185becab3c94a5dbbd2833264ae9de",
+  "next": "085d742f99e61af54ddec39f58fad605e7c6694f",
+  "epicFirst": "2d09eee3adb5b99a7ac2a9511ca5520ac08f7a95",
+  "epicLast": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 595,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/journal/src/Journal.ts",
+   "mode": "100644",
+   "blob": "6506c578acfe76b49f1d97fa5f8ff8066f778d8d",
+   "previousBlob": null,
+   "added": 595,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

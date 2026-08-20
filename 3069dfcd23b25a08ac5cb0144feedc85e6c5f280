@@ -1,0 +1,80 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "3069dfcd23b25a08ac5cb0144feedc85e6c5f280",
+ "tree": "fdbfc438a7a75895d18f7050930e87f71629b119",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 2,
+  "childCount": 60,
+  "head": "a94e46ebcc18e48adf39b7735ecbe06567ca4574"
+ },
+ "atomic": {
+  "globalIndex": 122,
+  "globalCount": 838,
+  "purpose": "🧹 chore(flows-jj): scaffold the flows-jj package",
+  "type": "chore",
+  "kind": "scaffold",
+  "scope": "flows-jj",
+  "component": "crates/flows-jj",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "a6c9698a594ba11333c7d2cefbd9720612c6e6bb",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "a6c9698a594ba11333c7d2cefbd9720612c6e6bb",
+  "next": "3a19b2d9faf4a67626206ba5928d4269cc58acf8",
+  "epicFirst": "a6c9698a594ba11333c7d2cefbd9720612c6e6bb",
+  "epicLast": "a94e46ebcc18e48adf39b7735ecbe06567ca4574",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 137,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "crates/flows-jj/BUILD.ts",
+   "mode": "100644",
+   "blob": "a248ae7f154d1de9b0ab9eeeb2f77a3445c5b369",
+   "previousBlob": null,
+   "added": 112,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "crates/flows-jj/Cargo.toml",
+   "mode": "100644",
+   "blob": "64e5c928b24ec4d36b4deea8ffc5c5c50dd10a33",
+   "previousBlob": null,
+   "added": 25,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

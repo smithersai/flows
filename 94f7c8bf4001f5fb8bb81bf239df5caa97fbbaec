@@ -1,0 +1,106 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "94f7c8bf4001f5fb8bb81bf239df5caa97fbbaec",
+ "tree": "0dfe6b3bbbe9390de08bda2a81b6eaeb90c1ad90",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 39,
+  "childCount": 54,
+  "head": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb"
+ },
+ "atomic": {
+  "globalIndex": 55,
+  "globalCount": 838,
+  "purpose": "✨ feat(run-store): add the RunStore, Ownership modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "run-store",
+  "component": "packages/run-store",
+  "unitKey": "RunStore",
+  "mergedUnitKeys": [
+   "RunStore",
+   "Ownership"
+  ]
+ },
+ "dependencies": {
+  "parent": "dbf468b7175db5c08f3863ca79e9353b458536d5",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [
+   "dbf468b7175db5c08f3863ca79e9353b458536d5"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [
+  {
+   "paths": [
+    "packages/run-store/src/Ownership.ts",
+    "packages/run-store/src/RunStore.ts"
+   ],
+   "reason": "These files import each other, directly or transitively. Any split would place an import ahead of the module it resolves to."
+  }
+ ],
+ "related": {
+  "previous": "dbf468b7175db5c08f3863ca79e9353b458536d5",
+  "next": "35830e4c2d6b33e4cae5d42bd8a41f19b0d5fe71",
+  "epicFirst": "2d09eee3adb5b99a7ac2a9511ca5520ac08f7a95",
+  "epicLast": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 1542,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/run-store/src/Ownership.ts",
+   "mode": "100644",
+   "blob": "c2b4544f8d4ca532b9b9265b7cc6a959cc4e40e9",
+   "previousBlob": null,
+   "added": 150,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/run-store/src/RunStore.ts",
+   "mode": "100644",
+   "blob": "f4089d769234094c80856c729b2b62e3edafcfe0",
+   "previousBlob": null,
+   "added": 1392,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,110 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "32707f96f522f0b7dce09d50ee6af6e72b7a0ef4",
+ "tree": "ece8f4bcd6e3eaf53d00707aa40caecdf805d7b7",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 29,
+  "childCount": 60,
+  "head": "a94e46ebcc18e48adf39b7735ecbe06567ca4574"
+ },
+ "atomic": {
+  "globalIndex": 149,
+  "globalCount": 838,
+  "purpose": "✨ feat(kernel): export the public kernel surface",
+  "type": "feat",
+  "kind": "index",
+  "scope": "kernel",
+  "component": "packages/kernel",
+  "unitKey": "~index",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "7e6400f1bb5a1c7b9591f7831544c02f81da9e00",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [
+   "7eb716183bf40d0b8bc18abb156d17018fdbdc79",
+   "d3f2423f7e27bee8a491a26db12da226bfc654b1",
+   "f2593e80a73414263ea6c01969ff5ca604d53161",
+   "8c593d48e85bf9948190a7edc7e215684136d536",
+   "b5436e60b50ecb78883d4c7315e8362fe16eec66",
+   "486c60eee09160c8f2c90abe7f434a6606cc8d4a",
+   "e53ef97b1a34fceda22ece55a6b051efbc3ce5d3",
+   "f6fd28b9c2647f8b2e822ff52f7a674cf673caff",
+   "e16b3f4da59ebd988fe7101b73c3b9958f318a82",
+   "49300f72be7fb21d58e44e7a21a5bbf671e683f2"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "field": "dependencies",
+    "commit": "7e2eac5ca71c4fc20bbe97b888dad21267da1e30",
+    "providerComponent": "packages/capability",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/jj",
+    "field": "dependencies",
+    "commit": "d933549c894f26a1f558e5e488a6b29e8c0fc242",
+    "providerComponent": "packages/jj",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/platform-browser",
+    "field": "dependencies",
+    "commit": "3359dd0ae5a536bfdb25b36aeaebe25fdca1aa4f",
+    "providerComponent": "packages/platform-browser",
+    "classification": "circular-package-pair",
+    "justification": "@smthrs/kernel and @smthrs/platform-browser declare each other as workspace dependencies. The cycle is a property of the source tree, so exactly one of the two must be introduced first; no commit order can satisfy both directions."
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "7e6400f1bb5a1c7b9591f7831544c02f81da9e00",
+  "next": "656751016804aa3ec11158c32e2b2ef137f3ec87",
+  "epicFirst": "a6c9698a594ba11333c7d2cefbd9720612c6e6bb",
+  "epicLast": "a94e46ebcc18e48adf39b7735ecbe06567ca4574",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 129,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/kernel/src/index.ts",
+   "mode": "100644",
+   "blob": "0399d3b83906a58200234df8903888bb774c193e",
+   "previousBlob": null,
+   "added": 129,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

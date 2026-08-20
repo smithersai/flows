@@ -1,0 +1,71 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+ "tree": "2058fcb2e64911d5c84f38e3c5e91e39876cb71a",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 14,
+  "childCount": 54,
+  "head": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb"
+ },
+ "atomic": {
+  "globalIndex": 30,
+  "globalCount": 838,
+  "purpose": "✨ feat(database): export the public database surface",
+  "type": "feat",
+  "kind": "index",
+  "scope": "database",
+  "component": "packages/database",
+  "unitKey": "~index",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "e99ebecf1223431dc1314747627f9ae766ce4393",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [
+   "6c6f4e7922cdd5d3b8c96d59393797f6edb2416a",
+   "38d4d52ca52f0442023133d1c458a08080e2edf9",
+   "e99ebecf1223431dc1314747627f9ae766ce4393"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "e99ebecf1223431dc1314747627f9ae766ce4393",
+  "next": "179726db1f61fd55b8743acd4bfea3cde8f7cdf3",
+  "epicFirst": "2d09eee3adb5b99a7ac2a9511ca5520ac08f7a95",
+  "epicLast": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 37,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/database/src/index.ts",
+   "mode": "100644",
+   "blob": "79e177cfef99762655a5c2d8700ac9080274605b",
+   "previousBlob": null,
+   "added": 37,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

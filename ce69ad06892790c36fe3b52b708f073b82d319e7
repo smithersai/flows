@@ -1,0 +1,122 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ce69ad06892790c36fe3b52b708f073b82d319e7",
+ "tree": "6a15c3ca04179ae8c23a436118debca7252e6597",
+ "epic": {
+  "index": 17,
+  "id": "factory",
+  "name": "Repository software factory",
+  "sourceCommit": "e1fbeee4b23399542c5105cb6f89733a14cc1892",
+  "sourceSubject": "✨ feat(factory): add the repository software factory",
+  "childIndex": 7,
+  "childCount": 17,
+  "head": "1666a5780add8693764a11b96b552909662d5e97"
+ },
+ "atomic": {
+  "globalIndex": 819,
+  "globalCount": 838,
+  "purpose": "✨ feat(factory-automation): add the memory, intake, poc modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "factory-automation",
+  "component": "factory/automation",
+  "unitKey": "memory",
+  "mergedUnitKeys": [
+   "memory",
+   "intake",
+   "poc"
+  ]
+ },
+ "dependencies": {
+  "parent": "33138d7c44c6b813d268210635aca65de9b317d1",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui",
+   "docs-site"
+  ],
+  "sourceImports": [
+   "3432fa8b0ddeb81aabac0e75310af79e8bf88b7a",
+   "a4cc20fdd987fe114b7b4f59398e27551875b2fd",
+   "b8886f7fe962604d703d9cbbabf46b0839b9b129"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "33138d7c44c6b813d268210635aca65de9b317d1",
+  "next": "8e22b9831598109f1303d7321c46bd79c8f1fe4b",
+  "epicFirst": "fe1c85cd8695563398bdd217be9a36f52ed6df92",
+  "epicLast": "1666a5780add8693764a11b96b552909662d5e97",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 664,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "factory/automation/memory.ts",
+   "mode": "100644",
+   "blob": "448b58f1aa95966b5debfc3294957adc56ad24c2",
+   "previousBlob": null,
+   "added": 277,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "factory/automation/memory.test.ts",
+   "mode": "100644",
+   "blob": "7961c4ad4d7df830b22a58c613356d3fd55f6f5d",
+   "previousBlob": null,
+   "added": 125,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "factory/automation/intake.ts",
+   "mode": "100644",
+   "blob": "92aeb2d7ce19e002b36f1cea81febc8b12e4c72e",
+   "previousBlob": null,
+   "added": 145,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "factory/automation/poc.ts",
+   "mode": "100644",
+   "blob": "45a00e0c43f2d8c0ea58ea8d5b1455b6c2109511",
+   "previousBlob": null,
+   "added": 117,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

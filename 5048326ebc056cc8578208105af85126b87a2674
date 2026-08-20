@@ -1,0 +1,106 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "5048326ebc056cc8578208105af85126b87a2674",
+ "tree": "ad8ed4a98e3952fb3c93dcea6ad4fa25ceaf12c4",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 105,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 742,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the web-chat-context-e2e, web-chat-e2e, web-chat-hermetic-e2e modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/scripts",
+  "unitKey": "web-chat-context-e2e",
+  "mergedUnitKeys": [
+   "web-chat-context-e2e",
+   "web-chat-e2e",
+   "web-chat-hermetic-e2e"
+  ]
+ },
+ "dependencies": {
+  "parent": "58dde67ef2cd0c6f1492cccd7a771109d46f5882",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "b12a19d33e7004a1bd5b098324d9f69edc55c847"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "58dde67ef2cd0c6f1492cccd7a771109d46f5882",
+  "next": "2d1b10b598d9df3be25fc346ccfe9aba9277d2a9",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 593,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/scripts/web-chat-context-e2e.ts",
+   "mode": "100644",
+   "blob": "26d693b92e503cec0d0702032679c9b8cd45e6b9",
+   "previousBlob": null,
+   "added": 292,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/scripts/web-chat-e2e.ts",
+   "mode": "100644",
+   "blob": "fa3f99f46e7432df14a38ce0f1aee20e0f2a2b2c",
+   "previousBlob": null,
+   "added": 148,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/scripts/web-chat-hermetic-e2e.ts",
+   "mode": "100644",
+   "blob": "b9c5250e2419a296ba8989fca3a084f5bde4cf3a",
+   "previousBlob": null,
+   "added": 153,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

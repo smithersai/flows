@@ -1,0 +1,70 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "2159b4ac142b65a3b3f6fa07a24ba8a1b80a36da",
+ "tree": "7af9eb7a473449b85fd4c4abb00a04a981c44ee0",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 38,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 218,
+  "globalCount": 838,
+  "purpose": "✅ test(engine-store): cover engine-store (12/23)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "engine-store",
+  "component": "packages/engine-store/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "5da3bb80d1a4a25b5de4a5f442736df74bbd2962",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "5da3bb80d1a4a25b5de4a5f442736df74bbd2962",
+  "next": "88a615c0632bd09762238b281fd2fa8a4e11c9dd",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 1393,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/PlanScheduler.test.ts",
+   "mode": "100644",
+   "blob": "1857963e4c19a39bb14c403918c5403dc8c68ef9",
+   "previousBlob": null,
+   "added": 1393,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

@@ -1,0 +1,100 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "8921ce09a8f933865ba5c9a22cfe002766acf8f2",
+ "tree": "f935b66c4f3335d51792bd90dd1b71760fc49032",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 64,
+  "childCount": 66,
+  "head": "5a833bbe7affdc7dda1a3b24f9e5a5239864093b"
+ },
+ "atomic": {
+  "globalIndex": 382,
+  "globalCount": 838,
+  "purpose": "✨ feat(triggers): export the public triggers surface",
+  "type": "feat",
+  "kind": "index",
+  "scope": "triggers",
+  "component": "packages/triggers",
+  "unitKey": "~index",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "c991f3a078c438a6ba5099edf934c55232cdf794",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [
+   "8da661b62a22c7a923ee9c9e15b09e3e47ff9ee9",
+   "acab27fe3086b04bd43a022e09af67e40c70c300",
+   "596c643adb9a8fb6a0ec947789366aba01342b73",
+   "04e895bb723a2af662e2ae8aec99ec9d634715cb",
+   "c991f3a078c438a6ba5099edf934c55232cdf794"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/control",
+    "field": "dependencies",
+    "commit": "75b989a26f3a351fd7b524cbc964ce9e87660ee3",
+    "providerComponent": "packages/control",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "c991f3a078c438a6ba5099edf934c55232cdf794",
+  "next": "39e816c5217c68c6f6f771c75d200b39be78245b",
+  "epicFirst": "1a9eeded3e87702322afacdd6021037ce6179f5e",
+  "epicLast": "5a833bbe7affdc7dda1a3b24f9e5a5239864093b",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 28,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/triggers/src/index.ts",
+   "mode": "100644",
+   "blob": "d1243c45c409a902f9b3d0fe32ecedf6f44d909a",
+   "previousBlob": null,
+   "added": 28,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,175 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "28754b2b5c965419ef5063ab77c35f1f2470183d",
+ "tree": "5ed9b495b2552cc7e67ea4a78906ed3b419cb4c8",
+ "epic": {
+  "index": 16,
+  "id": "docs-site",
+  "name": "Documentation site",
+  "sourceCommit": "2fd742db8891870cec6454b507fc94b3c65aa275",
+  "sourceSubject": "📚 docs(site): document the complete system",
+  "childIndex": 2,
+  "childCount": 17,
+  "head": "e952c5de8a0b032ae43f568c3224f1734b3a7adc"
+ },
+ "atomic": {
+  "globalIndex": 797,
+  "globalCount": 838,
+  "purpose": "📝 docs(repo): document repo for repo",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "repo",
+  "component": "~root",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "2d0756e2ed214c54d61c6b4dee34cfbab1982959",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "field": "devDependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/engine-store",
+    "field": "devDependencies",
+    "commit": "c0f6e543a2aa5e3bb7dbbfce925e8c332ecfded8",
+    "providerComponent": "packages/engine-store",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/build-cli",
+    "field": "devDependencies",
+    "commit": "cc0e85478aa879e21c87e48acdf282fda8eb2291",
+    "providerComponent": "packages/build-cli",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/targets",
+    "field": "devDependencies",
+    "commit": "04cacb5d5da6eed65dccb54623b16b2e67e1ef04",
+    "providerComponent": "packages/targets",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "2d0756e2ed214c54d61c6b4dee34cfbab1982959",
+  "next": "8751c572c3cd4ec7fd8f087c11d4ac2106625792",
+  "epicFirst": "2d0756e2ed214c54d61c6b4dee34cfbab1982959",
+  "epicLast": "e952c5de8a0b032ae43f568c3224f1734b3a7adc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 7,
+  "added": 1001,
+  "deleted": 21
+ },
+ "provenance": {
+  "strategy": "hunk-split or whole-file evolution of a path introduced earlier",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "CONTRIBUTING.md",
+   "mode": "100644",
+   "blob": "7fd44dc348320e554dd03939b1ada8ec3030256e",
+   "previousBlob": null,
+   "added": 161,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "HUMAN-TASKS.md",
+   "mode": "100644",
+   "blob": "f1f6efc59154c8fdcf27d77f23d3b9694f7c365c",
+   "previousBlob": null,
+   "added": 144,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "MIGRATION-NOTES.md",
+   "mode": "100644",
+   "blob": "7cc421bcd03bc09f99de063ad76655540eb3e49d",
+   "previousBlob": null,
+   "added": 62,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "M",
+   "path": "README.md",
+   "mode": "100644",
+   "blob": "16cb8e4dceebcdd346045aad480d9688fc10a71f",
+   "previousBlob": "2ebe4c904bd4931876f80f5a88016df1bce72f57",
+   "added": 110,
+   "deleted": 21,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "REVIEW.md",
+   "mode": "100644",
+   "blob": "f67f1ea6b89e8b0c097d5dfa30303a17950bad4e",
+   "previousBlob": null,
+   "added": 448,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "SECURITY.md",
+   "mode": "100644",
+   "blob": "428deaa0dbf6ae04760d568984d56e46fec94ef1",
+   "previousBlob": null,
+   "added": 3,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "THIRD_PARTY_NOTICES.md",
+   "mode": "100644",
+   "blob": "deb8f1e0b65f3f5078f0aad51b561ec0507a8684",
+   "previousBlob": null,
+   "added": 73,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

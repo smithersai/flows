@@ -1,0 +1,154 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "26fa3629ed301ba3d815d456ce0ab6d255204eb3",
+ "tree": "3db4996f6d757dad3b87ad781f831ceda533b9e4",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 18,
+  "childCount": 66,
+  "head": "5a833bbe7affdc7dda1a3b24f9e5a5239864093b"
+ },
+ "atomic": {
+  "globalIndex": 336,
+  "globalCount": 838,
+  "purpose": "✨ feat(control): add SqlControlRuntime",
+  "type": "feat",
+  "kind": "module",
+  "scope": "control",
+  "component": "packages/control",
+  "unitKey": "SqlControlRuntime",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "ffc26ff34a54bce2ff4c3b690e08ed4c0e404b86",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [
+   "97ff849a7257cced78e9a772087e7be2185f7927",
+   "72d009042a79d12f6a35e9587eede9460661b735",
+   "6d02ba3e074e63db93f229f2d09d856006aa4761",
+   "a8343331684f0581df764b2f95fda7e4fc91c057",
+   "ace5d9a9e3038fc29f3325b6cbe0b28a7ab46897",
+   "7e9430eb10b89354851c7c933be7f914f2d882b1"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "field": "dependencies",
+    "commit": "f939384117c3c38a7fa71b1eddc029020998b589",
+    "providerComponent": "packages/canonical",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/crypto",
+    "field": "dependencies",
+    "commit": "530694619a107836d7830ede26f152376d364388",
+    "providerComponent": "packages/crypto",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/notifications",
+    "field": "dependencies",
+    "commit": "8a93e3fe5104afa2a8c2890a88d9656e9c12c1ea",
+    "providerComponent": "packages/notifications",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/plan",
+    "field": "dependencies",
+    "commit": "b21dab66549eb99974cd7296f77391e4c3d00490",
+    "providerComponent": "packages/plan",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/registry",
+    "field": "dependencies",
+    "commit": "b89d7a671b44791c0d143f9c5a8f1d1ee4ca03c1",
+    "providerComponent": "packages/registry",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/run-store",
+    "field": "dependencies",
+    "commit": "3af92874386ad961a4ac65bd603de8b0b38196de",
+    "providerComponent": "packages/run-store",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "ffc26ff34a54bce2ff4c3b690e08ed4c0e404b86",
+  "next": "1a4da0cb06b21a16d1b4566446cb4de7d1d5f6cf",
+  "epicFirst": "1a9eeded3e87702322afacdd6021037ce6179f5e",
+  "epicLast": "5a833bbe7affdc7dda1a3b24f9e5a5239864093b",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 1222,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/control/src/SqlControlRuntime.ts",
+   "mode": "100644",
+   "blob": "0050517c995d3026f6c5f9c5217f28695736587b",
+   "previousBlob": null,
+   "added": 843,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/control/test/SqlControlRuntime.test.ts",
+   "mode": "100644",
+   "blob": "794da1a44ebc8230b76865e160f52dac3a9e1112",
+   "previousBlob": null,
+   "added": 379,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

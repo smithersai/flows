@@ -1,0 +1,165 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a447a2a28c3deda807489611de730541b1a1a667",
+ "tree": "e70b6fa66fa5d88a397a25229bddd98cc0942f33",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 55,
+  "childCount": 60,
+  "head": "a94e46ebcc18e48adf39b7735ecbe06567ca4574"
+ },
+ "atomic": {
+  "globalIndex": 175,
+  "globalCount": 838,
+  "purpose": "✨ feat(sandbox): add the RemoteChildProcessSpawner modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "sandbox",
+  "component": "packages/sandbox",
+  "unitKey": "dir:RemoteChildProcessSpawner",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "8589adfb7845d8283b5cee588f2356ac07d0c62c",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/kernel",
+    "field": "dependencies",
+    "commit": "32707f96f522f0b7dce09d50ee6af6e72b7a0ef4",
+    "providerComponent": "packages/kernel",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "8589adfb7845d8283b5cee588f2356ac07d0c62c",
+  "next": "cb3617fe36782972cc9fe2abd82c36298137331a",
+  "epicFirst": "a6c9698a594ba11333c7d2cefbd9720612c6e6bb",
+  "epicLast": "a94e46ebcc18e48adf39b7735ecbe06567ca4574",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 9,
+  "added": 1226,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/RemoteChildProcessSpawner/ProviderError.ts",
+   "mode": "100644",
+   "blob": "a8d7c2cde5f054c6113e39ede84ac81f12679224",
+   "previousBlob": null,
+   "added": 50,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/RemoteChildProcessSpawner/Provider.ts",
+   "mode": "100644",
+   "blob": "41b050592191ab7dfa5761129fc8ce529845f010",
+   "previousBlob": null,
+   "added": 67,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/RemoteChildProcessSpawner/TestRemoteState.ts",
+   "mode": "100644",
+   "blob": "b5b1a1bd24e0ba74b9a36e95091772d251354185",
+   "previousBlob": null,
+   "added": 17,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/RemoteChildProcessSpawner/TestRemoteProvider.ts",
+   "mode": "100644",
+   "blob": "c352b314df5dd62b0fa092bc40d7c128793bfe28",
+   "previousBlob": null,
+   "added": 17,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/RemoteChildProcessSpawner/TestScript.ts",
+   "mode": "100644",
+   "blob": "0d57f3b32464bccaba1a6a57a60f774a57926d32",
+   "previousBlob": null,
+   "added": 22,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/RemoteChildProcessSpawner/TestRemote.ts",
+   "mode": "100644",
+   "blob": "0620468ac8e34846991663b43a9d29e437b52563",
+   "previousBlob": null,
+   "added": 79,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/RemoteChildProcessSpawner/layer.ts",
+   "mode": "100644",
+   "blob": "8191e5a334e29734f3d53022f1b681264cbd5eda",
+   "previousBlob": null,
+   "added": 220,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/RemoteChildProcessSpawner/index.ts",
+   "mode": "100644",
+   "blob": "ae7abef875003937e6197e270a53677b4e08741a",
+   "previousBlob": null,
+   "added": 57,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/test/RemoteChildProcessSpawner.test.ts",
+   "mode": "100644",
+   "blob": "47512f184816c241e1e9422f8fc86b812a345cf6",
+   "previousBlob": null,
+   "added": 697,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

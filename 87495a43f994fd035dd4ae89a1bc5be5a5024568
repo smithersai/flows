@@ -1,0 +1,205 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "87495a43f994fd035dd4ae89a1bc5be5a5024568",
+ "tree": "f7b129a45bc150f4284e4a430cc232c2e1382dc7",
+ "epic": {
+  "index": 9,
+  "id": "agent",
+  "name": "Harness, chain, tools and CLI",
+  "sourceCommit": "a8caaa3dc45df0c14d6b10d0db9faf8a7ea7e542",
+  "sourceSubject": "✨ feat(agent): compose the harness, chain, tools, and CLI",
+  "childIndex": 59,
+  "childCount": 84,
+  "head": "49544e3fda710efb14f1dc6cf2b0051adc9dd584"
+ },
+ "atomic": {
+  "globalIndex": 443,
+  "globalCount": 838,
+  "purpose": "🧹 chore(chain): scaffold the @smthrs/chain package",
+  "type": "chore",
+  "kind": "scaffold",
+  "scope": "chain",
+  "component": "packages/chain",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "f2fc269a6013026ab7461a42539c1651aadc9c27",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "field": "dependencies",
+    "commit": "7e2eac5ca71c4fc20bbe97b888dad21267da1e30",
+    "providerComponent": "packages/capability",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/memory",
+    "field": "dependencies",
+    "commit": "03a4cd0e3aab0a3e990be4ff12e9dbf36da0be9c",
+    "providerComponent": "packages/memory",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/model",
+    "field": "dependencies",
+    "commit": "489c9c77a1625c553ac1f7b8bde0c279d32249ba",
+    "providerComponent": "packages/model",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/registry",
+    "field": "dependencies",
+    "commit": "b89d7a671b44791c0d143f9c5a8f1d1ee4ca03c1",
+    "providerComponent": "packages/registry",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/testing",
+    "field": "devDependencies",
+    "commit": "240b8562e19e4d4b2129a8231ea81fb425901030",
+    "providerComponent": "packages/testing",
+    "classification": "provider-in-later-epic",
+    "justification": "@smthrs/testing is introduced by epic 10 (platform: Conformance, scoring, evaluation and telemetry), which the fixed 18-epic ordering places after epic 9 (agent). Reordering the epics is out of scope for this bootstrap. The relationship is development-only and does not affect this commit."
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "f2fc269a6013026ab7461a42539c1651aadc9c27",
+  "next": "76c8fa079dbfbeb3e506057b2f96e8fdda0937a6",
+  "epicFirst": "980ca61422f63e6bb068247c1991df44231cde33",
+  "epicLast": "49544e3fda710efb14f1dc6cf2b0051adc9dd584",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 9,
+  "added": 376,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/chain/LICENSE",
+   "mode": "100644",
+   "blob": "422a888fe58a4f77514fe407f175499d57fa27be",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/dprint.json",
+   "mode": "100644",
+   "blob": "d477c0cd6d212dfc8308198e5ed2addbcef839b8",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/eslint.config.js",
+   "mode": "100644",
+   "blob": "a4b9a14355dbe795b3bce82a01bc0ca85219c49e",
+   "previousBlob": null,
+   "added": 62,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/package.json",
+   "mode": "100644",
+   "blob": "664f2c92fa7a258f46060a7dc504239976153db2",
+   "previousBlob": null,
+   "added": 113,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/scripts/build.mjs",
+   "mode": "100644",
+   "blob": "fd7a88242734c4386799f48b850bd37b565ef171",
+   "previousBlob": null,
+   "added": 46,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/scripts/circular.mjs",
+   "mode": "100644",
+   "blob": "8424eb898a6a5b0c08f1434ff4dab0d47da3fd37",
+   "previousBlob": null,
+   "added": 18,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/tsconfig.json",
+   "mode": "100644",
+   "blob": "65540dd6e7fb1b3fcbcbdc26f4e48a6c28bb95c4",
+   "previousBlob": null,
+   "added": 40,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/tsconfig.test.json",
+   "mode": "100644",
+   "blob": "94fae90f7540fc802b584832d57cdcfc5f8167f3",
+   "previousBlob": null,
+   "added": 12,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/vitest.config.ts",
+   "mode": "100644",
+   "blob": "3b672e455ebc00b6bc9388e1519d78afe7aabc39",
+   "previousBlob": null,
+   "added": 43,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

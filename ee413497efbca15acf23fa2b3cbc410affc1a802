@@ -1,0 +1,76 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ee413497efbca15acf23fa2b3cbc410affc1a802",
+ "tree": "9893146d6cfd4ae8d70989854bb2c6f286b14380",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 29,
+  "childCount": 50,
+  "head": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7"
+ },
+ "atomic": {
+  "globalIndex": 99,
+  "globalCount": 838,
+  "purpose": "✨ feat(flow): export the public flow surface",
+  "type": "feat",
+  "kind": "index",
+  "scope": "flow",
+  "component": "packages/flow/src",
+  "unitKey": "~index",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "59b081afa275462cd487fae1814f79efa4beca18",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [
+   "1c757bccd26029a3a99d6359d33f5ba2b5d627c3",
+   "939eee0228019711092abaee15793448c551d6bd",
+   "d0a9059a174eaeb3296fb48024ea8cc8068b58b2",
+   "221a9e8bea3dfb0a685d3a8fe8c77ad7d6a5e1bc",
+   "e352a5d9a80d9e7fa8af16977718a5ce807f1f3f",
+   "59b081afa275462cd487fae1814f79efa4beca18",
+   "f45aa60effc741bc536c230931b2a48c75670648"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "59b081afa275462cd487fae1814f79efa4beca18",
+  "next": "68931bab07faf52e9647774e4332ddafa6945e00",
+  "epicFirst": "60233bebe0e00cbc35cfb5176a9644f2799fde18",
+  "epicLast": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 89,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/flow/src/index.ts",
+   "mode": "100644",
+   "blob": "84fecd8e9cde0b5ae82860fe482f519ee50d4048",
+   "previousBlob": null,
+   "added": 89,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

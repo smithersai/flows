@@ -1,0 +1,82 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "fe2cfab47b8d0c2fce322f83c83389a502e77691",
+ "tree": "5582350b0dea930e8f3d59a20628af57fe8d7c70",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 141,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 778,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the suites module (4/11)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/e2e",
+  "unitKey": "dir:suites",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "c816a875ce0a408fb385e0c9c67eac5e5ce47b3d",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "767956221a8bd966d33df1ed26427b0e7bcf4a57",
+   "f01dafa893105f00d06046ae8d94c86cb040cc24",
+   "6ee5df66db65e929997a2795336b742366b9a8d1"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "c816a875ce0a408fb385e0c9c67eac5e5ce47b3d",
+  "next": "00c347e8132c4b1f81df578afbf219bfd47ebfc7",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 698,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/suites/cards-copy.e2e.ts",
+   "mode": "100644",
+   "blob": "532e45ae0ae25c4a67783ac6b69d72a1792501a2",
+   "previousBlob": null,
+   "added": 698,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

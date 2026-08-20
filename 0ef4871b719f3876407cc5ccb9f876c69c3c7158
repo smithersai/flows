@@ -1,0 +1,110 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "0ef4871b719f3876407cc5ccb9f876c69c3c7158",
+ "tree": "b5d4baddc99863216f4ab68a0dbc49faea277474",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 16,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 196,
+  "globalCount": 838,
+  "purpose": "✨ feat(engine-store): add the migrations, Errors, ArtifactGc modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "engine-store",
+  "component": "packages/engine-store/src",
+  "unitKey": "dir:migrations",
+  "mergedUnitKeys": [
+   "dir:migrations",
+   "Errors",
+   "ArtifactGc"
+  ]
+ },
+ "dependencies": {
+  "parent": "cb7df906d5f4ca67b373531e2ccf0fd471ebddfc",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "c548fa2e9a8dd3d8c628aae3c79519cce53be5f7",
+   "b8f28c7744a64c21bc1dabcd26df3f4dd3918860"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "cb7df906d5f4ca67b373531e2ccf0fd471ebddfc",
+  "next": "9ae5474dc0e2fd1248b8b06eb2c344de17c26828",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 557,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/migrations/0001_initial.ts",
+   "mode": "100644",
+   "blob": "01404e5ce04df06bd98f238265b30d3d0c13c19b",
+   "previousBlob": null,
+   "added": 46,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/migrations/0002_selection_store.ts",
+   "mode": "100644",
+   "blob": "e9e4e2f74cda662802cc692cfe70c3b45ae48f98",
+   "previousBlob": null,
+   "added": 37,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/Errors.ts",
+   "mode": "100644",
+   "blob": "3ba1e4c32d08a92dab1b4daaa65830d02a51d383",
+   "previousBlob": null,
+   "added": 25,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/ArtifactGc.ts",
+   "mode": "100644",
+   "blob": "e3e333e3d60349c535ca4b32d8a2d720e4cb1da7",
+   "previousBlob": null,
+   "added": 449,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

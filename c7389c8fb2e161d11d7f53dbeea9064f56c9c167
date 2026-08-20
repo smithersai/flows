@@ -1,0 +1,91 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "c7389c8fb2e161d11d7f53dbeea9064f56c9c167",
+ "tree": "87292d7c0f99a199e53ddf7c3b12488fc8c68ae1",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 59,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 696,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the mainview/flows modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview/flows",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "18af46e10e124876f17b6756c5b86313739e61a5",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "44b739c183d7508f003cbe31250f0a072c216002"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "18af46e10e124876f17b6756c5b86313739e61a5",
+  "next": "3b0c70f67ee7274e2c106e4cb4411598aed405ec",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 673,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/flows/SlashPayload.ts",
+   "mode": "100644",
+   "blob": "bfa67e4e6df61d2696fb27449b4df5589e1ddb9a",
+   "previousBlob": null,
+   "added": 281,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/flows/registry.ts",
+   "mode": "100644",
+   "blob": "12bc6515d1f677fe1b167422061cde45ca2ad977",
+   "previousBlob": null,
+   "added": 392,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,89 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a6e62e957d45844c923f75337676e02826657a76",
+ "tree": "c03fa19c58903f665de42f9a5870da3956b16450",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 43,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 680,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the mainview/native modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview/native",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "fede41c478c5a240b0655f9a26feb1a5b8a011b7",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "fede41c478c5a240b0655f9a26feb1a5b8a011b7",
+  "next": "f1d7e3f3b271cdf382bfdc34069d1ba559f1c3ea",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 325,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/native/NativeBridge.ts",
+   "mode": "100644",
+   "blob": "5752fdc2a27f5daa0f4492ef86819201ff0378a3",
+   "previousBlob": null,
+   "added": 107,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/native/WebAgent.ts",
+   "mode": "100644",
+   "blob": "392d5b3b8e5bc4ee73745783418104963dd6a652",
+   "previousBlob": null,
+   "added": 218,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

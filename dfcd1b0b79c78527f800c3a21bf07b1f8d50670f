@@ -1,0 +1,96 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "dfcd1b0b79c78527f800c3a21bf07b1f8d50670f",
+ "tree": "ed56abc375465521bfc60f21c00b3f8bee20981e",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 5,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 185,
+  "globalCount": 838,
+  "purpose": "✨ feat(engine-store): add the EngineStoreMetrics, RunState, WakeBus modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "engine-store",
+  "component": "packages/engine-store/src",
+  "unitKey": "EngineStoreMetrics",
+  "mergedUnitKeys": [
+   "EngineStoreMetrics",
+   "RunState",
+   "WakeBus"
+  ]
+ },
+ "dependencies": {
+  "parent": "0652ee3e08c443204a3d36283b6878772c248510",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "0652ee3e08c443204a3d36283b6878772c248510",
+  "next": "229f2a2a62fbf8eb4f2df6c8c9204deee510e76d",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 577,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/EngineStoreMetrics.ts",
+   "mode": "100644",
+   "blob": "bc26225acaf5d03e1258bb7c5d2f8e6ad2ee6f5f",
+   "previousBlob": null,
+   "added": 353,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/RunState.ts",
+   "mode": "100644",
+   "blob": "f35801db880242560f89954a7308b98ba88cb312",
+   "previousBlob": null,
+   "added": 51,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/WakeBus.ts",
+   "mode": "100644",
+   "blob": "4740612023be6a7fee4db7727720cd49a9d26ab1",
+   "previousBlob": null,
+   "added": 173,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

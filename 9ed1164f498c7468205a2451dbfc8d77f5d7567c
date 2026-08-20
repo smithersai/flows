@@ -1,0 +1,236 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "9ed1164f498c7468205a2451dbfc8d77f5d7567c",
+ "tree": "2b28f4ab895cf7612c8e1279fea058dd7a41ca9f",
+ "epic": {
+  "index": 9,
+  "id": "agent",
+  "name": "Harness, chain, tools and CLI",
+  "sourceCommit": "a8caaa3dc45df0c14d6b10d0db9faf8a7ea7e542",
+  "sourceSubject": "✨ feat(agent): compose the harness, chain, tools, and CLI",
+  "childIndex": 50,
+  "childCount": 84,
+  "head": "49544e3fda710efb14f1dc6cf2b0051adc9dd584"
+ },
+ "atomic": {
+  "globalIndex": 434,
+  "globalCount": 838,
+  "purpose": "✨ feat(agent): add StandardFlows",
+  "type": "feat",
+  "kind": "module",
+  "scope": "agent",
+  "component": "packages/agent",
+  "unitKey": "StandardFlows",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "09879af449a0ebdc31b33fe79998c8846c555a7d",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/artifacts",
+    "field": "dependencies",
+    "commit": "83c80109f93620c67893e7c5d16326f9e242a2af",
+    "providerComponent": "packages/artifacts",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/capability",
+    "field": "dependencies",
+    "commit": "7e2eac5ca71c4fc20bbe97b888dad21267da1e30",
+    "providerComponent": "packages/capability",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/control",
+    "field": "dependencies",
+    "commit": "75b989a26f3a351fd7b524cbc964ce9e87660ee3",
+    "providerComponent": "packages/control",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/engine",
+    "field": "dependencies",
+    "commit": "b238e49d59c7ce059f57fe58b1d2028872d1438b",
+    "providerComponent": "packages/engine",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/engine-store",
+    "field": "dependencies",
+    "commit": "c0f6e543a2aa5e3bb7dbbfce925e8c332ecfded8",
+    "providerComponent": "packages/engine-store",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/flow",
+    "field": "dependencies",
+    "commit": "ee413497efbca15acf23fa2b3cbc410affc1a802",
+    "providerComponent": "packages/flow",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/harness",
+    "field": "dependencies",
+    "commit": "94bf88b1084ff840c1113e9dc695a1bfbbbe7e66",
+    "providerComponent": "packages/harness",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/jj",
+    "field": "dependencies",
+    "commit": "d933549c894f26a1f558e5e488a6b29e8c0fc242",
+    "providerComponent": "packages/jj",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "field": "dependencies",
+    "commit": "32707f96f522f0b7dce09d50ee6af6e72b7a0ef4",
+    "providerComponent": "packages/kernel",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/memory",
+    "field": "dependencies",
+    "commit": "03a4cd0e3aab0a3e990be4ff12e9dbf36da0be9c",
+    "providerComponent": "packages/memory",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/model",
+    "field": "dependencies",
+    "commit": "489c9c77a1625c553ac1f7b8bde0c279d32249ba",
+    "providerComponent": "packages/model",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/notifications",
+    "field": "dependencies",
+    "commit": "8a93e3fe5104afa2a8c2890a88d9656e9c12c1ea",
+    "providerComponent": "packages/notifications",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/plan",
+    "field": "dependencies",
+    "commit": "b21dab66549eb99974cd7296f77391e4c3d00490",
+    "providerComponent": "packages/plan",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/platform-browser",
+    "field": "dependencies",
+    "commit": "3359dd0ae5a536bfdb25b36aeaebe25fdca1aa4f",
+    "providerComponent": "packages/platform-browser",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/plugin",
+    "field": "dependencies",
+    "commit": "42f893a067646353fed2330e1b84a799c64ac613",
+    "providerComponent": "packages/plugin",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/registry",
+    "field": "dependencies",
+    "commit": "b89d7a671b44791c0d143f9c5a8f1d1ee4ca03c1",
+    "providerComponent": "packages/registry",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/run-store",
+    "field": "dependencies",
+    "commit": "3af92874386ad961a4ac65bd603de8b0b38196de",
+    "providerComponent": "packages/run-store",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/std",
+    "field": "dependencies",
+    "commit": "8fb20b55b196391802e3f791251f34db1e19dd3b",
+    "providerComponent": "packages/std",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/step-cache",
+    "field": "dependencies",
+    "commit": "2d882398130e1321388dc084409590afb53af660",
+    "providerComponent": "packages/step-cache",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/flows",
+    "field": "devDependencies",
+    "commit": "ad78646af47452e8c34f4dbc0ac9f07e3341b86e",
+    "providerComponent": "packages/flows",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/testing",
+    "field": "devDependencies",
+    "commit": "240b8562e19e4d4b2129a8231ea81fb425901030",
+    "providerComponent": "packages/testing",
+    "classification": "provider-in-later-epic",
+    "justification": "@smthrs/testing is introduced by epic 10 (platform: Conformance, scoring, evaluation and telemetry), which the fixed 18-epic ordering places after epic 9 (agent). Reordering the epics is out of scope for this bootstrap. The relationship is development-only and does not affect this commit."
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "09879af449a0ebdc31b33fe79998c8846c555a7d",
+  "next": "b2291290167c2f016b46091ae0b58521651d4d60",
+  "epicFirst": "980ca61422f63e6bb068247c1991df44231cde33",
+  "epicLast": "49544e3fda710efb14f1dc6cf2b0051adc9dd584",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 296,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/agent/src/StandardFlows.ts",
+   "mode": "100644",
+   "blob": "7d3fcc33fa9be7bc51dd802d54db0545519b08f3",
+   "previousBlob": null,
+   "added": 296,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

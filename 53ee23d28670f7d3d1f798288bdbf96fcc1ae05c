@@ -1,0 +1,77 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "53ee23d28670f7d3d1f798288bdbf96fcc1ae05c",
+ "tree": "222a0e7b9f28ebf71c0e6a9787d6f3d33e9204bf",
+ "epic": {
+  "index": 2,
+  "id": "core",
+  "name": "Canonical leaf contracts",
+  "sourceCommit": "9cd3ac554b7b6acecfceddce69f6a6b6afa257b6",
+  "sourceSubject": "✨ feat(core): add canonical leaf contracts",
+  "childIndex": 10,
+  "childCount": 14,
+  "head": "bd887cd5cc6d5d26338e43b0255d2d36396d519c"
+ },
+ "atomic": {
+  "globalIndex": 12,
+  "globalCount": 838,
+  "purpose": "📝 docs(capability): document capability",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "capability",
+  "component": "packages/capability",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "7e2eac5ca71c4fc20bbe97b888dad21267da1e30",
+  "epicPredecessors": [
+   "repo"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "7e2eac5ca71c4fc20bbe97b888dad21267da1e30",
+  "next": "3fa007e2fdf46d44bc4c04ea11cc9ce9a126b44e",
+  "epicFirst": "fb8bcea968b638592c9b6360bd8fa385b34e72a0",
+  "epicLast": "bd887cd5cc6d5d26338e43b0255d2d36396d519c",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 38,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/capability/CHANGELOG.md",
+   "mode": "100644",
+   "blob": "b6f62cb8b89c7320290edc1bb95cb2e1fcf7a482",
+   "previousBlob": null,
+   "added": 11,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/capability/README.md",
+   "mode": "100644",
+   "blob": "23a57c2e867edf0b35d16df6e75a693e532f9ff9",
+   "previousBlob": null,
+   "added": 27,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

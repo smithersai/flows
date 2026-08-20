@@ -1,0 +1,79 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "3fd5893c645232027f083f0eb25f2a44b42f7653",
+ "tree": "5e00ccb3b435b5b1dc827f830239e27a60d3b266",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 101,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 738,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add stub-backends",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/scripts",
+  "unitKey": "stub-backends",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "9d7d2ff6cadcbae1fd348726efeca30043429abd",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "9d7d2ff6cadcbae1fd348726efeca30043429abd",
+  "next": "b12a19d33e7004a1bd5b098324d9f69edc55c847",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 2119,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/scripts/stub-backends.ts",
+   "mode": "100644",
+   "blob": "3a34e89d0c4a4be90bf7c7d9b0a6c958d04817ad",
+   "previousBlob": null,
+   "added": 2119,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ],
+ "sizeJustification": "Single indivisible file (apps/ui/scripts/stub-backends.ts); splitting it further would create partial-file states that never existed."
+}

@@ -1,0 +1,102 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "00c3bf5ad5a14cf21cc201622ef22c316253f7fa",
+ "tree": "30ed0a97c7ca3822efffe332bb66787c4167b061",
+ "epic": {
+  "index": 12,
+  "id": "examples",
+  "name": "Executable learning and evaluation suites",
+  "sourceCommit": "1c0d5bce16fdac649b8f108f4e37eaea58f4933c",
+  "sourceSubject": "📚 docs(examples): add executable learning and evaluation suites",
+  "childIndex": 11,
+  "childCount": 18,
+  "head": "a482cacaa2f003ffede858d77595d07ad2842e79"
+ },
+ "atomic": {
+  "globalIndex": 609,
+  "globalCount": 838,
+  "purpose": "✨ feat(evals-swebench): add the run-instance, run-instance-codex, run-sample modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "evals-swebench",
+  "component": "evals/swebench",
+  "unitKey": "run-instance",
+  "mergedUnitKeys": [
+   "run-instance",
+   "run-instance-codex",
+   "run-sample"
+  ]
+ },
+ "dependencies": {
+  "parent": "da3e627901c68347581fbc6325597c653b4728db",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "da3e627901c68347581fbc6325597c653b4728db",
+  "next": "2738f86c1cf9a53d529233f03c85edc75e1b1d6d",
+  "epicFirst": "d079d005cf653747c171d935a4612624051584da",
+  "epicLast": "a482cacaa2f003ffede858d77595d07ad2842e79",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 337,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "evals/swebench/run-instance.sh",
+   "mode": "100755",
+   "blob": "c2cbc51dab33acafa61466bd2d45e3305ca436b4",
+   "previousBlob": null,
+   "added": 121,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/run-instance-codex.sh",
+   "mode": "100755",
+   "blob": "b6b263173d920d3ce13cc3e63bff3971732a84a8",
+   "previousBlob": null,
+   "added": 128,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/run-sample.sh",
+   "mode": "100755",
+   "blob": "49f960634932ff4abd80ca7e9bd2e28a62d38bd6",
+   "previousBlob": null,
+   "added": 88,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

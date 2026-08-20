@@ -1,0 +1,110 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "e8234069a931ae6091a5f034b5f9a78113056558",
+ "tree": "23e97966fab26290c0bac642ffb053e17e24b3d3",
+ "epic": {
+  "index": 2,
+  "id": "core",
+  "name": "Canonical leaf contracts",
+  "sourceCommit": "9cd3ac554b7b6acecfceddce69f6a6b6afa257b6",
+  "sourceSubject": "✨ feat(core): add canonical leaf contracts",
+  "childIndex": 7,
+  "childCount": 14,
+  "head": "bd887cd5cc6d5d26338e43b0255d2d36396d519c"
+ },
+ "atomic": {
+  "globalIndex": 9,
+  "globalCount": 838,
+  "purpose": "✨ feat(capability): add Capability",
+  "type": "feat",
+  "kind": "module",
+  "scope": "capability",
+  "component": "packages/capability",
+  "unitKey": "Capability",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "b09c51b368f4d2c667eb6b74ffca2f7ed0a2267f",
+  "epicPredecessors": [
+   "repo"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "b09c51b368f4d2c667eb6b74ffca2f7ed0a2267f",
+  "next": "203cec98a535c1c7d468e9f2bc8263af0abe52c8",
+  "epicFirst": "fb8bcea968b638592c9b6360bd8fa385b34e72a0",
+  "epicLast": "bd887cd5cc6d5d26338e43b0255d2d36396d519c",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 5,
+  "added": 1087,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/capability/src/Capability.ts",
+   "mode": "100644",
+   "blob": "4c9627d2f3b5ad463a15124c031aae3f06e97a05",
+   "previousBlob": null,
+   "added": 402,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/capability/test/Capability.property.test.ts",
+   "mode": "100644",
+   "blob": "1b2b930915edb0a2ab2f1fb2dff7f8a2b0b3f4fe",
+   "previousBlob": null,
+   "added": 359,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/capability/test/Capability.test.ts",
+   "mode": "100644",
+   "blob": "fe70e025f598f20db656a82daf680af3076a52c4",
+   "previousBlob": null,
+   "added": 204,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/capability/test/CapabilityEscape.test.ts",
+   "mode": "100644",
+   "blob": "6db8b7be26cc9763a65078b00bfcf8c87b6d51fc",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/capability/test/CapabilityTiers.test.ts",
+   "mode": "100644",
+   "blob": "a67e2483d593bd39dd2ef42a174a441903c7f15b",
+   "previousBlob": null,
+   "added": 101,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

@@ -1,0 +1,92 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "2738f86c1cf9a53d529233f03c85edc75e1b1d6d",
+ "tree": "40436bd042befee0826ccc716e19fffe2cd4f453",
+ "epic": {
+  "index": 12,
+  "id": "examples",
+  "name": "Executable learning and evaluation suites",
+  "sourceCommit": "1c0d5bce16fdac649b8f108f4e37eaea58f4933c",
+  "sourceSubject": "📚 docs(examples): add executable learning and evaluation suites",
+  "childIndex": 12,
+  "childCount": 18,
+  "head": "a482cacaa2f003ffede858d77595d07ad2842e79"
+ },
+ "atomic": {
+  "globalIndex": 610,
+  "globalCount": 838,
+  "purpose": "✨ feat(evals-swebench): add scorecard",
+  "type": "feat",
+  "kind": "module",
+  "scope": "evals-swebench",
+  "component": "evals/swebench",
+  "unitKey": "scorecard",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "00c3bf5ad5a14cf21cc201622ef22c316253f7fa",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build"
+  ],
+  "sourceImports": [
+   "75b989a26f3a351fd7b524cbc964ce9e87660ee3",
+   "28f6b2a97d00c5e20e07cfbfe02765a675d94c5e",
+   "40003e03ae79358eb40c70256d127d98262de9ac",
+   "da3e627901c68347581fbc6325597c653b4728db"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "00c3bf5ad5a14cf21cc201622ef22c316253f7fa",
+  "next": "d94fd5d2d97edab5a99b8e53c1b0a5322300443a",
+  "epicFirst": "d079d005cf653747c171d935a4612624051584da",
+  "epicLast": "a482cacaa2f003ffede858d77595d07ad2842e79",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 698,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "evals/swebench/scorecard.json",
+   "mode": "100644",
+   "blob": "d6f352c71e2c901bb4791a1729230ab56372624f",
+   "previousBlob": null,
+   "added": 230,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/scorecard.ts",
+   "mode": "100644",
+   "blob": "9be67689061c9090af3653c27b750915337ecefb",
+   "previousBlob": null,
+   "added": 468,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,79 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "4e5a78775e276beff95c0aa173daec8095e8012a",
+ "tree": "8aa43c1f3fc77b933d84a119e6eb8814ed3ea5b9",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 21,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 201,
+  "globalCount": 838,
+  "purpose": "✨ feat(engine-store): add PlanScheduler",
+  "type": "feat",
+  "kind": "module",
+  "scope": "engine-store",
+  "component": "packages/engine-store/src",
+  "unitKey": "PlanScheduler",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "14959d438856105f7144672e6447aec49b1acf21",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "dfcd1b0b79c78527f800c3a21bf07b1f8d50670f",
+   "c548fa2e9a8dd3d8c628aae3c79519cce53be5f7",
+   "13373e8984e787685db54b712a84b60c7c7c8b5c",
+   "a46536bcf51dcbee573a48b3bd480d0200f1c76b",
+   "dded29a5fe0496432ad33f420f600b51f705a40b",
+   "14959d438856105f7144672e6447aec49b1acf21",
+   "b8f28c7744a64c21bc1dabcd26df3f4dd3918860",
+   "2ce3d1312fd1d5ae4b0df76930ef2d5b95ef09dd"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "14959d438856105f7144672e6447aec49b1acf21",
+  "next": "e16017472c5103d74971b4b358956dca2d2f54e3",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 1525,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/PlanScheduler.ts",
+   "mode": "100644",
+   "blob": "fd8dac7032693f52bb7a179bd03f254d8e30adde",
+   "previousBlob": null,
+   "added": 1525,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

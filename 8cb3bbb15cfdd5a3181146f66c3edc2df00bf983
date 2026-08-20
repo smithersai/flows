@@ -1,0 +1,86 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "8cb3bbb15cfdd5a3181146f66c3edc2df00bf983",
+ "tree": "4feb8be27050612b940aa6c7cbd6259353b37ec0",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 69,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 572,
+  "globalCount": 838,
+  "purpose": "✨ feat(build): add the worker modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "build",
+  "component": "packages/build/infra",
+  "unitKey": "dir:worker",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "ed0bfe85aa07fd4d410be8c2f40fab9c9c63b0c8",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "ed0bfe85aa07fd4d410be8c2f40fab9c9c63b0c8",
+  "next": "92e8fb07f17a59dd1acae4b09babeee54bce03cd",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 1404,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build/infra/worker/protocol.ts",
+   "mode": "100644",
+   "blob": "4705efdf4d92f7949a9a8631350943a4d363f204",
+   "previousBlob": null,
+   "added": 1112,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/infra/worker/index.ts",
+   "mode": "100644",
+   "blob": "c797be77251266d7067e5f99e242ebe15a7c8dc2",
+   "previousBlob": null,
+   "added": 292,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

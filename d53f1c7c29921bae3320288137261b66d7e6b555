@@ -1,0 +1,80 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "d53f1c7c29921bae3320288137261b66d7e6b555",
+ "tree": "519272d7626ccf1a05f54f2b095d777c767e1568",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 48,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 685,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the mainview/chain module (2/4)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview/chain",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d33e452aacb744538008cc1962306b8d0175849e",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "51308f4793d76771c4129ad12325ce6ff071fbda"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "d33e452aacb744538008cc1962306b8d0175849e",
+  "next": "8c026ad28fd80bb1462799d80bf5ba76edf692dc",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 173,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/chain/DebugFolds.ts",
+   "mode": "100644",
+   "blob": "ba60b0ade1874fd544d9b35c32eda5f663f5eabf",
+   "previousBlob": null,
+   "added": 173,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

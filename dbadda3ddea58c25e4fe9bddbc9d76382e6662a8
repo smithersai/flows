@@ -1,0 +1,82 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "dbadda3ddea58c25e4fe9bddbc9d76382e6662a8",
+ "tree": "1dfc0dd4ca91ee61d6503a13a64b8cc825ec1d1d",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 43,
+  "childCount": 50,
+  "head": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7"
+ },
+ "atomic": {
+  "globalIndex": 113,
+  "globalCount": 838,
+  "purpose": "✨ feat(flow): add the build, circular modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "flow",
+  "component": "packages/flow/scripts",
+  "unitKey": "build",
+  "mergedUnitKeys": [
+   "build",
+   "circular"
+  ]
+ },
+ "dependencies": {
+  "parent": "8eb1bd2103a3877e69f134c6caca0570d1d96d65",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "8eb1bd2103a3877e69f134c6caca0570d1d96d65",
+  "next": "03021beef8b5e1e585c9f36b51edc2fd03225956",
+  "epicFirst": "60233bebe0e00cbc35cfb5176a9644f2799fde18",
+  "epicLast": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 65,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/flow/scripts/build.mjs",
+   "mode": "100644",
+   "blob": "5531005dd7f8c03fc59893894ee6984aa2a47991",
+   "previousBlob": null,
+   "added": 47,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/scripts/circular.mjs",
+   "mode": "100644",
+   "blob": "8424eb898a6a5b0c08f1434ff4dab0d47da3fd37",
+   "previousBlob": null,
+   "added": 18,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

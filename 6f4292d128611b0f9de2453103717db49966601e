@@ -1,0 +1,93 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "6f4292d128611b0f9de2453103717db49966601e",
+ "tree": "63b76acdf72fe5079189b532ab771b660267a004",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 46,
+  "childCount": 54,
+  "head": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb"
+ },
+ "atomic": {
+  "globalIndex": 62,
+  "globalCount": 838,
+  "purpose": "📝 docs(run-store): document run-store",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "run-store",
+  "component": "packages/run-store",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "2820e2dc52b18a24692eccae21db9529bd25fce0",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "2820e2dc52b18a24692eccae21db9529bd25fce0",
+  "next": "02f61ed9603aa09110480660c509f215be93de38",
+  "epicFirst": "2d09eee3adb5b99a7ac2a9511ca5520ac08f7a95",
+  "epicLast": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 124,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/run-store/CHANGELOG.md",
+   "mode": "100644",
+   "blob": "bef08bf62cf1481666d7d0ef818f9a5a5e9b1d82",
+   "previousBlob": null,
+   "added": 12,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/run-store/README.md",
+   "mode": "100644",
+   "blob": "6009564146f720af2bc52ce947e3e6c42ee84e04",
+   "previousBlob": null,
+   "added": 112,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

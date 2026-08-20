@@ -1,0 +1,140 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "1e12db777de38467f4018a3be7ec379797ef84ab",
+ "tree": "d1f8cc3c95b4ad83b3f3599c17c6ec9c355dcd73",
+ "epic": {
+  "index": 9,
+  "id": "agent",
+  "name": "Harness, chain, tools and CLI",
+  "sourceCommit": "a8caaa3dc45df0c14d6b10d0db9faf8a7ea7e542",
+  "sourceSubject": "✨ feat(agent): compose the harness, chain, tools, and CLI",
+  "childIndex": 26,
+  "childCount": 84,
+  "head": "49544e3fda710efb14f1dc6cf2b0051adc9dd584"
+ },
+ "atomic": {
+  "globalIndex": 410,
+  "globalCount": 838,
+  "purpose": "✨ feat(std): add the Search, Glob modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "std",
+  "component": "packages/std",
+  "unitKey": "Search",
+  "mergedUnitKeys": [
+   "Search",
+   "Glob"
+  ]
+ },
+ "dependencies": {
+  "parent": "06054d5a8d7b9fc60988889d7dbc794209d6d98a",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control"
+  ],
+  "sourceImports": [
+   "06054d5a8d7b9fc60988889d7dbc794209d6d98a"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "field": "dependencies",
+    "commit": "7e2eac5ca71c4fc20bbe97b888dad21267da1e30",
+    "providerComponent": "packages/capability",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/control",
+    "field": "dependencies",
+    "commit": "75b989a26f3a351fd7b524cbc964ce9e87660ee3",
+    "providerComponent": "packages/control",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "field": "dependencies",
+    "commit": "32707f96f522f0b7dce09d50ee6af6e72b7a0ef4",
+    "providerComponent": "packages/kernel",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "06054d5a8d7b9fc60988889d7dbc794209d6d98a",
+  "next": "99a63abdf4330f66dc7c5747c461eab74056e42d",
+  "epicFirst": "980ca61422f63e6bb068247c1991df44231cde33",
+  "epicLast": "49544e3fda710efb14f1dc6cf2b0051adc9dd584",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 628,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/std/src/Search.ts",
+   "mode": "100644",
+   "blob": "c204aed5e7d9c52554f9faf0c9084e0bd6ef568b",
+   "previousBlob": null,
+   "added": 139,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/test/SearchConformance.test.ts",
+   "mode": "100644",
+   "blob": "f88e5dc15248c8f39f3276b6b791641bf1254f25",
+   "previousBlob": null,
+   "added": 328,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/src/Glob.ts",
+   "mode": "100644",
+   "blob": "47e70345856abe84b25dc63fac1d28bd50ec1538",
+   "previousBlob": null,
+   "added": 121,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/test/Glob.test.ts",
+   "mode": "100644",
+   "blob": "f907e59fe0c3c2805643cd1e9dc27ca0f6c5e74e",
+   "previousBlob": null,
+   "added": 40,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

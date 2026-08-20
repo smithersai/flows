@@ -1,0 +1,112 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "30d6497a1b4ca9998aceb27a5883a7511d090b8b",
+ "tree": "4ec411b9d9b8ccf2ab585cb860db497e9a91cd0e",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 57,
+  "childCount": 66,
+  "head": "5a833bbe7affdc7dda1a3b24f9e5a5239864093b"
+ },
+ "atomic": {
+  "globalIndex": 375,
+  "globalCount": 838,
+  "purpose": "📝 docs(memory): document memory",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "memory",
+  "component": "packages/memory",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "99ed73cff011b56f23bd2f15be3b6de6c34ac854",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/model",
+    "field": "dependencies",
+    "commit": "489c9c77a1625c553ac1f7b8bde0c279d32249ba",
+    "providerComponent": "packages/model",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/patterns",
+    "field": "dependencies",
+    "commit": "c0735b098e72bf6e6e70c2a176845008d0fd02cf",
+    "providerComponent": "packages/patterns",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "99ed73cff011b56f23bd2f15be3b6de6c34ac854",
+  "next": "a1e1fa03407d5f714b533c81b3991d9fb8e5b190",
+  "epicFirst": "1a9eeded3e87702322afacdd6021037ce6179f5e",
+  "epicLast": "5a833bbe7affdc7dda1a3b24f9e5a5239864093b",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 45,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/memory/CHANGELOG.md",
+   "mode": "100644",
+   "blob": "e62d153ec87167e09ec0395fd560583d35d736be",
+   "previousBlob": null,
+   "added": 7,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/memory/README.md",
+   "mode": "100644",
+   "blob": "207731fb1498d01631a5824e0ccaa41d52787720",
+   "previousBlob": null,
+   "added": 38,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

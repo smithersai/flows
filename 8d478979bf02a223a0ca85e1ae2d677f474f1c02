@@ -1,0 +1,120 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "8d478979bf02a223a0ca85e1ae2d677f474f1c02",
+ "tree": "0f20f388e53e433b20f65e6fcaaf3c47b5254e87",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 32,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 535,
+  "globalCount": 838,
+  "purpose": "✨ feat(targets): add the NodeTest, NodeBinary, NpmPublish and 1 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "targets",
+  "component": "packages/targets/src",
+  "unitKey": "NodeTest",
+  "mergedUnitKeys": [
+   "NodeTest",
+   "NodeBinary",
+   "NpmPublish",
+   "PackageDefaults"
+  ]
+ },
+ "dependencies": {
+  "parent": "dc4520bcf7a8d56f64844548253dfde011f6bfe8",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [
+   "8c22e12a34262541380b4e5ce654880c38a9f45b",
+   "ba993df20a254d6d6558bcab0091b06aae25a223",
+   "00957ec8ebb497a919271108d05ea32e3cb1860b",
+   "3601609d1c618c17e895954bbdbec9660c7cf00b",
+   "161e241a652255620ce10b0002c026ad68c33244",
+   "dc4520bcf7a8d56f64844548253dfde011f6bfe8"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "dc4520bcf7a8d56f64844548253dfde011f6bfe8",
+  "next": "51553cb6e87225672d046d501dcf0bac81b2fcee",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 699,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/targets/src/NodeTest.ts",
+   "mode": "100644",
+   "blob": "24eec7b1e5b03b3fbad728f8e54fb7d4626dd867",
+   "previousBlob": null,
+   "added": 243,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/NodeBinary.ts",
+   "mode": "100644",
+   "blob": "22b9a8f9f50168c9e4635b54e7921ff4e50949ed",
+   "previousBlob": null,
+   "added": 96,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/NpmPublish.ts",
+   "mode": "100644",
+   "blob": "48c9484969acea50363b21783d58420cb424c117",
+   "previousBlob": null,
+   "added": 93,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/PackageDefaults.ts",
+   "mode": "100644",
+   "blob": "7ba82895f919718b68d7d63290cc1020e674efdc",
+   "previousBlob": null,
+   "added": 267,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

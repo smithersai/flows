@@ -1,0 +1,154 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "3fa007e2fdf46d44bc4c04ea11cc9ce9a126b44e",
+ "tree": "c19be9ca18a4c5fa54313d82bbf9035a640f59ba",
+ "epic": {
+  "index": 2,
+  "id": "core",
+  "name": "Canonical leaf contracts",
+  "sourceCommit": "9cd3ac554b7b6acecfceddce69f6a6b6afa257b6",
+  "sourceSubject": "✨ feat(core): add canonical leaf contracts",
+  "childIndex": 11,
+  "childCount": 14,
+  "head": "bd887cd5cc6d5d26338e43b0255d2d36396d519c"
+ },
+ "atomic": {
+  "globalIndex": 13,
+  "globalCount": 838,
+  "purpose": "🧹 chore(crypto): scaffold the @smthrs/crypto package",
+  "type": "chore",
+  "kind": "scaffold",
+  "scope": "crypto",
+  "component": "packages/crypto",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "53ee23d28670f7d3d1f798288bdbf96fcc1ae05c",
+  "epicPredecessors": [
+   "repo"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "53ee23d28670f7d3d1f798288bdbf96fcc1ae05c",
+  "next": "3d07bb27211a31a61fc4095100f97efd50957283",
+  "epicFirst": "fb8bcea968b638592c9b6360bd8fa385b34e72a0",
+  "epicLast": "bd887cd5cc6d5d26338e43b0255d2d36396d519c",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 9,
+  "added": 314,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/crypto/LICENSE",
+   "mode": "100644",
+   "blob": "422a888fe58a4f77514fe407f175499d57fa27be",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/crypto/dprint.json",
+   "mode": "100644",
+   "blob": "d477c0cd6d212dfc8308198e5ed2addbcef839b8",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/crypto/eslint.config.js",
+   "mode": "100644",
+   "blob": "11277f241313f0dd873e81b6cd4c71c56dcb9c86",
+   "previousBlob": null,
+   "added": 47,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/crypto/package.json",
+   "mode": "100644",
+   "blob": "06170783d64a8411d5d5b1927803c9f8b811f717",
+   "previousBlob": null,
+   "added": 103,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/crypto/scripts/build.mjs",
+   "mode": "100644",
+   "blob": "584cf2c401c4a3c22bfb63e5766f9b47effcaf42",
+   "previousBlob": null,
+   "added": 41,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/crypto/scripts/circular.mjs",
+   "mode": "100644",
+   "blob": "717efac93e2b61883aa574887078b7093d57d19f",
+   "previousBlob": null,
+   "added": 13,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/crypto/tsconfig.json",
+   "mode": "100644",
+   "blob": "68d742349943a548207aa9f6e838284338f24749",
+   "previousBlob": null,
+   "added": 36,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/crypto/tsconfig.test.json",
+   "mode": "100644",
+   "blob": "94fae90f7540fc802b584832d57cdcfc5f8167f3",
+   "previousBlob": null,
+   "added": 12,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/crypto/vitest.config.ts",
+   "mode": "100644",
+   "blob": "e908cf41b3c83a58006e94795d7ba5a75608e813",
+   "previousBlob": null,
+   "added": 20,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

@@ -1,0 +1,265 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "51661c877ecb4587b20e7dac561e8f9f0ecec3a1",
+ "tree": "9d831f297ebaf75be0e53f269ca6b7d4048d0dce",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 37,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 674,
+  "globalCount": 838,
+  "purpose": "📝 docs(ui): document agents, goals",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "ui",
+  "component": "apps/ui/.smithers",
+  "unitKey": "agents",
+  "mergedUnitKeys": [
+   "agents",
+   "goals"
+  ]
+ },
+ "dependencies": {
+  "parent": "9c925536934434f17038a7d2ba54723779c40a8f",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "field": "dependencies",
+    "commit": "f7a79de58ec909a8b6633954e1f1ff9117d4d46a",
+    "providerComponent": "packages/cli",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "9c925536934434f17038a7d2ba54723779c40a8f",
+  "next": "d22165f778183d58edf12891932736cf612374e0",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 17,
+  "added": 401,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/agents/README.md",
+   "mode": "100644",
+   "blob": "cb50035d58291d671f126b53c5e873e58bac0e28",
+   "previousBlob": null,
+   "added": 22,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/goals/harden-production-readiness-dataflow.md",
+   "mode": "100644",
+   "blob": "158e6a784b5afa964c3f9a3e25ba92cef523e9bf",
+   "previousBlob": null,
+   "added": 17,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/goals/repair-production-readiness-swarm.md",
+   "mode": "100644",
+   "blob": "74ef7a6f7dc8b7d441fc6ec71d8b5e9047281f6e",
+   "previousBlob": null,
+   "added": 18,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/goals/wave1-mvp-skeleton.md",
+   "mode": "100644",
+   "blob": "4b49cdbc5eb7f4d04675520be8a3daf89c751882",
+   "previousBlob": null,
+   "added": 36,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/goals/wave10-onboarding.md",
+   "mode": "100644",
+   "blob": "9524fc8e29ad354bb8a5a1f38b088e0f0d5ac32c",
+   "previousBlob": null,
+   "added": 60,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/goals/wave11-workflows-in-chat.md",
+   "mode": "100644",
+   "blob": "080ae82cdb42f09f53ca25e3ebc61d07638a0ff9",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/goals/wave12-truth-claims.md",
+   "mode": "100644",
+   "blob": "d7394a39fcc8aaf75bc65b836c51f7eb17bc416b",
+   "previousBlob": null,
+   "added": 17,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/goals/wave13-peruser-billing-honesty.md",
+   "mode": "100644",
+   "blob": "bde71dd5d9fae6b952c306c542a7c22f83355210",
+   "previousBlob": null,
+   "added": 14,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/goals/wave13c-truthbar-tail.md",
+   "mode": "100644",
+   "blob": "516a2dddb787e506bbd0cca12f2b58938175eddf",
+   "previousBlob": null,
+   "added": 8,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/goals/wave14-final-polish.md",
+   "mode": "100644",
+   "blob": "d7a72eb9b60075cc7c599efe063d3aa4079cf298",
+   "previousBlob": null,
+   "added": 12,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/goals/wave2a-auth-money-approvals.md",
+   "mode": "100644",
+   "blob": "473dbaeb7fa3b9346d830d2591f99557481e39dd",
+   "previousBlob": null,
+   "added": 38,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/goals/wave3b-reco-tools-admin.md",
+   "mode": "100644",
+   "blob": "439a0295238cf1293c8925996d0afd231d615bb8",
+   "previousBlob": null,
+   "added": 28,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/goals/wave6-endgame-checklist.md",
+   "mode": "100644",
+   "blob": "714b622391e657e052cf9a62ef1e43c69e1ea93c",
+   "previousBlob": null,
+   "added": 32,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/goals/wave6c-fix-cancel-route.md",
+   "mode": "100644",
+   "blob": "cb0197b9512c13f05a12a77198f3f6d724712a3f",
+   "previousBlob": null,
+   "added": 15,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/goals/wave7-deploy-canary.md",
+   "mode": "100644",
+   "blob": "6e794c0c2640b3cb7378ba50ade524680ab5a870",
+   "previousBlob": null,
+   "added": 26,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/goals/wave8-signin-deadend.md",
+   "mode": "100644",
+   "blob": "d6755f07bde01b057a0a76de7dc419a056b15622",
+   "previousBlob": null,
+   "added": 19,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/goals/wave9-one-page-chat.md",
+   "mode": "100644",
+   "blob": "183e67513a3606b38f4162df9aa30d8eb291af18",
+   "previousBlob": null,
+   "added": 18,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

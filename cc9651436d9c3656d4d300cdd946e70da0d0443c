@@ -1,0 +1,75 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "cc9651436d9c3656d4d300cdd946e70da0d0443c",
+ "tree": "c1c7d87b3a7e176b03882813dae4341146562a13",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 71,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 574,
+  "globalCount": 838,
+  "purpose": "✅ test(build): cover scripts",
+  "type": "test",
+  "kind": "tests",
+  "scope": "build",
+  "component": "packages/build/infra",
+  "unitKey": "scripts",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "92e8fb07f17a59dd1acae4b09babeee54bce03cd",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "92e8fb07f17a59dd1acae4b09babeee54bce03cd",
+  "next": "90c87e71d92d92c304f8762e5302e6c886b07eaa",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 145,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build/infra/scripts/redact-state.test.ts",
+   "mode": "100644",
+   "blob": "3197ed3d6dc6f94bfd3a80a886b9615a7c3cf3fe",
+   "previousBlob": null,
+   "added": 145,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

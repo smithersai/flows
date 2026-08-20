@@ -1,0 +1,171 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "214ed0177a414244721b9bef21ffdbb665b46230",
+ "tree": "ff124c06a55ce0022691783d976da841ef239400",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 36,
+  "childCount": 66,
+  "head": "5a833bbe7affdc7dda1a3b24f9e5a5239864093b"
+ },
+ "atomic": {
+  "globalIndex": 354,
+  "globalCount": 838,
+  "purpose": "✨ feat(model): add the Auth, CanonicalJson, Endpoint and 1 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "model",
+  "component": "packages/model",
+  "unitKey": "Auth",
+  "mergedUnitKeys": [
+   "Auth",
+   "CanonicalJson",
+   "Endpoint",
+   "Framing"
+  ]
+ },
+ "dependencies": {
+  "parent": "b90743e48c89242897c413be544147631c5be9f2",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [
+   "cab120da64bbf2e139691de7c7ffa61336635ea8"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "field": "dependencies",
+    "commit": "7e2eac5ca71c4fc20bbe97b888dad21267da1e30",
+    "providerComponent": "packages/capability",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "field": "dependencies",
+    "commit": "32707f96f522f0b7dce09d50ee6af6e72b7a0ef4",
+    "providerComponent": "packages/kernel",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "b90743e48c89242897c413be544147631c5be9f2",
+  "next": "d0e963fd1b9d8e3e55d37721b5bd2849ca4ea41f",
+  "epicFirst": "1a9eeded3e87702322afacdd6021037ce6179f5e",
+  "epicLast": "5a833bbe7affdc7dda1a3b24f9e5a5239864093b",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 8,
+  "added": 660,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/model/src/Auth.ts",
+   "mode": "100644",
+   "blob": "115450d7342f53bcfa86ec217518c4c9a7f99062",
+   "previousBlob": null,
+   "added": 88,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/test/Auth.test.ts",
+   "mode": "100644",
+   "blob": "1202d1a2ba9e3a29d8184234ffef859630ff09b5",
+   "previousBlob": null,
+   "added": 29,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/src/CanonicalJson.ts",
+   "mode": "100644",
+   "blob": "03863185286a32fb9ea5e5fa4cfa35d35c85e47b",
+   "previousBlob": null,
+   "added": 88,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/test/CanonicalJson.test.ts",
+   "mode": "100644",
+   "blob": "4988ccb0d401147e74df7be4b54d62f092a8129d",
+   "previousBlob": null,
+   "added": 113,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/src/Endpoint.ts",
+   "mode": "100644",
+   "blob": "d282200c0f1a7446b9ab78f71ef6c99c6c747ed0",
+   "previousBlob": null,
+   "added": 115,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/test/Endpoint.test.ts",
+   "mode": "100644",
+   "blob": "9facf994f873306830920b7e4c2f40eea5a7790a",
+   "previousBlob": null,
+   "added": 88,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/src/Framing.ts",
+   "mode": "100644",
+   "blob": "f6e9e7c842f1d7aace5d62e5552cdda789b83b41",
+   "previousBlob": null,
+   "added": 72,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/test/Framing.test.ts",
+   "mode": "100644",
+   "blob": "f8d3ba217a40a1ea138bbdf5de65b6f8f1e3c85c",
+   "previousBlob": null,
+   "added": 67,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

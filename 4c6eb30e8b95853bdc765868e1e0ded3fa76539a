@@ -1,0 +1,85 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "4c6eb30e8b95853bdc765868e1e0ded3fa76539a",
+ "tree": "080b11d673ef3d06b5e9f0c1502610961b844e2e",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 63,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 700,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the mainview module (3/3)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "1b4c0c503bd86ec5e890a8be549758e0c60877bb",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "8c026ad28fd80bb1462799d80bf5ba76edf692dc",
+   "1b4c0c503bd86ec5e890a8be549758e0c60877bb",
+   "49f05ad33ae4477ca468fc044d7ccfd9cbfbacab",
+   "3b0c70f67ee7274e2c106e4cb4411598aed405ec",
+   "44b739c183d7508f003cbe31250f0a072c216002",
+   "51308f4793d76771c4129ad12325ce6ff071fbda"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "1b4c0c503bd86ec5e890a8be549758e0c60877bb",
+  "next": "254b39daba4dfe58bc1a064b2bcd75457df5b5fd",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 1457,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/App.tsx",
+   "mode": "100644",
+   "blob": "69847caf9c65dab47831b03d39e455dbcd687420",
+   "previousBlob": null,
+   "added": 1457,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

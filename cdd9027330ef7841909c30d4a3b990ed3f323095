@@ -1,0 +1,100 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "cdd9027330ef7841909c30d4a3b990ed3f323095",
+ "tree": "a91427c68ba45de5dfaf82e5d0d5060cc27687dd",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 97,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 734,
+  "globalCount": 838,
+  "purpose": "✅ test(ui): cover state/seams (2/3)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "mainview/state/seams",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "a5a593a819e21ded1cd519fc38196810d9832816",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "a5a593a819e21ded1cd519fc38196810d9832816",
+  "next": "d103f433a5c1285552d094615cb39b53a3961bb9",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 1378,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/seams/IssuesSeam.test.ts",
+   "mode": "100644",
+   "blob": "d24d3e06fe372f1ba058439839a7eb0ec326fa88",
+   "previousBlob": null,
+   "added": 510,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/seams/KeysSeam.test.ts",
+   "mode": "100644",
+   "blob": "1ea5b7d95356a562637af2e5b3f3f891e0965957",
+   "previousBlob": null,
+   "added": 296,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/seams/LandingsSeam.test.ts",
+   "mode": "100644",
+   "blob": "b6f32d1a89059b44f0a1ec90f0034daa7452fd3e",
+   "previousBlob": null,
+   "added": 572,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

@@ -1,0 +1,139 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "71c436e8855b6a95e5e93e06d0bb32620dd15355",
+ "tree": "c7978b2750f46fdf5f180975a507de694270cdc0",
+ "epic": {
+  "index": 9,
+  "id": "agent",
+  "name": "Harness, chain, tools and CLI",
+  "sourceCommit": "a8caaa3dc45df0c14d6b10d0db9faf8a7ea7e542",
+  "sourceSubject": "✨ feat(agent): compose the harness, chain, tools, and CLI",
+  "childIndex": 72,
+  "childCount": 84,
+  "head": "49544e3fda710efb14f1dc6cf2b0051adc9dd584"
+ },
+ "atomic": {
+  "globalIndex": 456,
+  "globalCount": 838,
+  "purpose": "✅ test(chain): cover chain",
+  "type": "test",
+  "kind": "tests",
+  "scope": "chain",
+  "component": "packages/chain",
+  "unitKey": "test",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "514e341b1ac380fadf6583cb8b273bdd242cc742",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "field": "dependencies",
+    "commit": "7e2eac5ca71c4fc20bbe97b888dad21267da1e30",
+    "providerComponent": "packages/capability",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/memory",
+    "field": "dependencies",
+    "commit": "03a4cd0e3aab0a3e990be4ff12e9dbf36da0be9c",
+    "providerComponent": "packages/memory",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/model",
+    "field": "dependencies",
+    "commit": "489c9c77a1625c553ac1f7b8bde0c279d32249ba",
+    "providerComponent": "packages/model",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/registry",
+    "field": "dependencies",
+    "commit": "b89d7a671b44791c0d143f9c5a8f1d1ee4ca03c1",
+    "providerComponent": "packages/registry",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/testing",
+    "field": "devDependencies",
+    "commit": "240b8562e19e4d4b2129a8231ea81fb425901030",
+    "providerComponent": "packages/testing",
+    "classification": "provider-in-later-epic",
+    "justification": "@smthrs/testing is introduced by epic 10 (platform: Conformance, scoring, evaluation and telemetry), which the fixed 18-epic ordering places after epic 9 (agent). Reordering the epics is out of scope for this bootstrap. The relationship is development-only and does not affect this commit."
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "514e341b1ac380fadf6583cb8b273bdd242cc742",
+  "next": "e87dd2135b456d76bbcc3c0dc7730a70662b9b33",
+  "epicFirst": "980ca61422f63e6bb068247c1991df44231cde33",
+  "epicLast": "49544e3fda710efb14f1dc6cf2b0051adc9dd584",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 459,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/chain/test/RunnerConformance.test.ts",
+   "mode": "100644",
+   "blob": "e04651279507cafacb5ffa3cab9ae8433fb4a4e1",
+   "previousBlob": null,
+   "added": 319,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/test/harness.ts",
+   "mode": "100644",
+   "blob": "628bdf83213ab8e64202d5007f5f216c6a9369ff",
+   "previousBlob": null,
+   "added": 113,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/test/index.test.ts",
+   "mode": "100644",
+   "blob": "9ddc904ba6be22ee05b13c0304c8a9802040b1b5",
+   "previousBlob": null,
+   "added": 27,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

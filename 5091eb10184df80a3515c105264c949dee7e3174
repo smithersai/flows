@@ -1,0 +1,75 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "5091eb10184df80a3515c105264c949dee7e3174",
+ "tree": "036231e2b335fd5a21402a1a12113d55a13f6ead",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 24,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 527,
+  "globalCount": 838,
+  "purpose": "✨ feat(targets): add GithubYaml",
+  "type": "feat",
+  "kind": "module",
+  "scope": "targets",
+  "component": "packages/targets/src",
+  "unitKey": "GithubYaml",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "768e6b328a1d9708b3d55b8cdb0279732ae72440",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "768e6b328a1d9708b3d55b8cdb0279732ae72440",
+  "next": "d87963c5b2828266bbf31abbc60190cedd5e7047",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 201,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/targets/src/GithubYaml.ts",
+   "mode": "100644",
+   "blob": "97f81f5a9c20e0c64ab3a3a5835b4810aeb7b88b",
+   "previousBlob": null,
+   "added": 201,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

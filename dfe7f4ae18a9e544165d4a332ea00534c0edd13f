@@ -1,0 +1,111 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "dfe7f4ae18a9e544165d4a332ea00534c0edd13f",
+ "tree": "caee71b4d640cf6f00a0855daa4f5fe995b17f46",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 134,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 771,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the native modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/e2e",
+  "unitKey": "dir:native",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "c6daad3649e769f21f843bb6203d4564af1d670c",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "c6daad3649e769f21f843bb6203d4564af1d670c",
+  "next": "767956221a8bd966d33df1ed26427b0e7bcf4a57",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 705,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/native/Probe.ts",
+   "mode": "100644",
+   "blob": "3e0be13b9e231a0f7a372f6df789efc390a23907",
+   "previousBlob": null,
+   "added": 60,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/native/MainProcess.ts",
+   "mode": "100644",
+   "blob": "fd4cdb19bbe9cfe8b28618afae56b815cbf592cd",
+   "previousBlob": null,
+   "added": 183,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/native/native-artifact.ts",
+   "mode": "100644",
+   "blob": "f45f9aeca4d91009c8bcdc6ec2d3f3ced1a4115b",
+   "previousBlob": null,
+   "added": 175,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/native/native-launch.ts",
+   "mode": "100644",
+   "blob": "dc57ac4192235296e7cf5efe5f792a0d27739950",
+   "previousBlob": null,
+   "added": 287,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

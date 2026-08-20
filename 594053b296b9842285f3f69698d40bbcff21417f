@@ -1,0 +1,95 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+ "tree": "a90ce43a663f4235cc34808edc1e921d71bc0bfd",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 10,
+  "childCount": 41,
+  "head": "a87440798849594806112b3b5a4481f1969f8f35"
+ },
+ "atomic": {
+  "globalIndex": 287,
+  "globalCount": 838,
+  "purpose": "✨ feat(core): export the public core surface",
+  "type": "feat",
+  "kind": "index",
+  "scope": "core",
+  "component": "packages/core",
+  "unitKey": "~index",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "5b39a6e882b8efeb434bcbba5564fc7bc6a53ced",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [
+   "4010c809858c8f7285fbda877db1a1c20712851a",
+   "a75e510995292557ff19e01e2ec5ca97c3a7d390",
+   "90f4c841020a14ef506c57dadcc8db1f680961c5",
+   "953a9d0f22a9afe74bdff4bc7e7f693a8c8ca5ce",
+   "0a11801e73136cdfcbd15973303cb032999bdf57",
+   "5b39a6e882b8efeb434bcbba5564fc7bc6a53ced",
+   "271f59eca582d77855822a63b5537e7c32c139d9",
+   "6fe1415bddc8f9b1ca204df08e944977a0ff9636"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "field": "dependencies",
+    "commit": "f939384117c3c38a7fa71b1eddc029020998b589",
+    "providerComponent": "packages/canonical",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/crypto",
+    "field": "dependencies",
+    "commit": "530694619a107836d7830ede26f152376d364388",
+    "providerComponent": "packages/crypto",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "5b39a6e882b8efeb434bcbba5564fc7bc6a53ced",
+  "next": "0910c9f9ad000de42f415926036c0c2998d60aba",
+  "epicFirst": "199c8afe8cabc4dc289106848adee1275afbff4c",
+  "epicLast": "a87440798849594806112b3b5a4481f1969f8f35",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 68,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/core/src/index.ts",
+   "mode": "100644",
+   "blob": "f10ef71f333a70e84c7ba584a168f989f9af4649",
+   "previousBlob": null,
+   "added": 68,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

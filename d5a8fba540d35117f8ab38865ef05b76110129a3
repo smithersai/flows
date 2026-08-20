@@ -1,0 +1,103 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "d5a8fba540d35117f8ab38865ef05b76110129a3",
+ "tree": "85cfdebe1dd4b04eaf17b0d1bb41a40c4a74d5fe",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 36,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 216,
+  "globalCount": 838,
+  "purpose": "✅ test(engine-store): cover engine-store (10/23)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "engine-store",
+  "component": "packages/engine-store/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "c39a05c81a154869734023f96bc460f01f893ff8",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "c39a05c81a154869734023f96bc460f01f893ff8",
+  "next": "5da3bb80d1a4a25b5de4a5f442736df74bbd2962",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 1436,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/LateLinkedChildCancellation.test.ts",
+   "mode": "100644",
+   "blob": "021d292665d2a35b40a88a8a967829ea319ef0e5",
+   "previousBlob": null,
+   "added": 522,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/LifecycleDurability.test.ts",
+   "mode": "100644",
+   "blob": "531332ef58ed9bbc24b166d6ee73d2574c406535",
+   "previousBlob": null,
+   "added": 245,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/MaterializedOutputBounds.test.ts",
+   "mode": "100644",
+   "blob": "de2265a6c9c2a05c05c990cc774cb843de2f20c0",
+   "previousBlob": null,
+   "added": 415,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/Migrations.test.ts",
+   "mode": "100644",
+   "blob": "290eca90448867549be26440f1a6e69820b685b6",
+   "previousBlob": null,
+   "added": 254,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

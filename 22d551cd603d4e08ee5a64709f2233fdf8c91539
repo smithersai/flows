@@ -1,0 +1,96 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "22d551cd603d4e08ee5a64709f2233fdf8c91539",
+ "tree": "54a9db0b58027de2f680f45d7ba03725b0047342",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 143,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 780,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the suites modules (6/11)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/e2e",
+  "unitKey": "dir:suites",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "00c347e8132c4b1f81df578afbf219bfd47ebfc7",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "767956221a8bd966d33df1ed26427b0e7bcf4a57",
+   "e822dc188bbe3d101505bc4e0d8671fc01102cc9",
+   "f01dafa893105f00d06046ae8d94c86cb040cc24",
+   "3fd5893c645232027f083f0eb25f2a44b42f7653",
+   "a6e62e957d45844c923f75337676e02826657a76",
+   "6ee5df66db65e929997a2795336b742366b9a8d1"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "00c347e8132c4b1f81df578afbf219bfd47ebfc7",
+  "next": "608c335a436d6570ad38d52bc35b4ce51b38a9f8",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 1322,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/suites/connectors.e2e.ts",
+   "mode": "100644",
+   "blob": "5aaba346821037f3d678cceed53d0dd9bfd1f159",
+   "previousBlob": null,
+   "added": 1119,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/suites/first-run.e2e.ts",
+   "mode": "100644",
+   "blob": "b8c0e84f1536ffe9f2bd3a9c8c8810a2f22d2d99",
+   "previousBlob": null,
+   "added": 203,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

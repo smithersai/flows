@@ -1,0 +1,139 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "2797c3f6f29c4e398acb67b26568106af07dc252",
+ "tree": "6272ded8b6528b70bc590bf3bc6e9de167ed47ef",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 31,
+  "childCount": 41,
+  "head": "a87440798849594806112b3b5a4481f1969f8f35"
+ },
+ "atomic": {
+  "globalIndex": 308,
+  "globalCount": 838,
+  "purpose": "✨ feat(patterns): add the PatternError, Compose, Debate and 1 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "patterns",
+  "component": "packages/patterns",
+  "unitKey": "PatternError",
+  "mergedUnitKeys": [
+   "PatternError",
+   "internal/Compose",
+   "Debate",
+   "Escalation"
+  ]
+ },
+ "dependencies": {
+  "parent": "bfa100cb66d86d804febe0a48edae7c3b432567e",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "bfa100cb66d86d804febe0a48edae7c3b432567e",
+  "next": "6e6942b179d0278a6993365d72fcdbd84de38bf8",
+  "epicFirst": "199c8afe8cabc4dc289106848adee1275afbff4c",
+  "epicLast": "a87440798849594806112b3b5a4481f1969f8f35",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 6,
+  "added": 684,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/patterns/src/PatternError.ts",
+   "mode": "100644",
+   "blob": "44c4735dd5b132c115e048373cb84fbaed064ce1",
+   "previousBlob": null,
+   "added": 42,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/patterns/src/internal/Compose.ts",
+   "mode": "100644",
+   "blob": "936afbe608fc9f63e833105858dd642d32f9b2b3",
+   "previousBlob": null,
+   "added": 218,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/patterns/src/Debate.ts",
+   "mode": "100644",
+   "blob": "3422c879f1acb29cbc05928d3e7c726e143cdc49",
+   "previousBlob": null,
+   "added": 157,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/patterns/test/Debate.test.ts",
+   "mode": "100644",
+   "blob": "792573cb6e1969dc0ece775388daa42dea24a89a",
+   "previousBlob": null,
+   "added": 82,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/patterns/src/Escalation.ts",
+   "mode": "100644",
+   "blob": "8776cf84fbc971a33bb569033ce2cc9efc423f85",
+   "previousBlob": null,
+   "added": 123,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/patterns/test/Escalation.test.ts",
+   "mode": "100644",
+   "blob": "b7f397ea919a73b40f7cfd393966ce323571821f",
+   "previousBlob": null,
+   "added": 62,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

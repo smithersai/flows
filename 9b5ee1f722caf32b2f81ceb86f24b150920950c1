@@ -1,0 +1,91 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "9b5ee1f722caf32b2f81ceb86f24b150920950c1",
+ "tree": "7db7e6605c0bfaa96661bd04422b150684a94155",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 52,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 232,
+  "globalCount": 838,
+  "purpose": "✨ feat(sync): add BranchShare",
+  "type": "feat",
+  "kind": "module",
+  "scope": "sync",
+  "component": "packages/sync",
+  "unitKey": "BranchShare",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "409d977dc6850904988b0a037cbfd926daa547f0",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "409d977dc6850904988b0a037cbfd926daa547f0"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "409d977dc6850904988b0a037cbfd926daa547f0",
+  "next": "2466cc971787b3ecc68cc046ccba9fc9b2acf82b",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 494,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/sync/src/BranchShare.ts",
+   "mode": "100644",
+   "blob": "b61bc4fb8edcf7e014dbb3be4407662e94377ebd",
+   "previousBlob": null,
+   "added": 191,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/test/BranchShare.test.ts",
+   "mode": "100644",
+   "blob": "c5059d6b375d392b8ec8eb59d523fb12a6d84067",
+   "previousBlob": null,
+   "added": 303,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

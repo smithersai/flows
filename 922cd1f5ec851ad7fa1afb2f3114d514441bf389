@@ -1,0 +1,338 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "922cd1f5ec851ad7fa1afb2f3114d514441bf389",
+ "tree": "c9ff99ab477bd66e6aea70610ad4e73a3b044e95",
+ "epic": {
+  "index": 12,
+  "id": "examples",
+  "name": "Executable learning and evaluation suites",
+  "sourceCommit": "1c0d5bce16fdac649b8f108f4e37eaea58f4933c",
+  "sourceSubject": "📚 docs(examples): add executable learning and evaluation suites",
+  "childIndex": 17,
+  "childCount": 18,
+  "head": "a482cacaa2f003ffede858d77595d07ad2842e79"
+ },
+ "atomic": {
+  "globalIndex": 615,
+  "globalCount": 838,
+  "purpose": "✨ feat(examples): add the 06-time-travel-rewind, 07-sync-follower, 08-host-adapters and 2 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "examples",
+  "component": "examples",
+  "unitKey": "06-time-travel-rewind",
+  "mergedUnitKeys": [
+   "06-time-travel-rewind",
+   "07-sync-follower",
+   "08-host-adapters",
+   "09-browser-use",
+   "10-telemetry-export"
+  ]
+ },
+ "dependencies": {
+  "parent": "403859bb2037da99ca0726fbc28b02e445ec2057",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build"
+  ],
+  "sourceImports": [
+   "403859bb2037da99ca0726fbc28b02e445ec2057"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/agent",
+    "field": "dependencies",
+    "commit": "28271c4de9efd46910ebafecee7afa7519da5a08",
+    "providerComponent": "packages/agent",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/artifacts",
+    "field": "dependencies",
+    "commit": "83c80109f93620c67893e7c5d16326f9e242a2af",
+    "providerComponent": "packages/artifacts",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/engine",
+    "field": "dependencies",
+    "commit": "b238e49d59c7ce059f57fe58b1d2028872d1438b",
+    "providerComponent": "packages/engine",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/engine-store",
+    "field": "dependencies",
+    "commit": "c0f6e543a2aa5e3bb7dbbfce925e8c332ecfded8",
+    "providerComponent": "packages/engine-store",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/flow",
+    "field": "dependencies",
+    "commit": "ee413497efbca15acf23fa2b3cbc410affc1a802",
+    "providerComponent": "packages/flow",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/flows",
+    "field": "dependencies",
+    "commit": "ad78646af47452e8c34f4dbc0ac9f07e3341b86e",
+    "providerComponent": "packages/flows",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/harness",
+    "field": "dependencies",
+    "commit": "94bf88b1084ff840c1113e9dc695a1bfbbbe7e66",
+    "providerComponent": "packages/harness",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/jj",
+    "field": "dependencies",
+    "commit": "d933549c894f26a1f558e5e488a6b29e8c0fc242",
+    "providerComponent": "packages/jj",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "field": "dependencies",
+    "commit": "32707f96f522f0b7dce09d50ee6af6e72b7a0ef4",
+    "providerComponent": "packages/kernel",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/keys",
+    "field": "dependencies",
+    "commit": "060d78f56853c2982e3d4fc1fab1d483ac3dc741",
+    "providerComponent": "packages/keys",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/model",
+    "field": "dependencies",
+    "commit": "489c9c77a1625c553ac1f7b8bde0c279d32249ba",
+    "providerComponent": "packages/model",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/observability",
+    "field": "dependencies",
+    "commit": "80083d9cde26249939660272dd083cbc2e5ee0a6",
+    "providerComponent": "packages/observability",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/plan",
+    "field": "dependencies",
+    "commit": "b21dab66549eb99974cd7296f77391e4c3d00490",
+    "providerComponent": "packages/plan",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/platform-browser",
+    "field": "dependencies",
+    "commit": "3359dd0ae5a536bfdb25b36aeaebe25fdca1aa4f",
+    "providerComponent": "packages/platform-browser",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/platform-node",
+    "field": "dependencies",
+    "commit": "f40800d85a4bb883932720b57d4ac2a5d19c1bf8",
+    "providerComponent": "packages/platform-node",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/registry",
+    "field": "dependencies",
+    "commit": "b89d7a671b44791c0d143f9c5a8f1d1ee4ca03c1",
+    "providerComponent": "packages/registry",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/run-store",
+    "field": "dependencies",
+    "commit": "3af92874386ad961a4ac65bd603de8b0b38196de",
+    "providerComponent": "packages/run-store",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/step-cache",
+    "field": "dependencies",
+    "commit": "2d882398130e1321388dc084409590afb53af660",
+    "providerComponent": "packages/step-cache",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/sync",
+    "field": "dependencies",
+    "commit": "a255fd706b30308816fc6f41d798874bcd9bf847",
+    "providerComponent": "packages/sync",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/time-travel",
+    "field": "dependencies",
+    "commit": "57f5f8490e9077c3fff5d0233d9b0d721ac33236",
+    "providerComponent": "packages/time-travel",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "403859bb2037da99ca0726fbc28b02e445ec2057",
+  "next": "a482cacaa2f003ffede858d77595d07ad2842e79",
+  "epicFirst": "d079d005cf653747c171d935a4612624051584da",
+  "epicLast": "a482cacaa2f003ffede858d77595d07ad2842e79",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 10,
+  "added": 617,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "examples/src/06-time-travel-rewind.ts",
+   "mode": "100644",
+   "blob": "2937b44109633395e5c4b7b4517510879d83c74f",
+   "previousBlob": null,
+   "added": 139,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "examples/test/06-time-travel-rewind.test.ts",
+   "mode": "100644",
+   "blob": "027b8e54adcd8cbc0da9e93a8b8a9541b0d750f5",
+   "previousBlob": null,
+   "added": 20,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "examples/src/07-sync-follower.ts",
+   "mode": "100644",
+   "blob": "47a5b44c1e33c1b28d23983a63c144d17938d75f",
+   "previousBlob": null,
+   "added": 61,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "examples/test/07-sync-follower.test.ts",
+   "mode": "100644",
+   "blob": "3c88efff89fd37f3421a2e19e2e78e26be0f7716",
+   "previousBlob": null,
+   "added": 9,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "examples/src/08-host-adapters.ts",
+   "mode": "100644",
+   "blob": "512841734623cf7c10ac0eb923558b851dec1389",
+   "previousBlob": null,
+   "added": 66,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "examples/test/08-host-adapters.test.ts",
+   "mode": "100644",
+   "blob": "5ef003922471893546f4aa00faa08316c45ea46a",
+   "previousBlob": null,
+   "added": 10,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "examples/src/09-browser-use.ts",
+   "mode": "100644",
+   "blob": "4e4ecf132acfcf9451d8160caaea141bc328c6e7",
+   "previousBlob": null,
+   "added": 63,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "examples/test/09-browser-use.test.ts",
+   "mode": "100644",
+   "blob": "c88f60cc7d536a9cbe0fdc2dfa59e59b9696be16",
+   "previousBlob": null,
+   "added": 30,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "examples/src/10-telemetry-export.ts",
+   "mode": "100644",
+   "blob": "334be84d34b6d9553458c8cf7ff912d54c36ec7b",
+   "previousBlob": null,
+   "added": 182,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "examples/test/10-telemetry-export.test.ts",
+   "mode": "100644",
+   "blob": "c28efc16aa80ecad4ed05899e2335bd458da0094",
+   "previousBlob": null,
+   "added": 37,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

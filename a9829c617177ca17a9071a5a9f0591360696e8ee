@@ -1,0 +1,102 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a9829c617177ca17a9071a5a9f0591360696e8ee",
+ "tree": "c5500abfa88d99592b5c06659f214f45504e1026",
+ "epic": {
+  "index": 13,
+  "id": "server",
+  "name": "Shared application contracts and worker backend",
+  "sourceCommit": "5e1bcec6b1db3f2e990cb2b79bec0050dfc34ba3",
+  "sourceSubject": "✨ feat(server): add shared application contracts and worker backend",
+  "childIndex": 2,
+  "childCount": 21,
+  "head": "c272b329cd28dcfe6a7ffd108f0055164724d1db"
+ },
+ "atomic": {
+  "globalIndex": 618,
+  "globalCount": 838,
+  "purpose": "✨ feat(shared): add the AgentApiRoutes, AgentContext modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "shared",
+  "component": "apps/shared",
+  "unitKey": "AgentApiRoutes",
+  "mergedUnitKeys": [
+   "AgentApiRoutes",
+   "AgentContext"
+  ]
+ },
+ "dependencies": {
+  "parent": "36966c150e44215f6d84e68304ed6f67f4dd06ff",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "36966c150e44215f6d84e68304ed6f67f4dd06ff",
+  "next": "83c97047ae11ead243469f1c08daed689f4797dd",
+  "epicFirst": "36966c150e44215f6d84e68304ed6f67f4dd06ff",
+  "epicLast": "c272b329cd28dcfe6a7ffd108f0055164724d1db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 462,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/shared/src/AgentApiRoutes.ts",
+   "mode": "100644",
+   "blob": "8d155c398e2c742500457a0d0dc3f238bc4d45d4",
+   "previousBlob": null,
+   "added": 85,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/shared/src/AgentContext.ts",
+   "mode": "100644",
+   "blob": "680cdd3bdabed6ff5f4b6cd26a364fca0ec439d3",
+   "previousBlob": null,
+   "added": 211,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/shared/src/AgentContext.test.ts",
+   "mode": "100644",
+   "blob": "932ccc686b8e2aa643a77064a1b872104537be57",
+   "previousBlob": null,
+   "added": 166,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

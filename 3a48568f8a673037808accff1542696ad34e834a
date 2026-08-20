@@ -1,0 +1,114 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "3a48568f8a673037808accff1542696ad34e834a",
+ "tree": "bfb7801e5ad9f5f609d5c9d10743c6ef608c3248",
+ "epic": {
+  "index": 18,
+  "id": "workflows",
+  "name": "Repository automation workflows",
+  "sourceCommit": "9ea4941fc404fb4f12e3384b96a37e0739be3916",
+  "sourceSubject": "✨ feat(workflows): add repository automation workflows",
+  "childIndex": 6,
+  "childCount": 9,
+  "head": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "atomic": {
+  "globalIndex": 835,
+  "globalCount": 838,
+  "purpose": "✨ feat(smithers): add the workflows modules (1/2)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "smithers",
+  "component": ".smithers",
+  "unitKey": "dir:workflows",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "91278dfa2b4ab9b48447808a8a61dbe9c5f78023",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui",
+   "docs-site",
+   "factory"
+  ],
+  "sourceImports": [
+   "4f05b89ff25dbea6b1671f350ebd4784fee9c4ac"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "field": "dependencies",
+    "commit": "f7a79de58ec909a8b6633954e1f1ff9117d4d46a",
+    "providerComponent": "packages/cli",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "91278dfa2b4ab9b48447808a8a61dbe9c5f78023",
+  "next": "8291d836978dbc05431ef3b16df561266394ac58",
+  "epicFirst": "09bf6daccc080841dd705eab4099f657d2736e07",
+  "epicLast": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 1345,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": ".smithers/workflows/alpha-agent-eval-judge.tsx",
+   "mode": "100644",
+   "blob": "91778b29a7fa275861162561c2bc31f040a8a324",
+   "previousBlob": null,
+   "added": 261,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": ".smithers/workflows/alpha-agent.tsx",
+   "mode": "100644",
+   "blob": "df5a062129b18401a9c3108fd145a2f65678ff87",
+   "previousBlob": null,
+   "added": 953,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": ".smithers/workflows/alpha-ui-evals.tsx",
+   "mode": "100644",
+   "blob": "c91658afff110d128143180b2c332a89b945e93d",
+   "previousBlob": null,
+   "added": 131,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

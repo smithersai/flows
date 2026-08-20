@@ -1,0 +1,100 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+ "tree": "2b284c53354d53edaa2e5734422a196d144c258c",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 95,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 598,
+  "globalCount": 838,
+  "purpose": "✨ feat(scripts): add the set-release-version, smoke-release modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "scripts",
+  "component": "scripts",
+  "unitKey": "set-release-version",
+  "mergedUnitKeys": [
+   "set-release-version",
+   "smoke-release"
+  ]
+ },
+ "dependencies": {
+  "parent": "dc874ea516f5da7c540a3f3372f9037b85296b29",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "dc874ea516f5da7c540a3f3372f9037b85296b29",
+  "next": "d079d005cf653747c171d935a4612624051584da",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 432,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "scripts/set-release-version.mjs",
+   "mode": "100644",
+   "blob": "78df043ed6515a727319629e950c9a0a7e8f3b8f",
+   "previousBlob": null,
+   "added": 138,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "scripts/set-release-version.test.mjs",
+   "mode": "100644",
+   "blob": "af616f3690f29b5661aa6b2bc09373eddea249be",
+   "previousBlob": null,
+   "added": 81,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "scripts/smoke-release.mjs",
+   "mode": "100644",
+   "blob": "8868092b9f73a5da41c183ceb73f486bb177e56e",
+   "previousBlob": null,
+   "added": 213,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,112 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "271f59eca582d77855822a63b5537e7c32c139d9",
+ "tree": "89d17abd0ce05608d7a46ded2b2a47da8355553a",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 5,
+  "childCount": 41,
+  "head": "a87440798849594806112b3b5a4481f1969f8f35"
+ },
+ "atomic": {
+  "globalIndex": 282,
+  "globalCount": 838,
+  "purpose": "✨ feat(core): add Node",
+  "type": "feat",
+  "kind": "module",
+  "scope": "core",
+  "component": "packages/core",
+  "unitKey": "Node",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "4010c809858c8f7285fbda877db1a1c20712851a",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [
+   "4010c809858c8f7285fbda877db1a1c20712851a",
+   "a75e510995292557ff19e01e2ec5ca97c3a7d390",
+   "6fe1415bddc8f9b1ca204df08e944977a0ff9636"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "field": "dependencies",
+    "commit": "f939384117c3c38a7fa71b1eddc029020998b589",
+    "providerComponent": "packages/canonical",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/crypto",
+    "field": "dependencies",
+    "commit": "530694619a107836d7830ede26f152376d364388",
+    "providerComponent": "packages/crypto",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "4010c809858c8f7285fbda877db1a1c20712851a",
+  "next": "90f4c841020a14ef506c57dadcc8db1f680961c5",
+  "epicFirst": "199c8afe8cabc4dc289106848adee1275afbff4c",
+  "epicLast": "a87440798849594806112b3b5a4481f1969f8f35",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 697,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/core/src/Node.ts",
+   "mode": "100644",
+   "blob": "f57f5c87d686f1b1dfd3668e45a3202e0f66812d",
+   "previousBlob": null,
+   "added": 341,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/core/test/Node.test.ts",
+   "mode": "100644",
+   "blob": "8fdde4fb0cd76c480ea03493b52111da8c42096a",
+   "previousBlob": null,
+   "added": 293,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/core/test/Node.types.test.ts",
+   "mode": "100644",
+   "blob": "f2bcd09ed0331b90aca720334a3e0cc26cb47308",
+   "previousBlob": null,
+   "added": 63,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

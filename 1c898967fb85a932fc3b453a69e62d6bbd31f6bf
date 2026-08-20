@@ -1,0 +1,106 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "1c898967fb85a932fc3b453a69e62d6bbd31f6bf",
+ "tree": "a15e09716a6af9a9b7f41939048050e1211b2ec0",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 44,
+  "childCount": 60,
+  "head": "a94e46ebcc18e48adf39b7735ecbe06567ca4574"
+ },
+ "atomic": {
+  "globalIndex": 164,
+  "globalCount": 838,
+  "purpose": "✅ test(platform-node): cover AtomicFileSystem (2/2)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "platform-node",
+  "component": "packages/platform-node",
+  "unitKey": "AtomicFileSystem",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "6593996ac1b0445b51b10695025cf9943a617942",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/jj",
+    "field": "dependencies",
+    "commit": "d933549c894f26a1f558e5e488a6b29e8c0fc242",
+    "providerComponent": "packages/jj",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "field": "dependencies",
+    "commit": "32707f96f522f0b7dce09d50ee6af6e72b7a0ef4",
+    "providerComponent": "packages/kernel",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "6593996ac1b0445b51b10695025cf9943a617942",
+  "next": "cd54503b32c72f0fd3d6ec19cb8a72adb64d6cd8",
+  "epicFirst": "a6c9698a594ba11333c7d2cefbd9720612c6e6bb",
+  "epicLast": "a94e46ebcc18e48adf39b7735ecbe06567ca4574",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 1204,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/platform-node/test/AtomicFileSystemHelper.test.ts",
+   "mode": "100644",
+   "blob": "7358d8a0194bd367a9948793884c4c3cb2b67269",
+   "previousBlob": null,
+   "added": 992,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/platform-node/test/AtomicFileSystemRefusals.test.ts",
+   "mode": "100644",
+   "blob": "708b896eddc7c8e7ffcaa4d02f91c66356e7f9a5",
+   "previousBlob": null,
+   "added": 175,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/platform-node/test/AtomicFileSystemSpawnFailure.test.ts",
+   "mode": "100644",
+   "blob": "0cfc09af2c085aa851905694d69bf8b4fe6bd599",
+   "previousBlob": null,
+   "added": 37,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

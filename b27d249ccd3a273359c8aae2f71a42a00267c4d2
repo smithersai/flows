@@ -1,0 +1,132 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "b27d249ccd3a273359c8aae2f71a42a00267c4d2",
+ "tree": "512c873c83df34f626dc6273791fb665033902b9",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 44,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 547,
+  "globalCount": 838,
+  "purpose": "✅ test(build-cli): cover Workspace",
+  "type": "test",
+  "kind": "tests",
+  "scope": "build-cli",
+  "component": "packages/build-cli",
+  "unitKey": "Workspace",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "68fcdf37e3b705bbfa191c6761a94cb9e6a5802b",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "field": "dependencies",
+    "commit": "f939384117c3c38a7fa71b1eddc029020998b589",
+    "providerComponent": "packages/canonical",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/crypto",
+    "field": "dependencies",
+    "commit": "530694619a107836d7830ede26f152376d364388",
+    "providerComponent": "packages/crypto",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/engine",
+    "field": "dependencies",
+    "commit": "b238e49d59c7ce059f57fe58b1d2028872d1438b",
+    "providerComponent": "packages/engine",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/flow",
+    "field": "dependencies",
+    "commit": "ee413497efbca15acf23fa2b3cbc410affc1a802",
+    "providerComponent": "packages/flow",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/keys",
+    "field": "dependencies",
+    "commit": "060d78f56853c2982e3d4fc1fab1d483ac3dc741",
+    "providerComponent": "packages/keys",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/plan",
+    "field": "dependencies",
+    "commit": "b21dab66549eb99974cd7296f77391e4c3d00490",
+    "providerComponent": "packages/plan",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/build",
+    "field": "dependencies",
+    "commit": "a6100f11c0fee3bc3a804f69befaeaa10ae6afa4",
+    "providerComponent": "packages/build",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/targets",
+    "field": "dependencies",
+    "commit": "04cacb5d5da6eed65dccb54623b16b2e67e1ef04",
+    "providerComponent": "packages/targets",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "68fcdf37e3b705bbfa191c6761a94cb9e6a5802b",
+  "next": "d69b5e1053afc3407edc26a2f4222a2618a99250",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 850,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build-cli/test/Workspace.test.ts",
+   "mode": "100644",
+   "blob": "48be890750ebb6095876295ace1b90864927cac7",
+   "previousBlob": null,
+   "added": 850,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

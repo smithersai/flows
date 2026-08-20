@@ -1,0 +1,114 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "c39a05c81a154869734023f96bc460f01f893ff8",
+ "tree": "0b62a7cf16a5215478be9187b7d281186bee7ac5",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 35,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 215,
+  "globalCount": 838,
+  "purpose": "✅ test(engine-store): cover engine-store (9/23)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "engine-store",
+  "component": "packages/engine-store/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "009a737ddfae645900f91794f987f80ee50d39ff",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "009a737ddfae645900f91794f987f80ee50d39ff",
+  "next": "d5a8fba540d35117f8ab38865ef05b76110129a3",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 5,
+  "added": 1011,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/Inconsistency.test.ts",
+   "mode": "100644",
+   "blob": "4e19f7917e5d67d661f5e41b864781228f7e0e8e",
+   "previousBlob": null,
+   "added": 178,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/InterruptReleaseReclaim.test.ts",
+   "mode": "100644",
+   "blob": "7ba1dc0c4a2c7722a2ea8979a85760aec405be84",
+   "previousBlob": null,
+   "added": 190,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/JournalFencing.test.ts",
+   "mode": "100644",
+   "blob": "1a6c8e3bc9c77aaf247aa47acb5f1959b8ea5b02",
+   "previousBlob": null,
+   "added": 347,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/JournalIntegration.test.ts",
+   "mode": "100644",
+   "blob": "70da8434cfeb72c3d765f5327abca28cb8a73997",
+   "previousBlob": null,
+   "added": 133,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/JournalTransaction.test.ts",
+   "mode": "100644",
+   "blob": "a2c1aae76c6e11262f5b9ce175c18b2f6c06a176",
+   "previousBlob": null,
+   "added": 163,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

@@ -1,0 +1,91 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "240cc8c1cca99be1a4d823c1aa005afa55713643",
+ "tree": "dbdccdf9f96cc0c39ec3649840c0dd75a18fb1b5",
+ "epic": {
+  "index": 15,
+  "id": "tui",
+  "name": "Terminal application",
+  "sourceCommit": "ca5777391956c8a52c077feff63d7e5f4c84896a",
+  "sourceSubject": "✨ feat(tui): add the terminal application",
+  "childIndex": 4,
+  "childCount": 7,
+  "head": "17cc8c4684c778e5b9219714ab42f7dbe7d43bb3"
+ },
+ "atomic": {
+  "globalIndex": 792,
+  "globalCount": 838,
+  "purpose": "✨ feat(tui): export the public tui surface",
+  "type": "feat",
+  "kind": "index",
+  "scope": "tui",
+  "component": "apps/tui",
+  "unitKey": "~index",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "ce646a7b4b9af73dd1ff7e748ff52d77b94f6245",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui"
+  ],
+  "sourceImports": [
+   "a87dbf12b37301f9d487e52e08654f6707fb5b1c",
+   "ce646a7b4b9af73dd1ff7e748ff52d77b94f6245"
+  ],
+  "packageDependencies": [
+   {
+    "package": "smithers-shared",
+    "field": "dependencies",
+    "commit": null,
+    "providerComponent": "apps/shared",
+    "classification": "no-source-entrypoint",
+    "justification": "smithers-shared publishes no source index file in the bootstrap tree, so there is no commit that introduces its public surface to order against."
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "ce646a7b4b9af73dd1ff7e748ff52d77b94f6245",
+  "next": "ddc94dd40275227942ce432274cb643356eb3db9",
+  "epicFirst": "f969888f0a7b9085d84a0490eb13a37557e89db9",
+  "epicLast": "17cc8c4684c778e5b9219714ab42f7dbe7d43bb3",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 29,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/tui/src/index.tsx",
+   "mode": "100644",
+   "blob": "3b07cc54bf86eb6f9fa80854e3b714caf155de5f",
+   "previousBlob": null,
+   "added": 29,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

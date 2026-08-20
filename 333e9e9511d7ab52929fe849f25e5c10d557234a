@@ -1,0 +1,190 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "333e9e9511d7ab52929fe849f25e5c10d557234a",
+ "tree": "845398876ed69f6a0ebe2e43fa2c684d4d62c1a7",
+ "epic": {
+  "index": 9,
+  "id": "agent",
+  "name": "Harness, chain, tools and CLI",
+  "sourceCommit": "a8caaa3dc45df0c14d6b10d0db9faf8a7ea7e542",
+  "sourceSubject": "✨ feat(agent): compose the harness, chain, tools, and CLI",
+  "childIndex": 80,
+  "childCount": 84,
+  "head": "49544e3fda710efb14f1dc6cf2b0051adc9dd584"
+ },
+ "atomic": {
+  "globalIndex": 464,
+  "globalCount": 838,
+  "purpose": "✨ feat(cli): add bin",
+  "type": "feat",
+  "kind": "module",
+  "scope": "cli",
+  "component": "packages/cli",
+  "unitKey": "bin",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d2e3a531341c00d1819d0c7118a20f5e752f5628",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control"
+  ],
+  "sourceImports": [
+   "918016d734938ee85ce0f2a709807d78cedd937f",
+   "0e89640ea2f070b6c20786d09d69a86571c5ad79",
+   "d2e3a531341c00d1819d0c7118a20f5e752f5628"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/agent",
+    "field": "dependencies",
+    "commit": "28271c4de9efd46910ebafecee7afa7519da5a08",
+    "providerComponent": "packages/agent",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/control",
+    "field": "dependencies",
+    "commit": "75b989a26f3a351fd7b524cbc964ce9e87660ee3",
+    "providerComponent": "packages/control",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/engine-store",
+    "field": "dependencies",
+    "commit": "c0f6e543a2aa5e3bb7dbbfce925e8c332ecfded8",
+    "providerComponent": "packages/engine-store",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/flows",
+    "field": "dependencies",
+    "commit": "ad78646af47452e8c34f4dbc0ac9f07e3341b86e",
+    "providerComponent": "packages/flows",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/harness",
+    "field": "dependencies",
+    "commit": "94bf88b1084ff840c1113e9dc695a1bfbbbe7e66",
+    "providerComponent": "packages/harness",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/jj",
+    "field": "dependencies",
+    "commit": "d933549c894f26a1f558e5e488a6b29e8c0fc242",
+    "providerComponent": "packages/jj",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "field": "dependencies",
+    "commit": "32707f96f522f0b7dce09d50ee6af6e72b7a0ef4",
+    "providerComponent": "packages/kernel",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/memory",
+    "field": "dependencies",
+    "commit": "03a4cd0e3aab0a3e990be4ff12e9dbf36da0be9c",
+    "providerComponent": "packages/memory",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/model",
+    "field": "dependencies",
+    "commit": "489c9c77a1625c553ac1f7b8bde0c279d32249ba",
+    "providerComponent": "packages/model",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/notifications",
+    "field": "dependencies",
+    "commit": "8a93e3fe5104afa2a8c2890a88d9656e9c12c1ea",
+    "providerComponent": "packages/notifications",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/platform-node",
+    "field": "dependencies",
+    "commit": "f40800d85a4bb883932720b57d4ac2a5d19c1bf8",
+    "providerComponent": "packages/platform-node",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/registry",
+    "field": "dependencies",
+    "commit": "b89d7a671b44791c0d143f9c5a8f1d1ee4ca03c1",
+    "providerComponent": "packages/registry",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/run-store",
+    "field": "dependencies",
+    "commit": "3af92874386ad961a4ac65bd603de8b0b38196de",
+    "providerComponent": "packages/run-store",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/std",
+    "field": "dependencies",
+    "commit": "8fb20b55b196391802e3f791251f34db1e19dd3b",
+    "providerComponent": "packages/std",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "d2e3a531341c00d1819d0c7118a20f5e752f5628",
+  "next": "f7a79de58ec909a8b6633954e1f1ff9117d4d46a",
+  "epicFirst": "980ca61422f63e6bb068247c1991df44231cde33",
+  "epicLast": "49544e3fda710efb14f1dc6cf2b0051adc9dd584",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 65,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/cli/src/bin.ts",
+   "mode": "100644",
+   "blob": "2c22a445e59a8b780175c9c200f14268d572db43",
+   "previousBlob": null,
+   "added": 65,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

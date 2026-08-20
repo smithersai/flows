@@ -1,0 +1,105 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "08eb4bf6c9949e0ca99d5fc71c23cc94acca588e",
+ "tree": "a3cabe3d88bc6596e1f2e0011173220cdc033e0c",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 10,
+  "childCount": 60,
+  "head": "a94e46ebcc18e48adf39b7735ecbe06567ca4574"
+ },
+ "atomic": {
+  "globalIndex": 130,
+  "globalCount": 838,
+  "purpose": "✨ feat(jj): add the node, bun, wasm modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "jj",
+  "component": "packages/jj",
+  "unitKey": "dir:node",
+  "mergedUnitKeys": [
+   "dir:node",
+   "dir:bun",
+   "dir:wasm"
+  ]
+ },
+ "dependencies": {
+  "parent": "abd05d061b8a52fe1769b9f6c708044f1e5dafe7",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [
+   "f2fee9079d7c5eab5a5f4336d534a70f12281a46"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "field": "dependencies",
+    "commit": "7e2eac5ca71c4fc20bbe97b888dad21267da1e30",
+    "providerComponent": "packages/capability",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "abd05d061b8a52fe1769b9f6c708044f1e5dafe7",
+  "next": "d933549c894f26a1f558e5e488a6b29e8c0fc242",
+  "epicFirst": "a6c9698a594ba11333c7d2cefbd9720612c6e6bb",
+  "epicLast": "a94e46ebcc18e48adf39b7735ecbe06567ca4574",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 146,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/jj/src/node/NodeJj.ts",
+   "mode": "100644",
+   "blob": "48d363a2a4cc3c97833f48f0806c10ca098fce68",
+   "previousBlob": null,
+   "added": 125,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/jj/src/bun/BunJj.ts",
+   "mode": "100644",
+   "blob": "eb6fd0a1be59b4374956dae6e39f970095a5ca14",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/jj/wasm/flows_jj.wasm",
+   "mode": "100755",
+   "blob": "bc3c9f5df5a05fcec2b5ea1319313eb942cd05a0",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  }
+ ]
+}

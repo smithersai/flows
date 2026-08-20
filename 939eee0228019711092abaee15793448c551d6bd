@@ -1,0 +1,70 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "939eee0228019711092abaee15793448c551d6bd",
+ "tree": "cfb224b92b4aa488970b3e9f04b174cac4d6c4e4",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 25,
+  "childCount": 50,
+  "head": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7"
+ },
+ "atomic": {
+  "globalIndex": 95,
+  "globalCount": 838,
+  "purpose": "✨ feat(flow): add DurableQueue",
+  "type": "feat",
+  "kind": "module",
+  "scope": "flow",
+  "component": "packages/flow/src",
+  "unitKey": "DurableQueue",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "1c757bccd26029a3a99d6359d33f5ba2b5d627c3",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [
+   "1c757bccd26029a3a99d6359d33f5ba2b5d627c3"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "1c757bccd26029a3a99d6359d33f5ba2b5d627c3",
+  "next": "d0a9059a174eaeb3296fb48024ea8cc8068b58b2",
+  "epicFirst": "60233bebe0e00cbc35cfb5176a9644f2799fde18",
+  "epicLast": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 390,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/flow/src/DurableQueue.ts",
+   "mode": "100644",
+   "blob": "5a1a27118ac38e77fa50d14d14d0b138fa5b4da6",
+   "previousBlob": null,
+   "added": 390,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,89 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "68cd9ba868ef12ac754be44036a4ca4585fcf213",
+ "tree": "a2bd23dd9d89c1ca3197ef5a6c9e57b15387701a",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 21,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 658,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the ui module (1/6)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/.smithers",
+  "unitKey": "dir:ui",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "6021bdf40f9d897d792a500edbebec5c507fe381",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "6021bdf40f9d897d792a500edbebec5c507fe381"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "field": "dependencies",
+    "commit": "f7a79de58ec909a8b6633954e1f1ff9117d4d46a",
+    "providerComponent": "packages/cli",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "6021bdf40f9d897d792a500edbebec5c507fe381",
+  "next": "3579adb9235c0b2f4bd94d0933f6483b22b0b2a6",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 2466,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/ui/ddd-shared.tsx",
+   "mode": "100644",
+   "blob": "26215ed4953b7078104e2584a5e0f986a4fabd06",
+   "previousBlob": null,
+   "added": 2466,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ],
+ "sizeJustification": "Single indivisible file (apps/ui/.smithers/ui/ddd-shared.tsx); splitting it further would create partial-file states that never existed."
+}

@@ -1,0 +1,88 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "17cc8c4684c778e5b9219714ab42f7dbe7d43bb3",
+ "tree": "2008300e3d2af726de3453b0da80d7928f1d267e",
+ "epic": {
+  "index": 15,
+  "id": "tui",
+  "name": "Terminal application",
+  "sourceCommit": "ca5777391956c8a52c077feff63d7e5f4c84896a",
+  "sourceSubject": "✨ feat(tui): add the terminal application",
+  "childIndex": 7,
+  "childCount": 7,
+  "head": "17cc8c4684c778e5b9219714ab42f7dbe7d43bb3"
+ },
+ "atomic": {
+  "globalIndex": 795,
+  "globalCount": 838,
+  "purpose": "📝 docs(tui): document tui",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "tui",
+  "component": "apps/tui",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "5f1285e470109c346773c1a3eab72e59629152a7",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "smithers-shared",
+    "field": "dependencies",
+    "commit": null,
+    "providerComponent": "apps/shared",
+    "classification": "no-source-entrypoint",
+    "justification": "smithers-shared publishes no source index file in the bootstrap tree, so there is no commit that introduces its public surface to order against."
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "5f1285e470109c346773c1a3eab72e59629152a7",
+  "next": "2d0756e2ed214c54d61c6b4dee34cfbab1982959",
+  "epicFirst": "f969888f0a7b9085d84a0490eb13a37557e89db9",
+  "epicLast": "17cc8c4684c778e5b9219714ab42f7dbe7d43bb3",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 60,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/tui/README.md",
+   "mode": "100644",
+   "blob": "7a44da02462061466b26498515f66b1f6372e577",
+   "previousBlob": null,
+   "added": 60,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

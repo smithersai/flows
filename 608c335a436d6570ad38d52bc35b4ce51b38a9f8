@@ -1,0 +1,118 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "608c335a436d6570ad38d52bc35b4ce51b38a9f8",
+ "tree": "5c670643eabb1892691f5912194b2a1056317f9c",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 144,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 781,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the suites modules (7/11)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/e2e",
+  "unitKey": "dir:suites",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "22d551cd603d4e08ee5a64709f2233fdf8c91539",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "f01dafa893105f00d06046ae8d94c86cb040cc24",
+   "767956221a8bd966d33df1ed26427b0e7bcf4a57",
+   "6ee5df66db65e929997a2795336b742366b9a8d1",
+   "e822dc188bbe3d101505bc4e0d8671fc01102cc9",
+   "44b739c183d7508f003cbe31250f0a072c216002",
+   "18af46e10e124876f17b6756c5b86313739e61a5"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "22d551cd603d4e08ee5a64709f2233fdf8c91539",
+  "next": "9f19a94d1d902c7abdb76ad355275a133ed7d49e",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 1277,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/suites/firstrun-copy.e2e.ts",
+   "mode": "100644",
+   "blob": "5351ed504ec2132d42e31094fdbadb7e6fbdebd6",
+   "previousBlob": null,
+   "added": 358,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/suites/github-pane.e2e.ts",
+   "mode": "100644",
+   "blob": "2b6c68efe9de296ea90accf96cba6e0ec4bd38a5",
+   "previousBlob": null,
+   "added": 312,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/suites/harness-selftest.e2e.ts",
+   "mode": "100644",
+   "blob": "bfaa249e788b60163a7b332fa4c239e3a936148f",
+   "previousBlob": null,
+   "added": 120,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/suites/honesty.e2e.ts",
+   "mode": "100644",
+   "blob": "78a982711426554851cadf6bf11c6fcf3c286e11",
+   "previousBlob": null,
+   "added": 487,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

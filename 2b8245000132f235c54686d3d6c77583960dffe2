@@ -1,0 +1,100 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "2b8245000132f235c54686d3d6c77583960dffe2",
+ "tree": "05274706f3d8fb234c3aeb5173e2f26513c57449",
+ "epic": {
+  "index": 10,
+  "id": "platform",
+  "name": "Conformance, scoring, evaluation and telemetry",
+  "sourceCommit": "317910c088e178d40f3b1553a182a7ee2be5dd24",
+  "sourceSubject": "✅ test(platform): add conformance, scoring, evaluation, and telemetry",
+  "childIndex": 5,
+  "childCount": 35,
+  "head": "3728fb6a6309a4a4c7a1eeeb6393bdecdf368130"
+ },
+ "atomic": {
+  "globalIndex": 473,
+  "globalCount": 838,
+  "purpose": "📝 docs(scorers): document scorers",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "scorers",
+  "component": "packages/scorers",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "b36910613bf3b72d1b3697e40f47deb24b895b59",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "b36910613bf3b72d1b3697e40f47deb24b895b59",
+  "next": "5b87c052bb1b42e79570de8e4eb37d42656f6473",
+  "epicFirst": "aafee4cdb47bb63bb06c167a8f3ee9e44c1e1e80",
+  "epicLast": "3728fb6a6309a4a4c7a1eeeb6393bdecdf368130",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 53,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/scorers/CHANGELOG.md",
+   "mode": "100644",
+   "blob": "916eb4f9e4d544915031a44e8f146a507aa4b30a",
+   "previousBlob": null,
+   "added": 9,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/scorers/README.md",
+   "mode": "100644",
+   "blob": "f902fea0401ab81d586b52f911122970d4a76567",
+   "previousBlob": null,
+   "added": 44,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

@@ -1,0 +1,152 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "31ea81500c6258e1a17b03fe0bdd9253aef179b2",
+ "tree": "37f44c6f642ca9043b2e3487f2b6e1c7b507a3dd",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 53,
+  "childCount": 54,
+  "head": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb"
+ },
+ "atomic": {
+  "globalIndex": 69,
+  "globalCount": 838,
+  "purpose": "✅ test(step-cache): cover step-cache",
+  "type": "test",
+  "kind": "tests",
+  "scope": "step-cache",
+  "component": "packages/step-cache",
+  "unitKey": "src/test",
+  "mergedUnitKeys": [
+   "src/test",
+   "test",
+   "test/fixtures"
+  ]
+ },
+ "dependencies": {
+  "parent": "2d882398130e1321388dc084409590afb53af660",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "field": "dependencies",
+    "commit": "f939384117c3c38a7fa71b1eddc029020998b589",
+    "providerComponent": "packages/canonical",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "2d882398130e1321388dc084409590afb53af660",
+  "next": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb",
+  "epicFirst": "2d09eee3adb5b99a7ac2a9511ca5520ac08f7a95",
+  "epicLast": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 7,
+  "added": 164,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/step-cache/src/test/TestCacheStore.ts",
+   "mode": "100644",
+   "blob": "35ec9f1a0166c7be9179c8240e41f04297c407a4",
+   "previousBlob": null,
+   "added": 22,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/step-cache/test/Artifacts.test.ts",
+   "mode": "100644",
+   "blob": "47a72c29c51235b5ae27d8e9712d075ecc3f032b",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/step-cache/test/Contracts.test.ts",
+   "mode": "100644",
+   "blob": "921b341d12c058b5da50f8ff0fdcb8f764f1fa10",
+   "previousBlob": null,
+   "added": 32,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/step-cache/test/Redaction.test.ts",
+   "mode": "100644",
+   "blob": "8e9c9f41ab910b6ad29274f92e89a849805072af",
+   "previousBlob": null,
+   "added": 51,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/step-cache/test/TestCacheStore.test.ts",
+   "mode": "100644",
+   "blob": "67536c0c1037c3650ee86b1c3dcc88869635fb2a",
+   "previousBlob": null,
+   "added": 26,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/step-cache/test/fixtures/artifact-cjs.cjs",
+   "mode": "100644",
+   "blob": "bfceb31eedb019165c4150ddaaf980a60c9fb66a",
+   "previousBlob": null,
+   "added": 6,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/step-cache/test/fixtures/artifact-esm.mjs",
+   "mode": "100644",
+   "blob": "bcf1c581d535158040d35f7902cf4e3488ff4873",
+   "previousBlob": null,
+   "added": 6,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

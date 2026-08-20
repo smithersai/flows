@@ -1,0 +1,117 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "bc53e5930bf2efa2bd7fdfeb6ed1af4141242e14",
+ "tree": "4f25e5dea9e16da1ac077b06a7fcaa5d94ef694a",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 53,
+  "childCount": 66,
+  "head": "5a833bbe7affdc7dda1a3b24f9e5a5239864093b"
+ },
+ "atomic": {
+  "globalIndex": 371,
+  "globalCount": 838,
+  "purpose": "✨ feat(memory): add RecallSemantic",
+  "type": "feat",
+  "kind": "module",
+  "scope": "memory",
+  "component": "packages/memory",
+  "unitKey": "RecallSemantic",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "b19543f916da8897703c020eacd5528e7c042815",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [
+   "541da6975ab292af507eb20a00e4004a7b30bb2c",
+   "24390442b3e1e082ff625da09376ba6cb74d44f0",
+   "c5fae6365097badca5abc597247a2fe0ec4d2048",
+   "41f23004d99f2646cfbdff1fc75041ad5e6e2ef2"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/model",
+    "field": "dependencies",
+    "commit": "489c9c77a1625c553ac1f7b8bde0c279d32249ba",
+    "providerComponent": "packages/model",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/patterns",
+    "field": "dependencies",
+    "commit": "c0735b098e72bf6e6e70c2a176845008d0fd02cf",
+    "providerComponent": "packages/patterns",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "b19543f916da8897703c020eacd5528e7c042815",
+  "next": "cc4dbd561b94460f7599194d759521b103c2786f",
+  "epicFirst": "1a9eeded3e87702322afacdd6021037ce6179f5e",
+  "epicLast": "5a833bbe7affdc7dda1a3b24f9e5a5239864093b",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 1016,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/memory/src/RecallSemantic.ts",
+   "mode": "100644",
+   "blob": "8c29cce3ce126cff01aeea9c2aca9b9ba9922272",
+   "previousBlob": null,
+   "added": 505,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/memory/test/RecallSemantic.test.ts",
+   "mode": "100644",
+   "blob": "b907db8057cd3c2cfa1d6d3222f3282a7b176b6b",
+   "previousBlob": null,
+   "added": 511,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

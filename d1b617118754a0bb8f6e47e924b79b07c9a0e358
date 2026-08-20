@@ -1,0 +1,114 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "d1b617118754a0bb8f6e47e924b79b07c9a0e358",
+ "tree": "02ddfa4fbf5d5802430a82fe566ba26112a103eb",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 32,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 212,
+  "globalCount": 838,
+  "purpose": "✅ test(engine-store): cover engine-store (6/23)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "engine-store",
+  "component": "packages/engine-store/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d4a866b5b7cd90b0a95f2e01426cd77958a7b863",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "d4a866b5b7cd90b0a95f2e01426cd77958a7b863",
+  "next": "6448b4f1838849b35694fdd805f49e0ccdb2343a",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 5,
+  "added": 1287,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/DeferredRestartMatrix.test.ts",
+   "mode": "100644",
+   "blob": "2543fd9ba84f7abe3ae5780cf761f99e0f5071dd",
+   "previousBlob": null,
+   "added": 458,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/DisasterRecovery.test.ts",
+   "mode": "100644",
+   "blob": "745e73ccb37257e7c9d0979b5805cbf4e2f9bfd4",
+   "previousBlob": null,
+   "added": 398,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/DurableCancel.test.ts",
+   "mode": "100644",
+   "blob": "75e3108d00b988a28ae9e8a74a34ace1d00b7ef2",
+   "previousBlob": null,
+   "added": 121,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/DurableEngineStateContract.test.ts",
+   "mode": "100644",
+   "blob": "d4d9d754d9f773a26c173cc693912d8fd9c59e4e",
+   "previousBlob": null,
+   "added": 108,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/DurableEngineStateSql.test.ts",
+   "mode": "100644",
+   "blob": "0dfe00cfee7aef7ec1c6c44a61f83028e3d035e3",
+   "previousBlob": null,
+   "added": 202,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

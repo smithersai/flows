@@ -1,0 +1,168 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "d33e452aacb744538008cc1962306b8d0175849e",
+ "tree": "90ddf722cade3995adfb390dfbb54d99f58ace1d",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 47,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 684,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the mainview/cards modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview/cards",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "51308f4793d76771c4129ad12325ce6ff071fbda",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "51308f4793d76771c4129ad12325ce6ff071fbda"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "51308f4793d76771c4129ad12325ce6ff071fbda",
+  "next": "d53f1c7c29921bae3320288137261b66d7e6b555",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 9,
+  "added": 730,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/cards/BranchesCard.tsx",
+   "mode": "100644",
+   "blob": "d4b8a0d74a8a6ce9ccc6f5bda626241ded2f59fc",
+   "previousBlob": null,
+   "added": 39,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/cards/EnvCard.tsx",
+   "mode": "100644",
+   "blob": "fb25454cfcf7855fa9e2307b0df3270414d449d8",
+   "previousBlob": null,
+   "added": 57,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/cards/FileCards.tsx",
+   "mode": "100644",
+   "blob": "e0c3c8cc2420a3678bf4a9871c1fc595695d578a",
+   "previousBlob": null,
+   "added": 85,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/cards/IssueCards.tsx",
+   "mode": "100644",
+   "blob": "5b5e8dce221b2a73f6e9c9b20ce49c724ea90ebf",
+   "previousBlob": null,
+   "added": 121,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/cards/KeysCard.tsx",
+   "mode": "100644",
+   "blob": "c95a076b4470b673b57c7cc39ab66f3723bf27c0",
+   "previousBlob": null,
+   "added": 43,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/cards/LandingCards.tsx",
+   "mode": "100644",
+   "blob": "fe1e6baae4bb74696db05bbc8f0d938797efc60e",
+   "previousBlob": null,
+   "added": 139,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/cards/NotificationsCard.tsx",
+   "mode": "100644",
+   "blob": "5686bc5ceb6f6d3a591f61ab44907d1fc665d795",
+   "previousBlob": null,
+   "added": 58,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/cards/RepoImportCard.tsx",
+   "mode": "100644",
+   "blob": "d100ddc0d4b92b8acd8e68def55ede3402100e27",
+   "previousBlob": null,
+   "added": 36,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/cards/ThemePickerCard.tsx",
+   "mode": "100644",
+   "blob": "36c84af13759c4deac99dd7485d40e2176f538e2",
+   "previousBlob": null,
+   "added": 152,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

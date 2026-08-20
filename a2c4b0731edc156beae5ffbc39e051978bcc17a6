@@ -1,0 +1,93 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a2c4b0731edc156beae5ffbc39e051978bcc17a6",
+ "tree": "beec021bdc40c8f7e146527554d0b35d4ef6bfc3",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 34,
+  "childCount": 41,
+  "head": "a87440798849594806112b3b5a4481f1969f8f35"
+ },
+ "atomic": {
+  "globalIndex": 311,
+  "globalCount": 838,
+  "purpose": "✨ feat(patterns): add WithRetry",
+  "type": "feat",
+  "kind": "module",
+  "scope": "patterns",
+  "component": "packages/patterns",
+  "unitKey": "WithRetry",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "39fc518387030c6c8d605e3c90ecb328f0eb8e9b",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [
+   "2797c3f6f29c4e398acb67b26568106af07dc252",
+   "6e6942b179d0278a6993365d72fcdbd84de38bf8"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "39fc518387030c6c8d605e3c90ecb328f0eb8e9b",
+  "next": "c0735b098e72bf6e6e70c2a176845008d0fd02cf",
+  "epicFirst": "199c8afe8cabc4dc289106848adee1275afbff4c",
+  "epicLast": "a87440798849594806112b3b5a4481f1969f8f35",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 180,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/patterns/src/WithRetry.ts",
+   "mode": "100644",
+   "blob": "5c5c2c7a467780d689b7a5c65cc1b5e53678adac",
+   "previousBlob": null,
+   "added": 98,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/patterns/test/WithRetry.test.ts",
+   "mode": "100644",
+   "blob": "81af390fc360f92d71a54fb0f6ccb2b0295b04f0",
+   "previousBlob": null,
+   "added": 82,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

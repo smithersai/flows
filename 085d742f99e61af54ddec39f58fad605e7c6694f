@@ -1,0 +1,75 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "085d742f99e61af54ddec39f58fad605e7c6694f",
+ "tree": "a04f027015105800fb615f669e7bf65804d1120b",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 22,
+  "childCount": 54,
+  "head": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb"
+ },
+ "atomic": {
+  "globalIndex": 38,
+  "globalCount": 838,
+  "purpose": "✅ test(journal): cover Journal (1/4)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "journal",
+  "component": "packages/journal",
+  "unitKey": "Journal",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "946fffb7dde55e7f5fa758d10ceca5a9d0d09494",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "946fffb7dde55e7f5fa758d10ceca5a9d0d09494",
+  "next": "24ae1e47ae8c194d1bd4037efa62efe5144f5c21",
+  "epicFirst": "2d09eee3adb5b99a7ac2a9511ca5520ac08f7a95",
+  "epicLast": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 1597,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/journal/test/Journal.test.ts",
+   "mode": "100644",
+   "blob": "821301a11ccbd5c445c43f6113b0f2bd05650d92",
+   "previousBlob": null,
+   "added": 1597,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

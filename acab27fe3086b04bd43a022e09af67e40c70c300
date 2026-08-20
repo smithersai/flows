@@ -1,0 +1,132 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "acab27fe3086b04bd43a022e09af67e40c70c300",
+ "tree": "d30a1689ff4e7e705d4ed976b900352a2e3df5f0",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 60,
+  "childCount": 66,
+  "head": "5a833bbe7affdc7dda1a3b24f9e5a5239864093b"
+ },
+ "atomic": {
+  "globalIndex": 378,
+  "globalCount": 838,
+  "purpose": "✨ feat(triggers): add the Overlap, TriggerStore modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "triggers",
+  "component": "packages/triggers",
+  "unitKey": "Overlap",
+  "mergedUnitKeys": [
+   "Overlap",
+   "TriggerStore"
+  ]
+ },
+ "dependencies": {
+  "parent": "8da661b62a22c7a923ee9c9e15b09e3e47ff9ee9",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [
+   "8da661b62a22c7a923ee9c9e15b09e3e47ff9ee9"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/control",
+    "field": "dependencies",
+    "commit": "75b989a26f3a351fd7b524cbc964ce9e87660ee3",
+    "providerComponent": "packages/control",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "8da661b62a22c7a923ee9c9e15b09e3e47ff9ee9",
+  "next": "04e895bb723a2af662e2ae8aec99ec9d634715cb",
+  "epicFirst": "1a9eeded3e87702322afacdd6021037ce6179f5e",
+  "epicLast": "5a833bbe7affdc7dda1a3b24f9e5a5239864093b",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 311,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/triggers/src/Overlap.ts",
+   "mode": "100644",
+   "blob": "131de0e202d7cb2dd5db9423dbfcd8ef580dcada",
+   "previousBlob": null,
+   "added": 52,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/triggers/test/Overlap.test.ts",
+   "mode": "100644",
+   "blob": "b87629ecf8b6cdab8b343d200323af702f118154",
+   "previousBlob": null,
+   "added": 16,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/triggers/src/TriggerStore.ts",
+   "mode": "100644",
+   "blob": "fa76a425526d5d2c76422ba22de14f8ffb9c81c9",
+   "previousBlob": null,
+   "added": 143,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/triggers/test/TriggerStore.test.ts",
+   "mode": "100644",
+   "blob": "3cf5953603152788727e4bebbb3225b17ec24617",
+   "previousBlob": null,
+   "added": 100,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

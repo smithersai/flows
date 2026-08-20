@@ -1,0 +1,115 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "f030fd5c83668324a56c76c9b9d122ef7c124e91",
+ "tree": "fda7398857b448deedf8323d40b5598e39e903bd",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 69,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 706,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the state/controller modules (1/5)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview/state/controller",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "ba78e87a00f3f7d2cca884ee0a026b6274a717a9",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "a6e62e957d45844c923f75337676e02826657a76",
+   "3b0c70f67ee7274e2c106e4cb4411598aed405ec",
+   "44b739c183d7508f003cbe31250f0a072c216002",
+   "bbc11668994cc8f212fa1e75ab120b1725a5ade3",
+   "51308f4793d76771c4129ad12325ce6ff071fbda"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [
+  {
+   "paths": [
+    "apps/ui/src/mainview/state/controller/context.ts",
+    "apps/ui/src/mainview/state/controller/failures.ts",
+    "apps/ui/src/mainview/state/controller/workflows.ts"
+   ],
+   "reason": "These files import each other, directly or transitively. Any split would place an import ahead of the module it resolves to."
+  }
+ ],
+ "related": {
+  "previous": "ba78e87a00f3f7d2cca884ee0a026b6274a717a9",
+  "next": "e84548ee1ef641a6fe93d9c6cfe074271d976c21",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 888,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/controller/context.ts",
+   "mode": "100644",
+   "blob": "b91ab00ed3e371fb9fa49d3763c05e7dee10ef83",
+   "previousBlob": null,
+   "added": 231,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/controller/failures.ts",
+   "mode": "100644",
+   "blob": "59dce430dbd68e543abb32d13ec6d1583b057a44",
+   "previousBlob": null,
+   "added": 115,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/controller/workflows.ts",
+   "mode": "100644",
+   "blob": "0ec638d5ec084b88d506f267bdb29481684edea9",
+   "previousBlob": null,
+   "added": 542,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

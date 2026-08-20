@@ -1,0 +1,87 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "5c7106eefa16fc703691a2bcd8075f13c2f886ba",
+ "tree": "0c38102309b0cae04d9f899c77cceb9cbce8f9ad",
+ "epic": {
+  "index": 13,
+  "id": "server",
+  "name": "Shared application contracts and worker backend",
+  "sourceCommit": "5e1bcec6b1db3f2e990cb2b79bec0050dfc34ba3",
+  "sourceSubject": "✨ feat(server): add shared application contracts and worker backend",
+  "childIndex": 19,
+  "childCount": 21,
+  "head": "c272b329cd28dcfe6a7ffd108f0055164724d1db"
+ },
+ "atomic": {
+  "globalIndex": 635,
+  "globalCount": 838,
+  "purpose": "✅ test(server): cover src (2/3)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "server",
+  "component": "apps/server",
+  "unitKey": "src",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "bfe86bc40064d863254efb4244b4602aa9c938ee",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "smithers-shared",
+    "field": "dependencies",
+    "commit": null,
+    "providerComponent": "apps/shared",
+    "classification": "no-source-entrypoint",
+    "justification": "smithers-shared publishes no source index file in the bootstrap tree, so there is no commit that introduces its public surface to order against."
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "bfe86bc40064d863254efb4244b4602aa9c938ee",
+  "next": "b73d944880be87dd5fb2070ed9cbad3ba7df4658",
+  "epicFirst": "36966c150e44215f6d84e68304ed6f67f4dd06ff",
+  "epicLast": "c272b329cd28dcfe6a7ffd108f0055164724d1db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 2303,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/server/src/index.test.ts",
+   "mode": "100644",
+   "blob": "5e0111c467287bc3a3b8af8184d17e1e7d2bd464",
+   "previousBlob": null,
+   "added": 2303,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ],
+ "sizeJustification": "Single indivisible file (apps/server/src/index.test.ts); splitting it further would create partial-file states that never existed."
+}

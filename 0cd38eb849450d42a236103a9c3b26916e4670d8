@@ -1,0 +1,86 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "0cd38eb849450d42a236103a9c3b26916e4670d8",
+ "tree": "654054be31ae32c291bc78eca7f500ef1aa04890",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 61,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 564,
+  "globalCount": 838,
+  "purpose": "📝 docs(build): document reference",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "build",
+  "component": "packages/build/docs",
+  "unitKey": "reference",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "bb72c960ed256db26449daa19608bf000fe4ecd9",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "bb72c960ed256db26449daa19608bf000fe4ecd9",
+  "next": "241fdd46e6d76fdc71b65cc5291cfa6b4470ae4d",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 593,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build/docs/reference/cli.md",
+   "mode": "100644",
+   "blob": "9ee8ef44d7ea5d920a0ce6bf4c8f85084a35aa3c",
+   "previousBlob": null,
+   "added": 434,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/reference/config.md",
+   "mode": "100644",
+   "blob": "92f79d31db1a4e2e2b74b452c4d11a08404d241b",
+   "previousBlob": null,
+   "added": 159,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

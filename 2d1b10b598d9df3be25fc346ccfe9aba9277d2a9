@@ -1,0 +1,80 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "2d1b10b598d9df3be25fc346ccfe9aba9277d2a9",
+ "tree": "6c535a656e1c1b296056875b332e436cdc7823fc",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 106,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 743,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add web-chat-shell-e2e",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/scripts",
+  "unitKey": "web-chat-shell-e2e",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "5048326ebc056cc8578208105af85126b87a2674",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "b12a19d33e7004a1bd5b098324d9f69edc55c847"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "5048326ebc056cc8578208105af85126b87a2674",
+  "next": "5c61b85ee6721aec39814cd14adbb70e187ed8e3",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 353,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/scripts/web-chat-shell-e2e.ts",
+   "mode": "100644",
+   "blob": "2e1064993ef73d478909168e3778e58a39f183e7",
+   "previousBlob": null,
+   "added": 353,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

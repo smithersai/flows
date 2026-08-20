@@ -1,0 +1,82 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "03021beef8b5e1e585c9f36b51edc2fd03225956",
+ "tree": "973b88b60031b441d47856a4acc2e3ce6ee25b5f",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 44,
+  "childCount": 50,
+  "head": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7"
+ },
+ "atomic": {
+  "globalIndex": 114,
+  "globalCount": 838,
+  "purpose": "✨ feat(flow): add the Crypto, MemoryFlowRuntime modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "flow",
+  "component": "packages/flow/test",
+  "unitKey": "Crypto",
+  "mergedUnitKeys": [
+   "Crypto",
+   "MemoryFlowRuntime"
+  ]
+ },
+ "dependencies": {
+  "parent": "dbadda3ddea58c25e4fe9bddbc9d76382e6662a8",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "dbadda3ddea58c25e4fe9bddbc9d76382e6662a8",
+  "next": "531ca6e7fde227d7343dab6874fb6a0b6bf6a389",
+  "epicFirst": "60233bebe0e00cbc35cfb5176a9644f2799fde18",
+  "epicLast": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 365,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/flow/test/Crypto.ts",
+   "mode": "100644",
+   "blob": "4ba447e36b89ae2ab0fa87a086f08eef2a985eae",
+   "previousBlob": null,
+   "added": 19,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/test/MemoryFlowRuntime.ts",
+   "mode": "100644",
+   "blob": "8a9ccf15ba4659f2b807b35ed70cb529e3e36891",
+   "previousBlob": null,
+   "added": 346,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

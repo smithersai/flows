@@ -1,0 +1,91 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "e99ebecf1223431dc1314747627f9ae766ce4393",
+ "tree": "0de7985f4cd801c34b3a104edfba4b8eb2f30f95",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 13,
+  "childCount": 54,
+  "head": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb"
+ },
+ "atomic": {
+  "globalIndex": 29,
+  "globalCount": 838,
+  "purpose": "✨ feat(database): add Migrations",
+  "type": "feat",
+  "kind": "module",
+  "scope": "database",
+  "component": "packages/database",
+  "unitKey": "Migrations",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "6c6f4e7922cdd5d3b8c96d59393797f6edb2416a",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [
+   "38d4d52ca52f0442023133d1c458a08080e2edf9"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "6c6f4e7922cdd5d3b8c96d59393797f6edb2416a",
+  "next": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+  "epicFirst": "2d09eee3adb5b99a7ac2a9511ca5520ac08f7a95",
+  "epicLast": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 811,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/database/src/Migrations.ts",
+   "mode": "100644",
+   "blob": "35cadaae20f2ec34c8784bbcc76bcdd381211b9f",
+   "previousBlob": null,
+   "added": 317,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/database/test/Migrations.test.ts",
+   "mode": "100644",
+   "blob": "78a398ed231429142f161a1fa96e4b3ab7fa3665",
+   "previousBlob": null,
+   "added": 360,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/database/test/MigrationsFileIntegration.test.ts",
+   "mode": "100644",
+   "blob": "4636b0248902fc101ecdc3c661617d40abe06028",
+   "previousBlob": null,
+   "added": 134,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

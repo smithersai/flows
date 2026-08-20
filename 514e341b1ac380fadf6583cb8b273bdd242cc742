@@ -1,0 +1,129 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "514e341b1ac380fadf6583cb8b273bdd242cc742",
+ "tree": "30ec3857a6159b4ce9c02db262035e1bb6a72c74",
+ "epic": {
+  "index": 9,
+  "id": "agent",
+  "name": "Harness, chain, tools and CLI",
+  "sourceCommit": "a8caaa3dc45df0c14d6b10d0db9faf8a7ea7e542",
+  "sourceSubject": "✨ feat(agent): compose the harness, chain, tools, and CLI",
+  "childIndex": 71,
+  "childCount": 84,
+  "head": "49544e3fda710efb14f1dc6cf2b0051adc9dd584"
+ },
+ "atomic": {
+  "globalIndex": 455,
+  "globalCount": 838,
+  "purpose": "✨ feat(chain): export the public chain surface",
+  "type": "feat",
+  "kind": "index",
+  "scope": "chain",
+  "component": "packages/chain",
+  "unitKey": "~index",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d227f0076b596ba621c3f3b89851b688e9c275d5",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control"
+  ],
+  "sourceImports": [
+   "c7f510f47171efcaac070ba95a37771ee5ef7813",
+   "c7685482c1ed8b5713e2792e889032cd5dff7f36",
+   "76c8fa079dbfbeb3e506057b2f96e8fdda0937a6",
+   "e77bad12dbe82b509996e442ed3002b8e6c4b117",
+   "9c002c58938e252e11cd16a2a41c0e78d88d308a",
+   "8450e9fb42ef38e9b79d3ccd242035e91bb1e3a6",
+   "3d9a7fae301b6ec49705f927cf5b5919131b5be2",
+   "74c8c27ee62e9993c30ccf25444cf70a0cab1acd",
+   "363242a56eee8026a09212b8452ef9aea1c850fc",
+   "f10d2d5b0753f7101454b31347d47501e521961e",
+   "d227f0076b596ba621c3f3b89851b688e9c275d5"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "field": "dependencies",
+    "commit": "7e2eac5ca71c4fc20bbe97b888dad21267da1e30",
+    "providerComponent": "packages/capability",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/memory",
+    "field": "dependencies",
+    "commit": "03a4cd0e3aab0a3e990be4ff12e9dbf36da0be9c",
+    "providerComponent": "packages/memory",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/model",
+    "field": "dependencies",
+    "commit": "489c9c77a1625c553ac1f7b8bde0c279d32249ba",
+    "providerComponent": "packages/model",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/registry",
+    "field": "dependencies",
+    "commit": "b89d7a671b44791c0d143f9c5a8f1d1ee4ca03c1",
+    "providerComponent": "packages/registry",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/testing",
+    "field": "devDependencies",
+    "commit": "240b8562e19e4d4b2129a8231ea81fb425901030",
+    "providerComponent": "packages/testing",
+    "classification": "provider-in-later-epic",
+    "justification": "@smthrs/testing is introduced by epic 10 (platform: Conformance, scoring, evaluation and telemetry), which the fixed 18-epic ordering places after epic 9 (agent). Reordering the epics is out of scope for this bootstrap. The relationship is development-only and does not affect this commit."
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "d227f0076b596ba621c3f3b89851b688e9c275d5",
+  "next": "71c436e8855b6a95e5e93e06d0bb32620dd15355",
+  "epicFirst": "980ca61422f63e6bb068247c1991df44231cde33",
+  "epicLast": "49544e3fda710efb14f1dc6cf2b0051adc9dd584",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 172,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/chain/src/index.ts",
+   "mode": "100644",
+   "blob": "0d642bc2bd7da3ca459832431f847370548e0e2f",
+   "previousBlob": null,
+   "added": 172,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

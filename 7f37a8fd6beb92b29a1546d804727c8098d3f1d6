@@ -1,0 +1,170 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "7f37a8fd6beb92b29a1546d804727c8098d3f1d6",
+ "tree": "e49fa9caf77187eef07887c616234a80c621d71b",
+ "epic": {
+  "index": 10,
+  "id": "platform",
+  "name": "Conformance, scoring, evaluation and telemetry",
+  "sourceCommit": "317910c088e178d40f3b1553a182a7ee2be5dd24",
+  "sourceSubject": "✅ test(platform): add conformance, scoring, evaluation, and telemetry",
+  "childIndex": 30,
+  "childCount": 35,
+  "head": "3728fb6a6309a4a4c7a1eeeb6393bdecdf368130"
+ },
+ "atomic": {
+  "globalIndex": 498,
+  "globalCount": 838,
+  "purpose": "🧹 chore(observability): scaffold the @smthrs/observability package",
+  "type": "chore",
+  "kind": "scaffold",
+  "scope": "observability",
+  "component": "packages/observability",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "27a24500bf4521f24a30cbb1516f80e9ecfe3eb5",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "27a24500bf4521f24a30cbb1516f80e9ecfe3eb5",
+  "next": "2961bc7246d58d9d9bac42ca892e21356fd0b267",
+  "epicFirst": "aafee4cdb47bb63bb06c167a8f3ee9e44c1e1e80",
+  "epicLast": "3728fb6a6309a4a4c7a1eeeb6393bdecdf368130",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 9,
+  "added": 272,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/observability/LICENSE",
+   "mode": "100644",
+   "blob": "ac18c1ab2e150943ffe2407773ff33e7104330ca",
+   "previousBlob": null,
+   "added": 9,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/observability/dprint.json",
+   "mode": "100644",
+   "blob": "7e46b2eb62f4cc9fe2d42d61f720b21422c136d5",
+   "previousBlob": null,
+   "added": 18,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/observability/eslint.config.js",
+   "mode": "100644",
+   "blob": "b0d45f0e7cc4eedf52e3676e941083d58e4142f4",
+   "previousBlob": null,
+   "added": 26,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/observability/package.json",
+   "mode": "100644",
+   "blob": "80bcfc85af0ee0992b8b55ae2d0edc8f14549dfe",
+   "previousBlob": null,
+   "added": 104,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/observability/scripts/build.mjs",
+   "mode": "100644",
+   "blob": "584cf2c401c4a3c22bfb63e5766f9b47effcaf42",
+   "previousBlob": null,
+   "added": 41,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/observability/scripts/circular.mjs",
+   "mode": "100644",
+   "blob": "717efac93e2b61883aa574887078b7093d57d19f",
+   "previousBlob": null,
+   "added": 13,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/observability/tsconfig.json",
+   "mode": "100644",
+   "blob": "a241dd79ec4fdfed60e0366c52e831db26af48ee",
+   "previousBlob": null,
+   "added": 32,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/observability/tsconfig.test.json",
+   "mode": "100644",
+   "blob": "046e1b3a40cf57701fdb4ca81f800b0d9ca177b1",
+   "previousBlob": null,
+   "added": 11,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/observability/vitest.config.ts",
+   "mode": "100644",
+   "blob": "4402eeb921ffa815154cde15e1bf95559fbe61f2",
+   "previousBlob": null,
+   "added": 18,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

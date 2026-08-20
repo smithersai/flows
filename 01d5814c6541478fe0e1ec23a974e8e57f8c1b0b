@@ -1,0 +1,86 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "01d5814c6541478fe0e1ec23a974e8e57f8c1b0b",
+ "tree": "9e589b6bcc66a5662e947178404c6e936ea8e6cc",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 9,
+  "childCount": 54,
+  "head": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb"
+ },
+ "atomic": {
+  "globalIndex": 25,
+  "globalCount": 838,
+  "purpose": "📝 docs(artifacts): document artifacts",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "artifacts",
+  "component": "packages/artifacts",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "8b55b482591976b0cc6669a3c810ac8945b58621",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/crypto",
+    "field": "dependencies",
+    "commit": "530694619a107836d7830ede26f152376d364388",
+    "providerComponent": "packages/crypto",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "8b55b482591976b0cc6669a3c810ac8945b58621",
+  "next": "8314a9292764cebcf7700fc091796cbcce648a66",
+  "epicFirst": "2d09eee3adb5b99a7ac2a9511ca5520ac08f7a95",
+  "epicLast": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 122,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/artifacts/CHANGELOG.md",
+   "mode": "100644",
+   "blob": "65a8a1e31c216a30353ab00e5c6fcd8d7b64854f",
+   "previousBlob": null,
+   "added": 16,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/artifacts/README.md",
+   "mode": "100644",
+   "blob": "414338f564018d43ac518e7ea6ddcc4a39f7f6c0",
+   "previousBlob": null,
+   "added": 106,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

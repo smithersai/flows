@@ -1,0 +1,138 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "692e739c5c0a1a3eb73ee1fb01484b4c9122cd04",
+ "tree": "d6c085b969e56dd6368ad44efcdfaf56e5853f0f",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 54,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 691,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the mainview/state, mainview modules (4/7)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview/state",
+  "mergedUnitKeys": [
+   "dir:mainview/state",
+   "dir:mainview"
+  ]
+ },
+ "dependencies": {
+  "parent": "23da16401810260196c2e806c37893a9c27e31af",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "f1d7e3f3b271cdf382bfdc34069d1ba559f1c3ea"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "23da16401810260196c2e806c37893a9c27e31af",
+  "next": "44b739c183d7508f003cbe31250f0a072c216002",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 6,
+  "added": 457,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/Appearance.ts",
+   "mode": "100644",
+   "blob": "ec28749b7a39c9b4e0c948049c7a764c3dbd1989",
+   "previousBlob": null,
+   "added": 39,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/ClientErrors.ts",
+   "mode": "100644",
+   "blob": "790567e7e9be8a1524ecc9b0a2cf3604cf339330",
+   "previousBlob": null,
+   "added": 201,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/StartupError.tsx",
+   "mode": "100644",
+   "blob": "0a1a9e8ead7c76ec0db7e8db48ce6b33a41626d9",
+   "previousBlob": null,
+   "added": 63,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/StartupBoundary.tsx",
+   "mode": "100644",
+   "blob": "2955a94f69d93966b71fd65ed8adc13f402f9446",
+   "previousBlob": null,
+   "added": 48,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/StartupWatchdog.ts",
+   "mode": "100644",
+   "blob": "e1ee7187f4b88067b0c67caf50da569ca31c78fb",
+   "previousBlob": null,
+   "added": 94,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/client.tsx",
+   "mode": "100644",
+   "blob": "2d1ded0d6698f2028d0958b4e07ed5effeff0c10",
+   "previousBlob": null,
+   "added": 12,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,103 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "fcd15d462c2477ad4d7064b721e5f383c6b07018",
+ "tree": "8af0a1c32055dcef335a1700215aa3bc3ff08b7d",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 41,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 221,
+  "globalCount": 838,
+  "purpose": "✅ test(engine-store): cover engine-store (15/23)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "engine-store",
+  "component": "packages/engine-store/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "2bc809e2c6587695c4ee8e8583d0f282315ccb08",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "2bc809e2c6587695c4ee8e8583d0f282315ccb08",
+  "next": "b7cd4ab54c192275f988174f9478d77223bb89ff",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 1325,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/RestoreDrill.test.ts",
+   "mode": "100644",
+   "blob": "47071f33c09f7aad3cd2daaf64c03aba44b2fd67",
+   "previousBlob": null,
+   "added": 555,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/RetryExpiration.test.ts",
+   "mode": "100644",
+   "blob": "4c50b32401658927c7693e47ff72ec6df1a1ca17",
+   "previousBlob": null,
+   "added": 204,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/RetryOrigin.test.ts",
+   "mode": "100644",
+   "blob": "c6341c4d25de356b8de58910eaddc8ee15460d42",
+   "previousBlob": null,
+   "added": 239,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/RunCoordinator.test.ts",
+   "mode": "100644",
+   "blob": "841c5334bbb6bba5c1a6462521ce25d3978ffaca",
+   "previousBlob": null,
+   "added": 327,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

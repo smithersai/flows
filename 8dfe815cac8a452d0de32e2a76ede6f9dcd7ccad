@@ -1,0 +1,163 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "8dfe815cac8a452d0de32e2a76ede6f9dcd7ccad",
+ "tree": "ab4eac64d2d534f4eeb79d90f85386e391722354",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 84,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 587,
+  "globalCount": 838,
+  "purpose": "✅ test(targets): cover targets (1/7)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "targets",
+  "component": "packages/targets/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "a01c1519b136a65578a01aae4f59fa40d723047b",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "a01c1519b136a65578a01aae4f59fa40d723047b",
+  "next": "178d83f5ba356378ee100e3b468361c1d8fbc146",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 9,
+  "added": 1422,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/targets/test/AlchemyRegister.test.ts",
+   "mode": "100644",
+   "blob": "f6538ce535be195e6bf0d766d41edf0a3a05f2b9",
+   "previousBlob": null,
+   "added": 87,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/test/Cargo.test.ts",
+   "mode": "100644",
+   "blob": "c8faef099170fa3d9f3d493683b5eaf2ab89784f",
+   "previousBlob": null,
+   "added": 99,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/test/Config.test.ts",
+   "mode": "100644",
+   "blob": "2b2f8ebb281ed3d9a0ca2775278d6c1c83ed3a60",
+   "previousBlob": null,
+   "added": 104,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/test/DocsParity.test.ts",
+   "mode": "100644",
+   "blob": "528b79c1e7448c8fcb6f87351d4438d61b669f50",
+   "previousBlob": null,
+   "added": 273,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/test/Dprint.test.ts",
+   "mode": "100644",
+   "blob": "42b2d8f6d9df401ea4aeb32bdd40bb2fbd48bc72",
+   "previousBlob": null,
+   "added": 35,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/test/Exec.test.ts",
+   "mode": "100644",
+   "blob": "5f5e33025b1f6417a87ace69f452752f319ae29f",
+   "previousBlob": null,
+   "added": 149,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/test/ExecStreams.test.ts",
+   "mode": "100644",
+   "blob": "b5c3a9984acd029880b1d74324d29e4ab5e24f70",
+   "previousBlob": null,
+   "added": 347,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/test/Filegroup.test.ts",
+   "mode": "100644",
+   "blob": "47861c7fb6b85a8559701c2262f27b6a4e15d223",
+   "previousBlob": null,
+   "added": 138,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/test/GeneratedFile.test.ts",
+   "mode": "100644",
+   "blob": "3c27e6dea26186f2dccbacd9cd761a8f6053c348",
+   "previousBlob": null,
+   "added": 190,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

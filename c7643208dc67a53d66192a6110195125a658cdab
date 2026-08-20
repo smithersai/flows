@@ -1,0 +1,91 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "c7643208dc67a53d66192a6110195125a658cdab",
+ "tree": "f931437356c8c1ffe171062419a4005599aa807f",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 52,
+  "childCount": 60,
+  "head": "a94e46ebcc18e48adf39b7735ecbe06567ca4574"
+ },
+ "atomic": {
+  "globalIndex": 172,
+  "globalCount": 838,
+  "purpose": "✅ test(platform-bun): cover platform-bun",
+  "type": "test",
+  "kind": "tests",
+  "scope": "platform-bun",
+  "component": "packages/platform-bun",
+  "unitKey": "test",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "e5d3c3671a9a456f80f8752a38dc237316880d34",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/jj",
+    "field": "dependencies",
+    "commit": "d933549c894f26a1f558e5e488a6b29e8c0fc242",
+    "providerComponent": "packages/jj",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "field": "dependencies",
+    "commit": "32707f96f522f0b7dce09d50ee6af6e72b7a0ef4",
+    "providerComponent": "packages/kernel",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/platform-node",
+    "field": "dependencies",
+    "commit": "f40800d85a4bb883932720b57d4ac2a5d19c1bf8",
+    "providerComponent": "packages/platform-node",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "e5d3c3671a9a456f80f8752a38dc237316880d34",
+  "next": "48bc9b8d1c9d325ad67033033e92f32533b8e43a",
+  "epicFirst": "a6c9698a594ba11333c7d2cefbd9720612c6e6bb",
+  "epicLast": "a94e46ebcc18e48adf39b7735ecbe06567ca4574",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 55,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/platform-bun/test/index.test.ts",
+   "mode": "100644",
+   "blob": "fb51ec6ad93b352c02e3baa2b2a83f85cb35f640",
+   "previousBlob": null,
+   "added": 55,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

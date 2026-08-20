@@ -1,0 +1,115 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+ "tree": "7996e2442ff52c7985d44b28c1544cf13b578b9f",
+ "epic": {
+  "index": 18,
+  "id": "workflows",
+  "name": "Repository automation workflows",
+  "sourceCommit": "9ea4941fc404fb4f12e3384b96a37e0739be3916",
+  "sourceSubject": "✨ feat(workflows): add repository automation workflows",
+  "childIndex": 9,
+  "childCount": 9,
+  "head": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "atomic": {
+  "globalIndex": 838,
+  "globalCount": 838,
+  "purpose": "📝 docs(smithers): document evals, evals/alpha-agent",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "smithers",
+  "component": ".smithers",
+  "unitKey": "evals",
+  "mergedUnitKeys": [
+   "evals",
+   "evals/alpha-agent"
+  ]
+ },
+ "dependencies": {
+  "parent": "d6e6a0844de83bc3c9e7bda3e7d4c81049100609",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui",
+   "docs-site",
+   "factory"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "field": "dependencies",
+    "commit": "f7a79de58ec909a8b6633954e1f1ff9117d4d46a",
+    "providerComponent": "packages/cli",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "d6e6a0844de83bc3c9e7bda3e7d4c81049100609",
+  "next": null,
+  "epicFirst": "09bf6daccc080841dd705eab4099f657d2736e07",
+  "epicLast": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 472,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": ".smithers/evals/REPORT.md",
+   "mode": "100644",
+   "blob": "5fa0e8ccecf9bece6afaac574826addbf4ca913e",
+   "previousBlob": null,
+   "added": 124,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": ".smithers/evals/alpha-agent/README.md",
+   "mode": "100644",
+   "blob": "1f5b6010dd2af5906b536dd794a5f50c0f9ff4cb",
+   "previousBlob": null,
+   "added": 218,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": ".smithers/evals/alpha-agent/baseline-report.md",
+   "mode": "100644",
+   "blob": "9c4bc58bd8fa7cd6747df6660d8cc7afe87b009f",
+   "previousBlob": null,
+   "added": 130,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

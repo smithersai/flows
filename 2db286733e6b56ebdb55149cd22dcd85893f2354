@@ -1,0 +1,86 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "2db286733e6b56ebdb55149cd22dcd85893f2354",
+ "tree": "d8fed4b05bc192410bd382a096ec37f6cea7787d",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 25,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 205,
+  "globalCount": 838,
+  "purpose": "✨ feat(engine-store): add the contract, Sha256 modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "engine-store",
+  "component": "packages/engine-store/test",
+  "unitKey": "dir:contract",
+  "mergedUnitKeys": [
+   "dir:contract",
+   "Sha256"
+  ]
+ },
+ "dependencies": {
+  "parent": "39b0201eb5ebd1a9ff948f61e494b50f3aed1b1e",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "53e282376e1f7e7bd525a657644202288beca2d7"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "39b0201eb5ebd1a9ff948f61e494b50f3aed1b1e",
+  "next": "bc886f08eec148bc732caf49edb090d6bcfebc61",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 465,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/contract/DurableEngineStateContract.ts",
+   "mode": "100644",
+   "blob": "5b4d65772ff64af589fef34297f246d898728fe7",
+   "previousBlob": null,
+   "added": 433,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/Sha256.ts",
+   "mode": "100644",
+   "blob": "6b40cab9bb4ee49c7246a900ccd6376711356526",
+   "previousBlob": null,
+   "added": 32,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

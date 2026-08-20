@@ -1,0 +1,223 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "76c8fa079dbfbeb3e506057b2f96e8fdda0937a6",
+ "tree": "7d1a5a83ce52348897611792a5b2afe985e6340b",
+ "epic": {
+  "index": 9,
+  "id": "agent",
+  "name": "Harness, chain, tools and CLI",
+  "sourceCommit": "a8caaa3dc45df0c14d6b10d0db9faf8a7ea7e542",
+  "sourceSubject": "✨ feat(agent): compose the harness, chain, tools, and CLI",
+  "childIndex": 60,
+  "childCount": 84,
+  "head": "49544e3fda710efb14f1dc6cf2b0051adc9dd584"
+ },
+ "atomic": {
+  "globalIndex": 444,
+  "globalCount": 838,
+  "purpose": "✨ feat(chain): add the scripts, prompts, CallKey and 3 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "chain",
+  "component": "packages/chain",
+  "unitKey": "dir:scripts",
+  "mergedUnitKeys": [
+   "dir:scripts",
+   "internal/prompts",
+   "CallKey",
+   "Observation",
+   "Script",
+   "Outcome"
+  ]
+ },
+ "dependencies": {
+  "parent": "87495a43f994fd035dd4ae89a1bc5be5a5024568",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "field": "dependencies",
+    "commit": "7e2eac5ca71c4fc20bbe97b888dad21267da1e30",
+    "providerComponent": "packages/capability",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/memory",
+    "field": "dependencies",
+    "commit": "03a4cd0e3aab0a3e990be4ff12e9dbf36da0be9c",
+    "providerComponent": "packages/memory",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/model",
+    "field": "dependencies",
+    "commit": "489c9c77a1625c553ac1f7b8bde0c279d32249ba",
+    "providerComponent": "packages/model",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/registry",
+    "field": "dependencies",
+    "commit": "b89d7a671b44791c0d143f9c5a8f1d1ee4ca03c1",
+    "providerComponent": "packages/registry",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/testing",
+    "field": "devDependencies",
+    "commit": "240b8562e19e4d4b2129a8231ea81fb425901030",
+    "providerComponent": "packages/testing",
+    "classification": "provider-in-later-epic",
+    "justification": "@smthrs/testing is introduced by epic 10 (platform: Conformance, scoring, evaluation and telemetry), which the fixed 18-epic ordering places after epic 9 (agent). Reordering the epics is out of scope for this bootstrap. The relationship is development-only and does not affect this commit."
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "87495a43f994fd035dd4ae89a1bc5be5a5024568",
+  "next": "c7f510f47171efcaac070ba95a37771ee5ef7813",
+  "epicFirst": "980ca61422f63e6bb068247c1991df44231cde33",
+  "epicLast": "49544e3fda710efb14f1dc6cf2b0051adc9dd584",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 10,
+  "added": 611,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/chain/scripts/prompts.mjs",
+   "mode": "100644",
+   "blob": "6af798e1812e1ed8f091bedfce16a0693c431046",
+   "previousBlob": null,
+   "added": 55,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/src/internal/prompts.ts",
+   "mode": "100644",
+   "blob": "5274ed6991340f7c34b3b17c7b9e1d81c72aec66",
+   "previousBlob": null,
+   "added": 43,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/src/CallKey.ts",
+   "mode": "100644",
+   "blob": "5dea9f2273d2edb89e92f37ccaf31263a576c7d0",
+   "previousBlob": null,
+   "added": 96,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/test/CallKey.test.ts",
+   "mode": "100644",
+   "blob": "a220e79c6eb964bd0ce3447e6d0325c16fdbf9e2",
+   "previousBlob": null,
+   "added": 17,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/src/Observation.ts",
+   "mode": "100644",
+   "blob": "950ec388c251cf5dda8d03a05fdbffb84fdb5e57",
+   "previousBlob": null,
+   "added": 75,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/test/Observation.test.ts",
+   "mode": "100644",
+   "blob": "6cc062edbd3b733f4bcf497f0171bd5b277b4338",
+   "previousBlob": null,
+   "added": 15,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/src/Script.ts",
+   "mode": "100644",
+   "blob": "94236157aac5200fa7e73f4a99fdbc490c35cfc1",
+   "previousBlob": null,
+   "added": 81,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/test/Script.test.ts",
+   "mode": "100644",
+   "blob": "630ffc24bfb36c03cf77b42e34051d2605f5649f",
+   "previousBlob": null,
+   "added": 45,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/src/Outcome.ts",
+   "mode": "100644",
+   "blob": "b1cea9bf9c1aca8a1e3ddc4b69352cd6c792307e",
+   "previousBlob": null,
+   "added": 162,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/test/Outcome.test.ts",
+   "mode": "100644",
+   "blob": "fb7edd60edaf858f68455b54d48a65521a56b719",
+   "previousBlob": null,
+   "added": 22,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

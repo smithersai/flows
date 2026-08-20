@@ -1,0 +1,213 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ce23b81a489a42120cf9e62c8b80e6cacc55fc07",
+ "tree": "633ddb4a05ae63990635eeded759a54b33c9dd73",
+ "epic": {
+  "index": 17,
+  "id": "factory",
+  "name": "Repository software factory",
+  "sourceCommit": "e1fbeee4b23399542c5105cb6f89733a14cc1892",
+  "sourceSubject": "✨ feat(factory): add the repository software factory",
+  "childIndex": 14,
+  "childCount": 17,
+  "head": "1666a5780add8693764a11b96b552909662d5e97"
+ },
+ "atomic": {
+  "globalIndex": 826,
+  "globalCount": 838,
+  "purpose": "📝 docs(factory-queue): document factory-queue",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "factory-queue",
+  "component": "factory/queue",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "865bde7d03dfed4fa35e6584f86e7406571a185b",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui",
+   "docs-site"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "865bde7d03dfed4fa35e6584f86e7406571a185b",
+  "next": "e25c151c47641445baf820c4c5f488b309f2574c",
+  "epicFirst": "fe1c85cd8695563398bdd217be9a36f52ed6df92",
+  "epicLast": "1666a5780add8693764a11b96b552909662d5e97",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 13,
+  "added": 575,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "factory/queue/0001-retell-main.md",
+   "mode": "100644",
+   "blob": "0beda1573751c368bde9325e537fca01a6fec6c1",
+   "previousBlob": null,
+   "added": 23,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "factory/queue/0002-docs-parity-gate.md",
+   "mode": "100644",
+   "blob": "2d12e07937e9bf6b63d52dda9c13c9c00466c220",
+   "previousBlob": null,
+   "added": 55,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "factory/queue/0003-factory-flow.md",
+   "mode": "100644",
+   "blob": "a8b40fcfa4a363f7be841cb7dbd7f6687a18f880",
+   "previousBlob": null,
+   "added": 31,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "factory/queue/0004-worktree-lanes.md",
+   "mode": "100644",
+   "blob": "79535eeb06a40b7409c68efb03c68b28af8c0adf",
+   "previousBlob": null,
+   "added": 25,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "factory/queue/0005-document-queue-driver.md",
+   "mode": "100644",
+   "blob": "c10bd55bae0f314ad17945dd04c0a3ba8276804b",
+   "previousBlob": null,
+   "added": 38,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "factory/queue/0006-model-layer.md",
+   "mode": "100644",
+   "blob": "6ee8c6376dac8484c4e757f10a6139e01cd2ffdd",
+   "previousBlob": null,
+   "added": 25,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "factory/queue/0007-readme-backfill.md",
+   "mode": "100644",
+   "blob": "55c3f98d2f9b6e13b2715dda95c50fe4a8aad055",
+   "previousBlob": null,
+   "added": 27,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "factory/queue/0008-journal-consensus.md",
+   "mode": "100644",
+   "blob": "3c58a31efdd80794c831057baae372d8b9c607be",
+   "previousBlob": null,
+   "added": 156,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "factory/queue/0009-review-docs-tree.md",
+   "mode": "100644",
+   "blob": "efb6bc60b13a0f82e2cfe79d7d07be2c1c81c4a6",
+   "previousBlob": null,
+   "added": 40,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "factory/queue/0009-run-store-journal-fold.md",
+   "mode": "100644",
+   "blob": "fa28188afd7aabe457a7b10be695c940a7e24d8f",
+   "previousBlob": null,
+   "added": 58,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "factory/queue/0010-step-cache-journal-fold.md",
+   "mode": "100644",
+   "blob": "71d39b847f3ec4730803a2f89eca98bd0f9be005",
+   "previousBlob": null,
+   "added": 23,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "factory/queue/0011-engine-store-deferred-clock-fold.md",
+   "mode": "100644",
+   "blob": "a949438211e6114d90ee05ce6036e6eb2bba77e9",
+   "previousBlob": null,
+   "added": 23,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "factory/queue/README.md",
+   "mode": "100644",
+   "blob": "13922fe62cdb6c76d831d875f06c9fad284e1ed8",
+   "previousBlob": null,
+   "added": 51,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

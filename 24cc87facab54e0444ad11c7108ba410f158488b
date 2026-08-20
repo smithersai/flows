@@ -1,0 +1,79 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "24cc87facab54e0444ad11c7108ba410f158488b",
+ "tree": "b293391123efe1dc5aabe2808d6c5bd2f4c8cd99",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 49,
+  "childCount": 50,
+  "head": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7"
+ },
+ "atomic": {
+  "globalIndex": 119,
+  "globalCount": 838,
+  "purpose": "✅ test(flow): cover flow (5/6)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "flow",
+  "component": "packages/flow/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "fdd773263d2725f24463aa47d7be03701f10432e",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "fdd773263d2725f24463aa47d7be03701f10432e",
+  "next": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7",
+  "epicFirst": "60233bebe0e00cbc35cfb5176a9644f2799fde18",
+  "epicLast": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 1263,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/flow/test/Interpreter.test.ts",
+   "mode": "100644",
+   "blob": "1b4b39e05fbdcb5d1939d0b3595ae293380cdfbd",
+   "previousBlob": null,
+   "added": 793,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/test/RetryPolicy.test.ts",
+   "mode": "100644",
+   "blob": "3dd1de1e7d54d1a8151c06e59f143cb3e5cc1f2e",
+   "previousBlob": null,
+   "added": 470,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

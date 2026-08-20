@@ -1,0 +1,157 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "3d9a7fae301b6ec49705f927cf5b5919131b5be2",
+ "tree": "2a8bec18b2fbbfb237d66ec48e5599fca3bed63f",
+ "epic": {
+  "index": 9,
+  "id": "agent",
+  "name": "Harness, chain, tools and CLI",
+  "sourceCommit": "a8caaa3dc45df0c14d6b10d0db9faf8a7ea7e542",
+  "sourceSubject": "✨ feat(agent): compose the harness, chain, tools, and CLI",
+  "childIndex": 67,
+  "childCount": 84,
+  "head": "49544e3fda710efb14f1dc6cf2b0051adc9dd584"
+ },
+ "atomic": {
+  "globalIndex": 451,
+  "globalCount": 838,
+  "purpose": "✨ feat(chain): add the ModelAuthor, Prompt modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "chain",
+  "component": "packages/chain",
+  "unitKey": "ModelAuthor",
+  "mergedUnitKeys": [
+   "ModelAuthor",
+   "Prompt"
+  ]
+ },
+ "dependencies": {
+  "parent": "8450e9fb42ef38e9b79d3ccd242035e91bb1e3a6",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control"
+  ],
+  "sourceImports": [
+   "c7f510f47171efcaac070ba95a37771ee5ef7813",
+   "e77bad12dbe82b509996e442ed3002b8e6c4b117",
+   "76c8fa079dbfbeb3e506057b2f96e8fdda0937a6"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "field": "dependencies",
+    "commit": "7e2eac5ca71c4fc20bbe97b888dad21267da1e30",
+    "providerComponent": "packages/capability",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/memory",
+    "field": "dependencies",
+    "commit": "03a4cd0e3aab0a3e990be4ff12e9dbf36da0be9c",
+    "providerComponent": "packages/memory",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/model",
+    "field": "dependencies",
+    "commit": "489c9c77a1625c553ac1f7b8bde0c279d32249ba",
+    "providerComponent": "packages/model",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/registry",
+    "field": "dependencies",
+    "commit": "b89d7a671b44791c0d143f9c5a8f1d1ee4ca03c1",
+    "providerComponent": "packages/registry",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/testing",
+    "field": "devDependencies",
+    "commit": "240b8562e19e4d4b2129a8231ea81fb425901030",
+    "providerComponent": "packages/testing",
+    "classification": "provider-in-later-epic",
+    "justification": "@smthrs/testing is introduced by epic 10 (platform: Conformance, scoring, evaluation and telemetry), which the fixed 18-epic ordering places after epic 9 (agent). Reordering the epics is out of scope for this bootstrap. The relationship is development-only and does not affect this commit."
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "8450e9fb42ef38e9b79d3ccd242035e91bb1e3a6",
+  "next": "74c8c27ee62e9993c30ccf25444cf70a0cab1acd",
+  "epicFirst": "980ca61422f63e6bb068247c1991df44231cde33",
+  "epicLast": "49544e3fda710efb14f1dc6cf2b0051adc9dd584",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 675,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/chain/src/ModelAuthor.ts",
+   "mode": "100644",
+   "blob": "246d7a1fc80af867c9ea54f1d699fff2325536d2",
+   "previousBlob": null,
+   "added": 148,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/test/ModelAuthor.test.ts",
+   "mode": "100644",
+   "blob": "698b95b72a338460cda65a253ae3ed5fb9921c33",
+   "previousBlob": null,
+   "added": 259,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/src/Prompt.ts",
+   "mode": "100644",
+   "blob": "cf008fb524c232fc6682184bc8a06edba4b0ab42",
+   "previousBlob": null,
+   "added": 142,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/test/Prompt.test.ts",
+   "mode": "100644",
+   "blob": "4d26d639c0abcc33b4cbaf720fc0f6b765416df7",
+   "previousBlob": null,
+   "added": 126,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

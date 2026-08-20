@@ -1,0 +1,289 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "e952c5de8a0b032ae43f568c3224f1734b3a7adc",
+ "tree": "3eba87d6900d726c503ac77e759dc9bb93d8e2de",
+ "epic": {
+  "index": 16,
+  "id": "docs-site",
+  "name": "Documentation site",
+  "sourceCommit": "2fd742db8891870cec6454b507fc94b3c65aa275",
+  "sourceSubject": "📚 docs(site): document the complete system",
+  "childIndex": 17,
+  "childCount": 17,
+  "head": "e952c5de8a0b032ae43f568c3224f1734b3a7adc"
+ },
+ "atomic": {
+  "globalIndex": 812,
+  "globalCount": 838,
+  "purpose": "📝 docs(reference): document reference",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "reference",
+  "component": "docs/reference",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "8dc7e9f85aa684bf6c2620eb421904c75816eebd",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "8dc7e9f85aa684bf6c2620eb421904c75816eebd",
+  "next": "fe1c85cd8695563398bdd217be9a36f52ed6df92",
+  "epicFirst": "2d0756e2ed214c54d61c6b4dee34cfbab1982959",
+  "epicLast": "e952c5de8a0b032ae43f568c3224f1734b3a7adc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 20,
+  "added": 1399,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "docs/reference/artifacts.md",
+   "mode": "100644",
+   "blob": "6e5080a20dac633a414a567865068e7921b74b90",
+   "previousBlob": null,
+   "added": 96,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/reference/canonical.md",
+   "mode": "100644",
+   "blob": "dac2d55e59dfe715fc008803cf394bc5ba7c34b5",
+   "previousBlob": null,
+   "added": 15,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/reference/capability.md",
+   "mode": "100644",
+   "blob": "6b8b30702f23baed49d691382a944cbafaf4a939",
+   "previousBlob": null,
+   "added": 32,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/reference/crypto.md",
+   "mode": "100644",
+   "blob": "53c7d609fd62826ad90bd6498265f268ebcc3ddc",
+   "previousBlob": null,
+   "added": 17,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/reference/database.md",
+   "mode": "100644",
+   "blob": "6a311298e3a2415e0d322cd30e43220c0056afab",
+   "previousBlob": null,
+   "added": 76,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/reference/engine-store.md",
+   "mode": "100644",
+   "blob": "8578fc6f43a1e827b792420b77f96dc00a034cb3",
+   "previousBlob": null,
+   "added": 223,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/reference/engine.md",
+   "mode": "100644",
+   "blob": "a142b13b0b3f7230c152acd12d4d88f457a4f73b",
+   "previousBlob": null,
+   "added": 15,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/reference/flow.md",
+   "mode": "100644",
+   "blob": "257d28ec76cc549e6d23349e923bfedc99a096e9",
+   "previousBlob": null,
+   "added": 53,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/reference/flows.md",
+   "mode": "100644",
+   "blob": "326156df207d1ea627d4445416fa34562457f18c",
+   "previousBlob": null,
+   "added": 63,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/reference/jj.md",
+   "mode": "100644",
+   "blob": "c9053ffd130b9e8b95d4cec10a147e30a85ebd99",
+   "previousBlob": null,
+   "added": 48,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/reference/journal.md",
+   "mode": "100644",
+   "blob": "5c181cba089d274acb2d21c4455acbd46cc20452",
+   "previousBlob": null,
+   "added": 90,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/reference/kernel.md",
+   "mode": "100644",
+   "blob": "79e3b8c1d0fb8b6271df897290d35c4a78afbd70",
+   "previousBlob": null,
+   "added": 58,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/reference/keys.md",
+   "mode": "100644",
+   "blob": "3335aac93b9f6338244684e4e4e2f121fedd8c06",
+   "previousBlob": null,
+   "added": 17,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/reference/plan.md",
+   "mode": "100644",
+   "blob": "b92ba35a84233ea2a2f310d238a78796e952d744",
+   "previousBlob": null,
+   "added": 120,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/reference/platform-browser.md",
+   "mode": "100644",
+   "blob": "1602403c91836963b6d188af613aa0630a45d219",
+   "previousBlob": null,
+   "added": 114,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/reference/run-store.md",
+   "mode": "100644",
+   "blob": "1dae9e13f7f7423b7892e37f47c085d428a196c5",
+   "previousBlob": null,
+   "added": 103,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/reference/sandbox.md",
+   "mode": "100644",
+   "blob": "92d800078be517d6e0d5e32a46dd44826ef4db9b",
+   "previousBlob": null,
+   "added": 49,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/reference/step-cache.md",
+   "mode": "100644",
+   "blob": "86c3c66695c0f3814c6022cbf3020e57baf26feb",
+   "previousBlob": null,
+   "added": 70,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/reference/sync.md",
+   "mode": "100644",
+   "blob": "a2fb8b0f13874fd330961a3d50f36325b934d17e",
+   "previousBlob": null,
+   "added": 47,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/reference/time-travel.md",
+   "mode": "100644",
+   "blob": "6f24733cb79e749b86fc32ef351ade3e6da651ef",
+   "previousBlob": null,
+   "added": 93,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

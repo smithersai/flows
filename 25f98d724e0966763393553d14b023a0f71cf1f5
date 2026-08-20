@@ -1,0 +1,114 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "25f98d724e0966763393553d14b023a0f71cf1f5",
+ "tree": "6bdd4ae136ddd2f8375a4dd3814952b34cffb110",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 30,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 210,
+  "globalCount": 838,
+  "purpose": "✅ test(engine-store): cover engine-store (4/23)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "engine-store",
+  "component": "packages/engine-store/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "0182013db68d123beecedb1e2d0129133ce9f7c2",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "0182013db68d123beecedb1e2d0129133ce9f7c2",
+  "next": "d4a866b5b7cd90b0a95f2e01426cd77958a7b863",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 5,
+  "added": 1483,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/CacheHitReadSetVerification.test.ts",
+   "mode": "100644",
+   "blob": "8f84dc7d45cdd371adcde9ab61a62fc2507d2175",
+   "previousBlob": null,
+   "added": 322,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/CacheProvenanceGeneration.test.ts",
+   "mode": "100644",
+   "blob": "52ea9d90265c75e454edac0c84ef577c864b5022",
+   "previousBlob": null,
+   "added": 414,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/CacheProvenanceIdempotency.test.ts",
+   "mode": "100644",
+   "blob": "3e49a239f503b7bdd938b5ba756a357db7ecf68a",
+   "previousBlob": null,
+   "added": 123,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/CacheRecordGating.test.ts",
+   "mode": "100644",
+   "blob": "55b0fe16167508b8bad014dbe3632cf1284d21c5",
+   "previousBlob": null,
+   "added": 151,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/CancelCascade.test.ts",
+   "mode": "100644",
+   "blob": "e8a2e7c7772a5e19162c39e190fdae3ab3172e00",
+   "previousBlob": null,
+   "added": 473,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

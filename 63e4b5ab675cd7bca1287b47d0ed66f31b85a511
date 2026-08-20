@@ -1,0 +1,89 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "63e4b5ab675cd7bca1287b47d0ed66f31b85a511",
+ "tree": "a3bebc83463d272a73b5f4d4122101441a691df3",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 63,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 243,
+  "globalCount": 838,
+  "purpose": "✅ test(sync): cover sync",
+  "type": "test",
+  "kind": "tests",
+  "scope": "sync",
+  "component": "packages/sync",
+  "unitKey": "src/test",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "a255fd706b30308816fc6f41d798874bcd9bf847",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "a255fd706b30308816fc6f41d798874bcd9bf847",
+  "next": "d5f847023cd671f5075dbdccbbe36664da6c27e2",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 291,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/sync/src/test/TestSocket.ts",
+   "mode": "100644",
+   "blob": "4dc728109e03c7bf631e04ed82152fcacfc89361",
+   "previousBlob": null,
+   "added": 183,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/src/test/TestSync.ts",
+   "mode": "100644",
+   "blob": "1d25e153d014435e65080748d57c64a745adfddb",
+   "previousBlob": null,
+   "added": 108,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

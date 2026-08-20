@@ -1,0 +1,180 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a2678a0d2d27c4fa079b07f1d74d3941130ce9a6",
+ "tree": "803cb2ace47b06b728ad290f3af8a2390ffe91c4",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 125,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 762,
+  "globalCount": 838,
+  "purpose": "📝 docs(ui): document backend, cards",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "ui",
+  "component": "apps/ui/canary-repros",
+  "unitKey": "backend",
+  "mergedUnitKeys": [
+   "backend",
+   "cards"
+  ]
+ },
+ "dependencies": {
+  "parent": "a4f84e79ddd6c5f2031c954032448026ef620570",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "a4f84e79ddd6c5f2031c954032448026ef620570",
+  "next": "8cf880f9e6b2396bc57847427a6191b4f644046b",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 10,
+  "added": 586,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/backend/13.7-api.md",
+   "mode": "100644",
+   "blob": "c0181ed311d797a0bea6b84286996ae4f161d14f",
+   "previousBlob": null,
+   "added": 60,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/cards/7.2.md",
+   "mode": "100644",
+   "blob": "2a83512e198cdbd9f02c45509fcd48a559ed6ecc",
+   "previousBlob": null,
+   "added": 48,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/cards/7.3.md",
+   "mode": "100644",
+   "blob": "75d93bf8e7064db59b09aea3806c656e792bb34a",
+   "previousBlob": null,
+   "added": 72,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/cards/7.5.md",
+   "mode": "100644",
+   "blob": "ba903d58448bb54516e67703311be2b357cd3841",
+   "previousBlob": null,
+   "added": 67,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/cards/7.7.md",
+   "mode": "100644",
+   "blob": "b3344f9ffe30eceab7e455f5da5ff2fc68808703",
+   "previousBlob": null,
+   "added": 47,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/cards/7.8.md",
+   "mode": "100644",
+   "blob": "564ba95107692648de8b731e99ebc3f7b0231562",
+   "previousBlob": null,
+   "added": 59,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/cards/8.13.md",
+   "mode": "100644",
+   "blob": "63856ddc101c74336c4264bef4daffe481936dca",
+   "previousBlob": null,
+   "added": 70,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/cards/8.21.md",
+   "mode": "100644",
+   "blob": "0f4deb9eb34170cc14ec30b97ed163feb065f31d",
+   "previousBlob": null,
+   "added": 52,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/cards/8.27.md",
+   "mode": "100644",
+   "blob": "a77758d13693a067bf5c6995ab081e7d16e393ec",
+   "previousBlob": null,
+   "added": 57,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/cards/8.7.md",
+   "mode": "100644",
+   "blob": "9ecec3a7788d9c77822f575012ebb531fe65587f",
+   "previousBlob": null,
+   "added": 54,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

@@ -1,0 +1,124 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "b5436e60b50ecb78883d4c7315e8362fe16eec66",
+ "tree": "ad18f3ff81475456d39bc2cf1ce3e8f5e583306a",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 16,
+  "childCount": 60,
+  "head": "a94e46ebcc18e48adf39b7735ecbe06567ca4574"
+ },
+ "atomic": {
+  "globalIndex": 136,
+  "globalCount": 838,
+  "purpose": "✨ feat(kernel): add the GrantEvent, HostError modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "kernel",
+  "component": "packages/kernel",
+  "unitKey": "GrantEvent",
+  "mergedUnitKeys": [
+   "GrantEvent",
+   "HostError"
+  ]
+ },
+ "dependencies": {
+  "parent": "425f268ba12ecab7b524dfc2233f564e8f5d29c1",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "field": "dependencies",
+    "commit": "7e2eac5ca71c4fc20bbe97b888dad21267da1e30",
+    "providerComponent": "packages/capability",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/jj",
+    "field": "dependencies",
+    "commit": "d933549c894f26a1f558e5e488a6b29e8c0fc242",
+    "providerComponent": "packages/jj",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/platform-browser",
+    "field": "dependencies",
+    "commit": "3359dd0ae5a536bfdb25b36aeaebe25fdca1aa4f",
+    "providerComponent": "packages/platform-browser",
+    "classification": "circular-package-pair",
+    "justification": "@smthrs/kernel and @smthrs/platform-browser declare each other as workspace dependencies. The cycle is a property of the source tree, so exactly one of the two must be introduced first; no commit order can satisfy both directions."
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "425f268ba12ecab7b524dfc2233f564e8f5d29c1",
+  "next": "7eb716183bf40d0b8bc18abb156d17018fdbdc79",
+  "epicFirst": "a6c9698a594ba11333c7d2cefbd9720612c6e6bb",
+  "epicLast": "a94e46ebcc18e48adf39b7735ecbe06567ca4574",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 328,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/kernel/src/GrantEvent.ts",
+   "mode": "100644",
+   "blob": "b692d4d45bbb5baaa2c1a533e43e64f778de47be",
+   "previousBlob": null,
+   "added": 179,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/kernel/test/GrantEvent.test.ts",
+   "mode": "100644",
+   "blob": "393f06c8c9ba9fdfcec5e6a535c99a5503e82620",
+   "previousBlob": null,
+   "added": 112,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/kernel/src/HostError.ts",
+   "mode": "100644",
+   "blob": "4fffed8cda67489b56c4857f4a156cd97edab3a4",
+   "previousBlob": null,
+   "added": 37,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

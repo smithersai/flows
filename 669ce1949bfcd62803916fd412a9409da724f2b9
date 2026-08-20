@@ -1,0 +1,108 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "669ce1949bfcd62803916fd412a9409da724f2b9",
+ "tree": "5f9735801dcc5b92669b7b94a51dfdcf39de89b4",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 16,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 653,
+  "globalCount": 838,
+  "purpose": "🧹 chore(ui): scaffold the smithers-workflows package",
+  "type": "chore",
+  "kind": "scaffold",
+  "scope": "ui",
+  "component": "apps/ui/.smithers",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "c8e6e3aaf3fc647c64bd789fab7d68d792c32e10",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "field": "dependencies",
+    "commit": "f7a79de58ec909a8b6633954e1f1ff9117d4d46a",
+    "providerComponent": "packages/cli",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "c8e6e3aaf3fc647c64bd789fab7d68d792c32e10",
+  "next": "9e892063d22d59b5851cfcd68a6765beefab483d",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 77,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/.gitignore",
+   "mode": "100644",
+   "blob": "a2991fc150d0a0589a4c3a2b0e75c7c98e53c4b6",
+   "previousBlob": null,
+   "added": 11,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/package.json",
+   "mode": "100644",
+   "blob": "d769aee4f0dd5d4ab19ca4a4d9c84eee981159e0",
+   "previousBlob": null,
+   "added": 35,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/tsconfig.json",
+   "mode": "100644",
+   "blob": "3a7d5d78728dd7b12eec67ce1fff532d4187ec04",
+   "previousBlob": null,
+   "added": 31,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

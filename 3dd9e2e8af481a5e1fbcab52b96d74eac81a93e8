@@ -1,0 +1,97 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "3dd9e2e8af481a5e1fbcab52b96d74eac81a93e8",
+ "tree": "713adf6698d87bc8727a2545aaa52569573fba87",
+ "epic": {
+  "index": 1,
+  "id": "repo",
+  "name": "Workspace foundation",
+  "sourceCommit": "1d2d737dde97656fff8e9c1f31704f62e76a54c9",
+  "sourceSubject": "🧹 chore(repo): establish the workspace foundation",
+  "childIndex": 2,
+  "childCount": 2,
+  "head": "3dd9e2e8af481a5e1fbcab52b96d74eac81a93e8"
+ },
+ "atomic": {
+  "globalIndex": 2,
+  "globalCount": 838,
+  "purpose": "📝 docs(repo): document repo",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "repo",
+  "component": "~root",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "6eef2ea2a9772e95040b11cc3b673585626e7096",
+  "epicPredecessors": [],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "field": "devDependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "provider-in-later-epic",
+    "justification": "@smthrs/database is introduced by epic 3 (storage: Durable data services), which the fixed 18-epic ordering places after epic 1 (repo). Reordering the epics is out of scope for this bootstrap. The relationship is development-only and does not affect this commit."
+   },
+   {
+    "package": "@smthrs/engine-store",
+    "field": "devDependencies",
+    "commit": "c0f6e543a2aa5e3bb7dbbfce925e8c332ecfded8",
+    "providerComponent": "packages/engine-store",
+    "classification": "provider-in-later-epic",
+    "justification": "@smthrs/engine-store is introduced by epic 6 (engine-store: Durable, replayable flow execution), which the fixed 18-epic ordering places after epic 1 (repo). Reordering the epics is out of scope for this bootstrap. The relationship is development-only and does not affect this commit."
+   },
+   {
+    "package": "@smthrs/build-cli",
+    "field": "devDependencies",
+    "commit": "cc0e85478aa879e21c87e48acdf282fda8eb2291",
+    "providerComponent": "packages/build-cli",
+    "classification": "provider-in-later-epic",
+    "justification": "@smthrs/build-cli is introduced by epic 11 (build: Self-hosted typed build graph), which the fixed 18-epic ordering places after epic 1 (repo). Reordering the epics is out of scope for this bootstrap. The relationship is development-only and does not affect this commit."
+   },
+   {
+    "package": "@smthrs/targets",
+    "field": "devDependencies",
+    "commit": "04cacb5d5da6eed65dccb54623b16b2e67e1ef04",
+    "providerComponent": "packages/targets",
+    "classification": "provider-in-later-epic",
+    "justification": "@smthrs/targets is introduced by epic 11 (build: Self-hosted typed build graph), which the fixed 18-epic ordering places after epic 1 (repo). Reordering the epics is out of scope for this bootstrap. The relationship is development-only and does not affect this commit."
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "6eef2ea2a9772e95040b11cc3b673585626e7096",
+  "next": "fb8bcea968b638592c9b6360bd8fa385b34e72a0",
+  "epicFirst": "6eef2ea2a9772e95040b11cc3b673585626e7096",
+  "epicLast": "3dd9e2e8af481a5e1fbcab52b96d74eac81a93e8",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 32,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "README.md",
+   "mode": "100644",
+   "blob": "2ebe4c904bd4931876f80f5a88016df1bce72f57",
+   "previousBlob": null,
+   "added": 32,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

@@ -1,0 +1,75 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "9c23917528ce59a6e7fc7f05c207576d3acaac56",
+ "tree": "8b9674f33ef92ed8042ddb9505f5da8da9d19525",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 86,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 589,
+  "globalCount": 838,
+  "purpose": "✅ test(targets): cover targets (3/7)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "targets",
+  "component": "packages/targets/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "178d83f5ba356378ee100e3b468361c1d8fbc146",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "178d83f5ba356378ee100e3b468361c1d8fbc146",
+  "next": "4f0b4505c480964916562838ac0cd18c6ca2f312",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 989,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/targets/test/GithubWorkflow.test.ts",
+   "mode": "100644",
+   "blob": "cbbc7b17b15c97e975ef6a183a9d071268e1cbe8",
+   "previousBlob": null,
+   "added": 989,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

@@ -1,0 +1,81 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "aba4026b22a84614c57494742cd3e454cf350fb8",
+ "tree": "abf38fed8cf1c3692ce26f3d7cee1b5ff38e1102",
+ "epic": {
+  "index": 17,
+  "id": "factory",
+  "name": "Repository software factory",
+  "sourceCommit": "e1fbeee4b23399542c5105cb6f89733a14cc1892",
+  "sourceSubject": "✨ feat(factory): add the repository software factory",
+  "childIndex": 10,
+  "childCount": 17,
+  "head": "1666a5780add8693764a11b96b552909662d5e97"
+ },
+ "atomic": {
+  "globalIndex": 822,
+  "globalCount": 838,
+  "purpose": "📝 docs(factory-automation): document factory-automation",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "factory-automation",
+  "component": "factory/automation",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "3b7262c3e237bdd5faad4a99a6d5b8f6401d111e",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui",
+   "docs-site"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "3b7262c3e237bdd5faad4a99a6d5b8f6401d111e",
+  "next": "ef0662bcfc1d02784ed120497f0511c30bede5a7",
+  "epicFirst": "fe1c85cd8695563398bdd217be9a36f52ed6df92",
+  "epicLast": "1666a5780add8693764a11b96b552909662d5e97",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 111,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "factory/automation/README.md",
+   "mode": "100644",
+   "blob": "ca8644d134dd86825d18d90ed774ecbdee56e262",
+   "previousBlob": null,
+   "added": 111,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

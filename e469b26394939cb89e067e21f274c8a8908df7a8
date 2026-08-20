@@ -1,0 +1,99 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "e469b26394939cb89e067e21f274c8a8908df7a8",
+ "tree": "5281efcadd93f150a024633a26aa1a9402bdfd23",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 14,
+  "childCount": 60,
+  "head": "a94e46ebcc18e48adf39b7735ecbe06567ca4574"
+ },
+ "atomic": {
+  "globalIndex": 134,
+  "globalCount": 838,
+  "purpose": "📝 docs(jj): document jj",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "jj",
+  "component": "packages/jj",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "a684f52066c613f472b56dbcfdea0b9ad9e11ea2",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "field": "dependencies",
+    "commit": "7e2eac5ca71c4fc20bbe97b888dad21267da1e30",
+    "providerComponent": "packages/capability",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "a684f52066c613f472b56dbcfdea0b9ad9e11ea2",
+  "next": "425f268ba12ecab7b524dfc2233f564e8f5d29c1",
+  "epicFirst": "a6c9698a594ba11333c7d2cefbd9720612c6e6bb",
+  "epicLast": "a94e46ebcc18e48adf39b7735ecbe06567ca4574",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 589,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/jj/CHANGELOG.md",
+   "mode": "100644",
+   "blob": "6810f06c7c02dd1450b0c45a4fd5e59383e37ab4",
+   "previousBlob": null,
+   "added": 35,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/jj/README.md",
+   "mode": "100644",
+   "blob": "9adf43e7a5b7df682f924319558cd21a3d044fae",
+   "previousBlob": null,
+   "added": 133,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/jj/THIRD_PARTY_NOTICES.md",
+   "mode": "100644",
+   "blob": "3000b2d086c2d7feb73f1e66b16ef406b6595328",
+   "previousBlob": null,
+   "added": 421,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

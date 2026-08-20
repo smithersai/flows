@@ -1,0 +1,97 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "6968e3768d0162c3c53a428338178b99e2709acf",
+ "tree": "4609504f00069e4019447dbe938b3776db97e322",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 29,
+  "childCount": 41,
+  "head": "a87440798849594806112b3b5a4481f1969f8f35"
+ },
+ "atomic": {
+  "globalIndex": 306,
+  "globalCount": 838,
+  "purpose": "📝 docs(fs): document fs",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "fs",
+  "component": "packages/fs",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "46f17b2129c5922d2497b2f27627dcbe706547f0",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/registry",
+    "field": "dependencies",
+    "commit": "b89d7a671b44791c0d143f9c5a8f1d1ee4ca03c1",
+    "providerComponent": "packages/registry",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "46f17b2129c5922d2497b2f27627dcbe706547f0",
+  "next": "bfa100cb66d86d804febe0a48edae7c3b432567e",
+  "epicFirst": "199c8afe8cabc4dc289106848adee1275afbff4c",
+  "epicLast": "a87440798849594806112b3b5a4481f1969f8f35",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 46,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/fs/CHANGELOG.md",
+   "mode": "100644",
+   "blob": "dd066c3a7d2ccf72445c0449297c31565bd128cf",
+   "previousBlob": null,
+   "added": 7,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/README.md",
+   "mode": "100644",
+   "blob": "928e1e2efb3244bf83fda5f80649222a2ac71a54",
+   "previousBlob": null,
+   "added": 39,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

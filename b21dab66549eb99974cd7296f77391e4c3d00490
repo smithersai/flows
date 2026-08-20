@@ -1,0 +1,92 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "b21dab66549eb99974cd7296f77391e4c3d00490",
+ "tree": "f99d2143c83290c2602b31ef8bc1cd13eff7635a",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 16,
+  "childCount": 50,
+  "head": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7"
+ },
+ "atomic": {
+  "globalIndex": 86,
+  "globalCount": 838,
+  "purpose": "✨ feat(plan): export the public plan surface",
+  "type": "feat",
+  "kind": "index",
+  "scope": "plan",
+  "component": "packages/plan",
+  "unitKey": "~index",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d82a08d963e389638767097f3de1a447e46d5931",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [
+   "f1380547ee94bc44b102ddfb8c2a2281f45e04b4",
+   "248c54fd3af2a730f83ffe4312a1481a778a300d",
+   "7da67861069898ff6a097e6a5967195765577e08",
+   "e1f2d88cfb341184ba37fb50e00852b3a8a80123",
+   "a92456b67bf67019f32be2094f2323ee4a09cfc6",
+   "d82a08d963e389638767097f3de1a447e46d5931",
+   "ae29289569e3cb50fb17ad3ce477cf53ad119528",
+   "dae08d331573b8da1e75006b5907ab3f1b1041ea"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/keys",
+    "field": "dependencies",
+    "commit": "060d78f56853c2982e3d4fc1fab1d483ac3dc741",
+    "providerComponent": "packages/keys",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "d82a08d963e389638767097f3de1a447e46d5931",
+  "next": "1d56269d8e4b3634ae6d091ca7004221b82425ed",
+  "epicFirst": "60233bebe0e00cbc35cfb5176a9644f2799fde18",
+  "epicLast": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 86,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/plan/src/index.ts",
+   "mode": "100644",
+   "blob": "69a59a6d5d95c3bdd14b04a596e8718e143e7790",
+   "previousBlob": null,
+   "added": 86,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

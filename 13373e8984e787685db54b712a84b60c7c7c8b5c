@@ -1,0 +1,83 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "13373e8984e787685db54b712a84b60c7c7c8b5c",
+ "tree": "1706103c262ee9cac8ad2327710c985f668d25c5",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 8,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 188,
+  "globalCount": 838,
+  "purpose": "✨ feat(engine-store): add the internal modules (2/5)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "engine-store",
+  "component": "packages/engine-store/src",
+  "unitKey": "dir:internal",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "53e282376e1f7e7bd525a657644202288beca2d7",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "53e282376e1f7e7bd525a657644202288beca2d7"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "53e282376e1f7e7bd525a657644202288beca2d7",
+  "next": "b8f28c7744a64c21bc1dabcd26df3f4dd3918860",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 246,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/internal/AttemptProbe.ts",
+   "mode": "100644",
+   "blob": "79dfa4a1df0f15ec2704c42aa7157612c4050307",
+   "previousBlob": null,
+   "added": 91,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/internal/FileEnumeration.ts",
+   "mode": "100644",
+   "blob": "6c270fd975f932015591865b7053cc919ed0315f",
+   "previousBlob": null,
+   "added": 155,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

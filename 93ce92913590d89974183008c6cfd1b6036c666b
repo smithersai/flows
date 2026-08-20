@@ -1,0 +1,109 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "93ce92913590d89974183008c6cfd1b6036c666b",
+ "tree": "0ae47d53590ebadc2b1e383b199e63ec0b8f78ff",
+ "epic": {
+  "index": 10,
+  "id": "platform",
+  "name": "Conformance, scoring, evaluation and telemetry",
+  "sourceCommit": "317910c088e178d40f3b1553a182a7ee2be5dd24",
+  "sourceSubject": "✅ test(platform): add conformance, scoring, evaluation, and telemetry",
+  "childIndex": 24,
+  "childCount": 35,
+  "head": "3728fb6a6309a4a4c7a1eeeb6393bdecdf368130"
+ },
+ "atomic": {
+  "globalIndex": 492,
+  "globalCount": 838,
+  "purpose": "✨ feat(evals): add Runner",
+  "type": "feat",
+  "kind": "module",
+  "scope": "evals",
+  "component": "packages/evals",
+  "unitKey": "Runner",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "20869ae3a26270d1732655cec9c0ee0da383db9a",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent"
+  ],
+  "sourceImports": [
+   "20869ae3a26270d1732655cec9c0ee0da383db9a"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/scorers",
+    "field": "dependencies",
+    "commit": "b36910613bf3b72d1b3697e40f47deb24b895b59",
+    "providerComponent": "packages/scorers",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/testing",
+    "field": "dependencies",
+    "commit": "240b8562e19e4d4b2129a8231ea81fb425901030",
+    "providerComponent": "packages/testing",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "20869ae3a26270d1732655cec9c0ee0da383db9a",
+  "next": "fda737825bdfe4b1ab7346b073ed334c05a95943",
+  "epicFirst": "aafee4cdb47bb63bb06c167a8f3ee9e44c1e1e80",
+  "epicLast": "3728fb6a6309a4a4c7a1eeeb6393bdecdf368130",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 618,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/evals/src/Runner.ts",
+   "mode": "100644",
+   "blob": "c882a3e23a4706e5b07b6f7bbe8fba98cfe70967",
+   "previousBlob": null,
+   "added": 361,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/evals/test/Runner.test.ts",
+   "mode": "100644",
+   "blob": "add5666645b100252a1338c227dda3c9dd06a38d",
+   "previousBlob": null,
+   "added": 257,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

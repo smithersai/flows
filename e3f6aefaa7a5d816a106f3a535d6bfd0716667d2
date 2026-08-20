@@ -1,0 +1,99 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "e3f6aefaa7a5d816a106f3a535d6bfd0716667d2",
+ "tree": "d151472a5f91886e2592a54df1fe7789ef8eaad3",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 33,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 670,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the workflows modules (7/8)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/.smithers",
+  "unitKey": "dir:workflows",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "2acc0edb1c1ba404adb863e231da2a53f933bb61",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "6021bdf40f9d897d792a500edbebec5c507fe381"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "field": "dependencies",
+    "commit": "f7a79de58ec909a8b6633954e1f1ff9117d4d46a",
+    "providerComponent": "packages/cli",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "2acc0edb1c1ba404adb863e231da2a53f933bb61",
+  "next": "58e83ead5f4acf77b39d478dc28504f2fc0dfd46",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 929,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/workflows/universal-flow-runtime-swarm.tsx",
+   "mode": "100644",
+   "blob": "b30e6f34966e07ae5cc5b8b7a1643df47f90f534",
+   "previousBlob": null,
+   "added": 714,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/workflows/upgrade.tsx",
+   "mode": "100644",
+   "blob": "889c89e73187a9ee003b94d32325c4f226e80aa3",
+   "previousBlob": null,
+   "added": 215,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

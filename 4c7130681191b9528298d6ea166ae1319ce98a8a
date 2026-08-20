@@ -1,0 +1,264 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "4c7130681191b9528298d6ea166ae1319ce98a8a",
+ "tree": "96bef3f91266ed84ffb4f3afe1d7d8c781079b07",
+ "epic": {
+  "index": 12,
+  "id": "examples",
+  "name": "Executable learning and evaluation suites",
+  "sourceCommit": "1c0d5bce16fdac649b8f108f4e37eaea58f4933c",
+  "sourceSubject": "📚 docs(examples): add executable learning and evaluation suites",
+  "childIndex": 15,
+  "childCount": 18,
+  "head": "a482cacaa2f003ffede858d77595d07ad2842e79"
+ },
+ "atomic": {
+  "globalIndex": 613,
+  "globalCount": 838,
+  "purpose": "📦 build(examples): add examples workspace configuration",
+  "type": "build",
+  "kind": "scaffold",
+  "scope": "examples",
+  "component": "examples",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "34a48e9247d2e3231fc20ef682003ea9fe2e503e",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/agent",
+    "field": "dependencies",
+    "commit": "28271c4de9efd46910ebafecee7afa7519da5a08",
+    "providerComponent": "packages/agent",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/artifacts",
+    "field": "dependencies",
+    "commit": "83c80109f93620c67893e7c5d16326f9e242a2af",
+    "providerComponent": "packages/artifacts",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/engine",
+    "field": "dependencies",
+    "commit": "b238e49d59c7ce059f57fe58b1d2028872d1438b",
+    "providerComponent": "packages/engine",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/engine-store",
+    "field": "dependencies",
+    "commit": "c0f6e543a2aa5e3bb7dbbfce925e8c332ecfded8",
+    "providerComponent": "packages/engine-store",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/flow",
+    "field": "dependencies",
+    "commit": "ee413497efbca15acf23fa2b3cbc410affc1a802",
+    "providerComponent": "packages/flow",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/flows",
+    "field": "dependencies",
+    "commit": "ad78646af47452e8c34f4dbc0ac9f07e3341b86e",
+    "providerComponent": "packages/flows",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/harness",
+    "field": "dependencies",
+    "commit": "94bf88b1084ff840c1113e9dc695a1bfbbbe7e66",
+    "providerComponent": "packages/harness",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/jj",
+    "field": "dependencies",
+    "commit": "d933549c894f26a1f558e5e488a6b29e8c0fc242",
+    "providerComponent": "packages/jj",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "field": "dependencies",
+    "commit": "32707f96f522f0b7dce09d50ee6af6e72b7a0ef4",
+    "providerComponent": "packages/kernel",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/keys",
+    "field": "dependencies",
+    "commit": "060d78f56853c2982e3d4fc1fab1d483ac3dc741",
+    "providerComponent": "packages/keys",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/model",
+    "field": "dependencies",
+    "commit": "489c9c77a1625c553ac1f7b8bde0c279d32249ba",
+    "providerComponent": "packages/model",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/observability",
+    "field": "dependencies",
+    "commit": "80083d9cde26249939660272dd083cbc2e5ee0a6",
+    "providerComponent": "packages/observability",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/plan",
+    "field": "dependencies",
+    "commit": "b21dab66549eb99974cd7296f77391e4c3d00490",
+    "providerComponent": "packages/plan",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/platform-browser",
+    "field": "dependencies",
+    "commit": "3359dd0ae5a536bfdb25b36aeaebe25fdca1aa4f",
+    "providerComponent": "packages/platform-browser",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/platform-node",
+    "field": "dependencies",
+    "commit": "f40800d85a4bb883932720b57d4ac2a5d19c1bf8",
+    "providerComponent": "packages/platform-node",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/registry",
+    "field": "dependencies",
+    "commit": "b89d7a671b44791c0d143f9c5a8f1d1ee4ca03c1",
+    "providerComponent": "packages/registry",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/run-store",
+    "field": "dependencies",
+    "commit": "3af92874386ad961a4ac65bd603de8b0b38196de",
+    "providerComponent": "packages/run-store",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/step-cache",
+    "field": "dependencies",
+    "commit": "2d882398130e1321388dc084409590afb53af660",
+    "providerComponent": "packages/step-cache",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/sync",
+    "field": "dependencies",
+    "commit": "a255fd706b30308816fc6f41d798874bcd9bf847",
+    "providerComponent": "packages/sync",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/time-travel",
+    "field": "dependencies",
+    "commit": "57f5f8490e9077c3fff5d0233d9b0d721ac33236",
+    "providerComponent": "packages/time-travel",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "34a48e9247d2e3231fc20ef682003ea9fe2e503e",
+  "next": "403859bb2037da99ca0726fbc28b02e445ec2057",
+  "epicFirst": "d079d005cf653747c171d935a4612624051584da",
+  "epicLast": "a482cacaa2f003ffede858d77595d07ad2842e79",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 129,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "examples/BUILD.ts",
+   "mode": "100644",
+   "blob": "6152566afec5af60c64314f0c6e3354b13046364",
+   "previousBlob": null,
+   "added": 53,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "examples/package.json",
+   "mode": "100644",
+   "blob": "0d97e5c5a0a5a24ad5ee32e9cb21bfdbe32412fb",
+   "previousBlob": null,
+   "added": 44,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "examples/tsconfig.json",
+   "mode": "100644",
+   "blob": "4c92569a88e195da662e867850cd166b2879c718",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "examples/vitest.config.ts",
+   "mode": "100644",
+   "blob": "440af10417b7625ad3385d0c9737838358e1ce4d",
+   "previousBlob": null,
+   "added": 11,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

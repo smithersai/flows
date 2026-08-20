@@ -1,0 +1,174 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "f508cccdc6c6bf2fdc80e788f79f828c6c4df2a6",
+ "tree": "1a4931aab9391679b1a0a6899142d8f828b50413",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 2,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 505,
+  "globalCount": 838,
+  "purpose": "🧹 chore(build): scaffold the @smthrs/build package",
+  "type": "chore",
+  "kind": "scaffold",
+  "scope": "build",
+  "component": "packages/build",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/crypto",
+    "field": "dependencies",
+    "commit": "530694619a107836d7830ede26f152376d364388",
+    "providerComponent": "packages/crypto",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/flow",
+    "field": "dependencies",
+    "commit": "ee413497efbca15acf23fa2b3cbc410affc1a802",
+    "providerComponent": "packages/flow",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/plan",
+    "field": "dependencies",
+    "commit": "b21dab66549eb99974cd7296f77391e4c3d00490",
+    "providerComponent": "packages/plan",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "next": "db20267a26741bd67e17faf75ece805dbcae4d74",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 8,
+  "added": 428,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build/.gitignore",
+   "mode": "100644",
+   "blob": "edc60b9a814c9f77896079ce27d085f6d0f66287",
+   "previousBlob": null,
+   "added": 14,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/BUILD.ts",
+   "mode": "100644",
+   "blob": "9549bce818d3b1e569c000842ff9df9381ef8dff",
+   "previousBlob": null,
+   "added": 83,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/dprint.json",
+   "mode": "100644",
+   "blob": "c5c46c10798c5f13d063ad04dccc324e5a6290e2",
+   "previousBlob": null,
+   "added": 28,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/eslint.config.js",
+   "mode": "100644",
+   "blob": "ce88bd5c6d8fc973a1634d0da9df2e0a200d0be7",
+   "previousBlob": null,
+   "added": 102,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/package.json",
+   "mode": "100644",
+   "blob": "a568fc36b292f30aaac6c1fbbbf32c2b5f6187b4",
+   "previousBlob": null,
+   "added": 117,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/tsconfig.json",
+   "mode": "100644",
+   "blob": "5cfb10b1de41d48173d6d1f89f456c52cae7233f",
+   "previousBlob": null,
+   "added": 40,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/tsconfig.test.json",
+   "mode": "100644",
+   "blob": "94fae90f7540fc802b584832d57cdcfc5f8167f3",
+   "previousBlob": null,
+   "added": 12,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/vitest.config.ts",
+   "mode": "100644",
+   "blob": "5d1b27d7ec69309a6d46a90a0ba792f7cd3ab9d8",
+   "previousBlob": null,
+   "added": 32,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

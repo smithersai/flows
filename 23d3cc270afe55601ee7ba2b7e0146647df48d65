@@ -1,0 +1,111 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "23d3cc270afe55601ee7ba2b7e0146647df48d65",
+ "tree": "6ecb7983525b9807372650c01160ad98cd239690",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 28,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 665,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the workflows modules (2/8)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/.smithers",
+  "unitKey": "dir:workflows",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d61211b42c2b16b406c66527769099838ce7f2fc",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "6021bdf40f9d897d792a500edbebec5c507fe381",
+   "77961dd10adfa71f56be697fa093b2363d634ed1"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "field": "dependencies",
+    "commit": "f7a79de58ec909a8b6633954e1f1ff9117d4d46a",
+    "providerComponent": "packages/cli",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "d61211b42c2b16b406c66527769099838ce7f2fc",
+  "next": "0d92228922937028c782cbedbf918a6df10a3bd8",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 1215,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/workflows/docs-driven-development.tsx",
+   "mode": "100644",
+   "blob": "1c92f4a8a2161ead4a42790309b535281a75d6e2",
+   "previousBlob": null,
+   "added": 763,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/workflows/eval-suite-run.tsx",
+   "mode": "100644",
+   "blob": "9680312a7543180b097af116f5ef705923b68f12",
+   "previousBlob": null,
+   "added": 293,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/workflows/init.tsx",
+   "mode": "100644",
+   "blob": "01fcb59f5abfcf08366b5135b2efabeb2ab6f89e",
+   "previousBlob": null,
+   "added": 159,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

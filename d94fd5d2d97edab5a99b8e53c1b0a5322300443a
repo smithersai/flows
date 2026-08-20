@@ -1,0 +1,76 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "d94fd5d2d97edab5a99b8e53c1b0a5322300443a",
+ "tree": "fd1f22c2d77869bfef780d39f88a54230b28496e",
+ "epic": {
+  "index": 12,
+  "id": "examples",
+  "name": "Executable learning and evaluation suites",
+  "sourceCommit": "1c0d5bce16fdac649b8f108f4e37eaea58f4933c",
+  "sourceSubject": "📚 docs(examples): add executable learning and evaluation suites",
+  "childIndex": 13,
+  "childCount": 18,
+  "head": "a482cacaa2f003ffede858d77595d07ad2842e79"
+ },
+ "atomic": {
+  "globalIndex": 611,
+  "globalCount": 838,
+  "purpose": "✨ feat(evals-swebench): add verify",
+  "type": "feat",
+  "kind": "module",
+  "scope": "evals-swebench",
+  "component": "evals/swebench",
+  "unitKey": "verify",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "2738f86c1cf9a53d529233f03c85edc75e1b1d6d",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "2738f86c1cf9a53d529233f03c85edc75e1b1d6d",
+  "next": "34a48e9247d2e3231fc20ef682003ea9fe2e503e",
+  "epicFirst": "d079d005cf653747c171d935a4612624051584da",
+  "epicLast": "a482cacaa2f003ffede858d77595d07ad2842e79",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 42,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "evals/swebench/verify.sh",
+   "mode": "100755",
+   "blob": "60ef65c50fb4392136a902ba0ab1beb773fd3944",
+   "previousBlob": null,
+   "added": 42,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

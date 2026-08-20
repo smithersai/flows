@@ -1,0 +1,320 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "8e451d49c1457c119e256d11a611b417907e036b",
+ "tree": "9a94bce65818efda6eefc9173096982fce92ba06",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 127,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 764,
+  "globalCount": 838,
+  "purpose": "📝 docs(ui): document flow-sweep (1/2)",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "ui",
+  "component": "apps/ui/canary-repros",
+  "unitKey": "flow-sweep",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "8cf880f9e6b2396bc57847427a6191b4f644046b",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "8cf880f9e6b2396bc57847427a6191b4f644046b",
+  "next": "6da8bc5768b35fa6232d781cc9e8ef10004d237e",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 23,
+  "added": 1442,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.12.md",
+   "mode": "100644",
+   "blob": "b472e8117e2810669caa738841db5c5b8ef73395",
+   "previousBlob": null,
+   "added": 45,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.18.md",
+   "mode": "100644",
+   "blob": "05283d0c40ff3c1558e3c83a719a192315337ce3",
+   "previousBlob": null,
+   "added": 47,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.19.md",
+   "mode": "100644",
+   "blob": "399016434806cb572d199fb903fe4b72e68aea64",
+   "previousBlob": null,
+   "added": 68,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.23.md",
+   "mode": "100644",
+   "blob": "dd76e97a5f94ed8866924b84654b8c1d93c65707",
+   "previousBlob": null,
+   "added": 67,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.26.md",
+   "mode": "100644",
+   "blob": "bb2f75d92bbb931ce72013e8d5dd7609727bfc01",
+   "previousBlob": null,
+   "added": 45,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.34.md",
+   "mode": "100644",
+   "blob": "8dbb0a022c0b9ca9bd8e3a9bfbb2444401f41c73",
+   "previousBlob": null,
+   "added": 46,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.38.md",
+   "mode": "100644",
+   "blob": "f7fa7242d10e14d0bdbe53012df14ebd247e2c43",
+   "previousBlob": null,
+   "added": 68,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.46.md",
+   "mode": "100644",
+   "blob": "81dde8f5c7b4c0eb12467e3666401e6bdbb7b867",
+   "previousBlob": null,
+   "added": 67,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.47.md",
+   "mode": "100644",
+   "blob": "5dd5715dad77c188264a7ed16387379402d6e0ee",
+   "previousBlob": null,
+   "added": 67,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.48.md",
+   "mode": "100644",
+   "blob": "959dac580d17c7ebce03299e584f468dda73e143",
+   "previousBlob": null,
+   "added": 67,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.49.md",
+   "mode": "100644",
+   "blob": "67d575205ea0e21bbec72e8cb874032a49b30cc8",
+   "previousBlob": null,
+   "added": 67,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.50.md",
+   "mode": "100644",
+   "blob": "10ee36c2591232a9f88524ecea6e11a4b3bf4492",
+   "previousBlob": null,
+   "added": 67,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.51.md",
+   "mode": "100644",
+   "blob": "39b3a7a02fe33c7b56ccdb7ae3aafac2f8989359",
+   "previousBlob": null,
+   "added": 67,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.52.md",
+   "mode": "100644",
+   "blob": "f57f40543611c444d17f851940f5956c80844bfa",
+   "previousBlob": null,
+   "added": 67,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.53.md",
+   "mode": "100644",
+   "blob": "6d272d2a0b033b5c3d31c8cd338ee6b3dca95d61",
+   "previousBlob": null,
+   "added": 67,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.54.md",
+   "mode": "100644",
+   "blob": "d498056b7b58987da6f6beab7d5c1b096edcc53e",
+   "previousBlob": null,
+   "added": 72,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.55.md",
+   "mode": "100644",
+   "blob": "6d42bd214b143059f880bbc61ea3233ea912b9eb",
+   "previousBlob": null,
+   "added": 67,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.56.md",
+   "mode": "100644",
+   "blob": "794699cab3f8be5e9be645a42aaf3d72e158ba59",
+   "previousBlob": null,
+   "added": 67,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.57.md",
+   "mode": "100644",
+   "blob": "fa69f38f898b7ca453a2d26add6cf1c041b3d180",
+   "previousBlob": null,
+   "added": 67,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.59.md",
+   "mode": "100644",
+   "blob": "20724280f21536f3ce05879d793edb611abed415",
+   "previousBlob": null,
+   "added": 46,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.60.md",
+   "mode": "100644",
+   "blob": "c73c309ea33b844d0852c1b66de02eeb8b66074b",
+   "previousBlob": null,
+   "added": 67,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.64.md",
+   "mode": "100644",
+   "blob": "29621d660ad125c69ae22dc61f896f86c067bca9",
+   "previousBlob": null,
+   "added": 67,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/flow-sweep/A.65.md",
+   "mode": "100644",
+   "blob": "d600cde7142f98a92309208c445e11d5d9a29761",
+   "previousBlob": null,
+   "added": 67,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

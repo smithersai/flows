@@ -1,0 +1,93 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "239bfc3fc9ed99100f271bcb1d4a5a4ad9a3f524",
+ "tree": "f9bc8e88a0dc931960e70ea1f2ac1ff9ee1eb0cb",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 60,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 240,
+  "globalCount": 838,
+  "purpose": "✨ feat(sync): add SyncClient",
+  "type": "feat",
+  "kind": "module",
+  "scope": "sync",
+  "component": "packages/sync",
+  "unitKey": "SyncClient",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "113760108c0492bb70eaac7bb922d8772cff8c6e",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "409d977dc6850904988b0a037cbfd926daa547f0",
+   "2466cc971787b3ecc68cc046ccba9fc9b2acf82b",
+   "3c12dbdf04c94ac01d62039a304e31f3a5799f9e"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "113760108c0492bb70eaac7bb922d8772cff8c6e",
+  "next": "4809cb679f1928eb5987ca5593eb1c88a5cea8d0",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 552,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/sync/src/SyncClient.ts",
+   "mode": "100644",
+   "blob": "881077c1b3175246e96961cd19d3a89009060c71",
+   "previousBlob": null,
+   "added": 363,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/test/SyncClient.property.test.ts",
+   "mode": "100644",
+   "blob": "1d362250e252d7b4b6e9cd9375fdd3abc7014f77",
+   "previousBlob": null,
+   "added": 189,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

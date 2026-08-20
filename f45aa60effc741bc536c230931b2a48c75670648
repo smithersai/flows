@@ -1,0 +1,189 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "f45aa60effc741bc536c230931b2a48c75670648",
+ "tree": "166c39cf5148de2ce49f9b8a5e7088ff09916106",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 23,
+  "childCount": 50,
+  "head": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7"
+ },
+ "atomic": {
+  "globalIndex": 93,
+  "globalCount": 838,
+  "purpose": "✨ feat(flow): add the Action modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "flow",
+  "component": "packages/flow/src",
+  "unitKey": "dir:Action",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "4249b81454f984bbb7a11ab20830d4d7cf6386bf",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "4249b81454f984bbb7a11ab20830d4d7cf6386bf",
+  "next": "1c757bccd26029a3a99d6359d33f5ba2b5d627c3",
+  "epicFirst": "60233bebe0e00cbc35cfb5176a9644f2799fde18",
+  "epicLast": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 12,
+  "added": 725,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/BoundaryMode.ts",
+   "mode": "100644",
+   "blob": "a98c52e58d65610a3253f8e6821c92e162434add",
+   "previousBlob": null,
+   "added": 29,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/CacheEnvironment.ts",
+   "mode": "100644",
+   "blob": "49c9b62731c375184faa28444473f533efadf7e7",
+   "previousBlob": null,
+   "added": 55,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/Context.ts",
+   "mode": "100644",
+   "blob": "3ec09d6f53d6c46f563a6db01c3266c9a5890901",
+   "previousBlob": null,
+   "added": 132,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/Errors.ts",
+   "mode": "100644",
+   "blob": "1215f6c349956d8a66b8404de341c523548993d7",
+   "previousBlob": null,
+   "added": 106,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/FileInput.ts",
+   "mode": "100644",
+   "blob": "54b1f736c6a78f3783211653611b2b75ac7de95b",
+   "previousBlob": null,
+   "added": 35,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/FileBoundary.ts",
+   "mode": "100644",
+   "blob": "05b24d2b7be91ec5895a919ff60fb28cb447c433",
+   "previousBlob": null,
+   "added": 71,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/Filegroup.ts",
+   "mode": "100644",
+   "blob": "04108311ec01fd77d3cb72e8dbd906d84f7fbf02",
+   "previousBlob": null,
+   "added": 16,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/Glob.ts",
+   "mode": "100644",
+   "blob": "a0096271be13610f88687c84a5dc0f257e4067fe",
+   "previousBlob": null,
+   "added": 7,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/StepIdentity.ts",
+   "mode": "100644",
+   "blob": "bf69d1404f050f17b80a3c06a745e2a766bcaa5b",
+   "previousBlob": null,
+   "added": 165,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/TreeArtifact.ts",
+   "mode": "100644",
+   "blob": "d98fbff04e8bd976bac5a10783f116ee90d131a9",
+   "previousBlob": null,
+   "added": 7,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/TypeId.ts",
+   "mode": "100644",
+   "blob": "8604d975dceeb29c7b50d03bc06115e3025914f5",
+   "previousBlob": null,
+   "added": 10,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/retry.ts",
+   "mode": "100644",
+   "blob": "be7a135b3261deb65c6cfc0754d01d26f6a728a0",
+   "previousBlob": null,
+   "added": 92,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

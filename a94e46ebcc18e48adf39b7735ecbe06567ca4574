@@ -1,0 +1,69 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a94e46ebcc18e48adf39b7735ecbe06567ca4574",
+ "tree": "28c6b4195cdc6e5c3bb23b45c6357c55a12606c9",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 60,
+  "childCount": 60,
+  "head": "a94e46ebcc18e48adf39b7735ecbe06567ca4574"
+ },
+ "atomic": {
+  "globalIndex": 180,
+  "globalCount": 838,
+  "purpose": "✨ feat(vendor): add jj",
+  "type": "feat",
+  "kind": "module",
+  "scope": "vendor",
+  "component": "vendor",
+  "unitKey": "jj",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "0e07ea4f7f31c85a395626de2a1de4882f67eee5",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "0e07ea4f7f31c85a395626de2a1de4882f67eee5",
+  "next": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicFirst": "a6c9698a594ba11333c7d2cefbd9720612c6e6bb",
+  "epicLast": "a94e46ebcc18e48adf39b7735ecbe06567ca4574",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 1,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "vendor/jj",
+   "mode": "160000",
+   "blob": "ccb7464990a6d41d40aa4c6a4b9d280c93550eea",
+   "previousBlob": null,
+   "added": 1,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

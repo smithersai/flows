@@ -1,0 +1,73 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "221a9e8bea3dfb0a685d3a8fe8c77ad7d6a5e1bc",
+ "tree": "c795d5f06e35053fd8a6eef281eb6595d14e44a7",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 27,
+  "childCount": 50,
+  "head": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7"
+ },
+ "atomic": {
+  "globalIndex": 97,
+  "globalCount": 838,
+  "purpose": "✨ feat(flow): add Interpreter",
+  "type": "feat",
+  "kind": "module",
+  "scope": "flow",
+  "component": "packages/flow/src",
+  "unitKey": "Interpreter",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d0a9059a174eaeb3296fb48024ea8cc8068b58b2",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [
+   "1c757bccd26029a3a99d6359d33f5ba2b5d627c3",
+   "f45aa60effc741bc536c230931b2a48c75670648",
+   "4249b81454f984bbb7a11ab20830d4d7cf6386bf",
+   "d0a9059a174eaeb3296fb48024ea8cc8068b58b2"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "d0a9059a174eaeb3296fb48024ea8cc8068b58b2",
+  "next": "59b081afa275462cd487fae1814f79efa4beca18",
+  "epicFirst": "60233bebe0e00cbc35cfb5176a9644f2799fde18",
+  "epicLast": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 666,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/flow/src/Interpreter.ts",
+   "mode": "100644",
+   "blob": "13b88d73a2270d00eb3471713f8a922d0ff26930",
+   "previousBlob": null,
+   "added": 666,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

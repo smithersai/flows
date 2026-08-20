@@ -1,0 +1,164 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "39fc518387030c6c8d605e3c90ecb328f0eb8e9b",
+ "tree": "1475b2a10f348a49a483900c8f0a059e9dc2fb98",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 33,
+  "childCount": 41,
+  "head": "a87440798849594806112b3b5a4481f1969f8f35"
+ },
+ "atomic": {
+  "globalIndex": 310,
+  "globalCount": 838,
+  "purpose": "✨ feat(patterns): add the Recursion, ReviewLoop, WithApproval and 1 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "patterns",
+  "component": "packages/patterns",
+  "unitKey": "Recursion",
+  "mergedUnitKeys": [
+   "Recursion",
+   "ReviewLoop",
+   "WithApproval",
+   "WithCache"
+  ]
+ },
+ "dependencies": {
+  "parent": "6e6942b179d0278a6993365d72fcdbd84de38bf8",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [
+   "2797c3f6f29c4e398acb67b26568106af07dc252",
+   "6e6942b179d0278a6993365d72fcdbd84de38bf8"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "6e6942b179d0278a6993365d72fcdbd84de38bf8",
+  "next": "a2c4b0731edc156beae5ffbc39e051978bcc17a6",
+  "epicFirst": "199c8afe8cabc4dc289106848adee1275afbff4c",
+  "epicLast": "a87440798849594806112b3b5a4481f1969f8f35",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 8,
+  "added": 684,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/patterns/src/Recursion.ts",
+   "mode": "100644",
+   "blob": "fa62e0b7452d22ccbef88db566bd92443facedda",
+   "previousBlob": null,
+   "added": 134,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/patterns/test/Recursion.test.ts",
+   "mode": "100644",
+   "blob": "70a306bb1b689696d2a249beb774321d4c83b6c6",
+   "previousBlob": null,
+   "added": 70,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/patterns/src/ReviewLoop.ts",
+   "mode": "100644",
+   "blob": "1d2b81f87d00d25b1efa1adda108f1cdc430d08a",
+   "previousBlob": null,
+   "added": 159,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/patterns/test/ReviewLoop.test.ts",
+   "mode": "100644",
+   "blob": "87a8970312a74697bfffdaad969c2ca1b5e61d96",
+   "previousBlob": null,
+   "added": 51,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/patterns/src/WithApproval.ts",
+   "mode": "100644",
+   "blob": "28f5f39279e706b4ad1bfe1b3ec01ef1681d2b84",
+   "previousBlob": null,
+   "added": 98,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/patterns/test/WithApproval.test.ts",
+   "mode": "100644",
+   "blob": "ceac10e49fefd9b856dc5f3a6b90117b66ee9192",
+   "previousBlob": null,
+   "added": 66,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/patterns/src/WithCache.ts",
+   "mode": "100644",
+   "blob": "50396edf0827faffe53e32a34e5b967849c32a08",
+   "previousBlob": null,
+   "added": 57,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/patterns/test/WithCache.test.ts",
+   "mode": "100644",
+   "blob": "650216dfa3daaa188e04553f8bc3395e8e83aeaa",
+   "previousBlob": null,
+   "added": 49,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

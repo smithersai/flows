@@ -1,0 +1,82 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "3728fb6a6309a4a4c7a1eeeb6393bdecdf368130",
+ "tree": "2ab0f6310191b270710f4c9c8a280f5fac64aa69",
+ "epic": {
+  "index": 10,
+  "id": "platform",
+  "name": "Conformance, scoring, evaluation and telemetry",
+  "sourceCommit": "317910c088e178d40f3b1553a182a7ee2be5dd24",
+  "sourceSubject": "✅ test(platform): add conformance, scoring, evaluation, and telemetry",
+  "childIndex": 35,
+  "childCount": 35,
+  "head": "3728fb6a6309a4a4c7a1eeeb6393bdecdf368130"
+ },
+ "atomic": {
+  "globalIndex": 503,
+  "globalCount": 838,
+  "purpose": "📝 docs(observability): document observability",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "observability",
+  "component": "packages/observability",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "b8e1abcff13bd36ca6e4cd8dde9a50ca40aefc04",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "b8e1abcff13bd36ca6e4cd8dde9a50ca40aefc04",
+  "next": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicFirst": "aafee4cdb47bb63bb06c167a8f3ee9e44c1e1e80",
+  "epicLast": "3728fb6a6309a4a4c7a1eeeb6393bdecdf368130",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 23,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/observability/README.md",
+   "mode": "100644",
+   "blob": "5f39d68b1b4751df15100ca9070bb27e619a7904",
+   "previousBlob": null,
+   "added": 23,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

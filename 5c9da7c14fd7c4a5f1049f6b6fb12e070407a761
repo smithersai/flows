@@ -1,0 +1,130 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "5c9da7c14fd7c4a5f1049f6b6fb12e070407a761",
+ "tree": "200c6896cce79751d9209b60f5fd007282c58fbe",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 41,
+  "childCount": 50,
+  "head": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7"
+ },
+ "atomic": {
+  "globalIndex": 111,
+  "globalCount": 838,
+  "purpose": "✅ test(engine): cover engine (5/5)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "engine",
+  "component": "packages/engine",
+  "unitKey": "test",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "cb4b7af9a789d58f7ad453c7c3c3088166ac8441",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/crypto",
+    "field": "dependencies",
+    "commit": "530694619a107836d7830ede26f152376d364388",
+    "providerComponent": "packages/crypto",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/flow",
+    "field": "dependencies",
+    "commit": "ee413497efbca15acf23fa2b3cbc410affc1a802",
+    "providerComponent": "packages/flow",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/keys",
+    "field": "dependencies",
+    "commit": "060d78f56853c2982e3d4fc1fab1d483ac3dc741",
+    "providerComponent": "packages/keys",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/plan",
+    "field": "devDependencies",
+    "commit": "b21dab66549eb99974cd7296f77391e4c3d00490",
+    "providerComponent": "packages/plan",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "cb4b7af9a789d58f7ad453c7c3c3088166ac8441",
+  "next": "8eb1bd2103a3877e69f134c6caca0570d1d96d65",
+  "epicFirst": "60233bebe0e00cbc35cfb5176a9644f2799fde18",
+  "epicLast": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 1032,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine/test/RetryPolicy.test.ts",
+   "mode": "100644",
+   "blob": "04b0fa6f54c240fde7ff17366936a7ad051293e2",
+   "previousBlob": null,
+   "added": 376,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine/test/Tiers.test.ts",
+   "mode": "100644",
+   "blob": "1c6e0ae676e621c7138ec48221e6d0477aca0792",
+   "previousBlob": null,
+   "added": 114,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine/test/Trampoline.test.ts",
+   "mode": "100644",
+   "blob": "f83908be9c7d3a0f30550838e72ea02d3ce844c1",
+   "previousBlob": null,
+   "added": 434,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine/test/UncanonicalIdempotencyKey.test.ts",
+   "mode": "100644",
+   "blob": "e9479aee0f67f2d33deac7ec8a2f3a7242daf9ca",
+   "previousBlob": null,
+   "added": 108,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

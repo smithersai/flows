@@ -1,0 +1,113 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "e7ac89e80ac0acbeed5ae9dca43a4af442a09dde",
+ "tree": "c3982de8b9722b106a437d9371fc89aee112602f",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 24,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 661,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the ui modules (4/6)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/.smithers",
+  "unitKey": "dir:ui",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d269cf6020ec28e805a0e5a0b39b27cc50f38fad",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "6021bdf40f9d897d792a500edbebec5c507fe381",
+   "68cd9ba868ef12ac754be44036a4ca4585fcf213",
+   "3579adb9235c0b2f4bd94d0933f6483b22b0b2a6",
+   "d269cf6020ec28e805a0e5a0b39b27cc50f38fad"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "field": "dependencies",
+    "commit": "f7a79de58ec909a8b6633954e1f1ff9117d4d46a",
+    "providerComponent": "packages/cli",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "d269cf6020ec28e805a0e5a0b39b27cc50f38fad",
+  "next": "28dd5e0086698c67abe820b9ccac04de4fa91d72",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 1125,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/ui/docs-driven-development.tsx",
+   "mode": "100644",
+   "blob": "001b970aa800dbc16e0ce722f184d04069f83a30",
+   "previousBlob": null,
+   "added": 972,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/ui/production-readiness-swarm.tsx",
+   "mode": "100644",
+   "blob": "a662b3711e722f04cf9ef6ec9bc387a6a05b8773",
+   "previousBlob": null,
+   "added": 131,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/ui/share-pack.tsx",
+   "mode": "100644",
+   "blob": "25c5f53803c139d32a66dd0267cfc56fae8d8f04",
+   "previousBlob": null,
+   "added": 22,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

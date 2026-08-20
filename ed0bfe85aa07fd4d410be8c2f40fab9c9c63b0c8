@@ -1,0 +1,86 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ed0bfe85aa07fd4d410be8c2f40fab9c9c63b0c8",
+ "tree": "fd69823c5abcc3ccf2c64ce350c112eb1de4ffe0",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 68,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 571,
+  "globalCount": 838,
+  "purpose": "✨ feat(build): add the scripts modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "build",
+  "component": "packages/build/infra",
+  "unitKey": "dir:scripts",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "60ad873816f93222a0f242a565937f8a9ed598ef",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "60ad873816f93222a0f242a565937f8a9ed598ef",
+  "next": "8cb3bbb15cfdd5a3181146f66c3edc2df00bf983",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 624,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build/infra/scripts/redact-state.ts",
+   "mode": "100644",
+   "blob": "a2816120ead96b850f2f9ede10ce52ea972d0739",
+   "previousBlob": null,
+   "added": 445,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/infra/scripts/deploy.ts",
+   "mode": "100644",
+   "blob": "82a4f5d1a4b702640c3b24e4cc00c4164dcca941",
+   "previousBlob": null,
+   "added": 179,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,75 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "41dce0fa7e394794460a8109f5b349f43b79de02",
+ "tree": "b044273544e69cd447f4d1d13943126dffd889be",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 79,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 582,
+  "globalCount": 838,
+  "purpose": "✅ test(build): cover service/test (2/3)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "build",
+  "component": "packages/build/terraform",
+  "unitKey": "modules/cache/service/test",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "cea207116ec4725f538938095252324e4430aada",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "cea207116ec4725f538938095252324e4430aada",
+  "next": "88b3679820330caf22f43659e63991e1214f2cf4",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 1465,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build/terraform/modules/cache/service/test/protocol_test.js",
+   "mode": "100644",
+   "blob": "4110a8fe96af0837af8fd73defef67a70978d97e",
+   "previousBlob": null,
+   "added": 1465,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

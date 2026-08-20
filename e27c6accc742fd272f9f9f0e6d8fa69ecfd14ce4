@@ -1,0 +1,108 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "e27c6accc742fd272f9f9f0e6d8fa69ecfd14ce4",
+ "tree": "e64cdcfe4c61bfb6beee6e849032e8df8b809156",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 5,
+  "childCount": 50,
+  "head": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7"
+ },
+ "atomic": {
+  "globalIndex": 75,
+  "globalCount": 838,
+  "purpose": "📝 docs(keys): document ., src",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "keys",
+  "component": "packages/keys",
+  "unitKey": ".",
+  "mergedUnitKeys": [
+   ".",
+   "src"
+  ]
+ },
+ "dependencies": {
+  "parent": "f4f7f9a36f8ee95190c799a7b27a291550b50c54",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "field": "dependencies",
+    "commit": "f939384117c3c38a7fa71b1eddc029020998b589",
+    "providerComponent": "packages/canonical",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/crypto",
+    "field": "dependencies",
+    "commit": "530694619a107836d7830ede26f152376d364388",
+    "providerComponent": "packages/crypto",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "f4f7f9a36f8ee95190c799a7b27a291550b50c54",
+  "next": "633cbaaddf7411acbb95ff29c72b5a3e615da1e0",
+  "epicFirst": "60233bebe0e00cbc35cfb5176a9644f2799fde18",
+  "epicLast": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 53,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/keys/CHANGELOG.md",
+   "mode": "100644",
+   "blob": "864f5d3492f78b2eeba30157dbcc032a2a853aaa",
+   "previousBlob": null,
+   "added": 15,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/keys/README.md",
+   "mode": "100644",
+   "blob": "6dfceedc88b087ec272d53b2ac27fd6e69cd9d43",
+   "previousBlob": null,
+   "added": 33,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/keys/src/README.md",
+   "mode": "100644",
+   "blob": "538a4c8135ce393fb0cbde1c49aa7f0b3a0ee60f",
+   "previousBlob": null,
+   "added": 5,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

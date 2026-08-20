@@ -1,0 +1,134 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "c8bce393ea55d3257b21dbf5095fb2af8220a9d3",
+ "tree": "8f61d97d45dbf76a4538d4bed8cb207f12b179be",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 18,
+  "childCount": 54,
+  "head": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb"
+ },
+ "atomic": {
+  "globalIndex": 34,
+  "globalCount": 838,
+  "purpose": "✨ feat(journal): add the migrations, JournalEvent, OwnerId modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "journal",
+  "component": "packages/journal",
+  "unitKey": "dir:migrations",
+  "mergedUnitKeys": [
+   "dir:migrations",
+   "JournalEvent",
+   "OwnerId"
+  ]
+ },
+ "dependencies": {
+  "parent": "e947651eb461440f25f994525c5ea4e552e05964",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "e947651eb461440f25f994525c5ea4e552e05964",
+  "next": "cf89bd45358cb59d87d7077d99bbc04e932b4e18",
+  "epicFirst": "2d09eee3adb5b99a7ac2a9511ca5520ac08f7a95",
+  "epicLast": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 6,
+  "added": 406,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/journal/src/migrations/0001_initial.ts",
+   "mode": "100644",
+   "blob": "10b1d3331399b5acd9beb8466f2fe8e7611d6e33",
+   "previousBlob": null,
+   "added": 38,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/journal/src/migrations/0002_checkpoints.ts",
+   "mode": "100644",
+   "blob": "a6aacc45eb0645609da2ebc4727456cfb8f8926e",
+   "previousBlob": null,
+   "added": 41,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/journal/src/migrations/0003_consensus.ts",
+   "mode": "100644",
+   "blob": "e8912fb86dd57484bed712ceb97afcdb9d675c66",
+   "previousBlob": null,
+   "added": 81,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/journal/src/JournalEvent.ts",
+   "mode": "100644",
+   "blob": "2c9f648e0494131608c594bc8662971a771dfa3f",
+   "previousBlob": null,
+   "added": 141,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/journal/test/JournalEvent.property.test.ts",
+   "mode": "100644",
+   "blob": "8740af59d318f4ad39e8c12753a07ae9660d9e53",
+   "previousBlob": null,
+   "added": 68,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/journal/src/OwnerId.ts",
+   "mode": "100644",
+   "blob": "5d22ce93ad8d94c5f2beca480ab38b325da445c7",
+   "previousBlob": null,
+   "added": 37,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

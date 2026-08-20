@@ -1,0 +1,119 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "403376ad97220c783246a49cee85c37f0713f538",
+ "tree": "4b8746fc0b2f9c18ac90527e602876edfd441506",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 88,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 591,
+  "globalCount": 838,
+  "purpose": "✅ test(targets): cover targets (5/7)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "targets",
+  "component": "packages/targets/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "4f0b4505c480964916562838ac0cd18c6ca2f312",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "4f0b4505c480964916562838ac0cd18c6ca2f312",
+  "next": "77b45ebf7c99c4efade3a311faa70093a90affec",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 5,
+  "added": 1463,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/targets/test/NodeTest.test.ts",
+   "mode": "100644",
+   "blob": "a06a6ec6f03e4a6c6b13bec5fc063034ddd8a9fb",
+   "previousBlob": null,
+   "added": 179,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/test/PackageJson.test.ts",
+   "mode": "100644",
+   "blob": "e5273bc973e8923287b0d03ef1d1379fddcb3808",
+   "previousBlob": null,
+   "added": 720,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/test/RemoteCache.test.ts",
+   "mode": "100644",
+   "blob": "687746cec9a3bef813f47427811a0cbaf621068d",
+   "previousBlob": null,
+   "added": 90,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/test/Runtime.test.ts",
+   "mode": "100644",
+   "blob": "a3ab6d19abfc476492198781e598e1fc55fc2278",
+   "previousBlob": null,
+   "added": 90,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/test/SafeFs.test.ts",
+   "mode": "100644",
+   "blob": "4f3cbda700081015caca86b3f54b24e0c251f739",
+   "previousBlob": null,
+   "added": 384,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

@@ -1,0 +1,80 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "6c6f4e7922cdd5d3b8c96d59393797f6edb2416a",
+ "tree": "8a716198b439e2833da196ed37cb7aa6e7641957",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 12,
+  "childCount": 54,
+  "head": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb"
+ },
+ "atomic": {
+  "globalIndex": 28,
+  "globalCount": 838,
+  "purpose": "✨ feat(database): add DurableWriter",
+  "type": "feat",
+  "kind": "module",
+  "scope": "database",
+  "component": "packages/database",
+  "unitKey": "DurableWriter",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "38d4d52ca52f0442023133d1c458a08080e2edf9",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [
+   "38d4d52ca52f0442023133d1c458a08080e2edf9"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "38d4d52ca52f0442023133d1c458a08080e2edf9",
+  "next": "e99ebecf1223431dc1314747627f9ae766ce4393",
+  "epicFirst": "2d09eee3adb5b99a7ac2a9511ca5520ac08f7a95",
+  "epicLast": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 717,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/database/src/DurableWriter.ts",
+   "mode": "100644",
+   "blob": "0b6e9c4b032c9e66f7d4db3a5d9ec4bf06226572",
+   "previousBlob": null,
+   "added": 255,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/database/test/DurableWriter.test.ts",
+   "mode": "100644",
+   "blob": "cfd0fd34dbe32c77387b420c891352ef59a24a4b",
+   "previousBlob": null,
+   "added": 462,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

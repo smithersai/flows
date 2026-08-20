@@ -1,0 +1,163 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "77961dd10adfa71f56be697fa093b2363d634ed1",
+ "tree": "79f7745ddaf9ca888ac59edea7929fb58a6158eb",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 19,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 656,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the lib/ddd modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/.smithers",
+  "unitKey": "dir:lib/ddd",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "7fc28ac63b257f981aec2e8f0c353dd97994cb0a",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "field": "dependencies",
+    "commit": "f7a79de58ec909a8b6633954e1f1ff9117d4d46a",
+    "providerComponent": "packages/cli",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "7fc28ac63b257f981aec2e8f0c353dd97994cb0a",
+  "next": "6021bdf40f9d897d792a500edbebec5c507fe381",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 8,
+  "added": 992,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/lib/ddd/dddRoot.ts",
+   "mode": "100644",
+   "blob": "e765c02f3d3a355cb747042a28270434af7239c2",
+   "previousBlob": null,
+   "added": 58,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/lib/ddd/auditInputs.ts",
+   "mode": "100644",
+   "blob": "9521ee75cffaf43d61a921039700f22fd2c43d79",
+   "previousBlob": null,
+   "added": 95,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/lib/ddd/featuresSchema.ts",
+   "mode": "100644",
+   "blob": "26cd2c5a28daee64b5a8724819d57d6002bee80b",
+   "previousBlob": null,
+   "added": 100,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/lib/ddd/validateFeatures.ts",
+   "mode": "100644",
+   "blob": "bf95b8973160ee1a689015bc949496b9c7860964",
+   "previousBlob": null,
+   "added": 52,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/lib/ddd/generateSpecDocs.ts",
+   "mode": "100644",
+   "blob": "836306513f54f80ff4774e14f36f0769c90dfeb1",
+   "previousBlob": null,
+   "added": 269,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/lib/ddd/generateUiModules.ts",
+   "mode": "100644",
+   "blob": "dc29200faafd7c2d6bd8e3575c79a58e0744e626",
+   "previousBlob": null,
+   "added": 258,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/lib/ddd/build.ts",
+   "mode": "100644",
+   "blob": "faf9c5bfac06eb8e424bb930a0f45c0c3abb7b6e",
+   "previousBlob": null,
+   "added": 29,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/lib/ddd/triageCandidates.ts",
+   "mode": "100644",
+   "blob": "19ed2a959fe2659e99988b878d1fd56f46201c74",
+   "previousBlob": null,
+   "added": 131,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,126 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "c65a5f020e847e052c6c49cd88dbf44dc1ab2448",
+ "tree": "cbf928212f239f95ca64873700d02db07aa398b6",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 52,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 555,
+  "globalCount": 838,
+  "purpose": "📦 build(repo): add repo workspace configuration (1/3)",
+  "type": "build",
+  "kind": "scaffold",
+  "scope": "repo",
+  "component": "~root",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "1f17f06b3175e4291df30c612a6462ed3545207a",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "field": "devDependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/engine-store",
+    "field": "devDependencies",
+    "commit": "c0f6e543a2aa5e3bb7dbbfce925e8c332ecfded8",
+    "providerComponent": "packages/engine-store",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/build-cli",
+    "field": "devDependencies",
+    "commit": "cc0e85478aa879e21c87e48acdf282fda8eb2291",
+    "providerComponent": "packages/build-cli",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/targets",
+    "field": "devDependencies",
+    "commit": "04cacb5d5da6eed65dccb54623b16b2e67e1ef04",
+    "providerComponent": "packages/targets",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "1f17f06b3175e4291df30c612a6462ed3545207a",
+  "next": "3d781913873991a412cda44c57c9d472d97214da",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 337,
+  "deleted": 5
+ },
+ "provenance": {
+  "strategy": "hunk-split or whole-file evolution of a path introduced earlier",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "BUILD.ts",
+   "mode": "100644",
+   "blob": "f0781884b0135f11e7abc7367105fa60e26d721d",
+   "previousBlob": null,
+   "added": 201,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "eslint.jsdoc.js",
+   "mode": "100644",
+   "blob": "f72cd759d7a61de87a290e6a8337874e2aa9c8fc",
+   "previousBlob": null,
+   "added": 109,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "M",
+   "path": "package.json",
+   "mode": "100644",
+   "blob": "1c3e1467e83dfbb5cbe14311c8666e1f6061f927",
+   "previousBlob": "7dd3342bbdeccd35503d5fa5414de47df6a71fc1",
+   "added": 27,
+   "deleted": 5,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

@@ -1,0 +1,119 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "e2310339816b84700eae43a54e5263fa57bd3eca",
+ "tree": "5a8170641a67ea64411deaa8ff7ad4b7f73d1b17",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 24,
+  "childCount": 54,
+  "head": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb"
+ },
+ "atomic": {
+  "globalIndex": 40,
+  "globalCount": 838,
+  "purpose": "✅ test(journal): cover Journal (3/4)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "journal",
+  "component": "packages/journal",
+  "unitKey": "Journal",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "24ae1e47ae8c194d1bd4037efa62efe5144f5c21",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "24ae1e47ae8c194d1bd4037efa62efe5144f5c21",
+  "next": "656aea11df35b3a34d1ece108c8f03c96369d326",
+  "epicFirst": "2d09eee3adb5b99a7ac2a9511ca5520ac08f7a95",
+  "epicLast": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 5,
+  "added": 1430,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/journal/test/JournalDurable.test.ts",
+   "mode": "100644",
+   "blob": "cea5ebffafb0015355a44ddcbffc89bad3659037",
+   "previousBlob": null,
+   "added": 371,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/journal/test/JournalDurableRecovery.test.ts",
+   "mode": "100644",
+   "blob": "76f80e8ed6b689436a4d0da4fbb9d148a7609001",
+   "previousBlob": null,
+   "added": 271,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/journal/test/JournalFence.test.ts",
+   "mode": "100644",
+   "blob": "6a437b9d7db4bdb36c726e3ed503f165bc4743d5",
+   "previousBlob": null,
+   "added": 156,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/journal/test/JournalFenceDurable.test.ts",
+   "mode": "100644",
+   "blob": "9b34fba462d6dd1d7e8ddf04dfb4ec4285fdfcab",
+   "previousBlob": null,
+   "added": 262,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/journal/test/JournalRetention.test.ts",
+   "mode": "100644",
+   "blob": "d4c4662a4422b15604ad8b16d340974aa1456cdb",
+   "previousBlob": null,
+   "added": 370,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

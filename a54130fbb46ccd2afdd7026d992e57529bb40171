@@ -1,0 +1,98 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a54130fbb46ccd2afdd7026d992e57529bb40171",
+ "tree": "c974e00586f30b1fe4fc25b2e3b6dea06d0e5fbf",
+ "epic": {
+  "index": 12,
+  "id": "examples",
+  "name": "Executable learning and evaluation suites",
+  "sourceCommit": "1c0d5bce16fdac649b8f108f4e37eaea58f4933c",
+  "sourceSubject": "📚 docs(examples): add executable learning and evaluation suites",
+  "childIndex": 8,
+  "childCount": 18,
+  "head": "a482cacaa2f003ffede858d77595d07ad2842e79"
+ },
+ "atomic": {
+  "globalIndex": 606,
+  "globalCount": 838,
+  "purpose": "📦 build(evals-swebench): add evals-swebench workspace configuration",
+  "type": "build",
+  "kind": "scaffold",
+  "scope": "evals-swebench",
+  "component": "evals/swebench",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "0b9ef75604fc5b91e3c89087541bd232560e2b26",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "0b9ef75604fc5b91e3c89087541bd232560e2b26",
+  "next": "a957038e6c0763bcd5260b20169751a65462dbbd",
+  "epicFirst": "d079d005cf653747c171d935a4612624051584da",
+  "epicLast": "a482cacaa2f003ffede858d77595d07ad2842e79",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 84,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "evals/swebench/.gitignore",
+   "mode": "100644",
+   "blob": "3d574ae452488c9fb9de79f912676a4bd58ab5b1",
+   "previousBlob": null,
+   "added": 36,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/BUILD.ts",
+   "mode": "100644",
+   "blob": "1b8ff03dc18854f71155460aec092c7d5447f589",
+   "previousBlob": null,
+   "added": 31,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/tsconfig.json",
+   "mode": "100644",
+   "blob": "c7de9a22939201864fd531831b4d0deed30765bd",
+   "previousBlob": null,
+   "added": 17,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

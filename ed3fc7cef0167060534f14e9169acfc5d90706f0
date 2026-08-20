@@ -1,0 +1,97 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ed3fc7cef0167060534f14e9169acfc5d90706f0",
+ "tree": "79fdfc6b713ce63f37772eadb84c37aebe1c5b20",
+ "epic": {
+  "index": 13,
+  "id": "server",
+  "name": "Shared application contracts and worker backend",
+  "sourceCommit": "5e1bcec6b1db3f2e990cb2b79bec0050dfc34ba3",
+  "sourceSubject": "✨ feat(server): add shared application contracts and worker backend",
+  "childIndex": 7,
+  "childCount": 21,
+  "head": "c272b329cd28dcfe6a7ffd108f0055164724d1db"
+ },
+ "atomic": {
+  "globalIndex": 623,
+  "globalCount": 838,
+  "purpose": "✨ feat(server): add the scripts modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "server",
+  "component": "apps/server",
+  "unitKey": "dir:scripts",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "1a59f83916230ff4a64ab71af2f1e7e3efafa11e",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "smithers-shared",
+    "field": "dependencies",
+    "commit": null,
+    "providerComponent": "apps/shared",
+    "classification": "no-source-entrypoint",
+    "justification": "smithers-shared publishes no source index file in the bootstrap tree, so there is no commit that introduces its public surface to order against."
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "1a59f83916230ff4a64ab71af2f1e7e3efafa11e",
+  "next": "f33fa3edb55f844357b567d08f554e44fd480b70",
+  "epicFirst": "36966c150e44215f6d84e68304ed6f67f4dd06ff",
+  "epicLast": "c272b329cd28dcfe6a7ffd108f0055164724d1db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 250,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/server/scripts/deploy.ts",
+   "mode": "100644",
+   "blob": "29efde14540dbb90ca2cdcf970ff5d8b9c336b4e",
+   "previousBlob": null,
+   "added": 125,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/server/scripts/seed-allowlist.mjs",
+   "mode": "100644",
+   "blob": "856b879cdf307e0758a86b8f1d2771fb87683e24",
+   "previousBlob": null,
+   "added": 125,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,83 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "248c54fd3af2a730f83ffe4312a1481a778a300d",
+ "tree": "16294c418441a4103e09b4c7bbd1f469b5c12b9d",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 10,
+  "childCount": 50,
+  "head": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7"
+ },
+ "atomic": {
+  "globalIndex": 80,
+  "globalCount": 838,
+  "purpose": "✨ feat(plan): add KeyMaterial",
+  "type": "feat",
+  "kind": "module",
+  "scope": "plan",
+  "component": "packages/plan",
+  "unitKey": "KeyMaterial",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "7da67861069898ff6a097e6a5967195765577e08",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/keys",
+    "field": "dependencies",
+    "commit": "060d78f56853c2982e3d4fc1fab1d483ac3dc741",
+    "providerComponent": "packages/keys",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "7da67861069898ff6a097e6a5967195765577e08",
+  "next": "ae29289569e3cb50fb17ad3ce477cf53ad119528",
+  "epicFirst": "60233bebe0e00cbc35cfb5176a9644f2799fde18",
+  "epicLast": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 105,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/plan/src/KeyMaterial.ts",
+   "mode": "100644",
+   "blob": "02fd42dba3255477aa45a750c829462e420ee1a5",
+   "previousBlob": null,
+   "added": 105,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

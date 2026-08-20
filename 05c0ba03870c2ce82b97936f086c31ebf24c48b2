@@ -1,0 +1,88 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "05c0ba03870c2ce82b97936f086c31ebf24c48b2",
+ "tree": "5e5efd539a02d7e7cb07883c651c28ea4f535903",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 147,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 784,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the suites module (10/11)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/e2e",
+  "unitKey": "dir:suites",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "572f4a4d97be4c239bd1721c4aa70d6c4b9c6ab1",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "f01dafa893105f00d06046ae8d94c86cb040cc24",
+   "e822dc188bbe3d101505bc4e0d8671fc01102cc9",
+   "767956221a8bd966d33df1ed26427b0e7bcf4a57",
+   "6ee5df66db65e929997a2795336b742366b9a8d1",
+   "3b0c70f67ee7274e2c106e4cb4411598aed405ec",
+   "bbc11668994cc8f212fa1e75ab120b1725a5ade3",
+   "51308f4793d76771c4129ad12325ce6ff071fbda",
+   "a6e62e957d45844c923f75337676e02826657a76",
+   "f1d7e3f3b271cdf382bfdc34069d1ba559f1c3ea"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "572f4a4d97be4c239bd1721c4aa70d6c4b9c6ab1",
+  "next": "4c159a9b4ae9d6e10a2b22ca3fdbbd931418bf61",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 976,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/suites/turn-failure.e2e.ts",
+   "mode": "100644",
+   "blob": "d171c36d49674fd86317e4d51cae085f6a26db8e",
+   "previousBlob": null,
+   "added": 976,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

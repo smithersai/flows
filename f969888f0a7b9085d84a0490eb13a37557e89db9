@@ -1,0 +1,110 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "f969888f0a7b9085d84a0490eb13a37557e89db9",
+ "tree": "134cd10f5398529290af115e768dbb4c238a1ef3",
+ "epic": {
+  "index": 15,
+  "id": "tui",
+  "name": "Terminal application",
+  "sourceCommit": "ca5777391956c8a52c077feff63d7e5f4c84896a",
+  "sourceSubject": "✨ feat(tui): add the terminal application",
+  "childIndex": 1,
+  "childCount": 7,
+  "head": "17cc8c4684c778e5b9219714ab42f7dbe7d43bb3"
+ },
+ "atomic": {
+  "globalIndex": 789,
+  "globalCount": 838,
+  "purpose": "🧹 chore(tui): scaffold the smithers-tui package",
+  "type": "chore",
+  "kind": "scaffold",
+  "scope": "tui",
+  "component": "apps/tui",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "smithers-shared",
+    "field": "dependencies",
+    "commit": null,
+    "providerComponent": "apps/shared",
+    "classification": "no-source-entrypoint",
+    "justification": "smithers-shared publishes no source index file in the bootstrap tree, so there is no commit that introduces its public surface to order against."
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "next": "a87dbf12b37301f9d487e52e08654f6707fb5b1c",
+  "epicFirst": "f969888f0a7b9085d84a0490eb13a37557e89db9",
+  "epicLast": "17cc8c4684c778e5b9219714ab42f7dbe7d43bb3",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 98,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/tui/BUILD.ts",
+   "mode": "100644",
+   "blob": "48bb00f879b52e209886ca0207ab090488420f34",
+   "previousBlob": null,
+   "added": 47,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "apps/tui/package.json",
+   "mode": "100644",
+   "blob": "8f72d71bf0a5f1c495374f81659a28c87aa1f1fb",
+   "previousBlob": null,
+   "added": 29,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "apps/tui/tsconfig.json",
+   "mode": "100644",
+   "blob": "406f4f33f344f6b40dfdd931381ccb89af61e70c",
+   "previousBlob": null,
+   "added": 22,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

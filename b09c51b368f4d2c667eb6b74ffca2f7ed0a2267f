@@ -1,0 +1,154 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "b09c51b368f4d2c667eb6b74ffca2f7ed0a2267f",
+ "tree": "6f4b0abf42b8aad3b9a4d9f8952c484f03b7b387",
+ "epic": {
+  "index": 2,
+  "id": "core",
+  "name": "Canonical leaf contracts",
+  "sourceCommit": "9cd3ac554b7b6acecfceddce69f6a6b6afa257b6",
+  "sourceSubject": "✨ feat(core): add canonical leaf contracts",
+  "childIndex": 6,
+  "childCount": 14,
+  "head": "bd887cd5cc6d5d26338e43b0255d2d36396d519c"
+ },
+ "atomic": {
+  "globalIndex": 8,
+  "globalCount": 838,
+  "purpose": "🧹 chore(capability): scaffold the @smthrs/capability package",
+  "type": "chore",
+  "kind": "scaffold",
+  "scope": "capability",
+  "component": "packages/capability",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "2dcecc72af37d5a46025b15c7f18624cc41a0f1d",
+  "epicPredecessors": [
+   "repo"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "2dcecc72af37d5a46025b15c7f18624cc41a0f1d",
+  "next": "e8234069a931ae6091a5f034b5f9a78113056558",
+  "epicFirst": "fb8bcea968b638592c9b6360bd8fa385b34e72a0",
+  "epicLast": "bd887cd5cc6d5d26338e43b0255d2d36396d519c",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 9,
+  "added": 316,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/capability/LICENSE",
+   "mode": "100644",
+   "blob": "422a888fe58a4f77514fe407f175499d57fa27be",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/capability/dprint.json",
+   "mode": "100644",
+   "blob": "d477c0cd6d212dfc8308198e5ed2addbcef839b8",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/capability/eslint.config.js",
+   "mode": "100644",
+   "blob": "11277f241313f0dd873e81b6cd4c71c56dcb9c86",
+   "previousBlob": null,
+   "added": 47,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/capability/package.json",
+   "mode": "100644",
+   "blob": "acacfe93d66b01fe84fb4c6f2d2c1713494e4d1c",
+   "previousBlob": null,
+   "added": 102,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/capability/scripts/build.mjs",
+   "mode": "100644",
+   "blob": "584cf2c401c4a3c22bfb63e5766f9b47effcaf42",
+   "previousBlob": null,
+   "added": 41,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/capability/scripts/circular.mjs",
+   "mode": "100644",
+   "blob": "717efac93e2b61883aa574887078b7093d57d19f",
+   "previousBlob": null,
+   "added": 13,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/capability/tsconfig.json",
+   "mode": "100644",
+   "blob": "68d742349943a548207aa9f6e838284338f24749",
+   "previousBlob": null,
+   "added": 36,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/capability/tsconfig.test.json",
+   "mode": "100644",
+   "blob": "94fae90f7540fc802b584832d57cdcfc5f8167f3",
+   "previousBlob": null,
+   "added": 12,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/capability/vitest.config.ts",
+   "mode": "100644",
+   "blob": "9a849df11a3a8bfeac53e722705f2691e1a454e1",
+   "previousBlob": null,
+   "added": 23,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

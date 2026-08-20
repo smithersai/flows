@@ -1,0 +1,77 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a01c1519b136a65578a01aae4f59fa40d723047b",
+ "tree": "5b040839a31d49301bfae1fc384e6fdf9bd47350",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 83,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 586,
+  "globalCount": 838,
+  "purpose": "✨ feat(targets): add toolchain",
+  "type": "feat",
+  "kind": "module",
+  "scope": "targets",
+  "component": "packages/targets/test",
+  "unitKey": "toolchain",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "8fb9d51a8feb5e83ab3829b8930eecfbc02d3d72",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [
+   "00957ec8ebb497a919271108d05ea32e3cb1860b"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "8fb9d51a8feb5e83ab3829b8930eecfbc02d3d72",
+  "next": "8dfe815cac8a452d0de32e2a76ede6f9dcd7ccad",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 17,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/targets/test/toolchain.ts",
+   "mode": "100644",
+   "blob": "52d161714d4abb6cfbbdf6a946252dfde6f8ee2e",
+   "previousBlob": null,
+   "added": 17,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

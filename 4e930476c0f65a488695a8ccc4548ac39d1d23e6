@@ -1,0 +1,119 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "4e930476c0f65a488695a8ccc4548ac39d1d23e6",
+ "tree": "9b495fd525eaa0f1253f138015b392ff3b250abb",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 22,
+  "childCount": 41,
+  "head": "a87440798849594806112b3b5a4481f1969f8f35"
+ },
+ "atomic": {
+  "globalIndex": 299,
+  "globalCount": 838,
+  "purpose": "✅ test(registry): cover registry",
+  "type": "test",
+  "kind": "tests",
+  "scope": "registry",
+  "component": "packages/registry",
+  "unitKey": "test",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "b89d7a671b44791c0d143f9c5a8f1d1ee4ca03c1",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "field": "dependencies",
+    "commit": "32707f96f522f0b7dce09d50ee6af6e72b7a0ef4",
+    "providerComponent": "packages/kernel",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "b89d7a671b44791c0d143f9c5a8f1d1ee4ca03c1",
+  "next": "bf611b762367187eb3aa8b6af3c391779e0cfd46",
+  "epicFirst": "199c8afe8cabc4dc289106848adee1275afbff4c",
+  "epicLast": "a87440798849594806112b3b5a4481f1969f8f35",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 888,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/registry/test/Artifacts.test.ts",
+   "mode": "100644",
+   "blob": "1469ac16ef35072664d08ea798104821b8a77650",
+   "previousBlob": null,
+   "added": 16,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/registry/test/Skill.test.ts",
+   "mode": "100644",
+   "blob": "da5f43344dbd6bcd7defccfbdcd82124983a6f76",
+   "previousBlob": null,
+   "added": 144,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/registry/test/discovery-filesystem.test.ts",
+   "mode": "100644",
+   "blob": "629bd12bf9580447c31af5a2e0386733bd5a5fbe",
+   "previousBlob": null,
+   "added": 537,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/registry/test/errors-descriptor.test.ts",
+   "mode": "100644",
+   "blob": "0e2cfca2f0d1ca9a6c6f766917ae8e42a301946a",
+   "previousBlob": null,
+   "added": 191,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

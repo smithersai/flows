@@ -1,0 +1,101 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "abd05d061b8a52fe1769b9f6c708044f1e5dafe7",
+ "tree": "55153e1adba9817aaa256e599f99b7c602eee6b1",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 9,
+  "childCount": 60,
+  "head": "a94e46ebcc18e48adf39b7735ecbe06567ca4574"
+ },
+ "atomic": {
+  "globalIndex": 129,
+  "globalCount": 838,
+  "purpose": "✨ feat(jj): add the browser modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "jj",
+  "component": "packages/jj",
+  "unitKey": "dir:browser",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "f2fee9079d7c5eab5a5f4336d534a70f12281a46",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [
+   "f2fee9079d7c5eab5a5f4336d534a70f12281a46"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "field": "dependencies",
+    "commit": "7e2eac5ca71c4fc20bbe97b888dad21267da1e30",
+    "providerComponent": "packages/capability",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "f2fee9079d7c5eab5a5f4336d534a70f12281a46",
+  "next": "08eb4bf6c9949e0ca99d5fc71c23cc94acca588e",
+  "epicFirst": "a6c9698a594ba11333c7d2cefbd9720612c6e6bb",
+  "epicLast": "a94e46ebcc18e48adf39b7735ecbe06567ca4574",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 1475,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/jj/src/browser/WasiFs.ts",
+   "mode": "100644",
+   "blob": "ea8115f8ac6c6b747bd33998fc12fa63d35a5744",
+   "previousBlob": null,
+   "added": 126,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/jj/src/browser/WasiPreview1.ts",
+   "mode": "100644",
+   "blob": "7240b29b7ce666236a657557e9544462f262bbd9",
+   "previousBlob": null,
+   "added": 1051,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/jj/src/browser/BrowserJj.ts",
+   "mode": "100644",
+   "blob": "40ad6c22dde6d2fb04954f28bdbd9b8dcfa02801",
+   "previousBlob": null,
+   "added": 298,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,133 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "20869ae3a26270d1732655cec9c0ee0da383db9a",
+ "tree": "5bd2b93d7988edb2addaa17bc9d94d190b324b39",
+ "epic": {
+  "index": 10,
+  "id": "platform",
+  "name": "Conformance, scoring, evaluation and telemetry",
+  "sourceCommit": "317910c088e178d40f3b1553a182a7ee2be5dd24",
+  "sourceSubject": "✅ test(platform): add conformance, scoring, evaluation, and telemetry",
+  "childIndex": 23,
+  "childCount": 35,
+  "head": "3728fb6a6309a4a4c7a1eeeb6393bdecdf368130"
+ },
+ "atomic": {
+  "globalIndex": 491,
+  "globalCount": 838,
+  "purpose": "✨ feat(evals): add the EvalError, Suite, CaseExecutor modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "evals",
+  "component": "packages/evals",
+  "unitKey": "EvalError",
+  "mergedUnitKeys": [
+   "EvalError",
+   "Suite",
+   "CaseExecutor"
+  ]
+ },
+ "dependencies": {
+  "parent": "6a6c679e58a2a20bb6f57a63ca17df7fe79ac764",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/scorers",
+    "field": "dependencies",
+    "commit": "b36910613bf3b72d1b3697e40f47deb24b895b59",
+    "providerComponent": "packages/scorers",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/testing",
+    "field": "dependencies",
+    "commit": "240b8562e19e4d4b2129a8231ea81fb425901030",
+    "providerComponent": "packages/testing",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "6a6c679e58a2a20bb6f57a63ca17df7fe79ac764",
+  "next": "93ce92913590d89974183008c6cfd1b6036c666b",
+  "epicFirst": "aafee4cdb47bb63bb06c167a8f3ee9e44c1e1e80",
+  "epicLast": "3728fb6a6309a4a4c7a1eeeb6393bdecdf368130",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 333,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/evals/src/EvalError.ts",
+   "mode": "100644",
+   "blob": "902b23e0e555d3ced82ea43bed52ff6948d73cc5",
+   "previousBlob": null,
+   "added": 38,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/evals/src/Suite.ts",
+   "mode": "100644",
+   "blob": "a08da6fa3a4431fb7b0f5fca9a05c5418b19839c",
+   "previousBlob": null,
+   "added": 161,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/evals/test/Suite.test.ts",
+   "mode": "100644",
+   "blob": "d0c93be8884bf66a3cc286c403e76e82f341a438",
+   "previousBlob": null,
+   "added": 24,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/evals/src/CaseExecutor.ts",
+   "mode": "100644",
+   "blob": "2eda9b0752b622f0e916681528b7ceb22edb5496",
+   "previousBlob": null,
+   "added": 110,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

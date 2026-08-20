@@ -1,0 +1,81 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "865bde7d03dfed4fa35e6584f86e7406571a185b",
+ "tree": "2f72ec02f2032d9848e37d5fa0db0b9b9d95ed0f",
+ "epic": {
+  "index": 17,
+  "id": "factory",
+  "name": "Repository software factory",
+  "sourceCommit": "e1fbeee4b23399542c5105cb6f89733a14cc1892",
+  "sourceSubject": "✨ feat(factory): add the repository software factory",
+  "childIndex": 13,
+  "childCount": 17,
+  "head": "1666a5780add8693764a11b96b552909662d5e97"
+ },
+ "atomic": {
+  "globalIndex": 825,
+  "globalCount": 838,
+  "purpose": "📝 docs(factory-memory): document factory-memory",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "factory-memory",
+  "component": "factory/memory",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "0a2ab9f1fed4324f0e4c25ba575bca0704e1aa26",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui",
+   "docs-site"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "0a2ab9f1fed4324f0e4c25ba575bca0704e1aa26",
+  "next": "ce23b81a489a42120cf9e62c8b80e6cacc55fc07",
+  "epicFirst": "fe1c85cd8695563398bdd217be9a36f52ed6df92",
+  "epicLast": "1666a5780add8693764a11b96b552909662d5e97",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 55,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "factory/memory/README.md",
+   "mode": "100644",
+   "blob": "e05ac031955f822ba1d5cb6bbcd7bfc177f0f441",
+   "previousBlob": null,
+   "added": 55,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

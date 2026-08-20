@@ -1,0 +1,114 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "8c026ad28fd80bb1462799d80bf5ba76edf692dc",
+ "tree": "732c2fa7b61511b6eb148697d42cb12397169161",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 49,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 686,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the mainview modules (1/3)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d53f1c7c29921bae3320288137261b66d7e6b555",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "51308f4793d76771c4129ad12325ce6ff071fbda",
+   "d33e452aacb744538008cc1962306b8d0175849e"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "d53f1c7c29921bae3320288137261b66d7e6b555",
+  "next": "885f642ad3b17ad181797c45ce84842d9f5272d6",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 1340,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/RepoFilesBrowser.tsx",
+   "mode": "100644",
+   "blob": "a9aea0527f640b724a976f80ad41ec8c902ed773",
+   "previousBlob": null,
+   "added": 50,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/RepositoryList.tsx",
+   "mode": "100644",
+   "blob": "63e5a5d510b4c7b4e702e25ed4423525af32a9c7",
+   "previousBlob": null,
+   "added": 92,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/ChatCards.tsx",
+   "mode": "100644",
+   "blob": "dfe9606329f748608644a5ac022379949e776713",
+   "previousBlob": null,
+   "added": 1136,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/ToastStack.tsx",
+   "mode": "100644",
+   "blob": "bb48eabea1b513aababdd6e0b69b8c451d5111a4",
+   "previousBlob": null,
+   "added": 62,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

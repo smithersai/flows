@@ -1,0 +1,114 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "6448b4f1838849b35694fdd805f49e0ccdb2343a",
+ "tree": "156da0c2b42cc001b618f2d3b84fca61d15db5f7",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 33,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 213,
+  "globalCount": 838,
+  "purpose": "✅ test(engine-store): cover engine-store (7/23)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "engine-store",
+  "component": "packages/engine-store/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d1b617118754a0bb8f6e47e924b79b07c9a0e358",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "d1b617118754a0bb8f6e47e924b79b07c9a0e358",
+  "next": "009a737ddfae645900f91794f987f80ee50d39ff",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 5,
+  "added": 1304,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/DurableStateOrdering.test.ts",
+   "mode": "100644",
+   "blob": "568b74d651cbb578b561dbba522f7eabd68d75bd",
+   "previousBlob": null,
+   "added": 254,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/DurableWaitingRestart.test.ts",
+   "mode": "100644",
+   "blob": "bf12a7b9298d32ed98983a7465a3a2ab8f06998c",
+   "previousBlob": null,
+   "added": 212,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/EffectBoundaryRecords.test.ts",
+   "mode": "100644",
+   "blob": "0c96e64ebf52658a0eadf890003724843450ffeb",
+   "previousBlob": null,
+   "added": 205,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/EngineStoreAdmissionSharing.test.ts",
+   "mode": "100644",
+   "blob": "b1209f730437935e15e1d785f6976ebf52a2dc44",
+   "previousBlob": null,
+   "added": 101,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/EngineStoreLayer.test.ts",
+   "mode": "100644",
+   "blob": "6b65f033520bd3880d24ffb684e061a18d988c70",
+   "previousBlob": null,
+   "added": 532,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

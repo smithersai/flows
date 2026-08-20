@@ -1,0 +1,119 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "af94a97d6e056025a3b06c795c8edca6543937b6",
+ "tree": "e3d2492af906eba039e56e6bc709bb4dd6d1d2c9",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 103,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 740,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the launch-mint-session, launch-seam-probe, live-check and 1 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/scripts",
+  "unitKey": "launch-mint-session",
+  "mergedUnitKeys": [
+   "launch-mint-session",
+   "launch-seam-probe",
+   "live-check",
+   "live-store-reset"
+  ]
+ },
+ "dependencies": {
+  "parent": "b12a19d33e7004a1bd5b098324d9f69edc55c847",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "b12a19d33e7004a1bd5b098324d9f69edc55c847",
+   "3fd5893c645232027f083f0eb25f2a44b42f7653"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "b12a19d33e7004a1bd5b098324d9f69edc55c847",
+  "next": "58dde67ef2cd0c6f1492cccd7a771109d46f5882",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 607,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/scripts/launch-mint-session.ts",
+   "mode": "100644",
+   "blob": "10d9222e2ad8da496196b32fab9674349259a9bb",
+   "previousBlob": null,
+   "added": 81,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/scripts/launch-seam-probe.ts",
+   "mode": "100644",
+   "blob": "be41a992447aa91ef985862470f614014d2b42b9",
+   "previousBlob": null,
+   "added": 125,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/scripts/live-check.ts",
+   "mode": "100644",
+   "blob": "2d16139d67bebfeb4467a7086dfb5cf3bd264483",
+   "previousBlob": null,
+   "added": 343,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/scripts/live-store-reset.ts",
+   "mode": "100644",
+   "blob": "d645106f76ef45c66d36fdc0c5d8040e0f3b3e10",
+   "previousBlob": null,
+   "added": 58,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

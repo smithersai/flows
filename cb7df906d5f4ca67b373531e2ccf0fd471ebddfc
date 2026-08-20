@@ -1,0 +1,77 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "cb7df906d5f4ca67b373531e2ccf0fd471ebddfc",
+ "tree": "67e67588fe70764fa03b8426e4e27a52117f7f93",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 15,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 195,
+  "globalCount": 838,
+  "purpose": "✨ feat(engine-store): add the internal module (5/5)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "engine-store",
+  "component": "packages/engine-store/src",
+  "unitKey": "dir:internal",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "c548fa2e9a8dd3d8c628aae3c79519cce53be5f7",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "53e282376e1f7e7bd525a657644202288beca2d7",
+   "dfcd1b0b79c78527f800c3a21bf07b1f8d50670f",
+   "c548fa2e9a8dd3d8c628aae3c79519cce53be5f7",
+   "229f2a2a62fbf8eb4f2df6c8c9204deee510e76d",
+   "a46536bcf51dcbee573a48b3bd480d0200f1c76b",
+   "eb8e5da3a46ea6d0e4f75d67b4fefa524355c5b7"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "c548fa2e9a8dd3d8c628aae3c79519cce53be5f7",
+  "next": "0ef4871b719f3876407cc5ccb9f876c69c3c7158",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 1793,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/internal/RunDriver.ts",
+   "mode": "100644",
+   "blob": "a45dc0c9c5696583821dd6102145e70ea02ca6bc",
+   "previousBlob": null,
+   "added": 1793,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

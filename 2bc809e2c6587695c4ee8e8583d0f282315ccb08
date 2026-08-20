@@ -1,0 +1,81 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "2bc809e2c6587695c4ee8e8583d0f282315ccb08",
+ "tree": "b9acf75c024c8f025048f0894830aefdd3861a9f",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 40,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 220,
+  "globalCount": 838,
+  "purpose": "✅ test(engine-store): cover engine-store (14/23)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "engine-store",
+  "component": "packages/engine-store/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "88a615c0632bd09762238b281fd2fa8a4e11c9dd",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "88a615c0632bd09762238b281fd2fa8a4e11c9dd",
+  "next": "fcd15d462c2477ad4d7064b721e5f383c6b07018",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 1208,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/ReplayCorruptionClassification.test.ts",
+   "mode": "100644",
+   "blob": "1c6ef83d1e777c0e91eb51d6fac1e87f54110a4d",
+   "previousBlob": null,
+   "added": 964,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/ReplayOutputsFallback.test.ts",
+   "mode": "100644",
+   "blob": "e7b76cc958cbc1e266ac9e4b0fb7a8d3b8464629",
+   "previousBlob": null,
+   "added": 244,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

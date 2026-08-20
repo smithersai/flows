@@ -1,0 +1,108 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "28dd5e0086698c67abe820b9ccac04de4fa91d72",
+ "tree": "c18677f76a5c5577d49c924a88f4d8cba2c915ea",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 25,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 662,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the ui modules (5/6)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/.smithers",
+  "unitKey": "dir:ui",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "e7ac89e80ac0acbeed5ae9dca43a4af442a09dde",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "field": "dependencies",
+    "commit": "f7a79de58ec909a8b6633954e1f1ff9117d4d46a",
+    "providerComponent": "packages/cli",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "e7ac89e80ac0acbeed5ae9dca43a4af442a09dde",
+  "next": "d4aecae93f736429b996f89493c8a24272deff32",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 1133,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/ui/smithers-repo-federation.tsx",
+   "mode": "100644",
+   "blob": "f6532c9acd02990344c818b76fce8ae1baac3b0e",
+   "previousBlob": null,
+   "added": 509,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/ui/whole-foods-meal-planner.tsx",
+   "mode": "100644",
+   "blob": "a4a4e905853071e8b5ce496932af293de48fe923",
+   "previousBlob": null,
+   "added": 621,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/ui/xyflowTheme.generated.ts",
+   "mode": "100644",
+   "blob": "db5395f53df113e7388522f5c3f672d55d62bd7f",
+   "previousBlob": null,
+   "added": 3,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

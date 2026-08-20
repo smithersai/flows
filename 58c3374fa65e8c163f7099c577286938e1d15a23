@@ -1,0 +1,160 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "58c3374fa65e8c163f7099c577286938e1d15a23",
+ "tree": "c70e7b89301a09e966d4a7e944a8140226c16e24",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 41,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 678,
+  "globalCount": 838,
+  "purpose": "📝 docs(ui): document skills, skills/browser-accessibility-visual-e2e and 5 more",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "ui",
+  "component": "apps/ui/.smithers",
+  "unitKey": "skills",
+  "mergedUnitKeys": [
+   "skills",
+   "skills/browser-accessibility-visual-e2e",
+   "skills/jj-git-history-curation",
+   "skills/renderer-neutral-transcript",
+   "skills/tanstack-db-journal",
+   "spec/content",
+   "specs"
+  ]
+ },
+ "dependencies": {
+  "parent": "a97389a631b5fbbfe79e044bbf67a1037aaabc13",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "field": "dependencies",
+    "commit": "f7a79de58ec909a8b6633954e1f1ff9117d4d46a",
+    "providerComponent": "packages/cli",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "a97389a631b5fbbfe79e044bbf67a1037aaabc13",
+  "next": "fede41c478c5a240b0655f9a26feb1a5b8a011b7",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 7,
+  "added": 121,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/skills/production-readiness-swarm.md",
+   "mode": "100644",
+   "blob": "1462448e097cc961ffbb0b90d7d75de06e8307c1",
+   "previousBlob": null,
+   "added": 47,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/skills/browser-accessibility-visual-e2e/SKILL.md",
+   "mode": "100644",
+   "blob": "6cfc4d12f6d4af45a06ef03cd0cc9daeeabd9f1b",
+   "previousBlob": null,
+   "added": 4,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/skills/jj-git-history-curation/SKILL.md",
+   "mode": "100644",
+   "blob": "13fba862c5c4a970046547e18e66cd582152ee82",
+   "previousBlob": null,
+   "added": 4,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/skills/renderer-neutral-transcript/SKILL.md",
+   "mode": "100644",
+   "blob": "41dc03c4a6424fa9dc50947d0cb64e8414e3364f",
+   "previousBlob": null,
+   "added": 4,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/skills/tanstack-db-journal/SKILL.md",
+   "mode": "100644",
+   "blob": "9e5505a7cc761bc9175b4c44e1c85d9d0718cb7c",
+   "previousBlob": null,
+   "added": 4,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/spec/content/overview.md",
+   "mode": "100644",
+   "blob": "3455ac09a43f145598b1d805d608be4782628bd8",
+   "previousBlob": null,
+   "added": 3,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/specs/theme-command.md",
+   "mode": "100644",
+   "blob": "875159615ff4ac835fae503dee5396f69c42562c",
+   "previousBlob": null,
+   "added": 55,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

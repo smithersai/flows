@@ -1,0 +1,66 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "2dcecc72af37d5a46025b15c7f18624cc41a0f1d",
+ "tree": "97aeec5caa16779e288662a8829d2076fa0021b8",
+ "epic": {
+  "index": 2,
+  "id": "core",
+  "name": "Canonical leaf contracts",
+  "sourceCommit": "9cd3ac554b7b6acecfceddce69f6a6b6afa257b6",
+  "sourceSubject": "✨ feat(core): add canonical leaf contracts",
+  "childIndex": 5,
+  "childCount": 14,
+  "head": "bd887cd5cc6d5d26338e43b0255d2d36396d519c"
+ },
+ "atomic": {
+  "globalIndex": 7,
+  "globalCount": 838,
+  "purpose": "📝 docs(canonical): document canonical",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "canonical",
+  "component": "packages/canonical",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "f939384117c3c38a7fa71b1eddc029020998b589",
+  "epicPredecessors": [
+   "repo"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "f939384117c3c38a7fa71b1eddc029020998b589",
+  "next": "b09c51b368f4d2c667eb6b74ffca2f7ed0a2267f",
+  "epicFirst": "fb8bcea968b638592c9b6360bd8fa385b34e72a0",
+  "epicLast": "bd887cd5cc6d5d26338e43b0255d2d36396d519c",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 15,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/canonical/README.md",
+   "mode": "100644",
+   "blob": "e8ecfae6ef4b1e2af48e4ce71967a994314f9e8d",
+   "previousBlob": null,
+   "added": 15,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

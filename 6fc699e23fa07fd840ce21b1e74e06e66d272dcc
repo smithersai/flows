@@ -1,0 +1,107 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "6fc699e23fa07fd840ce21b1e74e06e66d272dcc",
+ "tree": "ab90b16bad577da8863d84afe24e1dfd752b0914",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 41,
+  "childCount": 54,
+  "head": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb"
+ },
+ "atomic": {
+  "globalIndex": 57,
+  "globalCount": 838,
+  "purpose": "✅ test(run-store): cover RunStore, Ownership (2/2)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "run-store",
+  "component": "packages/run-store",
+  "unitKey": "RunStore",
+  "mergedUnitKeys": [
+   "RunStore",
+   "Ownership"
+  ]
+ },
+ "dependencies": {
+  "parent": "35830e4c2d6b33e4cae5d42bd8a41f19b0d5fe71",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "35830e4c2d6b33e4cae5d42bd8a41f19b0d5fe71",
+  "next": "3af92874386ad961a4ac65bd603de8b0b38196de",
+  "epicFirst": "2d09eee3adb5b99a7ac2a9511ca5520ac08f7a95",
+  "epicLast": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 675,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/run-store/test/RunStoreFileFence.integration.test.ts",
+   "mode": "100644",
+   "blob": "2708e419e06aa567f06f9e081b6e984b434835b7",
+   "previousBlob": null,
+   "added": 175,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/run-store/test/RunStoreLeaseOrdering.test.ts",
+   "mode": "100644",
+   "blob": "046ba5467297aff8c8e4b5b143a6d736b9d004a7",
+   "previousBlob": null,
+   "added": 111,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/run-store/test/OwnershipConsensus.test.ts",
+   "mode": "100644",
+   "blob": "dd81a5d96e51f4c7674aecb24c65a46466061c20",
+   "previousBlob": null,
+   "added": 389,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

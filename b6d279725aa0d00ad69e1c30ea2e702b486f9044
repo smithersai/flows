@@ -1,0 +1,107 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "b6d279725aa0d00ad69e1c30ea2e702b486f9044",
+ "tree": "e268b82c40c986737a11e0e52a7216fb62441de3",
+ "epic": {
+  "index": 10,
+  "id": "platform",
+  "name": "Conformance, scoring, evaluation and telemetry",
+  "sourceCommit": "317910c088e178d40f3b1553a182a7ee2be5dd24",
+  "sourceSubject": "✅ test(platform): add conformance, scoring, evaluation, and telemetry",
+  "childIndex": 28,
+  "childCount": 35,
+  "head": "3728fb6a6309a4a4c7a1eeeb6393bdecdf368130"
+ },
+ "atomic": {
+  "globalIndex": 496,
+  "globalCount": 838,
+  "purpose": "✅ test(evals): cover evals",
+  "type": "test",
+  "kind": "tests",
+  "scope": "evals",
+  "component": "packages/evals",
+  "unitKey": "test/fixtures",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "469aeee6ec8149ecb9ede51221ab2a763b739b1d",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/scorers",
+    "field": "dependencies",
+    "commit": "b36910613bf3b72d1b3697e40f47deb24b895b59",
+    "providerComponent": "packages/scorers",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/testing",
+    "field": "dependencies",
+    "commit": "240b8562e19e4d4b2129a8231ea81fb425901030",
+    "providerComponent": "packages/testing",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "469aeee6ec8149ecb9ede51221ab2a763b739b1d",
+  "next": "27a24500bf4521f24a30cbb1516f80e9ecfe3eb5",
+  "epicFirst": "aafee4cdb47bb63bb06c167a8f3ee9e44c1e1e80",
+  "epicLast": "3728fb6a6309a4a4c7a1eeeb6393bdecdf368130",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 21,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/evals/test/fixtures/baseline.json",
+   "mode": "100644",
+   "blob": "4d005836b28d6bb38516446f9c731957bd014b26",
+   "previousBlob": null,
+   "added": 19,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/evals/test/fixtures/suite.jsonl",
+   "mode": "100644",
+   "blob": "4c09b0fdc5968acfa2ac60f37c1f9da162df8de1",
+   "previousBlob": null,
+   "added": 2,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

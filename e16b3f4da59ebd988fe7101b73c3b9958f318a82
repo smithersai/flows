@@ -1,0 +1,139 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "e16b3f4da59ebd988fe7101b73c3b9958f318a82",
+ "tree": "2d70973054eded867ffc2b95c53542f255ede8c2",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 25,
+  "childCount": 60,
+  "head": "a94e46ebcc18e48adf39b7735ecbe06567ca4574"
+ },
+ "atomic": {
+  "globalIndex": 145,
+  "globalCount": 838,
+  "purpose": "✨ feat(kernel): add the Jj, Path modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "kernel",
+  "component": "packages/kernel",
+  "unitKey": "Jj",
+  "mergedUnitKeys": [
+   "Jj",
+   "Path"
+  ]
+ },
+ "dependencies": {
+  "parent": "f6fd28b9c2647f8b2e822ff52f7a674cf673caff",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [
+   "8c593d48e85bf9948190a7edc7e215684136d536",
+   "486c60eee09160c8f2c90abe7f434a6606cc8d4a",
+   "f2593e80a73414263ea6c01969ff5ca604d53161"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "field": "dependencies",
+    "commit": "7e2eac5ca71c4fc20bbe97b888dad21267da1e30",
+    "providerComponent": "packages/capability",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/jj",
+    "field": "dependencies",
+    "commit": "d933549c894f26a1f558e5e488a6b29e8c0fc242",
+    "providerComponent": "packages/jj",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/platform-browser",
+    "field": "dependencies",
+    "commit": "3359dd0ae5a536bfdb25b36aeaebe25fdca1aa4f",
+    "providerComponent": "packages/platform-browser",
+    "classification": "circular-package-pair",
+    "justification": "@smthrs/kernel and @smthrs/platform-browser declare each other as workspace dependencies. The cycle is a property of the source tree, so exactly one of the two must be introduced first; no commit order can satisfy both directions."
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "f6fd28b9c2647f8b2e822ff52f7a674cf673caff",
+  "next": "e53ef97b1a34fceda22ece55a6b051efbc3ce5d3",
+  "epicFirst": "a6c9698a594ba11333c7d2cefbd9720612c6e6bb",
+  "epicLast": "a94e46ebcc18e48adf39b7735ecbe06567ca4574",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 507,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/kernel/src/Jj.ts",
+   "mode": "100644",
+   "blob": "4e340d978f21208d04cc9a0702ee97b3618a93a9",
+   "previousBlob": null,
+   "added": 117,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/kernel/test/Jj.test.ts",
+   "mode": "100644",
+   "blob": "e333ce627639b820bf78f3f87b5178e899637b01",
+   "previousBlob": null,
+   "added": 127,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/kernel/test/JjResources.test.ts",
+   "mode": "100644",
+   "blob": "912b5a933019d07cda3e554beedd8a88b5ec84b6",
+   "previousBlob": null,
+   "added": 224,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/kernel/src/Path.ts",
+   "mode": "100644",
+   "blob": "a2a9412b430cd37d79ef88ef93e00da63eaf2043",
+   "previousBlob": null,
+   "added": 39,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

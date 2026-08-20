@@ -1,0 +1,95 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "161e241a652255620ce10b0002c026ad68c33244",
+ "tree": "809278e3faddd0458723ce09f07911e194c18fbd",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 19,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 522,
+  "globalCount": 838,
+  "purpose": "✨ feat(targets): add the Changesets, CiToolchain modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "targets",
+  "component": "packages/targets/src",
+  "unitKey": "Changesets",
+  "mergedUnitKeys": [
+   "Changesets",
+   "CiToolchain"
+  ]
+ },
+ "dependencies": {
+  "parent": "b3908b564e65363669d5bc125456dea98b66083a",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [
+   "8c22e12a34262541380b4e5ce654880c38a9f45b",
+   "ba993df20a254d6d6558bcab0091b06aae25a223",
+   "00957ec8ebb497a919271108d05ea32e3cb1860b",
+   "3601609d1c618c17e895954bbdbec9660c7cf00b",
+   "b3908b564e65363669d5bc125456dea98b66083a"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "b3908b564e65363669d5bc125456dea98b66083a",
+  "next": "3e3a77e46d93463731f337bdec62e4aaca4626e7",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 632,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/targets/src/Changesets.ts",
+   "mode": "100644",
+   "blob": "909b3ad8de6dae560c185acb9a37b7267c6c3b13",
+   "previousBlob": null,
+   "added": 122,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/CiToolchain.ts",
+   "mode": "100644",
+   "blob": "bdea8f64266e301c1abbaaf99b6f85a3882e26bc",
+   "previousBlob": null,
+   "added": 510,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

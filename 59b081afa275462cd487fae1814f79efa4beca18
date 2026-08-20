@@ -1,0 +1,84 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "59b081afa275462cd487fae1814f79efa4beca18",
+ "tree": "0da443c6685f72a9f6471a94f1631bcd38b40daf",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 28,
+  "childCount": 50,
+  "head": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7"
+ },
+ "atomic": {
+  "globalIndex": 98,
+  "globalCount": 838,
+  "purpose": "✨ feat(flow): add the Sleep, WaitFor modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "flow",
+  "component": "packages/flow/src",
+  "unitKey": "Sleep",
+  "mergedUnitKeys": [
+   "Sleep",
+   "WaitFor"
+  ]
+ },
+ "dependencies": {
+  "parent": "221a9e8bea3dfb0a685d3a8fe8c77ad7d6a5e1bc",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [
+   "1c757bccd26029a3a99d6359d33f5ba2b5d627c3"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "221a9e8bea3dfb0a685d3a8fe8c77ad7d6a5e1bc",
+  "next": "ee413497efbca15acf23fa2b3cbc410affc1a802",
+  "epicFirst": "60233bebe0e00cbc35cfb5176a9644f2799fde18",
+  "epicLast": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 453,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/flow/src/Sleep.ts",
+   "mode": "100644",
+   "blob": "ecffda6549a30ffc7458263f7faf710d23ce5159",
+   "previousBlob": null,
+   "added": 221,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/WaitFor.ts",
+   "mode": "100644",
+   "blob": "464e920aa2329f33befa645bf5ad4a8419a0b280",
+   "previousBlob": null,
+   "added": 232,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

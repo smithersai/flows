@@ -1,0 +1,127 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "254b39daba4dfe58bc1a064b2bcd75457df5b5fd",
+ "tree": "4bddfed426e80fb1a7ab9e4ebdaf4d2df3a67cb0",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 64,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 701,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the mainview/routes, mainview modules (2/2)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview/routes",
+  "mergedUnitKeys": [
+   "dir:mainview/routes",
+   "dir:mainview"
+  ]
+ },
+ "dependencies": {
+  "parent": "4c6eb30e8b95853bdc765868e1e0ded3fa76539a",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "4c6eb30e8b95853bdc765868e1e0ded3fa76539a",
+   "1b4c0c503bd86ec5e890a8be549758e0c60877bb",
+   "49f05ad33ae4477ca468fc044d7ccfd9cbfbacab",
+   "692e739c5c0a1a3eb73ee1fb01484b4c9122cd04"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [
+  {
+   "paths": [
+    "apps/ui/src/mainview/routeTree.gen.ts",
+    "apps/ui/src/mainview/router.tsx"
+   ],
+   "reason": "These files import each other, directly or transitively. Any split would place an import ahead of the module it resolves to."
+  }
+ ],
+ "related": {
+  "previous": "4c6eb30e8b95853bdc765868e1e0ded3fa76539a",
+  "next": "43498b52a5d07cb8b9a6fca1baf93ee3ea1a13b2",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 175,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/routes/__root.tsx",
+   "mode": "100644",
+   "blob": "c7cd2c09a803d1f66b6815509e1a7f2e58c7c6c5",
+   "previousBlob": null,
+   "added": 72,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/main.tsx",
+   "mode": "100644",
+   "blob": "6c9562aec98b925411f172ad839ca1c9c19ab3c2",
+   "previousBlob": null,
+   "added": 25,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/routeTree.gen.ts",
+   "mode": "100644",
+   "blob": "dceedffdc12c32138e81bb63787cac7ae5d97fcd",
+   "previousBlob": null,
+   "added": 68,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/router.tsx",
+   "mode": "100644",
+   "blob": "a6aaa3ea1bdd35cfb10e67e62b68f98f74f42e73",
+   "previousBlob": null,
+   "added": 10,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

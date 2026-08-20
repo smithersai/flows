@@ -1,0 +1,290 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "1c757bccd26029a3a99d6359d33f5ba2b5d627c3",
+ "tree": "b5b1a2d0a47a0f173fa9216bf6ee93b62275bdf1",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 24,
+  "childCount": 50,
+  "head": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7"
+ },
+ "atomic": {
+  "globalIndex": 94,
+  "globalCount": 838,
+  "purpose": "✨ feat(flow): add the DurableDeferred, Action, DurableClock and 2 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "flow",
+  "component": "packages/flow/src",
+  "unitKey": "DurableDeferred",
+  "mergedUnitKeys": [
+   "DurableDeferred",
+   "dir:Action",
+   "DurableClock",
+   "dir:Flow",
+   "dir:FlowRuntime"
+  ]
+ },
+ "dependencies": {
+  "parent": "f45aa60effc741bc536c230931b2a48c75670648",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [
+   "e352a5d9a80d9e7fa8af16977718a5ce807f1f3f",
+   "f45aa60effc741bc536c230931b2a48c75670648",
+   "4249b81454f984bbb7a11ab20830d4d7cf6386bf"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [
+  {
+   "paths": [
+    "packages/flow/src/Action/Action.ts",
+    "packages/flow/src/Action/Implementations.ts",
+    "packages/flow/src/Action/idempotencyKey.ts",
+    "packages/flow/src/Action/index.ts",
+    "packages/flow/src/Action/make.ts",
+    "packages/flow/src/Action/raceAll.ts",
+    "packages/flow/src/DurableClock.ts",
+    "packages/flow/src/DurableDeferred.ts",
+    "packages/flow/src/Flow/ExecutionIds.ts",
+    "packages/flow/src/Flow/Flow.ts",
+    "packages/flow/src/Flow/Outcome.ts",
+    "packages/flow/src/Flow/Runtime.ts",
+    "packages/flow/src/Flow/index.ts",
+    "packages/flow/src/Flow/make.ts",
+    "packages/flow/src/FlowRuntime/FlowInstance.ts",
+    "packages/flow/src/FlowRuntime/FlowRuntime.ts",
+    "packages/flow/src/FlowRuntime/WaitingAnnotation.ts",
+    "packages/flow/src/FlowRuntime/index.ts"
+   ],
+   "reason": "These files import each other, directly or transitively. Any split would place an import ahead of the module it resolves to."
+  }
+ ],
+ "related": {
+  "previous": "f45aa60effc741bc536c230931b2a48c75670648",
+  "next": "939eee0228019711092abaee15793448c551d6bd",
+  "epicFirst": "60233bebe0e00cbc35cfb5176a9644f2799fde18",
+  "epicLast": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 18,
+  "added": 3489,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/Action.ts",
+   "mode": "100644",
+   "blob": "213c5af6be9294d8c675f9041de22e69a26d1069",
+   "previousBlob": null,
+   "added": 273,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/Implementations.ts",
+   "mode": "100644",
+   "blob": "ed74aa958157d48cc4a0b12e73a66bc5d87bff73",
+   "previousBlob": null,
+   "added": 146,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/idempotencyKey.ts",
+   "mode": "100644",
+   "blob": "dac660e2efaf8a8e1830d545d5b630e43d4ad1bf",
+   "previousBlob": null,
+   "added": 67,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/index.ts",
+   "mode": "100644",
+   "blob": "1f7a4700338a9ef1d928417cae51b47cb805e6cb",
+   "previousBlob": null,
+   "added": 23,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/make.ts",
+   "mode": "100644",
+   "blob": "485e092fae9aa25c643c36210eab2e7b3a1dc175",
+   "previousBlob": null,
+   "added": 390,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/raceAll.ts",
+   "mode": "100644",
+   "blob": "efcb4b76a30eaf7d7078365b841f7436bdeb3305",
+   "previousBlob": null,
+   "added": 44,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/DurableClock.ts",
+   "mode": "100644",
+   "blob": "d018c59b0eed59b47ca4986b5419fc56d385b788",
+   "previousBlob": null,
+   "added": 115,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/DurableDeferred.ts",
+   "mode": "100644",
+   "blob": "7ac6cfb10545ccdbe4c24470523417414814d374",
+   "previousBlob": null,
+   "added": 704,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Flow/ExecutionIds.ts",
+   "mode": "100644",
+   "blob": "2b83a5a00cac83f7229a615a8a91908bd5978abb",
+   "previousBlob": null,
+   "added": 121,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Flow/Flow.ts",
+   "mode": "100644",
+   "blob": "eac6b43214ec5741cb8b66c45ac8383fcdc02340",
+   "previousBlob": null,
+   "added": 450,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Flow/Outcome.ts",
+   "mode": "100644",
+   "blob": "37ead1e4d7b4204dd70a2eb5ec82f0a8f38dd7a9",
+   "previousBlob": null,
+   "added": 169,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Flow/Runtime.ts",
+   "mode": "100644",
+   "blob": "7fc1f9b7fb92ab7adbf79e759f893a4a7cedb47b",
+   "previousBlob": null,
+   "added": 262,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Flow/index.ts",
+   "mode": "100644",
+   "blob": "5de1dd428e43757558158d1599e5934cf447e7eb",
+   "previousBlob": null,
+   "added": 16,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Flow/make.ts",
+   "mode": "100644",
+   "blob": "251510f35fe16a18ac1c5af4e74d4ae87d3793b6",
+   "previousBlob": null,
+   "added": 270,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/FlowRuntime/FlowInstance.ts",
+   "mode": "100644",
+   "blob": "e9fc55b58cfa37ddd1732ec56a2d6f0e86c48ace",
+   "previousBlob": null,
+   "added": 128,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/FlowRuntime/FlowRuntime.ts",
+   "mode": "100644",
+   "blob": "4015a4ddc86e8024e441b5fcabc2fe486c7474ca",
+   "previousBlob": null,
+   "added": 242,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/FlowRuntime/WaitingAnnotation.ts",
+   "mode": "100644",
+   "blob": "6d5eb7e4d313811d5956d5a2f1bc238aaf404c95",
+   "previousBlob": null,
+   "added": 56,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/FlowRuntime/index.ts",
+   "mode": "100644",
+   "blob": "59322ea2099e2c94c6722396fecfa921fa13286e",
+   "previousBlob": null,
+   "added": 13,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ],
+ "sizeJustification": "Holds a strongly connected import component of 18 files (packages/flow/src/Action/Action.ts, packages/flow/src/Action/Implementations.ts, packages/flow/src/Action/idempotencyKey.ts, packages/flow/src/Action/index.ts, ...). Splitting the cycle would introduce a module after a module that imports it, so the group is indivisible."
+}

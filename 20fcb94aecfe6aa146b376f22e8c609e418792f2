@@ -1,0 +1,77 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "20fcb94aecfe6aa146b376f22e8c609e418792f2",
+ "tree": "ea61baa2089a7d82acbf1851085c5d090640dc3e",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 3,
+  "childCount": 54,
+  "head": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb"
+ },
+ "atomic": {
+  "globalIndex": 19,
+  "globalCount": 838,
+  "purpose": "✨ feat(artifacts): add ArtifactStore",
+  "type": "feat",
+  "kind": "module",
+  "scope": "artifacts",
+  "component": "packages/artifacts",
+  "unitKey": "ArtifactStore",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "b72b3819e435365221fa0587c992c6ec50b37e5a",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [
+   "b72b3819e435365221fa0587c992c6ec50b37e5a"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/crypto",
+    "field": "dependencies",
+    "commit": "530694619a107836d7830ede26f152376d364388",
+    "providerComponent": "packages/crypto",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "b72b3819e435365221fa0587c992c6ec50b37e5a",
+  "next": "19941aa1cb20680e99ba6cd9cb357d56dc3a9464",
+  "epicFirst": "2d09eee3adb5b99a7ac2a9511ca5520ac08f7a95",
+  "epicLast": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 617,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/artifacts/src/ArtifactStore.ts",
+   "mode": "100644",
+   "blob": "20eb549d5ddd9672a9fcd1a0c1860e3a71c0ed1a",
+   "previousBlob": null,
+   "added": 617,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

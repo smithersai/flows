@@ -1,0 +1,88 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "3359dd0ae5a536bfdb25b36aeaebe25fdca1aa4f",
+ "tree": "09bb758ed93c17871ebda9220de38b81657a93ee",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 38,
+  "childCount": 60,
+  "head": "a94e46ebcc18e48adf39b7735ecbe06567ca4574"
+ },
+ "atomic": {
+  "globalIndex": 158,
+  "globalCount": 838,
+  "purpose": "✨ feat(platform-browser): export the public platform-browser surface",
+  "type": "feat",
+  "kind": "index",
+  "scope": "platform-browser",
+  "component": "packages/platform-browser",
+  "unitKey": "~index",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "8b5efa319957097ea4bc6a2f626f5b7f8c7f337f",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [
+   "caa83de00e8dcbf052a8e945cb0ad0e091216f47",
+   "ea9524b932d7dad081c57b7b189bae1b835bb993",
+   "8b5efa319957097ea4bc6a2f626f5b7f8c7f337f"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/jj",
+    "field": "dependencies",
+    "commit": "d933549c894f26a1f558e5e488a6b29e8c0fc242",
+    "providerComponent": "packages/jj",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "field": "dependencies",
+    "commit": "32707f96f522f0b7dce09d50ee6af6e72b7a0ef4",
+    "providerComponent": "packages/kernel",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "8b5efa319957097ea4bc6a2f626f5b7f8c7f337f",
+  "next": "e2f805f55faca6cf95016d1c1e4914005a9d5740",
+  "epicFirst": "a6c9698a594ba11333c7d2cefbd9720612c6e6bb",
+  "epicLast": "a94e46ebcc18e48adf39b7735ecbe06567ca4574",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 46,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/platform-browser/src/index.ts",
+   "mode": "100644",
+   "blob": "ee373b838dec78d8ce8ee3075bda46106246e3a9",
+   "previousBlob": null,
+   "added": 46,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

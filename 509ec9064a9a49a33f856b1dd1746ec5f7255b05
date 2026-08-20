@@ -1,0 +1,137 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "509ec9064a9a49a33f856b1dd1746ec5f7255b05",
+ "tree": "8f0ad5f2a0faeafeca9d0214cdda26eb923feff5",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 46,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 549,
+  "globalCount": 838,
+  "purpose": "✨ feat(build-cli): add Executor",
+  "type": "feat",
+  "kind": "module",
+  "scope": "build-cli",
+  "component": "packages/build-cli",
+  "unitKey": "Executor",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d69b5e1053afc3407edc26a2f4222a2618a99250",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [
+   "2d3de4422cf7f876214c76713cdf4bd8a33e5082",
+   "8cb97d79780c262f46f14c65d4b65806ca9bb77c",
+   "d69b5e1053afc3407edc26a2f4222a2618a99250",
+   "68fcdf37e3b705bbfa191c6761a94cb9e6a5802b"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "field": "dependencies",
+    "commit": "f939384117c3c38a7fa71b1eddc029020998b589",
+    "providerComponent": "packages/canonical",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/crypto",
+    "field": "dependencies",
+    "commit": "530694619a107836d7830ede26f152376d364388",
+    "providerComponent": "packages/crypto",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/engine",
+    "field": "dependencies",
+    "commit": "b238e49d59c7ce059f57fe58b1d2028872d1438b",
+    "providerComponent": "packages/engine",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/flow",
+    "field": "dependencies",
+    "commit": "ee413497efbca15acf23fa2b3cbc410affc1a802",
+    "providerComponent": "packages/flow",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/keys",
+    "field": "dependencies",
+    "commit": "060d78f56853c2982e3d4fc1fab1d483ac3dc741",
+    "providerComponent": "packages/keys",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/plan",
+    "field": "dependencies",
+    "commit": "b21dab66549eb99974cd7296f77391e4c3d00490",
+    "providerComponent": "packages/plan",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/build",
+    "field": "dependencies",
+    "commit": "a6100f11c0fee3bc3a804f69befaeaa10ae6afa4",
+    "providerComponent": "packages/build",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/targets",
+    "field": "dependencies",
+    "commit": "04cacb5d5da6eed65dccb54623b16b2e67e1ef04",
+    "providerComponent": "packages/targets",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "d69b5e1053afc3407edc26a2f4222a2618a99250",
+  "next": "1dcf440a2887adcbea64395e8d11553f170cdd07",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 1061,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build-cli/src/Executor.ts",
+   "mode": "100644",
+   "blob": "e7f698fbace7b9d63369733fe053671968e96338",
+   "previousBlob": null,
+   "added": 1061,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

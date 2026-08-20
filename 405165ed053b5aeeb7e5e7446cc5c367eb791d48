@@ -1,0 +1,148 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "405165ed053b5aeeb7e5e7446cc5c367eb791d48",
+ "tree": "7da446a2011f07e91b8c4b21fbd6ad38e44a0da9",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 26,
+  "childCount": 41,
+  "head": "a87440798849594806112b3b5a4481f1969f8f35"
+ },
+ "atomic": {
+  "globalIndex": 303,
+  "globalCount": 838,
+  "purpose": "✨ feat(fs): add the FsError, CommandLine, SchemaBridge and 3 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "fs",
+  "component": "packages/fs",
+  "unitKey": "FsError",
+  "mergedUnitKeys": [
+   "FsError",
+   "internal/CommandLine",
+   "internal/SchemaBridge",
+   "Route",
+   "CommandTree",
+   "FlowInvoker"
+  ]
+ },
+ "dependencies": {
+  "parent": "f2a9c1c385dfaa1731ad0ce5d68597c1926b4e87",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/registry",
+    "field": "dependencies",
+    "commit": "b89d7a671b44791c0d143f9c5a8f1d1ee4ca03c1",
+    "providerComponent": "packages/registry",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "f2a9c1c385dfaa1731ad0ce5d68597c1926b4e87",
+  "next": "704a3e900baeaa07632c71ab49b4c690bd021e2a",
+  "epicFirst": "199c8afe8cabc4dc289106848adee1275afbff4c",
+  "epicLast": "a87440798849594806112b3b5a4481f1969f8f35",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 6,
+  "added": 688,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/fs/src/FsError.ts",
+   "mode": "100644",
+   "blob": "8fae5b3b4dc72bc58bf8e9cd25e08e2f28dc51a4",
+   "previousBlob": null,
+   "added": 52,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/src/internal/CommandLine.ts",
+   "mode": "100644",
+   "blob": "9c10bc76b4e94a6ce8f27ff5aeea304f52198891",
+   "previousBlob": null,
+   "added": 157,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/src/internal/SchemaBridge.ts",
+   "mode": "100644",
+   "blob": "856b305c90aa15d218f0b0e3808c130d6843431e",
+   "previousBlob": null,
+   "added": 138,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/src/Route.ts",
+   "mode": "100644",
+   "blob": "a1e0cdb351071f1c4f89d4f4fa61caf523563ab2",
+   "previousBlob": null,
+   "added": 122,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/src/CommandTree.ts",
+   "mode": "100644",
+   "blob": "909f3d7b3d847e5a9c6b8214fa8517269b5022e8",
+   "previousBlob": null,
+   "added": 133,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/src/FlowInvoker.ts",
+   "mode": "100644",
+   "blob": "365d4fefc2885f1a49795edeb23006dee33c7f29",
+   "previousBlob": null,
+   "added": 86,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

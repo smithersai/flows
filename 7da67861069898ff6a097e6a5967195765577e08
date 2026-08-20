@@ -1,0 +1,105 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "7da67861069898ff6a097e6a5967195765577e08",
+ "tree": "e72d2cf2880e7c3556874485b96a2a0f07c8c678",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 9,
+  "childCount": 50,
+  "head": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7"
+ },
+ "atomic": {
+  "globalIndex": 79,
+  "globalCount": 838,
+  "purpose": "✨ feat(plan): add FileSet",
+  "type": "feat",
+  "kind": "module",
+  "scope": "plan",
+  "component": "packages/plan",
+  "unitKey": "FileSet",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "48e3e3b2d13ed205173366523044bbbc106d6ee5",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/keys",
+    "field": "dependencies",
+    "commit": "060d78f56853c2982e3d4fc1fab1d483ac3dc741",
+    "providerComponent": "packages/keys",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "48e3e3b2d13ed205173366523044bbbc106d6ee5",
+  "next": "248c54fd3af2a730f83ffe4312a1481a778a300d",
+  "epicFirst": "60233bebe0e00cbc35cfb5176a9644f2799fde18",
+  "epicLast": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 636,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/plan/src/FileSet.ts",
+   "mode": "100644",
+   "blob": "2c40d6acfe0f926dd649a98a897db21a8cbf35b6",
+   "previousBlob": null,
+   "added": 292,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/plan/test/FileSet.property.test.ts",
+   "mode": "100644",
+   "blob": "0826b499fec87195fd5c2cbbceef06e061a64e7c",
+   "previousBlob": null,
+   "added": 245,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/plan/test/FileSet.test.ts",
+   "mode": "100644",
+   "blob": "94ab36dc6e97fea02334d9f4124ed967e5cb65cb",
+   "previousBlob": null,
+   "added": 99,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

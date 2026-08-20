@@ -1,0 +1,91 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "2466cc971787b3ecc68cc046ccba9fc9b2acf82b",
+ "tree": "e2b5d42303b8de3d7ba38ffd8d5f9ce3879f1943",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 53,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 233,
+  "globalCount": 838,
+  "purpose": "✨ feat(sync): add SyncProtocol",
+  "type": "feat",
+  "kind": "module",
+  "scope": "sync",
+  "component": "packages/sync",
+  "unitKey": "SyncProtocol",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "9b5ee1f722caf32b2f81ceb86f24b150920950c1",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "409d977dc6850904988b0a037cbfd926daa547f0"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "9b5ee1f722caf32b2f81ceb86f24b150920950c1",
+  "next": "450d72bedac73c6b54bda830c5f1c2fe6bd77f9c",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 371,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/sync/src/SyncProtocol.ts",
+   "mode": "100644",
+   "blob": "764bcce7ba240597e4f9c172a0dcd265b2a5b988",
+   "previousBlob": null,
+   "added": 241,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/test/SyncProtocol.property.test.ts",
+   "mode": "100644",
+   "blob": "7575864e56094765d4209cbe515d5f8d75926e28",
+   "previousBlob": null,
+   "added": 130,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

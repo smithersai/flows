@@ -1,0 +1,149 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "179726db1f61fd55b8743acd4bfea3cde8f7cdf3",
+ "tree": "e912f25614876e1c8cf4a8f50e52bfee7c215371",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 15,
+  "childCount": 54,
+  "head": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb"
+ },
+ "atomic": {
+  "globalIndex": 31,
+  "globalCount": 838,
+  "purpose": "✅ test(database): cover database",
+  "type": "test",
+  "kind": "tests",
+  "scope": "database",
+  "component": "packages/database",
+  "unitKey": "src/test",
+  "mergedUnitKeys": [
+   "src/test",
+   "test",
+   "test/contract",
+   "test/fixtures"
+  ]
+ },
+ "dependencies": {
+  "parent": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+  "next": "e9029e607c9ebcc78720240b642d62c749170a2b",
+  "epicFirst": "2d09eee3adb5b99a7ac2a9511ca5520ac08f7a95",
+  "epicLast": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 8,
+  "added": 667,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/database/src/test/TestDatabase.ts",
+   "mode": "100644",
+   "blob": "64df80729ad3c27d44f9dc81b22c00f3a1bb3c56",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/database/test/Artifacts.test.ts",
+   "mode": "100644",
+   "blob": "981e9c4a6e748b65eac57bcc4070b93da8dad88d",
+   "previousBlob": null,
+   "added": 22,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/database/test/DatabaseWriteContract.test.ts",
+   "mode": "100644",
+   "blob": "6cf6f29098ce0608d5b46bbbdc207fd505866eb5",
+   "previousBlob": null,
+   "added": 36,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/database/test/DatabaseWriteContractIntegration.test.ts",
+   "mode": "100644",
+   "blob": "2798aa1821ea32ef18235749f2c5f496c4aba946",
+   "previousBlob": null,
+   "added": 47,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/database/test/NodeDatabaseConcurrentOpen.test.ts",
+   "mode": "100644",
+   "blob": "9a3ab0abe43b5c44c6c40661e71d3a49009912c3",
+   "previousBlob": null,
+   "added": 178,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/database/test/contract/DatabaseWriteContract.ts",
+   "mode": "100644",
+   "blob": "bdb9e730938c341355c2c2591fa51d3263e91daf",
+   "previousBlob": null,
+   "added": 351,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/database/test/fixtures/artifact-cjs.cjs",
+   "mode": "100644",
+   "blob": "42c781ebfbda6c8168fbc8ff184cfd06cffb022c",
+   "previousBlob": null,
+   "added": 6,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/database/test/fixtures/artifact-esm.mjs",
+   "mode": "100644",
+   "blob": "0857c889a4af3becb8e82d84cd6e1dac5a0a7e23",
+   "previousBlob": null,
+   "added": 6,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

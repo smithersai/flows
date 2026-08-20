@@ -1,0 +1,188 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "9b166e99a88b306e7a50a54a4718de74077546e2",
+ "tree": "d59bf46a13962501d902629c63ed0806e106f723",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 114,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 751,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the chat modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/canary-repros",
+  "unitKey": "dir:chat",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "8b766b1caf03156697687ebeed80701c788c0238",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "8b766b1caf03156697687ebeed80701c788c0238",
+  "next": "c16071ac21128cd23f0dda22a7d6b4e6a2214cb0",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 11,
+  "added": 785,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/chat/_harness.ts",
+   "mode": "100644",
+   "blob": "33b9afb7633a1376743e38d47930ef9b5750af56",
+   "previousBlob": null,
+   "added": 99,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/chat/4.13.ts",
+   "mode": "100644",
+   "blob": "7e8b361aa554bd2734912c2b8f1beda6f508e530",
+   "previousBlob": null,
+   "added": 83,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/chat/4.2.ts",
+   "mode": "100644",
+   "blob": "48e04d05cc238df83aa355081f8819f4bd7c7295",
+   "previousBlob": null,
+   "added": 62,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/chat/4.6.ts",
+   "mode": "100644",
+   "blob": "f5674d8cf533f9d427eb15bd7b56867396598e6b",
+   "previousBlob": null,
+   "added": 56,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/chat/5.1.ts",
+   "mode": "100644",
+   "blob": "02a23dbd0108494c08beb0b784da5da03a53aae3",
+   "previousBlob": null,
+   "added": 70,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/chat/5.11.ts",
+   "mode": "100644",
+   "blob": "219bb0b3a9e640702f1922c20f5a1bc0bc0bed29",
+   "previousBlob": null,
+   "added": 70,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/chat/5.15.ts",
+   "mode": "100644",
+   "blob": "d05c6c911dfca273db1c62452eb0308594673c5f",
+   "previousBlob": null,
+   "added": 72,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/chat/5.2.ts",
+   "mode": "100644",
+   "blob": "15655cda1e700753638b3d7bfa04da50af6326d5",
+   "previousBlob": null,
+   "added": 98,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/chat/5.6.ts",
+   "mode": "100644",
+   "blob": "6b4e3c0f5f286e01e6363cf2e023082ee98a8529",
+   "previousBlob": null,
+   "added": 64,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/chat/6.1.ts",
+   "mode": "100644",
+   "blob": "e0969054ece9a989606da05f42fcefe6e7b36383",
+   "previousBlob": null,
+   "added": 66,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/chat/6.4.ts",
+   "mode": "100644",
+   "blob": "2a4189fcb71a07cf8040a5eb572cc361ac788731",
+   "previousBlob": null,
+   "added": 45,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

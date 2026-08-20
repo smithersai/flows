@@ -1,0 +1,75 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "768e6b328a1d9708b3d55b8cdb0279732ae72440",
+ "tree": "1ff4a8840138f5e0778fccb7bcf91e2a1aa92023",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 23,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 526,
+  "globalCount": 838,
+  "purpose": "✨ feat(targets): add GithubWorkflow",
+  "type": "feat",
+  "kind": "module",
+  "scope": "targets",
+  "component": "packages/targets/src",
+  "unitKey": "GithubWorkflow",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "2e6cabd34f3089181e30efce70f016ab57121847",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "2e6cabd34f3089181e30efce70f016ab57121847",
+  "next": "5091eb10184df80a3515c105264c949dee7e3174",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 1313,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/targets/src/GithubWorkflow.ts",
+   "mode": "100644",
+   "blob": "a0eb322478a2e7d6ce05d004e4f0d56245ad2926",
+   "previousBlob": null,
+   "added": 1313,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

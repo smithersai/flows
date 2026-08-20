@@ -1,0 +1,95 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a74be8d0341c0bfa9c3b8804ce0c524ae984c9bd",
+ "tree": "390c65593201eefbcc79f3c47ffc2157cdb2e145",
+ "epic": {
+  "index": 12,
+  "id": "examples",
+  "name": "Executable learning and evaluation suites",
+  "sourceCommit": "1c0d5bce16fdac649b8f108f4e37eaea58f4933c",
+  "sourceSubject": "📚 docs(examples): add executable learning and evaluation suites",
+  "childIndex": 3,
+  "childCount": 18,
+  "head": "a482cacaa2f003ffede858d77595d07ad2842e79"
+ },
+ "atomic": {
+  "globalIndex": 601,
+  "globalCount": 838,
+  "purpose": "✨ feat(evals-agent): add the suite, run modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "evals-agent",
+  "component": "evals/agent",
+  "unitKey": "suite",
+  "mergedUnitKeys": [
+   "suite",
+   "run"
+  ]
+ },
+ "dependencies": {
+  "parent": "2dd82523f3cc2fd16d505b7ce475e56a922386f9",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build"
+  ],
+  "sourceImports": [
+   "594053b296b9842285f3f69698d40bbcff21417f",
+   "469aeee6ec8149ecb9ede51221ab2a763b739b1d",
+   "b36910613bf3b72d1b3697e40f47deb24b895b59",
+   "2dd82523f3cc2fd16d505b7ce475e56a922386f9"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "2dd82523f3cc2fd16d505b7ce475e56a922386f9",
+  "next": "a5d5bc688b7bd483accdcd3c66c2c2c85c3fe7f4",
+  "epicFirst": "d079d005cf653747c171d935a4612624051584da",
+  "epicLast": "a482cacaa2f003ffede858d77595d07ad2842e79",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 591,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "evals/agent/suite.ts",
+   "mode": "100644",
+   "blob": "97084d2d37aa51e94c78eb2bf5cfb3e8ec71919a",
+   "previousBlob": null,
+   "added": 441,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/agent/run.ts",
+   "mode": "100644",
+   "blob": "3df84b8da9a8580cdd5f316d14c7cb8880c21f8a",
+   "previousBlob": null,
+   "added": 150,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

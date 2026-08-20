@@ -1,0 +1,83 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "bbebe37566f9480b6199baa3abce3dcf205a2b77",
+ "tree": "d700547c50fb4a34b36fa16105fe71572b416c3b",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 27,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 530,
+  "globalCount": 838,
+  "purpose": "✨ feat(targets): add GithubCiGen",
+  "type": "feat",
+  "kind": "module",
+  "scope": "targets",
+  "component": "packages/targets/src",
+  "unitKey": "GithubCiGen",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "3d8490127e6f2bef4753f70d6d99441abf8d5b9d",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [
+   "161e241a652255620ce10b0002c026ad68c33244",
+   "357b1d58b060b24f450d3d84da29306d20e516c3",
+   "ba993df20a254d6d6558bcab0091b06aae25a223",
+   "00957ec8ebb497a919271108d05ea32e3cb1860b",
+   "3d8490127e6f2bef4753f70d6d99441abf8d5b9d",
+   "b3908b564e65363669d5bc125456dea98b66083a",
+   "3601609d1c618c17e895954bbdbec9660c7cf00b"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "3d8490127e6f2bef4753f70d6d99441abf8d5b9d",
+  "next": "3d4af1d100d68f840873855c5dd904594e79e522",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 918,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/targets/src/GithubCiGen.ts",
+   "mode": "100644",
+   "blob": "16c971e08ca0c6ba56163a3e5ca1b3c12606ab73",
+   "previousBlob": null,
+   "added": 918,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

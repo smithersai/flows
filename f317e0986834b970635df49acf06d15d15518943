@@ -1,0 +1,101 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "f317e0986834b970635df49acf06d15d15518943",
+ "tree": "dd679d53942a0d307584653bff14c83dcb7f7732",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 49,
+  "childCount": 66,
+  "head": "5a833bbe7affdc7dda1a3b24f9e5a5239864093b"
+ },
+ "atomic": {
+  "globalIndex": 367,
+  "globalCount": 838,
+  "purpose": "✅ test(memory): cover MemoryStore",
+  "type": "test",
+  "kind": "tests",
+  "scope": "memory",
+  "component": "packages/memory",
+  "unitKey": "MemoryStore",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "c5fae6365097badca5abc597247a2fe0ec4d2048",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/model",
+    "field": "dependencies",
+    "commit": "489c9c77a1625c553ac1f7b8bde0c279d32249ba",
+    "providerComponent": "packages/model",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/patterns",
+    "field": "dependencies",
+    "commit": "c0735b098e72bf6e6e70c2a176845008d0fd02cf",
+    "providerComponent": "packages/patterns",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "c5fae6365097badca5abc597247a2fe0ec4d2048",
+  "next": "41f23004d99f2646cfbdff1fc75041ad5e6e2ef2",
+  "epicFirst": "1a9eeded3e87702322afacdd6021037ce6179f5e",
+  "epicLast": "5a833bbe7affdc7dda1a3b24f9e5a5239864093b",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 968,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/memory/test/MemoryStore.test.ts",
+   "mode": "100644",
+   "blob": "19a1b31998580c26fe5b072b629634f01c883898",
+   "previousBlob": null,
+   "added": 968,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

@@ -1,0 +1,122 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "18168cd073292d4204cc8452bfb11a8009266098",
+ "tree": "4665492a13cba61d4893dee591340a693cdecaef",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 92,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 729,
+  "globalCount": 838,
+  "purpose": "✅ test(ui): cover mainview/state (6/8)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "mainview/state",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "4cb2939d5abe30d83f670ea04235cd1f834d6f38",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "4cb2939d5abe30d83f670ea04235cd1f834d6f38",
+  "next": "ab91091edc9121f81c3ce7d62c701f8180b0433d",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 5,
+  "added": 1463,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/ToolLoop.test.ts",
+   "mode": "100644",
+   "blob": "be82ca641d2e8f31e4413377ccf5635e5441881a",
+   "previousBlob": null,
+   "added": 251,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/TranscriptOrder.test.ts",
+   "mode": "100644",
+   "blob": "82b16b65408f98efc37aa40946b924af0a99fdfd",
+   "previousBlob": null,
+   "added": 92,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/TurnSize.test.ts",
+   "mode": "100644",
+   "blob": "6bffb3edaa6c12b6d90b4e50818392c104d00a38",
+   "previousBlob": null,
+   "added": 90,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/Wave10.test.ts",
+   "mode": "100644",
+   "blob": "00669e103963b7a1fb39de10d36ca9d4a8f4c055",
+   "previousBlob": null,
+   "added": 664,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/Wave10Chat.test.tsx",
+   "mode": "100644",
+   "blob": "988b6677b44acde9ef486f67bf5b4c3ae3254cfe",
+   "previousBlob": null,
+   "added": 366,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

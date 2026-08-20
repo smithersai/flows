@@ -1,0 +1,128 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "b1f0965d2015833543aa9ea841bd179a7f1ba35b",
+ "tree": "593ce09c87e1d471653eef77acdfde2b7f598fcb",
+ "epic": {
+  "index": 10,
+  "id": "platform",
+  "name": "Conformance, scoring, evaluation and telemetry",
+  "sourceCommit": "317910c088e178d40f3b1553a182a7ee2be5dd24",
+  "sourceSubject": "✅ test(platform): add conformance, scoring, evaluation, and telemetry",
+  "childIndex": 3,
+  "childCount": 35,
+  "head": "3728fb6a6309a4a4c7a1eeeb6393bdecdf368130"
+ },
+ "atomic": {
+  "globalIndex": 471,
+  "globalCount": 838,
+  "purpose": "✨ feat(scorers): add the Runner, RunnerLive, SqlScoreStore modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "scorers",
+  "component": "packages/scorers",
+  "unitKey": "Runner",
+  "mergedUnitKeys": [
+   "Runner",
+   "RunnerLive",
+   "SqlScoreStore"
+  ]
+ },
+ "dependencies": {
+  "parent": "f89e3b293ee0d5d27491ab2b73144029d0bbd6a2",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent"
+  ],
+  "sourceImports": [
+   "f89e3b293ee0d5d27491ab2b73144029d0bbd6a2"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "f89e3b293ee0d5d27491ab2b73144029d0bbd6a2",
+  "next": "b36910613bf3b72d1b3697e40f47deb24b895b59",
+  "epicFirst": "aafee4cdb47bb63bb06c167a8f3ee9e44c1e1e80",
+  "epicLast": "3728fb6a6309a4a4c7a1eeeb6393bdecdf368130",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 468,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/scorers/src/Runner.ts",
+   "mode": "100644",
+   "blob": "0eb71472f0be494320d16635ef5b5cd4e4634ab6",
+   "previousBlob": null,
+   "added": 106,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/scorers/test/Runner.test.ts",
+   "mode": "100644",
+   "blob": "7545b68e01a8e33471e92cdbe79e8c29130d408a",
+   "previousBlob": null,
+   "added": 86,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/scorers/src/RunnerLive.ts",
+   "mode": "100644",
+   "blob": "b2ecbd191eb2d55b93845af46d7f961d22e49062",
+   "previousBlob": null,
+   "added": 93,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/scorers/src/SqlScoreStore.ts",
+   "mode": "100644",
+   "blob": "8134df062a59f6e5d2cae2178ecda5a9c954f7a0",
+   "previousBlob": null,
+   "added": 183,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

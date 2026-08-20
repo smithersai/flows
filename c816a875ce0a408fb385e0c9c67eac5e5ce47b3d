@@ -1,0 +1,96 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "c816a875ce0a408fb385e0c9c67eac5e5ce47b3d",
+ "tree": "b1b4349763198f2f90f24430a59a4a0ccbaebefb",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 140,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 777,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the suites modules (3/11)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/e2e",
+  "unitKey": "dir:suites",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "57a47bae69e93e4233df2d82e5b87d7ff75883cd",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "3fd5893c645232027f083f0eb25f2a44b42f7653",
+   "6ee5df66db65e929997a2795336b742366b9a8d1",
+   "c7389c8fb2e161d11d7f53dbeea9064f56c9c167",
+   "e822dc188bbe3d101505bc4e0d8671fc01102cc9",
+   "f01dafa893105f00d06046ae8d94c86cb040cc24",
+   "767956221a8bd966d33df1ed26427b0e7bcf4a57"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "57a47bae69e93e4233df2d82e5b87d7ff75883cd",
+  "next": "fe2cfab47b8d0c2fce322f83c83389a502e77691",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 1252,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/suites/billing-grants.e2e.ts",
+   "mode": "100644",
+   "blob": "674da7fb789cacf0367abaebe0d2dca5e2af45d0",
+   "previousBlob": null,
+   "added": 692,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/suites/cards-approvals.e2e.ts",
+   "mode": "100644",
+   "blob": "a69059004722521eb5b019cbe3fe4e1767be3bf7",
+   "previousBlob": null,
+   "added": 560,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

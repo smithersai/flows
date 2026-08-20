@@ -1,0 +1,117 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "3432fa8b0ddeb81aabac0e75310af79e8bf88b7a",
+ "tree": "2fa0b3e98e30b280b797d772c8bbecbfed73909b",
+ "epic": {
+  "index": 17,
+  "id": "factory",
+  "name": "Repository software factory",
+  "sourceCommit": "e1fbeee4b23399542c5105cb6f89733a14cc1892",
+  "sourceSubject": "✨ feat(factory): add the repository software factory",
+  "childIndex": 3,
+  "childCount": 17,
+  "head": "1666a5780add8693764a11b96b552909662d5e97"
+ },
+ "atomic": {
+  "globalIndex": 815,
+  "globalCount": 838,
+  "purpose": "✨ feat(factory-automation): add the agent, schema modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "factory-automation",
+  "component": "factory/automation",
+  "unitKey": "agent",
+  "mergedUnitKeys": [
+   "agent",
+   "schema"
+  ]
+ },
+ "dependencies": {
+  "parent": "f83be9a37040312b533d6f5a05e565eb52bf8e66",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui",
+   "docs-site"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "f83be9a37040312b533d6f5a05e565eb52bf8e66",
+  "next": "a4cc20fdd987fe114b7b4f59398e27551875b2fd",
+  "epicFirst": "fe1c85cd8695563398bdd217be9a36f52ed6df92",
+  "epicLast": "1666a5780add8693764a11b96b552909662d5e97",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 596,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "factory/automation/agent.ts",
+   "mode": "100644",
+   "blob": "7222b9f7bcbce1f14cab598cd7215328718fcfa6",
+   "previousBlob": null,
+   "added": 187,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "factory/automation/agent.test.ts",
+   "mode": "100644",
+   "blob": "f99284adac06a0048d9614901168efa9db5260d8",
+   "previousBlob": null,
+   "added": 161,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "factory/automation/schema.ts",
+   "mode": "100644",
+   "blob": "01cca1df7d58f1c9fc1b30cb52445f2cb6ea1320",
+   "previousBlob": null,
+   "added": 140,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "factory/automation/schema.test.ts",
+   "mode": "100644",
+   "blob": "75874dfeaeea8da20e272e11fd18cd3fe85af116",
+   "previousBlob": null,
+   "added": 108,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

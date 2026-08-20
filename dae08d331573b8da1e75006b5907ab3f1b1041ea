@@ -1,0 +1,85 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "dae08d331573b8da1e75006b5907ab3f1b1041ea",
+ "tree": "738fe0e21d3450ff795e1b504143a0a828d9a34d",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 12,
+  "childCount": 50,
+  "head": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7"
+ },
+ "atomic": {
+  "globalIndex": 82,
+  "globalCount": 838,
+  "purpose": "✨ feat(plan): add Migrations",
+  "type": "feat",
+  "kind": "module",
+  "scope": "plan",
+  "component": "packages/plan",
+  "unitKey": "Migrations",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "ae29289569e3cb50fb17ad3ce477cf53ad119528",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [
+   "f1380547ee94bc44b102ddfb8c2a2281f45e04b4"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/keys",
+    "field": "dependencies",
+    "commit": "060d78f56853c2982e3d4fc1fab1d483ac3dc741",
+    "providerComponent": "packages/keys",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "ae29289569e3cb50fb17ad3ce477cf53ad119528",
+  "next": "e1f2d88cfb341184ba37fb50e00852b3a8a80123",
+  "epicFirst": "60233bebe0e00cbc35cfb5176a9644f2799fde18",
+  "epicLast": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 54,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/plan/src/Migrations.ts",
+   "mode": "100644",
+   "blob": "abda73a8ef07136d1620f50c4e7166bddc448a97",
+   "previousBlob": null,
+   "added": 54,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

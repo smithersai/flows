@@ -1,0 +1,134 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a6c9698a594ba11333c7d2cefbd9720612c6e6bb",
+ "tree": "4798759c0d36c9f09b5ceac6a0865d225d926eff",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 1,
+  "childCount": 60,
+  "head": "a94e46ebcc18e48adf39b7735ecbe06567ca4574"
+ },
+ "atomic": {
+  "globalIndex": 121,
+  "globalCount": 838,
+  "purpose": "📦 build(repo): add repo workspace configuration for repo",
+  "type": "build",
+  "kind": "scaffold",
+  "scope": "repo",
+  "component": "~root",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "field": "devDependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/engine-store",
+    "field": "devDependencies",
+    "commit": "c0f6e543a2aa5e3bb7dbbfce925e8c332ecfded8",
+    "providerComponent": "packages/engine-store",
+    "classification": "provider-in-later-epic",
+    "justification": "@smthrs/engine-store is introduced by epic 6 (engine-store: Durable, replayable flow execution), which the fixed 18-epic ordering places after epic 5 (host). Reordering the epics is out of scope for this bootstrap. The relationship is development-only and does not affect this commit."
+   },
+   {
+    "package": "@smthrs/build-cli",
+    "field": "devDependencies",
+    "commit": "cc0e85478aa879e21c87e48acdf282fda8eb2291",
+    "providerComponent": "packages/build-cli",
+    "classification": "provider-in-later-epic",
+    "justification": "@smthrs/build-cli is introduced by epic 11 (build: Self-hosted typed build graph), which the fixed 18-epic ordering places after epic 5 (host). Reordering the epics is out of scope for this bootstrap. The relationship is development-only and does not affect this commit."
+   },
+   {
+    "package": "@smthrs/targets",
+    "field": "devDependencies",
+    "commit": "04cacb5d5da6eed65dccb54623b16b2e67e1ef04",
+    "providerComponent": "packages/targets",
+    "classification": "provider-in-later-epic",
+    "justification": "@smthrs/targets is introduced by epic 11 (build: Self-hosted typed build graph), which the fixed 18-epic ordering places after epic 5 (host). Reordering the epics is out of scope for this bootstrap. The relationship is development-only and does not affect this commit."
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7",
+  "next": "3069dfcd23b25a08ac5cb0144feedc85e6c5f280",
+  "epicFirst": "a6c9698a594ba11333c7d2cefbd9720612c6e6bb",
+  "epicLast": "a94e46ebcc18e48adf39b7735ecbe06567ca4574",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 1411,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": ".gitmodules",
+   "mode": "100644",
+   "blob": "ce0f692ebda8e60e032e58b3414be38e4129d434",
+   "previousBlob": null,
+   "added": 4,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "Cargo.lock",
+   "mode": "100644",
+   "blob": "602c8afa915cfff720c518cd998de98105d1abd2",
+   "previousBlob": null,
+   "added": 1366,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "Cargo.toml",
+   "mode": "100644",
+   "blob": "967d729d0f8a98e78620aeee613a1ee441208207",
+   "previousBlob": null,
+   "added": 23,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "rust-toolchain.toml",
+   "mode": "100644",
+   "blob": "980339397c40fc97f792c35010f2a2ef2d385ce5",
+   "previousBlob": null,
+   "added": 18,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

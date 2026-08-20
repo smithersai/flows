@@ -1,0 +1,97 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "790c7b536c1b13692a5a82c5a8c68cae70cadb2e",
+ "tree": "badba8bdbcb4865496e29fc203383a219ae2e5e8",
+ "epic": {
+  "index": 13,
+  "id": "server",
+  "name": "Shared application contracts and worker backend",
+  "sourceCommit": "5e1bcec6b1db3f2e990cb2b79bec0050dfc34ba3",
+  "sourceSubject": "✨ feat(server): add shared application contracts and worker backend",
+  "childIndex": 12,
+  "childCount": 21,
+  "head": "c272b329cd28dcfe6a7ffd108f0055164724d1db"
+ },
+ "atomic": {
+  "globalIndex": 628,
+  "globalCount": 838,
+  "purpose": "✨ feat(server): add gateway",
+  "type": "feat",
+  "kind": "module",
+  "scope": "server",
+  "component": "apps/server",
+  "unitKey": "gateway",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "449df4fa22f425e3d560148e039e30bf1c835d04",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "smithers-shared",
+    "field": "dependencies",
+    "commit": null,
+    "providerComponent": "apps/shared",
+    "classification": "no-source-entrypoint",
+    "justification": "smithers-shared publishes no source index file in the bootstrap tree, so there is no commit that introduces its public surface to order against."
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "449df4fa22f425e3d560148e039e30bf1c835d04",
+  "next": "6d981acb9a77a0229c86a80d01f995d028818727",
+  "epicFirst": "36966c150e44215f6d84e68304ed6f67f4dd06ff",
+  "epicLast": "c272b329cd28dcfe6a7ffd108f0055164724d1db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 1464,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/server/src/gateway.ts",
+   "mode": "100644",
+   "blob": "930a7b94348e66811dd18523611c819540e3395e",
+   "previousBlob": null,
+   "added": 606,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/server/src/gateway.test.ts",
+   "mode": "100644",
+   "blob": "154101d6ca7ee774ce361fddbc8aa18a1aa7e473",
+   "previousBlob": null,
+   "added": 858,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

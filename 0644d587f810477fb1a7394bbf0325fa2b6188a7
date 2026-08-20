@@ -1,0 +1,125 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "0644d587f810477fb1a7394bbf0325fa2b6188a7",
+ "tree": "1b02cefe0db88179180ed33da5812b20a1c82e63",
+ "epic": {
+  "index": 17,
+  "id": "factory",
+  "name": "Repository software factory",
+  "sourceCommit": "e1fbeee4b23399542c5105cb6f89733a14cc1892",
+  "sourceSubject": "✨ feat(factory): add the repository software factory",
+  "childIndex": 16,
+  "childCount": 17,
+  "head": "1666a5780add8693764a11b96b552909662d5e97"
+ },
+ "atomic": {
+  "globalIndex": 828,
+  "globalCount": 838,
+  "purpose": "📝 docs(factory-reports): document bazel-review",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "factory-reports",
+  "component": "factory/reports",
+  "unitKey": "bazel-review",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "e25c151c47641445baf820c4c5f488b309f2574c",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui",
+   "docs-site"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "e25c151c47641445baf820c4c5f488b309f2574c",
+  "next": "1666a5780add8693764a11b96b552909662d5e97",
+  "epicFirst": "fe1c85cd8695563398bdd217be9a36f52ed6df92",
+  "epicLast": "1666a5780add8693764a11b96b552909662d5e97",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 5,
+  "added": 1354,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "factory/reports/bazel-review/engine-store.md",
+   "mode": "100644",
+   "blob": "4dc911d6761ac1fcd79faf70a1de99d2b21591d5",
+   "previousBlob": null,
+   "added": 237,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "factory/reports/bazel-review/engine.md",
+   "mode": "100644",
+   "blob": "82e183ab0a2dd01581b2f507165789c8ab11d1d1",
+   "previousBlob": null,
+   "added": 325,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "factory/reports/bazel-review/keys.md",
+   "mode": "100644",
+   "blob": "2f65920ce8cef44f8bf40b868c3645ff7201f4c7",
+   "previousBlob": null,
+   "added": 165,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "factory/reports/bazel-review/plan.md",
+   "mode": "100644",
+   "blob": "9f409f8b350d25643b419312c715f184d62e9469",
+   "previousBlob": null,
+   "added": 322,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "factory/reports/bazel-review/step-cache.md",
+   "mode": "100644",
+   "blob": "ca228b960b8a13855209639f9a3afce6def53ccd",
+   "previousBlob": null,
+   "added": 305,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

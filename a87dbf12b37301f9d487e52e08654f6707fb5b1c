@@ -1,0 +1,132 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a87dbf12b37301f9d487e52e08654f6707fb5b1c",
+ "tree": "fb0c598a4e77457a9d906a3906140df050d1e367",
+ "epic": {
+  "index": 15,
+  "id": "tui",
+  "name": "Terminal application",
+  "sourceCommit": "ca5777391956c8a52c077feff63d7e5f4c84896a",
+  "sourceSubject": "✨ feat(tui): add the terminal application",
+  "childIndex": 2,
+  "childCount": 7,
+  "head": "17cc8c4684c778e5b9219714ab42f7dbe7d43bb3"
+ },
+ "atomic": {
+  "globalIndex": 790,
+  "globalCount": 838,
+  "purpose": "✨ feat(tui): add the state modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "tui",
+  "component": "apps/tui",
+  "unitKey": "dir:state",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "f969888f0a7b9085d84a0490eb13a37557e89db9",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "smithers-shared",
+    "field": "dependencies",
+    "commit": null,
+    "providerComponent": "apps/shared",
+    "classification": "no-source-entrypoint",
+    "justification": "smithers-shared publishes no source index file in the bootstrap tree, so there is no commit that introduces its public surface to order against."
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "f969888f0a7b9085d84a0490eb13a37557e89db9",
+  "next": "ce646a7b4b9af73dd1ff7e748ff52d77b94f6245",
+  "epicFirst": "f969888f0a7b9085d84a0490eb13a37557e89db9",
+  "epicLast": "17cc8c4684c778e5b9219714ab42f7dbe7d43bb3",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 5,
+  "added": 578,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/tui/src/state/Instructions.ts",
+   "mode": "100644",
+   "blob": "197d5453e051d87b1d1f3bcef833ce5b23270809",
+   "previousBlob": null,
+   "added": 13,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/tui/src/state/MessageScrub.ts",
+   "mode": "100644",
+   "blob": "840ca4e264d3adabed596fb239a0d95ef73b92b9",
+   "previousBlob": null,
+   "added": 67,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/tui/src/state/Transcript.ts",
+   "mode": "100644",
+   "blob": "63823cc6beba16083e46b143c85365a070dc0ea9",
+   "previousBlob": null,
+   "added": 362,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/tui/src/state/TurnRequest.ts",
+   "mode": "100644",
+   "blob": "0a56ea43f4398960858f129ef37b2e64fa1fe957",
+   "previousBlob": null,
+   "added": 54,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/tui/src/state/ChatController.ts",
+   "mode": "100644",
+   "blob": "cd1bf905737554dc427af92e3cf53a98d8fc9515",
+   "previousBlob": null,
+   "added": 82,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,89 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "3e5efedd0431452f01bd64e5e13b10de1b88fe9f",
+ "tree": "3687bb4698fe5cabd153a1eee0db87906fef21cc",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 68,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 248,
+  "globalCount": 838,
+  "purpose": "📝 docs(sync): document sync",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "sync",
+  "component": "packages/sync",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "ed4f9d0e1ed02f200297a6e85c7e81910817a08c",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "ed4f9d0e1ed02f200297a6e85c7e81910817a08c",
+  "next": "87f51d9e4e0b69e2ff38fb43277dc4fcfb0bef65",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 86,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/sync/CHANGELOG.md",
+   "mode": "100644",
+   "blob": "646a8e7e3f832250bdd01559cdf0a405e5d741f8",
+   "previousBlob": null,
+   "added": 10,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/README.md",
+   "mode": "100644",
+   "blob": "abb0efaa1aa245d726579c8b13e01a4726ed9062",
+   "previousBlob": null,
+   "added": 76,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

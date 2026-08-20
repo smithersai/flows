@@ -1,0 +1,130 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "1a59f83916230ff4a64ab71af2f1e7e3efafa11e",
+ "tree": "484d02cc7ee7a0ab211a750b404c87127d7364de",
+ "epic": {
+  "index": 13,
+  "id": "server",
+  "name": "Shared application contracts and worker backend",
+  "sourceCommit": "5e1bcec6b1db3f2e990cb2b79bec0050dfc34ba3",
+  "sourceSubject": "✨ feat(server): add shared application contracts and worker backend",
+  "childIndex": 6,
+  "childCount": 21,
+  "head": "c272b329cd28dcfe6a7ffd108f0055164724d1db"
+ },
+ "atomic": {
+  "globalIndex": 622,
+  "globalCount": 838,
+  "purpose": "🧹 chore(server): scaffold the smithers-server package",
+  "type": "chore",
+  "kind": "scaffold",
+  "scope": "server",
+  "component": "apps/server",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "1df17ef3d3941c9db605d85ec65d5b6bf76a4631",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "smithers-shared",
+    "field": "dependencies",
+    "commit": null,
+    "providerComponent": "apps/shared",
+    "classification": "no-source-entrypoint",
+    "justification": "smithers-shared publishes no source index file in the bootstrap tree, so there is no commit that introduces its public surface to order against."
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "1df17ef3d3941c9db605d85ec65d5b6bf76a4631",
+  "next": "ed3fc7cef0167060534f14e9169acfc5d90706f0",
+  "epicFirst": "36966c150e44215f6d84e68304ed6f67f4dd06ff",
+  "epicLast": "c272b329cd28dcfe6a7ffd108f0055164724d1db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 5,
+  "added": 208,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/server/.gitignore",
+   "mode": "100644",
+   "blob": "0d0f7bee19361fe5093318488b051a660de651d9",
+   "previousBlob": null,
+   "added": 2,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "apps/server/BUILD.ts",
+   "mode": "100644",
+   "blob": "95dac6d51225f463d039d583d042db8c31edfc5c",
+   "previousBlob": null,
+   "added": 53,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "apps/server/package.json",
+   "mode": "100644",
+   "blob": "3f498a0bd17109feb79287a7d0fe430d4daa2274",
+   "previousBlob": null,
+   "added": 31,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "apps/server/tsconfig.json",
+   "mode": "100644",
+   "blob": "03bfcc459b002329666d257b1d030ed5e56d5452",
+   "previousBlob": null,
+   "added": 23,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "apps/server/wrangler.jsonc",
+   "mode": "100644",
+   "blob": "e3f92bcb23220d817a69ff382d50e468c286a017",
+   "previousBlob": null,
+   "added": 99,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

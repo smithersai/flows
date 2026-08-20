@@ -1,0 +1,111 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "e9ca329bd619ff25a111f86788849e6377c0e98b",
+ "tree": "f07a8903090402a467aaabba484686b82306d627",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 93,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 596,
+  "globalCount": 838,
+  "purpose": "✨ feat(scripts): add the flows-backup, pack-release modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "scripts",
+  "component": "scripts",
+  "unitKey": "flows-backup",
+  "mergedUnitKeys": [
+   "flows-backup",
+   "pack-release"
+  ]
+ },
+ "dependencies": {
+  "parent": "afab2c3f0afeb858215d3a5933e75edc998d58e3",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "afab2c3f0afeb858215d3a5933e75edc998d58e3",
+  "next": "dc874ea516f5da7c540a3f3372f9037b85296b29",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 673,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "scripts/flows-backup.mjs",
+   "mode": "100644",
+   "blob": "d828842c64ccc15e011eb7f75d2b7ef1d0e7fb30",
+   "previousBlob": null,
+   "added": 85,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "scripts/flows-backup.test.mjs",
+   "mode": "100644",
+   "blob": "be76be2a3cf2aa746d7f966789d1458d881611e6",
+   "previousBlob": null,
+   "added": 121,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "scripts/pack-release.mjs",
+   "mode": "100644",
+   "blob": "779a5bdb6ff706599ad9027f5edf1c0770b7937a",
+   "previousBlob": null,
+   "added": 291,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "scripts/pack-release.test.mjs",
+   "mode": "100644",
+   "blob": "9485a213e304f270247f56a52ac526da73b9b117",
+   "previousBlob": null,
+   "added": 176,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

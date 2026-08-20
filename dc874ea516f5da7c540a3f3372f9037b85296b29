@@ -1,0 +1,86 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "dc874ea516f5da7c540a3f3372f9037b85296b29",
+ "tree": "d88b6cf37b11d53fbfd10fe1ff8625c9ee2a0edb",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 94,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 597,
+  "globalCount": 838,
+  "purpose": "✨ feat(scripts): add release-rehearsal",
+  "type": "feat",
+  "kind": "module",
+  "scope": "scripts",
+  "component": "scripts",
+  "unitKey": "release-rehearsal",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "e9ca329bd619ff25a111f86788849e6377c0e98b",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "e9ca329bd619ff25a111f86788849e6377c0e98b",
+  "next": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 749,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "scripts/release-rehearsal.mjs",
+   "mode": "100644",
+   "blob": "244f1505cd66da116785648499626560641ff0f3",
+   "previousBlob": null,
+   "added": 582,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "scripts/release-rehearsal.test.mjs",
+   "mode": "100644",
+   "blob": "fd7a17aa07bede86426deb8152d072bce15fcd7c",
+   "previousBlob": null,
+   "added": 167,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

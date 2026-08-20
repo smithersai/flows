@@ -1,0 +1,141 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "41f23004d99f2646cfbdff1fc75041ad5e6e2ef2",
+ "tree": "7ba018355f33624adb8ce8d9e24b0cb0694b28e3",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 50,
+  "childCount": 66,
+  "head": "5a833bbe7affdc7dda1a3b24f9e5a5239864093b"
+ },
+ "atomic": {
+  "globalIndex": 368,
+  "globalCount": 838,
+  "purpose": "✨ feat(memory): add the Recall, Flows modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "memory",
+  "component": "packages/memory",
+  "unitKey": "Recall",
+  "mergedUnitKeys": [
+   "Recall",
+   "Flows"
+  ]
+ },
+ "dependencies": {
+  "parent": "f317e0986834b970635df49acf06d15d15518943",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [
+   "541da6975ab292af507eb20a00e4004a7b30bb2c",
+   "24390442b3e1e082ff625da09376ba6cb74d44f0",
+   "c5fae6365097badca5abc597247a2fe0ec4d2048"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/model",
+    "field": "dependencies",
+    "commit": "489c9c77a1625c553ac1f7b8bde0c279d32249ba",
+    "providerComponent": "packages/model",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/patterns",
+    "field": "dependencies",
+    "commit": "c0735b098e72bf6e6e70c2a176845008d0fd02cf",
+    "providerComponent": "packages/patterns",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "f317e0986834b970635df49acf06d15d15518943",
+  "next": "75360e24af11de7129bad67353dbf3692c9e04df",
+  "epicFirst": "1a9eeded3e87702322afacdd6021037ce6179f5e",
+  "epicLast": "5a833bbe7affdc7dda1a3b24f9e5a5239864093b",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 615,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/memory/src/Recall.ts",
+   "mode": "100644",
+   "blob": "c8607be6d5d347be51212763176a78260f01677a",
+   "previousBlob": null,
+   "added": 229,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/memory/test/Recall.test.ts",
+   "mode": "100644",
+   "blob": "e82071e1fe30416e90fd850ff4db9a7504b23cf6",
+   "previousBlob": null,
+   "added": 72,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/memory/src/Flows.ts",
+   "mode": "100644",
+   "blob": "af9f6d518662fd0041ada9ddb3c330937c134763",
+   "previousBlob": null,
+   "added": 245,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/memory/test/Flows.test.ts",
+   "mode": "100644",
+   "blob": "8ebf2ccc8297b84d57692397918e98f0bc072e19",
+   "previousBlob": null,
+   "added": 69,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

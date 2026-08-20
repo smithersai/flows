@@ -1,0 +1,158 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "fda737825bdfe4b1ab7346b073ed334c05a95943",
+ "tree": "129c435db40703d8a376089ec5cb3e9639391fb5",
+ "epic": {
+  "index": 10,
+  "id": "platform",
+  "name": "Conformance, scoring, evaluation and telemetry",
+  "sourceCommit": "317910c088e178d40f3b1553a182a7ee2be5dd24",
+  "sourceSubject": "✅ test(platform): add conformance, scoring, evaluation, and telemetry",
+  "childIndex": 25,
+  "childCount": 35,
+  "head": "3728fb6a6309a4a4c7a1eeeb6393bdecdf368130"
+ },
+ "atomic": {
+  "globalIndex": 493,
+  "globalCount": 838,
+  "purpose": "✨ feat(evals): add the Baseline, Regression, Gate modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "evals",
+  "component": "packages/evals",
+  "unitKey": "Baseline",
+  "mergedUnitKeys": [
+   "Baseline",
+   "Regression",
+   "Gate"
+  ]
+ },
+ "dependencies": {
+  "parent": "93ce92913590d89974183008c6cfd1b6036c666b",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent"
+  ],
+  "sourceImports": [
+   "20869ae3a26270d1732655cec9c0ee0da383db9a",
+   "93ce92913590d89974183008c6cfd1b6036c666b"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/scorers",
+    "field": "dependencies",
+    "commit": "b36910613bf3b72d1b3697e40f47deb24b895b59",
+    "providerComponent": "packages/scorers",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/testing",
+    "field": "dependencies",
+    "commit": "240b8562e19e4d4b2129a8231ea81fb425901030",
+    "providerComponent": "packages/testing",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "93ce92913590d89974183008c6cfd1b6036c666b",
+  "next": "7e3f9a0ad8fa9483a095d74fd03399a1a6a5270f",
+  "epicFirst": "aafee4cdb47bb63bb06c167a8f3ee9e44c1e1e80",
+  "epicLast": "3728fb6a6309a4a4c7a1eeeb6393bdecdf368130",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 6,
+  "added": 677,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/evals/src/Baseline.ts",
+   "mode": "100644",
+   "blob": "2fbf88d4b1aac747a38850df0e4a93ad494d588e",
+   "previousBlob": null,
+   "added": 150,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/evals/test/Baseline.test.ts",
+   "mode": "100644",
+   "blob": "59dd2ef3eff3425d48e2d674fb3a5359010168ff",
+   "previousBlob": null,
+   "added": 54,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/evals/src/Regression.ts",
+   "mode": "100644",
+   "blob": "6d5717e08e9aa317394556dc9aff27baea06c2b9",
+   "previousBlob": null,
+   "added": 216,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/evals/test/Regression.test.ts",
+   "mode": "100644",
+   "blob": "e64234b015b81f367b2701843b7a89577b4990ef",
+   "previousBlob": null,
+   "added": 57,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/evals/src/Gate.ts",
+   "mode": "100644",
+   "blob": "2a9f7e4acd19d6be10ad90f86c3c25cdb0bdd1df",
+   "previousBlob": null,
+   "added": 96,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/evals/test/Gate.test.ts",
+   "mode": "100644",
+   "blob": "779134747bd7ac669a976f308325d3073ff87a26",
+   "previousBlob": null,
+   "added": 104,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

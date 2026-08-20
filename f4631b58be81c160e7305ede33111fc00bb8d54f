@@ -1,0 +1,87 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "f4631b58be81c160e7305ede33111fc00bb8d54f",
+ "tree": "c1405b83ccb56436b806c5da2ea888a08b097627",
+ "epic": {
+  "index": 12,
+  "id": "examples",
+  "name": "Executable learning and evaluation suites",
+  "sourceCommit": "1c0d5bce16fdac649b8f108f4e37eaea58f4933c",
+  "sourceSubject": "📚 docs(examples): add executable learning and evaluation suites",
+  "childIndex": 5,
+  "childCount": 18,
+  "head": "a482cacaa2f003ffede858d77595d07ad2842e79"
+ },
+ "atomic": {
+  "globalIndex": 603,
+  "globalCount": 838,
+  "purpose": "📦 build(evals-authoring): add evals-authoring workspace configuration",
+  "type": "build",
+  "kind": "scaffold",
+  "scope": "evals-authoring",
+  "component": "evals/authoring",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "a5d5bc688b7bd483accdcd3c66c2c2c85c3fe7f4",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "a5d5bc688b7bd483accdcd3c66c2c2c85c3fe7f4",
+  "next": "448a2b3b633bd417051958a1ba25fdc0abd90f55",
+  "epicFirst": "d079d005cf653747c171d935a4612624051584da",
+  "epicLast": "a482cacaa2f003ffede858d77595d07ad2842e79",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 152,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "evals/authoring/BUILD.ts",
+   "mode": "100644",
+   "blob": "09a90d53227263e754f23d50e2edbd497da77d57",
+   "previousBlob": null,
+   "added": 139,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "evals/authoring/tsconfig.json",
+   "mode": "100644",
+   "blob": "23580cc7deca92cb742a9e7fb6532ec15f771c1d",
+   "previousBlob": null,
+   "added": 13,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

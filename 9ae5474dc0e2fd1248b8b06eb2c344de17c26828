@@ -1,0 +1,70 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "9ae5474dc0e2fd1248b8b06eb2c344de17c26828",
+ "tree": "e96989ae961ce0c3f7e598f755d5f8a47b394e8b",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 17,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 197,
+  "globalCount": 838,
+  "purpose": "✨ feat(engine-store): add DisasterRecovery",
+  "type": "feat",
+  "kind": "module",
+  "scope": "engine-store",
+  "component": "packages/engine-store/src",
+  "unitKey": "DisasterRecovery",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "0ef4871b719f3876407cc5ccb9f876c69c3c7158",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "0ef4871b719f3876407cc5ccb9f876c69c3c7158",
+  "next": "2371c029a5666dbf3616cc818e025811838efb01",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 688,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/DisasterRecovery.ts",
+   "mode": "100644",
+   "blob": "114d50d91249483d7b9bb1d8b08f301c9fe21dfa",
+   "previousBlob": null,
+   "added": 688,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

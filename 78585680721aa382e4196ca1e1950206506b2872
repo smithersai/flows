@@ -1,0 +1,94 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "78585680721aa382e4196ca1e1950206506b2872",
+ "tree": "815e3b27b4cd23b70e7a07b4b4917d33e2b30665",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 71,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 708,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the state/controller modules (3/5)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview/state/controller",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "e84548ee1ef641a6fe93d9c6cfe074271d976c21",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "51308f4793d76771c4129ad12325ce6ff071fbda",
+   "bbc11668994cc8f212fa1e75ab120b1725a5ade3",
+   "f030fd5c83668324a56c76c9b9d122ef7c124e91",
+   "d53f1c7c29921bae3320288137261b66d7e6b555"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "e84548ee1ef641a6fe93d9c6cfe074271d976c21",
+  "next": "015277976fc372bc236adcda0a73e87d00be5fd9",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 1139,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/controller/connectors.ts",
+   "mode": "100644",
+   "blob": "66727667f2c420808e836f14943c4ea0dc03372a",
+   "previousBlob": null,
+   "added": 670,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/controller/presentation.ts",
+   "mode": "100644",
+   "blob": "696d1645e54cc03f211c8d8d7501199a6c7a01b9",
+   "previousBlob": null,
+   "added": 469,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

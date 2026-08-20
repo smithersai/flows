@@ -1,0 +1,75 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "b4768f7613df88408af3a5150626bedcb04c5f7f",
+ "tree": "21520d0d871a6b26a6e9629f3e5ce8aaf0a4676d",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 73,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 576,
+  "globalCount": 838,
+  "purpose": "📝 docs(build): document build for infra",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "build",
+  "component": "packages/build/infra",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "90c87e71d92d92c304f8762e5302e6c886b07eaa",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "90c87e71d92d92c304f8762e5302e6c886b07eaa",
+  "next": "a5d03da220ba8b5219f5f02b4c38736c858420f6",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 163,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build/infra/README.md",
+   "mode": "100644",
+   "blob": "3334997c785c1587313e18b41582a9482ee4dbee",
+   "previousBlob": null,
+   "added": 163,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

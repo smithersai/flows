@@ -1,0 +1,84 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+ "tree": "0c4413cf34a50d32854151e24aaf9859fd9444d5",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 31,
+  "childCount": 54,
+  "head": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb"
+ },
+ "atomic": {
+  "globalIndex": 47,
+  "globalCount": 838,
+  "purpose": "✨ feat(journal): export the public journal surface",
+  "type": "feat",
+  "kind": "index",
+  "scope": "journal",
+  "component": "packages/journal",
+  "unitKey": "~index",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "10aa091e6b197b29aa8cf5e01c3d23c1d1cae1d1",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [
+   "c8bce393ea55d3257b21dbf5095fb2af8220a9d3",
+   "946fffb7dde55e7f5fa758d10ceca5a9d0d09494",
+   "2b292fa896300df1c43ba5f35ef4a349a4ceb7f5",
+   "cf89bd45358cb59d87d7077d99bbc04e932b4e18",
+   "eda3d9fa41d4dd7cdd5f0541dfa6e17bbc59247b",
+   "4390fe6159b47fbf5df3fcbcadcdc24e77d5ce8d",
+   "63158fefcc99da6b9da24b58f18f4b98a40fca31",
+   "bf30564cff185becab3c94a5dbbd2833264ae9de"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "10aa091e6b197b29aa8cf5e01c3d23c1d1cae1d1",
+  "next": "75db33df4eb5c3bf1888e4396c6b856543a0cea1",
+  "epicFirst": "2d09eee3adb5b99a7ac2a9511ca5520ac08f7a95",
+  "epicLast": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 79,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/journal/src/index.ts",
+   "mode": "100644",
+   "blob": "265b6ba1a0254036027731e5d4bf0bbad80e994d",
+   "previousBlob": null,
+   "added": 79,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,108 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "2371c029a5666dbf3616cc818e025811838efb01",
+ "tree": "1790c9acfff24297fa295fbd7465c7ed65a67c05",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 18,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 198,
+  "globalCount": 838,
+  "purpose": "✨ feat(engine-store): add the OwnerIdentity, EngineStore, Migrations modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "engine-store",
+  "component": "packages/engine-store/src",
+  "unitKey": "OwnerIdentity",
+  "mergedUnitKeys": [
+   "OwnerIdentity",
+   "EngineStore",
+   "Migrations"
+  ]
+ },
+ "dependencies": {
+  "parent": "9ae5474dc0e2fd1248b8b06eb2c344de17c26828",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "53e282376e1f7e7bd525a657644202288beca2d7",
+   "c548fa2e9a8dd3d8c628aae3c79519cce53be5f7",
+   "229f2a2a62fbf8eb4f2df6c8c9204deee510e76d",
+   "13373e8984e787685db54b712a84b60c7c7c8b5c",
+   "eb8e5da3a46ea6d0e4f75d67b4fefa524355c5b7",
+   "cb7df906d5f4ca67b373531e2ccf0fd471ebddfc",
+   "b8f28c7744a64c21bc1dabcd26df3f4dd3918860",
+   "a46536bcf51dcbee573a48b3bd480d0200f1c76b",
+   "dfcd1b0b79c78527f800c3a21bf07b1f8d50670f",
+   "2ce3d1312fd1d5ae4b0df76930ef2d5b95ef09dd",
+   "0ef4871b719f3876407cc5ccb9f876c69c3c7158"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "9ae5474dc0e2fd1248b8b06eb2c344de17c26828",
+  "next": "dded29a5fe0496432ad33f420f600b51f705a40b",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 567,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/OwnerIdentity.ts",
+   "mode": "100644",
+   "blob": "d22be0675c27f550506a970412942a2454f9a5c7",
+   "previousBlob": null,
+   "added": 130,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/EngineStore.ts",
+   "mode": "100644",
+   "blob": "e0a4b436b8ee19fa518128499c104faa3836fc8b",
+   "previousBlob": null,
+   "added": 355,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/Migrations.ts",
+   "mode": "100644",
+   "blob": "1746a1a9927f141cc1b4ece94f15a4babb809985",
+   "previousBlob": null,
+   "added": 82,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

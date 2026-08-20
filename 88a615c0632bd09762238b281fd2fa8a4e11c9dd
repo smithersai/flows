@@ -1,0 +1,92 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "88a615c0632bd09762238b281fd2fa8a4e11c9dd",
+ "tree": "072424c74029a785cd7279c80508ec3073f141a5",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 39,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 219,
+  "globalCount": 838,
+  "purpose": "✅ test(engine-store): cover engine-store (13/23)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "engine-store",
+  "component": "packages/engine-store/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "2159b4ac142b65a3b3f6fa07a24ba8a1b80a36da",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "2159b4ac142b65a3b3f6fa07a24ba8a1b80a36da",
+  "next": "2bc809e2c6587695c4ee8e8583d0f282315ccb08",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 1268,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/PlanSchedulerProduction.test.ts",
+   "mode": "100644",
+   "blob": "d7b757a206b2017e398d63fb4c00ef4cc68c33de",
+   "previousBlob": null,
+   "added": 660,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/RemoteCacheProtocol.test.ts",
+   "mode": "100644",
+   "blob": "db4ea2ea5d78b1f307ce47092ff3c93bb08dddd4",
+   "previousBlob": null,
+   "added": 438,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/Replay.test.ts",
+   "mode": "100644",
+   "blob": "9444192fc8b8c8a3b49c3c7e173e3c2747341db6",
+   "previousBlob": null,
+   "added": 170,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

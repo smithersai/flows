@@ -1,0 +1,127 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "8a6e63128288f3f8be5ec1e4e04830b659061044",
+ "tree": "8bb82fa88cb2888654ef8c360fd2bf38c2fa5940",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 6,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 643,
+  "globalCount": 838,
+  "purpose": "📝 docs(reports): document 20260808T221650.826Z-first, 20260809-024836-canary-live and 2 more",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "reports",
+  "component": "apps/reports/launch-checklist",
+  "unitKey": "20260808T221650.826Z-first",
+  "mergedUnitKeys": [
+   "20260808T221650.826Z-first",
+   "20260809-024836-canary-live",
+   "20260809T000031-054Z-stub-stack",
+   "20260810T193728Z-launch-final"
+  ]
+ },
+ "dependencies": {
+  "parent": "34479e0bc595befc59ca671fc6a7d0ce64773bcb",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "34479e0bc595befc59ca671fc6a7d0ce64773bcb",
+  "next": "a41113d01d91ab0addd19c2d2b81a841b5b8b132",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 5,
+  "added": 530,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/reports/launch-checklist/20260808T221650.826Z-first/README.md",
+   "mode": "100644",
+   "blob": "c7d3ad65fd5cc638b8d84bf737941ad286030b64",
+   "previousBlob": null,
+   "added": 25,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/launch-checklist/20260808T221650.826Z-first/launch-checklist-report.md",
+   "mode": "100644",
+   "blob": "f9fbb0d8242f3b293aa8e9d7ef2a413aa6b82172",
+   "previousBlob": null,
+   "added": 79,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/launch-checklist/20260809-024836-canary-live/launch-checklist-report.md",
+   "mode": "100644",
+   "blob": "1b89f61fe5d5d01e998081d4e8a739454cc2b4d4",
+   "previousBlob": null,
+   "added": 276,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/launch-checklist/20260809T000031-054Z-stub-stack/launch-checklist-report.md",
+   "mode": "100644",
+   "blob": "40bcc79c84205aa09e82080732d3ff05260357b3",
+   "previousBlob": null,
+   "added": 69,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/launch-checklist/20260810T193728Z-launch-final/launch-checklist-report.md",
+   "mode": "100644",
+   "blob": "9fba835f5a924deaecba6a22d8b2b5b1da3288a4",
+   "previousBlob": null,
+   "added": 81,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

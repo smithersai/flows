@@ -1,0 +1,143 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "d61211b42c2b16b406c66527769099838ce7f2fc",
+ "tree": "107aeabd742bf3949617cb11d04d5ef257d824a8",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 27,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 664,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the workflows modules (1/8)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/.smithers",
+  "unitKey": "dir:workflows",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d4aecae93f736429b996f89493c8a24272deff32",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "6021bdf40f9d897d792a500edbebec5c507fe381"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "field": "dependencies",
+    "commit": "f7a79de58ec909a8b6633954e1f1ff9117d4d46a",
+    "providerComponent": "packages/cli",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "d4aecae93f736429b996f89493c8a24272deff32",
+  "next": "23d3cc270afe55601ee7ba2b7e0146647df48d65",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 6,
+  "added": 1393,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/workflows/.gitignore",
+   "mode": "100644",
+   "blob": "750902a9bbfdb5e918e1f5b07e49f3055c2e8a2b",
+   "previousBlob": null,
+   "added": 2,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/workflows/add.tsx",
+   "mode": "100644",
+   "blob": "74acd87507abb09f049144217d811d82a8a31a29",
+   "previousBlob": null,
+   "added": 40,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/workflows/create-skill.tsx",
+   "mode": "100644",
+   "blob": "3f02dd69a3df2a3ea6bd3cd3787225324c369e0c",
+   "previousBlob": null,
+   "added": 205,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/workflows/create-ui.tsx",
+   "mode": "100644",
+   "blob": "2c6364ebb26b2d9e3c3d36083081c1137202ae2a",
+   "previousBlob": null,
+   "added": 251,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/workflows/create-workflow.tsx",
+   "mode": "100644",
+   "blob": "7df473ef64f284df019012677e0e432619edc551",
+   "previousBlob": null,
+   "added": 613,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/workflows/design-engineering-callouts.tsx",
+   "mode": "100644",
+   "blob": "6996569faf5d9ca878f7dff745d0e9692182de95",
+   "previousBlob": null,
+   "added": 282,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

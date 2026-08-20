@@ -1,0 +1,135 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "8e22b9831598109f1303d7321c46bd79c8f1fe4b",
+ "tree": "4d86f43516f9587ab27ebaeab765005fd68badce",
+ "epic": {
+  "index": 17,
+  "id": "factory",
+  "name": "Repository software factory",
+  "sourceCommit": "e1fbeee4b23399542c5105cb6f89733a14cc1892",
+  "sourceSubject": "✨ feat(factory): add the repository software factory",
+  "childIndex": 8,
+  "childCount": 17,
+  "head": "1666a5780add8693764a11b96b552909662d5e97"
+ },
+ "atomic": {
+  "globalIndex": 820,
+  "globalCount": 838,
+  "purpose": "✨ feat(factory-automation): add the poc-publish, poc-run, proof and 1 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "factory-automation",
+  "component": "factory/automation",
+  "unitKey": "poc-publish",
+  "mergedUnitKeys": [
+   "poc-publish",
+   "poc-run",
+   "proof",
+   "reverify"
+  ]
+ },
+ "dependencies": {
+  "parent": "ce69ad06892790c36fe3b52b708f073b82d319e7",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui",
+   "docs-site"
+  ],
+  "sourceImports": [
+   "33138d7c44c6b813d268210635aca65de9b317d1",
+   "a4cc20fdd987fe114b7b4f59398e27551875b2fd",
+   "ce69ad06892790c36fe3b52b708f073b82d319e7",
+   "b8886f7fe962604d703d9cbbabf46b0839b9b129"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "ce69ad06892790c36fe3b52b708f073b82d319e7",
+  "next": "3b7262c3e237bdd5faad4a99a6d5b8f6401d111e",
+  "epicFirst": "fe1c85cd8695563398bdd217be9a36f52ed6df92",
+  "epicLast": "1666a5780add8693764a11b96b552909662d5e97",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 5,
+  "added": 476,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "factory/automation/poc-publish.ts",
+   "mode": "100644",
+   "blob": "ec16e2fe1679ee2a4abdca37014b52fc13b24ba6",
+   "previousBlob": null,
+   "added": 111,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "factory/automation/poc-run.ts",
+   "mode": "100644",
+   "blob": "2cd7a82700f3e9e9a056639cfe0cdf8efd172b54",
+   "previousBlob": null,
+   "added": 53,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "factory/automation/proof.ts",
+   "mode": "100644",
+   "blob": "303de8eccbed2414e9e197f68b3ada6bbdd44a7f",
+   "previousBlob": null,
+   "added": 127,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "factory/automation/proof.test.ts",
+   "mode": "100644",
+   "blob": "2f01bef04362a4a87e289436790d306f9a7cdd7a",
+   "previousBlob": null,
+   "added": 49,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "factory/automation/reverify.ts",
+   "mode": "100644",
+   "blob": "e19bb8ee3599e2373e0dfd48f96d645e57ef1c5e",
+   "previousBlob": null,
+   "added": 136,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

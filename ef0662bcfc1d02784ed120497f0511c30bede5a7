@@ -1,0 +1,122 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ef0662bcfc1d02784ed120497f0511c30bede5a7",
+ "tree": "1cc4ee50735cd07a4c374c546dd8e3e716602ed2",
+ "epic": {
+  "index": 17,
+  "id": "factory",
+  "name": "Repository software factory",
+  "sourceCommit": "e1fbeee4b23399542c5105cb6f89733a14cc1892",
+  "sourceSubject": "✨ feat(factory): add the repository software factory",
+  "childIndex": 11,
+  "childCount": 17,
+  "head": "1666a5780add8693764a11b96b552909662d5e97"
+ },
+ "atomic": {
+  "globalIndex": 823,
+  "globalCount": 838,
+  "purpose": "✨ feat(factory-flows): add the harness, bazel-review, coverage-baseline modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "factory-flows",
+  "component": "factory/flows",
+  "unitKey": "harness",
+  "mergedUnitKeys": [
+   "harness",
+   "bazel-review",
+   "coverage-baseline"
+  ]
+ },
+ "dependencies": {
+  "parent": "aba4026b22a84614c57494742cd3e454cf350fb8",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui",
+   "docs-site"
+  ],
+  "sourceImports": [
+   "b238e49d59c7ce059f57fe58b1d2028872d1438b",
+   "ee413497efbca15acf23fa2b3cbc410affc1a802",
+   "b21dab66549eb99974cd7296f77391e4c3d00490"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "aba4026b22a84614c57494742cd3e454cf350fb8",
+  "next": "0a2ab9f1fed4324f0e4c25ba575bca0704e1aa26",
+  "epicFirst": "fe1c85cd8695563398bdd217be9a36f52ed6df92",
+  "epicLast": "1666a5780add8693764a11b96b552909662d5e97",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 659,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "factory/flows/harness.ts",
+   "mode": "100644",
+   "blob": "85e55d9f53034e243c2665f6b2f5c5c68ed31415",
+   "previousBlob": null,
+   "added": 355,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "factory/flows/harness.test.ts",
+   "mode": "100644",
+   "blob": "8e54652e539c9a6182f67aaa67aaac03a3ff9a4c",
+   "previousBlob": null,
+   "added": 81,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "factory/flows/bazel-review.ts",
+   "mode": "100644",
+   "blob": "09c1935f761911cbbce37bcced289a46343d9c0a",
+   "previousBlob": null,
+   "added": 109,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "factory/flows/coverage-baseline.ts",
+   "mode": "100644",
+   "blob": "dc4636a41b9566f0747179c103640f727cc4ffe2",
+   "previousBlob": null,
+   "added": 114,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

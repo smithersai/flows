@@ -1,0 +1,78 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ed4f9d0e1ed02f200297a6e85c7e81910817a08c",
+ "tree": "2e526e2b514d60349142b424ba82fa9bdff6ef5f",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 67,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 247,
+  "globalCount": 838,
+  "purpose": "✅ test(sync): cover sync for fixtures",
+  "type": "test",
+  "kind": "tests",
+  "scope": "sync",
+  "component": "packages/sync",
+  "unitKey": "test/fixtures",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "c8be1f82b7f24dc524158cdba15d87ff8107780b",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "c8be1f82b7f24dc524158cdba15d87ff8107780b",
+  "next": "3e5efedd0431452f01bd64e5e13b10de1b88fe9f",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 149,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/sync/test/fixtures/sync-process-server-child.ts",
+   "mode": "100644",
+   "blob": "e3eead54463939e531a33f931537858cd8cfc2e2",
+   "previousBlob": null,
+   "added": 149,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

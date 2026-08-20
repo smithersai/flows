@@ -1,0 +1,147 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "be99aa8995a73e127da83e66b02cbe4aaf14d863",
+ "tree": "d2e361cf29350f80742f28785d24d7956921691a",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 132,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 769,
+  "globalCount": 838,
+  "purpose": "📝 docs(ui): document plue-deploy, repo-data",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "ui",
+  "component": "apps/ui/canary-repros",
+  "unitKey": "plue-deploy",
+  "mergedUnitKeys": [
+   "plue-deploy",
+   "repo-data"
+  ]
+ },
+ "dependencies": {
+  "parent": "be4e946423bbd3e342bfbf0ad0c705d7415f5b77",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "be4e946423bbd3e342bfbf0ad0c705d7415f5b77",
+  "next": "c6daad3649e769f21f843bb6203d4564af1d670c",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 7,
+  "added": 499,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/plue-deploy/backend-canary-auth.md",
+   "mode": "100644",
+   "blob": "ce83c4830836eae2be871345d76b59264c7b93c0",
+   "previousBlob": null,
+   "added": 95,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/plue-deploy/canary-alert-webhook.md",
+   "mode": "100644",
+   "blob": "ae02be72770ca21c0b666bcca4c454b9749eb201",
+   "previousBlob": null,
+   "added": 73,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/repo-data/15.2.md",
+   "mode": "100644",
+   "blob": "fb6a7f8e9723027c556dfeaf217cee3d4850dc23",
+   "previousBlob": null,
+   "added": 62,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/repo-data/15.3.md",
+   "mode": "100644",
+   "blob": "31e0fd1d2a3dbb312d2dd7ae1cd01bd5949f856d",
+   "previousBlob": null,
+   "added": 75,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/repo-data/15.6.md",
+   "mode": "100644",
+   "blob": "be661534401e194eb9a7e6b5f8aea5de5cdad290",
+   "previousBlob": null,
+   "added": 65,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/repo-data/15.7.md",
+   "mode": "100644",
+   "blob": "43b0de960f8ec2a6626db99adaecf765fe7548ea",
+   "previousBlob": null,
+   "added": 55,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/repo-data/16.1.md",
+   "mode": "100644",
+   "blob": "454193b856e51a1549631f0af3c10206a0def0dc",
+   "previousBlob": null,
+   "added": 74,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

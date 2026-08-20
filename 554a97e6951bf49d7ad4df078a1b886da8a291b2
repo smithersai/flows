@@ -1,0 +1,201 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "554a97e6951bf49d7ad4df078a1b886da8a291b2",
+ "tree": "e2d0b9b0f1e75eb1452a9b931c1b8284b55f185d",
+ "epic": {
+  "index": 16,
+  "id": "docs-site",
+  "name": "Documentation site",
+  "sourceCommit": "2fd742db8891870cec6454b507fc94b3c65aa275",
+  "sourceSubject": "📚 docs(site): document the complete system",
+  "childIndex": 13,
+  "childCount": 17,
+  "head": "e952c5de8a0b032ae43f568c3224f1734b3a7adc"
+ },
+ "atomic": {
+  "globalIndex": 808,
+  "globalCount": 838,
+  "purpose": "📝 docs(pages): document pages (1/2)",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "pages",
+  "component": "docs/pages",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "7033631ab6d4d2df25b912036127ab2bee98280f",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "7033631ab6d4d2df25b912036127ab2bee98280f",
+  "next": "d37f0fe8e480fa1a3e7186a9ac35f95440b2ee08",
+  "epicFirst": "2d0756e2ed214c54d61c6b4dee34cfbab1982959",
+  "epicLast": "e952c5de8a0b032ae43f568c3224f1734b3a7adc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 12,
+  "added": 1401,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "docs/pages/api-tests.md",
+   "mode": "100644",
+   "blob": "e1b50caac55fbc1cba6080f7e5d211721bd91e95",
+   "previousBlob": null,
+   "added": 93,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/architecture.md",
+   "mode": "100644",
+   "blob": "a94b79bb24ad0e83f01ec5962fecb090b7484a77",
+   "previousBlob": null,
+   "added": 183,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/artifact-gc.mdx",
+   "mode": "100644",
+   "blob": "6d6d7eec99308a79b95582f13a16b282fda00ab8",
+   "previousBlob": null,
+   "added": 90,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/code-design.md",
+   "mode": "100644",
+   "blob": "36af076f7ba7a9b06c7383bf6226bc3ef5ee9490",
+   "previousBlob": null,
+   "added": 19,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/compaction.mdx",
+   "mode": "100644",
+   "blob": "680dcd209d5f5887d161162d3166d8c7c94c0a8a",
+   "previousBlob": null,
+   "added": 152,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/comparisons.md",
+   "mode": "100644",
+   "blob": "53bad4211bc55c45a4c26f7dacbe35989fd1358c",
+   "previousBlob": null,
+   "added": 69,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/contributing.md",
+   "mode": "100644",
+   "blob": "fc8215df4ed1fba886b1a8af4ccec0ca25855c89",
+   "previousBlob": null,
+   "added": 96,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/data-structures.md",
+   "mode": "100644",
+   "blob": "366b3c8e2e9cddde5a4408fa290227de1011fb38",
+   "previousBlob": null,
+   "added": 248,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/design-decisions.md",
+   "mode": "100644",
+   "blob": "0ca32cc0abb30329b4a68eed4257ff6a1972ada0",
+   "previousBlob": null,
+   "added": 125,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/disaster-recovery.mdx",
+   "mode": "100644",
+   "blob": "ebce1e059ce66d7627d66720acb03f073ef28c62",
+   "previousBlob": null,
+   "added": 132,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/examples.md",
+   "mode": "100644",
+   "blob": "d0269a8877222a80b7a02ecff270791fc08701cf",
+   "previousBlob": null,
+   "added": 54,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/external.mdx",
+   "mode": "100644",
+   "blob": "225e216bcd9a2ca81c019c7fb927f2aa3bb3a4ca",
+   "previousBlob": null,
+   "added": 140,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

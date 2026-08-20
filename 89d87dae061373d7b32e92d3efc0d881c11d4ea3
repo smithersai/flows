@@ -1,0 +1,91 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "89d87dae061373d7b32e92d3efc0d881c11d4ea3",
+ "tree": "53dcc6bcd0a4688454e1a802f9307497ec945552",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 58,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 238,
+  "globalCount": 838,
+  "purpose": "✨ feat(sync): add WorkspaceShare",
+  "type": "feat",
+  "kind": "module",
+  "scope": "sync",
+  "component": "packages/sync",
+  "unitKey": "WorkspaceShare",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "8ee3e4f304bc9e0e1d552635faefb9b0f5b825a1",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "409d977dc6850904988b0a037cbfd926daa547f0"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "8ee3e4f304bc9e0e1d552635faefb9b0f5b825a1",
+  "next": "113760108c0492bb70eaac7bb922d8772cff8c6e",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 535,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/sync/src/WorkspaceShare.ts",
+   "mode": "100644",
+   "blob": "15b988d826dce3acd775c9a373cb9c219a815338",
+   "previousBlob": null,
+   "added": 297,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/test/WorkspaceShare.test.ts",
+   "mode": "100644",
+   "blob": "b9b51c8160d57490f5b760ca9d1a9c673e87e99f",
+   "previousBlob": null,
+   "added": 238,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

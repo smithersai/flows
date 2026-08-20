@@ -1,0 +1,123 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "0a2ab9f1fed4324f0e4c25ba575bca0704e1aa26",
+ "tree": "cc7671ebf05a2371bbe0848f5555bbb4595e2e3d",
+ "epic": {
+  "index": 17,
+  "id": "factory",
+  "name": "Repository software factory",
+  "sourceCommit": "e1fbeee4b23399542c5105cb6f89733a14cc1892",
+  "sourceSubject": "✨ feat(factory): add the repository software factory",
+  "childIndex": 12,
+  "childCount": 17,
+  "head": "1666a5780add8693764a11b96b552909662d5e97"
+ },
+ "atomic": {
+  "globalIndex": 824,
+  "globalCount": 838,
+  "purpose": "✨ feat(factory-flows): add the review-docs, slop-sweep, smoke and 1 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "factory-flows",
+  "component": "factory/flows",
+  "unitKey": "review-docs",
+  "mergedUnitKeys": [
+   "review-docs",
+   "slop-sweep",
+   "smoke",
+   "smoke-record"
+  ]
+ },
+ "dependencies": {
+  "parent": "ef0662bcfc1d02784ed120497f0511c30bede5a7",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui",
+   "docs-site"
+  ],
+  "sourceImports": [
+   "ee413497efbca15acf23fa2b3cbc410affc1a802",
+   "b21dab66549eb99974cd7296f77391e4c3d00490",
+   "ef0662bcfc1d02784ed120497f0511c30bede5a7"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "ef0662bcfc1d02784ed120497f0511c30bede5a7",
+  "next": "865bde7d03dfed4fa35e6584f86e7406571a185b",
+  "epicFirst": "fe1c85cd8695563398bdd217be9a36f52ed6df92",
+  "epicLast": "1666a5780add8693764a11b96b552909662d5e97",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 556,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "factory/flows/review-docs.ts",
+   "mode": "100644",
+   "blob": "668eaae3c26329aa4d9ee7c1a33c4b4b57591619",
+   "previousBlob": null,
+   "added": 370,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "factory/flows/slop-sweep.ts",
+   "mode": "100644",
+   "blob": "1ae2733ff4c5de7e82b4dda29becf1f40e9662b8",
+   "previousBlob": null,
+   "added": 118,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "factory/flows/smoke.ts",
+   "mode": "100644",
+   "blob": "70731e0ac3d0c1148c72d2a10e34f10a1bf92883",
+   "previousBlob": null,
+   "added": 38,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "factory/flows/smoke-record.ts",
+   "mode": "100644",
+   "blob": "6e940dfa49de919ef97a61472b8bde440920a850",
+   "previousBlob": null,
+   "added": 30,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

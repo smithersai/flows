@@ -1,0 +1,99 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "36966c150e44215f6d84e68304ed6f67f4dd06ff",
+ "tree": "15cd6fb199b213cbd0fc31a749a10a4a30f2998e",
+ "epic": {
+  "index": 13,
+  "id": "server",
+  "name": "Shared application contracts and worker backend",
+  "sourceCommit": "5e1bcec6b1db3f2e990cb2b79bec0050dfc34ba3",
+  "sourceSubject": "✨ feat(server): add shared application contracts and worker backend",
+  "childIndex": 1,
+  "childCount": 21,
+  "head": "c272b329cd28dcfe6a7ffd108f0055164724d1db"
+ },
+ "atomic": {
+  "globalIndex": 617,
+  "globalCount": 838,
+  "purpose": "🧹 chore(shared): scaffold the smithers-shared package",
+  "type": "chore",
+  "kind": "scaffold",
+  "scope": "shared",
+  "component": "apps/shared",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "a482cacaa2f003ffede858d77595d07ad2842e79",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "a482cacaa2f003ffede858d77595d07ad2842e79",
+  "next": "a9829c617177ca17a9071a5a9f0591360696e8ee",
+  "epicFirst": "36966c150e44215f6d84e68304ed6f67f4dd06ff",
+  "epicLast": "c272b329cd28dcfe6a7ffd108f0055164724d1db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 92,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/shared/BUILD.ts",
+   "mode": "100644",
+   "blob": "f8551bb2d5f919e230112d1a44cf6c8f31978ed0",
+   "previousBlob": null,
+   "added": 45,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "apps/shared/package.json",
+   "mode": "100644",
+   "blob": "cb9986393809c7b0d2863931dddb8f53d877817e",
+   "previousBlob": null,
+   "added": 27,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "apps/shared/tsconfig.json",
+   "mode": "100644",
+   "blob": "e9344a2fd1701d4817efcea4d3026ccf7f0f36d3",
+   "previousBlob": null,
+   "added": 20,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

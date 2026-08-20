@@ -1,0 +1,94 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "113760108c0492bb70eaac7bb922d8772cff8c6e",
+ "tree": "3b8339719996658d5aeb2ce4acb7e2c1e29dfbd3",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 59,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 239,
+  "globalCount": 838,
+  "purpose": "✨ feat(sync): add SyncAuth",
+  "type": "feat",
+  "kind": "module",
+  "scope": "sync",
+  "component": "packages/sync",
+  "unitKey": "SyncAuth",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "89d87dae061373d7b32e92d3efc0d881c11d4ea3",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "409d977dc6850904988b0a037cbfd926daa547f0",
+   "8ee3e4f304bc9e0e1d552635faefb9b0f5b825a1",
+   "3c12dbdf04c94ac01d62039a304e31f3a5799f9e",
+   "89d87dae061373d7b32e92d3efc0d881c11d4ea3"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "89d87dae061373d7b32e92d3efc0d881c11d4ea3",
+  "next": "239bfc3fc9ed99100f271bcb1d4a5a4ad9a3f524",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 397,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/sync/src/SyncAuth.ts",
+   "mode": "100644",
+   "blob": "8cec91ffa12079ecc1ab3d450d589b1d63defe59",
+   "previousBlob": null,
+   "added": 138,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/test/SyncAuth.test.ts",
+   "mode": "100644",
+   "blob": "ae536d593a82849d5af0264cc137f53d8ba5c251",
+   "previousBlob": null,
+   "added": 259,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

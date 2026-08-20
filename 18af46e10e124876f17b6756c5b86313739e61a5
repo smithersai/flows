@@ -1,0 +1,91 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "18af46e10e124876f17b6756c5b86313739e61a5",
+ "tree": "c8c8f6720ab7ef1bdfccbf00ceacc35e8a56f7b1",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 58,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 695,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the mainview/state modules (6/7)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview/state",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "746ff1df693a153ac1c85106f82b100289cdf318",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "44b739c183d7508f003cbe31250f0a072c216002"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "746ff1df693a153ac1c85106f82b100289cdf318",
+  "next": "c7389c8fb2e161d11d7f53dbeea9064f56c9c167",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 408,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/RunClaims.ts",
+   "mode": "100644",
+   "blob": "e478414eccf7c234fbfb6e36c61f5a597f18f811",
+   "previousBlob": null,
+   "added": 316,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/WorldContext.ts",
+   "mode": "100644",
+   "blob": "09c9ff36f625167811cd32bf97cb06172ef97f85",
+   "previousBlob": null,
+   "added": 92,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,80 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a417ff879c78f5d40b5f0a376cd5b2f387ff72f1",
+ "tree": "cd1d28faef98eb4f91c9928fb8e38cc6ce84ba27",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 66,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 703,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the dev module",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:dev",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "43498b52a5d07cb8b9a6fca1baf93ee3ea1a13b2",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "fede41c478c5a240b0655f9a26feb1a5b8a011b7"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "43498b52a5d07cb8b9a6fca1baf93ee3ea1a13b2",
+  "next": "6ee5df66db65e929997a2795336b742366b9a8d1",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 235,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/dev/AgentApi.ts",
+   "mode": "100644",
+   "blob": "743e9a7a336730fe9c3991c0b7dcdc8374f83762",
+   "previousBlob": null,
+   "added": 235,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

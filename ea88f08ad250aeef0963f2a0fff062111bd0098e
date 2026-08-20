@@ -1,0 +1,111 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ea88f08ad250aeef0963f2a0fff062111bd0098e",
+ "tree": "adb1f52993841bcc55b8de0bbb7310279b7c94c5",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 84,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 721,
+  "globalCount": 838,
+  "purpose": "✅ test(ui): cover mainview/chain (2/2)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "mainview/chain",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "a7d663c0e1ae7694a726326df301cfbf85211e50",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "a7d663c0e1ae7694a726326df301cfbf85211e50",
+  "next": "d205fa9ace995c69f870db2aa0ba9f7d634c8c14",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 716,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/chain/SchemaVersion.test.ts",
+   "mode": "100644",
+   "blob": "67a98d986ef27f5b37cb2d91c4da1a703ca9393d",
+   "previousBlob": null,
+   "added": 310,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/chain/StreamModel.test.ts",
+   "mode": "100644",
+   "blob": "46dde684edfd2cf6914ee85af0b820097f5c38ce",
+   "previousBlob": null,
+   "added": 132,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/chain/Worldview.test.ts",
+   "mode": "100644",
+   "blob": "359d0ca5b3626e5652442faf483fe455e36967a5",
+   "previousBlob": null,
+   "added": 118,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/chain/deps.test.ts",
+   "mode": "100644",
+   "blob": "01bb9ee9e577bd29344fc1bd300631f82eab51c4",
+   "previousBlob": null,
+   "added": 156,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

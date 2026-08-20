@@ -1,0 +1,240 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "83ea81db069ae450ba29576b99d043124f733521",
+ "tree": "3c2df12980b17a5f4554cd9ec4250a0bedd01362",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 63,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 566,
+  "globalCount": 838,
+  "purpose": "📝 docs(build): document reference/targets (2/3)",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "build",
+  "component": "packages/build/docs",
+  "unitKey": "reference/targets",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "241fdd46e6d76fdc71b65cc5291cfa6b4470ae4d",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "241fdd46e6d76fdc71b65cc5291cfa6b4470ae4d",
+  "next": "7cebe0bdcdb643b15c676adb1c13ab1f5bd1f44f",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 16,
+  "added": 1493,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build/docs/reference/targets/install.md",
+   "mode": "100644",
+   "blob": "229e305225fc5177a6c233af75a93dcbd79fddf0",
+   "previousBlob": null,
+   "added": 98,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/reference/targets/jsr-publish.md",
+   "mode": "100644",
+   "blob": "ac178f88d177b2348cb64368f7c64ca860bed108",
+   "previousBlob": null,
+   "added": 73,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/reference/targets/llm-lint.md",
+   "mode": "100644",
+   "blob": "887f2f623f65d17d27a6674c6fa721520fd01261",
+   "previousBlob": null,
+   "added": 120,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/reference/targets/lockfile.md",
+   "mode": "100644",
+   "blob": "6093ea30169f6de37396a4517e4947192a233510",
+   "previousBlob": null,
+   "added": 67,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/reference/targets/new-package.md",
+   "mode": "100644",
+   "blob": "9143d073d533505828ecc5b28172d1d4def29641",
+   "previousBlob": null,
+   "added": 70,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/reference/targets/node-binary.md",
+   "mode": "100644",
+   "blob": "c20f2acc0c4a13d2af003b3f4892855218bcb63b",
+   "previousBlob": null,
+   "added": 65,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/reference/targets/node-test.md",
+   "mode": "100644",
+   "blob": "a87e66ed7d0b53d7dd80f8b8a3c9f99b14c1eac1",
+   "previousBlob": null,
+   "added": 92,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/reference/targets/npm-publish.md",
+   "mode": "100644",
+   "blob": "529890bf10f9183a3c8d4918c7edf83de5d3ba10",
+   "previousBlob": null,
+   "added": 88,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/reference/targets/package-json-gen.md",
+   "mode": "100644",
+   "blob": "90c2f91bb5163aa995665b7f29195527cd734ff1",
+   "previousBlob": null,
+   "added": 117,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/reference/targets/package-lint.md",
+   "mode": "100644",
+   "blob": "9f25214347d01c81055154ba316eafe47c9fb0d7",
+   "previousBlob": null,
+   "added": 77,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/reference/targets/pnpm-workspace.md",
+   "mode": "100644",
+   "blob": "c370458686a9c2dcaaecb2e124aa690a137f103a",
+   "previousBlob": null,
+   "added": 65,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/reference/targets/sort-package-json.md",
+   "mode": "100644",
+   "blob": "ca487945d1dd4b5dcf4d645a72e380d3f866ea98",
+   "previousBlob": null,
+   "added": 72,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/reference/targets/standard-package.md",
+   "mode": "100644",
+   "blob": "0c8d300ce4a5c8052b46f3eb6dd9b191494ac6a6",
+   "previousBlob": null,
+   "added": 109,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/reference/targets/tool-build.md",
+   "mode": "100644",
+   "blob": "94f47de5a46275c7f1c341da3aad035a9e1fa7a5",
+   "previousBlob": null,
+   "added": 156,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/reference/targets/tool-run.md",
+   "mode": "100644",
+   "blob": "61887b269158d61d9cafc7e23cfc77db57e4b667",
+   "previousBlob": null,
+   "added": 127,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/reference/targets/ts-build.md",
+   "mode": "100644",
+   "blob": "7c13e38705c4fa9c7e77a84047a520f48cb76c1b",
+   "previousBlob": null,
+   "added": 97,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

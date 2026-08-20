@@ -1,0 +1,133 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "c8be1f82b7f24dc524158cdba15d87ff8107780b",
+ "tree": "f76b5a9e7807130a93c54c73fef8e05bfeb2b341",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 66,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 246,
+  "globalCount": 838,
+  "purpose": "✅ test(sync): cover sync (3/3)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "sync",
+  "component": "packages/sync",
+  "unitKey": "test",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d310cea4f270eeee1e4663f221b713d29d021c40",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "d310cea4f270eeee1e4663f221b713d29d021c40",
+  "next": "ed4f9d0e1ed02f200297a6e85c7e81910817a08c",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 6,
+  "added": 921,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/sync/test/ServerRequestValidation.test.ts",
+   "mode": "100644",
+   "blob": "1148d4f317e063e41a4acefab1c2e4741e23f974",
+   "previousBlob": null,
+   "added": 108,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/test/ServerSoak.test.ts",
+   "mode": "100644",
+   "blob": "705f555bf2ea956fd5a5a21b16c4f9d90ce249b5",
+   "previousBlob": null,
+   "added": 194,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/test/ServerWorkspace.test.ts",
+   "mode": "100644",
+   "blob": "9d86e2075ce0b938f11935f5a83927ec85ec3577",
+   "previousBlob": null,
+   "added": 283,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/test/SyncProcessRecovery.integration.test.ts",
+   "mode": "100644",
+   "blob": "9abf7610689c26b05c78e60665b274786bcf3f32",
+   "previousBlob": null,
+   "added": 216,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/test/TestSocketFaults.test.ts",
+   "mode": "100644",
+   "blob": "bad6772769229d156f6bd3b0f0ddfa9740ac6db3",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/test/TransportFaults.test.ts",
+   "mode": "100644",
+   "blob": "1da875791cb9b3cb32297c04d2eef55fc6c2411a",
+   "previousBlob": null,
+   "added": 120,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

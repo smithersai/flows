@@ -1,0 +1,84 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "0652ee3e08c443204a3d36283b6878772c248510",
+ "tree": "e057863d103792648ccc58c9c2878232ef769f5b",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 4,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 184,
+  "globalCount": 838,
+  "purpose": "✨ feat(engine-store): add the ArtifactSync, CacheSync modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "engine-store",
+  "component": "packages/engine-store/src",
+  "unitKey": "ArtifactSync",
+  "mergedUnitKeys": [
+   "ArtifactSync",
+   "CacheSync"
+  ]
+ },
+ "dependencies": {
+  "parent": "eac8595689f9a0906fbd4c08ad77cf64eb5822b2",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "eac8595689f9a0906fbd4c08ad77cf64eb5822b2",
+  "next": "dfcd1b0b79c78527f800c3a21bf07b1f8d50670f",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 360,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/ArtifactSync.ts",
+   "mode": "100644",
+   "blob": "77251b6e52f4d62680e7665d15713c411ce7a01a",
+   "previousBlob": null,
+   "added": 224,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/CacheSync.ts",
+   "mode": "100644",
+   "blob": "fe04bcc704e91d9a0329296b1a478d2cc583694d",
+   "previousBlob": null,
+   "added": 136,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

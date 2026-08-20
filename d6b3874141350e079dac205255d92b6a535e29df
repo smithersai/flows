@@ -1,0 +1,81 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "d6b3874141350e079dac205255d92b6a535e29df",
+ "tree": "6bd0931da09946edd95d87ab75b34568cfca742d",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 43,
+  "childCount": 97,
+  "head": "741750533dd91efb1222011a56f2fd2c033b95dc"
+ },
+ "atomic": {
+  "globalIndex": 223,
+  "globalCount": 838,
+  "purpose": "✅ test(engine-store): cover engine-store (17/23)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "engine-store",
+  "component": "packages/engine-store/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "b7cd4ab54c192275f988174f9478d77223bb89ff",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "b7cd4ab54c192275f988174f9478d77223bb89ff",
+  "next": "e0c7664f82d37a78b56c9dbf03f980fcf42b0231",
+  "epicFirst": "494336f2a688bb19bc0497c9c515de4aa865e919",
+  "epicLast": "741750533dd91efb1222011a56f2fd2c033b95dc",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 1484,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/SandboxedAction.test.ts",
+   "mode": "100644",
+   "blob": "20b7a0ecda7f18df3a512e5a3e6d800b3ad0a23c",
+   "previousBlob": null,
+   "added": 671,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/Selection.test.ts",
+   "mode": "100644",
+   "blob": "22ea43c8b34621fd56c5e1fbdcc28c82b8cd5b2e",
+   "previousBlob": null,
+   "added": 813,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

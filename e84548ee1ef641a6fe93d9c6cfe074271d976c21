@@ -1,0 +1,81 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "e84548ee1ef641a6fe93d9c6cfe074271d976c21",
+ "tree": "6641f92ba6faaad22e1a691cfdd22c5a6dda6929",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 70,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 707,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the state/controller module (2/5)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview/state/controller",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "f030fd5c83668324a56c76c9b9d122ef7c124e91",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "51308f4793d76771c4129ad12325ce6ff071fbda",
+   "f030fd5c83668324a56c76c9b9d122ef7c124e91"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "f030fd5c83668324a56c76c9b9d122ef7c124e91",
+  "next": "78585680721aa382e4196ca1e1950206506b2872",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 926,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/controller/auth-billing.ts",
+   "mode": "100644",
+   "blob": "e0a0ec52d559cbe26e51c14feaa18f9aa5e3d29f",
+   "previousBlob": null,
+   "added": 926,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

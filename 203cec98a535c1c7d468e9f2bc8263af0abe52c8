@@ -1,0 +1,90 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "203cec98a535c1c7d468e9f2bc8263af0abe52c8",
+ "tree": "10fce223d12c1f649f033288eb6bf8b7f4739b8d",
+ "epic": {
+  "index": 2,
+  "id": "core",
+  "name": "Canonical leaf contracts",
+  "sourceCommit": "9cd3ac554b7b6acecfceddce69f6a6b6afa257b6",
+  "sourceSubject": "✨ feat(core): add canonical leaf contracts",
+  "childIndex": 8,
+  "childCount": 14,
+  "head": "bd887cd5cc6d5d26338e43b0255d2d36396d519c"
+ },
+ "atomic": {
+  "globalIndex": 10,
+  "globalCount": 838,
+  "purpose": "✨ feat(capability): add Permission",
+  "type": "feat",
+  "kind": "module",
+  "scope": "capability",
+  "component": "packages/capability",
+  "unitKey": "Permission",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "e8234069a931ae6091a5f034b5f9a78113056558",
+  "epicPredecessors": [
+   "repo"
+  ],
+  "sourceImports": [
+   "e8234069a931ae6091a5f034b5f9a78113056558"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "e8234069a931ae6091a5f034b5f9a78113056558",
+  "next": "7e2eac5ca71c4fc20bbe97b888dad21267da1e30",
+  "epicFirst": "fb8bcea968b638592c9b6360bd8fa385b34e72a0",
+  "epicLast": "bd887cd5cc6d5d26338e43b0255d2d36396d519c",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 636,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/capability/src/Permission.ts",
+   "mode": "100644",
+   "blob": "2bba2014c220d3b9be22cdbc505b34be4f565b6b",
+   "previousBlob": null,
+   "added": 305,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/capability/test/Permission.test.ts",
+   "mode": "100644",
+   "blob": "7da77d2ab644488e13e5a407750f1ede54f51f84",
+   "previousBlob": null,
+   "added": 213,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/capability/test/PermissionErrors.test.ts",
+   "mode": "100644",
+   "blob": "b43cf1597faa24113d9fd498a85b0ba8491a1471",
+   "previousBlob": null,
+   "added": 118,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

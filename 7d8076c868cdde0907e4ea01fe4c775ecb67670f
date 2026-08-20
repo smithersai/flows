@@ -1,0 +1,96 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "7d8076c868cdde0907e4ea01fe4c775ecb67670f",
+ "tree": "11d7a9c56e850547bd7f531084f07902d88f8cb3",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 61,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 698,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the mainview/chain modules (4/4)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview/chain",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "3b0c70f67ee7274e2c106e4cb4411598aed405ec",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "3b0c70f67ee7274e2c106e4cb4411598aed405ec",
+   "c7389c8fb2e161d11d7f53dbeea9064f56c9c167",
+   "a6e62e957d45844c923f75337676e02826657a76",
+   "bbc11668994cc8f212fa1e75ab120b1725a5ade3",
+   "4ebfe9f90b4b8be1920b53ed369f919e15828f6a",
+   "f1d7e3f3b271cdf382bfdc34069d1ba559f1c3ea"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "3b0c70f67ee7274e2c106e4cb4411598aed405ec",
+  "next": "1b4c0c503bd86ec5e890a8be549758e0c60877bb",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 744,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/chain/FlowCatalog.ts",
+   "mode": "100644",
+   "blob": "f697226ff12f6fb4a8898f79c453ec92045318ac",
+   "previousBlob": null,
+   "added": 77,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/chain/ChainRuntime.ts",
+   "mode": "100644",
+   "blob": "e59eb57d6d500af927deeb6e652d7a48b2cc6205",
+   "previousBlob": null,
+   "added": 667,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

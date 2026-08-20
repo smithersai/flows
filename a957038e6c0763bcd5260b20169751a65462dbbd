@@ -1,0 +1,190 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a957038e6c0763bcd5260b20169751a65462dbbd",
+ "tree": "9922e4963e88649831855d68df28fd26f3c8759d",
+ "epic": {
+  "index": 12,
+  "id": "examples",
+  "name": "Executable learning and evaluation suites",
+  "sourceCommit": "1c0d5bce16fdac649b8f108f4e37eaea58f4933c",
+  "sourceSubject": "📚 docs(examples): add executable learning and evaluation suites",
+  "childIndex": 9,
+  "childCount": 18,
+  "head": "a482cacaa2f003ffede858d77595d07ad2842e79"
+ },
+ "atomic": {
+  "globalIndex": 607,
+  "globalCount": 838,
+  "purpose": "✨ feat(evals-swebench): add the baseline, baseline/patches-codex, fixtures modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "evals-swebench",
+  "component": "evals/swebench",
+  "unitKey": "dir:baseline",
+  "mergedUnitKeys": [
+   "dir:baseline",
+   "dir:baseline/patches-codex",
+   "dir:fixtures"
+  ]
+ },
+ "dependencies": {
+  "parent": "a54130fbb46ccd2afdd7026d992e57529bb40171",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "a54130fbb46ccd2afdd7026d992e57529bb40171",
+  "next": "da3e627901c68347581fbc6325597c653b4728db",
+  "epicFirst": "d079d005cf653747c171d935a4612624051584da",
+  "epicLast": "a482cacaa2f003ffede858d77595d07ad2842e79",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 11,
+  "added": 690,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "evals/swebench/baseline/codex-comparison.json",
+   "mode": "100644",
+   "blob": "5f24d44d03af14d85ecd19dc551eb46f0e41361f",
+   "previousBlob": null,
+   "added": 72,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/baseline/patches-codex/astropy__astropy-8707.patch",
+   "mode": "100644",
+   "blob": "df05b967e73d78836a3d64b2dc89c1672793d7c7",
+   "previousBlob": null,
+   "added": 53,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/baseline/patches-codex/django__django-16612.patch",
+   "mode": "100644",
+   "blob": "c5fa5954460d169d1007a557dd6c62c24f2607ec",
+   "previousBlob": null,
+   "added": 15,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/baseline/patches-codex/pydata__xarray-7393.patch",
+   "mode": "100644",
+   "blob": "90a9f1962f0e635c7a8bb1de6d56e1f858ee73ec",
+   "previousBlob": null,
+   "added": 17,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/baseline/patches-codex/pytest-dev__pytest-6197.patch",
+   "mode": "100644",
+   "blob": "817aef7b3272eec1756814061fda88530f83a848",
+   "previousBlob": null,
+   "added": 27,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/baseline/patches-codex/sphinx-doc__sphinx-11445.patch",
+   "mode": "100644",
+   "blob": "5483c26f293dc4b137ce1107394eed0d67e98c71",
+   "previousBlob": null,
+   "added": 30,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/fixtures/check-rig.mjs",
+   "mode": "100644",
+   "blob": "48254a6cff4ac7e6b2e261aa057f43065f697716",
+   "previousBlob": null,
+   "added": 61,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/fixtures/check.mjs",
+   "mode": "100644",
+   "blob": "c802046a4036736b4278f2648fff77946ece29ec",
+   "previousBlob": null,
+   "added": 80,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/fixtures/make-fixture.mjs",
+   "mode": "100644",
+   "blob": "bdf37f6810a478df75e9710035db7bb18341c187",
+   "previousBlob": null,
+   "added": 163,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/fixtures/mirror-results.json",
+   "mode": "100644",
+   "blob": "761d32ecad005f11ec06f74ba143f6a01849f682",
+   "previousBlob": null,
+   "added": 132,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/fixtures/test-test-command.py",
+   "mode": "100644",
+   "blob": "b76593e94604ed138d58c43a1b3390a9ab5ba161",
+   "previousBlob": null,
+   "added": 40,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

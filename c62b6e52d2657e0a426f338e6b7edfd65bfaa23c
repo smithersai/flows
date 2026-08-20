@@ -1,0 +1,166 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "c62b6e52d2657e0a426f338e6b7edfd65bfaa23c",
+ "tree": "9399306e2fc5cdbbb21e5c53308af9b8ff92e51d",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 118,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 755,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the money modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/canary-repros",
+  "unitKey": "dir:money",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d93704f2dbda1409bbd60290b19c97ee691c520c",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "d93704f2dbda1409bbd60290b19c97ee691c520c",
+  "next": "c12c0cff7226852503b7cfcf5a1f49ea900757ce",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 9,
+  "added": 650,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/money/_lib.ts",
+   "mode": "100644",
+   "blob": "e585541a87d95aff2b1de176789eb7f391166cfe",
+   "previousBlob": null,
+   "added": 150,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/money/17.4.ts",
+   "mode": "100644",
+   "blob": "5518206951244fda8c4bd4357f64176ae0176d0d",
+   "previousBlob": null,
+   "added": 53,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/money/17.7.ts",
+   "mode": "100644",
+   "blob": "f1fefc73b663dfc8d323caefe90757c6b1fa1930",
+   "previousBlob": null,
+   "added": 117,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/money/18.1.ts",
+   "mode": "100644",
+   "blob": "4d14bac19cd41f7ca005a67a919e0b1e48294cee",
+   "previousBlob": null,
+   "added": 55,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/money/18.3.ts",
+   "mode": "100644",
+   "blob": "496f1d9385b37d3d407dd645ef334d6cf3c34bd5",
+   "previousBlob": null,
+   "added": 57,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/money/18.5.ts",
+   "mode": "100644",
+   "blob": "9cbcf9b84658fbb5a4c30f8c6064378cf01b7441",
+   "previousBlob": null,
+   "added": 47,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/money/19.1.ts",
+   "mode": "100644",
+   "blob": "6efe4057435d9bfee043dd647d2ef258033e8570",
+   "previousBlob": null,
+   "added": 55,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/money/19.2.ts",
+   "mode": "100644",
+   "blob": "57ec1ccb8a78a8b687fb8208291e3739f258b29a",
+   "previousBlob": null,
+   "added": 56,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/money/19.3.ts",
+   "mode": "100644",
+   "blob": "d6f45738e66fd42da7cb3e1bd77de256c2fc7bf4",
+   "previousBlob": null,
+   "added": 60,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

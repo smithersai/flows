@@ -1,0 +1,244 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "cb3617fe36782972cc9fe2abd82c36298137331a",
+ "tree": "f297c7c40a0fb3b90996c098bd3396b173f881f7",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 56,
+  "childCount": 60,
+  "head": "a94e46ebcc18e48adf39b7735ecbe06567ca4574"
+ },
+ "atomic": {
+  "globalIndex": 176,
+  "globalCount": 838,
+  "purpose": "✨ feat(sandbox): add the SandboxHealth modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "sandbox",
+  "component": "packages/sandbox",
+  "unitKey": "dir:SandboxHealth",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "a447a2a28c3deda807489611de730541b1a1a667",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [
+   "a447a2a28c3deda807489611de730541b1a1a667"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/kernel",
+    "field": "dependencies",
+    "commit": "32707f96f522f0b7dce09d50ee6af6e72b7a0ef4",
+    "providerComponent": "packages/kernel",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "a447a2a28c3deda807489611de730541b1a1a667",
+  "next": "8ddb128aec6c11929d20168ac543c2385b01c708",
+  "epicFirst": "a6c9698a594ba11333c7d2cefbd9720612c6e6bb",
+  "epicLast": "a94e46ebcc18e48adf39b7735ecbe06567ca4574",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 16,
+  "added": 607,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/SandboxHealth/Healthy.ts",
+   "mode": "100644",
+   "blob": "00e9f89a729c3ea9ba301f773005115959b0d1be",
+   "previousBlob": null,
+   "added": 16,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/SandboxHealth/PingProvider.ts",
+   "mode": "100644",
+   "blob": "49833fe39092f88a274d399eed8dd9e1881f5c7f",
+   "previousBlob": null,
+   "added": 17,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/SandboxHealth/ProbeOptions.ts",
+   "mode": "100644",
+   "blob": "e0b91db4b854eb39e92397ec2125278fe4c35954",
+   "previousBlob": null,
+   "added": 17,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/SandboxHealth/UnhealthyReason.ts",
+   "mode": "100644",
+   "blob": "232b4f9f2f762042a90ce8e3c634a4509d762e83",
+   "previousBlob": null,
+   "added": 25,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/SandboxHealth/Unhealthy.ts",
+   "mode": "100644",
+   "blob": "3a8ed0a7a4613e063033332d8fcf42b334d75265",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/SandboxHealth/HealthState.ts",
+   "mode": "100644",
+   "blob": "1bdbccd13733a885767fbd516a279488c6e14c07",
+   "previousBlob": null,
+   "added": 24,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/SandboxHealth/Service.ts",
+   "mode": "100644",
+   "blob": "25ebbf4c8e0dd303c0c2827e10414d6717e0e793",
+   "previousBlob": null,
+   "added": 18,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/SandboxHealth/SandboxHealth.ts",
+   "mode": "100644",
+   "blob": "83a42b37e0556b614a5c73773d55716b3a3e7a5d",
+   "previousBlob": null,
+   "added": 17,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/SandboxHealth/makeNoop.ts",
+   "mode": "100644",
+   "blob": "060d44bf55cfa7c24af3553ab681e920721d4bd0",
+   "previousBlob": null,
+   "added": 18,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/SandboxHealth/layerNoop.ts",
+   "mode": "100644",
+   "blob": "1e275c5412e76f8fabd25d648fa78e73f4da7e09",
+   "previousBlob": null,
+   "added": 17,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/SandboxHealth/probe.ts",
+   "mode": "100644",
+   "blob": "3c1327c5be1d4db9e1f7237af117c6b2df5eb105",
+   "previousBlob": null,
+   "added": 67,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/SandboxHealth/make.ts",
+   "mode": "100644",
+   "blob": "b8570b4d1af59e8d073f48c9c0596f4592705585",
+   "previousBlob": null,
+   "added": 19,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/SandboxHealth/layer.ts",
+   "mode": "100644",
+   "blob": "107feee31d6e72917093d1956e6fa46596efe1e3",
+   "previousBlob": null,
+   "added": 20,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/SandboxHealth/index.ts",
+   "mode": "100644",
+   "blob": "2678c7b58498809f4fdb51d41faea82ca7ffbfa8",
+   "previousBlob": null,
+   "added": 18,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/test/SandboxHealth.test.ts",
+   "mode": "100644",
+   "blob": "28ebd7a0eb72ddff95a7ac6c01650bedf67da821",
+   "previousBlob": null,
+   "added": 182,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/test/SandboxHealthSchema.test.ts",
+   "mode": "100644",
+   "blob": "e57c669ee257aa5e7bf93952bc9f48b8424a8763",
+   "previousBlob": null,
+   "added": 111,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

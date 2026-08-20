@@ -1,0 +1,167 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "c7f510f47171efcaac070ba95a37771ee5ef7813",
+ "tree": "ee3916204ccaa458e503d42f8539cbbbdd1edf0c",
+ "epic": {
+  "index": 9,
+  "id": "agent",
+  "name": "Harness, chain, tools and CLI",
+  "sourceCommit": "a8caaa3dc45df0c14d6b10d0db9faf8a7ea7e542",
+  "sourceSubject": "✨ feat(agent): compose the harness, chain, tools, and CLI",
+  "childIndex": 61,
+  "childCount": 84,
+  "head": "49544e3fda710efb14f1dc6cf2b0051adc9dd584"
+ },
+ "atomic": {
+  "globalIndex": 445,
+  "globalCount": 838,
+  "purpose": "✨ feat(chain): add the Event, Author, AuthorDeclaration modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "chain",
+  "component": "packages/chain",
+  "unitKey": "Event",
+  "mergedUnitKeys": [
+   "Event",
+   "Author",
+   "AuthorDeclaration"
+  ]
+ },
+ "dependencies": {
+  "parent": "76c8fa079dbfbeb3e506057b2f96e8fdda0937a6",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control"
+  ],
+  "sourceImports": [
+   "76c8fa079dbfbeb3e506057b2f96e8fdda0937a6"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "field": "dependencies",
+    "commit": "7e2eac5ca71c4fc20bbe97b888dad21267da1e30",
+    "providerComponent": "packages/capability",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/core",
+    "field": "dependencies",
+    "commit": "594053b296b9842285f3f69698d40bbcff21417f",
+    "providerComponent": "packages/core",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/memory",
+    "field": "dependencies",
+    "commit": "03a4cd0e3aab0a3e990be4ff12e9dbf36da0be9c",
+    "providerComponent": "packages/memory",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/model",
+    "field": "dependencies",
+    "commit": "489c9c77a1625c553ac1f7b8bde0c279d32249ba",
+    "providerComponent": "packages/model",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/registry",
+    "field": "dependencies",
+    "commit": "b89d7a671b44791c0d143f9c5a8f1d1ee4ca03c1",
+    "providerComponent": "packages/registry",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/testing",
+    "field": "devDependencies",
+    "commit": "240b8562e19e4d4b2129a8231ea81fb425901030",
+    "providerComponent": "packages/testing",
+    "classification": "provider-in-later-epic",
+    "justification": "@smthrs/testing is introduced by epic 10 (platform: Conformance, scoring, evaluation and telemetry), which the fixed 18-epic ordering places after epic 9 (agent). Reordering the epics is out of scope for this bootstrap. The relationship is development-only and does not affect this commit."
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "76c8fa079dbfbeb3e506057b2f96e8fdda0937a6",
+  "next": "e77bad12dbe82b509996e442ed3002b8e6c4b117",
+  "epicFirst": "980ca61422f63e6bb068247c1991df44231cde33",
+  "epicLast": "49544e3fda710efb14f1dc6cf2b0051adc9dd584",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 5,
+  "added": 687,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/chain/src/Event.ts",
+   "mode": "100644",
+   "blob": "d5ace8b158bc26214417ba946f97dc480bdce377",
+   "previousBlob": null,
+   "added": 331,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/test/Event.test.ts",
+   "mode": "100644",
+   "blob": "a5bfdd98c1e61ab9ddc3b42196496619987f7e1b",
+   "previousBlob": null,
+   "added": 77,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/src/Author.ts",
+   "mode": "100644",
+   "blob": "5545f3d393d779955d43f96ed443d61f8f7bc074",
+   "previousBlob": null,
+   "added": 165,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/test/Author.test.ts",
+   "mode": "100644",
+   "blob": "289b36517cfaa02cdf593c5a61856d9caae0a7fa",
+   "previousBlob": null,
+   "added": 66,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/src/AuthorDeclaration.ts",
+   "mode": "100644",
+   "blob": "ed6a9e14a7c8704f9e7e9913ee5107a23d0136ea",
+   "previousBlob": null,
+   "added": 48,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,223 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "1dcf440a2887adcbea64395e8d11553f170cdd07",
+ "tree": "26bb48ee2310307a1bd19e6f16574c5fa79dfe4e",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 47,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 550,
+  "globalCount": 838,
+  "purpose": "✨ feat(build-cli): add the GraphOutput, Query, Cli and 4 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "build-cli",
+  "component": "packages/build-cli",
+  "unitKey": "GraphOutput",
+  "mergedUnitKeys": [
+   "GraphOutput",
+   "Query",
+   "Cli",
+   "dbg-query",
+   "dbg-query.mjs",
+   "effect-resolution.d",
+   "main"
+  ]
+ },
+ "dependencies": {
+  "parent": "509ec9064a9a49a33f856b1dd1746ec5f7255b05",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [
+   "d69b5e1053afc3407edc26a2f4222a2618a99250",
+   "68fcdf37e3b705bbfa191c6761a94cb9e6a5802b",
+   "8cb97d79780c262f46f14c65d4b65806ca9bb77c",
+   "509ec9064a9a49a33f856b1dd1746ec5f7255b05",
+   "7cca03be423ac6dbb68ee474e1754206cba2c022"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "field": "dependencies",
+    "commit": "f939384117c3c38a7fa71b1eddc029020998b589",
+    "providerComponent": "packages/canonical",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/crypto",
+    "field": "dependencies",
+    "commit": "530694619a107836d7830ede26f152376d364388",
+    "providerComponent": "packages/crypto",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/engine",
+    "field": "dependencies",
+    "commit": "b238e49d59c7ce059f57fe58b1d2028872d1438b",
+    "providerComponent": "packages/engine",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/flow",
+    "field": "dependencies",
+    "commit": "ee413497efbca15acf23fa2b3cbc410affc1a802",
+    "providerComponent": "packages/flow",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/keys",
+    "field": "dependencies",
+    "commit": "060d78f56853c2982e3d4fc1fab1d483ac3dc741",
+    "providerComponent": "packages/keys",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/plan",
+    "field": "dependencies",
+    "commit": "b21dab66549eb99974cd7296f77391e4c3d00490",
+    "providerComponent": "packages/plan",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/build",
+    "field": "dependencies",
+    "commit": "a6100f11c0fee3bc3a804f69befaeaa10ae6afa4",
+    "providerComponent": "packages/build",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/targets",
+    "field": "dependencies",
+    "commit": "04cacb5d5da6eed65dccb54623b16b2e67e1ef04",
+    "providerComponent": "packages/targets",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "509ec9064a9a49a33f856b1dd1746ec5f7255b05",
+  "next": "cc0e85478aa879e21c87e48acdf282fda8eb2291",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 8,
+  "added": 689,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build-cli/src/GraphOutput.ts",
+   "mode": "100644",
+   "blob": "d59ff8c7119ecac369c3116a7f2a02199d1088e6",
+   "previousBlob": null,
+   "added": 69,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build-cli/src/Query.ts",
+   "mode": "100644",
+   "blob": "8df1c06de05233844aaafd243a62d2c9604cbf65",
+   "previousBlob": null,
+   "added": 73,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build-cli/src/Cli.ts",
+   "mode": "100644",
+   "blob": "2283a3e12e2153b2fb7f477063199e834b5baa65",
+   "previousBlob": null,
+   "added": 440,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build-cli/dbg-query.mjs",
+   "mode": "100644",
+   "blob": "0f4bfe700fb11213f0acd9b633fa455aa6205580",
+   "previousBlob": null,
+   "added": 19,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build-cli/dbg-query.mjs.bak",
+   "mode": "100644",
+   "blob": "816bd775694154da2a2afcde34ed10595348cd7f",
+   "previousBlob": null,
+   "added": 19,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build-cli/src/effect-resolution.d.ts",
+   "mode": "100644",
+   "blob": "ba1f30c2712d4ba1ebc977e7c9f5010e6d43ba77",
+   "previousBlob": null,
+   "added": 17,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build-cli/src/main.js",
+   "mode": "100755",
+   "blob": "8940b4dd8af90e3c320012f021f85aadfaa97bf6",
+   "previousBlob": null,
+   "added": 14,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build-cli/src/main.ts",
+   "mode": "100755",
+   "blob": "0a604de0ba2840ad1746c7afd9aa00a47cb93e6a",
+   "previousBlob": null,
+   "added": 38,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

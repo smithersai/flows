@@ -1,0 +1,78 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "5ed1c688534b62bf023c949acbc6e41a904f7c2f",
+ "tree": "03f7663a0c6383fa7f8a31727e65561696da980c",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 99,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 736,
+  "globalCount": 838,
+  "purpose": "✅ test(ui): cover mainview/styles",
+  "type": "test",
+  "kind": "tests",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "mainview/styles",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d103f433a5c1285552d094615cb39b53a3961bb9",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "d103f433a5c1285552d094615cb39b53a3961bb9",
+  "next": "9d7d2ff6cadcbae1fd348726efeca30043429abd",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 1,
+  "added": 161,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/styles/Contrast.test.ts",
+   "mode": "100644",
+   "blob": "b914f62a3d71d8b1d74652421c94ffef2d531588",
+   "previousBlob": null,
+   "added": 161,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

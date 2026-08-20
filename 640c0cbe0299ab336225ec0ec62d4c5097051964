@@ -1,0 +1,95 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "640c0cbe0299ab336225ec0ec62d4c5097051964",
+ "tree": "c6b7dbe07c5892790bec97792edd9dc869eff872",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 51,
+  "childCount": 54,
+  "head": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb"
+ },
+ "atomic": {
+  "globalIndex": 67,
+  "globalCount": 838,
+  "purpose": "✨ feat(step-cache): add RemoteCacheStore",
+  "type": "feat",
+  "kind": "module",
+  "scope": "step-cache",
+  "component": "packages/step-cache",
+  "unitKey": "RemoteCacheStore",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d22599694309d267656b4cdf9b9788ad02360d6a",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [
+   "579d84e65c24105adc35d4852f7e96646bd459f9"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "field": "dependencies",
+    "commit": "f939384117c3c38a7fa71b1eddc029020998b589",
+    "providerComponent": "packages/canonical",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "d22599694309d267656b4cdf9b9788ad02360d6a",
+  "next": "2d882398130e1321388dc084409590afb53af660",
+  "epicFirst": "2d09eee3adb5b99a7ac2a9511ca5520ac08f7a95",
+  "epicLast": "ecc2c5eea8e268e07ff0ad112524785b1a6c82bb",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 542,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/step-cache/src/RemoteCacheStore.ts",
+   "mode": "100644",
+   "blob": "4b8b707ff45afb870231b6dbe9224893019bd16c",
+   "previousBlob": null,
+   "added": 210,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/step-cache/test/RemoteCacheStore.test.ts",
+   "mode": "100644",
+   "blob": "da33df3c6d8f0136e38e1d0ad65db3d2a23aed2b",
+   "previousBlob": null,
+   "added": 332,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

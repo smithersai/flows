@@ -1,0 +1,125 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "4010c809858c8f7285fbda877db1a1c20712851a",
+ "tree": "e26c2bff48fe912fee6d30e76b1ee58817df8e3e",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 4,
+  "childCount": 41,
+  "head": "a87440798849594806112b3b5a4481f1969f8f35"
+ },
+ "atomic": {
+  "globalIndex": 281,
+  "globalCount": 838,
+  "purpose": "✨ feat(core): add the Annotations, Digest modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "core",
+  "component": "packages/core",
+  "unitKey": "Annotations",
+  "mergedUnitKeys": [
+   "Annotations",
+   "Digest"
+  ]
+ },
+ "dependencies": {
+  "parent": "6fe1415bddc8f9b1ca204df08e944977a0ff9636",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [
+   "a75e510995292557ff19e01e2ec5ca97c3a7d390",
+   "6fe1415bddc8f9b1ca204df08e944977a0ff9636"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "field": "dependencies",
+    "commit": "f939384117c3c38a7fa71b1eddc029020998b589",
+    "providerComponent": "packages/canonical",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/crypto",
+    "field": "dependencies",
+    "commit": "530694619a107836d7830ede26f152376d364388",
+    "providerComponent": "packages/crypto",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "6fe1415bddc8f9b1ca204df08e944977a0ff9636",
+  "next": "271f59eca582d77855822a63b5537e7c32c139d9",
+  "epicFirst": "199c8afe8cabc4dc289106848adee1275afbff4c",
+  "epicLast": "a87440798849594806112b3b5a4481f1969f8f35",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 296,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/core/src/Annotations.ts",
+   "mode": "100644",
+   "blob": "453c0bae501446545f4f3c929b2f3ec3b3e515c9",
+   "previousBlob": null,
+   "added": 91,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/core/test/Annotations.test.ts",
+   "mode": "100644",
+   "blob": "22bead298ea1161bfc0e8254e66b054f0a29e242",
+   "previousBlob": null,
+   "added": 38,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/core/src/Digest.ts",
+   "mode": "100644",
+   "blob": "21c814acac1c3c34eb31efd6636f224ca96fb1df",
+   "previousBlob": null,
+   "added": 101,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/core/test/Digest.test.ts",
+   "mode": "100644",
+   "blob": "63c589ae50eb9c7ca37822f56a2a04f7767d1c29",
+   "previousBlob": null,
+   "added": 66,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

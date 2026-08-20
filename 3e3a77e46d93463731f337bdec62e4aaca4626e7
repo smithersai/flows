@@ -1,0 +1,132 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "3e3a77e46d93463731f337bdec62e4aaca4626e7",
+ "tree": "ea3b8f5f905e655bf881dd87ed4017a1240f0f82",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 20,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 523,
+  "globalCount": 838,
+  "purpose": "✨ feat(targets): add the Clean, DepsLint, Dev and 2 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "targets",
+  "component": "packages/targets/src",
+  "unitKey": "Clean",
+  "mergedUnitKeys": [
+   "Clean",
+   "DepsLint",
+   "Dev",
+   "DocsParity",
+   "Dprint"
+  ]
+ },
+ "dependencies": {
+  "parent": "161e241a652255620ce10b0002c026ad68c33244",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [
+   "8c22e12a34262541380b4e5ce654880c38a9f45b",
+   "00957ec8ebb497a919271108d05ea32e3cb1860b",
+   "3601609d1c618c17e895954bbdbec9660c7cf00b",
+   "ba993df20a254d6d6558bcab0091b06aae25a223",
+   "357b1d58b060b24f450d3d84da29306d20e516c3",
+   "3b194710baa38c704c036e6357e7046004f9b3a7"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "161e241a652255620ce10b0002c026ad68c33244",
+  "next": "cad2ee28bd2f0dd3a0b2eb99bfdc11a5743ecff7",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 5,
+  "added": 694,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/targets/src/Clean.ts",
+   "mode": "100644",
+   "blob": "084bdf98a2fbcb76511bdd3867adc58c709bd9b5",
+   "previousBlob": null,
+   "added": 91,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/DepsLint.ts",
+   "mode": "100644",
+   "blob": "fdc819a6bf822b730900c7885352092fd49b5001",
+   "previousBlob": null,
+   "added": 142,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/Dev.ts",
+   "mode": "100644",
+   "blob": "043d020144949a080ef43c06ccd527db41cfdcbb",
+   "previousBlob": null,
+   "added": 59,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/DocsParity.ts",
+   "mode": "100644",
+   "blob": "dbc2b30d2e33ef0ec172b61929feebcab8e9dce9",
+   "previousBlob": null,
+   "added": 330,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/Dprint.ts",
+   "mode": "100644",
+   "blob": "49f46c58b5bcbcb9f9b0989531ff15da1e23743c",
+   "previousBlob": null,
+   "added": 72,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,112 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "531ca6e7fde227d7343dab6874fb6a0b6bf6a389",
+ "tree": "c3babd35561cedd9c0e53c93dbec0cbab06896d7",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 45,
+  "childCount": 50,
+  "head": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7"
+ },
+ "atomic": {
+  "globalIndex": 115,
+  "globalCount": 838,
+  "purpose": "✅ test(flow): cover flow (1/6)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "flow",
+  "component": "packages/flow/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "03021beef8b5e1e585c9f36b51edc2fd03225956",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "03021beef8b5e1e585c9f36b51edc2fd03225956",
+  "next": "2c8e555151a96797ee6a5a0be9d79bdb76c5343f",
+  "epicFirst": "60233bebe0e00cbc35cfb5176a9644f2799fde18",
+  "epicLast": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 5,
+  "added": 1347,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/flow/test/ActionCombinators.test.ts",
+   "mode": "100644",
+   "blob": "0bb357f50b8d1e9f634cb739baab45ff618363c5",
+   "previousBlob": null,
+   "added": 193,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/test/ActionDeclared.test.ts",
+   "mode": "100644",
+   "blob": "10414eaf2ccad0c01d3cda679ff11ef22cbef1ff",
+   "previousBlob": null,
+   "added": 239,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/test/ActionRequirement.test.ts",
+   "mode": "100644",
+   "blob": "a663c123fbcd994ac88e4a36e48928b3f8a22691",
+   "previousBlob": null,
+   "added": 405,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/test/ActionRetry.test.ts",
+   "mode": "100644",
+   "blob": "ec7bcb0b02bfd350a8abec56adc6949e8846987b",
+   "previousBlob": null,
+   "added": 190,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/test/AuthoringGaps.test.ts",
+   "mode": "100644",
+   "blob": "d13a5f1451a8e61d51dcc66f1ebefe88cafb7b9b",
+   "previousBlob": null,
+   "added": 320,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

@@ -1,0 +1,122 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "33138d7c44c6b813d268210635aca65de9b317d1",
+ "tree": "a6e8a4a5b335706137873c52b3dd96233aa16572",
+ "epic": {
+  "index": 17,
+  "id": "factory",
+  "name": "Repository software factory",
+  "sourceCommit": "e1fbeee4b23399542c5105cb6f89733a14cc1892",
+  "sourceSubject": "✨ feat(factory): add the repository software factory",
+  "childIndex": 6,
+  "childCount": 17,
+  "head": "1666a5780add8693764a11b96b552909662d5e97"
+ },
+ "atomic": {
+  "globalIndex": 818,
+  "globalCount": 838,
+  "purpose": "✨ feat(factory-automation): add the blockers, queue, fix modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "factory-automation",
+  "component": "factory/automation",
+  "unitKey": "blockers",
+  "mergedUnitKeys": [
+   "blockers",
+   "queue",
+   "fix"
+  ]
+ },
+ "dependencies": {
+  "parent": "b8886f7fe962604d703d9cbbabf46b0839b9b129",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui",
+   "docs-site"
+  ],
+  "sourceImports": [
+   "3432fa8b0ddeb81aabac0e75310af79e8bf88b7a",
+   "a4cc20fdd987fe114b7b4f59398e27551875b2fd",
+   "b8886f7fe962604d703d9cbbabf46b0839b9b129"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "b8886f7fe962604d703d9cbbabf46b0839b9b129",
+  "next": "ce69ad06892790c36fe3b52b708f073b82d319e7",
+  "epicFirst": "fe1c85cd8695563398bdd217be9a36f52ed6df92",
+  "epicLast": "1666a5780add8693764a11b96b552909662d5e97",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 452,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "factory/automation/blockers.ts",
+   "mode": "100644",
+   "blob": "5bb01783b8a78854f0ff9bc2fdd2fc77dc736e93",
+   "previousBlob": null,
+   "added": 154,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "factory/automation/blockers.test.ts",
+   "mode": "100644",
+   "blob": "0a28d2093ea844a994477afd3a1887321244f3dc",
+   "previousBlob": null,
+   "added": 60,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "factory/automation/queue.ts",
+   "mode": "100644",
+   "blob": "a2c659104051b35ecd9ef242ff9b41c04259387b",
+   "previousBlob": null,
+   "added": 92,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "factory/automation/fix.ts",
+   "mode": "100644",
+   "blob": "540461548c245bc391e2dfe92679fc9c9418de6f",
+   "previousBlob": null,
+   "added": 146,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

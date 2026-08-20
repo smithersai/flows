@@ -1,0 +1,143 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "1b4c0c503bd86ec5e890a8be549758e0c60877bb",
+ "tree": "f8fcd88fbe1747cc3431139b03cefe7d8331098a",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 62,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 699,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the mainview modules (2/3)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "7d8076c868cdde0907e4ea01fe4c775ecb67670f",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "49f05ad33ae4477ca468fc044d7ccfd9cbfbacab",
+   "7d8076c868cdde0907e4ea01fe4c775ecb67670f",
+   "a6e62e957d45844c923f75337676e02826657a76",
+   "3b0c70f67ee7274e2c106e4cb4411598aed405ec",
+   "bbc11668994cc8f212fa1e75ab120b1725a5ade3",
+   "d53f1c7c29921bae3320288137261b66d7e6b555",
+   "8c026ad28fd80bb1462799d80bf5ba76edf692dc",
+   "d33e452aacb744538008cc1962306b8d0175849e",
+   "51308f4793d76771c4129ad12325ce6ff071fbda"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "7d8076c868cdde0907e4ea01fe4c775ecb67670f",
+  "next": "4c6eb30e8b95853bdc765868e1e0ded3fa76539a",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 6,
+  "added": 765,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/ControllerBoot.client.ts",
+   "mode": "100644",
+   "blob": "fe7b2fd166b536e7d02dc2da42676801a65e6bee",
+   "previousBlob": null,
+   "added": 52,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/ControllerContext.tsx",
+   "mode": "100644",
+   "blob": "c1377606935bc89c5fc882898d07d2e20084dc58",
+   "previousBlob": null,
+   "added": 22,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/ConnectorsSurface.tsx",
+   "mode": "100644",
+   "blob": "f947685680b020f725b5139ff787b1456baf49b9",
+   "previousBlob": null,
+   "added": 285,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/ControllerProvider.tsx",
+   "mode": "100644",
+   "blob": "1fc36a94be76d5543183842dcd09c85d3c676e03",
+   "previousBlob": null,
+   "added": 25,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/DevtoolsPanel.tsx",
+   "mode": "100644",
+   "blob": "906e9ea9f44e916e6033fc7932edaa251699b17f",
+   "previousBlob": null,
+   "added": 241,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/GitHubPane.tsx",
+   "mode": "100644",
+   "blob": "f5e4ea2c0ec230200c0bbb47f5860b1f54e77ddb",
+   "previousBlob": null,
+   "added": 140,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

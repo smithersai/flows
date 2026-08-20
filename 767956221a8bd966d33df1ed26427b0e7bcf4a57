@@ -1,0 +1,94 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "767956221a8bd966d33df1ed26427b0e7bcf4a57",
+ "tree": "68b40084bda5979f88e852e0b1bb07e9c6c10044",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 135,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 772,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the Assert, Browser modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/e2e",
+  "unitKey": "Assert",
+  "mergedUnitKeys": [
+   "Assert",
+   "Browser"
+  ]
+ },
+ "dependencies": {
+  "parent": "dfe7f4ae18a9e544165d4a332ea00534c0edd13f",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "6ee5df66db65e929997a2795336b742366b9a8d1"
+  ],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "dfe7f4ae18a9e544165d4a332ea00534c0edd13f",
+  "next": "e822dc188bbe3d101505bc4e0d8671fc01102cc9",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 538,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/Assert.ts",
+   "mode": "100644",
+   "blob": "cf1bd4a9e76fbb6cadfc59fb7c4e3e658788e0c5",
+   "previousBlob": null,
+   "added": 93,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/Browser.ts",
+   "mode": "100644",
+   "blob": "74ffa9a7ad8f52b94e0beb48e05e1edfaaa2b963",
+   "previousBlob": null,
+   "added": 445,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

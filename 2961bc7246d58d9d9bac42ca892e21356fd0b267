@@ -1,0 +1,177 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "2961bc7246d58d9d9bac42ca892e21356fd0b267",
+ "tree": "7c3aece29dc4e3fba0ac74479e49df3ab608e5f7",
+ "epic": {
+  "index": 10,
+  "id": "platform",
+  "name": "Conformance, scoring, evaluation and telemetry",
+  "sourceCommit": "317910c088e178d40f3b1553a182a7ee2be5dd24",
+  "sourceSubject": "✅ test(platform): add conformance, scoring, evaluation, and telemetry",
+  "childIndex": 31,
+  "childCount": 35,
+  "head": "3728fb6a6309a4a4c7a1eeeb6393bdecdf368130"
+ },
+ "atomic": {
+  "globalIndex": 499,
+  "globalCount": 838,
+  "purpose": "✨ feat(observability): add the Resource, BrowserOtel, JournalLogger and 3 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "observability",
+  "component": "packages/observability",
+  "unitKey": "Resource",
+  "mergedUnitKeys": [
+   "Resource",
+   "BrowserOtel",
+   "JournalLogger",
+   "Logger",
+   "Metric",
+   "NodeOtel"
+  ]
+ },
+ "dependencies": {
+  "parent": "7f37a8fd6beb92b29a1546d804727c8098d3f1d6",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/journal",
+    "field": "dependencies",
+    "commit": "d56c8c805035a37be386b245328d68a8182de5ad",
+    "providerComponent": "packages/journal",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "7f37a8fd6beb92b29a1546d804727c8098d3f1d6",
+  "next": "570a7601d1ef23f7dca46e1c4c1d5d3d71e140fb",
+  "epicFirst": "aafee4cdb47bb63bb06c167a8f3ee9e44c1e1e80",
+  "epicLast": "3728fb6a6309a4a4c7a1eeeb6393bdecdf368130",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 9,
+  "added": 611,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/observability/src/Resource.ts",
+   "mode": "100644",
+   "blob": "27b72f7697371a297b4d2061161181be3cc9b7c5",
+   "previousBlob": null,
+   "added": 61,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/observability/src/BrowserOtel.ts",
+   "mode": "100644",
+   "blob": "08381cecc7e2689ca2534be03b730b97828d7e5c",
+   "previousBlob": null,
+   "added": 43,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/observability/src/JournalLogger.ts",
+   "mode": "100644",
+   "blob": "4a55e65f93d02ec5aa649464893c3c46dd79de6f",
+   "previousBlob": null,
+   "added": 109,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/observability/test/JournalLogger.test.ts",
+   "mode": "100644",
+   "blob": "88be1dac3ac6a362ceb3f542286655b6f01bc266",
+   "previousBlob": null,
+   "added": 71,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/observability/src/Logger.ts",
+   "mode": "100644",
+   "blob": "216994da499aedcd1693c4927c18d4b82322d0d9",
+   "previousBlob": null,
+   "added": 89,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/observability/test/Logger.test.ts",
+   "mode": "100644",
+   "blob": "ab8cb0701059cf291457220d5b43433d07f93bdb",
+   "previousBlob": null,
+   "added": 50,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/observability/src/Metric.ts",
+   "mode": "100644",
+   "blob": "c1260f6d43b28ea0560e8a53e9b8ebd982d4b298",
+   "previousBlob": null,
+   "added": 90,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/observability/test/Metric.test.ts",
+   "mode": "100644",
+   "blob": "c6fb4844ee27a6ab06310821fd9a377b86cf160e",
+   "previousBlob": null,
+   "added": 33,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/observability/src/NodeOtel.ts",
+   "mode": "100644",
+   "blob": "8975a11152142027b3484d85688a40d0cf385f27",
+   "previousBlob": null,
+   "added": 65,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

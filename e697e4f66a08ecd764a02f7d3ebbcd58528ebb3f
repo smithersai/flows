@@ -1,0 +1,163 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "e697e4f66a08ecd764a02f7d3ebbcd58528ebb3f",
+ "tree": "1fe721f4754653a37563ba5240c427c315877ba8",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 31,
+  "childCount": 50,
+  "head": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7"
+ },
+ "atomic": {
+  "globalIndex": 101,
+  "globalCount": 838,
+  "purpose": "✨ feat(engine): add the FlowEngine modules (1/2)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "engine",
+  "component": "packages/engine",
+  "unitKey": "dir:FlowEngine",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "68931bab07faf52e9647774e4332ddafa6945e00",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/crypto",
+    "field": "dependencies",
+    "commit": "530694619a107836d7830ede26f152376d364388",
+    "providerComponent": "packages/crypto",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/flow",
+    "field": "dependencies",
+    "commit": "ee413497efbca15acf23fa2b3cbc410affc1a802",
+    "providerComponent": "packages/flow",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/keys",
+    "field": "dependencies",
+    "commit": "060d78f56853c2982e3d4fc1fab1d483ac3dc741",
+    "providerComponent": "packages/keys",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/plan",
+    "field": "devDependencies",
+    "commit": "b21dab66549eb99974cd7296f77391e4c3d00490",
+    "providerComponent": "packages/plan",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "68931bab07faf52e9647774e4332ddafa6945e00",
+  "next": "60f6aa23f1d27b6707df4daabdcd2acff546a8d6",
+  "epicFirst": "60233bebe0e00cbc35cfb5176a9644f2799fde18",
+  "epicLast": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 7,
+  "added": 1311,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine/src/FlowEngine/ActionKey.ts",
+   "mode": "100644",
+   "blob": "4f554bf533a6ac7b8a3db9e6a85fd4b1a2857328",
+   "previousBlob": null,
+   "added": 200,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine/src/FlowEngine/Lineage.ts",
+   "mode": "100644",
+   "blob": "0eb3714117f061ab10e85cbeaa51f40a5e795776",
+   "previousBlob": null,
+   "added": 49,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine/src/FlowEngine/FlowInstance.ts",
+   "mode": "100644",
+   "blob": "75bb541366ce42047ef558883467353541c1f403",
+   "previousBlob": null,
+   "added": 60,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine/src/FlowEngine/Round.ts",
+   "mode": "100644",
+   "blob": "783fb94868d479b8068a458cbbc944329b50307b",
+   "previousBlob": null,
+   "added": 109,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine/src/FlowEngine/Encoded.ts",
+   "mode": "100644",
+   "blob": "58e1ee6f93de3ef5fc5bf276de07769bca6fe859",
+   "previousBlob": null,
+   "added": 181,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine/src/FlowEngine/SnapshotBoundary.ts",
+   "mode": "100644",
+   "blob": "8a68896973e5a750ae45b637b396111aecfce7e1",
+   "previousBlob": null,
+   "added": 49,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine/src/FlowEngine/make.ts",
+   "mode": "100644",
+   "blob": "b8a082b361ca8cd1497519030aa1453eefbfd19e",
+   "previousBlob": null,
+   "added": 663,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

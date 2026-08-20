@@ -1,0 +1,100 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "fede41c478c5a240b0655f9a26feb1a5b8a011b7",
+ "tree": "f5ce694e7d0897bb0648e4f5899834b397499091",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 42,
+  "childCount": 151,
+  "head": "22bb8748fd8802c32a9eb5aa6a266237063849db"
+ },
+ "atomic": {
+  "globalIndex": 679,
+  "globalCount": 838,
+  "purpose": "✨ feat(ui): add the bun modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:bun",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "58c3374fa65e8c163f7099c577286938e1d15a23",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "58c3374fa65e8c163f7099c577286938e1d15a23",
+  "next": "a6e62e957d45844c923f75337676e02826657a76",
+  "epicFirst": "293db7207ef07d2b0163bcfedf33736610316e52",
+  "epicLast": "22bb8748fd8802c32a9eb5aa6a266237063849db",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 417,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/bun/CloudAgent.ts",
+   "mode": "100644",
+   "blob": "41262af4ac598b59c1b61d6ec5717c5c2bfd49fa",
+   "previousBlob": null,
+   "added": 182,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/bun/LocalRepository.ts",
+   "mode": "100644",
+   "blob": "e8a4481c789a75da3ce9b2bc43446f9ea73723dc",
+   "previousBlob": null,
+   "added": 113,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/bun/index.ts",
+   "mode": "100644",
+   "blob": "cae60ce3a95f4cdd2cfc39efb1c4cf0a42216637",
+   "previousBlob": null,
+   "added": 122,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

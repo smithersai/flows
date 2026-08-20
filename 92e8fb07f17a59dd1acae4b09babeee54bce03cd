@@ -1,0 +1,100 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "92e8fb07f17a59dd1acae4b09babeee54bce03cd",
+ "tree": "65b39477887d1027f72c8efeddb93c97e7dd577b",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 70,
+  "childCount": 95,
+  "head": "11d655cbbd4baf93e569fac9fa8494d4067c8150"
+ },
+ "atomic": {
+  "globalIndex": 573,
+  "globalCount": 838,
+  "purpose": "✨ feat(build): add the worker/migrations, alchemy.run modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "build",
+  "component": "packages/build/infra",
+  "unitKey": "dir:worker/migrations",
+  "mergedUnitKeys": [
+   "dir:worker/migrations",
+   "alchemy.run"
+  ]
+ },
+ "dependencies": {
+  "parent": "8cb3bbb15cfdd5a3181146f66c3edc2df00bf983",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "8cb3bbb15cfdd5a3181146f66c3edc2df00bf983",
+  "next": "cc9651436d9c3656d4d300cdd946e70da0d0443c",
+  "epicFirst": "30d3acbbaecc082444d41a0af22db4c3aefe8ee3",
+  "epicLast": "11d655cbbd4baf93e569fac9fa8494d4067c8150",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 3,
+  "added": 135,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build/infra/worker/migrations/0001_initial.sql",
+   "mode": "100644",
+   "blob": "abed1f6468944653fde4424e459f05b79c7afd89",
+   "previousBlob": null,
+   "added": 20,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/infra/worker/migrations/0002_bound_cache_rows.sql",
+   "mode": "100644",
+   "blob": "c02a98cf056ea7c5316f1321aec20ee1a2a2f5b2",
+   "previousBlob": null,
+   "added": 35,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/infra/alchemy.run.ts",
+   "mode": "100644",
+   "blob": "7027d4014b16900d893a32307b9f2300b9d872b7",
+   "previousBlob": null,
+   "added": 80,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

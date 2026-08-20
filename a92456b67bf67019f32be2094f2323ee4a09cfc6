@@ -1,0 +1,98 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a92456b67bf67019f32be2094f2323ee4a09cfc6",
+ "tree": "87c537af0b9deb34c1c3ddd460737d12fb79a146",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 14,
+  "childCount": 50,
+  "head": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7"
+ },
+ "atomic": {
+  "globalIndex": 84,
+  "globalCount": 838,
+  "purpose": "✨ feat(plan): add Plan",
+  "type": "feat",
+  "kind": "module",
+  "scope": "plan",
+  "component": "packages/plan",
+  "unitKey": "Plan",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "e1f2d88cfb341184ba37fb50e00852b3a8a80123",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [
+   "7da67861069898ff6a097e6a5967195765577e08",
+   "248c54fd3af2a730f83ffe4312a1481a778a300d",
+   "ae29289569e3cb50fb17ad3ce477cf53ad119528"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "field": "dependencies",
+    "commit": "d2be07d6ed0967870652fe380dc942b8327a2e62",
+    "providerComponent": "packages/database",
+    "classification": "ordered"
+   },
+   {
+    "package": "@smthrs/keys",
+    "field": "dependencies",
+    "commit": "060d78f56853c2982e3d4fc1fab1d483ac3dc741",
+    "providerComponent": "packages/keys",
+    "classification": "ordered"
+   }
+  ]
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "e1f2d88cfb341184ba37fb50e00852b3a8a80123",
+  "next": "d82a08d963e389638767097f3de1a447e46d5931",
+  "epicFirst": "60233bebe0e00cbc35cfb5176a9644f2799fde18",
+  "epicLast": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 2,
+  "added": 1248,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/plan/src/Plan.ts",
+   "mode": "100644",
+   "blob": "3d3cf41bd08ce0c39142b2f73d99c1e7fe82c335",
+   "previousBlob": null,
+   "added": 659,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/plan/test/Plan.test.ts",
+   "mode": "100644",
+   "blob": "851c4e478ff1ab9f13772bb976d74905d6440e1a",
+   "previousBlob": null,
+   "added": 589,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

@@ -1,0 +1,101 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "2c8e555151a96797ee6a5a0be9d79bdb76c5343f",
+ "tree": "e352b5ea55ede4bdfb9a42a885fea0702c4c5d3c",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 46,
+  "childCount": 50,
+  "head": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7"
+ },
+ "atomic": {
+  "globalIndex": 116,
+  "globalCount": 838,
+  "purpose": "✅ test(flow): cover flow (2/6)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "flow",
+  "component": "packages/flow/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "531ca6e7fde227d7343dab6874fb6a0b6bf6a389",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "531ca6e7fde227d7343dab6874fb6a0b6bf6a389",
+  "next": "01e83c362cb2ffe2d6ca17317024b5da2e5c12b4",
+  "epicFirst": "60233bebe0e00cbc35cfb5176a9644f2799fde18",
+  "epicLast": "e49a46a59694fc87848a7a67ed1b6ee9070f61c7",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e"
+ },
+ "size": {
+  "files": 4,
+  "added": 1459,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "ordering": "contiguous range of this epic dependency order after collapsing import cycles into indivisible atoms",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/flow/test/DurableClock.test.ts",
+   "mode": "100644",
+   "blob": "a69b839d933b7aaac2af2765696ff7a94bc03e44",
+   "previousBlob": null,
+   "added": 302,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/test/DurableDeferred.test.ts",
+   "mode": "100644",
+   "blob": "d7c903e11eb7898f1742de119b9f3877d98917ab",
+   "previousBlob": null,
+   "added": 804,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/test/DurableQueue.test.ts",
+   "mode": "100644",
+   "blob": "1a03c16815eb863f46b4c265cfba5e234c5e2db6",
+   "previousBlob": null,
+   "added": 192,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/test/ExecutionId.test.ts",
+   "mode": "100644",
+   "blob": "495c365fa90dd683b289069849e692274d776c98",
+   "previousBlob": null,
+   "added": 161,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}
