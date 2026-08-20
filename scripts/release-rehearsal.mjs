@@ -190,6 +190,7 @@ const parseMapping = (lines, state, indent) => {
     const entry = /^([A-Za-z_][\w.-]*):(?:\s+(.*))?$/.exec(line.trim())
     if (entry === null) break
     const [, key, rawValue] = entry
+    if (Object.hasOwn(mapping, key)) throw new Error(`duplicate mapping key: ${key}`)
     state.index += 1
     const value = rawValue === undefined ? "" : stripComment(rawValue)
     if (value === "|" || value === "|-" || value === ">") {
@@ -208,7 +209,13 @@ const parseMapping = (lines, state, indent) => {
  */
 export const parseWorkflow = (source) => {
   const lines = source.split("\n")
-  return parseMapping(lines, { index: 0 }, 0)
+  const state = { index: 0 }
+  const workflow = parseMapping(lines, state, 0)
+  advance(lines, state)
+  if (state.index < lines.length) {
+    throw new Error(`unsupported workflow syntax at line ${state.index + 1}: ${lines[state.index].trim()}`)
+  }
+  return workflow
 }
 
 // ---------------------------------------------------------------------------
