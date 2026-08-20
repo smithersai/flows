@@ -29,6 +29,7 @@ import { Key } from "@smthrs/keys"
 import type * as Crypto from "effect/Crypto"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
 import * as Schema from "effect/Schema"
 import type * as FileSet from "./FileSet.ts"
 import type * as KeyMaterial from "./KeyMaterial.ts"
@@ -186,7 +187,13 @@ export const makeDigestMemo = (): DigestMemo => {
         const pending = Deferred.makeUnsafe<StepKey, Schema.SchemaError>()
         entries.set(address, pending)
         return compute.pipe(
-          Effect.onExit((exit) => Deferred.done(pending, exit).pipe(Effect.asVoid))
+          Effect.onExit((exit) =>
+            Effect.gen(function*() {
+              if (Exit.isFailure(exit) && entries.get(address) === pending) {
+                entries.delete(address)
+              }
+              yield* Deferred.done(pending, exit)
+            }))
         )
       })
   }
@@ -267,6 +274,15 @@ const normalizeEnvironment = (environment: EnvironmentIdentity) => ({
   ...(environment.runScope === undefined ? {} : { runScope: environment.runScope })
 })
 
+const compareCodeUnits = (left: string, right: string): number => left < right ? -1 : left > right ? 1 : 0
+
+const writeEntryKey = (entry: FileSet.Entry): string =>
+  typeof entry === "string"
+    ? JSON.stringify(["Path", entry])
+    : entry._tag === "TreeArtifact"
+    ? JSON.stringify([entry._tag, entry.path])
+    : JSON.stringify([entry._tag, entry.include, entry.exclude ?? null])
+
 const normalizeHermetic = (hermetic: NonNullable<ContentIdentity["hermetic"]>) => {
   const readSet = [...hermetic.readSet]
     .map((entry) => ({ path: entry.path.normalize("NFC"), digest: entry.digest }))
@@ -286,8 +302,9 @@ const normalizeHermetic = (hermetic: NonNullable<ContentIdentity["hermetic"]>) =
       ...(entry.exclude === undefined ? {} : { exclude: sortStrings(entry.exclude) })
     }
   })
-  const writeSet = [...new Map(normalizedWrites.map((entry) => [JSON.stringify(entry), entry])).values()]
-    .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)))
+  const writeSet = [...new Map(normalizedWrites.map((entry) => [writeEntryKey(entry), entry])).entries()]
+    .sort(([left], [right]) => compareCodeUnits(left, right))
+    .map(([, entry]) => entry)
   return {
     readSet,
     writeSet,

@@ -29,6 +29,12 @@ const { Workflow, smithers, outputs } = createSmithers({
     findings: z.string().min(2),
     dodAssessment: z.string().min(20),
   }),
+  alphaCorrection: z.object({
+    laneKey: laneKeyEnum,
+    summary: z.string().min(20),
+    addressed: z.string().min(2),
+    commitTip: z.string().min(7),
+  }),
   alphaLand: z.object({
     laneKey: laneKeyEnum,
     landed: z.boolean(),
@@ -409,7 +415,8 @@ export default smithers((ctx) => {
   // lost a push race. Keep it queued until it reports a verified landing, or
   // the lane strands silently and the run proceeds as if it shipped.
   const landVerified = (k: string) => truthy(col(landRow(k), "landed"))
-  const laneReadyToLand = (k: string) => reviewRow(k) !== undefined && !landVerified(k)
+  const reviewApproved = (k: string) => col(reviewRow(k), "verdict") === "APPROVE"
+  const laneReadyToLand = (k: string) => reviewApproved(k) && !landVerified(k)
   // Polish mounts on any land ATTEMPT, not on the landed flag, so a lane whose
   // reporting row is wrong still gets its post-land review.
   const landAttempted = (k: string) => landRow(k) !== undefined
@@ -515,6 +522,20 @@ ${LAND_PROTOCOL}
 Report: laneKey exactly "${lane.key}"; landed; landedShas (exact shas now on
 origin/main, or "none"); gatesRun (exact commands); gatesGreen; notes (what
 you applied from review, conflicts resolved, or why landing failed).
+`
+
+  const correctionPrompt = (lane: LaneSpec) => `
+You are the PRE-LAND correction step for lane ${lane.key} (${lane.title}). The
+review verdict was FIX, so this lane is not authorized to land. Apply every
+numbered finding in the lane worktree, commit the corrections, and do not push.
+A fresh review runs after you finish.
+
+${RULES}
+
+REVIEW FINDINGS:
+${String(col(reviewRow(lane.key), "findings") ?? "(missing review findings)")}
+
+Report laneKey exactly "${lane.key}", summary, addressed, and commitTip.
 `
 
   const polishReviewPrompt = (k: string, title: string) => `
@@ -755,16 +776,32 @@ Landed work remains on main (fix-forward track). Please direct the next step. Re
                   >
                     {implPrompt(lane)}
                   </Task>
-                  <Task
-                    id={`${lane.key}Review`}
-                    agent={laneAgents[lane.key].review}
-                    output={outputs.alphaReview}
-                    retries={8}
-                    timeoutMs={60 * 60_000}
-                    heartbeatTimeoutMs={20 * 60_000}
-                  >
-                    {reviewPrompt(lane)}
-                  </Task>
+                  <Loop id={`${lane.key}ReviewLoop`} until={reviewApproved(lane.key)} maxIterations={4} onMaxReached="fail">
+                    <Sequence>
+                      <Task
+                        id={`${lane.key}Review`}
+                        agent={laneAgents[lane.key].review}
+                        output={outputs.alphaReview}
+                        retries={8}
+                        timeoutMs={60 * 60_000}
+                        heartbeatTimeoutMs={20 * 60_000}
+                      >
+                        {reviewPrompt(lane)}
+                      </Task>
+                      {col(reviewRow(lane.key), "verdict") === "FIX" ? (
+                        <Task
+                          id={`${lane.key}Correction`}
+                          agent={laneAgents[lane.key].impl}
+                          output={outputs.alphaCorrection}
+                          retries={8}
+                          timeoutMs={lane.implMinutes * 60_000}
+                          heartbeatTimeoutMs={40 * 60_000}
+                        >
+                          {correctionPrompt(lane)}
+                        </Task>
+                      ) : null}
+                    </Sequence>
+                  </Loop>
                 </Sequence>
               </Worktree>
             ))}
@@ -783,7 +820,7 @@ Landed work remains on main (fix-forward track). Please direct the next step. Re
             </Worktree>
           </Parallel>
 
-          {/* Phase 3: merge queue. A lane lands the moment its review exists. */}
+          {/* Phase 3: merge queue. A lane lands only after APPROVE. */}
           <MergeQueue id="alphaMergeQueue" maxConcurrency={3}>
             {LANES.filter((lane) => laneReadyToLand(lane.key)).map((lane) => (
               <Task

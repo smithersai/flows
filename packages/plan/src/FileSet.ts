@@ -276,8 +276,8 @@ const beneath = (tree: string, path: string): boolean => {
  */
 export const overlaps = (left: Entry, right: Entry): boolean => {
   if (typeof left === "string" && typeof right === "string") return canonical(left) === canonical(right)
-  if (typeof left === "string" && isGlob(right)) return matchesGlob(right, left)
-  if (isGlob(left) && typeof right === "string") return matchesGlob(left, right)
+  if (typeof left === "string" && isGlob(right)) return matchesGlob(right, canonical(left))
+  if (isGlob(left) && typeof right === "string") return matchesGlob(left, canonical(right))
   if (isGlob(left) && isGlob(right)) return true
   if (isTreeArtifact(left) && typeof right === "string") return beneath(left.path, right)
   if (typeof left === "string" && isTreeArtifact(right)) return beneath(right.path, left)

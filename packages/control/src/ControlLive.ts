@@ -138,7 +138,7 @@ export const layer: Layer.Layer<
       effect: Effect.Effect<Receipt, E, R>
     ): Effect.Effect<Receipt, E | PersistenceError, R> =>
       mutationSemaphore.withPermits(1)(
-        Effect.gen(function*() {
+        journal.transact(Effect.gen(function*() {
           const mutationKey = `${operation}:${key}`
           const prior = yield* runtime.lookupMutation(mutationKey, mutationFingerprint)
           if (prior !== undefined) {
@@ -151,7 +151,15 @@ export const layer: Layer.Layer<
             yield* runtime.recordMutation(mutationKey, mutationFingerprint, receipt)
           }
           return receipt
-        })
+        })).pipe(
+          Effect.mapError((cause) => cause instanceof Journal.JournalError
+            ? new PersistenceError({
+              operation: `${operation}.idempotency`,
+              message: `Failed to commit ${operation} and its idempotency receipt atomically`,
+              cause
+            })
+            : cause)
+        )
       )
 
     const decide = (

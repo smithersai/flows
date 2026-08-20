@@ -17,6 +17,7 @@
  *   bun apps/ui/canary-repros/github/13.3.ts
  */
 import { BASE, ensureSignedIn, open, report } from "./_lib";
+import { withVerifiedRestoration } from "../../scripts/canary-restoration";
 
 const REPO = process.env.REPO ?? "codeplanesmithers/canary-sandbox";
 const IMAGE = "https://github.githubassets.com/images/modules/logos_page/Octocat.png";
@@ -45,32 +46,42 @@ const number = await page.evaluate(
 	},
 	[REPO, IMAGE] as const,
 );
-console.log(`fixture issue: ${REPO}#${number}`);
-
-const composer = page.locator("textarea").last();
-await composer.click();
-await composer.fill(`/issues.view ${number} ${REPO}`);
-await page.waitForTimeout(400);
-await page.keyboard.press("Enter");
-await page.waitForTimeout(14_000);
-
-const card = page.locator('[data-kind="issue"]').last();
-const images = await card.locator("img").count();
-const text = await card.innerText();
-console.log(`card <img> count: ${images}`);
-console.log(`card text: ${text.replace(/\n+/g, " | ").slice(0, 500)}`);
-
 const failures: Array<string> = [];
-/* Markdown that is not an image must still work — otherwise the finding is
- * "markdown is broken", not "images are dropped". */
-if (!/Heading/.test(text) || !/bold/.test(text)) failures.push("the markdown body did not render at all");
-if (images < 2) {
-	failures.push(
-		`the issue card rendered ${images} <img> for two markdown images — the image syntax degrades to a literal "!" plus a link`,
-	);
-}
-
-await page.screenshot({ path: "/tmp/canary-github-13.3.png", fullPage: true });
+await withVerifiedRestoration(
+	async () => {
+		console.log(`fixture issue: ${REPO}#${number}`);
+		const composer = page.locator("textarea").last();
+		await composer.click();
+		await composer.fill(`/issues.view ${number} ${REPO}`);
+		await page.keyboard.press("Enter");
+		await page.waitForTimeout(14_000);
+		const card = page.locator('[data-kind="issue"]').last();
+		const images = await card.locator("img").count();
+		const text = await card.innerText();
+		if (!/Heading/.test(text) || !/bold/.test(text)) failures.push("the markdown body did not render at all");
+		if (images < 2) failures.push(`the issue card rendered ${images} <img> for two markdown images`);
+		await page.screenshot({ path: "/tmp/canary-github-13.3.png", fullPage: true });
+	},
+	async () => {
+		const response = await page.evaluate(async ([repo, n]: [string, number]) => {
+			const result = await fetch(`/api/repos/${repo}/issues/${n}`, {
+				method: "PATCH",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ state: "closed" }),
+			});
+			return { status: result.status, body: await result.text() };
+		}, [REPO, number] as [string, number]);
+		if (response.status < 200 || response.status >= 300) throw new Error(`issue close answered HTTP ${response.status}: ${response.body}`);
+	},
+	async () => {
+		const state = await page.evaluate(async ([repo, n]: [string, number]) => {
+			const response = await fetch(`/api/repos/${repo}/issues/${n}`);
+			return response.ok ? ((await response.json()) as { state?: string }).state : `HTTP ${response.status}`;
+		}, [REPO, number] as [string, number]);
+		if (state !== "closed") throw new Error(`issue state is ${String(state)}, not closed`);
+	},
+	`close ${REPO}#${number} manually`,
+);
 console.log(`origin: ${BASE}; screenshot: /tmp/canary-github-13.3.png`);
 await context.close();
 report(failures);

@@ -639,7 +639,17 @@ export const layerMemory = (options: MemoryOptions = {}): Layer.Layer<ControlRun
           })
         ),
         recordMutation: Effect.fn("ControlRuntime.recordMutation")((key, fingerprint, receipt) =>
-          Effect.sync(() => {
+          Effect.gen(function*() {
+            const prior = mutations.get(key)
+            if (
+              prior !== undefined &&
+              (prior.fingerprint !== fingerprint || canonical(prior.receipt) !== canonical(receipt))
+            ) {
+              return yield* Effect.fail(new PersistenceError({
+                operation: "record a mutation",
+                message: `Idempotency key ${key} was already settled by another mutation`
+              }))
+            }
             mutations.set(key, { fingerprint, receipt })
           })
         ),

@@ -51,6 +51,8 @@ describe("FileSet", () => {
     expect(FileSet.overlaps("dist/same.js", "dist\\same.js")).toBe(true)
     expect(FileSet.overlaps("dist\\other.js", "dist/same.js")).toBe(false)
     expect(FileSet.overlaps({ _tag: "TreeArtifact", path: "dist\\nested" }, "dist/nested/a.js")).toBe(true)
+    expect(FileSet.overlaps("dist\\same.js", { _tag: "Glob", include: ["dist/*.js"] })).toBe(true)
+    expect(FileSet.overlaps({ _tag: "Glob", include: ["dist/*.js"] }, "dist\\same.js")).toBe(true)
     expect(FileSet.overlaps(
       { _tag: "TreeArtifact", path: "dist" },
       { _tag: "TreeArtifact", path: "dist\\nested" }
