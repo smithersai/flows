@@ -362,20 +362,22 @@ const agentFlow = Flow.make("agent/run", {
 export const waitForRunning = (
   status: (runId: string) => Effect.Effect<RunStatus, unknown>,
   runId: string,
-  attempts: number
+  attempts: number,
+  retryDelay: Effect.Effect<void> = Effect.sleep(Duration.millis(10))
 ): Effect.Effect<boolean, unknown> =>
   Effect.gen(function*() {
     const current = yield* status(runId)
     if (current === "running") {
       // The running row is written inside ControlLive's admission transaction.
-      // Yield once more so that transaction can publish and commit before the
-      // engine opens its own durable transaction.
-      yield* Effect.yieldNow
+      // Cross the same asynchronous retry boundary once more so that
+      // transaction can commit before the engine opens its own durable
+      // transaction.
+      yield* retryDelay
       return true
     }
     if (current === "accepted" && attempts > 0) {
-      yield* Effect.yieldNow
-      return yield* waitForRunning(status, runId, attempts - 1)
+      yield* retryDelay
+      return yield* waitForRunning(status, runId, attempts - 1, retryDelay)
     }
     if (current === "accepted") {
       return yield* Effect.fail(
@@ -673,8 +675,14 @@ export const make = (
         // shutdown and Control.cancel do too, but neither sets the durable
         // execution's suspension bit; reporting those as an approval wait
         // would leave a cancelled run looking resumable.
-        : suspended && Cause.hasInterruptsOnly(exit.cause)
-        ? writeStatus(runId, "waiting-approval")
+        : Cause.hasInterruptsOnly(exit.cause)
+        ? suspended
+          ? writeStatus(runId, "waiting-approval")
+          // Cancellation and process shutdown both close the execution scope.
+          // The control operation owns cancellation's terminal write, while a
+          // shutdown must leave the run reclaimable rather than misreport it
+          // as a model failure.
+          : Effect.void
         : Effect.andThen(
           Effect.annotateLogs(Effect.logWarning("An agent run failed"), {
             runId,
@@ -784,12 +792,14 @@ export const make = (
         return tags
       })
 
+    const activeBodies = new Map<string, Fiber.Fiber<unknown, unknown>>()
+
     const driver = (runId: string, planId: string) =>
       Effect.gen(function*() {
         const admitted = yield* waitForRunning(
           (id) => runtime.getRun(id).pipe(Effect.orDie, Effect.map((run) => run.status)),
           runId,
-          4000
+          400
         )
         if (!admitted) return
         yield* engine.execute(agentFlow, {
@@ -797,9 +807,23 @@ export const make = (
           payload: { runId, planId },
           discard: true
         }).pipe(
-          // ControlRuntime owns this driver fiber. Turn that cancellation
-          // into the engine's durable cancellation before the fiber exits.
-          Effect.onInterrupt(() => preserveDriverInterrupt(() => engine.interrupt(agentFlow, runId)))
+          // ControlRuntime awaits this driver while it owns the control
+          // transaction. Interrupt the active flow body synchronously so no
+          // tool can escape cancellation, then let the engine's durable
+          // cancellation finish after the control transaction commits.
+          Effect.onInterrupt(() =>
+            Effect.gen(function*() {
+              const bodyFiber = activeBodies.get(runId)
+              if (bodyFiber !== undefined) {
+                yield* Fiber.interrupt(bodyFiber).pipe(
+                  Effect.forkDetach({ startImmediately: true })
+                )
+              }
+              yield* preserveDriverInterrupt(() => engine.interrupt(agentFlow, runId)).pipe(
+                Effect.forkDetach({ startImmediately: true })
+              )
+            })
+          )
         )
       }).pipe(
         Effect.catchCause((cause) =>
@@ -867,9 +891,16 @@ export const make = (
     yield* engine.register(agentFlow, (payload) =>
       Effect.gen(function*() {
         const instance = yield* FlowRuntime.FlowInstance
-        return yield* body(payload).pipe(
-          Effect.onExit((exit) => settle(payload.runId, instance.suspended, exit)),
-          Effect.provide(services)
+        const fiber = yield* Effect.forkChild(
+          body(payload).pipe(
+            Effect.onExit((exit) => settle(payload.runId, instance.suspended, exit)),
+            Effect.provide(services)
+          ),
+          { startImmediately: true }
+        )
+        activeBodies.set(payload.runId, fiber)
+        return yield* Fiber.join(fiber).pipe(
+          Effect.ensuring(Effect.sync(() => activeBodies.delete(payload.runId)))
         )
       })).pipe(Scope.provide(scope))
 
@@ -909,13 +940,8 @@ export const make = (
           )
         )
         const start = yield* Deferred.make<void>()
-        // Start from the executor's construction context, not this launch
-        // fiber. ControlLive invokes launch inside its admission transaction;
-        // forking here would inherit that transaction's FiberRefs and make the
-        // engine's first write look like an illegal nested transaction.
         const fiber = Effect.runForkWith(services)(
           Deferred.await(start).pipe(
-            Effect.andThen(Effect.yieldNow),
             Effect.andThen(driver(input.run.runId, input.plan.card.planId))
           )
         )

@@ -411,7 +411,8 @@ describe("AgentSession", () => {
       AgentSession.waitForRunning(
         () => Effect.sync(() => (reads++ === 0 ? "accepted" : "running")),
         "run-wait",
-        1
+        1,
+        Effect.yieldNow
       )
     )).resolves.toBe(true)
     expect(reads).toBe(2)
@@ -670,6 +671,7 @@ describe("AgentSession", () => {
           // Cancelling must reach the durable engine, not merely change the
           // control row.
           yield* control.cancel({ runId: receipt.runId, idempotencyKey: "cancel:blocked-tool" })
+          yield* Effect.yieldNow
           yield* Deferred.succeed(gate, void 0)
           yield* awaitStatus(runtime, receipt.runId, "cancelled")
           return (yield* runtime.getRun(receipt.runId)).status
