@@ -60,10 +60,21 @@ export type Toast = z.infer<typeof ToastSchema>;
 export const WORLD_DISPLAY_NAME = "World";
 
 /*
- * Wave 10 (§2a/§2f) — pills are flow BINDINGS, never prompt strings: a
- * suggestion carries the flow it invokes directly, and the suggestion set
- * is DERIVED in App.tsx from live state (the one grounded recommendation, or
- * the genuinely-next step) — never fabricated, never stored.
+ * Wave 10 (§2a/§2f) — a pill is a flow BINDING: it carries the flow it
+ * invokes, and clicking it invokes that flow directly. The state-derived set
+ * (the one grounded recommendation, or the genuinely-next step) is DERIVED in
+ * App.tsx from live state — never fabricated, never stored.
+ *
+ * AMENDED (will, 2026-08-19): the agent may also propose the follow-ups it
+ * predicts, and one of those may be a canned QUESTION — the words the user
+ * would have typed next ("What is a flow"). Will asked for exactly this after
+ * an answer that predicted his next question in prose. It stays a binding: a
+ * question pill invokes `send` with that text, so the click submits the
+ * user's own message through the same path the composer uses, and a flow pill
+ * invokes its registered flow exactly as before. The old law ("never prompt
+ * strings", "derived, never fabricated") is superseded to this extent and to
+ * no other: nothing here hands free text to the MODEL, and the agent's set
+ * lives only as long as the answer it belongs to.
  */
 export interface Suggestion {
 	readonly id: string;
@@ -72,6 +83,30 @@ export interface Suggestion {
 	readonly args?: string;
 	readonly emphasis: "primary" | "secondary";
 }
+
+/*
+ * One follow-up the agent predicts after its answer (will, 2026-08-19).
+ *
+ * `question` is the user's likely next message, submitted verbatim as theirs.
+ * `flow` is a registered command, the same binding the state-derived pills
+ * carry. The set is validated at the controller boundary — an unregistered
+ * flow, a user-only one, or empty text never reaches the store — and it is
+ * replaced whole by the next proposal and cleared the moment the conversation
+ * moves past the answer it belongs to.
+ */
+export const AgentSuggestionSchema = z.discriminatedUnion("kind", [
+	z.object({ kind: z.literal("question"), label: z.string() }),
+	z.object({
+		kind: z.literal("flow"),
+		label: z.string(),
+		flow: z.string(),
+		args: z.string().optional(),
+	}),
+]);
+export type AgentSuggestion = z.infer<typeof AgentSuggestionSchema>;
+
+/** More than this is a menu, not a suggestion (the pill row sits above the composer). */
+export const MAX_AGENT_SUGGESTIONS = 3;
 
 /*
  * The color themes (/theme), the axis ORTHOGONAL to light/dark (/dark-mode):
@@ -181,6 +216,13 @@ export const SessionSchema = z.object({
 	 * (missing = none) so persisted sessions parse without a schema reset.
 	 */
 	recentCommands: z.array(z.string()).optional(),
+	/*
+	 * The follow-ups the agent proposed after its latest answer (will,
+	 * 2026-08-19). Optional (missing = none) so sessions persisted before the
+	 * field parse without a schema reset, like palette above. They belong to
+	 * that one answer: the next thing the user says clears them.
+	 */
+	agentSuggestions: z.array(AgentSuggestionSchema).optional(),
 	revision: z.number().int().nonnegative(),
 });
 export type Session = z.infer<typeof SessionSchema>;
@@ -667,6 +709,17 @@ export type AppTransition =
 			backend: "proxy" | "chain";
 	  }
 	| {
+			/*
+			 * The agent's predicted follow-ups for the answer it just gave (will,
+			 * 2026-08-19): validated bindings, actor smithers, replacing whatever
+			 * it proposed before. An empty list is how the agent says "nothing
+			 * follows from this", and it is a correct state.
+			 */
+			type: "agent.suggestions.proposed";
+			actor: "smithers";
+			suggestions: ReadonlyArray<AgentSuggestion>;
+	  }
+	| {
 			/* The visible one-line record of an agent tool execution. */
 			type: "message.tool.executed";
 			actor: "smithers";
@@ -722,6 +775,7 @@ export const initialSession = (theme: Session["theme"]): Session => ({
 	surfacesMenuOpen: false,
 	agentBackend: "proxy",
 	connectMenuOpen: false,
+	agentSuggestions: [],
 	pendingWorldDeleteId: null,
 	revision: 0,
 });

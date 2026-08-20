@@ -700,6 +700,7 @@ function App({ controller }: { readonly controller: AppController }) {
 			surfacesMenuOpen: session.surfacesMenuOpen,
 			connectMenuOpen: session.connectMenuOpen,
 			pendingWorldDeleteId: session.pendingWorldDeleteId,
+			agentSuggestions: session.agentSuggestions,
 		})),
 	);
 	const { data: worldDocumentRows } = useLiveQuery(collections.worldDocuments);
@@ -799,11 +800,16 @@ function App({ controller }: { readonly controller: AppController }) {
 	const authAction = authMessage?.action;
 
 	/*
-	 * The suggestion row is DERIVED (§2a/§2f — never stored, never
-	 * fabricated): the one grounded recommendation's gold binding when a reco
-	 * card waits, else the genuinely-next state-derived step when one exists
-	 * (signed-out → Sign in; never-chosen → Choose repos). An empty pill row
-	 * is a correct state; a fabricated one is a violation.
+	 * The suggestion row is DERIVED from live state (§2a/§2f): the one grounded
+	 * recommendation's gold binding when a reco card waits, else the
+	 * genuinely-next state-derived step when one exists (signed-out → Sign in;
+	 * never-chosen → Choose repos). An empty pill row is a correct state.
+	 *
+	 * AMENDED (will, 2026-08-19): the agent's own predicted follow-ups compose
+	 * with that set — they never replace it. Each is still a binding: a
+	 * question pill invokes `send` with the user's likely next message, a flow
+	 * pill invokes its flow. They live on the session, validated at the
+	 * controller boundary, and the next thing the user says clears them.
 	 */
 	const recoWaiting = cardRows.find(
 		(card) => card.kind === "reco" && card.status !== "acted" && card.payload.recommendation !== null,
@@ -811,7 +817,7 @@ function App({ controller }: { readonly controller: AppController }) {
 	const watched = watchedRows[0];
 	const needsSelection =
 		identity?.state === "signed-in" && identity.allowlisted && (watched === undefined || watched.selected === null);
-	const suggestions: ReadonlyArray<SuggestionBinding> =
+	const stateSuggestions: ReadonlyArray<SuggestionBinding> =
 		identity?.state === "signed-out"
 			? [{ id: "sign-in", label: "Sign in with GitHub", flow: "auth.sign-in", emphasis: "primary" }]
 			: needsSelection
@@ -827,6 +833,28 @@ function App({ controller }: { readonly controller: AppController }) {
 							},
 						]
 					: [];
+	const suggestions: ReadonlyArray<SuggestionBinding> = [
+		...stateSuggestions,
+		...(session.agentSuggestions ?? []).map((suggestion, index): SuggestionBinding =>
+			suggestion.kind === "question"
+				? {
+						id: `agent-question-${index}`,
+						label: suggestion.label,
+						// The pill submits the user's own next message through the
+						// composer's own flow — the same path Enter takes.
+						flow: "send",
+						args: suggestion.label,
+						emphasis: "secondary",
+					}
+				: {
+						id: `agent-flow-${index}`,
+						label: suggestion.label,
+						flow: suggestion.flow,
+						...(suggestion.args === undefined ? {} : { args: suggestion.args }),
+						emphasis: "secondary",
+					},
+		),
+	];
 	// A Vite dev build unlocks the admin chrome (devtools, reset) with no
 	// session — dev has no identity seam to grant admin, and the machinery
 	// panel is what dev is for. Mirrors the registry snapshot's rule.

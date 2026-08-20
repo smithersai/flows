@@ -55,6 +55,10 @@ const numbered = (args: string | undefined, reason: string): Parsed => {
 	return ok(repo === undefined ? { number } : { number, repo });
 };
 
+/** Stated verbatim on every suggestions.propose refusal, so the retry can be right. */
+const SUGGESTIONS_SHAPE =
+	'suggestions.propose takes a JSON array: [{"kind":"question","label":"What is a flow"},{"kind":"flow","label":"See my repositories","flow":"github"}]';
+
 const tokensOf = (args: string | undefined): Array<string> =>
 	trimmed(args)
 		.split(/\s+/)
@@ -69,6 +73,37 @@ const tokensOf = (args: string | undefined): Array<string> =>
 const GRAMMAR: Readonly<Record<string, (args: string | undefined) => Parsed>> = {
 	theme: (args) => ok({ palette: args ?? "" }),
 	send: (args) => required("text", args, "send needs the text to submit"),
+	/*
+	 * The agent's follow-up channel (will, 2026-08-19): one JSON array in, a
+	 * typed list out. The shape is stated back on every refusal, because the
+	 * model reads the refusal and retries within the same turn.
+	 */
+	"suggestions.propose": (args) => {
+		const text = trimmed(args);
+		if (text === "") return ok({ suggestions: [] });
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(text);
+		} catch {
+			return no(SUGGESTIONS_SHAPE);
+		}
+		if (!Array.isArray(parsed)) return no(SUGGESTIONS_SHAPE);
+		const suggestions: Array<Record<string, string>> = [];
+		for (const entry of parsed) {
+			if (typeof entry !== "object" || entry === null) return no(SUGGESTIONS_SHAPE);
+			const row = entry as Record<string, unknown>;
+			if (typeof row.kind !== "string" || typeof row.label !== "string") return no(SUGGESTIONS_SHAPE);
+			if (row.flow !== undefined && typeof row.flow !== "string") return no(SUGGESTIONS_SHAPE);
+			if (row.args !== undefined && typeof row.args !== "string") return no(SUGGESTIONS_SHAPE);
+			suggestions.push({
+				kind: row.kind,
+				label: row.label,
+				...(typeof row.flow === "string" ? { flow: row.flow } : {}),
+				...(typeof row.args === "string" ? { args: row.args } : {}),
+			});
+		}
+		return ok({ suggestions });
+	},
 	"repos.watch": (args) => optional("repo", args),
 	"repo.open": (args) => required("fullName", args, "repo.open needs a repository name"),
 	"repo.tab": (args) => required("tab", args, "repo.tab needs a section: files, issues, pulls, or flows"),

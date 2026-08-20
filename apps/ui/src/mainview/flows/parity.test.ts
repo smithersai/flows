@@ -184,12 +184,17 @@ describe("launch-law parity: every affordance is a command", () => {
 	});
 
 	/*
-	 * §2a/§2f — no fabricated prompt pills, ever. A pill is a command
-	 * BINDING; a pill carrying free text for the model is a violation unless
-	 * it is explicitly a composer-prefill affordance (none exist). The banned
-	 * literals are the slop will named verbatim; the `suggest` command was
-	 * the fabricated-prompt mechanism and is deleted; the suggestion set is
-	 * derived in App.tsx from live state (empty is correct).
+	 * §2a/§2f — no fabricated prompt pills. A pill is a command BINDING; the
+	 * banned literals are the generic slop will named verbatim, and the
+	 * `suggest` command that fabricated prompts stays deleted.
+	 *
+	 * AMENDED (will, 2026-08-19): the AGENT may propose the follow-ups it
+	 * predicts, including a canned question — "if it can predict what user
+	 * might ask next like this case 'What is a flow' smithers should display
+	 * those as default responses". That is not the banned shape: the question
+	 * pill invokes `send` with the user's own words, so it is still a binding
+	 * and nothing here hands free text to the model. What stays banned is a
+	 * pill the APP invents, and a pill whose payload is a prompt for the model.
 	 */
 	test("no pill carries a prompt string for the model, and no banned generic pill exists", () => {
 		const bannedLiterals = [
@@ -211,7 +216,10 @@ describe("launch-law parity: every affordance is a command", () => {
 		const registrySource = read("./Flows.ts");
 		expect(registrySource).not.toContain('"suggest"');
 		// The pill row binds commands directly (§2a): the suggestion markup
-		// carries the command, and the click invokes it — never send().
+		// carries the command, and the click invokes it. An agent-proposed
+		// question binds `send`, which IS a registered flow — the user's own
+		// message through the composer's own path, not a prompt handed to the
+		// model.
 		const app = files["../App.tsx"] ?? "";
 		expect(app).toContain("data-flow={suggestion.flow}");
 		expect(app).not.toContain('data-flow="suggest"');

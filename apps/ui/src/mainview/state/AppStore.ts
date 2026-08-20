@@ -17,6 +17,7 @@ import {
 import {
 	BillingAccountSchema,
 	CardSchema,
+	MAX_AGENT_SUGGESTIONS,
 	ChainEventRecordSchema,
 	ConnectorOperationSchema,
 	DEFAULT_PALETTE,
@@ -712,6 +713,9 @@ export const createAppStore = async (
 					collections.sessions.update(SESSION_ID, (draft) => {
 						draft.draft = "";
 						draft.phase = "responding";
+						// The agent's follow-ups belonged to the answer above; the
+						// conversation has moved past it, so they go with it.
+						draft.agentSuggestions = [];
 						draft.revision = revision;
 					});
 					break;
@@ -791,6 +795,8 @@ export const createAppStore = async (
 					}
 					collections.sessions.update(SESSION_ID, (draft) => {
 						draft.phase = "responding";
+						// The answer that carried them is being re-run.
+						draft.agentSuggestions = [];
 						draft.revision = revision;
 					});
 					break;
@@ -884,6 +890,7 @@ export const createAppStore = async (
 						draft.phase = "idle";
 						draft.composerOwner = "user";
 						draft.maximizedCardId = null;
+						draft.agentSuggestions = [];
 						draft.revision = revision;
 					});
 					break;
@@ -912,6 +919,7 @@ export const createAppStore = async (
 						draft.phase = "idle";
 						draft.composerOwner = "user";
 						draft.maximizedCardId = null;
+						draft.agentSuggestions = [];
 						draft.revision = revision;
 					});
 					break;
@@ -1687,6 +1695,7 @@ export const createAppStore = async (
 					}
 					collections.sessions.update(SESSION_ID, (draft) => {
 						draft.draft = "";
+						draft.agentSuggestions = [];
 						draft.revision = revision;
 					});
 					break;
@@ -1698,6 +1707,23 @@ export const createAppStore = async (
 						draft.revision = revision;
 					});
 					break;
+
+				case "agent.suggestions.proposed": {
+					collections.sessions.update(SESSION_ID, (draft) => {
+						draft.agentSuggestions = transition.suggestions.slice(0, MAX_AGENT_SUGGESTIONS).map((suggestion) =>
+							suggestion.kind === "question"
+								? { kind: "question", label: suggestion.label }
+								: {
+										kind: "flow",
+										label: suggestion.label,
+										flow: suggestion.flow,
+										...(suggestion.args === undefined ? {} : { args: suggestion.args }),
+									},
+						);
+						draft.revision = revision;
+					});
+					break;
+				}
 
 				case "message.tool.executed": {
 					collections.messages.insert({

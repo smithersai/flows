@@ -65,9 +65,9 @@ import {
 import type { ImpossibleAskClass } from "./Instructions";
 import { smithersInstructions } from "./Instructions";
 import { agentVisibleCatalog } from "../flows/agentTools";
-import { CardPatchSchema, CardSchema, DEFAULT_PALETTE, isPalette, PALETTES, WORLD_DISPLAY_NAME } from "./AppState";
+import { CardPatchSchema, CardSchema, DEFAULT_PALETTE, isPalette, MAX_AGENT_SUGGESTIONS, PALETTES, WORLD_DISPLAY_NAME } from "./AppState";
 import type { Palette } from "./AppState";
-import type { Card, RecoDigestPayload, RecoRecommendationPayload, Session, WorldDocument } from "./AppState";
+import type { AgentSuggestion, Card, RecoDigestPayload, RecoRecommendationPayload, Session, WorldDocument } from "./AppState";
 import type { AppStore } from "./AppStore";
 import { REPO_CHOOSER_CARD_ID, THEME_PICKER_CARD_ID } from "./AppStore";
 import { AGENT_RUNTIME_CONTEXT_VERSION } from "smithers-shared/AgentContext";
@@ -86,7 +86,10 @@ const MAX_TOOL_LEGS = 8;
  * author seat and the transcript doors — rather than acts on the app, so
  * they never render an act row of their own.
  */
-const CHAIN_SURFACE_CALLS = new Set(["author", "say", "card.show", "card.update"]);
+/** The agent's structured follow-up channel (will, 2026-08-19) — a proposal, not an act. */
+const SUGGESTIONS_FLOW = "suggestions.propose";
+
+const CHAIN_SURFACE_CALLS = new Set(["author", "say", "card.show", "card.update", SUGGESTIONS_FLOW]);
 
 /**
  * Launch Checklist D-4's exhausted-balance refusal, shared between the
@@ -225,6 +228,14 @@ export interface AppController {
 	readonly showCommandCatalog: () => void;
 	/** Render the sign-in step into the chat (auth.prompt — the agent's door to login). */
 	readonly promptSignIn: () => void;
+	/**
+	 * Record the follow-ups the agent predicts after its answer (will,
+	 * 2026-08-19). Validated here: a question is the user's own next message,
+	 * a flow is one the human can invoke from the pill row.
+	 */
+	readonly proposeSuggestions: (
+		proposals: ReadonlyArray<{ kind: string; label: string; flow?: string; args?: string }>,
+	) => string | { readonly value: string };
 	/** Reload the app window — the /reload affordance (dev loop, stuck states). */
 	readonly reloadApp: () => void;
 	/*
@@ -2126,6 +2137,23 @@ export const createAppController = (
 	 * enters the conversation. The full-fidelity record lives in the toolCalls
 	 * collection for the admin dev-tools panel.
 	 */
+	/** The proposal channel, whichever spelling the model reached it by. */
+	const isSuggestionCall = (name: string, args: string): boolean => {
+		if (name.replace(/^\/+/, "") === SUGGESTIONS_FLOW) return true;
+		try {
+			const parsed: unknown = JSON.parse(args);
+			return (
+				typeof parsed === "object" &&
+				parsed !== null &&
+				"name" in parsed &&
+				typeof parsed.name === "string" &&
+				parsed.name.replace(/^\/+/, "") === SUGGESTIONS_FLOW
+			);
+		} catch {
+			return false;
+		}
+	};
+
 	const toolActLine = (call: PendingToolCall, result: string): string => {
 		let inner = call.name;
 		let action: string | undefined;
@@ -2203,12 +2231,19 @@ export const createAppController = (
 			arguments: call.args,
 			result,
 		});
-		store.dispatch({
-			type: "message.tool.executed",
-			actor: "smithers",
-			turnId: turn.id,
-			text: toolActLine(call, result),
-		});
+		/*
+		 * The follow-up channel is not an ACT: the pills it proposes are the
+		 * whole of what it does, and they are already on screen. A marker row
+		 * saying Smithers ran it would narrate the furniture.
+		 */
+		if (!isSuggestionCall(call.name, call.args)) {
+			store.dispatch({
+				type: "message.tool.executed",
+				actor: "smithers",
+				turnId: turn.id,
+				text: toolActLine(call, result),
+			});
+		}
 		turn.toolItems.push(
 			{ type: "function_call", call_id: call.callId, name: call.name, arguments: call.args },
 			{ type: "function_call_output", call_id: call.callId, output: result },
@@ -4488,6 +4523,60 @@ export const createAppController = (
 		});
 	};
 
+	/*
+	 * The agent's predicted follow-ups (will, 2026-08-19): "if it can predict
+	 * what user might ask next like this case 'What is a flow' smithers should
+	 * display those as default responses or the ability to trigger a flow as a
+	 * / command".
+	 *
+	 * The boundary validates before anything reaches the store. A question is
+	 * the user's own words, so it must be text a person would type — never
+	 * empty, never a slash invocation smuggled in as prose. A flow must be one
+	 * the HUMAN can invoke from the pill row: registered, listed, and not
+	 * hidden id-scoped chrome. Everything else is refused by name in the tool
+	 * result, so the model learns what it proposed wrongly instead of watching
+	 * a pill silently not appear.
+	 */
+	const proposeSuggestions = (
+		proposals: ReadonlyArray<{ kind: string; label: string; flow?: string; args?: string }>,
+	): string | { readonly value: string } => {
+		const listed = commands.all().filter((command) => command.hidden !== true);
+		const accepted: Array<AgentSuggestion> = [];
+		for (const proposal of proposals.slice(0, MAX_AGENT_SUGGESTIONS)) {
+			const label = proposal.label.trim();
+			if (label === "") return "every suggestion needs a label the user can read";
+			if (proposal.kind === "question") {
+				if (label.startsWith("/")) {
+					return `"${label}" is a command, not a question — propose it as {"kind":"flow","flow":"${label.slice(1).split(/\s/)[0] ?? ""}"}`;
+				}
+				accepted.push({ kind: "question", label });
+				continue;
+			}
+			if (proposal.kind !== "flow") {
+				return `a suggestion's kind is "question" or "flow", not "${proposal.kind}"`;
+			}
+			const flow = (proposal.flow ?? "").trim().replace(/^\/+/, "");
+			const target = listed.find((command) => command.name === flow);
+			if (target === undefined) {
+				return `no listed flow is named ${flow === "" ? "(nothing)" : flow} — suggest one from the catalog above`;
+			}
+			const args = proposal.args?.trim();
+			accepted.push({
+				kind: "flow",
+				label,
+				flow,
+				...(args === undefined || args === "" ? {} : { args }),
+			});
+		}
+		store.dispatch({ type: "agent.suggestions.proposed", actor: "smithers", suggestions: accepted });
+		return {
+			value:
+				accepted.length === 0
+					? "cleared the follow-up suggestions"
+					: `offering ${accepted.length} follow-up${accepted.length === 1 ? "" : "s"}`,
+		};
+	};
+
 	const reloadApp = (): void => {
 		if (typeof window !== "undefined") window.location.reload();
 	};
@@ -4601,6 +4690,7 @@ export const createAppController = (
 		noteCommandRun,
 		showCommandCatalog,
 		promptSignIn,
+		proposeSuggestions,
 		reloadApp,
 		listIssues: issuesSeam.listIssues,
 		viewIssue: issuesSeam.viewIssue,
@@ -4797,6 +4887,7 @@ export const createAppController = (
 		noteCommandRun,
 		showCommandCatalog,
 		promptSignIn,
+		proposeSuggestions,
 		reloadApp,
 		listIssues: issuesSeam.listIssues,
 		viewIssue: issuesSeam.viewIssue,

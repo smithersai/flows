@@ -234,6 +234,7 @@ describe("command registry bindings", () => {
 			"surfaces",
 			"dark-mode",
 			"chat",
+			"suggestions.propose",
 			"retry",
 			"chat.stop",
 			"stop",

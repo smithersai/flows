@@ -260,6 +260,30 @@ export const baseFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> => 
 		handler: () => actions.showChat(),
 	}),
 	flow({
+		/*
+		 * The agent's predicted follow-ups (will, 2026-08-19). Hidden — it is the
+		 * agent's structured channel, not a listing the human scrolls — and
+		 * model-invocable, because the agent is the only caller there is. The
+		 * pills it proposes are ordinary bindings: a question submits the user's
+		 * own message, a flow invokes its registered flow.
+		 */
+		name: "suggestions.propose",
+		summary: "Offer the follow-ups the user is likely to want next",
+		hidden: true,
+		args: '[{"kind":"question","label":"What is a flow"},{"kind":"flow","label":"See my repositories","flow":"github"}]',
+		input: Schema.Struct({
+			suggestions: Schema.Array(
+				Schema.Struct({
+					kind: Schema.String,
+					label: Schema.String,
+					flow: Schema.optional(Schema.String),
+					args: Schema.optional(Schema.String),
+				}),
+			),
+		}),
+		handler: ({ suggestions }) => actions.proposeSuggestions([...suggestions]),
+	}),
+	flow({
 		name: "retry",
 		summary: "Retry the last turn",
 		input: NoPayload,
