@@ -12,18 +12,6 @@ const promiseEffect = <A>(label: string, run: () => Promise<A>) =>
 		catch: (cause) => new Error(`${label}: ${cause instanceof Error ? cause.message : String(cause)}`),
 	});
 
-const seedSession = (controller: AppController, session: BootSession): void => {
-	controller.store.dispatch({
-		type: "identity.session.loaded",
-		actor: "system",
-		state: session.state,
-		login: session.login,
-		allowlisted: session.allowlisted,
-		admin: session.admin,
-		scopesPlain: null,
-	});
-};
-
 /** Browser-only boot. Promise-shaped factories enter the Effect program at this boundary. */
 const bootProgram = (session: BootSession | undefined) =>
 	Effect.gen(function* () {
@@ -50,20 +38,12 @@ const bootProgram = (session: BootSession | undefined) =>
 			return controller;
 		}
 
-		yield* Effect.sync(() => seedSession(controller, session));
+		yield* promiseEffect("adopt identity session", () => controller.adoptSession(session));
 		yield* Effect.sync(bindChain);
 		if (session.authFailed) {
 			yield* Effect.sync(() => {
 				controller.handleAuthReturn("?auth=failed");
 			});
-		}
-		if (session.state === "signed-in") {
-			yield* promiseEffect("refresh billing", () => controller.refreshBalance());
-			if (session.allowlisted) {
-				yield* promiseEffect("load first-run recommendations", () => controller.loadFirstRunReco());
-				yield* Effect.sync(() => controller.resumeWorkflowRuns());
-			}
-			yield* Effect.sync(() => controller.resumeDeferredCommand());
 		}
 		return controller;
 	});

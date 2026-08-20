@@ -134,6 +134,8 @@ export interface AppController {
 	 * records into the same ring as every controller seam.
 	 */
 	readonly tappedFetch: FetchLike;
+	/** Adopt an identity answer already resolved by the server renderer. */
+	readonly adoptSession: (session: import("./controller/auth-billing").ResolvedSession) => Promise<void>;
 	/** Load the identity session record from the identity seam (actor: system). */
 	readonly loadSession: () => Promise<void>;
 	/** Redirect to the identity seam's GitHub OAuth start. */
@@ -299,6 +301,7 @@ export const createAppController = (
 
 	const {
 		handleAuthReturn,
+		adoptSession,
 		loadSession,
 		signIn,
 		signOut,
@@ -545,6 +548,7 @@ export const createAppController = (
 		debugSeams,
 		toggleTheme,
 		setPalette,
+		adoptSession,
 		loadSession,
 		signIn,
 		signOut,
@@ -702,6 +706,7 @@ export const createAppController = (
 		debugSeams,
 		toggleTheme,
 		setPalette,
+		adoptSession,
 		loadSession,
 		signIn,
 		signOut,

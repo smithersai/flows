@@ -18,6 +18,7 @@ import type { ControllerContext } from "./context";
 
 export interface AuthBillingController {
 	readonly handleAuthReturn: (search: string) => boolean;
+	readonly adoptSession: (session: ResolvedSession) => Promise<void>;
 	readonly loadSession: () => Promise<void>;
 	readonly signIn: () => void;
 	readonly signOut: () => Promise<string | void>;
@@ -34,6 +35,13 @@ export interface AuthBillingController {
 	readonly adminHealth: () => Promise<string | void>;
 	readonly settleTurnBilling: () => void;
 	readonly watchIdentityAcrossTabs: () => void;
+}
+
+export interface ResolvedSession {
+	readonly state: "signed-in" | "signed-out" | "unavailable";
+	readonly login: string | null;
+	readonly allowlisted: boolean;
+	readonly admin: boolean;
 }
 
 export const createAuthBillingController = (
@@ -116,6 +124,54 @@ export const createAuthBillingController = (
 		});
 	};
 
+	const finishSignedInSession = (
+		session: Pick<ResolvedSession, "login" | "allowlisted" | "admin">,
+		previous: ReturnType<typeof store.collections.identitySessions.get>,
+	): void => {
+		store.dispatch({
+			type: "identity.session.loaded",
+			actor: "system",
+			state: "signed-in",
+			login: session.login,
+			allowlisted: session.allowlisted,
+			admin: session.admin,
+			scopesPlain: null,
+		});
+		if (previous?.state !== "signed-in" || previous.login !== session.login) ctx.identityChanged();
+		// The balance read is driven by the session answer, not fired blind at
+		// boot: signed out it could only come back 401 — the expected state,
+		// logged by the browser as a console error anyway.
+		void refreshBalance();
+		// Beat 5: entering chat signed-in reads the reco seam's first-run answer.
+		if (session.allowlisted) {
+			void loadFirstRunReco();
+			// Wave 11: a live run card's event pump resumes from its lastSeq.
+			resumeWorkflowRuns();
+		}
+		// The signed-in answer can satisfy a parked command's requirement — the
+		// command that deferred into this sign-in continues here, across the
+		// OAuth redirect.
+		resumeDeferredCommand();
+	};
+
+	const adoptSession = async (session: ResolvedSession): Promise<void> => {
+		++ctx.accountEpoch;
+		const previous = store.collections.identitySessions.get("identity");
+		if (session.state === "signed-in") {
+			finishSignedInSession(session, previous);
+			return;
+		}
+		store.dispatch({
+			type: "identity.session.loaded",
+			actor: "system",
+			state: session.state,
+			login: session.login,
+			allowlisted: session.allowlisted,
+			admin: session.admin,
+			scopesPlain: null,
+		});
+	};
+
 	const loadSession = async (): Promise<void> => {
 		const epoch = ++ctx.accountEpoch;
 		const previous = store.collections.identitySessions.get("identity");
@@ -155,30 +211,10 @@ export const createAuthBillingController = (
 			dispatchUnavailable();
 			return;
 		}
-		store.dispatch({
-			type: "identity.session.loaded",
-			actor: "system",
-			state: "signed-in",
-			login: body.login,
-			allowlisted: body.allowlisted === true,
-			admin: body.admin === true,
-			scopesPlain: null,
-		});
-		if (previous?.state !== "signed-in" || previous.login !== body.login) ctx.identityChanged();
-		// The balance read is driven by the session answer, not fired blind at
-		// boot: signed out it could only come back 401 — the expected state,
-		// logged by the browser as a console error anyway.
-		void refreshBalance();
-		// Beat 5: entering chat signed-in reads the reco seam's first-run answer.
-		if (body.allowlisted === true) {
-			void loadFirstRunReco();
-			// Wave 11: a live run card's event pump resumes from its lastSeq.
-			resumeWorkflowRuns();
-		}
-		// The signed-in answer can satisfy a parked command's requirement — the
-		// command that deferred into this sign-in continues here, across the
-		// OAuth redirect.
-		resumeDeferredCommand();
+		finishSignedInSession(
+			{ login: body.login, allowlisted: body.allowlisted === true, admin: body.admin === true },
+			previous,
+		);
 	};
 	ctx.loadSession = loadSession;
 
@@ -869,6 +905,7 @@ export const createAuthBillingController = (
 
 	return {
 		handleAuthReturn,
+		adoptSession,
 		loadSession,
 		signIn,
 		signOut,
