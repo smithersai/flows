@@ -205,6 +205,82 @@ describe("architecture laws", () => {
 		expect(globalFetchReferences("probe.ts", innocent)).toEqual([]);
 	});
 
+	test("no new endpoint is addressed from outside the seams", () => {
+		/*
+		 * A ratchet, not a clean sheet. Moving every request AppController
+		 * still issues — auth, billing, reco, admin, the model relay — into
+		 * seams is a refactor no directive here opens, so the ones that
+		 * predate this law are recorded rather than hidden. The rule is that
+		 * this inventory may only SHRINK: an endpoint added to a file outside
+		 * `state/seams/` fails here, which is what the Flows tab's provision
+		 * and RPC calls would have done.
+		 *
+		 * `state/controller/*` is an unimported parallel decomposition of the
+		 * controller that arrived with the tree; nothing in the app imports it
+		 * and it is on no code path. It is listed because it is application
+		 * source, not because it talks to anything.
+		 */
+		const inventory: Record<string, ReadonlyArray<string>> = {};
+		for (const file of applicationFiles().filter((entry) => !entry.startsWith("state/seams/"))) {
+			const endpoints = interpolatedEndpoints(file, read(file));
+			if (endpoints.length > 0) inventory[file] = endpoints;
+		}
+		expect(inventory).toEqual({
+			"native/WebAgent.ts": ["CANCEL_PATH", "TURN_PATH"],
+			"state/AppController.ts": [
+				"ADMIN_ALLOWLIST_PATH",
+				"ADMIN_FEEDBACK_PATH",
+				"ADMIN_GRANT_PATH",
+				"ADMIN_HEALTH_PATH",
+				"ADMIN_REQUESTS_PATH",
+				"APPROVAL_DECISION_PATH",
+				"AUTH_LOGOUT_PATH",
+				"AUTH_NATIVE_CLAIM_PATH",
+				"AUTH_NATIVE_START_PATH",
+				"AUTH_SCOPES_PATH",
+				"AUTH_SESSION_PATH",
+				"AUTH_SIGN_IN_PATH",
+				"BILLING_BALANCE_PATH",
+				"IDENTITY_REQUEST_ACCESS_PATH",
+				"MODEL_STREAM_PATH",
+				"RECO_FEEDBACK_PATH",
+				"RECO_FIRST_RUN_PATH",
+				"TOOLS_BROWSER_FETCH_PATH",
+				"WORKFLOW_EVENTS_PATH",
+				"WORKFLOW_STREAM_PATH",
+			],
+			"state/controller/auth-billing.ts": [
+				"ADMIN_ALLOWLIST_PATH",
+				"ADMIN_FEEDBACK_PATH",
+				"ADMIN_GRANT_PATH",
+				"ADMIN_HEALTH_PATH",
+				"ADMIN_REQUESTS_PATH",
+				"AUTH_LOGOUT_PATH",
+				"AUTH_NATIVE_CLAIM_PATH",
+				"AUTH_NATIVE_START_PATH",
+				"AUTH_SCOPES_PATH",
+				"AUTH_SESSION_PATH",
+				"AUTH_SIGN_IN_PATH",
+				"BILLING_BALANCE_PATH",
+				"IDENTITY_REQUEST_ACCESS_PATH",
+			],
+			"state/controller/connectors.ts": [
+				"RECO_FEEDBACK_PATH",
+				"RECO_FIRST_RUN_PATH",
+				"RECO_REPOS_PATH",
+				"RECO_WATCHED_PATH",
+			],
+			"state/controller/presentation.ts": ["TOOLS_BROWSER_FETCH_PATH"],
+			"state/controller/workflow-pump.ts": ["WORKFLOW_EVENTS_PATH", "WORKFLOW_STREAM_PATH"],
+			"state/controller/workflows.ts": [
+				"APPROVAL_DECISION_PATH",
+				"WORKFLOW_PROVISION_PATH",
+				"WORKFLOW_RPC_PATH",
+			],
+			"state/controller/world.ts": ["MODEL_STREAM_PATH"],
+		});
+	});
+
 	test("the workspace endpoints are addressed from their own seam", () => {
 		/*
 		 * Directive 1's Flows tab reads the workspace, and both of its requests
