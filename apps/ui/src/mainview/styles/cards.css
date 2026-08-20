@@ -330,8 +330,20 @@
 	text-align: left;
 	cursor: pointer;
 }
+/*
+ * The selected row is a brand TINT, never the brand itself (will, 2026-08-19:
+ * "the black text on purple is impossible to read"). `--accent` aliases
+ * `--brand`, the palette's full-saturation colour, while the row keeps
+ * `--text`: across the nine palettes in both variants that pairing measured
+ * between 1.18:1 and 3.35:1, so it failed AA everywhere, not only where will
+ * saw it. `--brand-soft-strong` is the fill the slash menu's highlighted row
+ * already uses, and the foreground is stated rather than inherited so no
+ * ancestor can quietly reintroduce the trap. Contrast is pinned per palette in
+ * state/Palette.test.ts.
+ */
 .repo-chooser-row[data-highlighted="true"] {
-	background: var(--accent, #f0ece1);
+	background: var(--brand-soft-strong);
+	color: var(--text);
 }
 .repo-chooser-check {
 	width: 1rem;
@@ -585,6 +597,8 @@
 	text-align: left;
 	cursor: pointer;
 }
+/* The same tint, for the same reason, as .repo-chooser-row above. */
 .workflow-repo-row[data-highlighted="true"] {
-	background: var(--accent, #f0ece1);
+	background: var(--brand-soft-strong);
+	color: var(--text);
 }
