@@ -1,0 +1,72 @@
+[
+  {
+    "id": "astropy__astropy-8707",
+    "codex": {
+      "verdict": "resolved",
+      "tokens": 37867,
+      "seconds": 101,
+      "patchBytes": 1777,
+      "model": "gpt-5.6-sol",
+      "reasoningEffort": "medium",
+      "capturedAt": "2026-08-18",
+      "verdictReverified2026_08_19": "resolved",
+      "tracePath": "baseline/logs-codex/astropy__astropy-8707.run.log"
+    }
+  },
+  {
+    "id": "django__django-16612",
+    "codex": {
+      "verdict": "resolved",
+      "tokens": 30840,
+      "seconds": 82,
+      "patchBytes": 643,
+      "model": "gpt-5.6-sol",
+      "reasoningEffort": "medium",
+      "capturedAt": "2026-08-18",
+      "verdictReverified2026_08_19": "resolved",
+      "tracePath": "baseline/logs-codex/django__django-16612.run.log"
+    }
+  },
+  {
+    "id": "pydata__xarray-7393",
+    "codex": {
+      "verdict": "resolved",
+      "tokens": 34894,
+      "seconds": 81,
+      "patchBytes": 658,
+      "model": "gpt-5.6-sol",
+      "reasoningEffort": "medium",
+      "capturedAt": "2026-08-18",
+      "verdictReverified2026_08_19": "resolved",
+      "tracePath": "baseline/logs-codex/pydata__xarray-7393.run.log"
+    }
+  },
+  {
+    "id": "pytest-dev__pytest-6197",
+    "codex": {
+      "verdict": "resolved",
+      "tokens": 64398,
+      "seconds": 183,
+      "patchBytes": 1005,
+      "model": "gpt-5.6-sol",
+      "reasoningEffort": "medium",
+      "capturedAt": "2026-08-18",
+      "verdictReverified2026_08_19": "resolved",
+      "tracePath": "baseline/logs-codex/pytest-dev__pytest-6197.run.log"
+    }
+  },
+  {
+    "id": "sphinx-doc__sphinx-11445",
+    "codex": {
+      "verdict": "unresolved",
+      "tokens": 27988,
+      "seconds": 82,
+      "patchBytes": 881,
+      "model": "gpt-5.6-sol",
+      "reasoningEffort": "medium",
+      "capturedAt": "2026-08-18",
+      "verdictReverified2026_08_19": "unresolved",
+      "tracePath": "baseline/logs-codex/sphinx-doc__sphinx-11445.run.log"
+    }
+  }
+]
