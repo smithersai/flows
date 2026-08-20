@@ -2,6 +2,9 @@ import { describe, expect, it } from "@effect/vitest"
 import { DurableWriter } from "@smthrs/database"
 import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import * as Journal from "@smthrs/journal/Journal"
+import type * as JournalEvent from "@smthrs/journal/JournalEvent"
+import * as SqlJournal from "@smthrs/journal/SqlJournal"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
@@ -24,13 +27,15 @@ type DatabaseDecorator = Layer.Layer<
   DurableWriter.DurableWriter | SqlClient.SqlClient
 >
 
+const journal = SqlJournal.layer({ capacity: 64, overflow: "reject" })
+
 const migrated = <A, E>(
   effect: Effect.Effect<A, E, DurableWriter.DurableWriter | SqlClient.SqlClient | CacheStore>,
   database?: DatabaseDecorator
 ) => {
   const store = database === undefined
-    ? CacheStoreLive.layer
-    : CacheStoreLive.layer.pipe(Layer.provide(database))
+    ? CacheStoreLive.layer.pipe(Layer.provide(journal))
+    : CacheStoreLive.layer.pipe(Layer.provide(journal), Layer.provide(database))
   return run(
     effect.pipe(
       Effect.provide(store),
@@ -69,20 +74,40 @@ const failingDatabase = (cause: unknown): Layer.Layer<DurableWriter.DurableWrite
 }
 
 /**
- * A database whose `.raw` results carry node-postgres' `{rowCount}` shape
- * instead of the SQLite drivers' `{changes}`, one result per statement.
+ * A database whose statements resolve from a scripted queue, one entry per
+ * statement: `rows` answers a statement awaited directly, `raw` answers
+ * `.raw` — with node-postgres' `{rowCount}` result shape instead of the
+ * SQLite drivers' `{changes}`.
  */
 const postgresShapedDatabase = (
-  results: ReadonlyArray<unknown>
+  calls: ReadonlyArray<{ readonly rows?: ReadonlyArray<unknown>; readonly raw?: unknown }>
 ): Layer.Layer<DurableWriter.DurableWriter | SqlClient.SqlClient> => {
   let next = 0
-  const sql = (() => ({ raw: Effect.sync(() => results[next++]) })) as unknown as SqlClient.SqlClient
+  const sql = (() => {
+    const call = calls[next++]!
+    return Object.assign(Effect.sync(() => call.rows ?? []), { raw: Effect.sync(() => call.raw) })
+  }) as unknown as SqlClient.SqlClient
   const write: DurableWriter.Service["write"] = (effect) => effect
   return Layer.merge(
     Layer.succeed(SqlClient.SqlClient)(sql),
     Layer.succeed(DurableWriter.DurableWriter)(DurableWriter.DurableWriter.of({ write }))
   )
 }
+
+/**
+ * A journal whose transaction is the identity and whose appends succeed, for
+ * cases that script the database underneath the store: the noop `transact`
+ * runs the store's statements directly and the stubbed receipt stands in for
+ * a committed event.
+ */
+const journalStub = Journal.layerNoop({
+  emitDurable: () =>
+    Effect.succeed<Journal.DurableReceipt>({
+      _tag: "Accepted",
+      seq: 0 as JournalEvent.Seq,
+      sourceSeq: 0 as JournalEvent.SourceSeq
+    })
+})
 
 /** Records compiled cache-row deletes while preserving the in-memory database. */
 const recordingDatabase = (deletes: Array<string>): DatabaseDecorator =>
@@ -316,7 +341,7 @@ describe("CacheStore", () => {
       const filename = join(directory, "cache.db")
       const connection = () =>
         Layer.provideMerge(
-          CacheStoreLive.layer,
+          CacheStoreLive.layer.pipe(Layer.provide(SqlJournal.layer({ capacity: 64, overflow: "reject" }))),
           Layer.provideMerge(
             Migrations.layer,
             Layer.provideMerge(DurableWriter.layer(), NodeDatabase.layer({ filename }))
@@ -410,14 +435,22 @@ describe("CacheStore", () => {
     Effect.gen(function*() {
       // node-postgres hands `.raw` back a `{rowCount}` result; a bun:sqlite
       // `{changes}` cast reads `undefined` there and reports every successful
-      // delete as a no-op (issue #134).
+      // delete as a no-op (issue #134). Each evict reads the row's provenance
+      // and then deletes: a delete the driver reports as touching no row
+      // reports `false` and appends nothing.
+      const provenance = { recorded_run_id: "run-1", recorded_event_seq: 7 }
       const evicted = yield* run(
         Effect.gen(function*() {
           const store = yield* CacheStore
           return yield* Effect.all([store.evict("digest-1"), store.evict("digest-2")])
         }).pipe(
-          Effect.provide(CacheStoreLive.layer),
-          Effect.provide(postgresShapedDatabase([{ rowCount: 1, rows: [] }, { rowCount: 0, rows: [] }]))
+          Effect.provide(CacheStoreLive.layer.pipe(Layer.provide(journalStub))),
+          Effect.provide(postgresShapedDatabase([
+            { rows: [provenance] },
+            { raw: { rowCount: 1, rows: [] } },
+            { rows: [provenance] },
+            { raw: { rowCount: 0, rows: [] } }
+          ]))
         )
       )
 
@@ -554,7 +587,7 @@ describe("CacheStore", () => {
               const store = yield* CacheStore
               return (yield* Effect.flip(store.get("digest"))).code
             }).pipe(
-              Effect.provide(CacheStoreLive.layer),
+              Effect.provide(CacheStoreLive.layer.pipe(Layer.provide(journalStub))),
               Effect.provide(failingDatabase(cause))
             )
         )
@@ -570,5 +603,37 @@ describe("CacheStore", () => {
         "persistence_failed",
         "persistence_failed"
       ])
+    }))
+
+  it.effect("classifies a failed journal transaction from the database error underneath it", () =>
+    Effect.gen(function*() {
+      // `Journal.transact` wraps a failed cache transaction in its own error
+      // with the database failure as `cause`; the store classifies from the
+      // underlying failure, so a constraint stays `constraint` through the
+      // fold. A journal failure with no database cause is a persistence
+      // failure.
+      const wrapped = new Journal.JournalError({
+        code: "sink_failed",
+        message: "journal transaction failed",
+        cause: new DurableWriter.DatabaseError({ code: "constraint" })
+      })
+      const bare = new Journal.JournalError({ code: "journal_closed", message: "journal is closed" })
+      const codes = yield* (
+        Effect.forEach(
+          [wrapped, bare],
+          (failure) =>
+            Effect.gen(function*() {
+              const store = yield* CacheStore
+              return (yield* Effect.flip(store.put(entry))).code
+            }).pipe(
+              Effect.provide(CacheStoreLive.layer.pipe(
+                Layer.provide(Journal.layerNoop({ transact: () => Effect.fail(failure) }))
+              )),
+              Effect.provide(failingDatabase(new Error("the transaction never runs")))
+            )
+        )
+      )
+
+      expect(codes).toEqual(["constraint", "persistence_failed"])
     }))
 })

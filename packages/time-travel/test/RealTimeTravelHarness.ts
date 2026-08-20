@@ -65,10 +65,11 @@ export const withRealFixture = <A, E>(
 export const realLayer = (filename: string) => {
   const database = Layer.provideMerge(DurableWriter.layer(), NodeDatabase.layer({ filename }))
   const migrated = Layer.provideMerge(Migrations.layer, database)
+  const journalLayer = SqlJournal.layer({ capacity: 128, overflow: "reject" })
   const persistence = Layer.mergeAll(
-    SqlJournal.layer({ capacity: 128, overflow: "reject" }),
+    journalLayer,
     RunStore.layer,
-    CacheStore.layer,
+    CacheStore.layer.pipe(Layer.provide(journalLayer)),
     SqlTimeTravelStore.layer,
     NodeJj.layer
   ).pipe(Layer.provideMerge(migrated))
@@ -95,11 +96,12 @@ const ownerIsAlive = (owner: OwnerId): Effect.Effect<boolean> =>
 export const realEngineLayer = (filename: string, hostId: string) => {
   const database = Layer.provideMerge(DurableWriter.layer(), NodeDatabase.layer({ filename }))
   const migrated = Layer.provideMerge(Migrations.layer, database)
+  const journalLayer = SqlJournal.layer({ capacity: 128, overflow: "reject" })
   const stores = Layer.mergeAll(
-    SqlJournal.layer({ capacity: 128, overflow: "reject" }),
+    journalLayer,
     RunStore.layer,
     AttemptStore.layer,
-    CacheStore.layer,
+    CacheStore.layer.pipe(Layer.provide(journalLayer)),
     DurableEngineState.layer,
     SqlTimeTravelStore.layer
   ).pipe(Layer.provideMerge(migrated))

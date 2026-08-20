@@ -520,11 +520,17 @@ export const layer = (
             )
           }
           // Redaction happens here, at the single point every channel funnels
-          // through, so no write path can bypass it (issue #46).
+          // through, so no write path can bypass it (issue #46) — except the
+          // fold namespaces whose payloads are executable state rebuilt into
+          // rows and served back verbatim, where a placeholder corrupts the
+          // rebuilt state (issue #72, `Redaction.verbatimNamespaces`).
+          const scrub = Redaction.isVerbatimEventType(validated.eventType)
+            ? (value: unknown) => value
+            : redact
           return {
             validated,
-            payloadJson: yield* encodeJson(redact(validated.payload), "payload"),
-            metaJson: yield* encodeJson(redact(validated.meta ?? null), "meta")
+            payloadJson: yield* encodeJson(scrub(validated.payload), "payload"),
+            metaJson: yield* encodeJson(scrub(validated.meta ?? null), "meta")
           }
         })
 

@@ -68,10 +68,10 @@ SQL contract and on `@smthrs/journal` for the events behind its tables.
 The root exports these namespaces, also available from matching
 `@smthrs/step-cache/*` subpaths.
 
-| Namespace    | Public exports                                                                                                                                                                                                                                                       |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CacheStore` | `CacheStoreErrorCode`, `CacheStoreError`, `CacheEntry`, and `PutResult`; `Service` / `CacheStore` operations `get`, `put`, and `evict`; `make`, `makeNoop`, `layerNoop`, and SQL `layer`.                                                                            |
-| `Fold`       | The head and ledger reducers as journal `Projection`s, and `rebuild`, which truncates and repopulates both tables from the journal inside one `DurableWriter` transaction. Rebuild, recovery, and time travel recompute the tables this way; forward writes never do. |
+| Namespace    | Public exports                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CacheStore` | `CacheStoreErrorCode`, `CacheStoreError`, `CacheEntry`, and `PutResult`; `Service` / `CacheStore` operations `get`, `put`, and `evict`; `make`, `makeNoop`, `layerNoop`, and SQL `layer`.                                                                                                                                                                                                           |
+| `Fold`       | The head and ledger reducers as journal `Projection`s, and `rebuild`, which truncates and repopulates both tables from the journal inside one `DurableWriter` transaction. Rebuild, recovery, and time travel recompute the tables this way; forward writes never do.                                                                                                                               |
 | `Migrations` | `set` (the namespaced migration set for `flows_step_cache` and `flows_step_cache_recorded`), `run`, and prerequisite `layer`. This set alone is not enough for the SQL layer: the fold appends to `@smthrs/journal`'s tables, so `CacheStore.layer` requires the journal's migration set to be installed too — compose the two sets, as the example below and `@smthrs/engine-store/Migrations` do. |
 
 The root is written against the driver-neutral `@smthrs/database` contract and
@@ -89,8 +89,8 @@ sets, and `@smthrs/engine-store/test/TestStores` is the in-memory bundle.
 ```ts
 import * as DatabaseMigrations from "@smthrs/database/Migrations"
 import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
-import * as JournalMigrations from "@smthrs/journal/Migrations"
 import { SqlJournal } from "@smthrs/journal"
+import * as JournalMigrations from "@smthrs/journal/Migrations"
 import { CacheStore, Migrations } from "@smthrs/step-cache"
 import { Effect, Layer } from "effect"
 

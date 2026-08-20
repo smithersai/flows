@@ -5,7 +5,9 @@
 import { describe, expect, it } from "@effect/vitest"
 import type { DurableWriter } from "@smthrs/database"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import * as SqlJournal from "@smthrs/journal/SqlJournal"
 import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
 import * as Metric from "effect/Metric"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"
 import { CacheStore } from "../src/CacheStore.ts"
@@ -17,7 +19,9 @@ const migrated = <A, E>(
   effect: Effect.Effect<A, E, DurableWriter.DurableWriter | SqlClient.SqlClient | CacheStore>
 ) =>
   effect.pipe(
-    Effect.provide(CacheStoreLive.layer),
+    Effect.provide(CacheStoreLive.layer.pipe(
+      Layer.provide(SqlJournal.layer({ capacity: 64, overflow: "reject" }))
+    )),
     Effect.provide(Migrations.layer),
     Effect.provide(TestDatabase.layer),
     Effect.provideService(Metric.MetricRegistry, new Map())

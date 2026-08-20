@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+
+- `Redaction.verbatimNamespaces` / `Redaction.isVerbatimEventType`: entries in
+  fold namespaces whose payloads are executable state (`flows.cache.*`) bypass
+  the write-path redactor, because the fold rebuilds served rows from them —
+  see `docs/specs/Concepts/Step Cache Fold.md`.
+
 ### Breaking Changes
 
 - The stores and `SqlJournal` now require Effect's `SqlClient` service plus

@@ -300,11 +300,12 @@ describe("the generation digest is canonical, not key-order-coincident (B7)", ()
   // Composed here rather than through `TestStores.layer()` so `SqlClient` for
   // the SAME in-memory database stays reachable: that layer provides its
   // database inward, which hides the client the meta rewrite below needs.
+  const journalLayer = SqlJournal.layer({ capacity: 1024, overflow: "reject" })
   const services = Layer.mergeAll(
-    SqlJournal.layer({ capacity: 1024, overflow: "reject" }),
+    journalLayer,
     RunStore.layer,
     AttemptStore.layer,
-    CacheStore.layer,
+    CacheStore.layer.pipe(Layer.provide(journalLayer)),
     PlanStore.layer,
     OwnerIdentity.layer,
     jjLayer

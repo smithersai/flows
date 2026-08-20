@@ -15,6 +15,7 @@
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
 import { describe, expect, it } from "@effect/vitest"
 import { ArtifactStore, ArtifactSweep } from "@smthrs/artifacts"
+import { SqlJournal } from "@smthrs/journal"
 import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
 import { CacheStore } from "@smthrs/step-cache"
 import * as Effect from "effect/Effect"
@@ -127,8 +128,14 @@ const harness = (host: Host, options?: {
   readonly policy?: ArtifactGc.Policy | undefined
   readonly sweep?: ArtifactSweep.Service | undefined
 }) => {
+  const journalLayer = SqlJournal.layer({ capacity: 64, overflow: "reject" })
   const durable = Layer.provideMerge(
-    Layer.mergeAll(RunStore.layer, AttemptStore.layer, CacheStore.layer),
+    Layer.mergeAll(
+      journalLayer,
+      RunStore.layer,
+      AttemptStore.layer,
+      CacheStore.layer.pipe(Layer.provide(journalLayer))
+    ),
     TestStores.database
   )
   const sweep = Layer.succeed(ArtifactSweep.ArtifactSweep)(

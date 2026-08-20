@@ -129,11 +129,13 @@ const Opening = Flow.make("trampoline/opening", {
     )
 })
 
+const journalLayer = SqlJournal.layer({ capacity: 1024, overflow: "reject" })
+
 const services = Layer.mergeAll(
-  SqlJournal.layer({ capacity: 1024, overflow: "reject" }),
+  journalLayer,
   RunStore.layer,
   AttemptStore.layer,
-  CacheStore.layer,
+  CacheStore.layer.pipe(Layer.provide(journalLayer)),
   DurableEngineState.layer
 ).pipe(
   Layer.provideMerge(Layer.provideMerge(Migrations.layer, TestDatabase.layer)),
