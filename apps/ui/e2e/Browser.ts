@@ -240,6 +240,9 @@ const KEYS: Record<string, { key: string; code: string; keyCode: number; text?: 
 	Enter: { key: "Enter", code: "Enter", keyCode: 13 },
 	Escape: { key: "Escape", code: "Escape", keyCode: 27 },
 	Tab: { key: "Tab", code: "Tab", keyCode: 9 },
+	// Space activates a focused button exactly as Enter does; a suite that
+	// claims keyboard access has to be able to press the other one.
+	Space: { key: " ", code: "Space", keyCode: 32, text: " " },
 	"/": { key: "/", code: "Slash", keyCode: 191, text: "/" },
 };
 
