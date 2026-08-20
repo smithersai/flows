@@ -23,6 +23,20 @@ const sources = Smithers.glob("//apps/ui/src/**/*.ts")
 /** The React components, part of the typecheck's and unit suite's key material. */
 const componentSources = Smithers.glob("//apps/ui/src/**/*.tsx")
 
+/** The stylesheets the SPA bundles; a CSS-only change must invalidate the e2e and unit caches too. */
+const styleSources = Smithers.glob("//apps/ui/src/**/*.css")
+
+/** The build/runtime configs a bundler boot reads; editing one changes what the e2e suites serve. */
+const buildConfigs = [
+  Smithers.file("vite.config.ts"),
+  Smithers.file("vite.start.config.ts"),
+  Smithers.file("tailwind.config.js"),
+  Smithers.file("postcss.config.js"),
+]
+
+/** The worker the e2e suites boot under `wrangler dev`. */
+const serverSources = Smithers.glob("//apps/server/src/**/*.ts")
+
 /**
  * Checks the application against its own tsconfig.
  *
@@ -48,7 +62,7 @@ export const check = Smithers.Typecheck({
 export const unitTests = Smithers.NodeTest({
   runtime: bunRuntime,
   runner: Smithers.testSuite(["src"]),
-  srcs: [sources, componentSources],
+  srcs: [sources, componentSources, styleSources],
   deps: [],
   cwd
 })
@@ -66,7 +80,7 @@ export const unitTests = Smithers.NodeTest({
 export const workerE2e = Smithers.NodeTest({
   runtime: bunRuntime,
   runner: Smithers.entrypoint(Smithers.file("scripts/worker-e2e.ts")),
-  srcs: [sources, Smithers.glob("//apps/ui/scripts/**/*.ts")],
+  srcs: [sources, componentSources, styleSources, ...buildConfigs, serverSources, Smithers.glob("//apps/ui/scripts/**/*.ts")],
   deps: [],
   cwd
 })
@@ -85,7 +99,7 @@ export const workerE2e = Smithers.NodeTest({
 export const browserE2e = Smithers.NodeTest({
   runtime: bunRuntime,
   runner: Smithers.entrypoint(Smithers.file("e2e/run.ts")),
-  srcs: [sources, Smithers.glob("//apps/ui/e2e/**/*.ts")],
+  srcs: [sources, componentSources, styleSources, ...buildConfigs, serverSources, Smithers.glob("//apps/ui/e2e/**/*.ts")],
   deps: [],
   cwd
 })
