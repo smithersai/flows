@@ -10,6 +10,11 @@ documented commits. The process design lives in the spec vault:
 
 - `queue/` — the intake. One markdown file per requested change; presence is
   registration. See `queue/README.md`.
+- `flows/` — factory production lines: flows that run on the flows library
+  itself (`harness.ts` holds the `AgentTask`/`ShellTask` atoms). Launch with
+  `bun factory/flows/<name>.ts`.
+- `reports/` — each flow's output: a summary markdown per flow plus tailable
+  per-task logs.
 
 ## Planned
 
