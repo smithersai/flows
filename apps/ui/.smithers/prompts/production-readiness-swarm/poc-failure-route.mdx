@@ -1,0 +1,11 @@
+# Production Readiness Swarm — poc-failure-route
+
+Classify POC integration evidence into pass, product failure, environment failure, or blocked. Preserve a stable signature and select only the typed route.
+
+Declared upstream receipts and run-scoped VCS targets:
+{props.context}
+
+Work only from the fresh versioned evidence snapshot and declared upstream receipts. Record command outputs and artifact locations. Do not claim success without deterministic evidence. Treat inferred worldview data as provisional with provenance. Never force-push or land on main.
+
+REQUIRED OUTPUT:
+{props.schema}

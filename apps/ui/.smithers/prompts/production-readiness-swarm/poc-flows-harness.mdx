@@ -1,0 +1,26 @@
+# Production Readiness Swarm — poc-flows-harness
+
+In a disposable worktree, prove or falsify Flow registry invocation parity, slash/context/button routes, Cell Harness turns, recursive child agents, and durable frame navigation.
+
+Read `/Users/williamcory/mvp/DESIGN.md` directly before editing. If the round plan assigns this lane the engineering-owned backend card path, implement the complete typed `card` / `card.update` stream contract, Flow name, widened `AgentTurnFrame`, and approval-decision round trip through the declared new-Smithers boundary. Treat checked UI work as a regression contract and keep explicitly post-demo work out of the demo claim.
+
+Declared upstream receipts and run-scoped VCS targets:
+{props.context}
+
+Before reading or editing files, require `roundBasePreparation.status: pass`, `cd` to the exact declared `worktreePath`, record `pwd -P`, switch this checkout to the exact declared `branch`, and assert `git branch --show-current` equals it. Before the first edit, assert the committed content tree equals `roundBasePreparation.baseRevision` with `git diff --quiet roundBasePreparation.baseRevision HEAD -- .` and assert the worktree is clean. Smithers durability snapshots may rewrite commit identity as a sibling, so never require SHA equality or ancestry. After editing, derive ownership with the two-endpoint tree diff `git diff --name-only roundBasePreparation.baseRevision HEAD`, never triple-dot. Run every VCS, build, and test command from that worktree; do not fall back to `targetRepo`. Copy the canonical `pwd -P` into `executionCwd`. If any assertion fails, return `environment_failure`; do not work from detached HEAD or invent a replacement branch. Do not modify `package.json` or `bun.lock`, and do not run an install: deterministic preparation provides a copy-on-write clone of the verified foundation dependencies.
+
+This lane integrates the real new Smithers implementation behind the Bun host boundary; it must not create local lookalikes or import Harness into the React renderer. Use the inherited, externally smoked package distribution from `/Users/williamcory/flows`, including `@smithers/harness` and `@smithers/journal` plus other new `@smithers/*` entry packages as applicable. Do not require an uninstalled package merely because its name sounds relevant. Before claiming `proven`, record deterministic commands that establish all of the following:
+
+- the inherited `package.json` declares the required `@smithers/*` dependencies, installed imports resolve, and the distribution manifest traces each one to an owning source root and exact revision beneath `/Users/williamcory/flows`.
+- product source imports the real `@smithers/*` packages.
+- no product file declares a replacement `FlowRegistry`, `Harness`, `HarnessCell`, `CellHarness`, `Journal`, `Kernel`, or equivalent Smithers runtime implementation. Product-specific adapters and thin composition roots are allowed, but runtime reimplementation is a falsifier.
+- the exercised test crosses the real package boundary; testing a locally defined registry or recursive callback is not Harness or Flow evidence.
+- Flow and Harness bodies execute outside `Journal.transact`. Every external tool, MCP, connector, filesystem, model, or adapter call crosses a real new-Flows Activity boundary with the correct sealed/compensable/irreversible tier. Irreversible retries require a stable idempotency key; applicable ownership is fenced; compensable activities register recovery evidence. A local SQLite transaction is never claimed to make the remote effect atomic.
+
+Set `newSmithersPackagesResolved` and `noLocalSmithersReimplementation` independently. If either is false, `hypothesisVerdict` cannot be `proven` and `status` cannot be `pass`, even when local unit tests pass.
+
+Work only from the fresh versioned evidence snapshot and declared upstream receipts. Record command outputs and artifact locations. Do not claim success without deterministic evidence. Treat inferred worldview data as provisional with provenance. Never force-push or land on main.
+Reference repositories are read-only source evidence: never install, build, typecheck, or test them from this lane.
+
+REQUIRED OUTPUT:
+{props.schema}

@@ -1,0 +1,16 @@
+# Production Readiness Swarm — production-e2e
+
+Run the full deterministic build, unit, integration, native/browser E2E, mixed-agent fixture, keyboard, accessibility, and visual suite before review.
+
+Build any missing initial E2E command, then execute it and record its exact command, exit code, classification, and evidence reference. Set every typed acceptance assertion independently; `pass` is valid only when all are true and the new-Smithers dependency scan has zero violations. Product code may use `/Users/williamcory/flows` via `@smithers/*`; forbid `@smthrs/*` and `/Users/williamcory/smithers`. Do not start review work here.
+
+Mandatory acceptance contract:
+{props.acceptance}
+
+Declared upstream receipts and run-scoped VCS targets:
+{props.context}
+
+Work only from the fresh versioned evidence snapshot and declared upstream receipts. Record command outputs and artifact locations. Do not claim success without deterministic evidence. Treat inferred worldview data as provisional with provenance. Never force-push or land on main.
+
+REQUIRED OUTPUT:
+{props.schema}

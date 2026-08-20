@@ -1,0 +1,22 @@
+# Production Readiness Swarm — poc-integrate-verify
+
+Integrate only disposable POC lane work into a disposable candidate. Run real build, unit, integration, browser/native, keyboard, accessibility, fixture, and visual checks; never merge or touch main.
+
+Consume the serial authority-foundation receipt plus all four typed domain-lane receipts. The integration worktree must already start at the exact verified foundation content tree; integrate only the four domain commits on top of it. Never replay the foundation, force-push, write outside the assigned worktree, or land on `main`. Verify that none of the four parallel lane diffs touched `package.json`, `bun.lock`, `src/bun/index.ts`, or `src/shared/NativeRPC.ts`. After integrating their self-contained host modules and module-local RPC schemas, act as the only post-fan-out composition writer: wire them into `src/bun/index.ts` and `src/shared/NativeRPC.ts`. Also act as the only post-fan-out manifest writer: remove every inherited `@smthrs/*` dependency, preserve the real `@smithers/*` distribution specs, regenerate `bun.lock` deterministically, and commit that cleanup with any necessary integration-only conflict resolution. Verify product imports against the new Smithers distribution sourced from `/Users/williamcory/flows`: allow `@smithers/*`, forbid `@smthrs/*` and `/Users/williamcory/smithers`.
+
+Do not infer new-Smithers authority from names or behavior. Resolve every installed `@smithers/*` dependency used by product code and trace it through the foundation distribution manifest to exact source roots and revisions beneath `/Users/williamcory/flows`. Reject local implementations of FlowRegistry, Harness, HarnessCell, CellHarness, Journal, Kernel, Registry, sync, time travel, connectors, or adapters that substitute for owning packages. Require every foundation assertion plus the Flow lane's `newSmithersPackagesResolved` and `noLocalSmithersReimplementation` assertions to be true. Reject any lane whose receipt is not `status: pass` plus `hypothesisVerdict: proven`, whose recorded branch differs from the declared branch, or whose `changedFiles` escape the planner's `ownedPaths`. `status: pass` requires a non-null `integrationCommit` and all four manifest-finalization booleans true: `parallelLanesManifestClean`, `legacyDependenciesRemoved`, `dependencyManifestFinalized`, and `lockfileRegenerated`.
+
+Reject any composition that runs a Flow body, Activity body, model call, tool, MCP call, connector, filesystem operation, or other external effect inside `Journal.transact`. Verify state transitions use the storage-only app-table-plus-Journal transaction, while external work uses real new-Flows Activity tiers with idempotency/fencing/compensation evidence. No local WAL or projection batch may be described as remote-effect atomicity.
+
+Mandatory acceptance contract:
+{props.acceptance}
+
+Declared upstream receipts and run-scoped VCS targets:
+{props.context}
+
+Before integration, require `roundBasePreparation.status: pass`, `cd` to the exact declared `worktreePath`, record `pwd -P`, switch this checkout to the exact declared integration branch, and assert it. Before applying domain commits, assert its committed content tree equals `roundBasePreparation.baseRevision` with `git diff --quiet roundBasePreparation.baseRevision HEAD -- .` and assert the worktree is clean. That base must equal the authority-foundation content tree. Smithers durability snapshots may rewrite commit identity as a sibling, so validate content and recorded branch without inventing ancestry. Validate domain ownership with two-endpoint tree diffs against the round base, never triple-dot; then integrate only the four domain receipt commit SHAs. Return the serial base as `foundationCommit` separately from `integratedLaneCommits`. Run every VCS, install, build, test, and scan command from that worktree; do not fall back to `targetRepo`. Copy the canonical `pwd -P` into `executionCwd`. A command run from any other directory invalidates the entire receipt. Never integrate from detached HEAD, mutable target `HEAD`, `main`, or an unrecorded branch.
+
+Work only from the fresh versioned evidence snapshot and declared upstream receipts. Record command outputs and artifact locations. Do not claim success without deterministic evidence. Treat inferred worldview data as provisional with provenance. Never force-push or land on main.
+
+REQUIRED OUTPUT:
+{props.schema}

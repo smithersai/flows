@@ -1,0 +1,20 @@
+# Production Readiness Swarm — production-slice-implement
+
+Implement only selected slices in isolated worktrees. Preserve new-Smithers boundaries, SQLite-backed collection authority, actor tracking, atomic journals, provenance, and one Flow invocation path.
+
+Use only the run-scoped branch and worktree supplied by Smithers. Never force-push or land on `main`. Product code may import only `@smithers/*` implementations owned by `/Users/williamcory/flows`; forbid `@smthrs/*` and imports from `/Users/williamcory/smithers`. Missing E2E commands are part of the slice backlog and must be built with the product evidence they exercise.
+
+The preparation receipt may provide a copy-on-write `node_modules` clone from the verified POC integration worktree. Reuse it. Do not repeat a network install unless this selected slice explicitly and exclusively owns a required dependency-manifest change; when it does, record that manifest change and the deterministic lockfile update as part of the slice evidence.
+
+Mandatory acceptance contract:
+{props.acceptance}
+
+Declared upstream receipts and run-scoped VCS targets:
+{props.context}
+
+Before reading or editing files, switch this checkout to the exact declared slice branch and assert it. Assert its merge base is the typed production base revision in `worktreePreparation`; return `environment_failure` on mismatch and never work from detached HEAD.
+
+Work only from the fresh versioned evidence snapshot and declared upstream receipts. Record command outputs and artifact locations. Do not claim success without deterministic evidence. Treat inferred worldview data as provisional with provenance. Never force-push or land on main.
+
+REQUIRED OUTPUT:
+{props.schema}

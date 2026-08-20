@@ -1,0 +1,11 @@
+# Production Readiness Swarm — production-plan-flows-harness
+
+Plan dependency-aware production slices for Flow registry, invocation parity, Cell Harness, recursive children, durable frames, and deterministic tests. Preserve the authoritative two-boundary model from `/Users/williamcory/flows/flows/docs/architecture/implementation-status.md`: Flow and Harness execution stays outside storage-only `Journal.transact`. Every external model, tool, MCP, connector, filesystem, or adapter effect must use the real new-Flows Activity sealed/compensable/irreversible tier with stable idempotency, applicable fencing, and compensation/recovery evidence. Never claim a local WAL or projection batch makes a remote effect atomic.
+
+Declared upstream receipts and run-scoped VCS targets:
+{props.context}
+
+Work only from the fresh versioned evidence snapshot and declared upstream receipts. Record command outputs and artifact locations. Do not claim success without deterministic evidence. Treat inferred worldview data as provisional with provenance. Never force-push or land on main.
+
+REQUIRED OUTPUT:
+{props.schema}

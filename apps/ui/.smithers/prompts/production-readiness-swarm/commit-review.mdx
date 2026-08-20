@@ -1,0 +1,11 @@
+# Production Readiness Swarm — commit-review
+
+Review every proposed atomic commit for correctness, narrow scope, relevant real test coverage, fixup placement, and policy compliance after E2E passes.
+
+Declared upstream receipts and run-scoped VCS targets:
+{props.context}
+
+Work only from the fresh versioned evidence snapshot and declared upstream receipts. Record command outputs and artifact locations. Do not claim success without deterministic evidence. Treat inferred worldview data as provisional with provenance. Never force-push or land on main.
+
+REQUIRED OUTPUT:
+{props.schema}
