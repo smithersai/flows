@@ -297,8 +297,10 @@ retried blindly or replayed. `ExecIrreversible` is the catalog's example.
 An action call with no implementation in scope refuses with `unresolved_action`
 before anything runs. That is a wiring error, not a runtime contingency, so a new
 action needs its layer added wherever plans are executed. The CLI executor
-currently supplies the exec, write-file, check-file, not-implemented, and install
-implementations, and nothing else.
+supplies the exec and irreversible-exec, capture-outputs, expand-filegroup,
+write-file, check-file, check-docs, llm-review, sync-package-json,
+scaffold-package, not-implemented, and install implementations. An action absent
+from that list plans but cannot execute.
 See [Actions and boundaries](../concepts/actions-and-boundaries.md).
 
 ## Registering the target

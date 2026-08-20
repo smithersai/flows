@@ -166,8 +166,8 @@ const teeJournal = (
 ): Journal.Service =>
 	Journal.make({
 		read: inner.read,
-		append: (event) =>
-			inner.append(event).pipe(
+		append: (event, expectedPosition) =>
+			inner.append(event, expectedPosition).pipe(
 				Effect.tap(() =>
 					Effect.sync(() => {
 						for (const frame of framesOf(event, runId)) emit(frame);

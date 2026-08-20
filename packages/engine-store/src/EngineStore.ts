@@ -145,7 +145,8 @@ export const make = (
     const deferred = yield* DeferredPersistence.make({
       owner,
       journalSource: options.journalSource,
-      scheduleResume: (flowName, executionId, reason) => driver.scheduleResume(flowName, executionId, reason),
+      scheduleResume: (flowName, executionId, reason, sourceId) =>
+        driver.scheduleResume(flowName, executionId, reason, sourceId),
       fireRetryPolicy: options.clockFireRetryPolicy
     })
 

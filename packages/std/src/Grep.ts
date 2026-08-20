@@ -151,6 +151,10 @@ const normalize = (input: typeof Input.Type): Search.GrepInput | StdError.StdErr
   const fixedStrings = input.fixedStrings ?? false
   const patternError = Contract.validatePattern(input.pattern, fixedStrings)
   if (patternError !== undefined) return patternError
+  for (const glob of input.globs ?? []) {
+    const globError = Contract.validateGlob(glob)
+    if (globError !== undefined) return globError
+  }
   return {
     pattern: input.pattern,
     root: input.root ?? "/",

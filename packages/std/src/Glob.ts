@@ -12,6 +12,7 @@
 import * as Flow from "@smthrs/core/Flow"
 import { Effect, Schema } from "effect"
 import { capability, envelope } from "./internal/Declaration.ts"
+import * as Contract from "./internal/SearchContract.ts"
 import { MAX_ENTRIES } from "./internal/Text.ts"
 import * as Search from "./Search.ts"
 import * as StdError from "./StdError.ts"
@@ -107,6 +108,8 @@ export const run = Effect.fn("Glob.run")(function*(
       })
     )
   }
+  const patternError = Contract.validateGlob(input.pattern)
+  if (patternError !== undefined) return yield* Effect.fail(patternError)
   const search = yield* Search.Search
   return yield* search.glob({
     pattern: input.pattern,
