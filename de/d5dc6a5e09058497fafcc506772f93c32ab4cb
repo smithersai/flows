@@ -1,0 +1,94 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "ded5dc6a5e09058497fafcc506772f93c32ab4cb",
+ "tree": "20fc0fda3741293b328c0feb6acf3373bfc6047a",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 82,
+  "sectionCount": 83
+ },
+ "source": {
+  "commit": "50c03f84e4b1c625ebe0938afb6ba4344acadeb3",
+  "subject": "✅ test(ui): ratchet the seam boundary instead of pinning one endpoint",
+  "priorCanonicalCommit": "e3c789c1ca19d864def6baa0d5c277eef79e61d7",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 70,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true,
+  "rebuild": {
+   "reason": "rebuilt onto the 13-commit split of canonical commit 2632c05da63099666add6437c743f4c5b3922f59",
+   "priorCanonicalCommit": "e3c789c1ca19d864def6baa0d5c277eef79e61d7",
+   "treePreserved": true,
+   "tree": "20fc0fda3741293b328c0feb6acf3373bfc6047a"
+  }
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": null,
+  "epicsTouched": [],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 920,
+  "globalCount": 921,
+  "purpose": "✅ test(ui): ratchet the seam boundary instead of pinning one endpoint",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "f132f3530569c0fa82c79eecc4522ecab3a42a04"
+  ],
+  "parent": "f132f3530569c0fa82c79eecc4522ecab3a42a04",
+  "sourceImports": [],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "f132f3530569c0fa82c79eecc4522ecab3a42a04",
+  "next": "6fe6857b28247375ab46b0d79cba15e74754ebd6",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "6fe6857b28247375ab46b0d79cba15e74754ebd6"
+ },
+ "size": {
+  "files": 1,
+  "added": 76,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "50c03f84e4b1c625ebe0938afb6ba4344acadeb3"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "apps/ui/src/mainview/state/ArchitectureLaws.test.ts",
+   "mode": "100644",
+   "blob": "de69d0dd7186faa14f1fae5fcdfa8d462c6d00c6",
+   "previousBlob": "15f658d3a47756f82177dbf15d73f8eec462222e",
+   "added": 76,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 207,
+     "oldLines": 0,
+     "newStart": 208,
+     "newLines": 76
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": null
+  }
+ ]
+}
