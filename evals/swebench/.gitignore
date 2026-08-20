@@ -1,0 +1,36 @@
+# Everything transient the rig provisions or produces. Patterns are anchored:
+# only the rig's own top-level artifacts are ignored, so the committed baseline
+# under baseline/ stays committed.
+#
+# `./bootstrap.sh` rebuilds the provisioned set; a wave rebuilds the rest.
+/swb-verified.json
+/sample.json
+/.venv-swb/
+/.codex-home/
+/.extract-lock/
+
+# Wave artifacts: workspaces, patches, timings, logs, predictions, scorecards,
+# and the evaluator's own output (<model>.<run-id>.json, next to the
+# predictions file it graded).
+/work/
+/work-codex/
+/patches/
+/patches-codex/
+/timings/
+/timings-codex/
+/logs-agent/
+/logs-codex/
+/logs/
+/preds-*.json
+/scorecard.json
+/scorecard.md
+/flows-cell-harness.*.json
+/codex-cli.*.json
+
+# Generated fixture: `./verify.sh` rebuilds it from the committed numbers.
+/fixtures/work/
+/fixtures/patches/
+/fixtures/timings/
+/fixtures/scorecard.json
+/fixtures/scorecard.md
+/fixtures/flows-cell-harness.mirror.json
