@@ -233,7 +233,9 @@ export const createControllerContext = (
 	 * fetch's signal — cancellation is interruption, not a manual
 	 * AbortController, and a settled request clears its own clock, so nothing
 	 * dangles per request. The public shape is unchanged: a promise of the
-	 * response, rejecting with plain Errors.
+	 * response, rejecting with plain Errors, and the deadline still rejects
+	 * with `seam timeout`. `Effect.timeout` alone would reject with a
+	 * `TimeoutError` whose `message` is undefined, so the fallback is explicit.
 	 */
 	ctx.boundedFetch = (url: string, init?: RequestInit): Promise<Response> =>
 		Effect.runPromise(
@@ -241,8 +243,10 @@ export const createControllerContext = (
 				try: (signal) => ctx.http(url, { ...init, signal }),
 				catch: (error) => (error instanceof Error ? error : new Error(String(error))),
 			}).pipe(
-				Effect.timeout(seamTimeoutMs),
-				Effect.mapError((error) => (error instanceof Error ? error : new Error("seam timeout"))),
+				Effect.timeoutOrElse({
+					duration: seamTimeoutMs,
+					orElse: () => Effect.fail(new Error("seam timeout")),
+				}),
 			),
 		);
 	ctx.errorMessageOf = async (response: Response, fallback: string): Promise<string> => {
