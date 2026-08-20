@@ -62,7 +62,8 @@
  "size": {
   "files": 1,
   "added": 2173,
-  "deleted": 0
+  "deleted": 0,
+  "justification": "Single new e2e suite file: apps/ui/e2e/suites/commands-registry.e2e.ts is one coherent suite; splitting one new spec file across commits would leave non-runnable intermediate suites."
  },
  "provenance": {
   "strategy": "whole-file introduction from the epic source tree",
