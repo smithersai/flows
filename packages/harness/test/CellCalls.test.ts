@@ -11,7 +11,8 @@ import * as Flow from "@smthrs/core/Flow"
 import * as Descriptor from "@smthrs/registry/Descriptor"
 import * as Discovery from "@smthrs/registry/Discovery"
 import * as Registry from "@smthrs/registry/Registry"
-import { Effect, FileSystem, Layer, Result, Schema } from "effect"
+import { registryError } from "@smthrs/registry/RegistryError"
+import { Cause, Effect, Exit, FileSystem, Layer, Option, Result, Schema } from "effect"
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -284,6 +285,157 @@ describe("CellCalls.make", () => {
     expect(ran).toBe(false)
     expect(result.outcome).toBe("failure")
     expect(result.message).toContain("does not match the bound implementation")
+  })
+
+  it("fails the run when a markdown body cannot be loaded, without consulting the runner", async () => {
+    const descriptor = await discovered("summarize")
+    let ran = false
+    const exit = await Effect.runPromiseExit(
+      Effect.gen(function*() {
+        const resolver = CellCalls.make({
+          registry: Registry.makeNoop({
+            getOption: () => Effect.succeed(Option.some(descriptor)),
+            runPrompt: () =>
+              Effect.fail(registryError({ code: "body_unavailable", method: "runPrompt", description: "gone" }))
+          }),
+          prompt: () =>
+            Effect.sync(() => {
+              ran = true
+              return succeeded("never")
+            })
+        })
+        return yield* resolver.run(callOf(descriptor, { args: "x" }))
+      })
+    )
+
+    // The body vanished between disclosure and the call: that is the host's
+    // problem, not a refusal the model could correct, so it is not a result.
+    expect(ran).toBe(false)
+    const error = Exit.isFailure(exit) ? Cause.squash(exit.cause) : undefined
+    expect(error).toMatchObject({
+      _tag: "/harness/HarnessError",
+      code: "engine_failed",
+      message: "The body of markdown flow summarize could not be loaded"
+    })
+  })
+
+  it("answers from the executable binding even when an implementation shares the name", async () => {
+    const seen: Array<string> = []
+    const count = Flow.make({
+      name: "count",
+      description: "Counts characters.",
+      input: Schema.Struct({ text: Schema.String }),
+      output: Schema.Struct({ length: Schema.Number })
+    })
+    const binding = FlowBinding.make({
+      flow: count,
+      handler: (input) => Effect.sync(() => (seen.push("binding"), { length: input.text.length }))
+    })
+    const catalog = Result.getOrThrow(FlowBinding.catalogResult([binding]))
+
+    const result = await Effect.runPromise(
+      Effect.gen(function*() {
+        const registry = FlowBinding.registry(yield* Registry.Registry, catalog)
+        const resolver = CellCalls.make({
+          registry,
+          catalog,
+          implementations: new Map<string, CellCalls.Implementation>([[
+            "count",
+            () => Effect.sync(() => (seen.push("implementation"), succeeded({ length: 0 })))
+          ]])
+        })
+        return yield* resolver.run(callOf(binding.descriptor, { text: "four" }))
+      }).pipe(Effect.provide(registryLayer()), Effect.orDie)
+    )
+
+    // A binding is the implementation of the declaration it projected, so it
+    // answers before the host's side table is consulted at all.
+    expect(seen).toEqual(["binding"])
+    expect(result).toMatchObject({ outcome: "success", value: { length: 4 } })
+  })
+
+  it("refuses input the bound declaration's own schema rejects", async () => {
+    const count = Flow.make({
+      name: "count",
+      input: Schema.Struct({ text: Schema.String }),
+      output: Schema.Struct({ length: Schema.Number })
+    })
+    const binding = FlowBinding.make({
+      flow: count,
+      handler: (input) => Effect.succeed({ length: input.text.length })
+    })
+    const catalog = Result.getOrThrow(FlowBinding.catalogResult([binding]))
+
+    const result = await Effect.runPromise(
+      Effect.gen(function*() {
+        const registry = FlowBinding.registry(yield* Registry.Registry, catalog)
+        const resolver = CellCalls.make({ registry, catalog })
+        return yield* resolver.run(callOf(binding.descriptor, { text: 7 }))
+      }).pipe(Effect.provide(registryLayer()), Effect.orDie)
+    )
+
+    expect(result.outcome).toBe("failure")
+    expect(result.message).toContain("rejected its input")
+  })
+
+  it("prefers a bound markdown flow over the prompt runner that would render it", async () => {
+    const descriptor = await discovered("summarize")
+    let rendered = false
+    const binding: FlowBinding.Binding = {
+      descriptor,
+      run: () => Effect.succeed(succeeded("bound answer"))
+    }
+    const catalog = Result.getOrThrow(FlowBinding.catalogResult([binding]))
+
+    const result = await Effect.runPromise(
+      Effect.gen(function*() {
+        const registry = yield* Registry.Registry
+        const resolver = CellCalls.make({
+          registry,
+          catalog,
+          prompt: () =>
+            Effect.sync(() => {
+              rendered = true
+              return succeeded("rendered answer")
+            })
+        })
+        return yield* resolver.run(callOf(descriptor, { args: "the release notes" }))
+      }).pipe(Effect.provide(registryLayer()), Effect.orDie)
+    )
+
+    expect(rendered).toBe(false)
+    expect(result).toMatchObject({ outcome: "success", value: "bound answer" })
+  })
+
+  it("refuses a module flow when the catalog and the implementation table are both empty", async () => {
+    const descriptor = await discovered("list")
+    const result = await Effect.runPromise(
+      Effect.gen(function*() {
+        const registry = yield* Registry.Registry
+        const resolver = CellCalls.make({
+          registry,
+          catalog: FlowBinding.empty(),
+          implementations: new Map()
+        })
+        return yield* resolver.run(callOf(descriptor, { path: "." }))
+      }).pipe(Effect.provide(registryLayer()), Effect.orDie)
+    )
+
+    expect(result.outcome).toBe("failure")
+    expect(result.message).toContain("no implementation bound")
+  })
+
+  it("refuses a name the implementation table holds under a different key", async () => {
+    const descriptor = await discovered("list")
+    const result = await resolve(callOf(descriptor, { path: "." }), {
+      implementations: new Map<string, CellCalls.Implementation>([[
+        "summarize",
+        () => Effect.succeed(succeeded(["never"]))
+      ]])
+    })
+
+    expect(result.outcome).toBe("failure")
+    expect(result.message).toContain("no implementation bound")
   })
 
   it("keeps a flow the registry hides from model invocation out of reach", async () => {

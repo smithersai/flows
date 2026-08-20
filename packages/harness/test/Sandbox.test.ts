@@ -5,7 +5,7 @@
  * once on the QuickJS-WASM binding that a production host actually selects.
  * A contract only one of them honours is not a contract.
  */
-import { Effect, Layer, Option, Schema } from "effect"
+import { Cause, Effect, Exit, Fiber, Layer, Option, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Cell from "../src/Cell.ts"
 import { HarnessError } from "../src/HarnessError.ts"
@@ -446,6 +446,226 @@ for (const [name, binding] of bindings) {
         output: "TypeError: ctx.call input must be JSON-serializable"
       })
     })
+
+    it("reads an omitted call input as the same null an explicit one carries", async () => {
+      const observed: Array<Sandbox.Invocation> = []
+      const outcome = await evaluate(
+        binding,
+        `const omitted = await ctx.call("fs/list")
+         const explicit = await ctx.call("fs/list", null)
+         return { intent: "complete", output: JSON.stringify([omitted, explicit]) }`,
+        { call: handler({}, observed) }
+      )
+
+      expect(observed.map((call) => [call.ordinal, call.input])).toEqual([[0, null], [1, null]])
+      expect((outcome as Cell.Settled).transition).toMatchObject({
+        _tag: "complete",
+        output: "[null,null]"
+      })
+    })
+
+    it("answers a call at a zero per-call budget without waiting for the host", async () => {
+      // Zero is the boundary the message renderer has to survive as well: a
+      // whole number of seconds must not read as "0.000".
+      const outcome = await evaluate(
+        binding,
+        `try {
+           await ctx.call("fs/list", {})
+         } catch (error) {
+           return { intent: "complete", output: error.name + ": " + error.message }
+         }
+         return { intent: "complete", output: "unreachable" }`,
+        { call: () => Effect.never, limits: { callMs: 0 } }
+      )
+
+      expect((outcome as Cell.Settled).transition).toMatchObject({
+        _tag: "complete",
+        output: `${Sandbox.callTimeoutErrorName}: Flow fs/list timed out after 0 seconds. `
+          + "Narrow the call — a smaller root, a tighter pattern, a shorter command — and issue it again."
+      })
+    })
+
+    it("admits exactly as many calls as the budget allows", async () => {
+      const observed: Array<Sandbox.Invocation> = []
+      const outcome = await evaluate(
+        binding,
+        `await ctx.call("fs/list", {})
+         return { intent: "complete", output: "spent the budget exactly" }`,
+        { call: handler({}, observed), limits: { calls: 1 } }
+      )
+
+      expect(observed).toHaveLength(1)
+      expect((outcome as Cell.Settled).transition).toMatchObject({
+        _tag: "complete",
+        output: "spent the budget exactly"
+      })
+    })
+
+    it("refuses the very first call when the budget is zero", async () => {
+      const observed: Array<Sandbox.Invocation> = []
+      const outcome = await evaluate(
+        binding,
+        `await ctx.call("fs/list", {})
+         return { intent: "complete", output: "unreachable" }`,
+        { call: handler({}, observed), limits: { calls: 0 } }
+      )
+
+      expect(observed).toEqual([])
+      expect(outcome).toStrictEqual(
+        new Cell.Rejected({ code: "limit_exceeded", message: "This cell exceeded its limit of 0 flow calls" })
+      )
+    })
+
+    it("settles a cell that makes no call at all under a zero call budget", async () => {
+      const observed: Array<Sandbox.Invocation> = []
+      const outcome = await evaluate(
+        binding,
+        `return { intent: "complete", output: String(Object.keys(ctx.flows).length) }`,
+        { call: handler({}, observed), limits: { calls: 0 } }
+      )
+
+      expect(observed).toEqual([])
+      expect((outcome as Cell.Settled).transition).toMatchObject({ _tag: "complete", output: "1" })
+    })
+
+    it("settles the calls still queued behind the one that spent the budget", async () => {
+      // Three calls are issued before any of them settles, so when the second
+      // one meets the ceiling a third is still queued behind it. A queued call
+      // that is never answered leaves a live promise behind a frame that is
+      // already gone.
+      const observed: Array<Sandbox.Invocation> = []
+      const outcome = await evaluate(
+        binding,
+        `await Promise.all([
+           ctx.call("fs/list", { a: 1 }),
+           ctx.call("fs/list", { b: 2 }),
+           ctx.call("fs/list", { c: 3 })
+         ])
+         return { intent: "complete", output: "unreachable" }`,
+        { call: handler({}, observed), limits: { calls: 1 } }
+      )
+
+      expect(observed.map((call) => call.input)).toEqual([{ a: 1 }])
+      expect(outcome).toStrictEqual(
+        new Cell.Rejected({ code: "limit_exceeded", message: "This cell exceeded its limit of 1 flow calls" })
+      )
+    })
+
+    it("settles concurrent calls one at a time, in the order the cell issued them", async () => {
+      // Ordinals are the replay anchor, so calls that are issued together must
+      // still be numbered and answered in issue order rather than interleaved.
+      const observed: Array<Sandbox.Invocation> = []
+      const outcome = await evaluate(
+        binding,
+        `const results = await Promise.all([
+           ctx.call("fs/list", { path: "a" }),
+           ctx.call("fs/list", { path: "b" }),
+           ctx.call("fs/list", { path: "a" })
+         ])
+         return { intent: "complete", output: results.join(",") }`,
+        {
+          call: (invocation) => {
+            observed.push(invocation)
+            return Effect.succeed(
+              new Cell.CallResult({ outcome: "success", value: `${invocation.ordinal}:${observed.length}` })
+            )
+          }
+        }
+      )
+
+      expect(observed.map((call) => [call.ordinal, call.input])).toEqual([
+        [0, { path: "a" }],
+        [1, { path: "b" }],
+        // The same input twice is two calls with two ordinals, not one shared
+        // answer: identity is positional, not content-addressed.
+        [2, { path: "a" }]
+      ])
+      expect((outcome as Cell.Settled).transition).toMatchObject({
+        _tag: "complete",
+        output: "0:1,1:2,2:3"
+      })
+    })
+
+    it("reports a rejected promise the cell returns as the failure it carries", async () => {
+      expect(await evaluate(binding, `return Promise.reject(new RangeError("nope"))`)).toStrictEqual(
+        new Cell.Raised({ name: "RangeError", message: "nope" })
+      )
+    })
+
+    it("lets a host handler that dies take the frame down instead of answering the cell", async () => {
+      const exit = await Effect.gen(function*() {
+        const sandbox = yield* Sandbox.Sandbox
+        return yield* Effect.exit(sandbox.evaluate({
+          cell: Cell.source(
+            `try {
+               await ctx.call("fs/list", {})
+             } catch (error) {
+               return { intent: "complete", output: "the cell caught a host defect" }
+             }
+             return { intent: "complete", output: "unreachable" }`
+          ),
+          flows,
+          call: () =>
+            Effect.sync(() => {
+              throw new Error("the host blew up")
+            })
+        }))
+      }).pipe(Effect.provide(binding), Effect.runPromise)
+
+      // A defect in the host is not data the cell may recover from: the frame
+      // ends, and no outcome is produced for the journal to record as an answer.
+      expect(Exit.isFailure(exit)).toBe(true)
+      expect(Cause.pretty((exit as Exit.Failure<never, never>).cause)).toContain("the host blew up")
+    })
+
+    it("rejects every returned shape that is not a transition", async () => {
+      for (
+        const expression of [
+          "",
+          " 42",
+          " null",
+          " \"done\"",
+          " []",
+          " { intent: \"explode\" }",
+          " { intent: \"complete\" }",
+          " [{ intent: \"complete\", output: \"x\" }]"
+        ]
+      ) {
+        const outcome = await evaluate(binding, `return${expression}`)
+        expect(outcome._tag, expression).toBe("rejected")
+        expect((outcome as Cell.Rejected).code, expression).toBe("invalid_transition")
+      }
+    })
+
+    it("carries a half-megabyte output out of the cell", async () => {
+      const outcome = await evaluate(binding, `return { intent: "complete", output: "q".repeat(512 * 1024) }`)
+      const settled = outcome as Cell.Settled
+      expect(settled.transition._tag).toBe("complete")
+      expect((settled.transition as Cell.Complete).output.length).toBe(512 * 1024)
+    }, 60_000)
+
+    it("surfaces an interruption mid-call as an interrupted exit, never as an outcome", async () => {
+      const result = await Effect.gen(function*() {
+        const sandbox = yield* Sandbox.Sandbox
+        let entered = false
+        const frame = yield* sandbox.evaluate({
+          cell: Cell.source(`await ctx.call("fs/list", {})\nreturn { intent: "complete", output: "unreachable" }`),
+          flows,
+          call: () =>
+            Effect.sync(() => {
+              entered = true
+            }).pipe(Effect.andThen(Effect.never))
+        }).pipe(Effect.forkChild({ startImmediately: true }))
+
+        // Interrupt only once the frame is genuinely suspended in a host call.
+        while (!entered) yield* Effect.sleep(5)
+        yield* Fiber.interrupt(frame)
+        return { entered, exit: yield* Fiber.await(frame) }
+      }).pipe(Effect.provide(binding), Effect.scoped, Effect.runPromise)
+
+      expect(result.entered).toBe(true)
+      expect(Exit.isFailure(result.exit) && Cause.hasInterruptsOnly(result.exit.cause)).toBe(true)
+    })
   })
 }
 
@@ -637,6 +857,169 @@ describe("Sandbox.layerRestricted", () => {
       expect(outcome._tag).toBe("Failure")
       expect((outcome as { readonly failure: Sandbox.SandboxError }).failure.code).toBe("unsupported")
     }
+  })
+
+  it("never reaches the host for a call issued after the budget was already spent", async () => {
+    // The frame is already rejected by the time the third call is issued, so
+    // its only observable trace is whether the host saw it. It must not.
+    const observed: Array<Sandbox.Invocation> = []
+    const outcome = await evaluate(
+      Sandbox.layerRestricted,
+      `await ctx.call("fs/list", {})
+       try {
+         await ctx.call("fs/list", {})
+       } catch (overBudget) {
+         try {
+           await ctx.call("fs/list", {})
+         } catch (afterAbort) {
+           return { intent: "complete", output: afterAbort.message }
+         }
+       }
+       return { intent: "complete", output: "unreachable" }`,
+      { call: handler({}, observed), limits: { calls: 1 } }
+    )
+
+    expect(observed).toHaveLength(1)
+    expect(outcome).toStrictEqual(
+      new Cell.Rejected({ code: "limit_exceeded", message: "This cell exceeded its limit of 1 flow calls" })
+    )
+  })
+
+  it("keeps a cell that escapes its function wrapper inside the outcome contract", async () => {
+    // This binding is explicitly not an isolation boundary: the cell text is
+    // interpolated into a wrapper built with `new Function`, so a cell can
+    // close the wrapper and run in the host realm. What it must not do is take
+    // the harness down with it. The escape below reads a symbol-keyed property
+    // off the scope object — which answers `undefined` rather than a host
+    // binding — and then throws where no promise exists to catch it.
+    const outcome = await evaluate(
+      Sandbox.layerRestricted,
+      `} }).call(__this) + (function () {
+         throw new Error("escaped:" + String(__scope[Symbol.iterator]))
+       })();
+       (async function () { with (__scope) {`
+    )
+
+    expect(outcome).toStrictEqual(new Cell.Raised({ name: "Error", message: "escaped:undefined" }))
+  })
+})
+
+describe("Sandbox.compile", () => {
+  it("hands a JavaScript cell through untouched", () => {
+    expect(Sandbox.compile(Cell.source("return null", "javascript"))).toBe("return null")
+  })
+
+  it("erases type-only syntax from a TypeScript cell", () => {
+    const compiled = Sandbox.compile(Cell.source("const x: number = 1\nreturn x", "typescript"))
+    expect(compiled).toContain("const x = 1")
+    expect(compiled).not.toContain("number")
+    // The emit carries a "use strict" line. It is not a directive prologue
+    // where the restricted binding places it, so the `with` wrapper that
+    // binding relies on still runs — which the TypeScript cases above prove.
+    expect(compiled).toContain("\"use strict\"")
+  })
+
+  it("names the construct that needs JavaScript emit rather than emitting it", () => {
+    const cases: ReadonlyArray<readonly [string, string]> = [
+      ["enum Direction { Left, Right }\nreturn null", "enum declarations"],
+      ["namespace Shapes { export const sides = 3 }\nreturn null", "namespace/module declarations"],
+      ["declare module \"node:fs\" {}\nreturn null", "namespace/module declarations"],
+      ["import fs = require(\"node:fs\")\nreturn null", "import-equals declarations"],
+      ["export = 1", "export assignments"],
+      ["class A { constructor(public a: number) {} }\nreturn null", "parameter properties"],
+      ["class A { constructor(private a: number) {} }\nreturn null", "parameter properties"],
+      ["class A { constructor(protected a: number) {} }\nreturn null", "parameter properties"],
+      ["class A { constructor(readonly a: number) {} }\nreturn null", "parameter properties"],
+      // `override` is the last modifier the check tests, so it is the one that
+      // proves the whole list is consulted and not just its first entries.
+      ["class A { constructor(override a: number) {} }\nreturn null", "parameter properties"]
+    ]
+
+    for (const [text, forbidden] of cases) {
+      expect(Sandbox.compile(Cell.source(text, "typescript")), text).toStrictEqual(
+        new Cell.Rejected({
+          code: "compile_failed",
+          message: `The TypeScript cell uses ${forbidden}, which are not erasable syntax.`
+        })
+      )
+    }
+  })
+
+  it("keeps a class whose constructor parameters carry no modifier at all", () => {
+    const compiled = Sandbox.compile(
+      Cell.source("class Point { constructor(x: number) { this.x = x } }\nreturn null", "typescript")
+    )
+    expect(typeof compiled).toBe("string")
+    expect(compiled).toContain("constructor(x)")
+  })
+
+  it("reports a TypeScript cell that does not parse as a correctable rejection", () => {
+    expect(Sandbox.compile(Cell.source("return {", "typescript"))).toStrictEqual(
+      new Cell.Rejected({
+        code: "compile_failed",
+        message: "The TypeScript cell did not compile: '}' expected."
+      })
+    )
+  })
+})
+
+describe("Sandbox.layer", () => {
+  it("provides an implementation that still validates and defaults its ceilings", async () => {
+    const observed: Array<Sandbox.Limits | undefined> = []
+    const layer = Sandbox.layer({
+      capabilities: { calls: true, memoryBytes: false, steps: false, timeMs: true },
+      evaluate: (evaluation) =>
+        Effect.sync(() => {
+          observed.push(evaluation.limits)
+          return new Cell.Rejected({ code: "stalled", message: "recorded" })
+        })
+    })
+    const request = { cell: Cell.source("return null"), flows: {}, call: handler({}, []) }
+
+    const [defaulted, refused] = await Effect.gen(function*() {
+      const sandbox = yield* Sandbox.Sandbox
+      return [
+        yield* sandbox.evaluate(request),
+        yield* Effect.result(sandbox.evaluate({ ...request, limits: { calls: -1 } }))
+      ] as const
+    }).pipe(Effect.provide(layer), Effect.runPromise)
+
+    // The ceilings the declared capabilities can enforce are filled in, and the
+    // one they cannot (`memoryBytes`) is left absent rather than invented.
+    expect(observed).toEqual([{
+      steps: undefined,
+      timeMs: Sandbox.defaultLimits.timeMs,
+      totalMs: Sandbox.defaultLimits.totalMs,
+      callMs: Sandbox.defaultLimits.callMs
+    }])
+    expect(defaulted).toStrictEqual(new Cell.Rejected({ code: "stalled", message: "recorded" }))
+    expect(refused).toMatchObject({ _tag: "Failure", failure: { code: "unsupported" } })
+  })
+})
+
+describe("Sandbox.latch", () => {
+  it("holds a waiting fiber until it is woken, and drops a wake nobody is waiting on", async () => {
+    const gate = Sandbox.latch()
+    const order: Array<string> = []
+
+    // Nothing is waiting yet, so this wake has nobody to resume and nothing to
+    // remember: the fiber that arrives afterwards still has to be woken.
+    gate.wake()
+
+    const woken = await Effect.gen(function*() {
+      const waiter = yield* gate.wait.pipe(
+        Effect.andThen(Effect.sync(() => order.push("woken"))),
+        Effect.as("woken"),
+        Effect.forkChild({ startImmediately: true })
+      )
+      yield* Effect.sleep(20)
+      order.push("still waiting")
+      gate.wake()
+      return yield* Fiber.join(waiter)
+    }).pipe(Effect.scoped, Effect.runPromise)
+
+    expect(woken).toBe("woken")
+    expect(order).toEqual(["still waiting", "woken"])
   })
 })
 

@@ -827,6 +827,35 @@ describe("FlowEngineLike.record", () => {
     expect(outcome._tag).toBe("suspended")
     expect(drains).toEqual(["drain"])
   })
+
+  it("reports a boundary whose identity has no canonical form as a typed harness failure", async () => {
+    const drains: Array<string> = []
+    // A lone surrogate has no UTF-8 encoding, so the boundary identity has no
+    // canonical serialization and therefore no key. The controller supplies
+    // these names, so the refusal has to be a typed harness failure rather
+    // than a defect thrown out of the port.
+    const outcome = await drive(
+      Effect.gen(function*() {
+        const port = yield* FlowEngineLike.make({ model: countingModel([]), route: staticRoute() })
+        return yield* port.record({
+          name: "steering-\uD800",
+          identity: { frame: 0, boundary: "context-digest", session: "session-1" },
+          success: Schema.Struct({ inserts: Schema.Array(Schema.String) }),
+          execute: Effect.sync(() => {
+            drains.push("drain")
+            return { inserts: [] }
+          })
+        })
+      })
+    )
+
+    expect(failure(outcome)).toMatchObject({
+      code: "engine_failed",
+      message: "Boundary steering-\uD800 could not be keyed"
+    })
+    // The boundary never opened, so its read never ran.
+    expect(drains).toEqual([])
+  })
 })
 
 describe("cell call identity across runs", () => {

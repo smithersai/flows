@@ -252,6 +252,176 @@ describe("Transcript", () => {
       ])
   })
 
+  it("projects an empty journal as an empty transcript", () => {
+    const state = Transcript.projectState([])
+
+    expect(state.messages).toEqual([])
+    expect(state.replaced).toBeUndefined()
+    expect(state.agentState).toBeUndefined()
+    expect(state.cell).toEqual({
+      produced: [],
+      callsStarted: [],
+      callsSettled: [],
+      settled: [],
+      transitions: [],
+      suspensions: [],
+      aborts: []
+    })
+    expect(Result.getOrThrow(Transcript.projectResult([]))).toEqual([])
+  })
+
+  it("rejects malformed drained steering rather than projecting a partial turn", () => {
+    const result = Transcript.projectStateResult([
+      entry(1, "flows.harness.steering-drained.v1", { eventType: "flows.harness.steering-drained.v1" })
+    ])
+
+    expect(Result.isFailure(result) && result.failure.code).toBe("projection_failed")
+    expect(Result.isFailure(result) && result.failure.message).toBe(
+      "Invalid flows.harness.steering-drained.v1 payload at journal sequence 1"
+    )
+  })
+
+  it("falls back to an empty projection when a payload cannot be decoded", () => {
+    // `projectState` is the total form: a caller that cannot handle a failure
+    // sees an empty transcript instead of a thrown parse error.
+    const state = Transcript.projectState([
+      entry(1, "flows.harness.model-settled.v1", { message: "bad" }),
+      entry(2, "flows.harness.compaction-settled.v1", { replacedPrefixDigest: "prefix", summary: "bad" })
+    ])
+
+    expect(state.messages).toEqual([])
+    expect(state.replaced).toBeUndefined()
+    expect(state.agentState).toBeUndefined()
+    expect(state.cell.produced).toEqual([])
+  })
+
+  it("keeps only the last compaction and everything sequenced after it", () => {
+    const compaction = (seq: number, digest: string, summary: string) =>
+      entry(
+        seq,
+        "flows.harness.compaction-settled.v1",
+        new AgentEvent.CompactionSettled({
+          eventType: "flows.harness.compaction-settled.v1",
+          replacedPrefixDigest: digest,
+          summary: ModelRequest.Message.user(summary)
+        })
+      )
+    const settled = (seq: number, text: string) =>
+      entry(
+        seq,
+        "flows.harness.model-settled.v1",
+        new AgentEvent.ModelSettled({
+          eventType: "flows.harness.model-settled.v1",
+          message: ModelRequest.Message.assistant(text, { stopReason: "stop" }),
+          usage: ModelEvent.Usage.make({ inputTokens: 1, outputTokens: 1 })
+        })
+      )
+
+    const state = Transcript.projectState([
+      settled(1, "before the first"),
+      compaction(2, "first-prefix", "first summary"),
+      settled(3, "between"),
+      compaction(4, "second-prefix", "second summary"),
+      settled(5, "after the second")
+    ])
+
+    expect(state.replaced).toBe("second-prefix")
+    expect(state.messages).toEqual([
+      { kind: "summary", message: ModelRequest.Message.user("second summary") },
+      { kind: "transcript", message: ModelRequest.Message.assistant("after the second", { stopReason: "stop" }) }
+    ])
+  })
+
+  it("projects only the summary when compaction is the last entry", () => {
+    const entries = [
+      ...journal().filter((item) => item.seq <= 8)
+    ]
+
+    const state = Transcript.projectState(entries)
+
+    expect(state.messages).toEqual([
+      { kind: "summary", message: ModelRequest.Message.user("First turn summary") }
+    ])
+  })
+
+  it("strips continuation metadata from an aborted turn as well as a failed one", () => {
+    const messages = project([
+      entry(
+        1,
+        "flows.harness.model-settled.v1",
+        new AgentEvent.ModelSettled({
+          eventType: "flows.harness.model-settled.v1",
+          message: ModelRequest.Message.assistant([
+            ModelRequest.ThinkingPart.make({ text: "half a thought", signature: "provider-signature" }),
+            ModelRequest.TextPart.make({ text: "half an answer" })
+          ], {
+            stopReason: "aborted",
+            responseId: "aborted-response",
+            itemIds: ["aborted-item"]
+          }),
+          usage: ModelEvent.Usage.make({ inputTokens: 1, outputTokens: 0 })
+        })
+      )
+    ])
+
+    expect(messages).toEqual([
+      ModelRequest.Message.assistant([
+        ModelRequest.ThinkingPart.make({ text: "half a thought" }),
+        ModelRequest.TextPart.make({ text: "half an answer" })
+      ], { stopReason: "aborted" })
+    ])
+  })
+
+  it("clears the transcript only for a continue transition", () => {
+    const settled = entry(
+      1,
+      "flows.harness.model-settled.v1",
+      new AgentEvent.ModelSettled({
+        eventType: "flows.harness.model-settled.v1",
+        message: ModelRequest.Message.assistant("kept", { stopReason: "stop" }),
+        usage: ModelEvent.Usage.make({ inputTokens: 1, outputTokens: 1 })
+      })
+    )
+    const applied = (seq: number, transition: Cell.Transition) =>
+      entry(
+        seq,
+        "flows.harness.transition-applied.v1",
+        new AgentEvent.TransitionApplied({ eventType: "flows.harness.transition-applied.v1", transition })
+      )
+
+    const parked = project([
+      settled,
+      applied(2, new Cell.Park({ state: null, reason: "waiting-event", message: "waiting on CI" }))
+    ])
+    const continued = project([
+      settled,
+      applied(
+        2,
+        new Cell.Continue({
+          state: null,
+          context: [new Cell.ContextEntry({ role: "assistant", text: "only this" })]
+        })
+      )
+    ])
+
+    expect(parked).toEqual([ModelRequest.Message.assistant("kept", { stopReason: "stop" })])
+    // A `continue` carries the whole next context, so it replaces the prefix.
+    expect(continued).toEqual([ModelRequest.Message.assistant("only this", { stopReason: "stop" })])
+  })
+
+  it("projects a cell that settled cleanly without adding a correction message", () => {
+    const settled = new AgentEvent.CellSettled({
+      eventType: "flows.harness.cell-settled.v1",
+      cell: "cell-1",
+      outcome: new Cell.Settled({ transition: new Cell.Complete({ state: null, output: "done" }) })
+    })
+
+    const state = Transcript.projectState([entry(1, settled.eventType, settled)])
+
+    expect(state.messages).toEqual([])
+    expect(state.cell.settled).toHaveLength(1)
+  })
+
   it.each([
     "flows.harness.cell-produced.v1",
     "flows.harness.cell-call-started.v1",

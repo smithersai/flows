@@ -17,11 +17,14 @@ export default defineConfig({
       // each other's coverage scratch state (issues #115/#121).
       reportsDirectory: join(tmpdir(), `flows-harness-coverage-${process.pid}`),
       include: ["src/**"],
+      // Every remaining unreachable site carries a `v8 ignore` comment stating
+      // why a test cannot reach it, so anything short of 100 is new untested
+      // code rather than a known gap.
       thresholds: {
-        branches: 84,
-        functions: 92,
-        lines: 94,
-        statements: 93
+        branches: 100,
+        functions: 100,
+        lines: 100,
+        statements: 100
       }
     }
   }

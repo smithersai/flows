@@ -24,6 +24,19 @@ describe("Seat.modelIdOf", () => {
   it("reads a seat with no separator as its own model id", () => {
     expect(Seat.modelIdOf("test-model")).toBe("test-model")
   })
+
+  it("keeps the degenerate separator positions total rather than special-casing them", () => {
+    // A leading separator is an empty provider, so everything after it is the
+    // model id; a trailing one is a model id of nothing. Neither is a legal
+    // declaration, and neither may throw — the resolver owns the vocabulary,
+    // so this conversion refuses nothing.
+    expect(Seat.modelIdOf(":gpt-5")).toBe("gpt-5")
+    expect(Seat.modelIdOf("anthropic:")).toBe("")
+    expect(Seat.modelIdOf(":")).toBe("")
+    expect(Seat.modelIdOf("")).toBe("")
+    // Only the first separator splits, however many follow it.
+    expect(Seat.modelIdOf("a:b:c:d")).toBe("b:c:d")
+  })
 })
 
 describe("SeatResolver.contextWindowTokensFor", () => {
@@ -35,6 +48,31 @@ describe("SeatResolver.contextWindowTokensFor", () => {
     expect(SeatResolver.contextWindowTokensFor("o3-mini")).toBe(200_000)
     // Never zero: zero is CellTurn's "compaction disabled".
     expect(SeatResolver.contextWindowTokensFor("somebody-elses-model")).toBe(128_000)
+  })
+
+  it("floors an empty model id rather than reporting zero", () => {
+    // The empty string is what `modelIdOf` returns for a trailing-separator
+    // seat, so it reaches this catalogue in practice and must still resolve
+    // to a usable budget.
+    expect(SeatResolver.contextWindowTokensFor("")).toBe(128_000)
+  })
+
+  it("matches the catalogue case-insensitively and first-pattern-wins", () => {
+    expect(SeatResolver.contextWindowTokensFor("CLAUDE-OPUS-4-1")).toBe(200_000)
+    expect(SeatResolver.contextWindowTokensFor("GPT-5-Codex")).toBe(400_000)
+    // Two patterns match; the catalogue order decides, and `claude` is first.
+    expect(SeatResolver.contextWindowTokensFor("claude-gpt-5")).toBe(200_000)
+  })
+
+  it("anchors the o-series pattern, so a seat string is not a model id", () => {
+    expect(SeatResolver.contextWindowTokensFor("o3")).toBe(200_000)
+    // `^o[134]` is anchored on purpose: passing the whole seat string instead
+    // of the model id silently downgrades the window to the floor, which is
+    // why every caller resolves through `Seat.modelIdOf` first.
+    expect(SeatResolver.contextWindowTokensFor("openai:o3")).toBe(128_000)
+    expect(SeatResolver.contextWindowTokensFor(Seat.modelIdOf("openai:o3"))).toBe(200_000)
+    // The character class is exactly 1, 3, and 4.
+    expect(SeatResolver.contextWindowTokensFor("o2-preview")).toBe(128_000)
   })
 })
 
