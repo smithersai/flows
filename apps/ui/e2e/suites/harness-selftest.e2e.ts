@@ -73,24 +73,43 @@ export default defineSuite({
 			"application/x-ndjson",
 			"the turn did not stream NDJSON",
 		);
-		const turnBody = await turn.text();
-		const frames = turnBody
-			.trim()
-			.split("\n")
-			.map((line) => JSON.parse(line) as { type: string; text?: string });
+		const readFrames = async (body: string) =>
+			body
+				.trim()
+				.split("\n")
+				.map((line) => JSON.parse(line) as { type: string; text?: string });
+		const frames = await readFrames(await turn.text());
 		const kinds = frames.map((frame) => frame.type);
 		report.equals(kinds[0], "delta", "the streamed turn did not open with a delta");
 		/*
-		 * The double renders its default script in the chain dialect: the card
-		 * rides INSIDE the authored flow script as a card.show call, not as a
-		 * bare card frame (there is one backend, and its author reads scripts).
+		 * The double renders its default script in the chain dialect, ONE
+		 * authored link per upstream request: the first link says the text and
+		 * asks the author for its successor; the successor shows the card.
 		 */
-		const authored = frames.filter((frame) => frame.type === "delta").map((frame) => frame.text ?? "").join("");
-		report.includes(authored, "```flow", "the default script was not rendered as an authored flow script");
-		report.includes(authored, 'ctx.call("card.show"', `the authored script carried no card (saw ${kinds.join(",")}).`);
+		const authoredText = (list: ReadonlyArray<{ type: string; text?: string }>): string =>
+			list.filter((frame) => frame.type === "delta").map((frame) => frame.text ?? "").join("");
+		const firstLink = authoredText(frames);
+		report.includes(firstLink, "```flow", "the default script was not rendered as an authored flow script");
+		report.includes(firstLink, 'ctx.call("say"', "the first authored link carried no say call");
 		report.equals(kinds[kinds.length - 1], "done", "the streamed turn did not end with done");
-		report.equals(stack.chat.requests().length, 1, "the chat double recorded the wrong number of turns");
-		report.ok("the chat double's default script streams an authored say → card.show → done flow script.");
+		const successor = await fetch(`${origin}/api/agent/turn`, {
+			method: "POST",
+			headers: { "content-type": "application/json", cookie },
+			body: JSON.stringify({
+				runId: "harness-selftest-1b",
+				messages: [{ role: "user", content: "continue" }],
+				instructions: "Be brief.",
+			}),
+		});
+		report.equals(successor.status, 200, "the successor authoring");
+		const successorLink = authoredText(await readFrames(await successor.text()));
+		report.includes(
+			successorLink,
+			'ctx.call("card.show"',
+			"the successor authored link carried no card",
+		);
+		report.equals(stack.chat.requests().length, 2, "the chat double recorded the wrong number of turns");
+		report.ok("the chat double's default script streams authored say → card.show links, one per request.");
 
 		const relay = await fetch(`${origin}/api/model/stream`, {
 			method: "POST",
@@ -102,7 +121,7 @@ export default defineSuite({
 		// The relay reaches the SAME managed-inference upstream the turn path
 		// does — that is what makes a chain turn metered — so the chat double
 		// counts both calls.
-		report.equals(stack.chat.requests().length, 2, "the relay did not reach the managed-inference upstream");
+		report.equals(stack.chat.requests().length, 3, "the relay did not reach the managed-inference upstream");
 		report.ok("the model relay answers /api/model/stream from the managed-inference upstream.");
 
 		const relayState = await report.json<{ provisions?: number }>(

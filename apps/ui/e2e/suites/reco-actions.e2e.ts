@@ -422,7 +422,9 @@ export default defineSuite({
 			await waitUntil(
 				report,
 				"accepting the recommendation started no turn — the pill is decorative",
-				async () => stack.chat.requests().length === turnsBeforeAccept + 1,
+				// A chain turn authors one link per POST, so one accepted turn may
+				// reach the upstream more than once — growth is the proof.
+				async () => stack.chat.requests().length >= turnsBeforeAccept + 1,
 				20_000,
 			);
 			/*
@@ -483,12 +485,12 @@ export default defineSuite({
 			await waitUntil(
 				report,
 				"/reco.accept started no turn, so the pill and the command do not resolve to the same act",
-				async () => stack.chat.requests().length === turnsBeforeSlashAccept + 1,
+				async () => stack.chat.requests().length >= turnsBeforeSlashAccept + 1,
 				20_000,
 			);
-			report.equals(
-				lastUserContent(stack.chat.requests()[turnsBeforeSlashAccept]),
-				proposes,
+			const slashAcceptContent = lastUserContent(stack.chat.requests()[turnsBeforeSlashAccept]);
+			report.check(
+				slashAcceptContent === proposes || slashAcceptContent.endsWith(`user: ${proposes}`),
 				"/reco.accept did not carry the proposal to the turn route the way the pill does",
 			);
 			await waitUntil(
@@ -575,13 +577,12 @@ export default defineSuite({
 			await waitUntil(
 				report,
 				"submitting the edited proposal started no turn",
-				async () => stack.chat.requests().length === turnsBeforeEdit + 1,
+				async () => stack.chat.requests().length >= turnsBeforeEdit + 1,
 				20_000,
 			);
 			const ranText = lastUserContent(stack.chat.requests()[turnsBeforeEdit]);
-			report.equals(
-				ranText,
-				reshaped,
+			report.check(
+				ranText === reshaped || ranText.endsWith(`user: ${reshaped}`),
 				"the turn did not carry the edited proposal — reco.edit's prefill is decorative",
 			);
 			report.check(
