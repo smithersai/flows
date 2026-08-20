@@ -30,16 +30,38 @@ const reporter = (): { readonly reports: Array<readonly [ClientErrorKind, unknow
 	};
 };
 
+const rootText = (): string => document.getElementById("root")?.textContent ?? "";
+
 describe("the startup watchdog outside React", () => {
-	test("uses its configured timeout and renders a visible failure when the root stays blank", () => {
+	test("uses its configured timeout and renders a visible failure when nothing mounts", () => {
 		const errors = reporter();
 		const consoleError = spyOn(console, "error").mockImplementation(() => {});
 		const watchdog = startStartupWatchdog({ timeoutMs: 73, clientErrors: errors.value });
 		jest.advanceTimersByTime(72);
-		expect(document.getElementById("root")?.textContent).toBe("");
+		expect(rootText()).toBe("");
 		jest.advanceTimersByTime(1);
-		expect(document.getElementById("root")?.textContent).toContain("Smithers failed to start");
-		expect(document.getElementById("root")?.textContent).toContain("within 73ms");
+		expect(rootText()).toContain("Smithers failed to start");
+		expect(rootText()).toContain("within 73ms");
+		watchdog.stop();
+		consoleError.mockRestore();
+	});
+
+	/*
+	 * The defect this pins: the watchdog used to infer "nothing mounted" from an
+	 * empty `#root`. Both entries fill `#root` before the app exists — the SPA
+	 * renders a Suspense fallback into it, the server renders the session shell
+	 * into it — so that inference answered "mounted" from the first frame and
+	 * disabled the guard completely.
+	 */
+	test("still fires when a fallback shell filled the root but the app never mounted", () => {
+		const errors = reporter();
+		const consoleError = spyOn(console, "error").mockImplementation(() => {});
+		const shell = document.createElement("div");
+		shell.textContent = "Smithers is starting your session.";
+		document.getElementById("root")?.append(shell);
+		const watchdog = startStartupWatchdog({ timeoutMs: 10, clientErrors: errors.value });
+		jest.advanceTimersByTime(10);
+		expect(rootText()).toContain("Smithers failed to start");
 		watchdog.stop();
 		consoleError.mockRestore();
 	});
@@ -49,10 +71,44 @@ describe("the startup watchdog outside React", () => {
 		const watchdog = startStartupWatchdog({ timeoutMs: 10, clientErrors: errors.value });
 		window.dispatchEvent(new ErrorEvent("error", { error: new Error("first") }));
 		window.dispatchEvent(Object.assign(new Event("unhandledrejection"), { reason: "second" }));
-		document.getElementById("root")?.append(document.createElement("main"));
+		watchdog.markMounted();
+		const app = document.createElement("main");
+		app.textContent = "the app";
+		document.getElementById("root")?.append(app);
 		jest.advanceTimersByTime(10);
 		expect(errors.reports.map(([kind]) => kind)).toEqual(["error", "unhandledrejection"]);
-		expect(document.getElementById("root")?.querySelector("main")?.textContent).toBe("");
+		expect(rootText()).toBe("the app");
 		watchdog.stop();
+	});
+
+	test("carries the earliest blank-page error as context for the failure it renders", () => {
+		const errors = reporter();
+		const consoleError = spyOn(console, "error").mockImplementation(() => {});
+		const watchdog = startStartupWatchdog({ timeoutMs: 10, clientErrors: errors.value });
+		window.dispatchEvent(new ErrorEvent("error", { error: new Error("opfs worker died") }));
+		jest.advanceTimersByTime(10);
+		expect(rootText()).toContain("opfs worker died");
+		expect(rootText()).toContain("Earliest error while the page was blank");
+		watchdog.stop();
+		consoleError.mockRestore();
+	});
+
+	/*
+	 * React renders its own panel through StartupErrorBoundary, so the watchdog
+	 * stands down rather than wiping the root out from under it.
+	 */
+	test("stands down once React has reported a boot failure", () => {
+		const errors = reporter();
+		const consoleError = spyOn(console, "error").mockImplementation(() => {});
+		const watchdog = startStartupWatchdog({ timeoutMs: 10, clientErrors: errors.value });
+		watchdog.handleRenderFailure(new Error("boot rejected"));
+		const panel = document.createElement("main");
+		panel.textContent = "Smithers failed to start";
+		document.getElementById("root")?.append(panel);
+		jest.advanceTimersByTime(10);
+		expect(document.getElementById("root")?.querySelectorAll("main").length).toBe(1);
+		expect(errors.reports.map(([kind]) => kind)).toEqual(["error"]);
+		watchdog.stop();
+		consoleError.mockRestore();
 	});
 });

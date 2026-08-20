@@ -1,9 +1,9 @@
 import { StrictMode } from "react";
 import { hydrateRoot } from "react-dom/client";
 import { StartClient } from "@tanstack/react-start/client";
-import { startStartupWatchdog } from "./StartupWatchdog";
+import { browserStartupWatchdog } from "./StartupWatchdog";
 
-startStartupWatchdog({ timeoutMs: 15_000 });
+browserStartupWatchdog();
 hydrateRoot(
 	document,
 	<StrictMode>

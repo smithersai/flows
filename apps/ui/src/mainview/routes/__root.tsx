@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 import App from "../App";
 import { ControllerProvider, controllerBootPromise } from "../ControllerProvider";
 import { SessionShell } from "../SessionShell";
+import { MountedSignal, StartupErrorBoundary } from "../StartupBoundary";
+import { browserStartupWatchdog } from "../StartupWatchdog";
 import { resolveBootSession } from "../Session.functions";
 import appCss from "../index.css?url";
 
@@ -56,11 +58,15 @@ function BrowserApplication({
 	readonly session: ReturnType<typeof Route.useLoaderData>;
 	readonly fallback: ReactNode;
 }) {
+	const watchdog = browserStartupWatchdog();
 	return (
-		<Suspense fallback={fallback}>
-			<ControllerProvider boot={controllerBootPromise(session)}>
-				<App />
-			</ControllerProvider>
-		</Suspense>
+		<StartupErrorBoundary onError={watchdog.handleRenderFailure}>
+			<Suspense fallback={fallback}>
+				<ControllerProvider boot={controllerBootPromise(session)}>
+					<MountedSignal onMounted={watchdog.markMounted} />
+					<App />
+				</ControllerProvider>
+			</Suspense>
+		</StartupErrorBoundary>
 	);
 }
