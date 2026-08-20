@@ -88,6 +88,26 @@ describe("BrowserJj over the fake ABI module", () => {
       ])
     }))
 
+  it.effect("pins a revisioned workspace add with a restore rooted at the new lane", () =>
+    Effect.gen(function*() {
+      const stderr: Array<string> = []
+      const options: BrowserJj.BrowserJjOptions = {
+        wasm: fakeFlowsJjWasm({ response: OK_ALL }),
+        fs: slice,
+        root: "/repo",
+        onStderr: (text) => stderr.push(text)
+      }
+      const jj = yield* (Effect.provide(Jj, BrowserJj.layer(options)))
+      yield* (jj.workspaceAdd("lane", "/lane1", "qpvuntsm"))
+      // The frozen ABI has no revision field on `workspaceAdd`, so the pin is
+      // the add followed by a restore rooted at the NEW lane's path — the
+      // parent's tree is never touched.
+      expect(stderr.slice(1).map((request) => JSON.parse(request))).toEqual([
+        { op: "workspaceAdd", root: "/repo", name: "lane", path: "/lane1" },
+        { op: "restore", root: "/lane1", changeId: "qpvuntsm" }
+      ])
+    }))
+
   it.effect("serializes concurrent operations through the semaphore", () =>
     Effect.gen(function*() {
       const stderr: Array<string> = []

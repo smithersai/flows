@@ -160,12 +160,20 @@ export interface Jj {
   /**
    * Adds a named workspace rooted at `path` — one lane per parallel agent.
    *
+   * When `revision` is given, the new workspace is pinned at that revision
+   * instead of the lane default, which is how a fork lands the child on the
+   * frame's recorded pointer without touching the parent's working copy.
+   *
    * `PlatformError` is in the channel because the guarded implementation
    * canonicalizes `path` against the workspace root before it asks for the
    * `jj:workspace-add` and `fs:write` capabilities, and resolving a path is a
    * filesystem operation that can itself fail.
    */
-  readonly workspaceAdd: (name: string, path: string) => Effect.Effect<void, JjFailure | PlatformError>
+  readonly workspaceAdd: (
+    name: string,
+    path: string,
+    revision?: ChangeId
+  ) => Effect.Effect<void, JjFailure | PlatformError>
   /** Drops a named workspace, without touching the commits made in it. */
   readonly workspaceForget: (name: string) => Effect.Effect<void, JjFailure>
   /** The working copy's status, as jj prints it. */

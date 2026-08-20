@@ -162,7 +162,7 @@ export const fork = (
        * window between the two steps leaves only an unregistered jj
        * workspace on disk, never a lie in the system of record.
        */
-      yield* jj.workspaceAdd(options.workspaceName, options.workspacePath).pipe(
+      yield* jj.workspaceAdd(options.workspaceName, options.workspacePath, snapshot?.changeId).pipe(
         Effect.mapError((cause) => error("unknown", "could not add fork workspace", cause))
       )
       const result = yield* store.createFork(options.parentRunId, options.frame).pipe(
@@ -170,35 +170,25 @@ export const fork = (
       )
       yield* Effect.addFinalizer(() => jj.workspaceForget(options.workspaceName).pipe(Effect.ignore))
       /**
-       * THE CHILD'S WORKTREE, AND WHY IT IS ONLY DISCLOSED.
+       * THE CHILD'S WORKTREE IS PINNED AT THE FRAME'S POINTER.
        *
        * `docs/specs/Concepts/Time Travel.md` §Fork wants the child's lane
-       * restored to the frame's jj pointer. `Jj` cannot express that: every
-       * verb — `restore` included — acts on the ONE working copy the layer is
-       * rooted at, and `workspaceAdd(name, path)` takes no revision, so the
-       * only tree a fork could `restore` is the PARENT'S. Doing that would
-       * break the load-bearing half of the same section — "Fork never touches
-       * the parent. No compensation, no truncation, no workspace restore of
-       * the parent" — and `jj restore --from` is destructive: it would rewrite
-       * a parked parent's working copy to an old change on every fork.
-       *
-       * So the fork adds the lane and DISCLOSES the pointer it could not pin
-       * it to, which is exactly what the fork's warning channel is for. Pinning
-       * needs a workspace-scoped provisioning verb (`jj workspace add
-       * --revision`, `.smithers/tickets/fork-workspace-revision.md`), which
-       * reaches into `@smthrs/jj`'s node, browser, and wasm layers alike.
+       * restored to the frame's jj pointer, and `Jj.workspaceAdd` now takes
+       * that pointer as its optional `revision`: the new workspace is pinned
+       * at provisioning time, so the parent is never restored — "Fork never
+       * touches the parent. No compensation, no truncation, no workspace
+       * restore of the parent". A frame with no recorded pointer still lands
+       * at the lane default, and that is what the warning channel discloses.
        */
       return {
         ...result,
-        warnings: [
-          ...warnings,
-          snapshot === undefined
-            ? `Frame ${options.frame.lineageId}@${options.frame.seq} has no recorded jj pointer; ` +
-              `the fork workspace ${options.workspaceName} starts from the lane default rather than the frame.`
-            : `Fork workspace ${options.workspaceName} was created at the lane default, not at the frame's ` +
-              `jj pointer ${snapshot.changeId}: provisioning a workspace at a revision is not yet expressible ` +
-              `through Jj. Restore it before running work that assumes the frame's tree.`
-        ]
+        warnings: snapshot === undefined
+          ? [
+            ...warnings,
+            `Frame ${options.frame.lineageId}@${options.frame.seq} has no recorded jj pointer; ` +
+            `the fork workspace ${options.workspaceName} starts from the lane default rather than the frame.`
+          ]
+          : warnings
       }
     })
   )()

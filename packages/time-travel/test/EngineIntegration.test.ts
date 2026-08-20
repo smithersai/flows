@@ -73,7 +73,8 @@ const recordingJj = (calls: Array<string>) =>
         }),
       restore: (changeId) => Effect.sync(() => void calls.push(`restore:${changeId}`)),
       diff: () => Effect.succeed(""),
-      workspaceAdd: (name) => Effect.sync(() => void calls.push(`add:${name}`)),
+      workspaceAdd: (name, _path, revision) =>
+        Effect.sync(() => void calls.push(`add:${name}${revision === undefined ? "" : `@${revision}`}`)),
       workspaceForget: (name) => Effect.sync(() => void calls.push(`forget:${name}`)),
       status: () => Effect.succeed("")
     })
@@ -271,12 +272,14 @@ describe("time travel over an engine-written journal", () => {
       // The fork gets its OWN workspace and leaves the parent's tree alone:
       // `Jj.restore` acts on the one working copy the layer is rooted at, so a
       // fork that called it would restore the parent — forbidden by
-      // `docs/specs/Concepts/Time Travel.md` §Fork. The pointer it could not pin
-      // the lane to is disclosed instead
-      // (`.smithers/tickets/fork-workspace-revision.md`).
-      expect(result.jjCalls.some((call) => call.startsWith("add:"))).toBe(true)
+      // `docs/specs/Concepts/Time Travel.md` §Fork. The child lane is pinned at
+      // the frame's recorded pointer at provisioning time instead:
+      // `workspaceAdd` carries the revision.
+      const add = result.jjCalls.find((call) => call.startsWith("add:"))
+      expect(add).toBeDefined()
+      expect(add).toContain("@change-")
       expect(result.jjCalls.some((call) => call.startsWith("restore:"))).toBe(false)
-      expect(result.fork.warnings.join(" ")).toContain("was created at the lane default")
+      expect(result.fork.warnings.join(" ")).not.toContain("lane default")
       // The irreversible effect the fork carried past is disclosed, never reverted.
       expect(result.fork.warnings.join(" ")).toContain(notifyKind)
       expect(result.fork.warnings.join(" ")).toContain("may execute again on the child")

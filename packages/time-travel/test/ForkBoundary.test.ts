@@ -124,7 +124,8 @@ const runFork = (options: {
         Layer.succeed(
           Jj.Jj,
           Jj.makeNoop({
-            workspaceAdd: (name) => Effect.sync(() => void calls.push(`add:${name}`)),
+            workspaceAdd: (name, _path, revision) =>
+              Effect.sync(() => void calls.push(`add:${name}${revision === undefined ? "" : `@${revision}`}`)),
             workspaceForget: (name) => Effect.sync(() => void calls.push(`forget:${name}`)),
             restore: (changeId) =>
               options.restore === undefined
@@ -169,15 +170,13 @@ describe("fork boundary assessment", () => {
         "billing/Charge (charge-1) was classified revertible for rewind; on a fork it is never reverted and may " +
         "execute again on the child. The charge stands.",
         "mail/Send (email-1) was classified blocking for rewind; on a fork it is never reverted and may " +
-        "execute again on the child. email-1 stands.",
-        "Fork workspace fork-workspace was created at the lane default, not at the frame's jj pointer " +
-        "change-at-frame: provisioning a workspace at a revision is not yet expressible through Jj. " +
-        "Restore it before running work that assumes the frame's tree."
+        "execute again on the child. email-1 stands."
       ])
       // `Jj.restore` acts on the ONE working copy the layer is rooted at — the
       // parent's. `docs/specs/Concepts/Time Travel.md` §Fork forbids a fork from
-      // restoring it, so the fork discloses the pointer instead of applying it.
-      expect(calls).toEqual(["add:fork-workspace", "forget:fork-workspace"])
+      // restoring it, so the child lane is pinned at the frame's pointer at
+      // provisioning time instead: `workspaceAdd` carries the revision.
+      expect(calls).toEqual(["add:fork-workspace@change-at-frame", "forget:fork-workspace"])
     }))
 
   it.effect("keeps a `warning` classification's own disclosure verbatim", () =>
@@ -202,10 +201,7 @@ describe("fork boundary assessment", () => {
       })
 
       expect(result.warnings).toEqual([
-        "billing/Charge (charge-1): The charge stands and will not be refunded.",
-        "Fork workspace fork-workspace was created at the lane default, not at the frame's jj pointer " +
-        "change-at-frame: provisioning a workspace at a revision is not yet expressible through Jj. " +
-        "Restore it before running work that assumes the frame's tree."
+        "billing/Charge (charge-1): The charge stands and will not be refunded."
       ])
     }))
 
