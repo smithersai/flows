@@ -24,7 +24,12 @@ import {
 import { SyncError } from "./SyncError.ts"
 import { SyncAuth } from "./SyncRpcs.ts"
 
-/** Maximum lifetime the branch bootstrap may mint. */
+/**
+ * Maximum lifetime the branch bootstrap may mint.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
 export const maximumBranchTtlMs = 24 * 60 * 60 * 1000
 
 /**

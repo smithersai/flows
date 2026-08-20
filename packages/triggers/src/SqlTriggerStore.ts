@@ -16,7 +16,12 @@ import * as Overlap from "./Overlap.ts"
 import { TriggerError } from "./TriggerError.ts"
 import { type Registered, type Service, TriggerStore } from "./TriggerStore.ts"
 
-/** Time after which an uncommitted launch reservation may be reclaimed. */
+/**
+ * Time after which an uncommitted launch reservation may be reclaimed.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
 export const reservationLeaseMs = 5 * 60 * 1000
 
 interface Row {
