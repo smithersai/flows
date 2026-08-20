@@ -35,11 +35,27 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const stringOrNull = (value: unknown): string | null => (typeof value === "string" ? value : null);
 
+/*
+ * The row's comment count. Plue spells it `comment_count` and GitHub spells it
+ * `comments` — the same discipline IssuesSeam applies to its two sources. A
+ * payload that states neither counts as none rather than as unknown, because
+ * the row shows a number and "no number read" is not a claim worth making.
+ */
+const commentCount = (value: Record<string, unknown>): number => {
+	for (const key of ["comment_count", "comments"] as const) {
+		const raw = value[key];
+		if (typeof raw === "number" && Number.isInteger(raw) && raw >= 0) return raw;
+	}
+	return 0;
+};
+
 interface LandingRow {
 	readonly number: number;
 	readonly title: string;
 	readonly state: string;
 	readonly author: string | null;
+	/** The row's comment count; 0 when the payload states none. */
+	readonly comments: number;
 	readonly updatedAt: string | null;
 }
 
@@ -62,6 +78,7 @@ const parseLandingRow = (value: unknown): LandingRow | null => {
 		title: value.title,
 		state: typeof value.state === "string" && value.state !== "" ? value.state : "unknown",
 		author: isRecord(value.author) ? stringOrNull(value.author.login) : null,
+		comments: commentCount(value),
 		updatedAt: stringOrNull(value.updated_at),
 	};
 };
@@ -314,11 +331,12 @@ export const createLandingsSeam = (ctx: SeamContext): LandingsSeam => {
 			const landings = body
 				.map(parseLandingRow)
 				.filter((row): row is LandingRow => row !== null)
-				.map(({ number, title, state, author, updatedAt }) => ({
+				.map(({ number, title, state, author, comments, updatedAt }) => ({
 					number,
 					title,
 					state,
 					author,
+					comments,
 					updatedAt,
 				}));
 			upsert({

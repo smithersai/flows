@@ -385,6 +385,14 @@ export const CardSchema = z.discriminatedUnion("kind", [
 					title: z.string(),
 					state: z.string(),
 					author: z.string().nullable(),
+					/*
+					 * The comment count the PR row states, alongside number, title,
+					 * state, author and updated time (will, 2026-08-19: the Pull
+					 * Requests tab is "pretty close to a github clone"). Optional so
+					 * rows persisted before the field parse without a schema reset,
+					 * the same discipline the issue row's own additions follow.
+					 */
+					comments: z.number().int().nonnegative().optional(),
 					updatedAt: z.string().nullable(),
 				}),
 			),

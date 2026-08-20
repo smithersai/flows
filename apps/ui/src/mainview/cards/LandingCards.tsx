@@ -32,6 +32,17 @@ export const LandingListCardBody = ({
 							<span className="world-card-title">
 								#{landing.number} {landing.title}
 							</span>
+							{/*
+							 * The issues-tab row shape, on the pull-request side (will,
+							 * 2026-08-19): number, title, state, author, comment count,
+							 * updated time. A row read before the field existed carries
+							 * no count and states none rather than inventing a zero.
+							 */}
+							{landing.comments === undefined ? null : (
+								<span className="world-card-path">
+									<MessageSquare size={12} aria-hidden="true" /> {landing.comments}
+								</span>
+							)}
 							{landing.author !== null ? (
 								<span className="world-card-path">by {landing.author}</span>
 							) : null}

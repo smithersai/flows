@@ -97,7 +97,7 @@ const ready = async (services: AppServices) => {
 
 /* ---- platform payload builders (the wire shapes multi's parsers accept) ---- */
 
-const landing = (number: number, state: string) => ({
+const landing = (number: number, state: string, commentCount?: number) => ({
 	number,
 	title: `Wire the seam ${number}`,
 	body: "The **stack** description.",
@@ -109,6 +109,7 @@ const landing = (number: number, state: string) => ({
 	stack_size: 2,
 	created_at: "2026-08-10T10:00:00.000Z",
 	updated_at: "2026-08-11T10:00:00.000Z",
+	...(commentCount === undefined ? {} : { comment_count: commentCount }),
 });
 
 const reviewRow = (id: number, type: string, body: string) => ({
@@ -160,6 +161,7 @@ describe("landings seam — prs.list", () => {
 				title: "Wire the seam 3",
 				state: "open",
 				author: "will",
+				comments: 0,
 				updatedAt: "2026-08-11T10:00:00.000Z",
 			},
 			{
@@ -167,9 +169,33 @@ describe("landings seam — prs.list", () => {
 				title: "Wire the seam 4",
 				state: "queued",
 				author: "will",
+				comments: 0,
 				updatedAt: "2026-08-11T10:00:00.000Z",
 			},
 		]);
+	});
+
+	/*
+	 * The Pull Requests tab states the same columns the Issues tab states (will,
+	 * 2026-08-19), so the comment count has to survive the seam. Plue spells it
+	 * `comment_count`; GitHub spells it `comments`; a row that states neither
+	 * counts as none.
+	 */
+	test("carries the row's comment count under either spelling, and none is zero", async () => {
+		const { store, controller } = await ready(
+			backend({
+				[LANDINGS]: json(200, [
+					landing(3, "open", 7),
+					{ ...landing(4, "open"), comments: 2 },
+					landing(5, "open"),
+				]),
+			}),
+		);
+		expect((await controller.commands.run("prs.list")).status).toBe("executed");
+		await settled();
+		const card = store.collections.cards.get("prs-will/flows");
+		if (card === undefined || card.kind !== "pr-list") throw new Error("expected the pr-list card");
+		expect(card.payload.landings.map((row) => row.comments)).toEqual([7, 2, 0]);
 	});
 
 	test("a 500 answers the platform's message as the honest error, and no card appears", async () => {
