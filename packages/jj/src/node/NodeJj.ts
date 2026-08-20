@@ -101,8 +101,13 @@ const diff = (from: string, to: string) =>
     ([fromRevision, toRevision]) => jj("diff", ["diff", "--from", fromRevision, "--to", toRevision, "--git"])
   )
 
-const workspaceAdd = (name: string, path: string) =>
-  Effect.asVoid(jj("workspaceAdd", ["workspace", "add", "--name", name, path]))
+const workspaceAdd = (name: string, path: string, revision?: string) =>
+  Effect.asVoid(
+    revision === undefined
+      ? jj("workspaceAdd", ["workspace", "add", "--name", name, path])
+      : Effect.flatMap(requireRevision("workspaceAdd", revision), (pinned) =>
+        jj("workspaceAdd", ["workspace", "add", "--name", name, "--revision", pinned, path]))
+  )
 
 const workspaceForget = (name: string) => Effect.asVoid(jj("workspaceForget", ["workspace", "forget", name]))
 

@@ -251,8 +251,21 @@ export const make = (options: BrowserJjOptions): Jj => {
         invoke("diff", "jj diff", { op: "diff", root, from, to }),
         (ok) => stringField("diff", ok, "diff")
       ),
-    workspaceAdd: (name, path) =>
-      Effect.asVoid(invoke("workspaceAdd", "jj workspace add", { op: "workspaceAdd", root, name, path })),
+    workspaceAdd: (name, path, revision) =>
+      Effect.asVoid(
+        // The frozen ABI has no revision field on `workspaceAdd`, so a pinned
+        // add is the add followed by a workspace-scoped restore: every op
+        // carries its own `root`, and rooting the restore at the NEW lane's
+        // path pins that workspace's working copy without touching the
+        // parent's.
+        Effect.flatMap(
+          invoke("workspaceAdd", "jj workspace add", { op: "workspaceAdd", root, name, path }),
+          () =>
+            revision === undefined
+              ? Effect.void
+              : Effect.asVoid(invoke("restore", "jj restore", { op: "restore", root: path, changeId: revision }))
+        )
+      ),
     workspaceForget: (name) =>
       Effect.asVoid(invoke("workspaceForget", "jj workspace forget", { op: "workspaceForget", root, name })),
     status: () =>

@@ -94,7 +94,7 @@ export const layer: Layer.Layer<
       restore: Effect.fn("Jj.restore")((changeId) =>
         grants.check(makeCapability("jj:restore", changeId)).pipe(Effect.andThen(jj.restore(changeId)))
       ),
-      workspaceAdd: Effect.fn("Jj.workspaceAdd")((name, destination) =>
+      workspaceAdd: Effect.fn("Jj.workspaceAdd")((name, destination, revision) =>
         canonicalResource(fileSystem, path, workspace.root, destination).pipe(
           Effect.flatMap((resource) =>
             grants.check(makeCapability("jj:workspace-add", resource)).pipe(
@@ -102,7 +102,8 @@ export const layer: Layer.Layer<
               Effect.andThen(
                 jj.workspaceAdd(
                   name,
-                  path.normalize(path.isAbsolute(destination) ? destination : path.resolve(workspace.root, destination))
+                  path.normalize(path.isAbsolute(destination) ? destination : path.resolve(workspace.root, destination)),
+                  revision
                 )
               )
             )

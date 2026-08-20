@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "@effect/vitest"
 import { Effect } from "effect"
 import { execFileSync } from "node:child_process"
-import { existsSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -103,6 +103,32 @@ describe.skipIf(!jjInstalled)("NodeJj", () => {
       expect(execFileSync("jj", ["workspace", "list"], { cwd: repository, encoding: "utf8" }))
         .not.toContain("lane:")
       yield* Effect.promise(() => rm(lane, { recursive: true, force: true }))
+    }))
+
+  it.effect("pins a new workspace lane at the requested revision", () =>
+    Effect.gen(function*() {
+      const file = join(repository, "pinned.txt")
+      yield* Effect.promise(() => writeFile(file, "first\n"))
+      const { changeId } = yield* run(Effect.flatMap(Jj, (jj) => jj.snapshot("pinned base")))
+      yield* Effect.promise(() => writeFile(file, "second\n"))
+      yield* run(Effect.flatMap(Jj, (jj) => jj.snapshot("after base")))
+
+      const lane = join(repository, "..", `pinned-${process.pid}`)
+      yield* run(Effect.flatMap(Jj, (jj) => jj.workspaceAdd("pinned", lane, changeId)))
+      expect(readFileSync(join(lane, "pinned.txt"), "utf8")).toBe("first\n")
+
+      yield* run(Effect.flatMap(Jj, (jj) => jj.workspaceForget("pinned")))
+      yield* Effect.promise(() => rm(lane, { recursive: true, force: true }))
+    }))
+
+  it.effect("classifies an empty workspace revision as `invalid_ref` without spawning jj", () =>
+    Effect.gen(function*() {
+      const lane = join(repository, "..", `empty-revision-${process.pid}`)
+      const error = yield* run(Effect.flip(Effect.flatMap(Jj, (jj) => jj.workspaceAdd("empty", lane, ""))))
+
+      expect(error.code).toBe("invalid_ref")
+      expect(error.message).toContain("jj workspaceAdd")
+      expect(existsSync(lane)).toBe(false)
     }))
 
   it.effect("classifies an unknown revision as `invalid_ref`", () =>
