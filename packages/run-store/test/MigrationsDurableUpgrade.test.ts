@@ -2,14 +2,17 @@ import { describe, expect, it } from "@effect/vitest"
 import { DurableWriter } from "@smthrs/database"
 import * as DatabaseMigrations from "@smthrs/database/Migrations"
 import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
+import * as JournalMigrations from "@smthrs/journal/Migrations"
 import { Effect, Exit, Layer, Option } from "effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import * as AttemptStore from "../src/AttemptStore.ts"
+import * as Fold from "../src/Fold.ts"
 import * as Migrations from "../src/Migrations.ts"
 import initial from "../src/migrations/0001_initial.ts"
+import lineage from "../src/migrations/0002_lineage.ts"
 import * as RunStore from "../src/RunStore.ts"
 
 const database = (filename: string) => Layer.provideMerge(DurableWriter.layer(), NodeDatabase.layer({ filename }))
@@ -23,6 +26,15 @@ const initialSet: DatabaseMigrations.MigrationSet = {
   namespace: Migrations.set.namespace,
   idOffset: Migrations.set.idOffset,
   migrations: { "0001_initial": initial }
+}
+
+const preFoldSet: DatabaseMigrations.MigrationSet = {
+  namespace: Migrations.set.namespace,
+  idOffset: Migrations.set.idOffset,
+  migrations: {
+    "0001_initial": initial,
+    "0002_lineage": lineage
+  }
 }
 
 describe("run-store durable migration upgrade", () => {
@@ -142,7 +154,7 @@ describe("run-store durable migration upgrade", () => {
             })
           )
 
-          expect(upgraded.applied).toEqual([[1002, "run-store_lineage"]])
+          expect(upgraded.applied).toEqual([[1002, "run-store_lineage"], [1003, "run-store_fold_snapshots"]])
           expect(upgraded.columns.map((column) => column.name)).toEqual(expect.arrayContaining([
             "lineage_id",
             "round_ordinal"
@@ -171,6 +183,93 @@ describe("run-store durable migration upgrade", () => {
             to: "run_id"
           }))
           expect(upgraded.orphanRows).toEqual([{ count: 0 }])
+        } finally {
+          yield* Effect.promise(() => rm(directory, { recursive: true, force: true }))
+        }
+      }),
+    120_000
+  )
+
+  it.effect(
+    "backfills pre-fold rows into snapshot events that rebuild the materialization",
+    () =>
+      Effect.gen(function*() {
+        const directory = yield* Effect.promise(() => mkdtemp(join(tmpdir(), "flows-run-store-fold-")))
+        const filename = join(directory, "fold.sqlite")
+        try {
+          yield* withDatabase(
+            filename,
+            Effect.gen(function*() {
+              yield* DatabaseMigrations.run([JournalMigrations.set, preFoldSet])
+              const sql = yield* Effect.service(SqlClient.SqlClient)
+              yield* sql`
+            INSERT INTO flows_runs (
+              run_id, status, created_at_ms, started_at_ms, owner_host_id, owner_pid, owner_nonce,
+              heartbeat_at_ms, cancel_requested_at_ms, waiting_reason, waiting_wake_at_ms,
+              waiting_token, state_json, lineage_id, round_ordinal
+            ) VALUES (
+              'legacy-fold-run', 'running', 7, 8, 'legacy-host', 9, 'legacy-owner',
+              10, 11, 'timer', 12, 'wake-token', '{"legacy":true}', 'legacy-lineage', 0
+            )
+          `
+              yield* sql`
+            INSERT INTO flows_attempts (
+              run_id, step_key_digest, attempt, state, started_at_ms, finished_at_ms,
+              heartbeat_at_ms, checkpoint_json, error_json, outcome_json, meta_json
+            ) VALUES (
+              'legacy-fold-run', 'legacy-step', 0, 'completed', 13, 14,
+              15, '{"cursor":1}', '{"message":"old"}', '{"ok":true}', '{"legacy":true}'
+            )
+          `
+            })
+          )
+
+          const rebuilt = yield* withDatabase(
+            filename,
+            Effect.gen(function*() {
+              const applied = yield* DatabaseMigrations.run([JournalMigrations.set, Migrations.set])
+              const sql = yield* Effect.service(SqlClient.SqlClient)
+              const events = yield* sql<{ readonly eventType: string }>`
+            SELECT event_type AS "eventType"
+            FROM flows_journal_events
+            WHERE run_id = 'legacy-fold-run'
+            ORDER BY seq
+          `
+              yield* Fold.rebuild
+              const run = yield* RunStore.make.pipe(Effect.flatMap((store) => store.get("legacy-fold-run")))
+              const attempt = Option.getOrThrow(
+                yield* AttemptStore.make.pipe(Effect.flatMap((store) =>
+                  store.get({ runId: "legacy-fold-run", stepKeyDigest: "legacy-step", attempt: 0 })
+                ))
+              )
+              return { applied, attempt, events, run }
+            })
+          )
+
+          expect(rebuilt.applied).toEqual([[1003, "run-store_fold_snapshots"]])
+          expect(rebuilt.events.map((row) => row.eventType)).toEqual([
+            "flows.run.snapshot",
+            "flows.attempt.snapshot"
+          ])
+          expect(rebuilt.run).toMatchObject({
+            runId: "legacy-fold-run",
+            status: "running",
+            owner: { hostId: "legacy-host", pid: 9, nonce: "legacy-owner" },
+            heartbeatAtMs: 10,
+            cancelRequestedAtMs: 11,
+            lineageId: "legacy-lineage",
+            roundOrdinal: 0,
+            stateJson: "{\"legacy\":true}"
+          })
+          expect(rebuilt.attempt).toMatchObject({
+            state: "completed",
+            finishedAtMs: 14,
+            checkpoint: { cursor: 1 },
+            error: { message: "old" },
+            outcome: { ok: true },
+            meta: { legacy: true }
+          })
+          expect(rebuilt.attempt.heartbeatAtMs).toBeUndefined()
         } finally {
           yield* Effect.promise(() => rm(directory, { recursive: true, force: true }))
         }

@@ -56,7 +56,11 @@ describe("run-store migrations", () => {
   it.effect("reserves its own migration id block so ids cannot collide", () =>
     Effect.gen(function*() {
       const applied = yield* (Migrations.run.pipe(Effect.provide(TestDatabase.layer)))
-      expect(applied).toEqual([[1001, "run-store_initial"], [1002, "run-store_lineage"]])
+      expect(applied).toEqual([
+        [1001, "run-store_initial"],
+        [1002, "run-store_lineage"],
+        [1003, "run-store_fold_snapshots"]
+      ])
     }))
 
   it.effect("rejects a half-populated owner tuple", () =>

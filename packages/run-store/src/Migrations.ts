@@ -20,6 +20,7 @@ import * as DatabaseMigrations from "@smthrs/database/Migrations"
 import * as Layer from "effect/Layer"
 import initial from "./migrations/0001_initial.ts"
 import lineage from "./migrations/0002_lineage.ts"
+import foldSnapshots from "./migrations/0003_fold_snapshots.ts"
 
 /**
  * The run store's namespaced migration set, for composition with the other
@@ -33,7 +34,8 @@ export const set: DatabaseMigrations.MigrationSet = {
   idOffset: DatabaseMigrations.idBlock,
   migrations: {
     "0001_initial": initial,
-    "0002_lineage": lineage
+    "0002_lineage": lineage,
+    "0003_fold_snapshots": foldSnapshots
   }
 }
 

@@ -110,12 +110,19 @@ describe("Redaction", () => {
       "flows.engine.clock-scheduled",
       "flows.engine.clock-completed",
       "flows.engine.deferred-snapshot",
-      "flows.engine.clock-snapshot"
+      "flows.engine.clock-snapshot",
+      "flows.run.",
+      "flows.attempt."
     ])
     expect(Redaction.isVerbatimEventType("flows.cache.recorded")).toBe(true)
     expect(Redaction.isVerbatimEventType("flows.cache.evicted")).toBe(true)
     expect(Redaction.isVerbatimEventType("flows.cachex.other")).toBe(false)
     expect(Redaction.isVerbatimEventType("action.completed")).toBe(false)
+    // The run/attempt fold owns its namespaces outright: every
+    // `flows.run.*` / `flows.attempt.*` event is a fold input.
+    expect(Redaction.isVerbatimEventType("flows.run.created")).toBe(true)
+    expect(Redaction.isVerbatimEventType("flows.attempt.put")).toBe(true)
+    expect(Redaction.isVerbatimEventType("flows.runx.other")).toBe(false)
     // The deferred/clock fold shares `flows.engine.` with non-fold records,
     // so its five fold-input types are exact entries and the rest of the
     // namespace stays redacted.
@@ -189,18 +196,65 @@ describe("Redaction", () => {
       expect(page.entries[1]!.payload).toEqual({ token: Redaction.placeholder })
     }).pipe(Effect.provide(journalLayer()), Effect.scoped))
 
-  effect("never persists a secret through the lossy queue either", () =>
+  effect("persists executable run and attempt fold events verbatim", () =>
     Effect.gen(function*() {
       const journal = yield* Journal
-      const run = runId("redaction-lossy")
-      yield* journal.emitLossy(input(run, sourceId("telemetry"), "tool.call", { secret: "hunter2" }))
-      yield* journal.flush
+      const run = runId("redaction-fold")
+      const executable = {
+        token: "raw-token",
+        clientSecret: { keep: true }
+      }
+      yield* journal.emitDurable(
+        input(run, sourceId("run-fold"), "flows.run.created", {
+          createdAtMs: 0,
+          stateJson: JSON.stringify(executable),
+          executable
+        }, { lineageId: "redaction-fold/root", token: "raw-meta" })
+      )
+      yield* journal.emitDurable(
+        input(run, sourceId("attempt-fold"), "flows.attempt.put", {
+          stepKeyDigest: "step",
+          attempt: 0,
+          state: "running",
+          startedAtMs: 1,
+          checkpoint: executable,
+          meta: executable
+        }, { lineageId: "redaction-fold/root", token: "raw-meta" })
+      )
       const page = yield* journal.entries({ runId: run, limit: 10 })
-      expect(page.entries[0]!.payload).toEqual({ secret: Redaction.placeholder })
-    }).pipe(
-      Effect.provide(journalLayer({ capacity: 8, overflow: "reject" })),
-      Effect.scoped
-    ))
+      expect(page.entries.map((entry) => entry.payload)).toEqual([
+        {
+          createdAtMs: 0,
+          stateJson: "{\"token\":\"raw-token\",\"clientSecret\":{\"keep\":true}}",
+          executable
+        },
+        {
+          stepKeyDigest: "step",
+          attempt: 0,
+          state: "running",
+          startedAtMs: 1,
+          checkpoint: executable,
+          meta: executable
+        }
+      ])
+      expect(page.entries.map((entry) => entry.meta)).toEqual([
+        { lineageId: "redaction-fold/root", token: "raw-meta" },
+        { lineageId: "redaction-fold/root", token: "raw-meta" }
+      ])
+    }).pipe(Effect.provide(journalLayer()), Effect.scoped))
+
+  effect("never persists a secret through the lossy queue either", () =>
+  Effect.gen(function*() {
+    const journal = yield* Journal
+    const run = runId("redaction-lossy")
+    yield* journal.emitLossy(input(run, sourceId("telemetry"), "tool.call", { secret: "hunter2" }))
+    yield* journal.flush
+    const page = yield* journal.entries({ runId: run, limit: 10 })
+    expect(page.entries[0]!.payload).toEqual({ secret: Redaction.placeholder })
+  }).pipe(
+    Effect.provide(journalLayer({ capacity: 8, overflow: "reject" })),
+    Effect.scoped
+  ))
 
   it("applies an empty rule set literally, keeping only the structural redaction", () => {
     // `rules` is caller-supplied, and `[]` is not nullish, so it replaces the

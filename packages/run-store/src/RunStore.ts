@@ -633,6 +633,23 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
     writer.write(effect).pipe(Effect.mapError((cause) => persistenceError(method, cause)))
 
   /**
+   * Lifecycle row writes are the run fold's source of truth when a journal is
+   * present. The plain-writer fallback keeps older direct unit compositions
+   * alive; composed engine layers provide `Journal` and take this transaction
+   * path.
+   */
+  const writeLifecycle = <A, E, R>(
+    method: string,
+    effect: Effect.Effect<A, E, R>
+  ): Effect.Effect<A, RunStoreError, R> =>
+    Effect.flatMap(Effect.serviceOption(Journal), (journal) => {
+      const transacted: Effect.Effect<A, unknown, R> = Option.isSome(journal)
+        ? journal.value.transact(effect)
+        : writer.write(effect)
+      return transacted.pipe(Effect.mapError((cause) => persistenceError(method, cause)))
+    })
+
+  /**
    * Ownership operations run inside `Journal.transact` when a journal is in
    * context, so the R6 ownership-transition events they append publish only
    * after the transaction commits and roll back with it; without a journal
@@ -687,6 +704,27 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
         ).pipe(Effect.asVoid)
     )
 
+  const recordRunEvent = (
+    runId: string,
+    eventType: "flows.run.created" | "flows.run.cancel-requested" | "flows.run.transitioned",
+    payload: Record<string, unknown>,
+    owner?: OwnerId | undefined
+  ): Effect.Effect<void, unknown> =>
+    Effect.flatMap(
+      Effect.serviceOption(Journal),
+      (journal) =>
+        Option.isNone(journal) ? Effect.void : journal.value.emitDurable(
+          new JournalEvent.Input({
+            runId: runId as JournalEvent.RunId,
+            sourceId: "flows/run-store/run" as JournalEvent.SourceId,
+            eventType,
+            payload,
+            meta: { lineageId: `${runId}/root` }
+          }),
+          owner
+        ).pipe(Effect.asVoid)
+    )
+
   // A bare SELECT needs no write transaction and no replay; only the error
   // vocabulary stays shared with `write`.
   const read = <A, R>(
@@ -717,9 +755,10 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
           }
           return Clock.currentTimeMillis.pipe(
             Effect.flatMap((createdAtMs) =>
-              write(
+              writeLifecycle(
                 "create",
-                sql`
+                Effect.gen(function*() {
+                  yield* sql`
             INSERT INTO flows_runs (
               run_id,
               status,
@@ -757,7 +796,15 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
               ${roundOrdinal},
               ${stateJson}
             )
-          `.pipe(Effect.asVoid)
+          `
+                  yield* recordRunEvent(runId, "flows.run.created", {
+                    createdAtMs,
+                    parentRunId,
+                    lineageId,
+                    roundOrdinal,
+                    stateJson
+                  })
+                })
               )
             )
           )
@@ -790,7 +837,7 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
         if (!Number.isSafeInteger(nowMs) || nowMs < 0) {
           return Effect.fail(invalidRunError("requestCancel", { runId, nowMs }))
         }
-        return write(
+        return writeLifecycle(
           "requestCancel",
           Effect.gen(function*() {
             const record = () =>
@@ -803,6 +850,9 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
         `
             const rows = yield* record()
             if (rows[0] !== undefined) {
+              yield* recordRunEvent(runId, "flows.run.cancel-requested", {
+                requestedAtMs: Number(rows[0].requestedAtMs)
+              })
               return { _tag: "CancelRequested", requestedAtMs: Number(rows[0].requestedAtMs) } as const
             }
             const current = yield* sql<{ readonly requestedAtMs: number | null }>`
@@ -824,9 +874,13 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
             // gone reports `NotFound`.
             const retried = yield* record()
             const recorded = retried[0]
-            return recorded === undefined
-              ? notFound
-              : { _tag: "CancelRequested", requestedAtMs: Number(recorded.requestedAtMs) } as const
+            if (recorded === undefined) {
+              return notFound
+            }
+            yield* recordRunEvent(runId, "flows.run.cancel-requested", {
+              requestedAtMs: Number(recorded.requestedAtMs)
+            })
+            return { _tag: "CancelRequested", requestedAtMs: Number(recorded.requestedAtMs) } as const
           })
         )
       })),
@@ -964,6 +1018,12 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
               grant.grantedAtMs
             )
             yield* recordTransition(runId, "activated", owner, grant.grantedAtMs)
+            yield* recordRunEvent(
+              runId,
+              "flows.run.transitioned",
+              { status: "running", atMs: nowMs },
+              owner
+            )
             return activated
           })
         )
@@ -1036,6 +1096,12 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
               WHERE run_id = ${runId}
             `
                 yield* recordTransition(runId, "activated", claimant, claimedAtMs)
+                yield* recordRunEvent(
+                  runId,
+                  "flows.run.transitioned",
+                  { status: "running", atMs: activatedAtMs },
+                  claimant
+                )
                 return activated
               })
             )
@@ -1229,6 +1295,16 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
                   state_json = COALESCE(${state}, state_json)
                 WHERE run_id = ${runId}
               `
+                  yield* recordRunEvent(
+                    runId,
+                    "flows.run.transitioned",
+                    {
+                      status: toStatus,
+                      atMs: transitionedAtMs,
+                      ...(stateJson === undefined ? {} : { stateJson })
+                    },
+                    owner
+                  )
                   return transitioned
                 }
                 yield* sql`
@@ -1247,6 +1323,16 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
                   state_json = COALESCE(${state}, state_json)
                 WHERE run_id = ${runId}
               `
+                yield* recordRunEvent(
+                  runId,
+                  "flows.run.transitioned",
+                  {
+                    status: toStatus,
+                    atMs: transitionedAtMs,
+                    ...(stateJson === undefined ? {} : { stateJson })
+                  },
+                  owner
+                )
                 yield* consensus.release(runId, owner)
                 yield* recordTransition(runId, "released", owner, null)
                 return transitioned

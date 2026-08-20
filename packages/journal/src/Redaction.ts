@@ -167,9 +167,12 @@ export const redact = (value: unknown, options?: Options): unknown => {
  * executable path, so redacting the event corrupts the rebuilt state exactly
  * the way redacting `flows_runs.state_json` would (issue #72). `flows.cache.*`
  * carries cached step results served verbatim on a hit — the step-cache fold,
- * `docs/specs/Concepts/Step Cache Fold.md`. The run/attempt fold's
- * `flows.run.*` and `flows.attempt.*` namespaces join this list when that fold
- * lands (`docs/specs/Concepts/Run State Fold.md`).
+ * `docs/specs/Concepts/Step Cache Fold.md`. `flows.run.*` and
+ * `flows.attempt.*` carry the run/attempt fold's inputs — run state JSON,
+ * waiting payloads, and attempt checkpoints rebuilt into `flows_runs` and
+ * `flows_attempts` rows (`docs/specs/Concepts/Journal Consensus.md`); every
+ * event in those two namespaces is a fold input, so the namespaces are listed
+ * whole.
  *
  * Matching is by prefix, so a full event-type string works as an exact entry.
  * The deferred/clock fold (`docs/specs/Concepts/Deferred Clock Fold.md`) needs
@@ -193,7 +196,9 @@ export const verbatimNamespaces: ReadonlyArray<string> = [
   "flows.engine.clock-scheduled",
   "flows.engine.clock-completed",
   "flows.engine.deferred-snapshot",
-  "flows.engine.clock-snapshot"
+  "flows.engine.clock-snapshot",
+  "flows.run.",
+  "flows.attempt."
 ]
 
 /**

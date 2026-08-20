@@ -80,21 +80,23 @@ result becomes eligible for the shared cross-run cache. `examples/src/durable-la
 is that composition; `docs/concepts/hosts-and-capabilities.md` explains why the
 transaction is not a security boundary.
 
-`RunStore`, `AttemptStore`, `CacheStore`, and `DurableEngineState` are the
-executable authorities today, with one demotion: the deferred/clock tables
-are journal folds (see "Deferred and clock state is a journal fold" below),
-so for them the event history is the contract and the rows are a rebuildable
-wakeup index. Every lifecycle event is written with
-`emitDurable` **inside `Journal.transact`**, the write transaction that also
-carries the state transition it describes: the attempt row and its
-`attemptStarted`/`attemptFinished`, the run-row CAS and its decision, the
-deferred/clock row and its record, the cache provenance entry and the cache
-row. The stores share one `DurableWriter`, so their writes join that transaction as
-savepoints — either both halves are durable or neither is, and audit, sync, and
-time travel can no longer read a hole. A crash before the commit loses the
-whole unit, so an action that had already executed re-executes on adoption.
-No local WAL makes a remote effect atomic, so external effects still need
-idempotency keys, fencing, or compensation.
+`RunStore` and `AttemptStore` are rebuildable materializations of journal
+events; `CacheStore` and `DurableEngineState` remain the executable
+authorities, with one demotion: the deferred/clock tables are journal folds
+(see "Deferred and clock state is a journal fold" below), so for them the
+event history is the contract and the rows are a rebuildable wakeup index.
+Every run lifecycle, run waiting-payload, and attempt
+mutation is written with `emitDurable` **inside `Journal.transact`**, the write
+transaction that also carries the row change it describes: the attempt row and
+its `flows.attempt.*` event, the run-row CAS or waiting update and its
+`flows.run.*` event, the deferred/clock row and its record, the cache
+provenance entry and the cache row. The stores share one `DurableWriter`, so
+their writes join that transaction as savepoints — either both halves are
+durable or neither is, and audit, sync, time travel, and run-store rebuild can
+no longer read a hole. A crash before the commit loses the whole unit, so an
+action that had already executed re-executes on adoption. No local WAL makes a
+remote effect atomic, so external effects still need idempotency keys, fencing,
+or compensation.
 
 ## Deferred and clock state is a journal fold
 

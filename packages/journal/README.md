@@ -22,9 +22,9 @@ substrate and is never consumed as the application event API. Lifecycle
 evidence takes `emitDurable`, which commits before it returns, and a durable
 boundary must not advance a run or expose its result before that commit.
 `emitLossy` is the telemetry channel: bounded, optimistic, lossy by
-construction, and never a basis for reconstructing what happened. The
-executable state is not derived from the log (see below), but `transact`
-commits a transition and its entry together, so the two can never disagree.
+construction, and never a basis for reconstructing what happened. `transact`
+commits a materialized row change and its fold event together, so the live
+tables and the journal fold can never disagree.
 Committing locally is not remote atomicity — external effects still need
 idempotency keys, fencing tokens, or compensation.
 
@@ -98,14 +98,17 @@ const program = Effect.gen(function*() {
 retries. Rejected and dropped admissions may consume either sequence, so gaps
 are valid.
 
-`@smthrs/run-store`'s `RunStore` and `AttemptStore` (with `DurableEngineState`
-in `@smthrs/engine-store`) hold the executable authoritative state today; it is
-not derived from journal entries. `transact` is what keeps the two halves
-consistent across the package boundary: it runs a state projection and the
-`emitDurable` calls describing it in ONE write transaction — the stores write
-through the same `DurableWriter`, so their writes join it as savepoints — and
-defers publication until that transaction commits. Either a transition and its
-lifecycle entry are both durable, or neither is. See
+`@smthrs/run-store`'s `RunStore` and `AttemptStore` now hold rebuildable
+materializations of the `flows.run.*` and `flows.attempt.*` namespaces: run
+lifecycle state, run waiting payload columns, and attempt rows are executable
+state cached from journal history. `transact` is what keeps the fold honest
+across the package boundary: it runs a state projection and the `emitDurable`
+calls describing it in ONE write transaction — the stores write through the
+same `DurableWriter`, so their writes join it as savepoints — and defers
+publication until that transaction commits. Either a row mutation and its fold
+entry are both durable, or neither is. `@smthrs/engine-store`'s deferred and
+clock rows and `@smthrs/step-cache`'s cache rows stay separate materialized
+stores until their own fold stages land. See
 [implementation status](../../docs/architecture/implementation-status.md).
 
 Fenced admission goes through the injected strategy.

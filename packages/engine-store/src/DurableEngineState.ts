@@ -11,7 +11,10 @@
  * @since 0.1.0
  */
 import { DatabaseError, DurableWriter } from "@smthrs/database/DurableWriter"
+import { Journal, JournalError } from "@smthrs/journal/Journal"
+import * as JournalEvent from "@smthrs/journal/JournalEvent"
 import type { OwnerId } from "@smthrs/run-store/Ownership"
+import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -580,6 +583,10 @@ const WaitingDatabaseRow = Schema.Struct({
 
 type WaitingDatabaseRow = typeof WaitingDatabaseRow.Type
 
+interface WaitingUpdateRow extends WaitingDatabaseRow {
+  readonly status: string
+}
+
 const decodeWaitingRow = (input: unknown): Effect.Effect<WaitingRow> =>
   Schema.decodeUnknownEffect(WaitingDatabaseRow)(input).pipe(
     Effect.orDie,
@@ -703,6 +710,7 @@ const decodeClockRow = (input: unknown): Effect.Effect<ClockRow> =>
 export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlClient> = Effect.gen(function*() {
   const sql = yield* Effect.service(SqlClient.SqlClient)
   const writer = yield* DurableWriter
+  const journal = yield* Effect.serviceOption(Journal)
 
   // Engine-store-owned storage created outside the journal migration
   // (issues #40/#41/#79/#81). The statements, their rationale, and
@@ -739,6 +747,52 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
         AND execution_id = ${address.executionId}
         AND clock_name = ${address.clockName}
     `
+
+  const isJournalFenceLost = (cause: unknown): cause is JournalError =>
+    Schema.is(JournalError)(cause) && cause.code === "fence_lost"
+
+  const writeRunFold = <A extends ParkOutcome | WakeOutcome, E, R>(
+    effect: Effect.Effect<A, E, R>,
+    fenceLost: A
+  ): Effect.Effect<A, never, R> => {
+    const transacted: Effect.Effect<A, E | JournalError, R> = Option.isSome(journal)
+      ? journal.value.transact(effect)
+      : writer.write(effect)
+    return transacted.pipe(
+      Effect.catchIf(isJournalFenceLost, () => Effect.succeed(fenceLost)),
+      Effect.orDie
+    )
+  }
+
+  const recordWaitingEvent = (
+    runId: string,
+    status: string,
+    waiting: WaitingRow | null,
+    owner?: OwnerId | undefined
+  ): Effect.Effect<void, unknown> =>
+    Option.isNone(journal) ? Effect.void : Effect.gen(function*() {
+      const atMs = yield* Clock.currentTimeMillis
+      yield* journal.value.emitDurable(
+        new JournalEvent.Input({
+          runId: runId as JournalEvent.RunId,
+          sourceId: "flows/engine-store/waiting" as JournalEvent.SourceId,
+          eventType: "flows.run.transitioned",
+          payload: {
+            status,
+            atMs,
+            waiting: waiting === null
+              ? null
+              : {
+                reason: waiting.reason,
+                wakeAt: waiting.wakeAt,
+                token: waiting.token
+              }
+          },
+          meta: { lineageId: `${runId}/root` }
+        }),
+        owner
+      )
+    }).pipe(Effect.asVoid)
 
   const deferred: Service["deferred"] = Effect.fn("DurableEngineState.deferred")((address) =>
     selectDeferred(address).pipe(
@@ -1001,9 +1055,10 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
   )
 
   const selectWaiting = (runId: string) =>
-    sql<WaitingDatabaseRow>`
+    sql<WaitingUpdateRow>`
       SELECT
         run_id AS "runId",
+        status,
         waiting_reason AS "waitingReason",
         waiting_wake_at_ms AS "waitingWakeAtMs",
         waiting_token AS "waitingToken"
@@ -1013,9 +1068,9 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
     `
 
   const park: Service["park"] = Effect.fn("DurableEngineState.park")((runId, waiting, owner) =>
-    writer.write(
+    writeRunFold(
       Effect.gen(function*() {
-        const updated = yield* sql<WaitingDatabaseRow>`
+        const updated = yield* sql<WaitingUpdateRow>`
           UPDATE flows_runs
           SET
             waiting_reason = ${waiting.reason},
@@ -1027,6 +1082,7 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
             AND owner_nonce = ${owner.nonce}
           RETURNING
             run_id AS "runId",
+            status,
             waiting_reason AS "waitingReason",
             waiting_wake_at_ms AS "waitingWakeAtMs",
             waiting_token AS "waitingToken"
@@ -1034,13 +1090,16 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
         if (updated[0] === undefined) {
           return { _tag: "NotFound" as const }
         }
-        return { _tag: "Parked" as const, row: yield* decodeWaitingRow(updated[0]) }
-      })
-    ).pipe(Effect.orDie)
+        const row = yield* decodeWaitingRow(updated[0])
+        yield* recordWaitingEvent(runId, updated[0].status, row, owner)
+        return { _tag: "Parked" as const, row }
+      }),
+      { _tag: "NotFound" as const }
+    )
   )
 
   const wake: Service["wake"] = Effect.fn("DurableEngineState.wake")((runId) =>
-    writer.write(
+    writeRunFold(
       Effect.gen(function*() {
         const before = yield* selectWaiting(runId)
         if (before[0] === undefined) {
@@ -1059,9 +1118,11 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
           WHERE run_id = ${runId}
             AND waiting_reason IS NOT NULL
         `
+        yield* recordWaitingEvent(runId, before[0].status, null)
         return { _tag: "Woken" as const, row }
-      })
-    ).pipe(Effect.orDie)
+      }),
+      { _tag: "NotFound" as const }
+    )
   )
 
   const waiting: Service["waiting"] = Effect.fn("DurableEngineState.waiting")((runId) =>

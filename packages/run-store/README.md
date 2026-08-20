@@ -4,13 +4,21 @@ Durable run state for flows: what is running now, and who owns it. Split out
 of `@smthrs/journal` — see
 [`docs/specs/Concepts/Journal Split.md`](../../../docs/specs/Concepts/Journal%20Split.md).
 
-`RunStore` and `AttemptStore` hold the **executable authoritative state** that
-recovery reads. They are not derived from the journal's event history: the
-journal is history, audit, replay evidence, and the sync feed, and this package
-is the thing a restart rebuilds from. `Journal.transact` is what keeps the two
-halves consistent — it runs a state projection here and the `emitDurable` calls
-describing it in ONE write transaction, because both write through the same
-`DurableWriter` and so join it as savepoints.
+`RunStore` and `AttemptStore` hold the executable state that recovery reads,
+as **rebuildable materializations of journal events** — see
+[`docs/specs/Concepts/Run State Fold.md`](../../../docs/specs/Concepts/Run%20State%20Fold.md).
+Every mutation of run lifecycle state, run waiting payload columns, or an
+attempt row appends a journal event describing it in the SAME write
+transaction as the row write: both write through the same `DurableWriter` and
+join it as savepoints, and an append made inside an enclosing
+`Journal.transact` joins that transaction without re-acquiring the journal's
+allocation permit. The journal's event history is the durable contract; the
+tables exist for fast recovery, and dropping `flows_runs` and `flows_attempts`
+and replaying the journal rebuilds equivalent state. The `Fold` namespace
+holds the reducers and the rebuild operation, and an event is appended when
+and only when the table changed — refused writes (`Conflict`, `FenceLost`,
+`NotFound`, `StateChanged`, `GuardFailed`, a repeat cancellation request, or
+a wake of a run that was not waiting) append nothing.
 
 `Ownership` supplies the liveness evidence, probes, timing constants, and
 heartbeat supervision for a run's owner. Its public API and rules are
@@ -63,7 +71,8 @@ The root exports these namespaces, also available from matching
 | `RunStore`     | `RunStatus`, `RunStoreErrorCode`, `RunStoreError`, `RunSnapshot`, `RunRow`, `CreateOptions`, and `TransitionGuard`; outcome types `RequestCancelOutcome`, `ClaimOutcome`, `ClaimAndOwnOutcome`, `ActivateOutcome`, `AbandonClaimOutcome`, `RecoverClaimOutcome`, `HeartbeatOutcome`, and `TransitionOutcome`; `Service` / `RunStore` for create/get/cancel, claim/activate/recover/steal, heartbeat, and owned transitions; `make`, `makeNoop`, `layerNoop`, and the SQL layers `layer` (defaults to `SqlConsensus`) and `layerWith` (takes the `Consensus` strategy from context). |
 | `Ownership`    | `OwnerId` (re-exported from `@smthrs/journal`, which defines it as the fence on durable appends), `LivenessEvidence`, `LivenessProbe`, `heartbeatInterval`, `heartbeatStaleAfter`, `heartbeatSkewAllowance`, `heartbeatWriteTolerance`, and `heartbeatLoop`. Arbitration is delegated to `@smthrs/journal`'s injected `Consensus` strategy; the supervision loop drives `Consensus.heartbeat`.                                                                                                                                                                                      |
 | `AttemptStore` | `AttemptStoreErrorCode`, `AttemptStoreError`, `AttemptId`, `Attempt`, `FinishAttempt`, `AttemptPatch`, `Options`, and result types `PutResult`, `PatchResult`, `HeartbeatResult`, `FinishResult`; `Service` / `AttemptStore` operations `put`, `get`, `heartbeat`, `finish`, and `patch`; `makeWith`, `make`, `makeNoop`, `layerNoop`, `layer`, and `layerWith`.                                                                                                                                                                                                                    |
-| `Migrations`   | `set` (the namespaced migration set for `flows_runs` and `flows_attempts`), `run`, and prerequisite `layer`. This set alone is not enough for the SQL layers: arbitration lives in `@smthrs/journal`'s `flows_consensus_leases` table, so `RunStore.layer` and `layerWith` require the journal's migration set to be installed too — compose the two sets, as the example below and `@smthrs/engine-store/Migrations` do.                                                                                                                                                           |
+| `Fold`         | Reducers and rebuild operations for the `flows.run.*` and `flows.attempt.*` journal namespaces. `rebuild` truncates and repopulates the fold-owned `flows_runs` and `flows_attempts` columns from journal history inside one `DurableWriter` transaction; it never touches `flows_consensus_leases`, because leases remain strategy-private state.                                                                                                                                                                                                                                                                                             |
+| `Migrations`   | `set` (the namespaced migration set for `flows_runs` and `flows_attempts`), `run`, and prerequisite `layer`. This set alone is not enough for the SQL layers: arbitration lives in `@smthrs/journal`'s `flows_consensus_leases` table, so `RunStore.layer` and `layerWith` require the journal's migration set to be installed too. The fold migration backfills existing rows by appending `flows.run.snapshot` and `flows.attempt.snapshot` entries before the new write-through contract takes effect — compose the two sets, as the example below and `@smthrs/engine-store/Migrations` do.                                                                                     |
 
 `RunStore.layer` and `RunStore.layerWith` are built from one constructor: it
 uses the `Consensus` service when one is present at layer construction and
