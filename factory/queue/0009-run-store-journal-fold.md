@@ -138,34 +138,82 @@ and coverage green; vault gate clean. Run the targeted package gates FIRST
 and commit early — the 90-minute node timeout killed an attempt on item 0008
 during a recursive check.
 
-Landed (2026-08-20). Rounds 2 and 3 on the lane cleared every blocking
-finding above; verify approved the round-3 state (`Fold.rebuild` goes
-through `Journal` projections, compaction snapshots the fold floor, and the
-defensive arms are covered instead of ignored — `run-store/src/Fold.ts`
-pinned at 5 ignores). The lane predates the history retell, so the landing
-re-applied its seven commits onto the rebuilt main; the cross-lineage
-collisions and how they resolved:
+Round 3 (re-queued 2026-08-20 after verify run-1787202867368). Round 2 is a
+big step forward: ALL GATES ARE GREEN across twelve packages (run-store
+138/138 at 100% coverage, journal 182/182, engine-store 684/684 — above the
+682 bar — plus control, time-travel, engine-harness, sync, kernel, cli,
+database, flow, flows) and the vault gate is clean. The journal-required SQL
+layers, Projection-driven reducers, the rebuild that touches neither the event
+table nor the lease table, the redaction bypass, the migration backfill, and
+the two-strategy conformance suite are all accepted. Round 2 is COMMITTED on
+the lane as `176fe32bb`; the worktree is clean. CONTINUE FROM IT and do not
+redo any of the above.
 
-- Redaction bypass: item 0010's central allowlist won again, as it did for
-  item 0011. `flows.run.` and `flows.attempt.` joined
-  `Redaction.verbatimNamespaces` as whole namespaces — every event in them
-  is a fold input — and the lane's local `bypassesWriteRedaction` helper was
-  dropped.
-- Journal-in-context: every composition that had `SqlJournal.layer` as a
-  mergeAll sibling (item 0010's memoized `journalLayer` hoist included) now
-  provides one journal into all store layers with `Layer.provideMerge`,
-  which also retires the hoist's per-store `Layer.provide(journal)`.
-- `Rewind.validate` pagination: main's did-not-advance guard and the lane's
-  `ownsReplayEntry` filter compose; the guard tracks all entries, the
-  replay tail counts only owned ones.
-- Item 0011's `engine-store/test/Fold.test.ts` composed its journal as a
-  sibling behind a cast; it now provides the journal into
-  `DurableEngineState.layer`, whose type requires `Journal` since this fold.
-- The lane's engine-harness coverage tweaks were dropped: the rebuilt main
-  reorganized that package into `packages/agent`, whose gate passes on its
-  own terms.
+Verify withheld approval on three contract breaches that the suites cannot
+see. Fix all three; each needs a test that would fail on round 2's code.
 
-Landing gate at the merged tip: run-store, journal, engine-store,
-time-travel all `check` clean and 100% coverage (132+/189/714/304 tests);
-database 75, flow 290, control 145, kernel 410, flows 302 (including the
-coverage-ignore inventory), cli 206, step-cache 80 — all green.
+1. BLOCKER — the headline invariant ("at every commit the materialized tables
+   equal the fold of the journal") breaks on the cancel-a-parked-run path,
+   and every existing test hides it. `DurableEngineState.wake` appends
+   `flows.run.transitioned` carrying the run's CURRENT status plus a fresh
+   `Clock.currentTimeMillis` (packages/engine-store/src/DurableEngineState.ts:1103)
+   and the reducer stamps `finishedAtMs = atMs` for any terminal status
+   (packages/run-store/src/Fold.ts:252). `RunDriver.cancelOwned` transitions a
+   run to `cancelled` and THEN wakes it in the same transaction, precisely
+   because a cancel can race a park
+   (packages/engine-store/src/internal/RunDriver.ts:654) — so the wake
+   re-stamps `finished_at_ms` LATER than the row holds. Under a real clock the
+   two reads are separated by the transition UPDATE, the append, the cascade
+   queries and wake's SELECT+UPDATE, so they routinely differ; every fold test
+   uses TestClock, where both reads return the same value, which is why the
+   suites stay green. Fix: `wake` must not re-assert the lifecycle timestamp
+   (emit an event that omits it, or carry the row's existing `finishedAtMs`),
+   AND add a cancel-while-parked case to the fold conformance suite that
+   ADVANCES THE TESTCLOCK between the transition and the wake, so the case
+   fails on round 2's code.
+
+2. BLOCKER — time travel's masked-journal rule is silently retired.
+   `Rewind.unjournaled` (packages/time-travel/src/internal/Rewind.ts:352)
+   suppresses appends by removing `Journal` from the fiber context, which only
+   worked while `RunStore` resolved the journal per call. The fold makes
+   `RunStore.make` capture it once at construction
+   (packages/run-store/src/RunStore.ts:646), so `unjournaled(...)` is now
+   INERT: a rewind's own fencing does append `flows.consensus.*` and
+   `flows.run.transitioned` past the frame. The `ownsReplayEntry` namespace
+   filter compensates, but `unjournaled`'s JSDoc still claims it fences
+   "without appending an R6 ownership-transition event" and the vault note's
+   "Rebuild, recovery, and time travel" paragraph still reasons from the
+   masked-journal rule. Pick ONE and make everything agree: either restore
+   suppression explicitly, or state in both the JSDoc and the vault note that
+   the rewind's fencing is journaled and excluded from replay by namespace.
+   Do not leave prose describing a mechanism that no longer runs.
+
+3. BLOCKER — journal compaction is now permanently disabled.
+   `SqlJournal.compact` refuses whenever a run has fold-namespace entries
+   below the floor with no `flows.run.snapshot` at or after it
+   (packages/journal/src/SqlJournal.ts:1455), and the ONLY appender of
+   `flows.run.snapshot` in `packages/` is migration 0003 plus tests. No store
+   or `Fold` export appends a snapshot set during operation, so every run
+   accumulates `flows.run.*` entries and every automatic `CompactionPolicy`
+   attempt fails with `reader_behind`, is damped, logged, and retried forever.
+   SHIP THE RUNTIME HALF: append the snapshot set (the run snapshot plus one
+   attempt snapshot per row, in one transaction, as the vault note specifies)
+   so that "one mechanism serves compaction, migration backfill, and disaster
+   rebuild" is true. Add a test that compaction SUCCEEDS on a run that has
+   fold entries below the floor. Do not resolve this by weakening the barrier.
+
+4. NON-BLOCKING docs/impl mismatches to close while you are in there: (a) the
+   vault note and both package READMEs describe compaction as RETAINING fold
+   entries ("those namespaces simply do not compact"), implying other
+   namespaces still compact, when the implementation refuses the whole call
+   with a typed `reader_behind` and deletes nothing — only `Journal.ts`'s
+   JSDoc records the refusal; (b) the note and run-store's README say a
+   refused append surfaces as `persistence_failed`, when the implementation
+   maps a journal `fence_lost` to the store's typed `FenceLost` outcome;
+   (c) the new Fold module carries 45 `v8-ignore` directives — justify them or
+   remove them.
+
+Round 3 landing gate: everything round 2 already achieved, PLUS a passing
+cancel-while-parked fold case with an advanced TestClock, a passing
+compaction-succeeds case, and no prose anywhere describing a mechanism that
+does not run. Targeted gates first, commit early.
