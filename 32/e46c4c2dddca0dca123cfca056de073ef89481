@@ -62,7 +62,8 @@
  "size": {
   "files": 1,
   "added": 2466,
-  "deleted": 0
+  "deleted": 0,
+  "justification": "Single new source file: apps/ui/.smithers/ui/ddd-shared.tsx is one shared component module; hunk-level splitting of a single new file yields no independently valid commits."
  },
  "provenance": {
   "strategy": "whole-file introduction from the epic source tree",
