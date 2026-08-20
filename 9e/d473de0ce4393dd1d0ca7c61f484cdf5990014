@@ -1,0 +1,131 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "9ed473de0ce4393dd1d0ca7c61f484cdf5990014",
+ "tree": "e94deb8d8cc9e6b2769915dd1c0fa3bbdcac4b15",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 16,
+  "sectionCount": 71
+ },
+ "source": {
+  "commit": "844ec3c5fda0bcbfce563bb7f4cddcc1dc697f3c",
+  "subject": "✅ test(e2e): render proxy-shaped fixtures as authored flow scripts",
+  "priorCanonicalCommit": "8eead13b0e44db45d5214fd67a688c5a6c5ab7a1",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 16,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "ui",
+  "epicsTouched": [
+   {
+    "id": "ui",
+    "files": 2
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 854,
+  "globalCount": 909,
+  "purpose": "✅ test(e2e): render proxy-shaped fixtures as authored flow scripts",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "b6b471fb7a964ca8c40fc6aab609d1607cf34ab2"
+  ],
+  "parent": "b6b471fb7a964ca8c40fc6aab609d1607cf34ab2",
+  "sourceImports": [
+   "f01dafa893105f00d06046ae8d94c86cb040cc24",
+   "767956221a8bd966d33df1ed26427b0e7bcf4a57",
+   "6ee5df66db65e929997a2795336b742366b9a8d1"
+  ],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "b6b471fb7a964ca8c40fc6aab609d1607cf34ab2",
+  "next": "0a2bf197c5e6cf1513d98e895b3a7c9a8bb46022",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "9f4db87e9b528812c207c1054f8c36a09a06c2c7"
+ },
+ "size": {
+  "files": 2,
+  "added": 106,
+  "deleted": 1
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "844ec3c5fda0bcbfce563bb7f4cddcc1dc697f3c"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "apps/ui/e2e/ChatUpstream.ts",
+   "mode": "100644",
+   "blob": "ff4a46a792f66efc79abec1b99844f2121670ae5",
+   "previousBlob": "8e2925db03ea9d76606e074f6eadaf6bf3d71d3b",
+   "added": 97,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 131,
+     "oldLines": 0,
+     "newStart": 132,
+     "newLines": 87
+    },
+    {
+     "oldStart": 206,
+     "oldLines": 1,
+     "newStart": 293,
+     "newLines": 10
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "M",
+   "path": "apps/ui/e2e/suites/agent-suggestions.e2e.ts",
+   "mode": "100644",
+   "blob": "e3e1bb79c508e99e581fafff61be7d343e7c5d80",
+   "previousBlob": "6ad014c6ad192b0d6fe377734fb0ca609b3673fb",
+   "added": 9,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 136,
+     "oldLines": 0,
+     "newStart": 137,
+     "newLines": 9
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  }
+ ]
+}
