@@ -23,7 +23,7 @@
  *
  * WHAT THE SMOKE PROVES, EXACTLY
  *
- * 83 of the 88 registered flows are invoked; the other 5 are destructive and
+ * 91 of the 96 registered flows are invoked; the other 5 are destructive and
  * are proved registered and proved never invoked instead. Every invocation is
  * held to two bars:
  *
@@ -191,7 +191,7 @@ const surfaceIs = (surface: string) => (proof: Proof): void => {
  * scratch account.
  */
 const SMOKE_TABLE: Readonly<Record<string, SmokeEntry>> = {
-	/* ---------------- safe-to-smoke: 17 ---------------- */
+	/* ---------------- safe-to-smoke: 19 ---------------- */
 	flows: {
 		klass: "safe-to-smoke",
 		effect: ["message"],
@@ -307,7 +307,70 @@ const SMOKE_TABLE: Readonly<Record<string, SmokeEntry>> = {
 			report.check(client.transcript().toLowerCase().includes("sign in"), "/auth.prompt rendered no sign-in step"),
 	},
 
-	/* ---------------- needs-fixture: 50 ---------------- */
+	"world.delete.cancel": {
+		klass: "safe-to-smoke",
+		effect: ["state"],
+		reason: "Answers the delete question with no; with nothing asked it clears an already-clear question.",
+	},
+	"suggestions.propose": {
+		klass: "safe-to-smoke",
+		effect: ["state"],
+		args: '[{"kind":"question","label":"What is a flow"}]',
+		reason: "The agent's follow-up channel: it writes the validated set onto the session and touches no seam.",
+		proves: ({ client, report }) =>
+			report.equals(
+				(client.store.session().agentSuggestions ?? []).map((suggestion) => suggestion.label).join(","),
+				"What is a flow",
+				"/suggestions.propose recorded no follow-up for the pill row",
+			),
+	},
+
+	/* ---------------- needs-fixture: 58 ---------------- */
+	github: {
+		klass: "needs-fixture",
+		effect: ["state"],
+		fixture: "a watched repository, so the pane has a repository to open",
+		reason: "Opens the GitHub pane on the target repository; the reads behind it go to the doubles.",
+	},
+	files: {
+		klass: "needs-fixture",
+		effect: ["state"],
+		fixture: "a watched repository, so the browser has a repository to list",
+		reason: "Opens the files pane on the target repository; the listing goes to the doubles.",
+	},
+	"repo.open": {
+		klass: "needs-fixture",
+		effect: ["state"],
+		args: "will/flows",
+		fixture: "a signed-in session, so the repository read has an identity",
+		reason: "Selects the repository the pane projects and starts its background preparation.",
+	},
+	"repo.tab": {
+		klass: "needs-fixture",
+		effect: ["state"],
+		args: "issues",
+		fixture: "a repository selected by repo.open above",
+		reason: "Shows one section of the open repository and reads it through its seam.",
+	},
+	"act.detail": {
+		klass: "needs-fixture",
+		effect: ["refusal"],
+		args: "message-act-0",
+		refusal: "no act row",
+		fixture: "a transcript with no act row, so the honest refusal is the reachable answer",
+		reason: "Opens an act row's detail in place; with no such row it refuses by name instead of guessing one.",
+	},
+	"world.delete.confirm": {
+		klass: "needs-fixture",
+		effect: ["state"],
+		fixture: "the delete question world.delete just asked",
+		reason: "Answers that question with yes — the act that actually removes the note.",
+		proves: ({ client, report, fixtures }) =>
+			report.check(
+				!client.worldDocuments().some((document) => document.id === fixtures.documentId),
+				"/world.delete.confirm left the note in the store",
+			),
+	},
 	"repos.watch": {
 		klass: "needs-fixture",
 		effect: ["card"],
@@ -457,11 +520,12 @@ const SMOKE_TABLE: Readonly<Record<string, SmokeEntry>> = {
 		effect: ["state"],
 		args: (fixtures) => fixtures.documentId,
 		fixture: "the same world note",
-		reason: "Removes the note, so it is the last act on that id.",
+		reason: "Deleting is not undoable, so this ASKS about the note; the confirm below answers it.",
 		proves: ({ client, report, fixtures }) =>
-			report.check(
-				!client.worldDocuments().some((document) => document.id === fixtures.documentId),
-				"/world.delete left the note in the store",
+			report.equals(
+				client.store.session().pendingWorldDeleteId,
+				fixtures.documentId,
+				"/world.delete did not ask about the note",
 			),
 	},
 	browser: {
@@ -479,9 +543,11 @@ const SMOKE_TABLE: Readonly<Record<string, SmokeEntry>> = {
 	},
 	"auth.request-access": {
 		klass: "needs-fixture",
-		effect: ["state"],
-		fixture: "a signed-in session",
-		reason: "Requires signed-in; posts the access request to the identity seam.",
+		effect: ["refusal"],
+		refusal: "already have access",
+		fixture: "a signed-in ALLOWLISTED session, which is the one this stack mints",
+		reason:
+			"Requires signed-in, and this fixture is already allowlisted — the honest answer is that there is no request to file, not a request posted anyway.",
 	},
 	"billing.balance": {
 		klass: "needs-fixture",
@@ -546,10 +612,12 @@ const SMOKE_TABLE: Readonly<Record<string, SmokeEntry>> = {
 	"issues.view": {
 		klass: "needs-fixture",
 		effect: ["refusal"],
-		refusal: "issue detail needs the import",
+		// Importing is background work the user never asks for, so the read says
+		// the repository is still being prepared rather than naming a command.
+		refusal: "still being prepared",
 		args: "1 will/flows",
 		fixture: "issue 1 in the platform double",
-		reason: "Opens one issue with its comments.",
+		reason: "Opens one issue with its comments; only the LIST can degrade to the GitHub source.",
 	},
 	"issues.create": {
 		klass: "needs-fixture",
@@ -561,7 +629,7 @@ const SMOKE_TABLE: Readonly<Record<string, SmokeEntry>> = {
 	"issues.comment": {
 		klass: "needs-fixture",
 		effect: ["refusal"],
-		refusal: "isn't imported yet",
+		refusal: "isn't ready yet",
 		args: "1 a smoke comment will/flows",
 		fixture: "issue 1 in the platform double",
 		reason: "MUTATES the platform double.",
@@ -569,7 +637,7 @@ const SMOKE_TABLE: Readonly<Record<string, SmokeEntry>> = {
 	"issues.close": {
 		klass: "needs-fixture",
 		effect: ["refusal"],
-		refusal: "isn't imported yet",
+		refusal: "isn't ready yet",
 		args: "1 will/flows",
 		fixture: "issue 1 open in the platform double",
 		reason: "MUTATES the platform double; run before issues.reopen so both transitions are exercised.",
@@ -577,7 +645,7 @@ const SMOKE_TABLE: Readonly<Record<string, SmokeEntry>> = {
 	"issues.reopen": {
 		klass: "needs-fixture",
 		effect: ["refusal"],
-		refusal: "isn't imported yet",
+		refusal: "isn't ready yet",
 		args: "1 will/flows",
 		fixture: "issue 1 closed by the invocation above",
 		reason: "MUTATES the platform double, and restores the state issues.close changed.",
@@ -841,6 +909,8 @@ const SMOKE_TABLE: Readonly<Record<string, SmokeEntry>> = {
 
 /** The order the needs-fixture invocations run in. Order is load-bearing; see each entry's reason. */
 const FIXTURE_ORDER: ReadonlyArray<string> = [
+	// No act row exists in this transcript, so the detail toggle refuses by name.
+	"act.detail",
 	"repos.watch",
 	"repos.watch.all",
 	"repos.watch.none",
@@ -857,6 +927,7 @@ const FIXTURE_ORDER: ReadonlyArray<string> = [
 	"approval.deny",
 	"world.select",
 	"world.delete",
+	"world.delete.confirm",
 	"browser",
 	"auth.request-access",
 	"billing.balance",
@@ -867,6 +938,11 @@ const FIXTURE_ORDER: ReadonlyArray<string> = [
 	"reco.dismiss",
 	"reco.accept",
 	"repos.import",
+	// The repository panes: open one, then show one of its sections.
+	"repo.open",
+	"repo.tab",
+	"github",
+	"files",
 	"issues.list",
 	"issues.view",
 	"issues.create",
@@ -910,6 +986,11 @@ const SAFE_ORDER: ReadonlyArray<string> = [
 	"connector.remove",
 	"world.new-note",
 	"auth.prompt",
+	// Nothing has asked to delete a note, so the cancel clears a clear question.
+	"world.delete.cancel",
+	// The agent's follow-up channel: last, so the set it leaves is the one the
+	// pill row ends the walk with.
+	"suggestions.propose",
 ];
 
 /** The order the admin-only invocations run in; debug.backend last, because it switches the backend. */
@@ -1238,14 +1319,14 @@ export default defineSuite({
 			stale.length === 0,
 			`these SMOKE_TABLE entries name flows the registry no longer has: ${stale.join(", ")}`,
 		);
-		report.equals(registered.length, 88, "the registry no longer declares 88 flows for an admin session");
+		report.equals(registered.length, 96, "the registry no longer declares 96 flows for an admin session");
 		report.ok(`every one of the ${registered.length} registered flows is classified, and nothing is classified twice.`);
 
 		const counts: Record<string, number> = {};
 		for (const entry of Object.values(SMOKE_TABLE)) counts[entry.klass] = (counts[entry.klass] ?? 0) + 1;
 		report.equals(
 			`${counts["safe-to-smoke"]}/${counts["needs-fixture"]}/${counts["destructive-skip"]}/${counts["admin-only"]}`,
-			"17/50/5/16",
+			"19/56/5/16",
 			"the smoke classification counts changed",
 		);
 
@@ -1727,16 +1808,6 @@ export default defineSuite({
 			}
 			const KNOWN_UNNAMED: ReadonlyArray<UnnamedPin> = [
 				{
-					label: "Show your balance",
-					runs: "billing.balance",
-					why: "App.tsx's corner chip calls controller.runCommand(\"billing.balance\") on click, so it is a command affordance missing only data-flow=\"billing.balance\".",
-				},
-				{
-					label: "Send message",
-					runs: "send",
-					why: "@smthrs/ui's ChatComposer submit button. The label is that component's own `submitLabel` default, which App.tsx does not override, so it is the one pinned label that greps to node_modules rather than to src. Its onSubmit calls controller.runCommandArgs(\"send\", text). ChatComposer spreads unknown props onto its <form>, so App.tsx can bind it with data-flow=\"send\" on the composer, but Probes' TABBABLE_FLOWS reads data-flow off the element itself and would then report send as pointer-only, so that probe needs the same closest() fallback VISIBLE_AFFORDANCES already has.",
-				},
-				{
 					label: "The read behind this",
 					runs: null,
 					why: "ChatCards' reco evidence <summary>: a native <details> disclosure of text already in the card. It runs no handler and changes no app state, so there is no command for /name to reach. It appears here only because VISIBLE_AFFORDANCES lists summary in its selector.",
@@ -1907,7 +1978,7 @@ export default defineSuite({
 			 * these assertions fire — cannot be staged today. Browser.ts's
 			 * `page.type` builds the CDP `code` as `Key${character.toUpperCase()}`,
 			 * so "." dispatches as the invalid code `Key.` and the renderer drops
-			 * it: no e2e suite can type a dotted flow name, and 71 of the 88 have
+			 * it: no e2e suite can type a dotted flow name, and most of the 96 have
 			 * a dot. That is a harness gap, not a product one, and it is why the
 			 * card-title readability guard below is here.
 			 */
@@ -2046,8 +2117,8 @@ export default defineSuite({
 		await adminClient.controller.loadSession();
 		report.equals(
 			adminClient.controller.commands.all().length,
-			88,
-			"an admin session does not register all 88 flows",
+			96,
+			"an admin session does not register all 96 flows",
 		);
 		const adminFixtures: Fixtures = { ...fixtures, grantCardId: "" };
 		const adminWalk: Walk = { client: adminClient, report, fixtures: adminFixtures, invoked };
@@ -2090,9 +2161,9 @@ export default defineSuite({
 		report.equals(notInvoked.length, 0, `classified but never invoked: ${notInvoked.join(", ")}`);
 		report.equals(invoked.size, expected, "the smoke invoked a different number of flows than it classified");
 		/*
-		 * Say the number that is true. This suite invokes 83 of 88; the other 5
+		 * Say the number that is true. This suite invokes 91 of 96; the other 5
 		 * are proved registered and proved never invoked above, and calling that
-		 * "88 smoked" would be the same kind of overclaim the floor exists to
+		 * "96 smoked" would be the same kind of overclaim the floor exists to
 		 * stop.
 		 */
 		report.ok(
