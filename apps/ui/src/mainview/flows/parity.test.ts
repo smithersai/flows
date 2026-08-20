@@ -171,8 +171,9 @@ describe("launch-law parity: every affordance is a command", () => {
 			"../cards/LandingCards.tsx": 4,
 			"../cards/FileCards.tsx": 2,
 			"../cards/KeysCard.tsx": 1,
-			/* Mark-all-read; the empty state names its next step in prose (§28.2). */
-			"../cards/NotificationsCard.tsx": 1,
+			/* Mark-all-read, and the empty state's own next step (§28.2): the
+			 * /repos.watch it names is a real binding, not prose. */
+			"../cards/NotificationsCard.tsx": 2,
 			/*
 			 * RepoImportCard has no affordance at all: importing is background
 			 * work the human never asks for, so the card only states the phase.

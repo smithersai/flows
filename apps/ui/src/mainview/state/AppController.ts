@@ -17,17 +17,19 @@ import {
 	BILLING_BALANCE_PATH,
 	IDENTITY_REQUEST_ACCESS_PATH,
 	RECO_FEEDBACK_PATH,
+	MODEL_STREAM_PATH,
 	RECO_FIRST_RUN_PATH,
 	RECO_REPOS_PATH,
 	RECO_WATCHED_PATH,
 	TOOLS_BROWSER_FETCH_PATH,
-	TURN_PATH,
 	WORKFLOW_EVENTS_PATH,
 	WORKFLOW_PROVISION_PATH,
 	WORKFLOW_RPC_PATH,
 	WORKFLOW_STREAM_PATH,
 } from "smithers-shared/AgentApiRoutes";
 import type { NativeAgent, NativeRepositories } from "../native/NativeBridge";
+import { boundTurnRequest } from "./AgentTurnPolicy";
+import { worldContextDocuments } from "./WorldContext";
 import type { BootSession } from "../BootSession";
 import { createCommandRegistry } from "../flows/Commands";
 import type { CommandOutcome, CommandRegistry } from "../flows/Commands";
@@ -1302,17 +1304,35 @@ export const createAppController = (
 			(outcome) => (outcome === true ? undefined : outcome),
 		);
 	const loadFirstRunRecoImpl = async (bump: boolean): Promise<true | string> => {
+		/*
+		 * §2.4: the answer belongs to the account that asked. A response landing
+		 * after a sign-out (or after another account signed in) is dropped whole
+		 * — dispatching it would repopulate the scrubbed transcript with the
+		 * previous account's repositories.
+		 */
+		const asker = store.collections.identitySessions.get("identity");
+		const askerLogin = asker?.state === "signed-in" ? asker.login : null;
+		const sessionStillOwns = (): boolean => {
+			// Asked before any session published (boot), the answer has no owner
+			// to lose; the guard only bites once an account's answer is pending.
+			if (askerLogin === null) return true;
+			const now = store.collections.identitySessions.get("identity");
+			return now?.state === "signed-in" && now.login === askerLogin;
+		};
 		let response: Response;
 		try {
 			response = await http(`${baseUrl}${RECO_FIRST_RUN_PATH}`);
 		} catch {
+			if (!sessionStillOwns()) return true;
 			const message =
 				"I couldn't reach the recommendations service just now — ask me anything and we'll start from here.";
 			store.dispatch({ type: "reco.message.loaded", actor: "system", message });
 			return message;
 		}
+		if (!sessionStillOwns()) return true;
 		if (!response.ok) {
 			const message = await errorMessageOf(response, "The recommendations service didn't answer.");
+			if (!sessionStillOwns()) return true;
 			store.dispatch({ type: "reco.message.loaded", actor: "system", message });
 			return message;
 		}
@@ -1353,6 +1373,7 @@ export const createAppController = (
 					} | null;
 			  }
 			| undefined;
+		if (!sessionStillOwns()) return true;
 		if (body?.degraded === true) {
 			const message =
 				typeof body.honestMessage === "string" && body.honestMessage.trim() !== ""
@@ -2033,21 +2054,33 @@ export const createAppController = (
 					: {}),
 			},
 			/*
-			 * §22.7 wanted the balance in here — the client holds it, the model
-			 * did not, and asked for it the model answered "$0.00" one line above
-			 * a card its own tool call had just rendered reading "$519 left". The
-			 * shared context contract has no billing field, and the server renders
-			 * only what that contract declares, so a balance sent from here is
-			 * dropped on the way. Widening it is a change to apps/shared, outside
-			 * this change's reach; /billing.balance still answers the question.
+			 * §22.7: asked "what is my balance right now?", the model answered
+			 * "$0.00" one line above a card reading "$519 left" — it had no
+			 * figure in context and confabulated one. The client already holds
+			 * the honest record (ok/low/empty carry the figure; unknown and
+			 * unavailable carry the refusal), so the context states exactly it.
 			 */
+			billing: (() => {
+				const account = store.collections.billingAccounts.get("billing");
+				if (account === undefined) return null;
+				return {
+					state: account.state,
+					totalUsd: account.totalUsd,
+					lifetimeChargedUsd: account.lifetimeChargedUsd,
+					chargeCount: account.chargeCount,
+				};
+			})(),
 			worldState: {
 				documentCount: snapshot.worldState.documents.length,
-				documents: snapshot.worldState.documents.map((document) => ({
-					path: document.path,
-					title: document.title,
-					confidence: document.confidence,
-				})),
+				/*
+				 * §10.8: the notes ride with their own words, budgeted, the open
+				 * note first — metadata alone made the World decorative to the
+				 * model that is told it states what Smithers understands.
+				 */
+				documents: worldContextDocuments(
+					snapshot.worldState.documents,
+					current.selectedWorldDocumentId,
+				),
 			},
 			capabilities: [
 				"Hold a streaming conversation in this chat and read its visible transcript.",
@@ -2089,15 +2122,36 @@ export const createAppController = (
 		});
 	};
 
-	const launchLeg = (turnId: string, messages: ReadonlyArray<AgentChatMessage>): void => {
-		void agent
-			.startTurn({
+	const launchLeg = (
+		turnId: string,
+		messages: ReadonlyArray<AgentChatMessage>,
+		/*
+		 * §4.13: the trailing messages a bound must not cut — the user's own
+		 * prompt, and the function_call/function_call_output pair of every tool
+		 * leg, which mean nothing split apart.
+		 */
+		keepTail = 1,
+	): void => {
+		/*
+		 * §4.13: the client re-sends the whole transcript every turn, so a long
+		 * conversation crossed the boundary's body limit and then stayed dead —
+		 * every later turn failed the same way, and /clear could not recover it
+		 * because /clear runs a model turn of its own into the same wall. The
+		 * oldest messages are dropped until the request fits, and a notice
+		 * stands where they were.
+		 */
+		const { request } = boundTurnRequest(
+			{
 				runId: turnId,
 				messages,
 				instructions: turnInstructions(),
 				tools: commands.toolSpecs(),
 				context: agentRuntimeContext(),
-			})
+			},
+			keepTail,
+		);
+		void agent
+			.startTurn(request)
 			.then((result) => {
 				if (result.status !== "error" || activeTurn?.id !== turnId) return;
 				const turn = activeTurn;
@@ -2281,7 +2335,7 @@ export const createAppController = (
 			{ type: "function_call", call_id: call.callId, name: call.name, arguments: call.args },
 			{ type: "function_call_output", call_id: call.callId, output: result },
 		);
-		launchLeg(turn.id, [...contextMessages(), ...turn.toolItems]);
+		launchLeg(turn.id, [...contextMessages(), ...turn.toolItems], turn.toolItems.length + 1);
 	};
 
 	/*
@@ -3006,21 +3060,15 @@ export const createAppController = (
 		let response: Response;
 		try {
 			/*
-			 * The sweep reads NDJSON turn frames ({type:"delta",kind:"text"}), so
-			 * it posts to the TURN route that speaks them. Pointing it at the
-			 * model relay — which answers the provider's own SSE — meant the
-			 * parse below found nothing every time, and /clear answered "I
-			 * couldn't finish reviewing the conversation" on a healthy backend
-			 * while keeping the transcript it was asked to sweep.
+			 * The sweep is a sealed model call, not a conversation turn, so it
+			 * rides the one metered model route the chain backend owns
+			 * (RelayProtocol: `{instructions, messages}` in, the same NDJSON
+			 * `delta`/`done` frames out that the parse below reads).
 			 */
-			response = await http(`${baseUrl}${TURN_PATH}`, {
+			response = await http(`${baseUrl}${MODEL_STREAM_PATH}`, {
 				method: "POST",
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({
-					// The route identifies every turn, including this one: a body
-					// without a runId is refused with 400, which the parse below
-					// could only report as "nothing worth keeping".
-					runId: `sweep-${Date.now()}`,
 					messages: transcript,
 					instructions: SWEEP_INSTRUCTIONS,
 				}),

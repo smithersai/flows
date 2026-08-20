@@ -830,24 +830,6 @@ export const baseFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> => 
 		handler: ({ number, verdict, text, repo }) => actions.reviewLanding(number, verdict, text, repo),
 	}),
 	flow({
-		/* Payment flows are the human's act alone: user-only, like sign-in. */
-		name: "billing.upgrade",
-		summary: "Upgrade your plan (opens Stripe checkout)",
-		userOnly: true,
-		args: "[plan]",
-		requires: ["signed-in"],
-		input: Schema.Struct({ plan: Schema.optional(Schema.String) }),
-		handler: ({ plan }) => actions.startCheckout(plan),
-	}),
-	flow({
-		name: "billing.portal",
-		summary: "Manage billing (opens the Stripe portal)",
-		userOnly: true,
-		requires: ["signed-in"],
-		input: NoPayload,
-		handler: () => actions.openBillingPortal(),
-	}),
-	flow({
 		name: "keys.list",
 		summary: "List your provider API keys (masked)",
 		requires: ["signed-in"],
@@ -963,6 +945,30 @@ export const baseFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> => 
 export const adminFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> => [
 	flow({
 		/*
+		 * §17.4: no checkout is exposed to an MVP account — the alpha comps
+		 * chat and pauses paid work at $0 instead of selling. The Stripe pair
+		 * registers here so the seam stays testable by admins, and a
+		 * non-admin /billing.upgrade resolves exactly like a typo. Payment is
+		 * the human's act alone: user-only, like sign-in.
+		 */
+		name: "billing.upgrade",
+		summary: "Upgrade your plan (opens Stripe checkout)",
+		userOnly: true,
+		args: "[plan]",
+		requires: ["signed-in"],
+		input: Schema.Struct({ plan: Schema.optional(Schema.String) }),
+		handler: ({ plan }) => actions.startCheckout(plan),
+	}),
+	flow({
+		name: "billing.portal",
+		summary: "Manage billing (opens the Stripe portal)",
+		userOnly: true,
+		requires: ["signed-in"],
+		input: NoPayload,
+		handler: () => actions.openBillingPortal(),
+	}),
+	flow({
+		/*
 		 * The bare reset is admin-only dev tooling (§2): no sweep, nothing kept.
 		 * Users get /clear instead.
 		 */
@@ -1058,6 +1064,9 @@ export const adminFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> =>
 		name: "admin.grant.confirm",
 		summary: "Confirm a pending balance grant",
 		hidden: true,
+		// Confirming a money grant is the human's act alone (§17.2): the model
+		// proposed it; it does not also get to press the button.
+		userOnly: true,
 		args: "<cardId>",
 		input: CardTarget,
 		handler: ({ cardId }) => actions.adminGrantConfirm(cardId),
@@ -1066,6 +1075,7 @@ export const adminFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> =>
 		name: "admin.grant.cancel",
 		summary: "Cancel a pending balance grant",
 		hidden: true,
+		userOnly: true,
 		args: "<cardId>",
 		input: CardTarget,
 		handler: ({ cardId }) => actions.adminGrantCancel(cardId),
@@ -1080,6 +1090,8 @@ export const adminFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> =>
 		name: "admin.queue.approve",
 		summary: "Approve a request-access queue entry",
 		hidden: true,
+		// Approving a human's access request is likewise the admin's own act.
+		userOnly: true,
 		args: "<login>",
 		input: Schema.Struct({ login: Schema.String }),
 		handler: ({ login }) => actions.adminQueueApprove(login),

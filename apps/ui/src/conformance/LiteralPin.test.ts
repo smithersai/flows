@@ -110,16 +110,6 @@ const RESOLVES_ELSEWHERE: ReadonlyArray<Excuse> = [
 		reason: "the Submit union's kind (registry.ts `Submit`), compared against a `.kind` that is not a card's",
 	},
 	{
-		literal: "promotional",
-		file: "scripts/stub-backends.ts",
-		reason: "a billing grant's kind, compared against the grant union rather than a card",
-	},
-	{
-		literal: "purchased",
-		file: "scripts/stub-backends.ts",
-		reason: "a billing grant's kind, compared against the grant union rather than a card",
-	},
-	{
 		literal: "data-card-kind",
 		file: "e2e/suites/cards-copy.e2e.ts",
 		reason: "the subject of the assertion: this suite proves Probes.CARD_LEADS' selector matches nothing the app renders",

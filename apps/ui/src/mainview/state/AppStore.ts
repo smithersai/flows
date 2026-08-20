@@ -14,6 +14,7 @@ import {
 	readRecordedBackend,
 	recordBackend,
 } from "../chain/SchemaVersion";
+import { PALETTE_MIRROR_KEY, rememberAppearance, THEME_MIRROR_KEY } from "./Appearance";
 import {
 	BillingAccountSchema,
 	CardSchema,
@@ -73,6 +74,9 @@ const preferredTheme = (): Session["theme"] =>
 
 const applyTheme = (theme: Session["theme"]): void => {
 	if (typeof document !== "undefined") document.documentElement.dataset.theme = theme;
+	// Mirrored for the boot script's first paint (§20.4) — what is applied is,
+	// by construction, what the next boot reads.
+	rememberAppearance(THEME_MIRROR_KEY, theme);
 };
 
 /*
@@ -83,6 +87,7 @@ const applyTheme = (theme: Session["theme"]): void => {
  */
 const applyPalette = (palette: Palette): void => {
 	if (typeof document !== "undefined") document.documentElement.dataset.palette = palette;
+	rememberAppearance(PALETTE_MIRROR_KEY, palette);
 };
 
 const transitionPayload = (transition: AppTransition): string => {
@@ -574,12 +579,24 @@ const forgetAccountState = (collections: AppCollections): void => {
 		collections.messages,
 		collections.cards,
 		collections.toasts,
-		collections.billingAccounts,
 		collections.watchedRepos,
 		collections.toolCalls,
+		// The chain journal and the transition journal quote the account's
+		// turns verbatim (§2.4): a tool result or a submitted message naming a
+		// private repository outlives the session otherwise.
+		collections.chainEvents,
+		collections.transitions,
 	]) {
 		const keys = [...(collection as { keys: () => Iterable<string> }).keys()];
 		if (keys.length > 0) (collection as { delete: (keys: string[]) => void }).delete(keys);
+	}
+	// The chip reads this row, so it is RESET rather than deleted: state
+	// "unknown" renders nothing, where a missing row would render a stale shape.
+	if (collections.billingAccounts.get("billing") !== undefined) {
+		const fresh = initialBillingAccount();
+		collections.billingAccounts.update("billing", (draft) => {
+			Object.assign(draft, fresh);
+		});
 	}
 };
 
@@ -1435,7 +1452,13 @@ export const createAppStore = async (
 					 * "unavailable" is not that: it means the seam could not answer,
 					 * and the last known state stays honest-but-stale.
 					 */
-					if (transition.state === "signed-out" && existing.state === "signed-in") {
+					if (
+						existing.state === "signed-in" &&
+						(transition.state === "signed-out" ||
+							// A direct account replacement (Alice's cookie swapped for
+							// Bob's between loads) scrubs Alice before Bob publishes.
+							(transition.state === "signed-in" && transition.login !== existing.login))
+					) {
 						forgetAccountState(collections);
 					}
 					collections.identitySessions.update("identity", (draft) => {

@@ -345,10 +345,18 @@ describe("command registry bindings", () => {
 		expect(names).toEqual([
 			"connect",
 			"world",
+			// will, 2026-08-19: the GitHub pane and the shared files browser
+			// (directives 1 and 6), with their id-scoped row/tab navigation.
+			"github",
+			"files",
+			"repo.open",
+			"repo.tab",
 			"theme",
 			"surfaces",
 			"dark-mode",
 			"chat",
+			// will, 2026-08-19 (directive 2): the agent's follow-up channel.
+			"suggestions.propose",
 			"retry",
 			"chat.stop",
 			"stop",
@@ -367,6 +375,8 @@ describe("command registry bindings", () => {
 			"flow.list",
 			"flow.run",
 			"card.maximize",
+			// will, 2026-08-19 (directive 7): an act row opens in place.
+			"act.detail",
 			"card.minimize",
 			"copy-message",
 			"approval.approve",
