@@ -726,15 +726,17 @@ export const make = (
           yield* encodeState(withoutResult(state)),
           { decision: "interrupt-released", owner: dependencies.owner }
         )
-        if (transitioned._tag === "Transitioned") return
-        // Fence lost between park and release: the run is someone else's
-        // (or already settled), so our reclaim marker is bogus. Clear it
-        // only if it is still ours — a new owner may have parked a real
-        // waiting reason in between.
-        if (parked._tag === "Parked") {
-          const current = yield* engineState.waiting(runId)
-          if (Option.isSome(current) && current.value.reason === "released") {
-            yield* engineState.wake(runId)
+        /* v8 ignore else -- a successful transition falls through with no further work */
+        if (transitioned._tag !== "Transitioned") {
+          // Fence lost between park and release: the run is someone else's
+          // (or already settled), so our reclaim marker is bogus. Clear it
+          // only if it is still ours — a new owner may have parked a real
+          // waiting reason in between.
+          if (parked._tag === "Parked") {
+            const current = yield* engineState.waiting(runId)
+            if (Option.isSome(current) && current.value.reason === "released") {
+              yield* engineState.wake(runId)
+            }
           }
         }
       })

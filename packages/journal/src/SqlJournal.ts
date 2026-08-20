@@ -34,6 +34,7 @@ import * as Semaphore from "effect/Semaphore"
 import * as Stream from "effect/Stream"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import type * as SqlError from "effect/unstable/sql/SqlError"
+import { Consensus, type ConsensusError } from "./Consensus.ts"
 import {
   Checkpoint,
   type CheckpointOptions,
@@ -53,6 +54,7 @@ import * as JournalMetrics from "./JournalMetrics.ts"
 import type { OwnerId } from "./OwnerId.ts"
 import type { Projection } from "./Projection.ts"
 import * as Redaction from "./Redaction.ts"
+import * as SqlConsensus from "./SqlConsensus.ts"
 
 /** JSON text carrying an arbitrary decoded value. */
 const UnknownFromJsonString = Schema.fromJsonString(Schema.Unknown)
@@ -67,8 +69,8 @@ const UnknownFromJsonString = Schema.fromJsonString(Schema.Unknown)
  *
  * The attempt runs post-commit in the fiber that crossed the threshold, so
  * keep `capture` to storage reads. It must not emit through this journal:
- * the triggering durable emit still holds the allocation permit, and a
- * nested emit would deadlock on it.
+ * doing so would let automatic compaction recursively trigger more durable
+ * journal work from the settlement path.
  *
  * A failed or refused attempt — a live stream behind the boundary, a
  * capture failure — is logged at warning, damped for `entryThreshold`
@@ -315,24 +317,27 @@ const validateOptions = (options: SqlJournalOptions): Effect.Effect<ValidatedOpt
 const isJournalError = Schema.is(JournalError)
 
 /**
- * Provides the SQLite-backed journal.
+ * Provides the SQLite-backed journal over an explicitly injected consensus
+ * strategy.
  *
- * `emitLossy` validates and admits telemetry to the non-blocking queue;
- * `emitDurable` allocates and commits inside the database transaction.
+ * Fenced admission — `emitDurable` with an owner, `checkpoint`, `compact` —
+ * goes through the injected `Consensus` service instead of a hard-wired join
+ * on a table another package owns.
  *
  * @category layers
  * @since 0.1.0
  * @slop
  */
-export const layer = (
+export const layerWith = (
   options: SqlJournalOptions
-): Layer.Layer<Journal, JournalError, DurableWriter | SqlClient.SqlClient> =>
+): Layer.Layer<Journal, JournalError, Consensus | DurableWriter | SqlClient.SqlClient> =>
   Layer.effect(
     Journal,
     Effect.gen(function*() {
       const { batchSize, redact, sourceEventCache } = yield* validateOptions(options)
       const sql = yield* Effect.service(SqlClient.SqlClient)
       const writer = yield* DurableWriter
+      const consensus = yield* Consensus
 
       const queue = yield* Queue.dropping<QueuedEntry>(options.capacity)
       const changes = yield* PubSub.sliding<Entry>(options.capacity)
@@ -825,32 +830,27 @@ export const layer = (
         )
 
       /**
-       * Owner fence for the fenced append's conflict classification, for
-       * checkpoint, and for compaction, evaluated inside the caller's write
-       * transaction. A guard SELECT is equivalent to the `WHERE EXISTS`
-       * predicate `insertOne` uses because `DurableWriter` serializes write
-       * transactions: no reclaim can commit between this read and the
-       * statements that run beside it in the same transaction.
+       * Owner fence for fenced appends, checkpoints, and compaction,
+       * arbitrated by the injected consensus strategy and evaluated inside
+       * the caller's write transaction (R3 — commit-time admission). For the
+       * default `SqlConsensus`, the guard read joins this transaction and is
+       * equivalent to a predicate on the statements beside it because
+       * `DurableWriter` serializes write transactions: no reclaim can commit
+       * between the guard and the commit. A strategy failure that is not a
+       * lost fence propagates for the caller to wrap as `sink_failed`, with
+       * its cause intact for the writer's retry classification.
        */
       const fenceGuard = (
         runId: RunId,
         owner: OwnerId
-      ): Effect.Effect<void, JournalError | SqlError.SqlError> =>
-        Effect.gen(function*() {
-          const held = yield* sql<{ readonly ok: number }>`
-            SELECT 1 AS ok FROM flows_runs
-            WHERE run_id = ${runId}
-              AND status = 'running'
-              AND owner_host_id = ${owner.hostId}
-              AND owner_pid = ${owner.pid}
-              AND owner_nonce = ${owner.nonce}
-          `
-          if (held.length === 0) {
-            return yield* Effect.fail(
-              error("fence_lost", `run ${runId} is no longer owned by ${owner.hostId}:${owner.pid}:${owner.nonce}`)
-            )
-          }
-        })
+      ): Effect.Effect<void, JournalError | ConsensusError> =>
+        consensus.guard(runId, owner).pipe(
+          Effect.mapError((cause) =>
+            cause.code === "fence_lost"
+              ? error("fence_lost", cause.message)
+              : cause
+          )
+        )
 
       /**
        * Reads the row a duplicate emit collides with.
@@ -906,97 +906,62 @@ export const layer = (
         })
 
       /**
-       * When `owner` is present the insert is fenced on the run's persisted
-       * ownership with the same `WHERE EXISTS` predicate
-       * `DurableEngineState.scheduleClock` uses, following Temporal's shard
-       * `rangeID` check (`service/history/shard/context_impl.go`,
-       * `renewRangeLocked`) reduced to one SQL predicate: a zombie owner whose
-       * run was reclaimed cannot append, and fails with `fence_lost`.
+       * When `owner` is present the append is fenced through the injected
+       * consensus strategy before anything else, following Temporal's rule of
+       * conditioning every request on the shard `rangeID`
+       * (`service/history/shard/context_impl.go`, `renewRangeLocked`): a
+       * zombie owner whose run was reclaimed cannot append, and fails with
+       * `fence_lost`. The guard runs inside the same serialized write
+       * transaction as the INSERT, so no reclaim can commit between them.
        *
-       * The fence outranks dedup. The duplicate lookup answers an ownerless
-       * insert up front, but a fenced insert consults it only after the
-       * INSERT produced no row AND `fenceGuard` has confirmed the owner in
-       * the same serialized transaction — Temporal conditions every request
-       * on the `rangeID` before anything else. Answering a zombie's
-       * resubmission from the dedup index would launder its lost fence into
-       * a `Duplicate` receipt for work the live owner committed; a confirmed
-       * owner's conflict, by contrast, is a genuine duplicate (its own
-       * earlier commit, or a forked run's copied row).
+       * The fence outranks dedup. The duplicate lookup runs only after the
+       * guard has confirmed the owner, so a zombie's resubmission is never
+       * answered from the dedup index — that would launder its lost fence
+       * into a `Duplicate` receipt for work the live owner committed. A
+       * confirmed owner's conflict, by contrast, is a genuine duplicate (its
+       * own earlier commit, or a forked run's copied row).
        */
       const insertOne = (
         queued: QueuedEntry,
         owner?: OwnerId
-      ): Effect.Effect<Commit, JournalError | SqlError.SqlError> =>
+      ): Effect.Effect<Commit, JournalError | ConsensusError | SqlError.SqlError> =>
         Effect.gen(function*() {
-          if (owner === undefined) {
-            const duplicate = yield* selectExisting(queued)
-            if (duplicate !== undefined) {
-              return duplicate
-            }
+          if (owner !== undefined) {
+            yield* fenceGuard(queued.runId, owner)
           }
-          const insert = owner === undefined
-            ? sql<JournalRow>`
-              INSERT INTO flows_journal_events (
-                run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
-                event_type, payload_json, meta_json
-              ) VALUES (
-                ${queued.runId},
-                ${queued.seq},
-                ${queued.eventId},
-                ${queued.sourceId},
-                ${queued.sourceSeq},
-                ${queued.emittedAtMs},
-                ${queued.eventType},
-                ${queued.payloadJson},
-                ${queued.metaJson}
-              )
-              ON CONFLICT DO NOTHING
-              RETURNING run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
-                event_type, payload_json, meta_json
-            `
-            : sql<JournalRow>`
-              INSERT INTO flows_journal_events (
-                run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
-                event_type, payload_json, meta_json
-              )
-              SELECT
-                ${queued.runId},
-                ${queued.seq},
-                ${queued.eventId},
-                ${queued.sourceId},
-                ${queued.sourceSeq},
-                ${queued.emittedAtMs},
-                ${queued.eventType},
-                ${queued.payloadJson},
-                ${queued.metaJson}
-              WHERE EXISTS (
-                SELECT 1
-                FROM flows_runs
-                WHERE run_id = ${queued.runId}
-                  AND status = 'running'
-                  AND owner_host_id = ${owner.hostId}
-                  AND owner_pid = ${owner.pid}
-                  AND owner_nonce = ${owner.nonce}
-              )
-              ON CONFLICT DO NOTHING
-              RETURNING run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
-                event_type, payload_json, meta_json
-            `
-          const inserted = yield* insert
+          const duplicate = yield* selectExisting(queued)
+          if (duplicate !== undefined) {
+            return duplicate
+          }
+          const inserted = yield* sql<JournalRow>`
+            INSERT INTO flows_journal_events (
+              run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
+              event_type, payload_json, meta_json
+            ) VALUES (
+              ${queued.runId},
+              ${queued.seq},
+              ${queued.eventId},
+              ${queued.sourceId},
+              ${queued.sourceSeq},
+              ${queued.emittedAtMs},
+              ${queued.eventType},
+              ${queued.payloadJson},
+              ${queued.metaJson}
+            )
+            ON CONFLICT DO NOTHING
+            RETURNING run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
+              event_type, payload_json, meta_json
+          `
           if (inserted.length > 0) {
             return {
               entry: yield* decodeRow(inserted[0]!),
               inserted: true
             }
           }
-          if (owner !== undefined) {
-            // The fenced INSERT produced no row either because the fence
-            // predicate failed or because a unique constraint fired. The
-            // fence is checked first, so a lost fence is reported as
-            // `fence_lost` even when the resubmitted identity already names
-            // a committed entry.
-            yield* fenceGuard(queued.runId, owner)
-          }
+          // The insert produced no row: either this identity was committed
+          // between the preflight read and the INSERT — a raced duplicate —
+          // or `PRIMARY KEY (run_id, seq)` fired because another writer
+          // committed this sequence under a different identity.
           const racedDuplicate = yield* selectExisting(queued)
           if (racedDuplicate !== undefined) {
             return racedDuplicate
@@ -1209,61 +1174,69 @@ export const layer = (
           runId: input.runId,
           sourceId: input.sourceId,
           eventType: input.eventType
-        }).pipe(Effect.andThen(allocation.withPermit(Effect.flatMap(Clock.currentTimeMillis, (emittedAtMs) =>
+        }).pipe(Effect.andThen(Effect.flatMap(Clock.currentTimeMillis, (emittedAtMs) =>
           Effect.flatMap(Effect.fromResult(prepare(input, emittedAtMs)), ({ metaJson, payloadJson, validated }) =>
-            Effect.uninterruptibleMask((restore) =>
-              restore(writer.write(Effect.gen(function*() {
-                const key = sourceKey(validated.runId, validated.sourceId)
-                const sourceSeq: SourceSeq = validated.sourceSeq ??
-                  (Math.max(
-                    yield* nextDurable("source_seq", validated.runId, validated.sourceId),
-                    state.sourceSequences.get(key) ?? 0
-                  ) as SourceSeq)
-                if (
-                  !Number.isSafeInteger(sourceSeq) ||
-                  sourceSeq < 0 ||
-                  sourceSeq === Number.MAX_SAFE_INTEGER
-                ) {
-                  return yield* Effect.fail(
-                    error("invalid_event", "journal sequence is outside the allocatable safe integer range")
-                  )
-                }
-                const seq = Math.max(
-                  yield* nextDurable("seq", validated.runId, undefined),
-                  state.sequences.get(validated.runId) ?? 0
-                ) as Seq
-                if (!Number.isSafeInteger(seq) || seq === Number.MAX_SAFE_INTEGER) {
-                  return yield* Effect.fail(
-                    error("invalid_event", "journal sequence is outside the allocatable safe integer range")
-                  )
-                }
-                // Claim the seq NOW, not at commit: a concurrent `emitLossy`
-                // allocates from this floor alone, and `settleCommit` parks
-                // the commit-time raise until the outermost COMMIT.
-                // Re-entering the transaction body is idempotent because the
-                // floor only rises. An abandoned attempt leaves the number
-                // unused, which is a gap: allocation is `MAX(seq) + 1` and
-                // replay is `ORDER BY seq`, so neither reads a gap as anything.
-                raiseSequenceFloor(validated.runId, seq)
-                // Claim the producer sequence at the same allocation seam.
-                // Without this, a lossy emit from the same producer can read
-                // the pre-transaction source floor and reuse this identity
-                // while an enclosing `transact` is still open.
-                raiseSourceSequenceFloor(validated.runId, validated.sourceId, sourceSeq)
-                const queued: QueuedEntry = {
-                  runId: validated.runId,
-                  seq,
-                  eventId: makeEventId(validated.runId, validated.sourceId, sourceSeq),
-                  sourceId: validated.sourceId,
-                  sourceSeq,
-                  emittedAtMs,
-                  eventType: validated.eventType,
-                  payloadJson,
-                  metaJson
-                }
-                const commit = yield* insertOne(queued, owner)
-                return { commit, queued, sourceSeq }
-              }))).pipe(
+            Effect.flatMap(
+              Effect.serviceOption(Settlements),
+              (enclosing) => {
+                const allocateEntry = Effect.gen(function*() {
+                  const key = sourceKey(validated.runId, validated.sourceId)
+                  const sourceSeq: SourceSeq = validated.sourceSeq ??
+                    (Math.max(
+                      yield* nextDurable("source_seq", validated.runId, validated.sourceId),
+                      state.sourceSequences.get(key) ?? 0
+                    ) as SourceSeq)
+                  if (
+                    !Number.isSafeInteger(sourceSeq) ||
+                    sourceSeq < 0 ||
+                    sourceSeq === Number.MAX_SAFE_INTEGER
+                  ) {
+                    return yield* Effect.fail(
+                      error("invalid_event", "journal sequence is outside the allocatable safe integer range")
+                    )
+                  }
+                  const seq = Math.max(
+                    yield* nextDurable("seq", validated.runId, undefined),
+                    state.sequences.get(validated.runId) ?? 0
+                  ) as Seq
+                  if (!Number.isSafeInteger(seq) || seq === Number.MAX_SAFE_INTEGER) {
+                    return yield* Effect.fail(
+                      error("invalid_event", "journal sequence is outside the allocatable safe integer range")
+                    )
+                  }
+                  // Claim the seq NOW, not at commit: a concurrent `emitLossy`
+                  // allocates from this floor alone, and `settleCommit` parks
+                  // the commit-time raise until the outermost COMMIT.
+                  // Re-entering the transaction body is idempotent because the
+                  // floor only rises. An abandoned attempt leaves the number
+                  // unused, which is a gap: allocation is `MAX(seq) + 1` and
+                  // replay is `ORDER BY seq`, so neither reads a gap as anything.
+                  raiseSequenceFloor(validated.runId, seq)
+                  // Claim the producer sequence at the same allocation seam.
+                  // Without this, a lossy emit from the same producer can read
+                  // the pre-transaction source floor and reuse this identity
+                  // while an enclosing `transact` is still open.
+                  raiseSourceSequenceFloor(validated.runId, validated.sourceId, sourceSeq)
+                  return {
+                    queued: {
+                      runId: validated.runId,
+                      seq,
+                      eventId: makeEventId(validated.runId, validated.sourceId, sourceSeq),
+                      sourceId: validated.sourceId,
+                      sourceSeq,
+                      emittedAtMs,
+                      eventType: validated.eventType,
+                      payloadJson,
+                      metaJson
+                    },
+                    sourceSeq
+                  }
+                })
+                const writeEntry = Effect.gen(function*() {
+                  const { queued, sourceSeq } = yield* allocation.withPermit(allocateEntry)
+                  const commit = yield* insertOne(queued, owner)
+                  return { commit, queued, sourceSeq }
+                })
                 /**
                  * `writer.write` is a retrying transaction: its body replays on
                  * `SQLITE_BUSY(_SNAPSHOT)` and can still abort at COMMIT after the
@@ -1278,9 +1251,10 @@ export const layer = (
                  * transaction — so `settle` parks both effects until the
                  * outermost transaction commits.
                  */
-                Effect.tap(({ commit, queued }) => settleCommit(queued, commit))
-              )
+                return Option.isSome(enclosing) ? writeEntry : writer.write(writeEntry)
+              }
             ).pipe(
+              Effect.tap(({ commit, queued }) => settleCommit(queued, commit)),
               Effect.map(({ commit, sourceSeq }) =>
                 commit.inserted
                   ? { _tag: "Accepted", seq: commit.entry.seq, sourceSeq } as const
@@ -1292,7 +1266,7 @@ export const layer = (
               Effect.mapError((cause) =>
                 isJournalError(cause) ? cause : error("sink_failed", "durable journal write failed", cause)
               )
-            ))))))
+            )))))
       )
 
       const emitLossy: Service["emitLossy"] = queuedEmit
@@ -1738,3 +1712,20 @@ export const layer = (
       })
     })
   )
+
+/**
+ * Provides the SQLite-backed journal over the default `SqlConsensus`
+ * strategy.
+ *
+ * `emitLossy` validates and admits telemetry to the non-blocking queue;
+ * `emitDurable` allocates and commits inside the database transaction. To
+ * choose a different consensus strategy, use {@link layerWith} and provide
+ * the strategy layer explicitly.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
+export const layer = (
+  options: SqlJournalOptions
+): Layer.Layer<Journal, JournalError, DurableWriter | SqlClient.SqlClient> =>
+  layerWith(options).pipe(Layer.provide(SqlConsensus.layer))

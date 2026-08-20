@@ -115,7 +115,6 @@ describe("vitest coverage isolation conformance", () => {
     "core",
     "evals",
     "fs",
-    "harness",
     "memory",
     "model",
     "patterns",
@@ -477,15 +476,6 @@ describe("vitest coverage isolation conformance", () => {
     // directives that the earlier literal-`v8 ignore` grep never saw.
     const directive = /(?:istanbul|[cv]8|node:coverage)\s+ignore\s+(if|else|next|file|start|stop)(?=\W|$)/g
     const allowlist: Record<string, number> = {
-      // Cell calls are schema-decoded before keying and controller boundary
-      // identities are JSON-shaped, so these two canonicalization error
-      // mappers are unreachable. Each ignore is scoped to its one mapper.
-      "agent/src/FlowEngineLike.ts": 2,
-      // The agent session's remaining hints are narrowly scoped to
-      // process-loss and corrupted-registry fallbacks. They translate
-      // engine/journal failures that the durable integration stack cannot
-      // synthesize without breaking the very invariants it is proving.
-      "agent/src/AgentSession.ts": 10,
       // Canonical capture rejects accessor properties before recursively
       // freezing the captured object graph, so the descriptor walk only sees
       // data properties in both identity implementations.
@@ -510,7 +500,18 @@ describe("vitest coverage isolation conformance", () => {
       // they reach the sandbox.
       "engine-store/src/WorkspaceSandbox.ts": 1,
       "engine-store/src/internal/RunCoordinator.ts": 1,
+      // The successful release transition falls through with no further work;
+      // only the refused-transition arm has cleanup behavior to exercise.
+      "engine-store/src/internal/RunDriver.ts": 1,
       "engine/src/FlowEngine/make.ts": 1,
+      // Harness fallbacks translate impossible states at already-validated
+      // schema, sandbox, transcript, and structured-output boundaries. Each
+      // directive is scoped to the single defensive arm it documents.
+      "harness/src/Cell.ts": 2,
+      "harness/src/QuickJSSandbox.ts": 3,
+      "harness/src/Sandbox.ts": 1,
+      "harness/src/StructuredOutput.ts": 1,
+      "harness/src/Transcript.ts": 2,
       "journal/src/SqlJournal.ts": 1,
       // `FileSet.Entry` is a closed two-member union, so the final
       // comparison arm's `else` and the fallthrough after every pair
@@ -531,7 +532,6 @@ describe("vitest coverage isolation conformance", () => {
       // construction because every application enters the trap.
       "plan/src/Planned.ts": 1,
       "run-store/src/AttemptStore.ts": 1,
-      "run-store/src/RunStore.ts": 1,
       "step-cache/src/CacheStore.ts": 1
     }
     const sourceFiles = (directory: string): Array<string> => {

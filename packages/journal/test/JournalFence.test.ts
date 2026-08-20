@@ -38,7 +38,7 @@ const input = (run: RunId, source: SourceId, sourceSeq: number): Input =>
     payload: { decision: "created" }
   }, { disableChecks: true })
 
-const stack = SqlJournal.layer({ capacity: 8, overflow: "reject" }).pipe(
+const stack = SqlJournal.layerWith({ capacity: 8, overflow: "reject" }).pipe(
   Layer.provideMerge(SqlConsensus.layer),
   Layer.provideMerge(Layer.provideMerge(Migrations.layer, TestDatabase.layer))
 )
