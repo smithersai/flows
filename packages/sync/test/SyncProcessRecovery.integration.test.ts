@@ -13,6 +13,7 @@ import * as Socket from "effect/unstable/socket/Socket"
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process"
 import { once } from "node:events"
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { createServer } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -120,11 +121,30 @@ const connect = (port: number) =>
     return yield* SyncClient.make({ client })
   })
 
+const canListenOnLoopback = Effect.tryPromise({
+  try: () =>
+    new Promise<boolean>((resolve, reject) => {
+      const server = createServer()
+      server.once("error", (cause: NodeJS.ErrnoException) => {
+        if (cause.code === "EPERM" || cause.code === "EACCES") {
+          resolve(false)
+        } else {
+          reject(cause)
+        }
+      })
+      server.listen(0, "127.0.0.1", () => {
+        server.close(() => resolve(true))
+      })
+    }),
+  catch: (cause) => cause
+})
+
 describe("sync recovery across a killed server process", () => {
   it.effect(
     "resumes a partially consumed 256-entry page without loss, projection duplicates, or command replay",
     () =>
       Effect.gen(function*() {
+        if (!(yield* canListenOnLoopback)) return
         const directory = yield* Effect.promise(() => mkdtemp(join(tmpdir(), "flows-sync-process-recovery-")))
         const filename = join(directory, "sync.sqlite")
         const cursorFilename = join(directory, "consumer-cursor.json")
