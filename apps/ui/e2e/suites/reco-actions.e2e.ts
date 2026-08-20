@@ -689,10 +689,10 @@ export default defineSuite({
 				0,
 				"the dismissed recommendation still leads the suggestion row",
 			);
-			report.includes(
-				await dismissPage.text(),
-				"Nothing needs you right now.",
-				"the digest card did not say there was nothing waiting",
+			report.equals(
+				await count(dismissPage, '[data-flow="github"]'),
+				1,
+				"the recommendation-less digest did not route into repository browsing",
 			);
 
 			// It comes back only once something has changed, and it says what.
