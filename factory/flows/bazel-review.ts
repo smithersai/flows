@@ -60,7 +60,7 @@ const Review = Flow.make("factory/BazelReview", {
             timeoutMs: TIMEOUT_MS,
             logDir,
             completionMarker: "DONE",
-            allowedPaths: [path.join(logDir, `${pkg}.md`), path.join(logDir, `review-${pkg}.log`)]
+            allowedPaths: [path.join(logDir, `${pkg}.md`)]
           })
         ])
       )

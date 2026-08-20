@@ -289,7 +289,7 @@ if (!skipAgents) {
                 timeoutMs: AGENT_TIMEOUT_MS,
                 logDir,
                 completionMarker: "DONE",
-                allowedPaths: [path.join(PAGES, "flows/packages", pkg), logDir]
+                allowedPaths: [path.join(PAGES, "flows/packages", pkg)]
               })
             ])
           )
